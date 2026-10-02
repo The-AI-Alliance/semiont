@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { deriveViews } from '../knowledge-graph-views';
 import type { components } from '../types';
+import { resourceId, annotationId } from '../identifiers';
 
 type KnowledgeGraph = components['schemas']['KnowledgeGraph'];
 
@@ -12,8 +13,8 @@ describe('deriveViews', () => {
   it('derives connections from main→peer edges (name, entityTypes, bidirectional)', () => {
     const graph: KnowledgeGraph = {
       nodes: [
-        { id: 'res-main', type: 'resource', label: 'Main', entityTypes: ['Paper'] },
-        { id: 'res-peer', type: 'resource', label: 'Peer', entityTypes: ['Author'] },
+        { id: resourceId('res-main'), type: 'resource', label: 'Main', entityTypes: ['Paper'] },
+        { id: resourceId('res-peer'), type: 'resource', label: 'Peer', entityTypes: ['Author'] },
       ],
       // relationshipType is a free string a stored connection can name anything —
       // even 'cites'. Derivation is structural (endpoints), so this stays a
@@ -32,20 +33,20 @@ describe('deriveViews', () => {
     const ann = (id: string, source: string) => ({
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       type: 'Annotation' as const,
-      id,
+      id: annotationId(id),
       motivation: 'linking' as const,
       target: { source },
       created: '2020-01-01T00:00:00.000Z',
     });
     const graph: KnowledgeGraph = {
       nodes: [
-        { id: 'res-main', type: 'resource', label: 'Main', entityTypes: [] },
-        { id: 'res-citing', type: 'resource', label: 'Citing Paper', entityTypes: [] },
+        { id: resourceId('res-main'), type: 'resource', label: 'Main', entityTypes: [] },
+        { id: resourceId('res-citing'), type: 'resource', label: 'Citing Paper', entityTypes: [] },
         // two citations from the SAME resource: two annotation nodes, ONE citedBy row
-        { id: 'ann-cite-1', type: 'annotation', label: 'linking', annotation: ann('ann-cite-1', 'res-citing') },
-        { id: 'ann-cite-2', type: 'annotation', label: 'linking', annotation: ann('ann-cite-2', 'res-citing') },
+        { id: annotationId('ann-cite-1'), type: 'annotation', label: 'linking', annotation: ann('ann-cite-1', 'res-citing') },
+        { id: annotationId('ann-cite-2'), type: 'annotation', label: 'linking', annotation: ann('ann-cite-2', 'res-citing') },
         // a citer whose view was missing at build time: no resource node → raw-id label
-        { id: 'ann-noview', type: 'annotation', label: 'linking', annotation: ann('ann-noview', 'res-noview') },
+        { id: annotationId('ann-noview'), type: 'annotation', label: 'linking', annotation: ann('ann-noview', 'res-noview') },
       ],
       edges: [
         { source: 'ann-cite-1', target: 'res-citing', type: 'annotation-of' },
@@ -70,20 +71,20 @@ describe('deriveViews', () => {
     const ann = (id: string, source: string) => ({
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       type: 'Annotation' as const,
-      id,
+      id: annotationId(id),
       motivation: 'linking' as const,
       target: { source },
       created: '2020-01-01T00:00:00.000Z',
     });
     const graph: KnowledgeGraph = {
       nodes: [
-        { id: 'res-main', type: 'resource', label: 'Main', entityTypes: [] },
-        { id: 'res-other', type: 'resource', label: 'Other', entityTypes: [] },
-        { id: 'ann-focal', type: 'annotation', label: 'commenting', entityTypes: ['Focal'], annotation: ann('ann-focal', 'res-main') },
-        { id: 'ann-sib-1', type: 'annotation', label: 'linking', entityTypes: ['Author', 'Org'], annotation: ann('ann-sib-1', 'res-main') },
-        { id: 'ann-sib-2', type: 'annotation', label: 'commenting', entityTypes: ['Org'], annotation: ann('ann-sib-2', 'res-main') },
+        { id: resourceId('res-main'), type: 'resource', label: 'Main', entityTypes: [] },
+        { id: resourceId('res-other'), type: 'resource', label: 'Other', entityTypes: [] },
+        { id: annotationId('ann-focal'), type: 'annotation', label: 'commenting', entityTypes: ['Focal'], annotation: ann('ann-focal', 'res-main') },
+        { id: annotationId('ann-sib-1'), type: 'annotation', label: 'linking', entityTypes: ['Author', 'Org'], annotation: ann('ann-sib-1', 'res-main') },
+        { id: annotationId('ann-sib-2'), type: 'annotation', label: 'commenting', entityTypes: ['Org'], annotation: ann('ann-sib-2', 'res-main') },
         // a CITING annotation lives on another resource — not a sibling
-        { id: 'ann-citing', type: 'annotation', label: 'linking', entityTypes: ['Leaky'], annotation: ann('ann-citing', 'res-other') },
+        { id: annotationId('ann-citing'), type: 'annotation', label: 'linking', entityTypes: ['Leaky'], annotation: ann('ann-citing', 'res-other') },
       ],
       edges: [
         { source: 'ann-focal', target: 'res-main', type: 'annotation-of' },
@@ -103,7 +104,7 @@ describe('deriveViews', () => {
 
   it('returns empty views for a graph with only the main node', () => {
     const graph: KnowledgeGraph = {
-      nodes: [{ id: 'res-main', type: 'resource', label: 'Main', entityTypes: [] }],
+      nodes: [{ id: resourceId('res-main'), type: 'resource', label: 'Main', entityTypes: [] }],
       edges: [],
     };
 

@@ -21,6 +21,8 @@
 use crate::errors::{BusRequestError, BusRequestErrorCode, TransportError};
 use crate::event_bus::EventBus;
 use crate::locked;
+use crate::types::ResourceId;
+use crate::types::{AnnotationId, JobId};
 use crate::types::{
     CreateResourceResponse, GetResourceResponse, HealthResponse, MediaTokenResponse,
     ProtectedResourceMetadata, StatusResponse, UserResponse,
@@ -386,7 +388,7 @@ pub trait Transport: Send + Sync + 'static {
 
     /// Take one hold on a resource's scope. The scope is on the stream from
     /// its first hold to its last release; holds are counted per resource.
-    fn subscribe_to_resource(&self, resource_id: &str) -> ResourceHold;
+    fn subscribe_to_resource(&self, resource_id: &ResourceId) -> ResourceHold;
 
     /// The connection's state: the current value, and each change after it.
     fn state(&self) -> watch::Receiver<ConnectionState>;
@@ -481,13 +483,13 @@ pub struct PutBinaryRequest {
     pub storage_uri: String,
     pub entity_types: Vec<String>,
     pub language: Option<String>,
-    pub source_annotation_id: Option<String>,
-    pub source_resource_id: Option<String>,
+    pub source_annotation_id: Option<AnnotationId>,
+    pub source_resource_id: Option<ResourceId>,
     pub generation_prompt: Option<String>,
     /// The agent or agents that generated it, as the schema's `Agent`.
     pub generator: Option<Value>,
     /// The job this resource fulfils, when a worker is creating it.
-    pub job_id: Option<String>,
+    pub job_id: Option<JobId>,
     pub is_draft: Option<bool>,
     /// A clone's provenance: with it, the resource is created as a clone.
     pub clone_token: Option<String>,
@@ -592,20 +594,20 @@ pub trait ContentTransport: Send + Sync + 'static {
     /// A resource's bytes, unchanged, with their media type.
     fn get_binary<'a>(
         &'a self,
-        resource_id: &'a str,
+        resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<Content, TransportError>>;
 
     /// The same, as a stream.
     fn get_binary_stream<'a>(
         &'a self,
-        resource_id: &'a str,
+        resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<ContentStream, TransportError>>;
 
     /// A resource's description: itself, its annotations and the references
     /// to it, as linked data.
     fn get_resource_graph<'a>(
         &'a self,
-        resource_id: &'a str,
+        resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<GetResourceResponse, TransportError>>;
 }
 
@@ -618,7 +620,7 @@ pub trait GatewayOperations: Send + Sync + 'static {
     /// A token that lets a browser fetch one resource's bytes.
     fn get_media_token<'a>(
         &'a self,
-        resource_id: &'a str,
+        resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<MediaTokenResponse, TransportError>>;
 
     /// Which issuer the knowledge base trusts (RFC 9728). Public: read before

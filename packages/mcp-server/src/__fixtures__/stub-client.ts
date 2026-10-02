@@ -8,7 +8,7 @@
 
 import { vi } from 'vitest';
 import { of, type Observable } from 'rxjs';
-import { annotationId, resourceId } from '@semiont/core';
+import { annotationId, resourceId, jobId } from '@semiont/core';
 import type {
   Annotation,
   AnnotationId,
@@ -86,15 +86,15 @@ export const CONTEXT: GatheredContext = {
 
 /** What `gather.annotation` actually resolves to: the envelope, not the context. */
 export const GATHER_COMPLETE: GatherAnnotationComplete = {
-  annotationId: 'anno-reference',
+  annotationId: annotationId('anno-reference'),
   response: CONTEXT,
 };
 
 export const ASSIST_COMPLETE: MarkAssistEvent = {
   kind: 'complete',
   data: {
-    resourceId: 'res-iliad',
-    jobId: 'job-1',
+    resourceId: resourceId('res-iliad'),
+    jobId: jobId('job-1'),
     jobType: 'reference-annotation',
     result: { kind: 'reference-annotation', totalFound: 7, totalEmitted: 7, errors: 0 },
   },
@@ -102,7 +102,7 @@ export const ASSIST_COMPLETE: MarkAssistEvent = {
 
 export const GENERATION_COMPLETE: YieldGenerationEvent = {
   kind: 'complete',
-  data: { resourceId: 'res-iliad', jobId: 'job-2', jobType: 'generation' },
+  data: { resourceId: resourceId('res-iliad'), jobId: jobId('job-2'), jobType: 'generation' },
 };
 
 /**

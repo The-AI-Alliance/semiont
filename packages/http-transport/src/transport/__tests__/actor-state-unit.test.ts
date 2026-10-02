@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
-import { EMIT_RETRY } from '@semiont/core';
+import { EMIT_RETRY, annotationId } from '@semiont/core';
 import { createActorStateUnit } from '../actor-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 // The SSE/fetch harness lives in helpers/mock-conn.ts (shared with the
@@ -96,7 +96,7 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await stateUnit.emit('beckon:hover', { annotationId: 'a-1' });
+    await stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') });
 
     const [url, opts] = mockFetch.mock.calls[0] as [string, { method?: string; body: string }];
     expect(url).toBe('http://localhost:4000/bus/emit');
@@ -125,7 +125,7 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await stateUnit.emit('beckon:hover', { annotationId: 'a-1' });
+    await stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') });
 
     const [, opts] = mockFetch.mock.calls[0] as [string, { signal?: unknown }];
     expect(opts.signal).toBeInstanceOf(AbortSignal);
@@ -155,7 +155,7 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    const rejects = expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' }))
+    const rejects = expect(stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') }))
       .rejects.toThrow(/timed out/i);
     await vi.advanceTimersByTimeAsync(60_000);
     await rejects;
@@ -176,7 +176,7 @@ describe('createActorStateUnit', () => {
       emitRetry: { attempts: 2, initialDelayMs: 1, maxDelayMs: 1 },
     });
 
-    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).rejects.toMatchObject({
+    await expect(stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') })).rejects.toMatchObject({
       name: 'APIError',
       code: 'unavailable',
       message: '/bus/emit got no answer: fetch failed',
@@ -452,7 +452,7 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBe(3);
+    await expect(stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') })).resolves.toBe(3);
 
     stateUnit.dispose();
   });
@@ -470,8 +470,8 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBeUndefined();
-    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-2' })).resolves.toBe(0);
+    await expect(stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') })).resolves.toBeUndefined();
+    await expect(stateUnit.emit('beckon:hover', { annotationId: annotationId('a-2') })).resolves.toBe(0);
 
     stateUnit.dispose();
   });
@@ -487,7 +487,7 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBeUndefined();
+    await expect(stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') })).resolves.toBeUndefined();
 
     stateUnit.dispose();
   });
@@ -513,7 +513,7 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' }))
+    await expect(stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') }))
       .rejects.toThrow(/400.*Bus emit validation failed/);
 
     stateUnit.dispose();
@@ -529,7 +529,7 @@ describe('createActorStateUnit', () => {
 
     const stateUnit = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [] });
 
-    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBeUndefined();
+    await expect(stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') })).resolves.toBeUndefined();
     expect(mockFetch).toHaveBeenCalledTimes(2);
 
     stateUnit.dispose();
@@ -544,7 +544,7 @@ describe('createActorStateUnit', () => {
 
     const stateUnit = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [] });
 
-    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).rejects.toThrow(/401/);
+    await expect(stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') })).rejects.toThrow(/401/);
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
     stateUnit.dispose();
@@ -558,7 +558,7 @@ describe('createActorStateUnit', () => {
 
     const stateUnit = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [] });
 
-    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' }))
+    await expect(stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') }))
       .rejects.toMatchObject({ name: 'APIError', status: 403 });
 
     stateUnit.dispose();
@@ -574,11 +574,11 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await stateUnit.emit('beckon:hover', { annotationId: 'a-1' });
+    await stateUnit.emit('beckon:hover', { annotationId: annotationId('a-1') });
     const unscoped = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(unscoped.scope).toBeUndefined();
 
-    await stateUnit.emit('beckon:hover', { annotationId: 'a-2' }, { scope: 'res-99' });
+    await stateUnit.emit('beckon:hover', { annotationId: annotationId('a-2') }, { scope: 'res-99' });
     const scoped = JSON.parse(mockFetch.mock.calls[1][1].body);
     expect(scoped.scope).toBe('res-99');
 
@@ -1685,7 +1685,7 @@ describe('multi-scope subscription matrix', () => {
     const subscribed = bodyOf(0).clientId;
 
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ subscribers: 1 }) });
-    await su.emit('beckon:hover', { annotationId: 'a-1' });
+    await su.emit('beckon:hover', { annotationId: annotationId('a-1') });
 
     const emitBody = JSON.parse((mockFetch.mock.calls[1]![1] as { body: string }).body) as
       { clientId?: string; payload: Record<string, unknown> };

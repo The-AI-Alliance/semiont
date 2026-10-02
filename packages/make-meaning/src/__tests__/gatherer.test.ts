@@ -90,7 +90,7 @@ describe('Gatherer', () => {
         focus: {
           kind: 'annotation' as const,
           annotation: {
-            id: 'ann-1',
+            id: annotationId('ann-1'),
             '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
             type: 'Annotation' as const,
             motivation: 'linking' as const,
@@ -100,7 +100,7 @@ describe('Gatherer', () => {
           },
           sourceResource: {
             '@context': 'https://schema.org',
-            '@id': 'res-1',
+            '@id': resourceId('res-1'),
             name: 'Test Resource',
             format: 'text/plain',
             representations: [] as [],

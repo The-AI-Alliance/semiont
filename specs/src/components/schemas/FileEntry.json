@@ -41,7 +41,7 @@
       "description": "Number of annotations on this resource (only when tracked is true)"
     },
     "creator": {
-      "$ref": "./UserId.json",
+      "type": "string",
       "description": "DID of the resource's creator — the first of its derived `wasAttributedTo`, the requester as the knowledge base recorded it (only when tracked is true)"
     }
   },

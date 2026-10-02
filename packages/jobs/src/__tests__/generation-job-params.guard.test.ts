@@ -1,6 +1,6 @@
 import { describe, it, expect, expectTypeOf } from 'vitest';
 import type { GenerationJobParams, GatheredContext } from '@semiont/core';
-import { isGenerationJobParams } from '@semiont/core';
+import { isGenerationJobParams, resourceId } from '@semiont/core';
 import { processGenerationJob } from '../processors';
 
 /**
@@ -22,7 +22,7 @@ const CONTEXT: GatheredContext = {
     kind: 'resource',
     resource: {
       '@context': 'https://semiont.dev/context/v1',
-      '@id': 'res-src',
+      '@id': resourceId('res-src'),
       name: 'Source',
       representations: [],
     },

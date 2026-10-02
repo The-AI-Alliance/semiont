@@ -1,3 +1,4 @@
+import { annotationId, resourceId } from '@semiont/core';
 import type { GatheredContext, GenerationJobParams } from '@semiont/core';
 
 /**
@@ -11,7 +12,7 @@ import type { GatheredContext, GenerationJobParams } from '@semiont/core';
 export function minimalContext(kind: 'resource' | 'annotation' = 'resource'): GatheredContext {
   const sourceResource = {
     '@context': 'https://semiont.dev/context/v1',
-    '@id': 'res-1',
+    '@id': resourceId('res-1'),
     name: 'Source',
     representations: [],
   };
@@ -24,7 +25,7 @@ export function minimalContext(kind: 'resource' | 'annotation' = 'resource'): Ga
             annotation: {
               '@context': 'http://www.w3.org/ns/anno.jsonld',
               type: 'Annotation',
-              id: 'ann-1',
+              id: annotationId('ann-1'),
               motivation: 'linking',
               created: '2026-01-01T00:00:00.000Z',
               target: { source: 'res-1' },

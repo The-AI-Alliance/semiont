@@ -348,9 +348,6 @@ Bytes do not ride the bus.
   or as a stream; a resource's description is what the gateway answers; and
   one that is not there fails as `not-found`.
   *Held by `sdk/wire/content-read`.*
-- A resource's id is one segment of the path it is read at, whatever
-  characters it has: the gateway is asked for that resource and no other.
-  *Held by `sdk/wire/content-read-id`.*
 - Each of the gateway's own operations is one request to its own path,
   carrying the client's token.
   *Held by `sdk/wire/gateway-operations`.*

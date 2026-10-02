@@ -530,7 +530,7 @@ describe('AnnotationOperations', () => {
       const result = await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
         {
-          resourceId: testResourceId,
+          resourceId: resourceId(testResourceId),
           operations: [
             {
               op: 'add',
@@ -593,7 +593,7 @@ describe('AnnotationOperations', () => {
       const result = await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
         {
-          resourceId: testResourceId,
+          resourceId: resourceId(testResourceId),
           operations: [
             {
               op: 'remove',
@@ -651,7 +651,7 @@ describe('AnnotationOperations', () => {
       const result = await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
         {
-          resourceId: testResourceId,
+          resourceId: resourceId(testResourceId),
           operations: [
             {
               op: 'replace',
@@ -712,7 +712,7 @@ describe('AnnotationOperations', () => {
       await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
         {
-          resourceId: testResourceId,
+          resourceId: resourceId(testResourceId),
           operations: [
             {
               op: 'add',
@@ -741,7 +741,7 @@ describe('AnnotationOperations', () => {
         AnnotationOperations.updateAnnotationBody(
           'non-existent-annotation',
           {
-            resourceId: testResourceId,
+            resourceId: resourceId(testResourceId),
             operations: [
               {
                 op: 'add',
@@ -842,8 +842,8 @@ describe('AnnotationOperations', () => {
         ),
       );
 
-      eventBus.emit('mark:update-entity-types', { _userId: 'did:web:test:users:user-1',
-        resourceId: testResourceId,
+      eventBus.emit('mark:update-entity-types', { _userId: userId('did:web:test:users:user-1'),
+        resourceId: resourceId(testResourceId),
         currentEntityTypes: ['Legacy'],
         updatedEntityTypes: ['Person'], }, { correlationId });
 
@@ -891,8 +891,8 @@ describe('AnnotationOperations', () => {
       // A REMOVAL, not an add: removals are never vocabulary-gated (the gate
       // would otherwise reject the tag before appendEvent runs), so this still
       // exercises the append-failure catch branch — the test's actual subject.
-      failBus.emit('mark:update-entity-types', { _userId: 'did:web:test:users:user-1',
-        resourceId: testResourceId,
+      failBus.emit('mark:update-entity-types', { _userId: userId('did:web:test:users:user-1'),
+        resourceId: resourceId(testResourceId),
         currentEntityTypes: ['Person'],
         updatedEntityTypes: [], }, { correlationId });
 

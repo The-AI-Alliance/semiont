@@ -11,6 +11,7 @@ use axum::http::StatusCode;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::identity::encode_uri_component;
+use semiont::types::ResourceId;
 use semiont_core::spec::{Spec, spec};
 use semiont_http_transport::service_account::{Credential, ServiceToken};
 use semiont_observability::logging;
@@ -104,7 +105,7 @@ impl Archivist {
         content_type: &str,
         principal: &str,
         roles: &[String],
-    ) -> Result<String, ApiError> {
+    ) -> Result<ResourceId, ApiError> {
         let authorization = self.authorized("resources.record").await?;
         let mut request = self
             .http
@@ -128,9 +129,12 @@ impl Archivist {
         let status = response.status();
         let answer: Option<Value> = response.json().await.ok();
         if status.is_success()
-            && let Some(id) = answer.as_ref().and_then(|a| a["resourceId"].as_str())
+            && let Some(id) = answer
+                .as_ref()
+                .and_then(|a| a["resourceId"].as_str())
+                .and_then(|id| ResourceId::new(id).ok())
         {
-            return Ok(id.to_owned());
+            return Ok(id);
         }
         if (status == StatusCode::BAD_REQUEST || status == StatusCode::INTERNAL_SERVER_ERROR)
             && let Some(message) = answer.as_ref().and_then(|a| a["error"].as_str())

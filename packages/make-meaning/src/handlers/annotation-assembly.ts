@@ -1,4 +1,4 @@
-import { resourceId, assembleAnnotation } from '@semiont/core';
+import { resourceId, assembleAnnotation, type AnnotationId } from '@semiont/core';
 import type { EventBus, Logger, components } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import { assertAnnotatableTarget } from '../annotation-operations.js';
@@ -37,7 +37,7 @@ type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
  */
 export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { views: Pick<ViewStorage, 'get'> }, parentLogger: Logger): void {
   const logger = parentLogger.child({ component: 'annotation-assembly' });
-  const inflight = new Map<string, { annotationId: string }>();
+  const inflight = new Map<string, { annotationId: AnnotationId }>();
 
   eventBus.frames('mark:create-request').subscribe(({ payload: command, correlationId: cid }) => {
     // Async because the gate reads the target's view; the try/catch below

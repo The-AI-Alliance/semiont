@@ -89,7 +89,7 @@ export function ReferenceEntry({
         // This component has no toast surface — report the client-local,
         // resource-stamped bind error; useOutcomeToasts surfaces it.
         semiont.bind.reportBodyError({
-          resourceId: source,
+          resourceId: resourceId(source),
           message: error instanceof Error ? error.message : String(error),
         });
       });

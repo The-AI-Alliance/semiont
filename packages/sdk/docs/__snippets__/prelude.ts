@@ -25,7 +25,7 @@ import type {
   CreateAnnotationInput as _CreateAnnotationInput,
   StateUnit as _StateUnit,
   JobId as _JobId,
-  UserDID as _UserDID,
+  UserId as _UserId,
   DeviceCode as _DeviceCode,
 } from '@semiont/sdk';
 import type { FaultyTransport as _FaultyTransport } from '@semiont/sdk/testing';
@@ -80,7 +80,7 @@ declare global {
   const refId: _AnnotationId;
   const claimId: _AnnotationId;
   const jobId: _JobId;
-  const userId: _UserDID;
+  const userId: _UserId;
   const resource: _ResourceDescriptor;
   const annotation: _Annotation;
   const context: _GatheredContext;

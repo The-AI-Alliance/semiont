@@ -713,15 +713,15 @@ describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () =
       kind: 'resource',
       resource: {
         '@context': 'https://www.w3.org/ns/anno.jsonld',
-        '@id': 'src-1',
+        '@id': resourceId('src-1'),
         name: 'Source Doc',
         representations: [],
       },
     },
     graph: {
       nodes: [
-        { id: 'src-1', type: 'resource', label: 'Source Doc' },
-        { id: 'ctx-9', type: 'resource', label: 'Context Doc' },
+        { id: resourceId('src-1'), type: 'resource', label: 'Source Doc' },
+        { id: resourceId('ctx-9'), type: 'resource', label: 'Context Doc' },
       ],
       edges: [],
     },
@@ -922,9 +922,9 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
     const CITE_PDF_CONTEXT = {
       focus: {
         kind: 'resource',
-        resource: { '@context': 'https://www.w3.org/ns/anno.jsonld', '@id': 'src-1', name: 'Src', representations: [] },
+        resource: { '@context': 'https://www.w3.org/ns/anno.jsonld', '@id': resourceId('src-1'), name: 'Src', representations: [] },
       },
-      graph: { nodes: [{ id: 'src-1', type: 'resource', label: 'Src' }, { id: 'ctx-9', type: 'resource', label: 'Ctx' }], edges: [] },
+      graph: { nodes: [{ id: resourceId('src-1'), type: 'resource', label: 'Src' }, { id: resourceId('ctx-9'), type: 'resource', label: 'Ctx' }], edges: [] },
       metadata: {},
     } as GatheredContext;
     vi.mocked(generateResourceFromTopic).mockResolvedValue({

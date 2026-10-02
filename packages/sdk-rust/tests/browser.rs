@@ -18,6 +18,7 @@ use semiont::session::{
     save_knowledge_bases, session_key, store_session, stored_session,
 };
 use semiont::storage::SessionStorage;
+use semiont::testing::as_id;
 use semiont::testing::{FaultyTransport, ScriptedSessions, SharedStorage};
 use semiont::transport::{ConnectionState, Transport};
 use semiont::types::UserResponse;
@@ -254,7 +255,7 @@ impl World {
             .remove(kb_id)
             .unwrap_or_default()
             .into_iter()
-            .map(|resource| resource.id)
+            .map(|resource| resource.id.to_string())
             .collect()
     }
 
@@ -293,7 +294,7 @@ fn open(browser: &SemiontBrowser) -> Vec<String> {
         .open_resources()
         .borrow()
         .iter()
-        .map(|resource| resource.id.clone())
+        .map(|resource| resource.id.to_string())
         .collect()
 }
 
@@ -381,8 +382,8 @@ async fn removing_a_knowledge_base_forgets_it_and_the_next_one_takes_over() {
     let world = World::with(&[kb_a(), kb_b()]);
     let browser = world.browser();
     live(&browser).await;
-    browser.add_open_resource("res-1", "One", None, None);
-    browser.set_last_viewed_resource("res-1");
+    browser.add_open_resource(&as_id("res-1"), "One", None, None);
+    browser.set_last_viewed_resource(&as_id("res-1"));
     assert_eq!(world.stored_open(A), ["res-1"]);
 
     browser.remove_kb(A).await;
@@ -946,14 +947,14 @@ async fn resources_are_opened_renamed_closed_and_moved_in_the_active_knowledge_b
     let browser = world.browser();
     live(&browser).await;
 
-    browser.add_open_resource("r1", "One", Some("text/plain"), None);
-    browser.add_open_resource("r2", "Two", None, Some("file://two.md"));
-    browser.add_open_resource("r3", "Three", None, None);
+    browser.add_open_resource(&as_id("r1"), "One", Some("text/plain"), None);
+    browser.add_open_resource(&as_id("r2"), "Two", None, Some("file://two.md"));
+    browser.add_open_resource(&as_id("r3"), "Three", None, None);
     assert_eq!(open(&browser), ["r1", "r2", "r3"]);
 
     // Opening what is open already takes what is stated of it, in place.
-    browser.add_open_resource("r1", "One, renamed", None, None);
-    browser.update_open_resource_name("r2", "Two, renamed");
+    browser.add_open_resource(&as_id("r1"), "One, renamed", None, None);
+    browser.update_open_resource_name(&as_id("r2"), "Two, renamed");
     let shown = browser.open_resources().borrow().clone();
     assert_eq!(open(&browser), ["r1", "r2", "r3"]);
     assert_eq!(shown[0].name, "One, renamed");
@@ -968,7 +969,7 @@ async fn resources_are_opened_renamed_closed_and_moved_in_the_active_knowledge_b
     browser.reorder_open_resources(7, 0);
     assert_eq!(open(&browser), ["r2", "r3", "r1"]);
 
-    browser.remove_open_resource("r3");
+    browser.remove_open_resource(&as_id("r3"));
     assert_eq!(open(&browser), ["r2", "r1"]);
     assert_eq!(world.stored_open(A).len(), 2);
 }
@@ -979,11 +980,11 @@ async fn a_resource_opened_after_a_removal_does_not_take_a_place_that_is_taken()
     let browser = world.browser();
     live(&browser).await;
     for id in ["r1", "r2", "r3"] {
-        browser.add_open_resource(id, id, None, None);
+        browser.add_open_resource(&as_id(id), id, None, None);
     }
 
-    browser.remove_open_resource("r2");
-    browser.add_open_resource("r4", "r4", None, None);
+    browser.remove_open_resource(&as_id("r2"));
+    browser.add_open_resource(&as_id("r4"), "r4", None, None);
 
     let places: Vec<u64> = browser
         .open_resources()
@@ -1017,9 +1018,9 @@ async fn nothing_is_open_or_opened_or_viewed_without_a_live_session() {
     browser.sign_out(A).await;
     assert!(open(&browser).is_empty());
     assert_eq!(*browser.last_viewed_resource().borrow(), None);
-    browser.add_open_resource("r2", "Two", None, None);
-    browser.set_last_viewed_resource("r2");
-    browser.remove_open_resource("r1");
+    browser.add_open_resource(&as_id("r2"), "Two", None, None);
+    browser.set_last_viewed_resource(&as_id("r2"));
+    browser.remove_open_resource(&as_id("r1"));
     // Hidden, not forgotten: the storage holds what it held.
     assert_eq!(world.stored_open(A), ["r1"]);
     assert_eq!(
@@ -1041,15 +1042,15 @@ async fn each_knowledge_base_keeps_what_is_open_in_it_and_where_the_person_was()
     let world = World::with(&[kb_a(), kb_b()]);
     let browser = world.browser();
     live(&browser).await;
-    browser.add_open_resource("in-a", "In A", None, None);
-    browser.set_last_viewed_resource("in-a");
+    browser.add_open_resource(&as_id("in-a"), "In A", None, None);
+    browser.set_last_viewed_resource(&as_id("in-a"));
 
     browser.set_active_kb(Some(B)).await;
     live(&browser).await;
     assert!(open(&browser).is_empty());
     assert_eq!(*browser.last_viewed_resource().borrow(), None);
-    browser.add_open_resource("in-b", "In B", None, None);
-    browser.set_last_viewed_resource("in-b");
+    browser.add_open_resource(&as_id("in-b"), "In B", None, None);
+    browser.set_last_viewed_resource(&as_id("in-b"));
 
     browser.set_active_kb(Some(A)).await;
     live(&browser).await;
@@ -1076,9 +1077,9 @@ async fn what_another_context_opens_or_views_is_shown_and_neither_loses_the_othe
     live(&here).await;
     live(&there).await;
 
-    here.add_open_resource("from-here", "Here", None, None);
-    there.add_open_resource("from-there", "There", None, None);
-    there.set_last_viewed_resource("from-there");
+    here.add_open_resource(&as_id("from-here"), "Here", None, None);
+    there.add_open_resource(&as_id("from-there"), "There", None, None);
+    there.set_last_viewed_resource(&as_id("from-there"));
 
     // Each wrote against what the storage held, so both are there, in both.
     assert_eq!(world.stored_open(A), ["from-here", "from-there"]);
@@ -1095,7 +1096,7 @@ async fn a_change_to_what_is_open_is_made_against_what_the_storage_holds() {
     let world = World::with(&[kb_a()]);
     let browser = world.browser();
     live(&browser).await;
-    browser.add_open_resource("mine", "Mine", None, None);
+    browser.add_open_resource(&as_id("mine"), "Mine", None, None);
 
     // Written to the storage with nobody told: what the browser has in
     // memory is behind, and what it writes next must not put it back.
@@ -1111,8 +1112,8 @@ async fn a_change_to_what_is_open_is_made_against_what_the_storage_holds() {
         LAST_VIEWED_RESOURCE_BY_KB_KEY,
         &json!({ B: "in-b" }).to_string(),
     );
-    browser.add_open_resource("another", "Another", None, None);
-    browser.set_last_viewed_resource("mine");
+    browser.add_open_resource(&as_id("another"), "Another", None, None);
+    browser.set_last_viewed_resource(&as_id("mine"));
 
     assert_eq!(world.stored_open(A), ["mine", "theirs", "another"]);
     assert_eq!(open(&browser), ["mine", "theirs", "another"]);
@@ -1176,7 +1177,7 @@ async fn what_is_open_is_checked_once_per_session_and_again_for_the_next() {
     assert_eq!(world.factory.asked_about(A).len(), 6);
 
     // Changing what is open shows the list again, and checks nothing.
-    browser.add_open_resource("a7", "Seven", None, None);
+    browser.add_open_resource(&as_id("a7"), "Seven", None, None);
     browser.reorder_open_resources(0, 1);
     settle().await;
     assert_eq!(world.factory.asked_about(A).len(), 6);
@@ -1327,7 +1328,7 @@ async fn asking_again_reports_a_different_knowledge_base_and_acts_on_nothing() {
         .describes(A, description("KB A", "example.org:kb-a", None));
     let browser = world.browser();
     live(&browser).await;
-    browser.set_last_viewed_resource("a1");
+    browser.set_last_viewed_resource(&as_id("a1"));
 
     world
         .factory

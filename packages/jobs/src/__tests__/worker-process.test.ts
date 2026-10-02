@@ -37,7 +37,7 @@ import { Subject, BehaviorSubject, map } from 'rxjs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { extractPdfTextLayer } from '@semiont/content';
 import type { SemiontSession } from '@semiont/sdk';
-import { BusRequestError } from '@semiont/core';
+import { BusRequestError, jobId, resourceId } from '@semiont/core';
 import type { JobType } from '@semiont/core';
 import type { ActiveJob, JobClaimAdapter } from '../job-claim-adapter';
 import { handleJob, type WorkerProcessConfig } from '../worker-process';
@@ -90,9 +90,9 @@ vi.mock('@semiont/content', async (importOriginal) => {
  */
 const getBinary = vi.fn(async () => ({ data: new ArrayBuffer(8), contentType: 'application/pdf' }));
 
-const RID = 'res-abc';
+const RID = resourceId('res-abc');
 const UID = 'did:web:example.com:users:test';
-const JID = 'job-xyz';
+const JID = jobId('job-xyz');
 
 /** Captured interactions — bus emits, complete/fail, and yield.resource call. */
 interface BusEmit { channel: string; payload: unknown; scope?: string | undefined; }

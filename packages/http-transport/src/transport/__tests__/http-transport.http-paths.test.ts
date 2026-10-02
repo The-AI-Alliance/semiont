@@ -224,6 +224,19 @@ describe('HttpTransport — HTTP wire shape', () => {
       );
     });
 
+    test('an id is one segment of the path, whatever text a caller with no type checker hands over', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ resource: {}, annotations: [], entityReferences: [] }),
+      } as never);
+
+      // Not a ResourceId: its constructor refuses this. JavaScript does not ask.
+      await content.getResourceGraph('what? 100% #1/x' as never);
+      expect(mockKy.get).toHaveBeenCalledWith(
+        `${testBaseUrl}/resources/what%3F%20100%25%20%231%2Fx/jsonld`,
+        { headers: {} },
+      );
+    });
+
     test('sends the bearer auth header when a token is provided', async () => {
       vi.mocked(mockKy.get).mockReturnValue({
         json: vi.fn().mockResolvedValue({ resource: {}, annotations: [], entityReferences: [] }),

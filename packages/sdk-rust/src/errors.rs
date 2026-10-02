@@ -6,6 +6,7 @@
 //! together, as a caller meets them. Beside them, what makes a session
 //! unusable, and what keeps a person from being signed in.
 
+use crate::types::JobId;
 use serde_json::{Map, Value};
 use std::fmt;
 use std::time::Duration;
@@ -95,7 +96,7 @@ pub struct JobError {
     pub code: JobErrorCode,
     /// The job, once its id is known: a job that stalled before it was
     /// created has none.
-    pub job_id: Option<String>,
+    pub job_id: Option<JobId>,
     pub message: String,
 }
 

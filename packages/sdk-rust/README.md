@@ -19,14 +19,14 @@ let about = client.browse.kb().await?;
 println!("{} at {}", about.name, about.domain);
 
 // A query, read once.
-let resource = client.browse.resource("res-1").fresh().await?;
+let resource = client.browse.resource(&resource_id).fresh().await?;
 println!("{}", resource.name);
 
 // A long-running operation, awaited for its final value.
 let done = client
     .mark
     .assist(
-        "res-1",
+        &resource_id,
         Motivation::Highlighting,
         MarkAssistOptions::default(),
     )
@@ -66,13 +66,36 @@ let session = live.wait_for(Option::is_some).await?.clone();
 // A flow, held as state over the session's client: here, the annotation
 // being composed on a resource.
 if let Some(session) = session {
-    let marking = MarkStateUnit::new(session.client().clone(), "res-1");
+    let marking = MarkStateUnit::new(session.client().clone(), &resource_id);
     let mut pending = marking.pending();
     while pending.changed().await.is_ok() {
         render(pending.borrow_and_update().as_ref());
     }
 }
 ```
+
+## Ids
+
+A resource, an annotation, a job and whoever did something are each named by
+an id of its own type: `ResourceId`, `AnnotationId`, `JobId`, `UserId`
+(`semiont::types`). The rule each is held to is the spec's
+([`specs/src/identifiers/kinds.json`](../../specs/src/identifiers/kinds.json)):
+the first three are a name of 1 to 128 letters, digits, `_` and `-`, never a
+URI or a path, and the last is a DID.
+
+```rust
+// An id is made from text by its kind's rule.
+let resource_id: ResourceId = "5bcd259ab1464cf68a556bbad21f513f".parse()?;
+// Text the rule refuses is refused here, before anything is sent.
+assert!(ResourceId::new("../another").is_err());
+// It reads as the text it is.
+println!("{resource_id}, {} characters", resource_id.len());
+```
+
+Nothing makes one but its constructor, and decoding goes through it: an id
+in an answer has passed the same rule as one a caller made, and an answer
+carrying one that does not fails to decode. One kind is never taken for
+another: `mark.delete(&annotation_id, &resource_id)` does not compile.
 
 ## From the TypeScript SDK
 

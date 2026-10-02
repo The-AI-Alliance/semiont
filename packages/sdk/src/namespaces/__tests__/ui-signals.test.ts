@@ -282,7 +282,7 @@ describe('UI signal wrappers', () => {
       const spy = busSpy(bus, 'bind:body-error');
       const bind = new BindNamespace(makeMockTransport(), bus);
 
-      const payload = { resourceId: 'res-1', message: 'link is load-bearing' };
+      const payload = { resourceId: RID, message: 'link is load-bearing' };
       bind.reportBodyError(payload);
 
       expect(spy).toHaveBeenCalledExactlyOnceWith('bind:body-error', payload);
@@ -308,8 +308,8 @@ describe('UI signal wrappers', () => {
       const match = new MatchNamespace(makeMockTransport(), bus);
 
       const payload = {
-        resourceId: RID as string,
-        referenceId: AID as string,
+        resourceId: RID,
+        referenceId: AID,
         context: { text: 'ctx' } as never,
         limit: 10,
         useSemanticScoring: true,

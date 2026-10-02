@@ -669,7 +669,7 @@ describe('Browser actor', () => {
       mockAssemble.mockResolvedValue(null);
       const failed = failure();
 
-      eventBus.emit('browse:resource-requested', { resourceId: 'res-gone' }, { correlationId: 'cid-missing' });
+      eventBus.emit('browse:resource-requested', { resourceId: resourceId('res-gone') }, { correlationId: 'cid-missing' });
 
       const frame = await failed;
       expect(frame.correlationId).toBe('cid-missing');
@@ -682,7 +682,7 @@ describe('Browser actor', () => {
       mockAssemble.mockRejectedValue(new Error('graph exploded'));
       const failed = failure();
 
-      eventBus.emit('browse:resource-requested', { resourceId: 'res-here' }, { correlationId: 'cid-boom' });
+      eventBus.emit('browse:resource-requested', { resourceId: resourceId('res-here') }, { correlationId: 'cid-boom' });
 
       const frame = await failed;
       expect(frame.payload.message).toBe('graph exploded');

@@ -38,8 +38,8 @@
       ]
     },
     "@id": {
-      "type": "string",
-      "description": "Canonical URI/URN of the resource being described."
+      "$ref": "./ResourceId.json",
+      "description": "The id of the resource being described."
     },
     "@type": {
       "description": "Type(s) of the resource (IRIs/CURIEs via @context).",

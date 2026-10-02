@@ -100,7 +100,7 @@ describe('gather.resource', () => {
     const cid = getLastCorrelationId()!;
 
     push('gather:resource-failed', {
-      resourceId: 'r3',
+      resourceId: makeResourceId('r3'),
       message: 'graph traversal failed',
       // No `code`: the contract declares only 'peer-unavailable' | 'not-found',
       // and the wire never carried 'gather.failed'. The transport double's cast

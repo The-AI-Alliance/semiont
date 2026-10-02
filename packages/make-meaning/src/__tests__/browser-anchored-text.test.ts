@@ -18,7 +18,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { firstValueFrom, map } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
-import { EventBus, type AnchoredText, type Logger } from '@semiont/core';
+import { EventBus, type AnchoredText, type Logger, resourceId } from '@semiont/core';
 import type { MakeMeaningConfig } from '../service';
 import { Browser } from '../browser';
 import { SmeltProgressTimeout } from '../smelt-progress';
@@ -29,7 +29,7 @@ const mockLogger: Logger = {
   child: () => mockLogger,
 };
 
-const RID = 'res:scan';
+const RID = 'res-scan';
 const MAP: AnchoredText = {
   text: 'alpha beta',
   items: [{ start: 0, end: 5, page: 1, x: 72, y: 700, width: 28, height: 12 }],
@@ -61,7 +61,7 @@ async function ask(eventBus: EventBus, browser: Browser) {
   const reply = firstValueFrom(
     eventBus.frames('browse:anchored-text-result').pipe(filter((frame) => frame.correlationId === 'c1'), map((frame) => frame.payload), take(1)),
   );
-  eventBus.emit('browse:anchored-text-requested', { resourceId: RID }, { correlationId: 'c1' });
+  eventBus.emit('browse:anchored-text-requested', { resourceId: resourceId(RID) }, { correlationId: 'c1' });
   return reply;
 }
 
@@ -145,7 +145,7 @@ describe('browse:anchored-text-requested', () => {
     const failure = firstValueFrom(
       eventBus.frames('browse:anchored-text-failed').pipe(filter((frame) => frame.correlationId === 'c1'), map((frame) => frame.payload), take(1)),
     );
-    eventBus.emit('browse:anchored-text-requested', { resourceId: RID }, { correlationId: 'c1' });
+    eventBus.emit('browse:anchored-text-requested', { resourceId: resourceId(RID) }, { correlationId: 'c1' });
 
     expect((await failure).message).toContain('fold is broken');
   });

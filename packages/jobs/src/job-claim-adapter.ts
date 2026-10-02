@@ -51,7 +51,7 @@
 
 import { BehaviorSubject, Observable, Subject, type Subscription } from 'rxjs';
 import { BusRequestError, busRequest, isArray, isNumber, isObject, isString } from '@semiont/core';
-import type { BusRequestErrorCode, UnitCursor } from '@semiont/core';
+import type { BusRequestErrorCode, JobId, ResourceId, UnitCursor } from '@semiont/core';
 import type { BusRequestPrimitive } from '@semiont/core';
 
 /**
@@ -92,9 +92,9 @@ function readUnitCursors(raw: unknown, completedUnits: string[]): Record<string,
 }
 
 export interface ActiveJob {
-  jobId: string;
+  jobId: JobId;
   type: string;
-  resourceId: string;
+  resourceId: ResourceId;
   userId: string;
   params: Record<string, unknown>;
   /**
@@ -251,8 +251,8 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
     // and returns the reply's `response` — an untyped `Record<string,
     // unknown>`, so narrow it to the claimed-job shape the worker reads.
     let record: {
-      params?: Record<string, unknown>;
-      metadata?: { id?: string; type?: string; userId?: string; completedUnits?: unknown; unitCursors?: unknown; retryCount?: unknown; maxRetries?: unknown };
+      params?: Record<string, unknown> & { resourceId?: ResourceId };
+      metadata?: { id?: JobId; type?: string; userId?: string; completedUnits?: unknown; unitCursors?: unknown; retryCount?: unknown; maxRetries?: unknown };
     };
     try {
       record = (await busRequest(bus, 'job:claim' satisfies JobClaimAwaits, { types: jobTypes }, 10_000)) as typeof record;
@@ -267,23 +267,23 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       return { refused: { code: null, message: error instanceof Error ? error.message : String(error) } };
     }
 
-    // The claimed job's identity comes from the RESPONSE. A record without
-    // one is unusable — refused locally, never run.
-    if (!isString(record.metadata?.id) || !isString(record.metadata?.type)) {
-      return { refused: { code: null, message: 'claimed record carries no job id or type' } };
+    // The claimed job's identity, and the resource it is about, come from the
+    // RESPONSE. A record without them is unusable — refused locally, never run.
+    if (!isString(record.metadata?.id) || !isString(record.metadata?.type) || !isString(record.params?.resourceId)) {
+      return { refused: { code: null, message: 'claimed record carries no job id, type or resource' } };
     }
 
     const completedUnits = isArray(record.metadata?.completedUnits)
       ? record.metadata.completedUnits.filter(isString)
       : [];
     const unitCursors = readUnitCursors(record.metadata?.unitCursors, completedUnits);
-    const params = (record.params ?? {}) as Record<string, unknown>;
+    const params: Record<string, unknown> = record.params;
 
     return {
       job: {
         jobId: record.metadata.id,
         type: record.metadata.type,
-        resourceId: isString(params.resourceId) ? params.resourceId : '',
+        resourceId: record.params.resourceId,
         userId: (record.metadata?.userId ?? '') as string,
         params,
         completedUnits,

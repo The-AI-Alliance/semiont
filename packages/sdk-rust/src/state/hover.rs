@@ -3,6 +3,7 @@
 //! hovers nothing on its way.
 
 use crate::locked;
+use crate::types::AnnotationId;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::task::AbortHandle;
@@ -10,7 +11,7 @@ use tokio::task::AbortHandle;
 #[derive(Default)]
 struct Dwell {
     /// What was last said to be hovered.
-    hovering: Option<String>,
+    hovering: Option<AnnotationId>,
     /// The rest that has not run its time yet.
     resting: Option<AbortHandle>,
     /// Which rest is the current one: one that was overtaken says nothing.
@@ -26,7 +27,7 @@ impl Dwell {
     }
 }
 
-type Say = dyn Fn(Option<&str>) + Send + Sync;
+type Say = dyn Fn(Option<&AnnotationId>) + Send + Sync;
 
 /// See the module's documentation. `say` is told each change: the
 /// annotation hovered, or none. `client.beckon.hover` is what it is usually
@@ -40,7 +41,10 @@ pub struct HoverDwell {
 impl HoverDwell {
     /// A dwell of `delay`: `crate::timing::HOVER_DELAY` unless the viewer
     /// was told another.
-    pub fn new(say: impl Fn(Option<&str>) + Send + Sync + 'static, delay: Duration) -> HoverDwell {
+    pub fn new(
+        say: impl Fn(Option<&AnnotationId>) + Send + Sync + 'static,
+        delay: Duration,
+    ) -> HoverDwell {
         HoverDwell {
             dwell: Arc::new(Mutex::new(Dwell::default())),
             say: Arc::new(say),
@@ -50,15 +54,15 @@ impl HoverDwell {
 
     /// The pointer is on an annotation. It is hovered once the pointer has
     /// stayed for the delay; one already hovered is not said again.
-    pub fn enter(&self, annotation_id: &str) {
+    pub fn enter(&self, annotation_id: &AnnotationId) {
         let mut dwell = locked(&self.dwell);
-        if dwell.hovering.as_deref() == Some(annotation_id) {
+        if dwell.hovering.as_ref() == Some(annotation_id) {
             return;
         }
         dwell.interrupt();
         let (rest, delay) = (dwell.rest, self.delay);
         let (shared, say) = (self.dwell.clone(), self.say.clone());
-        let annotation_id = annotation_id.to_owned();
+        let annotation_id = annotation_id.clone();
         let resting = tokio::spawn(async move {
             tokio::time::sleep(delay).await;
             {

@@ -9,7 +9,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useResourceViewedReport } from '../hooks/useResourceViewedReport';
 import type { components, ResourceDescriptor, ResourceId, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
-import { annotationId, folderOf } from '@semiont/core';
+import { annotationId, folderOf, resourceId } from '@semiont/core';
 import type { ComposeParams } from '../../../components/modals/ComposeStep';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, getStorageUri, capabilitiesOf, extensionForMediaType } from '@semiont/core';
 import { ANNOTATORS } from '@semiont/react-ui';
@@ -166,7 +166,8 @@ export function ResourceViewerPage({
   // ResourceViewer is bring-your-own-session: feed it the active session plus
   // host-owned navigation (reference follow) and panel control (app-scoped bus).
   const handleViewerOpenResource = useCallback((id: string) => {
-    navigateExternal(`/know/resource/${id}`, { resourceId: id });
+    // A reference names the resource it leads to as text: here it becomes an id.
+    navigateExternal(`/know/resource/${id}`, { resourceId: resourceId(id) });
   }, [navigateExternal]);
 
   const handleViewerOpenPanel = useCallback((event: EventMap['panel:open']) => {
@@ -249,7 +250,7 @@ export function ResourceViewerPage({
   // re-armed (the mark:added glow burned its window unseen). Never navigates
   // (A2); a held outcome on remount stays quiet (D6, inside the hook).
   const handleGenerationArrival = useCallback((annId: string) => {
-    browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annId, motivation: 'linking' });
+    browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annotationId(annId), motivation: 'linking' });
     triggerSparkleAnimation(annId);
   }, [browser, triggerSparkleAnimation]);
   useGenerationArrival(generationOutcome, annotations, handleGenerationArrival);

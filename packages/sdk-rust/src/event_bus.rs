@@ -19,6 +19,7 @@ use crate::bus::{Typed, payload_of};
 use crate::channels::Channel;
 use crate::errors::TransportError;
 use crate::transport::{Envelope, Events, Frame, Lagged, STREAM_BACKLOG};
+use crate::types::ResourceId;
 use futures_core::Stream;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -237,10 +238,10 @@ impl EventBus {
     }
 
     /// This bus, seen from one resource's scope.
-    pub fn scope(&self, resource_id: &str) -> ScopedEventBus {
+    pub fn scope(&self, resource_id: &ResourceId) -> ScopedEventBus {
         ScopedEventBus {
             inner: self.inner.clone(),
-            scope: resource_id.to_owned(),
+            scope: resource_id.to_string(),
         }
     }
 
@@ -322,12 +323,20 @@ mod tests {
     async fn a_global_view_does_not_see_a_scope_and_a_scope_sees_only_its_own() {
         let bus = EventBus::new();
         let mut global = bus.frames("mark:added");
-        let mut one = bus.scope("res-1").frames("mark:added");
-        let mut other = bus.scope("res-2").frames("mark:added");
+        let mut one = bus.scope(&"res-1".parse().unwrap()).frames("mark:added");
+        let mut other = bus.scope(&"res-2".parse().unwrap()).frames("mark:added");
 
         assert_eq!(bus.emit("mark:added", payload(1), Envelope::default()), 1);
-        assert_eq!(bus.scope("res-1").emit("mark:added", payload(2), None), 1);
-        assert_eq!(bus.scope("res-3").emit("mark:added", payload(3), None), 0);
+        assert_eq!(
+            bus.scope(&"res-1".parse().unwrap())
+                .emit("mark:added", payload(2), None),
+            1
+        );
+        assert_eq!(
+            bus.scope(&"res-3".parse().unwrap())
+                .emit("mark:added", payload(3), None),
+            0
+        );
         bus.destroy();
 
         let seen = |frames: Vec<Frame>| -> Vec<Value> {
@@ -378,7 +387,8 @@ mod tests {
             assert_eq!(bus.emit(channel, payload(n), Envelope::default()), 1);
         }
         bus.emit("mark:submit", payload(9), Envelope::default());
-        bus.scope("res-1").emit("mark:requested", payload(9), None);
+        bus.scope(&"res-1".parse().unwrap())
+            .emit("mark:requested", payload(9), None);
         drop(bus.frames_among(&["mark:requested"]));
         bus.destroy();
 

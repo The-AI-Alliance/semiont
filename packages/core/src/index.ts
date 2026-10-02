@@ -20,8 +20,6 @@ export type {
   MCPToken,
   CloneToken,
   // System identifiers
-  JobId,
-  UserDID,
   EntityType,
   SearchQuery,
   BaseUrl,
@@ -37,8 +35,6 @@ export {
   accessToken,
   mcpToken,
   cloneToken,
-  jobId,
-  userDID,
   entityType,
   searchQuery,
   baseUrl,
@@ -48,14 +44,13 @@ export {
   resourceAnnotationUri,
 } from './branded-types';
 
-// Identifier types (only IDs - URIs are in @semiont/http-transport)
-export type { ResourceId, AnnotationId, UserId } from './identifiers';
+// The kinds of id, generated from the spec
+export type { ResourceId, AnnotationId, JobId, UserId } from './identifiers';
 export {
   resourceId,
   annotationId,
+  jobId,
   userId,
-  isResourceId,
-  isAnnotationId,
   SYSTEM_SCOPE,
 } from './identifiers';
 

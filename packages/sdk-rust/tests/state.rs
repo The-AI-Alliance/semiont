@@ -13,6 +13,7 @@ use semiont::state::{
     SearchPipeline, SearchPipelineOptions, SearchState, YieldOutcome, YieldStateUnit,
 };
 use semiont::state_unit::StateUnit;
+use semiont::testing::as_id;
 use semiont::testing::axioms::{AxiomSubject, Fresh, Surface, assert_state_unit_axioms};
 use semiont::testing::{
     FaultAction, FaultyTransport, RequestLogEntry, TestClientOptions, create_test_client,
@@ -150,7 +151,7 @@ async fn beckon_holds_what_is_hovered_and_none_clears_it() {
     let hovered = unit.hovered();
     assert_eq!(*hovered.borrow(), None);
 
-    client.beckon.hover(Some("ann-1"));
+    client.beckon.hover(Some(&as_id("ann-1")));
     settle().await;
     assert_eq!(hovered.borrow().as_deref(), Some("ann-1"));
 
@@ -165,7 +166,7 @@ async fn beckon_sparkles_what_is_hovered_and_nothing_when_nothing_is() {
     let _unit = BeckonStateUnit::new(client.clone());
     let mut sparkles = client.bus().frames("beckon:sparkle");
 
-    client.beckon.hover(Some("ann-1"));
+    client.beckon.hover(Some(&as_id("ann-1")));
     client.beckon.hover(None);
     settle().await;
 
@@ -182,7 +183,7 @@ async fn beckon_turns_the_focus_to_an_annotation_that_is_opened() {
     let mut focus = client.bus().frames("beckon:focus");
 
     // By this viewer.
-    client.browse.click("ann-1");
+    client.browse.click(&as_id("ann-1"));
     // By another participant, driving this one.
     transport.deliver(Frame {
         channel: "browse:click".to_owned(),
@@ -209,7 +210,7 @@ async fn beckon_focus_says_the_focus() {
     let unit = BeckonStateUnit::new(client.clone());
     let mut focus = client.bus().frames("beckon:focus");
 
-    unit.focus("ann-7");
+    unit.focus(&as_id("ann-7"));
 
     assert_eq!(
         payloads(heard(&mut focus).await),
@@ -227,9 +228,9 @@ async fn beckon_disposed_hears_nothing_and_says_nothing() {
         .frames_among(&["beckon:sparkle", "beckon:focus"]);
     unit.dispose();
 
-    client.beckon.hover(Some("ann-1"));
-    client.browse.click("ann-1");
-    unit.focus("ann-1");
+    client.beckon.hover(Some(&as_id("ann-1")));
+    client.browse.click(&as_id("ann-1"));
+    unit.focus(&as_id("ann-1"));
     settle().await;
 
     assert!(heard(&mut said).await.is_empty());
@@ -245,11 +246,11 @@ async fn a_state_set_to_what_it_already_is_wakes_nobody() {
     let unit = BeckonStateUnit::new(client.clone());
     let mut hovered = unit.hovered();
 
-    client.beckon.hover(Some("ann-1"));
+    client.beckon.hover(Some(&as_id("ann-1")));
     settle().await;
     assert!(hovered.moved());
 
-    client.beckon.hover(Some("ann-1"));
+    client.beckon.hover(Some(&as_id("ann-1")));
     settle().await;
     assert!(!hovered.moved());
 }
@@ -269,7 +270,7 @@ impl AxiomSubject for Beckons {
     }
 
     fn invocations<'a>(&self, unit: &'a BeckonStateUnit) -> Vec<Box<dyn Fn() + 'a>> {
-        vec![Box::new(|| unit.focus("ann-1"))]
+        vec![Box::new(|| unit.focus(&as_id("ann-1")))]
     }
 }
 
@@ -290,7 +291,7 @@ fn dwell(delay: Duration) -> (HoverDwell, Said) {
             record
                 .lock()
                 .expect("said")
-                .push(hovered.map(str::to_owned))
+                .push(hovered.map(ToString::to_string))
         },
         delay,
     );
@@ -305,7 +306,7 @@ fn said(said: &Said) -> Vec<Option<String>> {
 async fn a_pointer_that_rests_hovers_and_one_that_leaves_stops_at_once() {
     let (dwell, hovers) = dwell(HOVER_DELAY);
 
-    dwell.enter("ann-1");
+    dwell.enter(&as_id("ann-1"));
     tokio::time::sleep(HOVER_DELAY - Duration::from_millis(1)).await;
     assert!(said(&hovers).is_empty());
     tokio::time::sleep(Duration::from_millis(2)).await;
@@ -319,7 +320,7 @@ async fn a_pointer_that_rests_hovers_and_one_that_leaves_stops_at_once() {
 async fn a_pointer_that_passes_over_hovers_nothing() {
     let (dwell, hovers) = dwell(HOVER_DELAY);
 
-    dwell.enter("ann-1");
+    dwell.enter(&as_id("ann-1"));
     tokio::time::sleep(HOVER_DELAY / 2).await;
     dwell.leave();
     tokio::time::sleep(HOVER_DELAY * 2).await;
@@ -332,9 +333,9 @@ async fn a_pointer_that_passes_over_hovers_nothing() {
 async fn a_pointer_that_moves_on_hovers_only_where_it_rests() {
     let (dwell, hovers) = dwell(HOVER_DELAY);
 
-    dwell.enter("ann-1");
+    dwell.enter(&as_id("ann-1"));
     tokio::time::sleep(HOVER_DELAY / 2).await;
-    dwell.enter("ann-2");
+    dwell.enter(&as_id("ann-2"));
     tokio::time::sleep(HOVER_DELAY * 2).await;
 
     assert_eq!(said(&hovers), [Some("ann-2".to_owned())]);
@@ -344,9 +345,9 @@ async fn a_pointer_that_moves_on_hovers_only_where_it_rests() {
 async fn an_annotation_already_hovered_is_not_said_again() {
     let (dwell, hovers) = dwell(HOVER_DELAY);
 
-    dwell.enter("ann-1");
+    dwell.enter(&as_id("ann-1"));
     tokio::time::sleep(HOVER_DELAY * 2).await;
-    dwell.enter("ann-1");
+    dwell.enter(&as_id("ann-1"));
     tokio::time::sleep(HOVER_DELAY * 2).await;
 
     assert_eq!(said(&hovers), [Some("ann-1".to_owned())]);
@@ -356,7 +357,7 @@ async fn an_annotation_already_hovered_is_not_said_again() {
 async fn a_dwell_that_is_dropped_forgets_the_rest_it_was_waiting_out() {
     let (dwell, hovers) = dwell(HOVER_DELAY);
 
-    dwell.enter("ann-1");
+    dwell.enter(&as_id("ann-1"));
     drop(dwell);
     tokio::time::sleep(HOVER_DELAY * 2).await;
 
@@ -509,7 +510,7 @@ impl Gathers {
             context: unit.context().borrow().clone(),
             loading: *unit.loading().borrow(),
             error: unit.error().borrow().as_ref().map(ToString::to_string),
-            annotation_id: unit.annotation_id().borrow().clone(),
+            annotation_id: unit.annotation_id().borrow().as_deref().map(str::to_owned),
             resource_context: unit.resource_context().borrow().clone(),
             resource_loading: *unit.resource_loading().borrow(),
             resource_error: unit
@@ -556,7 +557,7 @@ fn annotation_gathered(transport: &FaultyTransport, nth: usize, annotation_id: &
 #[tokio::test(start_paused = true)]
 async fn gather_begins_with_nothing_and_asks_for_nothing() {
     let (client, transport) = unanswered();
-    let unit = GatherStateUnit::new(client.clone(), RES);
+    let unit = GatherStateUnit::new(client.clone(), &as_id(RES));
     settle().await;
 
     assert_eq!(Gathers::of(&unit), Gathers::nothing());
@@ -566,7 +567,7 @@ async fn gather_begins_with_nothing_and_asks_for_nothing() {
 #[tokio::test(start_paused = true)]
 async fn gather_asks_for_an_annotations_context_of_its_own_resource_and_holds_it() {
     let (client, transport) = unanswered();
-    let unit = GatherStateUnit::new(client.clone(), RES);
+    let unit = GatherStateUnit::new(client.clone(), &as_id(RES));
 
     ask_for_a_gather(&client, "ann-1", Value::Null);
     settle().await;
@@ -600,7 +601,7 @@ async fn gather_asks_for_an_annotations_context_of_its_own_resource_and_holds_it
 #[tokio::test(start_paused = true)]
 async fn gather_takes_the_window_it_is_asked_for() {
     let (client, transport) = unanswered();
-    let _unit = GatherStateUnit::new(client.clone(), RES);
+    let _unit = GatherStateUnit::new(client.clone(), &as_id(RES));
 
     ask_for_a_gather(&client, "ann-1", json!({ "contextWindow": 500 }));
     settle().await;
@@ -612,7 +613,7 @@ async fn gather_takes_the_window_it_is_asked_for() {
 #[tokio::test(start_paused = true)]
 async fn gather_holds_the_failure_of_a_gather_and_the_next_one_clears_it() {
     let (client, transport) = unanswered();
-    let unit = GatherStateUnit::new(client.clone(), RES);
+    let unit = GatherStateUnit::new(client.clone(), &as_id(RES));
 
     ask_for_a_gather(&client, "ann-1", Value::Null);
     settle().await;
@@ -662,7 +663,7 @@ async fn gather_holds_the_failure_of_a_gather_and_the_next_one_clears_it() {
 #[tokio::test(start_paused = true)]
 async fn gather_fails_a_gather_never_answered_at_the_requests_deadline() {
     let (client, _transport) = unanswered();
-    let unit = GatherStateUnit::new(client.clone(), RES);
+    let unit = GatherStateUnit::new(client.clone(), &as_id(RES));
 
     ask_for_a_gather(&client, "ann-1", Value::Null);
     tokio::time::sleep(BUS_REQUEST_TIMEOUT - Duration::from_secs(1)).await;
@@ -677,9 +678,9 @@ async fn gather_fails_a_gather_never_answered_at_the_requests_deadline() {
 #[tokio::test(start_paused = true)]
 async fn gather_resource_is_loading_when_the_call_returns_and_then_holds_the_context() {
     let (client, transport) = unanswered();
-    let unit = GatherStateUnit::new(client.clone(), RES);
+    let unit = GatherStateUnit::new(client.clone(), &as_id(RES));
 
-    unit.gather_resource("res-9", GatherResourceRequestOptions::default());
+    unit.gather_resource(&as_id("res-9"), GatherResourceRequestOptions::default());
     // Before anything else has run.
     assert_eq!(
         Gathers::of(&unit),
@@ -713,9 +714,9 @@ async fn gather_resource_is_loading_when_the_call_returns_and_then_holds_the_con
 #[tokio::test(start_paused = true)]
 async fn gather_resource_holds_its_failure_and_the_next_one_clears_it() {
     let (client, transport) = unanswered();
-    let unit = GatherStateUnit::new(client.clone(), RES);
+    let unit = GatherStateUnit::new(client.clone(), &as_id(RES));
 
-    unit.gather_resource("res-9", GatherResourceRequestOptions::default());
+    unit.gather_resource(&as_id("res-9"), GatherResourceRequestOptions::default());
     settle().await;
     answer(
         &transport,
@@ -733,7 +734,7 @@ async fn gather_resource_holds_its_failure_and_the_next_one_clears_it() {
         }
     );
 
-    unit.gather_resource("res-9", GatherResourceRequestOptions::default());
+    unit.gather_resource(&as_id("res-9"), GatherResourceRequestOptions::default());
     assert_eq!(
         Gathers::of(&unit),
         Gathers {
@@ -746,10 +747,10 @@ async fn gather_resource_holds_its_failure_and_the_next_one_clears_it() {
 #[tokio::test(start_paused = true)]
 async fn gather_keeps_an_annotations_gather_and_a_resources_apart() {
     let (client, transport) = unanswered();
-    let unit = GatherStateUnit::new(client.clone(), RES);
+    let unit = GatherStateUnit::new(client.clone(), &as_id(RES));
 
     ask_for_a_gather(&client, "ann-1", Value::Null);
-    unit.gather_resource("res-9", GatherResourceRequestOptions::default());
+    unit.gather_resource(&as_id("res-9"), GatherResourceRequestOptions::default());
     settle().await;
     answer(
         &transport,
@@ -785,9 +786,9 @@ async fn gather_keeps_an_annotations_gather_and_a_resources_apart() {
 #[tokio::test(start_paused = true)]
 async fn gather_disposed_is_inert_and_an_answer_that_comes_later_lands_nowhere() {
     let (client, transport) = unanswered();
-    let unit = GatherStateUnit::new(client.clone(), RES);
+    let unit = GatherStateUnit::new(client.clone(), &as_id(RES));
     ask_for_a_gather(&client, "ann-1", Value::Null);
-    unit.gather_resource("res-9", GatherResourceRequestOptions::default());
+    unit.gather_resource(&as_id("res-9"), GatherResourceRequestOptions::default());
     settle().await;
     let mut held = unit.context();
     let mut held_of_the_resource = unit.resource_context();
@@ -802,7 +803,7 @@ async fn gather_disposed_is_inert_and_an_answer_that_comes_later_lands_nowhere()
         json!({ "resourceId": "res-9", "response": context() }),
     );
     ask_for_a_gather(&client, "ann-2", Value::Null);
-    unit.gather_resource("res-9", GatherResourceRequestOptions::default());
+    unit.gather_resource(&as_id("res-9"), GatherResourceRequestOptions::default());
     settle().await;
 
     assert!(held.ended() && held_of_the_resource.ended());
@@ -820,7 +821,7 @@ impl AxiomSubject for Gatherings {
 
     fn setup(&self) -> Fresh<GatherStateUnit> {
         let (client, _transport) = world();
-        Fresh::of(GatherStateUnit::new(client.clone(), RES)).given(client)
+        Fresh::of(GatherStateUnit::new(client.clone(), &as_id(RES))).given(client)
     }
 
     fn surfaces(&self, unit: &GatherStateUnit) -> Vec<Box<dyn Surface>> {
@@ -837,7 +838,7 @@ impl AxiomSubject for Gatherings {
 
     fn invocations<'a>(&self, unit: &'a GatherStateUnit) -> Vec<Box<dyn Fn() + 'a>> {
         vec![Box::new(|| {
-            unit.gather_resource(RES, GatherResourceRequestOptions::default());
+            unit.gather_resource(&as_id(RES), GatherResourceRequestOptions::default());
         })]
     }
 }
@@ -893,7 +894,7 @@ fn generated(truncated: bool) -> Value {
 
 fn outcome(truncated: bool) -> YieldOutcome {
     YieldOutcome {
-        resource_id: "res-new".to_owned(),
+        resource_id: as_id("res-new"),
         resource_name: "New".to_owned(),
         truncated,
     }
@@ -1188,7 +1189,7 @@ fn submit(client: &SemiontClient, source: &str, exact: &str) {
 #[tokio::test(start_paused = true)]
 async fn mark_holds_the_annotation_a_selection_asks_for_until_it_is_cancelled() {
     let (client, _transport) = world();
-    let unit = MarkStateUnit::new(client.clone(), RES);
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     assert_eq!(*unit.pending().borrow(), None);
     assert_eq!(*unit.assisting().borrow(), None);
     assert_eq!(*unit.progress().borrow(), None);
@@ -1210,7 +1211,7 @@ async fn mark_holds_the_annotation_a_selection_asks_for_until_it_is_cancelled() 
 #[tokio::test(start_paused = true)]
 async fn mark_carries_a_selector_of_several_as_it_was_given() {
     let (client, _transport) = world();
-    let unit = MarkStateUnit::new(client.clone(), RES);
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     let several = json!([
         { "type": "TextPositionSelector", "start": 3.0, "end": 8.0 },
         { "type": "TextQuoteSelector", "exact": "hello", "prefix": "oh ", "suffix": " there" },
@@ -1234,7 +1235,7 @@ async fn mark_carries_a_selector_of_several_as_it_was_given() {
 #[tokio::test(start_paused = true)]
 async fn mark_reads_a_quick_selection_as_the_selector_it_states() {
     let (client, _transport) = world();
-    let unit = MarkStateUnit::new(client.clone(), RES);
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     let cases = [
         (
             "mark:select-comment",
@@ -1284,7 +1285,7 @@ async fn mark_creates_what_is_submitted_and_it_stops_being_pending_once_recorded
         [Some(json!({ "annotationId": "ann-new" }))],
     );
     let client = client_over(&transport);
-    let unit = MarkStateUnit::new(client.clone(), RES);
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     client
         .mark
         .request(RES, requested_selector("hello"), Motivation::Commenting);
@@ -1315,7 +1316,7 @@ async fn mark_creates_what_is_submitted_and_it_stops_being_pending_once_recorded
 #[tokio::test(start_paused = true)]
 async fn mark_keeps_its_pending_annotation_when_another_creation_is_recorded() {
     let (client, transport) = world();
-    let unit = MarkStateUnit::new(client.clone(), RES);
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     client
         .mark
         .request(RES, requested_selector("hello"), Motivation::Commenting);
@@ -1337,7 +1338,7 @@ async fn mark_keeps_its_pending_annotation_when_another_creation_is_recorded() {
 #[tokio::test(start_paused = true)]
 async fn mark_says_a_creation_that_failed_and_keeps_the_annotation_pending() {
     let (client, _transport) = jobs();
-    let unit = MarkStateUnit::new(client.clone(), RES);
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     let mut errors = client.bus().frames("mark:create-error");
     client
         .mark
@@ -1356,7 +1357,7 @@ async fn mark_says_a_creation_that_failed_and_keeps_the_annotation_pending() {
 async fn mark_deletes_an_annotation_of_its_resource_and_says_a_deletion_that_failed() {
     let (client, transport) = world();
     transport.queue_reply("mark:delete", [Some(json!({ "annotationId": "ann-1" }))]);
-    let _unit = MarkStateUnit::new(client.clone(), RES);
+    let _unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     let mut errors = client.bus().frames("mark:delete-error");
 
     say(
@@ -1396,8 +1397,8 @@ async fn mark_deletes_only_what_is_said_to_be_of_its_resource() {
     let (client, transport) = world();
     transport.queue_reply("mark:delete", [Some(json!({ "annotationId": "ann-1" }))]);
     // Two resources are open on one client, each with its unit.
-    let _here = MarkStateUnit::new(client.clone(), RES);
-    let _there = MarkStateUnit::new(client.clone(), "res-2");
+    let _here = MarkStateUnit::new(client.clone(), &as_id(RES));
+    let _there = MarkStateUnit::new(client.clone(), &as_id("res-2"));
 
     say(
         &client,
@@ -1438,7 +1439,7 @@ const HIGHLIGHT: &str = "highlight-annotation";
 #[tokio::test(start_paused = true)]
 async fn mark_runs_the_assist_it_is_asked_for_and_shows_its_progress() {
     let (client, transport) = jobs();
-    let unit = MarkStateUnit::new(client.clone(), RES);
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
 
     ask_for_an_assist(
         &client,
@@ -1477,7 +1478,7 @@ async fn mark_runs_the_assist_it_is_asked_for_and_shows_its_progress() {
 #[tokio::test(start_paused = true)]
 async fn mark_begins_each_assist_without_the_last_ones_progress() {
     let (client, _transport) = jobs();
-    let unit = MarkStateUnit::new(client.clone(), RES);
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     ask_for_an_assist(&client, json!({}));
     settle().await;
     say(&client, "job:report-progress", progress(HIGHLIGHT, 40.0));
@@ -1493,7 +1494,7 @@ async fn mark_begins_each_assist_without_the_last_ones_progress() {
 #[tokio::test(start_paused = true)]
 async fn mark_clears_an_assist_that_fails_and_says_no_silence_of_it() {
     let (client, _transport) = jobs();
-    let unit = MarkStateUnit::new(client.clone(), RES);
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     let mut silences = client.bus().frames("mark:assist-timeout");
     ask_for_an_assist(&client, json!({}));
     settle().await;
@@ -1516,7 +1517,7 @@ async fn mark_clears_an_assist_that_fails_and_says_no_silence_of_it() {
 async fn mark_clears_an_assist_that_could_not_be_started() {
     // Nothing answers `job:create`.
     let (client, _transport) = world();
-    let unit = MarkStateUnit::new(client.clone(), RES);
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
 
     ask_for_an_assist(&client, json!({}));
     settle().await;
@@ -1527,7 +1528,7 @@ async fn mark_clears_an_assist_that_could_not_be_started() {
 #[tokio::test(start_paused = true)]
 async fn mark_says_once_that_an_assist_has_gone_quiet_and_keeps_following_it() {
     let (client, _transport) = jobs();
-    let unit = MarkStateUnit::new(client.clone(), RES);
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     let mut silences = client.bus().frames("mark:assist-timeout");
     ask_for_an_assist(&client, json!({}));
 
@@ -1559,7 +1560,7 @@ async fn mark_says_once_that_an_assist_has_gone_quiet_and_keeps_following_it() {
 #[tokio::test(start_paused = true)]
 async fn mark_counts_an_assists_silence_from_the_last_thing_it_said() {
     let (client, _transport) = jobs();
-    let unit = MarkStateUnit::new(client.clone(), RES);
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     let mut silences = client.bus().frames("mark:assist-timeout");
     ask_for_an_assist(&client, json!({}));
 
@@ -1601,8 +1602,8 @@ async fn mark_units_of_two_resources_on_one_client_each_answer_for_their_own() {
         [Some(json!({ "annotationId": "ann-new" }))],
     );
     let client = client_over(&transport);
-    let first = MarkStateUnit::new(client.clone(), "res-a");
-    let second = MarkStateUnit::new(client.clone(), "res-b");
+    let first = MarkStateUnit::new(client.clone(), &as_id("res-a"));
+    let second = MarkStateUnit::new(client.clone(), &as_id("res-b"));
 
     client.mark.request(
         "res-a",
@@ -1623,7 +1624,7 @@ async fn mark_units_of_two_resources_on_one_client_each_answer_for_their_own() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn mark_acts_on_what_it_hears_in_the_order_it_was_said() {
     let (client, _transport) = world();
-    let unit = MarkStateUnit::new(client.clone(), RES);
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     let mut pending = unit.pending();
 
     for round in 0..150 {
@@ -1653,7 +1654,7 @@ async fn mark_acts_on_what_it_hears_in_the_order_it_was_said() {
 #[tokio::test(start_paused = true)]
 async fn mark_disposed_is_inert() {
     let (client, transport) = jobs();
-    let unit = MarkStateUnit::new(client.clone(), RES);
+    let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     ask_for_an_assist(&client, json!({}));
     settle().await;
     let mut pending = unit.pending();
@@ -1696,7 +1697,7 @@ impl AxiomSubject for Marks {
 
     fn setup(&self) -> Fresh<MarkStateUnit> {
         let (client, _transport) = world();
-        Fresh::of(MarkStateUnit::new(client.clone(), RES)).given(client)
+        Fresh::of(MarkStateUnit::new(client.clone(), &as_id(RES))).given(client)
     }
 
     fn surfaces(&self, unit: &MarkStateUnit) -> Vec<Box<dyn Surface>> {

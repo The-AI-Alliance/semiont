@@ -2905,8 +2905,8 @@ type FileEntry struct {
 	// AnnotationCount Number of annotations on this resource (only when tracked is true)
 	AnnotationCount *int `json:"annotationCount,omitempty"`
 
-	// Creator The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
-	Creator *UserId `json:"creator,omitempty"`
+	// Creator DID of the resource's creator — the first of its derived `wasAttributedTo`, the requester as the knowledge base recorded it (only when tracked is true)
+	Creator *string `json:"creator,omitempty"`
 
 	// EntityTypes Entity types assigned to this resource (only when tracked is true)
 	EntityTypes *[]string `json:"entityTypes,omitempty"`
@@ -3464,8 +3464,8 @@ type JobAssignCommand struct {
 	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
-	// Holder DID of the claimant whose claim was accepted — the `_userId` the gateway stamped on the job:claim, restated by the dispatcher.
-	Holder string `json:"holder"`
+	// Holder The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	Holder UserId `json:"holder"`
 
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`
@@ -3473,8 +3473,8 @@ type JobAssignCommand struct {
 	// JobType Type of background job
 	JobType JobType `json:"jobType"`
 
-	// Requester DID of the emitter of the job:create that produced this job — the `_userId` the gateway stamped on that create, restated by the dispatcher.
-	Requester string `json:"requester"`
+	// Requester The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	Requester UserId `json:"requester"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
@@ -3482,8 +3482,8 @@ type JobAssignCommand struct {
 
 // JobAssignedPayload Payload for job:assigned — the dispatcher's own record that it accepted a claim. Emitted by the dispatcher under its service identity after a successful job:claim (the correlated job:claimed reply is unchanged). This is the one fact only the dispatcher can vouch for: which holder took which job, and who requested it. The Stower persists it beside job:started so that a write citing `jobId` can be checked against the holder and its `creator` derived from the requester with no read outside the event log.
 type JobAssignedPayload struct {
-	// Holder DID of the emitter whose claim the dispatcher accepted. The bus stamped it on the job:claim as `_userId`; the dispatcher restates it here under its own identity.
-	Holder string `json:"holder"`
+	// Holder The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	Holder UserId `json:"holder"`
 
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId JobId `json:"jobId"`
@@ -3491,8 +3491,8 @@ type JobAssignedPayload struct {
 	// JobType Type of background job
 	JobType JobType `json:"jobType"`
 
-	// Requester DID of the emitter of the job:create that produced this job. The dispatcher restates the `_userId` the gateway stamped on that create.
-	Requester string `json:"requester"`
+	// Requester The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	Requester UserId `json:"requester"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
@@ -4815,8 +4815,8 @@ type ResourceDescriptor struct {
 	// Context JSON-LD context; URI, object, or array of these.
 	Context ResourceDescriptor_Context `json:"@context"`
 
-	// Id Canonical URI/URN of the resource being described.
-	Id string `json:"@id"`
+	// Id A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	Id ResourceId `json:"@id"`
 
 	// Type Type(s) of the resource (IRIs/CURIEs via @context).
 	Type *ResourceDescriptor_Type `json:"@type,omitempty"`
@@ -5070,8 +5070,8 @@ type ScoredResource struct {
 	// Context JSON-LD context; URI, object, or array of these.
 	Context ScoredResource_Context `json:"@context"`
 
-	// Id Canonical URI/URN of the resource being described.
-	Id string `json:"@id"`
+	// Id A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	Id ResourceId `json:"@id"`
 
 	// Type Type(s) of the resource (IRIs/CURIEs via @context).
 	Type *ScoredResource_Type `json:"@type,omitempty"`
@@ -5310,8 +5310,8 @@ type SessionJoinedEvent struct {
 	// ConnectionId Identifies this connection for its lifetime. The matching session:left carries the same value.
 	ConnectionId string `json:"connectionId"`
 
-	// Participant DID of the authenticated principal on that connection. A person or a software agent — the bus does not distinguish.
-	Participant string `json:"participant"`
+	// Participant The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	Participant UserId `json:"participant"`
 }
 
 // SessionLeftEvent A participant's live connection to this KB ended — the SSE stream aborted. Carries the same connectionId as the session:joined that opened it, so a consumer tracking who is present can retire the right connection rather than assuming one per participant.
@@ -5319,8 +5319,8 @@ type SessionLeftEvent struct {
 	// ConnectionId The connectionId announced by the matching session:joined.
 	ConnectionId string `json:"connectionId"`
 
-	// Participant DID of the authenticated principal on that connection.
-	Participant string `json:"participant"`
+	// Participant The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	Participant UserId `json:"participant"`
 }
 
 // SettingsHoverDelayChangedEvent Emitted when the hover delay setting changes

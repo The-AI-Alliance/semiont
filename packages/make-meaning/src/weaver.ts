@@ -266,7 +266,7 @@ export class Weaver {
     // never learn a sequence the mark cannot honestly claim (W6/W7).
     // In-process the shim's emit is synchronous; over HTTP a lost signal
     // only means a barrier timeout (the poll floor absorbs it).
-    this.bus.emit('weave:applied', { resourceId, sequenceNumber: capped }).catch((err) => {
+    this.bus.emit('weave:applied', { resourceId: makeResourceId(resourceId), sequenceNumber: capped }).catch((err) => {
       this.logger.warn('weave:applied emit failed', { resourceId, sequenceNumber: capped, error: errField(err) });
     });
   }

@@ -2,13 +2,14 @@
 //! what is a function of a list of them and nothing else: their order, and
 //! what checking them against their knowledge base keeps and drops.
 
+use crate::types::ResourceId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenResource {
-    pub id: String,
+    pub id: ResourceId,
     pub name: String,
     /// When it was opened, in milliseconds since the epoch.
     pub opened_at: u64,
@@ -43,7 +44,7 @@ pub enum TabCheck {
 /// verdict is left: it was opened while the checks were in flight.
 pub fn apply_tab_checks(
     list: Vec<OpenResource>,
-    checks: &HashMap<String, TabCheck>,
+    checks: &HashMap<ResourceId, TabCheck>,
 ) -> Vec<OpenResource> {
     list.into_iter()
         .filter_map(|tab| match checks.get(&tab.id) {
@@ -69,10 +70,14 @@ pub fn sort_open_resources(mut resources: Vec<OpenResource>) -> Vec<OpenResource
 mod tests {
     use super::*;
 
-    fn tab(id: &str, opened_at: u64, order: u64) -> OpenResource {
+    fn id(text: &str) -> ResourceId {
+        text.parse().expect("a test names an id")
+    }
+
+    fn tab(named: &str, opened_at: u64, order: u64) -> OpenResource {
         OpenResource {
-            id: id.to_owned(),
-            name: format!("name of {id}"),
+            id: id(named),
+            name: format!("name of {named}"),
             opened_at,
             order,
             media_type: Some("text/plain".to_owned()),
@@ -98,15 +103,15 @@ mod tests {
     #[test]
     fn only_a_resource_the_knowledge_base_says_is_gone_is_dropped() {
         let checks = HashMap::from([
-            ("gone".to_owned(), TabCheck::Gone),
+            (id("gone"), TabCheck::Gone),
             (
-                "found".to_owned(),
+                id("found"),
                 TabCheck::Ready {
                     name: "Its name now".to_owned(),
                     media_type: None,
                 },
             ),
-            ("unknown".to_owned(), TabCheck::Unknown),
+            (id("unknown"), TabCheck::Unknown),
         ]);
         let kept = apply_tab_checks(
             vec![

@@ -646,7 +646,7 @@ impl JobQueue for JetStreamQueue {
             .create(&id, Inner::encode(Job::Pending(job)))
             .await
             .map_err(|e| failed("admitting a job", e))?;
-        self.inner.publish(job_type, &id).await
+        self.inner.publish(job_type, id.as_str()).await
     }
 
     async fn get_job(&self, id: &JobId) -> Result<Option<Job>, QueueError> {

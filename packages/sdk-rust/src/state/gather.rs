@@ -16,7 +16,10 @@ use crate::client::SemiontClient;
 use crate::errors::SemiontError;
 use crate::event_bus::BusFrames;
 use crate::state_unit::StateUnit;
-use crate::types::{GatherAnnotationRequest, GatherResourceRequestOptions, GatheredContext};
+use crate::types::AnnotationId;
+use crate::types::{
+    GatherAnnotationRequest, GatherResourceRequestOptions, GatheredContext, ResourceId,
+};
 use std::sync::Arc;
 use tokio::sync::watch;
 
@@ -61,9 +64,9 @@ impl Slot {
 
 struct Shared {
     client: Arc<SemiontClient>,
-    resource_id: String,
+    resource_id: ResourceId,
     annotation: Slot,
-    annotation_id: Held<Option<String>>,
+    annotation_id: Held<Option<AnnotationId>>,
     resource: Slot,
     tasks: Tasks,
 }
@@ -75,11 +78,11 @@ pub struct GatherStateUnit {
 
 impl GatherStateUnit {
     /// The gathers of `resource_id`'s annotations, and of any resource.
-    pub fn new(client: Arc<SemiontClient>, resource_id: &str) -> GatherStateUnit {
+    pub fn new(client: Arc<SemiontClient>, resource_id: &ResourceId) -> GatherStateUnit {
         let heard = client.bus().frames(GatherRequested::NAME);
         let shared = Arc::new(Shared {
             client,
-            resource_id: resource_id.to_owned(),
+            resource_id: resource_id.clone(),
             annotation: Slot::new(),
             annotation_id: Held::new(None),
             resource: Slot::new(),
@@ -103,7 +106,7 @@ impl GatherStateUnit {
     }
 
     /// The annotation last asked about.
-    pub fn annotation_id(&self) -> watch::Receiver<Option<String>> {
+    pub fn annotation_id(&self) -> watch::Receiver<Option<AnnotationId>> {
         self.shared.annotation_id.read()
     }
 
@@ -121,9 +124,9 @@ impl GatherStateUnit {
     }
 
     /// Gather the context around a whole resource.
-    pub fn gather_resource(&self, resource_id: &str, options: GatherResourceRequestOptions) {
+    pub fn gather_resource(&self, resource_id: &ResourceId, options: GatherResourceRequestOptions) {
         self.shared.resource.begin();
-        let (shared, resource_id) = (self.shared.clone(), resource_id.to_owned());
+        let (shared, resource_id) = (self.shared.clone(), resource_id.clone());
         self.shared.tasks.spawn(async move {
             let gathered = shared.client.gather.resource(&resource_id, options).await;
             shared.resource.land(gathered);

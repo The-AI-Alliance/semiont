@@ -9,7 +9,7 @@ import type { BrowseMediaRenderers } from './browse-renderers';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
 import type { Annotation, AnnotationId, ResourceDescriptor as SemiontResource, EventMap, AnchorRect } from '@semiont/core';
-import { getExactText, getTargetSelector, getPrimaryMediaType, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/core';
+import { getExactText, getTargetSelector, getPrimaryMediaType, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource, annotationId as makeAnnotationId } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
 import { ANNOTATORS } from '../../lib/annotation-registry';
@@ -300,7 +300,7 @@ export function ResourceViewer({
     // All annotations open the unified annotations panel — the host owns the panel.
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel.
     // View geometry passes through untouched: the emitter owned it, the host anchors with it.
-    onOpenPanel?.({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation: annotation.motivation, ...(anchorRect ? { anchorRect } : {}) });
+    onOpenPanel?.({ panel: 'annotations', scrollToAnnotationId: makeAnnotationId(annotationId), motivation: annotation.motivation, ...(anchorRect ? { anchorRect } : {}) });
   }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick, onOpenPanel]);
 
   // Single subscription call per file (see scripts/compliance/audit-hooks-ordering.ts).

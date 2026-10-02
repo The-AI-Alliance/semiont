@@ -424,7 +424,7 @@ export class Browser {
           id: ref.id,
           resourceName: doc?.name || 'Untitled Resource',
           target: {
-            source: targetSource,
+            source: resourceId(targetSource),
             selector: {
               exact: targetSelector ? getExactText(targetSelector) : '',
             },

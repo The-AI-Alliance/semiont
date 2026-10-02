@@ -92,7 +92,7 @@ describe('Gatherer decoupling (EXTRACT-LIBRARIAN P2)', () => {
 
     const resultPromise = eventBus.frames('gather:resource-complete').pipe(take(1)).toPromise();
     eventBus.emit('gather:resource-requested', {
-      resourceId: MAIN_ID,
+      resourceId: resourceId(MAIN_ID),
       options: { depth: 1, maxResources: 5, includeContent: false, includeSummary: false },
     }, { correlationId: 'corr-1' });
 
@@ -136,7 +136,7 @@ describe('Gatherer decoupling (EXTRACT-LIBRARIAN P2)', () => {
 
     const resultPromise = eventBus.frames('gather:resource-complete').pipe(take(1)).toPromise();
     eventBus.emit('gather:resource-requested', {
-      resourceId: MAIN_ID,
+      resourceId: resourceId(MAIN_ID),
       options: { depth: 1, maxResources: 5, includeContent: false, includeSummary: false },
     }, { correlationId: 'corr-2' });
 

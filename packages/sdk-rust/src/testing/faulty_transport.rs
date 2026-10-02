@@ -27,6 +27,7 @@ use crate::transport::{
     BoxFuture, ConnectionState, Envelope, Events, Failures, Frame, FrameHub, Frames, PendingReply,
     ReplyRouter, ResourceHold, STREAM_BACKLOG, Transport,
 };
+use crate::types::ResourceId;
 use serde_json::{Map, Value};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -95,7 +96,7 @@ struct Inner {
     log: Mutex<Vec<RequestLogEntry>>,
     emitted: Mutex<Vec<Frame>>,
     /// How many holds each resource's scope has.
-    held: Mutex<HashMap<String, usize>>,
+    held: Mutex<HashMap<ResourceId, usize>>,
     requests: AtomicUsize,
     hub: FrameHub,
     router: Arc<ReplyRouter>,
@@ -216,7 +217,7 @@ impl FaultyTransport {
     }
 
     /// How many holds there are on a resource's scope.
-    pub fn holds(&self, resource_id: &str) -> usize {
+    pub fn holds(&self, resource_id: &ResourceId) -> usize {
         locked(&self.inner.held)
             .get(resource_id)
             .copied()
@@ -224,8 +225,8 @@ impl FaultyTransport {
     }
 
     /// The resources whose scope is held, in name order.
-    pub fn scopes(&self) -> Vec<String> {
-        let mut scopes: Vec<String> = locked(&self.inner.held).keys().cloned().collect();
+    pub fn scopes(&self) -> Vec<ResourceId> {
+        let mut scopes: Vec<ResourceId> = locked(&self.inner.held).keys().cloned().collect();
         scopes.sort();
         scopes
     }
@@ -368,12 +369,12 @@ impl Transport for FaultyTransport {
 
     /// Nothing here is delivered by scope, so a hold changes only the count
     /// of them (`holds`).
-    fn subscribe_to_resource(&self, resource_id: &str) -> ResourceHold {
+    fn subscribe_to_resource(&self, resource_id: &ResourceId) -> ResourceHold {
         *locked(&self.inner.held)
-            .entry(resource_id.to_owned())
+            .entry(resource_id.clone())
             .or_insert(0) += 1;
         let inner = self.inner.clone();
-        let resource_id = resource_id.to_owned();
+        let resource_id = resource_id.clone();
         ResourceHold::new(move || {
             let mut held = locked(&inner.held);
             if let Some(holds) = held.get_mut(&resource_id) {

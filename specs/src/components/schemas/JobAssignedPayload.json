@@ -5,8 +5,8 @@
     "jobId": { "$ref": "./JobId.json" },
     "jobType": { "$ref": "JobType.json" },
     "resourceId": { "$ref": "./ResourceId.json", "description": "The job's resource — for a generation, the source it generates from. Job events are scoped here." },
-    "holder": { "type": "string", "description": "DID of the emitter whose claim the dispatcher accepted. The bus stamped it on the job:claim as `_userId`; the dispatcher restates it here under its own identity." },
-    "requester": { "type": "string", "description": "DID of the emitter of the job:create that produced this job. The dispatcher restates the `_userId` the gateway stamped on that create." }
+    "holder": { "$ref": "./UserId.json", "description": "DID of the emitter whose claim the dispatcher accepted. The bus stamped it on the job:claim as `_userId`; the dispatcher restates it here under its own identity." },
+    "requester": { "$ref": "./UserId.json", "description": "DID of the emitter of the job:create that produced this job. The dispatcher restates the `_userId` the gateway stamped on that create." }
   },
   "required": ["jobId", "jobType", "resourceId", "holder", "requester"]
 }

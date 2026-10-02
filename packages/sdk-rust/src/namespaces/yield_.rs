@@ -11,6 +11,7 @@ use crate::timing::{
     GENERATION_STALL_ASSUMED_TOKENS_COUNT, GENERATION_STALL_FLOOR, GENERATION_STALL_PER_TOKEN,
 };
 use crate::transport::{ContentTransport, Envelope, PutBinaryRequest, Upload};
+use crate::types::ResourceId;
 use crate::types::{
     CloneResourceWithTokenResponse, CreateResourceResponse, GatheredContextFocus,
     GenerationJobParams, JobCreateCommand, JobType, ResourceDescriptor, YieldCloneResourceRequest,
@@ -93,12 +94,12 @@ impl YieldNamespace {
     /// A token another resource can be created from: a clone of this one.
     pub async fn clone_token(
         &self,
-        resource_id: &str,
+        resource_id: &ResourceId,
     ) -> Result<CloneResourceWithTokenResponse, SemiontError> {
         let answer = self
             .links
             .request::<YieldCloneTokenRequested>(&YieldCloneTokenRequest {
-                resource_id: resource_id.to_owned(),
+                resource_id: resource_id.clone(),
             })
             .await?;
         Ok(answer.response)

@@ -192,7 +192,7 @@ eachPlane('content', (world) => {
   it('the JSON-LD description is the record\'s answer, never cached', async () => {
     const id = `res-${randomUUID()}`;
     const description = {
-      resource: { '@context': 'https://schema.org/', '@id': `https://kb.example/resources/${id}`, name: 'Described', representations: [{ mediaType: 'text/plain' }] },
+      resource: { '@context': 'https://schema.org/', '@id': id, name: 'Described', representations: [{ mediaType: 'text/plain' }] },
       annotations: [],
       entityReferences: [],
     };

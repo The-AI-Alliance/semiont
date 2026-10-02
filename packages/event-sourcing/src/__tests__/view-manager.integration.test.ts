@@ -32,7 +32,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ViewManager } from '../view-manager';
 import { FilesystemViewStorage } from '../storage/view-storage';
 import { SemiontProject } from '@semiont/core/node';
-import { annotationId, resourceId, userId, type PersistedEvent, type StoredEvent, type ResourceId } from '@semiont/core';
+import { annotationId, jobId, resourceId, userId, type PersistedEvent, type StoredEvent, type ResourceId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -111,7 +111,7 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
       resourceId: rid,
       version: 1,
       payload: {
-        jobId: 'job-test',
+        jobId: jobId('job-test'),
         jobType: 'reference-annotation',
       },
     } as PersistedEvent;
@@ -126,7 +126,7 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
       resourceId: rid,
       version: 1,
       payload: {
-        jobId: 'job-test',
+        jobId: jobId('job-test'),
         jobType: 'reference-annotation',
         result: { totalFound: 1, totalEmitted: 1, errors: 0 },
       },

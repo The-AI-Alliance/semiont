@@ -44,7 +44,7 @@ const RID = resourceId('test-resource-1');
 const MOCK_GRAPH: GetResourceResponse = {
   resource: {
     '@context': 'http://www.w3.org/ns/anno.jsonld',
-    '@id': 'test-resource-1',
+    '@id': resourceId('test-resource-1'),
     id: 'test-resource-1',
     name: 'Test Resource',
     content: 'This is test content',

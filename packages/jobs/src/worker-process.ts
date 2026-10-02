@@ -29,7 +29,7 @@ import {
 } from './types';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
-import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, annotationId as makeAnnotationId, findClaimSpan, capabilitiesOf, isObject, isString, type EventMap, busRequest, BusRequestError } from '@semiont/core';
+import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, annotationId as makeAnnotationId, findClaimSpan, capabilitiesOf, isObject, isString, type AnnotationId, type EventMap, busRequest, BusRequestError } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components, AssembledAnnotation, Annotation, UnitCursor } from '@semiont/core';
@@ -58,16 +58,16 @@ import {
  * or is undefined (resource focus). Non-generation jobTypes (detection
  * echoes) keep their own `params.referenceId` passthrough.
  */
-export function referenceIdOf(job: { type: string; params: Record<string, unknown> }): string | undefined {
+export function referenceIdOf(job: { type: string; params: Record<string, unknown> }): AnnotationId | undefined {
   if (job.type === 'generation') {
-    const context = job.params.context as { focus?: { kind?: unknown; annotation?: { id?: unknown } } } | undefined;
+    const context = job.params.context as { focus?: { kind?: unknown; annotation?: { id?: AnnotationId } } } | undefined;
     const focus = context?.focus;
     if (focus?.kind === 'annotation' && typeof focus.annotation?.id === 'string') {
       return focus.annotation.id;
     }
     return undefined;
   }
-  const ref = job.params.referenceId;
+  const ref = (job.params as { referenceId?: AnnotationId }).referenceId;
   return typeof ref === 'string' ? ref : undefined;
 }
 
@@ -466,7 +466,7 @@ async function handleJobInner(
   // The job arrives off the bus with a plain-string id — this is the entry
   // boundary, so brand once here rather than casting at every call that wants
   // a `ResourceId` (BRAND-UPSTREAM).
-  const resourceId = makeResourceId(job.resourceId);
+  const resourceId = job.resourceId;
 
   // Annotation-scoped jobs (today: generation, triggered from a
   // reference) carry the source annotation through every lifecycle

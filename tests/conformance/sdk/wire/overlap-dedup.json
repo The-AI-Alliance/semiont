@@ -2,7 +2,7 @@
   "about": "while a changed subscription is handed from the old stream to the new, both carry a reply and the client delivers it once",
   "source": "docs/protocol/TRANSPORT-CONTRACT.md § The three classes; docs/protocol/TRANSPORT-HTTP.md § Abort discipline, § Delivering a frame once; specs/src/client/timing.json lingerMs",
   "steps": [
-    {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "https://kb.example/r", "name": "r", "representations": []}, "annotations": [], "entityReferences": []}}},
+    {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "r", "name": "r", "representations": []}, "annotations": [], "entityReferences": []}}},
     {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
     {"driver": "open", "with": {"channels": ["browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
     {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["browse:resource-failed", "browse:resource-result"], "scoped": [], "pendingReplies": []}, "as": "old"},

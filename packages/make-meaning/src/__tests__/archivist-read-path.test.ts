@@ -363,7 +363,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
    */
   describe('GET /resources/:id/jsonld — the description', () => {
     const DESCRIPTION: GetResourceResponse = {
-      resource: { '@context': 'https://schema.org/', '@id': 'https://example.github.io/kb/resources/res-described', name: 'Described', representations: [] },
+      resource: { '@context': 'https://schema.org/', '@id': resourceId('res-described'), name: 'Described', representations: [] },
       annotations: [],
       entityReferences: [],
     };

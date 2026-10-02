@@ -12,9 +12,10 @@ use semiont::client::{CachePersistence, ClientOptions, ClientTiming, SemiontClie
 use semiont::namespaces::{JobEvent, MarkAssistOptions, ResourceFilters};
 use semiont::storage::InMemorySessionStorage;
 use semiont::transport::ConnectionState;
-use semiont::types::GenerationJobParams;
+use semiont::types::{AnnotationId, GenerationJobParams, ResourceId};
 use semiont_conformance_drivers::{
-    Arguments, Driver, Ended, Running, count, failed, failure, locked, object, say, serve, text,
+    Arguments, Driver, Ended, Running, count, failed, failure, identifier, locked, object, say,
+    serve, text,
 };
 use semiont_http_transport::client::client;
 use semiont_http_transport::transport::{HttpTransportConfig, Timing};
@@ -79,26 +80,29 @@ macro_rules! with_query {
     ($client:expr, $query:expr, |$cached:ident| $then:expr) => {{
         let query: &Arguments = $query;
         let browse = &$client.browse;
-        let resource = || text(query, "resource");
+        let resource = || identifier::<ResourceId>(query, "resource");
         match text(query, "query")? {
             "resource" => {
-                let $cached = browse.resource(resource()?);
+                let $cached = browse.resource(&resource()?);
                 $then
             }
             "annotations" => {
-                let $cached = browse.annotations(resource()?);
+                let $cached = browse.annotations(&resource()?);
                 $then
             }
             "annotation" => {
-                let $cached = browse.annotation(resource()?, text(query, "annotation")?);
+                let $cached = browse.annotation(
+                    &resource()?,
+                    &identifier::<AnnotationId>(query, "annotation")?,
+                );
                 $then
             }
             "events" => {
-                let $cached = browse.events(resource()?);
+                let $cached = browse.events(&resource()?);
                 $then
             }
             "referencedBy" => {
-                let $cached = browse.referenced_by(resource()?);
+                let $cached = browse.referenced_by(&resource()?);
                 $then
             }
             "resources" => {
@@ -330,9 +334,11 @@ impl Live {
             let options: MarkAssistOptions =
                 serde_json::from_value(Value::Object(object(args, "options")?.clone()))
                     .map_err(|e| Ended::Misuse(format!("options: {e}")))?;
-            Ok(client
-                .mark
-                .assist(text(args, "resource")?, motivation, options))
+            Ok(client.mark.assist(
+                &identifier::<ResourceId>(args, "resource")?,
+                motivation,
+                options,
+            ))
         })
     }
 
@@ -364,7 +370,10 @@ impl Live {
                 let client = self.client()?;
                 client
                     .mark
-                    .delete(text(&args, "resource")?, text(&args, "annotation")?)
+                    .delete(
+                        &identifier::<ResourceId>(&args, "resource")?,
+                        &identifier::<AnnotationId>(&args, "annotation")?,
+                    )
                     .await?;
                 Ok(Value::Null)
             }

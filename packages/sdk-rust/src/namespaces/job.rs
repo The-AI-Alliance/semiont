@@ -9,6 +9,7 @@ use crate::client::Links;
 use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use crate::event_bus::BusFrames;
 use crate::transport::Envelope;
+use crate::types::JobId;
 use crate::types::{
     JobCancelRequest, JobCancelRequestJobType, JobStatusRequest, JobStatusResponse,
     JobStatusResponseStatus,
@@ -45,11 +46,11 @@ impl JobNamespace {
         self.links.own.stream::<JobFail>()
     }
 
-    pub async fn status(&self, job_id: &str) -> Result<JobStatusResponse, SemiontError> {
+    pub async fn status(&self, job_id: &JobId) -> Result<JobStatusResponse, SemiontError> {
         let status = self
             .links
             .request::<JobStatusRequested>(&JobStatusRequest {
-                job_id: job_id.to_owned(),
+                job_id: job_id.clone(),
             })
             .await?;
         Ok(status.response)
@@ -60,7 +61,7 @@ impl JobNamespace {
     /// ended `within` that long fails as a timeout.
     pub async fn poll_until_complete(
         &self,
-        job_id: &str,
+        job_id: &JobId,
         every: Duration,
         within: Duration,
         mut on_status: impl FnMut(&JobStatusResponse),
@@ -102,9 +103,9 @@ impl JobNamespace {
     /// Cancel one job: how many the queue acted on. A pending job is
     /// cancelled outright; a running one is left to its worker, so one means
     /// accepted, not stopped.
-    pub async fn cancel(&self, job_id: &str) -> Result<i64, SemiontError> {
+    pub async fn cancel(&self, job_id: &JobId) -> Result<i64, SemiontError> {
         self.cancelled(JobCancelRequest {
-            job_id: Some(job_id.to_owned()),
+            job_id: Some(job_id.clone()),
             job_type: None,
         })
         .await

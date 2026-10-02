@@ -168,7 +168,11 @@ export class HttpContentTransport implements IContentTransport {
     // the ky instance and token subject. No-op is correct here.
   }
 
-  /** Where a resource is read: its id as one segment of the path, whatever characters it has. */
+  /**
+   * Where a resource is read: its id as one segment of the path. A
+   * `ResourceId` needs no encoding, by its rule; a caller with no type
+   * checker can hand over any text, and that text is one segment too.
+   */
   private urlOf(resourceId: ResourceId): string {
     return `${this.transport.baseUrl}/resources/${encodeURIComponent(resourceId)}`;
   }

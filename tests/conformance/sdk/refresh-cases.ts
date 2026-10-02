@@ -37,7 +37,7 @@ const V = (name: string): { $var: string } => ({ $var: name });
 
 const TIMING = { busRequestTimeoutMs: 5000, invalidationWindowMs: 100, reconnectMs: 50, lazyRemoveMs: 50, lingerMs: 50 };
 
-const resource = (name: string): unknown => ({ '@context': 'https://schema.org/', '@id': `https://kb.example/resources/${name}`, name, representations: [] });
+const resource = (name: string): unknown => ({ '@context': 'https://schema.org/', '@id': name, name, representations: [] });
 const annotation = (id: string, of: string, motivation: string): unknown => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
   type: 'Annotation',

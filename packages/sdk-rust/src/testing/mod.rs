@@ -3,7 +3,7 @@
 //! scripted sessions for a registry, a transport that misbehaves on a
 //! schedule, a content transport that keeps what it is given, a gateway
 //! that answers only what it was told to, a storage several contexts share,
-//! and the harnesses that hold a state unit, and a composition over the bus,
+//! a way to write an id as text (`as_id`), and the harnesses that hold a state unit, and a composition over the bus,
 //! to their axioms. Behind the `testing` feature.
 //!
 //! A double answers what a test told it to and refuses the rest by name. It
@@ -30,3 +30,14 @@ pub use faulty_transport::{FaultAction, FaultyTransport, RequestLogEntry, retry_
 pub use gateway::StubGateway;
 pub use sessions::ScriptedSessions;
 pub use storage::SharedStorage;
+
+/// The id `text` spells, of whichever kind is wanted where it is used: a
+/// test's own `"r1"` as a `ResourceId`, an `AnnotationId`, a `JobId`. Text
+/// that kind refuses is the test's mistake, and panics.
+pub fn as_id<T>(text: &str) -> T
+where
+    T: std::str::FromStr<Err = crate::types::InvalidIdentifier>,
+{
+    text.parse()
+        .unwrap_or_else(|not_one| panic!("a test named an id that is not one: {not_one}"))
+}

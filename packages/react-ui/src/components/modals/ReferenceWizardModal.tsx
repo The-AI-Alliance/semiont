@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import type { GatheredContext, Collaborator } from '@semiont/core';
-import { uuidV4 } from '@semiont/core';
+import { uuidV4, resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
 import { useEventSubscription } from '../../contexts/useEventSubscription';
@@ -294,8 +294,8 @@ export function ReferenceWizardModal({
     setIsSearching(true);
     setSearchError(null);
     session?.client.match.requestSearch({
-      resourceId,
-      referenceId: annotationId,
+      resourceId: makeResourceId(resourceId),
+      referenceId: makeAnnotationId(annotationId),
       context: contextWithHint,
       limit: config.limit,
       useSemanticScoring: config.useSemanticScoring,

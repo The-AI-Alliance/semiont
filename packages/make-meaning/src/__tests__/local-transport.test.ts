@@ -22,7 +22,7 @@ import {
   annotationId as makeAnnotationId,
   entityType as makeEntityType,
   resourceId as makeResourceId,
-  userDID,
+  userId,
   userId as makeUserId,
   type Logger,
   type ResourceId,
@@ -65,7 +65,7 @@ const config: MakeMeaningConfig = {
   },
 };
 
-const TEST_USER_DID = userDID('did:semiont:test-host');
+const TEST_USER_DID = userId('did:semiont:test-host');
 const TEST_USER_ID  = makeUserId('did:web:test:users:test-host');
 
 interface Harness {

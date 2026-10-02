@@ -22,7 +22,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-import { EventBus, getPrimaryRepresentation, userId as makeUserId, type ExtractionOutcome, type Logger, type ResourceId } from '@semiont/core';
+import { EventBus, getPrimaryRepresentation, userId as makeUserId, type ExtractionOutcome, type Logger, type ResourceId, resourceId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { readAnchoredText } from '../read-anchored-text';
 import { createSmeltProgress } from '../smelt-progress';
@@ -105,7 +105,7 @@ describe('readAnchoredText + the anchored-text store', () => {
       asBusRequestPrimitive(eventBus),
     );
     eventBus.emit('smelt:settled', {
-      resourceId: String(rid),
+      resourceId: resourceId(String(rid)),
       contentChecksum: stored.checksum,
       outcome,
     });
@@ -177,7 +177,7 @@ describe('readAnchoredText + the anchored-text store', () => {
     // The new generation has settled (no live Smelter here) — without this the
     // read-your-writes barrier would rightly hold the miss for its timeout.
     eventBus.emit('smelt:settled', {
-      resourceId: String(target), contentChecksum: stored2.checksum, outcome: 'indexed',
+      resourceId: resourceId(String(target)), contentChecksum: stored2.checksum, outcome: 'indexed',
     });
 
     // Absent, and now SAYS SO by name. `not-yet` rather than `no-map`: the new

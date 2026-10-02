@@ -3,7 +3,7 @@
   "source": "packages/sdk/docs/CACHE-SEMANTICS.md § Two consumption paths, B14 boundary 1",
   "tier": "parity",
   "steps": [
-    {"let": {"one": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/one", "name": "one", "representations": []}, "two": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/two", "name": "two", "representations": []}}},
+    {"let": {"one": {"@context": "https://schema.org/", "@id": "one", "name": "one", "representations": []}, "two": {"@context": "https://schema.org/", "@id": "two", "name": "two", "representations": []}}},
     {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
     {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
     {"state": "open"},

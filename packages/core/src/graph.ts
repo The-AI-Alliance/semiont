@@ -3,21 +3,10 @@
  */
 
 import type { components } from './types';
-import type { ResourceId } from './identifiers';
 import type { Annotation } from './annotation-types';
 
-type RawResourceDescriptor = components['schemas']['ResourceDescriptor'];
-
-/**
- * Domain-level ResourceDescriptor type. Same shape as the OpenAPI-generated
- * `components['schemas']['ResourceDescriptor']`, but with a branded `ResourceId`
- * for the `@id` field.
- *
- * Implemented by intersection (not `Omit`) because the generated raw type
- * ends in `& { [key: string]: unknown }` — `Omit` on an intersection with
- * an index signature drops almost all named fields.
- */
-export type ResourceDescriptor = RawResourceDescriptor & { '@id': ResourceId };
+/** A resource's description, as the spec states it: its `@id` is the resource's `ResourceId`. */
+export type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 /**
  * Represents a connection between resources through annotations

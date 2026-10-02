@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { EventBus } from '@semiont/core';
+import { EventBus, resourceId, jobId, userId } from '@semiont/core';
 import { asBusRequestPrimitive } from '../bus-request-local';
 
 describe('asBusRequestPrimitive', () => {
@@ -30,7 +30,7 @@ describe('asBusRequestPrimitive', () => {
     const seen: unknown[] = [];
     eventBus.on('weave:applied').subscribe((e) => seen.push(e));
 
-    await bus.emit('weave:applied', { resourceId: 'r1', sequenceNumber: 4 });
+    await bus.emit('weave:applied', { resourceId: resourceId('r1'), sequenceNumber: 4 });
 
     expect(seen).toEqual([{ resourceId: 'r1', sequenceNumber: 4 }]);
   });
@@ -46,7 +46,7 @@ describe('asBusRequestPrimitive', () => {
 
     let emitted: Promise<unknown> | undefined;
     expect(() => {
-      emitted = bus.emit('weave:applied', { resourceId: 'r1', sequenceNumber: 4 });
+      emitted = bus.emit('weave:applied', { resourceId: resourceId('r1'), sequenceNumber: 4 });
     }).not.toThrow();
     await expect(emitted).rejects.toThrow(/destroyed bus/);
   });
@@ -75,7 +75,7 @@ describe('asBusRequestPrimitive', () => {
     const seen: unknown[] = [];
     expect(() => bus.stream('job:queued').subscribe((e) => seen.push(e))).not.toThrow();
 
-    eventBus.emit('job:queued', { jobId: 'j1', jobType: 'generate', resourceId: 'r1', userId: 'did:u1' });
+    eventBus.emit('job:queued', { jobId: jobId('j1'), jobType: 'generate', resourceId: resourceId('r1'), userId: userId('did:u1') });
 
     expect(seen).toEqual([{ jobId: 'j1', jobType: 'generate', resourceId: 'r1', userId: 'did:u1' }]);
   });

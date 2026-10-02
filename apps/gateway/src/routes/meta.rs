@@ -1,10 +1,11 @@
 //! What the gateway says about itself, the knowledge base, and its caller.
 
 use crate::app::App;
-use crate::http::{Authenticated, json_response};
+use crate::http::{ApiError, Authenticated, json_response};
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::Response;
+use semiont::types::UserId;
 use semiont::types::{
     HealthResponse, ProtectedResourceMetadata, ProtectedResourceMetadataBearerMethodsSupportedItem,
     StatusResponse, StatusResponseFeatures, UserResponse,
@@ -73,15 +74,16 @@ pub async fn status(Authenticated(principal): Authenticated) -> Response {
 }
 
 /// `GET /api/users/me`: the bearer, as this knowledge base names them.
-pub async fn me(Authenticated(principal): Authenticated) -> Response {
-    json_response(
+pub async fn me(Authenticated(principal): Authenticated) -> Result<Response, ApiError> {
+    Ok(json_response(
         StatusCode::OK,
         &UserResponse {
-            did: principal.did,
+            did: UserId::new(principal.did)
+                .map_err(|e| ApiError::internal("naming the bearer", e))?,
             email: principal.email,
             name: principal.name,
             image: principal.image,
             domain: principal.domain,
         },
-    )
+    ))
 }

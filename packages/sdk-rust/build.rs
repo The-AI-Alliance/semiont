@@ -123,6 +123,13 @@ fn main() {
             .filter(|body| !PASSED_THROUGH.contains(&body.as_str())),
     );
     roots.extend(BESIDE.iter().map(|s| (*s).to_owned()));
+    // The kinds of id, each generated whether or not a root reaches it.
+    let kinds = read_json(&specs.join("identifiers/kinds.json"));
+    let identifiers: Vec<&str> = list(&kinds["kinds"], "kinds")
+        .iter()
+        .map(|kind| text(kind, "schema", "a kind of id"))
+        .collect();
+    roots.extend(identifiers.iter().map(|s| (*s).to_owned()));
     roots.sort();
     roots.dedup();
     let roots: Vec<&str> = roots.iter().map(String::as_str).collect();
@@ -135,6 +142,7 @@ fn main() {
             &Generation {
                 roots: &roots,
                 elsewhere: None,
+                identifiers: &identifiers,
             },
         ),
     )
@@ -193,6 +201,7 @@ fn main() {
             &Generation {
                 roots: &["SignIn"],
                 elsewhere: None,
+                identifiers: &[],
             },
         ),
     )

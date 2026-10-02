@@ -17,6 +17,7 @@ import { SemiontSession, type UserInfo } from '../semiont-session';
 import type { SemiontSessionError } from '../errors';
 import { InMemorySessionStorage } from '../session-storage';
 import { getStoredSession, parseJwtExpiry, refreshDelayMs, setStoredSession } from '../storage';
+import { userId } from '@semiont/core';
 
 interface ScheduleCase {
   why: string;
@@ -98,7 +99,7 @@ describe('session — the SDK agrees with the shared table', () => {
 
   const KB = httpKb({ id: 'kb-alpha', label: 'Alpha', host: 'localhost', port: 4000, protocol: 'http' });
   const ALICE: UserInfo = {
-    did: 'did:web:example.org:users:alice',
+    did: userId('did:web:example.org:users:alice'),
     email: 'alice@example.org',
     name: 'Alice',
     image: null,

@@ -3,8 +3,8 @@
 //! two vocabulary reads; and the record admitted.
 
 use semiont::types::{
-    CommandErrorCode, JobCreateCommand, JobMetadata, JobParams, JobPending, JobPendingStatus,
-    JobType, TagSchema,
+    CommandErrorCode, JobCreateCommand, JobId, JobMetadata, JobParams, JobPending,
+    JobPendingStatus, JobType, ResourceId, TagSchema,
 };
 use serde_json::{Map, Value};
 use std::future::Future;
@@ -53,14 +53,14 @@ fn text(value: Option<&Value>) -> Option<&str> {
 }
 
 /// The focus rule: the resource a generation's gathered context is about.
-fn focused_resource(params: &Map<String, Value>) -> Option<String> {
+fn focused_resource(params: &Map<String, Value>) -> Option<ResourceId> {
     let focus = &params.get("context")?["focus"];
     let id = match focus["kind"].as_str()? {
         "resource" => &focus["resource"]["@id"],
         "annotation" => &focus["sourceResource"]["@id"],
         _ => return None,
     };
-    id.as_str().filter(|s| !s.is_empty()).map(str::to_owned)
+    id.as_str().and_then(|id| ResourceId::new(id).ok())
 }
 
 /// The job `command` asks for, or why it is refused.
@@ -74,7 +74,7 @@ pub async fn admit(
         resource_id,
         params,
     } = command;
-    let Some(user_id) = user_id.filter(|u| !u.is_empty()) else {
+    let Some(user_id) = user_id else {
         return Err(Refusal::new(
             "_userId is required (injected by bus gateway)",
         ));
@@ -111,7 +111,7 @@ pub async fn admit(
             )
         })?
     } else {
-        resource_id.filter(|r| !r.is_empty()).ok_or_else(|| {
+        resource_id.ok_or_else(|| {
             Refusal::new(format!(
                 "{} job:create requires resourceId",
                 wire_name(job_type)
@@ -173,7 +173,8 @@ pub async fn admit(
     Ok(JobPending {
         status: JobPendingStatus::Pending,
         metadata: JobMetadata {
-            id: format!("job-{}", uuid::Uuid::new_v4().simple()),
+            id: JobId::new(format!("job-{}", uuid::Uuid::new_v4().simple()))
+                .expect("`job-` and 32 hex digits is a JobId"),
             r#type: job_type,
             user_id,
             created: now(),

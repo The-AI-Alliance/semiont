@@ -76,7 +76,6 @@ export type {
   BaseUrl,
   JobId,
   ResourceId,
-  UserDID,
   UserId,
   // Verb / shape types
   Annotation,
@@ -102,14 +101,14 @@ export type {
   SemiontSessionErrorCode,
 } from '@semiont/core';
 export {
-  // Brand-cast functions
+  // The kinds of id are made by their constructors, which hold text to the
+  // kind's rule; the others are casts.
   accessToken,
   annotationId,
   baseUrl,
   entityType,
   jobId,
   resourceId,
-  userDID,
   userId,
   // Unified error base — every Semiont-thrown error extends this.
   SemiontError,

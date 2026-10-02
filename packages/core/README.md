@@ -91,7 +91,16 @@ const token = accessToken('eyJhbGc...');
 const eType = entityType('Person');
 ```
 
-Branded ID types (`ResourceId`, `AnnotationId`, `UserId`) with factories and guards (`resourceId`, `annotationId`, `userId`, `isResourceId`, `isAnnotationId`) live alongside the URI brands.
+The four kinds of id are types of their own, generated from the spec ([`specs/src/identifiers/kinds.json`](../../specs/src/identifiers/kinds.json) and each kind's schema): `ResourceId`, `AnnotationId`, `JobId`, `UserId`. The spec's types carry them, so a property that holds an id is of its kind and one kind is not assignable to another. Each is made by its constructor (`resourceId`, `annotationId`, `jobId`, `userId`), which holds text to the kind's rule and throws a `TypeError` for text the rule refuses:
+
+```typescript
+import { resourceId, annotationId } from '@semiont/core';
+
+const resource = resourceId('5bcd259ab1464cf68a556bbad21f513f');
+resourceId('https://kb.example/resources/5bcd259ab1464cf68a556bbad21f513f'); // throws: a URI is not an id
+const annotation = annotationId('a-1');
+// client.mark.delete(annotation, resource) does not compile
+```
 
 ### Event Sourcing Types
 

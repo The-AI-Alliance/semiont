@@ -104,7 +104,7 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no providers)',
     };
     act(() => {
       eventBus.emit('browse:click', {
-        annotationId: 'ann-1',
+        annotationId: annotationId('ann-1'),
         anchorRect,
       });
     });
@@ -138,7 +138,7 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no providers)',
     );
 
     act(() => {
-      eventBus.emit('browse:click', { annotationId: 'ann-not-here' });
+      eventBus.emit('browse:click', { annotationId: annotationId('ann-not-here') });
     });
 
     await new Promise((r) => setTimeout(r, 20));

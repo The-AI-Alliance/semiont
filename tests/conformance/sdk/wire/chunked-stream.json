@@ -2,7 +2,7 @@
   "about": "a stream arriving a byte at a time, its lines, its blank lines and its characters split across reads, delivers every frame whole",
   "source": "docs/protocol/TRANSPORT-HTTP.md § Wire framing and client parser obligations",
   "steps": [
-    {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "https://kb.example/r", "name": "naïve — 日本語 😀", "representations": []}, "annotations": [], "entityReferences": []}}},
+    {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "r", "name": "naïve — 日本語 😀", "representations": []}, "annotations": [], "entityReferences": []}}},
     {"backend": "rechunk", "with": {"bytes": 1}},
     {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
     {"driver": "open", "with": {"channels": ["beckon:focus", "browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},

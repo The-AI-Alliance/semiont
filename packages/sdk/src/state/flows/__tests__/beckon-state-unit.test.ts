@@ -28,7 +28,7 @@ describe('createBeckonStateUnit', () => {
     const values: (string | null)[] = [];
     stateUnit.hoveredAnnotationId$.subscribe(v => values.push(v));
 
-    tc.bus.emit('beckon:hover', { annotationId: 'ann-1' });
+    tc.bus.emit('beckon:hover', { annotationId: annotationId('ann-1') });
     expect(values).toEqual([null, 'ann-1']);
     stateUnit.dispose();
   });
@@ -38,7 +38,7 @@ describe('createBeckonStateUnit', () => {
     const values: (string | null)[] = [];
     stateUnit.hoveredAnnotationId$.subscribe(v => values.push(v));
 
-    tc.bus.emit('beckon:hover', { annotationId: 'ann-1' });
+    tc.bus.emit('beckon:hover', { annotationId: annotationId('ann-1') });
     tc.bus.emit('beckon:hover', { annotationId: null });
     expect(values).toEqual([null, 'ann-1', null]);
     stateUnit.dispose();
@@ -49,7 +49,7 @@ describe('createBeckonStateUnit', () => {
     const sparkles: string[] = [];
     tc.bus.on('beckon:sparkle').subscribe(e => sparkles.push(e.annotationId));
 
-    tc.bus.emit('beckon:hover', { annotationId: 'ann-2' });
+    tc.bus.emit('beckon:hover', { annotationId: annotationId('ann-2') });
     expect(sparkles).toEqual(['ann-2']);
     stateUnit.dispose();
   });
@@ -69,7 +69,7 @@ describe('createBeckonStateUnit', () => {
     const focuses: string[] = [];
     tc.bus.on('beckon:focus').subscribe(e => focuses.push(e.annotationId!));
 
-    tc.bus.emit('browse:click', { annotationId: 'ann-click' });
+    tc.bus.emit('browse:click', { annotationId: annotationId('ann-click') });
     expect(focuses).toEqual(['ann-click']);
     stateUnit.dispose();
   });
@@ -79,8 +79,8 @@ describe('createBeckonStateUnit', () => {
     const values: (string | null)[] = [];
     stateUnit.hoveredAnnotationId$.subscribe(v => values.push(v));
 
-    tc.bus.emit('beckon:hover', { annotationId: 'ann-hovered' });
-    tc.bus.emit('browse:click', { annotationId: 'ann-clicked' });
+    tc.bus.emit('beckon:hover', { annotationId: annotationId('ann-hovered') });
+    tc.bus.emit('browse:click', { annotationId: annotationId('ann-clicked') });
     expect(values).toEqual([null, 'ann-hovered']);
     stateUnit.dispose();
   });
@@ -101,7 +101,7 @@ describe('createBeckonStateUnit', () => {
     stateUnit.hoveredAnnotationId$.subscribe(v => values.push(v));
 
     stateUnit.dispose();
-    tc.bus.emit('beckon:hover', { annotationId: 'ghost' });
+    tc.bus.emit('beckon:hover', { annotationId: annotationId('ghost') });
     expect(values).toEqual([null]); // only the initial null, no 'ghost'
   });
 });

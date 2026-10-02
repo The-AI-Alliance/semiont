@@ -22,7 +22,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { firstValueFrom, race, timeout, filter, map, type Observable } from 'rxjs';
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { EventBus, channelAttrsOf, resourceId as makeResourceId, type BusFrame, type Logger } from '@semiont/core';
+import { EventBus, channelAttrsOf, resourceId as makeResourceId, type BusFrame, type Logger, userId } from '@semiont/core';
 import { writeStorageUriEntry } from '@semiont/event-sourcing';
 import { Stower, STOWER_CHANNELS, type StowerStores } from '../stower';
 import { Browser, BROWSER_CHANNELS, type BrowserReads } from '../browser';
@@ -101,7 +101,7 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
     const correlationId = 'p1-create-1';
     const ok = reply(eventBus.frames('yield:create-ok'), eventBus.frames('yield:create-failed'), correlationId);
 
-    eventBus.emit('yield:create', { _userId: 'did:web:test:users:user-1',
+    eventBus.emit('yield:create', { _userId: userId('did:web:test:users:user-1'),
       name: 'doc.txt',
       format: 'text/plain',
       storageUri: 'file:///tmp/doc.txt',
@@ -138,7 +138,7 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
     });
 
     eventBus.emit('yield:mv', {
-      _userId: 'did:web:test:users:user-1',
+      _userId: userId('did:web:test:users:user-1'),
       fromUri,
       toUri: 'file:///tmp/to.txt',
     });
@@ -163,8 +163,8 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
     const correlationId = 'p1-archive-1';
     const ok = reply(eventBus.frames('mark:archive-ok'), eventBus.frames('mark:archive-failed'), correlationId);
 
-    eventBus.emit('mark:archive', { _userId: 'did:web:test:users:user-1',
-      resourceId: 'res-arch-1',
+    eventBus.emit('mark:archive', { _userId: userId('did:web:test:users:user-1'),
+      resourceId: makeResourceId('res-arch-1'),
       storageUri: 'file:///tmp/gone.txt',
       keepFile: true, }, { correlationId });
 
@@ -262,7 +262,7 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
     const correlationId = 'p1-annos-1';
     const ok = reply(eventBus.frames('browse:annotations-result'), eventBus.frames('browse:annotations-failed'), correlationId);
 
-    eventBus.emit('browse:annotations-requested', { resourceId: String(rid) }, { correlationId });
+    eventBus.emit('browse:annotations-requested', { resourceId: makeResourceId(String(rid)) }, { correlationId });
 
     const result = await ok;
     expect(result.response.total).toBe(1);
@@ -284,7 +284,7 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
     const correlationId = 'p1-res-1';
     const ok = reply(eventBus.frames('browse:resource-result'), eventBus.frames('browse:resource-failed'), correlationId);
 
-    eventBus.emit('browse:resource-requested', { resourceId: String(rid) }, { correlationId });
+    eventBus.emit('browse:resource-requested', { resourceId: makeResourceId(String(rid)) }, { correlationId });
 
     const result = await ok;
     expect(result.response.resource.name).toBe('Assembled');
@@ -310,7 +310,7 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
     const correlationId = 'p1-refby-1';
     const ok = reply(eventBus.frames('browse:referenced-by-result'), eventBus.frames('browse:referenced-by-failed'), correlationId);
 
-    eventBus.emit('browse:referenced-by-requested', { resourceId: String(target) }, { correlationId });
+    eventBus.emit('browse:referenced-by-requested', { resourceId: makeResourceId(String(target)) }, { correlationId });
 
     const result = await ok;
     expect(result.response.referencedBy).toHaveLength(1);
@@ -359,7 +359,7 @@ describe('CloneTokenManager constructs from capability doubles (EXTRACT-ARCHIVIS
     const correlationId = 'p1-token-1';
     const ok = reply(eventBus.frames('yield:clone-token-generated'), eventBus.frames('yield:clone-token-failed'), correlationId);
 
-    eventBus.emit('yield:clone-token-requested', { resourceId: String(rid) }, { correlationId });
+    eventBus.emit('yield:clone-token-requested', { resourceId: makeResourceId(String(rid)) }, { correlationId });
 
     const result = await ok;
     expect(result.response.token).toMatch(/^clone_/);
@@ -392,7 +392,7 @@ describe('CloneTokenManager constructs from capability doubles (EXTRACT-ARCHIVIS
 
     const tokenCid = 'p1-token-2';
     const token$ = reply(eventBus.frames('yield:clone-token-generated'), eventBus.frames('yield:clone-token-failed'), tokenCid);
-    eventBus.emit('yield:clone-token-requested', { resourceId: String(rid) }, { correlationId: tokenCid });
+    eventBus.emit('yield:clone-token-requested', { resourceId: makeResourceId(String(rid)) }, { correlationId: tokenCid });
     const { response: { token } } = await token$;
 
     const getCid = 'p1-get-1';

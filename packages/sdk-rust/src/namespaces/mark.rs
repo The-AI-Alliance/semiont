@@ -15,6 +15,7 @@ use crate::client::Links;
 use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use crate::running::Running;
 use crate::transport::Envelope;
+use crate::types::{AnnotationId, ResourceId};
 use crate::types::{
     AnnotationSelector, CreateAnnotationRequest, JobCreateCommand, JobType, MarkArchiveCommand,
     MarkAssistRequestEvent, MarkAssistRequestEventOptions, MarkCreateOkResponse, MarkCreateRequest,
@@ -60,7 +61,7 @@ fn refused(message: &str) -> SemiontError {
 /// The job an assist of `motivation` creates, once its options are what that
 /// job needs: refused here with what the dispatcher would answer later.
 fn assist_job(
-    resource_id: String,
+    resource_id: ResourceId,
     motivation: Motivation,
     options: &MarkAssistOptions,
 ) -> Result<JobCreateCommand, SemiontError> {
@@ -113,32 +114,40 @@ impl MarkNamespace {
         &self,
         input: CreateAnnotationRequest,
     ) -> Result<MarkCreateOkResponse, SemiontError> {
+        // The target's source is the id of the resource annotated.
+        let resource_id = ResourceId::new(input.target.source.clone()).map_err(|not_an_id| {
+            BusRequestError::new(BusRequestErrorCode::Rejected, not_an_id.to_string())
+        })?;
         let created = self
             .links
             .request::<CreateRequest>(&MarkCreateRequest {
-                resource_id: input.target.source.clone(),
+                resource_id,
                 request: input,
             })
             .await?;
         Ok(created.response)
     }
 
-    pub async fn delete(&self, resource_id: &str, annotation_id: &str) -> Result<(), SemiontError> {
+    pub async fn delete(
+        &self,
+        resource_id: &ResourceId,
+        annotation_id: &AnnotationId,
+    ) -> Result<(), SemiontError> {
         self.links
             .request::<MarkDelete>(&MarkDeleteCommand {
                 _user_id: None,
-                annotation_id: annotation_id.to_owned(),
-                resource_id: Some(resource_id.to_owned()),
+                annotation_id: annotation_id.clone(),
+                resource_id: Some(resource_id.clone()),
             })
             .await?;
         Ok(())
     }
 
-    pub async fn archive(&self, resource_id: &str) -> Result<(), SemiontError> {
+    pub async fn archive(&self, resource_id: &ResourceId) -> Result<(), SemiontError> {
         self.links
             .request::<MarkArchive>(&MarkArchiveCommand {
                 _user_id: None,
-                resource_id: resource_id.to_owned(),
+                resource_id: resource_id.clone(),
                 storage_uri: None,
                 keep_file: None,
                 no_git: None,
@@ -147,11 +156,11 @@ impl MarkNamespace {
         Ok(())
     }
 
-    pub async fn unarchive(&self, resource_id: &str) -> Result<(), SemiontError> {
+    pub async fn unarchive(&self, resource_id: &ResourceId) -> Result<(), SemiontError> {
         self.links
             .request::<MarkUnarchive>(&MarkUnarchiveCommand {
                 _user_id: None,
-                resource_id: resource_id.to_owned(),
+                resource_id: resource_id.clone(),
                 storage_uri: None,
             })
             .await?;
@@ -162,13 +171,13 @@ impl MarkNamespace {
     /// `updated` the whole set it is to have.
     pub async fn update_entity_types(
         &self,
-        resource_id: &str,
+        resource_id: &ResourceId,
         current: Vec<String>,
         updated: Vec<String>,
     ) -> Result<(), SemiontError> {
         self.links
             .request::<MarkUpdateEntityTypes>(&MarkUpdateEntityTypesCommand {
-                resource_id: resource_id.to_owned(),
+                resource_id: resource_id.clone(),
                 _user_id: None,
                 current_entity_types: current,
                 updated_entity_types: updated,
@@ -181,12 +190,12 @@ impl MarkNamespace {
     /// that failed and will be tried again, and its completion.
     pub fn assist(
         &self,
-        resource_id: &str,
+        resource_id: &ResourceId,
         motivation: Motivation,
         options: MarkAssistOptions,
     ) -> Running<JobEvent> {
         let links = self.links.clone();
-        let resource_id = resource_id.to_owned();
+        let resource_id = resource_id.clone();
         match assist_job(resource_id.clone(), motivation, &options) {
             Ok(create) => follow(
                 links,

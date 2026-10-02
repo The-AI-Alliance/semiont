@@ -22,7 +22,7 @@ import { BehaviorSubject, firstValueFrom, skip, take } from 'rxjs';
 import { createJobClaimAdapter, type ClaimRefusal } from '../job-claim-adapter';
 import { WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from '../worker-runtime';
 import type { BusRequestPrimitive } from '@semiont/core';
-import { EventBus, type BusEnvelope, type ConnectionState, type EventMap } from '@semiont/core';
+import { EventBus, type BusEnvelope, type ConnectionState, type EventMap, jobId as makeJobId, userId, resourceId } from '@semiont/core';
 
 /** The job a `job:claimed` reply carries: running, under the claimant. */
 type ClaimedJob = EventMap['job:claimed']['response'];
@@ -32,15 +32,15 @@ function runningJob(id: string, metadata: Partial<ClaimedJob['metadata']> = {}):
   return {
     status: 'running',
     metadata: {
-      id,
+      id: makeJobId(id),
       type: 'generation',
-      userId: 'u',
+      userId: userId('did:web:kb.example:users:u'),
       created: '2026-01-01T00:00:00.000Z',
       retryCount: 0,
       maxRetries: 0,
       ...metadata,
     },
-    params: { resourceId: 'res-1' },
+    params: { resourceId: resourceId('res-1') },
     startedAt: '2026-01-01T00:00:01.000Z',
     progress: {},
   };
@@ -114,7 +114,7 @@ function fakeBus(initialState: ConnectionState = 'open') {
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 const queued = (jobType: string, jobId = 'j'): EventMap['job:queued'] =>
-  ({ jobId, jobType, resourceId: 'r1', userId: 'did:u1' });
+  ({ jobId: makeJobId(jobId), jobType, resourceId: resourceId('r1'), userId: userId('did:u1') });
 
 describe('createJobClaimAdapter — the worker pulls when idle', () => {
   let h: ReturnType<typeof fakeBus>;
@@ -332,11 +332,11 @@ describe('createJobClaimAdapter — the worker pulls when idle', () => {
     adapter.start();
 
     h.pushEvent('job:claimed', {
-      response: { ...runningJob('j1', { userId: 'u1' }), params: { resourceId: 'res-1', foo: 'bar' } },
+      response: { ...runningJob('j1', { userId: userId('did:web:kb.example:users:u1') }), params: { resourceId: resourceId('res-1'), foo: 'bar' } },
     }, h.claimCidAt(0));
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
-    expect(active).toMatchObject({ jobId: 'j1', userId: 'u1', params: { foo: 'bar' } });
+    expect(active).toMatchObject({ jobId: 'j1', userId: 'did:web:kb.example:users:u1', params: { foo: 'bar' } });
 
     adapter.dispose();
   });

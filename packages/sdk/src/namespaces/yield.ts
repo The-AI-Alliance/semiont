@@ -77,7 +77,7 @@ export class YieldNamespace implements IYieldNamespace {
           if (cancelled) return;
           subscriber.next({
             phase: 'finished',
-            resourceId: toResourceId(result.resourceId as string),
+            resourceId: result.resourceId,
           });
           subscriber.complete();
         })
@@ -189,7 +189,7 @@ export class YieldNamespace implements IYieldNamespace {
               data: {
                 jobId: status.jobId,
                 jobType: status.type,
-                resourceId: resourceId as string,
+                resourceId,
                 // A job completed without a result is stored with an empty
                 // one; the job:complete this stands for carried none.
                 ...(isReportedJobResult(status.result) ? { result: status.result } : {}),

@@ -34,7 +34,7 @@ import type {
   EventBus,
   EventMap,
   ResourceId,
-  UserDID,
+  UserId,
 } from '@semiont/core';
 import { baseUrl as makeBaseUrl, busLog } from '@semiont/core';
 import { SpanKind, recordBusSent, withSpan } from '@semiont/observability';
@@ -58,7 +58,7 @@ export interface LocalTransportConfig {
    * `/bus/emit` gateway reads the JWT subject and injects `_userId`).
    * Handlers downstream trust nothing else.
    */
-  userId: UserDID;
+  userId: UserId;
   /**
    * Cosmetic base URL for diagnostics and URL composition. Defaults to
    * `local://in-process`. Local code never makes outgoing HTTP requests
@@ -84,7 +84,7 @@ export class LocalTransport implements ITransport {
   readonly errors$: Observable<SemiontError> = this.errorsSubject.asObservable();
 
   private readonly bus: EventBus;
-  private readonly userId: UserDID;
+  private readonly userId: UserId;
   private readonly bridges: EventBus[] = [];
   private readonly bridgeSubs: Subscription[] = [];
   private disposed = false;

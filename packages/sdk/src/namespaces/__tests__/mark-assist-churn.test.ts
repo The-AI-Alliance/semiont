@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EventBus, resourceId as makeResourceId } from '@semiont/core';
+import { EventBus, resourceId as makeResourceId, jobId } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
 import { JobNamespace } from '../job';
@@ -40,7 +40,7 @@ function makeFakeTransport() {
       // Resolve the job:create round-trip so dispatchAssist gets a jobId.
       if (channel === 'job:create') {
         transportBus.emit('job:created', {
-          response: { jobId: 'job-1' },
+          response: { jobId: jobId('job-1') },
         }, { correlationId: envelope?.correlationId });
       }
     },
@@ -91,7 +91,7 @@ describe('mark.assist — no SSE churn (Link 1)', () => {
     await flush();
 
     // Completion arrives on the global bus (as it would via the global bridge).
-    bus.emit('job:complete', { resourceId: rId, jobId: 'job-1', jobType: 'reference-annotation' });
+    bus.emit('job:complete', { resourceId: rId, jobId: jobId('job-1'), jobType: 'reference-annotation' });
 
     expect(events.some((e) => e.kind === 'complete')).toBe(true);
     expect(completed).toBe(true);
@@ -126,9 +126,9 @@ describe('mark.assist — frames that arrive before the job has its id', () => {
 
     // The job's first frames are read from the stream alongside the reply
     // that names it: the follower does not know the id yet.
-    bus.emit('job:report-progress', { resourceId: rId, jobId: 'job-1', jobType: 'reference-annotation', percentage: 10, progress: { percentage: 10 } });
-    bus.emit('job:complete', { resourceId: rId, jobId: 'job-2', jobType: 'reference-annotation' });
-    bus.emit('job:complete', { resourceId: rId, jobId: 'job-1', jobType: 'reference-annotation' });
+    bus.emit('job:report-progress', { resourceId: rId, jobId: jobId('job-1'), jobType: 'reference-annotation', percentage: 10, progress: { percentage: 10 } });
+    bus.emit('job:complete', { resourceId: rId, jobId: jobId('job-2'), jobType: 'reference-annotation' });
+    bus.emit('job:complete', { resourceId: rId, jobId: jobId('job-1'), jobType: 'reference-annotation' });
     expect(kinds).toEqual([]);
 
     await flush();
@@ -142,7 +142,7 @@ describe('mark.assist — frames that arrive before the job has its id', () => {
 describe('job:complete dual-delivery contract (Link 1 / approach A)', () => {
   let bus: EventBus;
   const rId = makeResourceId('res-1');
-  const completePayload = { resourceId: rId, jobId: 'job-1', jobType: 'reference-annotation' as const };
+  const completePayload = { resourceId: rId, jobId: jobId('job-1'), jobType: 'reference-annotation' as const };
 
   beforeEach(() => {
     bus = new EventBus();

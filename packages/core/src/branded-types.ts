@@ -28,8 +28,6 @@ export type CloneToken = string & { readonly __brand: 'CloneToken' };
 // SYSTEM IDENTIFIERS
 // ============================================================================
 
-export type JobId = string & { readonly __brand: 'JobId' };
-export type UserDID = string & { readonly __brand: 'UserDID' };
 export type EntityType = string & { readonly __brand: 'EntityType' };
 export type SearchQuery = string & { readonly __brand: 'SearchQuery' };
 export type BaseUrl = string & { readonly __brand: 'BaseUrl' };
@@ -43,8 +41,6 @@ export function authCode(value: string): AuthCode { return value as AuthCode; }
 export function accessToken(value: string): AccessToken { return value as AccessToken; }
 export function mcpToken(value: string): MCPToken { return value as MCPToken; }
 export function cloneToken(value: string): CloneToken { return value as CloneToken; }
-export function jobId(value: string): JobId { return value as JobId; }
-export function userDID(value: string): UserDID { return value as UserDID; }
 export function entityType(value: string): EntityType { return value as EntityType; }
 export function searchQuery(value: string): SearchQuery { return value as SearchQuery; }
 export function baseUrl(value: string): BaseUrl { return value as BaseUrl; }

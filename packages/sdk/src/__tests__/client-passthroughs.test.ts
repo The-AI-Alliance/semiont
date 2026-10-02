@@ -176,7 +176,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       const cid = emitted![2]?.correlationId;
 
       client.bus.emit('match:search-results', {
-        referenceId: 'ref-1',
+        referenceId: annotationId('ref-1'),
         response: [],
       }, { correlationId: cid });
 

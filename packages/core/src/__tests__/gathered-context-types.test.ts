@@ -12,6 +12,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { components } from '../types';
+import { resourceId, annotationId } from '../identifiers';
 
 type GatheredContext = components['schemas']['GatheredContext'];
 type KnowledgeGraph = components['schemas']['KnowledgeGraph'];
@@ -64,12 +65,12 @@ describe('GatheredContext — unified shape (P1)', () => {
   it('KnowledgeGraph nodes are the discriminated resource|annotation union (D12)', () => {
     const g: KnowledgeGraph = {
       nodes: [
-        { id: 'r-1', type: 'resource', label: 'R' },
+        { id: resourceId('r-1'), type: 'resource', label: 'R' },
         {
-          id: 'a-1', type: 'annotation', label: 'A', entityTypes: ['Person'],
+          id: annotationId('a-1'), type: 'annotation', label: 'A', entityTypes: ['Person'],
           annotation: {
             '@context': 'http://www.w3.org/ns/anno.jsonld',
-            type: 'Annotation', id: 'a-1', motivation: 'commenting',
+            type: 'Annotation', id: annotationId('a-1'), motivation: 'commenting',
             target: { source: 'r-1' },
             created: '2020-01-01T00:00:00.000Z',
           },
@@ -114,7 +115,7 @@ describe('GatheredContext — annotation-wrapper collapse (P1b)', () => {
     };
     // No `correlationId`: the key rides the envelope now, so a reply's
     // domain type no longer declares it (BUS-CARRIES-FRAMES P3).
-    const complete: GatherAnnotationComplete = { annotationId: 'a-1', response: ctx };
+    const complete: GatherAnnotationComplete = { annotationId: annotationId('a-1'), response: ctx };
     expect(complete.response.focus.kind).toBe('annotation');
   });
 });

@@ -250,7 +250,10 @@
       "schema": "UserId",
       "properties": [
         "_userId",
-        "userId"
+        "userId",
+        "holder",
+        "requester",
+        "participant"
       ],
       "accepts": [
         {

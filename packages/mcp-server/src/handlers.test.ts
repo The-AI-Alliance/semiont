@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { of, throwError } from 'rxjs';
-import { annotationId } from '@semiont/core';
+import { annotationId, resourceId, jobId } from '@semiont/core';
 import type { MarkAssistEvent, YieldGenerationEvent } from '@semiont/sdk';
 
 import {
@@ -212,8 +212,8 @@ describe('markAssist', () => {
     const complete: MarkAssistEvent = {
       kind: 'complete',
       data: {
-        resourceId: 'res-iliad',
-        jobId: 'job-1',
+        resourceId: resourceId('res-iliad'),
+        jobId: jobId('job-1'),
         jobType: 'highlight-annotation',
         result: { kind: 'highlight-annotation', highlightsFound: 3, highlightsCreated: 3 },
       },
@@ -232,7 +232,7 @@ describe('markAssist', () => {
     const { client, mark } = createStub();
     const complete: MarkAssistEvent = {
       kind: 'complete',
-      data: { resourceId: 'res-iliad', jobId: 'job-1', jobType, result },
+      data: { resourceId: resourceId('res-iliad'), jobId: jobId('job-1'), jobType, result },
     };
     mark.assist.mockReturnValue(of(complete));
 
@@ -245,8 +245,8 @@ describe('markAssist', () => {
     const complete: MarkAssistEvent = {
       kind: 'complete',
       data: {
-        resourceId: 'res-iliad',
-        jobId: 'job-1',
+        resourceId: resourceId('res-iliad'),
+        jobId: jobId('job-1'),
         jobType: 'reference-annotation',
         result: { kind: 'declined', declined: true, reason: 'no-text-layer' },
       },
@@ -264,10 +264,10 @@ describe('markAssist', () => {
     const complete: MarkAssistEvent = {
       kind: 'complete',
       data: {
-        resourceId: 'res-iliad',
-        jobId: 'job-1',
+        resourceId: resourceId('res-iliad'),
+        jobId: jobId('job-1'),
         jobType: 'generation',
-        result: { kind: 'generation', resourceId: 'res-new', resourceName: 'New', truncated: false },
+        result: { kind: 'generation', resourceId: resourceId('res-new'), resourceName: 'New', truncated: false },
       },
     };
     mark.assist.mockReturnValue(of(complete));
@@ -280,7 +280,7 @@ describe('markAssist', () => {
     const { client, mark } = createStub();
     const complete: MarkAssistEvent = {
       kind: 'complete',
-      data: { resourceId: 'res-iliad', jobId: 'job-1', jobType: 'reference-annotation' },
+      data: { resourceId: resourceId('res-iliad'), jobId: jobId('job-1'), jobType: 'reference-annotation' },
     };
     mark.assist.mockReturnValue(of(complete));
 

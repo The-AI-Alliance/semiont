@@ -13,6 +13,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use semiont::identity;
 use semiont::roles::WORKER_ROLE;
+use semiont::types::UserId;
 use semiont::types::{
     AgentTokenRequest, AgentTokenResponse, MediaTokenRequest, MediaTokenResponse,
 };
@@ -55,7 +56,10 @@ pub async fn agent(
     );
     Ok(json_response(
         StatusCode::OK,
-        &AgentTokenResponse { token, did },
+        &AgentTokenResponse {
+            token,
+            did: UserId::new(did).map_err(|e| ApiError::internal("naming an agent", e))?,
+        },
     ))
 }
 
@@ -67,6 +71,6 @@ pub async fn media(
     body: Body,
 ) -> Result<Response, ApiError> {
     let request: MediaTokenRequest = typed_body(body, "POST /api/tokens/media").await?;
-    let token = app.keys.media_token(&request.resource_id);
+    let token = app.keys.media_token(request.resource_id.as_str());
     Ok(json_response(StatusCode::OK, &MediaTokenResponse { token }))
 }

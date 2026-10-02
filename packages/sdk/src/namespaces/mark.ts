@@ -119,7 +119,7 @@ export class MarkNamespace implements IMarkNamespace {
               data: {
                 jobId: status.jobId,
                 jobType: status.type,
-                resourceId: resourceId as string,
+                resourceId,
                 // A job completed without a result is stored with an empty
                 // one; the job:complete this stands for carried none.
                 ...(isReportedJobResult(status.result) ? { result: status.result } : {}),

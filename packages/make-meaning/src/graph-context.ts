@@ -155,7 +155,7 @@ export class GraphContext {
 
     const addResourceNode = (id: string | undefined, label: string, entityTypes: string[]): void => {
       if (!id || seen.has(id)) return;
-      nodes.push({ id, type: 'resource', label, entityTypes });
+      nodes.push({ id: createResourceId(id), type: 'resource', label, entityTypes });
       seen.add(id);
     };
 

@@ -27,6 +27,7 @@ use semiont::session::{
 };
 use semiont::sign_in_store::{FILE_NAME, SignInStore};
 use semiont::storage::{InMemorySessionStorage, SessionStorage};
+use semiont::testing::as_id;
 use semiont::testing::examples::assert_readme_shows;
 use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
 use semiont::transport::PutBinaryRequest;
@@ -1499,7 +1500,7 @@ async fn a_registry_brings_up_a_session_that_says_who_it_is_and_renews_an_expire
             .user()
             .borrow()
             .as_ref()
-            .map(|user| user.did.clone()),
+            .map(|user| user.did.to_string()),
         Some("did:web:example.org:users:alice".to_owned())
     );
     assert_eq!(
@@ -1752,7 +1753,7 @@ async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
     let session = live(&browser).await;
 
     // Watching a query of the resource holds its scope.
-    let _watching = session.client().browse.annotations("res-1").watch();
+    let _watching = session.client().browse.annotations(&as_id("res-1")).watch();
     let resumed_from = || {
         world
             .staged
@@ -2096,14 +2097,14 @@ async fn a_resources_bytes_that_never_begin_fail_at_the_deadline_and_an_upload_t
     assert_eq!(
         client
             .browse
-            .resource_content("res-1")
+            .resource_content(&as_id("res-1"))
             .await
             .expect("it answers"),
         "the bytes of res-1"
     );
     world.never_answers("content");
     let started = tokio::time::Instant::now();
-    let unanswered = ends(client.browse.resource_content("res-1"))
+    let unanswered = ends(client.browse.resource_content(&as_id("res-1")))
         .await
         .expect_err("nobody answered");
     assert!(

@@ -70,7 +70,7 @@ describe('CloneTokenManager tokens', () => {
             timeout(5000),
           ),
         );
-        bus.emit('yield:clone-token-requested', { resourceId: String(rid) }, { correlationId });
+        bus.emit('yield:clone-token-requested', { resourceId: makeResourceId(String(rid)) }, { correlationId });
         tokens.push(await generated);
       }
       for (const token of tokens) expect(token).toMatch(/^clone_[0-9a-f]{32}$/);
@@ -189,7 +189,7 @@ describe('CloneTokenManager format selection', () => {
       contentChecksum: stored.checksum,
       byteSize: stored.byteSize,
       format,
-      _userId: 'did:web:test:users:ctm-test',
+      _userId: userId('did:web:test:users:ctm-test'),
     }, { correlationId: createCid });
     const cloneId = await created$;
     if (!cloneId) throw new Error('yield:clone-created carried no resourceId');

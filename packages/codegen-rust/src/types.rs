@@ -1,8 +1,8 @@
 //! Rust types from component schemas (JSON Schema draft 7, as
 //! `draft7_definitions` writes them): a struct per object, an enum per string
 //! enumeration, an untagged enum per `oneOf` or `anyOf`, an alias per named
-//! string, a field per property, optional where the schema does not require
-//! it. It knows the shapes the spec's schemas use and refuses any other, so a
+//! string, a type of its own per kind of id, a field per property, optional
+//! where the schema does not require it. It knows the shapes the spec's schemas use and refuses any other, so a
 //! schema that grows a new shape fails the build rather than generating
 //! something wrong.
 //!
@@ -11,7 +11,9 @@
 //! between objects, by a single-valued discriminant each carries (`status`,
 //! `kind`, `code`) or by one being the empty object. What the schema says that a type cannot — a pattern, a length, a
 //! bound — is the validators' to hold at the boundary, before a value is
-//! decoded.
+//! decoded. A kind of id is the exception: its pattern is written as the
+//! check its only constructor makes, and decoding goes through that
+//! constructor, so a value of the type has always passed its rule.
 
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -24,11 +26,17 @@ pub struct Generation<'a> {
     /// With a path, only the roots are generated, and every other schema they
     /// reach is named as `<path>::<Name>`: the crate that owns it.
     pub elsewhere: Option<&'a str>,
+    /// The schemas that are kinds of id (specs/src/identifiers/kinds.json).
+    /// Each is a type of its own and not an alias, and a value of it is made
+    /// only by a constructor that holds it to the schema's pattern.
+    pub identifiers: &'a [&'a str],
 }
 
 const EMPTY_OBJECT: &str = "EmptyObject";
 /// The key the `stated` helper is written under: no schema is named so.
 const STATED: &str = "fn stated";
+/// What a constructor of a kind of id refuses with.
+const INVALID_IDENTIFIER: &str = "InvalidIdentifier";
 
 /// The Rust source of a generation's types, from `definitions` (the
 /// `definitions` object of `draft7_definitions`' output).
@@ -237,6 +245,9 @@ impl Types<'_> {
             );
             return code;
         }
+        if self.generation.identifiers.contains(&name) {
+            return self.identifier(name, schema, code);
+        }
         if self.is_string(schema) {
             let _ = writeln!(code, "pub type {name} = String;\n");
             return code;
@@ -304,6 +315,42 @@ impl Types<'_> {
             code.push_str("    /// Every property the schema does not name, as it came.\n    #[serde(flatten)]\n    pub rest: serde_json::Map<String, serde_json::Value>,\n");
         }
         code.push_str("}\n\n");
+        code
+    }
+
+    /// A kind of id: a string no code can make but through `new`, which
+    /// holds it to the schema's pattern. Decoding goes through `new` too, so
+    /// an id a peer sent is held to the same rule as one a caller made. It
+    /// reads as the text it is (`Deref`), and nothing turns text into it but
+    /// the constructor.
+    fn identifier(&mut self, name: &str, schema: &Value, mut code: String) -> String {
+        if self.definitions.get(INVALID_IDENTIFIER).is_some() {
+            panic!("{INVALID_IDENTIFIER} is a schema's name, and the generator's own");
+        }
+        if schema["type"] != "string" {
+            panic!("{name}: a kind of id that is not a string: {schema}");
+        }
+        let pattern = schema["pattern"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{name}: a kind of id states no pattern"));
+        let check = Rule::of(pattern)
+            .unwrap_or_else(|| {
+                panic!("{name}: a pattern the generator cannot write as a check: {pattern}")
+            })
+            .check();
+        self.written.entry(INVALID_IDENTIFIER.to_owned()).or_insert_with(|| {
+            "/// A string that is not an id of the kind it was to be.\n#[derive(Debug, Clone, PartialEq, Eq)]\npub struct InvalidIdentifier {\n    /// The kind it was to be.\n    pub kind: &'static str,\n    /// The rule of that kind, as the spec writes it.\n    pub pattern: &'static str,\n    pub value: String,\n}\n\nimpl std::fmt::Display for InvalidIdentifier {\n    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        write!(f, \"{:?} is not a {}: it does not match {}\", self.value, self.kind, self.pattern)\n    }\n}\n\nimpl std::error::Error for InvalidIdentifier {}\n\n".to_owned()
+        });
+        code.push_str("#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Deserialize, serde::Serialize)]\n#[serde(try_from = \"String\", into = \"String\")]\n");
+        let _ = writeln!(code, "pub struct {name}(String);\n");
+        let _ = writeln!(
+            code,
+            "impl {name} {{\n    /// The rule a value is held to, as the spec writes it.\n    pub const PATTERN: &'static str = {pattern:?};\n\n    /// `value` as a `{name}`, or that it is not one.\n    pub fn new(value: impl Into<String>) -> Result<{name}, InvalidIdentifier> {{\n        let value = value.into();\n        if {name}::admits(&value) {{\n            Ok({name}(value))\n        }} else {{\n            Err(InvalidIdentifier {{\n                kind: {name:?},\n                pattern: {name}::PATTERN,\n                value,\n            }})\n        }}\n    }}\n\n    /// Whether `value` passes the rule.\n    pub fn admits(value: &str) -> bool {{\n{check}    }}\n\n    pub fn as_str(&self) -> &str {{\n        &self.0\n    }}\n}}\n"
+        );
+        let _ = writeln!(
+            code,
+            "impl std::fmt::Display for {name} {{\n    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {{\n        f.write_str(&self.0)\n    }}\n}}\n\nimpl std::ops::Deref for {name} {{\n    type Target = str;\n\n    fn deref(&self) -> &str {{\n        &self.0\n    }}\n}}\n\nimpl AsRef<str> for {name} {{\n    fn as_ref(&self) -> &str {{\n        &self.0\n    }}\n}}\n\nimpl std::str::FromStr for {name} {{\n    type Err = InvalidIdentifier;\n\n    fn from_str(value: &str) -> Result<{name}, InvalidIdentifier> {{\n        {name}::new(value)\n    }}\n}}\n\nimpl TryFrom<String> for {name} {{\n    type Error = InvalidIdentifier;\n\n    fn try_from(value: String) -> Result<{name}, InvalidIdentifier> {{\n        {name}::new(value)\n    }}\n}}\n\nimpl From<{name}> for String {{\n    fn from(id: {name}) -> String {{\n        id.0\n    }}\n}}\n\nimpl PartialEq<str> for {name} {{\n    fn eq(&self, other: &str) -> bool {{\n        self.0 == other\n    }}\n}}\n\nimpl PartialEq<&str> for {name} {{\n    fn eq(&self, other: &&str) -> bool {{\n        self.0 == *other\n    }}\n}}\n"
+        );
         code
     }
 
@@ -381,6 +428,105 @@ impl Types<'_> {
             let _ = writeln!(code, "    {variant}({rust_type}),");
         }
         code.push_str("}\n\n");
+        code
+    }
+}
+
+/// A kind of id's pattern, as the check that holds a value to it. The
+/// patterns it knows are the ones the kinds use: anchored at both ends, text
+/// every value begins with, and then one set of characters a stated number
+/// of times. Anything else is `None`, and the build fails rather than link a
+/// regular-expression engine into every client for four rules.
+struct Rule {
+    prefix: String,
+    /// The characters admitted after the prefix, as a predicate over `c`.
+    admitted: String,
+    least: usize,
+    most: Option<usize>,
+}
+
+impl Rule {
+    fn of(pattern: &str) -> Option<Rule> {
+        let body = pattern.strip_prefix('^')?.strip_suffix('$')?;
+        let set_at = body.find(['[', '\\'])?;
+        let (prefix, rest) = body.split_at(set_at);
+        if prefix.contains(['.', '|', '?', '*', '+', '(', ')', '{', '}', '^', '$', ']']) {
+            return None;
+        }
+        let (admitted, times) = match rest.strip_prefix("\\S") {
+            Some(times) => ("!c.is_whitespace()".to_owned(), times),
+            None => {
+                let (set, times) = rest.strip_prefix('[')?.split_once(']')?;
+                (Rule::set(set)?, times)
+            }
+        };
+        let (least, most) = match times {
+            "+" => (1, None),
+            "*" => (0, None),
+            _ => {
+                let bounds = times.strip_prefix('{')?.strip_suffix('}')?;
+                match bounds.split_once(',') {
+                    Some((least, "")) => (least.parse().ok()?, None),
+                    Some((least, most)) => (least.parse().ok()?, Some(most.parse().ok()?)),
+                    None => (bounds.parse().ok()?, Some(bounds.parse().ok()?)),
+                }
+            }
+        };
+        Some(Rule {
+            prefix: prefix.to_owned(),
+            admitted,
+            least,
+            most,
+        })
+    }
+
+    /// A character set (`A-Za-z0-9_-`) as a `matches!` over `c`: ranges and
+    /// single characters, a `-` at either end being itself.
+    fn set(set: &str) -> Option<String> {
+        if set.is_empty() || set.starts_with('^') || set.contains(['\\', '[', '\'']) {
+            return None;
+        }
+        let characters: Vec<char> = set.chars().collect();
+        let mut arms = Vec::new();
+        let mut at = 0;
+        while at < characters.len() {
+            if at + 2 < characters.len() && characters[at + 1] == '-' {
+                arms.push(format!("'{}'..='{}'", characters[at], characters[at + 2]));
+                at += 3;
+            } else {
+                arms.push(format!("'{}'", characters[at]));
+                at += 1;
+            }
+        }
+        Some(format!("matches!(c, {})", arms.join(" | ")))
+    }
+
+    /// The body of `fn admits(value: &str) -> bool`.
+    fn check(&self) -> String {
+        let mut code = String::new();
+        if !self.prefix.is_empty() {
+            let _ = writeln!(
+                code,
+                "        let Some(value) = value.strip_prefix({:?}) else {{\n            return false;\n        }};",
+                self.prefix
+            );
+        }
+        let counted = match (self.least, self.most) {
+            (0, None) => None,
+            (least, None) => Some(format!("value.chars().count() >= {least}")),
+            (least, Some(most)) => Some(format!(
+                "({least}..={most}).contains(&value.chars().count())"
+            )),
+        };
+        let all = format!("value.chars().all(|c| {})", self.admitted);
+        match counted {
+            Some(counted) => {
+                let _ = writeln!(code, "        {counted}\n            && {all}");
+            }
+            None => {
+                let _ = writeln!(code, "        {all}");
+            }
+        }
         code
     }
 }
@@ -538,8 +684,107 @@ mod tests {
             &Generation {
                 roots: &[root],
                 elsewhere: None,
+                identifiers: &[],
             },
         )
+    }
+
+    fn identifier(pattern: &str) -> String {
+        generate(
+            &json!({ "ThingId": { "type": "string", "description": "A thing's id.", "pattern": pattern } }),
+            &Generation {
+                roots: &["ThingId"],
+                elsewhere: None,
+                identifiers: &["ThingId"],
+            },
+        )
+    }
+
+    #[test]
+    fn a_kind_of_id_is_a_type_of_its_own_that_decodes_through_its_constructor() {
+        let code = identifier("^[A-Za-z0-9_-]{1,128}$");
+        assert!(!code.contains("pub type ThingId"), "{code}");
+        assert!(
+            code.contains("/// A thing's id.\n#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Deserialize, serde::Serialize)]\n#[serde(try_from = \"String\", into = \"String\")]\npub struct ThingId(String);"),
+            "{code}"
+        );
+        assert!(
+            code.contains(
+                "pub fn new(value: impl Into<String>) -> Result<ThingId, InvalidIdentifier>"
+            ),
+            "{code}"
+        );
+        assert!(code.contains("pub struct InvalidIdentifier"), "{code}");
+        // Read as the text it is, wherever text is wanted.
+        assert!(
+            code.contains("impl std::ops::Deref for ThingId {\n    type Target = str;"),
+            "{code}"
+        );
+    }
+
+    #[test]
+    fn a_kind_of_ids_rule_is_written_as_its_check() {
+        let name = identifier("^[A-Za-z0-9_-]{1,128}$");
+        assert!(
+            name.contains("(1..=128).contains(&value.chars().count())\n            && value.chars().all(|c| matches!(c, 'A'..='Z' | 'a'..='z' | '0'..='9' | '_' | '-'))"),
+            "{name}"
+        );
+        assert!(
+            name.contains("pub const PATTERN: &'static str = \"^[A-Za-z0-9_-]{1,128}$\";"),
+            "{name}"
+        );
+        let did = identifier("^did:\\S+$");
+        assert!(
+            did.contains("let Some(value) = value.strip_prefix(\"did:\") else {\n            return false;\n        };\n        value.chars().count() >= 1\n            && value.chars().all(|c| !c.is_whitespace())"),
+            "{did}"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "ThingId: a pattern the generator cannot write as a check")]
+    fn a_kind_of_id_whose_rule_cannot_be_written_as_a_check_is_refused() {
+        identifier("^e-[^:]+:[^:]+:.+$");
+    }
+
+    #[test]
+    #[should_panic(expected = "ThingId: a kind of id states no pattern")]
+    fn a_kind_of_id_with_no_rule_is_refused() {
+        generate(
+            &json!({ "ThingId": { "type": "string" } }),
+            &Generation {
+                roots: &["ThingId"],
+                elsewhere: None,
+                identifiers: &["ThingId"],
+            },
+        );
+    }
+
+    #[test]
+    fn a_property_that_refers_to_a_kind_of_id_is_of_its_type() {
+        let code = generate(
+            &json!({
+                "ThingId": { "type": "string", "pattern": "^[a-z]+$" },
+                "Holder": { "type": "object", "required": ["thing"], "properties": {
+                    "thing": { "$ref": "#/definitions/ThingId" },
+                    "others": { "type": "array", "items": { "$ref": "#/definitions/ThingId" } },
+                    "maybe": { "anyOf": [{ "$ref": "#/definitions/ThingId" }, { "type": "null" }] }
+                } }
+            }),
+            &Generation {
+                roots: &["Holder"],
+                elsewhere: None,
+                identifiers: &["ThingId"],
+            },
+        );
+        assert!(code.contains("    pub thing: ThingId,"), "{code}");
+        assert!(
+            code.contains("    pub others: Option<Vec<ThingId>>,"),
+            "{code}"
+        );
+        assert!(
+            code.contains("    pub maybe: Option<Option<ThingId>>,"),
+            "{code}"
+        );
     }
 
     #[test]

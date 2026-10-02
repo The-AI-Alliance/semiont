@@ -4,6 +4,7 @@ import type { EventBus } from '@semiont/core';
 import { useOutcomeToasts } from '../useOutcomeToasts';
 import { createTestSemiontWrapper } from '../../test-utils';
 import type { ReactNode } from 'react';
+import { resourceId } from '@semiont/core';
 
 // The hook's only dependencies are the toast surface and the bus — spy on the
 // former, drive the latter through the real subscription path (the wiring:
@@ -106,7 +107,7 @@ describe('useOutcomeToasts', () => {
   it('a local create error toasts once, filtered to this resource', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.emit('mark:create-error', { resourceId: RID, message: 'nope' });
+      eventBus.emit('mark:create-error', { resourceId: resourceId(RID), message: 'nope' });
     });
     expect(showError).toHaveBeenCalledWith('createFailed(detail=nope)');
     expect(showError).toHaveBeenCalledTimes(1);
@@ -115,8 +116,8 @@ describe('useOutcomeToasts', () => {
   it('a local delete error toasts, filtered to this resource', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.emit('mark:delete-error', { resourceId: RID, message: 'gone wrong' });
-      eventBus.emit('mark:delete-error', { resourceId: 'other-res', message: 'not mine' });
+      eventBus.emit('mark:delete-error', { resourceId: resourceId(RID), message: 'gone wrong' });
+      eventBus.emit('mark:delete-error', { resourceId: resourceId('other-res'), message: 'not mine' });
     });
     expect(showError).toHaveBeenCalledWith('deleteFailed(detail=gone wrong)');
     expect(showError).toHaveBeenCalledTimes(1);
@@ -147,8 +148,8 @@ describe('useOutcomeToasts', () => {
     // client-local sibling instead.
     const { eventBus } = setup();
     act(() => {
-      eventBus.emit('bind:body-error', { resourceId: RID, message: 'nope' });
-      eventBus.emit('bind:body-error', { resourceId: 'other-res', message: 'not mine' });
+      eventBus.emit('bind:body-error', { resourceId: resourceId(RID), message: 'nope' });
+      eventBus.emit('bind:body-error', { resourceId: resourceId('other-res'), message: 'not mine' });
     });
     expect(showError).toHaveBeenCalledWith('referenceUpdateFailed(detail=nope)');
     expect(showError).toHaveBeenCalledTimes(1);
@@ -160,7 +161,7 @@ describe('useOutcomeToasts', () => {
     // annotations, so an error toast was telling the user something untrue.
     const { eventBus } = setup();
     act(() => {
-      eventBus.emit('mark:assist-timeout', { resourceId: RID, motivation: 'highlighting' });
+      eventBus.emit('mark:assist-timeout', { resourceId: resourceId(RID), motivation: 'highlighting' });
     });
     expect(showInfo).toHaveBeenCalledWith('assistQuiet');
     expect(showError).not.toHaveBeenCalled();
@@ -169,7 +170,7 @@ describe('useOutcomeToasts', () => {
   it('assist silence for a different resource is ignored (resourceId filter)', () => {
     const { eventBus } = setup();
     act(() => {
-      eventBus.emit('mark:assist-timeout', { resourceId: 'other-res', motivation: 'highlighting' });
+      eventBus.emit('mark:assist-timeout', { resourceId: resourceId('other-res'), motivation: 'highlighting' });
     });
     expect(showInfo).not.toHaveBeenCalled();
     expect(showError).not.toHaveBeenCalled();

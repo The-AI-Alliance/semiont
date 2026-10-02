@@ -24,6 +24,7 @@ use semiont::transport::{
     BoxFuture, ConnectionState, Envelope, Events, Failures, FrameHub, Frames, GatewayOperations,
     PendingReply, ReplyRouter, ResourceHold, STREAM_BACKLOG, Transport, unsubscribed,
 };
+use semiont::types::ResourceId;
 use semiont::types::{
     BusEmitAccepted, BusEmitRequest, HealthResponse, MediaTokenRequest, MediaTokenResponse,
     ProtectedResourceMetadata, StatusResponse, UserResponse,
@@ -552,8 +553,8 @@ impl Transport for HttpTransport {
         self.inner.shared.global.iter().any(|c| c == channel)
     }
 
-    fn subscribe_to_resource(&self, resource_id: &str) -> ResourceHold {
-        let resource = resource_id.to_owned();
+    fn subscribe_to_resource(&self, resource_id: &ResourceId) -> ResourceHold {
+        let resource = resource_id.to_string();
         let holds = self.inner.holds.clone();
         let commands = self.inner.commands.clone();
         {
@@ -619,11 +620,11 @@ impl GatewayOperations for HttpTransport {
 
     fn get_media_token<'a>(
         &'a self,
-        resource_id: &'a str,
+        resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<MediaTokenResponse, TransportError>> {
         Box::pin(async move {
             let body = MediaTokenRequest {
-                resource_id: resource_id.to_owned(),
+                resource_id: resource_id.clone(),
             };
             self.inner
                 .shared

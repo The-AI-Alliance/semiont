@@ -501,7 +501,7 @@ export class Stower {
         // tally: a retry whose annotations are all already present has
         // succeeded, and must be indistinguishable from the first commit or the
         // caller would have to interpret a 0 that means "all good".
-        response: { persisted: annotations.length, annotationIds: annotations.map((a) => String(a.id)) },
+        response: { persisted: annotations.length, annotationIds: annotations.map((a) => a.id) },
       }, { correlationId });
     } catch (error) {
       // No partial success is reported. The worker retries the unit whole, and
