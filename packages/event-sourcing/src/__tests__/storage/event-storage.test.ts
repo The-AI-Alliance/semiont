@@ -6,12 +6,20 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EventStorage, wrapEventReadError } from '../../storage/event-storage';
-import { annotationId, resourceId, userId } from '@semiont/core';
+import { annotationId, resourceId, userId, type ResourceId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join, resolve } from 'path';
+import { readFileSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
+
+/** The strings the spec's table says a `ResourceId` refuses (specs/src/identifiers/kinds.json). */
+const REFUSED: string[] = (
+  JSON.parse(readFileSync(resolve(__dirname, '../../../../../specs/src/identifiers/kinds.json'), 'utf8')) as {
+    kinds: Array<{ schema: string; refuses: Array<{ id: string }> }>;
+  }
+).kinds.find((kind) => kind.schema === 'ResourceId')!.refuses.map((refused) => refused.id);
 
 describe('EventStorage', () => {
   let testDir: string;
@@ -153,6 +161,26 @@ describe('EventStorage', () => {
       }, resourceId('doc1'));
 
       expect(e3.metadata.sequenceNumber).toBe(3);
+    });
+  });
+
+  describe('An id is one name in the file system', () => {
+    // The type says a `ResourceId` is one. A value that got past the type
+    // (a cast, an untyped caller, a frame nothing validated) is text, and
+    // here is where that text would become a directory's name.
+    it.each(REFUSED)('no path is made for %j', (text) => {
+      expect(() => storage.getResourcePath(text as ResourceId)).toThrow(TypeError);
+    });
+
+    it('nothing is created for `..`, inside the events directory or above it', async () => {
+      await storage.initializeResourceStream(resourceId('res-1'));
+      const everything = () => fs.readdir(testDir, { recursive: true }).then((names) => names.sort());
+      const before = await everything();
+
+      await expect(storage.initializeResourceStream('..' as ResourceId)).rejects.toThrow(TypeError);
+      await expect(storage.getEventFiles('..' as ResourceId)).rejects.toThrow(TypeError);
+
+      expect(await everything()).toEqual(before);
     });
   });
 

@@ -11,7 +11,8 @@ import { annotationId, resourceId } from '@semiont/core';
 import type { ResourceId, Motivation } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join, resolve } from 'path';
+import { readFileSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 
 // Helper to create minimal ResourceDescriptor for tests
@@ -36,6 +37,13 @@ function createResourceAnnotations(rid: ResourceId, overrides = {}) {
   };
 }
 
+/** The strings the spec's table says a `ResourceId` refuses (specs/src/identifiers/kinds.json). */
+const REFUSED: string[] = (
+  JSON.parse(readFileSync(resolve(__dirname, '../../../../../specs/src/identifiers/kinds.json'), 'utf8')) as {
+    kinds: Array<{ schema: string; refuses: Array<{ id: string }> }>;
+  }
+).kinds.find((kind) => kind.schema === 'ResourceId')!.refuses.map((refused) => refused.id);
+
 describe('FilesystemViewStorage', () => {
   let testDir: string;
   let project: SemiontProject;
@@ -51,6 +59,19 @@ describe('FilesystemViewStorage', () => {
   afterEach(async () => {
     await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
+  });
+
+  describe('An id is one name in the file system', () => {
+    // The type says a `ResourceId` is one. A value that got past the type is
+    // text, and here is where that text would become a file's name.
+    it.each(REFUSED)('no view is read, written, found or deleted for %j', async (text) => {
+      const id = text as ResourceId;
+      const view = { resource: createResourceDescriptor('res-1', 'A'), annotations: createResourceAnnotations(resourceId('res-1')) };
+      await expect(storage.save(id, view)).rejects.toThrow(TypeError);
+      await expect(storage.get(id)).rejects.toThrow(TypeError);
+      await expect(storage.exists(id)).rejects.toThrow(TypeError);
+      await expect(storage.delete(id)).rejects.toThrow(TypeError);
+    });
   });
 
   describe('Constructor', () => {

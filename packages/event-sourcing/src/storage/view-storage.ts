@@ -9,7 +9,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { getShardPath } from '@semiont/core';
+import { getShardPath, resourceId as makeResourceId } from '@semiont/core';
 import type { ResourceAnnotations, ResourceDescriptor, ResourceId, Logger } from '@semiont/core';
 
 // Complete state for a resource in materialized view (metadata + annotations)
@@ -48,9 +48,13 @@ export class FilesystemViewStorage implements ViewStorage {
   }
 
   private viewPath(resourceId: ResourceId): string {
+    // The type says this is an id, and a type is not there at run time. Here
+    // an id becomes a file's name, so the rule is asked of the text itself:
+    // `..` must never reach `path.join`.
+    const name = makeResourceId(resourceId);
     // Use 4-hex Jump Consistent Hash sharding (65,536 shards)
-    const [ab, cd] = getShardPath(resourceId);
-    return path.join(this.resourcesDir, ab, cd, `${resourceId}.json`);
+    const [ab, cd] = getShardPath(name);
+    return path.join(this.resourcesDir, ab, cd, `${name}.json`);
   }
 
   async save(resourceId: ResourceId, projection: ResourceView): Promise<void> {

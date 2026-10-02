@@ -117,8 +117,11 @@ export class EventStorage {
    * Get full path to resource's event directory
    */
   getResourcePath(resourceId: ResourceId): string {
-    const shardPath = this.getShardPath(resourceId);
-    return path.join(this.project.eventsDir, shardPath, resourceId);
+    // The type says this is an id, and a type is not there at run time. Here
+    // an id becomes a directory's name, so the rule is asked of the text
+    // itself: `..` must never reach `path.join`.
+    const name = makeResourceId(resourceId);
+    return path.join(this.project.eventsDir, this.getShardPath(name), name);
   }
 
   /**
