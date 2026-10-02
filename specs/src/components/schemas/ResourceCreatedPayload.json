@@ -35,10 +35,10 @@
       "type": "object",
       "properties": {
         "resourceId": {
-          "type": "string"
+          "$ref": "./ResourceId.json"
         },
         "annotationId": {
-          "type": "string"
+          "$ref": "./AnnotationId.json"
         }
       },
       "required": [

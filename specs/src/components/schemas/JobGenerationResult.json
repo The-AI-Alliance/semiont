@@ -10,7 +10,7 @@
       "description": "Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1)."
     },
     "resourceId": {
-      "type": "string",
+      "$ref": "./ResourceId.json",
       "description": "ID of the generated resource, obtained by the worker from the create round-trip before job:complete is emitted"
     },
     "resourceName": {

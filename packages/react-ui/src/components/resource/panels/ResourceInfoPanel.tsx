@@ -1,10 +1,11 @@
 'use client';
 
+import type { ResourceId } from '@semiont/core';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { readyValue, type SemiontSession, type YieldOutcome } from '@semiont/sdk';
 import { formatLocaleDisplay } from '@semiont/core';
-import { resourceId as makeResourceId, type components } from '@semiont/core';
+import { type components } from '@semiont/core';
 import { useEventSubscription } from '../../../contexts/useEventSubscription';
 import { useObservable } from '../../../hooks/useObservable';
 import { renderAgentLabel } from './agent-label';
@@ -18,7 +19,7 @@ type JobProgress = components['schemas']['JobProgress'];
 interface Props {
   /** Session carrying the client and event bus; null renders inert. */
   session: SemiontSession | null;
-  resourceId: string;
+  resourceId: ResourceId;
   documentEntityTypes: string[];
   documentLocale?: string | undefined;
   primaryMediaType?: string | undefined;
@@ -28,7 +29,7 @@ interface Props {
   dateCreated?: string | undefined;
   dateModified?: string | undefined;
   wasAttributedTo?: Agent | Agent[] | undefined;
-  wasDerivedFrom?: string | string[] | undefined;
+  wasDerivedFrom?: components['schemas']['ResourceDescriptor']['wasDerivedFrom'];
   generator?: Agent | Agent[] | undefined;
   /**
    * Open the resource-generate flow. UI-only — the SDK isn't involved in
@@ -86,7 +87,7 @@ export function ResourceInfoPanel({
   const [textLayerKind, setTextLayerKind] = useState<'extracted' | 'declined' | 'not-yet' | 'no-map' | 'unknown' | null>(null);
   const refreshTextLayer = useCallback(() => {
     if (!session) return;
-    session.client.browse.resourceAnchoredText(makeResourceId(resourceId)).then(
+    session.client.browse.resourceAnchoredText(resourceId).then(
       (answer) => setTextLayerKind(answer.kind),
       () => { /* transport failure: keep whatever stood — no claim */ },
     );
@@ -294,7 +295,7 @@ export function ResourceInfoPanel({
         {isArchived ? (
           <>
             <button
-              onClick={() => session?.client.mark.unarchive(makeResourceId(resourceId))}
+              onClick={() => session?.client.mark.unarchive(resourceId)}
               className="semiont-resource-button semiont-resource-button--secondary"
             >
               📤 {t('unarchive')}
@@ -306,7 +307,7 @@ export function ResourceInfoPanel({
         ) : (
           <>
             <button
-              onClick={() => session?.client.mark.archive(makeResourceId(resourceId))}
+              onClick={() => session?.client.mark.archive(resourceId)}
               className="semiont-resource-button semiont-resource-button--archive"
             >
               📦 {t('archive')}
@@ -330,18 +331,18 @@ export function ResourceInfoPanel({
  */
 function DerivedFromLink({ session, id, first }: {
   session: SemiontSession | null;
-  id: string;
+  id: ResourceId;
   first: boolean;
 }) {
   // `browse.resource` is stable per id (cache + scope wrappers memoize), so
   // subscribing straight off the render read is safe; `failed` is an emission,
   // never a stream error, so `readyValue` covers every unresolved state.
-  const descriptor = useObservable(session ? session.client.browse.resource(makeResourceId(id)) : null);
+  const descriptor = useObservable(session ? session.client.browse.resource(id) : null);
   const name = descriptor ? readyValue(descriptor)?.name : undefined;
   return (
     <button
       className="semiont-resource-info-panel__link"
-      onClick={() => session?.client.browse.openResource(makeResourceId(id))}
+      onClick={() => session?.client.browse.openResource(id)}
     >
       {!first && ', '}{name ?? id}
     </button>

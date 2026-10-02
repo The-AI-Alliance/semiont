@@ -19,17 +19,15 @@ import { createJobClaimAdapter, type JobClaimAdapter, type ActiveJob } from './j
 import { willRetryAfter } from './will-retry';
 import {
   asJobParams,
-  isJobType,
   type AssessmentDetectionParams,
   type CommentDetectionParams,
   type DetectionParams,
   type HighlightDetectionParams,
-  type JobType,
   type TagDetectionParams,
 } from './types';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
-import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, annotationId as makeAnnotationId, findClaimSpan, capabilitiesOf, isObject, isString, type EventMap, busRequest, BusRequestError } from '@semiont/core';
+import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, findClaimSpan, capabilitiesOf, isObject, isString, type AnnotationId, type EventMap, type JobId, type ResourceId, busRequest, BusRequestError } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components, AssembledAnnotation, Annotation, UnitCursor } from '@semiont/core';
@@ -58,16 +56,16 @@ import {
  * or is undefined (resource focus). Non-generation jobTypes (detection
  * echoes) keep their own `params.referenceId` passthrough.
  */
-export function referenceIdOf(job: { type: string; params: Record<string, unknown> }): string | undefined {
+export function referenceIdOf(job: { type: string; params: Record<string, unknown> }): AnnotationId | undefined {
   if (job.type === 'generation') {
-    const context = job.params.context as { focus?: { kind?: unknown; annotation?: { id?: unknown } } } | undefined;
+    const context = job.params.context as { focus?: { kind?: unknown; annotation?: { id?: AnnotationId } } } | undefined;
     const focus = context?.focus;
     if (focus?.kind === 'annotation' && typeof focus.annotation?.id === 'string') {
       return focus.annotation.id;
     }
     return undefined;
   }
-  const ref = job.params.referenceId;
+  const ref = (job.params as { referenceId?: AnnotationId }).referenceId;
   return typeof ref === 'string' ? ref : undefined;
 }
 
@@ -168,9 +166,9 @@ const MARK_COMMIT_TIMEOUT_MS = 60_000;
  */
 async function commitAnnotations(
   session: SemiontSession,
-  resourceId: string,
-  annotations: readonly { readonly id: string }[],
-  jobId: string,
+  resourceId: ResourceId,
+  annotations: readonly { readonly id: AnnotationId }[],
+  jobId: JobId,
 ): Promise<DurabilityEvidence | undefined> {
   if (annotations.length === 0) return undefined;
   try {
@@ -239,14 +237,14 @@ export class CommitDurabilityError extends Error {
  */
 async function probeDurability(
   session: SemiontSession,
-  resourceId: string,
-  annotations: readonly { readonly id: string }[],
+  resourceId: ResourceId,
+  annotations: readonly { readonly id: AnnotationId }[],
 ): Promise<Exclude<DurabilityEvidence, 'acknowledged'>> {
   const last = annotations[annotations.length - 1];
   if (!last) return 'probe-unreachable';
   try {
     await session.client.browse
-      .annotation(makeResourceId(resourceId), makeAnnotationId(String(last.id)))
+      .annotation(resourceId, last.id)
       .fresh();
     return 'probe-confirmed';
   } catch (error) {
@@ -362,31 +360,29 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
         completedUnitsByJob.delete(job.jobId);
         unitCursorsByJob.delete(job.jobId);
         const failAnnotationId = referenceIdOf(job);
-        if (isJobType(job.type)) {
-          emitEvent(session, 'job:fail', {
-            resourceId: job.resourceId,
-            jobId: job.jobId,
-            jobType: job.type,
-            ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
-            error: message,
-            ...(completedUnits && completedUnits.length > 0 ? { completedUnits } : {}),
-            // Where each unfinished unit got to. Absent rather than `{}` when
-            // nothing was reached: an empty object would claim units were
-            // tracked and none progressed.
-            ...(unitCursors && Object.keys(unitCursors).length > 0 ? { unitCursors } : {}),
-            ...(failureClass !== undefined ? { failureClass } : {}),
-            // What the commit path OBSERVED about durability, when the failure
-            // came from a commit at all. Present only on that path: absent means
-            // the question never arose, never that durability was ruled out.
-            ...(error instanceof CommitDurabilityError ? { durability: error.durability } : {}),
-            // Whether this failure is the END, answered by the same predicate
-            // the queue applies at failJob (JOB-RESTART-SAFETY P5). Without
-            // it a client cannot tell a recovering run from a dead one: it
-            // sees job:fail either way and would end its stream on a job the
-            // queue is about to re-run.
-            willRetry: willRetryAfter(job, failureClass),
-          }).catch(() => {});
-        }
+        emitEvent(session, 'job:fail', {
+          resourceId: job.resourceId,
+          jobId: job.jobId,
+          jobType: job.type,
+          ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
+          error: message,
+          ...(completedUnits && completedUnits.length > 0 ? { completedUnits } : {}),
+          // Where each unfinished unit got to. Absent rather than `{}` when
+          // nothing was reached: an empty object would claim units were
+          // tracked and none progressed.
+          ...(unitCursors && Object.keys(unitCursors).length > 0 ? { unitCursors } : {}),
+          ...(failureClass !== undefined ? { failureClass } : {}),
+          // What the commit path OBSERVED about durability, when the failure
+          // came from a commit at all. Present only on that path: absent means
+          // the question never arose, never that durability was ruled out.
+          ...(error instanceof CommitDurabilityError ? { durability: error.durability } : {}),
+          // Whether this failure is the END, answered by the same predicate
+          // the queue applies at failJob (JOB-RESTART-SAFETY P5). Without
+          // it a client cannot tell a recovering run from a dead one: it
+          // sees job:fail either way and would end its stream on a job the
+          // queue is about to re-run.
+          willRetry: willRetryAfter(job, failureClass),
+        }).catch(() => {});
         adapter.failJob(job.jobId, message);
       })
       .finally(() => {
@@ -451,22 +447,10 @@ async function handleJobInner(
   unitCursorsByJob: Map<string, Record<string, UnitCursor>> = new Map(),
 ): Promise<void> {
   const { session, inferenceClient, generator } = config;
-  // `userId` — the requester — is deliberately NOT read here: the worker
-  // cites the job it holds and the Stower derives who asked from the
-  // dispatcher's record of it (VERIFIED-PROVENANCE P2).
-  const { jobId } = job;
-  // `jobType` is a required, enumerated field on every lifecycle command, but
-  // arrives off the bus as a plain string. Narrow once here so the emits below
-  // are checked against the wire contract instead of asserted past it.
-  if (!isJobType(job.type)) {
-    adapter.failJob(jobId, `Unrecognized job type: ${job.type}`);
-    return;
-  }
-  const jobType: JobType = job.type;
-  // The job arrives off the bus with a plain-string id — this is the entry
-  // boundary, so brand once here rather than casting at every call that wants
-  // a `ResourceId` (BRAND-UPSTREAM).
-  const resourceId = makeResourceId(job.resourceId);
+  // Who asked for the job is not among what the worker holds: it cites the
+  // job, and the Stower derives the requester from the dispatcher's record of
+  // it (VERIFIED-PROVENANCE P2).
+  const { jobId, type: jobType, resourceId } = job;
 
   // Annotation-scoped jobs (today: generation, triggered from a
   // reference) carry the source annotation through every lifecycle
@@ -630,7 +614,7 @@ async function handleJobInner(
    * re-runs that chunk into a log that dedupes it by id.
    */
   const commitChunk = async (annotations: Annotation[], checkpoint: UnitCheckpoint) => {
-    record(await commitAnnotations(session, String(resourceId), annotations, jobId));
+    record(await commitAnnotations(session, resourceId, annotations, jobId));
     unitCursors.set(checkpoint.unit, checkpoint.cursor);
     // Published to the caller's accumulator as it moves: the failure path runs
     // OUTSIDE this function, so a cursor only this scope knows about would be
@@ -847,12 +831,12 @@ async function handleJobInner(
       const { annotation: provenanceRef } = assembleAnnotation(
         {
           motivation: 'linking',
-          target: { source: String(resourceId) },
-          body: { type: 'SpecificResource', source: String(newResourceId), purpose: 'linking' },
+          target: { source: resourceId },
+          body: { type: 'SpecificResource', source: newResourceId, purpose: 'linking' },
         },
         generator,
       );
-      record(await commitAnnotations(session, String(resourceId), [provenanceRef], jobId));
+      record(await commitAnnotations(session, resourceId, [provenanceRef], jobId));
     }
 
     // Inline citations: mint each as a linking annotation ON THE DERIVED
@@ -895,7 +879,7 @@ async function handleJobInner(
           // under the rects, which is what re-anchoring will see.
           const citationRef = buildPdfAnnotation(
             layer,
-            makeResourceId(String(newResourceId)),
+            newResourceId,
             generator,
             'linking',
             { exact: layer.text.slice(span.start, span.end), start: span.start, end: span.end },
@@ -910,7 +894,7 @@ async function handleJobInner(
           {
             motivation: 'linking',
             target: {
-              source: String(newResourceId),
+              source: newResourceId,
               selector: [
                 { type: 'TextPositionSelector', start: citation.start, end: citation.end },
                 { type: 'TextQuoteSelector', exact: citation.exact },
@@ -924,11 +908,11 @@ async function handleJobInner(
       }
     }
 
-    record(await commitAnnotations(session, String(newResourceId), citationRefs, jobId));
+    record(await commitAnnotations(session, newResourceId, citationRefs, jobId));
 
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
-      result: { kind: 'generation', resourceId: newResourceId, resourceName: genResult.title, truncated: genResult.result.truncated },
+      result: { kind: 'generation', resourceId: newResourceId, resourceName: genResult.title, truncated: genResult.truncated },
     });
     adapter.completeJob();
 

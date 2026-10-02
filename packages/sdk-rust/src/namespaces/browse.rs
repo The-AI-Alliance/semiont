@@ -46,6 +46,7 @@ use crate::types::{
     GetResourceResponse, InferenceLimits, InferenceLimitsResultResponse, InferencePairLimits,
     KbDescription, ListResourcesResponse, ResourceDescriptor, StoredEventResponse, TagSchema,
 };
+use crate::types::{AnnotationId, ResourceId};
 use futures_core::Stream;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -232,13 +233,13 @@ impl Windows {
 #[derive(Default)]
 struct Subject {
     when: Option<RefreshWhen>,
-    resource: Option<String>,
-    annotation: Option<String>,
+    resource: Option<ResourceId>,
+    annotation: Option<AnnotationId>,
     written: Option<Annotation>,
 }
 
 impl Subject {
-    fn of(resource: Option<String>) -> Subject {
+    fn of(resource: Option<ResourceId>) -> Subject {
         Subject {
             resource,
             ..Subject::default()
@@ -247,21 +248,21 @@ impl Subject {
 }
 
 struct Live {
-    resource: Cache<String, ResourceDescriptor>,
+    resource: Cache<ResourceId, ResourceDescriptor>,
     lists: Cache<ResourceFilters, ListResourcesResponse>,
-    annotations: Cache<String, GetAnnotationsResponse>,
-    annotation: Cache<String, Annotation>,
+    annotations: Cache<ResourceId, GetAnnotationsResponse>,
+    annotation: Cache<AnnotationId, Annotation>,
     /// The resource each annotation that was asked for is of: an annotation
     /// is kept by its own id, and a request for it names its resource too.
-    annotation_of: Arc<Mutex<HashMap<String, String>>>,
+    annotation_of: Arc<Mutex<HashMap<AnnotationId, ResourceId>>>,
     entity_types: Cache<String, Vec<String>>,
     tag_schemas: Cache<String, Vec<TagSchema>>,
     agents: Cache<String, Vec<CollaboratorEntry>>,
     /// Each key holder's report of its models' limits, by the operation
     /// that asks it.
     limits: Cache<&'static str, Vec<InferencePairLimits>>,
-    referenced_by: Cache<String, Vec<GetReferencedByResponseReferencedByItem>>,
-    events: Cache<String, Vec<StoredEventResponse>>,
+    referenced_by: Cache<ResourceId, Vec<GetReferencedByResponseReferencedByItem>>,
+    events: Cache<ResourceId, Vec<StoredEventResponse>>,
     windows: Arc<Windows>,
     /// What listens for each trigger, until the namespace is disposed.
     listening: Mutex<JoinSet<()>>,
@@ -301,9 +302,9 @@ where
     }
 }
 
-fn events_of(resource_id: &str) -> BrowseEventsRequest {
+fn events_of(resource_id: &ResourceId) -> BrowseEventsRequest {
     BrowseEventsRequest {
-        resource_id: resource_id.to_owned(),
+        resource_id: resource_id.clone(),
         r#type: None,
         user_id: None,
         limit: None,
@@ -312,12 +313,12 @@ fn events_of(resource_id: &str) -> BrowseEventsRequest {
 
 impl Live {
     fn new(links: &Links, persistence: Option<&CachePersistence>) -> Arc<Live> {
-        let annotation_of: Arc<Mutex<HashMap<String, String>>> = Arc::default();
+        let annotation_of: Arc<Mutex<HashMap<AnnotationId, ResourceId>>> = Arc::default();
         let asking = |links: &Links| links.clone();
 
         let resource = kept(persistence, "resource", {
             let links = asking(links);
-            move |resource_id: String| {
+            move |resource_id: ResourceId| {
                 let links = links.clone();
                 async move {
                     let answer = links
@@ -346,7 +347,7 @@ impl Live {
         });
         let annotations = kept(persistence, "annotations", {
             let links = asking(links);
-            move |resource_id: String| {
+            move |resource_id: ResourceId| {
                 let links = links.clone();
                 async move {
                     let answer = links
@@ -361,7 +362,7 @@ impl Live {
         let annotation = kept(persistence, "annotation-detail", {
             let links = asking(links);
             let annotation_of = annotation_of.clone();
-            move |annotation_id: String| {
+            move |annotation_id: AnnotationId| {
                 let links = links.clone();
                 let resource_id = locked(&annotation_of).get(&annotation_id).cloned();
                 async move {
@@ -434,7 +435,7 @@ impl Live {
         });
         let referenced_by = kept_in_memory({
             let links = asking(links);
-            move |resource_id: String| {
+            move |resource_id: ResourceId| {
                 let links = links.clone();
                 async move {
                     let answer = links
@@ -449,7 +450,7 @@ impl Live {
         });
         let events = kept_in_memory({
             let links = asking(links);
-            move |resource_id: String| {
+            move |resource_id: ResourceId| {
                 let links = links.clone();
                 async move {
                     let answer = links
@@ -491,7 +492,7 @@ impl Live {
                 RefreshTrigger::Reopened => self.on_reopening(links.wire.transport().state()),
                 RefreshTrigger::BusResumeGap => {
                     self.on::<channels::BusResumeGap>(links, *trigger, |gap| {
-                        Subject::of(Some(gap.scope))
+                        Subject::of(ResourceId::new(gap.scope).ok())
                     });
                 }
                 RefreshTrigger::MarkAdded => {
@@ -505,7 +506,7 @@ impl Live {
                             .payload
                             .get("annotationId")
                             .and_then(|id| id.as_str())
-                            .map(str::to_owned),
+                            .and_then(|id| AnnotationId::new(id).ok()),
                         ..Subject::of(event.resource_id)
                     });
                 }
@@ -531,7 +532,7 @@ impl Live {
                                     .payload
                                     .get("annotationId")
                                     .and_then(|id| id.as_str())
-                                    .map(str::to_owned),
+                                    .and_then(|id| AnnotationId::new(id).ok()),
                                 written: None,
                             },
                         }
@@ -690,8 +691,8 @@ impl Live {
     /// An annotation the cache holds is ended as not found. What says which
     /// resource it was of is kept: an observer arriving at the ended key asks
     /// the service, and that request names the resource.
-    fn annotation_gone(&self, annotation_id: &str) {
-        let id = annotation_id.to_owned();
+    fn annotation_gone(&self, annotation_id: &AnnotationId) {
+        let id = annotation_id.clone();
         if self.annotation.known(&id) {
             self.annotation.remove(
                 &id,
@@ -721,7 +722,7 @@ impl Live {
     /// B7: ask again, for the keys the row reaches, showing what there is
     /// meanwhile.
     fn refetch(self: &Arc<Self>, query: CacheQuery, subject: &Subject, reach: Reach) {
-        let reached = |held: Vec<String>| match reach {
+        let reached = |held: Vec<ResourceId>| match reach {
             Reach::Held => held,
             Reach::Subject => subject.resource.iter().cloned().collect(),
         };
@@ -845,7 +846,7 @@ struct Keyed<K: CacheKey, V: CacheValue, T> {
     view: fn(V) -> T,
     /// The resource the query is of, and what holds its scope while the
     /// query is watched.
-    scope: Option<(Arc<dyn Transport>, String)>,
+    scope: Option<(Arc<dyn Transport>, ResourceId)>,
 }
 
 struct Viewed<V, T> {
@@ -1080,22 +1081,23 @@ impl BrowseNamespace {
     }
 
     /// A query of one resource: watching it holds the resource's scope.
-    fn of_resource<V, T>(
+    fn of_resource<K, V, T>(
         &self,
-        cache: &Cache<String, V>,
-        key: &str,
-        resource_id: &str,
+        cache: &Cache<K, V>,
+        key: &K,
+        resource_id: &ResourceId,
         view: fn(V) -> T,
     ) -> Cached<T>
     where
+        K: CacheKey,
         V: CacheValue,
         T: 'static,
     {
         Cached::of(Keyed {
             cache: cache.clone(),
-            key: key.to_owned(),
+            key: key.clone(),
             view,
-            scope: Some((self.links.wire.transport().clone(), resource_id.to_owned())),
+            scope: Some((self.links.wire.transport().clone(), resource_id.clone())),
         })
     }
 
@@ -1114,7 +1116,7 @@ impl BrowseNamespace {
 
     // ── Queries ─────────────────────────────────────────────────────────
 
-    pub fn resource(&self, resource_id: &str) -> Cached<ResourceDescriptor> {
+    pub fn resource(&self, resource_id: &ResourceId) -> Cached<ResourceDescriptor> {
         self.of_resource(&self.live.resource, resource_id, resource_id, |value| value)
     }
 
@@ -1132,14 +1134,18 @@ impl BrowseNamespace {
         })
     }
 
-    pub fn annotations(&self, resource_id: &str) -> Cached<Vec<Annotation>> {
+    pub fn annotations(&self, resource_id: &ResourceId) -> Cached<Vec<Annotation>> {
         self.of_resource(&self.live.annotations, resource_id, resource_id, |list| {
             list.annotations
         })
     }
 
-    pub fn annotation(&self, resource_id: &str, annotation_id: &str) -> Cached<Annotation> {
-        locked(&self.live.annotation_of).insert(annotation_id.to_owned(), resource_id.to_owned());
+    pub fn annotation(
+        &self,
+        resource_id: &ResourceId,
+        annotation_id: &AnnotationId,
+    ) -> Cached<Annotation> {
+        locked(&self.live.annotation_of).insert(annotation_id.clone(), resource_id.clone());
         self.of_resource(&self.live.annotation, annotation_id, resource_id, |value| {
             value
         })
@@ -1165,7 +1171,7 @@ impl BrowseNamespace {
 
     pub fn referenced_by(
         &self,
-        resource_id: &str,
+        resource_id: &ResourceId,
     ) -> Cached<Vec<GetReferencedByResponseReferencedByItem>> {
         self.of_resource(
             &self.live.referenced_by,
@@ -1175,7 +1181,7 @@ impl BrowseNamespace {
         )
     }
 
-    pub fn events(&self, resource_id: &str) -> Cached<Vec<StoredEventResponse>> {
+    pub fn events(&self, resource_id: &ResourceId) -> Cached<Vec<StoredEventResponse>> {
         self.of_resource(&self.live.events, resource_id, resource_id, |value| value)
     }
 
@@ -1183,7 +1189,7 @@ impl BrowseNamespace {
 
     /// A resource's bytes as text, in the charset their media type states.
     /// Without the `charsets` feature, only when that is UTF-8.
-    pub async fn resource_content(&self, resource_id: &str) -> Result<String, SemiontError> {
+    pub async fn resource_content(&self, resource_id: &ResourceId) -> Result<String, SemiontError> {
         Ok(text(self.content.get_binary(resource_id).await?)?)
     }
 
@@ -1191,7 +1197,7 @@ impl BrowseNamespace {
     /// the references to it.
     pub async fn resource_graph(
         &self,
-        resource_id: &str,
+        resource_id: &ResourceId,
     ) -> Result<GetResourceResponse, SemiontError> {
         Ok(self.content.get_resource_graph(resource_id).await?)
     }
@@ -1200,12 +1206,12 @@ impl BrowseNamespace {
     /// reason there is none.
     pub async fn resource_anchored_text(
         &self,
-        resource_id: &str,
+        resource_id: &ResourceId,
     ) -> Result<AnchoredTextAnswer, SemiontError> {
         let answer = self
             .links
             .request::<BrowseAnchoredTextRequested>(&BrowseAnchoredTextRequest {
-                resource_id: resource_id.to_owned(),
+                resource_id: resource_id.clone(),
             })
             .await?;
         Ok(answer.response)
@@ -1214,7 +1220,7 @@ impl BrowseNamespace {
     /// A resource's bytes, unchanged, with their media type.
     pub async fn resource_representation(
         &self,
-        resource_id: &str,
+        resource_id: &ResourceId,
     ) -> Result<Content, SemiontError> {
         Ok(self.content.get_binary(resource_id).await?)
     }
@@ -1222,14 +1228,14 @@ impl BrowseNamespace {
     /// The same, as a stream.
     pub async fn resource_representation_stream(
         &self,
-        resource_id: &str,
+        resource_id: &ResourceId,
     ) -> Result<ContentStream, SemiontError> {
         Ok(self.content.get_binary_stream(resource_id).await?)
     }
 
     pub async fn resource_events(
         &self,
-        resource_id: &str,
+        resource_id: &ResourceId,
     ) -> Result<Vec<StoredEventResponse>, SemiontError> {
         let answer = self
             .links
@@ -1240,14 +1246,14 @@ impl BrowseNamespace {
 
     pub async fn annotation_history(
         &self,
-        resource_id: &str,
-        annotation_id: &str,
+        resource_id: &ResourceId,
+        annotation_id: &AnnotationId,
     ) -> Result<GetAnnotationHistoryResponse, SemiontError> {
         let answer = self
             .links
             .request::<BrowseAnnotationHistoryRequested>(&BrowseAnnotationHistoryRequest {
-                resource_id: resource_id.to_owned(),
-                annotation_id: annotation_id.to_owned(),
+                resource_id: resource_id.clone(),
+                annotation_id: annotation_id.clone(),
             })
             .await?;
         Ok(answer.response)
@@ -1284,30 +1290,30 @@ impl BrowseNamespace {
     // ── Signals ─────────────────────────────────────────────────────────
 
     /// Signal: open an annotation for this viewer.
-    pub fn click(&self, annotation_id: &str) {
+    pub fn click(&self, annotation_id: &AnnotationId) {
         self.links.signal::<BrowseClick>(
             &BrowseClickEvent {
-                annotation_id: annotation_id.to_owned(),
+                annotation_id: annotation_id.clone(),
             },
             Envelope::default(),
         );
     }
 
     /// Signal: open a resource for this viewer.
-    pub fn open_resource(&self, resource_id: &str) {
+    pub fn open_resource(&self, resource_id: &ResourceId) {
         self.links.signal::<BrowseResourceOpen>(
             &BrowseResourceOpenEvent {
-                resource_id: resource_id.to_owned(),
+                resource_id: resource_id.clone(),
             },
             Envelope::default(),
         );
     }
 
     /// Report, over the wire, that this viewer arrived at a resource.
-    pub fn resource_viewed(&self, resource_id: &str) {
+    pub fn resource_viewed(&self, resource_id: &ResourceId) {
         self.links
             .report::<BrowseResourceViewed>(&BrowseResourceViewedEvent {
-                resource_id: resource_id.to_owned(),
+                resource_id: resource_id.clone(),
             });
     }
 }

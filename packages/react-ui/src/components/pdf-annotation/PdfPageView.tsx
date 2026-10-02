@@ -1,9 +1,9 @@
 'use client';
 
+import type { ResourceId } from '@semiont/core';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Annotation, AnchorRect, AnchoredText } from '@semiont/core';
 import {
-  resourceId as toResourceId,
   createFragmentSelector,
   anchorRuns,
   isTextRun,
@@ -47,7 +47,7 @@ interface PdfPageViewProps {
   pageNumber: number;
   /** Raster scale. Display-only: the overlay's geometry never reads it. */
   scale: number;
-  resourceUri: string;
+  resourceUri: ResourceId;
   existingAnnotations: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
@@ -353,7 +353,7 @@ export function PdfPageView({
     // Emit annotation:requested event with FragmentSelector
     if (selectedMotivation) {
       session.client.mark.request(
-        toResourceId(resourceUri),
+        resourceUri,
         [
           {
             type: 'FragmentSelector',

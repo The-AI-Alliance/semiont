@@ -9,7 +9,7 @@ vi.mock('@semiont/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/core')>();
   return {
     ...actual,
-    getAnnotationUriFromEvent: vi.fn(() => null),
+    getAnnotationIdFromEvent: vi.fn(() => null),
   };
 });
 
@@ -32,7 +32,7 @@ vi.mock('../event-formatting', () => ({
   getResourceCreationDetails: vi.fn(() => mockCreationDetails),
 }));
 
-import { getAnnotationUriFromEvent } from '@semiont/core';
+import { getAnnotationIdFromEvent } from '@semiont/core';
 import {
   formatEventType,
   getEventDisplayContent,
@@ -40,7 +40,7 @@ import {
   getResourceCreationDetails,
 } from '../event-formatting';
 
-const mockGetAnnotationUri = getAnnotationUriFromEvent as ReturnType<typeof vi.fn>;
+const mockGetAnnotationId = getAnnotationIdFromEvent as ReturnType<typeof vi.fn>;
 const mockGetEventDisplayContent = getEventDisplayContent as ReturnType<typeof vi.fn>;
 const mockGetEventEntityTypes = getEventEntityTypes as ReturnType<typeof vi.fn>;
 const mockGetResourceCreationDetails = getResourceCreationDetails as ReturnType<typeof vi.fn>;
@@ -71,7 +71,7 @@ const mockRoutes = {
 describe('HistoryEvent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetAnnotationUri.mockReturnValue(null);
+    mockGetAnnotationId.mockReturnValue(null);
     mockGetEventDisplayContent.mockReturnValue(mockDisplayContent);
     mockGetEventEntityTypes.mockReturnValue(mockEntityTypes);
     mockGetResourceCreationDetails.mockReturnValue(mockCreationDetails);
@@ -113,7 +113,7 @@ describe('HistoryEvent', () => {
   });
 
   it('renders as div when no annotationUri', () => {
-    mockGetAnnotationUri.mockReturnValue(null);
+    mockGetAnnotationId.mockReturnValue(null);
     const event = makeStoredEvent();
     const { container } = renderWithProviders(
       <HistoryEvent
@@ -132,7 +132,7 @@ describe('HistoryEvent', () => {
   });
 
   it('renders as button when annotationUri exists', () => {
-    mockGetAnnotationUri.mockReturnValue('http://localhost/annotations/ann-1');
+    mockGetAnnotationId.mockReturnValue('http://localhost/annotations/ann-1');
     const event = makeStoredEvent({ type: 'mark:added' } as any);
     const { container } = renderWithProviders(
       <HistoryEvent
@@ -152,7 +152,7 @@ describe('HistoryEvent', () => {
 
   it('calls onEventClick when button is clicked', () => {
     const annotationUri = 'http://localhost/annotations/ann-1';
-    mockGetAnnotationUri.mockReturnValue(annotationUri);
+    mockGetAnnotationId.mockReturnValue(annotationUri);
     const onEventClick = vi.fn();
     const event = makeStoredEvent({ type: 'mark:added' } as any);
 
@@ -353,7 +353,7 @@ describe('HistoryEvent', () => {
 
   it('calls onEventRef with annotationUri and element', () => {
     const annotationUri = 'http://localhost/annotations/ann-1';
-    mockGetAnnotationUri.mockReturnValue(annotationUri);
+    mockGetAnnotationId.mockReturnValue(annotationUri);
     const onEventRef = vi.fn();
     const event = makeStoredEvent({ type: 'mark:added' } as any);
 
@@ -376,7 +376,7 @@ describe('HistoryEvent', () => {
   it('handles emoji hover with delayed callback', () => {
     vi.useFakeTimers();
     const annotationUri = 'http://localhost/annotations/ann-1';
-    mockGetAnnotationUri.mockReturnValue(annotationUri);
+    mockGetAnnotationId.mockReturnValue(annotationUri);
     const onEventHover = vi.fn();
     const event = makeStoredEvent({ type: 'mark:added' } as any);
 
@@ -409,7 +409,7 @@ describe('HistoryEvent', () => {
   it('clears hover on mouse leave and calls with null', () => {
     vi.useFakeTimers();
     const annotationUri = 'http://localhost/annotations/ann-1';
-    mockGetAnnotationUri.mockReturnValue(annotationUri);
+    mockGetAnnotationId.mockReturnValue(annotationUri);
     const onEventHover = vi.fn();
     const event = makeStoredEvent({ type: 'mark:added' } as any);
 
@@ -444,7 +444,7 @@ describe('HistoryEvent', () => {
   });
 
   it('sets data-interactive on button wrapper', () => {
-    mockGetAnnotationUri.mockReturnValue('http://localhost/annotations/ann-1');
+    mockGetAnnotationId.mockReturnValue('http://localhost/annotations/ann-1');
     const event = makeStoredEvent({ type: 'mark:added' } as any);
     const { container } = renderWithProviders(
       <HistoryEvent
@@ -463,7 +463,7 @@ describe('HistoryEvent', () => {
   });
 
   it('does not set data-interactive on div wrapper', () => {
-    mockGetAnnotationUri.mockReturnValue(null);
+    mockGetAnnotationId.mockReturnValue(null);
     const event = makeStoredEvent();
     const { container } = renderWithProviders(
       <HistoryEvent

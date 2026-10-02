@@ -1,7 +1,6 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
 import type { GatheredContext, ResourceId, AnnotationId } from '@semiont/core';
-import { annotationId as makeAnnotationId } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
 import type { GatherNamespace } from '../../namespaces/types';
@@ -70,11 +69,11 @@ export function createGatherStateUnit(
     loading$.next(true);
     error$.next(null);
     context$.next(null);
-    annotationId$.next(makeAnnotationId(event.annotationId));
+    annotationId$.next(event.annotationId);
 
     const gatherSub = client.gather.annotation(
       resourceId,
-      makeAnnotationId(event.annotationId),
+      event.annotationId,
       { contextWindow: event.options?.contextWindow ?? 2000 },
     ).pipe(
       timeout(60_000),

@@ -131,7 +131,7 @@ describe('createMarkStateUnit', () => {
     tc.bus.emit('mark:requested', { source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
     expect(pend[pend.length - 1], 'selection registered').not.toBeNull();
 
-    tc.bus.emit('mark:create-ok', { response: { annotationId: 'ann-somebody-else' } });
+    tc.bus.emit('mark:create-ok', { response: { annotationId: annotationId('ann-somebody-else') } });
 
     expect(pend[pend.length - 1], "viewer A's in-progress selection survived").not.toBeNull();
     viewerA.dispose();

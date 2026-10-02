@@ -1,0 +1,5 @@
+{
+  "type": "string",
+  "description": "An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.",
+  "pattern": "^[A-Za-z0-9_-]{1,128}$"
+}

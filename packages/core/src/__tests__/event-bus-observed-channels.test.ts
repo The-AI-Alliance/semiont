@@ -16,6 +16,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EventBus } from '../event-bus';
+import { resourceId } from '../identifiers';
 
 describe('EventBus.observedChannels', () => {
   let eventBus: EventBus;
@@ -73,7 +74,7 @@ describe('EventBus.observedChannels', () => {
     // WHICH CHANNELS a root observes, and check membership against a roster
     // union (root-parity.test.ts, connect-record.test.ts); neither ever read
     // the scope half.
-    eventBus.scope('res-1').on('mark:create-ok').subscribe(() => {});
+    eventBus.scope(resourceId('res-1')).on('mark:create-ok').subscribe(() => {});
 
     expect(eventBus.observedChannels()).toEqual(['mark:create-ok']);
   });
@@ -84,7 +85,7 @@ describe('EventBus.observedChannels', () => {
     // accessor cannot distinguish them — and should not pretend to. "Which
     // SCOPES are observed" is a different question; it deserves its own verb
     // if anything ever needs it, not a parsed string.
-    eventBus.scope('res-1').on('mark:create-ok').subscribe(() => {});
+    eventBus.scope(resourceId('res-1')).on('mark:create-ok').subscribe(() => {});
     eventBus.on('mark:create-ok').subscribe(() => {});
 
     expect(eventBus.observedChannels()).toEqual(['mark:create-ok']);
@@ -93,7 +94,7 @@ describe('EventBus.observedChannels', () => {
   it('reports every observed channel, scoped or not, exactly once', () => {
     eventBus.on('mark:create-ok').subscribe(() => {});
     eventBus.on('browse:resource-requested').subscribe(() => {});
-    eventBus.scope('res-1').on('mark:create-ok').subscribe(() => {});
+    eventBus.scope(resourceId('res-1')).on('mark:create-ok').subscribe(() => {});
     eventBus.on('bind:body-updated'); // accessed only — must not appear
 
     expect(new Set(eventBus.observedChannels())).toEqual(

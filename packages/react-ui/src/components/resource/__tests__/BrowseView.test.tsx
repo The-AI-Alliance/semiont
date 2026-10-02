@@ -7,6 +7,7 @@ import type { SemiontClient, SemiontSession } from '@semiont/sdk';
 import { createTestSemiontWrapper } from '../../../test-utils';
 
 import type { Annotation, AnnotationId } from '@semiont/core';
+import { annotationId, resourceId } from '@semiont/core';
 
 // BrowseView takes its `session` + `sparkleAnnotationIds` as props now (step 1a) — no
 // ResourceAnnotationsContext / SemiontProvider reach-in. `makeSession` (below)
@@ -162,7 +163,7 @@ const createMockAnnotation = (motivation: Annotation['motivation'], id: string):
   creator: { '@type': 'Person', name: 'user@example.com' },
   created: '2024-01-01T10:00:00Z',
   target: {
-    source: 'resource-1',
+    source: resourceId('resource-1'),
     selector: {
       type: 'TextPositionSelector',
       start: 0,
@@ -175,7 +176,7 @@ describe('BrowseView Component', () => {
   const defaultProps = {
     content: '# Test Content\n\nThis is test markdown content.',
     mimeType: 'text/markdown',
-    resourceUri: 'test-resource',
+    resourceUri: resourceId('test-resource'),
     annotations: {
       highlights: [],
       references: [],
@@ -665,7 +666,7 @@ describe('BrowseView — beckon:focus is guarded by resourceId (P6/D7)', () => {
       <BrowseView
         content="hello world"
         mimeType="text/plain"
-        resourceUri="res-1"
+        resourceUri={resourceId("res-1")}
         annotations={{ highlights: [], references: [], assessments: [], comments: [], tags: [] }}
         session={session}
         annotateMode={false}
@@ -675,7 +676,7 @@ describe('BrowseView — beckon:focus is guarded by resourceId (P6/D7)', () => {
 
     // Neither call may throw; the assertion that matters is the guard's
     // existence, pinned in AnnotateView where the scroll helper is mockable.
-    client.bus.emit('beckon:focus', { annotationId: 'ann-7', resourceId: 'res-2' });
-    client.bus.emit('beckon:focus', { annotationId: 'ann-7', resourceId: 'res-1' });
+    client.bus.emit('beckon:focus', { annotationId: annotationId('ann-7'), resourceId: resourceId('res-2') });
+    client.bus.emit('beckon:focus', { annotationId: annotationId('ann-7'), resourceId: resourceId('res-1') });
   });
 });

@@ -18,7 +18,7 @@ const REQUEST = 'browse:resource-requested';
 const BROADCAST = 'beckon:focus';
 const described = {
   response: {
-    resource: { '@context': 'https://schema.org/', '@id': 'https://kb.example/r', name: 'r', representations: [] },
+    resource: { '@context': 'https://schema.org/', '@id': 'r', name: 'r', representations: [] },
     annotations: [],
     entityReferences: [],
   },

@@ -2183,6 +2183,7 @@ dependencies = [
  "semiont-observability",
  "serde",
  "serde_json",
+ "tokio",
  "uuid",
 ]
 

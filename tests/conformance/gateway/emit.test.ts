@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { nonConformance } from '../harness/http';
 import { SERVICE_ROLE, WORKER_ROLE } from '../harness/roles';
-import { operationFor, registry, spec } from '../harness/spec';
+import { identifiers, operationFor, registry, spec } from '../harness/spec';
 import { eventually } from '../harness/net';
 import { eachPlane } from '../harness/world';
 
@@ -88,6 +88,40 @@ eachPlane('emitting', (world, plane) => {
       const reply = await world().emit(token, body);
       expect(reply.status, why).toBe(400);
       expect(nonConformance('post', '/bus/emit', reply), why).toEqual([]);
+    }
+  });
+
+  // Each kind of id, on a channel whose payload carries one and needs nothing else.
+  const carriers = [
+    { kind: 'ResourceId', channel: BROADCAST, property: 'resourceId' },
+    { kind: 'AnnotationId', channel: BROADCAST, property: 'annotationId' },
+    { kind: 'JobId', channel: 'job:status-requested', property: 'jobId' },
+  ];
+  it.each(carriers)('a payload carrying a $kind is taken when the kind accepts it and refused with 400 when it does not (identifiers/kinds.json)', async ({ kind, channel, property }) => {
+    const token = await world().person('emitter');
+    const { accepts, refuses } = identifiers(kind);
+    for (const { id, why } of refuses) {
+      const reply = await world().emit(token, { channel, payload: { [property]: id } });
+      expect(reply.status, `${JSON.stringify(id)}: ${why}`).toBe(400);
+      expect(nonConformance('post', '/bus/emit', reply), why).toEqual([]);
+    }
+    for (const { id, why } of accepts) {
+      const reply = await world().emit(token, { channel, payload: { [property]: id } });
+      expect(reply.status, `${JSON.stringify(id)}: ${why}`).toBe(202);
+    }
+  });
+
+  it('a scope is a resource\'s id: an emit under one the kind refuses is a 400, and under one it accepts is taken', async () => {
+    const token = await world().person('emitter');
+    const { accepts, refuses } = identifiers('ResourceId');
+    for (const { id, why } of refuses) {
+      const reply = await world().emit(token, { channel: BROADCAST, payload: {}, scope: id });
+      expect(reply.status, `${JSON.stringify(id)}: ${why}`).toBe(400);
+      expect(nonConformance('post', '/bus/emit', reply), why).toEqual([]);
+    }
+    for (const { id, why } of accepts) {
+      const reply = await world().emit(token, { channel: BROADCAST, payload: {}, scope: id });
+      expect(reply.status, `${JSON.stringify(id)}: ${why}`).toBe(202);
     }
   });
 

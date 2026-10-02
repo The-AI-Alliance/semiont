@@ -7,7 +7,7 @@
       "description": "The updated resource's identity.",
       "properties": {
         "resourceId": {
-          "type": "string"
+          "$ref": "./ResourceId.json"
         }
       },
       "required": [

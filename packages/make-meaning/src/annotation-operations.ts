@@ -12,11 +12,13 @@
 
 import type { components } from '@semiont/core';
 import type {
+  AnnotationId,
   BodyOperation,
+  ResourceId,
   UserId,
   Logger,
 } from '@semiont/core';
-import { EventBus, annotationId, resourceId as makeResourceId, assembleAnnotation, applyBodyOperations, isAnnotatable, getPrimaryRepresentation } from '@semiont/core';
+import { EventBus, assembleAnnotation, applyBodyOperations, isAnnotatable, getPrimaryRepresentation } from '@semiont/core';
 import { AnnotationContext } from './annotation-context';
 import type { ViewStorage } from '@semiont/event-sourcing';
 
@@ -39,8 +41,8 @@ type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRe
  * NOT applied to import or replay: those emit `mark:create` directly and never
  * reach either caller. That topology is D6's leniency — no flag, no bypass.
  */
-export async function assertAnnotatableTarget(kb: { views: Pick<ViewStorage, 'get'> }, target: string): Promise<void> {
-  const view = await kb.views.get(makeResourceId(target));
+export async function assertAnnotatableTarget(kb: { views: Pick<ViewStorage, 'get'> }, target: ResourceId): Promise<void> {
+  const view = await kb.views.get(target);
   const mediaType = getPrimaryRepresentation(view?.resource)?.mediaType;
   if (!mediaType || !isAnnotatable(mediaType)) {
     throw new Error(`"${mediaType ?? 'unknown'}" cannot be annotated`);
@@ -72,7 +74,7 @@ export class AnnotationOperations {
     // No creator is passed: the Stower derives who asked from `_userId` when
     // it stows, and refuses a payload that names one (VERIFIED-PROVENANCE P2).
     const { annotation } = assembleAnnotation(request);
-    const resId = makeResourceId(request.target.source);
+    const resId = request.target.source;
 
     // Emit mark:create — Stower subscribes and appends to event store
     eventBus.emit('mark:create', {
@@ -88,15 +90,15 @@ export class AnnotationOperations {
    * Update annotation body via EventBus → Stower
    */
   static async updateAnnotationBody(
-    id: string,
+    id: AnnotationId,
     request: UpdateAnnotationBodyRequest,
     userId: UserId,
     eventBus: EventBus,
     kb: { views: Pick<ViewStorage, 'get'> }
   ): Promise<UpdateAnnotationBodyResult> {
-    const resId = makeResourceId(request.resourceId);
+    const resId = request.resourceId;
     const annotation = await AnnotationContext.getAnnotation(
-      annotationId(id),
+      id,
       resId,
       kb
     );
@@ -107,7 +109,7 @@ export class AnnotationOperations {
 
     // Emit mark:update-body — Stower subscribes and appends to event store
     eventBus.emit('mark:update-body', {
-      annotationId: annotationId(id),
+      annotationId: id,
       _userId: userId,
       resourceId: resId,
       operations: request.operations as BodyOperation[],
@@ -127,15 +129,13 @@ export class AnnotationOperations {
    * Delete an annotation via EventBus → Stower
    */
   static async deleteAnnotation(
-    id: string,
-    resourceIdStr: string,
+    id: AnnotationId,
+    resId: ResourceId,
     userId: UserId,
     eventBus: EventBus,
     kb: { views: Pick<ViewStorage, 'get'> },
     logger?: Logger
   ): Promise<void> {
-    const resId = makeResourceId(resourceIdStr);
-
     const projection = await AnnotationContext.getResourceAnnotations(resId, kb);
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
 
@@ -147,7 +147,7 @@ export class AnnotationOperations {
 
     // Emit mark:delete — Stower subscribes and appends to event store
     eventBus.emit('mark:delete', {
-      annotationId: annotationId(id),
+      annotationId: id,
       _userId: userId,
       resourceId: resId,
     });

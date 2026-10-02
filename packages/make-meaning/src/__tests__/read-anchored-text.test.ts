@@ -22,7 +22,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-import { EventBus, getPrimaryRepresentation, userId as makeUserId, type ExtractionOutcome, type Logger, type ResourceId } from '@semiont/core';
+import { EventBus, getPrimaryRepresentation, userId as makeUserId, type ExtractionOutcome, type Logger, type ResourceId, resourceId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { readAnchoredText } from '../read-anchored-text';
 import { createSmeltProgress } from '../smelt-progress';
@@ -105,7 +105,7 @@ describe('readAnchoredText + the anchored-text store', () => {
       asBusRequestPrimitive(eventBus),
     );
     eventBus.emit('smelt:settled', {
-      resourceId: String(rid),
+      resourceId: resourceId(String(rid)),
       contentChecksum: stored.checksum,
       outcome,
     });
@@ -121,7 +121,7 @@ describe('readAnchoredText + the anchored-text store', () => {
     // The producer writes by the checksum of the bytes it read (P1b); the
     // reader holds the rid, and the view index resolves it to the same key.
     await kb.anchoredText.write(checksum, MAP);
-    expect(await readAnchoredText(kb, String(rid))).toEqual(MAP);
+    expect(await readAnchoredText(kb, resourceId(String(rid)))).toEqual(MAP);
   });
 
   it('answers NOT-YET for a resource whose map nothing has settled', async () => {
@@ -133,7 +133,7 @@ describe('readAnchoredText + the anchored-text store', () => {
     // There is no live Smelter here, so the barrier runs its full course; the
     // short timeout keeps that from being a 15 s test.
     const other = await seedPdf('no-map');
-    const answer = await readAnchoredText(kb, String(other.rid), 60);
+    const answer = await readAnchoredText(kb, resourceId(String(other.rid)), 60);
     expect(answer.kind).toBe('not-yet');
   });
 
@@ -143,7 +143,7 @@ describe('readAnchoredText + the anchored-text store', () => {
     // accumulates generations.
     const revised: ExtractionOutcome = { kind: 'extracted', text: 'gamma', items: [{ start: 0, end: 5, page: 2, x: 10, y: 20, width: 30, height: 12 }], method: 'ocr' };
     await kb.anchoredText.write(checksum, revised);
-    expect(await readAnchoredText(kb, String(rid))).toEqual(revised);
+    expect(await readAnchoredText(kb, resourceId(String(rid)))).toEqual(revised);
   });
 
   it('does not serve superseded geometry after the resource\'s bytes change (PERSIST-ANCHORS P1)', async () => {
@@ -159,7 +159,7 @@ describe('readAnchoredText + the anchored-text store', () => {
 
     // The producer publishes the map for the B1 bytes it actually read.
     await kb.anchoredText.write(c1!, MAP);
-    expect(await readAnchoredText(kb, String(target))).toEqual(MAP);
+    expect(await readAnchoredText(kb, resourceId(String(target)))).toEqual(MAP);
 
     // The bytes change: old representation out, new one in — through the
     // single write path (appendEvent), so the view is current by V1.
@@ -177,14 +177,14 @@ describe('readAnchoredText + the anchored-text store', () => {
     // The new generation has settled (no live Smelter here) — without this the
     // read-your-writes barrier would rightly hold the miss for its timeout.
     eventBus.emit('smelt:settled', {
-      resourceId: String(target), contentChecksum: stored2.checksum, outcome: 'indexed',
+      resourceId: resourceId(String(target)), contentChecksum: stored2.checksum, outcome: 'indexed',
     });
 
     // Absent, and now SAYS SO by name. `not-yet` rather than `no-map`: the new
     // generation settled indexed but carries no artifact, which the reconcile
     // planner heals (its third drift class). What matters for P1's invariant is
     // that the OLD map is not served — the answer is an absence either way.
-    const answer = await readAnchoredText(kb, String(target), 60);
+    const answer = await readAnchoredText(kb, resourceId(String(target)), 60);
     expect(answer.kind).toBe('not-yet');
     expect(answer).not.toEqual(MAP);
   });
@@ -281,7 +281,7 @@ describe('readAnchoredText — why there is no map (SMELTER-OWNS-OCR P1)', () =>
     // to a terminal failure for a document that gets one seconds later.
     const h = harness({}, { 'res-pending': 'C1' });
     try {
-      const answer = await readAnchoredText(h.kb as never, 'res-pending', SETTLE_MS);
+      const answer = await readAnchoredText(h.kb as never, resourceId('res-pending'), SETTLE_MS);
       expect(answer.kind).toBe('not-yet');
     } finally { h.dispose(); }
   });
@@ -292,7 +292,7 @@ describe('readAnchoredText — why there is no map (SMELTER-OWNS-OCR P1)', () =>
     // retrying caller never stops.
     const h = harness({}, { 'res-skipped': 'C2' });
     try {
-      const pending = readAnchoredText(h.kb as never, 'res-skipped', SETTLE_MS);
+      const pending = readAnchoredText(h.kb as never, resourceId('res-skipped'), SETTLE_MS);
       h.settle('res-skipped', 'C2', 'skipped');
       expect((await pending).kind).toBe('no-map');
     } finally { h.dispose(); }
@@ -304,7 +304,7 @@ describe('readAnchoredText — why there is no map (SMELTER-OWNS-OCR P1)', () =>
     // for. Terminal, and a different fact from "skipped".
     const h = harness({}, {});
     try {
-      expect((await readAnchoredText(h.kb as never, 'res-absent', SETTLE_MS)).kind).toBe('unknown');
+      expect((await readAnchoredText(h.kb as never, resourceId('res-absent'), SETTLE_MS)).kind).toBe('unknown');
     } finally { h.dispose(); }
   });
 
@@ -313,7 +313,7 @@ describe('readAnchoredText — why there is no map (SMELTER-OWNS-OCR P1)', () =>
     // anything settles, which a short timeout here would expose.
     const h = harness({ C3: MAP }, { 'res-hit': 'C3' });
     try {
-      expect(await readAnchoredText(h.kb as never, 'res-hit', SETTLE_MS)).toEqual(MAP);
+      expect(await readAnchoredText(h.kb as never, resourceId('res-hit'), SETTLE_MS)).toEqual(MAP);
     } finally { h.dispose(); }
   });
 
@@ -324,7 +324,7 @@ describe('readAnchoredText — why there is no map (SMELTER-OWNS-OCR P1)', () =>
     const declined: ExtractionOutcome = { kind: 'declined', declined: 'encrypted' } as ExtractionOutcome;
     const h = harness({ C4: declined }, { 'res-declined': 'C4' });
     try {
-      expect((await readAnchoredText(h.kb as never, 'res-declined', SETTLE_MS)).kind).toBe('declined');
+      expect((await readAnchoredText(h.kb as never, resourceId('res-declined'), SETTLE_MS)).kind).toBe('declined');
     } finally { h.dispose(); }
   });
 
@@ -333,7 +333,7 @@ describe('readAnchoredText — why there is no map (SMELTER-OWNS-OCR P1)', () =>
     // the entry. The planner re-publishes, so this is "come back", not "never".
     const h = harness({}, { 'res-lost': 'C5' });
     try {
-      const pending = readAnchoredText(h.kb as never, 'res-lost', SETTLE_MS);
+      const pending = readAnchoredText(h.kb as never, resourceId('res-lost'), SETTLE_MS);
       h.settle('res-lost', 'C5', 'indexed');
       expect((await pending).kind).toBe('not-yet');
     } finally { h.dispose(); }

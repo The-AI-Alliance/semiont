@@ -9,7 +9,7 @@ import type { RouteBuilder, LinkComponentProps } from '../../../contexts/Routing
 import { AssistShell } from './AssistShell';
 import { ItemFoundLog } from '../../ItemFoundLog';
 import { ReferenceEntry } from './ReferenceEntry';
-import type { components, Selector } from '@semiont/core';
+import type { components, ResourceId, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { PanelHeader } from './PanelHeader';
 import './ReferencesPanel.css';
@@ -47,9 +47,9 @@ interface Props {
   /** Session carrying the client and event bus; null renders inert. */
   session: SemiontSession | null;
   /** Host-owned navigation: called with the resolved resource id when a reference entry opens. */
-  onOpenResource?: (resourceId: string) => void;
+  onOpenResource?: (resourceId: ResourceId) => void;
   /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
-  resourceId: string;
+  resourceId: ResourceId;
   // Generic panel props
   annotations?: Annotation[];
   isAssisting: boolean;

@@ -14,7 +14,7 @@
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { take } from 'rxjs/operators';
-import { EventBus, resourceId, type GatheredContext, type Logger, type ResourceDescriptor } from '@semiont/core';
+import { EventBus, resourceId, type GatheredContext, type Logger, type ResourceDescriptor, annotationId } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import { Matcher, MATCHER_CHANNELS, type MatcherStores } from '../matcher';
 import { createMockEmbeddingProvider } from './helpers/smelter-harness';
@@ -46,18 +46,17 @@ const noopInference = {
 } as unknown as InferenceClient;
 
 const testAnnotation: AnnotationFocus['annotation'] = {
-  id: 'test-ann',
+  id: annotationId('test-ann'),
   '@context': 'http://www.w3.org/ns/anno.jsonld',
   type: 'Annotation',
   motivation: 'linking',
   created: '2026-01-01T00:00:00.000Z',
-  target: { source: MAIN_ID },
-  body: { type: 'SpecificResource', source: '' },
+  target: { source: resourceId(MAIN_ID) },
 };
 
 const testSourceResource: AnnotationFocus['sourceResource'] = {
   '@context': 'https://schema.org',
-  '@id': MAIN_ID,
+  '@id': resourceId(MAIN_ID),
   name: 'Test Resource',
   format: 'text/plain',
   representations: [],
@@ -71,7 +70,7 @@ function makeContext(text: string): GatheredContext {
       sourceResource: testSourceResource,
       selected: { before: '', text, after: '' },
     },
-    graph: { nodes: [{ id: MAIN_ID, type: 'resource', label: 'Test Resource' }], edges: [] },
+    graph: { nodes: [{ id: resourceId(MAIN_ID), type: 'resource', label: 'Test Resource' }], edges: [] },
     metadata: {},
   };
 }
@@ -125,8 +124,8 @@ describe('Matcher decoupling (EXTRACT-LIBRARIAN P1)', () => {
 
     const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
     eventBus.emit('match:search-requested', {
-      resourceId: MAIN_ID,
-      referenceId: 'ref-1',
+      resourceId: resourceId(MAIN_ID),
+      referenceId: annotationId('ref-1'),
       context: makeContext('test query'),
     }, { correlationId: 'corr-1' });
 
@@ -155,8 +154,8 @@ describe('Matcher decoupling (EXTRACT-LIBRARIAN P1)', () => {
 
     const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
     eventBus.emit('match:search-requested', {
-      resourceId: MAIN_ID,
-      referenceId: 'ref-2',
+      resourceId: resourceId(MAIN_ID),
+      referenceId: annotationId('ref-2'),
       context: makeContext('fresh thing'),
     }, { correlationId: 'corr-2' });
 

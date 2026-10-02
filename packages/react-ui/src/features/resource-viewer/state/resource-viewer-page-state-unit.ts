@@ -1,3 +1,4 @@
+import type { AnnotationId } from '@semiont/core';
 import { BehaviorSubject, type Observable, map } from 'rxjs';
 import type { ResourceId, components } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
@@ -27,8 +28,8 @@ type StoredEventResponse = components['schemas']['StoredEventResponse'];
 
 export interface WizardState {
   open: boolean;
-  annotationId: string | null;
-  resourceId: string | null;
+  annotationId: AnnotationId | null;
+  resourceId: ResourceId | null;
   defaultTitle: string;
   entityTypes: string[];
 }

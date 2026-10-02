@@ -11,18 +11,19 @@ use crate::client::SemiontClient;
 use crate::event_bus::BusFrames;
 use crate::state_unit::StateUnit;
 use crate::transport::Envelope;
+use crate::types::AnnotationId;
 use crate::types::BeckonFocusEvent;
 use std::sync::Arc;
 use tokio::sync::watch;
 
 struct Shared {
     client: Arc<SemiontClient>,
-    hovered: Held<Option<String>>,
+    hovered: Held<Option<AnnotationId>>,
     tasks: Tasks,
 }
 
 impl Shared {
-    fn focus(&self, annotation_id: String) {
+    fn focus(&self, annotation_id: AnnotationId) {
         signal::<BeckonFocus>(
             &self.client,
             &BeckonFocusEvent {
@@ -54,14 +55,14 @@ impl BeckonStateUnit {
     }
 
     /// The annotation this viewer hovers, or none.
-    pub fn hovered(&self) -> watch::Receiver<Option<String>> {
+    pub fn hovered(&self) -> watch::Receiver<Option<AnnotationId>> {
         self.shared.hovered.read()
     }
 
     /// Signal: turn this viewer's focus to an annotation.
-    pub fn focus(&self, annotation_id: &str) {
+    pub fn focus(&self, annotation_id: &AnnotationId) {
         if !self.shared.tasks.stopped() {
-            self.shared.focus(annotation_id.to_owned());
+            self.shared.focus(annotation_id.clone());
         }
     }
 }
@@ -72,7 +73,7 @@ async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
         let Ok(frame) = frame else { continue };
         if let Some(hover) = said::<BeckonHover>(&frame) {
             shared.hovered.set(hover.annotation_id.clone());
-            if let Some(annotation_id) = hover.annotation_id.filter(|id| !id.is_empty()) {
+            if let Some(annotation_id) = hover.annotation_id {
                 shared.client.beckon.sparkle(&annotation_id);
             }
         } else if let Some(click) = said::<BrowseClick>(&frame) {

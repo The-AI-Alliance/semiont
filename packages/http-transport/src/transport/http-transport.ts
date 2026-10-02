@@ -37,7 +37,7 @@ import type {
   StatusResponse,
   UserResponse,
 } from '@semiont/core';
-import { BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, isObject, isString, retryAfterMs, type RetryPolicy } from '@semiont/core';
+import { BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, type RetryPolicy } from '@semiont/core';
 import type { BusEnvelope, BusFrame } from '@semiont/core';
 
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
@@ -61,8 +61,8 @@ export interface HttpTransportConfig {
    * SCOPE, passed through to the actor state unit. See
    * {@link ActorStateUnitOptions}.
    */
-  loadLastEventIds?: () => Record<string, string> | null;
-  saveLastEventId?: (scope: string, id: string) => void;
+  loadLastEventIds?: () => ReadonlyMap<ResourceId, string> | null;
+  saveLastEventId?: (scope: ResourceId, id: string) => void;
   /**
    * The global SSE channel set this transport subscribes. Absent means the
    * full `BRIDGED_CHANNELS` — a full client must receive every operation's
@@ -90,35 +90,21 @@ export interface HttpTransportConfig {
 }
 
 /**
- * The gateway's refusal of a request, as every request of this package
- * reports one: in the gateway's own words when its body states them
- * (`ErrorResponse.error`), and with the body as it came. `error.data` is
- * that body: ky reads a refused response before any hook runs, and nothing
- * can be read from `error.response` after it.
+ * The gateway's refusal of a request. `error.data` is its body: ky reads a
+ * refused response before any hook runs, and nothing can be read from
+ * `error.response` after it.
  */
 function refusalOf(error: HTTPError): APIError {
   const { response, data } = error;
-  const said = isObject(data) && isString(data['error']) ? data['error'] : undefined;
-  return APIError.fromStatus(
-    said ?? `HTTP ${response.status}: ${response.statusText}`,
-    response.status,
-    response.statusText,
-    data,
-    retryAfterMs(response.headers.get('retry-after')),
-  );
+  return APIError.refusal(response.status, response.statusText, data, response.headers.get('retry-after'));
 }
 
 /**
  * A request the gateway never answered: the connection failed, or the
- * request's own deadline passed. Reported under `unavailable`, as the
- * vocabulary files it.
+ * request's own deadline passed.
  */
 function unansweredOf(request: Request, error: Error): APIError {
-  return APIError.withoutResponse(
-    `${request.method} ${new URL(request.url).pathname} got no answer: ${error.message}`,
-    'unavailable',
-    error.name,
-  );
+  return APIError.withoutResponse(`${request.method} ${new URL(request.url).pathname} got no answer: ${error.message}`, error.name);
 }
 
 /**
@@ -184,7 +170,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
    * the actor getter (one delivery per event regardless of how many scopes
    * are held), so entries here are counts only.
    */
-  private readonly scopeRefCounts = new Map<string, number>();
+  private readonly scopeRefCounts = new Map<ResourceId, number>();
 
   /** Buses we've been asked to bridge wire events into. */
   private readonly bridges: EventBus[] = [];
@@ -455,24 +441,23 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   }
 
   subscribeToResource(resourceId: ResourceId): () => void {
-    const key = resourceId as string;
-    const count = this.scopeRefCounts.get(key) ?? 0;
-    this.scopeRefCounts.set(key, count + 1);
+    const count = this.scopeRefCounts.get(resourceId) ?? 0;
+    this.scopeRefCounts.set(resourceId, count + 1);
     if (count === 0) {
-      this.actor.addChannels([...RESOURCE_SCOPED_CHANNELS], key);
+      this.actor.addChannels([...RESOURCE_SCOPED_CHANNELS], resourceId);
     }
 
     let called = false;
     return () => {
       if (called) return;
       called = true;
-      const remaining = (this.scopeRefCounts.get(key) ?? 0) - 1;
+      const remaining = (this.scopeRefCounts.get(resourceId) ?? 0) - 1;
       if (remaining > 0) {
-        this.scopeRefCounts.set(key, remaining);
+        this.scopeRefCounts.set(resourceId, remaining);
         return;
       }
-      this.scopeRefCounts.delete(key);
-      this.actor.removeChannels([...RESOURCE_SCOPED_CHANNELS], key);
+      this.scopeRefCounts.delete(resourceId);
+      this.actor.removeChannels([...RESOURCE_SCOPED_CHANNELS], resourceId);
     };
   }
 
@@ -516,9 +501,9 @@ export class HttpTransport implements ITransport, IGatewayOperations {
 
   /**
    * Route a transport-level error onto `errors$`. Used by sibling adapters
-   * (e.g. `HttpContentTransport`'s XHR upload path) that don't go through
-   * the `ky` `beforeError` hook and need to surface failures on the same
-   * stream the rest of the transport publishes to.
+   * (e.g. `HttpContentTransport`'s `XMLHttpRequest` upload) that don't go
+   * through the `ky` `beforeError` hook and need to surface failures on the
+   * same stream the rest of the transport publishes to.
    */
   pushError(error: SemiontError): void {
     if (this.disposed) return;

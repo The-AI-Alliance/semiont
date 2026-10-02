@@ -29,8 +29,8 @@ use crate::running::{Reporter, Running};
 use crate::transport::BoxFuture;
 use crate::types::{
     JobCancelRequest, JobCompleteCommand, JobCreateCommand, JobCreatedResult, JobFailCommand,
-    JobProgress, JobReportProgressCommand, JobStatusRequest, JobStatusResponse,
-    JobStatusResponseStatus, JobStoredResult,
+    JobId, JobProgress, JobReportProgressCommand, JobStatusRequest, JobStatusResponse,
+    JobStatusResponseStatus, JobStoredResult, ResourceId,
 };
 use serde::{Deserialize, Serialize};
 use std::future::Future;
@@ -55,7 +55,7 @@ pub(crate) struct Following {
     pub create: JobCreateCommand,
     /// The resource the job is about, for a completion learned from the
     /// job's status, which does not state it.
-    pub resource_id: String,
+    pub resource_id: ResourceId,
     /// How long the job may say nothing before its follower gives up on it.
     pub stall: Option<Duration>,
 }
@@ -72,7 +72,7 @@ enum Heard {
 }
 
 impl Heard {
-    fn job_id(&self) -> &str {
+    fn job_id(&self) -> &JobId {
         match self {
             Heard::Progress(frame) => &frame.job_id,
             Heard::Complete(frame) => &frame.job_id,
@@ -119,10 +119,10 @@ fn heard<T>(item: Option<Result<T, StreamError>>, of: impl FnOnce(T) -> Heard) -
     }
 }
 
-fn failed(job_id: &str, message: String) -> SemiontError {
+fn failed(job_id: &JobId, message: String) -> SemiontError {
     JobError {
         code: JobErrorCode::Failed,
-        job_id: Some(job_id.to_owned()),
+        job_id: Some(job_id.clone()),
         message,
     }
     .into()
@@ -144,7 +144,7 @@ async fn followed(
 
     let mut creating: Option<BoxFuture<'_, Result<JobCreatedResult, SemiontError>>> =
         Some(Box::pin(links.request::<JobCreate>(&create)));
-    let mut job_id: Option<String> = None;
+    let mut job_id: Option<JobId> = None;
     let mut held: Vec<Heard> = Vec::new();
     let mut ask_at: Option<Instant> = None;
     let mut asking: Option<BoxFuture<'static, Result<JobStatusResponse, SemiontError>>> = None;
@@ -273,7 +273,7 @@ async fn followed(
             }
         }
 
-        let Some(following_id) = job_id.as_deref() else {
+        let Some(following_id) = job_id.as_ref() else {
             continue;
         };
         for frame in frames {

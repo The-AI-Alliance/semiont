@@ -48,7 +48,7 @@ function mockAnnotation(id: string, source = 'res-1'): Annotation {
     id: annotationId(id),
     motivation: 'commenting',
     created: '2026-01-01T00:00:00Z',
-    target: { source },
+    target: { source: makeResourceId(source) },
     body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],
   };
 }
@@ -80,7 +80,7 @@ function fakeMarkRemoved(rId: ResourceId, annId: string): StoredEvent<EventOfTyp
 }
 
 function fakeYieldCreated(rId: string): EventMap['yield:create-ok'] {
-  return { response: { resourceId: rId } };
+  return { response: { resourceId: makeResourceId(rId) } };
 }
 
 function fakeMarkArchived(rId: ResourceId): StoredEvent<EventOfType<'mark:archived'>> {
@@ -177,7 +177,7 @@ describe('entity types — Layer 2 (BrowseNamespace + Cache)', () => {
     eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-1'));
     eventBus.emit('mark:removed', fakeMarkRemoved(RID, 'ann-1'));
     eventBus.emit('yield:create-ok', fakeYieldCreated('res-1'));
-    eventBus.emit('yield:update-ok', { response: { resourceId: 'res-1' } });
+    eventBus.emit('yield:update-ok', { response: { resourceId: makeResourceId('res-1') } });
     eventBus.emit('mark:archived', fakeMarkArchived(RID));
     eventBus.emit('mark:unarchived', fakeMarkUnarchived(RID));
 

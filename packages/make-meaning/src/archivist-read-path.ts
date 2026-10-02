@@ -257,7 +257,7 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
       upload.input.contentChecksum = stored.checksum;
       upload.input.byteSize = stored.byteSize;
       try {
-        const recordedAs: CreateResourceResponse = { resourceId: String(await record(upload)) };
+        const recordedAs: CreateResourceResponse = { resourceId: await record(upload) };
         json(res, 200, recordedAs);
       } catch (error) {
         logger.warn('Upload not recorded', { storageUri: upload.input.storageUri, error: errField(error) });

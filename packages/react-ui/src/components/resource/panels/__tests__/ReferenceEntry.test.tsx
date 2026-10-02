@@ -48,6 +48,7 @@ vi.mock('../../../../hooks/useHoverEmitter', () => ({
 }));
 
 import { ReferenceEntry } from '../ReferenceEntry';
+import { resourceId } from '@semiont/core';
 
 const createMockReference = (overrides?: Partial<Annotation>): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -57,7 +58,7 @@ const createMockReference = (overrides?: Partial<Annotation>): Annotation => ({
   created: '2024-06-15T12:00:00Z',
   modified: '2024-06-15T12:00:00Z',
   target: {
-    source: 'resource-1',
+    source: resourceId('resource-1'),
     selector: {
       type: 'TextQuoteSelector',
       exact: 'referenced text',
@@ -65,7 +66,7 @@ const createMockReference = (overrides?: Partial<Annotation>): Annotation => ({
   },
   body: {
     type: 'SpecificResource',
-    source: 'linked-doc',
+    source: resourceId('linked-doc'),
   },
   ...overrides,
 });
@@ -217,7 +218,7 @@ describe('ReferenceEntry', () => {
       mockGetBodySource.mockReturnValue('gen-doc');
       mockLinkTarget(ready(descriptor('generated from Cedar County, Iowa')));
 
-      renderEntry({ reference: createMockReference({ target: { source: 'resource-1' } }) });
+      renderEntry({ reference: createMockReference({ target: { source: resourceId('resource-1') } }) });
 
       expect(screen.getByText('ReferencesPanel.derived')).toBeInTheDocument();
       expect(screen.queryByText('Annotation')).not.toBeInTheDocument();
@@ -482,7 +483,7 @@ describe('ReferenceEntry', () => {
       mockGetBodySource.mockReturnValue('gen-doc');
       mockLinkTarget(new BehaviorSubject<CacheState<ResourceDescriptor>>({ status: 'pending' }));
 
-      renderEntry({ reference: createMockReference({ target: { source: 'resource-1' } }) });
+      renderEntry({ reference: createMockReference({ target: { source: resourceId('resource-1') } }) });
 
       expect(screen.getByText('ReferencesPanel.derived')).toBeInTheDocument();
       expect(screen.queryByText('Annotation')).not.toBeInTheDocument();

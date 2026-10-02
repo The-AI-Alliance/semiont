@@ -28,8 +28,6 @@ export type CloneToken = string & { readonly __brand: 'CloneToken' };
 // SYSTEM IDENTIFIERS
 // ============================================================================
 
-export type JobId = string & { readonly __brand: 'JobId' };
-export type UserDID = string & { readonly __brand: 'UserDID' };
 export type EntityType = string & { readonly __brand: 'EntityType' };
 export type SearchQuery = string & { readonly __brand: 'SearchQuery' };
 export type BaseUrl = string & { readonly __brand: 'BaseUrl' };
@@ -43,8 +41,6 @@ export function authCode(value: string): AuthCode { return value as AuthCode; }
 export function accessToken(value: string): AccessToken { return value as AccessToken; }
 export function mcpToken(value: string): MCPToken { return value as MCPToken; }
 export function cloneToken(value: string): CloneToken { return value as CloneToken; }
-export function jobId(value: string): JobId { return value as JobId; }
-export function userDID(value: string): UserDID { return value as UserDID; }
 export function entityType(value: string): EntityType { return value as EntityType; }
 export function searchQuery(value: string): SearchQuery { return value as SearchQuery; }
 export function baseUrl(value: string): BaseUrl { return value as BaseUrl; }
@@ -52,42 +48,3 @@ export function baseUrl(value: string): BaseUrl { return value as BaseUrl; }
 // Motivation is an OpenAPI enum — use its values directly, no helper needed.
 // ContentFormat is a free-form MIME string whose base type must be a
 // SupportedMediaType; validation lives in media-types.ts, not in a brand.
-
-// ============================================================================
-// HTTP URI TYPES
-// ============================================================================
-
-// Branded type definitions for HTTP URIs returned by the API
-export type ResourceUri = string & { readonly __brand: 'ResourceUri' };
-
-// W3C flat format for content negotiation: http://localhost:4000/annotations/{id}
-export type AnnotationUri = string & { readonly __brand: 'AnnotationUri' };
-
-// Nested format for CRUD operations: http://localhost:4000/resources/{resourceId}/annotations/{annotationId}
-export type ResourceAnnotationUri = string & { readonly __brand: 'ResourceAnnotationUri' };
-
-// Factory functions with runtime validation
-export function resourceUri(uri: string): ResourceUri {
-  if (!uri.startsWith('http://') && !uri.startsWith('https://')) {
-    throw new TypeError(`Expected ResourceUri, got: ${uri}`);
-  }
-  return uri as ResourceUri;
-}
-
-export function annotationUri(uri: string): AnnotationUri {
-  if (!uri.startsWith('http://') && !uri.startsWith('https://')) {
-    throw new TypeError(`Expected AnnotationUri, got: ${uri}`);
-  }
-  return uri as AnnotationUri;
-}
-
-export function resourceAnnotationUri(uri: string): ResourceAnnotationUri {
-  if (!uri.startsWith('http://') && !uri.startsWith('https://')) {
-    throw new TypeError(`Expected ResourceAnnotationUri, got: ${uri}`);
-  }
-  // Additional validation: must contain /resources/ and /annotations/
-  if (!uri.includes('/resources/') || !uri.includes('/annotations/')) {
-    throw new TypeError(`Expected nested ResourceAnnotationUri format, got: ${uri}`);
-  }
-  return uri as ResourceAnnotationUri;
-}

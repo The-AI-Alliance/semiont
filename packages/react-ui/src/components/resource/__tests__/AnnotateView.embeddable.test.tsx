@@ -13,6 +13,7 @@ import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { AnnotationUIState } from '../../../types/annotation-props';
 import { AnnotateView } from '../AnnotateView';
+import { resourceId } from '@semiont/core';
 
 vi.mock('../../CodeMirrorRenderer', () => ({ CodeMirrorRenderer: () => <div>cm-mock</div> }));
 
@@ -40,7 +41,7 @@ function fakeSession(): SemiontSession {
 describe('AnnotateView — embeddable (session prop, no providers)', () => {
   it('renders (incl. the real AnnotateToolbar) fed only a session, no providers', () => {
     render(
-      <AnnotateView resourceUri="res-1"
+      <AnnotateView resourceUri={resourceId("res-1")}
         content="hello"
         mimeType="text/plain"
         annotations={emptyAnnotations}

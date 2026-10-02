@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { GenerationJobParams, GatheredContext } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 
 /**
  * tsc-enforced contract for the generation params bag — the SHARED wire type
@@ -17,7 +18,7 @@ const CONTEXT: GatheredContext = {
     kind: 'resource',
     resource: {
       '@context': 'https://semiont.dev/context/v1',
-      '@id': 'res-src',
+      '@id': resourceId('res-src'),
       name: 'Source',
       representations: [],
     },

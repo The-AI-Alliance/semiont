@@ -5,11 +5,12 @@
  * Only requires minimal props from the framework layer (routing, modals).
  */
 
+import type { AnnotationId } from '@semiont/core';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useResourceViewedReport } from '../hooks/useResourceViewedReport';
 import type { components, ResourceDescriptor, ResourceId, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
-import { annotationId, folderOf } from '@semiont/core';
+import { folderOf } from '@semiont/core';
 import type { ComposeParams } from '../../../components/modals/ComposeStep';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, getStorageUri, capabilitiesOf, extensionForMediaType } from '@semiont/core';
 import { ANNOTATORS } from '@semiont/react-ui';
@@ -165,7 +166,7 @@ export function ResourceViewerPage({
 
   // ResourceViewer is bring-your-own-session: feed it the active session plus
   // host-owned navigation (reference follow) and panel control (app-scoped bus).
-  const handleViewerOpenResource = useCallback((id: string) => {
+  const handleViewerOpenResource = useCallback((id: ResourceId) => {
     navigateExternal(`/know/resource/${id}`, { resourceId: id });
   }, [navigateExternal]);
 
@@ -248,7 +249,7 @@ export function ResourceViewerPage({
   // References, scrolls to the provenance reference, and its sparkle is
   // re-armed (the mark:added glow burned its window unseen). Never navigates
   // (A2); a held outcome on remount stays quiet (D6, inside the hook).
-  const handleGenerationArrival = useCallback((annId: string) => {
+  const handleGenerationArrival = useCallback((annId: AnnotationId) => {
     browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annId, motivation: 'linking' });
     triggerSparkleAnimation(annId);
   }, [browser, triggerSparkleAnimation]);
@@ -274,8 +275,8 @@ export function ResourceViewerPage({
     stateUnit?.closeWizard();
   }, [stateUnit]);
 
-  const handleWizardGenerateSubmit = useCallback((referenceId: string, config: GenerationConfig) => {
-    clearSparkle(annotationId(referenceId));
+  const handleWizardGenerateSubmit = useCallback((referenceId: AnnotationId, config: GenerationConfig) => {
+    clearSparkle(referenceId);
     // D8: forwarded by spread in ONE place, so a knob added to the form is
     // never dropped on the way to the wire. `sourceLanguage` is the viewed
     // resource's language — a page fact the form cannot know.
@@ -290,12 +291,12 @@ export function ResourceViewerPage({
     stateUnit?.yield.generate(config.context, toGenerationOptions(config, getLanguage(resource)));
   }, [stateUnit, resource]);
 
-  const handleWizardLinkResource = useCallback(async (referenceId: string, targetResourceId: string) => {
+  const handleWizardLinkResource = useCallback(async (referenceId: AnnotationId, targetResourceId: ResourceId) => {
     if (!semiont) return;
     try {
       await semiont.bind.body(
         rUri,
-        annotationId(referenceId),
+        referenceId,
         [{ op: 'add', item: { type: 'SpecificResource' as const, source: targetResourceId, purpose: 'linking' as const } }],
       );
       showSuccess('Reference linked successfully');
@@ -308,7 +309,7 @@ export function ResourceViewerPage({
   // context in sessionStorage and navigated to the compose page; the modal
   // already holds the context, so the side-channel dies with the mode.
   // Text-only by design — uploads stay on the standalone compose page.
-  const handleWizardComposeSubmit = useCallback(async (referenceId: string, params: ComposeParams) => {
+  const handleWizardComposeSubmit = useCallback(async (referenceId: AnnotationId, params: ComposeParams) => {
     if (!semiont) throw new Error('No active session');
     try {
       const format = 'text/markdown';
@@ -332,7 +333,7 @@ export function ResourceViewerPage({
       });
       await semiont.bind.body(
         rUri,
-        annotationId(referenceId),
+        referenceId,
         [{ op: 'add', item: { type: 'SpecificResource' as const, source: newResourceId, purpose: 'linking' as const } }],
       );
       showSuccess('Reference successfully linked to the new resource');
@@ -491,9 +492,9 @@ export function ResourceViewerPage({
   const resourceWithContent = { ...resource, content };
 
   // Handlers for AnnotationHistory (legacy event-based interaction)
-  const handleEventHover = useCallback((id: string | null) => {
+  const handleEventHover = useCallback((id: AnnotationId | null) => {
     if (id) {
-      session?.client.beckon.sparkle(annotationId(id));
+      session?.client.beckon.sparkle(id);
     }
   }, [session]);
 
@@ -503,9 +504,9 @@ export function ResourceViewerPage({
   // `beckon:focus` is the existing "scroll to and highlight" contract rather
   // than a new prop chain — BrowseView already subscribed to it, AnnotateView
   // now does too. See .plans/ASSIST-SURFACE-WARTS.md Lane D.
-  const handleEventClick = useCallback((id: string | null) => {
+  const handleEventClick = useCallback((id: AnnotationId | null) => {
     if (id) {
-      stateUnit?.beckon.focus(annotationId(id));
+      stateUnit?.beckon.focus(id);
     }
   }, [stateUnit]);
 

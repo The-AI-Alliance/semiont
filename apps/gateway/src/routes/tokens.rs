@@ -13,6 +13,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
 use semiont::identity;
 use semiont::roles::WORKER_ROLE;
+use semiont::types::UserId;
 use semiont::types::{
     AgentTokenRequest, AgentTokenResponse, MediaTokenRequest, MediaTokenResponse,
 };
@@ -41,7 +42,8 @@ pub async fn agent(
     let request: AgentTokenRequest = typed_body(body, "POST /api/tokens/agent").await?;
     let (provider, model) = (request.provider.as_str(), request.model.as_str());
     let domain = app.keys.domain();
-    let did = identity::agent_did(domain, provider, model);
+    let did = UserId::new(identity::agent_did(domain, provider, model))
+        .map_err(|e| ApiError::internal("naming an agent", e))?;
     logging::info(
         "Agent token issued",
         json!({ "minter": minter.client, "did": did, "worker": minter.worker_capable }),
@@ -67,6 +69,6 @@ pub async fn media(
     body: Body,
 ) -> Result<Response, ApiError> {
     let request: MediaTokenRequest = typed_body(body, "POST /api/tokens/media").await?;
-    let token = app.keys.media_token(&request.resource_id);
+    let token = app.keys.media_token(request.resource_id.as_str());
     Ok(json_response(StatusCode::OK, &MediaTokenResponse { token }))
 }

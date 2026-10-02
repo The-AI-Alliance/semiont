@@ -2,7 +2,7 @@
   "about": "a client that loses its stream while it awaits a reply names that reply when it reopens, so the gateway redelivers it; once the reply has settled it is named no more",
   "source": "docs/protocol/TRANSPORT-CONTRACT.md § The three classes; docs/protocol/TRANSPORT-HTTP.md § Correlated-reply retention, § Reconnect discipline",
   "steps": [
-    {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "https://kb.example/r", "name": "r", "representations": []}, "annotations": [], "entityReferences": []}}},
+    {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "r", "name": "r", "representations": []}, "annotations": [], "entityReferences": []}}},
     {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
     {"driver": "open", "with": {"channels": ["browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
     {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["browse:resource-failed", "browse:resource-result"], "scoped": [], "pendingReplies": []}},

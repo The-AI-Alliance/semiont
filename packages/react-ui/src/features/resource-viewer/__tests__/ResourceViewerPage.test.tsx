@@ -232,7 +232,7 @@ describe('ResourceViewerPage — resolution sparkles', () => {
     expect(handler).toBeDefined();
 
     handler!(bodyUpdated([
-      { op: 'add', item: { type: 'SpecificResource', source: 'res-target', purpose: 'linking' } },
+      { op: 'add', item: { type: 'SpecificResource', source: makeResourceId('res-target'), purpose: 'linking' } },
     ]));
 
     expect(sparkleContext.triggerSparkleAnimation).toHaveBeenCalledWith('ann-7');
@@ -242,7 +242,7 @@ describe('ResourceViewerPage — resolution sparkles', () => {
     const handler = renderAndGetHandler();
 
     handler?.(bodyUpdated([
-      { op: 'remove', item: { type: 'SpecificResource', source: 'res-target', purpose: 'linking' } },
+      { op: 'remove', item: { type: 'SpecificResource', source: makeResourceId('res-target'), purpose: 'linking' } },
     ]));
 
     expect(sparkleContext.triggerSparkleAnimation).not.toHaveBeenCalled();

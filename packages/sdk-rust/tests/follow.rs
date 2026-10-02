@@ -6,6 +6,7 @@ use semiont::client::SemiontClient;
 use semiont::errors::SemiontError;
 use semiont::namespaces::{JobEvent, MarkAssistOptions, stall_deadline};
 use semiont::running::Running;
+use semiont::testing::as_id;
 use semiont::testing::{FaultAction, FaultyTransport, TestClientOptions, create_test_client};
 use semiont::timing::{JOB_SILENCE, JOB_STATUS_POLL};
 use semiont::transport::{ConnectionState, Envelope};
@@ -63,7 +64,7 @@ async fn ended<T>(following: JoinHandle<T>) -> T {
 
 fn highlighting(client: &SemiontClient) -> Running<JobEvent> {
     client.mark.assist(
-        "res-1",
+        &as_id("res-1"),
         Motivation::Highlighting,
         MarkAssistOptions::default(),
     )
@@ -323,7 +324,7 @@ async fn an_assist_its_job_could_not_run_is_refused_before_anything_is_sent() {
     for (motivation, options, message) in refusals {
         let refusal = client
             .mark
-            .assist("res-1", motivation, options)
+            .assist(&as_id("res-1"), motivation, options)
             .await
             .expect_err("it is refused");
         assert_eq!(refusal.code(), "bus.rejected");
@@ -527,7 +528,7 @@ async fn a_closed_client_delivers_nothing_and_refuses_what_is_asked_of_it() {
     assert!(client.bus().destroyed());
     assert_eq!(signals.next().await, None);
 
-    client.beckon.hover(Some("ann-1"));
+    client.beckon.hover(Some(&as_id("ann-1")));
     let refusal = client
         .frame
         .add_entity_type("Person")

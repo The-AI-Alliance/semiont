@@ -11,6 +11,7 @@ use semiont::cached::Observed;
 use semiont::client::{CachePersistence, ClientOptions, ClientTiming, SemiontClient};
 use semiont::namespaces::ResourceFilters;
 use semiont::storage::InMemorySessionStorage;
+use semiont::testing::as_id;
 use semiont::testing::liveness::{LivenessScenario, LivenessSpec, assert_liveness_axioms};
 use semiont::testing::{FaultyTransport, TestClientOptions, create_test_client};
 use semiont::transport::{ConnectionState, Envelope, STREAM_BACKLOG};
@@ -182,6 +183,14 @@ fn recorded(resource: &str, payload: Value, more: Value) -> Map<String, Value> {
     event
 }
 
+/// An event of the record about the knowledge base itself: it names no
+/// resource.
+fn recorded_of_the_knowledge_base() -> Map<String, Value> {
+    let mut event = recorded("res-1", json!({}), json!({}));
+    event.remove("resourceId");
+    event
+}
+
 fn heard(client: &SemiontClient, channel: &str, payload: Map<String, Value>) {
     client.bus().emit(channel, payload, Envelope::default());
 }
@@ -210,13 +219,27 @@ async fn watching_everything() -> Everything {
     let (client, transport) = world();
     let mut watching: Vec<Box<dyn std::any::Any + Send>> = Vec::new();
     for resource in ["res-1", "res-2"] {
-        watching.push(Box::new(client.browse.resource(resource).watch()));
-        watching.push(Box::new(client.browse.annotations(resource).watch()));
-        watching.push(Box::new(client.browse.events(resource).watch()));
-        watching.push(Box::new(client.browse.referenced_by(resource).watch()));
+        watching.push(Box::new(client.browse.resource(&as_id(resource)).watch()));
+        watching.push(Box::new(
+            client.browse.annotations(&as_id(resource)).watch(),
+        ));
+        watching.push(Box::new(client.browse.events(&as_id(resource)).watch()));
+        watching.push(Box::new(
+            client.browse.referenced_by(&as_id(resource)).watch(),
+        ));
     }
-    watching.push(Box::new(client.browse.annotation("res-1", "ann-1").watch()));
-    watching.push(Box::new(client.browse.annotation("res-2", "ann-2").watch()));
+    watching.push(Box::new(
+        client
+            .browse
+            .annotation(&as_id("res-1"), &as_id("ann-1"))
+            .watch(),
+    ));
+    watching.push(Box::new(
+        client
+            .browse
+            .annotation(&as_id("res-2"), &as_id("ann-2"))
+            .watch(),
+    ));
     watching.push(Box::new(
         client.browse.resources(ResourceFilters::default()).watch(),
     ));
@@ -291,12 +314,12 @@ async fn a_change_to_the_vocabulary_asks_again_for_it() {
     heard(
         &all.client,
         "frame:entity-type-added",
-        recorded("", json!({}), json!({})),
+        recorded_of_the_knowledge_base(),
     );
     heard(
         &all.client,
         "frame:tag-schema-added",
-        recorded("", json!({}), json!({})),
+        recorded_of_the_knowledge_base(),
     );
     assert_eq!(all.more().await, [0, 0, 0, 0, 0, 0, 1, 1, 0]);
 }
@@ -304,7 +327,7 @@ async fn a_change_to_the_vocabulary_asks_again_for_it() {
 #[tokio::test(start_paused = true)]
 async fn b20_an_event_about_what_nothing_asked_for_costs_no_request() {
     let (client, transport) = world();
-    let _resource = client.browse.resource("res-1").watch();
+    let _resource = client.browse.resource(&as_id("res-1")).watch();
     settle().await;
 
     // Another resource, imported by somebody else; and an annotation added
@@ -328,7 +351,7 @@ async fn b20_an_event_about_what_nothing_asked_for_costs_no_request() {
 #[tokio::test(start_paused = true)]
 async fn b20_a_value_the_cache_still_holds_is_refreshed_though_its_watcher_has_left() {
     let (client, transport) = world();
-    drop(client.browse.resource("res-1").watch());
+    drop(client.browse.resource(&as_id("res-1")).watch());
     settle().await;
     heard(
         &client,
@@ -431,7 +454,10 @@ async fn b13a_an_annotation_that_is_gone_fails_its_watchers_as_not_found_and_ask
         ),
     ] {
         let (client, transport) = world();
-        let mut watcher = client.browse.annotation("res-1", "ann-1").watch();
+        let mut watcher = client
+            .browse
+            .annotation(&as_id("res-1"), &as_id("ann-1"))
+            .watch();
         assert!(holds(&mut watcher).await.is_ready());
 
         heard(&client, channel, event);
@@ -447,7 +473,10 @@ async fn b13a_an_annotation_that_is_gone_fails_its_watchers_as_not_found_and_ask
         );
 
         // A watcher arriving afterwards asks the service.
-        let mut arriving = client.browse.annotation("res-1", "ann-1").watch();
+        let mut arriving = client
+            .browse
+            .annotation(&as_id("res-1"), &as_id("ann-1"))
+            .watch();
         assert!(holds(&mut arriving).await.is_ready());
         assert_eq!(
             asked(&transport, ["browse:annotation-requested"]),
@@ -467,7 +496,10 @@ async fn b13a_an_annotation_nothing_asked_for_is_not_marked_gone() {
     );
     settle().await;
     // Its first watcher asks, and is answered: nothing was held against it.
-    let mut watcher = client.browse.annotation("res-1", "ann-9").watch();
+    let mut watcher = client
+        .browse
+        .annotation(&as_id("res-1"), &as_id("ann-9"))
+        .watch();
     assert!(holds(&mut watcher).await.is_ready());
     assert_eq!(asked(&transport, ["browse:annotation-requested"]), [1]);
 }
@@ -475,8 +507,12 @@ async fn b13a_an_annotation_nothing_asked_for_is_not_marked_gone() {
 #[tokio::test(start_paused = true)]
 async fn b13b_a_body_update_that_carries_the_annotation_writes_it_and_asks_only_for_the_history() {
     let all = watching_everything().await;
-    let mut list = all.client.browse.annotations("res-1").watch();
-    let mut one = all.client.browse.annotation("res-1", "ann-1").watch();
+    let mut list = all.client.browse.annotations(&as_id("res-1")).watch();
+    let mut one = all
+        .client
+        .browse
+        .annotation(&as_id("res-1"), &as_id("ann-1"))
+        .watch();
     holds(&mut list).await;
     holds(&mut one).await;
 
@@ -525,7 +561,7 @@ async fn a_body_update_that_does_not_carry_the_annotation_asks_again_for_it() {
 async fn b19_one_event_refetches_at_once_and_a_storm_refetches_once_per_window_ending_on_the_last()
 {
     let (client, transport) = world();
-    let _watching = client.browse.annotations("res-1").watch();
+    let _watching = client.browse.annotations(&as_id("res-1")).watch();
     settle().await;
 
     heard(
@@ -557,7 +593,7 @@ async fn b19_one_event_refetches_at_once_and_a_storm_refetches_once_per_window_e
 #[tokio::test(start_paused = true)]
 async fn b16_b19_a_closed_client_drops_what_its_windows_owed_and_no_event_asks_anything_of_it() {
     let (client, transport) = world();
-    let mut watcher = client.browse.annotations("res-1").watch();
+    let mut watcher = client.browse.annotations(&as_id("res-1")).watch();
     holds(&mut watcher).await;
     heard(
         &client,
@@ -587,7 +623,7 @@ async fn b16_b19_a_closed_client_drops_what_its_windows_owed_and_no_event_asks_a
     // given nothing.
     let refusal = client
         .browse
-        .resource("res-1")
+        .resource(&as_id("res-1"))
         .fresh()
         .await
         .expect_err("it is closed");
@@ -600,23 +636,38 @@ async fn b16_b19_a_closed_client_drops_what_its_windows_owed_and_no_event_asks_a
 #[tokio::test(start_paused = true)]
 async fn watching_a_query_of_a_resource_holds_its_scope_and_a_one_shot_read_holds_none() {
     let (client, transport) = world();
-    let _ = client.browse.annotations("res-1").fresh().await;
-    assert_eq!(transport.holds("res-1"), 0);
+    let _ = client.browse.annotations(&as_id("res-1")).fresh().await;
+    assert_eq!(transport.holds(&as_id("res-1")), 0);
 
-    let annotations = client.browse.annotations("res-1").watch();
-    assert_eq!(transport.holds("res-1"), 1);
-    let resource = client.browse.resource("res-1").watch();
-    let events = client.browse.events("res-1").watch();
-    let referenced = client.browse.referenced_by("res-1").watch();
-    let annotation = client.browse.annotation("res-1", "ann-1").watch();
-    assert_eq!(transport.holds("res-1"), 5);
-    let other = client.browse.resource("res-2").watch();
-    assert_eq!((transport.holds("res-1"), transport.holds("res-2")), (5, 1));
+    let annotations = client.browse.annotations(&as_id("res-1")).watch();
+    assert_eq!(transport.holds(&as_id("res-1")), 1);
+    let resource = client.browse.resource(&as_id("res-1")).watch();
+    let events = client.browse.events(&as_id("res-1")).watch();
+    let referenced = client.browse.referenced_by(&as_id("res-1")).watch();
+    let annotation = client
+        .browse
+        .annotation(&as_id("res-1"), &as_id("ann-1"))
+        .watch();
+    assert_eq!(transport.holds(&as_id("res-1")), 5);
+    let other = client.browse.resource(&as_id("res-2")).watch();
+    assert_eq!(
+        (
+            transport.holds(&as_id("res-1")),
+            transport.holds(&as_id("res-2"))
+        ),
+        (5, 1)
+    );
 
     drop((annotations, resource, events, referenced, annotation));
-    assert_eq!((transport.holds("res-1"), transport.holds("res-2")), (0, 1));
+    assert_eq!(
+        (
+            transport.holds(&as_id("res-1")),
+            transport.holds(&as_id("res-2"))
+        ),
+        (0, 1)
+    );
     drop(other);
-    assert_eq!(transport.holds("res-2"), 0);
+    assert_eq!(transport.holds(&as_id("res-2")), 0);
 }
 
 #[tokio::test(start_paused = true)]
@@ -750,10 +801,10 @@ async fn b17_b18_a_returning_client_is_shown_what_the_last_one_had_and_asks_once
     };
     let transport = FaultyTransport::answering(vec![], answers(&[]));
     let first = client_over(&transport, persistence());
-    let _ = first.browse.events("res-1").fresh().await;
+    let _ = first.browse.events(&as_id("res-1")).fresh().await;
     let had = first
         .browse
-        .resource("res-1")
+        .resource(&as_id("res-1"))
         .fresh()
         .await
         .expect("a resource");
@@ -761,7 +812,7 @@ async fn b17_b18_a_returning_client_is_shown_what_the_last_one_had_and_asks_once
 
     let transport = FaultyTransport::answering(vec![], answers(&[]));
     let returning = client_over(&transport, persistence());
-    let mut watcher = returning.browse.resource("res-1").watch();
+    let mut watcher = returning.browse.resource(&as_id("res-1")).watch();
     // At once, and what was had; then what it is now.
     assert_eq!(
         given(&mut watcher).await,
@@ -772,7 +823,7 @@ async fn b17_b18_a_returning_client_is_shown_what_the_last_one_had_and_asks_once
     assert_eq!(asked(&transport, ["browse:resource-requested"]), [1]);
 
     // A history is not kept: its first watcher waits for it.
-    let mut history = returning.browse.events("res-1").watch();
+    let mut history = returning.browse.events(&as_id("res-1")).watch();
     assert_eq!(given(&mut history).await, Some(CacheState::Pending));
 
     // And another knowledge base's client is shown none of it.
@@ -784,7 +835,7 @@ async fn b17_b18_a_returning_client_is_shown_what_the_last_one_had_and_asks_once
         }),
     );
     assert_eq!(
-        given(&mut elsewhere.browse.resource("res-1").watch()).await,
+        given(&mut elsewhere.browse.resource(&as_id("res-1")).watch()).await,
         Some(CacheState::Pending)
     );
 }
@@ -820,16 +871,16 @@ fn l1_l2_a_watcher_is_given_a_value_or_a_failure_and_a_read_settles_under_every_
             LivenessScenario {
                 outputs: vec![
                     Box::pin(said(
-                        client.browse.resource("res-1").watch(),
+                        client.browse.resource(&as_id("res-1")).watch(),
                         client.clone(),
                     )),
                     Box::pin(said(
-                        client.browse.resource("res-2").watch(),
+                        client.browse.resource(&as_id("res-2")).watch(),
                         client.clone(),
                     )),
                 ],
                 settlements: vec![Box::pin(async move {
-                    let _ = reading.browse.resource("res-3").fresh().await;
+                    let _ = reading.browse.resource(&as_id("res-3")).fresh().await;
                 })],
             }
         },

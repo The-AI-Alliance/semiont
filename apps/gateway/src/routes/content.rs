@@ -3,15 +3,15 @@
 //! negotiated or transcoded; the JSON-LD description is its answer.
 
 use crate::app::App;
-use crate::http::{ApiError, Authenticated, MediaOrBearer, json_response};
+use crate::http::{ApiError, Authenticated, MediaOrBearer, ResourcePath, json_response};
 use axum::body::Body;
-use axum::extract::{Path, State};
+use axum::extract::State;
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::Response;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::bus_log::bus_log;
-use semiont::types::CreateResourceResponse;
+use semiont::types::{CreateResourceResponse, ResourceId};
 use semiont_observability::logging;
 use semiont_observability::telemetry;
 use serde_json::json;
@@ -60,7 +60,7 @@ pub async fn upload(
 
 async fn bytes_of(
     app: &App,
-    id: &str,
+    id: &ResourceId,
     headers: &HeaderMap,
     cache_control: &'static str,
 ) -> Result<Response, ApiError> {
@@ -68,7 +68,7 @@ async fn bytes_of(
     let (body, media_type) = telemetry::in_span(
         "content.get.server".to_owned(),
         SpanKind::Server,
-        vec![KeyValue::new("resource.id", id.to_owned())],
+        vec![KeyValue::new("resource.id", id.to_string())],
         caller_trace(headers),
         app.archivist.content(id),
     )
@@ -96,7 +96,7 @@ async fn bytes_of(
 pub async fn pipe(
     State(app): State<Arc<App>>,
     Authenticated(_): Authenticated,
-    Path(id): Path<String>,
+    ResourcePath(id): ResourcePath,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     bytes_of(&app, &id, &headers, "private, max-age=31536000, immutable").await
@@ -107,7 +107,7 @@ pub async fn pipe(
 pub async fn media_pipe(
     State(app): State<Arc<App>>,
     _access: MediaOrBearer,
-    Path(id): Path<String>,
+    ResourcePath(id): ResourcePath,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     bytes_of(&app, &id, &headers, "public, max-age=31536000, immutable").await
@@ -117,7 +117,7 @@ pub async fn media_pipe(
 pub async fn description(
     State(app): State<Arc<App>>,
     Authenticated(_): Authenticated,
-    Path(id): Path<String>,
+    ResourcePath(id): ResourcePath,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     use opentelemetry::context::FutureExt;

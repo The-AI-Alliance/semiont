@@ -50,7 +50,7 @@ function sessionAnswering(answer: Record<string, unknown>) {
 async function renderAndVisitBothPages(session: SemiontSession) {
   render(
     <PdfAnnotationCanvas
-      resourceUri={String(resourceId('123'))}
+      resourceUri={resourceId(String(resourceId('123')))}
       pdfUrl="https://example.com/resources/123.pdf"
       drawingMode={null}
       session={session}
@@ -111,7 +111,7 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
       const { session } = sessionAnswering({ kind: 'not-yet' });
       render(
         <PdfAnnotationCanvas
-          resourceUri={String(resourceId('123'))}
+          resourceUri={resourceId(String(resourceId('123')))}
           pdfUrl="https://example.com/resources/123.pdf"
           drawingMode="rectangle"
           session={session}
@@ -127,7 +127,7 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
       const { session } = sessionAnswering({ kind: 'extracted', pages: [] });
       render(
         <PdfAnnotationCanvas
-          resourceUri={String(resourceId('123'))}
+          resourceUri={resourceId(String(resourceId('123')))}
           pdfUrl="https://example.com/resources/123.pdf"
           drawingMode="rectangle"
           session={session}
@@ -143,7 +143,7 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
       const { session } = sessionAnswering({ kind: 'no-map' });
       render(
         <PdfAnnotationCanvas
-          resourceUri={String(resourceId('123'))}
+          resourceUri={resourceId(String(resourceId('123')))}
           pdfUrl="https://example.com/resources/123.pdf"
           drawingMode="rectangle"
           session={session}
@@ -165,7 +165,7 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
   } as unknown as SemiontSession;
       render(
         <PdfAnnotationCanvas
-          resourceUri={String(resourceId('123'))}
+          resourceUri={resourceId(String(resourceId('123')))}
           pdfUrl="https://example.com/resources/123.pdf"
           drawingMode="rectangle"
           session={session}

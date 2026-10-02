@@ -3,7 +3,7 @@
   "description": "Bus command to request a clone token for a resource.",
   "properties": {
     "resourceId": {
-      "type": "string"
+      "$ref": "./ResourceId.json"
     }
   },
   "required": [

@@ -20,6 +20,7 @@
 import { describe, test, expect } from 'vitest';
 import { EventBus } from '../event-bus';
 import type { EventMap } from '../bus-protocol';
+import { resourceId } from '../identifiers';
 
 const CH = 'beckon:hover' as const;
 const payloadFor = (id: string): EventMap[typeof CH] => ({ annotationId: id }) as EventMap[typeof CH];
@@ -88,10 +89,10 @@ describe('EventBus carries frames and offers verbs', () => {
     test('a scoped subscriber sees its own scope only', () => {
       const bus = new EventBus();
       const scoped: unknown[] = [];
-      bus.scope('res-1').on(CH).subscribe((p) => scoped.push(p));
+      bus.scope(resourceId('res-1')).on(CH).subscribe((p) => scoped.push(p));
 
-      bus.scope('res-1').emit(CH, payloadFor('mine'));
-      bus.scope('res-2').emit(CH, payloadFor('theirs'));
+      bus.scope(resourceId('res-1')).emit(CH, payloadFor('mine'));
+      bus.scope(resourceId('res-2')).emit(CH, payloadFor('theirs'));
       bus.emit(CH, payloadFor('unscoped'));
 
       expect(scoped).toEqual([payloadFor('mine')]);
@@ -103,7 +104,7 @@ describe('EventBus carries frames and offers verbs', () => {
       const unscoped: unknown[] = [];
       bus.on(CH).subscribe((p) => unscoped.push(p));
 
-      bus.scope('res-1').emit(CH, payloadFor('scoped'));
+      bus.scope(resourceId('res-1')).emit(CH, payloadFor('scoped'));
       bus.emit(CH, payloadFor('global'));
 
       expect(unscoped).toEqual([payloadFor('global')]);
@@ -117,9 +118,9 @@ describe('EventBus carries frames and offers verbs', () => {
       // as data instead of having to parse it back out of a channel key.
       const bus = new EventBus();
       const frames: Array<{ scope?: string }> = [];
-      bus.scope('res-1').frames(CH).subscribe((f) => frames.push(f));
+      bus.scope(resourceId('res-1')).frames(CH).subscribe((f) => frames.push(f));
 
-      bus.scope('res-1').emit(CH, payloadFor('x'));
+      bus.scope(resourceId('res-1')).emit(CH, payloadFor('x'));
       bus.emit(CH, payloadFor('global'));
 
       expect(frames.map((f) => f.scope)).toEqual(['res-1']);

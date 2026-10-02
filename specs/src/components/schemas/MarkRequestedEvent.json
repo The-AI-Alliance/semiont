@@ -3,7 +3,7 @@
   "description": "Emitted when the user requests a new mark (annotation) on a resource",
   "properties": {
     "source": {
-      "type": "string",
+      "$ref": "./ResourceId.json",
       "description": "The '@id' of the resource the mark belongs to (W3C target.source). Routes the event to the right viewer/state unit when a host mounts many viewers on one session."
     },
     "selector": {

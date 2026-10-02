@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EventBus } from '../event-bus';
+import { resourceId } from '../identifiers';
 
 /**
  * EventBus scope semantics tests. Uses a small set of representative
@@ -14,8 +15,8 @@ describe('EventBus scoping', () => {
   });
 
   it('creates isolated scopes with separate subject instances', () => {
-    const resource1 = eventBus.scope('resource-1');
-    const resource2 = eventBus.scope('resource-2');
+    const resource1 = eventBus.scope(resourceId('resource-1'));
+    const resource2 = eventBus.scope(resourceId('resource-2'));
 
     const events1: unknown[] = [];
     const events2: unknown[] = [];
@@ -34,8 +35,8 @@ describe('EventBus scoping', () => {
   });
 
   it('isolates events between different scopes', () => {
-    const resource1 = eventBus.scope('resource-1');
-    const resource2 = eventBus.scope('resource-2');
+    const resource1 = eventBus.scope(resourceId('resource-1'));
+    const resource2 = eventBus.scope(resourceId('resource-2'));
 
     const events1: unknown[] = [];
     const events2: unknown[] = [];
@@ -52,30 +53,9 @@ describe('EventBus scoping', () => {
     expect(events2).toHaveLength(0); // Resource2 should not receive event
   });
 
-  it('allows nested scoping', () => {
-    const resourceScope = eventBus.scope('resource-1');
-    const subsystemScope = resourceScope.scope('subsystem-a');
-
-    const resourceEvents: unknown[] = [];
-    const subsystemEvents: unknown[] = [];
-
-    resourceScope.on('mark:create-ok').subscribe(e => resourceEvents.push(e));
-    subsystemScope.on('mark:create-ok').subscribe(e => subsystemEvents.push(e));
-
-    // Events to different scopes are isolated
-    resourceScope.emit('mark:create-ok', { response: { annotationId:'res-level' as never } });
-    subsystemScope.emit('mark:create-ok', { response: { annotationId:'subsystem-level' as never } });
-
-    expect(resourceEvents).toHaveLength(1);
-    expect((resourceEvents[0] as { response: { annotationId: string } }).response.annotationId).toBe('res-level');
-
-    expect(subsystemEvents).toHaveLength(1);
-    expect((subsystemEvents[0] as { response: { annotationId: string } }).response.annotationId).toBe('subsystem-level');
-  });
-
   it('shares same parent EventBus subjects map', () => {
-    const resource1 = eventBus.scope('resource-1');
-    const resource2 = eventBus.scope('resource-2');
+    const resource1 = eventBus.scope(resourceId('resource-1'));
+    const resource2 = eventBus.scope(resourceId('resource-2'));
 
     // Both scopes use the same underlying EventBus
     expect((resource1 as unknown as { parent: unknown }).parent).toBe((resource2 as unknown as { parent: unknown }).parent);
@@ -83,7 +63,7 @@ describe('EventBus scoping', () => {
   });
 
   it('maintains type safety across scopes', () => {
-    const resourceScope = eventBus.scope('resource-1');
+    const resourceScope = eventBus.scope(resourceId('resource-1'));
 
     // One name for reading and writing was the old shape: `get()` handed back
     // a Subject, so a holder could do both and nothing said which it meant.

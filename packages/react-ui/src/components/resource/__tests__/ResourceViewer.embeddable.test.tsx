@@ -16,7 +16,7 @@ import { render, screen, act, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
-import { annotationId } from '@semiont/core';
+import { annotationId, resourceId } from '@semiont/core';
 import { createTestSemiontWrapper } from '../../../test-utils';
 import { ResourceViewer } from '../ResourceViewer';
 
@@ -60,7 +60,7 @@ const loadedHighlight: Annotation = {
   id: annotationId('ann-1'),
   motivation: 'highlighting',
   created: '2026-01-01T00:00:00.000Z',
-  target: { source: 'res-1', selector: { type: 'TextPositionSelector', start: 0, end: 10 } },
+  target: { source: resourceId('res-1'), selector: { type: 'TextPositionSelector', start: 0, end: 10 } },
 };
 
 const annotationsWithHighlight = { ...annotations, highlights: [loadedHighlight] };
@@ -104,7 +104,7 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no providers)',
     };
     act(() => {
       eventBus.emit('browse:click', {
-        annotationId: 'ann-1',
+        annotationId: annotationId('ann-1'),
         anchorRect,
       });
     });
@@ -138,7 +138,7 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no providers)',
     );
 
     act(() => {
-      eventBus.emit('browse:click', { annotationId: 'ann-not-here' });
+      eventBus.emit('browse:click', { annotationId: annotationId('ann-not-here') });
     });
 
     await new Promise((r) => setTimeout(r, 20));

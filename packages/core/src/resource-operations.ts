@@ -13,7 +13,6 @@
  */
 
 import type { UserId, ResourceId } from './identifiers';
-import { resourceId as makeResourceId } from './identifiers';
 import type { components } from './types';
 import { busRequest, type BusRequestPrimitive } from './bus-request';
 
@@ -82,7 +81,7 @@ export class ResourceOperations {
       },
     );
 
-    return makeResourceId(rId);
+    return rId;
   }
 
   /**
@@ -123,7 +122,7 @@ export class ResourceOperations {
       },
     );
 
-    return makeResourceId(rId);
+    return rId;
   }
 
   /**
@@ -160,6 +159,6 @@ export class ResourceOperations {
       },
     );
 
-    return makeResourceId(rId);
+    return rId;
   }
 }

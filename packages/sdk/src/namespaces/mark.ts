@@ -1,9 +1,7 @@
 import { merge } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import {
-  annotationId as toAnnotationId,
-  resourceId as toResourceId,
-} from '@semiont/core';
+  } from '@semiont/core';
 import type {
   ResourceId,
   AnnotationId,
@@ -33,13 +31,13 @@ export class MarkNamespace implements IMarkNamespace {
     // The wire schema (`MarkCreateRequest`) carries `resourceId` separately
     // for routing — we derive it from `input.target.source`, which is the
     // same value semantically.
-    const resourceId = toResourceId(input.target.source);
+    const resourceId = input.target.source;
     const result = await busRequest(
       this.transport,
       'mark:create-request',
       { resourceId, request: input },
     );
-    return { annotationId: toAnnotationId(result.annotationId) };
+    return { annotationId: result.annotationId };
   }
 
   async delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void> {
@@ -119,7 +117,7 @@ export class MarkNamespace implements IMarkNamespace {
               data: {
                 jobId: status.jobId,
                 jobType: status.type,
-                resourceId: resourceId as string,
+                resourceId,
                 // A job completed without a result is stored with an empty
                 // one; the job:complete this stands for carried none.
                 ...(isReportedJobResult(status.result) ? { result: status.result } : {}),

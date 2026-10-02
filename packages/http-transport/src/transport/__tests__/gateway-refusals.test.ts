@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createActorStateUnit } from '../actor-state-unit';
 import { mockConn, mockFetch } from './helpers/mock-conn';
+import { annotationId } from '@semiont/core';
 
 const baseUrl = 'http://localhost:4000';
 
@@ -42,7 +43,7 @@ describe('refusals by the gateway\'s limits', () => {
   it('an emit refused 429 waits at least Retry-After before its retry', async () => {
     mockFetch.mockResolvedValueOnce(refusal(429, 3, 'emit-rate')).mockResolvedValueOnce(accepted());
     const actor = createActorStateUnit({ baseUrl, token: 'tok', channels: [] });
-    const sent = actor.emit('beckon:hover', { annotationId: 'a-1' });
+    const sent = actor.emit('beckon:hover', { annotationId: annotationId('a-1') });
     await vi.advanceTimersByTimeAsync(2_900);
     expect(mockFetch, 'no retry before Retry-After').toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(200);
@@ -54,7 +55,7 @@ describe('refusals by the gateway\'s limits', () => {
   it('an emit refused 429 past its retries rejects rate-limited, carrying the wait', async () => {
     mockFetch.mockResolvedValue(refusal(429, 3, 'emit-rate'));
     const actor = createActorStateUnit({ baseUrl, token: 'tok', channels: [] });
-    const refused = expect(actor.emit('beckon:hover', { annotationId: 'a-1' })).rejects.toMatchObject({
+    const refused = expect(actor.emit('beckon:hover', { annotationId: annotationId('a-1') })).rejects.toMatchObject({
       code: 'rate-limited',
       status: 429,
       retryAfterMs: 3_000,

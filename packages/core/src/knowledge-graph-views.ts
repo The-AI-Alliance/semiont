@@ -32,7 +32,9 @@ export function deriveViews(
   mainResourceId: string,
   focalAnnotationId?: string,
 ): GraphViews {
-  const nodeById = new Map(graph.nodes.map((n) => [n.id, n] as const));
+  // An edge names its ends as text, of either kind of node: the nodes are
+  // looked up by that text.
+  const nodeById = new Map<string, KnowledgeGraph['nodes'][number]>(graph.nodes.map((n) => [n.id, n]));
   // annotation id → the resource it lives on. Both derivations resolve through
   // this, which is what keeps them structural: a peer connection whose
   // relationshipType happens to be named 'cites' has no annotation-of entry.

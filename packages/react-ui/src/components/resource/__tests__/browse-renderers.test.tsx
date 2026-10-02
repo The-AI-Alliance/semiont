@@ -7,12 +7,13 @@
  * markdown. This spec uses the real renderer and guards against a regression to
  * raw/source rendering.
  */
+import { resourceId } from '@semiont/core';
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { TextBrowseRenderer, defaultBrowseRenderers } from '../browse-renderers';
 
-const base = { mimeType: 'text/markdown', resourceUri: 'res-1', annotations: [] };
+const base = { mimeType: 'text/markdown', resourceUri: resourceId('res-1'), annotations: [] };
 
 describe('browse-renderers — markdown-as-prose (Phase 0 regression)', () => {
   it('TextBrowseRenderer is the default `text` renderer', () => {

@@ -30,8 +30,8 @@ const provenanceRef = (id: string, newResourceId: string): Annotation => ({
   motivation: 'linking',
   created: '2026-08-21T12:00:00Z',
   modified: '2026-08-21T12:00:00Z',
-  target: { source: 'res-src' },
-  body: { type: 'SpecificResource', source: newResourceId, purpose: 'linking' },
+  target: { source: makeResourceId('res-src') },
+  body: { type: 'SpecificResource', source: makeResourceId(newResourceId), purpose: 'linking' },
 });
 
 type HookProps = { outcome: YieldOutcome | null; annotations: Annotation[] };

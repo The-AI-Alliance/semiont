@@ -6,6 +6,7 @@
 
 use jsonwebtoken::errors::ErrorKind;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use semiont::types::UserId;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashSet;
@@ -65,7 +66,7 @@ impl std::fmt::Display for Refusal {
 /// What an agent token says, once verified.
 #[derive(Debug, Clone)]
 pub struct AgentClaims {
-    pub did: String,
+    pub did: UserId,
     pub email: String,
     pub name: Option<String>,
     pub domain: String,
@@ -202,7 +203,7 @@ impl KeyRing {
 /// An agent token's claims: a DID, an address, the domain, and optionally a
 /// name, roles and the times.
 fn agent_claims(claims: &Value) -> Option<AgentClaims> {
-    let did = claims["did"].as_str().filter(|d| d.starts_with("did:"))?;
+    let did = UserId::new(claims["did"].as_str()?).ok()?;
     let email = claims["email"].as_str().filter(|e| is_address(e))?;
     let domain = claims["domain"].as_str()?;
     let name = match &claims["name"] {
@@ -226,7 +227,7 @@ fn agent_claims(claims: &Value) -> Option<AgentClaims> {
         }
     }
     Some(AgentClaims {
-        did: did.to_owned(),
+        did,
         email: email.to_owned(),
         name,
         domain: domain.to_owned(),

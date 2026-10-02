@@ -3,14 +3,14 @@
   "description": "Command to mark a job as complete",
   "properties": {
     "_userId": {
-      "type": "string",
+      "$ref": "./UserId.json",
       "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
     },
     "resourceId": {
-      "type": "string"
+      "$ref": "./ResourceId.json"
     },
     "jobId": {
-      "type": "string"
+      "$ref": "./JobId.json"
     },
     "jobType": {
       "$ref": "./JobType.json"
@@ -20,7 +20,7 @@
       "description": "Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run \u2014 and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows."
     },
     "annotationId": {
-      "type": "string",
+      "$ref": "./AnnotationId.json",
       "description": "Annotation this job is attached to, when applicable. Lets the UI route completion feedback (toast, resolve state) to a specific annotation."
     },
     "result": {

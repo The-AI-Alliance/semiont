@@ -160,7 +160,7 @@ describe('Scripting Example: Create Resource', () => {
 
     // Now create another event (like archiving the resource)
     eventBus.emit('mark:archive', {
-      _userId: 'did:web:test:users:test-script',
+      _userId: userId('did:web:test:users:test-script'),
       resourceId: result,
     });
 

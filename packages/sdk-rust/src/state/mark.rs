@@ -37,6 +37,7 @@ use crate::namespaces::{JobEvent, MarkAssistOptions};
 use crate::state_unit::StateUnit;
 use crate::timing::ASSIST_SILENCE;
 use crate::transport::Envelope;
+use crate::types::ResourceId;
 use crate::types::{
     AnnotationSelector, AnnotationTarget, CreateAnnotationRequest, FragmentSelector,
     FragmentSelectorType, JobProgress, MarkAssistRequestEvent, MarkAssistRequestEventOptions,
@@ -104,7 +105,7 @@ fn assist_options(asked: MarkAssistRequestEventOptions) -> MarkAssistOptions {
 
 struct Shared {
     client: Arc<SemiontClient>,
-    resource_id: String,
+    resource_id: ResourceId,
     pending: Held<Option<PendingAnnotation>>,
     assisting: Held<Option<Motivation>>,
     progress: Held<Option<JobProgress>>,
@@ -131,7 +132,7 @@ pub struct MarkStateUnit {
 
 impl MarkStateUnit {
     /// The marking of `resource_id`.
-    pub fn new(client: Arc<SemiontClient>, resource_id: &str) -> MarkStateUnit {
+    pub fn new(client: Arc<SemiontClient>, resource_id: &ResourceId) -> MarkStateUnit {
         let heard = client.bus().frames_among(&[
             MarkRequested::NAME,
             MarkSelectComment::NAME,
@@ -146,7 +147,7 @@ impl MarkStateUnit {
         ]);
         let shared = Arc::new(Shared {
             client,
-            resource_id: resource_id.to_owned(),
+            resource_id: resource_id.clone(),
             pending: Held::new(None),
             assisting: Held::new(None),
             progress: Held::new(None),
@@ -204,7 +205,7 @@ async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
         } else if let Some(deletion) = said::<MarkDelete>(&frame) {
             // Only what is said to be of this resource: with several
             // resources open on one client, each has a unit that hears this.
-            if deletion.resource_id.as_deref() != Some(shared.resource_id.as_str()) {
+            if deletion.resource_id.as_ref() != Some(&shared.resource_id) {
                 continue;
             }
             let deleting = shared.clone();

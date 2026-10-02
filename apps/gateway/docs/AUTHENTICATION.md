@@ -54,7 +54,9 @@ before its body is read, so an unauthenticated request never reaches a parser.
 4. **The principal** — built from the claims, with no lookup: a person is
    `did:web:<domain>:users:<the claim identity.subjectClaim names>`, and needs
    `email`, with `email_verified` not `false`; an agent is the DID its token
-   carries.
+   carries. Either is a `UserId`
+   ([specs/src/identifiers/kinds.json](../../../specs/src/identifiers/kinds.json)):
+   a token whose claims do not make one names no principal.
 
 Any failure is `401 {"error":"Invalid token"}` with the `invalid_token`
 challenge; the reason goes to the log (`auth_failed`), never to the caller.

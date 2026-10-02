@@ -18,9 +18,10 @@ use semiont::transport::{
     ConnectionState, ContentTransport, Envelope, GatewayOperations, PutBinaryRequest, ResourceHold,
     Transport,
 };
+use semiont::types::ResourceId;
 use semiont_conformance_drivers::{
-    Arguments, Driver, Ended, Running, count, failure, locked, object, optional_text, say, serve,
-    text, texts,
+    Arguments, Driver, Ended, Running, count, failure, identifier, locked, object,
+    optional_identifier, optional_text, say, serve, text, texts,
 };
 use semiont_http_transport::content::HttpContentTransport;
 use semiont_http_transport::transport::{HttpTransport, HttpTransportConfig, Timing};
@@ -198,11 +199,11 @@ impl Wire {
             }),
             "listen" => self.listen(&args),
             "subscribe-resource" => self.client().and_then(|client| {
-                let resource = text(&args, "resource")?;
+                let resource: ResourceId = identifier(&args, "resource")?;
                 locked(&self.held)
-                    .entry(resource.to_owned())
+                    .entry(resource.to_string())
                     .or_default()
-                    .push(client.transport.subscribe_to_resource(resource));
+                    .push(client.transport.subscribe_to_resource(&resource));
                 Ok(Value::Null)
             }),
             "release-resource" => text(&args, "resource").and_then(|resource| {
@@ -249,7 +250,7 @@ impl Wire {
         let client = self.client()?;
         let envelope = Envelope {
             correlation_id: optional_text(args, "correlationId")?,
-            scope: optional_text(args, "scope")?,
+            scope: optional_identifier(args, "scope")?,
         };
         let subscribers = client
             .bus
@@ -301,11 +302,11 @@ impl Wire {
                 Some(_) => texts(args, "entityTypes")?,
             },
             language: optional_text(args, "language")?,
-            source_annotation_id: optional_text(args, "sourceAnnotationId")?,
-            source_resource_id: optional_text(args, "sourceResourceId")?,
+            source_annotation_id: optional_identifier(args, "sourceAnnotationId")?,
+            source_resource_id: optional_identifier(args, "sourceResourceId")?,
             generation_prompt: optional_text(args, "generationPrompt")?,
             generator: None,
-            job_id: optional_text(args, "jobId")?,
+            job_id: optional_identifier(args, "jobId")?,
             is_draft: args.get("isDraft").map(|value| value == &Value::Bool(true)),
             clone_token: None,
             archive_original: None,
@@ -326,16 +327,16 @@ impl Wire {
 
     async fn get(&self, args: &Arguments, as_stream: bool) -> Result<Value, Ended> {
         let client = self.client()?;
-        let resource = text(args, "resource")?;
+        let resource: ResourceId = identifier(args, "resource")?;
         let (content_type, bytes) = if as_stream {
-            let mut stream = client.content.get_binary_stream(resource).await?;
+            let mut stream = client.content.get_binary_stream(&resource).await?;
             let mut bytes = Vec::new();
             while let Some(read) = stream.bytes.next().await {
                 bytes.extend_from_slice(&read?);
             }
             (stream.content_type, bytes)
         } else {
-            let content = client.content.get_binary(resource).await?;
+            let content = client.content.get_binary(&resource).await?;
             (content.content_type, content.bytes.to_vec())
         };
         Ok(json!({ "contentType": content_type, "bytes": STANDARD.encode(bytes) }))
@@ -345,7 +346,7 @@ impl Wire {
         let client = self.client()?;
         let graph = client
             .content
-            .get_resource_graph(text(args, "resource")?)
+            .get_resource_graph(&identifier::<ResourceId>(args, "resource")?)
             .await?;
         serde_json::to_value(graph)
             .map_err(|e| Ended::Misuse(format!("the description does not serialize: {e}")))
@@ -359,7 +360,8 @@ impl Wire {
             "status" => serde_json::to_value(gateway.get_status().await?),
             "current-user" => serde_json::to_value(gateway.get_current_user().await?),
             "media-token" => {
-                serde_json::to_value(gateway.get_media_token(text(args, "resource")?).await?)
+                let resource: ResourceId = identifier(args, "resource")?;
+                serde_json::to_value(gateway.get_media_token(&resource).await?)
             }
             _ => serde_json::to_value(gateway.get_protected_resource_metadata().await?),
         };

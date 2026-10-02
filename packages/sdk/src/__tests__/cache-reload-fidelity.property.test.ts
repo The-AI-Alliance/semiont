@@ -36,9 +36,11 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fc from 'fast-check';
+import type { ResourceId } from '@semiont/core';
 import { createCache, type Cache } from '../cache';
 import { coupledLastEventId, sessionStoragePersister } from '../cache-persister';
 import { InMemorySessionStorage } from '../session/session-storage';
+import { resourceId } from '@semiont/core';
 
 const KEY = 'res-1';
 const A_DOC_KEY = 'semiont.cache.test.annotations';
@@ -52,7 +54,7 @@ interface Content { upTo: number }
 interface Rig {
   cacheA: Cache<string, Content>;
   cacheB: Cache<string, Content>;
-  saveLastEventId: (scope: string, id: string) => void;
+  saveLastEventId: (scope: ResourceId, id: string) => void;
   resolvers: Array<(c: Content) => void>;
   dispose: () => void;
 }
@@ -144,12 +146,12 @@ describe('A1/A4 — reload fidelity across event arrival', () => {
         case 'arrive':
           serverSeq += 1;
           rig.cacheA.invalidate(KEY);              // apply first…
-          rig.saveLastEventId('r1', `p-r1-${serverSeq}`); // …stash second (the fixed order)
+          rig.saveLastEventId(resourceId('r1'), `p-r1-${serverSeq}`); // …stash second (the fixed order)
           break;
         case 'receiveLegacy':
           serverSeq += 1;
           unapplied += 1;
-          rig.saveLastEventId('r1', `p-r1-${serverSeq}`);
+          rig.saveLastEventId(resourceId('r1'), `p-r1-${serverSeq}`);
           break;
         case 'applyLegacy':
           if (unapplied > 0) { unapplied -= 1; rig.cacheA.invalidate(KEY); }

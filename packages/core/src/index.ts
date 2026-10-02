@@ -20,15 +20,9 @@ export type {
   MCPToken,
   CloneToken,
   // System identifiers
-  JobId,
-  UserDID,
   EntityType,
   SearchQuery,
   BaseUrl,
-  // HTTP URI types
-  ResourceUri,
-  AnnotationUri,
-  ResourceAnnotationUri,
 } from './branded-types';
 export {
   // Helper functions
@@ -37,25 +31,22 @@ export {
   accessToken,
   mcpToken,
   cloneToken,
-  jobId,
-  userDID,
   entityType,
   searchQuery,
   baseUrl,
-  // URI factory functions
-  resourceUri,
-  annotationUri,
-  resourceAnnotationUri,
 } from './branded-types';
 
-// Identifier types (only IDs - URIs are in @semiont/http-transport)
-export type { ResourceId, AnnotationId, UserId } from './identifiers';
+// The kinds of id, generated from the spec
+export type { ResourceId, AnnotationId, JobId, UserId } from './identifiers';
 export {
   resourceId,
   annotationId,
+  jobId,
   userId,
   isResourceId,
   isAnnotationId,
+  isJobId,
+  isUserId,
   SYSTEM_SCOPE,
 } from './identifiers';
 
@@ -142,8 +133,7 @@ export type {
 // Event utilities
 export type { StoredEventLike } from './event-utils';
 export {
-  getAnnotationUriFromEvent,
-  isEventRelatedToAnnotation,
+  getAnnotationIdFromEvent,
   isStoredEvent,
 } from './event-utils';
 

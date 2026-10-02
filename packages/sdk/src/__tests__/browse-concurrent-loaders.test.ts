@@ -145,7 +145,7 @@ function fakeMarkAdded(rid: ResourceId): StoredEvent<EventOfType<'mark:added'>> 
         id: annotationId('ann-1'),
         motivation: 'commenting',
         created: '2026-01-01T00:00:00Z',
-        target: { source: rid as string },
+        target: { source: makeResourceId(rid as string) },
         body: [{ type: 'TextualBody', value: 'c', purpose: 'commenting' }],
       },
     },

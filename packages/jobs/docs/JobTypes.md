@@ -146,16 +146,18 @@ The same helper serves every other jobType by passing their own
 `params.referenceId` through — detection echoes still carry one.
 
 The job the queue holds carries that stamped id: `GenerationJob` is
-`Job<GenerationJobParams & { resourceId: ResourceId }, GenerationResult>`.
+`Job<GenerationJobParams & { resourceId: ResourceId }, JobGenerationResult>`.
 
 Generation reports exactly three progress frames: 5% `generating-resource`,
 95% `creating-resource`, and 100% `complete-generated` carrying required
 `truncated`.
 
-**Result:**
+**Result:** `JobGenerationResult` (`components['schemas']['JobGenerationResult']` from `@semiont/core`).
+The worker states it on `job:complete`, once the upload has given the resource an id; the
+processor answers `truncated` and no result.
 
 ```typescript
-interface GenerationResult {
+interface JobGenerationResult {
   kind: 'generation';
   resourceId: ResourceId;
   resourceName: string;
@@ -387,7 +389,7 @@ type StoredProgress = components['schemas']['JobRunning']['progress'];
 
 ```typescript
 type DetectionJob = Job<DetectionParams, JobReferenceAnnotationResult>;
-type GenerationJob = Job<GenerationJobParams & { resourceId: ResourceId }, GenerationResult>;
+type GenerationJob = Job<GenerationJobParams & { resourceId: ResourceId }, JobGenerationResult>;
 type HighlightDetectionJob = Job<HighlightDetectionParams, JobHighlightAnnotationResult>;
 type AssessmentDetectionJob = Job<AssessmentDetectionParams, JobAssessmentAnnotationResult>;
 type CommentDetectionJob = Job<CommentDetectionParams, JobCommentAnnotationResult>;

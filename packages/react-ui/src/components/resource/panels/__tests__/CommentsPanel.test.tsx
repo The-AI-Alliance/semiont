@@ -95,7 +95,7 @@ vi.mock('../CommentEntry', () => ({
   ),
 }));
 
-import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
+import { getTextPositionSelector, getTargetSelector, resourceId } from '@semiont/core';
 const mockGetTextPositionSelector = getTextPositionSelector as MockedFunction<typeof getTextPositionSelector>;
 const mockGetTargetSelector = getTargetSelector as MockedFunction<typeof getTargetSelector>;
 
@@ -112,7 +112,7 @@ const createMockComment = (id: string, start: number, end: number): Annotation =
   created: `2024-01-0${id.slice(-1)}T10:00:00Z`,
   modified: `2024-01-0${id.slice(-1)}T10:00:00Z`,
   target: {
-    source: 'resource-1',
+    source: resourceId('resource-1'),
     selector: {
       type: 'TextPositionSelector',
       start,
@@ -152,7 +152,7 @@ const createPendingAnnotation = (exact: string) => ({
 
 describe('CommentsPanel Component', () => {
   const defaultProps = {
-    resourceId: 'res-1',
+    resourceId: resourceId('res-1'),
     annotations: mockComments.empty,
     pendingAnnotation: null,
   };

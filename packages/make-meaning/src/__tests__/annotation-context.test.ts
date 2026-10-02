@@ -157,7 +157,7 @@ describe('AnnotationContext', () => {
             purpose: 'commenting'
           },
           target: {
-            source: resId,
+            source: resourceId(resId),
             selector: [{
               type: 'TextPositionSelector',
               start,
@@ -349,7 +349,7 @@ describe('AnnotationContext', () => {
             purpose: 'commenting'
           },
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: {
               type: 'TextQuoteSelector',
               exact: 'testing',
@@ -516,7 +516,7 @@ describe('AnnotationContext', () => {
               format: 'text/plain'
             }],
             target: {
-              source: testResourceId,
+              source: resourceId(testResourceId),
               selector: [{
                 type: 'TextPositionSelector',
                 start: 49,

@@ -3,7 +3,7 @@
   "description": "Request to browse annotations that reference a resource",
   "properties": {
     "resourceId": {
-      "type": "string"
+      "$ref": "./ResourceId.json"
     },
     "motivation": {
       "type": "string"

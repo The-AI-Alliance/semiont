@@ -9,10 +9,10 @@
       "type": "number"
     },
     "annotationId": {
-      "type": "string"
+      "$ref": "./AnnotationId.json"
     },
     "resourceId": {
-      "type": "string"
+      "$ref": "./ResourceId.json"
     }
   },
   "required": [

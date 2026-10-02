@@ -16,7 +16,7 @@
  * as absence, in both directions.
  */
 
-import { annotationId as makeAnnotationId } from '@semiont/core';
+import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import { getBodySource, getExactText, getTargetSelector, getTargetSource } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import type { Annotation, AnnotationCategory, CreateAnnotationInternal } from '@semiont/core';
@@ -59,7 +59,7 @@ export function buildAnnotation(input: CreateAnnotationInternal): Annotation {
   const annotation: Annotation = {
     '@context': 'http://www.w3.org/ns/anno.jsonld',
     type: 'Annotation',
-    id: makeAnnotationId(input.id),
+    id: input.id,
     motivation: input.motivation,
     target: input.target,
     creator: input.creator,
@@ -130,7 +130,7 @@ export function decodeAnnotation(props: AnnotationProperties, entityTypes: strin
     return value;
   };
 
-  const resourceId = required('resourceId');
+  const resourceId = makeResourceId(required('resourceId'));
   const creator = JSON.parse(required('creator'));
   // The stored value is one of the wire vocabulary's, which the event that
   // produced it was validated against; the projection does not re-police it.
@@ -142,7 +142,7 @@ export function decodeAnnotation(props: AnnotationProperties, entityTypes: strin
     if (entityType) body.push({ type: 'TextualBody', value: entityType, purpose: 'tagging' });
   }
   if (props.source) {
-    body.push({ type: 'SpecificResource', source: props.source, purpose: 'linking' });
+    body.push({ type: 'SpecificResource', source: makeResourceId(props.source), purpose: 'linking' });
   }
 
   const selector = decodeSelector(props.selector);

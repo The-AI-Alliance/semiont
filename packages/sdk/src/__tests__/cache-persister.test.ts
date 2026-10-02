@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { coupledLastEventId, sessionStoragePersister } from '../cache-persister';
 import type { SessionStorage } from '../session/session-storage';
 import { TestStorage } from '../session/__tests__/test-storage-helpers';
+import { resourceId } from '@semiont/core';
 
 const KEY = 'semiont.cache.kb-1.resource';
 
@@ -147,7 +148,7 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
     const { storage, writes } = recordingStorage();
     const coupled = coupledLastEventId(storage, ID_KEY);
 
-    coupled.saveLastEventId('res-1', 'p-res-1-47');
+    coupled.saveLastEventId(resourceId('res-1'), 'p-res-1-47');
 
     expect(writes).toHaveLength(0);
     expect(storage.get(ID_KEY)).toBeNull();
@@ -157,7 +158,7 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
     const { storage, writes } = recordingStorage();
     const coupled = coupledLastEventId(storage, ID_KEY);
 
-    coupled.saveLastEventId('res-1', 'p-res-1-47');
+    coupled.saveLastEventId(resourceId('res-1'), 'p-res-1-47');
     coupled.storage.set('semiont.cache.kb-1.resource', '{"doc":1}');
 
     expect(writes.map(([k]) => k)).toEqual(['semiont.cache.kb-1.resource', ID_KEY]);
@@ -177,9 +178,9 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
     const { storage, writes } = recordingStorage();
     const coupled = coupledLastEventId(storage, ID_KEY);
 
-    coupled.saveLastEventId('res-1', 'p-res-1-47');
-    coupled.saveLastEventId('res-1', 'p-res-1-48');
-    coupled.saveLastEventId('res-2', 'p-res-2-5');
+    coupled.saveLastEventId(resourceId('res-1'), 'p-res-1-47');
+    coupled.saveLastEventId(resourceId('res-1'), 'p-res-1-48');
+    coupled.saveLastEventId(resourceId('res-2'), 'p-res-2-5');
     coupled.storage.set('semiont.cache.kb-1.annotations', '{"doc":2}');
     coupled.storage.set('semiont.cache.kb-1.resource', '{"doc":3}');
 
@@ -191,9 +192,9 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
     const { storage } = recordingStorage();
     const coupled = coupledLastEventId(storage, ID_KEY);
 
-    coupled.saveLastEventId('res-1', 'p-res-1-47');
+    coupled.saveLastEventId(resourceId('res-1'), 'p-res-1-47');
     coupled.storage.set('semiont.cache.kb-1.resource', '{"doc":1}');
-    coupled.saveLastEventId('res-2', 'p-res-2-9');
+    coupled.saveLastEventId(resourceId('res-2'), 'p-res-2-9');
     coupled.storage.set('semiont.cache.kb-1.annotations', '{"doc":2}');
 
     expect(JSON.parse(storage.get(ID_KEY)!)).toEqual({ 'res-1': 'p-res-1-47', 'res-2': 'p-res-2-9' });
@@ -202,10 +203,20 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
   it('loadLastEventIds round-trips what a flush persisted', () => {
     const { storage } = recordingStorage();
     const coupled = coupledLastEventId(storage, ID_KEY);
-    coupled.saveLastEventId('res-1', 'p-res-1-47');
+    coupled.saveLastEventId(resourceId('res-1'), 'p-res-1-47');
     coupled.storage.set('semiont.cache.kb-1.resource', '{"doc":1}');
 
-    expect(coupledLastEventId(storage, ID_KEY).loadLastEventIds()).toEqual({ 'res-1': 'p-res-1-47' });
+    expect(coupledLastEventId(storage, ID_KEY).loadLastEventIds()).toEqual(new Map([['res-1', 'p-res-1-47']]));
+  });
+
+  it('a stored place under a key that is not a resource id is not loaded', () => {
+    // Storage is text a browser kept: nothing typed it. A place under a key
+    // the rule refuses could only be sent as a `scope` the gateway refuses,
+    // so it is left behind and the places beside it are kept.
+    const { storage } = recordingStorage();
+    storage.set(ID_KEY, JSON.stringify({ 'not an id': 'p-x-1', 'a/b': 'p-y-2', 'res-1': 'p-res-1-47', 'res-2': 7 }));
+
+    expect(coupledLastEventId(storage, ID_KEY).loadLastEventIds()).toEqual(new Map([['res-1', 'p-res-1-47']]));
   });
 
   it('a pre-multi-scope single-id bookmark reads as "nothing stored"', () => {

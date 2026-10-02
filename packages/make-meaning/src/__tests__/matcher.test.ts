@@ -15,7 +15,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { take } from 'rxjs/operators';
-import { EventBus, resourceId, type GatheredContext, type Logger, type ResourceId } from '@semiont/core';
+import { EventBus, resourceId, type GatheredContext, type Logger, type ResourceId, annotationId } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import { Matcher, type MatcherStores } from '../matcher';
 import { createMockEmbeddingProvider } from './helpers/smelter-harness';
@@ -27,18 +27,17 @@ type KnowledgeGraph = GatheredContext['graph'];
 const MAIN_ID = 'test-resource';
 
 const testAnnotation: AnnotationFocus['annotation'] = {
-  id: 'test-ann',
+  id: annotationId('test-ann'),
   '@context': 'http://www.w3.org/ns/anno.jsonld',
   type: 'Annotation',
   motivation: 'linking',
   created: '2026-01-01T00:00:00.000Z',
-  target: { source: 'test-resource' },
-  body: { type: 'SpecificResource', source: '' },
+  target: { source: resourceId('test-resource') },
 };
 
 const testSourceResource: AnnotationFocus['sourceResource'] = {
   '@context': 'https://schema.org',
-  '@id': 'test-resource',
+  '@id': resourceId('test-resource'),
   name: 'Test Resource',
   format: 'text/plain',
   representations: [],
@@ -59,12 +58,12 @@ function buildGraph(opts: {
   siblingAnnotations?: Array<{ id: string; entityTypes?: string[] }>;
 } = {}): KnowledgeGraph {
   const nodes: KnowledgeGraph['nodes'] = [
-    { id: MAIN_ID, type: 'resource', label: 'Test Resource' },
+    { id: resourceId(MAIN_ID), type: 'resource', label: 'Test Resource' },
   ];
   const edges: KnowledgeGraph['edges'] = [];
 
   for (const c of opts.connections ?? []) {
-    nodes.push({ id: c.resourceId, type: 'resource', label: c.resourceName, entityTypes: c.entityTypes });
+    nodes.push({ id: resourceId(c.resourceId), type: 'resource', label: c.resourceName, entityTypes: c.entityTypes });
     edges.push({ source: MAIN_ID, target: c.resourceId, type: 'related', bidirectional: c.bidirectional ?? false });
   }
   // D12: a citation is its linking annotation — an embedded annotation node
@@ -72,25 +71,25 @@ function buildGraph(opts: {
   const w3c = (id: string, source: string, motivation: 'linking' | 'commenting') => ({
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
     type: 'Annotation' as const,
-    id,
+    id: annotationId(id),
     motivation,
-    target: { source },
+    target: { source: resourceId(source) },
     created: '2026-01-01T00:00:00.000Z',
   });
   for (const c of opts.citedByPresent ?? []) {
-    nodes.push({ id: c.resourceId, type: 'resource', label: c.resourceName });
-    nodes.push({ id: `ann-cite-${c.resourceId}`, type: 'annotation', label: 'linking', annotation: w3c(`ann-cite-${c.resourceId}`, c.resourceId, 'linking') });
+    nodes.push({ id: resourceId(c.resourceId), type: 'resource', label: c.resourceName });
+    nodes.push({ id: annotationId(`ann-cite-${c.resourceId}`), type: 'annotation', label: 'linking', annotation: w3c(`ann-cite-${c.resourceId}`, c.resourceId, 'linking') });
     edges.push({ source: `ann-cite-${c.resourceId}`, target: c.resourceId, type: 'annotation-of' });
     edges.push({ source: `ann-cite-${c.resourceId}`, target: MAIN_ID, type: 'cites' });
   }
   for (const id of opts.citedByMissing ?? []) {
     // no resource node for the citer: the derived label falls back to the raw id
-    nodes.push({ id: `ann-cite-${id}`, type: 'annotation', label: 'linking', annotation: w3c(`ann-cite-${id}`, id, 'linking') });
+    nodes.push({ id: annotationId(`ann-cite-${id}`), type: 'annotation', label: 'linking', annotation: w3c(`ann-cite-${id}`, id, 'linking') });
     edges.push({ source: `ann-cite-${id}`, target: id, type: 'annotation-of' });
     edges.push({ source: `ann-cite-${id}`, target: MAIN_ID, type: 'cites' });
   }
   for (const a of opts.siblingAnnotations ?? []) {
-    nodes.push({ id: a.id, type: 'annotation', label: a.id, entityTypes: a.entityTypes, annotation: w3c(a.id, MAIN_ID, 'commenting') });
+    nodes.push({ id: annotationId(a.id), type: 'annotation', label: a.id, entityTypes: a.entityTypes, annotation: w3c(a.id, MAIN_ID, 'commenting') });
     edges.push({ source: a.id, target: MAIN_ID, type: 'annotation-of' });
   }
   return { nodes, edges };
@@ -211,8 +210,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-1',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-1'),
         context: makeContext({ selected: { text: 'test query' } }),
       }, { correlationId: 'test-corr-id' });
 
@@ -239,8 +238,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-failed').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-2',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-2'),
         context: makeContext({ selected: { text: 'failing query' } }),
       }, { correlationId: 'test-corr-id' });
 
@@ -255,8 +254,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-3',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-3'),
         context: makeContext({ selected: { text: 'nonexistent' } }),
       }, { correlationId: 'test-corr-id' });
 
@@ -301,8 +300,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-no-ctx',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-no-ctx'),
         context: makeContext({ selected: { text: 'Alpha' } }),
       }, { correlationId: 'test-corr-id' });
 
@@ -319,8 +318,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-name',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-name'),
         context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
       }, { correlationId: 'test-corr-id' });
 
@@ -348,8 +347,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-et',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-et'),
         context: makeContext({
           selected: { before: '', text: 'nonmatching', after: '' }, // no name match — isolate entity type signal
           metadata: { entityTypes: ['Person', 'Author'] },
@@ -386,8 +385,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-no-gate',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-no-gate'),
         context: makeContext({
           selected: { before: '', text: 'Lincoln', after: '' },
           metadata: { entityTypes: ['Person'] },
@@ -409,8 +408,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-bidir',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-bidir'),
         context: makeContext({
           selected: { before: '', text: 'test', after: '' },
           graph: buildGraph({
@@ -437,8 +436,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-neighbor',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-neighbor'),
         context: makeContext({
           selected: { before: '', text: 'something', after: '' },
           graph: buildGraph({
@@ -468,8 +467,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-lag',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-lag'),
         context: makeContext({
           selected: { before: '', text: 'something', after: '' },
           graph: buildGraph({
@@ -506,8 +505,8 @@ describe('Matcher', () => {
       try {
         const resultPromise = localBus.on('match:search-results').pipe(take(1)).toPromise();
         localBus.emit('match:search-requested', {
-          resourceId: 'test-resource',
-          referenceId: 'ref-sem-lag',
+          resourceId: resourceId('test-resource'),
+          referenceId: annotationId('ref-sem-lag'),
           context: makeContext({ selected: { before: '', text: 'something', after: '' } }),
         }, { correlationId: 'corr-sem-lag' });
 
@@ -539,8 +538,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-citedby-delta',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-citedby-delta'),
         context: makeContext({
           selected: { before: '', text: 'zzz', after: '' }, // no name match — isolate the citedBy signal
           graph: buildGraph({
@@ -567,8 +566,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-multi',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-multi'),
         context: makeContext({
           selected: { before: '', text: 'Alpha', after: '' },
           metadata: { entityTypes: ['Person'] },
@@ -592,8 +591,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-sort',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-sort'),
         context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
       }, { correlationId: 'test-corr-id' });
 
@@ -636,8 +635,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-inference',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-inference'),
         context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
       }, { correlationId: 'test-corr-id' });
 
@@ -685,8 +684,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-inference-fail',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-inference-fail'),
         context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
       }, { correlationId: 'test-corr-id' });
 
@@ -706,8 +705,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-no-inference',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-no-inference'),
         context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
       }, { correlationId: 'test-corr-id' });
 
@@ -724,8 +723,8 @@ describe('Matcher', () => {
       const resultPromise = eventBus.on('match:search-failed').pipe(take(1)).toPromise();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-fail',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-fail'),
         context: makeContext({ selected: { before: '', text: 'anything', after: '' } }),
       }, { correlationId: 'test-corr-id' });
 
@@ -773,8 +772,8 @@ describe('Matcher', () => {
         const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-          referenceId: 'ref-range',
+        resourceId: resourceId('test-resource'),
+          referenceId: annotationId('ref-range'),
           context: makeContext(),
         }, { correlationId: 'test-corr-id' });
 
@@ -798,8 +797,8 @@ describe('Matcher', () => {
         const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-          referenceId: 'ref-malformed',
+        resourceId: resourceId('test-resource'),
+          referenceId: annotationId('ref-malformed'),
           context: makeContext(),
         }, { correlationId: 'test-corr-id' });
 
@@ -819,8 +818,8 @@ describe('Matcher', () => {
         const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-          referenceId: 'ref-empty',
+        resourceId: resourceId('test-resource'),
+          referenceId: annotationId('ref-empty'),
           context: makeContext({ selected: { before: '', text: 'Alpha', after: '' } }),
         }, { correlationId: 'test-corr-id' });
 
@@ -838,8 +837,8 @@ describe('Matcher', () => {
         const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-          referenceId: 'ref-oob',
+        resourceId: resourceId('test-resource'),
+          referenceId: annotationId('ref-oob'),
           context: makeContext(),
         }, { correlationId: 'test-corr-id' });
 
@@ -857,8 +856,8 @@ describe('Matcher', () => {
         const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-          referenceId: 'ref-threshold',
+        resourceId: resourceId('test-resource'),
+          referenceId: annotationId('ref-threshold'),
           context: makeContext(),
         }, { correlationId: 'test-corr-id' });
 
@@ -882,8 +881,8 @@ describe('Matcher', () => {
 
         const summary = 'This passage discusses Greek mythology figures.';
         eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-          referenceId: 'ref-summary',
+        resourceId: resourceId('test-resource'),
+          referenceId: annotationId('ref-summary'),
           context: makeContext({
             selected: { before: '', text: 'Zeus', after: '' },
             graph: buildGraph({
@@ -905,8 +904,8 @@ describe('Matcher', () => {
         const resultPromise = eventBus.on('match:search-results').pipe(take(1)).toPromise();
 
         eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-          referenceId: 'ref-passage',
+        resourceId: resourceId('test-resource'),
+          referenceId: annotationId('ref-passage'),
           context: makeContext({
             selected: { before: 'In the beginning,', text: 'Zeus ruled the heavens', after: 'and the earth.' },
             metadata: { entityTypes: ['Person', 'Deity'] },
@@ -932,8 +931,8 @@ describe('Matcher', () => {
       await matcher.stop();
 
       eventBus.emit('match:search-requested', {
-        resourceId: 'test-resource',
-        referenceId: 'ref-4',
+        resourceId: resourceId('test-resource'),
+        referenceId: annotationId('ref-4'),
         context: makeContext({ selected: { text: 'after stop' } }),
       }, { correlationId: 'test-corr-id' });
 

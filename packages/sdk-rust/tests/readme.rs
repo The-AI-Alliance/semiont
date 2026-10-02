@@ -11,12 +11,13 @@ use semiont::session::{
 };
 use semiont::state::{MarkStateUnit, PendingAnnotation};
 use semiont::storage::SessionStorage;
+use semiont::testing::as_id;
 use semiont::testing::examples::assert_readme_shows;
 use semiont::testing::{
     FaultyTransport, ScriptedSessions, SharedStorage, TestClientOptions, create_test_client,
 };
 use semiont::transport::{BoxFuture, Envelope};
-use semiont::types::{JobCompleteCommand, Motivation};
+use semiont::types::{InvalidIdentifier, JobCompleteCommand, Motivation, ResourceId};
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -24,21 +25,36 @@ use tokio::sync::{mpsc, watch};
 
 // ── The examples ────────────────────────────────────────────────────────
 
-async fn a_script(client: &SemiontClient) -> Result<JobEvent, SemiontError> {
+fn ids() -> Result<ResourceId, InvalidIdentifier> {
+    // <readme:ids>
+    // An id is made from text by its kind's rule.
+    let resource_id: ResourceId = "5bcd259ab1464cf68a556bbad21f513f".parse()?;
+    // Text the rule refuses is refused here, before anything is sent.
+    assert!(ResourceId::new("../another").is_err());
+    // It reads as the text it is.
+    println!("{resource_id}, {} characters", resource_id.len());
+    // </readme:ids>
+    Ok(resource_id)
+}
+
+async fn a_script(
+    client: &SemiontClient,
+    resource_id: ResourceId,
+) -> Result<JobEvent, SemiontError> {
     // <readme:script>
     // Asked once, answered once.
     let about = client.browse.kb().await?;
     println!("{} at {}", about.name, about.domain);
 
     // A query, read once.
-    let resource = client.browse.resource("res-1").fresh().await?;
+    let resource = client.browse.resource(&resource_id).fresh().await?;
     println!("{}", resource.name);
 
     // A long-running operation, awaited for its final value.
     let done = client
         .mark
         .assist(
-            "res-1",
+            &resource_id,
             Motivation::Highlighting,
             MarkAssistOptions::default(),
         )
@@ -64,6 +80,7 @@ async fn a_daemon(client: &SemiontClient, mut done: impl FnMut(JobCompleteComman
 async fn an_application(
     storage: Arc<dyn SessionStorage>,
     session_factory: Arc<dyn SessionFactory>,
+    resource_id: ResourceId,
     mut render: impl FnMut(Option<&PendingAnnotation>),
 ) -> Result<(), watch::error::RecvError> {
     // <readme:application>
@@ -79,7 +96,7 @@ async fn an_application(
     // A flow, held as state over the session's client: here, the annotation
     // being composed on a resource.
     if let Some(session) = session {
-        let marking = MarkStateUnit::new(session.client().clone(), "res-1");
+        let marking = MarkStateUnit::new(session.client().clone(), &resource_id);
         let mut pending = marking.pending();
         while pending.changed().await.is_ok() {
             render(pending.borrow_and_update().as_ref());
@@ -154,7 +171,7 @@ async fn the_script_asks_reads_and_awaits_a_job_to_its_completion() {
         ..TestClientOptions::default()
     });
     let (client, script) = (test.client.clone(), test.client.clone());
-    let running = tokio::spawn(async move { a_script(&script).await });
+    let running = tokio::spawn(async move { a_script(&script, as_id("res-1")).await });
     settle().await;
 
     client
@@ -191,7 +208,7 @@ async fn the_daemon_is_given_each_completion_until_the_client_closes() {
     let recording = seen.clone();
     let running = tokio::spawn(async move {
         a_daemon(&daemon, |job| {
-            recording.lock().expect("seen").push(job.job_id);
+            recording.lock().expect("seen").push(job.job_id.to_string());
         })
         .await;
     });
@@ -262,14 +279,19 @@ async fn the_application_renders_the_annotation_being_composed_in_the_active_kno
         clients: clients.clone(),
     };
     let (rendered, mut renders) = mpsc::unbounded_channel();
-    let running = tokio::spawn(an_application(storage, Arc::new(factory), move |pending| {
-        let _ = rendered.send(pending.map(|pending| pending.motivation));
-    }));
+    let running = tokio::spawn(an_application(
+        storage,
+        Arc::new(factory),
+        as_id("res-1"),
+        move |pending| {
+            let _ = rendered.send(pending.map(|pending| pending.motivation));
+        },
+    ));
     settle().await;
 
     let client = clients.lock().expect("clients")[0].clone();
     client.mark.request(
-        "res-1",
+        &as_id("res-1"),
         serde_json::from_value(json!({ "type": "TextQuoteSelector", "exact": "hello" }))
             .expect("a selector"),
         Motivation::Highlighting,
@@ -280,6 +302,14 @@ async fn the_application_renders_the_annotation_being_composed_in_the_active_kno
         .expect("it is rendered");
     assert_eq!(shown, Some(Some(Motivation::Highlighting)));
     running.abort();
+}
+
+#[test]
+fn the_ids_example_makes_an_id_and_refuses_what_is_not_one() {
+    assert_eq!(
+        ids().expect("the text is an id"),
+        "5bcd259ab1464cf68a556bbad21f513f"
+    );
 }
 
 #[tokio::test(start_paused = true)]

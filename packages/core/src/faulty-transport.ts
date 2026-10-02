@@ -163,7 +163,7 @@ export class FaultyTransport implements ITransport {
     const name = channel as string;
     if (!isOperation(name)) {
       // Non-request channel: forward as-is (scoped or global).
-      const target = envelope?.scope === undefined ? this.bus : this.bus.scope(envelope!.scope as string);
+      const target = envelope?.scope === undefined ? this.bus : this.bus.scope(envelope!.scope);
       // `scope` is not repeated — targeting the scoped bus IS how it is set.
       target.emit(channel, payload, { correlationId: envelope?.correlationId });
       return 1;

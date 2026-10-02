@@ -12,6 +12,7 @@
  *
  * Started RED (both hrefs were `/api/resources/res-1`).
  */
+import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -72,7 +73,7 @@ function fakeSession(clientExtras: Record<string, unknown>): SemiontSession {
 const annotateProps = (session: SemiontSession) => ({
   content: '',
   mimeType: UNSUPPORTED,
-  resourceUri: 'res-1',
+  resourceUri: resourceId('res-1'),
   annotations: emptyAnnotations,
   uiState,
   annotateMode: false,
@@ -82,7 +83,7 @@ const annotateProps = (session: SemiontSession) => ({
 const browseProps = (session: SemiontSession) => ({
   content: '',
   mimeType: UNSUPPORTED,
-  resourceUri: 'res-1',
+  resourceUri: resourceId('res-1'),
   annotations: emptyAnnotations,
   annotateMode: false,
   session,

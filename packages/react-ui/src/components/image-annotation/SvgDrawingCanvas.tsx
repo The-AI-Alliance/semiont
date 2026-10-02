@@ -1,8 +1,9 @@
 'use client';
 
+import type { ResourceId } from '@semiont/core';
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import type { Annotation, AnchorRect } from '@semiont/core';
-import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, Point, resourceId as toResourceId } from '@semiont/core';
+import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, Point } from '@semiont/core';
 import { toViewportAnchorRect } from '../../lib/anchor-rect';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
@@ -37,7 +38,7 @@ function getMotivationColor(motivation: SelectionMotivation | null): { stroke: s
 interface SvgDrawingCanvasProps {
   imageUrl: string;
   /** The '@id' of the annotated resource — stamped as `source` on mark:requested (multi-viewer routing). */
-  resourceUri: string;
+  resourceUri: ResourceId;
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
@@ -285,7 +286,7 @@ export function SvgDrawingCanvas({
     // Emit annotation:requested event with SvgSelector
     if (session && selectedMotivation) {
       session.client.mark.request(
-        toResourceId(resourceUri),
+        resourceUri,
         { type: 'SvgSelector', value: nativeSvg },
         selectedMotivation,
       );

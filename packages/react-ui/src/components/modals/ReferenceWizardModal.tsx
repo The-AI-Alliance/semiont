@@ -1,8 +1,9 @@
 'use client';
 
+import type { AnnotationId } from '@semiont/core';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import type { GatheredContext, Collaborator } from '@semiont/core';
+import type { GatheredContext, Collaborator, ResourceId } from '@semiont/core';
 import { uuidV4 } from '@semiont/core';
 import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
@@ -37,9 +38,9 @@ export interface ReferenceWizardModalProps {
   isOpen: boolean;
   onClose: () => void;
   /** The annotation being resolved */
-  annotationId: string | null;
+  annotationId: AnnotationId | null;
   /** The resource containing the annotation */
-  resourceId: string | null;
+  resourceId: ResourceId | null;
   /** Default title (selected text) */
   defaultTitle: string;
   /** Folder of the source resource, so new files land beside it (D11). */
@@ -59,14 +60,14 @@ export interface ReferenceWizardModalProps {
   contextLoading: boolean;
   contextError: Error | null;
   /** Callbacks */
-  onGenerateSubmit: (referenceId: string, config: GenerationConfig) => void;
-  onLinkResource: (referenceId: string, targetResourceId: string) => void;
+  onGenerateSubmit: (referenceId: AnnotationId, config: GenerationConfig) => void;
+  onLinkResource: (referenceId: AnnotationId, targetResourceId: ResourceId) => void;
   /**
    * Create-and-link (COMPOSE-IN-MODAL): the host runs `yield.resource` then
    * `bind.body` and settles the promise; rejection keeps the modal open with
    * the compose footer re-enabled. Replaces the old navigate-to-page flow.
    */
-  onComposeSubmit: (referenceId: string, params: ComposeParams) => Promise<void>;
+  onComposeSubmit: (referenceId: AnnotationId, params: ComposeParams) => Promise<void>;
   /** Picker vocabulary for compose when the reference fixed no entity types. */
   entityTypeOptions?: string[];
   /** Editor hover delay for the compose step's CodeMirror. */
@@ -294,7 +295,7 @@ export function ReferenceWizardModal({
     setIsSearching(true);
     setSearchError(null);
     session?.client.match.requestSearch({
-      resourceId,
+      resourceId: resourceId,
       referenceId: annotationId,
       context: contextWithHint,
       limit: config.limit,
@@ -309,7 +310,7 @@ export function ReferenceWizardModal({
     onClose();
   }, [annotationId, onGenerateSubmit, onClose]);
 
-  const handleLink = useCallback((targetResourceId: string) => {
+  const handleLink = useCallback((targetResourceId: ResourceId) => {
     if (!annotationId) return;
     onLinkResource(annotationId, targetResourceId);
     onClose();

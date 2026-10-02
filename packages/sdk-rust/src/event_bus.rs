@@ -19,6 +19,7 @@ use crate::bus::{Typed, payload_of};
 use crate::channels::Channel;
 use crate::errors::TransportError;
 use crate::transport::{Envelope, Events, Frame, Lagged, STREAM_BACKLOG};
+use crate::types::ResourceId;
 use futures_core::Stream;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -28,7 +29,7 @@ use std::task::{Context, Poll};
 use tokio::sync::broadcast;
 
 /// A view's key: the channel, and the scope it sees.
-type View = (String, Option<String>);
+type View = (String, Option<ResourceId>);
 
 struct Channels {
     frames: HashMap<String, broadcast::Sender<Frame>>,
@@ -78,7 +79,7 @@ impl Inner {
         observers
     }
 
-    fn frames(self: &Arc<Self>, channel: &str, scope: Option<String>) -> BusFrames {
+    fn frames(self: &Arc<Self>, channel: &str, scope: Option<ResourceId>) -> BusFrames {
         let views = vec![(channel.to_owned(), scope.clone())];
         let mut channels = self.channels();
         let events = match channels.as_mut() {
@@ -137,7 +138,7 @@ pub struct BusFrames {
     bus: Arc<Inner>,
     /// What it reads, for the count `emit` reports.
     views: Vec<View>,
-    scope: Option<String>,
+    scope: Option<ResourceId>,
     events: Events<Frame>,
 }
 
@@ -237,10 +238,10 @@ impl EventBus {
     }
 
     /// This bus, seen from one resource's scope.
-    pub fn scope(&self, resource_id: &str) -> ScopedEventBus {
+    pub fn scope(&self, resource_id: &ResourceId) -> ScopedEventBus {
         ScopedEventBus {
             inner: self.inner.clone(),
-            scope: resource_id.to_owned(),
+            scope: resource_id.clone(),
         }
     }
 
@@ -273,7 +274,7 @@ impl EventBus {
 #[derive(Clone)]
 pub struct ScopedEventBus {
     inner: Arc<Inner>,
-    scope: String,
+    scope: ResourceId,
 }
 
 impl ScopedEventBus {
@@ -299,14 +300,6 @@ impl ScopedEventBus {
     pub fn frames(&self, channel: &str) -> BusFrames {
         self.inner.frames(channel, Some(self.scope.clone()))
     }
-
-    /// A scope within this one.
-    pub fn scope(&self, within: &str) -> ScopedEventBus {
-        ScopedEventBus {
-            inner: self.inner.clone(),
-            scope: format!("{}:{within}", self.scope),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -322,12 +315,20 @@ mod tests {
     async fn a_global_view_does_not_see_a_scope_and_a_scope_sees_only_its_own() {
         let bus = EventBus::new();
         let mut global = bus.frames("mark:added");
-        let mut one = bus.scope("res-1").frames("mark:added");
-        let mut other = bus.scope("res-2").frames("mark:added");
+        let mut one = bus.scope(&"res-1".parse().unwrap()).frames("mark:added");
+        let mut other = bus.scope(&"res-2".parse().unwrap()).frames("mark:added");
 
         assert_eq!(bus.emit("mark:added", payload(1), Envelope::default()), 1);
-        assert_eq!(bus.scope("res-1").emit("mark:added", payload(2), None), 1);
-        assert_eq!(bus.scope("res-3").emit("mark:added", payload(3), None), 0);
+        assert_eq!(
+            bus.scope(&"res-1".parse().unwrap())
+                .emit("mark:added", payload(2), None),
+            1
+        );
+        assert_eq!(
+            bus.scope(&"res-3".parse().unwrap())
+                .emit("mark:added", payload(3), None),
+            0
+        );
         bus.destroy();
 
         let seen = |frames: Vec<Frame>| -> Vec<Value> {
@@ -378,7 +379,8 @@ mod tests {
             assert_eq!(bus.emit(channel, payload(n), Envelope::default()), 1);
         }
         bus.emit("mark:submit", payload(9), Envelope::default());
-        bus.scope("res-1").emit("mark:requested", payload(9), None);
+        bus.scope(&"res-1".parse().unwrap())
+            .emit("mark:requested", payload(9), None);
         drop(bus.frames_among(&["mark:requested"]));
         bus.destroy();
 

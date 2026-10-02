@@ -11,6 +11,7 @@
 use bytes::Bytes;
 use semiont::client::SemiontClient;
 use semiont::namespaces::{CreateFromTokenOptions, MarkAssistOptions, ResourceFilters};
+use semiont::testing::as_id;
 use semiont::testing::{
     ContentCall, FaultyTransport, InMemoryContent, StubGateway, TestClientOptions,
     create_test_client,
@@ -253,7 +254,10 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
         }
         ("frame", "addTagSchema") => go!(client.frame.add_tag_schema(args.typed("schema"))),
 
-        ("browse", "resource") => go!(client.browse.resource(&args.text("resourceId")).fresh()),
+        ("browse", "resource") => go!(client
+            .browse
+            .resource(&as_id(&args.text("resourceId")))
+            .fresh()),
         ("browse", "resources") => {
             let stated = args.0.get("filters").map(object).unwrap_or_default();
             let filters = ResourceFilters {
@@ -271,11 +275,17 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
             go!(client.browse.resources(filters).fresh())
         }
         ("browse", "annotations") => {
-            go!(client.browse.annotations(&args.text("resourceId")).fresh())
+            go!(client
+                .browse
+                .annotations(&as_id(&args.text("resourceId")))
+                .fresh())
         }
         ("browse", "annotation") => go!(client
             .browse
-            .annotation(&args.text("resourceId"), &args.text("annotationId"))
+            .annotation(
+                &as_id(&args.text("resourceId")),
+                &as_id(&args.text("annotationId"))
+            )
             .fresh()),
         ("browse", "entityTypes") => go!(client.browse.entity_types().fresh()),
         ("browse", "tagSchemas") => go!(client.browse.tag_schemas().fresh()),
@@ -283,45 +293,48 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
         ("browse", "referencedBy") => {
             go!(client
                 .browse
-                .referenced_by(&args.text("resourceId"))
+                .referenced_by(&as_id(&args.text("resourceId")))
                 .fresh())
         }
-        ("browse", "events") => go!(client.browse.events(&args.text("resourceId")).fresh()),
+        ("browse", "events") => go!(client
+            .browse
+            .events(&as_id(&args.text("resourceId")))
+            .fresh()),
         ("browse", "resourceContent") => {
             let resource_id = args.text("resourceId");
-            go!(client.browse.resource_content(&resource_id))
+            go!(client.browse.resource_content(&as_id(&resource_id)))
         }
         ("browse", "resourceGraph") => {
             let resource_id = args.text("resourceId");
-            go!(client.browse.resource_graph(&resource_id))
+            go!(client.browse.resource_graph(&as_id(&resource_id)))
         }
         ("browse", "resourceAnchoredText") => {
             let resource_id = args.text("resourceId");
-            go!(client.browse.resource_anchored_text(&resource_id))
+            go!(client.browse.resource_anchored_text(&as_id(&resource_id)))
         }
         ("browse", "resourceRepresentation") => {
             let resource_id = args.text("resourceId");
-            go!(client.browse.resource_representation(&resource_id))
+            go!(client.browse.resource_representation(&as_id(&resource_id)))
         }
         ("browse", "resourceRepresentationStream") => {
             let resource_id = args.text("resourceId");
             tokio::spawn(async move {
                 let _ = client
                     .browse
-                    .resource_representation_stream(&resource_id)
+                    .resource_representation_stream(&as_id(&resource_id))
                     .await
                     .map(|_| ());
             });
         }
         ("browse", "resourceEvents") => {
             let resource_id = args.text("resourceId");
-            go!(client.browse.resource_events(&resource_id))
+            go!(client.browse.resource_events(&as_id(&resource_id)))
         }
         ("browse", "annotationHistory") => {
             let (resource_id, annotation_id) = (args.text("resourceId"), args.text("annotationId"));
             go!(client
                 .browse
-                .annotation_history(&resource_id, &annotation_id))
+                .annotation_history(&as_id(&resource_id), &as_id(&annotation_id)))
         }
         ("browse", "files") => {
             let path = args.optional_text("dirPath");
@@ -329,27 +342,33 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
             go!(client.browse.files(path.as_deref(), sort))
         }
         ("browse", "kb") => go!(client.browse.kb()),
-        ("browse", "click") => client.browse.click(&args.text("annotationId")),
-        ("browse", "openResource") => client.browse.open_resource(&args.text("resourceId")),
-        ("browse", "resourceViewed") => client.browse.resource_viewed(&args.text("resourceId")),
+        ("browse", "click") => client.browse.click(&as_id(&args.text("annotationId"))),
+        ("browse", "openResource") => client
+            .browse
+            .open_resource(&as_id(&args.text("resourceId"))),
+        ("browse", "resourceViewed") => client
+            .browse
+            .resource_viewed(&as_id(&args.text("resourceId"))),
 
         ("mark", "annotation") => go!(client.mark.annotation(args.typed("input"))),
         ("mark", "delete") => {
             let (resource_id, annotation_id) = (args.text("resourceId"), args.text("annotationId"));
-            go!(client.mark.delete(&resource_id, &annotation_id))
+            go!(client
+                .mark
+                .delete(&as_id(&resource_id), &as_id(&annotation_id)))
         }
         ("mark", "archive") => {
             let resource_id = args.text("resourceId");
-            go!(client.mark.archive(&resource_id))
+            go!(client.mark.archive(&as_id(&resource_id)))
         }
         ("mark", "unarchive") => {
             let resource_id = args.text("resourceId");
-            go!(client.mark.unarchive(&resource_id))
+            go!(client.mark.unarchive(&as_id(&resource_id)))
         }
         ("mark", "updateEntityTypes") => {
             let resource_id = args.text("resourceId");
             go!(client.mark.update_entity_types(
-                &resource_id,
+                &as_id(&resource_id),
                 args.typed("current"),
                 args.typed("updated")
             ))
@@ -358,11 +377,15 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
             let options: MarkAssistOptions = args.typed("options");
             go!(client
                 .mark
-                .assist(&args.text("resourceId"), args.typed("motivation"), options)
+                .assist(
+                    &as_id(&args.text("resourceId")),
+                    args.typed("motivation"),
+                    options
+                )
                 .into_future())
         }
         ("mark", "request") => client.mark.request(
-            &args.text("source"),
+            &as_id(&args.text("source")),
             args.typed("selector"),
             args.typed("motivation"),
         ),
@@ -375,9 +398,11 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
 
         ("bind", "body") => {
             let (resource_id, annotation_id) = (args.text("resourceId"), args.text("annotationId"));
-            go!(client
-                .bind
-                .body(&resource_id, &annotation_id, args.typed("operations")))
+            go!(client.bind.body(
+                &as_id(&resource_id),
+                &as_id(&annotation_id),
+                args.typed("operations")
+            ))
         }
         ("bind", "initiate") => client.bind.initiate(args.typed("input")),
         ("bind", "reportBodyError") => client.bind.report_body_error(args.typed("input")),
@@ -386,7 +411,11 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
             let window = args.options().get("contextWindow").and_then(Value::as_i64);
             go!(client
                 .gather
-                .annotation(&args.text("resourceId"), &args.text("annotationId"), window)
+                .annotation(
+                    &as_id(&args.text("resourceId")),
+                    &as_id(&args.text("annotationId")),
+                    window
+                )
                 .into_future())
         }
         ("gather", "resource") => {
@@ -398,7 +427,7 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
             );
             options.extend(args.options());
             let options = serde_json::from_value(Value::Object(options)).expect("gather options");
-            go!(client.gather.resource(&resource_id, options))
+            go!(client.gather.resource(&as_id(&resource_id), options))
         }
 
         ("match", "search") => {
@@ -455,7 +484,7 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
         }
         ("yield", "cloneToken") => {
             let resource_id = args.text("resourceId");
-            go!(client.yield_.clone_token(&resource_id))
+            go!(client.yield_.clone_token(&as_id(&resource_id)))
         }
         ("yield", "fromToken") => {
             let token = args.text("token");
@@ -475,33 +504,37 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
 
         ("beckon", "attention") => {
             let (resource_id, annotation_id) = (args.text("resourceId"), args.text("annotationId"));
-            go!(client.beckon.attention(&resource_id, &annotation_id))
+            go!(client
+                .beckon
+                .attention(&as_id(&resource_id), &as_id(&annotation_id)))
         }
         ("beckon", "click") => {
             let annotation_id = args.text("annotationId");
-            go!(client.beckon.click(&annotation_id))
+            go!(client.beckon.click(&as_id(&annotation_id)))
         }
         ("beckon", "openResource") => {
             let resource_id = args.text("resourceId");
-            go!(client.beckon.open_resource(&resource_id))
+            go!(client.beckon.open_resource(&as_id(&resource_id)))
         }
         ("beckon", "sparkleAll") => {
             let annotation_id = args.text("annotationId");
-            go!(client.beckon.sparkle_all(&annotation_id))
+            go!(client.beckon.sparkle_all(&as_id(&annotation_id)))
         }
-        ("beckon", "hover") => client
-            .beckon
-            .hover(args.optional_text("annotationId").as_deref()),
-        ("beckon", "sparkle") => client.beckon.sparkle(&args.text("annotationId")),
+        ("beckon", "hover") => client.beckon.hover(
+            args.optional_text("annotationId")
+                .map(|id| as_id(&id))
+                .as_ref(),
+        ),
+        ("beckon", "sparkle") => client.beckon.sparkle(&as_id(&args.text("annotationId"))),
 
         ("job", "status") => {
             let job_id = args.text("jobId");
-            go!(client.job.status(&job_id))
+            go!(client.job.status(&as_id(&job_id)))
         }
         ("job", "pollUntilComplete") => {
             let job_id = args.text("jobId");
             go!(client.job.poll_until_complete(
-                &job_id,
+                &as_id(&job_id),
                 Duration::from_millis(10),
                 Duration::from_millis(50),
                 |_| {}
@@ -510,7 +543,7 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
         ("job", "cancelByType") => go!(client.job.cancel_by_type(args.typed("jobType"))),
         ("job", "cancel") => {
             let job_id = args.text("jobId");
-            go!(client.job.cancel(&job_id))
+            go!(client.job.cancel(&as_id(&job_id)))
         }
         ("job", "cancelRequest") => client.job.cancel_request(args.typed("jobType")),
 
@@ -524,7 +557,7 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
             let resource_id = args.text("resourceId");
             go!(async move {
                 match &client.auth {
-                    Some(auth) => auth.media_token(&resource_id).await.map(|_| ()),
+                    Some(auth) => auth.media_token(&as_id(&resource_id)).await.map(|_| ()),
                     None => panic!("a client with a gateway has auth"),
                 }
             })

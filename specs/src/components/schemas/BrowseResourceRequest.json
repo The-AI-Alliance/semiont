@@ -3,7 +3,7 @@
   "description": "Request to browse a single resource",
   "properties": {
     "resourceId": {
-      "type": "string"
+      "$ref": "./ResourceId.json"
     }
   },
   "required": [

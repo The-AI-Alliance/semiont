@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderHook, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { resourceId } from '@semiont/core';
 import type { SemiontBrowser } from '@semiont/sdk';
 import { useObservableRouter, useObservableExternalNavigation } from '../useObservableBrowse';
 import { createTestSemiontWrapper } from '../../test-utils';
@@ -92,7 +93,7 @@ describe('useObservableExternalNavigation', () => {
     browser.stream('nav:external').subscribe((e: any) => events.push(e));
 
     act(() => {
-      result.current('/some/url', { resourceId: 'res-123' });
+      result.current('/some/url', { resourceId: resourceId('res-123') });
     });
 
     expect(events).toHaveLength(1);

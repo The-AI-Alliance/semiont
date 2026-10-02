@@ -8,6 +8,7 @@ use semiont::channels::{
 };
 use semiont::errors::SemiontError;
 use semiont::testing::FaultyTransport;
+use semiont::testing::as_id;
 use semiont::transport::{Envelope, Frame, Transport};
 use semiont::types::{
     Annotation, AnnotationBodies, AnnotationTargetValue, BeckonFocusEvent,
@@ -59,7 +60,7 @@ async fn a_typed_stream_decodes_each_payload_and_leaves_the_gateways_stamps_out_
             channel: BeckonFocus::NAME.to_owned(),
             payload: object(payload),
             correlation_id: None,
-            scope: Some("res-1".to_owned()),
+            scope: Some(as_id("res-1")),
             trace: None,
         })
     };
@@ -127,7 +128,7 @@ fn an_annotation_decodes_with_one_body_or_several_and_a_target_that_is_text_or_a
         one.body,
         Some(AnnotationBodies::AnnotationBody(_))
     ));
-    assert!(matches!(one.target, AnnotationTargetValue::Text(ref iri) if iri == "res-1"));
+    assert!(matches!(one.target, AnnotationTargetValue::ResourceId(ref id) if id == "res-1"));
 
     let wire = annotation(json!([body.clone(), body]), json!({ "source": "res-1" }));
     let several: Annotation = serde_json::from_value(wire.clone()).expect("several bodies");

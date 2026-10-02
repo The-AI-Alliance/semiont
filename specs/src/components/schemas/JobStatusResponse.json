@@ -2,7 +2,7 @@
   "type": "object",
   "properties": {
     "jobId": {
-      "type": "string"
+      "$ref": "./JobId.json"
     },
     "type": {
       "$ref": "./JobType.json"
@@ -18,7 +18,7 @@
       ]
     },
     "userId": {
-      "type": "string"
+      "$ref": "./UserId.json"
     },
     "created": {
       "type": "string"

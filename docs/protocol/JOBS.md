@@ -141,6 +141,18 @@ What holds for all nine:
 - **The gateway checks the payload first.** A payload that does not match the channel's schema is
   refused to its emitter with `400` and never reaches the dispatcher. The gateway replaces any
   `_userId` and `_roles` the emitter wrote with the verified principal's DID and roles.
+- **A frame that does not decode changes no job.** One that did not pass a gateway may not be its
+  channel's payload: a field missing or of another type, or an id its kind refuses
+  ([`ResourceId`](../../specs/src/components/schemas/ResourceId.json),
+  [`JobId`](../../specs/src/components/schemas/JobId.json),
+  [`UserId`](../../specs/src/components/schemas/UserId.json),
+  [`AnnotationId`](../../specs/src/components/schemas/AnnotationId.json)), an empty one included.
+  The dispatcher decodes a frame before it reads any of it, so such a frame is never acted on in
+  part. For the four operations the reply is the failure channel, with no code and the message
+  `a <channel> that is not a <payload schema>: <what did not decode>`, before the queue is
+  consulted. A one-way command is dropped: nothing is answered, and the dispatcher logs
+  `A command that does not decode` with the channel and the reason. An id that is absent is not this
+  case: the sections below say what each channel does without one.
 - **All nine are emitted globally,** never resource-scoped. `job:complete`, `job:fail` and
   `job:report-progress` reach every client (`audience: everyone`): the dispatcher applies them to the
   queue by `jobId`, a caller that created the job filters by `jobId`, and a resource's viewers filter
@@ -170,13 +182,13 @@ Admits a new job. Reads `jobType`, `resourceId`, `params` and `_userId`
 
 | # | Applies to | Check | Refusal message |
 |---|---|---|---|
-| 1 | all | `_userId` is a non-empty string | `_userId is required (injected by bus gateway)` |
+| 1 | all | `_userId` is present | `_userId is required (injected by bus gateway)` |
 | 2 | all | `params.resourceId` is absent | `job:create must omit params.resourceId — the job's resource is its resourceId, or a generation's context focus` |
 | 3 | `generation` | `resourceId` is absent | `generation job:create must omit resourceId — the context's focus is authoritative` |
 | 4 | `generation` | `params.referenceId` is absent | `generation job:create must omit params.referenceId — the context's focus is authoritative` |
 | 5 | `generation` | `params.title` and `params.storageUri` are non-empty strings and `params.context` is an object | `generation params do not satisfy GenerationJobParams (title, storageUri, and context are required)` |
-| 6 | `generation` | the **focus rule** yields a non-empty string (below) | `generation context has no usable focus — pass a GatheredContext produced by gather.resource(...) or gather.annotation(...)` |
-| 7 | every other type | `resourceId` is a non-empty string | `<jobType> job:create requires resourceId` |
+| 6 | `generation` | the **focus rule** yields a resource id (below) | `generation context has no usable focus — pass a GatheredContext produced by gather.resource(...) or gather.annotation(...)` |
+| 7 | every other type | `resourceId` is present | `<jobType> job:create requires resourceId` |
 | 8 | `reference-annotation`, `generation` | when `params.entityTypes` is a non-empty array: every member is a registered entity type (**read 1**) | `Entity type not registered: <a>, <b>` — the unregistered members, comma-separated |
 | 9 | `tag-annotation` | **read 2**, then `params.schemaId` is a non-empty string | `tag-annotation requires schemaId` |
 | 10 | `tag-annotation` | `params.schemaId` names a registered tag schema | `Tag schema not registered: <schemaId>` |
@@ -188,7 +200,8 @@ then refused with a runtime error message this document does not specify.
 **The focus rule** derives a generation job's resource from its gathered context,
 `params.context.focus`: when `focus.kind` is `"resource"`, the resource is `focus.resource["@id"]`;
 when it is `"annotation"`, it is `focus.sourceResource["@id"]`, the resource the focal annotation is
-on. Any other focus yields none. For every other type the resource is the envelope's `resourceId`.
+on. Any other focus yields none, and so does an `@id` that is not a
+[`ResourceId`](../../specs/src/components/schemas/ResourceId.json). For every other type the resource is the envelope's `resourceId`.
 
 **The two reads** ask the Archivist over the bus, as the dispatcher's own requests:
 `browse:entity-types-requested` (read 1) and `browse:tag-schemas-requested` (read 2), each with an
@@ -228,11 +241,9 @@ Hands the next pending job of the requested types to the caller. Reads `types`, 
    it received them, then every other stored record.
 3. **Nothing to claim is a decline, not an error:** `job:claim-failed`, `code: "none-pending"`,
    message `No pending job of the requested types`.
-4. **After the transition,** two checks run before the reply; each refusal carries no code and
-   leaves the job `running` ([Known defects](#known-defects)):
-   - the job's `params.resourceId` is a non-empty string, else
-     `job:claim: job <jobId> names no resource to record its assignment under`;
-   - `_userId` is a non-empty string, else `job:claim missing _userId (gateway injection)`.
+4. **After the transition,** one check runs before the reply: `_userId` is present, else
+   `job:claim missing _userId (gateway injection)`, with no code, and the job is left `running`
+   ([Known defects](#known-defects)).
 5. **Reply:** `job:claimed` with `{ response: <the running record> }`, then [`job:assign`](#jobassign).
 
 `job:claimed`'s `response` is the whole record as it stands after the claim:
@@ -283,7 +294,7 @@ them into the record ([Checkpoints](#checkpoints)). Never throttled. No reply, n
 ### `job:cancel-requested`
 
 Asks for a job, or a category of pending jobs, to be cancelled. Reads `jobId` and `jobType`
-([`JobCancelRequest`](../../specs/src/components/schemas/JobCancelRequest.json)); a non-empty `jobId`
+([`JobCancelRequest`](../../specs/src/components/schemas/JobCancelRequest.json)); `jobId`, when present,
 takes precedence.
 
 | Request | Effect | `cancelled` |
@@ -312,7 +323,7 @@ Reads one job. Reads `jobId`
 ([`JobStatusRequest`](../../specs/src/components/schemas/JobStatusRequest.json)).
 
 - No record: `job:status-failed`, message `Job not found`, no code.
-- A `jobId` the store cannot use as a key: `job:status-failed` with the store's message, no code.
+- A store error: `job:status-failed` with the store's message, no code.
 - Otherwise `job:status-result` with `{ response }`
   ([`JobStatusResponse`](../../specs/src/components/schemas/JobStatusResponse.json)):
 
@@ -480,6 +491,14 @@ Admission is the one write that is not a compare-and-swap: it creates the record
 exists, and then publishes the job's message. The exact layout — bucket, stream, subjects, consumer
 and record encoding — is specified machine-readably in [`specs/src/jobs/storage.json`](../../specs/src/jobs/storage.json).
 
+**A stored record that does not decode** — not a
+[`JobRecord`](../../specs/src/components/schemas/JobRecord.json), an id its kind refuses included —
+fails an operation that names its job, with `job <jobId>'s record: <why>`. A pass over every record
+goes on past it: a claim's search, a cancel by category, the tick's re-announcement, the dead-worker
+sweep, retention and the queue's counts each log `A stored job record that does not decode` with its id and reason, and
+take the next. Such a record is never claimed, cancelled, swept, deleted or counted, and is reported at
+every pass until it is removed by hand.
+
 **A delivered message is the dispatcher's lease on the job.** The dispatcher holds each delivered
 message, extends every lease every 7.5 seconds, and settles a lease when the job ends: acknowledged on
 `complete`, terminated on `failed` or `cancelled`, returned for immediate redelivery on a retry (or,
@@ -514,7 +533,7 @@ protocol.
   the job — one told by `willRetry` that a retry is coming, say — never learns the outcome.
 - **A claimed job can be stranded in `running`.** A `job:claimed` reply that is lost, or that arrives
   after the worker stopped waiting for it (10 seconds for the first-party worker), leaves the job
-  `running` with nobody working on it; so do the two refusals `job:claim` makes after the transition.
+  `running` with nobody working on it; so does the refusal `job:claim` makes after the transition.
   Only the dead-worker sweep recovers it, 30 minutes later, and the recovery spends its retry.
 - **No attempt fencing.** `job:complete` and `job:fail` are checked only against the job being
   `running`. A late `job:complete` or `job:fail` from an attempt the sweep gave up on concludes the

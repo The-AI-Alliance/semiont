@@ -14,7 +14,7 @@
           "type": "array",
           "description": "Ids the batch covers, whether appended now or already present.",
           "items": {
-            "type": "string"
+            "$ref": "./AnnotationId.json"
           }
         }
       },

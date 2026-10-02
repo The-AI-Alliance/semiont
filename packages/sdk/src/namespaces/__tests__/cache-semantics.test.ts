@@ -32,7 +32,7 @@ function mockAnnotation(id: string, source = 'res-1'): Annotation {
     id: annotationId(id),
     motivation: 'commenting',
     created: '2026-01-01T00:00:00Z',
-    target: { source },
+    target: { source: resourceId(source) },
     body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],
   };
 }
@@ -106,7 +106,7 @@ function fakeMarkBodyUpdated(
 }
 
 function fakeBusResumeGap(scope: string, reason: EventMap['bus:resume-gap']['reason']): EventMap['bus:resume-gap'] {
-  return { scope, lastSeenId: `p-${scope}-1`, reason };
+  return { scope: resourceId(scope), lastSeenId: `p-${scope}-1`, reason };
 }
 
 /** The stream drops and is open again: the states a drop reports, and a handoff never does. */

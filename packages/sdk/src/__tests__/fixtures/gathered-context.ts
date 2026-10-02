@@ -1,4 +1,5 @@
 import type { GatheredContext } from '@semiont/core';
+import { resourceId, annotationId } from '@semiont/core';
 
 /**
  * Minimal HONEST GatheredContext fixtures (YIELD-FROM-CONTEXT P2): every
@@ -12,7 +13,7 @@ export function resourceContextFor(rid: string): GatheredContext {
       kind: 'resource',
       resource: {
         '@context': 'https://semiont.dev/context/v1',
-        '@id': rid,
+        '@id': resourceId(rid),
         name: 'Source',
         representations: [],
       },
@@ -29,14 +30,14 @@ export function annotationContextFor(rid: string, aid: string): GatheredContext 
       annotation: {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         type: 'Annotation',
-        id: aid,
+        id: annotationId(aid),
         motivation: 'linking',
         created: '2026-01-01T00:00:00.000Z',
-        target: { source: rid },
+        target: { source: resourceId(rid) },
       },
       sourceResource: {
         '@context': 'https://semiont.dev/context/v1',
-        '@id': rid,
+        '@id': resourceId(rid),
         name: 'Source',
         representations: [],
       },

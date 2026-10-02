@@ -1,9 +1,10 @@
 'use client';
 
+import type { AnnotationId } from '@semiont/core';
 import React, { useRef, useCallback, useEffect } from 'react';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
 import type { StoredEventLike, PersistedEventType } from '@semiont/core';
-import { getAnnotationUriFromEvent } from '@semiont/core';
+import { getAnnotationIdFromEvent } from '@semiont/core';
 import {
   formatEventType,
   getEventEmoji,
@@ -24,9 +25,9 @@ interface Props {
   t: TranslateFn;
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;
-  onEventRef?: (annotationId: string | null, element: HTMLElement | null) => void;
-  onEventClick?: (annotationId: string | null) => void;
-  onEventHover?: (annotationId: string | null) => void;
+  onEventRef?: (annotationId: AnnotationId | null, element: HTMLElement | null) => void;
+  onEventClick?: (annotationId: AnnotationId | null) => void;
+  onEventHover?: (annotationId: AnnotationId | null) => void;
 }
 
 export function HistoryEvent({
@@ -42,7 +43,7 @@ export function HistoryEvent({
   onEventHover
 }: Props) {
   const displayContent = getEventDisplayContent(event, annotations, allEvents);
-  const annotationUri = getAnnotationUriFromEvent(event);
+  const annotationId = getAnnotationIdFromEvent(event);
   const creationDetails = getResourceCreationDetails(event);
   const entityTypes = getEventEntityTypes(event);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -55,7 +56,7 @@ export function HistoryEvent({
 
   // Handle hover on emoji icon with 300ms delay
   const handleEmojiMouseEnter = useCallback(() => {
-    if (!annotationUri || !onEventHoverRef.current) return;
+    if (!annotationId || !onEventHoverRef.current) return;
 
     // Clear any existing timeout
     if (hoverTimeoutRef.current) {
@@ -64,9 +65,9 @@ export function HistoryEvent({
 
     // Set new timeout for 300ms delay
     hoverTimeoutRef.current = setTimeout(() => {
-      onEventHoverRef.current?.(annotationUri);
+      onEventHoverRef.current?.(annotationId);
     }, 300);
-  }, [annotationUri]);
+  }, [annotationId]);
 
   const handleEmojiMouseLeave = useCallback(() => {
     // Clear the timeout if mouse leaves before 500ms
@@ -82,10 +83,10 @@ export function HistoryEvent({
   }, []);
 
   // Interactive events should be buttons for keyboard accessibility
-  const EventWrapper = annotationUri ? 'button' : 'div';
-  const eventWrapperProps = annotationUri ? {
+  const EventWrapper = annotationId ? 'button' : 'div';
+  const eventWrapperProps = annotationId ? {
     type: 'button' as const,
-    onClick: () => onEventClick?.(annotationUri),
+    onClick: () => onEventClick?.(annotationId),
     'aria-label': t('viewAnnotation', { content: displayContent?.exact || formatEventType(event.type as PersistedEventType, t) }),
     className: 'semiont-history-event',
     'data-related': isRelated ? 'true' : 'false',
@@ -99,7 +100,7 @@ export function HistoryEvent({
     <EventWrapper
       ref={(el: HTMLElement | null) => {
         if (onEventRef) {
-          onEventRef(annotationUri, el);
+          onEventRef(annotationId, el);
         }
       }}
       {...eventWrapperProps}

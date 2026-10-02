@@ -98,7 +98,7 @@ export function createMarkStateUnit(
     } catch (error) {
       // Client-local, resource-stamped UI notification — the wire reply
       // (mark:create-failed) is busRequest plumbing, not for UI consumption.
-      client.bus.emit('mark:create-error', { resourceId: resourceId as string, message: error instanceof Error ? error.message : String(error) });
+      client.bus.emit('mark:create-error', { resourceId, message: error instanceof Error ? error.message : String(error) });
     }
   }));
 
@@ -110,7 +110,7 @@ export function createMarkStateUnit(
       // Same as create above — the wire reply already arrives on client.bus.
       await client.mark.delete(resourceId, event.annotationId as Parameters<typeof client.mark.delete>[1]);
     } catch (error) {
-      client.bus.emit('mark:delete-error', { resourceId: resourceId as string, message: error instanceof Error ? error.message : String(error) });
+      client.bus.emit('mark:delete-error', { resourceId, message: error instanceof Error ? error.message : String(error) });
     }
   }));
 
@@ -152,7 +152,7 @@ export function createMarkStateUnit(
         // The one notification the user gets. `assistingMotivation$` stays
         // set: the job is still running as far as anyone here knows.
         client.bus.emit('mark:assist-timeout', {
-          resourceId: resourceId as string,
+          resourceId,
           motivation: event.motivation,
         });
       }, ASSIST_SILENCE_MS);

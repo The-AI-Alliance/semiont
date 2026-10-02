@@ -27,8 +27,8 @@ const silentLogger: Logger = {
 };
 
 const CID = 'cid-bind-1';
-const ANN = 'urn:semiont:ann-1';
-const RES = 'urn:semiont:res-1';
+const ANN = 'ann-1';
+const RES = 'res-1';
 const USER = 'did:semiont:user-1';
 
 const COMMAND = {

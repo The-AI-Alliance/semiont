@@ -96,7 +96,9 @@ processGenerationJob(
                                     // an unsupported request FAILS the job, never falls back
   citations: GenerationCitation[];  // populated only under `cite`; minted as W3C linking
                                     // annotations on the derived resource after upload
-  result: GenerationResult;
+  truncated: boolean;               // the model stopped at the maxTokens ceiling: the artifact
+                                    // is cut off. The worker states it in the job's result,
+                                    // which it builds once the upload has given the resource an id
 }>
 ```
 

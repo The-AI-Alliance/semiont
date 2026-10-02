@@ -35,6 +35,7 @@
     "openapi:validate": "redocly lint specs/openapi.json specs/archivist.openapi.json",
     "lint:spec-protocol": "node scripts/spec/check-protocol.mjs",
     "lint:spec-jobs": "node scripts/spec/check-jobs.mjs",
+    "lint:spec-identifiers": "node scripts/spec/check-identifiers.mjs",
     "lint:service-environment": "node scripts/lint/check-service-environment.mjs",
     "lint:rust-images": "node scripts/lint/check-rust-images.mjs",
     "lint:conformance-readmes": "node scripts/lint/check-conformance-readmes.mjs",

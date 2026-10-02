@@ -1,5 +1,6 @@
 'use client';
 
+import type { ResourceId } from '@semiont/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Annotation } from '@semiont/core';
 import { estimateSlotHeight } from './estimate-slot-height';
@@ -69,7 +70,7 @@ function scrollElementIntoView(el: Element | null | undefined, options: ScrollIn
 interface PdfAnnotationCanvasProps {
   pdfUrl: string;
   /** The '@id' of the annotated resource — stamped as `source` on mark:requested (multi-viewer routing). */
-  resourceUri: string;
+  resourceUri: ResourceId;
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;

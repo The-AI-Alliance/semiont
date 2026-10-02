@@ -8,7 +8,7 @@
       "type": "object",
       "properties": {
         "annotationId": {
-          "type": "string",
+          "$ref": "./AnnotationId.json",
           "description": "The annotation the gather was asked for."
         }
       },

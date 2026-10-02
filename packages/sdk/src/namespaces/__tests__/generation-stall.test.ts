@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { EventBus, GENERATION_STALL_FLOOR_MS } from '@semiont/core';
+import { EventBus, GENERATION_STALL_FLOOR_MS, resourceId, jobId } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { resourceContextFor } from '../../__tests__/fixtures/gathered-context';
 import { YieldNamespace } from '../yield';
@@ -115,7 +115,7 @@ describe('generation stall guard', () => {
 
     await vi.advanceTimersByTimeAsync(299_000);
     bus.emit('job:report-progress', {
-      resourceId: 'res-1', jobId: 'j1', jobType: 'generation', percentage: 50,
+      resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'generation', percentage: 50,
       progress: { percentage: 50 },
     });
 
@@ -172,11 +172,11 @@ describe('generation stall guard', () => {
     });
     await vi.advanceTimersByTimeAsync(10);
 
-    bus.emit('job:fail', { resourceId: 'res-1', jobId: 'j1', jobType: 'generation', error: 'a blip', willRetry: true });
+    bus.emit('job:fail', { resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'generation', error: 'a blip', willRetry: true });
     bus.emit('job:report-progress', {
-      resourceId: 'res-1', jobId: 'j1', jobType: 'generation', percentage: 50, progress: { percentage: 50 },
+      resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'generation', percentage: 50, progress: { percentage: 50 },
     });
-    bus.emit('job:complete', { resourceId: 'res-1', jobId: 'j1', jobType: 'generation' });
+    bus.emit('job:complete', { resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'generation' });
 
     await expect(done).resolves.toMatchObject({ kind: 'complete' });
     expect(seen).toEqual(['failed a blip', 'progress', 'complete']);
@@ -191,7 +191,7 @@ describe('generation stall guard', () => {
 
     await vi.advanceTimersByTimeAsync(299_000);
     const asked = statusCount(emitSpy);
-    bus.emit('job:fail', { resourceId: 'res-1', jobId: 'j1', jobType: 'generation', error: 'a blip', willRetry: true });
+    bus.emit('job:fail', { resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'generation', error: 'a blip', willRetry: true });
 
     // 299s after the setback: past where the deadline would have fallen had
     // the setback not been heard. The attempt that is coming has its whole
@@ -211,7 +211,7 @@ describe('generation stall guard', () => {
       const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run(() => {});
       const rejection = expect(p).rejects.toMatchObject({ code: 'job.failed', message: 'the budget is spent' });
       await new Promise((resolve) => setTimeout(resolve, 0));
-      bus.emit('job:fail', { resourceId: 'res-1', jobId: 'j1', jobType: 'generation', error: 'the budget is spent', ...said });
+      bus.emit('job:fail', { resourceId: resourceId('res-1'), jobId: jobId('j1'), jobType: 'generation', error: 'the budget is spent', ...said });
       await rejection;
     }
   });
@@ -224,10 +224,10 @@ describe('generation stall guard', () => {
     await vi.advanceTimersByTimeAsync(0); // let job:create settle → jobId assigned
 
     bus.emit('job:complete', {
-      jobId: 'j1',
+      jobId: jobId('j1'),
       jobType: 'generation',
-      resourceId: 'res-1',
-      result: { kind: 'generation', resourceId: 'res-1', resourceName: 'X', truncated: false },
+      resourceId: resourceId('res-1'),
+      result: { kind: 'generation', resourceId: resourceId('res-1'), resourceName: 'X', truncated: false },
     });
 
     await expect(p).resolves.toMatchObject({ kind: 'complete' });

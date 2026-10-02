@@ -3,11 +3,11 @@
   "description": "Request payload sent on the match:search-request bus channel to find candidate matches.",
   "properties": {
     "resourceId": {
-      "type": "string",
+      "$ref": "./ResourceId.json",
       "description": "Resource ID the reference annotation belongs to. Used to scope result events on the EventBus so the events-stream delivers them to participants viewing this resource."
     },
     "referenceId": {
-      "type": "string",
+      "$ref": "./AnnotationId.json",
       "description": "Annotation ID of the reference to search candidates for"
     },
     "context": {

@@ -157,6 +157,26 @@ is its mechanism over HTTP.
   channel with a named schema must match it, or 400; a channel the
   registry gives no schema is not validated; a channel not in the registry
   is a 400.
+- **Ids.** The spec names four kinds of id, each a schema whose pattern is
+  the rule a value of that kind is held to
+  ([specs/src/identifiers/kinds.json](../../specs/src/identifiers/kinds.json)).
+  A resource's, an annotation's and a job's id is a name: 1 to 128 letters,
+  digits, `_` and `-`, never a URI or a path. Whoever did something is
+  named by a DID. Every property that carries an id refers to its kind, so
+  a payload carrying anything else fails the validation above and is
+  refused 400. A `scope` is a resource's id and is held to the same rule,
+  on an emit and in each `scoped` entry of a subscription; so are an
+  annotation target's `source`, a reference body's `source`, and a
+  description's `wasDerivedFrom`. `npm run lint:spec-identifiers` holds the spec to it: a
+  property named for an id that refers to no kind, and a case the rule
+  does not agree with, fail it. The gateway is held to it by its suite,
+  which sends every string the table says a kind accepts and every one it
+  refuses: in a payload and as a `scope` (`gateway/emit.test.ts`), in a
+  subscription's `scoped` entry (`gateway/stream.test.ts`), to
+  `POST /api/tokens/media` and as an agent token's `did`
+  (`gateway/tokens.test.ts`), and in the path of a resource's routes, where
+  what is not an id names no resource and is a 404
+  (`gateway/content.test.ts`).
 - **Claims.** A registry operation's request carrying a `correlationId`
   claims that id for its `clientId` and the verified principal before it
   is published — `clientId` is required then (400 without it). The claim

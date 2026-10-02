@@ -29,7 +29,6 @@ export type {
   AssessmentDetectionParams,
   CommentDetectionParams,
   TagDetectionParams,
-  GenerationResult,
 } from './types';
 
 export {

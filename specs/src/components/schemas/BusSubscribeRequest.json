@@ -31,7 +31,7 @@
         "additionalProperties": false,
         "properties": {
           "scope": {
-            "type": "string",
+            "$ref": "./ResourceId.json",
             "description": "Resource scope (a resourceId).",
             "minLength": 1
           },

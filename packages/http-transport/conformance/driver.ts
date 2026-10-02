@@ -80,7 +80,7 @@ let transport: HttpTransport | undefined;
 let content: HttpContentTransport | undefined;
 /** The disposers `subscribe-resource` got, per resource, newest last. */
 const held = new Map<string, Array<() => void>>();
-/** What abandons each request still unsettled, by the id of its operation. */
+/** What abandons each request or upload still unsettled, by the id of its operation. */
 const callers = new Map<number, AbortController>();
 
 function opened(): HttpTransport {
@@ -91,6 +91,23 @@ function opened(): HttpTransport {
 function contentTransport(): HttpContentTransport {
   content ??= new HttpContentTransport(opened());
   return content;
+}
+
+/** The upload `put` and `upload` are asked for. */
+function uploadOf(args: Arguments): PutBinaryRequest {
+  return {
+    name: text(args, 'name'),
+    format: text(args, 'format') as ContentFormat,
+    storageUri: text(args, 'storageUri'),
+    file: Buffer.from(text(args, 'bytes'), 'base64'),
+    ...(args['entityTypes'] === undefined ? {} : { entityTypes: texts(args, 'entityTypes') }),
+    ...(args['language'] === undefined ? {} : { language: text(args, 'language') }),
+    ...(args['sourceResourceId'] === undefined ? {} : { sourceResourceId: text(args, 'sourceResourceId') }),
+    ...(args['sourceAnnotationId'] === undefined ? {} : { sourceAnnotationId: text(args, 'sourceAnnotationId') }),
+    ...(args['generationPrompt'] === undefined ? {} : { generationPrompt: text(args, 'generationPrompt') }),
+    ...(args['jobId'] === undefined ? {} : { jobId: text(args, 'jobId') }),
+    ...(args['isDraft'] === undefined ? {} : { isDraft: args['isDraft'] === true }),
+  };
 }
 
 function budget(timing: Arguments): RetryPolicy {
@@ -164,7 +181,7 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
     const subscribers = await opened().emit(
       text(args, 'channel') as keyof EventMap,
       object(args, 'payload') as EventMap[keyof EventMap],
-      { ...(correlationId === undefined ? {} : { correlationId }), ...(scope === undefined ? {} : { scope }) },
+      { ...(correlationId === undefined ? {} : { correlationId }), ...(scope === undefined ? {} : { scope: resourceId(scope) }) },
     );
     return subscribers === undefined ? {} : { subscribers };
   },
@@ -189,21 +206,24 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
     caller.abort();
   },
 
-  async put(args) {
-    const request: PutBinaryRequest = {
-      name: text(args, 'name'),
-      format: text(args, 'format') as ContentFormat,
-      storageUri: text(args, 'storageUri'),
-      file: Buffer.from(text(args, 'bytes'), 'base64'),
-      ...(args['entityTypes'] === undefined ? {} : { entityTypes: texts(args, 'entityTypes') }),
-      ...(args['language'] === undefined ? {} : { language: text(args, 'language') }),
-      ...(args['sourceResourceId'] === undefined ? {} : { sourceResourceId: text(args, 'sourceResourceId') }),
-      ...(args['sourceAnnotationId'] === undefined ? {} : { sourceAnnotationId: text(args, 'sourceAnnotationId') }),
-      ...(args['generationPrompt'] === undefined ? {} : { generationPrompt: text(args, 'generationPrompt') }),
-      ...(args['jobId'] === undefined ? {} : { jobId: text(args, 'jobId') }),
-      ...(args['isDraft'] === undefined ? {} : { isDraft: args['isDraft'] === true }),
-    };
-    return contentTransport().putBinary(request);
+  put(args) {
+    return contentTransport().putBinary(uploadOf(args));
+  },
+
+  async upload(args, id) {
+    const caller = new AbortController();
+    callers.set(id, caller);
+    try {
+      return await contentTransport().putBinary(uploadOf(args), {
+        signal: caller.signal,
+        onProgress: ({ bytesUploaded, totalBytes }) => say({ progress: { upload: id, bytesUploaded, totalBytes } }),
+      });
+    } catch (error) {
+      if (caller.signal.aborted && error === caller.signal.reason) throw new Abandoned();
+      throw error;
+    } finally {
+      callers.delete(id);
+    }
   },
 
   async get(args) {

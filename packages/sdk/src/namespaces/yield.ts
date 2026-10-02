@@ -6,7 +6,7 @@ import type {
   GatheredContext,
   GenerationJobParams,
 } from '@semiont/core';
-import { resourceId as toResourceId, cloneFormat, deriveStorageUri, getPrimaryRepresentation } from '@semiont/core';
+import { cloneFormat, deriveStorageUri, getPrimaryRepresentation } from '@semiont/core';
 
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest, isReportedJobResult } from '@semiont/core';
@@ -60,9 +60,8 @@ export class YieldNamespace implements IYieldNamespace {
           ...(data.isDraft !== undefined ? { isDraft: data.isDraft } : {}),
         },
         {
-          // Byte-progress hook. Honored by `HttpContentTransport`'s XHR
-          // path; ignored by ky-path uploads (no `onProgress` consumer)
-          // and by `LocalContentTransport` (no wire to observe).
+          // Byte-progress hook. `HttpContentTransport` calls it as the
+          // bytes are sent; `LocalContentTransport` has no wire to observe.
           onProgress: ({ bytesUploaded, totalBytes: txTotal }) => {
             if (cancelled) return;
             // Prefer the transport's reported total; fall back to the
@@ -78,7 +77,7 @@ export class YieldNamespace implements IYieldNamespace {
           if (cancelled) return;
           subscriber.next({
             phase: 'finished',
-            resourceId: toResourceId(result.resourceId as string),
+            resourceId: result.resourceId,
           });
           subscriber.complete();
         })
@@ -87,10 +86,9 @@ export class YieldNamespace implements IYieldNamespace {
         });
       return () => {
         cancelled = true;
-        // Abort the in-flight HTTP request when the subscriber unsubscribes.
-        // Honored by `HttpContentTransport`'s XHR path (calls `xhr.abort()`);
-        // ky-path uploads complete in the background after abort and the
-        // `cancelled` flag suppresses the `then`/`catch` callbacks.
+        // Cancel the upload when the subscriber unsubscribes: over HTTP its
+        // connection is closed. The transport's rejection is the signal's
+        // reason, which `cancelled` keeps from the subscriber.
         abortController.abort();
       };
     });
@@ -146,7 +144,7 @@ export class YieldNamespace implements IYieldNamespace {
     // ride `job:create`).
     const { stallDeadlineMs, ...wireOptions } = options;
     const stallMs = stallDeadlineMs ?? deriveStallDeadlineMs(options.maxTokens);
-    return this.runGeneration(toResourceId(displayRid), { ...wireOptions, context }, stallMs);
+    return this.runGeneration(displayRid, { ...wireOptions, context }, stallMs);
   }
 
   /**
@@ -191,7 +189,7 @@ export class YieldNamespace implements IYieldNamespace {
               data: {
                 jobId: status.jobId,
                 jobType: status.type,
-                resourceId: resourceId as string,
+                resourceId,
                 // A job completed without a result is stored with an empty
                 // one; the job:complete this stands for carried none.
                 ...(isReportedJobResult(status.result) ? { result: status.result } : {}),

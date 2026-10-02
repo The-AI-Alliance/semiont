@@ -5,6 +5,7 @@
 
 use crate::errors::{TransportError, TransportErrorCode};
 use crate::transport::{BoxFuture, GatewayOperations};
+use crate::types::ResourceId;
 use crate::types::{
     HealthResponse, MediaTokenResponse, ProtectedResourceMetadata, StatusResponse, UserResponse,
 };
@@ -91,11 +92,13 @@ impl GatewayOperations for StubGateway {
 
     fn get_media_token<'a>(
         &'a self,
-        resource_id: &'a str,
+        resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<MediaTokenResponse, TransportError>> {
-        Box::pin(
-            async move { self.answer("get_media_token", Some(resource_id), |s| &s.media_token) },
-        )
+        Box::pin(async move {
+            self.answer("get_media_token", Some(resource_id.as_str()), |s| {
+                &s.media_token
+            })
+        })
     }
 
     fn get_protected_resource_metadata(

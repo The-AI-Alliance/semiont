@@ -4,6 +4,7 @@ use crate::channels::{GatherRequested, GatherResourceRequested};
 use crate::client::Links;
 use crate::errors::SemiontError;
 use crate::running::Running;
+use crate::types::{AnnotationId, ResourceId};
 use crate::types::{
     GatherAnnotationComplete, GatherAnnotationOptions, GatherAnnotationRequest,
     GatherResourceRequest, GatherResourceRequestOptions, GatheredContext,
@@ -42,14 +43,14 @@ impl GatherNamespace {
     /// of its source.
     pub fn annotation(
         &self,
-        resource_id: &str,
-        annotation_id: &str,
+        resource_id: &ResourceId,
+        annotation_id: &AnnotationId,
         context_window: Option<i64>,
     ) -> Running<GatherAnnotationComplete> {
         let links = self.links.clone();
         let request = GatherAnnotationRequest {
-            annotation_id: annotation_id.to_owned(),
-            resource_id: resource_id.to_owned(),
+            annotation_id: annotation_id.clone(),
+            resource_id: resource_id.clone(),
             options: Some(GatherAnnotationOptions {
                 include_source_context: None,
                 include_target_context: None,
@@ -63,7 +64,7 @@ impl GatherNamespace {
     /// nothing, and is not sent.
     pub async fn resource(
         &self,
-        resource_id: &str,
+        resource_id: &ResourceId,
         mut options: GatherResourceRequestOptions,
     ) -> Result<GatheredContext, SemiontError> {
         if options
@@ -76,7 +77,7 @@ impl GatherNamespace {
         let gathered = self
             .links
             .request::<GatherResourceRequested>(&GatherResourceRequest {
-                resource_id: resource_id.to_owned(),
+                resource_id: resource_id.clone(),
                 options,
             })
             .await?;

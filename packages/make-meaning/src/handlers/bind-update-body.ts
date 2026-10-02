@@ -1,4 +1,4 @@
-import { resourceId, annotationId } from '@semiont/core';
+import { resourceId, annotationId, userId } from '@semiont/core';
 import type { EventBus, Logger, BodyOperation } from '@semiont/core';
 
 /**
@@ -36,7 +36,7 @@ export function registerBindUpdateBodyHandler(eventBus: EventBus, parentLogger: 
       inflight.add(cid);
 
       eventBus.emit('mark:update-body', { annotationId: annotationId(annId as string),
-        _userId,
+        _userId: userId(_userId),
         resourceId: resourceId(resId as string),
         operations: operations as BodyOperation[], }, { correlationId: cid });
 

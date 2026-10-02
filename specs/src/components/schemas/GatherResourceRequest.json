@@ -3,7 +3,7 @@
   "description": "Request payload sent on the gather:resource-requested bus channel to gather context for a resource.",
   "properties": {
     "resourceId": {
-      "type": "string",
+      "$ref": "./ResourceId.json",
       "description": "Branded ResourceId of the resource to gather context for"
     },
     "options": {

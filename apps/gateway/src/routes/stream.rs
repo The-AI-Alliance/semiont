@@ -72,7 +72,7 @@ pub async fn subscribe(
         .unwrap_or_default()
         .into_iter()
         .map(|entry| Scoped {
-            scope: entry.scope,
+            scope: entry.scope.into(),
             channels: entry.channels,
             last_event_id: entry.last_event_id,
         })
@@ -118,7 +118,7 @@ pub async fn subscribe(
     })?;
     let connection = Connection::new(
         app,
-        principal.did,
+        principal.did.into(),
         client_id,
         abort,
         !scoped.iter().all(|e| e.last_event_id.is_none()),

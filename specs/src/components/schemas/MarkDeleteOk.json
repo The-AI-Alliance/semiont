@@ -7,7 +7,7 @@
       "description": "The deleted annotation's identity.",
       "properties": {
         "annotationId": {
-          "type": "string"
+          "$ref": "./AnnotationId.json"
         }
       },
       "required": [

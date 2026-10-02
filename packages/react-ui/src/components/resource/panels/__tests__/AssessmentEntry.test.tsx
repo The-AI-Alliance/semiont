@@ -16,7 +16,7 @@ vi.mock('@semiont/core', async () => {
   };
 });
 
-import { getAnnotationExactText } from '@semiont/core';
+import { getAnnotationExactText, resourceId } from '@semiont/core';
 import type { MockedFunction } from 'vitest';
 import { AssessmentEntry } from '../AssessmentEntry';
 
@@ -34,7 +34,7 @@ const createMockAssessment = (overrides?: Partial<Annotation>): Annotation => ({
   created: '2024-06-15T12:00:00Z',
   modified: '2024-06-15T12:00:00Z',
   target: {
-    source: 'resource-1',
+    source: resourceId('resource-1'),
     selector: {
       type: 'TextPositionSelector',
       start: 0,

@@ -81,17 +81,36 @@ itemLimits['BusSubscribeRequest.pendingReplies'];         // a property's maxIte
 
 ### Branded Types
 
-Compile-time type safety for URIs, tokens, and identifiers:
+Compile-time type safety for tokens and identifiers:
 
 ```typescript
-import { resourceUri, annotationUri, accessToken, entityType } from '@semiont/core';
+import { accessToken, entityType } from '@semiont/core';
 
-const rUri = resourceUri('http://localhost:4000/resources/doc-123');
 const token = accessToken('eyJhbGc...');
 const eType = entityType('Person');
 ```
 
-Branded ID types (`ResourceId`, `AnnotationId`, `UserId`) with factories and guards (`resourceId`, `annotationId`, `userId`, `isResourceId`, `isAnnotationId`) live alongside the URI brands.
+The four kinds of id are types of their own, generated from the spec ([`specs/src/identifiers/kinds.json`](../../specs/src/identifiers/kinds.json) and each kind's schema): `ResourceId`, `AnnotationId`, `JobId`, `UserId`. The spec's types carry them, so a property that holds an id is of its kind and one kind is not assignable to another. Each is made by its constructor (`resourceId`, `annotationId`, `jobId`, `userId`), which holds text to the kind's rule and throws a `TypeError` for text the rule refuses:
+
+```typescript
+import { resourceId, annotationId } from '@semiont/core';
+
+const resource = resourceId('5bcd259ab1464cf68a556bbad21f513f');
+resourceId('https://kb.example/resources/5bcd259ab1464cf68a556bbad21f513f'); // throws: a URI is not an id
+const annotation = annotationId('a-1');
+// client.mark.delete(annotation, resource) does not compile
+```
+
+Each kind also has a guard (`isResourceId`, `isAnnotationId`, `isJobId`, `isUserId`) that asks the same rule without throwing and narrows the text to the kind. Use it where text that is not an id is an ordinary answer, such as an address typed into a browser:
+
+```typescript
+import { isResourceId } from '@semiont/core';
+
+if (!isResourceId(params.id)) return notFound();
+const descriptor = await client.browse.resource(params.id).fresh();
+```
+
+A resource is named by its `ResourceId` wherever it is named: an annotation target's `source`, a reference body's `source`, a bus frame's `scope`, and a description's `wasDerivedFrom`.
 
 ### Event Sourcing Types
 

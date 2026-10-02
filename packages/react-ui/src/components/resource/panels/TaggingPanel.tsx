@@ -8,7 +8,7 @@ import { useObservable } from '../../../hooks/useObservable';
 import type { SemiontSession } from '@semiont/sdk';
 import { AssistShell } from './AssistShell';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
-import type { components, Selector } from '@semiont/core';
+import type { components, ResourceId, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { TagEntry } from './TagEntry';
 import { PanelHeader } from './PanelHeader';
@@ -44,7 +44,7 @@ interface TaggingPanelProps {
   /** Session carrying the client and event bus; null renders inert. */
   session: SemiontSession | null;
   /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
-  resourceId: string;
+  resourceId: ResourceId;
   annotations: Annotation[];
   annotateMode?: boolean;
   isAssisting?: boolean;

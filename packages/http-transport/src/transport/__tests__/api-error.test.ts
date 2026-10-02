@@ -34,16 +34,32 @@ describe('APIError', () => {
     });
   });
 
-  describe('withoutResponse', () => {
-    const cases: TransportErrorCode[] = ['unavailable', 'error'];
+  describe('refusal', () => {
+    it('is worded as the gateway worded it, and keeps the body and the wait', () => {
+      const body = { error: 'You may not write here', code: 'forbidden' };
+      const err = APIError.refusal(403, 'Forbidden', body, '7');
+      expect(err.message).toBe('You may not write here');
+      expect(err.code).toBe('forbidden');
+      expect(err.status).toBe(403);
+      expect(err.details).toEqual({ status: 403, statusText: 'Forbidden', body });
+      expect(err.retryAfterMs).toBe(7000);
+    });
 
-    it.each(cases)('carries the code the caller states: %s', (code) => {
-      const err = APIError.withoutResponse('msg', code, 'network-error');
-      expect(err.code).toBe(code);
+    it.each([['text', 'Bad Gateway'], ['a body with no `error`', { message: 'not the gateway\'s member' }], ['nothing', undefined]])(
+      'is worded by its status when the body is %s',
+      (_what, body) => {
+        expect(APIError.refusal(502, 'Bad Gateway', body, null).message).toBe('HTTP 502: Bad Gateway');
+      },
+    );
+  });
+
+  describe('withoutResponse', () => {
+    it('is `unavailable`: nothing answered', () => {
+      expect(APIError.withoutResponse('msg', 'network-error').code).toBe('unavailable');
     });
 
     it('has no status, body, or retry wait to report', () => {
-      const err = APIError.withoutResponse('Network error during upload', 'unavailable', 'network-error');
+      const err = APIError.withoutResponse('Network error during upload', 'network-error');
       expect(err).toBeInstanceOf(APIError);
       expect(err.name).toBe('APIError');
       expect(err.message).toBe('Network error during upload');

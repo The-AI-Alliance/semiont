@@ -7,6 +7,7 @@ import { ReferencesPanel } from '../ReferencesPanel';
 import type { Annotation, AnnotationId, EventBus } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { createTestSemiontWrapper } from '../../../../test-utils';
+import { resourceId } from '@semiont/core';
 
 // Composition-based event tracker
 interface TrackedEvent {
@@ -96,7 +97,7 @@ describe('ReferencesPanel Component', () => {
   } as any;
 
   const defaultProps = {
-    resourceId: 'res-1',
+    resourceId: resourceId('res-1'),
     allEntityTypes: ['Person', 'Organization', 'Location', 'Date'],
     isAssisting: false,
     progress: null,
@@ -130,10 +131,10 @@ describe('ReferencesPanel Component', () => {
       created: '2026-08-21T12:00:00Z',
       modified: '2026-08-21T12:00:00Z',
       target: {
-        source: 'res-1',
+        source: resourceId('res-1'),
         selector: { type: 'TextQuoteSelector', exact: `text of ${id}` },
       },
-      body: { type: 'SpecificResource', source: 'linked-doc', purpose: 'linking' },
+      body: { type: 'SpecificResource', source: resourceId('linked-doc'), purpose: 'linking' },
     });
 
     it('sparkles exactly the entries named by sparkleAnnotationIds', () => {

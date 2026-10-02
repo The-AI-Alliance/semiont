@@ -2,8 +2,8 @@
   "type": "object",
   "properties": {
     "source": {
-      "type": "string",
-      "description": "IRI of the resource being annotated"
+      "$ref": "./ResourceId.json",
+      "description": "The id of the resource being annotated"
     },
     "selector": {
       "$ref": "./AnnotationSelector.json",

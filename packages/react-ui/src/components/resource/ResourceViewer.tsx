@@ -1,5 +1,6 @@
 'use client';
 
+import type { ResourceId } from '@semiont/core';
 import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
@@ -9,7 +10,7 @@ import type { BrowseMediaRenderers } from './browse-renderers';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
 import type { Annotation, AnnotationId, ResourceDescriptor as SemiontResource, EventMap, AnchorRect } from '@semiont/core';
-import { getExactText, getTargetSelector, getPrimaryMediaType, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/core';
+import { getExactText, getTargetSelector, getPrimaryMediaType, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource, annotationId as makeAnnotationId } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../hooks/useSessionEventSubscriptions';
 import { ANNOTATORS } from '../../lib/annotation-registry';
@@ -40,7 +41,7 @@ interface Props {
   /** Session for the shown resource — its client mutates/invalidates, its bus feeds annotation events. */
   session: SemiontSession | null;
   /** Host-owned navigation: a resolved reference was followed. Omit for a view with no follow behavior. */
-  onOpenResource?: (resourceId: string) => void;
+  onOpenResource?: (resourceId: ResourceId) => void;
   /** Host-owned panel control (annotation clicks open a panel). Omit for hosts without side panels. */
   onOpenPanel?: (event: EventMap['panel:open']) => void;
   /** A content link in the rendered content was clicked — the viewer preventDefaults and delegates; it never navigates on its own. */
@@ -300,7 +301,7 @@ export function ResourceViewer({
     // All annotations open the unified annotations panel — the host owns the panel.
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel.
     // View geometry passes through untouched: the emitter owned it, the host anchors with it.
-    onOpenPanel?.({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation: annotation.motivation, ...(anchorRect ? { anchorRect } : {}) });
+    onOpenPanel?.({ panel: 'annotations', scrollToAnnotationId: makeAnnotationId(annotationId), motivation: annotation.motivation, ...(anchorRect ? { anchorRect } : {}) });
   }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick, onOpenPanel]);
 
   // Single subscription call per file (see scripts/compliance/audit-hooks-ordering.ts).

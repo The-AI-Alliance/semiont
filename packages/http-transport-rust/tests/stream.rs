@@ -21,6 +21,7 @@ use proptest::strategy::Strategy;
 use proptest::test_runner::{Config, TestCaseError, TestRunner};
 use semiont::bus::{Bus, operation};
 use semiont::retry::RetryPolicy;
+use semiont::testing::as_id;
 use semiont::testing::liveness::{DeliverySubject, assert_exactly_once_delivery_on};
 use semiont::transport::{BoxFuture, ConnectionState, ResourceHold, Transport};
 use semiont_http_transport::transport::{HttpTransport, HttpTransportConfig, Timing};
@@ -64,6 +65,14 @@ struct Opened {
 impl Opened {
     fn write(&self, id: &str, payload: Value) {
         let frame = json!({ "channel": CHANNEL, "payload": payload });
+        let _ = self.events.send(Bytes::from(format!(
+            "event: bus-event\nid: {id}\ndata: {frame}\n\n"
+        )));
+    }
+
+    /// A frame said to have been published on `scope`.
+    fn write_under(&self, id: &str, scope: &str, payload: Value) {
+        let frame = json!({ "channel": CHANNEL, "payload": payload, "scope": scope });
         let _ = self.events.send(Bytes::from(format!(
             "event: bus-event\nid: {id}\ndata: {frame}\n\n"
         )));
@@ -314,7 +323,7 @@ impl DeliverySubject for Wire {
         Box::pin(async move {
             let before = self.gateway.opened().len();
             let resource = format!("res-{before}");
-            let hold = self.transport.subscribe_to_resource(&resource);
+            let hold = self.transport.subscribe_to_resource(&as_id(&resource));
             self.holds.lock().unwrap().push(hold);
             // The handoff has begun once the gateway has the new stream; the
             // client has yet to take it up, and the old one lingers.
@@ -364,7 +373,7 @@ async fn a_frame_from_a_superseded_connection_leaves_a_breadcrumb() {
     let delivered = deliveries(&transport);
     reaches(&transport, ConnectionState::Open).await;
 
-    let _hold = transport.subscribe_to_resource("res-1");
+    let _hold = transport.subscribe_to_resource(&as_id("res-1"));
     until("the handoff's stream", || gateway.opened().len() == 2).await;
     // Give the client the time to take the new stream up; the old one lingers.
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -382,6 +391,21 @@ async fn a_frame_from_a_superseded_connection_leaves_a_breadcrumb() {
 }
 
 #[tokio::test]
+async fn a_frame_under_a_scope_that_is_no_resource_id_is_not_delivered_and_the_stream_goes_on() {
+    let gateway = Gateway::start().await;
+    let transport = gateway.client(Duration::from_secs(5));
+    let delivered = deliveries(&transport);
+    reaches(&transport, ConnectionState::Open).await;
+
+    gateway.opened()[0].write_under("e-1", "not an id", json!({ "annotationId": "refused" }));
+    gateway.opened()[0].write("e-2", json!({ "annotationId": "after" }));
+    until("the frame after", || !delivered.lock().unwrap().is_empty()).await;
+
+    assert_eq!(*delivered.lock().unwrap(), ["after"]);
+    transport.close().await;
+}
+
+#[tokio::test]
 async fn a_handoff_that_cannot_open_is_tried_again_and_the_state_stays_open() {
     let gateway = Gateway::start().await;
     let transport = gateway.client(Duration::from_millis(60));
@@ -395,7 +419,7 @@ async fn a_handoff_that_cannot_open_is_tried_again_and_the_state_stays_open() {
         .lock()
         .unwrap()
         .push_back(StatusCode::SERVICE_UNAVAILABLE);
-    let _hold = transport.subscribe_to_resource("res-1");
+    let _hold = transport.subscribe_to_resource(&as_id("res-1"));
     // The refused connect, then the one that opens.
     until("the handoff to open", || {
         gateway.arrived() == 3 && gateway.opened().len() == 2
@@ -424,7 +448,7 @@ async fn the_live_stream_ending_during_a_handoff_is_a_drop_the_handoff_recovers(
 
     let (release, held) = oneshot::channel();
     *gateway.staged.held.lock().unwrap() = Some(held);
-    let _hold = transport.subscribe_to_resource("res-1");
+    let _hold = transport.subscribe_to_resource(&as_id("res-1"));
     until("the handoff's connect", || gateway.arrived() == 2).await;
 
     // The live stream ends while the handoff's connect is unanswered.

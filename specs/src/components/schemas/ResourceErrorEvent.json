@@ -3,7 +3,7 @@
   "description": "A client-local notice that a command on a resource failed, for a UI to show: the payload of `mark:create-error`, `mark:delete-error` and `bind:body-error`. Emitted by the caller that awaited the command, which knows whose command failed on which resource. The `*-failed` wire replies are correlation plumbing and are not for this.",
   "properties": {
     "resourceId": {
-      "type": "string",
+      "$ref": "./ResourceId.json",
       "description": "The resource the command addressed."
     },
     "message": {

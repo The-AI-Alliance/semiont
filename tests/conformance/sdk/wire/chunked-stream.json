@@ -2,7 +2,7 @@
   "about": "a stream arriving a byte at a time, its lines, its blank lines and its characters split across reads, delivers every frame whole",
   "source": "docs/protocol/TRANSPORT-HTTP.md § Wire framing and client parser obligations",
   "steps": [
-    {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "https://kb.example/r", "name": "r", "representations": []}, "annotations": [], "entityReferences": []}}},
+    {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "r", "name": "naïve — 日本語 😀", "representations": []}, "annotations": [], "entityReferences": []}}},
     {"backend": "rechunk", "with": {"bytes": 1}},
     {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
     {"driver": "open", "with": {"channels": ["beckon:focus", "browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
@@ -10,8 +10,8 @@
     {"state": "open"},
     {"driver": "listen", "with": {"channel": "beckon:focus"}},
 
-    {"backend": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "naïve — 日本語 😀"}}},
-    {"frame": "beckon:focus", "is": {"payload": {"annotationId": "naïve — 日本語 😀", "_userId": {"$var": "participant"}}}},
+    {"backend": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}}},
+    {"frame": "beckon:focus", "is": {"payload": {"annotationId": "a-1", "_userId": {"$var": "participant"}}}},
 
     {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "asked"},
     {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid"}, "clientId": {"$var": "clientId"}}},

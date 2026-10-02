@@ -54,7 +54,7 @@ function mount(resourceAnchoredText: ReturnType<typeof vi.fn>) {
   } as unknown as SemiontSession;
   return render(
     <PdfAnnotationCanvas
-      resourceUri={String(resourceId('123'))}
+      resourceUri={resourceId(String(resourceId('123')))}
       pdfUrl="https://example.com/resources/123.pdf"
       drawingMode="rectangle"
       session={session}

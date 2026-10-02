@@ -12,7 +12,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { annotationId, resourceId } from '@semiont/core';
-import type { Annotation, CreateAnnotationInternal } from '@semiont/core';
+import type { Annotation, CreateAnnotationInternal, ResourceId } from '@semiont/core';
 import {
   buildAnnotation,
   encodeAnnotation,
@@ -104,7 +104,7 @@ describe.each(STORES)('$name — decode conformance', ({ decode }) => {
     expect(ann.body).toEqual([
       { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
       { type: 'TextualBody', value: 'Org', purpose: 'tagging' },
-      { type: 'SpecificResource', source: 'res-2', purpose: 'linking' },
+      { type: 'SpecificResource', source: resourceId('res-2'), purpose: 'linking' },
     ]);
   });
 });
@@ -126,8 +126,8 @@ describe('encode — absence is stored as absence (D4)', () => {
     {
       id: annotationId('ann-1'),
       motivation: 'linking',
-      target: { source: 'res-1' },
-      body: [{ type: 'SpecificResource', source: 'res-2', purpose: 'linking' }],
+      target: { source: resourceId('res-1') },
+      body: [{ type: 'SpecificResource', source: resourceId('res-2'), purpose: 'linking' }],
       creator: CREATOR,
       created: CREATED,
     } as CreateAnnotationInternal);
@@ -152,7 +152,7 @@ describe('encode — absence is stored as absence (D4)', () => {
       {
         id: annotationId('ann-2'),
         motivation: 'highlighting',
-        target: { source: 'res-1', selector: QUOTE_SELECTOR },
+        target: { source: resourceId('res-1'), selector: QUOTE_SELECTOR },
         creator: CREATOR,
         created: CREATED,
       } as CreateAnnotationInternal);
@@ -166,7 +166,7 @@ describe('encode — absence is stored as absence (D4)', () => {
       {
         id: annotationId('ann-3'),
         motivation: 'highlighting',
-        target: { source: 'res-1', selector: QUOTE_SELECTOR },
+        target: { source: resourceId('res-1'), selector: QUOTE_SELECTOR },
         creator: CREATOR,
         created: CREATED,
       } as CreateAnnotationInternal);
@@ -180,13 +180,13 @@ describe('encode — the fields a store cannot invent for itself', () => {
     {
       id: annotationId('ann-4'),
       motivation: 'linking',
-      target: { source: 'res-1' },
+      target: { source: resourceId('res-1') },
       creator: CREATOR,
       created: CREATED,
     } as CreateAnnotationInternal);
 
   it('refuses an annotation whose target has no source', () => {
-    expect(() => encodeAnnotation({ ...base, target: { source: '' } })).toThrow(/no target source/);
+    expect(() => encodeAnnotation({ ...base, target: { source: '' as ResourceId } })).toThrow(/no target source/);
   });
 
   it('writes a selector but no exact when the selector quotes nothing', () => {
@@ -194,7 +194,7 @@ describe('encode — the fields a store cannot invent for itself', () => {
       {
         id: annotationId('ann-5'),
         motivation: 'highlighting',
-        target: { source: 'res-1', selector: { type: 'TextPositionSelector', start: 10, end: 20 } },
+        target: { source: resourceId('res-1'), selector: { type: 'TextPositionSelector', start: 10, end: 20 } },
         creator: CREATOR,
         created: CREATED,
       } as CreateAnnotationInternal);
@@ -279,8 +279,8 @@ describe('D7: memorygraph is a faithful reference, not a store where the bug is 
     const created = await graph.createAnnotation({
       id: annotationId('ann-mem-1'),
       motivation: 'linking',
-      target: { source: 'res-1' },
-      body: [{ type: 'SpecificResource', source: 'res-2', purpose: 'linking' }],
+      target: { source: resourceId('res-1') },
+      body: [{ type: 'SpecificResource', source: resourceId('res-2'), purpose: 'linking' }],
       creator: CREATOR,
       created: CREATED,
     } as CreateAnnotationInternal);
@@ -320,7 +320,7 @@ describe('intendedGraphAnnotation — what the graph is supposed to hold', () =>
     type: 'Annotation',
     id: annotationId('ann-intent'),
     motivation: 'highlighting',
-    target: { source: 'res-1', selector: QUOTE_SELECTOR as never },
+    target: { source: resourceId('res-1'), selector: QUOTE_SELECTOR as never },
     creator: CREATOR,
     created: CREATED,
   };

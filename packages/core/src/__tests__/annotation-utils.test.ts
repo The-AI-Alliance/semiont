@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { findBodyItem, type BodyItemIdentity } from '../annotation-utils';
 import type { BodyItem } from '../event-base';
+import { resourceId } from '../identifiers';
 
 describe('@semiont/core - annotation-utils', () => {
   describe('findBodyItem', () => {
@@ -19,9 +20,9 @@ describe('@semiont/core - annotation-utils', () => {
     it('finds SpecificResource by type + source', () => {
       const body: BodyItem[] = [
         { type: 'TextualBody', value: 'Comment', purpose: 'commenting' },
-        { type: 'SpecificResource', source: 'https://example.com/ref', purpose: 'linking' },
+        { type: 'SpecificResource', source: resourceId('ref'), purpose: 'linking' },
       ];
-      const target: BodyItemIdentity = { type: 'SpecificResource', source: 'https://example.com/ref' };
+      const target: BodyItemIdentity = { type: 'SpecificResource', source: 'ref' };
 
       expect(findBodyItem(body as any, target)).toBe(1);
     });
@@ -68,7 +69,7 @@ describe('@semiont/core - annotation-utils', () => {
       // remove op with no `purpose` field. With strict purpose equality the
       // match would silently fail and the link would never be removed.
       const body: BodyItem[] = [
-        { type: 'SpecificResource', source: 'res-x', purpose: 'linking' },
+        { type: 'SpecificResource', source: resourceId('res-x'), purpose: 'linking' },
       ];
       const target: BodyItemIdentity = { type: 'SpecificResource', source: 'res-x' };
 
@@ -80,8 +81,8 @@ describe('@semiont/core - annotation-utils', () => {
       // different purposes (a future W3C multi-body case), providing purpose
       // in the target makes the match strict.
       const body: BodyItem[] = [
-        { type: 'SpecificResource', source: 'res-x', purpose: 'identifying' },
-        { type: 'SpecificResource', source: 'res-x', purpose: 'linking' },
+        { type: 'SpecificResource', source: resourceId('res-x'), purpose: 'identifying' },
+        { type: 'SpecificResource', source: resourceId('res-x'), purpose: 'linking' },
       ];
       const target: BodyItemIdentity = {
         type: 'SpecificResource',
@@ -94,7 +95,7 @@ describe('@semiont/core - annotation-utils', () => {
 
     it('returns -1 when target specifies a purpose that no matching item has', () => {
       const body: BodyItem[] = [
-        { type: 'SpecificResource', source: 'res-x', purpose: 'linking' },
+        { type: 'SpecificResource', source: resourceId('res-x'), purpose: 'linking' },
       ];
       const target: BodyItemIdentity = {
         type: 'SpecificResource',
@@ -109,8 +110,8 @@ describe('@semiont/core - annotation-utils', () => {
       // Disambiguation falls to the caller if they care. Omitted-purpose
       // semantics is "first match wins".
       const body: BodyItem[] = [
-        { type: 'SpecificResource', source: 'res-x', purpose: 'identifying' },
-        { type: 'SpecificResource', source: 'res-x', purpose: 'linking' },
+        { type: 'SpecificResource', source: resourceId('res-x'), purpose: 'identifying' },
+        { type: 'SpecificResource', source: resourceId('res-x'), purpose: 'linking' },
       ];
       const target: BodyItemIdentity = { type: 'SpecificResource', source: 'res-x' };
 
@@ -145,11 +146,11 @@ describe('@semiont/core - annotation-utils', () => {
       // which carries purpose and possibly other fields. This should Just
       // Work because BodyItem is structurally assignable to BodyItemIdentity.
       const body: BodyItem[] = [
-        { type: 'SpecificResource', source: 'res-x', purpose: 'linking' },
+        { type: 'SpecificResource', source: resourceId('res-x'), purpose: 'linking' },
       ];
       const opItem: BodyItem = {
         type: 'SpecificResource',
-        source: 'res-x',
+        source: resourceId('res-x'),
         purpose: 'linking',
       };
 

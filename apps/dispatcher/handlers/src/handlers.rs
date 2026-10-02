@@ -6,14 +6,14 @@
 //! atomic transitions settle any race between two.
 
 use crate::admission::{Refusal, Vocabulary, admit, wire_name};
-use crate::queue::{Checkpoint, Claim, FailOutcome, JobId, JobQueue};
+use crate::queue::{Checkpoint, Claim, FailOutcome, JobQueue};
 use semiont::roles::WORKER_ROLE;
 use semiont::types::{
     BusFrame, CommandError, CommandErrorCode, Job, JobAssignCommand, JobCancelCommand,
     JobCancelRequest, JobCheckpointCommand, JobClaimCommand, JobClaimedResult, JobCompleteCommand,
-    JobCreateCommand, JobCreatedResult, JobCreatedResultResponse, JobFailCommand, JobProgress,
-    JobReportProgressCommand, JobStatusRequest, JobStatusResponse, JobStatusResponseStatus,
-    JobStatusResult, JobStoredProgress, JobStoredResult,
+    JobCreateCommand, JobCreatedResult, JobCreatedResultResponse, JobFailCommand, JobId,
+    JobProgress, JobReportProgressCommand, JobStatusRequest, JobStatusResponse,
+    JobStatusResponseStatus, JobStatusResult, JobStoredProgress, JobStoredResult,
 };
 use semiont_observability::logging;
 use serde::Serialize;
@@ -211,16 +211,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
             }
             Err(error) => return refused(error.0, None),
         };
-        if job.params.resource_id.is_empty() {
-            return refused(
-                format!(
-                    "job:claim: job {} names no resource to record its assignment under",
-                    job.metadata.id
-                ),
-                None,
-            );
-        }
-        let Some(holder) = command._user_id.filter(|u| !u.is_empty()) else {
+        let Some(holder) = command._user_id else {
             return refused(
                 "job:claim missing _userId (gateway injection)".to_owned(),
                 None,
@@ -253,11 +244,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
             Some(result) => JobStoredResult::JobResult(result),
             None => JobStoredResult::Empty(Default::default()),
         };
-        match self
-            .queue
-            .complete_job(&JobId::new(&command.job_id), result)
-            .await
-        {
+        match self.queue.complete_job(&command.job_id, result).await {
             Ok(true) => {}
             Ok(false) => logging::warn(
                 "job:complete for a job not in running",
@@ -278,7 +265,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
         match self
             .queue
             .fail_job(
-                &JobId::new(&command.job_id),
+                &command.job_id,
                 command.error,
                 checkpoint,
                 command.failure_class,
@@ -321,10 +308,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
         };
         if let Err(error) = self
             .queue
-            .record_progress(
-                &JobId::new(&command.job_id),
-                JobStoredProgress::JobProgress(progress),
-            )
+            .record_progress(&command.job_id, JobStoredProgress::JobProgress(progress))
             .await
         {
             logging::error(
@@ -341,7 +325,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
         };
         if let Err(error) = self
             .queue
-            .checkpoint_units(&JobId::new(&command.job_id), checkpoint)
+            .checkpoint_units(&command.job_id, checkpoint)
             .await
         {
             logging::error(
@@ -352,7 +336,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
     }
 
     async fn cancel(&self, command: JobCancelCommand) {
-        match self.queue.cancel_job(&JobId::new(&command.job_id)).await {
+        match self.queue.cancel_job(&command.job_id).await {
             Ok(_) => logging::info(
                 "Job cancelled by its worker",
                 fields(json!({ "jobId": command.job_id })),
@@ -387,8 +371,8 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
                 )));
             }
         };
-        let cancelled = match (request.job_id.filter(|id| !id.is_empty()), request.job_type) {
-            (Some(id), _) => self.cancel_one(&JobId::new(id)).await,
+        let cancelled = match (request.job_id, request.job_type) {
+            (Some(id), _) => self.cancel_one(&id).await,
             (None, Some(category)) => {
                 let cancelled = self
                     .queue
@@ -452,7 +436,7 @@ impl<Q: JobQueue, V: Vocabulary> Handlers<Q, V> {
                 );
             }
         };
-        match self.queue.get_job(&JobId::new(request.job_id)).await {
+        match self.queue.get_job(&request.job_id).await {
             Ok(Some(job)) => reply(
                 "job:status-result",
                 object(&JobStatusResult {

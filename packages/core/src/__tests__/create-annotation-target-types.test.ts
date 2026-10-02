@@ -12,18 +12,19 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { components } from '../types';
+import { resourceId } from '../identifiers';
 
 type CreateTarget = components['schemas']['CreateAnnotationRequest']['target'];
 
 describe('CreateAnnotationRequest target (P1: selector-optional)', () => {
   it('accepts a source-only target (no selector)', () => {
-    const sourceOnly: CreateTarget = { source: 'http://localhost:4000/resources/r-1' };
+    const sourceOnly: CreateTarget = { source: resourceId('r-1') };
     expect(sourceOnly.source).toContain('r-1');
   });
 
   it('still accepts a target with a selector (no regression)', () => {
     const withSelector: CreateTarget = {
-      source: 'http://localhost:4000/resources/r-1',
+      source: resourceId('r-1'),
       selector: { type: 'TextQuoteSelector', exact: 'hello' },
     };
     expect(withSelector.selector).toBeDefined();

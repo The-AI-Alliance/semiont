@@ -24,6 +24,7 @@ use semiont::transport::{
     BoxFuture, ConnectionState, Envelope, Events, Failures, FrameHub, Frames, GatewayOperations,
     PendingReply, ReplyRouter, ResourceHold, STREAM_BACKLOG, Transport, unsubscribed,
 };
+use semiont::types::ResourceId;
 use semiont::types::{
     BusEmitAccepted, BusEmitRequest, HealthResponse, MediaTokenRequest, MediaTokenResponse,
     ProtectedResourceMetadata, StatusResponse, UserResponse,
@@ -102,9 +103,9 @@ impl Default for Timing {
 /// replay.
 pub trait Bookmarks: Send + Sync + 'static {
     /// The id of the last recorded event delivered on each scope, as kept.
-    fn load(&self) -> HashMap<String, String>;
+    fn load(&self) -> HashMap<ResourceId, String>;
     /// A recorded event was delivered on `scope`.
-    fn save(&self, scope: &str, event_id: &str);
+    fn save(&self, scope: &ResourceId, event_id: &str);
 }
 
 pub struct HttpTransportConfig {
@@ -457,7 +458,7 @@ struct Inner {
     commands: mpsc::UnboundedSender<Command>,
     state: watch::Receiver<ConnectionState>,
     /// How many holds each resource's scope has.
-    holds: Arc<Mutex<HashMap<String, usize>>>,
+    holds: Arc<Mutex<HashMap<ResourceId, usize>>>,
     closed: AtomicBool,
 }
 
@@ -517,7 +518,7 @@ impl Transport for HttpTransport {
             telemetry::record_bus_sent(channel, scope.as_deref());
             let mut attributes = vec![KeyValue::new("bus.channel", channel.to_owned())];
             if let Some(scope) = &scope {
-                attributes.push(KeyValue::new("bus.scope", scope.clone()));
+                attributes.push(KeyValue::new("bus.scope", scope.to_string()));
             }
             let body = BusEmitRequest {
                 channel: channel.to_owned(),
@@ -552,8 +553,8 @@ impl Transport for HttpTransport {
         self.inner.shared.global.iter().any(|c| c == channel)
     }
 
-    fn subscribe_to_resource(&self, resource_id: &str) -> ResourceHold {
-        let resource = resource_id.to_owned();
+    fn subscribe_to_resource(&self, resource_id: &ResourceId) -> ResourceHold {
+        let resource = resource_id.clone();
         let holds = self.inner.holds.clone();
         let commands = self.inner.commands.clone();
         {
@@ -619,11 +620,11 @@ impl GatewayOperations for HttpTransport {
 
     fn get_media_token<'a>(
         &'a self,
-        resource_id: &'a str,
+        resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<MediaTokenResponse, TransportError>> {
         Box::pin(async move {
             let body = MediaTokenRequest {
-                resource_id: resource_id.to_owned(),
+                resource_id: resource_id.clone(),
             };
             self.inner
                 .shared

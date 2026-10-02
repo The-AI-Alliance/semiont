@@ -92,7 +92,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     });
 
     // Subscribe to scoped bus BEFORE the mutation
-    const scopedBus = eventBus.scope(String(rId));
+    const scopedBus = eventBus.scope(resourceId(String(rId)));
     const received: any[] = [];
     const sub = scopedBus.frames('mark:body-updated').subscribe((frame) => {
       received.push(frame);
@@ -107,7 +107,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
         version: 1,
         payload: {
           annotationId: annotationId('ann-corr-1'),
-          operations: [{ op: 'add', item: { type: 'SpecificResource', source: 'target-res' } }],
+          operations: [{ op: 'add', item: { type: 'SpecificResource', source: resourceId('target-res') } }],
         },
       },
       { correlationId: cid },
@@ -165,7 +165,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     });
 
     // Two "clients" subscribe to the scoped bus (simulates two browser tabs)
-    const scopedBus = eventBus.scope(String(rId));
+    const scopedBus = eventBus.scope(resourceId(String(rId)));
     const client1Events: any[] = [];
     const client2Events: any[] = [];
 
@@ -182,7 +182,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
         version: 1,
         payload: {
           annotationId: annotationId('ann-tab-1'),
-          operations: [{ op: 'add', item: { type: 'SpecificResource', source: 'linked-res' } }],
+          operations: [{ op: 'add', item: { type: 'SpecificResource', source: resourceId('linked-res') } }],
         },
       },
       { correlationId: cid },
@@ -227,7 +227,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
 
     // Subscribe and check that the view is already materialized
     // when the event arrives on the bus
-    const scopedBus = eventBus.scope(String(rId));
+    const scopedBus = eventBus.scope(resourceId(String(rId)));
     let viewExistedWhenEventArrived = false;
 
     const sub = scopedBus.on('mark:added').subscribe(async () => {

@@ -61,7 +61,7 @@ export function makeAnnotation(resourceId: string, annotationId: string, exact: 
     id: makeAnnotationId(annotationId),
     motivation: 'highlighting',
     target: {
-      source: resourceId,
+      source: makeResourceId(resourceId),
       selector: {
         type: 'TextQuoteSelector',
         exact,

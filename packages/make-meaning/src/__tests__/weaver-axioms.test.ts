@@ -18,7 +18,7 @@
 
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
-import { EventBus, annotationId as makeAnnotationId } from '@semiont/core';
+import { EventBus, annotationId as makeAnnotationId, resourceId } from '@semiont/core';
 import type { StoredEvent } from '@semiont/core';
 import { MemoryGraphDatabase } from '@semiont/graph';
 import { createWeaveProgress } from '../weave-progress';
@@ -500,7 +500,7 @@ describe('W9 — reconcile detects and heals out-of-band divergence', () => {
                 const [first] = anns;
                 if (!first) { mutated = false; break; }
                 await rig.graph.updateAnnotation(mkAid(first), {
-                  target: { source: rid, selector: { type: 'TextQuoteSelector', exact: 'oob-corruption' } },
+                  target: { source: resourceId(rid), selector: { type: 'TextQuoteSelector', exact: 'oob-corruption' } },
                 });
                 contentCorrupted = true;
                 break;
@@ -698,7 +698,7 @@ describe('W7 — the barrier fold is monotone', () => {
           try {
             const high = new Map<string, number>();
             for (const { rid, seq } of signals) {
-              bus.emit('weave:applied', { resourceId: rid, sequenceNumber: seq });
+              bus.emit('weave:applied', { resourceId: resourceId(rid), sequenceNumber: seq });
               const now = progress.appliedUpTo(rid) ?? -1;
               expect(now).toBeGreaterThanOrEqual(high.get(rid) ?? -1);
               expect(now).toBeGreaterThanOrEqual(seq > (high.get(rid) ?? -1) ? seq : -1);

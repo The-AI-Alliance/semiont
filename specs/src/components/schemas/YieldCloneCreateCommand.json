@@ -3,7 +3,7 @@
   "description": "Bus command to create a cloned resource from a clone token. Bytes are stored gateway-side BEFORE this command is emitted (GATEWAY.md D4a: the Archivist serves no bytes) — the command carries the storage coordinates, never content.",
   "properties": {
     "_userId": {
-      "type": "string",
+      "$ref": "./UserId.json",
       "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
     },
     "token": {

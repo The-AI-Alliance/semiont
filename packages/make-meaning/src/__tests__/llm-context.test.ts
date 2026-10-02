@@ -204,7 +204,7 @@ describe('LLM Context', () => {
         {
           motivation: 'highlighting',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [{
               type: 'TextPositionSelector',
               start: 0,
@@ -231,7 +231,7 @@ describe('LLM Context', () => {
         id: annotationId('llm-graph-ann'),
         motivation: 'highlighting',
         created: '2026-01-01T00:00:00.000Z',
-        target: { source: testResourceId, selector: [{ type: 'TextPositionSelector', start: 0, end: 4 }] },
+        target: { source: resourceId(testResourceId), selector: [{ type: 'TextPositionSelector', start: 0, end: 4 }] },
         creator,
       });
 
@@ -668,7 +668,7 @@ describe('LLM Context', () => {
       const pending = LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, lagged, mockClient, SETTLE_MS, mockLogger);
       setTimeout(() => {
         state.indexed = true;
-        progressBus.emit('smelt:settled', { resourceId: testResourceId, contentChecksum: TEST_CHECKSUM, outcome: 'indexed' });
+        progressBus.emit('smelt:settled', { resourceId: resourceId(testResourceId), contentChecksum: TEST_CHECKSUM, outcome: 'indexed' });
       }, 50);
 
       const ctx = await pending;
@@ -679,7 +679,7 @@ describe('LLM Context', () => {
       const progressBus = new EventBus();
       const state = { indexed: false };
       const { lagged, searches } = lagKb(progressBus, state);
-      progressBus.emit('smelt:settled', { resourceId: testResourceId, contentChecksum: TEST_CHECKSUM, outcome: 'skipped' });
+      progressBus.emit('smelt:settled', { resourceId: resourceId(testResourceId), contentChecksum: TEST_CHECKSUM, outcome: 'skipped' });
 
       const started = Date.now();
       const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, lagged, mockClient, SETTLE_MS, mockLogger);

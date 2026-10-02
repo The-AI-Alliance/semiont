@@ -3,7 +3,7 @@
   "description": "The payload of `smelt:settled`: the Smelter's decision for one resource's content, keyed by the checksum of the bytes it inspected. `indexed`: the content is in the vector index. `skipped`: it declined, and `reason` says why.",
   "properties": {
     "resourceId": {
-      "type": "string",
+      "$ref": "./ResourceId.json",
       "description": "The resource whose content was inspected."
     },
     "contentChecksum": {

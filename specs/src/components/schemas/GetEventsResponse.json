@@ -9,7 +9,7 @@
       "type": "number"
     },
     "resourceId": {
-      "type": "string"
+      "$ref": "./ResourceId.json"
     }
   },
   "required": [

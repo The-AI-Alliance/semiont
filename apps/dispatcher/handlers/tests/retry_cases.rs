@@ -2,6 +2,7 @@
 //! which the worker's TypeScript runs too: the two must never disagree about
 //! whether a failure is the end.
 
+use semiont::testing::as_id;
 use semiont::types::{FailureClass, JobMetadata, JobType};
 use semiont_dispatcher_handlers::retry::will_retry_after;
 use serde_json::Value;
@@ -15,9 +16,9 @@ fn retry_cases() {
     assert!(!cases.is_empty(), "the table has no cases");
     for case in cases {
         let metadata = JobMetadata {
-            id: "job-0".to_owned(),
+            id: as_id("job-0"),
             r#type: JobType::HighlightAnnotation,
-            user_id: "did:web:example.org:users:alice".to_owned(),
+            user_id: as_id("did:web:example.org:users:alice"),
             created: "2026-09-30T00:00:00.000Z".to_owned(),
             retry_count: case["retryCount"].as_u64().expect("retryCount"),
             max_retries: case["maxRetries"].as_u64().expect("maxRetries"),

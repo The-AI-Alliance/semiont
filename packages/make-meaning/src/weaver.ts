@@ -51,7 +51,7 @@ import { SYSTEM_SCOPE } from '@semiont/core';
 import type { BusFrame, BusRequestPrimitive, EventMap } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import { intendedGraphAnnotation } from '@semiont/graph';
-import type { PersistedEvent, StoredEvent, EventOfType, ResourceId, Logger} from '@semiont/core';
+import type { AnnotationId, PersistedEvent, StoredEvent, EventOfType, ResourceId, Logger} from '@semiont/core';
 import type { WeaverCheckpoint } from './weaver-checkpoint.js';
 
 /**
@@ -74,7 +74,7 @@ export interface WeaverTiming {
   /** Dirty-checkpoint flush interval. */
   checkpointFlushMs: number;
 }
-import { resourceId as makeResourceId, annotationId as makeAnnotationId, findBodyItem } from '@semiont/core';
+import { findBodyItem } from '@semiont/core';
 import { partitionByType } from './batch-utils.js';
 import { browseAllResources, type RESOURCES_CHANNEL } from './browse-resources.js';
 
@@ -247,7 +247,7 @@ export class Weaver {
     }
   }
 
-  private noteApplied(resourceId: string, sequenceNumber: number): void {
+  private noteApplied(resourceId: ResourceId, sequenceNumber: number): void {
     // Failed-floor cap (W6): the mark asserts "everything at or below me
     // landed" — it may never reach or pass an outstanding failed sequence,
     // however many later events succeed.
@@ -362,7 +362,7 @@ export class Weaver {
           resourceId: String(rid), checkpoint: since, logMax: maxSeq,
         });
         this.lastProcessed.delete(String(rid));
-        await this.rebuildResource(makeResourceId(String(rid)));
+        await this.rebuildResource(rid);
         resourcesRebuilt++;
         continue;
       }
@@ -458,7 +458,7 @@ export class Weaver {
 
       divergent++;
       this.logger.warn('Reconcile divergence — healing from the log', { resourceId: String(rid), reason });
-      const result = await this.rebuildResource(makeResourceId(String(rid)));
+      const result = await this.rebuildResource(rid);
       // Zero events for a CATALOGUED resource is not a heal — it is an
       // orphaned view. The log is the system of record, the catalog comes from
       // the views, and a view the log cannot justify means history was
@@ -510,9 +510,9 @@ export class Weaver {
   /** Compare one resource's graph state against its view; null = in sync. */
   private async divergenceOf(resource: ResourceDescriptor): Promise<string | null> {
     const graphDb = this.ensureInitialized();
-    const rid = String(resource['@id']);
+    const rid = resource['@id'];
 
-    const doc = await graphDb.getResource(makeResourceId(rid));
+    const doc = await graphDb.getResource(rid);
     if (!doc) return 'missing-node';
     if ((doc.archived ?? false) !== (resource.archived ?? false)) return 'archived-mismatch';
 
@@ -523,7 +523,7 @@ export class Weaver {
     }
 
     const { annotations } = await busRequest(this.bus, 'browse:annotations-requested' satisfies WeaverAnnotationsReadAwaits, { resourceId: rid });
-    const graphAnnotations = await graphDb.getResourceAnnotations(makeResourceId(rid));
+    const graphAnnotations = await graphDb.getResourceAnnotations(rid);
     const viewIds = new Set(annotations.map((a) => String(a.id)));
     const graphIds = new Set(graphAnnotations.map((a) => String(a.id)));
     if (viewIds.size !== graphIds.size) return 'annotation-set-mismatch';
@@ -569,7 +569,7 @@ export class Weaver {
   private async handleRebuildCommand(command: EventMap['weave:rebuild'], correlationId: string | undefined): Promise<void> {
     try {
       const result = command.resourceId
-        ? await this.rebuildResource(makeResourceId(command.resourceId))
+        ? await this.rebuildResource(command.resourceId)
         : await this.rebuildAll();
       await this.flushCheckpoint();
       if (result.eventsFailed > 0) {
@@ -696,7 +696,7 @@ export class Weaver {
       const noted = live[0];
       if (noted.resourceId) {
         this.noteApplied(
-          String(noted.resourceId),
+          noted.resourceId,
           Math.max(...live.map((e) => e.metadata.sequenceNumber)),
         );
       }
@@ -733,17 +733,17 @@ export class Weaver {
         // Same idempotent fold as the single-event path, batched: dedupe the
         // run by annotation id, then skip ids the graph already holds — a
         // replayed burst (at-least-once delivery) must not create doubles.
-        const byId = new Map<string, CreateAnnotationInternal>();
+        const byId = new Map<AnnotationId, CreateAnnotationInternal>();
         for (const e of events) {
           const event = e as EventOfType<'mark:added'>;
-          byId.set(String(event.payload.annotation.id), {
+          byId.set(event.payload.annotation.id, {
             ...event.payload.annotation,
             creator: didToAgent(event.userId),
           });
         }
         const inputs: CreateAnnotationInternal[] = [];
         for (const [id, input] of byId) {
-          if (!(await graphDb.getAnnotation(makeAnnotationId(id)))) inputs.push(input);
+          if (!(await graphDb.getAnnotation(id))) inputs.push(input);
         }
         if (inputs.length > 0) {
           await graphDb.createAnnotations(inputs);
@@ -822,14 +822,14 @@ export class Weaver {
 
       case 'mark:archived':
         if (!event.resourceId) throw new Error('mark:archived requires resourceId');
-        await graphDb.updateResource(makeResourceId(event.resourceId), {
+        await graphDb.updateResource(event.resourceId, {
           archived: true,
         });
         break;
 
       case 'mark:unarchived':
         if (!event.resourceId) throw new Error('mark:unarchived requires resourceId');
-        await graphDb.updateResource(makeResourceId(event.resourceId), {
+        await graphDb.updateResource(event.resourceId, {
           archived: false,
         });
         break;
@@ -841,7 +841,7 @@ export class Weaver {
         // Idempotent fold: creation-by-id is not upsert on every gateway, so
         // a redelivered mark:added (at-least-once delivery) must be refused
         // here — the same guard shape as the entity-tag fold below.
-        const annId = makeAnnotationId(event.payload.annotation.id);
+        const annId = event.payload.annotation.id;
         if (await graphDb.getAnnotation(annId)) {
           this.logger.debug('Annotation already in graph — duplicate delivery skipped', {
             annotationId: String(annId)
@@ -859,7 +859,7 @@ export class Weaver {
       }
 
       case 'mark:removed':
-        await graphDb.deleteAnnotation(makeAnnotationId(event.payload.annotationId));
+        await graphDb.deleteAnnotation(event.payload.annotationId);
         break;
 
       case 'mark:body-updated':
@@ -868,7 +868,7 @@ export class Weaver {
           payload: event.payload
         });
         try {
-          const annId = makeAnnotationId(event.payload.annotationId);
+          const annId = event.payload.annotationId;
 
           const currentAnnotation = await graphDb.getAnnotation(annId);
 
@@ -917,7 +917,7 @@ export class Weaver {
       case 'mark:entity-tag-added':
         if (!event.resourceId) throw new Error('mark:entity-tag-added requires resourceId');
         {
-          const rid = makeResourceId(event.resourceId);
+          const rid = event.resourceId;
           const doc = await graphDb.getResource(rid);
           // Idempotent fold, mirroring the view materializer's includes-guard:
           // duplicate -added events (stale caller diff base; historical
@@ -934,7 +934,7 @@ export class Weaver {
       case 'mark:entity-tag-removed':
         if (!event.resourceId) throw new Error('mark:entity-tag-removed requires resourceId');
         {
-          const rid = makeResourceId(event.resourceId);
+          const rid = event.resourceId;
           const doc = await graphDb.getResource(rid);
           if (doc) {
             await graphDb.updateResource(rid, {
@@ -978,7 +978,7 @@ export class Weaver {
       // Advance the applied mark through noteApplied so the checkpoint and
       // the whenApplied barrier both see rebuild progress — but only for a
       // CLEAN rebuild: a mark past dropped events would hide them (#845).
-      this.noteApplied(String(resourceId), Math.max(...events.map((e) => e.metadata.sequenceNumber)));
+      this.noteApplied(resourceId, Math.max(...events.map((e) => e.metadata.sequenceNumber)));
     }
     if (eventsFailed > 0) {
       this.logger.error('Resource rebuild dropped events — graph incomplete for this resource', {
@@ -1027,7 +1027,7 @@ export class Weaver {
 
     // Per-resource completeness ledger (#845): the applied mark advances
     // only for resources whose BOTH passes were clean.
-    const ledger = new Map<string, { maxSeq: number; attempted: number; failed: number }>();
+    const ledger = new Map<ResourceId, { maxSeq: number; attempted: number; failed: number }>();
 
     // PASS 1: Create all nodes (resources and annotations)
     this.logger.info('PASS 1: Creating all nodes (resources + annotations)');
@@ -1040,7 +1040,7 @@ export class Weaver {
         attempted: 0,
         failed: 0,
       };
-      ledger.set(String(resourceId), entry);
+      ledger.set(resourceId, entry);
 
       for (const storedEvent of events) {
         if (storedEvent.type === 'mark:body-updated') {
@@ -1059,7 +1059,7 @@ export class Weaver {
 
       for (const storedEvent of events) {
         if (storedEvent.type === 'mark:body-updated') {
-          const entry = ledger.get(String(resourceId));
+          const entry = ledger.get(resourceId);
           if (entry) entry.attempted++;
           if (!(await this.safeApplyEvent(storedEvent))) {
             if (entry) entry.failed++;

@@ -13,6 +13,7 @@ import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import { BrowseView } from '../BrowseView';
+import { resourceId } from '@semiont/core';
 
 // AnnotateToolbar still calls useSemiont() (step 1b) — stub it out so this spec
 // exercises only BrowseView's own provider-freedom.
@@ -38,7 +39,7 @@ describe('BrowseView — embeddable (session prop, no providers)', () => {
       <BrowseView
         content="Embeddable browse content."
         mimeType="text/plain"
-        resourceUri="res-1"
+        resourceUri={resourceId("res-1")}
         annotations={emptyAnnotations}
         annotateMode={false}
         session={fakeSession()}

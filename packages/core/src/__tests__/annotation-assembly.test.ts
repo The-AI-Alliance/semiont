@@ -10,6 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { assembleAnnotation } from '../annotation-assembly';
 import type { components } from '../types';
+import { resourceId } from '../identifiers';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type Agent = components['schemas']['Agent'];
@@ -18,11 +19,11 @@ describe('assembleAnnotation — selector-optional target (P2)', () => {
   it('assembles a source-only target (whole-resource / edge) without throwing', () => {
     const request: CreateAnnotationRequest = {
       motivation: 'linking',
-      target: { source: 'http://localhost:4000/resources/r-1' },
+      target: { source: resourceId('r-1') },
     };
     const { annotation } = assembleAnnotation(request);
     // target stored verbatim — selector-less
-    expect(annotation.target).toEqual({ source: 'http://localhost:4000/resources/r-1' });
+    expect(annotation.target).toEqual({ source: 'r-1' });
     expect(annotation.motivation).toBe('linking');
     expect(annotation.id).toBeTruthy();
     expect(annotation).not.toHaveProperty('creator');
@@ -36,7 +37,7 @@ describe('assembleAnnotation — selector-optional target (P2)', () => {
     const generator: Agent = { '@type': 'Software', '@id': 'did:web:test.local:agents:ollama:gemma', name: 'gemma' };
     const request: CreateAnnotationRequest = {
       motivation: 'linking',
-      target: { source: 'http://localhost:4000/resources/r-1' },
+      target: { source: resourceId('r-1') },
     };
 
     const told = assembleAnnotation(request, generator).annotation;
@@ -53,7 +54,7 @@ describe('assembleAnnotation — selector-optional target (P2)', () => {
     const request: CreateAnnotationRequest = {
       motivation: 'highlighting',
       target: {
-        source: 'http://localhost:4000/resources/r-1',
+        source: resourceId('r-1'),
         selector: { type: 'TextPositionSelector', start: 0, end: 5 },
       },
     };
@@ -65,7 +66,7 @@ describe('assembleAnnotation — selector-optional target (P2)', () => {
     const request: CreateAnnotationRequest = {
       motivation: 'highlighting',
       target: {
-        source: 'http://localhost:4000/resources/r-1',
+        source: resourceId('r-1'),
         selector: { type: 'SvgSelector', value: '<not-svg></not-svg>' },
       },
     };
@@ -74,7 +75,7 @@ describe('assembleAnnotation — selector-optional target (P2)', () => {
 
   it('still requires motivation', () => {
     // @ts-expect-error — deliberately omitting required motivation to exercise the runtime guard
-    const request: CreateAnnotationRequest = { target: { source: 'http://localhost:4000/resources/r-1' } };
+    const request: CreateAnnotationRequest = { target: { source: 'r-1' } };
     expect(() => assembleAnnotation(request)).toThrow(/motivation is required/);
   });
 });

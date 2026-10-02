@@ -11,7 +11,6 @@
  * - State machine is explicit and type-safe
  */
 
-import { JOB_TYPES } from '@semiont/core';
 import type { JobId, EntityType, ResourceId, UserId, GenerationJobParams, TagSchema, UnitCursor, components } from '@semiont/core';
 import type { JobReferenceAnnotationResult, JobHighlightAnnotationResult, JobCommentAnnotationResult, JobAssessmentAnnotationResult, JobTagAnnotationResult } from '@semiont/core';
 
@@ -156,21 +155,6 @@ export type TagDetectionParams = {
 };
 
 // ============================================================================
-// Result Types
-// ============================================================================
-
-/**
- * Generation job result
- */
-export interface GenerationResult {
-  kind: 'generation';
-  resourceId: ResourceId;
-  resourceName: string;
-  /** True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete (GENERATE-FROM-RESOURCE D6). */
-  truncated: boolean;
-}
-
-// ============================================================================
 // Generic Job State Types
 // ============================================================================
 
@@ -252,7 +236,7 @@ export type Job<P, R> =
 
 export type DetectionJob = Job<DetectionParams, JobReferenceAnnotationResult>;
 /** A generation job's params carry the resource the dispatcher derived from the context's focus. */
-export type GenerationJob = Job<GenerationJobParams & { resourceId: ResourceId }, GenerationResult>;
+export type GenerationJob = Job<GenerationJobParams & { resourceId: ResourceId }, components['schemas']['JobGenerationResult']>;
 export type HighlightDetectionJob = Job<HighlightDetectionParams, JobHighlightAnnotationResult>;
 export type AssessmentDetectionJob = Job<AssessmentDetectionParams, JobAssessmentAnnotationResult>;
 export type CommentDetectionJob = Job<CommentDetectionParams, JobCommentAnnotationResult>;
@@ -269,20 +253,6 @@ export type RunningAnyJob = Extract<AnyJob, { status: 'running' }>;
 // ============================================================================
 // Type Guards
 // ============================================================================
-
-const KNOWN_JOB_TYPES: ReadonlySet<string> = new Set<JobType>(JOB_TYPES);
-
-/**
- * Narrow a job type arriving off the bus, where it is only `string`.
- *
- * Worth checking rather than asserting: `jobType` is a required, enumerated
- * field on every job lifecycle command, so an unrecognized value produces a
- * payload the gateway will reject — better caught at the worker with a clear
- * error than as an opaque emit failure.
- */
-export function isJobType(value: string): value is JobType {
-  return KNOWN_JOB_TYPES.has(value);
-}
 
 /**
  * Narrow bus-delivered job params to the shape a processor expects.

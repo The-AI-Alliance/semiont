@@ -26,6 +26,12 @@ The judge of all three is the black-box suite in
 [`tests/conformance/dispatcher`](../../tests/conformance/dispatcher/), which drives the binary as a
 process on the wire.
 
+The suite reaches the dispatcher through a gateway, which refuses a payload that is not its
+channel's before it is published. What the dispatcher does with a frame, or a stored record, that
+does not decode is therefore held below the bus, by the crates' own tests:
+[`handlers/tests/bad_ids.rs`](handlers/tests/bad_ids.rs), the handlers over a queue that records what
+it is asked, and the unit tests of [`jetstream/src/lib.rs`](jetstream/src/lib.rs).
+
 ## What it is — a control plane, not a conduit
 
 The dispatcher answers questions about *what work is available* and *what a worker has been

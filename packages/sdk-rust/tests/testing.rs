@@ -12,6 +12,7 @@ use semiont::session::{
     SessionSignals, StoredSession, store_session,
 };
 use semiont::storage::InMemorySessionStorage;
+use semiont::testing::as_id;
 use semiont::testing::{
     FaultyTransport, InMemoryContent, ScriptedSessions, StubGateway, TestClientOptions,
     TestSessionOptions, create_test_client, create_test_session,
@@ -53,7 +54,7 @@ async fn a_test_client_given_nothing_refuses_every_request_by_name() {
     let unread = test
         .client
         .browse
-        .resource_content("res-1")
+        .resource_content(&as_id("res-1"))
         .await
         .expect_err("nothing was stored");
     assert!(message(unread).contains("res-1"));
@@ -91,7 +92,7 @@ async fn a_test_client_is_built_over_what_the_test_gives_it() {
 
     // The content is the one given: what the test stored in it is read.
     content.seed(
-        "res-1",
+        &as_id("res-1"),
         Content {
             bytes: bytes::Bytes::from_static(b"hello"),
             content_type: "text/plain".to_owned(),
@@ -100,7 +101,7 @@ async fn a_test_client_is_built_over_what_the_test_gives_it() {
     assert_eq!(
         test.client
             .browse
-            .resource_content("res-1")
+            .resource_content(&as_id("res-1"))
             .await
             .expect("it was stored"),
         "hello"

@@ -3,10 +3,10 @@
   "description": "Request to browse the history of an annotation",
   "properties": {
     "resourceId": {
-      "type": "string"
+      "$ref": "./ResourceId.json"
     },
     "annotationId": {
-      "type": "string"
+      "$ref": "./AnnotationId.json"
     }
   },
   "required": [

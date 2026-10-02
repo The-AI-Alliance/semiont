@@ -1,5 +1,6 @@
 'use client';
 
+import type { ResourceId } from '@semiont/core';
 import { lazy, Suspense, memo, type ComponentType } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -26,7 +27,7 @@ const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCa
 export interface MediaRendererProps {
   content: string;
   mimeType: string;
-  resourceUri: string;
+  resourceUri: ResourceId;
   annotations: Annotation[];
   /**
    * Session for interaction routing inside annotation-bearing renderers — the

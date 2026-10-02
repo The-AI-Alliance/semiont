@@ -10,7 +10,7 @@
  */
 
 import { describe, it } from 'vitest';
-import { EventBus, userDID } from '@semiont/core';
+import { EventBus, userId } from '@semiont/core';
 import { assertCarriesEnvelope } from '@semiont/core/testing';
 import { firstValueFrom, take, timeout } from 'rxjs';
 import { asBusRequestPrimitive } from '../bus-request-local';
@@ -43,7 +43,7 @@ describe('in-process relays carry the frame envelope', () => {
 
   it('LocalTransport', async () => {
     const bus = new EventBus();
-    const transport = new LocalTransport({ eventBus: bus, userId: userDID('did:semiont:test') });
+    const transport = new LocalTransport({ eventBus: bus, userId: userId('did:semiont:test') });
     try {
       const observed = firstKey(bus);
       await assertCarriesEnvelope({

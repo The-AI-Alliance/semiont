@@ -22,6 +22,7 @@ import { useTranslations } from '../../contexts/TranslationContext';
 import { useSemiont } from '../../session/SemiontProvider';
 import type { CollapsibleResourceNavigationProps } from '../../types/collapsible-navigation';
 import './CollapsibleResourceNavigation.css';
+import { resourceId as makeResourceId } from '@semiont/core';
 
 /**
  * A comprehensive collapsible navigation component with fixed items and dynamic resource tabs.
@@ -123,7 +124,7 @@ export function CollapsibleResourceNavigation({
     e.stopPropagation();
 
     // Emit event
-    semiont.emit('tabs:close', { resourceId });
+    semiont.emit('tabs:close', { resourceId: makeResourceId(resourceId) });
 
     // If we're closing the currently viewed resource, navigate to first fixed item or trigger callback
     const resourceHref = getResourceHref(resourceId);

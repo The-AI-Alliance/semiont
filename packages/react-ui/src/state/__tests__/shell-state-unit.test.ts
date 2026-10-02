@@ -5,6 +5,7 @@ import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import { SemiontBrowser } from '@semiont/sdk';
 import { createHttpSessionFactory } from '@semiont/sdk';
 import { InMemorySessionStorage } from '@semiont/sdk';
+import { annotationId } from '@semiont/core';
 
 /**
  * Tests for ShellStateUnit — the app-scoped state unit that owns toolbar panel state.
@@ -76,7 +77,7 @@ describe('createShellStateUnit', () => {
     const scrolls: (string | null)[] = [];
     stateUnit.scrollToAnnotationId$.subscribe(v => scrolls.push(v));
 
-    browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: 'ann-42' });
+    browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annotationId('ann-42') });
     expect(scrolls).toEqual([null, 'ann-42']);
     stateUnit.dispose();
   });
@@ -140,7 +141,7 @@ describe('createShellStateUnit', () => {
     const scrolls: (string | null)[] = [];
     stateUnit.scrollToAnnotationId$.subscribe(v => scrolls.push(v));
 
-    browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: 'ann-1' });
+    browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annotationId('ann-1') });
     stateUnit.onScrollCompleted();
     expect(scrolls).toEqual([null, 'ann-1', null]);
     stateUnit.dispose();

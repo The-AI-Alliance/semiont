@@ -58,6 +58,7 @@ vi.mock('@/contexts/LineNumbersContext', async () => {
 import { useLineNumbers } from '@/contexts/LineNumbersContext';
 import { renderWithProviders } from '../../../test-utils';
 import { JsonLdView } from '../JsonLdView';
+import { resourceId } from '@semiont/core';
 
 const createMockAnnotation = (overrides?: Partial<Annotation>): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -67,7 +68,7 @@ const createMockAnnotation = (overrides?: Partial<Annotation>): Annotation => ({
   creator: { '@type': 'Person', name: 'user@example.com' },
   created: '2024-01-01T10:00:00Z',
   target: {
-    source: 'resource-1',
+    source: resourceId('resource-1'),
     selector: {
       type: 'TextPositionSelector',
       start: 0,

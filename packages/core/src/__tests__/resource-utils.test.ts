@@ -124,13 +124,13 @@ describe('getCreator', () => {
 
 describe('getDerivedFrom', () => {
   test('returns single URI', () => {
-    const r = makeResource({ wasDerivedFrom: 'http://example.com/source' });
-    expect(getDerivedFrom(r)).toBe('http://example.com/source');
+    const r = makeResource({ wasDerivedFrom: resourceId('source') });
+    expect(getDerivedFrom(r)).toBe('source');
   });
 
   test('returns first from array', () => {
-    const r = makeResource({ wasDerivedFrom: ['http://a.com', 'http://b.com'] });
-    expect(getDerivedFrom(r)).toBe('http://a.com');
+    const r = makeResource({ wasDerivedFrom: [resourceId('a-com'), resourceId('b-com')] });
+    expect(getDerivedFrom(r)).toBe('a-com');
   });
 
   test('returns undefined when not set', () => {

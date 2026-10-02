@@ -6,6 +6,7 @@ import { makeTestClient, type TestClient } from '../../../__tests__/test-client'
 import { resourceContextFor, annotationContextFor } from '../../../__tests__/fixtures/gathered-context';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 import type { YieldGenerationEvent } from '../../../namespaces/types';
+import { resourceId, jobId } from '@semiont/core';
 
 type JobProgress = components['schemas']['JobProgress'];
 type JobCompleteCommand = components['schemas']['JobCompleteCommand'];
@@ -15,8 +16,8 @@ const progressEvent = (p: JobProgress): YieldGenerationEvent => ({ kind: 'progre
 const completeEvent = (result?: JobCompleteCommand['result']): YieldGenerationEvent => ({
   kind: 'complete',
   data: {
-    resourceId: 'res-1',
-    jobId: 'job-1',
+    resourceId: resourceId('res-1'),
+    jobId: jobId('job-1'),
     jobType: 'generation',
     ...(result ? { result } : {}),
   },
@@ -24,7 +25,7 @@ const completeEvent = (result?: JobCompleteCommand['result']): YieldGenerationEv
 
 const GEN_RESULT: JobCompleteCommand['result'] = {
   kind: 'generation',
-  resourceId: 'res-new-1',
+  resourceId: resourceId('res-new-1'),
   resourceName: 'Summary of PB',
   truncated: false,
 };
@@ -246,7 +247,7 @@ describe('createYieldStateUnit', () => {
     expect(failures.at(-1)).toBeNull();
 
     // A setback the queue will retry is not one, and neither is a completion.
-    runs[2]!.next({ kind: 'failed', data: { resourceId: 'res-1', jobId: 'job-1', jobType: 'generation', error: 'busy', willRetry: true } });
+    runs[2]!.next({ kind: 'failed', data: { resourceId: resourceId('res-1'), jobId: jobId('job-1'), jobType: 'generation', error: 'busy', willRetry: true } });
     runs[2]!.next(completeEvent(GEN_RESULT));
     runs[2]!.complete();
     expect(failures.at(-1)).toBeNull();

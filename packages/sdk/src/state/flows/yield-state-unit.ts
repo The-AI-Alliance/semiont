@@ -1,6 +1,5 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
 import type { GatheredContext, ResourceId, components } from '@semiont/core';
-import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
 import type { StreamObservable } from '../../awaitable';
@@ -96,7 +95,7 @@ export function createYieldStateUnit(
         // narrows without a cast. Held for the terminal frame's link (D8).
         if (e.kind === 'complete' && e.data.result?.kind === 'generation') {
           outcome$.next({
-            resourceId: makeResourceId(e.data.result.resourceId),
+            resourceId: e.data.result.resourceId,
             resourceName: e.data.result.resourceName,
             truncated: e.data.result.truncated,
           });

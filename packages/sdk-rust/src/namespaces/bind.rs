@@ -4,6 +4,7 @@ use crate::channels::{BindBodyError, BindInitiate, BindUpdateBody};
 use crate::client::Links;
 use crate::errors::SemiontError;
 use crate::transport::Envelope;
+use crate::types::{AnnotationId, ResourceId};
 use crate::types::{
     BindBodyOperation, BindInitiateCommand, BindUpdateBodyCommand, ResourceErrorEvent,
 };
@@ -21,15 +22,15 @@ impl BindNamespace {
     /// recorded, and fails with the failure the knowledge base answered.
     pub async fn body(
         &self,
-        resource_id: &str,
-        annotation_id: &str,
+        resource_id: &ResourceId,
+        annotation_id: &AnnotationId,
         operations: Vec<BindBodyOperation>,
     ) -> Result<(), SemiontError> {
         self.links
             .request::<BindUpdateBody>(&BindUpdateBodyCommand {
                 _user_id: None,
-                annotation_id: annotation_id.to_owned(),
-                resource_id: resource_id.to_owned(),
+                annotation_id: annotation_id.clone(),
+                resource_id: resource_id.clone(),
                 operations,
             })
             .await?;

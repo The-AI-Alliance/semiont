@@ -11,7 +11,7 @@ import { useEffect, useCallback } from 'react';
 import { useParams } from 'react-router';
 import { useLocale } from '@/i18n/routing';
 import { useSemiont, useObservable, useSessionStateUnit, createResourceLoaderStateUnit } from '@semiont/react-ui';
-import { resourceId } from '@semiont/core';
+import { isResourceId, type ResourceId } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { Link, routes } from '@/lib/routing';
 
@@ -45,16 +45,14 @@ export default function KnowledgeResourcePage() {
   const params = useParams<{ id: string }>();
   const session = useObservable(useSemiont().activeSession$) ?? null;
 
-  // `App.tsx` declares this route as `resource/:id`, so React Router cannot
-  // match it without the param. That used to be written `params?.id as string`
-  // — an assertion, which reads as harmless precisely because it is usually
-  // true. It is not harmless: `resourceId()` takes a `string` and calls
-  // `.includes('/')` on it immediately, so the one time the assumption broke
-  // (a route-pattern rename) the page would throw a TypeError and white-screen
-  // rather than degrade. Branching lets the compiler prove `id` is a string,
-  // and turns that rename into a visible not-found.
-  const id = params.id;
-  if (!id) return <NotFound />;
+  // A URL carries any text: an old bookmark, a mistyped address, or nothing
+  // at all if the route pattern is ever renamed. Text that is not a resource's
+  // id names no resource, which is a not-found and not an error. Asking with
+  // the guard is what lets the compiler prove `rId` is an id; `resourceId()`
+  // would throw here, in render, and the error boundary would report a
+  // failure where nothing failed.
+  const rId = params.id;
+  if (rId === undefined || !isResourceId(rId)) return <NotFound />;
 
   // Leaving a resource route on a KB switch is the SWITCH INITIATOR's job
   // (`KnowledgeBasePanel`), not this page's. A latch here cannot work:
@@ -66,7 +64,6 @@ export default function KnowledgeResourcePage() {
   // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
   if (!session) return <ResourceLoadingState />;
 
-  const rId = resourceId(id);
   return <KnowledgeResourcePageInner key={`${session.id}:${rId}`} session={session} rId={rId} />;
 }
 
@@ -75,7 +72,7 @@ function KnowledgeResourcePageInner({
   rId,
 }: {
   session: SemiontSession;
-  rId: ReturnType<typeof resourceId>;
+  rId: ResourceId;
 }) {
   const locale = useLocale();
 
@@ -114,14 +111,12 @@ function KnowledgeResourcePageInner({
   }
 
   const resource = resourceData as SemiontResource;
-  // resource['@id'] is now a bare ID
-  const canonicalId = resourceId(resource['@id']);
 
   // Render with minimal props - all data loading/events handled inside ResourceViewerPage
   return (
     <ResourceViewerPage
       resource={resource}
-      rUri={canonicalId}
+      rUri={resource['@id']}
       locale={locale}
       Link={Link}
       routes={routes}

@@ -7,7 +7,7 @@
       "description": "The clone's identity — a new resource, distinct from its parent.",
       "properties": {
         "resourceId": {
-          "type": "string"
+          "$ref": "./ResourceId.json"
         }
       },
       "required": [

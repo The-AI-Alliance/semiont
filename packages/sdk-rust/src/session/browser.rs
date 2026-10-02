@@ -53,6 +53,7 @@ use crate::state::{Held, Tasks};
 use crate::storage::{SessionStorage, StorageSubscription};
 use crate::transport::{Events, STREAM_BACKLOG};
 use crate::types::KbDescription;
+use crate::types::ResourceId;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -123,7 +124,7 @@ pub enum KbReadVerdict {
 #[derive(Default)]
 struct Kept {
     open_by_kb: HashMap<String, Vec<OpenResource>>,
-    last_viewed_by_kb: HashMap<String, String>,
+    last_viewed_by_kb: HashMap<String, ResourceId>,
     /// How many activations are under way or waiting their turn.
     activations: usize,
 }
@@ -137,7 +138,7 @@ struct Inner {
     active_signals: Held<Option<Arc<SessionSignals>>>,
     session_activating: Held<bool>,
     open_resources: Held<Vec<OpenResource>>,
-    last_viewed_resource: Held<Option<String>>,
+    last_viewed_resource: Held<Option<ResourceId>>,
     identity_token: Held<Option<String>>,
     /// `None` once closed.
     errors: Mutex<Option<broadcast::Sender<SessionError>>>,
@@ -255,7 +256,7 @@ impl SemiontBrowser {
 
     /// The resource last viewed in the active knowledge base. None while it
     /// has no live session, and never another knowledge base's.
-    pub fn last_viewed_resource(&self) -> watch::Receiver<Option<String>> {
+    pub fn last_viewed_resource(&self) -> watch::Receiver<Option<ResourceId>> {
         self.inner.last_viewed_resource.read()
     }
 
@@ -436,13 +437,13 @@ impl SemiontBrowser {
     /// already, take its name and what else is stated of it.
     pub fn add_open_resource(
         &self,
-        id: &str,
+        id: &ResourceId,
         name: &str,
         media_type: Option<&str>,
         storage_uri: Option<&str>,
     ) {
         self.inner.mutate_open_resources(|mut open| {
-            match open.iter_mut().find(|resource| resource.id == id) {
+            match open.iter_mut().find(|resource| &resource.id == id) {
                 Some(resource) => {
                     resource.name = name.to_owned();
                     if let Some(media_type) = media_type {
@@ -453,7 +454,7 @@ impl SemiontBrowser {
                     }
                 }
                 None => open.push(OpenResource {
-                    id: id.to_owned(),
+                    id: id.clone(),
                     name: name.to_owned(),
                     opened_at: milliseconds(SystemTime::now()),
                     // After the last place taken, not the count: a place
@@ -471,16 +472,16 @@ impl SemiontBrowser {
         });
     }
 
-    pub fn remove_open_resource(&self, id: &str) {
+    pub fn remove_open_resource(&self, id: &ResourceId) {
         self.inner.mutate_open_resources(|mut open| {
-            open.retain(|resource| resource.id != id);
+            open.retain(|resource| &resource.id != id);
             open
         });
     }
 
-    pub fn update_open_resource_name(&self, id: &str, name: &str) {
+    pub fn update_open_resource_name(&self, id: &ResourceId, name: &str) {
         self.inner.mutate_open_resources(|mut open| {
-            for resource in open.iter_mut().filter(|resource| resource.id == id) {
+            for resource in open.iter_mut().filter(|resource| &resource.id == id) {
                 resource.name = name.to_owned();
             }
             open
@@ -506,7 +507,7 @@ impl SemiontBrowser {
 
     /// The resource a person is looking at, in the active knowledge base.
     /// Nothing is recorded while it has no live session.
-    pub fn set_last_viewed_resource(&self, resource_id: &str) {
+    pub fn set_last_viewed_resource(&self, resource_id: &ResourceId) {
         self.inner.set_last_viewed_resource(resource_id);
     }
 
@@ -821,20 +822,20 @@ impl Inner {
         self.project();
     }
 
-    fn set_last_viewed_resource(&self, resource_id: &str) {
+    fn set_last_viewed_resource(&self, resource_id: &ResourceId) {
         let Some(kb_id) = self.live_kb_id() else {
             return;
         };
         self.mutate_last_viewed(|viewed| {
-            viewed.insert(kb_id.clone(), resource_id.to_owned());
+            viewed.insert(kb_id.clone(), resource_id.clone());
         });
     }
 
-    fn mutate_last_viewed(&self, mutate: impl Fn(&mut HashMap<String, String>)) {
+    fn mutate_last_viewed(&self, mutate: impl Fn(&mut HashMap<String, ResourceId>)) {
         let mut committed = None;
         self.storage
             .update(LAST_VIEWED_RESOURCE_BY_KB_KEY, &mut |stored| {
-                let mut viewed: HashMap<String, String> = by_kb(stored);
+                let mut viewed: HashMap<String, ResourceId> = by_kb(stored);
                 mutate(&mut viewed);
                 let written = serde_json::to_string(&viewed).unwrap_or_default();
                 committed = Some(viewed);
@@ -915,7 +916,7 @@ impl Inner {
 
         // What the storage holds, not what is in memory: another context
         // may have opened a resource before this session came up.
-        let ids: VecDeque<String> =
+        let ids: VecDeque<ResourceId> =
             by_kb::<Vec<OpenResource>>(self.storage.get(OPEN_RESOURCES_BY_KB_KEY).as_deref())
                 .remove(&kb_id)
                 .unwrap_or_default()
@@ -1016,7 +1017,7 @@ impl Inner {
 
 /// One open resource's verdict. Asking for it freshly also puts what it
 /// answered in the client's cache, where a viewer reads it.
-async fn check_open_resource(session: &SemiontSession, id: &str) -> TabCheck {
+async fn check_open_resource(session: &SemiontSession, id: &ResourceId) -> TabCheck {
     match session.client().browse.resource(id).fresh().await {
         Ok(descriptor) => TabCheck::Ready {
             media_type: primary_media_type(&descriptor).map(str::to_owned),
@@ -1208,9 +1209,13 @@ mod tests {
                 .open_resources()
                 .borrow()
                 .iter()
-                .map(|resource| resource.id.clone())
+                .map(|resource| resource.id.to_string())
                 .collect(),
-            browser.last_viewed_resource().borrow().clone(),
+            browser
+                .last_viewed_resource()
+                .borrow()
+                .as_deref()
+                .map(str::to_owned),
         )
     }
 

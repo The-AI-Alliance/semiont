@@ -6,7 +6,7 @@
       "type": "string"
     },
     "scrollToAnnotationId": {
-      "type": "string"
+      "$ref": "./AnnotationId.json"
     },
     "motivation": {
       "$ref": "./Motivation.json"

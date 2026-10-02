@@ -1082,7 +1082,7 @@ describe('smelt:rebuild-anchors — the operator rebuild command (PERSIST-ANCHOR
   it('scoped rebuild re-derives exactly the named resource', async () => {
     const h = await rebuildHarness({ 'res-a': PDF_A, 'res-b': PDF_B });
     try {
-      h.rebuilds$.next({ correlationId: 'c-scoped', payload: { resourceId: 'res-a' } });
+      h.rebuilds$.next({ correlationId: 'c-scoped', payload: { resourceId: makeResourceId('res-a') } });
       const reply = await h.reply('c-scoped');
 
       expect(reply.channel).toBe('smelt:rebuild-anchors-ok');

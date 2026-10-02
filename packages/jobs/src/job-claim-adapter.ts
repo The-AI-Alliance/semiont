@@ -50,8 +50,8 @@
  */
 
 import { BehaviorSubject, Observable, Subject, type Subscription } from 'rxjs';
-import { BusRequestError, busRequest, isArray, isNumber, isObject, isString } from '@semiont/core';
-import type { BusRequestErrorCode, UnitCursor } from '@semiont/core';
+import { BusRequestError, busRequest } from '@semiont/core';
+import type { BusRequestErrorCode, EventMap, JobId, JobType, ResourceId, UnitCursor } from '@semiont/core';
 import type { BusRequestPrimitive } from '@semiont/core';
 
 /**
@@ -61,42 +61,18 @@ import type { BusRequestPrimitive } from '@semiont/core';
  */
 export type JobClaimAwaits = 'job:claim';
 
-/**
- * Narrow the claimed record's `unitCursors` metadata to usable cursors.
- *
- * A malformed or partial entry is DROPPED, never repaired: the unit then starts
- * from the top, which costs inference but is always correct, whereas a
- * manufactured position would skip text nobody ever read and the gap would be
- * undetectable afterwards. Cursors for units already in `completedUnits` are
- * dropped too — the queue keeps those sets disjoint, and a reader that trusted
- * a stale one would resume a unit that is done.
- */
-function readUnitCursors(raw: unknown, completedUnits: string[]): Record<string, UnitCursor> {
-  if (!isObject(raw)) return {};
-  const done = new Set(completedUnits);
-  const cursors: Record<string, UnitCursor> = {};
-  for (const [unit, value] of Object.entries(raw)) {
-    if (done.has(unit) || !isObject(value)) continue;
-    const { next, size, found, emitted } = value;
-    if (!isNumber(next) || !isNumber(size) || next < 0 || size < 1) continue;
-    // The tallies are required, and a cursor missing them is dropped WHOLE
-    // rather than resumed without them. Resuming would take the saving and then
-    // report a terminal record that counts only the remainder — the exact lie
-    // HD3 exists to remove. Dropping costs one re-run of a unit and yields a
-    // record that is true; a checkpoint written before this field existed reads
-    // as absent and takes that trade.
-    if (!isNumber(found) || !isNumber(emitted) || found < 0 || emitted < 0) continue;
-    cursors[unit] = { next, size, found, emitted };
-  }
-  return cursors;
-}
+/** The job a `job:claimed` reply carries, running under this worker: the spec's `JobRunning`. */
+type ClaimedJob = EventMap['job:claimed']['response'];
 
+/**
+ * The claimed job as the worker holds it: the fields of the claimed record the
+ * worker reads, each with the type the spec gives it there.
+ */
 export interface ActiveJob {
-  jobId: string;
-  type: string;
-  resourceId: string;
-  userId: string;
-  params: Record<string, unknown>;
+  jobId: JobId;
+  type: JobType;
+  resourceId: ResourceId;
+  params: ClaimedJob['params'];
   /**
    * Entity-type units earlier failed attempts fully emitted
    * (ABANDONED-INFERENCE P2 checkpointed resume) — carried on the claimed
@@ -136,9 +112,9 @@ export interface JobClaimAdapterOptions {
  * A claim the dispatcher refused for a reason other than "nothing pending".
  *
  * `code` is the `BusRequestError` code the reply was promoted to, or `null`
- * when the failure was local — an unusable record, a thrown non-bus error —
- * never a manufactured bus code. `bus.none-pending` never appears here: it is
- * the quiet park, and emitting it would make an empty queue look like a fault.
+ * when the failure was local — a thrown non-bus error — never a manufactured
+ * bus code. `bus.none-pending` never appears here: it is the quiet park, and
+ * emitting it would make an empty queue look like a fault.
  */
 export interface ClaimRefusal {
   code: BusRequestErrorCode | null;
@@ -248,14 +224,12 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
     // Ask for the next pending job of this worker's types (JOB-QUEUE-DRIVER
     // P2). Same request/reply path as the SDK: busRequest mints the
     // correlationId, matches the job:claimed / job:claim-failed reply by it,
-    // and returns the reply's `response` — an untyped `Record<string,
-    // unknown>`, so narrow it to the claimed-job shape the worker reads.
-    let record: {
-      params?: Record<string, unknown>;
-      metadata?: { id?: string; type?: string; userId?: string; completedUnits?: unknown; unitCursors?: unknown; retryCount?: unknown; maxRetries?: unknown };
-    };
+    // and returns the reply's `response` — the claimed job, as the spec types
+    // it. A reply is not checked on receipt: the dispatcher states it, and its
+    // conformance suite holds every frame it sends to the channel's schema.
+    let claimed: ClaimedJob;
     try {
-      record = (await busRequest(bus, 'job:claim' satisfies JobClaimAwaits, { types: jobTypes }, 10_000)) as typeof record;
+      claimed = await busRequest(bus, 'job:claim' satisfies JobClaimAwaits, { types: jobTypes }, 10_000);
     } catch (error) {
       // The reply's verdict, promoted to the client vocabulary by core. A
       // decline is the expected quiet outcome; everything else is the
@@ -267,31 +241,19 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       return { refused: { code: null, message: error instanceof Error ? error.message : String(error) } };
     }
 
-    // The claimed job's identity comes from the RESPONSE. A record without
-    // one is unusable — refused locally, never run.
-    if (!isString(record.metadata?.id) || !isString(record.metadata?.type)) {
-      return { refused: { code: null, message: 'claimed record carries no job id or type' } };
-    }
-
-    const completedUnits = isArray(record.metadata?.completedUnits)
-      ? record.metadata.completedUnits.filter(isString)
-      : [];
-    const unitCursors = readUnitCursors(record.metadata?.unitCursors, completedUnits);
-    const params = (record.params ?? {}) as Record<string, unknown>;
-
+    const { metadata, params } = claimed;
     return {
       job: {
-        jobId: record.metadata.id,
-        type: record.metadata.type,
-        resourceId: isString(params.resourceId) ? params.resourceId : '',
-        userId: (record.metadata?.userId ?? '') as string,
+        jobId: metadata.id,
+        type: metadata.type,
+        resourceId: params.resourceId,
         params,
-        completedUnits,
-        unitCursors,
-        // Absent or malformed metadata reads as "no budget left" — a worker
-        // that cannot see the budget must not claim a retry is coming.
-        retryCount: isNumber(record.metadata?.retryCount) ? record.metadata.retryCount : 0,
-        maxRetries: isNumber(record.metadata?.maxRetries) ? record.metadata.maxRetries : 0,
+        // Both appear on the record once an attempt has checkpointed, and a
+        // finished unit has no cursor: the dispatcher drops it at the merge.
+        completedUnits: metadata.completedUnits ?? [],
+        unitCursors: metadata.unitCursors ?? {},
+        retryCount: metadata.retryCount,
+        maxRetries: metadata.maxRetries,
       },
     };
   };

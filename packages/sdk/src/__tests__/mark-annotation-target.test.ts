@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
-import { EventBus } from '@semiont/core';
+import { EventBus, annotationId, resourceId } from '@semiont/core';
 import type { EventMap } from '@semiont/core';
 import { MarkNamespace } from '../namespaces/mark';
 import type { CreateAnnotationInput } from '../namespaces/types';
@@ -64,8 +64,8 @@ describe('mark.annotation — selector-less (whole-resource) target', () => {
     // the body is a SpecificResource pointing at the source resource.
     const input: CreateAnnotationInput = {
       motivation: 'linking',
-      target: { source: 'res-claim-1' },
-      body: { type: 'SpecificResource', source: 'res-source-1' },
+      target: { source: resourceId('res-claim-1') },
+      body: { type: 'SpecificResource', source: resourceId('res-source-1') },
     };
 
     const promise = mark.annotation(input);
@@ -79,7 +79,7 @@ describe('mark.annotation — selector-less (whole-resource) target', () => {
     expect(req.target.selector).toBeUndefined(); // ← the pin: no selector injected or required
     expect(req.body).toEqual({ type: 'SpecificResource', source: 'res-source-1' });
 
-    push('mark:create-ok', { response: { annotationId: 'ann-1' } }, getLastCorrelationId());
+    push('mark:create-ok', { response: { annotationId: annotationId('ann-1') } }, getLastCorrelationId());
 
     expect(await promise).toEqual({ annotationId: 'ann-1' });
   });
@@ -88,7 +88,7 @@ describe('mark.annotation — selector-less (whole-resource) target', () => {
     const { mark, push, getLastPayload, getLastCorrelationId } = makeMark();
     const input: CreateAnnotationInput = {
       motivation: 'commenting',
-      target: { source: 'res-doc-1', selector: { type: 'TextPositionSelector', start: 0, end: 10 } },
+      target: { source: resourceId('res-doc-1'), selector: { type: 'TextPositionSelector', start: 0, end: 10 } },
       body: { type: 'TextualBody', value: 'note' },
     };
 
@@ -98,7 +98,7 @@ describe('mark.annotation — selector-less (whole-resource) target', () => {
     const req = getLastPayload()!.request as CreateAnnotationInput;
     expect(req.target.selector).toEqual({ type: 'TextPositionSelector', start: 0, end: 10 });
 
-    push('mark:create-ok', { response: { annotationId: 'ann-2' } }, getLastCorrelationId());
+    push('mark:create-ok', { response: { annotationId: annotationId('ann-2') } }, getLastCorrelationId());
     await promise;
   });
 });

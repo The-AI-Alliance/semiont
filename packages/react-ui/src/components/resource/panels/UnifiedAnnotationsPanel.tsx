@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components, Selector } from '@semiont/core';
+import type { components, ResourceId, Selector } from '@semiont/core';
 type JobProgress = components['schemas']['JobProgress'];
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { SemiontSession } from '@semiont/sdk';
@@ -44,7 +44,7 @@ interface UnifiedAnnotationsPanelProps {
   session: SemiontSession | null;
 
   /** Host-owned navigation: called with the resolved resource id when a reference entry opens. */
-  onOpenResource?: (resourceId: string) => void;
+  onOpenResource?: (resourceId: ResourceId) => void;
 
   // All annotations (grouped internally by motivation)
   annotations: Annotation[];
@@ -83,7 +83,7 @@ interface UnifiedAnnotationsPanelProps {
 
   // Resource context — threaded to every per-motivation panel, which stamps it
   // as `source` on mark:submit (multi-viewer routing).
-  resourceId: string;
+  resourceId: ResourceId;
   initialTab?: TabKey;
   initialTabGeneration?: number; // Generation counter for tab switching
 

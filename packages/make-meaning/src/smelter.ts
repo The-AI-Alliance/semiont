@@ -655,7 +655,7 @@ export class Smelter {
    */
   private async emitSettled(resourceId: string, contentChecksum: string, outcome: 'indexed' | 'skipped', reason?: SkipReason): Promise<void> {
     try {
-      await this.bus.emit('smelt:settled', { resourceId, contentChecksum, outcome, ...(reason ? { reason } : {}) });
+      await this.bus.emit('smelt:settled', { resourceId: makeResourceId(resourceId), contentChecksum, outcome, ...(reason ? { reason } : {}) });
     } catch (error) {
       this.logger.warn('Failed to emit smelt:settled', { resourceId, outcome, error: errField(error) });
     }

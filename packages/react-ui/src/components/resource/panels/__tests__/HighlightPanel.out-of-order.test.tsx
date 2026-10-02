@@ -14,6 +14,7 @@ import { renderWithProviders, createTestSemiontWrapper } from '../../../../test-
 import { HighlightPanel } from '../HighlightPanel';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, AnnotationId } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 
 const mockT = vi.fn((key: string) => key);
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -31,7 +32,7 @@ function highlightAt(id: string, start: number, exact: string): Annotation {
     id: id as AnnotationId,
     motivation: 'highlighting',
     target: {
-      source: 'resource-1',
+      source: resourceId('resource-1'),
       selector: [
         { type: 'TextPositionSelector', start, end: start + exact.length },
         { type: 'TextQuoteSelector', exact },
@@ -55,7 +56,7 @@ describe('HighlightPanel — arrival order is invisible; list order is document 
 
   it('a scrambled initial load (concurrent units) renders in document order', () => {
     renderWithProviders(
-      <HighlightPanel session={session} resourceId="res-1"
+      <HighlightPanel session={session} resourceId={resourceId('res-1')}
         annotations={[
           highlightAt('h-chunk3', 900, 'gamma'),
           highlightAt('h-chunk1', 100, 'alpha'),
@@ -73,7 +74,7 @@ describe('HighlightPanel — arrival order is invisible; list order is document 
 
   it('an earlier-position annotation arriving LATE slots into place, not onto the end', () => {
     const { rerender } = renderWithProviders(
-      <HighlightPanel session={session} resourceId="res-1"
+      <HighlightPanel session={session} resourceId={resourceId('res-1')}
         annotations={[highlightAt('h-late-chunk', 700, 'omega')]}
         pendingAnnotation={null}
         isAssisting={false}
@@ -85,7 +86,7 @@ describe('HighlightPanel — arrival order is invisible; list order is document 
 
     // Chunk 1's find lands after chunk 2's — the out-of-order insert.
     rerender(
-      <HighlightPanel session={session} resourceId="res-1"
+      <HighlightPanel session={session} resourceId={resourceId('res-1')}
         annotations={[highlightAt('h-late-chunk', 700, 'omega'), highlightAt('h-early-chunk', 50, 'alpha')]}
         pendingAnnotation={null}
         isAssisting={false}

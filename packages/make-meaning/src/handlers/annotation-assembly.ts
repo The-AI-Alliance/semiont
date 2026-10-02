@@ -1,4 +1,4 @@
-import { resourceId, assembleAnnotation } from '@semiont/core';
+import { resourceId, assembleAnnotation, type AnnotationId } from '@semiont/core';
 import type { EventBus, Logger, components } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import { assertAnnotatableTarget } from '../annotation-operations.js';
@@ -37,7 +37,7 @@ type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
  */
 export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { views: Pick<ViewStorage, 'get'> }, parentLogger: Logger): void {
   const logger = parentLogger.child({ component: 'annotation-assembly' });
-  const inflight = new Map<string, { annotationId: string }>();
+  const inflight = new Map<string, { annotationId: AnnotationId }>();
 
   eventBus.frames('mark:create-request').subscribe(({ payload: command, correlationId: cid }) => {
     // Async because the gate reads the target's view; the try/catch below
@@ -55,7 +55,8 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { view
 
       // Refuse BEFORE assembling — an annotation is a durable write against a
       // coordinate model the system does not have for this type.
-      await assertAnnotatableTarget(kb, resId as string);
+      const target = resourceId(resId as string);
+      await assertAnnotatableTarget(kb, target);
 
       // A person states nothing about provenance; the Stower derives who
       // asked from `_userId` when it stows (VERIFIED-PROVENANCE P2).
@@ -65,7 +66,7 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { view
 
       eventBus.emit('mark:create', { annotation,
         _userId,
-        resourceId: resourceId(resId as string), } as never, { correlationId: cid });
+        resourceId: target, } as never, { correlationId: cid });
 
       logger.info('Annotation assembled, awaiting persistence', {
         annotationId: annotation.id,

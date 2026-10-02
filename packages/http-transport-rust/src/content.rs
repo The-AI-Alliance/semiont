@@ -20,9 +20,12 @@ use semiont::transport::{
     BoxFuture, Content, ContentStream, ContentTransport, PutBinaryRequest, Upload, UploadProgress,
 };
 use semiont::types::GetResourceResponse;
+use semiont::types::ResourceId;
+use semiont::types::{AnnotationId, JobId};
 use semiont_observability::telemetry;
 use serde_json::json;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::mpsc;
 
 /// How much of an upload's body is handed to the connection at a time: the
@@ -75,16 +78,25 @@ impl Form {
                 &json!(request.entity_types).to_string(),
             ));
         }
-        let text: [(&str, &Option<String>); 6] = [
-            ("language", &request.language),
-            ("sourceAnnotationId", &request.source_annotation_id),
-            ("sourceResourceId", &request.source_resource_id),
-            ("generationPrompt", &request.generation_prompt),
-            ("jobId", &request.job_id),
-            ("cloneToken", &request.clone_token),
+        let text: [(&str, Option<&str>); 6] = [
+            ("language", request.language.as_deref()),
+            (
+                "sourceAnnotationId",
+                request
+                    .source_annotation_id
+                    .as_ref()
+                    .map(AnnotationId::as_str),
+            ),
+            (
+                "sourceResourceId",
+                request.source_resource_id.as_ref().map(ResourceId::as_str),
+            ),
+            ("generationPrompt", request.generation_prompt.as_deref()),
+            ("jobId", request.job_id.as_ref().map(JobId::as_str)),
+            ("cloneToken", request.clone_token.as_deref()),
         ];
         for (name, value) in text {
-            if let Some(value) = value.as_deref().filter(|value| !value.is_empty()) {
+            if let Some(value) = value.filter(|value| !value.is_empty()) {
                 after.push_str(&field(name, value));
             }
         }
@@ -115,8 +127,14 @@ impl Form {
     }
 
     /// The body as it is sent: a piece at a time, each reported to `progress`
-    /// as it is handed to the connection.
-    fn body(&self, progress: mpsc::UnboundedSender<UploadProgress>) -> reqwest::Body {
+    /// as it is handed to the connection. `reported` is how much of this
+    /// upload has been reported sent: a sending that repeats an earlier one,
+    /// after a renewed token, reports nothing until it has passed that.
+    fn body(
+        &self,
+        progress: mpsc::UnboundedSender<UploadProgress>,
+        reported: Arc<AtomicU64>,
+    ) -> reqwest::Body {
         let total_bytes = self.len();
         let pieces: Vec<Bytes> = self
             .parts
@@ -131,10 +149,12 @@ impl Form {
         let mut bytes_uploaded = 0;
         reqwest::Body::wrap_stream(futures::stream::iter(pieces).map(move |piece| {
             bytes_uploaded += piece.len() as u64;
-            let _ = progress.send(UploadProgress {
-                bytes_uploaded,
-                total_bytes,
-            });
+            if reported.fetch_max(bytes_uploaded, Ordering::Relaxed) < bytes_uploaded {
+                let _ = progress.send(UploadProgress {
+                    bytes_uploaded,
+                    total_bytes,
+                });
+            }
             Ok::<Bytes, std::convert::Infallible>(piece)
         }))
     }
@@ -143,7 +163,8 @@ impl Form {
 impl ContentTransport for HttpContentTransport {
     fn put_binary(&self, request: PutBinaryRequest) -> Upload {
         let shared = self.shared.clone();
-        let (progress, reported) = mpsc::unbounded_channel();
+        let (progress, reports) = mpsc::unbounded_channel();
+        let reported = Arc::new(AtomicU64::new(0));
         let sending = async move {
             let size = request.bytes.len();
             bus_log(
@@ -174,17 +195,17 @@ impl ContentTransport for HttpContentTransport {
                             format!("multipart/form-data; boundary={}", form.boundary),
                         )
                         .header(reqwest::header::CONTENT_LENGTH, form.len())
-                        .body(form.body(progress.clone()))
+                        .body(form.body(progress.clone(), reported.clone()))
                 }),
             )
             .await
         };
-        Upload::new(reported, Box::pin(sending))
+        Upload::new(reports, Box::pin(sending))
     }
 
     fn get_binary<'a>(
         &'a self,
-        resource_id: &'a str,
+        resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<Content, TransportError>> {
         Box::pin(async move {
             bus_log(
@@ -197,7 +218,7 @@ impl ContentTransport for HttpContentTransport {
             telemetry::in_span(
                 "content.get".to_owned(),
                 SpanKind::Client,
-                vec![KeyValue::new("resource.id", resource_id.to_owned())],
+                vec![KeyValue::new("resource.id", resource_id.to_string())],
                 opentelemetry::Context::current(),
                 async {
                     let response = self.read(resource_id).await?;
@@ -218,7 +239,7 @@ impl ContentTransport for HttpContentTransport {
 
     fn get_binary_stream<'a>(
         &'a self,
-        resource_id: &'a str,
+        resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<ContentStream, TransportError>> {
         Box::pin(async move {
             bus_log(
@@ -232,14 +253,14 @@ impl ContentTransport for HttpContentTransport {
                 "content.get".to_owned(),
                 SpanKind::Client,
                 vec![
-                    KeyValue::new("resource.id", resource_id.to_owned()),
+                    KeyValue::new("resource.id", resource_id.to_string()),
                     KeyValue::new("content.stream", true),
                 ],
                 opentelemetry::Context::current(),
                 async {
                     let response = self.read(resource_id).await?;
                     let content_type = content_type(&response);
-                    let resource = resource_id.to_owned();
+                    let resource = resource_id.clone();
                     let shared = self.shared.clone();
                     let bytes = response.bytes_stream().map(move |read| {
                         read.map_err(|error| shared.failed(interrupted(&resource, &error)))
@@ -256,7 +277,7 @@ impl ContentTransport for HttpContentTransport {
 
     fn get_resource_graph<'a>(
         &'a self,
-        resource_id: &'a str,
+        resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<GetResourceResponse, TransportError>> {
         Box::pin(async move {
             bus_log(
@@ -269,11 +290,11 @@ impl ContentTransport for HttpContentTransport {
             telemetry::in_span(
                 "content.get_graph".to_owned(),
                 SpanKind::Client,
-                vec![KeyValue::new("resource.id", resource_id.to_owned())],
+                vec![KeyValue::new("resource.id", resource_id.to_string())],
                 opentelemetry::Context::current(),
                 self.shared.answer(
                     reqwest::Method::GET,
-                    &format!("/resources/{resource_id}/jsonld"),
+                    &format!("{}/jsonld", path_of(resource_id)),
                     true,
                     |builder| builder,
                 ),
@@ -287,16 +308,22 @@ impl HttpContentTransport {
     /// The stored bytes, as they are: no `Accept`, so the gateway serves them
     /// with their own media type. The deadline is on their beginning to
     /// arrive: how long they take after that is how many there are.
-    async fn read(&self, resource_id: &str) -> Result<reqwest::Response, TransportError> {
+    async fn read(&self, resource_id: &ResourceId) -> Result<reqwest::Response, TransportError> {
         self.shared
             .send(
                 reqwest::Method::GET,
-                &format!("/resources/{resource_id}"),
+                &path_of(resource_id),
                 true,
                 |builder| builder,
             )
             .await
     }
+}
+
+/// Where a resource is read. Its id is one segment of the path as it is: the
+/// rule a `ResourceId` is held to admits nothing a path reads as its own.
+fn path_of(resource_id: &ResourceId) -> String {
+    format!("/resources/{resource_id}")
 }
 
 fn content_type(response: &reqwest::Response) -> String {
@@ -309,7 +336,7 @@ fn content_type(response: &reqwest::Response) -> String {
 }
 
 /// A read whose bytes stopped coming.
-fn interrupted(resource_id: &str, error: &reqwest::Error) -> TransportError {
+fn interrupted(resource_id: &ResourceId, error: &reqwest::Error) -> TransportError {
     TransportError::without_response(
         format!("GET /resources/{resource_id} ended before its bytes did: {error}"),
         TransportErrorCode::Unavailable,
@@ -319,6 +346,7 @@ fn interrupted(resource_id: &str, error: &reqwest::Error) -> TransportError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use semiont::testing::as_id;
 
     fn request() -> PutBinaryRequest {
         PutBinaryRequest {
@@ -332,7 +360,7 @@ mod tests {
             source_resource_id: None,
             generation_prompt: None,
             generator: None,
-            job_id: Some("job-1".to_owned()),
+            job_id: Some(as_id("job-1")),
             is_draft: Some(true),
             clone_token: None,
             archive_original: None,
@@ -366,7 +394,7 @@ mod tests {
         large.bytes = Bytes::from(vec![7u8; UPLOAD_CHUNK * 2 + 10]);
         let form = Form::of(&large);
         let (progress, mut reported) = mpsc::unbounded_channel();
-        let body = form.body(progress);
+        let body = form.body(progress, Arc::default());
         let sent = http_body_util::BodyExt::collect(body)
             .await
             .expect("the body is read")

@@ -6,8 +6,8 @@
       "enum": ["SpecificResource"]
     },
     "source": {
-      "type": "string",
-      "description": "IRI of the target resource"
+      "$ref": "./ResourceId.json",
+      "description": "The id of the resource this body leads to"
     },
     "purpose": {
       "$ref": "./BodyPurpose.json",

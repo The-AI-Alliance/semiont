@@ -61,7 +61,7 @@
   "scripts": {
     "bundle-spec": "cd ../.. && npm run openapi:bundle",
     "copy-spec": "cp ../../specs/openapi.json openapi.json",
-    "generate:openapi": "npm run bundle-spec && npm run copy-spec && openapi-typescript openapi.json -o src/types.ts",
+    "generate:openapi": "npm run bundle-spec && npm run copy-spec && openapi-typescript openapi.json -o src/types.ts && node ../../scripts/spec/generate-identifiers.mjs",
     "generate:types": "tsx scripts/generate-types.ts",
     "prebuild": "npm run generate:openapi && npm run generate:types && npm run generate:validators && npm run generate:limits && npm run generate:error-codes && npm run generate:client-timing && npm run generate:oauth-clients && npm run generate:media-types && npm run generate:cache-refresh && npm run generate:service-config-sections && npm run generate:job-storage",
     "typecheck": "tsc --noEmit",

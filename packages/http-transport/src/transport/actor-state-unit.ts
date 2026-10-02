@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusRequestPrimitive, type components, type ConnectionState, type EventMap, type RetryPolicy, type StateUnit, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusRequestPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -11,19 +11,6 @@ import {
 import { APIError } from './api-error';
 
 export type { ConnectionState };
-
-export interface BusEvent {
-  channel: string;
-  /**
-   * Correlates a reply with its request. On the frame, never inside the
-   * payload — the delivery-side half of the emit envelope (D6b, Option 2).
-   * Present only for correlated channels, which is why it is optional.
-   */
-  correlationId?: string;
-  payload: Record<string, unknown>;
-  scope?: string;
-}
-
 
 export interface ActorStateUnitOptions {
   baseUrl: string;
@@ -72,8 +59,8 @@ export interface ActorStateUnitOptions {
    * replay-loss hole the single-id design had. The transport stays
    * storage-free; callers wrap their own adapter in these thunks.
    */
-  loadLastEventIds?: () => Record<string, string> | null;
-  saveLastEventId?: (scope: string, id: string) => void;
+  loadLastEventIds?: () => ReadonlyMap<ResourceId, string> | null;
+  saveLastEventId?: (scope: ResourceId, id: string) => void;
 }
 
 /**
@@ -91,9 +78,9 @@ export interface ActorStateUnit extends StateUnit, BusRequestPrimitive {
    */
   errors$: Observable<APIError>;
   /** With `scope`: upsert channels into that scope's matrix entry. Without: global channels. */
-  addChannels(channels: readonly (keyof EventMap)[], scope?: string): void;
+  addChannels(channels: readonly (keyof EventMap)[], scope?: ResourceId): void;
   /** With `scope`: remove channels from that scope's entry (empty entry drops the scope). Without: global channels. */
-  removeChannels(channels: string[], scope?: string): void;
+  removeChannels(channels: string[], scope?: ResourceId): void;
   start(): void;
   stop(): void;
 }
@@ -117,7 +104,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
   const globalChannels = new Set(initialChannels);
   /** The subscription matrix's scoped half: scope → channels (MULTI-RESOURCE-SCOPE). */
-  const scopedSubscriptions = new Map<string, Set<string>>();
+  const scopedSubscriptions = new Map<ResourceId, Set<string>>();
   /**
    * Per-scope resumption watermarks: the last PERSISTED (`p-*`) id seen for
    * each scope. Sent as `lastEventId` on that scope's matrix entry so the
@@ -125,9 +112,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    * its channels are removed — re-subscribing later replays what was missed
    * in between. Ephemeral ids never touch this map.
    */
-  const scopeWatermarks = new Map<string, string>(
-    Object.entries(options.loadLastEventIds?.() ?? {}),
-  );
+  const scopeWatermarks = new Map<ResourceId, string>(options.loadLastEventIds?.() ?? []);
   /** Outstanding busRequest correlationIds — ride every connect body (S1). */
   const pendingReplies = new Set<string>();
   /**
@@ -145,7 +130,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    */
   const clientId = uuidV4();
 
-  const events$ = new Subject<BusEvent>();
+  const events$ = new Subject<components['schemas']['BusFrame']>();
   const state$ = new BehaviorSubject<ConnectionState>('initial');
   const errors$ = new Subject<APIError>();
   let currentState: ConnectionState = 'initial';
@@ -527,7 +512,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
             // distinct event.
             const isDuplicate = currentId !== undefined && seenEventIds.has(currentId);
             if (currentEvent === 'bus-event' && currentData && !isDuplicate) {
-              const parsed = JSON.parse(currentData) as BusEvent;
+              const parsed = JSON.parse(currentData) as components['schemas']['BusFrame'];
               busLog('RECV', parsed.channel, parsed.payload, parsed.scope, parsed.correlationId);
               // Drain-window forensics: an event delivered by a SUPERSEDED
               // (lingering) connection is one that an immediate handover abort
@@ -844,7 +829,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         // for that carries no code, and a caller routing on codes would not
         // know an unreachable gateway from a bug.
         const cause = error instanceof Error ? error : new Error(String(error));
-        throw APIError.withoutResponse(`/bus/emit got no answer: ${cause.message}`, 'unavailable', cause.name);
+        throw APIError.withoutResponse(`/bus/emit got no answer: ${cause.message}`, cause.name);
       });
       // No count is reported as no count, never as a zero: an absent
       // `subscribers` is the gateway saying it could not count (a broker
@@ -865,7 +850,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
     isSubscribed: (channel: keyof EventMap) => globalChannels.has(channel),
 
-    addChannels: (channels: readonly (keyof EventMap)[], scope?: string) => {
+    addChannels: (channels: readonly (keyof EventMap)[], scope?: ResourceId) => {
       let changed = false;
       if (scope !== undefined) {
         let entry = scopedSubscriptions.get(scope);
@@ -884,7 +869,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       if (changed) scheduleReconnect();
     },
 
-    removeChannels: (channels: string[], scope?: string) => {
+    removeChannels: (channels: string[], scope?: ResourceId) => {
       let changed = false;
       if (scope !== undefined) {
         const entry = scopedSubscriptions.get(scope);

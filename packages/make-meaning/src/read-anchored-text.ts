@@ -14,7 +14,7 @@
  * exists to avoid.
  */
 
-import { getPrimaryRepresentation, resourceId as makeResourceId, type AnchoredTextAnswer } from '@semiont/core';
+import { getPrimaryRepresentation, type AnchoredTextAnswer, type ResourceId } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { AnchoredTextStore } from '@semiont/content';
 import { SmeltProgressTimeout, type SmeltProgress } from './smelt-progress';
@@ -49,7 +49,7 @@ export const ANCHORED_TEXT_SETTLE_TIMEOUT_MS = 15_000;
  */
 export async function readAnchoredText(
   kb: AnchoredTextReads,
-  resourceId: string,
+  resourceId: ResourceId,
   settleTimeoutMs: number = ANCHORED_TEXT_SETTLE_TIMEOUT_MS,
 ): Promise<AnchoredTextAnswer> {
   // The `resourceId → checksum` index (PERSIST-ANCHORS P1b, decision A): the
@@ -60,7 +60,7 @@ export async function readAnchoredText(
   // never receive geometry for bytes the resource no longer has. A resource
   // the view doesn't know, or one without a representation checksum, has no
   // content identity to look up — no map, by construction.
-  const view = await kb.views.get(makeResourceId(resourceId));
+  const view = await kb.views.get(resourceId);
   const checksum = getPrimaryRepresentation(view?.resource)?.checksum;
   // No content identity — the resource is unknown here, or its primary
   // representation carries no checksum. Nothing to key the store by and nothing

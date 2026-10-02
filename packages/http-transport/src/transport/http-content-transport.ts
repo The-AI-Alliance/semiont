@@ -1,46 +1,36 @@
 /**
  * HttpContentTransport — binary I/O over HTTP.
  *
- * Phase 1 of TRANSPORT-ABSTRACTION. Narrow by design because binary has
- * different backpressure and streaming characteristics than typed command
- * payloads. Uses the HttpTransport's underlying ky instance + token, so
- * retries, logging, and auth behave identically to the rest of the wire.
+ * Narrow by design, because binary has different backpressure and streaming
+ * characteristics than typed command payloads. It uses the HttpTransport's
+ * ky instance and token, so a read or an upload is authenticated, renewed,
+ * logged and reported as any other request of the transport.
  *
- * Two `putBinary` paths live side by side, selected by runtime
- * environment + caller intent:
- *   - **ky path (default + Node)** — the original `ky.post(...)` path.
- *     Keeps retry-with-refresh, beforeError → APIError, observability
- *     spans intact. Hits when no `onProgress`/`signal` is passed, OR
- *     when `XMLHttpRequest` isn't available in the runtime (Node
- *     workers, the CLI). On Node-side `signal`-aborts: the in-flight
- *     `fetch` continues in the background and the `cancelled` flag in
- *     `yield.resource` suppresses the resolve/reject callbacks.
- *   - **XHR path (browsers with `onProgress` or `signal`)** — hand-rolled
- *     because `ky` wraps `fetch` which can't observe upload byte-
- *     progress today (`Request({ duplex: 'half' })` is the long-term
- *     direction; not yet widely available across the webviews this
- *     codepath needs to run in). Threads auth + traceparent headers,
- *     emits `onProgress` from `xhr.upload.onprogress`, supports
- *     cancellation via the `signal` option (calling `xhr.abort()`),
- *     and routes failures onto the same `transport.errors$` stream
- *     the ky path uses.
+ * An upload (`putBinary`) reports its progress and can be cancelled wherever
+ * it runs. How it is sent depends on what the runtime offers:
  *
- * The runtime check on `XMLHttpRequest` is the load-bearing seam: a
- * Node worker calling `client.yield.resource(...)` (which always passes
- * a `signal` for unsubscribe-aborts) must NOT take the XHR path —
- * `XMLHttpRequest` is undefined and the upload throws synchronously.
- * Browsers always have it; Node does not.
+ *   - **A browser page**, when its caller asks for progress or gives a
+ *     `signal`: through `XMLHttpRequest`, whose `upload.onprogress` is the
+ *     only count of bytes sent every browser has. `fetch` carries a streamed
+ *     request body in some browsers and not others, and in none over
+ *     HTTP/1.1. This path does not renew a refused token: an upload that
+ *     starts with a fresh one completes, and one refused 401 is reported.
+ *   - **Anywhere else** (Node, as a worker, a script or the CLI runs it),
+ *     and a browser page whose caller asked for neither: through ky. Asked
+ *     for progress, the body is handed to the connection a piece at a time
+ *     and each piece is reported once the connection has asked for it; a
+ *     `signal` is ky's own, and closes the connection. The runtime must
+ *     carry a streamed request body, as Node does.
  *
- * v1 limitation: the XHR path does NOT auto-refresh on 401. Mitigation:
- * the session's proactive refresh fires before token expiry, so an
- * upload that *starts* with a fresh token usually completes. An upload
- * spanning the narrow window between expiry and proactive-refresh would
- * fail; the existing `errors$` → modal path surfaces it as session-
- * expired. If retry-with-refresh on the upload path becomes a real
- * complaint, wire a manual retry loop here that reads `token$` afresh.
+ * Cancelled, an upload rejects with its `signal`'s reason, as an abandoned
+ * bus request does, and nothing is put on `transport.errors$`: that stream
+ * reports what the gateway did, and this is the caller's own doing.
+ *
+ * An upload has no deadline (`httpRequestTimeoutMs` in
+ * `specs/src/client/timing.json`): how long it takes is how large it is.
  */
 
-import type { AccessToken, ResourceId, PutBinaryOptions, components } from '@semiont/core';
+import type { AccessToken, ResourceId, PutBinaryOptions, PutBinaryProgress, components } from '@semiont/core';
 import { busLog, retryAfterMs } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
@@ -68,18 +58,11 @@ export class HttpContentTransport implements IContentTransport {
       async () => {
         const formData = buildFormData(request);
         const headers = this.requestHeaders(options?.auth);
+        const url = `${this.transport.baseUrl}/resources`;
 
-        // Branch on caller intent AND runtime support. The ky path is
-        // the well-trodden default; the XHR path lights up only when a
-        // caller wants byte progress or cancellation AND the runtime
-        // has `XMLHttpRequest` (browsers do; Node does not). Without
-        // the runtime guard, every Node-side `yield.resource(...)`
-        // call (which always passes `signal`) would throw
-        // `XMLHttpRequest is not defined`.
-        const xhrAvailable = typeof XMLHttpRequest !== 'undefined';
-        if (xhrAvailable && (options?.onProgress || options?.signal)) {
+        if (typeof XMLHttpRequest !== 'undefined' && (options?.onProgress || options?.signal)) {
           return uploadViaXhr({
-            url: `${this.transport.baseUrl}/resources`,
+            url,
             formData,
             headers,
             onProgress: options.onProgress,
@@ -88,14 +71,19 @@ export class HttpContentTransport implements IContentTransport {
           });
         }
 
+        const sent = options?.onProgress
+          ? await inPieces(formData, options.onProgress, options.signal)
+          : { body: formData, headers: {} };
         const result = await this.transport.rawHttp
-          .post(`${this.transport.baseUrl}/resources`, {
-            body: formData,
-            headers,
+          .post(url, {
+            body: sent.body,
+            headers: { ...headers, ...sent.headers },
+            timeout: false,
+            ...(options?.signal ? { signal: options.signal } : {}),
           })
-          .json<{ resourceId: string }>();
+          .json<components['schemas']['CreateResourceResponse']>();
 
-        return { resourceId: result.resourceId as ResourceId };
+        return { resourceId: result.resourceId };
       },
       {
         kind: SpanKind.CLIENT,
@@ -117,7 +105,7 @@ export class HttpContentTransport implements IContentTransport {
       async () => {
         // Pure pipe: no Accept header — the route serves the stored bytes
         // verbatim with their real Content-Type (SIMPLER-JSON-LD.md).
-        const response = await this.transport.rawHttp.get(`${this.transport.baseUrl}/resources/${resourceId}`, {
+        const response = await this.transport.rawHttp.get(this.urlOf(resourceId), {
           headers: this.requestHeaders(options?.auth),
         });
         const contentType = response.headers.get('content-type') || 'application/octet-stream';
@@ -137,7 +125,7 @@ export class HttpContentTransport implements IContentTransport {
       'content.get',
       async () => {
         // Pure pipe: no Accept header (see getBinary).
-        const response = await this.transport.rawHttp.get(`${this.transport.baseUrl}/resources/${resourceId}`, {
+        const response = await this.transport.rawHttp.get(this.urlOf(resourceId), {
           headers: this.requestHeaders(options?.auth),
         });
         const contentType = response.headers.get('content-type') || 'application/octet-stream';
@@ -167,7 +155,7 @@ export class HttpContentTransport implements IContentTransport {
       'content.get_graph',
       () =>
         this.transport.rawHttp
-          .get(`${this.transport.baseUrl}/resources/${resourceId}/jsonld`, {
+          .get(`${this.urlOf(resourceId)}/jsonld`, {
             headers: this.requestHeaders(options?.auth),
           })
           .json<GetResourceResponse>(),
@@ -175,13 +163,18 @@ export class HttpContentTransport implements IContentTransport {
     );
   }
 
-
-
-
-
   dispose(): void {
     // HttpContentTransport has no resources of its own; HttpTransport owns
     // the ky instance and token subject. No-op is correct here.
+  }
+
+  /**
+   * Where a resource is read: its id as one segment of the path. A
+   * `ResourceId` needs no encoding, by its rule; a caller with no type
+   * checker can hand over any text, and that text is one segment too.
+   */
+  private urlOf(resourceId: ResourceId): string {
+    return `${this.transport.baseUrl}/resources/${encodeURIComponent(resourceId)}`;
   }
 
   /** Auth header + W3C trace propagation for the active span. */
@@ -231,6 +224,53 @@ function buildFormData(request: PutBinaryRequest): FormData {
   return formData;
 }
 
+/**
+ * How much of an upload's body is handed to the connection at a time: the
+ * grain its progress is reported in.
+ */
+const UPLOAD_PIECE_BYTES = 64 * 1024;
+
+/**
+ * The form as a body the connection takes a piece at a time. A piece is
+ * reported when it is asked for and never ahead of that, so what is reported
+ * is what has been handed over: never the rest of a body waiting behind a
+ * connection that has stopped taking it. Once its caller has cancelled, it
+ * hands over and reports nothing more.
+ *
+ * The runtime's own encoding of the form is what is sent, and its length is
+ * stated: Node sends the `Content-Length` it is given, so the gateway is told
+ * the size as it is for a body that is not streamed. A runtime that keeps
+ * that header to itself sends the same bytes chunked.
+ *
+ * A request sent again after a 401 is ky's copy of this body, which is read
+ * once: what the second sending repeats is not reported a second time.
+ */
+async function inPieces(
+  form: FormData,
+  onProgress: PutBinaryProgress,
+  signal: AbortSignal | undefined,
+): Promise<{ body: ReadableStream<Uint8Array>; headers: Record<string, string> }> {
+  const encoded = new Response(form);
+  const contentType = encoded.headers.get('content-type');
+  if (!contentType) throw new Error('the runtime encoded a form without naming its boundary');
+  const bytes = new Uint8Array(await encoded.arrayBuffer());
+  let handed = 0;
+  const body = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        if (signal?.aborted) return;
+        const piece = bytes.subarray(handed, handed + UPLOAD_PIECE_BYTES);
+        handed += piece.byteLength;
+        controller.enqueue(piece);
+        if (handed === bytes.byteLength) controller.close();
+        onProgress({ bytesUploaded: handed, totalBytes: bytes.byteLength });
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  return { body, headers: { 'Content-Type': contentType, 'Content-Length': String(bytes.byteLength) } };
+}
+
 interface XhrUploadOptions {
   url: string;
   formData: FormData;
@@ -241,13 +281,11 @@ interface XhrUploadOptions {
 }
 
 /**
- * XHR-based POST that exposes `xhr.upload.onprogress` byte counts and
- * supports cancellation via `AbortSignal`. A refusal (4xx/5xx) surfaces as
- * it does on the ky path: an `APIError` routed onto `transport.errors$`
- * before the promise rejects. A network-level failure does the same here,
- * which the ky path does not: with no response, ky's own error reaches the
- * caller and `errors$` hears nothing. An abort rejects and is not routed
- * there.
+ * A POST through `XMLHttpRequest`, for its `upload.onprogress`. A refusal
+ * (4xx/5xx) is reported as it is on the ky path: the `APIError` every
+ * refusal is, on `transport.errors$` before the promise rejects. So is a
+ * connection that failed. A cancellation rejects with the signal's reason
+ * and is not put there.
  */
 function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId }> {
   const { url, formData, headers, onProgress, signal, onApiError } = opts;
@@ -255,19 +293,8 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
-    // Caller-initiated abort via `signal`. Rejects with an APIError so the
-    // shape matches the failure paths; consumers can disambiguate via
-    // `signal.aborted` if they need to. The code is the unclassified
-    // `error`: the caller cancelled, so nothing was unreachable and nothing
-    // was refused, and no other member names that. It stays off `errors$`:
-    // that stream reports transport failures, and this is the caller's own
-    // request, which only the caller needs to hear about.
-    const rejectAborted = () => {
-      reject(APIError.withoutResponse('Upload aborted', 'error', 'aborted'));
-    };
-
     if (signal?.aborted) {
-      rejectAborted();
+      reject(signal.reason);
       return;
     }
 
@@ -290,8 +317,8 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          const body = JSON.parse(xhr.responseText) as { resourceId: string };
-          resolve({ resourceId: body.resourceId as ResourceId });
+          const body = JSON.parse(xhr.responseText) as components['schemas']['CreateResourceResponse'];
+          resolve({ resourceId: body.resourceId });
         } catch (parseErr) {
           const err = APIError.fromStatus(
             `Upload succeeded but response was not valid JSON: ${(parseErr as Error).message}`,
@@ -307,10 +334,7 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
       }
       let body: unknown = xhr.responseText;
       try { body = JSON.parse(xhr.responseText); } catch { /* keep as text */ }
-      const message = (body && typeof body === 'object' && 'message' in body && typeof (body as { message: unknown }).message === 'string')
-        ? (body as { message: string }).message
-        : `HTTP ${xhr.status}: ${xhr.statusText}`;
-      const err = APIError.fromStatus(message, xhr.status, xhr.statusText, body, retryAfterMs(xhr.getResponseHeader('retry-after')));
+      const err = APIError.refusal(xhr.status, xhr.statusText, body, xhr.getResponseHeader('retry-after'));
       onApiError(err);
       reject(err);
     };
@@ -318,19 +342,19 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
     xhr.onerror = () => {
       // Network-level failure (DNS, TCP reset, CORS). XHR gives no status
       // here; the vocabulary files a failed network under `unavailable`.
-      const err = APIError.withoutResponse('Network error during upload', 'unavailable', 'network-error');
+      const err = APIError.withoutResponse('Network error during upload', 'network-error');
       onApiError(err);
       reject(err);
     };
 
-    xhr.onabort = rejectAborted;
-
-    if (signal) {
-      const onAbort = () => xhr.abort();
-      signal.addEventListener('abort', onAbort, { once: true });
-      // No teardown for the listener — once xhr fires onabort/onerror/onload
-      // the signal is no longer relevant; the listener is GC'd with the xhr.
-    }
+    signal?.addEventListener(
+      'abort',
+      () => {
+        xhr.abort();
+        reject(signal.reason);
+      },
+      { once: true },
+    );
 
     xhr.send(formData);
   });

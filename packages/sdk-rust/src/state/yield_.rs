@@ -12,6 +12,7 @@ use crate::client::SemiontClient;
 use crate::errors::SemiontError;
 use crate::namespaces::JobEvent;
 use crate::state_unit::StateUnit;
+use crate::types::ResourceId;
 use crate::types::{GenerationJobParams, JobProgress, JobResult};
 use std::sync::Arc;
 use std::time::Duration;
@@ -20,7 +21,7 @@ use tokio::sync::watch;
 /// What a finished generation produced.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct YieldOutcome {
-    pub resource_id: String,
+    pub resource_id: ResourceId,
     pub resource_name: String,
     /// The run stopped at its token ceiling: the resource is cut off, not
     /// complete.

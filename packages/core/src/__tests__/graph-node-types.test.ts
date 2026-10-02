@@ -13,6 +13,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { components } from '../types';
+import { annotationId, resourceId } from '../identifiers';
 
 type GraphNode = components['schemas']['KnowledgeGraph']['nodes'][number];
 type SemanticMatch = components['schemas']['SemanticMatch'];
@@ -20,9 +21,9 @@ type SemanticMatch = components['schemas']['SemanticMatch'];
 const W3C: components['schemas']['Annotation'] = {
   '@context': 'http://www.w3.org/ns/anno.jsonld',
   type: 'Annotation',
-  id: 'ann-cite',
+  id: annotationId('ann-cite'),
   motivation: 'linking',
-  target: { source: 'res-citing' },
+  target: { source: resourceId('res-citing') },
   created: '2020-01-01T00:00:00.000Z',
 };
 
@@ -42,8 +43,8 @@ function describeNode(n: GraphNode): string {
 
 describe('KnowledgeGraph node — the union discriminates (D12)', () => {
   it('narrows both members by type, castless', () => {
-    expect(describeNode({ id: 'r-1', type: 'resource', label: 'Main' })).toBe('Main');
-    expect(describeNode({ id: 'ann-cite', type: 'annotation', label: 'linking', annotation: W3C }))
+    expect(describeNode({ id: resourceId('r-1'), type: 'resource', label: 'Main' })).toBe('Main');
+    expect(describeNode({ id: annotationId('ann-cite'), type: 'annotation', label: 'linking', annotation: W3C }))
       .toBe('linking: linking');
   });
 
@@ -56,7 +57,7 @@ describe('KnowledgeGraph node — the union discriminates (D12)', () => {
 
 describe('SemanticMatch — the card can name its source (D9)', () => {
   it('resourceName is required', () => {
-    const named: SemanticMatch = { text: 't', resourceId: 'r-1', resourceName: 'The Source', score: 0.91 };
+    const named: SemanticMatch = { text: 't', resourceId: resourceId('r-1'), resourceName: 'The Source', score: 0.91 };
     // @ts-expect-error — a match that cannot name its source no longer typechecks
     const nameless: SemanticMatch = { text: 't', resourceId: 'r-1', score: 0.91 };
     expect({ named, nameless }).toBeDefined();

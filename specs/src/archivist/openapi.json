@@ -64,6 +64,9 @@
       "RepresentationNotFound": {
         "$ref": "../components/schemas/RepresentationNotFound.json"
       },
+      "ResourceId": {
+        "$ref": "../components/schemas/ResourceId.json"
+      },
       "ResourceUpload": {
         "$ref": "../components/schemas/ResourceUpload.json"
       },

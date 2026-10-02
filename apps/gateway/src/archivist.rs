@@ -11,6 +11,7 @@ use axum::http::StatusCode;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::identity::encode_uri_component;
+use semiont::types::ResourceId;
 use semiont_core::spec::{Spec, spec};
 use semiont_http_transport::service_account::{Credential, ServiceToken};
 use semiont_observability::logging;
@@ -104,7 +105,7 @@ impl Archivist {
         content_type: &str,
         principal: &str,
         roles: &[String],
-    ) -> Result<String, ApiError> {
+    ) -> Result<ResourceId, ApiError> {
         let authorization = self.authorized("resources.record").await?;
         let mut request = self
             .http
@@ -127,10 +128,16 @@ impl Archivist {
             })?;
         let status = response.status();
         let answer: Option<Value> = response.json().await.ok();
-        if status.is_success()
-            && let Some(id) = answer.as_ref().and_then(|a| a["resourceId"].as_str())
-        {
-            return Ok(id.to_owned());
+        if status.is_success() {
+            let named = answer.as_ref().and_then(|a| a["resourceId"].as_str());
+            if let Some(id) = named.and_then(|id| ResourceId::new(id).ok()) {
+                return Ok(id);
+            }
+            logging::error(
+                "Archivist recorded an upload and answered no resource id",
+                client(json!({ "status": status.as_u16(), "resourceId": named })),
+            );
+            return Err(unavailable());
         }
         if (status == StatusCode::BAD_REQUEST || status == StatusCode::INTERNAL_SERVER_ERROR)
             && let Some(message) = answer.as_ref().and_then(|a| a["error"].as_str())
@@ -145,7 +152,7 @@ impl Archivist {
     }
 
     /// A resource's linked-data description; `None` when the Archivist holds no such resource.
-    pub async fn describe(&self, resource_id: &str) -> Result<Option<Value>, ApiError> {
+    pub async fn describe(&self, resource_id: &ResourceId) -> Result<Option<Value>, ApiError> {
         let authorization = self.authorized("resources.describe").await?;
         let request = self
             .http
@@ -187,7 +194,7 @@ impl Archivist {
 
     /// A representation's bytes, streamed as they arrive, and their media
     /// type. The 404's `code` says which half of the lookup failed.
-    pub async fn content(&self, resource_id: &str) -> Result<(Body, String), ApiError> {
+    pub async fn content(&self, resource_id: &ResourceId) -> Result<(Body, String), ApiError> {
         let authorization = self.authorized("content.get").await?;
         let request = self
             .http

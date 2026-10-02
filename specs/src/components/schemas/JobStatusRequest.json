@@ -3,7 +3,7 @@
   "description": "Request to check the status of a job",
   "properties": {
     "jobId": {
-      "type": "string"
+      "$ref": "./JobId.json"
     }
   },
   "required": [

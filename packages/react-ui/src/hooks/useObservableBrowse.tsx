@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
+import type { ResourceId } from '@semiont/core';
 import { useSemiont } from '../session/SemiontProvider';
 
 /**
@@ -106,7 +107,7 @@ export function useObservableRouter<T extends Router>(baseRouter: T): T {
 export function useObservableExternalNavigation() {
   const semiont = useSemiont();
 
-  return useCallback((url: string, metadata?: { resourceId?: string }) => {
+  return useCallback((url: string, metadata?: { resourceId?: ResourceId }) => {
     // Fallback: If no subscriber cancels within 10ms, use window.location
     // This ensures navigation still works even if app doesn't implement handler
     const fallbackTimer = setTimeout(() => {

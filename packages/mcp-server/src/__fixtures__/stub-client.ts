@@ -8,7 +8,7 @@
 
 import { vi } from 'vitest';
 import { of, type Observable } from 'rxjs';
-import { annotationId, resourceId } from '@semiont/core';
+import { annotationId, resourceId, jobId } from '@semiont/core';
 import type {
   Annotation,
   AnnotationId,
@@ -46,7 +46,7 @@ export const HIGHLIGHT: Annotation = {
   motivation: 'highlighting',
   created: '2026-01-01T00:00:00.000Z',
   target: {
-    source: 'res-iliad',
+    source: resourceId('res-iliad'),
     selector: [
       { type: 'TextPositionSelector', start: 0, end: 15 },
       { type: 'TextQuoteSelector', exact: 'Sing, O goddess' },
@@ -60,8 +60,8 @@ export const BOUND_REFERENCE: Annotation = {
   id: annotationId('anno-reference'),
   motivation: 'linking',
   created: '2026-01-01T00:00:00.000Z',
-  target: { source: 'res-iliad', selector: [{ type: 'TextQuoteSelector', exact: 'Achilles' }] },
-  body: [{ type: 'SpecificResource', source: 'res-achilles', purpose: 'linking' }],
+  target: { source: resourceId('res-iliad'), selector: [{ type: 'TextQuoteSelector', exact: 'Achilles' }] },
+  body: [{ type: 'SpecificResource', source: resourceId('res-achilles'), purpose: 'linking' }],
 };
 
 export const UNBOUND_REFERENCE: Annotation = {
@@ -70,7 +70,7 @@ export const UNBOUND_REFERENCE: Annotation = {
   id: annotationId('anno-unbound'),
   motivation: 'linking',
   created: '2026-01-01T00:00:00.000Z',
-  target: { source: 'res-iliad', selector: [{ type: 'TextQuoteSelector', exact: 'Patroclus' }] },
+  target: { source: resourceId('res-iliad'), selector: [{ type: 'TextQuoteSelector', exact: 'Patroclus' }] },
 };
 
 export const CONTEXT: GatheredContext = {
@@ -86,15 +86,15 @@ export const CONTEXT: GatheredContext = {
 
 /** What `gather.annotation` actually resolves to: the envelope, not the context. */
 export const GATHER_COMPLETE: GatherAnnotationComplete = {
-  annotationId: 'anno-reference',
+  annotationId: annotationId('anno-reference'),
   response: CONTEXT,
 };
 
 export const ASSIST_COMPLETE: MarkAssistEvent = {
   kind: 'complete',
   data: {
-    resourceId: 'res-iliad',
-    jobId: 'job-1',
+    resourceId: resourceId('res-iliad'),
+    jobId: jobId('job-1'),
     jobType: 'reference-annotation',
     result: { kind: 'reference-annotation', totalFound: 7, totalEmitted: 7, errors: 0 },
   },
@@ -102,7 +102,7 @@ export const ASSIST_COMPLETE: MarkAssistEvent = {
 
 export const GENERATION_COMPLETE: YieldGenerationEvent = {
   kind: 'complete',
-  data: { resourceId: 'res-iliad', jobId: 'job-2', jobType: 'generation' },
+  data: { resourceId: resourceId('res-iliad'), jobId: jobId('job-2'), jobType: 'generation' },
 };
 
 /**

@@ -1,3 +1,4 @@
+import type { AnnotationId } from '@semiont/core';
 import { useEffect, useRef } from 'react';
 import type { Annotation } from '@semiont/core';
 import { getBodySource } from '@semiont/core';
@@ -20,7 +21,7 @@ import type { YieldOutcome } from '@semiont/sdk';
 export function useGenerationArrival(
   outcome: YieldOutcome | null,
   annotations: Annotation[],
-  onReveal: (annotationId: string) => void,
+  onReveal: (annotationId: AnnotationId) => void,
 ): void {
   // Pre-seed with the mount-time outcome so a held value cannot fire (D6).
   const seen = useRef(outcome);

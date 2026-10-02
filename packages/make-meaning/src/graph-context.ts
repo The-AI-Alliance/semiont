@@ -9,7 +9,7 @@ import type {
   ResourceId,
   components,
 } from '@semiont/core';
-import { getResourceId, getResourceEntityTypes, getTargetSource, resourceId as createResourceId } from '@semiont/core';
+import { getResourceId, getResourceEntityTypes, getTargetSource } from '@semiont/core';
 import type { Logger } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { recordGatherDegrade } from '@semiont/observability';
@@ -141,7 +141,7 @@ export class GraphContext {
     }
     // Deterministic main-node id so both consumers (deriveViews ranking, the resource/viz
     // related-node filter) line up without re-deriving it from a different projection.
-    const mainId = String(resourceId);
+    const mainId = resourceId;
 
     const [connections, referencedBy, annotations] = await Promise.all([
       kb.graph.getResourceConnections(resourceId),
@@ -153,7 +153,7 @@ export class GraphContext {
     const edges: KnowledgeGraph['edges'] = [];
     const seen = new Set<string>();
 
-    const addResourceNode = (id: string | undefined, label: string, entityTypes: string[]): void => {
+    const addResourceNode = (id: ResourceId | undefined, label: string, entityTypes: string[]): void => {
       if (!id || seen.has(id)) return;
       nodes.push({ id, type: 'resource', label, entityTypes });
       seen.add(id);
@@ -184,7 +184,7 @@ export class GraphContext {
       if (!source || source === String(resourceId) || !ann.id || seen.has(ann.id)) continue;
       if (!citedSeen.has(source)) {
         citedSeen.add(source);
-        const view = await kb.views.get(createResourceId(source));
+        const view = await kb.views.get(source);
         addResourceNode(source, view?.resource?.name ?? source, view?.resource ? getResourceEntityTypes(view.resource) : []);
       }
       nodes.push({ id: ann.id, type: 'annotation', label: ann.motivation ?? 'annotation', entityTypes: getEntityTypes(ann), annotation: ann });

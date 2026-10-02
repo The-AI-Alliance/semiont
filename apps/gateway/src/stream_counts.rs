@@ -86,17 +86,17 @@ impl StreamCounts {
             held.retain(|_, (_, at)| now.saturating_sub(*at) < self.lease_ms);
             let holding = held
                 .values()
-                .filter(|(did, _)| *did == principal.did)
+                .filter(|(did, _)| did.as_str() == principal.did.as_str())
                 .count();
             if holding as u64 >= limit {
                 return Err(Duration::from_secs(limits::limits().heartbeat_seconds));
             }
-            held.insert(id.clone(), (principal.did.clone(), now));
+            held.insert(id.clone(), (principal.did.to_string(), now));
         }
         Ok(Some(StreamLease::take(
             self.clone(),
             id,
-            principal.did.clone(),
+            principal.did.to_string(),
             now,
         )))
     }

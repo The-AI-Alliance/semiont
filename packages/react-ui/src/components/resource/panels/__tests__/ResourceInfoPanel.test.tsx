@@ -104,7 +104,7 @@ const renderWithEventBus = (component: React.ReactElement<{ session: SemiontSess
 
 describe('ResourceInfoPanel Component', () => {
   const defaultProps = {
-    resourceId: 'test-resource-id',
+    resourceId: makeResourceId('test-resource-id'),
     documentEntityTypes: [],
     documentLocale: undefined,
     primaryMediaType: undefined,
@@ -336,7 +336,7 @@ describe('ResourceInfoPanel Component', () => {
           isGenerating={false}
           generationProgress={{ percentage: 100, message: { code: 'complete-generated', truncated: false } }}
           generationOutcome={{
-            resourceId: makeResourceId('urn:semiont:resource:new1'),
+            resourceId: makeResourceId('res-new1'),
             resourceName: 'Summary of PB',
             truncated: false,
           }}
@@ -346,7 +346,7 @@ describe('ResourceInfoPanel Component', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Summary of PB' }));
       expect(openSpy).toHaveBeenCalledTimes(1);
-      expect(String(openSpy.mock.calls[0]![0])).toBe('urn:semiont:resource:new1');
+      expect(String(openSpy.mock.calls[0]![0])).toBe('res-new1');
 
       fireEvent.click(screen.getByTestId('semiont-assist-control'));
       expect(onDismissProgress).toHaveBeenCalledTimes(1);
@@ -383,7 +383,7 @@ describe('ResourceInfoPanel Component', () => {
           isGenerating={false}
           generationProgress={{ percentage: 95, message: { code: 'creating-resource' } }}
           generationOutcome={{
-            resourceId: makeResourceId('urn:semiont:resource:new1'),
+            resourceId: makeResourceId('res-new1'),
             resourceName: 'Summary of PB',
             truncated: false,
           }} />
@@ -397,7 +397,7 @@ describe('ResourceInfoPanel Component', () => {
           isGenerating={false}
           generationProgress={{ percentage: 95, message: { code: 'creating-resource' } }}
           generationOutcome={{
-            resourceId: makeResourceId('urn:semiont:resource:new1'),
+            resourceId: makeResourceId('res-new1'),
             resourceName: 'Summary of PB',
             truncated: true,
           }} />
@@ -468,11 +468,11 @@ describe('ResourceInfoPanel Component', () => {
       renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
-          wasDerivedFrom="urn:semiont:resource:abc123"
+          wasDerivedFrom={makeResourceId("res-abc123")}
         />
       );
       expect(screen.getByText('Derived from')).toBeInTheDocument();
-      expect(screen.getByText('urn:semiont:resource:abc123')).toBeInTheDocument();
+      expect(screen.getByText('res-abc123')).toBeInTheDocument();
     });
 
     it('a derived-from id is a LINK, and clicking it opens that resource', () => {
@@ -486,14 +486,14 @@ describe('ResourceInfoPanel Component', () => {
       const { client } = renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
-          wasDerivedFrom="urn:semiont:resource:abc123"
+          wasDerivedFrom={makeResourceId("res-abc123")}
         />
       );
       const openSpy = vi.spyOn(client.browse, 'openResource');
 
-      fireEvent.click(screen.getByText('urn:semiont:resource:abc123'));
+      fireEvent.click(screen.getByText('res-abc123'));
       expect(openSpy).toHaveBeenCalledTimes(1);
-      expect(String(openSpy.mock.calls[0]![0])).toBe('urn:semiont:resource:abc123');
+      expect(String(openSpy.mock.calls[0]![0])).toBe('res-abc123');
     });
 
     it('resolves the derived-from id to its resource NAME; clicks still navigate by id', () => {
@@ -504,7 +504,7 @@ describe('ResourceInfoPanel Component', () => {
       vi.spyOn(client.browse, 'resource').mockReturnValue(
         new BehaviorSubject<CacheState<ResourceDescriptor>>({
           status: 'ready',
-          value: { '@id': 'urn:semiont:resource:abc123', name: 'Source Doc' } as ResourceDescriptor,
+          value: { '@id': 'res-abc123', name: 'Source Doc' } as ResourceDescriptor,
         }) as unknown as CacheObservable<ResourceDescriptor>,
       );
       const openSpy = vi.spyOn(client.browse, 'openResource');
@@ -512,29 +512,29 @@ describe('ResourceInfoPanel Component', () => {
         <ResourceInfoPanel
           {...defaultProps}
           session={session}
-          wasDerivedFrom="urn:semiont:resource:abc123"
+          wasDerivedFrom={makeResourceId("res-abc123")}
         />,
         { wrapper: ({ children }) => <SemiontWrapper>{children}</SemiontWrapper> },
       );
 
       expect(screen.getByText('Source Doc')).toBeInTheDocument();
-      expect(screen.queryByText('urn:semiont:resource:abc123')).toBeNull();
+      expect(screen.queryByText('res-abc123')).toBeNull();
 
       fireEvent.click(screen.getByText('Source Doc'));
-      expect(String(openSpy.mock.calls[0]![0])).toBe('urn:semiont:resource:abc123');
+      expect(String(openSpy.mock.calls[0]![0])).toBe('res-abc123');
     });
 
     it('renders every id when the resource derives from several', () => {
       renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
-          wasDerivedFrom={['urn:semiont:resource:a', 'urn:semiont:resource:b'] as never}
+          wasDerivedFrom={['res-a', 'res-b'] as never}
         />
       );
       // The separator lives inside the button (`{i > 0 && ', '}{id}`), so the
       // second one's text node is ", urn:…:b" — matched loosely on purpose.
-      expect(screen.getByText(/urn:semiont:resource:a/)).toBeInTheDocument();
-      expect(screen.getByText(/urn:semiont:resource:b/)).toBeInTheDocument();
+      expect(screen.getByText(/res-a/)).toBeInTheDocument();
+      expect(screen.getByText(/res-b/)).toBeInTheDocument();
     });
 
     it('falls back to generator for attribution when wasAttributedTo is absent', () => {

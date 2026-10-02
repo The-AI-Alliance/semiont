@@ -8,7 +8,7 @@
  * single-index reads; anything that FUSES sources belongs to the Matcher.
  */
 
-import { decodeRepresentation, derivesTextOf, getResourceEntityTypes, getResourceId, resourceId as makeResourceId, textSourceOf } from '@semiont/core';
+import { decodeRepresentation, derivesTextOf, getResourceEntityTypes, getResourceId, textSourceOf } from '@semiont/core';
 import { representationSource } from './representation.js';
 import type { AnchoredTextAsk } from './anchored-text-ask.js';
 import type { Logger, ResourceId } from '@semiont/core';
@@ -265,7 +265,7 @@ export class ResourceContext {
     // served; the descriptor's is the same fact by construction (both come
     // from the one resolution), so this decodes with what came back rather
     // than re-deriving it.
-    const { data, contentType } = await kb.content.getBinary(makeResourceId(id));
+    const { data, contentType } = await kb.content.getBinary(id);
     return decodeRepresentation(Buffer.from(data), contentType);
   }
 }

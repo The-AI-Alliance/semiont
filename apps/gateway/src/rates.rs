@@ -44,7 +44,7 @@ impl EmitRates {
         if buckets.len() >= BUCKETS_BEFORE_SWEEP {
             buckets.retain(|_, bucket| bucket.refilled(now) < bucket.rate.burst as f64);
         }
-        let bucket = buckets.entry(principal.did.clone()).or_insert(Bucket {
+        let bucket = buckets.entry(principal.did.to_string()).or_insert(Bucket {
             tokens: rate.burst as f64,
             at: now,
             rate,

@@ -3,7 +3,7 @@
 
 use crate::errors::SemiontError;
 use crate::transport::GatewayOperations;
-use crate::types::{MediaTokenResponse, ProtectedResourceMetadata, UserResponse};
+use crate::types::{MediaTokenResponse, ProtectedResourceMetadata, ResourceId, UserResponse};
 use std::sync::Arc;
 
 pub struct AuthNamespace {
@@ -21,7 +21,10 @@ impl AuthNamespace {
     }
 
     /// A token that lets a browser fetch one resource's bytes.
-    pub async fn media_token(&self, resource_id: &str) -> Result<MediaTokenResponse, SemiontError> {
+    pub async fn media_token(
+        &self,
+        resource_id: &ResourceId,
+    ) -> Result<MediaTokenResponse, SemiontError> {
         Ok(self.gateway.get_media_token(resource_id).await?)
     }
 

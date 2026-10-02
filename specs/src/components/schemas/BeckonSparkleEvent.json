@@ -3,7 +3,7 @@
   "description": "Emitted when a sparkle effect is triggered on an annotation",
   "properties": {
     "annotationId": {
-      "type": "string"
+      "$ref": "./AnnotationId.json"
     }
   },
   "required": ["annotationId"]

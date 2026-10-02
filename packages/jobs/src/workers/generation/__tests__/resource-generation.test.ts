@@ -18,6 +18,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { MockInferenceClient } from '@semiont/inference';
 import type { GatheredContext, Logger } from '@semiont/core';
 import { generateResourceFromTopic } from '../resource-generation';
+import { annotationId, resourceId } from '@semiont/core';
 
 type AnnotationFocus = Extract<GatheredContext['focus'], { kind: 'annotation' }>;
 type ResourceFocus = Extract<GatheredContext['focus'], { kind: 'resource' }>;
@@ -30,16 +31,16 @@ const MAIN_ID = 'test-resource';
 const testAnnotation: AnnotationFocus['annotation'] = {
   '@context': 'http://www.w3.org/ns/anno.jsonld',
   type: 'Annotation',
-  id: 'test-annotation',
+  id: annotationId('test-annotation'),
   motivation: 'commenting',
   created: '2026-01-01T00:00:00.000Z',
-  target: { source: MAIN_ID },
+  target: { source: resourceId(MAIN_ID) },
   body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],
 };
 
 const testSourceResource: AnnotationFocus['sourceResource'] = {
   '@context': 'https://www.w3.org/ns/anno.jsonld',
-  '@id': MAIN_ID,
+  '@id': resourceId(MAIN_ID),
   name: 'Test Resource',
   representations: [],
   archived: false,
@@ -60,11 +61,11 @@ function buildGraph(opts: {
   citedByMissing?: string[];
   siblingAnnotations?: Array<{ id: string; entityTypes?: string[] }>;
 } = {}): KnowledgeGraph {
-  const nodes: KnowledgeGraph['nodes'] = [{ id: MAIN_ID, type: 'resource', label: 'Test Resource' }];
+  const nodes: KnowledgeGraph['nodes'] = [{ id: resourceId(MAIN_ID), type: 'resource', label: 'Test Resource' }];
   const edges: KnowledgeGraph['edges'] = [];
 
   for (const c of opts.connections ?? []) {
-    nodes.push({ id: c.resourceId, type: 'resource', label: c.resourceName, entityTypes: c.entityTypes });
+    nodes.push({ id: resourceId(c.resourceId), type: 'resource', label: c.resourceName, entityTypes: c.entityTypes });
     edges.push({ source: MAIN_ID, target: c.resourceId, type: 'related', bidirectional: c.bidirectional ?? false });
   }
   // D12: a citation is its linking annotation — an embedded annotation node
@@ -72,25 +73,25 @@ function buildGraph(opts: {
   const w3c = (id: string, source: string, motivation: 'linking' | 'commenting') => ({
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
     type: 'Annotation' as const,
-    id,
+    id: annotationId(id),
     motivation,
-    target: { source },
+    target: { source: resourceId(source) },
     created: '2026-01-01T00:00:00.000Z',
   });
   for (const c of opts.citedByPresent ?? []) {
-    nodes.push({ id: c.resourceId, type: 'resource', label: c.resourceName });
-    nodes.push({ id: `ann-cite-${c.resourceId}`, type: 'annotation', label: 'linking', annotation: w3c(`ann-cite-${c.resourceId}`, c.resourceId, 'linking') });
+    nodes.push({ id: resourceId(c.resourceId), type: 'resource', label: c.resourceName });
+    nodes.push({ id: annotationId(`ann-cite-${c.resourceId}`), type: 'annotation', label: 'linking', annotation: w3c(`ann-cite-${c.resourceId}`, c.resourceId, 'linking') });
     edges.push({ source: `ann-cite-${c.resourceId}`, target: c.resourceId, type: 'annotation-of' });
     edges.push({ source: `ann-cite-${c.resourceId}`, target: MAIN_ID, type: 'cites' });
   }
   for (const id of opts.citedByMissing ?? []) {
     // no resource node for the citer: the derived label falls back to the raw id
-    nodes.push({ id: `ann-cite-${id}`, type: 'annotation', label: 'linking', annotation: w3c(`ann-cite-${id}`, id, 'linking') });
+    nodes.push({ id: annotationId(`ann-cite-${id}`), type: 'annotation', label: 'linking', annotation: w3c(`ann-cite-${id}`, id, 'linking') });
     edges.push({ source: `ann-cite-${id}`, target: id, type: 'annotation-of' });
     edges.push({ source: `ann-cite-${id}`, target: MAIN_ID, type: 'cites' });
   }
   for (const a of opts.siblingAnnotations ?? []) {
-    nodes.push({ id: a.id, type: 'annotation', label: a.id, entityTypes: a.entityTypes, annotation: w3c(a.id, MAIN_ID, 'commenting') });
+    nodes.push({ id: annotationId(a.id), type: 'annotation', label: a.id, entityTypes: a.entityTypes, annotation: w3c(a.id, MAIN_ID, 'commenting') });
     edges.push({ source: a.id, target: MAIN_ID, type: 'annotation-of' });
   }
   return { nodes, edges };
@@ -528,7 +529,7 @@ describe('generateResourceFromTopic', () => {
 
       await generateResourceFromTopic(
         'Topic', [], client, LOGGER, undefined, undefined,
-        makeContext({ semanticContext: [{ text: 'NEEDLE-PASSAGE', resourceId: 'r1', resourceName: 'Source r1', score: 0.82 }] }),
+        makeContext({ semanticContext: [{ text: 'NEEDLE-PASSAGE', resourceId: resourceId('r1'), resourceName: 'Source r1', score: 0.82 }] }),
       );
 
       const prompt = promptArg();
@@ -563,11 +564,11 @@ describe('generateResourceFromTopic', () => {
         'Topic', [], client, LOGGER, undefined, undefined,
         makeContext({
           semanticContext: [
-            { text: 'p-low-1', resourceId: 'r', resourceName: 'Source r', score: 0.10 },
-            { text: 'p-low-2', resourceId: 'r', resourceName: 'Source r', score: 0.11 },
-            { text: 'p-mid', resourceId: 'r', resourceName: 'Source r', score: 0.50 },
-            { text: 'p-hi', resourceId: 'r', resourceName: 'Source r', score: 0.90 },
-            { text: long, resourceId: 'r', resourceName: 'Source r', score: 0.95 },
+            { text: 'p-low-1', resourceId: resourceId('r'), resourceName: 'Source r', score: 0.10 },
+            { text: 'p-low-2', resourceId: resourceId('r'), resourceName: 'Source r', score: 0.11 },
+            { text: 'p-mid', resourceId: resourceId('r'), resourceName: 'Source r', score: 0.50 },
+            { text: 'p-hi', resourceId: resourceId('r'), resourceName: 'Source r', score: 0.90 },
+            { text: long, resourceId: resourceId('r'), resourceName: 'Source r', score: 0.95 },
           ],
         }),
       );
@@ -592,7 +593,7 @@ describe('generateResourceFromTopic', () => {
 
       await generateResourceFromTopic(
         'Topic', [], client, LOGGER, undefined, undefined,
-        makeContext({ semanticContext: [{ text: 'NEEDLE', resourceId: 'r1', resourceName: 'Source r1', score: 0.8 }] }),
+        makeContext({ semanticContext: [{ text: 'NEEDLE', resourceId: resourceId('r1'), resourceName: 'Source r1', score: 0.8 }] }),
         undefined, undefined, undefined, undefined, undefined, undefined,
         true,
       );
@@ -621,7 +622,7 @@ describe('generateResourceFromTopic', () => {
 
       await generateResourceFromTopic(
         'Topic', [], client, LOGGER, undefined, undefined,
-        makeContext({ semanticContext: [{ text: 'NEEDLE', resourceId: 'sem-src-1', resourceName: 'Source sem-src-1', score: 0.8 }] }),
+        makeContext({ semanticContext: [{ text: 'NEEDLE', resourceId: resourceId('sem-src-1'), resourceName: 'Source sem-src-1', score: 0.8 }] }),
       );
 
       expect(promptArg()).toContain('[sem-src-1]');
@@ -633,7 +634,7 @@ describe('generateResourceFromTopic', () => {
       await generateResourceFromTopic(
         'Topic', [], client, LOGGER, undefined, undefined,
         makeContext({
-          semanticContext: [{ text: 'NEEDLE', resourceId: 'sem-src-1', resourceName: 'Sem Source', annotationId: 'ann-7', score: 0.8 }],
+          semanticContext: [{ text: 'NEEDLE', resourceId: resourceId('sem-src-1'), resourceName: 'Sem Source', annotationId: annotationId('ann-7'), score: 0.8 }],
         }),
       );
 
@@ -700,7 +701,7 @@ describe('generateResourceFromTopic', () => {
 
       await generateResourceFromTopic(
         'Topic', [], client, LOGGER, undefined, undefined,
-        makeResourceContext({ semanticContext: [{ text: 'SHARED-PASSAGE', resourceId: 'r9', resourceName: 'Source r9', score: 0.9 }] }),
+        makeResourceContext({ semanticContext: [{ text: 'SHARED-PASSAGE', resourceId: resourceId('r9'), resourceName: 'Source r9', score: 0.9 }] }),
       );
 
       const prompt = promptArg();
@@ -720,8 +721,8 @@ describe('generateResourceFromTopic', () => {
         'Topic', [], client, LOGGER, undefined, undefined,
         makeResourceContext({
           semanticContext: [
-            { text: 'TYPED-PASSAGE', resourceId: 'r1', resourceName: 'Source r1', score: 0.9 },
-            { text: 'SCANNED-PASSAGE', resourceId: 'r2', resourceName: 'Source r2', score: 0.8, machineRead: true },
+            { text: 'TYPED-PASSAGE', resourceId: resourceId('r1'), resourceName: 'Source r1', score: 0.9 },
+            { text: 'SCANNED-PASSAGE', resourceId: resourceId('r2'), resourceName: 'Source r2', score: 0.8, machineRead: true },
           ],
         }),
       );
@@ -736,7 +737,7 @@ describe('generateResourceFromTopic', () => {
     it('says nothing about OCR when no passage was machine-read', async () => {
       await generateResourceFromTopic(
         'Topic', [], client, LOGGER, undefined, undefined,
-        makeResourceContext({ semanticContext: [{ text: 'TYPED-PASSAGE', resourceId: 'r1', resourceName: 'Source r1', score: 0.9 }] }),
+        makeResourceContext({ semanticContext: [{ text: 'TYPED-PASSAGE', resourceId: resourceId('r1'), resourceName: 'Source r1', score: 0.9 }] }),
       );
 
       expect(promptArg()).not.toContain('character recognition');

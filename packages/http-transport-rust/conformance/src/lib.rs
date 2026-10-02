@@ -7,6 +7,7 @@
 //! transport, and `semiont-live-driver` the SDK's client over one.
 
 use semiont::errors::{SemiontError, TransportError};
+use semiont::types::InvalidIdentifier;
 use semiont_observability::telemetry;
 use serde_json::{Map, Value, json};
 use std::collections::HashMap;
@@ -77,6 +78,27 @@ pub fn optional_text(args: &Arguments, name: &str) -> Result<Option<String>, End
     match args.get(name) {
         None => Ok(None),
         Some(_) => text(args, name).map(|text| Some(text.to_owned())),
+    }
+}
+
+/// An id the suite names, as the SDK's type for it. One the type refuses is
+/// the suite's mistake: an application could not have made it.
+pub fn identifier<T>(args: &Arguments, name: &str) -> Result<T, Ended>
+where
+    T: std::str::FromStr<Err = InvalidIdentifier>,
+{
+    text(args, name)?
+        .parse()
+        .map_err(|not_one: InvalidIdentifier| Ended::Misuse(format!("{name}: {not_one}")))
+}
+
+pub fn optional_identifier<T>(args: &Arguments, name: &str) -> Result<Option<T>, Ended>
+where
+    T: std::str::FromStr<Err = InvalidIdentifier>,
+{
+    match args.get(name) {
+        None => Ok(None),
+        Some(_) => identifier(args, name).map(Some),
     }
 }
 

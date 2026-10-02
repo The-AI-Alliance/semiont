@@ -6,12 +6,13 @@ use crate::issuer::IssuerVerifier;
 use crate::tokens::KeyRing;
 use semiont::identity;
 use semiont::roles::{SERVICE_ROLE, WORKER_ROLE, has_role, roles_of};
+use semiont::types::UserId;
 use serde_json::Value;
 
 #[derive(Debug, Clone)]
 pub struct Principal {
     /// What `POST /bus/emit` stamps as `_userId`.
-    pub did: String,
+    pub did: UserId,
     pub email: String,
     pub name: Option<String>,
     /// The issuer's `picture` claim, when it sends one.
@@ -73,7 +74,7 @@ async fn person(
         return Err("Token email is not verified".to_owned());
     }
     Ok(Principal {
-        did: identity::person_did(domain, subject),
+        did: UserId::new(identity::person_did(domain, subject)).map_err(|e| e.to_string())?,
         email: email.to_owned(),
         name: claims
             .get("name")

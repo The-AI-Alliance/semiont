@@ -3,11 +3,11 @@
   "description": "Command payload sent on the bind:initiate bus channel to start a bind flow.",
   "properties": {
     "annotationId": {
-      "type": "string",
+      "$ref": "./AnnotationId.json",
       "description": "Branded AnnotationId of the annotation being bound"
     },
     "resourceId": {
-      "type": "string",
+      "$ref": "./ResourceId.json",
       "description": "Branded ResourceId of the resource being bound to"
     },
     "defaultTitle": {

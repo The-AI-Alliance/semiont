@@ -47,7 +47,7 @@ function mockAnnotation(rIdStr: string): Annotation {
     id: annotationId('ann-1'),
     motivation: 'commenting',
     created: '2026-01-01T00:00:00Z',
-    target: { source: rIdStr },
+    target: { source: makeResourceId(rIdStr) },
     body: [{ type: 'TextualBody', value: 'c', purpose: 'commenting' }],
   };
 }
