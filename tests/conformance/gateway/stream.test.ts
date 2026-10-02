@@ -10,6 +10,7 @@ import { beforeAll, expect, it } from 'vitest';
 import { storedEvent } from '../harness/archivist';
 import { call, nonConformance } from '../harness/http';
 import { operationFor, spec } from '../harness/spec';
+import type { BusStream } from '../harness/stream';
 import { eachPlane } from '../harness/world';
 
 const BROADCAST = 'beckon:focus';
@@ -130,6 +131,22 @@ eachPlane('subscribing', (world) => {
       await stream.next('the fifth frame', () => stream.frames(BROADCAST).some((f) => f.payload['annotationId'] === marks[4]));
       expect(stream.frames(BROADCAST).map((f) => f.payload['annotationId']).filter((m) => marks.includes(String(m)))).toEqual(marks);
     }
+  });
+
+  it('a frame with no correlationId and no position carries one id on every connection, and no other frame\'s', async () => {
+    // One client's two connections, as a handoff overlaps them.
+    const token = await world().person('handed-over');
+    const clientId = randomUUID();
+    const old = await world().subscribe(token, { clientId, global: [BROADCAST] });
+    const replacement = await world().subscribe(token, { clientId, global: [BROADCAST] });
+    const emitter = await world().person('emitter');
+    const marks = [randomUUID(), randomUUID()];
+    for (const annotationId of marks) expect((await world().emit(emitter, { channel: BROADCAST, payload: { annotationId } })).status).toBe(202);
+    const idsOn = (stream: BusStream) =>
+      Promise.all(marks.map(async (mark) => (await stream.next(`the frame marked ${mark}`, (m) => m.frame?.channel === BROADCAST && m.frame.payload['annotationId'] === mark)).id));
+    const ids = await idsOn(old);
+    expect(await idsOn(replacement)).toEqual(ids);
+    expect(ids[0]).not.toBe(ids[1]);
   });
 
   it('a reply reaches only the connections of the client and principal that made the request', async () => {

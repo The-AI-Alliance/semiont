@@ -1,5 +1,5 @@
 {
-  "about": "a frame with no identity of its own that is published while the stream is down is lost: the stream that reopens does not carry it, and the client delivers what came before and after",
+  "about": "a frame with neither a position nor a correlationId that is published while the stream is down is lost: the stream that reopens does not carry it, and the client delivers what came before and after",
   "source": "docs/protocol/TRANSPORT-CONTRACT.md § The three classes",
   "steps": [
     {"let": {"lost": "ann-published-while-down"}},

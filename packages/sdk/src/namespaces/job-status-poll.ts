@@ -39,8 +39,8 @@ export interface JobFollowTiming {
 
 /**
  * How a job's follower learns what it was not sent. A job's progress and its
- * end reach the client as frames with no identity: a dropped stream loses
- * them and nothing redelivers them. So a follower that has heard nothing of
+ * end reach the client as passing frames: a dropped stream loses them and
+ * nothing redelivers them. So a follower that has heard nothing of
  * its job for `jobSilenceMs` asks for the job's status, and goes on asking
  * every `jobStatusPollMs` until the job says something or it is told to stop.
  */

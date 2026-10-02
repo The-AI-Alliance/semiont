@@ -1,9 +1,9 @@
 //! Following a job from its creation to its end (docs/protocol/JOBS.md
 //! § Following a job).
 //!
-//! A job's progress and its end reach the client that created it as frames
-//! with no identity of their own: a stream that is down when one is
-//! published does not carry it later. So a follower that has heard nothing of
+//! A job's progress and its end reach the client that created it as passing
+//! frames: a stream that is down when one is published does not carry it
+//! later. So a follower that has heard nothing of
 //! its job for `job_silence` asks for the job's status, and asks again every
 //! `job_status_poll` until the job says something or its status is an end.
 //! A reader that fell behind missed an unknown set of frames, which is the

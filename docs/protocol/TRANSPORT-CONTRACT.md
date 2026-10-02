@@ -97,28 +97,29 @@ Or it can be **handed over**: what the stream carries changes, a new
 connection opens before the old one closes, and for a moment both carry the
 same frames.
 
-What a client is promised about a frame across either depends on one thing:
-whether the frame has an identity that is the same on every connection, and
-what that identity lets the gateway and the client do.
+Every frame has an identity that is the same on every connection. What a
+client is promised about a frame across either depends on one thing: what
+that identity lets the gateway and the client do.
 
-- With a stable identity, a client recognises a frame it has already been
-  given. A handover cannot double it.
+- By its identity, a client recognises a frame it has already been given. A
+  handover cannot double it.
 - If that identity is also a **position** in a sequence someone keeps, the
   gateway can be asked for everything after it. A drop cannot lose it.
-- With neither, a frame reaches whoever is connected when it passes.
+- An identity that names nothing the gateway keeps gives it nothing to send
+  again: the frame reaches whoever is connected when it passes.
 
 ### The three classes
 
 | | **Positioned** | **Correlated** | **Passing** |
 |---|---|---|---|
 | Which frames | an event of the record, delivered on its resource's scope | the reply to a request | every other frame |
-| Its identity | its place in that resource's record | the request it answers | none that outlives a connection |
-| Across a handover | delivered once | delivered once | delivered once per connection |
+| Its identity | its place in that resource's record | the request it answers | its publication: one id, given when it is published |
+| Across a handover | delivered once | delivered once | delivered once |
 | Across a drop | replayed: the client names, per scope, the last position it holds | sent again: the client names the replies it still awaits | **lost** |
 | Bound | what the record still holds | how long the gateway retains a reply | none |
 | Past the bound | `bus:resume-gap` names the scope | the request's own timeout | nothing: there is no signal |
 | Reaches | every client holding the scope | the one client, and principal, that asked | every client subscribed |
-| So a consumer may | apply each once, in order | await it inside its deadline | act only in ways that are safe when repeated, and when missed |
+| So a consumer may | apply each once, in order | await it inside its deadline | act only in ways that are safe when missed |
 
 A channel's class follows from the registry's axes and is generated beside
 them, as `delivery` in `CHANNEL_ATTRS` (`@semiont/core`): an operation's
@@ -142,8 +143,8 @@ is passing.
   not carried by the stream that reopens.
   *Held by `sdk/wire/passing-across-drop`.*
 - **Passing, across a handover.** A frame published while both connections
-  are open is carried by both, and the client delivers both.
-  *Held by `sdk/wire/passing-across-handoff`.*
+  are open is carried by both under one id, and the client delivers it once.
+  *Held by `sdk/wire/passing-across-handoff`, `gateway/stream.test.ts`, `gateway/replicas.test.ts`.*
 
 Six channels carry events that are in the record and are passing all the
 same: `yield:created`, `yield:updated`, `yield:cloned`, `yield:moved`,

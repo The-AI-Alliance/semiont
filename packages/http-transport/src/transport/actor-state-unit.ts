@@ -247,11 +247,9 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    * The ids of the events delivered last, `seenEventIdsCount` of them: a frame
    * whose id is here has been delivered, and is dropped. That is what makes a
    * frame both streams of a handoff carry, or one replayed to the new stream,
-   * arrive once. It works for a frame whose id is its own, the same on every
-   * connection: a persisted event's (`p-<scope>-<seq>`) and a reply's
-   * (`e-<channel>:<cid>`). Any other frame is given an id per connection
-   * (`e-<connectionId>-<counter>`), so its two copies across a handoff are two
-   * frames here, and both are delivered.
+   * arrive once. Every frame's id is its own, the same on every connection:
+   * a persisted event's (`p-<scope>-<seq>`), a reply's (`e-<channel>:<cid>`),
+   * and any other frame's (`e-<publishId>`).
    *
    * Always on, though a second copy can only come during a handoff: a has/add
    * per event is negligible beside the JSON.parse and the span on this path.
@@ -525,8 +523,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           } else if (line === '') {
             // Skip an overlap duplicate — the same stable-id event delivered
             // by both the old and new connection during a make-before-break
-            // handoff (#847). Ephemeral ids are unique per connection, so this
-            // never spuriously drops a distinct event.
+            // handoff (#847). No two frames share an id, so this never drops a
+            // distinct event.
             const isDuplicate = currentId !== undefined && seenEventIds.has(currentId);
             if (currentEvent === 'bus-event' && currentData && !isDuplicate) {
               const parsed = JSON.parse(currentData) as BusEvent;

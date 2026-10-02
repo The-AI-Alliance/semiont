@@ -1,5 +1,5 @@
 {
   "type": "string",
-  "description": "`e-<connectionId>-<n>` — the id of any other frame: unique on its connection, meaningless elsewhere. Never a resumption watermark.",
-  "pattern": "^e-[^:]+-[0-9]+$"
+  "description": "`e-<publishId>` — the id of any other frame, given once when the frame is published: the same on every connection that carries it, through every replica, so a copy arriving on two connections (a reconnect overlap) dedups. Never a resumption watermark.",
+  "pattern": "^e-[^:]+$"
 }

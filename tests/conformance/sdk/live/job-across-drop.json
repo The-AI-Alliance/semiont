@@ -1,5 +1,5 @@
 {
-  "about": "a job's end reaches the client that follows it as a frame with no identity, which a dropped stream loses: the follower, hearing nothing for jobSilenceMs, asks for the job's status and reports the end it was not sent",
+  "about": "a job's end reaches the client that follows it as a passing frame, which a dropped stream loses: the follower, hearing nothing for jobSilenceMs, asks for the job's status and reports the end it was not sent",
   "source": "specs/src/client/timing.json jobSilenceMs, jobStatusPollMs; docs/protocol/JOBS.md § job:status-requested",
   "tier": "parity",
   "steps": [
