@@ -55,10 +55,22 @@ import {
   type StoredSession,
 } from './storage';
 import { SemiontSessionError } from './errors';
+import type { SemiontSessionErrorCode } from '@semiont/core';
 import type { SessionStorage } from './session-storage';
 import { SCRIPT_CLIENT_ID, refreshStoredSession, signInWithDeviceGrant, type DeviceCode } from './oauth';
 
 export type UserInfo = components['schemas']['UserResponse'];
+
+/**
+ * What a person is told when their session ends, as
+ * specs/src/session/cases.json states it for every SDK (`messages`).
+ */
+const EXPIRED = 'Your session has expired. Please sign in again.';
+const REFUSED = 'This knowledge base did not accept your sign-in. Please sign in again.';
+
+/** Why a renewal gave no token, for whoever reads the error. */
+const notRenewed = (failure: string | undefined): string =>
+  failure ? `Token refresh failed: ${failure}` : 'Token refresh failed';
 
 export interface SemiontSessionConfig {
   kb: KbTarget;
@@ -189,8 +201,9 @@ export class SemiontSession {
    * Run the initial mount-time validation. If a stored access token is
    * present and unexpired, call the configured `validate` with it to
    * confirm it still works and populate `user$`. If expired, try
-   * refresh first. On 401 from validate, try refresh once. Surfaces
-   * auth-failed on terminal failure.
+   * refresh first. On 401 from validate, try refresh once, and ask once
+   * more; a second 401 ends the session. Surfaces auth-failed when the
+   * gateway could not be asked.
    *
    * When no `validate` callback is provided (service principals), this
    * still runs through the refresh-if-expired step so the stored
@@ -199,11 +212,10 @@ export class SemiontSession {
   private async validate(stored: StoredSession | null): Promise<void> {
     if (!stored) return;
 
-    const startToken = isJwtExpired(stored.access)
-      ? (await this.tryRefresh()).token
-      : stored.access;
+    const expired = isJwtExpired(stored.access);
+    const startToken = expired ? (await this.tryRefresh()).token : stored.access;
     if (!startToken) {
-      if (isJwtExpired(stored.access)) {
+      if (expired) {
         clearStoredSession(this.storage, this.kb.id);
       }
       return;
@@ -218,27 +230,26 @@ export class SemiontSession {
     // current; `user$` stays null. Done.
     if (!this.doValidate) return;
 
-    const attempt = async (token: string): Promise<void> => {
+    // The gateway is asked who the token is. A token it refuses is renewed
+    // once and asked about once more. A token the issuer has JUST issued and
+    // the gateway refuses is final: renewing again cannot change the answer.
+    // Asking again for as long as the issuer went on issuing was a loop with
+    // no end — one browser tab sent a gateway 300 requests a second
+    // (.plans/bugs/stale-sse-actor-401-loops-after-token-expiry.md). So the
+    // gateway is asked at most twice and the issuer at most once
+    // (specs/src/session/cases.json, `startup`).
+    let token = startToken;
+    let justIssued = expired;
+    for (;;) {
       if (this.disposed) return;
       try {
-        const data = await this.doValidate!(accessToken(token));
+        const data = await this.doValidate(accessToken(token));
         if (this.disposed) return;
         this.user$.next(data);
+        return;
       } catch (err) {
         if (this.disposed) return;
-        if (err instanceof APIError && err.status === 401) {
-          const refreshed = (await this.tryRefresh()).token;
-          if (this.disposed) return;
-          if (refreshed) {
-            this.token$.next(accessToken(refreshed));
-            this.scheduleProactiveRefresh(refreshed);
-            await attempt(refreshed);
-            return;
-          }
-          clearStoredSession(this.storage, this.kb.id);
-          this.token$.next(null);
-          this.onAuthFailed('Your session has expired. Please sign in again.');
-        } else {
+        if (!(err instanceof APIError && err.status === 401)) {
           this.onError(
             new SemiontSessionError(
               'session.auth-failed',
@@ -246,11 +257,37 @@ export class SemiontSession {
               this.kb.id,
             ),
           );
+          return;
         }
+        if (justIssued) {
+          this.signedOut(REFUSED, 'session.credential-refused', 'The gateway refused a token its issuer had just issued');
+          return;
+        }
+        const { token: renewed, failure } = await this.tryRefresh();
+        if (this.disposed) return;
+        if (!renewed) {
+          this.signedOut(EXPIRED, 'session.refresh-exhausted', notRenewed(failure));
+          return;
+        }
+        this.token$.next(accessToken(renewed));
+        this.scheduleProactiveRefresh(renewed);
+        token = renewed;
+        justIssued = true;
       }
-    };
+    }
+  }
 
-    await attempt(startToken);
+  /**
+   * The session is over: its credential is forgotten, and the person and the
+   * application are each told why. The one teardown, whichever way the
+   * session ended.
+   */
+  private signedOut(told: string, code: SemiontSessionErrorCode, why: string): void {
+    this.clearRefreshTimer();
+    this.token$.next(null);
+    clearStoredSession(this.storage, this.kb.id);
+    this.onAuthFailed(told);
+    this.onError(new SemiontSessionError(code, why, this.kb.id));
   }
 
   /**
@@ -310,16 +347,7 @@ export class SemiontSession {
       this.token$.next(null);
       return null;
     }
-    this.token$.next(null);
-    clearStoredSession(this.storage, this.kb.id);
-    this.onAuthFailed('Your session has expired. Please sign in again.');
-    this.onError(
-      new SemiontSessionError(
-        'session.refresh-exhausted',
-        failure ? `Token refresh failed: ${failure}` : 'Token refresh failed',
-        this.kb.id,
-      ),
-    );
+    this.signedOut(EXPIRED, 'session.refresh-exhausted', notRenewed(failure));
     return null;
   }
 

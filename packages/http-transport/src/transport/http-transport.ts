@@ -37,7 +37,7 @@ import type {
   StatusResponse,
   UserResponse,
 } from '@semiont/core';
-import { BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, retryAfterMs, type RetryPolicy } from '@semiont/core';
+import { BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, isObject, isString, retryAfterMs, type RetryPolicy } from '@semiont/core';
 import type { BusEnvelope, BusFrame } from '@semiont/core';
 
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
@@ -89,6 +89,76 @@ export interface HttpTransportConfig {
   seenEventIdsCount?: number;
 }
 
+/**
+ * The gateway's refusal of a request, as every request of this package
+ * reports one: in the gateway's own words when its body states them
+ * (`ErrorResponse.error`), and with the body as it came. `error.data` is
+ * that body: ky reads a refused response before any hook runs, and nothing
+ * can be read from `error.response` after it.
+ */
+function refusalOf(error: HTTPError): APIError {
+  const { response, data } = error;
+  const said = isObject(data) && isString(data['error']) ? data['error'] : undefined;
+  return APIError.fromStatus(
+    said ?? `HTTP ${response.status}: ${response.statusText}`,
+    response.status,
+    response.statusText,
+    data,
+    retryAfterMs(response.headers.get('retry-after')),
+  );
+}
+
+/**
+ * A request the gateway never answered: the connection failed, or the
+ * request's own deadline passed. Reported under `unavailable`, as the
+ * vocabulary files it.
+ */
+function unansweredOf(request: Request, error: Error): APIError {
+  return APIError.withoutResponse(
+    `${request.method} ${new URL(request.url).pathname} got no answer: ${error.message}`,
+    'unavailable',
+    error.name,
+  );
+}
+
+/**
+ * What a failed request is reported as: the gateway's refusal, or that it
+ * never answered. Anything else — the caller's own abort, a fault in a
+ * hook — is not the gateway's doing, and is handed back as it is.
+ */
+function reportedAs(request: Request, error: Error): Error {
+  if (error instanceof HTTPError) return refusalOf(error);
+  if (error instanceof NetworkError || error instanceof TimeoutError) return unansweredOf(request, error);
+  return error;
+}
+
+const withoutTrailingSlash = (baseUrl: BaseUrl): BaseUrl =>
+  (baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl) as BaseUrl;
+
+const CURRENT_USER = '/api/users/me';
+
+/**
+ * Ask the gateway at `baseUrl` who `token` is: one request, by a caller that
+ * holds nothing else. There is no transport behind it, so no stream is
+ * opened for it, and nothing renews the token: a refusal is the answer. A
+ * session asks this of a credential it found stored, before it trusts it.
+ */
+export function currentUserOf(baseUrl: BaseUrl, token: AccessToken): Promise<UserResponse> {
+  return ky.get(`${withoutTrailingSlash(baseUrl)}${CURRENT_USER}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    timeout: HTTP_REQUEST_TIMEOUT_MS,
+    hooks: {
+      beforeError: [
+        async ({ request, error }) => {
+          const reported = reportedAs(request, error);
+          if (reported !== error) throw reported;
+          return error;
+        },
+      ],
+    },
+  }).json();
+}
+
 export class HttpTransport implements ITransport, IGatewayOperations {
   readonly baseUrl: BaseUrl;
   private readonly http: KyInstance;
@@ -125,7 +195,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     const { baseUrl, timeout = HTTP_REQUEST_TIMEOUT_MS, retry = 2, logger, tokenRefresher } = config;
     this.config = config;
 
-    this.baseUrl = (baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl) as BaseUrl;
+    this.baseUrl = withoutTrailingSlash(baseUrl);
     this.token$ = config.token$ ?? new BehaviorSubject<AccessToken | null>(null);
     this.logger = logger;
 
@@ -239,44 +309,22 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         ],
         beforeError: [
           async ({ request, error }) => {
-            const response = error instanceof HTTPError ? error.response : undefined;
-            if (response) {
-              const body = await response.json().catch(() => ({})) as { message?: string };
-              if (this.logger) {
-                this.logger.error('HTTP Request Failed', {
-                  type: 'http_error',
-                  url: request.url,
-                  method: request.method,
-                  status: response.status,
-                  statusText: response.statusText,
-                  error: body.message || `HTTP ${response.status}: ${response.statusText}`,
-                });
-              }
-              const apiError = APIError.fromStatus(
-                body.message || `HTTP ${response.status}: ${response.statusText}`,
-                response.status,
-                response.statusText,
-                body,
-                retryAfterMs(response.headers.get('retry-after')),
-              );
-              this.errorsSubject.next(apiError);
-              throw apiError;
+            const reported = reportedAs(request, error);
+            if (reported === error) return error;
+            if (this.logger && error instanceof HTTPError) {
+              this.logger.error('HTTP Request Failed', {
+                type: 'http_error',
+                url: request.url,
+                method: request.method,
+                status: error.response.status,
+                statusText: error.response.statusText,
+                error: reported.message,
+              });
             }
-            // The gateway never answered: the connection failed, or the
-            // request's own deadline passed. Reported under `unavailable`, as
-            // the vocabulary files it, and on `errors$` like a refusal.
-            // Anything else — the caller's own abort, a fault in a hook — is
-            // not the gateway's doing and passes as it is.
-            if (error instanceof NetworkError || error instanceof TimeoutError) {
-              const unanswered = APIError.withoutResponse(
-                `${request.method} ${new URL(request.url).pathname} got no answer: ${error.message}`,
-                'unavailable',
-                error.name,
-              );
-              this.errorsSubject.next(unanswered);
-              throw unanswered;
-            }
-            return error;
+            // A refusal and a request that was never answered are both on
+            // `errors$`, as the `APIError` the caller is also given.
+            if (reported instanceof APIError) this.errorsSubject.next(reported);
+            throw reported;
           },
         ],
       },
@@ -485,7 +533,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   }
 
   async getCurrentUser(): Promise<UserResponse> {
-    return this.http.get(`${this.baseUrl}/api/users/me`, {
+    return this.http.get(`${this.baseUrl}${CURRENT_USER}`, {
       headers: this.authHeaders(),
     }).json();
   }

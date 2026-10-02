@@ -20,6 +20,7 @@
 
 export {
   HttpTransport,
+  currentUserOf,
   type HttpTransportConfig,
   type TokenRefresher,
 } from './transport/http-transport';

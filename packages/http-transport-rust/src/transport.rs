@@ -153,6 +153,38 @@ pub(crate) struct Shared {
 }
 
 impl Shared {
+    /// What a transport's requests are made with. No stream is opened by
+    /// this: `HttpTransport::new` starts the task that holds one.
+    pub fn new(config: HttpTransportConfig) -> Shared {
+        Shared {
+            base_url: config.base_url.trim_end_matches('/').to_owned(),
+            http: config.http,
+            token: config.token,
+            refresher: config.refresher,
+            client_id: uuid::Uuid::new_v4().to_string(),
+            global: config.channels.unwrap_or_else(|| {
+                BRIDGED_CHANNELS
+                    .iter()
+                    .map(|channel| (*channel).to_owned())
+                    .collect()
+            }),
+            timing: config.timing,
+            bookmarks: config.bookmarks,
+            hub: FrameHub::new(),
+            router: ReplyRouter::new(),
+            failures: Mutex::new(Some(broadcast::channel(STREAM_BACKLOG).0)),
+            bridges: Mutex::new(Vec::new()),
+        }
+    }
+
+    /// Who the gateway says this token is.
+    pub async fn current_user(&self) -> Result<UserResponse, TransportError> {
+        self.answer(reqwest::Method::GET, "/api/users/me", true, |request| {
+            request
+        })
+        .await
+    }
+
     pub fn current_token(&self) -> Option<String> {
         self.token
             .borrow()
@@ -441,25 +473,7 @@ impl HttpTransport {
     /// A transport to the gateway at `config.base_url`. Its stream opens in
     /// the background, once there is a token.
     pub fn new(config: HttpTransportConfig) -> HttpTransport {
-        let shared = Arc::new(Shared {
-            base_url: config.base_url.trim_end_matches('/').to_owned(),
-            http: config.http,
-            token: config.token,
-            refresher: config.refresher,
-            client_id: uuid::Uuid::new_v4().to_string(),
-            global: config.channels.unwrap_or_else(|| {
-                BRIDGED_CHANNELS
-                    .iter()
-                    .map(|channel| (*channel).to_owned())
-                    .collect()
-            }),
-            timing: config.timing,
-            bookmarks: config.bookmarks,
-            hub: FrameHub::new(),
-            router: ReplyRouter::new(),
-            failures: Mutex::new(Some(broadcast::channel(STREAM_BACKLOG).0)),
-            bridges: Mutex::new(Vec::new()),
-        });
+        let shared = Arc::new(Shared::new(config));
         let (commands, receiver) = mpsc::unbounded_channel();
         let (state, state_reader) = watch::channel(ConnectionState::Initial);
         tokio::spawn(actor::run(shared.clone(), state, receiver));
@@ -600,13 +614,7 @@ impl Transport for HttpTransport {
 
 impl GatewayOperations for HttpTransport {
     fn get_current_user(&self) -> BoxFuture<'_, Result<UserResponse, TransportError>> {
-        Box::pin(
-            self.inner
-                .shared
-                .answer(reqwest::Method::GET, "/api/users/me", true, |request| {
-                    request
-                }),
-        )
+        Box::pin(self.inner.shared.current_user())
     }
 
     fn get_media_token<'a>(

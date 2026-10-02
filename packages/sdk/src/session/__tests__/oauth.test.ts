@@ -262,7 +262,7 @@ describe('refresh and revocation', () => {
     const stored = (storage: InMemorySessionStorage) =>
       JSON.parse(storage.get(`semiont.session.${KB}`) ?? 'null') as { access: string } | null;
 
-    it('does not write back a session that was signed out while it was being renewed', async () => {
+    it('does not write back a session that was signed out while it was being renewed, and gives its token to nobody', async () => {
       const storage = seeded();
       fetchMock.mockImplementation(async () => {
         // The sign-out lands while the grant is on its way.
@@ -270,8 +270,10 @@ describe('refresh and revocation', () => {
         return reply({ access_token: 'acc-2', refresh_token: 'ref-2' });
       });
 
-      await refreshStoredSession(storage, KB);
+      // The issuer renewed it, and there is no session left to hold the token.
+      expect(await refreshStoredSession(storage, KB)).toBeNull();
 
+      expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(stored(storage)).toBeNull();
     });
 

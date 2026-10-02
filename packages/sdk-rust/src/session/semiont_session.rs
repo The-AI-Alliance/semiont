@@ -7,11 +7,12 @@
 //! - `refresh` renews the token: after it expires, and when the gateway
 //!   refuses it. It answers the new token, nothing when there is nothing to
 //!   renew with, or why it failed.
-//! - `validate` asks the gateway who a token is, once, when the session
-//!   starts. A session of a service has none: there is nobody to ask about.
-//! - `on_auth_failed` is told when the session could not be renewed and is
-//!   over. `on_error` is told of every failure that makes the session
-//!   unusable.
+//! - `validate` asks the gateway who a token is, when the session starts:
+//!   once, and once more when it refused a token that was then renewed. A
+//!   session of a service has none: there is nobody to ask about.
+//! - `on_auth_failed` is told when the session is over: it could not be
+//!   renewed, or the gateway refused a token the issuer had just issued.
+//!   `on_error` is told of every failure that makes the session unusable.
 //!
 //! A session that cannot be renewed clears its token and what it stored, so a
 //! dead credential is never used again. One that never had a credential is
@@ -58,7 +59,18 @@ pub type OnAuthFailed = Arc<dyn Fn(&str) + Send + Sync>;
 /// Told of a failure that makes the session unusable.
 pub type OnSessionError = Arc<dyn Fn(SessionError) + Send + Sync>;
 
+/// What a person is told when their session ends, as
+/// specs/src/session/cases.json states it for every SDK (`messages`).
 const EXPIRED: &str = "Your session has expired. Please sign in again.";
+const REFUSED: &str = "This knowledge base did not accept your sign-in. Please sign in again.";
+
+/// Why a renewal gave no token, for whoever reads the error.
+fn not_renewed(failure: Option<String>) -> String {
+    match failure {
+        Some(failure) => format!("Token refresh failed: {failure}"),
+        None => "Token refresh failed".to_owned(),
+    }
+}
 
 pub struct SemiontSessionConfig {
     pub kb: KbTarget,
@@ -297,18 +309,24 @@ impl Shared {
         // out, which is no failure. Ending the session below also clears the
         // credential, so the refusals that follow it are quiet too.
         stored_session(self.storage.as_ref(), &self.kb.id)?;
-        clear_stored_session(self.storage.as_ref(), &self.kb.id);
-        if let Some(on_auth_failed) = &self.on_auth_failed {
-            on_auth_failed(EXPIRED);
-        }
-        self.failed(
+        self.signed_out(
+            EXPIRED,
             SessionErrorCode::RefreshExhausted,
-            match failure {
-                Some(failure) => format!("Token refresh failed: {failure}"),
-                None => "Token refresh failed".to_owned(),
-            },
+            not_renewed(failure),
         );
         None
+    }
+
+    /// The session is over: its credential is forgotten, and the person and
+    /// the application are each told why. The one teardown, whichever way
+    /// the session ended.
+    fn signed_out(&self, told: &str, code: SessionErrorCode, why: String) {
+        self.token.set(None);
+        clear_stored_session(self.storage.as_ref(), &self.kb.id);
+        if let Some(on_auth_failed) = &self.on_auth_failed {
+            on_auth_failed(told);
+        }
+        self.failed(code, why);
     }
 
     fn failed(&self, code: SessionErrorCode, message: String) {
@@ -319,7 +337,12 @@ impl Shared {
 
     /// What a session does at its start, with the credential it found
     /// stored: renew it if it has expired, then ask the gateway who it is.
-    /// A token the gateway refuses is renewed once and asked about again.
+    /// A token the gateway refuses is renewed once and asked about once
+    /// more. A token the issuer has just issued and the gateway refuses is
+    /// final: renewing again cannot change the answer, and asking for as
+    /// long as the issuer goes on issuing is a loop with no end. So the
+    /// gateway is asked at most twice and the issuer at most once
+    /// (specs/src/session/cases.json, `startup`).
     async fn validate(&self, stored: Option<StoredSession>) {
         let Some(stored) = stored else { return };
         let expired = is_token_expired(&stored.access, SystemTime::now());
@@ -340,6 +363,7 @@ impl Shared {
         let Some(validate) = &self.validate else {
             return;
         };
+        let mut just_issued = expired;
         loop {
             if self.closed() {
                 return;
@@ -356,7 +380,15 @@ impl Shared {
                 Err(SemiontError::Transport(refusal))
                     if refusal.code == TransportErrorCode::Unauthorized =>
                 {
-                    let renewed = self.try_refresh().await.0;
+                    if just_issued {
+                        self.signed_out(
+                            REFUSED,
+                            SessionErrorCode::CredentialRefused,
+                            "The gateway refused a token its issuer had just issued".to_owned(),
+                        );
+                        return;
+                    }
+                    let (renewed, failure) = self.try_refresh().await;
                     if self.closed() {
                         return;
                     }
@@ -364,13 +396,14 @@ impl Shared {
                         Some(renewed) => {
                             self.token.set(Some(renewed.clone()));
                             token = renewed;
+                            just_issued = true;
                         }
                         None => {
-                            clear_stored_session(self.storage.as_ref(), &self.kb.id);
-                            self.token.set(None);
-                            if let Some(on_auth_failed) = &self.on_auth_failed {
-                                on_auth_failed(EXPIRED);
-                            }
+                            self.signed_out(
+                                EXPIRED,
+                                SessionErrorCode::RefreshExhausted,
+                                not_renewed(failure),
+                            );
                             return;
                         }
                     }

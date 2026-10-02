@@ -47,12 +47,16 @@ import { APIError } from '../api-error';
 
 const testBaseUrl = baseUrl('http://localhost:4000');
 
-type ResponseLike = { status: number; statusText: string; headers: Headers; json: () => Promise<unknown> };
+type ResponseLike = { status: number; statusText: string; headers: Headers };
 
-/** An object that passes `instanceof HTTPError` and carries a `.response`. */
-function httpError(response: ResponseLike): Error {
+/**
+ * An object that passes `instanceof HTTPError`, as ky hands one to a hook:
+ * its `.response`, whose body ky has already read, and that body as `.data`
+ * (`http-transport.retry.test.ts` holds the same through real ky).
+ */
+function httpError(response: ResponseLike, data: unknown): Error {
   const err = Object.create(HTTPError.prototype) as Error;
-  return Object.assign(err, { response });
+  return Object.assign(err, { response, data });
 }
 
 describe('HttpTransport ky hooks', () => {
@@ -77,12 +81,10 @@ describe('HttpTransport ky hooks', () => {
     const beforeError = hooks.beforeError![0]!;
     type State = Parameters<typeof beforeError>[0];
 
-    const error = httpError({
-      headers: new Headers(),
-      status: 404,
-      statusText: 'Not Found',
-      json: async () => ({ message: 'Resource missing' }),
-    });
+    const error = httpError(
+      { headers: new Headers(), status: 404, statusText: 'Not Found' },
+      { error: 'Resource missing' },
+    );
 
     const emitted: SemiontError[] = [];
     const sub = transport.errors$.subscribe((e) => emitted.push(e));
@@ -109,12 +111,10 @@ describe('HttpTransport ky hooks', () => {
     const beforeError = hooks.beforeError![0]!;
     type State = Parameters<typeof beforeError>[0];
 
-    const error = httpError({
-      headers: new Headers(),
-      status: 503,
-      statusText: 'Service Unavailable',
-      json: async () => ({}),
-    });
+    const error = httpError(
+      { headers: new Headers(), status: 503, statusText: 'Service Unavailable' },
+      undefined,
+    );
 
     const emitted: SemiontError[] = [];
     const sub = transport.errors$.subscribe((e) => emitted.push(e));
@@ -233,7 +233,7 @@ describe('HttpTransport shouldRetry — the transport retry rule', () => {
 
   /** Ask the gate about a request of `method` that failed with `status`. */
   function verdict(method: string, status: number) {
-    const error = Object.assign(httpError({ status, statusText: 'x', headers: new Headers(), json: async () => ({}) }), {
+    const error = Object.assign(httpError({ status, statusText: 'x', headers: new Headers() }, undefined), {
       request: { method },
     });
     return shouldRetry({ error, retryCount: 1 });
@@ -310,7 +310,7 @@ describe('HttpTransport beforeRetry — refresh only, once a retry is confirmed'
     const beforeRetry = hooks.beforeRetry![0]!;
     type State = Parameters<typeof beforeRetry>[0];
     const request = { method: 'POST', headers: new Headers() } as unknown as State['request'];
-    const error = httpError({ status: 401, statusText: 'x', headers: new Headers(), json: async () => ({}) });
+    const error = httpError({ status: 401, statusText: 'x', headers: new Headers() }, undefined);
     return {
       request,
       error,

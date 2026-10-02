@@ -3,8 +3,8 @@
  * KBs. Owns every HTTP-specific construction concern that used to live in
  * `SemiontBrowser`: building `HttpTransport`/`HttpContentTransport`,
  * wiring the `tokenRefresher` callback, deduplicating concurrent 401
- * refresh round trips, renewing the session at its issuer, and validating
- * the user against the gateway.
+ * refresh round trips, renewing the session at its issuer, and asking the
+ * gateway who a stored token is.
  *
  * Returned as a closure so a single `inFlightRefreshes` map is shared
  * across every session this factory builds — the dedup is meaningful
@@ -12,7 +12,7 @@
  */
 
 import { BehaviorSubject } from 'rxjs';
-import { HttpTransport, HttpContentTransport } from '@semiont/http-transport';
+import { HttpTransport, HttpContentTransport, currentUserOf } from '@semiont/http-transport';
 import { baseUrl, type AccessToken } from '@semiont/core';
 import { SemiontClient } from '../client';
 import { coupledLastEventId } from '../cache-persister';
@@ -57,26 +57,13 @@ export function createHttpSessionFactory(): SessionFactory {
     };
 
     /**
-     * Validate an access token by calling `auth.me` on a throwaway
-     * client seeded with that specific token. The session uses this
-     * once at startup to populate `user$`; 401 triggers a
-     * refresh-then-retry inside the session.
+     * Ask the gateway who `token` is: one request, with no client behind it.
+     * The session asks at startup, to populate `user$`, and decides for
+     * itself what a refusal means. A client built for the asking opened a
+     * bus stream each time it was built, with the token being asked about.
      */
-    const performValidate = async (token: AccessToken): Promise<UserInfo | null> => {
-      const tokenSubject = new BehaviorSubject<AccessToken | null>(token);
-      const throwawayTransport = new HttpTransport({
-        baseUrl: baseUrl(kbGatewayUrl(endpoint)),
-        token$: tokenSubject,
-      });
-      const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport), throwawayTransport);
-      try {
-        const data = await throwaway.auth!.me();
-        return data as UserInfo;
-      } finally {
-        throwaway.dispose();
-        tokenSubject.complete();
-      }
-    };
+    const performValidate = (token: AccessToken): Promise<UserInfo> =>
+      currentUserOf(baseUrl(kbGatewayUrl(endpoint)), token);
 
     // Build transport stack: factory owns token$ and threads it through
     // transport (which reads it on every request) and session (which
@@ -99,9 +86,8 @@ export function createHttpSessionFactory(): SessionFactory {
       saveLastEventId: coupled.saveLastEventId,
     });
     const content = new HttpContentTransport(transport);
-    // B17: the real session's client persists its browse caches through the
-    // environment's storage adapter, scoped by KB. (The token-refresh
-    // throwaway clients above deliberately do not.)
+    // B17: the session's client persists its browse caches through the
+    // environment's storage adapter, scoped by KB.
     const client = new SemiontClient(transport, content, transport, {
       cachePersistence: { storage: coupled.storage, keyPrefix: kb.id },
     });

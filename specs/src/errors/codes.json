@@ -118,6 +118,10 @@
       {
         "code": "session.refresh-exhausted",
         "docs": "The session could not be renewed: the issuer refused, or stayed unreachable until the retry budget was spent. Not a prompt to retry: retrying already happened."
+      },
+      {
+        "code": "session.credential-refused",
+        "docs": "The gateway refused a token the issuer had just issued. The two disagree about who may sign in, and renewing again cannot change the answer: the session is over, and signing in again is what is left."
       }
     ]
   },

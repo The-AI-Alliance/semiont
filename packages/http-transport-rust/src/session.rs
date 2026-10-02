@@ -35,7 +35,7 @@ use semiont::session::{
     store_session, stored_session,
 };
 use semiont::storage::SessionStorage;
-use semiont::transport::{BoxFuture, GatewayOperations, Transport};
+use semiont::transport::BoxFuture;
 use semiont::types::KbDescription;
 use std::collections::HashMap;
 use std::fmt;
@@ -152,24 +152,21 @@ fn renewing_stored(
     })
 }
 
-/// Ask the gateway who `token` is, as a client that holds nothing else.
+/// Ask the gateway who `token` is: one request, by a caller that holds
+/// nothing else. No stream is opened for it, and nothing renews the token:
+/// a refusal is the answer.
 fn asking_the_gateway(base_url: String, http: reqwest::Client) -> Validate {
     Arc::new(move |token| {
-        let (base_url, http) = (base_url.clone(), http.clone());
-        Box::pin(async move {
-            let transport = HttpTransport::new(HttpTransportConfig {
-                base_url,
-                token: watch::channel(Some(token)).1,
-                refresher: None,
-                channels: Some(Vec::new()),
-                http,
-                timing: Timing::default(),
-                bookmarks: None,
-            });
-            let user = transport.get_current_user().await;
-            transport.close().await;
-            Ok(user?)
-        })
+        let asking = crate::transport::Shared::new(HttpTransportConfig {
+            base_url: base_url.clone(),
+            token: watch::channel(Some(token)).1,
+            refresher: None,
+            channels: Some(Vec::new()),
+            http: http.clone(),
+            timing: Timing::default(),
+            bookmarks: None,
+        });
+        Box::pin(async move { Ok(asking.current_user().await?) })
     })
 }
 
