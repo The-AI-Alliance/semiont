@@ -1745,6 +1745,33 @@ func TestYieldUploadsFile(t *testing.T) {
 		`"filecontent":"# hi\n"`)
 }
 
+// The format an upload states comes from the media-type registry
+// (specs/src/media-types/registry.json), through the Go SDK: every extension
+// a row states, the registry's aliases, and its rule that a shared extension
+// is the first row's. An extension no row states uploads as octet-stream; the
+// gateway's create route stays the validator of record.
+func TestYieldNamesTheFormatFromTheRegistry(t *testing.T) {
+	s := yieldScenario(t, true)
+	for _, c := range []struct{ file, format string }{
+		{"docs/styles.css", "text/css"},                // a row the hand-written table never had
+		{"docs/config.YML", "application/yaml"},        // an alias, in upper case
+		{"docs/clip.webm", "video/webm"},               // shared with audio/webm: the first row's
+		{"docs/thing.xyz", "application/octet-stream"}, // no row states it
+	} {
+		if err := os.WriteFile(filepath.Join(s.kb, c.file), []byte("x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if stdout, stderr, code := s.run(t, "yield", "--upload", c.file); code != 0 {
+			t.Fatalf("yield %s: exit %d\nstdout:\n%s\nstderr:\n%s", c.file, code, stdout, stderr)
+		}
+		b, err := os.ReadFile(filepath.Join(s.fakertDir, "yield-upload.json"))
+		if err != nil {
+			t.Fatalf("upload capture: %v", err)
+		}
+		mustContain(t, c.file, string(b), `"format":"`+c.format+`"`)
+	}
+}
+
 func TestYieldOutsideRootRefuses(t *testing.T) {
 	s := yieldScenario(t, true)
 	outside := filepath.Join(t.TempDir(), "stray.md")
