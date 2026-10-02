@@ -76,7 +76,8 @@
     "lint:broker-boundary": "node scripts/lint/check-broker-boundary.mjs",
     "lint:placeholder-readers": "node scripts/lint/check-placeholder-readers.mjs",
     "lint:secure-context-apis": "node scripts/lint/check-secure-context-apis.mjs",
-    "lint:client-surface": "node scripts/lint/check-client-surface.mjs"
+    "lint:client-surface": "node scripts/lint/check-client-surface.mjs",
+    "lint:internal-deps": "node scripts/lint/check-internal-dep-specifiers.mjs"
   },
   "engines": {
     "node": ">=24.15.0",
