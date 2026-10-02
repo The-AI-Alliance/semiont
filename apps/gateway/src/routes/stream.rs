@@ -118,7 +118,7 @@ pub async fn subscribe(
     })?;
     let connection = Connection::new(
         app,
-        principal.did,
+        principal.did.into(),
         client_id,
         abort,
         !scoped.iter().all(|e| e.last_event_id.is_none()),

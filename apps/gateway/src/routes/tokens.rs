@@ -42,7 +42,8 @@ pub async fn agent(
     let request: AgentTokenRequest = typed_body(body, "POST /api/tokens/agent").await?;
     let (provider, model) = (request.provider.as_str(), request.model.as_str());
     let domain = app.keys.domain();
-    let did = identity::agent_did(domain, provider, model);
+    let did = UserId::new(identity::agent_did(domain, provider, model))
+        .map_err(|e| ApiError::internal("naming an agent", e))?;
     logging::info(
         "Agent token issued",
         json!({ "minter": minter.client, "did": did, "worker": minter.worker_capable }),
@@ -56,10 +57,7 @@ pub async fn agent(
     );
     Ok(json_response(
         StatusCode::OK,
-        &AgentTokenResponse {
-            token,
-            did: UserId::new(did).map_err(|e| ApiError::internal("naming an agent", e))?,
-        },
+        &AgentTokenResponse { token, did },
     ))
 }
 

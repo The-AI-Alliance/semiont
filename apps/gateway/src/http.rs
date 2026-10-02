@@ -5,7 +5,7 @@
 use crate::app::App;
 use crate::principal::{Principal, principal_from_token};
 use axum::body::Body;
-use axum::extract::{FromRequestParts, Request};
+use axum::extract::{FromRequestParts, Path, Request};
 use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::middleware::Next;
@@ -13,7 +13,7 @@ use axum::response::{IntoResponse, Response};
 use futures::StreamExt;
 use futures::task::AtomicWaker;
 use hyper_util::rt::{TokioIo, TokioTimer};
-use semiont::types::{ErrorResponse, LimitRefusal, LimitRefusalCode};
+use semiont::types::{ErrorResponse, LimitRefusal, LimitRefusalCode, ResourceId};
 use semiont_observability::logging;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -589,6 +589,24 @@ impl FromRequestParts<Arc<App>> for MediaOrBearer {
         authenticate(app, &parts.method, parts.uri.path(), &parts.headers)
             .await
             .map(MediaOrBearer::Bearer)
+    }
+}
+
+/// The `{id}` of a resource's routes. A path that names anything but a
+/// resource's id names no resource: 404, as for an id nothing is stored under.
+pub struct ResourcePath(pub ResourceId);
+
+impl<S: Send + Sync> FromRequestParts<S> for ResourcePath {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let no_resource = || ApiError::new(StatusCode::NOT_FOUND, "Resource not found");
+        let Path(id) = Path::<String>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| no_resource())?;
+        ResourceId::new(id)
+            .map(ResourcePath)
+            .map_err(|_| no_resource())
     }
 }
 

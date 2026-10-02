@@ -169,7 +169,14 @@ is its mechanism over HTTP.
   annotation target's `source`, a reference body's `source`, and a
   description's `wasDerivedFrom`. `npm run lint:spec-identifiers` holds the spec to it: a
   property named for an id that refers to no kind, and a case the rule
-  does not agree with, fail it.
+  does not agree with, fail it. The gateway is held to it by its suite,
+  which sends every string the table says a kind accepts and every one it
+  refuses: in a payload and as a `scope` (`gateway/emit.test.ts`), in a
+  subscription's `scoped` entry (`gateway/stream.test.ts`), to
+  `POST /api/tokens/media` and as an agent token's `did`
+  (`gateway/tokens.test.ts`), and in the path of a resource's routes, where
+  what is not an id names no resource and is a 404
+  (`gateway/content.test.ts`).
 - **Claims.** A registry operation's request carrying a `correlationId`
   claims that id for its `clientId` and the verified principal before it
   is published — `clientId` is required then (400 without it). The claim

@@ -404,6 +404,27 @@ export function metricName(name: string): string {
   return name;
 }
 
+export interface IdCase {
+  id: string;
+  why: string;
+}
+
+/** The strings a kind of id takes and the ones it refuses, each with why (identifiers/kinds.json). */
+export function identifiers(kind: string): { accepts: IdCase[]; refuses: IdCase[] } {
+  const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, 'identifiers/kinds.json'), 'utf8'));
+  const kinds = isObject(table) && Array.isArray(table['kinds']) ? table['kinds'] : [];
+  const found = kinds.find((k) => isObject(k) && k['schema'] === kind);
+  const cases = (list: unknown): IdCase[] => {
+    if (!Array.isArray(list) || list.length === 0) throw new Error(`identifiers/kinds.json: ${kind} has no such cases`);
+    return list.map((c) => {
+      if (!isObject(c) || typeof c['id'] !== 'string' || typeof c['why'] !== 'string') throw new Error(`identifiers/kinds.json: a case of ${kind} is malformed: ${JSON.stringify(c)}`);
+      return { id: c['id'], why: c['why'] };
+    });
+  };
+  if (!isObject(found)) throw new Error(`identifiers/kinds.json names no kind ${kind}`);
+  return { accepts: cases(found['accepts']), refuses: cases(found['refuses']) };
+}
+
 export interface PersonCase {
   why: string;
   subject: string;

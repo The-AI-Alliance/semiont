@@ -6,7 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { call, nonConformance, type Reply } from '../harness/http';
 import { SERVICE_ROLE, WORKER_ROLE } from '../harness/roles';
-import { kbIdentity, principals, spec } from '../harness/spec';
+import { identifiers, kbIdentity, principals, spec } from '../harness/spec';
 import { eachPlane } from '../harness/world';
 
 function decode(token: string): { header: Record<string, unknown>; payload: Record<string, unknown> } {
@@ -207,6 +207,23 @@ eachPlane('credentials', (world) => {
     }
   });
 
+  it('an agent token names its principal by a UserId: a did the kind refuses is no principal, a 401, and one it accepts is answered as it is (identifiers/kinds.json)', async () => {
+    const claims = { email: 'p-forged@agents.example', name: 'p forged', domain: world().kb.domain, iss: world().kb.domain };
+    const { accepts, refuses } = identifiers('UserId');
+    for (const { id, why } of refuses) {
+      const token = await world().signed({ ...claims, did: id, iat: now(), exp: now() + 600 });
+      const reply = await call(world().origin, 'GET', '/api/users/me', { token });
+      expect(reply.status, `${JSON.stringify(id)}: ${why}`).toBe(401);
+      expectRefused(reply, 'get', '/api/users/me');
+    }
+    for (const { id, why } of accepts) {
+      const token = await world().signed({ ...claims, did: id, iat: now(), exp: now() + 600 });
+      const reply = await call(world().origin, 'GET', '/api/users/me', { token });
+      expect(reply.status, `${JSON.stringify(id)}: ${why}`).toBe(200);
+      expect((reply.json as { did: string }).did, why).toBe(id);
+    }
+  });
+
   it('a media token is refused when it is not one, has expired, or was signed with a key the gateway does not hold; and it never opens a write', async () => {
     const id = 'res-media-edges';
     world().archivist.resources.set(id, { storageUri: `file://${id}`, mediaType: 'text/plain' });
@@ -270,6 +287,15 @@ eachPlane('credentials', (world) => {
     const missing = await call(world().origin, 'POST', '/api/tokens/media', { token, json: {} });
     expect(missing.status).toBe(400);
     expect(nonConformance('post', '/api/tokens/media', missing)).toEqual([]);
+  });
+
+  it('a media token is not minted for what is not a resource\'s id (identifiers/kinds.json)', async () => {
+    const token = await world().person('viewer');
+    for (const { id, why } of identifiers('ResourceId').refuses) {
+      const reply = await call(world().origin, 'POST', '/api/tokens/media', { token, json: { resourceId: id } });
+      expect(reply.status, `${JSON.stringify(id)}: ${why}`).toBe(400);
+      expect(nonConformance('post', '/api/tokens/media', reply), why).toEqual([]);
+    }
   });
 
   it('a media token opens only the resource it names, and only on the media route', async () => {

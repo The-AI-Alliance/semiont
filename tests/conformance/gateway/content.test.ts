@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { beforeAll, expect, it } from 'vitest';
 import { call, nonConformance } from '../harness/http';
 import { SERVICE_ROLE, WORKER_ROLE } from '../harness/roles';
+import { identifiers } from '../harness/spec';
 import { eachPlane, GATEWAY_CLIENT } from '../harness/world';
 import type { BusStream } from '../harness/stream';
 
@@ -172,6 +173,37 @@ eachPlane('content', (world) => {
         expect(nonConformance('get', path, reply), path).toEqual([]);
         expect((reply.json as { error?: string } | undefined)?.error, path).toBe(message);
       }
+    }
+  });
+
+  it('a path that names what is not a resource\'s id names no resource: a 404, and the Archivist is not asked (identifiers/kinds.json)', async () => {
+    const token = await world().person('reader');
+    // Left out: the empty string, `.` and `..`, which a URL parser resolves
+    // before the request is sent, so they reach no route.
+    const named: Array<{ segment: string; id?: string; why: string }> = [
+      ...identifiers('ResourceId')
+        .refuses.filter(({ id }) => !['', '.', '..'].includes(id))
+        .map(({ id, why }) => ({ segment: encodeURIComponent(id), id, why })),
+      { segment: '%FF', why: 'bytes that are no text at all' },
+    ];
+    for (const { segment, id, why } of named) {
+      // Stored under that very name, so an answer other than 404 would be its bytes.
+      if (id !== undefined) {
+        world().archivist.resources.set(id, { storageUri: `file://${segment}`, mediaType: 'text/plain' });
+        world().archivist.content.set(`file://${segment}`, Buffer.from('bytes'));
+        world().archivist.descriptions.set(id, {
+          resource: { '@context': 'https://schema.org/', '@id': 'res-stored', name: 'Stored', representations: [] },
+          annotations: [],
+          entityReferences: [],
+        });
+      }
+      const asked = world().archivist.calls.length;
+      for (const path of ['/resources/{id}', '/resources/{id}/jsonld', '/api/resources/{id}'] as const) {
+        const reply = await call(world().origin, 'GET', path.replace('{id}', segment), { token });
+        expect(reply.status, `${path} with ${segment}: ${why}`).toBe(404);
+        expect(nonConformance('get', path, reply), `${path} with ${segment}: ${why}`).toEqual([]);
+      }
+      expect(world().archivist.calls.slice(asked).map((c) => c.path), `${segment}: ${why}`).toEqual([]);
     }
   });
 

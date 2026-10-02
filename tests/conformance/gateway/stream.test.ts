@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { beforeAll, expect, it } from 'vitest';
 import { storedEvent } from '../harness/archivist';
 import { call, nonConformance } from '../harness/http';
-import { operationFor, spec } from '../harness/spec';
+import { identifiers, operationFor, spec } from '../harness/spec';
 import type { BusStream } from '../harness/stream';
 import { eachPlane } from '../harness/world';
 
@@ -45,6 +45,11 @@ eachPlane('subscribing', (world) => {
       ['a scoped entry with an empty scope', { clientId: randomUUID(), scoped: [{ scope: '', channels: [PERSISTED] }] }],
       ['pendingReplies that are not a list', { clientId: randomUUID(), global: [BROADCAST], pendingReplies: 'nope' }],
       ['pendingReplies that are not strings', { clientId: randomUUID(), global: [BROADCAST], pendingReplies: [1] }],
+      // A scope is a resource's id (identifiers/kinds.json).
+      ...identifiers('ResourceId').refuses.map(({ id, why }): [string, unknown] => [
+        `a scoped entry whose scope is ${JSON.stringify(id)}: ${why}`,
+        { clientId: randomUUID(), scoped: [{ scope: id, channels: [PERSISTED] }] },
+      ]),
     ];
     for (const [why, body] of cases) {
       const reply = await call(world().origin, 'POST', '/bus/subscribe', { token, json: body });

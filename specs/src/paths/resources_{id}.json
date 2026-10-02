@@ -53,7 +53,7 @@
         "$ref": "../components/responses/Unauthorized.json"
       },
       "404": {
-        "description": "`Resource not found` when the knowledge base has no such resource; `Resource representation not found` when it has the resource but not its bytes.",
+        "description": "`Resource not found` when the knowledge base has no such resource, or the path's `{id}` is not a `ResourceId` and so names none; `Resource representation not found` when it has the resource but not its bytes.",
         "content": {
           "application/json": {
             "schema": {
