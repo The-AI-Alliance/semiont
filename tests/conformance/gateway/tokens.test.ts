@@ -6,7 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { call, nonConformance, type Reply } from '../harness/http';
 import { SERVICE_ROLE, WORKER_ROLE } from '../harness/roles';
-import { kbIdentity, principals } from '../harness/spec';
+import { kbIdentity, principals, spec } from '../harness/spec';
 import { eachPlane } from '../harness/world';
 
 function decode(token: string): { header: Record<string, unknown>; payload: Record<string, unknown> } {
@@ -311,14 +311,16 @@ eachPlane('an issuer that cannot be reached', (world) => {
 }, {}, ['in-process']);
 
 // Plane-independent, and slow: the verifier refetches the issuer's keys on a
-// kid it has not seen at most once per cooldown (30 s), so the case waits one
+// kid it has not seen at most once per cooldown (`bearerAuth`'s
+// `x-semiont-limits.keyRefetchCooldownSeconds`), so the case waits one
 // out. Its own world, because every token signed after it uses the new key.
 eachPlane('issuer key rotation', (world) => {
+  const cooldownMs = spec().schemeLimit('bearerAuth', 'keyRefetchCooldownSeconds') * 1000;
   it('a key the issuer adds is accepted without restarting the gateway, once the key-fetch cooldown has passed', async () => {
     const before = await call(world().origin, 'GET', '/api/users/me', { token: await world().person('before') });
     expect(before.status).toBe(200);
     await world().issuer.fixture.addKey('k-rotated');
-    await new Promise((r) => setTimeout(r, 31_000));
+    await new Promise((r) => setTimeout(r, cooldownMs + 1000));
     const after = await call(world().origin, 'GET', '/api/users/me', { token: await world().person('after') });
     expect(after.status, after.text).toBe(200);
   }, 60_000);

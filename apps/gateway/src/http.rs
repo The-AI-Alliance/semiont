@@ -441,8 +441,27 @@ pub fn challenge(headers: &HeaderMap, invalid: bool) -> String {
     }
 }
 
+/// Why a request is answered 401: the `reason` its log line and its count carry.
+#[derive(Debug, Clone, Copy)]
+pub enum Unauthenticated {
+    MissingToken,
+    InvalidToken,
+    InvalidMediaToken,
+}
+
+impl Unauthenticated {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Unauthenticated::MissingToken => "missing_token",
+            Unauthenticated::InvalidToken => "invalid_token",
+            Unauthenticated::InvalidMediaToken => "invalid_media_token",
+        }
+    }
+}
+
 /// The 401 for no credential: the challenge, and a hint naming the header.
 pub fn missing_credential(headers: &HeaderMap) -> ApiError {
+    crate::metrics::record_unauthenticated(Unauthenticated::MissingToken);
     ApiError {
         status: StatusCode::UNAUTHORIZED,
         body: json!({
@@ -454,7 +473,8 @@ pub fn missing_credential(headers: &HeaderMap) -> ApiError {
 }
 
 /// The 401 for a credential refused.
-pub fn refused(headers: &HeaderMap, message: &str) -> ApiError {
+pub fn refused(headers: &HeaderMap, reason: Unauthenticated, message: &str) -> ApiError {
+    crate::metrics::record_unauthenticated(reason);
     ApiError {
         status: StatusCode::UNAUTHORIZED,
         body: json!({ "error": message }),
@@ -472,7 +492,7 @@ pub async fn authenticate(
     let Some(token) = bearer_token(headers) else {
         logging::warn(
             "Authentication failed: No token",
-            json!({ "type": "auth_failed", "reason": "missing_token", "path": path, "method": method.as_str() }),
+            json!({ "type": "auth_failed", "reason": Unauthenticated::MissingToken.as_str(), "path": path, "method": method.as_str() }),
         );
         return Err(missing_credential(headers));
     };
@@ -494,9 +514,13 @@ pub async fn authenticate(
         Err(error) => {
             logging::warn(
                 "Authentication failed: Invalid token",
-                json!({ "type": "auth_failed", "reason": "invalid_token", "path": path, "method": method.as_str(), "error": error }),
+                json!({ "type": "auth_failed", "reason": Unauthenticated::InvalidToken.as_str(), "path": path, "method": method.as_str(), "error": error }),
             );
-            Err(refused(headers, "Invalid token"))
+            Err(refused(
+                headers,
+                Unauthenticated::InvalidToken,
+                "Invalid token",
+            ))
         }
     }
 }
@@ -552,9 +576,13 @@ impl FromRequestParts<Arc<App>> for MediaOrBearer {
                 Err(error) => {
                     logging::warn(
                         "Authentication failed: Invalid media token",
-                        json!({ "type": "auth_failed", "reason": "invalid_media_token", "path": parts.uri.path(), "error": error }),
+                        json!({ "type": "auth_failed", "reason": Unauthenticated::InvalidMediaToken.as_str(), "path": parts.uri.path(), "error": error }),
                     );
-                    Err(refused(&parts.headers, "Invalid media token"))
+                    Err(refused(
+                        &parts.headers,
+                        Unauthenticated::InvalidMediaToken,
+                        "Invalid media token",
+                    ))
                 }
             };
         }

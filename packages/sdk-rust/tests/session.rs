@@ -353,6 +353,114 @@ async fn a_token_that_could_not_be_asked_about_is_kept_and_the_failure_is_said()
     assert!(world.auth_failed().is_empty());
 }
 
+/// What a session does with the credential it finds stored, as
+/// specs/src/session/cases.json states it for every SDK: each row scripts
+/// the gateway and the issuer, and says how often each is asked and how the
+/// session ends.
+#[tokio::test(start_paused = true)]
+async fn a_session_starts_as_each_case_of_the_shared_table_states() {
+    let table: Value = serde_json::from_str(include_str!("../../../specs/src/session/cases.json"))
+        .expect("the table is JSON");
+    let cases = table["startup"].as_array().expect("startup cases");
+    assert!(!cases.is_empty(), "the table has no startup case");
+    // The `n`th answer of a script whose last answer repeats.
+    let answer = |script: &Value, n: usize| -> String {
+        let script = script.as_array().expect("a script");
+        script[n.min(script.len() - 1)]
+            .as_str()
+            .expect("an answer")
+            .to_owned()
+    };
+
+    for case in cases {
+        let why = case["why"].as_str().expect("why");
+        let count = |key: &str| case[key].as_u64().expect("a count") as usize;
+        let (asks, renewals) = (count("asks"), count("renewals"));
+        // The script's last answer repeats, so a session that asks without
+        // end is stopped by one answer more than the case allows: of the
+        // gateway, an answer that is no refusal; of the issuer, none.
+        let validations = (0..asks)
+            .map(|n| match answer(&case["gateway"], n).as_str() {
+                "accepts" => Ok(alice()),
+                "refuses" => Err(unauthorized()),
+                "unreachable" => Err(TransportError::of_status("HTTP 503", 503, None).into()),
+                other => panic!("{why}: the gateway {other}"),
+            })
+            .chain([Err(TransportError::of_status(
+                "asked more than the case allows",
+                500,
+                None,
+            )
+            .into())]);
+        let renewed_tokens: Vec<String> =
+            (0..renewals).map(|n| token(3600, n as u64 + 1)).collect();
+        let renewing = (0..renewals).map(|n| match answer(&case["issuer"], n).as_str() {
+            "renews" => Ok(Some(renewed_tokens[n].clone())),
+            "refuses" => Ok(None),
+            other => panic!("{why}: the issuer {other}"),
+        });
+        let world = World::new().validating(validations).renewing(renewing);
+        let world = match case["stored"].as_str().expect("stored") {
+            "none" => world,
+            "unexpired" => world.storing(&token(3600, 0)),
+            "expired" => world.storing(&expired()),
+            other => panic!("{why}: a stored token that is {other}"),
+        };
+        let session = world.session();
+        ready(&session).await;
+
+        assert_eq!(
+            (world.validated().len(), world.renewed()),
+            (asks, renewals),
+            "{why}: how often the gateway and the issuer were asked"
+        );
+        let ends = match (
+            session.token().borrow().is_some(),
+            session.user().borrow().is_some(),
+        ) {
+            (false, _) => "signed-out",
+            (true, false) => "unconfirmed",
+            (true, true) => "signed-in",
+        };
+        assert_eq!(ends, case["ends"].as_str().expect("ends"), "{why}");
+        let told: Vec<String> = case["told"]
+            .as_str()
+            .map(|name| {
+                table["messages"][name]
+                    .as_str()
+                    .expect("a message")
+                    .to_owned()
+            })
+            .into_iter()
+            .collect();
+        assert_eq!(world.auth_failed(), told, "{why}: what the person is told");
+        let reported: Vec<&str> = world
+            .errors()
+            .iter()
+            .map(|(code, _)| code.as_str())
+            .collect();
+        let error: Vec<&str> = case["error"].as_str().into_iter().collect();
+        assert_eq!(reported, error, "{why}: the error reported");
+        assert_eq!(
+            world.has_stored(),
+            case["kept"].as_bool().expect("kept"),
+            "{why}: whether a session is still stored"
+        );
+
+        // A session that ended signed out asks nobody anything afterwards,
+        // however long it is held.
+        if ends == "signed-out" {
+            tokio::time::sleep(Duration::from_secs(2 * 60 * 60)).await;
+            assert_eq!(
+                (world.validated().len(), world.renewed()),
+                (asks, renewals),
+                "{why}: what was asked once the session was over"
+            );
+        }
+        session.close().await;
+    }
+}
+
 // ── How it is renewed ───────────────────────────────────────────────────
 
 #[tokio::test(start_paused = true)]

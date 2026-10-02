@@ -165,6 +165,7 @@ for (const ROOT_FILE of ROOT_FILES) {
     if (!scheme.description || scheme.description.trim() === '') {
       fail(`securitySchemes.${name}`, 'has no description — the claims a credential must carry are protocol');
     }
+    checkLimits(`securitySchemes.${name}`, scheme['x-semiont-limits']);
   }
 
   // ── Operations ────────────────────────────────────────────────────────────

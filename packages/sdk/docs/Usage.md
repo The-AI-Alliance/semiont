@@ -662,18 +662,28 @@ Bus-layer and session-layer errors keep their own code namespaces:
 | `BusRequestError` | `bus.timeout`, `bus.rejected`, `bus.closed`, `bus.unauthorized`, `bus.not-found`, `bus.unsubscribed`, `bus.peer-unavailable`, `bus.none-pending` | bus-mediated commands inside namespaces. (`bus.timeout` should be rare: the emit is gated on an open connection, and a reply published during a disconnect replays from the server's retention buffer on reconnect — a timeout that does fire usually means the gateway is genuinely down or slow.) |
 | `JobFailedError` | `job.failed` — the job a call was following failed and will not be tried again; `jobId` names it | `mark.assist`, `yield.fromContext` |
 | `GenerationStallError` | `job.stalled` — a generation said nothing for its stall deadline, and its cancellation was requested | `yield.fromContext` |
-| `SemiontSessionError` | `session.auth-failed`, `session.refresh-exhausted`, `session.construct-failed` | the session layer — surfaced on `SemiontBrowser.error$`, not as a per-call rejection |
+| `SemiontSessionError` | `session.auth-failed`, `session.refresh-exhausted`, `session.credential-refused`, `session.construct-failed` | the session layer — surfaced on `SemiontBrowser.error$`, not as a per-call rejection |
 
-**What actually ends a session (0.6.0).** Only the issuer refusing the credential. A refresh that
-fails because the network dropped, the gateway restarted, or the issuer answered `5xx` is retried
-under a bounded budget and the session survives; a refusal — `400 invalid_grant` for a revoked,
-expired or already-rotated refresh token — is terminal on the first answer, because retrying
-cannot change it. When the budget does run out the session ends the same way a refusal ends it,
-and `session.refresh-exhausted` names both the last cause and how many attempts it took, so
-"tried once and refused" reads differently from "tried four times and never got an answer".
+**What ends a session.** Two things, each with its own code.
 
-This matters for what your handler should do: `session.refresh-exhausted` is not a prompt to
-retry. By the time you see it, retrying already happened.
+The issuer refusing to renew it: `session.refresh-exhausted`. A refresh that fails because the
+network dropped, the gateway restarted, or the issuer answered `5xx` is retried under a bounded
+budget and the session survives; a refusal — `400 invalid_grant` for a revoked, expired or
+already-rotated refresh token — is terminal on the first answer, because retrying cannot change
+it. When the budget does run out the session ends the same way a refusal ends it, and
+`session.refresh-exhausted` names both the last cause and how many attempts it took, so "tried
+once and refused" reads differently from "tried four times and never got an answer".
+
+The gateway refusing a token the issuer has just issued: `session.credential-refused`. A session
+that starts on a stored credential asks the gateway who the token is. A token the gateway refuses
+is renewed once and asked about once more; if the gateway refuses the renewed one too, the issuer
+and the gateway disagree about who may sign in, and renewing again cannot change the answer. So a
+starting session asks the gateway at most twice and the issuer at most once, and then asks neither
+anything more. The person is told the knowledge base did not accept their sign-in, not that their
+session expired.
+
+This matters for what your handler should do: neither code is a prompt to retry. By the time you
+see one, retrying already happened. Signing in again is what is left.
 
 `bus.bad-payload` and `bus.forbidden` were removed from the bus vocabulary: nothing constructed them and nothing branched on them, so they promised a distinction the system never made.
 

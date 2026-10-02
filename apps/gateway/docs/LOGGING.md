@@ -47,6 +47,11 @@ One line as a request arrives and one as its response leaves:
 `reason` is `missing_token`, `invalid_token` or `invalid_media_token`. A
 successful authentication is logged at `debug`.
 
+A refused request is three lines: this one between its two request lines. A
+client retrying a refused credential therefore writes three lines a request,
+at whatever rate it retries; `semiont.gateway.unauthenticated` counts the same
+refusals by `reason` without the log.
+
 ### Unhandled errors (`error`)
 
 Answered with a 500 `ErrorResponse` that carries none of this:

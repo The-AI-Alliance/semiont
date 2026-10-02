@@ -30,7 +30,7 @@ first; the `bearerAuth` and `mediaToken` schemes in
 |---|---|
 | The `Authenticated` and `MediaOrBearer` extractors, the challenge, the 401 bodies | [src/http.rs](../src/http.rs) |
 | Which token it is, and the principal it names | [src/principal.rs](../src/principal.rs) |
-| The issuer's keys: discovery, the key set, the refetch cooldown | [src/issuer.rs](../src/issuer.rs) |
+| The issuer's keys: discovery, the key set, when it is fetched | [src/issuer.rs](../src/issuer.rs) |
 | The key ring, agent and media tokens | [src/tokens.rs](../src/tokens.rs) |
 | How a person and an agent are named | [src/identity.rs](../src/identity.rs), held to [specs/src/principals/cases.json](../../../specs/src/principals/cases.json) |
 | The role names | [src/roles.rs](../src/roles.rs), held to the launcher's and core's by `npm run lint:service-role` |
@@ -47,8 +47,7 @@ before its body is read, so an unauthenticated request never reaches a parser.
    naming the header.
 2. **Its issuer** — read, unverified, to choose the verifier.
 3. **Its signature and times** — an issuer token against the key its `kid`
-   names in the issuer's set (fetched on first use, refetched when ten minutes
-   old, and on a `kid` it does not hold no more than every thirty seconds), with
+   names in the issuer's set (see *The issuer's keys*, below), with
    `iss` equal to the issuer, `aud` carrying this knowledge base's resource
    identifier, and `exp` and `nbf` held with no leeway. An agent token against
    each key of the ring in turn; expired or not yet valid ends the walk.
@@ -59,6 +58,45 @@ before its body is read, so an unauthenticated request never reaches a parser.
 
 Any failure is `401 {"error":"Invalid token"}` with the `invalid_token`
 challenge; the reason goes to the log (`auth_failed`), never to the caller.
+
+## The issuer's keys
+
+The gateway holds the key set the issuer publishes, and fetches it on three
+occasions. Their timings are the `bearerAuth` scheme's `x-semiont-limits` in
+[specs/src/openapi.json](../../../specs/src/openapi.json):
+
+- **None is held**, or the one held is `keySetMaxAgeSeconds` old.
+- **A token names a `kid` the set lacks**, and the set is
+  `keyRefetchCooldownSeconds` old. A newer set that still lacks it refuses the
+  token until it has aged as long.
+
+One fetch runs at a time, discovery included, and has
+`keyFetchDeadlineSeconds`. A request that needs the keys while one is in flight
+waits for it and takes its outcome. A fetch that fails, or runs out of time, is
+not tried again for `keyRefetchCooldownSeconds`: the tokens that needed it are
+refused 401 with its error in the log, and a token whose key the gateway still
+holds is verified as before. So an issuer that is down, slow or silent costs a
+request at most one deadline, and is asked once per cooldown however many
+tokens arrive.
+
+A token reaches this path by its `iss` claim, read before anything is
+verified, so any caller can cause the fetch that is due. None can cause more
+than the one.
+
+## What a refused request costs
+
+A request answered 401 is read as far as its `Authorization` header and no
+further: no body, no call to the Archivist, nothing published. It is logged
+([LOGGING.md](LOGGING.md#authentication-failures-warn)) and counted in
+`semiont.gateway.unauthenticated` by its `reason`. An issuer token costs a
+signature check against the keys held; a token the gateway signed, one HMAC
+per key of the ring.
+
+Nothing bounds how many such requests one caller sends. Every limit the
+gateway keeps is on a verified principal, a client or a stream, so it applies
+only once a request has authenticated; before that there is the connection cap
+(GatewayConfig `capacity.connections`). Protection per caller before a token is
+read is an ingress's.
 
 ## The tokens the gateway mints
 
@@ -94,7 +132,8 @@ access token in hand lapses minutes later.
 
 - **Every 401 is logged** at `warn` with `type: "auth_failed"`, a `reason`
   (`missing_token`, `invalid_token`, `invalid_media_token`) and the verifier's
-  error; `logLevel: debug` also logs each success with the DID it resolved.
+  error, and counted by that reason in `semiont.gateway.unauthenticated`;
+  `logLevel: debug` also logs each success with the DID it resolved.
 - **`JWT_SECRET` is a ring**: the first key signs, every key verifies, and each
   must be 32 characters or more — check them one by one:
   `echo "$JWT_SECRET" | tr ',' '\n' | awk '{ print NR": "length($0)" chars" }'`.

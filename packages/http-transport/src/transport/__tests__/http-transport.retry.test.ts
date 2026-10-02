@@ -17,8 +17,8 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { baseUrl, resourceId } from '@semiont/core';
-import { HttpTransport } from '../http-transport';
+import { accessToken, baseUrl, resourceId } from '@semiont/core';
+import { HttpTransport, currentUserOf } from '../http-transport';
 import { APIError } from '../api-error';
 
 const testBaseUrl = baseUrl('http://localhost:4000');
@@ -147,3 +147,95 @@ describe('HttpTransport retry — what the caller receives', () => {
     transport.dispose();
   });
 });
+
+/** A refusal as the gateway states one: `ErrorResponse`, whose `error` is its own words. */
+function refusedAs(status: number, statusText: string, error: string): Response {
+  return new Response(JSON.stringify({ error, hint: 'a hint' }), {
+    status,
+    statusText,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+describe('HttpTransport — what a refusal says', () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+  });
+
+  test("a refusal carries the gateway's own words and its body, on the error and on errors$", async () => {
+    fetchMock.mockImplementation(async () => refusedAs(403, 'Forbidden', 'this needs the moderator role'));
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+    const reported: unknown[] = [];
+    transport.errors$.subscribe((error) => reported.push(error));
+
+    const thrown = await transport.getCurrentUser().then(() => null, (e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(APIError);
+    expect((thrown as APIError).message).toBe('this needs the moderator role');
+    expect((thrown as APIError).status).toBe(403);
+    expect((thrown as APIError).details).toMatchObject({
+      status: 403,
+      statusText: 'Forbidden',
+      body: { error: 'this needs the moderator role', hint: 'a hint' },
+    });
+    expect(reported).toEqual([thrown]);
+    transport.dispose();
+  });
+
+  test('a refusal that states nothing is named by its status', async () => {
+    fetchMock.mockImplementation(async () => new Response('<html>bad gateway</html>', { status: 403, statusText: 'Forbidden' }));
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+
+    const thrown = await transport.getCurrentUser().then(() => null, (e: unknown) => e);
+
+    expect((thrown as APIError).message).toBe('HTTP 403: Forbidden');
+    transport.dispose();
+  });
+});
+
+/**
+ * `currentUserOf`: who a token is, asked by a caller that holds nothing else.
+ * A session asks this of a stored credential. It must be exactly one request:
+ * a transport built for the asking opens a bus stream the moment it has a
+ * token, and a session that asked in a loop sent one of each per round.
+ */
+describe('currentUserOf — one request, and no transport behind it', () => {
+  const sent = (): Request => fetchMock.mock.calls[0]![0] as Request;
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+  });
+
+  test('asks /api/users/me with the token, once, and opens no stream', async () => {
+    fetchMock.mockImplementation(async () => okJson({ email: 'a@b.c' }));
+
+    await expect(currentUserOf(baseUrl('http://localhost:4000/'), accessToken('tok-1'))).resolves.toMatchObject({ email: 'a@b.c' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sent().url).toBe('http://localhost:4000/api/users/me');
+    expect(sent().method).toBe('GET');
+    expect(sent().headers.get('authorization')).toBe('Bearer tok-1');
+  });
+
+  test('a refusal is the answer: the usual APIError with its status, and nothing renews the token', async () => {
+    fetchMock.mockImplementation(async () => refusedAs(401, 'Unauthorized', 'the token is not one this gateway accepts'));
+
+    const thrown = await currentUserOf(testBaseUrl, accessToken('tok-1')).then(() => null, (e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(APIError);
+    expect((thrown as APIError).status).toBe(401);
+    expect((thrown as APIError).message).toBe('the token is not one this gateway accepts');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('a gateway that never answers is reported as unavailable, not as a refusal', async () => {
+    fetchMock.mockImplementation(async () => { throw new TypeError('fetch failed'); });
+
+    const thrown = await currentUserOf(testBaseUrl, accessToken('tok-1')).then(() => null, (e: unknown) => e);
+
+    expect(thrown).toBeInstanceOf(APIError);
+    expect((thrown as APIError).code).toBe('unavailable');
+    expect((thrown as APIError).message).toContain('GET /api/users/me got no answer');
+  });
+});
+

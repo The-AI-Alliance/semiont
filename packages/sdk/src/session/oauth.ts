@@ -371,11 +371,13 @@ export async function refreshStoredSession(storage: SessionStorage, kbId: string
       REFRESH_RETRY,
     );
     // Written against what is stored NOW, not what was read before the
-    // grant: a session signed out while it was being renewed is gone, and
-    // writing it back would undo the sign-out with a refresh token nobody
-    // revoked.
+    // grant: a session signed out, or ended, while it was being renewed is
+    // gone. Writing it back would undo that with a refresh token nobody
+    // revoked, and handing its token to the caller would give a session
+    // that is over a credential again.
     const current = getStoredSession(storage, kbId);
-    if (current) setStoredSession(storage, kbId, { ...current, access, refresh });
+    if (!current) return null;
+    setStoredSession(storage, kbId, { ...current, access, refresh });
     return access;
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error);

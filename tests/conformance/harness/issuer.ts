@@ -19,6 +19,12 @@ export interface IssuerServer {
   readonly fixture: FixtureIssuer;
   /** Client-credentials grants answered, per client id. */
   readonly grants: Map<string, number>;
+  /**
+   * The key set: how many times it has been asked for, and what the issuer
+   * does when it is — publish it, answer 500, or accept the request and never
+   * answer. Discovery and the token endpoint answer whichever it is.
+   */
+  readonly keys: { fetches: number; answer: 'published' | 'failing' | 'silent' };
   /** A person's token. `sub` names them; the claims default to a verified email and a name. */
   person(sub: string, claims?: Record<string, unknown>, options?: Omit<TokenOptions, 'claims'>): Promise<string>;
   /** A service account's token, as the token endpoint would issue it. */
@@ -29,6 +35,7 @@ export interface IssuerServer {
 export async function startIssuer(audience: string, accounts: Record<string, ServiceAccount>): Promise<IssuerServer> {
   let fixture: FixtureIssuer | undefined;
   const grants = new Map<string, number>();
+  const keys: IssuerServer['keys'] = { fetches: 0, answer: 'published' };
 
   const serviceToken = (clientId: string, roles: string[]) =>
     fixture!.token({ claims: { sub: `service-account-${clientId}`, azp: clientId, roles } });
@@ -45,6 +52,9 @@ export async function startIssuer(audience: string, accounts: Record<string, Ser
         return reply(200, { ...fixture.discoveryDocument(), token_endpoint: `${fixture.issuer}/token` });
       }
       if (req.method === 'GET' && `${fixture.issuer}${url.pathname}` === fixture.jwksUrl) {
+        keys.fetches += 1;
+        if (keys.answer === 'silent') return;
+        if (keys.answer === 'failing') return reply(500, { error: 'unavailable' });
         return reply(200, fixture.jwks());
       }
       if (req.method === 'POST' && url.pathname === '/token') {
@@ -75,6 +85,7 @@ export async function startIssuer(audience: string, accounts: Record<string, Ser
       return fixture!;
     },
     grants,
+    keys,
     person(sub, claims = {}, options = {}) {
       return fixture!.token({
         ...options,

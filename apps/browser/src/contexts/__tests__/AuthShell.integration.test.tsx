@@ -5,7 +5,7 @@
  *
  *   localStorage seeded with a KB + token
  *     → fresh SemiontBrowser constructs SemiontSession for the active KB
- *     → session validates token via getMe
+ *     → session asks the gateway who the stored token is
  *     → on 401: session clears token + raises sessionExpired$
  *     → SessionExpiredModal (mounted by AuthShell) reads sessionExpired$
  *        and renders
@@ -13,26 +13,26 @@
  * If any link in this chain breaks, the user sees an empty page instead of
  * the modal. This is the integration the unit tests miss.
  *
- * We spy on `AuthNamespace.prototype.me` rather than replacing the class,
- * because `SemiontSession` constructs `SemiontClient` via an internal
- * reference inside `@semiont/sdk`'s bundle — a package-level `vi.mock`
- * would not intercept that. Prototype-level spies patch every instance
- * regardless of where it's constructed. Refresh is the refresh grant at the
- * issuer the stored session names, so it is a `fetch` stub keyed on that
- * endpoint — every other fetch (the transport's event stream) is refused.
+ * Nothing inside `@semiont/sdk` is mocked: the gateway and the issuer are a
+ * `fetch` stub. Asking who a token is is one request to `/api/users/me`
+ * (`whoIs`). Refresh is the refresh grant at the issuer the stored session
+ * names, keyed on that endpoint — every other fetch (the transport's event
+ * stream) is refused.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router';
 import { SemiontProvider, WebBrowserStorage } from '@semiont/react-ui';
-import { SemiontBrowser, AuthNamespace, createHttpSessionFactory } from '@semiont/sdk';
-import { APIError } from '@semiont/http-transport';
-// Set up in beforeEach; tests configure `.mockResolvedValue` / `.mockRejectedValue` on them.
-let getMeSpy: ReturnType<typeof vi.spyOn>;
-let fetchMock: ReturnType<typeof vi.fn>;
+import { SemiontBrowser, createHttpSessionFactory } from '@semiont/sdk';
+// Set up in beforeEach; tests script what each answers.
+const whoIs = vi.fn<(request: Request) => Promise<Response>>();
+let fetchMock: Mock<(url: string, init?: RequestInit) => Promise<Response>>;
+const alice = async (): Promise<Response> =>
+  Response.json({ did: 'did:web:example.org:users:alice', email: 'alice@example.com', name: 'Alice', image: null, domain: 'example.org' });
+const refused = async (): Promise<Response> => new Response(null, { status: 401 });
 
 const TOKEN_ENDPOINT = 'https://issuer.test/realms/semiont/protocol/openid-connect/token';
 const issuerReply = (json: unknown, status = 200): Response =>
@@ -104,12 +104,12 @@ describe('AuthShell integration — KB session validation → modal', () => {
     localStorage.setItem('semiont.activeKnowledgeBaseId', KB_ID);
     seedSession(makeFakeJwt(), makeFakeJwt());
 
-    // Patch the real client's prototype. Applies to every SemiontClient
-    // constructed during the test, including the throwaway clients that
-    // `SemiontSession.validate` spins up.
-    getMeSpy = vi.spyOn(AuthNamespace.prototype, 'me');
+    whoIs.mockReset();
     fetchMock = vi.fn(async (_url: string) => issuerReply({ error: 'invalid_grant' }, 400));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('fetch', (input: string | Request, init?: RequestInit) =>
+      input instanceof Request && new URL(input.url).pathname === '/api/users/me'
+        ? whoIs(input)
+        : fetchMock(input instanceof Request ? input.url : input, init));
   });
 
   afterEach(() => {
@@ -118,15 +118,15 @@ describe('AuthShell integration — KB session validation → modal', () => {
     localStorage.clear();
   });
 
-  it('renders children and no modal when getMe succeeds', async () => {
-    getMeSpy.mockResolvedValue({ email: 'alice@example.com' } as any);
+  it('renders children and no modal when the gateway says who the token is', async () => {
+    whoIs.mockImplementation(alice);
 
     const { browser } = renderShell(
       <div data-testid="protected-content">protected</div>
     );
 
     await waitFor(() => {
-      expect(getMeSpy).toHaveBeenCalled();
+      expect(whoIs).toHaveBeenCalled();
     });
 
     expect(screen.getByTestId('protected-content')).toBeInTheDocument();
@@ -136,8 +136,8 @@ describe('AuthShell integration — KB session validation → modal', () => {
     await browser.dispose();
   });
 
-  it('surfaces SessionExpiredModal when getMe AND refresh both fail with 401', async () => {
-    getMeSpy.mockRejectedValue(APIError.fromStatus('Unauthorized', 401, 'Unauthorized', undefined, undefined));
+  it('surfaces SessionExpiredModal when the gateway refuses the token and the issuer will not renew it', async () => {
+    whoIs.mockImplementation(refused);
     // The issuer refuses the refresh grant — the stub's default.
 
     const { browser } = renderShell(
@@ -148,6 +148,7 @@ describe('AuthShell integration — KB session validation → modal', () => {
       expect(screen.getByText('Session Expired')).toBeInTheDocument();
     });
 
+    expect(screen.getByText('Your session has expired. Please sign in again.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in again/i })).toBeInTheDocument();
     expect(localStorage.getItem(`semiont.session.${KB_ID}`)).toBeNull();
     expect(screen.getByTestId('protected-content')).toBeInTheDocument();
@@ -155,15 +156,37 @@ describe('AuthShell integration — KB session validation → modal', () => {
     await browser.dispose();
   });
 
-  it('does NOT surface SessionExpiredModal when getMe fails with 500', async () => {
-    getMeSpy.mockRejectedValue(APIError.fromStatus('Server error', 500, 'Internal Server Error', undefined, undefined));
+  it('asks twice and says so when the gateway refuses a token the issuer has just renewed', async () => {
+    // The storm one tab made: an issuer that goes on renewing, and a gateway
+    // that refuses whatever it issues.
+    whoIs.mockImplementation(refused);
+    fetchMock.mockImplementation(async (url: string) =>
+      url === TOKEN_ENDPOINT ? issuerReply({ access_token: makeFakeJwt() }) : issuerReply({ error: 'invalid_grant' }, 400));
 
     const { browser } = renderShell(
       <div data-testid="protected-content">protected</div>
     );
 
     await waitFor(() => {
-      expect(getMeSpy).toHaveBeenCalled();
+      expect(screen.getByText('This knowledge base did not accept your sign-in. Please sign in again.')).toBeInTheDocument();
+    });
+
+    expect(whoIs).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('button', { name: /sign in again/i })).toBeInTheDocument();
+    expect(localStorage.getItem(`semiont.session.${KB_ID}`)).toBeNull();
+
+    await browser.dispose();
+  });
+
+  it('does NOT surface SessionExpiredModal when the gateway fails with 500', async () => {
+    whoIs.mockImplementation(async () => new Response(null, { status: 500 }));
+
+    const { browser } = renderShell(
+      <div data-testid="protected-content">protected</div>
+    );
+
+    await waitFor(() => {
+      expect(whoIs).toHaveBeenCalled();
     });
 
     expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
@@ -173,11 +196,9 @@ describe('AuthShell integration — KB session validation → modal', () => {
     await browser.dispose();
   });
 
-  it('recovers transparently when getMe returns 401 but refresh succeeds', async () => {
+  it('recovers transparently when the gateway refuses the token and accepts the renewed one', async () => {
     const newAccess = makeFakeJwt();
-    getMeSpy
-      .mockRejectedValueOnce(APIError.fromStatus('Unauthorized', 401, 'Unauthorized', undefined, undefined))
-      .mockResolvedValueOnce({ email: 'alice@example.com' } as any);
+    whoIs.mockImplementationOnce(refused).mockImplementationOnce(alice);
     fetchMock.mockImplementation(async (url: string) =>
       url === TOKEN_ENDPOINT ? issuerReply({ access_token: newAccess }) : issuerReply({ error: 'invalid_grant' }, 400));
 
@@ -185,7 +206,7 @@ describe('AuthShell integration — KB session validation → modal', () => {
       <div data-testid="protected-content">protected</div>
     );
 
-    await waitFor(() => expect(getMeSpy).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(whoIs).toHaveBeenCalledTimes(2));
     expect(refreshCalls()).toHaveLength(1);
     expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
     const stored = JSON.parse(localStorage.getItem(`semiont.session.${KB_ID}`)!);

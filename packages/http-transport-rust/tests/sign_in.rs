@@ -83,6 +83,9 @@ struct Staged {
     revoke_forms: Mutex<Vec<HashMap<String, String>>>,
     /// The tokens the gateway refuses when it is asked who they are.
     refused: Mutex<Vec<String>>,
+    /// Whether the gateway refuses every token: asked who it is, and asked
+    /// for a stream.
+    refuses_everyone: Mutex<bool>,
     /// The tokens whose emits its bus refuses outright.
     refused_on_the_bus: Mutex<Vec<String>>,
     /// The tokens it was asked about, in order.
@@ -220,7 +223,10 @@ async fn me(State(staged): State<Arc<Staged>>, headers: HeaderMap) -> Response {
         )
             .into_response();
     }
-    if token.is_empty() || staged.refused.lock().unwrap().contains(&token) {
+    if token.is_empty()
+        || *staged.refuses_everyone.lock().unwrap()
+        || staged.refused.lock().unwrap().contains(&token)
+    {
         return StatusCode::UNAUTHORIZED.into_response();
     }
     json_answer(
@@ -250,6 +256,9 @@ async fn subscribe(State(staged): State<Arc<Staged>>, body: String) -> Response 
         .lock()
         .unwrap()
         .push(serde_json::from_str(&body).expect("a subscription"));
+    if *staged.refuses_everyone.lock().unwrap() {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
     let (events, stream) = mpsc::unbounded_channel();
     staged.streams.lock().unwrap().push(events);
     let body = UnboundedReceiverStream::new(stream).map(Ok::<Bytes, std::convert::Infallible>);
@@ -433,6 +442,7 @@ impl World {
             revoke_status: Mutex::new(200),
             revoke_forms: Mutex::default(),
             refused: Mutex::default(),
+            refuses_everyone: Mutex::default(),
             refused_on_the_bus: Mutex::default(),
             asked_who: Mutex::default(),
             silent: Mutex::default(),
@@ -963,7 +973,7 @@ async fn with_nothing_stored_there_is_nothing_to_renew_and_that_is_no_failure() 
 }
 
 #[tokio::test]
-async fn a_session_signed_out_while_it_was_renewed_is_not_written_back() {
+async fn a_session_signed_out_while_it_was_renewed_is_not_written_back_and_is_given_no_token() {
     /// A storage that forgets the session the moment it is first read.
     struct SignedOutMeanwhile(InMemorySessionStorage);
     impl SessionStorage for SignedOutMeanwhile {
@@ -995,7 +1005,9 @@ async fn a_session_signed_out_while_it_was_renewed_is_not_written_back() {
 
     let renewed = refresh_stored_session(&storage, "kb-a", &world.http).await;
 
-    assert_eq!(renewed, Ok(Some("a2".to_owned())));
+    // The issuer renewed it, and there is no session left to hold the token.
+    assert_eq!(world.token_forms().len(), 1);
+    assert_eq!(renewed, Ok(None));
     assert_eq!(storage.0.get(&session_key("kb-a")), None);
 }
 
@@ -1180,6 +1192,77 @@ async fn a_session_over_issued_tokens_keeps_them_is_ready_and_says_who_it_is() {
             .map(|user| user.email.clone()),
         Some("alice@example.org".to_owned())
     );
+    session.close().await;
+}
+
+#[tokio::test]
+async fn asking_who_a_token_is_opens_no_stream_of_its_own() {
+    let world = World::start().await;
+    let storage = Arc::new(InMemorySessionStorage::new());
+    let access = jwt(3600, 1);
+
+    let session = session_from_issued(issued(&world, storage, &access)).await;
+    until("the session's stream is open", || {
+        !world.staged.subscriptions.lock().unwrap().is_empty()
+    })
+    .await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    // The session's own stream, and no other: the gateway was asked who the
+    // token is by one request.
+    assert_eq!(*world.staged.asked_who.lock().unwrap(), [access]);
+    assert_eq!(world.staged.subscriptions.lock().unwrap().len(), 1);
+    session.close().await;
+}
+
+/// The storm one browser tab made: an issuer that goes on renewing a
+/// credential the gateway goes on refusing.
+#[tokio::test(start_paused = true)]
+async fn a_gateway_that_refuses_what_its_issuer_issues_is_asked_twice_and_then_left_alone() {
+    let world = World::on_a_quick_clock().await;
+    *world.staged.refuses_everyone.lock().unwrap() = true;
+    // An issuer that renews for as long as it is asked.
+    world.answers((2..60).map(|n| granted(&jwt(3600, n), Some("r"))));
+    let storage = Arc::new(InMemorySessionStorage::new());
+    let told: Arc<Mutex<Vec<String>>> = Arc::default();
+    let reported: Arc<Mutex<Vec<SessionErrorCode>>> = Arc::default();
+    let (telling, reporting) = (told.clone(), reported.clone());
+
+    let session = ends(session_from_issued(IssuedSession {
+        on_auth_failed: Some(Arc::new(move |message| {
+            telling.lock().unwrap().push(message.to_owned());
+        })),
+        on_error: Some(Arc::new(move |error| {
+            reporting.lock().unwrap().push(error.code);
+        })),
+        ..issued(&world, storage.clone(), &jwt(3600, 1))
+    }))
+    .await;
+
+    assert_eq!(world.staged.asked_who.lock().unwrap().len(), 2);
+    assert_eq!(
+        *told.lock().unwrap(),
+        ["This knowledge base did not accept your sign-in. Please sign in again."]
+    );
+    assert_eq!(
+        *reported.lock().unwrap(),
+        [SessionErrorCode::CredentialRefused]
+    );
+    assert_eq!(stored_session(storage.as_ref(), "a-script"), None);
+
+    // And then the gateway and the issuer are left alone, however long the
+    // session is held: its stream asked with the stored token and with the
+    // renewed one, and waits for a different credential with no request.
+    tokio::time::sleep(Duration::from_secs(120)).await;
+    assert_eq!(*session.token().borrow(), None);
+    assert_eq!(world.staged.asked_who.lock().unwrap().len(), 2);
+    let streams_asked_for = world.staged.subscriptions.lock().unwrap().len();
+    assert!(
+        streams_asked_for <= 2,
+        "{streams_asked_for} streams were asked for"
+    );
+    let renewals = world.token_forms().len();
+    assert!(renewals <= 2, "the issuer was asked {renewals} times");
     session.close().await;
 }
 

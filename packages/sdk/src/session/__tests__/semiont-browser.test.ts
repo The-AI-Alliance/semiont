@@ -3,10 +3,9 @@
  * and open-resources CRUD. Mocks SemiontClient so no HTTP/SSE is needed.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { firstValueFrom, filter, skip, take } from 'rxjs';
 
-const mockGetMe = vi.fn();
 const mockDispose = vi.fn();
 const mockResourceFresh = vi.fn();
 let mockKb: () => Promise<unknown>;
@@ -15,7 +14,6 @@ vi.mock('../../client', async () => {
   const actual = await vi.importActual<typeof import('../../client')>('../../client');
   const { Subject } = await import('rxjs');
   class MockSemiontApiClient {
-    auth = { me: mockGetMe };
     dispose = mockDispose;
     actor = { state$: { subscribe: () => ({ unsubscribe: () => {} }) } };
     eventBus = { get: () => ({ next: () => {}, subscribe: () => ({ unsubscribe: () => {} }) }) };
@@ -62,8 +60,14 @@ function issuerReply(json: unknown, status = 200): Response {
  * the live transport's event-stream subscribe, which the mocked client does
  * not replace. Assertions therefore look at the calls to a given issuer
  * endpoint, never at "the first fetch"; the default refuses to refresh.
+ *
+ * One request is answered apart from it: the gateway asked who a token is,
+ * which a session asks with no client (`whoIs`).
  */
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: Mock<(url: string, init?: RequestInit) => Promise<Response>>;
+const whoIs = vi.fn<(request: Request) => Promise<Response>>();
+const user = (name: string, email: string) =>
+  Response.json({ did: `did:web:example.org:users:${name.toLowerCase()}`, email, name, image: null, domain: 'example.org' });
 const callsTo = (endpoint: string) =>
   fetchMock.mock.calls.filter(([url]) => url === endpoint) as unknown as Array<[string, { body: URLSearchParams }]>;
 /** Script the issuer's token endpoint; everything else keeps refusing. */
@@ -102,11 +106,14 @@ const makeBrowser = (s: TestStorage = storage) =>
 
 beforeEach(() => {
   storage = new TestStorage();
-  mockGetMe.mockReset();
+  whoIs.mockReset();
   mockDispose.mockReset();
   mockResourceFresh.mockReset();
   fetchMock = vi.fn(async () => issuerReply({ error: 'invalid_grant' }, 400));
-  vi.stubGlobal('fetch', fetchMock);
+  vi.stubGlobal('fetch', (input: string | Request, init?: RequestInit) =>
+    input instanceof Request && new URL(input.url).pathname === '/api/users/me'
+      ? whoIs(input)
+      : fetchMock(input instanceof Request ? input.url : input, init));
   // Default: a read that gets no answer — D3's "no verdict", which leaves
   // state alone and hands off to the per-resource pass. Deliberately not a
   // matching answer: that would be per-KB, and a fixed one silently trips the
@@ -114,7 +121,7 @@ beforeEach(() => {
   mockKb = async () => { throw new BusRequestError('no answer in this test', 'bus.timeout'); };
   // Default: every tab validates, so tests that do not care are unaffected.
   mockResourceFresh.mockImplementation(async (id: string) => ({ '@id': id, name: `name-${id}` }));
-  mockGetMe.mockResolvedValue({ id: 'u', email: 'x@y.z', name: 'X', isAdmin: false, isModerator: false });
+  whoIs.mockImplementation(async () => user('X', 'x@y.z'));
 });
 
 afterEach(async () => {
@@ -1203,7 +1210,7 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
       return issuerReply({ access_token: freshJwt(), refresh_token: 'issued-refresh' });
     });
     mockKb = async () => ({ name: 'KB A', domain: 'example.github.io:kb-a', gitBranch: 'main' });
-    mockGetMe.mockResolvedValue({ id: 'u', email: 'alice@example.com', name: 'Alice', isAdmin: false, isModerator: false });
+    whoIs.mockImplementation(async () => user('Alice', 'alice@example.com'));
   });
 
   async function begin(browser: SemiontBrowser, extra: { kbId?: string; expectedDid?: string; expectedName?: string } = {}) {
@@ -1423,23 +1430,24 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
   });
 });
 
-describe('SemiontBrowser — performValidate (inlined getMe flow)', () => {
-  it('invokes getMe on a throwaway client at session startup when token is valid', async () => {
-    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+describe('SemiontBrowser — asking the gateway who a stored token is', () => {
+  it('asks once at session startup, with the stored token and no client', async () => {
+    const stored = freshJwt();
+    seedStoredSession(storage, KB_A.id, stored, 'r');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
 
     const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
-    expect(mockGetMe).toHaveBeenCalled();
+    expect(whoIs).toHaveBeenCalledTimes(1);
+    expect(whoIs.mock.calls[0]![0].headers.get('authorization')).toBe(`Bearer ${stored}`);
 
     await browser.dispose();
   });
 
-  it('populates session.user$ with the getMe response', async () => {
-    const testUser = { id: 'abc', email: 'a@b.c', name: 'Alice', isAdmin: false, isModerator: false };
-    mockGetMe.mockResolvedValue(testUser);
+  it('populates session.user$ with what the gateway answered', async () => {
+    whoIs.mockImplementation(async () => user('Alice', 'a@b.c'));
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);

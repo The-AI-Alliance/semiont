@@ -457,7 +457,9 @@ pub async fn refresh_at_issuer(
 /// and, when the retry budget ran out, how many attempts it took to give up.
 ///
 /// What is kept is written against what is stored then: a session that was
-/// signed out while it was being renewed is not written back.
+/// signed out, or ended, while it was being renewed is gone. It is not
+/// written back, and its new token is given to nobody: a session that is
+/// over is not handed a credential again.
 pub async fn refresh_stored_session(
     storage: &dyn SessionStorage,
     kb_id: &str,
@@ -489,8 +491,10 @@ pub async fn refresh_stored_session(
     .await;
     match renewed {
         Ok(tokens) => {
+            let mut kept = false;
             storage.update(&session_key(kb_id), &mut |current| {
                 StoredSession::read(current?).map(|current| {
+                    kept = true;
                     StoredSession {
                         access: tokens.access.clone(),
                         refresh: tokens.refresh.clone(),
@@ -499,7 +503,7 @@ pub async fn refresh_stored_session(
                     .written()
                 })
             });
-            Ok(Some(tokens.access))
+            Ok(kept.then_some(tokens.access))
         }
         // One attempt: the issuer answered, and its answer was final.
         Err(error) if attempts <= 1 => Err(error),

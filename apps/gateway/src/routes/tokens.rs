@@ -3,7 +3,8 @@
 
 use crate::app::App;
 use crate::http::{
-    ApiError, Authenticated, json_response, missing_credential, refused, typed_body,
+    ApiError, Authenticated, Unauthenticated, json_response, missing_credential, refused,
+    typed_body,
 };
 use crate::principal::authorize_minter;
 use axum::body::Body;
@@ -35,7 +36,7 @@ pub async fn agent(
         .await
         .map_err(|refusal| {
             logging::warn("Agent token refused", json!({ "reason": refusal.reason }));
-            refused(&headers, &refusal.message)
+            refused(&headers, Unauthenticated::InvalidToken, &refusal.message)
         })?;
     let request: AgentTokenRequest = typed_body(body, "POST /api/tokens/agent").await?;
     let (provider, model) = (request.provider.as_str(), request.model.as_str());
