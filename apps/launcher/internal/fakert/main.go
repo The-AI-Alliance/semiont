@@ -1761,11 +1761,30 @@ func killServe(name string) bool {
 // devicePolls counts token-endpoint polls of the device grant, so the first
 // FAKERT_DEVICE_PENDING of them can answer authorization_pending; bearerUses
 // counts presentations of each bearer, so a token can be accepted once (at
-// login) and stale afterwards.
+// login) and stale afterwards. Handlers run concurrently — `status` asks three
+// limits operations at once — and Go kills a process on concurrent map writes,
+// so both counters are only touched through countDevicePoll and countBearerUse.
 var (
+	sessionMu   sync.Mutex
 	devicePolls int
 	bearerUses  = map[string]int{}
 )
+
+// countDevicePoll records one device-grant poll and returns the tally.
+func countDevicePoll() int {
+	sessionMu.Lock()
+	defer sessionMu.Unlock()
+	devicePolls++
+	return devicePolls
+}
+
+// countBearerUse records one presentation of a bearer and returns its tally.
+func countBearerUse(authorization string) int {
+	sessionMu.Lock()
+	defer sessionMu.Unlock()
+	bearerUses[authorization]++
+	return bearerUses[authorization]
+}
 
 // unsignedJWT renders claims as a JWT with `alg: none` and a stub signature.
 // Nothing that reads these tokens verifies them — the launcher's preflight
@@ -2047,8 +2066,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						if n, err := strconv.Atoi(os.Getenv("FAKERT_DEVICE_PENDING")); err == nil {
 							pending = n
 						}
-						devicePolls++
-						if devicePolls <= pending {
+						if countDevicePoll() <= pending {
 							jsonOut(400, map[string]any{"error": "authorization_pending"})
 							return
 						}
@@ -2131,9 +2149,9 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 				// disabled right after login).
 				bearerOK := func() bool {
 					a := r.Header.Get("Authorization")
-					bearerUses[a]++
+					uses := countBearerUse(a)
 					if os.Getenv("FAKERT_ALL_TOKENS_STALE") != "" {
-						return a == "Bearer fake-jwt-token" && bearerUses[a] == 1
+						return a == "Bearer fake-jwt-token" && uses == 1
 					}
 					if a == "Bearer fake-jwt-token-2" {
 						return true
@@ -2141,7 +2159,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					if a != "Bearer fake-jwt-token" {
 						return false
 					}
-					return os.Getenv("FAKERT_STALE_TOKEN") == "" || bearerUses[a] == 1
+					return os.Getenv("FAKERT_STALE_TOKEN") == "" || uses == 1
 				}
 				if r.URL.Path == "/api/users/me" {
 					w.Header().Set("Content-Type", "application/json")

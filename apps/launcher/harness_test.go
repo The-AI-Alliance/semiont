@@ -8,11 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -168,5 +170,45 @@ func TestServeThatCannotStartFailsTheRun(t *testing.T) {
 	mustContain(t, "run -d", string(out), "semiont-nonesuch")
 	if _, err := os.Stat(filepath.Join(s.fakertDir, "serve-semiont-nonesuch.pid")); err == nil {
 		t.Error("a container whose listener never started was recorded as running")
+	}
+}
+
+// The fake gateway survives concurrent requests. `status` asks three limits
+// operations at once, and the fake counted bearer uses in an unguarded map: Go
+// kills a process on concurrent map writes, so the gateway died mid-status and
+// every call after it failed fast — no ceilings, and a session reported as
+// "stack not reachable" (CI runs 36800353204 and 36951774369).
+func TestFakeGatewaySurvivesConcurrentRequests(t *testing.T) {
+	s := newScenario(t, "docker")
+	port := freePort(t)
+	if out, err := shimCmd(s, "docker", "run", "-d", "--name", "semiont-gateway", "-p", port+":4000", "img").CombinedOutput(); err != nil {
+		t.Fatalf("run -d: %v\n%s", err, out)
+	}
+	whoami := func() (int, error) {
+		req, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:"+port+"/api/users/me", nil)
+		if err != nil {
+			return 0, err
+		}
+		req.Header.Set("Authorization", "Bearer fake-jwt-token")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return 0, err
+		}
+		resp.Body.Close()
+		return resp.StatusCode, nil
+	}
+	var wg sync.WaitGroup
+	for range 32 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 200 {
+				_, _ = whoami()
+			}
+		}()
+	}
+	wg.Wait()
+	if code, err := whoami(); err != nil || code != http.StatusOK {
+		t.Fatalf("after concurrent requests the fake gateway answers (%d, %v), want 200: it did not survive them", code, err)
 	}
 }
