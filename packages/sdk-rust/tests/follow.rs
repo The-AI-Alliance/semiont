@@ -391,7 +391,44 @@ async fn a_generation_that_says_nothing_is_cancelled_and_given_up_on() {
         .into_iter()
         .find(|frame| frame.channel == "job:cancel-requested")
         .expect("the cancellation was asked for");
-    assert_eq!(cancel.payload, object(json!({ "jobType": "generation" })));
+    // The job that stalled, by its id: no other generation is touched.
+    assert_eq!(cancel.payload, object(json!({ "jobId": "job-1" })));
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_generation_that_stalls_before_its_job_is_known_has_nothing_to_cancel() {
+    // The knowledge base never answers the job's creation.
+    let transport = FaultyTransport::answering(vec![FaultAction::DropReply], |_, _| Ok(None));
+    let client = client_over(&transport);
+
+    let seen = ended(collected(
+        client
+            .yield_
+            .from_context(generation(None), Some(Duration::from_secs(5))),
+    ))
+    .await;
+
+    assert_eq!(kinds(&seen), ["error job.stalled"]);
+    settle().await;
+    assert_eq!(asked(&transport, "job:cancel-requested"), 0);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_status_of_cancelled_ends_the_follower_as_a_cancelled_job() {
+    let (client, transport) = world();
+    transport.queue_reply("job:status-requested", [status("cancelled", json!({}))]);
+    let seen = ended(collected(highlighting(&client))).await;
+
+    assert_eq!(kinds(&seen), ["error job.cancelled"]);
+    match &seen[0] {
+        Err(SemiontError::Job(cancelled)) => {
+            assert_eq!(cancelled.message, "The job was cancelled");
+            assert_eq!(cancelled.job_id.as_deref(), Some("job-1"));
+        }
+        other => panic!("a cancelled job was expected, not {other:?}"),
+    }
+    // It is asked about once: a cancelled job is over.
+    assert_eq!(asked(&transport, "job:status-requested"), 1);
 }
 
 #[tokio::test(start_paused = true)]

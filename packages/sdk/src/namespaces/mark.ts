@@ -14,7 +14,7 @@ import type {
 import type { ITransport } from '@semiont/core';
 import { busRequest, isReportedJobResult } from '@semiont/core';
 import { StreamObservable } from '../awaitable';
-import { JobFailedError, JobFrames, JobStatusPoll, type JobFollowTiming } from './job-status-poll';
+import { JobCancelledError, JobFailedError, JobFrames, JobStatusPoll, type JobFollowTiming } from './job-status-poll';
 import type {
   MarkNamespace as IMarkNamespace,
   CreateAnnotationInput,
@@ -129,6 +129,9 @@ export class MarkNamespace implements IMarkNamespace {
           } else if (status.status === 'failed') {
             cleanup();
             subscriber.error(new JobFailedError(status.error ?? 'Job failed', status.jobId));
+          } else if (status.status === 'cancelled') {
+            cleanup();
+            subscriber.error(new JobCancelledError(status.jobId));
           }
         },
         this.timing,

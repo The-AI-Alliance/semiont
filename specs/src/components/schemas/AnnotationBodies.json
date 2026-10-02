@@ -1,0 +1,17 @@
+{
+  "oneOf": [
+    {
+      "$ref": "./AnnotationBody.json",
+      "description": "Single body (TextualBody or SpecificResource)"
+    },
+    {
+      "type": "array",
+      "items": {
+        "$ref": "./AnnotationBody.json"
+      },
+      "minItems": 1,
+      "description": "Non-empty array of mixed TextualBody (tagging) and SpecificResource (linking) bodies"
+    }
+  ],
+  "description": "What an annotation's `body` holds: one body, or a non-empty list of them. There is no empty list: an annotation with nothing to say has no `body`."
+}

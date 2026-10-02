@@ -31,6 +31,7 @@ async-nats = { version = "0.50.0", default-features = false }
 axum = { version = "0.8.9", default-features = false }
 base64 = "0.23.1"
 bytes = "1.12.1"
+encoding_rs = "0.8.42"
 chrono = { version = "0.4.45", default-features = false }
 futures = "0.3.34"
 futures-core = "0.3.34"

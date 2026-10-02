@@ -8,20 +8,7 @@
       "$ref": "./AnnotationTarget.json"
     },
     "body": {
-      "oneOf": [
-        {
-          "$ref": "./AnnotationBody.json",
-          "description": "Single body (TextualBody or SpecificResource)"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "./AnnotationBody.json"
-          },
-          "minItems": 1,
-          "description": "Non-empty array of mixed TextualBody (tagging) and SpecificResource (linking) bodies"
-        }
-      ],
+      "$ref": "./AnnotationBodies.json",
       "description": "Optional body. Omit for annotations whose motivation alone is meaningful (highlighting) or whose user-supplied content is empty. Shape matches Annotation.body."
     }
   },

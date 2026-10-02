@@ -39,4 +39,4 @@ pub use job::JobNamespace;
 pub use mark::{MarkAssistOptions, MarkNamespace};
 pub use match_::MatchNamespace;
 pub use system::SystemNamespace;
-pub use yield_::{YieldNamespace, stall_deadline};
+pub use yield_::{CreateFromTokenOptions, YieldNamespace, stall_deadline};

@@ -12,7 +12,7 @@ import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest, isReportedJobResult } from '@semiont/core';
 import { StreamObservable, UploadObservable } from '../awaitable';
 import { GenerationStallError, deriveStallDeadlineMs } from './generation-stall';
-import { JobFailedError, JobFrames, JobStatusPoll, type JobFollowTiming } from './job-status-poll';
+import { JobCancelledError, JobFailedError, JobFrames, JobStatusPoll, type JobFollowTiming } from './job-status-poll';
 import type {
   YieldNamespace as IYieldNamespace,
   CreateResourceInput,
@@ -201,6 +201,9 @@ export class YieldNamespace implements IYieldNamespace {
           } else if (status.status === 'failed') {
             cleanup();
             subscriber.error(new JobFailedError(status.error ?? 'Generation failed', status.jobId));
+          } else if (status.status === 'cancelled') {
+            cleanup();
+            subscriber.error(new JobCancelledError(status.jobId));
           }
         },
         this.timing,
@@ -230,18 +233,20 @@ export class YieldNamespace implements IYieldNamespace {
 
       // The ONE stall guard (FLOW-LIFECYCLE-CONVERGENCE D1): armed at
       // subscribe, re-armed on every event, cleared by any terminal. Firing
-      // requests the server-side cancel — the queue kills pending jobs;
-      // there is no worker-kill channel, so a hung RUNNING job dies at its
-      // own pace — then errors the stream with the typed stall error.
+      // asks for THAT job to be cancelled, by its id: a cancellation by
+      // category would end every pending generation, whoever asked for it.
+      // A pending job is cancelled outright; a running one is left to its
+      // worker. A job whose creation was never answered has no id, and there
+      // is nothing to cancel. Then the stream errors with the stall error.
       const armStall = () => {
         if (stallTimer) clearTimeout(stallTimer);
         stallTimer = setTimeout(() => {
           if (done) return;
           const stalledJobId = activeJobId;
           cleanup();
-          void busRequest(
-            this.transport, 'job:cancel-requested', { jobType: 'generation' },
-          ).catch(() => {});
+          if (stalledJobId !== null) {
+            void busRequest(this.transport, 'job:cancel-requested', { jobId: stalledJobId }).catch(() => {});
+          }
           // subscriber.error runs the producer teardown, which unsubscribes
           // the three lifecycle subs — no manual unsubscribe needed here.
           subscriber.error(new GenerationStallError(stallMs, stalledJobId));

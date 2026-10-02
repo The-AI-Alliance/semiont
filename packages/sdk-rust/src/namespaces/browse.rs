@@ -1005,25 +1005,44 @@ fn charset(media_type: &str) -> Option<String> {
     Some(stated[..end].to_owned())
 }
 
-/// Bytes as the text their media type says they are. UTF-8 is read as a
-/// browser reads it: a leading byte-order mark is not part of the text, and
-/// a sequence that is not UTF-8 becomes U+FFFD. Any other charset is refused
-/// rather than read as something it is not: the bytes are there to decode
-/// (`resource_representation`).
+/// Bytes as the text their media type says they are, read as a browser
+/// reads it: in the encoding the charset is a label of, UTF-8 when none is
+/// stated; a leading byte-order mark is not part of the text; and a sequence
+/// the encoding does not have becomes U+FFFD. A charset that is not decoded
+/// is refused by name rather than read as something it is not: the bytes
+/// are there to decode (`resource_representation`).
 fn text(content: Content) -> Result<String, TransportError> {
-    match charset(&content.content_type).as_deref() {
-        None | Some("utf-8" | "utf8") => {
-            let text = String::from_utf8_lossy(&content.bytes);
-            Ok(text.strip_prefix('\u{feff}').unwrap_or(&text).to_owned())
-        }
-        Some(other) => Err(TransportError::without_response(
-            format!(
-                "The resource's text is {other}, and only UTF-8 is decoded: read its bytes instead"
-            ),
+    let stated = charset(&content.content_type);
+    let label = stated.as_deref().unwrap_or("utf-8");
+    decoded(label, &content.bytes).ok_or_else(|| {
+        TransportError::without_response(
+            format!("The resource's text is {label}, {NOT_DECODED}: read its bytes instead"),
             TransportErrorCode::Error,
-        )),
-    }
+        )
+    })
 }
+
+/// Every encoding of the Encoding Standard, by any of its labels.
+#[cfg(feature = "charsets")]
+fn decoded(label: &str, bytes: &[u8]) -> Option<String> {
+    let encoding = encoding_rs::Encoding::for_label(label.as_bytes())?;
+    Some(encoding.decode_with_bom_removal(bytes).0.into_owned())
+}
+
+#[cfg(feature = "charsets")]
+const NOT_DECODED: &str = "which is no charset the Encoding Standard names";
+
+/// UTF-8 alone: the rest are behind the `charsets` feature.
+#[cfg(not(feature = "charsets"))]
+fn decoded(label: &str, bytes: &[u8]) -> Option<String> {
+    matches!(label, "utf-8" | "utf8").then(|| {
+        let text = String::from_utf8_lossy(bytes);
+        text.strip_prefix('\u{feff}').unwrap_or(&text).to_owned()
+    })
+}
+
+#[cfg(not(feature = "charsets"))]
+const NOT_DECODED: &str = "and only UTF-8 is decoded without the `charsets` feature";
 
 pub struct BrowseNamespace {
     links: Links,
@@ -1163,6 +1182,7 @@ impl BrowseNamespace {
     // ── One-shot reads ──────────────────────────────────────────────────
 
     /// A resource's bytes as text, in the charset their media type states.
+    /// Without the `charsets` feature, only when that is UTF-8.
     pub async fn resource_content(&self, resource_id: &str) -> Result<String, SemiontError> {
         Ok(text(self.content.get_binary(resource_id).await?)?)
     }
@@ -1320,8 +1340,58 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "charsets")]
     #[test]
-    fn another_charset_is_refused_by_name() {
+    fn another_charset_is_read_as_a_browser_reads_it() {
+        // A label is the encoding the Encoding Standard gives it: Latin-1
+        // is windows-1252, as it is to every browser.
+        for (bytes, media_type, read) in [
+            (&b"caf\xe9"[..], "text/plain; charset=ISO-8859-1", "café"),
+            (&b"\x80 5"[..], "text/plain;charset=latin1", "€ 5"),
+            (
+                &b"\x93quoted\x94"[..],
+                "text/plain; charset=windows-1252",
+                "“quoted”",
+            ),
+            (
+                &b"\x82\xb1\x82\xf1"[..],
+                "text/plain; charset=Shift_JIS",
+                "こん",
+            ),
+            (
+                &b"\xff\xfeh\x00i\x00"[..],
+                "text/plain; charset=utf-16le",
+                "hi",
+            ),
+            (
+                &b"\xcf\xf0\xe8"[..],
+                "text/markdown; charset=windows-1251",
+                "При",
+            ),
+        ] {
+            let content = Content {
+                bytes: Bytes::copy_from_slice(bytes),
+                content_type: media_type.to_owned(),
+            };
+            assert_eq!(text(content), Ok(read.to_owned()), "{media_type}");
+        }
+    }
+
+    #[test]
+    fn a_charset_that_is_not_decoded_is_refused_by_name() {
+        let refusal = text(content(b"caf\xe9", "text/plain; charset=x-no-such-charset"))
+            .expect_err("no encoding has that label");
+        assert_eq!(refusal.code, TransportErrorCode::Error);
+        assert!(
+            refusal.message.contains("x-no-such-charset"),
+            "{}",
+            refusal.message
+        );
+    }
+
+    #[cfg(not(feature = "charsets"))]
+    #[test]
+    fn without_the_charsets_feature_only_utf8_is_decoded() {
         let refusal = text(content(b"caf\xe9", "text/plain; charset=ISO-8859-1"))
             .expect_err("latin-1 is not decoded");
         assert_eq!(refusal.code, TransportErrorCode::Error);

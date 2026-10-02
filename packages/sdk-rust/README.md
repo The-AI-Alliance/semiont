@@ -149,11 +149,12 @@ flight ends by being told and not by the runtime stopping.
   go of it when the watcher is dropped. A watcher that falls behind is given
   the latest state, not each one it missed.
 
-  Two things differ from the TypeScript client. `browse.resource_content`
-  decodes UTF-8 and refuses any other charset by name;
-  `browse.resource_representation` gives the bytes. And `yield_` has no
-  `create_from_token`: a clone's format and stored name come from a
-  media-type registry only TypeScript has, which the table records.
+  One thing differs from the TypeScript client. `browse.resource_content`
+  decodes the charset the content's media type states, and with the
+  `charsets` feature that is every encoding the Encoding Standard names, as
+  a browser reads them. Without the feature it decodes UTF-8 and refuses any
+  other charset by name. `browse.resource_representation` gives the bytes
+  either way.
 - `running` and `cached` — those two shapes.
 - `cache` — what the queries answer from
   ([CACHE-SEMANTICS](../sdk/docs/CACHE-SEMANTICS.md)): one state per key, the
@@ -208,6 +209,13 @@ flight ends by being told and not by the runtime stopping.
   knowledge base id. Every change to the file is made under a lock beside
   it. The crate reads no environment: the application says where its state
   home is (`state_dir`).
+- `media_types` — the media types a knowledge base admits and what the
+  system can do with each, generated from
+  [specs/src/media-types/registry.json](../../specs/src/media-types/registry.json):
+  `MEDIA_TYPES`, `capabilities_of`, and the two rules a clone needs, the
+  format it takes (`clone_format`) and the name its content is stored under
+  (`storage_file_name`, `derive_storage_uri`). The rules are held by
+  [cases every SDK runs](../../specs/src/media-types/cases.json).
 - `discovery` — the knowledge bases a launcher manages
   ([specs/src/discovery](../../specs/src/discovery/README.md)): its document
   read whole or not at all, and what changed between two readings. Absent
@@ -248,10 +256,10 @@ flight ends by being told and not by the runtime stopping.
 
   | Unit | holds | hears, or is told |
   |---|---|---|
-  | `MarkStateUnit` (one resource) | the annotation being composed; the motivation and progress of the assist running | `client.mark.request`, `submit`, `cancel_pending`, `request_assist`, `dismiss_progress`; `mark:select-*` and `mark:delete` on the client's bus |
+  | `MarkStateUnit` (one resource) | the annotation being composed; the motivation and progress of the assist running | `client.mark.request`, `submit`, `cancel_pending`, `request_assist`, `dismiss_progress`; `mark:select-*`, and a `mark:delete` that names its resource, on the client's bus |
   | `GatherStateUnit` (one resource) | an annotation's context, and a resource's, each with its loading and its failure | `gather:requested` on the client's bus; `gather_resource` |
   | `MatchStateUnit` | nothing: it answers on the bus, under the asker's correlation id | `client.match_.request_search` |
-  | `YieldStateUnit` | whether a generation runs, its progress, and what it produced | `generate`, `dismiss_progress` |
+  | `YieldStateUnit` | whether a generation runs, its progress, what it produced, and why it ended without a result | `generate`, `dismiss_progress` |
   | `BeckonStateUnit` | the annotation hovered | `client.beckon.hover`; an annotation opened, here or by another participant; `focus` |
   | `SearchPipeline<T>` | a query and the results of the query it settled on | `set_query` |
 
@@ -262,10 +270,6 @@ flight ends by being told and not by the runtime stopping.
   to have gone quiet (`mark:assist-timeout`) and is still followed.
   `HoverDwell` is the pointer's rest before a hover is said.
 
-  One thing differs from the TypeScript client. Marking composes with
-  `MarkSubmitEventSelector`, creates with `AnnotationTargetSelector` and is
-  asked with `MarkRequestedEventSelector`: the spec states the one union of
-  selectors in three schemas, and Rust has a type for each.
 - `state_unit` — what every unit commits to: `dispose`, idempotent, after
   which it is inert and its readers have ended. [tests/census.rs](tests/census.rs)
   fails a unit that has no test holding it to the axioms, and any `static`

@@ -16,9 +16,9 @@ use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use crate::running::Running;
 use crate::transport::Envelope;
 use crate::types::{
-    CreateAnnotationRequest, JobCreateCommand, JobType, MarkArchiveCommand, MarkAssistRequestEvent,
-    MarkAssistRequestEventOptions, MarkCreateOkResponse, MarkCreateRequest, MarkDeleteCommand,
-    MarkRequestedEvent, MarkRequestedEventSelector, MarkSubmitEvent, MarkUnarchiveCommand,
+    AnnotationSelector, CreateAnnotationRequest, JobCreateCommand, JobType, MarkArchiveCommand,
+    MarkAssistRequestEvent, MarkAssistRequestEventOptions, MarkCreateOkResponse, MarkCreateRequest,
+    MarkDeleteCommand, MarkRequestedEvent, MarkSubmitEvent, MarkUnarchiveCommand,
     MarkUpdateEntityTypesCommand, Motivation,
 };
 use serde::{Deserialize, Serialize};
@@ -201,12 +201,7 @@ impl MarkNamespace {
     }
 
     /// Signal: a new annotation is wanted on `source`.
-    pub fn request(
-        &self,
-        source: &str,
-        selector: MarkRequestedEventSelector,
-        motivation: Motivation,
-    ) {
+    pub fn request(&self, source: &str, selector: AnnotationSelector, motivation: Motivation) {
         self.links.signal::<MarkRequested>(
             &MarkRequestedEvent {
                 source: source.to_owned(),

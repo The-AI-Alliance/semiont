@@ -1,0 +1,84 @@
+{
+  "$comment": "The rules every SDK reads from registry.json, as cases each SDK runs. `cloneFormat`: the format a clone of a resource takes: its source's base media type when that is one a person can author, and text/plain otherwise, since a clone opens where a person writes. `storageFileName`: the name a resource's content is stored under: its title in lower case, every run of characters that are not a to z or 0 to 9 made one hyphen, none at either end, and then the format's extension. A `file://` storage URI is that name behind the scheme.",
+  "cloneFormat": [
+    {
+      "why": "an authorable source keeps its type",
+      "source": "text/markdown",
+      "format": "text/markdown"
+    },
+    {
+      "why": "parameters are not part of the type",
+      "source": "text/html; charset=iso-8859-1",
+      "format": "text/html"
+    },
+    {
+      "why": "case is not part of the type",
+      "source": "Text/HTML",
+      "format": "text/html"
+    },
+    {
+      "why": "a type nobody authors falls back to plain text",
+      "source": "application/pdf",
+      "format": "text/plain"
+    },
+    {
+      "why": "so does a stored type that is text but not authorable",
+      "source": "text/csv",
+      "format": "text/plain"
+    },
+    {
+      "why": "so does a type the registry does not have",
+      "source": "application/x-unheard-of",
+      "format": "text/plain"
+    },
+    {
+      "why": "and a source that states none",
+      "source": null,
+      "format": "text/plain"
+    }
+  ],
+  "storageFileName": [
+    {
+      "why": "lower case, spaces to hyphens, the format's extension",
+      "name": "My Document",
+      "format": "text/markdown",
+      "fileName": "my-document.md"
+    },
+    {
+      "why": "a run of anything else is one hyphen, and none is left at either end",
+      "name": "  Hello, World!  ",
+      "format": "text/plain",
+      "fileName": "hello-world.txt"
+    },
+    {
+      "why": "letters outside a to z are not kept",
+      "name": "Café Über 2",
+      "format": "text/html",
+      "fileName": "caf-ber-2.html"
+    },
+    {
+      "why": "digits are",
+      "name": "2026 Q3",
+      "format": "application/pdf",
+      "fileName": "2026-q3.pdf"
+    },
+    {
+      "why": "a name with nothing to keep is the extension alone",
+      "name": "***",
+      "format": "text/markdown",
+      "fileName": ".md"
+    },
+    {
+      "why": "a hyphen in the name is a character like any other that is not kept",
+      "name": "-a--b-",
+      "format": "text/plain",
+      "fileName": "a-b.txt"
+    },
+    {
+      "why": "lower case is Unicode's: the Kelvin sign is a k",
+      "name": "\u212a2",
+      "format": "text/plain",
+      "fileName": "k2.txt"
+    }
+  ]
+}

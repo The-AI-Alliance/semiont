@@ -2,8 +2,10 @@
  * Media-type registry for Semiont
  *
  * One supported-types list, capability-tiered, keyed by the spec's
- * SupportedMediaType enum. Admission (registry membership) is the
- * create/yield gate: every member is storable, nameable, and uploadable.
+ * SupportedMediaType enum. The rows are specs/src/media-types/registry.json's,
+ * generated; this module is the questions asked of them. Admission (registry
+ * membership) is the create/yield gate: every member is storable, nameable,
+ * and uploadable.
  * The curated capabilities say what more the system can do with a type:
  *
  * - `render`      — which viewer the UI mounts ('none' → metadata + download)
@@ -34,12 +36,16 @@
  */
 
 import type { components } from './types';
+import {
+  EXTENSION_ALIASES,
+  MEDIA_TYPE_ROWS,
+  type AnchoringModel,
+  type RenderMode,
+  type TextSource,
+} from './generated/media-types';
 
 export type SupportedMediaType = components['schemas']['SupportedMediaType'];
-
-export type RenderMode = 'text' | 'image' | 'pdf' | 'none';
-export type AnchoringModel = 'text-selector' | 'spatial' | 'none';
-export type TextSource = 'decode' | 'pdf-text-layer' | 'none';
+export type { AnchoringModel, RenderMode, TextSource };
 
 export interface MediaTypeCapabilities {
   /** Canonical file extension, with leading dot. */
@@ -57,125 +63,17 @@ export interface MediaTypeCapabilities {
   generatable: boolean;
 }
 
-/** Storage tier: catalogued — stored, named, uploadable — but not
- *  displayed or annotated. */
-const storedBinary = (extension: `.${string}`, label: string): MediaTypeCapabilities => ({
-  extension,
-  label,
-  render: 'none',
-  anchoring: 'none',
-  textSource: 'none',
-  authorable: false,
-  uploadable: true,
-  generatable: false,
-});
-
-/** Storage tier, text-flavored: embedded (charset-aware decode), not rendered. */
-const storedText = (extension: `.${string}`, label: string): MediaTypeCapabilities => ({
-  ...storedBinary(extension, label),
-  textSource: 'decode',
-});
-
 /**
- * The registry. `satisfies Record<SupportedMediaType, …>` is the
- * drift-lock: adding a type to the spec enum without a capabilities row
- * (or vice versa) is a compile error.
+ * The registry: specs/src/media-types/registry.json, which every SDK
+ * generates from. `satisfies Record<SupportedMediaType, …>` holds the table to
+ * the spec's enum in this language too: a type in one and not the other is a
+ * compile error here, as it is a refusal in the generator.
  *
  * Row order matters for `mediaTypeForExtension`: extension collisions
  * (.xml, .yaml, .js, .ts, .webm) resolve to the first row declaring the
  * extension.
  */
-export const MEDIA_TYPES = {
-  // Full-capability tier
-  // `generatable: application/pdf` — the Typst renderer (PDF-GENERATION P3):
-  // the model writes Typst, the worker's pinned binary compiles it.
-  'text/markdown':    { extension: '.md',   label: 'Markdown',   render: 'text',  anchoring: 'text-selector', textSource: 'decode',         authorable: true,  uploadable: true, generatable: true },
-  'text/plain':       { extension: '.txt',  label: 'Plain Text', render: 'text',  anchoring: 'text-selector', textSource: 'decode',         authorable: true,  uploadable: true, generatable: true },
-  'text/html':        { extension: '.html', label: 'HTML',       render: 'text',  anchoring: 'text-selector', textSource: 'decode',         authorable: true,  uploadable: true, generatable: false },
-  'application/json': { extension: '.json', label: 'JSON',       render: 'text',  anchoring: 'text-selector', textSource: 'decode',         authorable: false, uploadable: true, generatable: false },
-  'image/png':        { extension: '.png',  label: 'PNG image',  render: 'image', anchoring: 'spatial',       textSource: 'none',           authorable: false, uploadable: true, generatable: false },
-  'image/jpeg':       { extension: '.jpg',  label: 'JPEG image', render: 'image', anchoring: 'spatial',       textSource: 'none',           authorable: false, uploadable: true, generatable: false },
-  'application/pdf':  { extension: '.pdf',  label: 'PDF',        render: 'pdf',   anchoring: 'spatial',       textSource: 'pdf-text-layer', authorable: false, uploadable: true, generatable: true },
-
-  // Storage tier — the big tent. Every row is a deliberate admission,
-  // promotable by editing its row. Text-flavored rows embed (decode).
-
-  // Text
-  'text/css': storedText('.css', 'CSS'),
-  'text/csv': storedText('.csv', 'CSV'),
-  'text/xml': storedText('.xml', 'XML'),
-
-  // Structured-text application formats
-  'application/xml': storedText('.xml', 'XML'),
-  'application/yaml': storedText('.yaml', 'YAML'),
-  'application/x-yaml': storedText('.yaml', 'YAML'),
-
-  // Programming languages
-  'text/javascript': storedText('.js', 'JavaScript'),
-  'application/javascript': storedText('.js', 'JavaScript'),
-  'text/x-typescript': storedText('.ts', 'TypeScript'),
-  'application/typescript': storedText('.ts', 'TypeScript'),
-  'text/x-python': storedText('.py', 'Python source'),
-  'text/x-java': storedText('.java', 'Java source'),
-  'text/x-c': storedText('.c', 'C source'),
-  'text/x-c++': storedText('.cpp', 'C++ source'),
-  'text/x-csharp': storedText('.cs', 'C# source'),
-  'text/x-go': storedText('.go', 'Go source'),
-  'text/x-rust': storedText('.rs', 'Rust source'),
-  'text/x-ruby': storedText('.rb', 'Ruby source'),
-  'text/x-php': storedText('.php', 'PHP source'),
-  'text/x-swift': storedText('.swift', 'Swift source'),
-  'text/x-kotlin': storedText('.kt', 'Kotlin source'),
-  'text/x-shell': storedText('.sh', 'Shell script'),
-
-  // Documents
-  'application/msword': storedBinary('.doc', 'Word document (legacy)'),
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': storedBinary('.docx', 'Word document'),
-  'application/vnd.ms-excel': storedBinary('.xls', 'Excel spreadsheet (legacy)'),
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': storedBinary('.xlsx', 'Excel spreadsheet'),
-  'application/vnd.ms-powerpoint': storedBinary('.ppt', 'PowerPoint presentation (legacy)'),
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation': storedBinary('.pptx', 'PowerPoint presentation'),
-
-  // Archives
-  'application/zip': storedBinary('.zip', 'ZIP archive'),
-  'application/gzip': storedBinary('.gz', 'Gzip archive'),
-  'application/x-tar': storedBinary('.tar', 'TAR archive'),
-  'application/x-7z-compressed': storedBinary('.7z', '7z archive'),
-
-  // Binaries
-  'application/octet-stream': storedBinary('.bin', 'Binary'),
-  'application/wasm': storedBinary('.wasm', 'WebAssembly module'),
-
-  // Images beyond the rendered pair
-  'image/gif': storedBinary('.gif', 'GIF image'),
-  'image/webp': storedBinary('.webp', 'WebP image'),
-  'image/svg+xml': storedBinary('.svg', 'SVG image'),
-  'image/bmp': storedBinary('.bmp', 'BMP image'),
-  'image/tiff': storedBinary('.tiff', 'TIFF image'),
-  'image/x-icon': storedBinary('.ico', 'Icon'),
-
-  // Video (before audio so .webm resolves to video)
-  'video/mp4': storedBinary('.mp4', 'MP4 video'),
-  'video/mpeg': storedBinary('.mpeg', 'MPEG video'),
-  'video/webm': storedBinary('.webm', 'WebM video'),
-  'video/ogg': storedBinary('.ogv', 'Ogg video'),
-  'video/quicktime': storedBinary('.mov', 'QuickTime video'),
-  'video/x-msvideo': storedBinary('.avi', 'AVI video'),
-
-  // Audio
-  'audio/mpeg': storedBinary('.mp3', 'MP3 audio'),
-  'audio/wav': storedBinary('.wav', 'WAV audio'),
-  'audio/ogg': storedBinary('.ogg', 'Ogg audio'),
-  'audio/webm': storedBinary('.webm', 'WebM audio'),
-  'audio/aac': storedBinary('.aac', 'AAC audio'),
-  'audio/flac': storedBinary('.flac', 'FLAC audio'),
-
-  // Fonts
-  'font/woff': storedBinary('.woff', 'WOFF font'),
-  'font/woff2': storedBinary('.woff2', 'WOFF2 font'),
-  'font/ttf': storedBinary('.ttf', 'TrueType font'),
-  'font/otf': storedBinary('.otf', 'OpenType font'),
-} satisfies Record<SupportedMediaType, MediaTypeCapabilities>;
+export const MEDIA_TYPES = MEDIA_TYPE_ROWS satisfies Record<SupportedMediaType, MediaTypeCapabilities>;
 
 // String-indexable view for lookups with runtime strings.
 const REGISTRY: Readonly<Record<string, MediaTypeCapabilities>> = MEDIA_TYPES;
@@ -232,15 +130,6 @@ const EXTENSION_TO_MEDIA_TYPE: ReadonlyMap<string, SupportedMediaType> = (() => 
   }
   return map;
 })();
-
-/** Alternate spellings accepted by `mediaTypeForExtension`, mapped to
- *  canonical registry extensions. */
-const EXTENSION_ALIASES: Readonly<Record<string, string>> = {
-  '.markdown': '.md',
-  '.htm': '.html',
-  '.jpeg': '.jpg',
-  '.yml': '.yaml',
-};
 
 /**
  * Inverted registry: extension → media type, for the CLI and the upload

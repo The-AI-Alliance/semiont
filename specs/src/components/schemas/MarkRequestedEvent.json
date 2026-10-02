@@ -7,28 +7,16 @@
       "description": "The '@id' of the resource the mark belongs to (W3C target.source). Routes the event to the right viewer/state unit when a host mounts many viewers on one session."
     },
     "selector": {
-      "description": "One or more W3C selectors",
-      "oneOf": [
-        { "$ref": "./TextPositionSelector.json" },
-        { "$ref": "./TextQuoteSelector.json" },
-        { "$ref": "./SvgSelector.json" },
-        { "$ref": "./FragmentSelector.json" },
-        {
-          "type": "array",
-          "items": {
-            "oneOf": [
-              { "$ref": "./TextPositionSelector.json" },
-              { "$ref": "./TextQuoteSelector.json" },
-              { "$ref": "./SvgSelector.json" },
-              { "$ref": "./FragmentSelector.json" }
-            ]
-          }
-        }
-      ]
+      "$ref": "./AnnotationSelector.json",
+      "description": "One or more W3C selectors"
     },
     "motivation": {
       "$ref": "./Motivation.json"
     }
   },
-  "required": ["source", "selector", "motivation"]
+  "required": [
+    "source",
+    "selector",
+    "motivation"
+  ]
 }

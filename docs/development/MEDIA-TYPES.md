@@ -11,7 +11,10 @@ the only type that exercises every axis at its hardest setting.
 
 ## The declaration
 
-`packages/core/src/media-types.ts` holds one row per supported type:
+[`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json)
+holds one row per supported type. Every SDK generates its table from it:
+TypeScript's is `MEDIA_TYPES` in `packages/core/src/media-types.ts`, Rust's is
+`semiont::media_types`. A row, as TypeScript reads it:
 
 ```ts
 interface MediaTypeCapabilities {
@@ -26,10 +29,16 @@ interface MediaTypeCapabilities {
 }
 ```
 
-The registry is `satisfies Record<SupportedMediaType, …>`, so adding a type to
-the spec enum without a capabilities row — or the reverse — is a compile error.
-That drift-lock is the reason this guide can describe behavior by reading one
-table.
+The generator refuses a registry and a `SupportedMediaType` enum that disagree,
+and the TypeScript table is `satisfies Record<SupportedMediaType, …>`, so adding
+a type to the spec enum without a capabilities row — or the reverse — fails the
+build. That drift-lock is the reason this guide can describe behavior by reading
+one table.
+
+The rules read from the table that more than one SDK applies (the format a
+clone takes, the name content is stored under) are stated as cases in
+[`specs/src/media-types/cases.json`](../../specs/src/media-types/cases.json),
+and each SDK runs them.
 
 | Media type | `render` | `anchoring` | `textSource` |
 |---|---|---|---|

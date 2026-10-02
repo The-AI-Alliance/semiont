@@ -20,8 +20,8 @@ use semiont::testing::{
 use semiont::timing::{ASSIST_SILENCE, BUS_REQUEST_TIMEOUT, HOVER_DELAY, SEARCH_DEBOUNCE};
 use semiont::transport::{Envelope, Frame};
 use semiont::types::{
-    GatherResourceRequestOptions, GatheredContext, GenerationJobParams, MarkRequestedEventSelector,
-    MarkSubmitEventSelector, Motivation,
+    AnnotationSelector, GatherResourceRequestOptions, GatheredContext, GenerationJobParams,
+    Motivation,
 };
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, Mutex};
@@ -975,6 +975,7 @@ async fn yield_clears_the_progress_of_a_run_that_fails() {
     settle().await;
     assert_eq!(yielding(&unit), (true, Some(5.0), None));
 
+    assert_eq!(*unit.failure().borrow(), None);
     say(
         &client,
         "job:fail",
@@ -982,6 +983,19 @@ async fn yield_clears_the_progress_of_a_run_that_fails() {
     );
     settle().await;
     assert_eq!(yielding(&unit), (false, None, None));
+    // Why it ended is held, for whoever shows the run.
+    assert_eq!(
+        failure(&unit),
+        Some(("job.failed", "the model refused".to_owned()))
+    );
+}
+
+/// Why a yield unit's last run ended without a result: its code and what it said.
+fn failure(unit: &YieldStateUnit) -> Option<(&'static str, String)> {
+    unit.failure()
+        .borrow()
+        .as_ref()
+        .map(|failure| (failure.code(), failure.to_string()))
 }
 
 #[tokio::test(start_paused = true)]
@@ -1013,6 +1027,49 @@ async fn yield_stops_generating_when_a_run_stalls() {
 
     tokio::time::sleep(Duration::from_secs(6)).await;
     assert_eq!(yielding(&unit), (false, None, None));
+    // A stall is said nowhere else: the unit is where it is learned.
+    assert_eq!(failure(&unit).map(|(code, _)| code), Some("job.stalled"));
+}
+
+#[tokio::test(start_paused = true)]
+async fn yield_holds_why_a_run_failed_until_it_is_dismissed_or_another_begins() {
+    let (client, _transport) = jobs();
+    let unit = YieldStateUnit::new(client.clone(), "en");
+    let fail = |client: &SemiontClient| {
+        say(
+            client,
+            "job:fail",
+            job_frame("generation", json!({ "error": "the model refused" })),
+        );
+    };
+
+    unit.generate(generation(json!({})), None);
+    settle().await;
+    fail(&client);
+    settle().await;
+    assert!(failure(&unit).is_some());
+    unit.dismiss_progress();
+    assert_eq!(failure(&unit), None);
+
+    unit.generate(generation(json!({})), None);
+    settle().await;
+    fail(&client);
+    settle().await;
+    assert!(failure(&unit).is_some());
+    // The next run does not begin with the last one's failure: it is gone
+    // when the call returns.
+    unit.generate(generation(json!({})), None);
+    assert_eq!(failure(&unit), None);
+
+    // And a setback the queue will retry is not one.
+    settle().await;
+    say(
+        &client,
+        "job:fail",
+        job_frame("generation", json!({ "error": "busy", "willRetry": true })),
+    );
+    settle().await;
+    assert_eq!(failure(&unit), None);
 }
 
 #[tokio::test(start_paused = true)]
@@ -1082,6 +1139,7 @@ impl AxiomSubject for Yields {
             Box::new(unit.is_generating()),
             Box::new(unit.progress()),
             Box::new(unit.outcome()),
+            Box::new(unit.failure()),
         ]
     }
 
@@ -1104,13 +1162,13 @@ fn quote(exact: &str) -> Value {
     json!({ "type": "TextQuoteSelector", "exact": exact })
 }
 
-fn requested_selector(exact: &str) -> MarkRequestedEventSelector {
+fn requested_selector(exact: &str) -> AnnotationSelector {
     serde_json::from_value(quote(exact)).expect("a selector")
 }
 
 fn pending_of(selector: Value, motivation: Motivation) -> Option<PendingAnnotation> {
     Some(PendingAnnotation {
-        selector: serde_json::from_value::<MarkSubmitEventSelector>(selector).expect("a selector"),
+        selector: serde_json::from_value::<AnnotationSelector>(selector).expect("a selector"),
         motivation,
     })
 }
@@ -1301,7 +1359,11 @@ async fn mark_deletes_an_annotation_of_its_resource_and_says_a_deletion_that_fai
     let _unit = MarkStateUnit::new(client.clone(), RES);
     let mut errors = client.bus().frames("mark:delete-error");
 
-    say(&client, "mark:delete", json!({ "annotationId": "ann-1" }));
+    say(
+        &client,
+        "mark:delete",
+        json!({ "annotationId": "ann-1", "resourceId": RES }),
+    );
     settle().await;
     let sent = requests(&transport, "mark:delete");
     assert_eq!(sent.len(), 1);
@@ -1312,7 +1374,11 @@ async fn mark_deletes_an_annotation_of_its_resource_and_says_a_deletion_that_fai
     assert!(heard(&mut errors).await.is_empty());
 
     // Nothing is scripted to answer the second.
-    say(&client, "mark:delete", json!({ "annotationId": "ann-2" }));
+    say(
+        &client,
+        "mark:delete",
+        json!({ "annotationId": "ann-2", "resourceId": RES }),
+    );
     settle().await;
     let said = payloads(heard(&mut errors).await);
     assert_eq!(said.len(), 1);
@@ -1322,6 +1388,33 @@ async fn mark_deletes_an_annotation_of_its_resource_and_says_a_deletion_that_fai
             .as_str()
             .is_some_and(|m| m.contains("mark:delete")),
         "{said:?}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn mark_deletes_only_what_is_said_to_be_of_its_resource() {
+    let (client, transport) = world();
+    transport.queue_reply("mark:delete", [Some(json!({ "annotationId": "ann-1" }))]);
+    // Two resources are open on one client, each with its unit.
+    let _here = MarkStateUnit::new(client.clone(), RES);
+    let _there = MarkStateUnit::new(client.clone(), "res-2");
+
+    say(
+        &client,
+        "mark:delete",
+        json!({ "annotationId": "ann-1", "resourceId": "res-2" }),
+    );
+    // One that names no resource is no unit's to act on.
+    say(&client, "mark:delete", json!({ "annotationId": "ann-9" }));
+    settle().await;
+
+    let sent: Vec<Value> = requests(&transport, "mark:delete")
+        .into_iter()
+        .map(|entry| Value::Object(entry.payload))
+        .collect();
+    assert_eq!(
+        sent,
+        [json!({ "annotationId": "ann-1", "resourceId": "res-2" })]
     );
 }
 
@@ -1577,7 +1670,11 @@ async fn mark_disposed_is_inert() {
         .mark
         .request(RES, requested_selector("hello"), Motivation::Commenting);
     submit(&client, RES, "hello");
-    say(&client, "mark:delete", json!({ "annotationId": "ann-1" }));
+    say(
+        &client,
+        "mark:delete",
+        json!({ "annotationId": "ann-1", "resourceId": RES }),
+    );
     say(&client, "job:report-progress", progress(HIGHLIGHT, 40.0));
     ask_for_an_assist(&client, json!({}));
     tokio::time::sleep(ASSIST_SILENCE * 2).await;

@@ -109,6 +109,9 @@
       "AnnotationAddedPayload": {
         "$ref": "components/schemas/AnnotationAddedPayload.json"
       },
+      "AnnotationBodies": {
+        "$ref": "components/schemas/AnnotationBodies.json"
+      },
       "AnnotationBody": {
         "$ref": "components/schemas/AnnotationBody.json"
       },
@@ -120,6 +123,9 @@
       },
       "AnnotationRemovedPayload": {
         "$ref": "components/schemas/AnnotationRemovedPayload.json"
+      },
+      "AnnotationSelector": {
+        "$ref": "components/schemas/AnnotationSelector.json"
       },
       "AnnotationTarget": {
         "$ref": "components/schemas/AnnotationTarget.json"
@@ -708,6 +714,9 @@
       },
       "SupportedMediaType": {
         "$ref": "components/schemas/SupportedMediaType.json"
+      },
+      "Selector": {
+        "$ref": "components/schemas/Selector.json"
       },
       "SvgSelector": {
         "$ref": "components/schemas/SvgSelector.json"

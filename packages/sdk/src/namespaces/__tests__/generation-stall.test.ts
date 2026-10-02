@@ -102,7 +102,8 @@ describe('generation stall guard', () => {
     await rejection;
     await coded;
     expect(cancelCount(emitSpy)).toBe(1);
-    expect(emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'generation' }), expect.objectContaining({ correlationId: expect.any(String) }));
+    // The job that stalled, by its id: no other generation is touched.
+    expect(emitSpy).toHaveBeenCalledWith('job:cancel-requested', { jobId: 'j1' }, expect.objectContaining({ correlationId: expect.any(String) }));
   });
 
   it('an event inside the window resets it', async () => {
@@ -126,6 +127,36 @@ describe('generation stall guard', () => {
     await vi.advanceTimersByTimeAsync(1_000);
     await rejection;
     expect(cancelCount(emitSpy)).toBe(1);
+  });
+
+  it('a generation that stalls before its job is known has nothing to cancel', async () => {
+    vi.useFakeTimers();
+    const bus = new EventBus();
+    // The knowledge base never answers the job's creation.
+    const { transport, emitSpy } = createMockTransport({});
+    const y = new YieldNamespace(transport, bus, makeMockContent());
+
+    const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', stallDeadlineMs: 5_000 }).run(() => {});
+    const rejection = expect(p).rejects.toMatchObject({ code: 'job.stalled' });
+    await vi.advanceTimersByTimeAsync(5_000);
+    await rejection;
+
+    expect(cancelCount(emitSpy)).toBe(0);
+  });
+
+  it('a status of cancelled ends the follower as a cancelled job', async () => {
+    vi.useFakeTimers();
+    const bus = new EventBus();
+    const { transport } = createMockTransport({
+      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+      'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { jobId: 'j1', status: 'cancelled' } }),
+    });
+    const y = new YieldNamespace(transport, bus, makeMockContent());
+
+    const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run(() => {});
+    const rejection = expect(p).rejects.toMatchObject({ name: 'JobCancelledError', code: 'job.cancelled', message: 'The job was cancelled', jobId: 'j1' });
+    await vi.advanceTimersByTimeAsync(16_000);
+    await rejection;
   });
 
   const statusCount = (spy: ReturnType<typeof vi.fn>): number =>

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Observable, Subject } from 'rxjs';
-import { ASSIST_SILENCE_MS, resourceId as makeResourceId } from '@semiont/core';
+import { ASSIST_SILENCE_MS, annotationId, resourceId as makeResourceId } from '@semiont/core';
 import { createMarkStateUnit } from '../mark-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
@@ -194,7 +194,7 @@ describe('createMarkStateUnit', () => {
     const failures: unknown[] = [];
     tc.bus.on('mark:delete-error').subscribe(e => failures.push(e));
 
-    tc.bus.emit('mark:delete', { annotationId: 'ann-del' } as any);
+    tc.bus.emit('mark:delete', { annotationId: annotationId('ann-del'), resourceId: RID });
 
     await vi.waitFor(() => expect(failures).toHaveLength(1));
     expect(failures[0]).toEqual({ resourceId: 'res-1', message: 'gone wrong' });
@@ -206,13 +206,30 @@ describe('createMarkStateUnit', () => {
     tc = withMark({ delete: deleteFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
 
-    tc.bus.emit('mark:delete', { annotationId: 'ann-del' } as any);
+    tc.bus.emit('mark:delete', { annotationId: annotationId('ann-del'), resourceId: RID });
 
     // As with submit above: the call-through is the bridge, and `mark:delete-ok`
     // arrives from the wire rather than from this state unit.
     await vi.waitFor(() => expect(deleteFn).toHaveBeenCalledOnce());
     expect(deleteFn).toHaveBeenCalledWith(RID, 'ann-del');
     stateUnit.dispose();
+  });
+
+  it('deletes only what is said to be of its resource: two units on one client send one delete', async () => {
+    const deleteFn = vi.fn().mockResolvedValue(undefined);
+    tc = withMark({ delete: deleteFn });
+    const here = createMarkStateUnit(tc.client, RID);
+    const there = createMarkStateUnit(tc.client, makeResourceId('res-2'));
+
+    tc.bus.emit('mark:delete', { annotationId: annotationId('ann-del'), resourceId: makeResourceId('res-2') });
+    // One that names no resource is no unit's to act on.
+    tc.bus.emit('mark:delete', { annotationId: annotationId('ann-other') });
+
+    await vi.waitFor(() => expect(deleteFn).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(deleteFn.mock.calls).toEqual([['res-2', 'ann-del']]);
+    here.dispose();
+    there.dispose();
   });
 
   // ── AI assist ──────────────────────────────────────────────

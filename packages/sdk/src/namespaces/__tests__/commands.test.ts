@@ -385,6 +385,27 @@ describe('MarkNamespace', () => {
     bus.destroy();
   });
 
+  it('assist() ends as cancelled when the job\'s status says it was', async () => {
+    vi.useFakeTimers();
+    const bus = new EventBus();
+    const mock = createMockTransport({
+      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+      'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { jobId: 'j1', status: 'cancelled' } }),
+    });
+    const m = new MarkNamespace(mock.transport, bus);
+
+    let failure: unknown;
+    m.assist(RID, 'highlighting', {}).subscribe({ error: (e) => { failure = e; } });
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(16_000);
+
+    expect(failure).toMatchObject({ name: 'JobCancelledError', code: 'job.cancelled', message: 'The job was cancelled', jobId: 'j1' });
+    // Asked about once: a cancelled job is over.
+    expect(mock.emitSpy.mock.calls.filter(([channel]) => channel === 'job:status-requested')).toHaveLength(1);
+    bus.destroy();
+    vi.useRealTimers();
+  });
+
   it('assist() reports a failure it learned from the job\'s status under the same code', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();

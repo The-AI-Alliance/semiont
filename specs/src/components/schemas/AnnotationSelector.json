@@ -1,0 +1,16 @@
+{
+  "oneOf": [
+    {
+      "$ref": "./Selector.json",
+      "description": "One selector"
+    },
+    {
+      "type": "array",
+      "items": {
+        "$ref": "./Selector.json"
+      },
+      "description": "Several selectors of the same segment, each a different way of finding it"
+    }
+  ],
+  "description": "What a target's `selector` holds: one W3C selector, or several of the same segment."
+}

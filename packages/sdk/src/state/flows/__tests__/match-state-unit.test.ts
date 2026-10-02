@@ -19,7 +19,7 @@ describe('createMatchStateUnit', () => {
   it('does not call match.search on creation', () => {
     const searchFn = vi.fn();
     tc = withMatch(searchFn);
-    const stateUnit = createMatchStateUnit(tc.client, RID);
+    const stateUnit = createMatchStateUnit(tc.client);
     expect(searchFn).not.toHaveBeenCalled();
     stateUnit.dispose();
   });
@@ -27,7 +27,7 @@ describe('createMatchStateUnit', () => {
   it('bridges match:search-requested to match.search()', () => {
     const searchFn = vi.fn(() => new Observable(() => {}));
     tc = withMatch(searchFn);
-    const stateUnit = createMatchStateUnit(tc.client, RID);
+    const stateUnit = createMatchStateUnit(tc.client);
 
     tc.bus.emit('match:search-requested', {
       resourceId: RID as string,
@@ -52,7 +52,7 @@ describe('createMatchStateUnit', () => {
       sub.complete();
     }));
     tc = withMatch(searchFn);
-    const stateUnit = createMatchStateUnit(tc.client, RID);
+    const stateUnit = createMatchStateUnit(tc.client);
 
     const results: unknown[] = [];
     tc.bus.on('match:search-results').subscribe(r => results.push(r));
@@ -73,7 +73,7 @@ describe('createMatchStateUnit', () => {
       sub.error(new Error('search failed'));
     }));
     tc = withMatch(searchFn);
-    const stateUnit = createMatchStateUnit(tc.client, RID);
+    const stateUnit = createMatchStateUnit(tc.client);
 
     const failures: { correlationId?: string; payload: unknown }[] = [];
     tc.bus.frames('match:search-failed').subscribe(f => failures.push(f));
@@ -97,7 +97,7 @@ describe('createMatchStateUnit', () => {
     vi.useFakeTimers();
     const searchFn = vi.fn(() => new Observable(() => {}));
     tc = withMatch(searchFn);
-    const stateUnit = createMatchStateUnit(tc.client, RID);
+    const stateUnit = createMatchStateUnit(tc.client);
     const failures: { correlationId?: string; payload: unknown }[] = [];
     tc.bus.frames('match:search-failed').subscribe(f => failures.push(f));
 
@@ -117,7 +117,7 @@ describe('createMatchStateUnit', () => {
   it('stops responding after dispose', () => {
     const searchFn = vi.fn();
     tc = withMatch(searchFn);
-    const stateUnit = createMatchStateUnit(tc.client, RID);
+    const stateUnit = createMatchStateUnit(tc.client);
     stateUnit.dispose();
 
     tc.bus.emit('match:search-requested', {
@@ -135,7 +135,7 @@ describe('MatchStateUnit — StateUnit axioms', () => {
     assertStateUnitAxioms({
       setup: () => {
         const tc = withMatch(vi.fn());
-        return { unit: createMatchStateUnit(tc.client, RID), teardown: () => tc.bus.destroy() };
+        return { unit: createMatchStateUnit(tc.client), teardown: () => tc.bus.destroy() };
       },
     });
   });

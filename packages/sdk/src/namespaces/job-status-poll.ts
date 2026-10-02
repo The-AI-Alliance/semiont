@@ -18,6 +18,19 @@ export class JobFailedError extends SemiontError {
   }
 }
 
+/**
+ * A job its follower was following was cancelled. Nothing announces a
+ * cancellation, so a follower learns of one from the job's status.
+ */
+export class JobCancelledError extends SemiontError {
+  declare code: JobErrorCode;
+
+  constructor(public readonly jobId: string) {
+    super('The job was cancelled', 'job.cancelled' satisfies JobErrorCode, { jobId });
+    this.name = 'JobCancelledError';
+  }
+}
+
 /** `jobSilenceMs` and `jobStatusPollMs` of specs/src/client/timing.json, for a caller that must not wait them out. */
 export interface JobFollowTiming {
   jobSilenceMs?: number;

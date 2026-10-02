@@ -8,7 +8,8 @@
 //! (`storage`), and the stream's place kept with the caches (`resume`); the flows held as state a consumer reads and watches
 //! (`state`); a session with a knowledge base and the registry of the ones
 //! an application has signed in to (`session`); the sign-ins `semiont login`
-//! keeps, as a storage (`sign_in_store`); the knowledge bases a launcher
+//! keeps, as a storage (`sign_in_store`); the media types a knowledge base
+//! admits (`media_types`); the knowledge bases a launcher
 //! manages (`discovery`); when a failure is worth another attempt;
 //! how a knowledge base names its principals and the realm's roles; and the
 //! bus log. It does no HTTP and links no telemetry:
@@ -29,6 +30,7 @@ pub mod discovery;
 pub mod errors;
 pub mod event_bus;
 pub mod identity;
+pub mod media_types;
 pub mod namespaces;
 pub mod refresh;
 pub mod resume;

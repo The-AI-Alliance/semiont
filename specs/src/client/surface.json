@@ -506,9 +506,6 @@
           "method": "createFromToken",
           "shape": "promise",
           "via": { "request": "yield:clone-resource-requested" },
-          "absent": {
-            "rust": "The clone's format and the name it is stored under come from the media-type registry (which types are authorable, and each one's extension). That registry is TypeScript's, in packages/core/src/media-types.ts, and no other language can derive it."
-          },
           "cases": [
             {
               "why": "the source is read first; the clone is uploaded in a format its source's allows, under a name made from its own",
@@ -519,6 +516,16 @@
                 "expiresAt": "2030-01-01T00:00:00.000Z"
               },
               "then": [{ "content": "putBinary", "sends": { "name": "A Copy", "content": "hello", "format": "text/markdown", "storageUri": "file://a-copy.md", "cloneToken": "tok-1" } }]
+            },
+            {
+              "why": "a source in a format nobody authors is cloned as plain text",
+              "args": { "options": { "token": "tok-1", "name": "A Copy", "content": "hello" } },
+              "sends": { "token": "tok-1" },
+              "answers": {
+                "sourceResource": { "@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": [{ "mediaType": "application/pdf" }] },
+                "expiresAt": "2030-01-01T00:00:00.000Z"
+              },
+              "then": [{ "content": "putBinary", "sends": { "name": "A Copy", "content": "hello", "format": "text/plain", "storageUri": "file://a-copy.txt", "cloneToken": "tok-1" } }]
             }
           ]
         },

@@ -10,7 +10,7 @@ use semiont::errors::SemiontError;
 use semiont::testing::FaultyTransport;
 use semiont::transport::{Envelope, Frame, Transport};
 use semiont::types::{
-    Annotation, AnnotationBodyValue, AnnotationTargetValue, BeckonFocusEvent,
+    Annotation, AnnotationBodies, AnnotationTargetValue, BeckonFocusEvent,
     BrowseEntityTypesRequest, GetAnnotationsResponse,
 };
 use serde_json::{Map, Value, json};
@@ -125,15 +125,13 @@ fn an_annotation_decodes_with_one_body_or_several_and_a_target_that_is_text_or_a
         .expect("one body and a text target");
     assert!(matches!(
         one.body,
-        Some(AnnotationBodyValue::AnnotationBody(_))
+        Some(AnnotationBodies::AnnotationBody(_))
     ));
     assert!(matches!(one.target, AnnotationTargetValue::Text(ref iri) if iri == "res-1"));
 
     let wire = annotation(json!([body.clone(), body]), json!({ "source": "res-1" }));
     let several: Annotation = serde_json::from_value(wire.clone()).expect("several bodies");
-    assert!(
-        matches!(several.body, Some(AnnotationBodyValue::List(ref bodies)) if bodies.len() == 2)
-    );
+    assert!(matches!(several.body, Some(AnnotationBodies::List(ref bodies)) if bodies.len() == 2));
     assert!(matches!(
         several.target,
         AnnotationTargetValue::AnnotationTarget(_)

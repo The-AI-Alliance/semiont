@@ -59,7 +59,7 @@ export { YieldNamespace } from './namespaces/yield';
 export { GenerationStallError, deriveStallDeadlineMs } from './namespaces/generation-stall';
 export { BeckonNamespace } from './namespaces/beckon';
 export { JobNamespace } from './namespaces/job';
-export { JobFailedError } from './namespaces/job-status-poll';
+export { JobCancelledError, JobFailedError } from './namespaces/job-status-poll';
 export { AuthNamespace } from './namespaces/auth';
 export { SystemNamespace } from './namespaces/system';
 export type * from './namespaces/types';

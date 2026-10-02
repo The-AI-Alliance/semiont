@@ -1,5 +1,5 @@
 {
-  "about": "a generation that says nothing: its follower gives up on it once its stall deadline has passed with nothing heard, asks for generation to be cancelled, and ends as stalled under the code every SDK reports it by; a frame of the job starts the deadline again, and the deadline the caller stated is not sent to the knowledge base",
+  "about": "a generation that says nothing: its follower gives up on it once its stall deadline has passed with nothing heard, asks for that job to be cancelled, by its id and no other, and ends as stalled under the code every SDK reports it by; a frame of the job starts the deadline again, and the deadline the caller stated is not sent to the knowledge base",
   "source": "docs/protocol/JOBS.md § Following a job; specs/src/errors/codes.json job",
   "tier": "parity",
   "steps": [
@@ -124,7 +124,7 @@
     {
       "fetch": "job:cancel-requested",
       "payload": {
-        "jobType": "generation"
+        "jobId": "job-1"
       },
       "as": "k1"
     },
