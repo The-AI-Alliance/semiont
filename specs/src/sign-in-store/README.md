@@ -27,6 +27,12 @@ Every sign-in here was issued to the script client (`script` in
 client. A session issued to any other client is not kept here: renewing it
 as the script client would be refused.
 
+Every sign-in says who signed in and at which issuer (`email`, `issuer`):
+what the access token named when the sign-in was made. A gateway admits no
+token that names no address, and none from an issuer it does not trust, so a
+session whose token lacks either is no sign-in and is not written. A writer
+that renews a sign-in keeps both as they were.
+
 A reader keeps what it does not understand: a member that is not a sign-in,
 written by a later release, is written back as it was.
 

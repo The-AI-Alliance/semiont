@@ -15,6 +15,7 @@ use axum::routing::{get, post};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use bytes::Bytes;
+use semiont::client::ClientOptions;
 use semiont::discovery::{
     DiscoveryAbsentReason, DiscoveryRead, DiscoveryState, DiscoveryTransport,
 };
@@ -24,7 +25,12 @@ use semiont::session::{
     SemiontBrowserConfig, SemiontSession, StoredSession, save_knowledge_bases, session_key,
     store_session, stored_session,
 };
+use semiont::sign_in_store::{FILE_NAME, SignInStore};
 use semiont::storage::{InMemorySessionStorage, SessionStorage};
+use semiont::testing::examples::assert_readme_shows;
+use semiont::types::JobCompleteCommand;
+use semiont_http_transport::agent::{Agent, AgentToken};
+use semiont_http_transport::client::client;
 use semiont_http_transport::discovery::http_discovery;
 use semiont_http_transport::loopback::LoopbackRedirect;
 use semiont_http_transport::oauth::{
@@ -32,12 +38,17 @@ use semiont_http_transport::oauth::{
     begin_authorization, code_challenge, complete_authorization, discover_issuer,
     refresh_at_issuer, refresh_stored_session, revoke_at_issuer, sign_in_with_device_grant,
 };
+use semiont_http_transport::service_account::{Credential, ServiceToken};
 use semiont_http_transport::session::{
-    CompleteSignInError, HttpSessionFactory, IssuedSession, SignInDevice, begin_sign_in,
-    complete_sign_in, describe_connection, session_from_issued, sign_in_device,
+    CompleteSignInError, HttpSessionFactory, IssuedSession, SignInDevice, StoredSignIn,
+    begin_sign_in, complete_sign_in, describe_connection, session_from_issued, session_from_stored,
+    sign_in_device,
 };
+use semiont_http_transport::transport::{HttpTransportConfig, Timing};
 use serde_json::{Value, json};
 use std::collections::{HashMap, VecDeque};
+use std::error::Error;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::mpsc;
@@ -186,6 +197,17 @@ async fn me(State(staged): State<Arc<Staged>>, headers: HeaderMap) -> Response {
     )
 }
 
+/// The gateway's exchange of a service account's token for an agent's.
+async fn agent_token(headers: HeaderMap) -> Response {
+    if bearer(&headers).is_empty() {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    json_answer(
+        200,
+        json!({ "token": jwt(3600, 99), "did": "did:web:example.org:agents:indexer" }),
+    )
+}
+
 async fn subscribe(State(staged): State<Arc<Staged>>, body: String) -> Response {
     staged
         .subscriptions
@@ -325,6 +347,7 @@ impl World {
                 get(resource_metadata),
             )
             .route("/api/users/me", get(me))
+            .route("/api/tokens/agent", post(agent_token))
             .route("/bus/subscribe", post(subscribe))
             .route("/bus/emit", post(emit))
             .route(
@@ -1651,4 +1674,337 @@ async fn the_loopback_redirect_gives_the_url_the_person_was_sent_back_to() {
         .expect("the listener ran")
         .expect("no failure");
     assert_eq!(callback, sent_back);
+}
+
+// ── The README's examples ───────────────────────────────────────────────
+//
+// Each fenced Rust block of README.md is one of the regions marked below,
+// word for word, and each is run here against the stand-in.
+
+async fn a_script(
+    state_home: &Path,
+    gateway: &HttpEndpoint,
+    http: reqwest::Client,
+) -> Result<String, Box<dyn Error>> {
+    // <readme:script>
+    // The sign-in `semiont login` made for the local stack. The stack's key
+    // is the knowledge base's id.
+    let store = SignInStore::at(
+        state_home.join(FILE_NAME),
+        Arc::new(InMemorySessionStorage::new()),
+        Arc::new(|why| eprintln!("{why}")),
+    );
+    let session = session_from_stored(StoredSignIn {
+        kb: KbTarget::http(
+            "local",
+            "Local",
+            &gateway.host,
+            gateway.port,
+            gateway.protocol,
+        ),
+        storage: Arc::new(store),
+        base_url: gateway.gateway_url()?,
+        validate: true,
+        on_auth_failed: None,
+        on_error: None,
+        http,
+    })
+    .await
+    .ok_or("Not signed in. Run `semiont login`.")?;
+
+    let about = session.client().browse.kb().await?;
+    session.close().await;
+    // </readme:script>
+    Ok(about.name)
+}
+
+async fn a_first_sign_in(
+    kb: KbTarget,
+    storage: Arc<dyn SessionStorage>,
+    http: reqwest::Client,
+) -> Result<SemiontSession, SignInError> {
+    // <readme:device>
+    // The issuer mints a code, and the person approves it wherever they
+    // have a browser. No password passes through this process.
+    let session = sign_in_device(
+        SignInDevice {
+            kb,
+            storage,
+            validate: true,
+            on_auth_failed: None,
+            on_error: None,
+            http,
+        },
+        |code| {
+            println!(
+                "Open {} and enter {}",
+                code.verification_uri, code.user_code
+            )
+        },
+    )
+    .await?;
+    // </readme:device>
+    Ok(session)
+}
+
+async fn a_daemon(
+    gateway: &str,
+    credential: Credential,
+    http: reqwest::Client,
+    mut done: impl FnMut(JobCompleteCommand),
+) -> Result<(), Box<dyn Error>> {
+    // <readme:daemon>
+    // A service signs in with its account, as the agent its work runs as,
+    // and stays signed in for as long as it holds the token.
+    let agent = AgentToken::sign_in(
+        gateway,
+        Agent {
+            provider: "example".to_owned(),
+            model: "indexer".to_owned(),
+        },
+        ServiceToken::new(credential, http.clone()),
+        http.clone(),
+    )
+    .await?;
+    let client = client(
+        HttpTransportConfig {
+            base_url: agent.gateway().to_owned(),
+            token: agent.token(),
+            refresher: Some(agent.clone()),
+            channels: None,
+            http,
+            timing: Timing::default(),
+            bookmarks: None,
+        },
+        ClientOptions::default(),
+    );
+
+    // Every job that completes, from now on.
+    let mut completed = client.job.complete();
+    while let Some(event) = completed.next().await {
+        if let Ok(job) = event {
+            done(job.payload);
+        }
+    }
+    // </readme:daemon>
+    Ok(())
+}
+
+async fn an_application(
+    storage: Arc<dyn SessionStorage>,
+    gateway: HttpEndpoint,
+    http: reqwest::Client,
+    open: impl FnOnce(&str),
+) -> Result<KnowledgeBase, Box<dyn Error>> {
+    // <readme:application>
+    // The registry an application holds, with its sessions over HTTP.
+    let browser = SemiontBrowser::new(SemiontBrowserConfig {
+        storage,
+        session_factory: Arc::new(HttpSessionFactory::new(http.clone())),
+    });
+
+    // A person signs in at the issuer the knowledge base trusts, in their
+    // own browser, and is sent back to a port on this machine.
+    let redirect = LoopbackRedirect::bind().await?;
+    let url = begin_sign_in(
+        &browser,
+        BeginAuthorization {
+            target: gateway,
+            redirect_uri: redirect.redirect_uri(),
+            kb_id: None,
+            expected_did: None,
+            expected_name: None,
+        },
+        &http,
+    )
+    .await?;
+    open(&url);
+    let callback = redirect.callback().await?;
+
+    // The knowledge base that answered is registered, signed in and active.
+    let signed_in = complete_sign_in(&browser, &callback, &http).await?;
+    // </readme:application>
+    browser.close().await;
+    Ok(signed_in.kb)
+}
+
+/// A state home of its own, removed when the test is done with it.
+struct StateHome(std::path::PathBuf);
+
+impl StateHome {
+    fn new() -> StateHome {
+        let dir = std::env::temp_dir().join(format!("semiont-readme-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("a directory");
+        StateHome(dir)
+    }
+}
+
+impl Drop for StateHome {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[tokio::test]
+async fn the_script_uses_the_sign_in_the_launcher_kept_and_says_so_when_there_is_none() {
+    let world = World::start().await;
+    let home = StateHome::new();
+
+    let none = a_script(&home.0, &world.target(), world.http.clone()).await;
+    assert_eq!(
+        none.err().map(|refused| refused.to_string()),
+        Some("Not signed in. Run `semiont login`.".to_owned())
+    );
+    assert!(world.staged.asked_who.lock().unwrap().is_empty());
+
+    // As `semiont login` writes it: issued to the script client.
+    let access = jwt(3600, 1);
+    std::fs::write(
+        home.0.join(FILE_NAME),
+        json!({ "local": {
+            "token": access, "refreshToken": "r1", "email": "alice@example.org",
+            "obtainedAt": "2026-10-01T12:00:00Z", "issuer": world.issuer(),
+            "tokenEndpoint": format!("{}/token", world.issuer()),
+        }})
+        .to_string(),
+    )
+    .expect("a file");
+
+    let name = a_script(&home.0, &world.target(), world.http.clone())
+        .await
+        .expect("it is signed in");
+
+    assert_eq!(name, "KB A");
+    // The token the launcher kept is the one the gateway was asked about.
+    assert_eq!(*world.staged.asked_who.lock().unwrap(), [access]);
+}
+
+#[tokio::test]
+async fn a_session_over_a_stored_sign_in_renews_at_the_issuer_the_sign_in_names() {
+    let world = World::start().await;
+    let storage = storing(&world, "a-script", &jwt(3600, 1));
+    let renewed = jwt(3600, 2);
+    world.answers([granted(&renewed, Some("r2"))]);
+
+    let session = session_from_stored(StoredSignIn {
+        kb: world.kb("a-script"),
+        storage: storage.clone(),
+        base_url: world.origin.clone(),
+        validate: false,
+        on_auth_failed: None,
+        on_error: None,
+        http: world.http.clone(),
+    })
+    .await
+    .expect("a sign-in is stored");
+
+    assert_eq!(session.refresh().await, Some(renewed.clone()));
+    assert_eq!(
+        stored_session(storage.as_ref(), "a-script"),
+        Some(world.stored(&renewed, "r2"))
+    );
+    assert_eq!(world.token_forms().len(), 1);
+    // It was not asked who it is: nobody said to.
+    assert!(world.staged.asked_who.lock().unwrap().is_empty());
+    session.close().await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_first_sign_in_shows_the_code_and_gives_a_session_that_knows_who_it_is() {
+    let world = World::start().await;
+    let storage = Arc::new(InMemorySessionStorage::new());
+    let access = jwt(3600, 1);
+    world.answers([granted(&access, Some("a-refresh-token"))]);
+
+    let session = a_first_sign_in(world.kb("a-script"), storage.clone(), world.http.clone())
+        .await
+        .expect("a session");
+
+    assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
+    assert_eq!(*world.staged.asked_who.lock().unwrap(), [access]);
+    assert!(stored_session(storage.as_ref(), "a-script").is_some());
+    session.close().await;
+}
+
+#[tokio::test]
+async fn the_daemon_signs_in_as_an_agent_and_is_given_each_completion() {
+    let world = World::start().await;
+    // The account's own token, from the issuer's client-credentials grant.
+    world.answers([granted(&jwt(3600, 1), None)]);
+    let (seen, mut completions) = mpsc::unbounded_channel();
+    let running = tokio::spawn({
+        let (gateway, issuer, http) = (world.origin.clone(), world.issuer(), world.http.clone());
+        async move {
+            a_daemon(
+                &gateway,
+                Credential {
+                    issuer,
+                    client_id: "semiont-indexer".to_owned(),
+                    client_secret: "a-secret".to_owned(),
+                },
+                http,
+                move |job| {
+                    let _ = seen.send(job.job_id);
+                },
+            )
+            .await
+            .map_err(|failed| failed.to_string())
+        }
+    });
+    until("the daemon's stream is open", || {
+        !world.staged.streams.lock().unwrap().is_empty()
+    })
+    .await;
+
+    let frame = json!({ "channel": "job:complete", "payload": {
+        "resourceId": "res-1", "jobId": "job-1", "jobType": "highlight-annotation",
+    }});
+    let event = Bytes::from(format!("event: bus-event\nid: e-1\ndata: {frame}\n\n"));
+    for stream in world.staged.streams.lock().unwrap().iter() {
+        let _ = stream.send(event.clone());
+    }
+
+    let completed = tokio::time::timeout(Duration::from_secs(10), completions.recv())
+        .await
+        .expect("the completion arrives");
+    assert_eq!(completed.as_deref(), Some("job-1"));
+    // The stream was opened as the agent, with the token the gateway gave.
+    assert_eq!(
+        world.token_forms()[0].get("grant_type").map(String::as_str),
+        Some("client_credentials")
+    );
+    running.abort();
+}
+
+#[tokio::test]
+async fn the_application_signs_a_person_in_through_the_loopback_redirect() {
+    let world = World::start().await;
+    let storage = Arc::new(InMemorySessionStorage::new());
+    let access = jwt(3600, 1);
+    world.answers([granted(&access, Some("a-refresh-token"))]);
+    let person = world.http.clone();
+
+    let kb = an_application(storage.clone(), world.target(), world.http.clone(), |url| {
+        // The person's browser: the issuer sends it back with a code.
+        let asked = query(url);
+        let sent_back = format!(
+            "{}?state={}&code=the-code",
+            asked["redirect_uri"], asked["state"]
+        );
+        tokio::spawn(async move { person.get(sent_back).send().await });
+    })
+    .await
+    .expect("the sign-in completes");
+
+    assert_eq!(kb.did, DID_A);
+    assert_eq!(
+        stored_session(storage.as_ref(), &kb.id).map(|stored| stored.access),
+        Some(access)
+    );
+}
+
+#[test]
+fn every_rust_block_of_the_readme_is_an_example_that_ran_here() {
+    assert_readme_shows(include_str!("../README.md"), &[include_str!("sign_in.rs")])
+        .unwrap_or_else(|odd| panic!("{odd}"));
 }

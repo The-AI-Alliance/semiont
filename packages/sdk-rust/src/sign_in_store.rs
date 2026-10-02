@@ -22,7 +22,9 @@
 //!
 //! A file that cannot be read or written is said to `on_failure`, and the
 //! store then behaves as if the file held nothing, or the write was not
-//! made: a `SessionStorage` has no other way to say so.
+//! made: a `SessionStorage` has no other way to say so. So is a session
+//! whose access token does not say who it is for or who issued it: the
+//! file states both of every sign-in, and nothing is made up for one.
 
 use crate::locked;
 use crate::session::{
@@ -107,19 +109,25 @@ fn session_of(entry: &Value) -> Option<StoredSession> {
 
 /// A session as the sign-in the file keeps. Renewing an entry keeps what
 /// the sign-in learned and a renewal does not: who signed in, and at which
-/// issuer. A new entry states them when its token does.
-fn entry_of(session: &StoredSession, before: Option<&Value>, now: SystemTime) -> Value {
+/// issuer. A new entry states them as its access token does. A token the
+/// gateway admits names both, so one that does not is no sign-in, and is
+/// refused with what it lacks.
+fn entry_of(
+    session: &StoredSession,
+    before: Option<&Value>,
+    now: SystemTime,
+) -> Result<Value, &'static str> {
     let before: Option<SignIn> =
         before.and_then(|entry| serde_json::from_value(entry.clone()).ok());
     let (email, issuer) = match before {
         Some(before) => (before.email, before.issuer),
         None => (
-            text_claim(&session.access, "email"),
-            text_claim(&session.access, "iss"),
+            text_claim(&session.access, "email").ok_or("its access token names no email")?,
+            text_claim(&session.access, "iss").ok_or("its access token names no issuer")?,
         ),
     };
     // A struct of strings always serializes to an object.
-    serde_json::to_value(SignIn {
+    Ok(serde_json::to_value(SignIn {
         token: session.access.clone(),
         refresh_token: Some(session.refresh.clone()),
         email,
@@ -129,7 +137,7 @@ fn entry_of(session: &StoredSession, before: Option<&Value>, now: SystemTime) ->
         token_endpoint: session.token_endpoint.clone(),
         revocation_endpoint: session.revocation_endpoint.clone(),
     })
-    .unwrap_or(Value::Null)
+    .unwrap_or(Value::Null))
 }
 
 /// Told that the file could not be read or written, with why.
@@ -240,8 +248,9 @@ impl SignInStore {
 
     /// Put `next` under the session key of `kb_id`: a session of the script
     /// client in the file, any other value beneath it, and nothing in
-    /// neither. `document` is the file's, held under the lock. Whether the
-    /// document changed.
+    /// neither. A session of the script client that is no sign-in is kept
+    /// nowhere, and that is said. `document` is the file's, held under the
+    /// lock. Whether the document changed.
     fn put(
         &self,
         document: &mut Map<String, Value>,
@@ -251,10 +260,19 @@ impl SignInStore {
     ) -> bool {
         match (next, next.and_then(StoredSession::read)) {
             (_, Some(session)) if session.client_id == SCRIPT_CLIENT_ID => {
-                let entry = entry_of(&session, document.get(kb_id), SystemTime::now());
-                document.insert(kb_id.to_owned(), entry);
-                self.rest.delete(key);
-                true
+                match entry_of(&session, document.get(kb_id), SystemTime::now()) {
+                    Ok(entry) => {
+                        document.insert(kb_id.to_owned(), entry);
+                        self.rest.delete(key);
+                        true
+                    }
+                    Err(lacking) => {
+                        (self.on_failure)(&format!(
+                            "The sign-in to {kb_id} was not kept: {lacking}"
+                        ));
+                        false
+                    }
+                }
             }
             (Some(next), _) => {
                 self.rest.set(key, next);

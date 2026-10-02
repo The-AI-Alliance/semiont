@@ -15,6 +15,9 @@
 //! `semiont-http-transport` carries it over a gateway.
 
 #![forbid(unsafe_code)]
+// What arrives off the wire is never assumed to be what was expected, and
+// neither is anything else: the library has no `unwrap` and no `expect`.
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
 pub mod bus;
 pub mod bus_log;

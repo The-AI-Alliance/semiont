@@ -9,9 +9,12 @@
 //! client's own bus.
 
 use bytes::Bytes;
-use semiont::client::{ClientOptions, SemiontClient};
+use semiont::client::SemiontClient;
 use semiont::namespaces::{MarkAssistOptions, ResourceFilters};
-use semiont::testing::{ContentCall, FaultyTransport, InMemoryContent, StubGateway};
+use semiont::testing::{
+    ContentCall, FaultyTransport, InMemoryContent, StubGateway, TestClientOptions,
+    create_test_client,
+};
 use semiont::transport::{Envelope, Frame, PutBinaryRequest};
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value, json};
@@ -89,12 +92,13 @@ fn world() -> World {
     let transport = FaultyTransport::new(vec![]);
     let content = InMemoryContent::new();
     let gateway = StubGateway::new();
-    let client = Arc::new(SemiontClient::new(
-        Arc::new(transport.clone()),
-        Arc::new(content.clone()),
-        Some(Arc::new(gateway.clone())),
-        ClientOptions::default(),
-    ));
+    let client = create_test_client(TestClientOptions {
+        transport: Some(transport.clone()),
+        content: Some(content.clone()),
+        gateway: Some(Arc::new(gateway.clone())),
+        ..TestClientOptions::default()
+    })
+    .client;
     World {
         client,
         transport,

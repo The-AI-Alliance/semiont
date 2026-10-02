@@ -13,6 +13,9 @@
 //! document over HTTP (`discovery`). A service links none of those.
 
 #![forbid(unsafe_code)]
+// What arrives off the wire is never assumed to be what was expected, and
+// neither is anything else: the library has no `unwrap` and no `expect`.
+#![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
 mod actor;
 pub mod agent;

@@ -63,7 +63,7 @@ your app            (product logic, routing, composition)
    │
 framework binding   @semiont/react-ui — React components + hooks
    │
-language SDK        @semiont/sdk (TypeScript) · sdk-go · more planned
+language SDK        @semiont/sdk (TypeScript) · semiont (Rust) · sdk-go · more planned
    │
 the contract        bus protocol, annotation model, job lifecycle
    │
@@ -79,11 +79,16 @@ believe them at first:
    a projection of the contract.
 
 2. **Language SDKs are peers.** This book uses `@semiont/sdk` — the
-   TypeScript/npm SDK, the most complete — as its vehicle. A Go SDK
-   (`sdk-go`) exists today; Python, Java, and Swift SDKs are planned. The
-   concepts in these docs transfer across SDKs; the syntax doesn't. If you're
-   reading this from another language, treat the TypeScript as pseudocode with
-   a working implementation.
+   TypeScript/npm SDK — as its vehicle. The Rust SDK
+   ([`semiont`](../../sdk-rust/README.md), with
+   [`semiont-http-transport`](../../http-transport-rust/README.md)) has the
+   same client, cache, state units and sessions, and is held to the same
+   shared case tables and conformance suite; its README maps each shape in
+   this book to its Rust form. A Go SDK (`sdk-go`) exists today; Python,
+   Java, and Swift SDKs are planned. The concepts in these docs transfer
+   across SDKs; the syntax doesn't. If you're reading this from another
+   language, treat the TypeScript as pseudocode with a working
+   implementation.
 
 3. **Framework bindings sit above the SDK, not inside it.**
    [`@semiont/react-ui`](../../react-ui/) is the one supported binding today.
@@ -112,7 +117,7 @@ throughout [`docs/protocol/flows/`](../../../docs/protocol/flows/):
 | `match` | search the corpus for candidate documents |
 | `beckon` | coordinate attention across participants |
 
-Plus `job` for tracking long-running work, and `auth` / `admin` when the client
+Plus `job` for tracking long-running work, and `auth` / `system` when the client
 is built against an HTTP gateway. Learn all eight once and the surface stays
 small — but you only need three in your first hour: `yield` to put a document
 in, `gather` to collect what's related, `browse` to read it all back.

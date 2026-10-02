@@ -57,6 +57,13 @@ to the bus". Add STATE-UNITS when your app grows coordinated page/flow state.
 Write tests with [`@semiont/sdk/testing`](./DEVELOPER-GUIDE.md#testing-your-consumer--semiontsdktesting)
 from day one.
 
+**"I'm building in Rust"** — INTRODUCTION for the model, then the Rust SDK's
+[README](../../sdk-rust/README.md): its three ways to use the client, and the
+table that maps each TypeScript shape in these docs to its Rust form.
+[`semiont-http-transport`](../../http-transport-rust/README.md) has the
+sessions and signing in. CACHE-SEMANTICS and STATE-UNITS are contracts of both
+SDKs: the Rust tests cite the same clause numbers.
+
 **"I'm changing the SDK itself"** —
 REACTIVE-MODEL and STATE-UNITS first (the design constraints your change must
 fit), CACHE-SEMANTICS before touching anything the cache backs, and the

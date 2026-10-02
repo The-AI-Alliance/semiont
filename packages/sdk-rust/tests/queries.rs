@@ -12,7 +12,7 @@ use semiont::client::{CachePersistence, ClientOptions, ClientTiming, SemiontClie
 use semiont::namespaces::ResourceFilters;
 use semiont::storage::InMemorySessionStorage;
 use semiont::testing::liveness::{LivenessScenario, LivenessSpec, assert_liveness_axioms};
-use semiont::testing::{FaultyTransport, InMemoryContent};
+use semiont::testing::{FaultyTransport, TestClientOptions, create_test_client};
 use semiont::transport::{ConnectionState, Envelope, STREAM_BACKLOG};
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
@@ -111,16 +111,16 @@ fn options(persistence: Option<CachePersistence>) -> ClientOptions {
 fn client_over(
     transport: &FaultyTransport,
     persistence: Option<CachePersistence>,
-) -> SemiontClient {
-    SemiontClient::new(
-        Arc::new(transport.clone()),
-        Arc::new(InMemoryContent::new()),
-        None,
-        options(persistence),
-    )
+) -> Arc<SemiontClient> {
+    create_test_client(TestClientOptions {
+        transport: Some(transport.clone()),
+        client: options(persistence),
+        ..TestClientOptions::default()
+    })
+    .client
 }
 
-fn world() -> (SemiontClient, FaultyTransport) {
+fn world() -> (Arc<SemiontClient>, FaultyTransport) {
     let transport = FaultyTransport::answering(vec![], answers(&[]));
     (client_over(&transport, None), transport)
 }
@@ -201,7 +201,7 @@ const READS: [&str; 9] = [
 /// A watcher of every query, of two resources: what a busy viewer holds.
 struct Everything {
     transport: FaultyTransport,
-    client: SemiontClient,
+    client: Arc<SemiontClient>,
     _watching: Vec<Box<dyn std::any::Any + Send>>,
     before: [usize; 9],
 }
@@ -796,18 +796,18 @@ fn l1_l2_a_watcher_is_given_a_value_or_a_failure_and_a_read_settles_under_every_
     const TIMEOUT: Duration = Duration::from_millis(200);
     let outcome = assert_liveness_axioms(LivenessSpec {
         setup: |transport: FaultyTransport| {
-            let client = Arc::new(SemiontClient::new(
-                Arc::new(transport),
-                Arc::new(InMemoryContent::new()),
-                None,
-                ClientOptions {
+            let client = create_test_client(TestClientOptions {
+                transport: Some(transport),
+                client: ClientOptions {
                     timing: ClientTiming {
                         bus_request: TIMEOUT,
                         ..ClientTiming::default()
                     },
                     cache_persistence: None,
                 },
-            ));
+                ..TestClientOptions::default()
+            })
+            .client;
             let said = |mut watcher: Observed<_>, client: Arc<SemiontClient>| async move {
                 while let Some(state) = watcher.next().await {
                     if state != CacheState::Pending {

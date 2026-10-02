@@ -1069,11 +1069,9 @@ mod tests {
     //! these call the checks themselves.
 
     use super::*;
-    use crate::client::{ClientOptions, SemiontClient};
     use crate::identity::kb_did;
-    use crate::session::{HttpEndpoint, Protocol, SemiontSessionConfig};
-    use crate::testing::{FaultyTransport, InMemoryContent, SharedStorage};
-    use crate::transport::BoxFuture;
+    use crate::session::{HttpEndpoint, Protocol};
+    use crate::testing::{ScriptedSessions, SharedStorage};
     use serde_json::{Value, json};
     use std::collections::HashSet;
     use std::time::Duration;
@@ -1088,39 +1086,33 @@ mod tests {
         gone: HashSet<String>,
     }
 
-    /// The gateways, by knowledge base id.
-    #[derive(Clone, Default)]
+    /// Scripted sessions of knowledge bases that say what the test told
+    /// them to, and every request one answered: the knowledge base's id
+    /// and the operation.
     struct Gateways {
+        sessions: ScriptedSessions,
         said: Arc<Mutex<HashMap<String, Says>>>,
-        /// Every request a gateway answered: the knowledge base's id and
-        /// the operation.
         answered: Arc<Mutex<Vec<(String, String)>>>,
     }
 
-    impl Gateways {
-        fn says(&self, kb_id: &str, description: Value, gone: &[&str]) {
-            let gone = gone.iter().map(|id| (*id).to_owned()).collect();
-            locked(&self.said).insert(kb_id.to_owned(), Says { description, gone });
-        }
+    fn asked_about(payload: &serde_json::Map<String, Value>) -> String {
+        payload
+            .get("resourceId")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
     }
 
-    impl SessionFactory for Gateways {
-        fn session(&self, options: SessionFactoryOptions) -> Result<SemiontSession, SessionError> {
-            let (answering, refusing) = (self.said.clone(), self.said.clone());
-            let (answers_for, refuses_for) = (options.kb.id.clone(), options.kb.id.clone());
-            let answered = self.answered.clone();
-            let asked_about = |payload: &serde_json::Map<String, Value>| {
-                payload
-                    .get("resourceId")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_owned()
-            };
-            let transport = FaultyTransport::answering(vec![], move |operation, payload| {
-                locked(&answered).push((answers_for.clone(), operation.to_owned()));
+    impl Gateways {
+        fn new() -> Gateways {
+            let said: Arc<Mutex<HashMap<String, Says>>> = Arc::default();
+            let answered: Arc<Mutex<Vec<(String, String)>>> = Arc::default();
+            let (answering, refusing, recording) = (said.clone(), said.clone(), answered.clone());
+            let sessions = ScriptedSessions::answering(move |kb_id, operation, payload| {
+                locked(&recording).push((kb_id.to_owned(), operation.to_owned()));
                 match operation {
                     "browse:kb-requested" => locked(&answering)
-                        .get(&answers_for)
+                        .get(kb_id)
                         .map(|says| Some(says.description.clone()))
                         .ok_or_else(|| "the knowledge base does not answer".to_owned()),
                     "browse:resource-requested" => {
@@ -1136,32 +1128,23 @@ mod tests {
                     other => Err(format!("{other} is not answered here")),
                 }
             });
-            transport.refuse_when(move |operation, payload| {
+            sessions.refuse_when(move |kb_id, operation, payload| {
                 let gone = locked(&refusing)
-                    .get(&refuses_for)
+                    .get(kb_id)
                     .is_some_and(|says| says.gone.contains(&asked_about(payload)));
                 (operation == "browse:resource-requested" && gone)
                     .then(|| json!({ "code": "not-found", "message": "no such resource" }))
             });
-            Ok(SemiontSession::new(SemiontSessionConfig {
-                kb: options.kb.target(),
-                storage: options.storage,
-                client: Arc::new(SemiontClient::new(
-                    Arc::new(transport),
-                    Arc::new(InMemoryContent::new()),
-                    None,
-                    ClientOptions::default(),
-                )),
-                token: watch::channel(None).0,
-                refresh: None,
-                validate: None,
-                on_auth_failed: None,
-                on_error: None,
-            }))
+            Gateways {
+                sessions,
+                said,
+                answered,
+            }
         }
 
-        fn revoke(&self, _: StoredSession) -> BoxFuture<'static, ()> {
-            Box::pin(async {})
+        fn says(&self, kb_id: &str, description: Value, gone: &[&str]) {
+            let gone = gone.iter().map(|id| (*id).to_owned()).collect();
+            locked(&self.said).insert(kb_id.to_owned(), Says { description, gone });
         }
     }
 
@@ -1199,7 +1182,7 @@ mod tests {
         );
         let browser = SemiontBrowser::new(SemiontBrowserConfig {
             storage: storage.clone(),
-            session_factory: Arc::new(gateways.clone()),
+            session_factory: Arc::new(gateways.sessions.clone()),
         });
         let mut live = browser.active_session();
         tokio::time::timeout(Duration::from_secs(60), live.wait_for(Option::is_some))
@@ -1211,6 +1194,7 @@ mod tests {
 
         let [of_a, _] = kbs;
         let stale = gateways
+            .sessions
             .session(SessionFactoryOptions {
                 kb: of_a,
                 storage,
@@ -1238,7 +1222,7 @@ mod tests {
     async fn the_checks_of_a_replaced_session_are_of_its_own_knowledge_base_and_change_nothing_shown()
      {
         // One knowledge base in two places: one did, and each entry its own.
-        let gateways = Gateways::default();
+        let gateways = Gateways::new();
         let at = |name: &str, branch: &str| json!({ "name": name, "domain": "example.org", "gitBranch": branch });
         gateways.says(A, at("At A", "branch-a"), &["r1"]);
         gateways.says(B, at("At B", "branch-b"), &[]);
@@ -1265,7 +1249,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn a_conflict_a_replaced_session_finds_voids_nothing_and_is_not_raised() {
-        let gateways = Gateways::default();
+        let gateways = Gateways::new();
         gateways.says(
             A,
             json!({ "name": "Another", "domain": "elsewhere.example" }),

@@ -5,8 +5,9 @@
 //! `callback` for the URL they came back to.
 //!
 //! The issuer sends a person back only to an address its registration of
-//! the client lists, so the realm must list the loopback address for this
-//! to complete.
+//! the client lists. The realm a Semiont launcher renders lists the loopback
+//! address for the browser client with no port, which admits any port
+//! (RFC 8252 §7.3).
 
 use std::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

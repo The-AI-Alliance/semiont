@@ -363,8 +363,7 @@ pub fn assert_state_unit_axioms<S: AxiomSubject>(subject: &S) -> Result<(), Stri
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::ClientOptions;
-    use crate::testing::{FaultyTransport, InMemoryContent};
+    use crate::testing::{TestClientOptions, create_test_client};
     use std::sync::Mutex;
 
     type Value = Arc<Mutex<Option<watch::Sender<u32>>>>;
@@ -547,12 +546,7 @@ mod tests {
         type Unit = ClosesItsClient;
 
         fn setup(&self) -> Fresh<ClosesItsClient> {
-            let client = Arc::new(SemiontClient::new(
-                Arc::new(FaultyTransport::new(vec![])),
-                Arc::new(InMemoryContent::new()),
-                None,
-                ClientOptions::default(),
-            ));
+            let client = create_test_client(TestClientOptions::default()).client;
             Fresh::of(ClosesItsClient(client.clone())).given(client)
         }
     }

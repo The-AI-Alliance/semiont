@@ -99,6 +99,14 @@ fn jwt(claims: Value) -> String {
     )
 }
 
+const ISSUER: &str = "https://issuer.test/realms/semiont";
+
+/// An access token as an issuer the gateway trusts issues one: it names who
+/// it is for and who issued it. `tag` tells one from another.
+fn issued(tag: &str) -> String {
+    jwt(json!({ "iss": ISSUER, "email": "bob@example.org", "tag": tag }))
+}
+
 /// An entry as `semiont login` writes one.
 fn launchers(token: &str, refresh: &str) -> Value {
     json!({
@@ -107,7 +115,7 @@ fn launchers(token: &str, refresh: &str) -> Value {
         "email": "alice@example.org",
         "obtainedAt": "2026-10-01T12:00:00Z",
         "expiresAt": "2026-10-01T12:05:00Z",
-        "issuer": "https://issuer.test/realms/semiont",
+        "issuer": ISSUER,
         "tokenEndpoint": "https://issuer.test/realms/semiont/token",
         "revocationEndpoint": "https://issuer.test/realms/semiont/revoke",
     })
@@ -147,11 +155,23 @@ fn a_sign_in_that_cannot_be_renewed_is_no_session() {
         .as_object_mut()
         .expect("an entry")
         .remove("refreshToken");
-    let home = Home::holding(json!({ "local": without_refresh, "other": "not an entry" }));
+    // Nor is an entry that does not say who signed in, or at which issuer.
+    let mut by_nobody = launchers("a1", "r1");
+    by_nobody.as_object_mut().expect("an entry").remove("email");
+    let mut from_nowhere = launchers("a1", "r1");
+    from_nowhere
+        .as_object_mut()
+        .expect("an entry")
+        .remove("issuer");
+    let home = Home::holding(json!({
+        "local": without_refresh, "other": "not an entry",
+        "by-nobody": by_nobody, "from-nowhere": from_nowhere,
+    }));
     let store = home.store();
 
-    assert_eq!(stored_session(&store, "local"), None);
-    assert_eq!(stored_session(&store, "other"), None);
+    for key in ["local", "other", "by-nobody", "from-nowhere"] {
+        assert_eq!(stored_session(&store, key), None, "{key}");
+    }
 }
 
 #[test]
@@ -208,7 +228,7 @@ fn a_renewal_is_written_as_the_launcher_keeps_it_and_keeps_what_the_sign_in_lear
 fn the_file_is_written_whole_for_its_owner_alone() {
     use std::os::unix::fs::PermissionsExt;
     let home = Home::new();
-    store_session(&home.store(), "local", &script("a1", "r1"));
+    store_session(&home.store(), "local", &script(&issued("a1"), "r1"));
 
     let text = std::fs::read_to_string(home.path()).expect("the file is there");
     assert!(
@@ -236,31 +256,63 @@ fn the_file_is_written_whole_for_its_owner_alone() {
 }
 
 #[test]
-fn a_new_sign_in_states_who_and_where_when_its_token_does() {
+fn a_new_sign_in_states_who_signed_in_and_at_which_issuer() {
     let home = Home::new();
     let store = home.store();
-    let named = jwt(json!({
-        "iss": "https://issuer.test/realms/semiont", "email": "bob@example.org", "exp": 4_102_444_799u64,
-    }));
+    let named = jwt(json!({ "iss": ISSUER, "email": "bob@example.org", "exp": 4_102_444_799u64 }));
 
     store_session(&store, "local", &script(&named, "r1"));
-    store_session(&store, "codespace:owner/name", &script("opaque", "r2"));
+    store_session(&store, "codespace:owner/name", &script(&issued("a2"), "r2"));
 
-    let document = home.document();
-    assert_eq!(document["local"]["email"], "bob@example.org");
     assert_eq!(
-        document["local"]["issuer"],
-        "https://issuer.test/realms/semiont"
+        home.document()["local"],
+        json!({
+            "token": named,
+            "refreshToken": "r1",
+            "email": "bob@example.org",
+            "obtainedAt": home.document()["local"]["obtainedAt"],
+            "expiresAt": "2099-12-31T23:59:59Z",
+            "issuer": ISSUER,
+            "tokenEndpoint": "https://issuer.test/realms/semiont/token",
+            "revocationEndpoint": "https://issuer.test/realms/semiont/revoke",
+        })
     );
-    // A token that says neither leaves both unsaid: nothing is made up.
-    let unnamed = document["codespace:owner/name"]
-        .as_object()
-        .expect("an entry");
-    assert!(!unnamed.contains_key("email") && !unnamed.contains_key("issuer"));
-    assert!(!unnamed.contains_key("expiresAt"));
+    // A token that names no lifetime leaves the expiry unsaid.
+    let unbounded = home.document()["codespace:owner/name"].clone();
+    assert!(
+        !unbounded
+            .as_object()
+            .expect("an entry")
+            .contains_key("expiresAt")
+    );
+    assert!(home.failures().is_empty(), "{:?}", home.failures());
+}
+
+#[test]
+fn a_session_whose_token_does_not_say_who_or_which_issuer_is_not_kept_and_that_is_said() {
+    let home = Home::holding(json!({ "codespace:owner/name": launchers("a2", "r2") }));
+    let store = home.store();
+    let by_nobody = jwt(json!({ "iss": ISSUER }));
+    let from_nowhere = jwt(json!({ "email": "bob@example.org" }));
+
+    store_session(&store, "local", &script(&by_nobody, "r1"));
+    store_session(&store, "local", &script(&from_nowhere, "r1"));
+    store_session(&store, "local", &script("opaque", "r1"));
+
+    // Nothing is made up for it, and it is kept nowhere.
     assert_eq!(
-        unnamed["tokenEndpoint"],
-        "https://issuer.test/realms/semiont/token"
+        home.document(),
+        json!({ "codespace:owner/name": launchers("a2", "r2") })
+    );
+    assert_eq!(stored_session(&store, "local"), None);
+    assert_eq!(home.rest.get(&session_key("local")), None);
+    assert_eq!(
+        home.failures(),
+        [
+            "The sign-in to local was not kept: its access token names no email",
+            "The sign-in to local was not kept: its access token names no issuer",
+            "The sign-in to local was not kept: its access token names no email",
+        ]
     );
 }
 
@@ -395,7 +447,7 @@ fn two_writers_of_one_file_lose_nothing_of_each_others() {
             let store = home.store();
             std::thread::spawn(move || {
                 for n in 0..rounds {
-                    store_session(&store, key, &script(&format!("{key}-{n}"), "r"));
+                    store_session(&store, key, &script(&issued(&format!("{key}-{n}")), "r"));
                 }
             })
         })
@@ -406,10 +458,10 @@ fn two_writers_of_one_file_lose_nothing_of_each_others() {
 
     let document = home.document();
     let last = rounds - 1;
-    assert_eq!(document["local"]["token"], format!("local-{last}"));
+    assert_eq!(document["local"]["token"], issued(&format!("local-{last}")));
     assert_eq!(
         document["codespace:owner/name"]["token"],
-        format!("codespace:owner/name-{last}")
+        issued(&format!("codespace:owner/name-{last}"))
     );
     assert!(home.failures().is_empty(), "{:?}", home.failures());
 }

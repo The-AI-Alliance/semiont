@@ -6,7 +6,7 @@
 //! here is bounded: a unit that never acts fails its test, and does not
 //! hang it.
 
-use semiont::client::{ClientOptions, SemiontClient};
+use semiont::client::SemiontClient;
 use semiont::event_bus::BusFrames;
 use semiont::state::{
     BeckonStateUnit, GatherStateUnit, HoverDwell, MarkStateUnit, MatchStateUnit, PendingAnnotation,
@@ -14,7 +14,9 @@ use semiont::state::{
 };
 use semiont::state_unit::StateUnit;
 use semiont::testing::axioms::{AxiomSubject, Fresh, Surface, assert_state_unit_axioms};
-use semiont::testing::{FaultAction, FaultyTransport, InMemoryContent, RequestLogEntry};
+use semiont::testing::{
+    FaultAction, FaultyTransport, RequestLogEntry, TestClientOptions, create_test_client,
+};
 use semiont::timing::{ASSIST_SILENCE, BUS_REQUEST_TIMEOUT, HOVER_DELAY, SEARCH_DEBOUNCE};
 use semiont::transport::{Envelope, Frame};
 use semiont::types::{
@@ -34,12 +36,11 @@ fn object(value: Value) -> Map<String, Value> {
 }
 
 fn client_over(transport: &FaultyTransport) -> Arc<SemiontClient> {
-    Arc::new(SemiontClient::new(
-        Arc::new(transport.clone()),
-        Arc::new(InMemoryContent::new()),
-        None,
-        ClientOptions::default(),
-    ))
+    create_test_client(TestClientOptions {
+        transport: Some(transport.clone()),
+        ..TestClientOptions::default()
+    })
+    .client
 }
 
 /// A transport that answers nothing, and its client.

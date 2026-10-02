@@ -3,31 +3,28 @@
 //! knowledge base that answered, what is open in each, and what a session's
 //! arrival checks.
 //!
-//! Sessions are built by a scripted factory over a scripted transport: a
-//! test says what each knowledge base answers when asked who it is and what
-//! of each resource, and reads what was asked. Every wait is bounded.
+//! Sessions are built by `ScriptedSessions`, each over a scripted transport:
+//! a test says what each knowledge base answers when asked who it is and
+//! what of each resource, and reads what was asked. Every wait is bounded.
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use semiont::client::{ClientOptions, SemiontClient};
-use semiont::errors::{SessionError, SessionErrorCode, TransportError};
+use semiont::errors::{SessionErrorCode, TransportError};
 use semiont::session::{
     ACTIVE_KEY, Expected, HttpEndpoint, KNOWLEDGE_BASES_KEY, KbEndpoint, KbIdentityConflict,
     KbRead, KbReadVerdict, KbSessionStatus, KnowledgeBase, LAST_VIEWED_RESOURCE_BY_KB_KEY,
     NewKnowledgeBase, OPEN_RESOURCES_BY_KB_KEY, OpenResource, Protocol, SemiontBrowser,
-    SemiontBrowserConfig, SemiontSession, SemiontSessionConfig, SessionFactory,
-    SessionFactoryOptions, SessionNotice, SignedIn, StoredSession, save_knowledge_bases,
-    session_key, store_session, stored_session,
+    SemiontBrowserConfig, SemiontSession, SessionNotice, SignedIn, StoredSession,
+    save_knowledge_bases, session_key, store_session, stored_session,
 };
 use semiont::storage::SessionStorage;
-use semiont::testing::{FaultyTransport, InMemoryContent, SharedStorage};
-use semiont::transport::{BoxFuture, ConnectionState, Transport};
+use semiont::testing::{FaultyTransport, ScriptedSessions, SharedStorage};
+use semiont::transport::{ConnectionState, Transport};
 use semiont::types::UserResponse;
 use serde_json::{Value, json};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::sync::watch;
 
 // ── The knowledge bases behind the factory ──────────────────────────────
 
@@ -48,19 +45,13 @@ struct Behind {
     /// Resources whose read fails some other way.
     failing: HashSet<String>,
     media_types: HashMap<String, String>,
-    /// What `refresh` answers, in order; `Ok(None)` once it is spent.
-    renewals: VecDeque<Result<Option<String>, String>>,
-    renewed: usize,
-    refuses_to_build: bool,
-    /// How long the gateway takes to say who a token is.
-    answers_after: Duration,
-    /// Every session built, in order: its knowledge base and its transport.
-    built: Vec<(String, FaultyTransport)>,
-    revoked: Vec<StoredSession>,
 }
 
-#[derive(Clone, Default)]
+/// Scripted sessions, and what their knowledge bases say of themselves and
+/// of each resource.
+#[derive(Clone)]
 struct Factory {
+    sessions: ScriptedSessions,
     behind: Arc<Mutex<Behind>>,
 }
 
@@ -73,61 +64,13 @@ fn alice() -> UserResponse {
 }
 
 impl Factory {
-    fn behind(&self) -> std::sync::MutexGuard<'_, Behind> {
-        self.behind.lock().expect("behind")
-    }
-
-    fn describes(&self, kb_id: &str, description: Value) {
-        self.behind()
-            .describes
-            .insert(kb_id.to_owned(), Describes::As(description));
-    }
-
-    /// The transports of the sessions built for a knowledge base, in order.
-    fn transports(&self, kb_id: &str) -> Vec<FaultyTransport> {
-        self.behind()
-            .built
-            .iter()
-            .filter(|(built_for, _)| built_for == kb_id)
-            .map(|(_, transport)| transport.clone())
-            .collect()
-    }
-
-    /// The resources a knowledge base's sessions were asked about, in order.
-    fn asked_about(&self, kb_id: &str) -> Vec<String> {
-        self.transports(kb_id)
-            .iter()
-            .flat_map(|transport| transport.request_log())
-            .filter(|entry| entry.channel == "browse:resource-requested")
-            .filter_map(|entry| entry.payload["resourceId"].as_str().map(str::to_owned))
-            .collect()
-    }
-
-    fn asked_who(&self, kb_id: &str) -> usize {
-        self.transports(kb_id)
-            .iter()
-            .flat_map(|transport| transport.request_log())
-            .filter(|entry| entry.channel == "browse:kb-requested")
-            .count()
-    }
-}
-
-impl SessionFactory for Factory {
-    fn session(&self, options: SessionFactoryOptions) -> Result<SemiontSession, SessionError> {
-        let kb_id = options.kb.id.clone();
-        if self.behind().refuses_to_build {
-            return Err(SessionError::new(
-                SessionErrorCode::ConstructFailed,
-                "this factory builds nothing",
-                &kb_id,
-            ));
-        }
-        let (answering, refusing) = (self.behind.clone(), self.behind.clone());
-        let (answers_for, refuses_for) = (kb_id.clone(), kb_id.clone());
-        let transport = FaultyTransport::answering(vec![], move |operation, payload| {
+    fn new() -> Factory {
+        let behind: Arc<Mutex<Behind>> = Arc::default();
+        let (answering, refusing) = (behind.clone(), behind.clone());
+        let sessions = ScriptedSessions::answering(move |kb_id, operation, payload| {
             let behind = answering.lock().expect("behind");
             match operation {
-                "browse:kb-requested" => match behind.describes.get(&answers_for) {
+                "browse:kb-requested" => match behind.describes.get(kb_id) {
                     Some(Describes::As(description)) => Ok(Some(description.clone())),
                     _ => Err("the knowledge base does not answer".to_owned()),
                 },
@@ -153,14 +96,13 @@ impl SessionFactory for Factory {
                 other => Err(format!("{other} is not answered here")),
             }
         });
-        transport.refuse_when(move |operation, payload| {
+        sessions.refuse_when(move |kb_id, operation, payload| {
             let behind = refusing.lock().expect("behind");
             match operation {
-                "browse:kb-requested" => matches!(
-                    behind.describes.get(&refuses_for),
-                    Some(Describes::Refusing)
-                )
-                .then(|| json!({ "message": "this knowledge base cannot say what it is" })),
+                "browse:kb-requested" => {
+                    matches!(behind.describes.get(kb_id), Some(Describes::Refusing))
+                        .then(|| json!({ "message": "this knowledge base cannot say what it is" }))
+                }
                 "browse:resource-requested" => behind
                     .gone
                     .contains(payload["resourceId"].as_str().unwrap_or_default())
@@ -168,45 +110,41 @@ impl SessionFactory for Factory {
                 _ => None,
             }
         });
-        self.behind().built.push((kb_id.clone(), transport.clone()));
-
-        let renewing = self.behind.clone();
-        let answers_after = self.behind().answers_after;
-        let signals = options.signals;
-        Ok(SemiontSession::new(SemiontSessionConfig {
-            kb: options.kb.target(),
-            storage: options.storage,
-            client: Arc::new(SemiontClient::new(
-                Arc::new(transport),
-                Arc::new(InMemoryContent::new()),
-                None,
-                ClientOptions::default(),
-            )),
-            token: watch::channel(None).0,
-            refresh: Some(Arc::new(move || {
-                let answer = {
-                    let mut behind = renewing.lock().expect("behind");
-                    behind.renewed += 1;
-                    behind.renewals.pop_front().unwrap_or(Ok(None))
-                };
-                Box::pin(async move { answer })
-            })),
-            validate: Some(Arc::new(move |_| {
-                Box::pin(async move {
-                    tokio::time::sleep(answers_after).await;
-                    Ok(alice())
-                })
-            })),
-            on_auth_failed: Some(Arc::new(move |message| {
-                signals.notify_session_expired(Some(message));
-            })),
-            on_error: Some(options.on_error),
-        }))
+        sessions.says_who(alice());
+        Factory { sessions, behind }
     }
 
-    fn revoke(&self, stored: StoredSession) -> BoxFuture<'static, ()> {
-        let behind = self.behind.clone();
-        Box::pin(async move { behind.lock().expect("behind").revoked.push(stored) })
+    fn behind(&self) -> std::sync::MutexGuard<'_, Behind> {
+        self.behind.lock().expect("behind")
+    }
+
+    fn describes(&self, kb_id: &str, description: Value) {
+        self.behind()
+            .describes
+            .insert(kb_id.to_owned(), Describes::As(description));
+    }
+
+    /// The transports of the sessions built for a knowledge base, in order.
+    fn transports(&self, kb_id: &str) -> Vec<FaultyTransport> {
+        self.sessions.transports(kb_id)
+    }
+
+    /// The resources a knowledge base's sessions were asked about, in order.
+    fn asked_about(&self, kb_id: &str) -> Vec<String> {
+        self.transports(kb_id)
+            .iter()
+            .flat_map(|transport| transport.request_log())
+            .filter(|entry| entry.channel == "browse:resource-requested")
+            .filter_map(|entry| entry.payload["resourceId"].as_str().map(str::to_owned))
+            .collect()
+    }
+
+    fn asked_who(&self, kb_id: &str) -> usize {
+        self.transports(kb_id)
+            .iter()
+            .flat_map(|transport| transport.request_log())
+            .filter(|entry| entry.channel == "browse:kb-requested")
+            .count()
     }
 }
 
@@ -275,7 +213,7 @@ impl World {
     fn new() -> World {
         World {
             storage: Arc::new(SharedStorage::new()),
-            factory: Factory::default(),
+            factory: Factory::new(),
         }
     }
 
@@ -300,7 +238,7 @@ impl World {
     fn browser_over(&self, storage: Arc<SharedStorage>) -> SemiontBrowser {
         SemiontBrowser::new(SemiontBrowserConfig {
             storage,
-            session_factory: Arc::new(self.factory.clone()),
+            session_factory: Arc::new(self.factory.sessions.clone()),
         })
     }
 
@@ -620,7 +558,7 @@ async fn an_activation_overtaken_while_it_waited_its_turn_builds_no_session() {
     live(&browser).await;
     // The first activation holds the turn while its session comes up, and
     // the other two are asked for behind it.
-    world.factory.behind().answers_after = Duration::from_secs(2);
+    world.factory.sessions.answers_after(Duration::from_secs(2));
 
     tokio::join!(
         browser.set_active_kb(Some(B)),
@@ -638,7 +576,7 @@ async fn a_session_that_comes_up_after_its_knowledge_base_stopped_being_active_i
     let world = World::with(&[kb_a(), kb_b()]);
     let browser = Arc::new(world.browser());
     live(&browser).await;
-    world.factory.behind().answers_after = Duration::from_secs(2);
+    world.factory.sessions.answers_after(Duration::from_secs(2));
 
     // Every session shown: the knowledge base that was active then, and
     // the session's own.
@@ -682,7 +620,7 @@ async fn a_session_being_brought_up_is_said_to_be_on_its_way() {
     let world = World::with(&[kb_a()]);
     // A session that takes a moment to come up: one that is up at once is
     // up before anyone could be told it was coming.
-    world.factory.behind().answers_after = Duration::from_secs(2);
+    world.factory.sessions.answers_after(Duration::from_secs(2));
     let browser = world.browser();
     let mut activating = browser.session_activating();
 
@@ -699,7 +637,10 @@ async fn a_session_being_brought_up_is_said_to_be_on_its_way() {
 #[tokio::test(start_paused = true)]
 async fn a_session_that_cannot_be_built_is_said_and_there_is_none() {
     let world = World::with(&[kb_a()]);
-    world.factory.behind().refuses_to_build = true;
+    world
+        .factory
+        .sessions
+        .refuse_to_build(Some("this factory builds nothing"));
     let browser = world.browser();
     let mut errors = browser.errors();
 
@@ -983,7 +924,7 @@ async fn signing_out_forgets_the_tokens_closes_the_session_and_has_the_issuer_to
     assert!(stored_session(world.storage.as_ref(), A).is_none());
     assert_eq!(session_of(&browser), None);
     assert!(closed(&world.factory.transports(A)[0]));
-    assert_eq!(world.factory.behind().revoked, [before]);
+    assert_eq!(world.factory.sessions.revoked(), [before]);
     // Still registered, and still the active one: only signed out.
     assert_eq!(*browser.kbs().borrow(), [kb_a()]);
     assert_eq!(browser.active_kb_id().borrow().as_deref(), Some(A));
@@ -994,7 +935,7 @@ async fn signing_out_forgets_the_tokens_closes_the_session_and_has_the_issuer_to
     // Signing out of what is not signed in tells the issuer nothing.
     browser.sign_out(A).await;
     settle().await;
-    assert_eq!(world.factory.behind().revoked.len(), 1);
+    assert_eq!(world.factory.sessions.revoked().len(), 1);
 }
 
 // ── What is open ────────────────────────────────────────────────────────
@@ -1456,16 +1397,15 @@ async fn a_refusal_for_want_of_a_token_renews_the_session_quietly_when_it_can() 
     let renewed = jwt(7200);
     world
         .factory
-        .behind()
-        .renewals
-        .push_back(Ok(Some(renewed.clone())));
+        .sessions
+        .queue_renewals([Ok(Some(renewed.clone()))]);
     let browser = world.browser();
     let session = live(&browser).await;
 
     world.factory.transports(A)[0].fail(refusal(401));
     settle().await;
 
-    assert_eq!(world.factory.behind().renewed, 1);
+    assert_eq!(world.factory.sessions.renewed(), 1);
     assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
     assert_eq!(notice(&browser, true), None);
     assert!(stored_session(world.storage.as_ref(), A).is_some());
@@ -1474,6 +1414,8 @@ async fn a_refusal_for_want_of_a_token_renews_the_session_quietly_when_it_can() 
 #[tokio::test(start_paused = true)]
 async fn a_session_that_cannot_be_renewed_is_said_to_have_expired_and_its_credential_is_gone() {
     let world = World::with(&[kb_a()]);
+    // The issuer has nothing to renew it with.
+    world.factory.sessions.queue_renewals([Ok(None)]);
     let browser = world.browser();
     let mut errors = browser.errors();
     live(&browser).await;
@@ -1534,7 +1476,7 @@ async fn a_refusal_for_lack_of_permission_is_said_and_any_other_failure_is_not()
     settle().await;
     assert_eq!(notice(&browser, false), None);
     assert_eq!(notice(&browser, true), None);
-    assert_eq!(world.factory.behind().renewed, 0);
+    assert_eq!(world.factory.sessions.renewed(), 0);
 
     transport.fail(refusal(403));
     settle().await;

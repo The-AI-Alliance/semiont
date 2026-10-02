@@ -39,26 +39,154 @@ person in:
   outage: only no answer, or one that says "not now", is tried again, inside
   a bounded budget. PKCE's challenge and its random verifier are `ring`'s.
 - `session` — sessions over a gateway. `HttpSessionFactory` is what a
-  `SemiontBrowser` builds its sessions through; `session_over_http`,
-  `session_from_issued` and `sign_in_device` are what a script uses
-  directly; `begin_sign_in` and `complete_sign_in` are a registry's sign-in
+  `SemiontBrowser` builds its sessions through; `session_from_stored` (a
+  sign-in a storage already holds), `sign_in_device`, `session_from_issued`
+  and `session_over_http` are what a script uses directly; `begin_sign_in` and `complete_sign_in` are a registry's sign-in
   through the issuer. Renewals of one knowledge base that are asked for
   together are one request of the issuer. A registry's session resumes its
   stream from the place its storage kept (`Bookmarks`).
 - `loopback` — the address an application with no web page of its own is
   sent back to after a sign-in. The issuer sends a person back only to an
-  address its registration of the client lists.
+  address its registration of the client lists; the realm a Semiont
+  launcher renders lists the loopback address for the browser client, at
+  any port.
 - `discovery` — a launcher's discovery document over HTTP.
 
+## Three ways to use it
+
+These are the SDK's [three ways](../sdk-rust/README.md#three-ways-to-use-it),
+from the side of how each is signed in.
+
+**A script** uses the sign-in `semiont login` made
+([sign-in-store](../../specs/src/sign-in-store/README.md)). `state_home` is
+`semiont::sign_in_store::state_dir` of what the script read of its
+environment: the crates read none themselves.
+
 ```rust
-// A script signs in as a person: the issuer mints a code, the person
-// approves it wherever they have a browser.
+// The sign-in `semiont login` made for the local stack. The stack's key
+// is the knowledge base's id.
+let store = SignInStore::at(
+    state_home.join(FILE_NAME),
+    Arc::new(InMemorySessionStorage::new()),
+    Arc::new(|why| eprintln!("{why}")),
+);
+let session = session_from_stored(StoredSignIn {
+    kb: KbTarget::http(
+        "local",
+        "Local",
+        &gateway.host,
+        gateway.port,
+        gateway.protocol,
+    ),
+    storage: Arc::new(store),
+    base_url: gateway.gateway_url()?,
+    validate: true,
+    on_auth_failed: None,
+    on_error: None,
+    http,
+})
+.await
+.ok_or("Not signed in. Run `semiont login`.")?;
+
+let about = session.client().browse.kb().await?;
+session.close().await;
+```
+
+Where nobody has signed in, a script signs a person in by the device grant
+and keeps the tokens in the storage it is given.
+
+```rust
+// The issuer mints a code, and the person approves it wherever they
+// have a browser. No password passes through this process.
 let session = sign_in_device(
-    SignInDevice { kb, storage, validate: true, on_auth_failed: None, on_error: None, http },
-    |code| println!("Open {} and enter {}", code.verification_uri, code.user_code),
+    SignInDevice {
+        kb,
+        storage,
+        validate: true,
+        on_auth_failed: None,
+        on_error: None,
+        http,
+    },
+    |code| {
+        println!(
+            "Open {} and enter {}",
+            code.verification_uri, code.user_code
+        )
+    },
 )
 .await?;
-let resource = session.client().browse.resource("res-1").fresh().await?;
+```
+
+**A daemon** signs in as a service, and its work runs as an agent. It is not
+a session: an agent whose renewal fails keeps the token it has and tries
+again.
+
+```rust
+// A service signs in with its account, as the agent its work runs as,
+// and stays signed in for as long as it holds the token.
+let agent = AgentToken::sign_in(
+    gateway,
+    Agent {
+        provider: "example".to_owned(),
+        model: "indexer".to_owned(),
+    },
+    ServiceToken::new(credential, http.clone()),
+    http.clone(),
+)
+.await?;
+let client = client(
+    HttpTransportConfig {
+        base_url: agent.gateway().to_owned(),
+        token: agent.token(),
+        refresher: Some(agent.clone()),
+        channels: None,
+        http,
+        timing: Timing::default(),
+        bookmarks: None,
+    },
+    ClientOptions::default(),
+);
+
+// Every job that completes, from now on.
+let mut completed = client.job.complete();
+while let Some(event) = completed.next().await {
+    if let Ok(job) = event {
+        done(job.payload);
+    }
+}
+```
+
+**An application** holds a `SemiontBrowser` whose sessions are built by
+`HttpSessionFactory`, and signs a person in at the issuer through a redirect
+to this machine. `open` shows the person the URL.
+
+```rust
+// The registry an application holds, with its sessions over HTTP.
+let browser = SemiontBrowser::new(SemiontBrowserConfig {
+    storage,
+    session_factory: Arc::new(HttpSessionFactory::new(http.clone())),
+});
+
+// A person signs in at the issuer the knowledge base trusts, in their
+// own browser, and is sent back to a port on this machine.
+let redirect = LoopbackRedirect::bind().await?;
+let url = begin_sign_in(
+    &browser,
+    BeginAuthorization {
+        target: gateway,
+        redirect_uri: redirect.redirect_uri(),
+        kb_id: None,
+        expected_did: None,
+        expected_name: None,
+    },
+    &http,
+)
+.await?;
+open(&url);
+let callback = redirect.callback().await?;
+
+// The knowledge base that answered is registered, signed in and active.
+let signed_in = complete_sign_in(&browser, &callback, &http).await?;
 ```
 
 [conformance/](conformance) holds the two drivers the SDK conformance suite
@@ -67,6 +195,8 @@ let resource = session.client().browse.resource("res-1").fresh().await?;
 the place of the SDK's client over it. [tests/stream.rs](tests/stream.rs) holds the liveness axioms
 and the stream's handoffs against a stand-in gateway that misbehaves on cue,
 and [tests/sign_in.rs](tests/sign_in.rs) the grants, the sessions and a
-registry's sign-in against a stand-in gateway and issuer.
+registry's sign-in against a stand-in gateway and issuer. The examples above
+are regions of that file, run there: a block here that is not one of them
+fails a test.
 
 Not yet published.

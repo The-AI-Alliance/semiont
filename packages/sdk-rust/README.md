@@ -1,37 +1,116 @@
 # semiont (Rust)
 
 Semiont's Rust SDK: a client of a knowledge base, as
-[`specs/`](../../specs/src/openapi.json) states it, over any transport.
+[`specs/`](../../specs/src/openapi.json) states it, over any transport. Over
+a gateway, the transport, the sessions and signing in are
+[`semiont-http-transport`](../http-transport-rust/README.md)'s.
+
+## Three ways to use it
+
+One client, `SemiontClient`, serves all three. What differs is what its
+caller waits on.
+
+**A script** asks, awaits and uses `?`. A query is read once with `.fresh()`,
+and a long-running operation is awaited for its final value.
 
 ```rust
-use semiont::state::MarkStateUnit;
-use semiont::types::Motivation;
+// Asked once, answered once.
+let about = client.browse.kb().await?;
+println!("{} at {}", about.name, about.domain);
 
-// A client over a gateway is `semiont_http_transport::client::client`.
+// A query, read once.
 let resource = client.browse.resource("res-1").fresh().await?;
+println!("{}", resource.name);
 
-// A query is watched for its state as the knowledge base changes.
-let mut annotations = client.browse.annotations("res-1").watch();
-while let Some(state) = annotations.next().await {
-    println!("{state:?}"); // Pending, then Ready(…), again on each change
-}
-
-// A long-running operation is awaited for its final value, or read as a
-// stream for what it reports on the way.
-let mut assist = client.mark.assist("res-1", Motivation::Highlighting, Default::default());
-while let Some(event) = assist.next().await {
-    println!("{:?}", event?);
-}
-
-// A flow is held as state by a unit over the client, which it is given as
-// an `Arc`: here, the annotation being composed on a resource.
-let marking = MarkStateUnit::new(client.clone(), "res-1");
-let mut pending = marking.pending();
-while pending.changed().await.is_ok() {
-    println!("{:?}", *pending.borrow_and_update());
-}
-client.close().await;
+// A long-running operation, awaited for its final value.
+let done = client
+    .mark
+    .assist(
+        "res-1",
+        Motivation::Highlighting,
+        MarkAssistOptions::default(),
+    )
+    .await?;
 ```
+
+**A daemon** reads streams. Each gives what happens from the moment it is
+taken, and ends when the client closes.
+
+```rust
+// Every job that completes, from now on, until the client closes.
+let mut completed = client.job.complete();
+while let Some(event) = completed.next().await {
+    match event {
+        Ok(job) => done(job.payload),
+        // A reader that fell behind is told how far, and reads on.
+        Err(behind) => eprintln!("{behind}"),
+    }
+}
+```
+
+**An application** holds state. A `SemiontBrowser` keeps the knowledge bases
+a person has registered and the active one's session; a state unit holds one
+flow over that session's client; and each is read through a
+`tokio::sync::watch` receiver: the value now, and each value after it.
+
+```rust
+// What an application holds: its knowledge bases, which one is active,
+// and the active one's session.
+let browser = SemiontBrowser::new(SemiontBrowserConfig {
+    storage,
+    session_factory,
+});
+let mut live = browser.active_session();
+let session = live.wait_for(Option::is_some).await?.clone();
+
+// A flow, held as state over the session's client: here, the annotation
+// being composed on a resource.
+if let Some(session) = session {
+    let marking = MarkStateUnit::new(session.client().clone(), "res-1");
+    let mut pending = marking.pending();
+    while pending.changed().await.is_ok() {
+        render(pending.borrow_and_update().as_ref());
+    }
+}
+```
+
+## From the TypeScript SDK
+
+The two SDKs have the same namespaces, methods and behaviour: both are held
+to [`specs/src/client/surface.json`](../../specs/src/client/surface.json)
+and the same case tables. What differs is how each language says "later".
+
+| TypeScript | Rust | |
+|---|---|---|
+| `Promise<T>` | `async fn … -> Result<T, SemiontError>` | `.await?` |
+| an `Observable` of events | a `Stream` | A reader that falls behind is given `Lagged(n)` in place of what it missed. Nothing is dropped silently. |
+| a `BehaviorSubject` of state | a `watch::Receiver` | The value now, and each value after it. A slow reader sees the latest value and not each one between: state is what is true now. What must be seen in sequence, such as a job's progress, is a stream. |
+| `StreamObservable<T>` | `Running<T>` | `.await` for the final value, `.next()` for each report. It is consumed by value, so one operation is never started twice. |
+| `UploadObservable` | `Upload` | `.await` for the resource created; as a stream, its progress; dropped, cancelled. |
+| `CacheObservable<T>` | `Cached<T>` | `.watch()` for its state, `.fresh().await?` for one read. Neither is awaited itself. |
+| a method returning `void` | a plain `fn` | A signal. One that fails is said on the transport's failure stream. |
+| `client.yield`, `client.match` | `client.yield_`, `client.match_` | `yield` and `match` are Rust's own words. |
+| RxJS operators | `futures::StreamExt`, `tokio-stream` | The crate brings no operator library. |
+| `@semiont/sdk/testing` | `semiont::testing`, behind the `testing` feature | |
+
+## Ending things: `close` and `Drop`
+
+Everything the crate gives ends when it is dropped. `close` is for what
+dropping cannot do: wait.
+
+| | `close().await` | dropped |
+|---|---|---|
+| `SemiontClient` | Its queries end, its transport closes so that every request still pending fails as closed, and its own bus ends. | Its queries and its own bus end. The transport is left to whoever else holds it. |
+| `SemiontSession` | The same, and its client is closed. | It stops renewing and what it holds ends. Its client is left open. |
+| `SemiontBrowser` | The active session is closed, and everything it holds ends. | Everything it holds ends. The active session is dropped, not closed. |
+| a state unit | `dispose()`, which is not async: it is inert and its readers have ended. | The same. |
+| `Running<T>`, `Upload` | | The operation is abandoned; an upload is cancelled. |
+| a watcher of a query | | The resource's scope it held is let go. |
+
+A process that is ending calls `close` on what it built, so that what is in
+flight ends by being told and not by the runtime stopping.
+
+## What is in the crate
 
 - `client` — `SemiontClient`: one concrete type over a `Transport`, a
   `ContentTransport` and, when there is one, a gateway. It is built inside a
@@ -119,16 +198,6 @@ client.close().await;
     knowledge base is reached. `semiont-http-transport` has the one over a
     gateway, and signing in at an issuer.
 
-  ```rust
-  let browser = SemiontBrowser::new(SemiontBrowserConfig { storage, session_factory });
-  let mut session = browser.active_session();
-  while session.changed().await.is_ok() {
-      if let Some(session) = session.borrow_and_update().clone() {
-          let marking = MarkStateUnit::new(session.client().clone(), "res-1");
-      }
-  }
-  ```
-
   A state unit is built over a session's client. A new session has a new
   client, so a unit lasts as long as the session it was built from.
 - `sign_in_store` — the sign-ins `semiont login` keeps
@@ -209,16 +278,43 @@ client.close().await;
   installed (`semiont-observability`).
 - `identity` and `roles` — how a knowledge base names its principals, and the
   realm's roles, held to the shared case tables too.
-- `testing`, behind the `testing` feature — `FaultyTransport`, a transport
-  that fails as a test scripts it and refuses an operation nobody scripted;
-  `InMemoryContent`, which keeps what is uploaded and fails a read of what
-  nobody stored; `StubGateway`, which answers only what it was told to;
-  `SharedStorage`, a storage several contexts share, each hearing what the
-  others write; and
-  the harnesses for the state-unit axioms (`axioms`, which a consumer's own
-  units are held to: `Fresh::of(unit).given(client)` says what the unit was
-  given and must not dispose) and the liveness axioms (generated schedules
-  of faults), which a transport's own tests run too.
+- `testing`, behind the `testing` feature — what a consumer's tests are
+  built on. A double answers what a test told it to and refuses the rest by
+  name; none answers with a value of its own making.
+  - `create_test_client` gives a real `SemiontClient` over a
+    `FaultyTransport` and an `InMemoryContent`, and `create_test_session` a
+    real `SemiontSession` over one, ready at once.
+  - `ScriptedSessions` is a `SessionFactory` for a `SemiontBrowser`: each
+    session is real, over a transport of its own, and a test scripts what
+    each knowledge base answers, who a token is and what a renewal gives.
+  - `FaultyTransport` fails as a test scripts it: a schedule of what the
+    wire does to each request, and the responses the gateway gives.
+    `InMemoryContent` keeps what is uploaded and fails a read of what nobody
+    stored. `StubGateway` answers only what it was told to. `SharedStorage`
+    is a storage several contexts share, each hearing what the others write.
+  - `axioms` holds a state unit to the axioms, a consumer's own too:
+    `Fresh::of(unit).given(client)` says what the unit was given and must
+    not dispose. `liveness` holds a composition over the bus to the liveness
+    axioms under generated schedules of faults; a transport's own tests run
+    it too.
+  - `examples` holds a README's code to source that compiles and runs. This
+    one's is [tests/readme.rs](tests/readme.rs).
+
+  ```rust
+  // A real client over doubles: script the transport, observe the client.
+  let test = create_test_client(TestClientOptions::default());
+  test.transport.queue_reply(
+      "browse:kb-requested",
+      [Some(
+          json!({ "name": "A knowledge base", "domain": "example.org" }),
+      )],
+  );
+  assert_eq!(test.client.browse.kb().await?.name, "A knowledge base");
+
+  // What nobody scripted is refused, naming the operation.
+  let refused = test.client.browse.entity_types().fresh().await;
+  assert!(refused.is_err());
+  ```
 
 A stream of events says when it fell behind (`Lagged`) instead of dropping
 frames silently. No HTTP and no telemetry library: those are its transport's

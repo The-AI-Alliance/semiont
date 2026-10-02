@@ -32,7 +32,7 @@ use semiont::session::{
     BROWSER_CLIENT_ID, HttpEndpoint, KbEndpoint, KbTarget, OnAuthFailed, OnSessionError, Refresh,
     SCRIPT_CLIENT_ID, SemiontBrowser, SemiontSession, SemiontSessionConfig, SessionFactory,
     SessionFactoryOptions, SessionRenewer, SignInOutcome, SignedIn, StoredSession, Validate,
-    store_session,
+    store_session, stored_session,
 };
 use semiont::storage::SessionStorage;
 use semiont::transport::{BoxFuture, GatewayOperations, Transport};
@@ -192,23 +192,64 @@ pub struct IssuedSession {
 /// is ready when this returns.
 pub async fn session_from_issued(issued: IssuedSession) -> SemiontSession {
     store_session(issued.storage.as_ref(), &issued.kb.id, &issued.session);
+    over_stored(
+        StoredSignIn {
+            kb: issued.kb,
+            storage: issued.storage,
+            base_url: issued.base_url,
+            validate: issued.validate,
+            on_auth_failed: issued.on_auth_failed,
+            on_error: issued.on_error,
+            http: issued.http,
+        },
+        issued.session.access,
+    )
+    .await
+}
+
+/// A sign-in a storage already holds, and the knowledge base it is for.
+pub struct StoredSignIn {
+    pub kb: KbTarget,
+    /// Where the sign-in is kept, under the knowledge base's id.
+    pub storage: Arc<dyn SessionStorage>,
+    pub base_url: String,
+    /// Whether the gateway is asked who the token is.
+    pub validate: bool,
+    pub on_auth_failed: Option<OnAuthFailed>,
+    pub on_error: Option<OnSessionError>,
+    pub http: reqwest::Client,
+}
+
+/// A session over the sign-in `storage` holds for the knowledge base: the
+/// one `semiont login` made, when the storage is a `SignInStore`, or one
+/// this application kept earlier. It renews at the issuer the sign-in
+/// names, and is ready when this returns. `None` when the storage holds no
+/// sign-in for the knowledge base.
+pub async fn session_from_stored(stored: StoredSignIn) -> Option<SemiontSession> {
+    let held = stored_session(stored.storage.as_ref(), &stored.kb.id)?;
+    Some(over_stored(stored, held.access).await)
+}
+
+/// A ready session that starts with `access` and renews from what is
+/// stored.
+async fn over_stored(stored: StoredSignIn, access: String) -> SemiontSession {
     let session = session_over_http(HttpSession {
         refresh: Some(renewing_stored(
-            issued.storage.clone(),
-            issued.kb.id.clone(),
-            issued.http.clone(),
+            stored.storage.clone(),
+            stored.kb.id.clone(),
+            stored.http.clone(),
             Renewing::default(),
         )),
-        validate: issued
+        validate: stored
             .validate
-            .then(|| asking_the_gateway(issued.base_url.clone(), issued.http.clone())),
-        kb: issued.kb,
-        storage: issued.storage,
-        base_url: issued.base_url,
-        token: Some(issued.session.access),
-        on_auth_failed: issued.on_auth_failed,
-        on_error: issued.on_error,
-        http: issued.http,
+            .then(|| asking_the_gateway(stored.base_url.clone(), stored.http.clone())),
+        kb: stored.kb,
+        storage: stored.storage,
+        base_url: stored.base_url,
+        token: Some(access),
+        on_auth_failed: stored.on_auth_failed,
+        on_error: stored.on_error,
+        http: stored.http,
         client: ClientOptions::default(),
         bookmarks: None,
     });

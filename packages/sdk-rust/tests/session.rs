@@ -6,7 +6,7 @@
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use semiont::client::{ClientOptions, SemiontClient};
+use semiont::client::SemiontClient;
 use semiont::errors::{SemiontError, SessionError, SessionErrorCode, TransportError};
 use semiont::session::{
     KbIdentityConflict, KbTarget, Protocol, SemiontSession, SemiontSessionConfig, SessionNotice,
@@ -14,7 +14,7 @@ use semiont::session::{
 };
 use semiont::storage::SessionStorage;
 use semiont::testing::axioms::{AxiomSubject, Fresh, Surface, assert_state_unit_axioms};
-use semiont::testing::{FaultyTransport, InMemoryContent, SharedStorage};
+use semiont::testing::{FaultyTransport, SharedStorage, TestClientOptions, create_test_client};
 use semiont::types::UserResponse;
 use serde_json::{Value, json};
 use std::collections::VecDeque;
@@ -101,12 +101,11 @@ impl World {
         World {
             elsewhere: storage.context(),
             storage,
-            client: Arc::new(SemiontClient::new(
-                Arc::new(transport.clone()),
-                Arc::new(InMemoryContent::new()),
-                None,
-                ClientOptions::default(),
-            )),
+            client: create_test_client(TestClientOptions {
+                transport: Some(transport.clone()),
+                ..TestClientOptions::default()
+            })
+            .client,
             transport,
             renewals: Arc::default(),
             renewed: Arc::default(),

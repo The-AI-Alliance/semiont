@@ -13,7 +13,7 @@
     },
     "email": {
       "type": "string",
-      "description": "Who signed in, as the gateway named them when the sign-in was made. For display. A writer that renews an entry keeps it; one that creates an entry states it when it knows it."
+      "description": "Who signed in: the address the access token named when the sign-in was made, which is the one the gateway answers for it. For display. A writer that renews an entry keeps it."
     },
     "obtainedAt": {
       "type": "string",
@@ -27,7 +27,7 @@
     },
     "issuer": {
       "type": "string",
-      "description": "The issuer the sign-in came from. A writer that renews an entry keeps it; one that creates an entry states it when it knows it."
+      "description": "The issuer the sign-in came from: the one the access token named when the sign-in was made. A writer that renews an entry keeps it."
     },
     "tokenEndpoint": {
       "type": "string",
@@ -38,5 +38,5 @@
       "description": "The issuer's revocation endpoint (RFC 7009), where a sign-out tells it to forget the refresh token. Absent when the issuer has none."
     }
   },
-  "required": ["token", "obtainedAt", "tokenEndpoint"]
+  "required": ["token", "email", "obtainedAt", "issuer", "tokenEndpoint"]
 }

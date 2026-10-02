@@ -2,11 +2,11 @@
 //! methods that create one: `mark.assist` and `yield_.from_context`. And a
 //! client's end.
 
-use semiont::client::{ClientOptions, SemiontClient};
+use semiont::client::SemiontClient;
 use semiont::errors::SemiontError;
 use semiont::namespaces::{JobEvent, MarkAssistOptions, stall_deadline};
 use semiont::running::Running;
-use semiont::testing::{FaultAction, FaultyTransport, InMemoryContent};
+use semiont::testing::{FaultAction, FaultyTransport, TestClientOptions, create_test_client};
 use semiont::timing::{JOB_SILENCE, JOB_STATUS_POLL};
 use semiont::transport::{ConnectionState, Envelope};
 use semiont::types::Motivation;
@@ -22,12 +22,11 @@ fn object(value: Value) -> Map<String, Value> {
 }
 
 fn client_over(transport: &FaultyTransport) -> Arc<SemiontClient> {
-    Arc::new(SemiontClient::new(
-        Arc::new(transport.clone()),
-        Arc::new(InMemoryContent::new()),
-        None,
-        ClientOptions::default(),
-    ))
+    create_test_client(TestClientOptions {
+        transport: Some(transport.clone()),
+        ..TestClientOptions::default()
+    })
+    .client
 }
 
 /// A client whose `job:create` is answered with `job-1`.
