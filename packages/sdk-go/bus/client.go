@@ -106,21 +106,21 @@ func (c *Client) request(ctx context.Context, method, path string, body any) (*h
 // subscribes no one on the client's behalf, and an unbridged channel publishes
 // into an empty subject with a clean 202.
 //
-// -1 means the emit was accepted but the count is UNKNOWN: the gateway said
-// it could not count (a broker signal plane leaves `subscribers` out of
-// BusEmitAccepted), or it answered with a body this client could not read.
-// Distinguishable from a true zero, because reporting "nobody is listening"
-// on the strength of either would be the same overclaim in reverse.
-func (c *Client) Emit(ctx context.Context, ch Channel, payload any, scope string) (int, error) {
+// counted is false when the emit was accepted and there is no count: the
+// gateway said it could not count (a broker signal plane leaves `subscribers`
+// out of BusEmitAccepted), or it answered with a body this client could not
+// read. That is not a zero, because reporting "nobody is listening" on the
+// strength of either would be the same overclaim in reverse.
+func (c *Client) Emit(ctx context.Context, ch Channel, payload any, scope string) (subscribers int, counted bool, err error) {
 	return c.emitWith(ctx, ch, payload, scope, "")
 }
 
 // emitWith is Emit plus the correlation key. Both ride the ENVELOPE beside
 // clientId, never inside the payload: a channel's domain type does not carry
 // routing metadata, on either side of the wire.
-func (c *Client) emitWith(ctx context.Context, ch Channel, payload any, scope string, correlationID string) (int, error) {
+func (c *Client) emitWith(ctx context.Context, ch Channel, payload any, scope string, correlationID string) (subscribers int, counted bool, err error) {
 	if !ch.Emittable() {
-		return -1, fmt.Errorf("channel %q is not emittable (no registered schema)", ch)
+		return 0, false, fmt.Errorf("channel %q is not emittable (no registered schema)", ch)
 	}
 	body := map[string]any{"channel": string(ch), "payload": payload, "clientId": c.clientID}
 	if scope != "" {
@@ -131,21 +131,21 @@ func (c *Client) emitWith(ctx context.Context, ch Channel, payload any, scope st
 	}
 	resp, err := c.request(ctx, http.MethodPost, "/bus/emit", body)
 	if err != nil {
-		return -1, err
+		return 0, false, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return -1, &StatusError{Op: "emit " + string(ch), Status: resp.StatusCode, RetryAfter: retryAfter(resp.Header)}
+		return 0, false, &StatusError{Op: "emit " + string(ch), Status: resp.StatusCode, RetryAfter: retryAfter(resp.Header)}
 	}
 	var accepted semiont.BusEmitAccepted
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 	if err != nil || json.Unmarshal(raw, &accepted) != nil {
-		return -1, nil
+		return 0, false, nil
 	}
 	if accepted.Subscribers == nil {
-		return -1, nil
+		return 0, false, nil
 	}
-	return *accepted.Subscribers, nil
+	return *accepted.Subscribers, true, nil
 }
 
 // Subscription is a live SSE stream. Events closes when the stream ends;
@@ -367,7 +367,7 @@ func (c *Client) Request(ctx context.Context, op Channel, payload any, opts *Req
 	// whose handler is not listening fails as a TIMEOUT with a channel name —
 	// a better diagnosis than a count. The count matters for fire-and-forget
 	// emits, which have no other way to tell.
-	if _, err := c.emitWith(rctx, op, body, opts.Scope, correlationID); err != nil {
+	if _, _, err := c.emitWith(rctx, op, body, opts.Scope, correlationID); err != nil {
 		return nil, fmt.Errorf("emit %s: %w", op, err)
 	}
 

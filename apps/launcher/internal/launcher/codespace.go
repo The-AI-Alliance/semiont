@@ -1886,7 +1886,7 @@ func establishForward(u *UI, name string, remote, local int, askable bool) (int,
 			u.Fail("Nothing is listening on the codespace's port %d — its stack is not up.", remote)
 		default:
 			u.Fail("The port forward exited before it could bind — localhost:%d is probably already in use.", local)
-			fmt.Fprintf(os.Stderr, "  See what holds it:  %s\n", holdersHint(local))
+			fmt.Fprintf(os.Stderr, "  See what holds it:  %s\n", holdersHint(systemName(), local))
 		}
 		if ghErr != "" {
 			fmt.Fprintf(os.Stderr, "  gh said: %s\n", ghErr)

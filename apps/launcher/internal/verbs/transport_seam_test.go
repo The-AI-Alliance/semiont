@@ -55,7 +55,7 @@ func verbFixture(t *testing.T) {
 func TestBeckonDrivesTheInjectedTransport(t *testing.T) {
 	verbFixture(t)
 	fake := bustest.NewFake()
-	fake.Subscribers = 2
+	fake.Counted(2)
 	restore := launcher.UseTransport(func(base, token string) bus.Transport {
 		fake.Base, fake.Token = base, token
 		return fake
@@ -91,15 +91,18 @@ func TestBeckonDrivesTheInjectedTransport(t *testing.T) {
 func TestBeckonReportsTheTransportsSubscriberCount(t *testing.T) {
 	for _, c := range []struct {
 		subscribers int
+		counted     bool
 		want        string
 	}{
-		{0, "nothing is subscribed"},
-		{3, "3 subscribers"},
-		{-1, "no delivery confirmation"},
+		{0, true, "nothing is subscribed"},
+		{3, true, "3 subscribers"},
+		{0, false, "no delivery confirmation"},
 	} {
 		verbFixture(t)
 		fake := bustest.NewFake()
-		fake.Subscribers = c.subscribers
+		if c.counted {
+			fake.Counted(c.subscribers)
+		}
 		restore := launcher.UseTransport(func(base, token string) bus.Transport {
 			fake.Base, fake.Token = base, token
 			return fake

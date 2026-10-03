@@ -264,42 +264,46 @@ func TestEmitRefusesNonEmittableChannel(t *testing.T) {
 	c := NewClient("http://unused", "tok")
 	// A domain event is not emittable — the gateway would reject it, so the
 	// client refuses rather than making a doomed round trip.
-	subscribers, err := c.Emit(context.Background(), "yield:created", map[string]any{}, "")
+	_, counted, err := c.Emit(context.Background(), "yield:created", map[string]any{}, "")
 	if err == nil || !strings.Contains(err.Error(), "not emittable") {
 		t.Errorf("want a not-emittable refusal, got %v", err)
 	}
-	// -1, not 0: the request never left, so "nobody was subscribed" is a claim
-	// this client is in no position to make. Zero means the server counted
-	// zero; -1 means we never found out.
-	if subscribers != -1 {
-		t.Errorf("a refused emit must report an UNKNOWN count, got %d", subscribers)
+	// Uncounted, not a counted zero: the request never left, so "nobody was
+	// subscribed" is a claim this client is in no position to make.
+	if counted {
+		t.Error("a refused emit reported a count: nothing was sent, so nothing was counted")
 	}
 }
 
 // A gateway on a broker signal plane cannot count, and says so by leaving
-// `subscribers` out of BusEmitAccepted. That is UNKNOWN, never zero: only a
-// counted zero may read as an empty room.
-func TestEmitMapsAnAbsentCountToUnknown(t *testing.T) {
+// `subscribers` out of BusEmitAccepted. That is an uncounted emit, never a
+// zero: only a counted zero may read as an empty room. A body that cannot be
+// read is uncounted for the same reason.
+func TestEmitSaysWhetherTheGatewayCounted(t *testing.T) {
 	for _, tc := range []struct {
-		body string
-		want int
+		body    string
+		want    int
+		counted bool
 	}{
-		{`{}`, -1},
-		{`{"subscribers":0}`, 0},
-		{`{"subscribers":2}`, 2},
+		{`{}`, 0, false},
+		{`{"subscribers":null}`, 0, false},
+		{`not json`, 0, false},
+		{``, 0, false},
+		{`{"subscribers":0}`, 0, true},
+		{`{"subscribers":2}`, 2, true},
 	} {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusAccepted)
 			_, _ = io.WriteString(w, tc.body)
 		}))
-		subscribers, err := NewClient(srv.URL, "tok").Emit(context.Background(), "beckon:focus", map[string]any{"annotationId": "ann-1"}, "")
+		subscribers, counted, err := NewClient(srv.URL, "tok").Emit(context.Background(), "beckon:focus", map[string]any{"annotationId": "ann-1"}, "")
 		srv.Close()
 		if err != nil {
-			t.Fatalf("%s: emit: %v", tc.body, err)
+			t.Fatalf("%q: emit: %v", tc.body, err)
 		}
-		if subscribers != tc.want {
-			t.Errorf("%s: got %d subscribers, want %d", tc.body, subscribers, tc.want)
+		if counted != tc.counted || subscribers != tc.want {
+			t.Errorf("%q: got %d subscribers, counted %v; want %d, counted %v", tc.body, subscribers, counted, tc.want, tc.counted)
 		}
 	}
 }
@@ -342,7 +346,7 @@ func TestSubscribeAndEmitCarryOneClientID(t *testing.T) {
 	}
 	defer sub.Close()
 
-	if _, err := c.Emit(ctx, "browse:resources-requested", map[string]any{"limit": 1}, ""); err != nil {
+	if _, _, err := c.Emit(ctx, "browse:resources-requested", map[string]any{"limit": 1}, ""); err != nil {
 		t.Fatalf("emit: %v", err)
 	}
 
@@ -371,13 +375,13 @@ func TestTwoClientsAreTwoAddresses(t *testing.T) {
 	defer cancel()
 
 	a := NewClient(srv.URL, "tok")
-	if _, err := a.Emit(ctx, "browse:resources-requested", map[string]any{}, ""); err != nil {
+	if _, _, err := a.Emit(ctx, "browse:resources-requested", map[string]any{}, ""); err != nil {
 		t.Fatalf("emit a: %v", err)
 	}
 	first, _ := f.lastEmit(t)["clientId"].(string)
 
 	b := NewClient(srv.URL, "tok")
-	if _, err := b.Emit(ctx, "browse:resources-requested", map[string]any{}, ""); err != nil {
+	if _, _, err := b.Emit(ctx, "browse:resources-requested", map[string]any{}, ""); err != nil {
 		t.Fatalf("emit b: %v", err)
 	}
 	second, _ := f.lastEmit(t)["clientId"].(string)
@@ -402,7 +406,7 @@ func TestARefusalCarriesTheGatewaysRetryAfter(t *testing.T) {
 	defer srv.Close()
 	c := NewClient(srv.URL, "tok")
 
-	_, err := c.Emit(context.Background(), Channel("beckon:focus"), map[string]any{}, "")
+	_, _, err := c.Emit(context.Background(), Channel("beckon:focus"), map[string]any{}, "")
 	var se *StatusError
 	if !errors.As(err, &se) {
 		t.Fatalf("emit: %v, want a *StatusError", err)

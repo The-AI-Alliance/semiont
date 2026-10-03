@@ -36,7 +36,7 @@ The `messages/` and `public/messages/` directories are **generated** — never e
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import HttpBackend from 'i18next-http-backend';
-import { AVAILABLE_LOCALES } from '@semiont/react-ui';
+import { LOCALE_CODES } from '@semiont/core';
 
 i18n
   .use(HttpBackend)
@@ -45,7 +45,7 @@ i18n
     ns: ['translation'],
     defaultNS: 'translation',
     fallbackLng: false,
-    supportedLngs: [...AVAILABLE_LOCALES],
+    supportedLngs: [...LOCALE_CODES],
     backend: {
       loadPath: '/messages/{{lng}}.json',
     },
@@ -93,21 +93,23 @@ Translation file (`messages-source/en.json`):
 
 ## Adding a New Language
 
-1. Add translation file for the Browser:
+The languages Semiont supports are the rows of `specs/src/locales/registry.json`. The interface is offered in each, and a resource can be written in each.
+
+1. Add the language's row to `specs/src/locales/registry.json`: its code, what it calls itself, and its name in English. `@semiont/core` generates `LOCALES` and `LOCALE_CODES` from the registry, and the Browser and react-ui read those.
+
+2. Add translation file for the Browser:
    ```bash
    cp apps/browser/messages-source/en.json apps/browser/messages-source/{locale}.json
    # Translate all values in {locale}.json
    ```
 
-2. Add the react-ui translations:
+3. Add the react-ui translations:
    ```bash
    cp packages/react-ui/translations/en.json packages/react-ui/translations/{locale}.json
    # Translate all values in {locale}.json
    ```
 
-   `npm run lint:translations` checks both sets for every key in every locale.
-
-3. Add the locale's code to `AVAILABLE_LOCALES` in `packages/react-ui/src/contexts/TranslationContext.tsx`. The Browser supports exactly that list; a test in each package fails when the list and that package's translation files differ.
+   `npm run lint:translations` fails until both sets hold a file for every language the registry names and no other, with every key in every file.
 
 4. Run the merge:
    ```bash

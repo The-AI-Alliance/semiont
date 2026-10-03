@@ -1,12 +1,6 @@
 import { Link } from 'react-router';
-import { getLocaleNativeName } from '@semiont/core';
-import { AVAILABLE_LOCALES, MainContent } from '@semiont/react-ui';
-
-function nativeName(locale: string): string {
-  const name = getLocaleNativeName(locale);
-  if (!name) throw new Error(`No native name for locale ${locale}`);
-  return name;
-}
+import { LOCALES } from '@semiont/core';
+import { MainContent } from '@semiont/react-ui';
 
 /**
  * Shown when the URL names no locale the Browser serves. It assumes no
@@ -21,15 +15,15 @@ export function LanguagePicker({ path }: { path: string }) {
       <div className="px-4 py-12 text-center">
         <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-8">Semiont</h1>
         <ul className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-3 md:grid-cols-4">
-          {AVAILABLE_LOCALES.map((locale) => (
-            <li key={locale}>
+          {LOCALES.map(({ code, nativeName }) => (
+            <li key={code}>
               <Link
-                to={`/${locale}${path}`}
-                lang={locale}
-                hrefLang={locale}
+                to={`/${code}${path}`}
+                lang={code}
+                hrefLang={code}
                 className="text-lg text-blue-700 hover:underline dark:text-blue-300"
               >
-                {nativeName(locale)}
+                {nativeName}
               </Link>
             </li>
           ))}

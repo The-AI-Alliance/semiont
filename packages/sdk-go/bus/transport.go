@@ -10,7 +10,8 @@ package bus
 // connection lifecycle. Reproducing them here would be cargo-culting a foreign
 // idiom into a language that has channels and `context`. What must match, and
 // what the comments below pin, are the wire operations and their semantics:
-// the -1 sentinel, and Request's subscribe-before-emit ordering.
+// an emit that may come back uncounted, and Request's subscribe-before-emit
+// ordering.
 //
 // Sized for its consumer, per Go practice — four methods, not twelve.
 
@@ -25,16 +26,17 @@ type Transport interface {
 	BaseURL() string
 
 	// Emit publishes one event and reports how many subscribers the target
-	// subject had AT DISPATCH.
+	// subject had AT DISPATCH, and whether there is a count at all.
 	//
-	// -1 means UNKNOWN — a gateway on a broker signal plane (it cannot count,
-	// and omits `subscribers`), an unreadable body, or a transport where the
-	// question does not apply. It is deliberately distinct from 0, which means
-	// the server counted zero: reporting "nobody is listening" on the strength
-	// of an uncounted emit would be a lie, and it is the same
-	// sentinel `ITransport.emit` returns on the TypeScript side. Callers that
-	// render this to a human must keep the three cases apart.
-	Emit(ctx context.Context, ch Channel, payload any, scope string) (int, error)
+	// counted is false when there is none: a gateway on a broker signal plane
+	// cannot count and leaves `subscribers` out, the body could not be read,
+	// or the transport is one where the question does not apply. subscribers
+	// is then 0 and says nothing. A counted zero is the server saying nobody
+	// was subscribed; reporting "nobody is listening" on the strength of an
+	// uncounted emit would be a lie. It is what TypeScript's `emit` resolves
+	// `undefined` for and Rust's returns `None` for. Callers that render this
+	// to a human keep the two apart.
+	Emit(ctx context.Context, ch Channel, payload any, scope string) (subscribers int, counted bool, err error)
 
 	// Subscribe opens a live stream. It returns once the server has ANSWERED,
 	// which is the only "you are subscribed" signal the protocol offers.

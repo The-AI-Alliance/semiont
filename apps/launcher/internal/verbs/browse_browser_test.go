@@ -67,7 +67,7 @@ func TestBrowseBrowserRefusesWhenNoOneIsWatching(t *testing.T) {
 			fake, restore := withFake(t)
 			defer restore()
 			harness.NoRuntimes(t)
-			fake.Subscribers = 0
+			fake.Counted(0)
 
 			out, errOut := harness.CaptureOutput(t, func() {
 				if code := Browse([]string{"res-42", "--browser", "--browser-url", c.origin(t)}); code != 1 {
@@ -99,7 +99,7 @@ func TestBrowseBrowserNamesAContainerThatIsNotAnswering(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
 	t.Setenv("PATH", shim)
-	fake.Subscribers = 0
+	fake.Counted(0)
 	recordBrowserFixture(t, &launcher.ServiceState{Runtime: "docker", Endpoint: harness.DeadOrigin(t)})
 
 	out, errOut := harness.CaptureOutput(t, func() {
@@ -111,20 +111,19 @@ func TestBrowseBrowserNamesAContainerThatIsNotAnswering(t *testing.T) {
 		"container is exited", "semiont start --service browser")
 }
 
-// A count of -1 means the server did not tell us. That is not an empty room,
-// and treating it as one would fail every tour step against a gateway too old
-// to report the count.
-func TestBrowseBrowserDoesNotRefuseOnAnUnknownCount(t *testing.T) {
-	fake, restore := withFake(t)
+// An uncounted emit means the server did not tell us. That is not an empty
+// room, and treating it as one would fail every tour step against a gateway
+// that cannot count. A fresh fake counts nothing.
+func TestBrowseBrowserDoesNotRefuseOnAnUncountedEmit(t *testing.T) {
+	_, restore := withFake(t)
 	defer restore()
-	fake.Subscribers = -1
 
 	out := harness.CaptureStdout(t, func() {
 		if code := Browse([]string{"res-42", "--browser"}); code != 0 {
-			t.Fatalf("an unknown count must not fail the command: exit %d", code)
+			t.Fatalf("an uncounted emit must not fail the command: exit %d", code)
 		}
 	})
-	harness.MustContainAll(t, "unknown count", out, "no delivery confirmation")
+	harness.MustContainAll(t, "uncounted emit", out, "no delivery confirmation")
 }
 
 // ── P3: --launch is opt-in, and only means one thing ────────────────────
@@ -156,7 +155,7 @@ func TestBrowseBrowserDoesNotStartTheBrowserUnasked(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
 	harness.NoRuntimes(t)
-	fake.Subscribers = 0
+	fake.Counted(0)
 
 	_, errOut := harness.CaptureOutput(t, func() {
 		if code := Browse([]string{"res-42", "--browser", "--browser-url", harness.DeadOrigin(t)}); code != 1 {

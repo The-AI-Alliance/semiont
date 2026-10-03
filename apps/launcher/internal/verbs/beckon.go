@@ -40,24 +40,25 @@ that the signal was sent — not that a participant is watching.
 // audienceNote renders what the gateway's subscriber count licenses this verb
 // to say, and nothing more. The three cases are genuinely different answers:
 //
-//	n == 0   nobody was subscribed — the signal reached an empty room. Said
-//	         plainly, because a ✓ over this is the silent failure the whole
-//	         subscriber count exists to end.
-//	n < 0    the gateway answered 2xx with a body we could not read (an older
-//	         gateway). We know it was accepted and know nothing about reach —
-//	         so we claim nothing, which is what this verb used to always do.
-//	n > 0    n connections were listening at dispatch. Still not delivery: a
-//	         subscriber is a connection, not a pair of eyes, and beckon is a
-//	         broadcast with no reply channel.
+//	uncounted  the gateway accepted the emit and gave no count: it cannot
+//	           count, or answered with a body we could not read. We know it
+//	           was accepted and know nothing about reach — so we claim
+//	           nothing.
+//	n == 0     nobody was subscribed — the signal reached an empty room. Said
+//	           plainly, because a ✓ over this is the silent failure the whole
+//	           subscriber count exists to end.
+//	n > 0      n connections were listening at dispatch. Still not delivery:
+//	           a subscriber is a connection, not a pair of eyes, and beckon
+//	           is a broadcast with no reply channel.
 //
 // The exit code is 0 in all three: beckon is fire-and-forget by contract, and
 // an empty room is a fact, not a failure.
-func audienceNote(u *launcher.UI, subscribers int, channel string) string {
+func audienceNote(u *launcher.UI, subscribers int, counted bool, channel string) string {
 	switch {
+	case !counted:
+		return u.Dim("(broadcast — no delivery confirmation)")
 	case subscribers == 0:
 		return u.Wrap(launcher.AnsiYellow, "— nothing is subscribed to "+channel+", so no one received it")
-	case subscribers < 0:
-		return u.Dim("(broadcast — no delivery confirmation)")
 	case subscribers == 1:
 		return u.Dim("(1 subscriber — broadcast, so still no confirmation anyone looked)")
 	default:
@@ -151,7 +152,7 @@ func Beckon(args []string) int {
 		payload = ev
 	}
 
-	subscribers, err := cli.Emit(context.Background(), channel, payload, "")
+	subscribers, counted, err := cli.Emit(context.Background(), channel, payload, "")
 	if err != nil {
 		return busFail(u, "beckon", err)
 	}
@@ -164,6 +165,6 @@ func Beckon(args []string) int {
 	if sparkle {
 		verb = "Sparkled"
 	}
-	u.Ok("%s %s %s", verb, target, audienceNote(u, subscribers, string(channel)))
+	u.Ok("%s %s %s", verb, target, audienceNote(u, subscribers, counted, string(channel)))
 	return 0
 }

@@ -63,11 +63,11 @@ func TestBrowseSendsItsFilters(t *testing.T) {
 func TestBrowseBrowserSignalsWithoutReadingInProcess(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	// Stated, not defaulted: the fake's -1 means "count unknown", which prints
-	// a different line. One subscriber is a room with someone in it — the
+	// Stated, not defaulted: a fresh fake's emit is uncounted, which prints a
+	// different line. One subscriber is a room with someone in it — the
 	// EMPTY room is now a refusal with its own probe, and belongs to the
 	// BROWSER-HANDOFF tests rather than here.
-	fake.Subscribers = 1
+	fake.Counted(1)
 
 	out := harness.CaptureStdout(t, func() {
 		if code := Browse([]string{"res-42", "--browser"}); code != 0 {
@@ -120,7 +120,7 @@ func TestBrowseBrowserRefusalsInProcess(t *testing.T) {
 func TestBrowseAnnotationDrivesAClick(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Subscribers = 1
+	fake.Counted(1)
 
 	out := harness.CaptureStdout(t, func() {
 		if code := Browse([]string{"--annotation", "ann-9", "--browser"}); code != 0 {
@@ -152,7 +152,7 @@ func TestBrowseAnnotationRefusesWhenNoOneIsWatching(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
 	harness.NoRuntimes(t)
-	fake.Subscribers = 0
+	fake.Counted(0)
 
 	out, errOut := harness.CaptureOutput(t, func() {
 		if code := Browse([]string{"--annotation", "ann-9", "--browser", "--browser-url", harness.DeadOrigin(t)}); code != 1 {
@@ -221,7 +221,7 @@ func TestBrowseReportsARejection(t *testing.T) {
 func TestBeckonSparkleEmitsSparkleNotFocusInProcess(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.Subscribers = 0 // an empty room, stated — see the browse test above
+	fake.Counted(0) // an empty room, stated — see the browse test above
 
 	out := harness.CaptureStdout(t, func() {
 		if code := Beckon([]string{"--resource", "res-42", "--annotation", "ref-a", "--sparkle"}); code != 0 {

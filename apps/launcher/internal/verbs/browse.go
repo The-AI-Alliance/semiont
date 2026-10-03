@@ -230,18 +230,18 @@ func Browse(args []string) int {
 				retry:   fmt.Sprintf("semiont browse --annotation %s --browser", annotation),
 			}
 		}
-		subscribers, err := cli.Emit(context.Background(), d.channel, d.payload, "")
+		subscribers, counted, err := cli.Emit(context.Background(), d.channel, d.payload, "")
 		if err != nil {
 			return busFail(u, "browse", err)
 		}
-		// A count of exactly zero is the one case the launcher can act on: the
-		// signal was published and nobody was there. Probe only then — the
-		// happy path must not pay for an HTTP round trip it never reads, and
-		// -1 ("count unknown") is not evidence of an empty room.
-		if subscribers == 0 {
+		// A counted zero is the one case the launcher can act on: the signal
+		// was published and nobody was there. Probe only then — the happy path
+		// must not pay for an HTTP round trip it never reads, and an uncounted
+		// emit is not evidence of an empty room.
+		if counted && subscribers == 0 {
 			return nobodySaw(u, d, browserURL, launch)
 		}
-		u.Ok("Opened %s in the Browser %s", d.subject, audienceNote(u, subscribers, string(d.channel)))
+		u.Ok("Opened %s in the Browser %s", d.subject, audienceNote(u, subscribers, counted, string(d.channel)))
 		return 0
 	}
 

@@ -1,6 +1,7 @@
 import { Component, type ReactElement, type ReactNode } from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import type { LocaleCode } from '@semiont/core';
 import { TranslationProvider, useTranslations } from '../TranslationContext';
 
 const ITEMS = '{count, plural, =1 {# item} other {# items}}';
@@ -55,7 +56,7 @@ class Boundary extends Component<{ children: ReactNode }, { failure: Error | nul
   }
 }
 
-const inLocale = (locale: string) => (message: ReactElement) =>
+const inLocale = (locale: LocaleCode) => (message: ReactElement) =>
   <TranslationProvider locale={locale}>{message}</TranslationProvider>;
 
 async function translate(
@@ -164,7 +165,7 @@ describe('TranslationProvider with a locale serves that locale and no other', ()
   });
 
   it('shows the loading component, not the previous locale, while a new locale loads', async () => {
-    const tree = (locale: string) => (
+    const tree = (locale: LocaleCode) => (
       <TranslationProvider locale={locale} loadingComponent={<div data-testid="loading" />}>
         <Message id="plain" />
       </TranslationProvider>
