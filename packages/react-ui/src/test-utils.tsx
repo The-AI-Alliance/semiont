@@ -15,7 +15,7 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi, afterEach } from 'vitest';
-import { SemiontBrowser, SessionSignals, type SemiontClient, type SemiontSession } from '@semiont/sdk';
+import { SemiontBrowser, SessionSignals, type SemiontClient, type SemiontSession, type SessionEndReason } from '@semiont/sdk';
 import { createTestSession, stubGateway } from '@semiont/sdk/testing';
 import { EventBus } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
@@ -218,27 +218,27 @@ export function createMockTranslationManager(
 }
 
 /**
- * A real `SemiontBrowser` whose `SessionSignals` are pre-populated. Used by SessionExpiredModal and
+ * A real `SemiontBrowser` whose `SessionSignals` are pre-populated. Used by SessionEndedModal and
  * PermissionDeniedModal tests that need to control the modal flags
  * without driving a real session through its state machine.
  */
 export function createTestBrowserWithSignals(overrides: {
-  /** Raise permission-denied with this message; `null` takes the default one. */
-  permissionDenied?: { message: string | null };
-  /** Raise session-expired with this message; `null` takes the default one. */
-  sessionExpired?: { message: string | null };
+  /** Raise permission-denied with this detail: the gateway's own words, or null when it gave none. */
+  permissionDenied?: { detail: string | null };
+  /** Raise session-ended with this reason. */
+  sessionEnded?: { reason: SessionEndReason };
   acknowledgePermissionDenied?: () => void;
-  acknowledgeSessionExpired?: () => void;
+  acknowledgeSessionEnded?: () => void;
 } = {}): SemiontBrowser {
   const browser = createTestBrowser();
   const signals = browser.activeSignals$.getValue()!;
 
   // Raise the signals the modals read, through the methods production calls.
   if (overrides.permissionDenied !== undefined) {
-    signals.notifyPermissionDenied(overrides.permissionDenied.message);
+    signals.notifyPermissionDenied(overrides.permissionDenied.detail);
   }
-  if (overrides.sessionExpired !== undefined) {
-    signals.notifySessionExpired(overrides.sessionExpired.message);
+  if (overrides.sessionEnded !== undefined) {
+    signals.notifySessionEnded(overrides.sessionEnded.reason);
   }
 
   // Spies on the REAL methods, not replacements for them: a test asserting
@@ -248,9 +248,9 @@ export function createTestBrowserWithSignals(overrides: {
       overrides.acknowledgePermissionDenied,
     );
   }
-  if (overrides.acknowledgeSessionExpired) {
-    vi.spyOn(signals, 'acknowledgeSessionExpired').mockImplementation(
-      overrides.acknowledgeSessionExpired,
+  if (overrides.acknowledgeSessionEnded) {
+    vi.spyOn(signals, 'acknowledgeSessionEnded').mockImplementation(
+      overrides.acknowledgeSessionEnded,
     );
   }
 

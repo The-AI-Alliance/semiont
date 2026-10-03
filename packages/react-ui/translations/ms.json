@@ -510,5 +510,23 @@
     "stateCleared": "Tab terbuka dan kedudukan terakhir entri ini telah dikosongkan — ia menggambarkan kandungan yang tiada dalam pangkalan pengetahuan ini. Entri pendaftaran itu sendiri tidak berubah.",
     "dismiss": "Tutup",
     "reviewKnowledgeBases": "Semak pangkalan pengetahuan"
+  },
+  "SessionEndedModal": {
+    "title": "Telah log keluar",
+    "expired": "Sesi anda telah tamat. Sila log masuk semula.",
+    "refused": "Pangkalan pengetahuan ini tidak menerima log masuk anda. Sila log masuk semula.",
+    "goHome": "Pergi ke Laman Utama",
+    "signInAgain": "Log Masuk Semula"
+  },
+  "PermissionDeniedModal": {
+    "title": "Akses Ditolak",
+    "reasonsIntro": "Kemungkinan sebab:",
+    "reasonPermissions": "Anda tidak mempunyai kebenaran yang diperlukan",
+    "reasonRestricted": "Sumber ini terhad kepada pengguna atau pasukan tertentu",
+    "reasonAccountType": "Jenis akaun anda tidak termasuk ciri ini",
+    "detailLabel": "Pangkalan pengetahuan menyatakan:",
+    "goBack": "Kembali",
+    "goHome": "Pergi ke Laman Utama",
+    "switchAccount": "Tukar Akaun"
   }
 }

@@ -173,11 +173,11 @@ modal flags and their acknowledgement callbacks:
 import { createTestBrowserWithSignals } from '@semiont/react-ui/test-utils';
 
 const browser = createTestBrowserWithSignals({
-  sessionExpired: { message: 'Token expired at 5pm' },
-  acknowledgeSessionExpired: vi.fn(),
+  sessionEnded: { reason: 'expired' },
+  acknowledgeSessionEnded: vi.fn(),
 });
 
-renderWithProviders(<SessionExpiredModal />, { browser });
+renderWithProviders(<SessionEndedModal />, { browser });
 ```
 
 Permission-denied modal tests follow the same shape:
@@ -300,23 +300,24 @@ raise the corresponding modal, and pass the result via the `browser` option:
 ```tsx
 import { renderWithProviders, createTestBrowserWithSignals } from '@semiont/react-ui/test-utils';
 
-describe('SessionExpiredModal', () => {
-  it('should show when the session has expired', () => {
+describe('SessionEndedModal', () => {
+  it('says why the session ended', () => {
     const browser = createTestBrowserWithSignals({
-      sessionExpired: { message: 'Token expired' },
+      sessionEnded: { reason: 'expired' },
     });
 
-    renderWithProviders(<SessionExpiredModal />, { browser });
+    // The default translation manager renders each key as `Namespace.key`.
+    renderWithProviders(<SessionEndedModal />, { browser });
 
-    expect(screen.getByText(/session expired/i)).toBeInTheDocument();
+    expect(screen.getByText('SessionEndedModal.expired')).toBeInTheDocument();
   });
 
-  it('should not show when no expiry flag is raised', () => {
+  it('should not show when nothing is raised', () => {
     const browser = createTestBrowserWithSignals();
 
-    renderWithProviders(<SessionExpiredModal />, { browser });
+    renderWithProviders(<SessionEndedModal />, { browser });
 
-    expect(screen.queryByText(/session expired/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
 ```

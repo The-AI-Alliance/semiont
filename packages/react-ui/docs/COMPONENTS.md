@@ -306,20 +306,37 @@ import { CommentEntry, ReferenceEntry } from '@semiont/react-ui';
 
 ## Modals & Overlays
 
-### SessionExpiredModal
+### SessionEndedModal
 
-Displays when user session expires.
+Displays when the active knowledge base's session ends: its token could not be
+renewed (`expired`), or the knowledge base refused the sign-in (`refused`).
+Reads `sessionEnded$` from the active session's `SessionSignals`.
 
 ```tsx
-import { SessionExpiredModal } from '@semiont/react-ui';
+import { SessionEndedModal } from '@semiont/react-ui';
 
-<SessionExpiredModal />
+<SessionEndedModal />
 ```
 
 **Features:**
-- Auto-detects session expiration
-- Prompts user to re-authenticate
-- Redirects after sign-in
+- Says why the session ended, in the person's language (namespace `SessionEndedModal`)
+- Offers signing in again, or going home; either acknowledges the signal
+
+### PermissionDeniedModal
+
+Displays when a request is refused for lack of permission. Reads
+`permissionDenied$` from the active session's `SessionSignals`.
+
+```tsx
+import { PermissionDeniedModal } from '@semiont/react-ui';
+
+<PermissionDeniedModal />
+```
+
+**Features:**
+- Its own copy in the person's language (namespace `PermissionDeniedModal`)
+- Beneath it, when the gateway said why it refused, the gateway's words, unaltered and marked as the knowledge base's
+- Offers going back, going home, or switching account
 
 ### KeyboardShortcutsHelpModal
 

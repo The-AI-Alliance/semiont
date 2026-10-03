@@ -18,7 +18,7 @@
  */
 
 import { BehaviorSubject, Subject, type Observable } from 'rxjs';
-import type { SemiontError } from './errors';
+import type { TransportFailure } from './transport';
 import type { BaseUrl } from './branded-types';
 import { baseUrl as makeBaseUrl } from './branded-types';
 import type { ResourceId } from './identifiers';
@@ -115,8 +115,8 @@ export function retryKeyOf(channel: string, payload: Record<string, unknown>): s
 export class FaultyTransport implements ITransport {
   readonly baseUrl: BaseUrl = makeBaseUrl('faulty://simulator');
   readonly state$ = new BehaviorSubject<ConnectionState>('open');
-  private readonly errorsSubject = new Subject<SemiontError>();
-  readonly errors$: Observable<SemiontError> = this.errorsSubject.asObservable();
+  private readonly errorsSubject = new Subject<TransportFailure>();
+  readonly errors$: Observable<TransportFailure> = this.errorsSubject.asObservable();
 
   /** Every request-channel emit, in order — the L2 accounting surface. */
   readonly requestLog: RequestLogEntry[] = [];

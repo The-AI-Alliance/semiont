@@ -373,8 +373,8 @@ impl SessionFactory for HttpSessionFactory {
             token: None,
             refresh: Some(refresh),
             validate: Some(asking_the_gateway(base_url, self.http.clone())),
-            on_auth_failed: Some(Arc::new(move |message| {
-                signals.notify_session_expired(Some(message));
+            on_auth_failed: Some(Arc::new(move |reason| {
+                signals.notify_session_ended(reason);
             })),
             on_error: Some(options.on_error),
             http: self.http.clone(),

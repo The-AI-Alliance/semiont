@@ -184,7 +184,7 @@ Public Observables are **read-only views** (`subject$.asObservable()`) over priv
 
 ### Inputs
 
-State changes happen through methods or input Subjects, never direct property assignment. A consumer either calls a method (`stateUnit.trigger(input)`) or pushes onto an input Subject the unit observes (`searchPipeline.setQuery('foo')`). Imperative methods are fine — `setQuery`, `notifySessionExpired`, `claim` aren't "observable mutators," they're explicit side-effect entry points. The discipline isn't "purely declarative"; it's "side effects go through the unit's logic."
+State changes happen through methods or input Subjects, never direct property assignment. A consumer either calls a method (`stateUnit.trigger(input)`) or pushes onto an input Subject the unit observes (`searchPipeline.setQuery('foo')`). Imperative methods are fine — `setQuery`, `notifySessionEnded`, `claim` aren't "observable mutators," they're explicit side-effect entry points. The discipline isn't "purely declarative"; it's "side effects go through the unit's logic."
 
 ### Lifecycle
 

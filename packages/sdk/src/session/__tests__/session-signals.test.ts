@@ -25,56 +25,56 @@ function collect<T>(subject: { subscribe(next: (value: T) => void): unknown }): 
 
 describe('SessionSignals — nothing raised', () => {
   it('every signal starts null', () => {
-    expect(signals.sessionExpired$.getValue()).toBeNull();
+    expect(signals.sessionEnded$.getValue()).toBeNull();
     expect(signals.permissionDenied$.getValue()).toBeNull();
     expect(signals.kbIdentityConflict$.getValue()).toBeNull();
   });
 });
 
-describe('SessionSignals — session expired', () => {
-  it('raising it is one emission that carries the message', () => {
-    const seen = collect(signals.sessionExpired$);
-    signals.notifySessionExpired('your session ended');
-    expect(seen).toEqual([null, { message: 'your session ended' }]);
+describe('SessionSignals — session ended', () => {
+  it('raising it is one emission that carries the reason, not a sentence', () => {
+    const seen = collect(signals.sessionEnded$);
+    signals.notifySessionEnded('refused');
+    expect(seen).toEqual([null, { reason: 'refused' }]);
   });
 
-  it('falls back to a default message when null is passed', () => {
-    signals.notifySessionExpired(null);
-    expect(signals.sessionExpired$.getValue()?.message).toMatch(/session has expired/i);
+  it('carries each reason as given: the host writes what a person reads', () => {
+    signals.notifySessionEnded('expired');
+    expect(signals.sessionEnded$.getValue()).toEqual({ reason: 'expired' });
   });
 
   it('acknowledging it is one emission back to null', () => {
-    signals.notifySessionExpired('expired');
-    const seen = collect(signals.sessionExpired$);
-    signals.acknowledgeSessionExpired();
-    expect(seen).toEqual([{ message: 'expired' }, null]);
+    signals.notifySessionEnded('expired');
+    const seen = collect(signals.sessionEnded$);
+    signals.acknowledgeSessionEnded();
+    expect(seen).toEqual([{ reason: 'expired' }, null]);
   });
 
-  it('a second occurrence reaches an observer, the same message included', () => {
-    const seen = collect(signals.sessionExpired$);
-    signals.notifySessionExpired('expired');
-    signals.notifySessionExpired('expired');
+  it('a second occurrence reaches an observer, the same reason included', () => {
+    const seen = collect(signals.sessionEnded$);
+    signals.notifySessionEnded('expired');
+    signals.notifySessionEnded('expired');
     expect(seen).toHaveLength(3);
   });
 });
 
 describe('SessionSignals — permission denied', () => {
-  it('raising it is one emission that carries the message', () => {
+  it("raising it is one emission that carries the gateway's own words as the detail", () => {
     const seen = collect(signals.permissionDenied$);
-    signals.notifyPermissionDenied('not allowed');
-    expect(seen).toEqual([null, { message: 'not allowed' }]);
+    signals.notifyPermissionDenied('Archiving needs the curator role.');
+    expect(seen).toEqual([null, { detail: 'Archiving needs the curator role.' }]);
   });
 
-  it('falls back to a default message when null is passed', () => {
+  it('a gateway that said nothing is a null detail, never a sentence made up for it', () => {
     signals.notifyPermissionDenied(null);
-    expect(signals.permissionDenied$.getValue()?.message).toMatch(/do not have permission/i);
+    expect(signals.permissionDenied$.getValue()).toEqual({ detail: null });
   });
 
   it('acknowledging it is one emission back to null', () => {
     signals.notifyPermissionDenied('nope');
     const seen = collect(signals.permissionDenied$);
     signals.acknowledgePermissionDenied();
-    expect(seen).toEqual([{ message: 'nope' }, null]);
+    expect(seen).toEqual([{ detail: 'nope' }, null]);
   });
 });
 
@@ -98,12 +98,12 @@ describe('SessionSignals — KB identity conflict', () => {
 describe('SessionSignals — dispose', () => {
   it('completes every signal', () => {
     const completed: string[] = [];
-    signals.sessionExpired$.subscribe({ complete: () => completed.push('sessionExpired') });
+    signals.sessionEnded$.subscribe({ complete: () => completed.push('sessionEnded') });
     signals.permissionDenied$.subscribe({ complete: () => completed.push('permissionDenied') });
     signals.kbIdentityConflict$.subscribe({ complete: () => completed.push('kbIdentityConflict') });
 
     signals.dispose();
 
-    expect(completed).toEqual(['sessionExpired', 'permissionDenied', 'kbIdentityConflict']);
+    expect(completed).toEqual(['sessionEnded', 'permissionDenied', 'kbIdentityConflict']);
   });
 });

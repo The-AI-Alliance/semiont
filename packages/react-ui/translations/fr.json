@@ -510,5 +510,23 @@
     "stateCleared": "Les onglets ouverts et la dernière position de cette entrée ont été effacés — ils décrivaient des contenus que cette base de connaissances n'a pas. L'entrée du registre elle-même est inchangée.",
     "dismiss": "Ignorer",
     "reviewKnowledgeBases": "Examiner les bases de connaissances"
+  },
+  "SessionEndedModal": {
+    "title": "Déconnecté",
+    "expired": "Votre session a expiré. Veuillez vous reconnecter.",
+    "refused": "Cette base de connaissances n'a pas accepté votre connexion. Veuillez vous reconnecter.",
+    "goHome": "Aller à l'accueil",
+    "signInAgain": "Se reconnecter"
+  },
+  "PermissionDeniedModal": {
+    "title": "Accès refusé",
+    "reasonsIntro": "Causes possibles :",
+    "reasonPermissions": "Vous n'avez pas les autorisations requises",
+    "reasonRestricted": "La ressource est réservée à certains utilisateurs ou équipes",
+    "reasonAccountType": "Votre type de compte n'inclut pas cette fonctionnalité",
+    "detailLabel": "La base de connaissances a indiqué :",
+    "goBack": "Retour",
+    "goHome": "Aller à l'accueil",
+    "switchAccount": "Changer de compte"
   }
 }

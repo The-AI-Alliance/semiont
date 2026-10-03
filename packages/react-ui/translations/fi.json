@@ -510,5 +510,23 @@
     "stateCleared": "Tämän merkinnän avoimet välilehdet ja viimeisin sijainti on tyhjennetty — ne kuvasivat sisältöä, jota tässä tietokannassa ei ole. Itse rekisterimerkintä on ennallaan.",
     "dismiss": "Hylkää",
     "reviewKnowledgeBases": "Tarkista tietokannat"
+  },
+  "SessionEndedModal": {
+    "title": "Kirjautunut ulos",
+    "expired": "Istuntosi on vanhentunut. Kirjaudu sisään uudelleen.",
+    "refused": "Tämä tietopankki ei hyväksynyt kirjautumistasi. Kirjaudu sisään uudelleen.",
+    "goHome": "Siirry etusivulle",
+    "signInAgain": "Kirjaudu uudelleen"
+  },
+  "PermissionDeniedModal": {
+    "title": "Pääsy estetty",
+    "reasonsIntro": "Mahdollisia syitä:",
+    "reasonPermissions": "Sinulla ei ole tarvittavia oikeuksia",
+    "reasonRestricted": "Resurssi on rajattu tietyille käyttäjille tai tiimeille",
+    "reasonAccountType": "Tilityyppisi ei sisällä tätä ominaisuutta",
+    "detailLabel": "Tietopankki ilmoitti:",
+    "goBack": "Takaisin",
+    "goHome": "Siirry etusivulle",
+    "switchAccount": "Vaihda tiliä"
   }
 }

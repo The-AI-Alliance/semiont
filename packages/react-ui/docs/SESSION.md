@@ -63,7 +63,7 @@ Per-KB lifetime object. Owns:
   its typed namespace methods and listen with `session.subscribe(channel,
   handler)`, which returns its own unsubscribe.
 - `token$`, `user$` — observable auth state.
-- Modal state: `sessionExpired$`, `permissionDenied$` and `kbIdentityConflict$`, each null until raised.
+- Modal state: `sessionEnded$`, `permissionDenied$` and `kbIdentityConflict$`, each null until raised. A session-ended notice carries why it ended (`reason`: `expired` or `refused`); a permission notice carries the gateway's own words (`detail`), or null when it gave none. Neither carries a sentence: the modals write what a person reads.
 - `refresh()` — token refresh entrypoint.
 
 The session is **not** a bus wrapper. It does not forward `emit`/`on` —

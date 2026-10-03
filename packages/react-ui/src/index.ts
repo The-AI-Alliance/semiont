@@ -94,7 +94,7 @@ export * from './components/image-annotation/SvgDrawingCanvas';
 // Components - Modals
 export * from './components/modals/KeyboardShortcutsHelpModal';
 export * from './components/modals/PermissionDeniedModal';
-export * from './components/modals/SessionExpiredModal';
+export * from './components/modals/SessionEndedModal';
 export * from './components/modals/KbIdentityConflictModal';
 
 // Components - Resource

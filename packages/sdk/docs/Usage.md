@@ -726,7 +726,7 @@ try {
     // bus-specific for `BusRequestError`, session-specific for
     // `SemiontSessionError`.
     if (error.code === 'unauthorized') {
-      // log in / show session-expired modal
+      // renew; a session that cannot be renewed ends, with why
     } else if (error.code === 'forbidden') {
       // surface permission-denied
     } else {
@@ -748,7 +748,7 @@ if (error instanceof APIError) {
 }
 ```
 
-`SemiontSessionError` is asynchronous — it reaches you through `SemiontBrowser.error$`, not as a thrown rejection on a namespace call. The transport-level `errors$` stream (`client.transport.errors$`) carries every transport-mediated error just before it's thrown, so a host layer (e.g. `SemiontBrowser`'s session-expired / permission-denied modal routing) can subscribe once and surface them globally.
+`SemiontSessionError` is asynchronous — it reaches you through `SemiontBrowser.error$`, not as a thrown rejection on a namespace call. The transport-level `errors$` stream (`client.transport.errors$`) carries every transport-mediated error just before it's thrown, so a host layer (e.g. `SemiontBrowser`'s session-ended / permission-denied modal routing) can subscribe once and surface them globally.
 
 ## Logging
 

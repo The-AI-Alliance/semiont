@@ -10,7 +10,7 @@
  * predicate could only agree with one of them.
  */
 
-import { SemiontError, isObject, isString, retryAfterMs, transportErrorCodeForStatus, type TransportErrorCode, type HttpStatusError } from '@semiont/core';
+import { SemiontError, isObject, isString, retryAfterMs, transportErrorCodeForStatus, type TransportErrorCode, type TransportFailure, type HttpStatusError } from '@semiont/core';
 
 export class APIError extends SemiontError {
   declare code: TransportErrorCode;
@@ -19,6 +19,15 @@ export class APIError extends SemiontError {
 
   readonly retryAfterMs: number | undefined;
 
+  /**
+   * The gateway's own words (`ErrorResponse.error`), when its body stated
+   * them; null when it did not, or when what answered was not the gateway's
+   * error body. Kept apart from `message`, which falls back to the status
+   * line: a host that shows a person what the gateway said must never show
+   * them a sentence the transport made up.
+   */
+  readonly said: string | null;
+
   private constructor(
     message: string,
     code: TransportErrorCode,
@@ -26,12 +35,14 @@ export class APIError extends SemiontError {
     statusText: string,
     body: unknown,
     retryAfterMs: number | undefined,
+    said: string | null,
   ) {
     super(message, code, { status, statusText, body });
     this.name = 'APIError';
     this.status = status;
     this.statusText = statusText;
     this.retryAfterMs = retryAfterMs;
+    this.said = said;
   }
 
   /** The server answered, and its status decides the code. */
@@ -42,7 +53,7 @@ export class APIError extends SemiontError {
     body: unknown,
     retryAfterMs: number | undefined,
   ): APIError {
-    return new APIError(message, transportErrorCodeForStatus(status), status, statusText, body, retryAfterMs);
+    return new APIError(message, transportErrorCodeForStatus(status), status, statusText, body, retryAfterMs, null);
   }
 
   /**
@@ -51,8 +62,16 @@ export class APIError extends SemiontError {
    * with the body as it came, and with the wait its `Retry-After` states.
    */
   static refusal(status: number, statusText: string, body: unknown, retryAfter: string | null): APIError {
-    const said = isObject(body) && isString(body['error']) ? body['error'] : undefined;
-    return APIError.fromStatus(said ?? `HTTP ${status}: ${statusText}`, status, statusText, body, retryAfterMs(retryAfter));
+    const said = isObject(body) && isString(body['error']) ? body['error'] : null;
+    return new APIError(
+      said ?? `HTTP ${status}: ${statusText}`,
+      transportErrorCodeForStatus(status),
+      status,
+      statusText,
+      body,
+      retryAfterMs(retryAfter),
+      said,
+    );
   }
 
   /**
@@ -62,7 +81,7 @@ export class APIError extends SemiontError {
    * `statusText` names which ending it was.
    */
   static withoutResponse(message: string, statusText: string): APIError {
-    return new APIError(message, 'unavailable', 0, statusText, undefined, undefined);
+    return new APIError(message, 'unavailable', 0, statusText, undefined, undefined, null);
   }
 }
 
@@ -79,3 +98,11 @@ export class APIError extends SemiontError {
  */
 const _conformsToRetryContract: HttpStatusError = APIError.fromStatus('', 0, '', undefined, undefined);
 void _conformsToRetryContract;
+
+/**
+ * The same agreement with `ITransport.errors$`: what this class publishes is
+ * what the routing layer reads, `code` and `said`, checked by the compiler. A
+ * renamed `said` would otherwise leave every refusal's detail null, silently.
+ */
+const _conformsToTransportFailure: TransportFailure = APIError.fromStatus('', 0, '', undefined, undefined);
+void _conformsToTransportFailure;

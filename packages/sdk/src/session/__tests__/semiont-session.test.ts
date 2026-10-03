@@ -227,7 +227,7 @@ describe('SemiontSession — refresh', () => {
     await session.ready;
 
     await session.refresh();
-    expect(onAuthFailed).toHaveBeenCalledWith(expect.stringContaining('session has expired'));
+    expect(onAuthFailed).toHaveBeenCalledWith('expired');
     expect(session.token$.getValue()).toBeNull();
 
     await session.dispose();
@@ -259,7 +259,7 @@ describe('SemiontSession — refresh', () => {
 
     expect(session.token$.getValue()).toBeNull();
     expect(getStoredSession(storage, KB.id)).toBeNull();
-    expect(onAuthFailed).toHaveBeenCalledWith(expect.stringContaining('session has expired'));
+    expect(onAuthFailed).toHaveBeenCalledWith('expired');
     expect(onError).toHaveBeenCalledWith(
       expect.objectContaining({ code: 'session.refresh-exhausted' }),
     );
@@ -288,7 +288,7 @@ describe('SemiontSession — refresh', () => {
     // When the issuer refuses the refresh (the grant was revoked), the factory's
     // performRefresh resolves null, and the session must end: token cleared,
     // stored session cleared (so the dead refresh token is never replayed),
-    // and the expiry signal fired.
+    // and the session ended as expired.
     const jwt = freshJwt();
     seedStoredSession(storage, KB.id, jwt, 'revoked-refresh-tok');
     refresh.mockResolvedValue(null);
@@ -302,7 +302,7 @@ describe('SemiontSession — refresh', () => {
     expect(result).toBeNull();
     expect(session.token$.getValue()).toBeNull();
     expect(getStoredSession(storage, KB.id)).toBeNull();
-    expect(onAuthFailed).toHaveBeenCalledWith(expect.stringContaining('session has expired'));
+    expect(onAuthFailed).toHaveBeenCalledWith('expired');
 
     await session.dispose();
   });

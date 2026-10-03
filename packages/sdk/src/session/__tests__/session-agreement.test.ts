@@ -15,6 +15,7 @@ import { createTestClient } from '../../testing';
 import { httpKb } from '../knowledge-base';
 import { SemiontSession, type UserInfo } from '../semiont-session';
 import type { SemiontSessionError } from '../errors';
+import type { SessionEndReason } from '../session-signals';
 import { InMemorySessionStorage } from '../session-storage';
 import { getStoredSession, parseJwtExpiry, refreshDelayMs, setStoredSession } from '../storage';
 import { userId } from '@semiont/core';
@@ -45,7 +46,7 @@ interface StartupCase {
   asks: number;
   renewals: number;
   ends: 'signed-in' | 'signed-out' | 'unconfirmed';
-  told: string | null;
+  told: SessionEndReason | null;
   error: string | null;
   kept: boolean;
 }
@@ -60,18 +61,17 @@ interface RefusalCase {
   renewals: number;
   given: boolean;
   ends: 'signed-in' | 'signed-out' | 'unconfirmed';
-  told: string | null;
+  told: SessionEndReason | null;
   error: string | null;
   kept: boolean;
 }
 
 const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../specs/src/session/cases.json');
-const { refreshSchedule, tokenExpiry, startup, refusal, messages } = JSON.parse(readFileSync(TABLE, 'utf-8')) as {
+const { refreshSchedule, tokenExpiry, startup, refusal } = JSON.parse(readFileSync(TABLE, 'utf-8')) as {
   refreshSchedule: ScheduleCase[];
   tokenExpiry: ExpiryCase[];
   startup: StartupCase[];
   refusal: RefusalCase[];
-  messages: Record<string, string>;
 };
 
 const base64Url = (text: string): string => btoa(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -129,7 +129,7 @@ describe('session — the SDK agrees with the shared table', () => {
 
     let asks = 0;
     let renewals = 0;
-    const told: Array<string | null> = [];
+    const told: SessionEndReason[] = [];
     const errors: SemiontSessionError[] = [];
     const token$ = new BehaviorSubject<AccessToken | null>(null);
     const session = new SemiontSession({
@@ -156,7 +156,7 @@ describe('session — the SDK agrees with the shared table', () => {
         if (renewals > c.renewals) throw new Error(`the issuer was asked ${renewals} times`);
         return answer(c.issuer, renewals - 1) === 'renews' ? issued(renewals) : null;
       },
-      onAuthFailed: (message) => told.push(message),
+      onAuthFailed: (reason) => told.push(reason),
       onError: (error) => errors.push(error),
     });
     await session.ready;
@@ -164,7 +164,7 @@ describe('session — the SDK agrees with the shared table', () => {
     expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals });
     const [token, user] = [token$.getValue(), session.user$.getValue()];
     expect(token === null ? 'signed-out' : user === null ? 'unconfirmed' : 'signed-in').toBe(c.ends);
-    expect(told).toEqual(c.told === null ? [] : [messages[c.told]]);
+    expect(told).toEqual(c.told === null ? [] : [c.told]);
     expect(errors.map((error) => error.code)).toEqual(c.error === null ? [] : [c.error]);
     expect(getStoredSession(storage, KB.id) !== null).toBe(c.kept);
 
@@ -192,7 +192,7 @@ describe('session — the SDK agrees with the shared table', () => {
     let started = false;
     let asks = 0;
     let renewals = 0;
-    const told: Array<string | null> = [];
+    const told: SessionEndReason[] = [];
     const errors: SemiontSessionError[] = [];
     const token$ = new BehaviorSubject<AccessToken | null>(null);
     const session = new SemiontSession({
@@ -222,7 +222,7 @@ describe('session — the SDK agrees with the shared table', () => {
         setStoredSession(storage, KB.id, { ...getStoredSession(storage, KB.id)!, access: renewed });
         return renewed;
       },
-      onAuthFailed: (message) => told.push(message),
+      onAuthFailed: (reason) => told.push(reason),
       onError: (error) => errors.push(error),
     });
     await session.ready;
@@ -237,7 +237,7 @@ describe('session — the SDK agrees with the shared table', () => {
     if (c.given) expect(given).toBe(token$.getValue());
     const [token, user] = [token$.getValue(), session.user$.getValue()];
     expect(token === null ? 'signed-out' : user === null ? 'unconfirmed' : 'signed-in').toBe(c.ends);
-    expect(told).toEqual(c.told === null ? [] : [messages[c.told]]);
+    expect(told).toEqual(c.told === null ? [] : [c.told]);
     expect(errors.map((error) => error.code)).toEqual(c.error === null ? [] : [c.error]);
     expect(getStoredSession(storage, KB.id) !== null).toBe(c.kept);
 

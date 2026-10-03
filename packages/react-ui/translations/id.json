@@ -510,5 +510,23 @@
     "stateCleared": "Tab terbuka dan posisi terakhir entri ini telah dihapus — semuanya menggambarkan konten yang tidak dimiliki basis pengetahuan ini. Entri registri itu sendiri tidak berubah.",
     "dismiss": "Abaikan",
     "reviewKnowledgeBases": "Tinjau basis pengetahuan"
+  },
+  "SessionEndedModal": {
+    "title": "Anda telah keluar",
+    "expired": "Sesi Anda telah berakhir. Silakan masuk lagi.",
+    "refused": "Basis pengetahuan ini tidak menerima proses masuk Anda. Silakan masuk lagi.",
+    "goHome": "Ke Beranda",
+    "signInAgain": "Masuk Lagi"
+  },
+  "PermissionDeniedModal": {
+    "title": "Akses Ditolak",
+    "reasonsIntro": "Kemungkinan penyebab:",
+    "reasonPermissions": "Anda tidak memiliki izin yang diperlukan",
+    "reasonRestricted": "Sumber daya ini dibatasi untuk pengguna atau tim tertentu",
+    "reasonAccountType": "Jenis akun Anda tidak mencakup fitur ini",
+    "detailLabel": "Basis pengetahuan menyatakan:",
+    "goBack": "Kembali",
+    "goHome": "Ke Beranda",
+    "switchAccount": "Ganti Akun"
   }
 }

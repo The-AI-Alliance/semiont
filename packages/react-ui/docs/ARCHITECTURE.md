@@ -479,7 +479,7 @@ that are HTTP routes: binary content and the gateway's own operations.
 
 Component code handles no 401. The session refreshes its token on one, and when that cannot
 recover, the active session's `SessionSignals` (`browser.activeSignals$`) say so.
-`SessionExpiredModal`, `PermissionDeniedModal` and `KbIdentityConflictModal` read those signals;
+`SessionEndedModal`, `PermissionDeniedModal` and `KbIdentityConflictModal` read those signals;
 a host mounts the three once.
 
 ### Error Boundaries
@@ -611,7 +611,7 @@ When making breaking changes:
 - **Bearer-only:** the access token is sent as `Authorization: Bearer <jwt>` — no cookie, no ambient credential
 - Access tokens are **short-lived**; signing out revokes the refresh token at the issuer (RFC 7009), so no new access token can be obtained, and the one in hand expires within minutes
 - The access + refresh tokens are held in memory and persisted per-KB through the `SessionStorage` adapter; the short TTL plus revocation at the issuer are the XSS mitigation (the token lives in app-controlled storage, not a browser-managed credential)
-- Handle 401/403 globally — the active session's `SessionSignals` surface `SessionExpiredModal` / `PermissionDeniedModal`
+- Handle 401/403 globally — the active session's `SessionSignals` surface `SessionEndedModal` / `PermissionDeniedModal`
 - See the canonical [AUTHENTICATION.md](../../../docs/system/administration/AUTHENTICATION.md) for the full model
 
 ### XSS Prevention

@@ -514,14 +514,16 @@ export class SemiontBrowser {
       // 2026-09-14). `session.refresh()` covers both ends: success heals in
       // silence; exhaustion runs the session's own teardown — stored session
       // cleared, `onAuthFailed` fires the modal once, with the session's own
-      // message instead of the raw transport line. `forbidden` has no
-      // recovery — surface it as permission-denied, unchanged. The
-      // subscription ends naturally when `errors$` completes on dispose.
+      // reason instead of the raw transport line. `forbidden` has no
+      // recovery — surface it as permission-denied, carrying the gateway's
+      // own words when it gave any (`said`), never the transport's fallback
+      // line. The subscription ends naturally when `errors$` completes on
+      // dispose.
       session.errors$.subscribe((err) => {
         if (err.code === 'unauthorized') {
           void session.refresh();
         } else if (err.code === 'forbidden') {
-          signals.notifyPermissionDenied(err.message);
+          signals.notifyPermissionDenied(err.said);
         }
       });
 

@@ -16,10 +16,10 @@ import { useTranslations } from '../../contexts/TranslationContext';
  * Base panel, which owns re-registration; the registry entry itself is left
  * exactly as the user wrote it — it is the evidence.
  *
- * Third member of the signals-modal family (SessionExpiredModal,
+ * Third member of the signals-modal family (SessionEndedModal,
  * PermissionDeniedModal): reads the active `SessionSignals`, dismiss
- * acknowledges. Unlike its elders it is fully translated — new strings go
- * through the census gate.
+ * acknowledges. Like them it is fully translated — new strings go through
+ * the census gate.
  */
 export function KbIdentityConflictModal() {
   const t = useTranslations('KbIdentityConflictModal');

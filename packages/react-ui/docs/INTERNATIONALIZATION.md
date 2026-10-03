@@ -285,37 +285,14 @@ function Toolbar() {
 
 ## Translation Namespaces
 
-The library uses **namespace-based** translations. Each component or feature area has its own namespace.
+The library uses **namespace-based** translations. Each component or feature
+area has its own namespace, named after it: a modal's copy is under the modal's
+name, read with `useTranslations('SessionEndedModal')`.
 
-### Common Namespaces
-
-**Shared UI Strings:**
-- `Common` - save, cancel, delete, edit, close, loading, error
-
-**Navigation:**
-- `Navigation` - home, know, moderate, administer
-
-**User Interface:**
-- `Settings` - title, lineNumbers, theme, language
-- `Toolbar` - Various toolbar actions
-- `AnnotateToolbar` - Annotation tools
-- `ResourceViewer` - Resource viewing UI
-
-**Modals:**
-- `KeyboardShortcutsModal` - Keyboard shortcuts help
-- `SessionExpiredModal` - Session expiration messages
-
-**Resource Management:**
-- `ResourceInfoPanel` - Resource metadata
-- `TaggingPanel` - Tagging interface
-- `CommentsPanel` - Comments UI
-- `ReferencesPanel` - References display
-- `AssessmentPanel` - Assessment interface
-
-**Annotations:**
-- `HighlightPanel` - Highlight annotations
-- `JsonLdPanel` - JSON-LD view
-- `DetectSection` - Entity detection
+The namespaces are the top-level keys of `translations/en.json`, which is the
+list; it is not restated here. Every locale has every namespace and every key:
+`npm run lint:translations` fails the build on any key missing from, or extra
+in, any locale.
 
 ## Translation File Structure
 

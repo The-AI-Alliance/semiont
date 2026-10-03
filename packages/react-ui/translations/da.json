@@ -510,5 +510,23 @@
     "stateCleared": "Åbne faner og seneste position for denne post er ryddet — de beskrev indhold, som denne vidensbase ikke har. Selve registreringsposten er uændret.",
     "dismiss": "Afvis",
     "reviewKnowledgeBases": "Gennemgå vidensbaser"
+  },
+  "SessionEndedModal": {
+    "title": "Logget ud",
+    "expired": "Din session er udløbet. Log venligst ind igen.",
+    "refused": "Denne videnbase accepterede ikke dit login. Log venligst ind igen.",
+    "goHome": "Gå til forsiden",
+    "signInAgain": "Log ind igen"
+  },
+  "PermissionDeniedModal": {
+    "title": "Adgang nægtet",
+    "reasonsIntro": "Mulige årsager:",
+    "reasonPermissions": "Du har ikke de nødvendige tilladelser",
+    "reasonRestricted": "Ressourcen er begrænset til bestemte brugere eller teams",
+    "reasonAccountType": "Din kontotype inkluderer ikke denne funktion",
+    "detailLabel": "Videnbasen svarede:",
+    "goBack": "Gå tilbage",
+    "goHome": "Gå til forsiden",
+    "switchAccount": "Skift konto"
   }
 }

@@ -150,13 +150,13 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   private readonly http: KyInstance;
   private readonly token$: BehaviorSubject<AccessToken | null>;
   private readonly logger?: Logger;
-  private readonly errorsSubject: Subject<SemiontError> = new Subject<SemiontError>();
+  private readonly errorsSubject: Subject<APIError> = new Subject<APIError>();
   /**
    * Stream of `APIError` instances surfaced from any HTTP request just
    * before the transport throws to the caller. Satisfies the `ITransport`
    * `errors$` contract — see `@semiont/core/transport.ts`.
    */
-  readonly errors$: Observable<SemiontError> = this.errorsSubject.asObservable();
+  readonly errors$: Observable<APIError> = this.errorsSubject.asObservable();
 
   private _actor: ActorStateUnit | null = null;
   private _actorStarted = false;
@@ -505,7 +505,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
    * through the `ky` `beforeError` hook and need to surface failures on the
    * same stream the rest of the transport publishes to.
    */
-  pushError(error: SemiontError): void {
+  pushError(error: APIError): void {
     if (this.disposed) return;
     this.errorsSubject.next(error);
   }

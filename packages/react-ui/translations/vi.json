@@ -510,5 +510,23 @@
     "stateCleared": "Các thẻ đang mở và vị trí cuối của mục này đã bị xóa — chúng mô tả nội dung mà cơ sở tri thức này không có. Bản ghi đăng ký không thay đổi.",
     "dismiss": "Bỏ qua",
     "reviewKnowledgeBases": "Xem lại các cơ sở tri thức"
+  },
+  "SessionEndedModal": {
+    "title": "Đã đăng xuất",
+    "expired": "Phiên của bạn đã hết hạn. Vui lòng đăng nhập lại.",
+    "refused": "Cơ sở kiến thức này không chấp nhận việc đăng nhập của bạn. Vui lòng đăng nhập lại.",
+    "goHome": "Về trang chủ",
+    "signInAgain": "Đăng nhập lại"
+  },
+  "PermissionDeniedModal": {
+    "title": "Truy cập bị từ chối",
+    "reasonsIntro": "Nguyên nhân có thể:",
+    "reasonPermissions": "Bạn không có quyền cần thiết",
+    "reasonRestricted": "Tài nguyên bị giới hạn cho người dùng hoặc nhóm cụ thể",
+    "reasonAccountType": "Loại tài khoản của bạn không bao gồm tính năng này",
+    "detailLabel": "Cơ sở kiến thức cho biết:",
+    "goBack": "Quay lại",
+    "goHome": "Về trang chủ",
+    "switchAccount": "Chuyển tài khoản"
   }
 }

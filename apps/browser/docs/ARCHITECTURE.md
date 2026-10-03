@@ -92,7 +92,7 @@ The Browser leverages **@semiont/react-ui**, a comprehensive framework-agnostic 
 
     {/* Protected layer — AuthShell, mounted only inside layouts that require auth */}
     <ProtectedErrorBoundary>
-      <SessionExpiredModal />
+      <SessionEndedModal />
       <PermissionDeniedModal />
       {/* Auth-aware components live here */}
     </ProtectedErrorBoundary>
@@ -166,7 +166,7 @@ SemiontProvider (app root) → SemiontBrowser singleton (library-side, outside R
 1. User adds a KB → `SemiontBrowser.beginSignIn` discovers the KB's issuer from its gateway (RFC 9728) and redirects there → the callback page's `completeSignIn` exchanges the authorization code (PKCE) for access + refresh tokens
 2. The browser activates the session (`activeSession$`), marks the KB active (`activeKbId$`), and persists the session via the storage adapter
 3. On reload/switch the browser restores the stored session; the client uses its in-memory access token, re-minting from the refresh token as it nears expiry
-4. A 401 that can't be refreshed → the session's signals set the expiry flag → `SessionExpiredModal` surfaces
+4. A 401 that can't be refreshed → the session ends, and its signals raise `sessionEnded$` with why → `SessionEndedModal` surfaces
 
 **Token Management:**
 - Bearer-only: every request carries `Authorization: Bearer <jwt>` — there is no cookie and no ambient credential
@@ -308,12 +308,20 @@ On reconnect, a detected event gap (`bus:resume-gap`) triggers a blanket invalid
 ```typescript
 // SemiontBrowser, when a session activates (packages/sdk/src/session/semiont-browser.ts)
 session.errors$.subscribe((err) => {
-  if (err.code === 'unauthorized') signals.notifySessionExpired(err.message);
-  else if (err.code === 'forbidden') signals.notifyPermissionDenied(err.message);
+  if (err.code === 'unauthorized') void session.refresh();
+  else if (err.code === 'forbidden') signals.notifyPermissionDenied(err.said);
 });
 ```
 
-`SessionSignals` holds the modal state as `BehaviorSubject`s, one per signal (`sessionExpired$`, `permissionDenied$`, `kbIdentityConflict$`), each null until raised; `SessionExpiredModal` and `PermissionDeniedModal` render by subscribing to the browser's `activeSignals$` via `useObservable`. When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so auth errors have nowhere to surface and are no-ops.
+A `401` is not the end of a session: `refresh()` renews the token, and only a
+session that cannot be renewed, or whose renewed token the knowledge base also
+refuses, ends. The session's own `onAuthFailed` then raises `notifySessionEnded`
+with why: `expired` or `refused`. A `403` raises `notifyPermissionDenied` with
+the gateway's own words (`said`, from its `ErrorResponse.error`) when it gave
+any, and `null` when it did not: the transport's fallback status line is never
+shown as the gateway's.
+
+`SessionSignals` holds the modal state as `BehaviorSubject`s, one per signal (`sessionEnded$`, `permissionDenied$`, `kbIdentityConflict$`), each null until raised. A notice says what happened, never a sentence: `SessionEndedModal` and `PermissionDeniedModal` write what a person reads, in their language, and render by subscribing to the browser's `activeSignals$` via `useObservable`. When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so auth errors have nowhere to surface and are no-ops.
 
 **Component-level:** a live query carries its own loading/error state in the value it emits — `useObservable(semiont.browse.resource(id))` yields `CacheState` values (`pending` / `ready` / `failed`, plus `undefined` on the very first render). One-shot hooks such as `useResourceGraph` return an explicit `{ data, loading, error }` shape:
 
@@ -390,7 +398,7 @@ The provider tree has two distinct layers:
 // apps/browser/src/contexts/AuthShell.tsx — no provider; the SemiontBrowser
 // singleton (mounted at the app root) already holds all session state.
 <ProtectedErrorBoundary>            // catches render-time crashes inside the protected tree
-  <SessionExpiredModal />           // reads sessionExpired$ from the active session's signals
+  <SessionEndedModal />             // reads sessionEnded$ from the active session's signals
   <PermissionDeniedModal />         // reads permissionDenied$ from the active session's signals
   {children}                        // protected layout body
 ```
@@ -405,7 +413,7 @@ The provider tree has two distinct layers:
 ### Why the split
 
 - **Pre-app surfaces** (landing page, OAuth flow, static pages) do not need a validated session and should not surface auth-failure modals.
-- **Protected layouts** mount `AuthShell`, which surfaces the auth-failure modals from the active session's signals (`activeSignals$`). A 401 that can't be refreshed marks the session expired and `SessionExpiredModal` surfaces.
+- **Protected layouts** mount `AuthShell`, which surfaces the auth-failure modals from the active session's signals (`activeSignals$`). A 401 that can't be refreshed ends the session and `SessionEndedModal` surfaces, saying why.
 - **Switching KBs swaps `activeSession$`** to the new KB's session (with its own `SemiontClient` pointing at that KB's gateway) — the `SemiontBrowser` singleton handles it, with no per-layout provider or external bridge.
 
 See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for details on the Provider Pattern architecture.
@@ -662,7 +670,7 @@ Two major refactors are complete:
 - Browser `AuthContext.tsx`, `KnowledgeBaseContext.tsx`, `useAuth.ts`, `useSessionManager.ts` are gone
 - Library `SessionContext.tsx`, `auth-events.ts`, and `dispatch401Error`/`dispatch403Error` are gone
 - Auth state via `useSemiont()` → `activeSession$` → `user$` from `@semiont/react-ui`
-- Cross-tree 401/403 signaling via the active session's `SessionSignals` (`notifySessionExpired` / `notifyPermissionDenied`)
+- Cross-tree 401/403 signaling via the active session's `SessionSignals` (`notifySessionEnded` / `notifyPermissionDenied`)
 
 **NO-NEXTJS**: Replaced Next.js with Vite + React Router v7 + i18next.
 - `next build` → `vite build` (output: static files)

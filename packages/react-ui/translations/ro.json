@@ -510,5 +510,23 @@
     "stateCleared": "Filele deschise și ultima poziție a acestei intrări au fost șterse — descriau conținut pe care această bază de cunoștințe nu îl are. Intrarea din registru rămâne neschimbată.",
     "dismiss": "Închide",
     "reviewKnowledgeBases": "Verificați bazele de cunoștințe"
+  },
+  "SessionEndedModal": {
+    "title": "Deconectat",
+    "expired": "Sesiunea dvs. a expirat. Vă rugăm să vă conectați din nou.",
+    "refused": "Această bază de cunoștințe nu v-a acceptat conectarea. Vă rugăm să vă conectați din nou.",
+    "goHome": "Mergeți la pagina principală",
+    "signInAgain": "Conectați-vă din nou"
+  },
+  "PermissionDeniedModal": {
+    "title": "Acces refuzat",
+    "reasonsIntro": "Cauze posibile:",
+    "reasonPermissions": "Nu aveți permisiunile necesare",
+    "reasonRestricted": "Resursa este restricționată la anumiți utilizatori sau echipe",
+    "reasonAccountType": "Tipul contului dvs. nu include această funcție",
+    "detailLabel": "Baza de cunoștințe a transmis:",
+    "goBack": "Înapoi",
+    "goHome": "Mergeți la pagina principală",
+    "switchAccount": "Schimbați contul"
   }
 }

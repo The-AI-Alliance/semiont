@@ -139,14 +139,14 @@ and the two auth-failure modals; the modals read the active session's signals
 // apps/browser/src/contexts/AuthShell.tsx
 import {
   ProtectedErrorBoundary,
-  SessionExpiredModal,
+  SessionEndedModal,
   PermissionDeniedModal,
 } from '@semiont/react-ui';
 
 export function AuthShell({ children }) {
   return (
     <ProtectedErrorBoundary>
-      <SessionExpiredModal />
+      <SessionEndedModal />
       <PermissionDeniedModal />
       {children}
     </ProtectedErrorBoundary>
@@ -316,7 +316,7 @@ like `browse:resources-failed`), raised from the promise returned by
 ### Automatic Recovery
 
 - **401 errors** — the `SemiontSession` re-mints a fresh access token from the refresh token and retries once before propagating the error.
-- **Session expired** — when the refresh token is gone or revoked, the active session's signals surface `SessionExpiredModal`.
+- **Session ended** — when the session's token cannot be renewed, or the knowledge base refuses the renewed one, the active session's signals surface `SessionEndedModal`, which says which.
 - **Permission denied** — surfaced via `PermissionDeniedModal`.
 
 ## Related Documentation

@@ -510,5 +510,23 @@
     "stateCleared": "Open tabbladen en laatste positie van deze vermelding zijn gewist — ze beschreven inhoud die deze kennisbank niet heeft. De registervermelding zelf is ongewijzigd.",
     "dismiss": "Sluiten",
     "reviewKnowledgeBases": "Kennisbanken controleren"
+  },
+  "SessionEndedModal": {
+    "title": "Uitgelogd",
+    "expired": "Je sessie is verlopen. Log opnieuw in.",
+    "refused": "Deze kennisbasis heeft je aanmelding niet geaccepteerd. Log opnieuw in.",
+    "goHome": "Naar startpagina",
+    "signInAgain": "Opnieuw inloggen"
+  },
+  "PermissionDeniedModal": {
+    "title": "Toegang geweigerd",
+    "reasonsIntro": "Mogelijke oorzaken:",
+    "reasonPermissions": "Je hebt niet de vereiste rechten",
+    "reasonRestricted": "De bron is beperkt tot specifieke gebruikers of teams",
+    "reasonAccountType": "Je accounttype bevat deze functie niet",
+    "detailLabel": "De kennisbasis meldde:",
+    "goBack": "Ga terug",
+    "goHome": "Naar startpagina",
+    "switchAccount": "Ander account"
   }
 }

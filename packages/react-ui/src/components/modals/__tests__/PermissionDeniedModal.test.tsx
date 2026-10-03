@@ -2,8 +2,11 @@
  * PermissionDeniedModal Tests
  *
  * The modal renders content when `permissionDenied$` holds a notice on the
- * KnowledgeBaseSession context, and is hidden otherwise. Button clicks call
- * `acknowledgePermissionDenied()` and navigate the window or history.
+ * active signals, and is hidden otherwise. Its own copy comes from the
+ * person's locale; beneath it, when the gateway said why it refused, are the
+ * gateway's words, unaltered and marked as the knowledge base's. Button
+ * clicks call `acknowledgePermissionDenied()` and navigate the window or
+ * history.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
@@ -12,8 +15,11 @@ import '@testing-library/jest-dom';
 import {
   renderWithProviders,
   createTestBrowserWithSignals,
+  createMockTranslationManager,
 } from '../../../test-utils';
 import { PermissionDeniedModal } from '../PermissionDeniedModal';
+import en from '../../../../translations/en.json';
+import ja from '../../../../translations/ja.json';
 
 vi.mock('@headlessui/react', () => ({
   Dialog: ({ children, ...props }: any) => <div role="dialog" {...props}>{typeof children === 'function' ? children({ open: true }) : children}</div>,
@@ -22,6 +28,10 @@ vi.mock('@headlessui/react', () => ({
   Transition: ({ show, children }: any) => show ? <>{children}</> : null,
   TransitionChild: ({ children }: any) => <>{children}</>,
 }));
+
+const english = createMockTranslationManager(en);
+const japanese = createMockTranslationManager(ja);
+const SAID = 'Archiving needs the curator role.';
 
 const originalLocation = window.location;
 const originalHistoryBack = window.history.back;
@@ -53,43 +63,66 @@ describe('PermissionDeniedModal', () => {
     it('does not render modal content when nothing is raised', () => {
       renderWithProviders(<PermissionDeniedModal />, {
         browser: createTestBrowserWithSignals(),
+        translationManager: english,
       });
-      expect(screen.queryByText('Access Denied')).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
   });
 
   describe('when permission-denied is raised', () => {
-    it('shows modal with default message when no message provided', () => {
+    it('shows its own copy: title, the reasons, and every button', () => {
       renderWithProviders(<PermissionDeniedModal />, {
-        browser: createTestBrowserWithSignals({
-          permissionDenied: { message: null },
-        }),
+        browser: createTestBrowserWithSignals({ permissionDenied: { detail: null } }),
+        translationManager: english,
       });
 
-      expect(screen.getByText('Access Denied')).toBeInTheDocument();
-      expect(screen.getByText('You do not have permission to perform this action.')).toBeInTheDocument();
+      const m = en.PermissionDeniedModal;
+      expect(screen.getByText(m.title)).toBeInTheDocument();
+      expect(screen.getByText(m.reasonsIntro)).toBeInTheDocument();
+      expect(screen.getByText(m.reasonPermissions)).toBeInTheDocument();
+      expect(screen.getByText(m.reasonRestricted)).toBeInTheDocument();
+      expect(screen.getByText(m.reasonAccountType)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: m.goBack })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: m.goHome })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: m.switchAccount })).toBeInTheDocument();
     });
 
-    it('shows custom message from the notice', () => {
+    it("shows the gateway's words beneath, unaltered and marked as the knowledge base's", () => {
       renderWithProviders(<PermissionDeniedModal />, {
-        browser: createTestBrowserWithSignals({
-          permissionDenied: { message: 'Admin access required for this resource' },
-        }),
+        browser: createTestBrowserWithSignals({ permissionDenied: { detail: SAID } }),
+        translationManager: english,
       });
 
-      expect(screen.getByText('Admin access required for this resource')).toBeInTheDocument();
+      const said = screen.getByText(SAID);
+      expect(said.tagName).toBe('BLOCKQUOTE');
+      expect(said.closest('figure')).toHaveTextContent(en.PermissionDeniedModal.detailLabel);
     });
 
-    it('renders all three action buttons', () => {
+    it('a gateway that said nothing shows no detail, and no label for one', () => {
       renderWithProviders(<PermissionDeniedModal />, {
-        browser: createTestBrowserWithSignals({
-          permissionDenied: { message: null },
-        }),
+        browser: createTestBrowserWithSignals({ permissionDenied: { detail: null } }),
+        translationManager: english,
       });
 
-      expect(screen.getByRole('button', { name: /go back/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /go to home/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /switch account/i })).toBeInTheDocument();
+      expect(screen.queryByText(en.PermissionDeniedModal.detailLabel)).not.toBeInTheDocument();
+    });
+
+    it("a person using the application in Japanese reads its copy in Japanese, and the gateway's words as it wrote them", () => {
+      renderWithProviders(<PermissionDeniedModal />, {
+        browser: createTestBrowserWithSignals({ permissionDenied: { detail: SAID } }),
+        translationManager: japanese,
+      });
+
+      const m = ja.PermissionDeniedModal;
+      expect(m.title).not.toBe(en.PermissionDeniedModal.title);
+      expect(screen.getByText(m.title)).toBeInTheDocument();
+      expect(screen.getByText(m.reasonsIntro)).toBeInTheDocument();
+      expect(screen.getByText(m.reasonPermissions)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: m.goBack })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: m.switchAccount })).toBeInTheDocument();
+      expect(screen.getByText(m.detailLabel)).toBeInTheDocument();
+      expect(screen.getByText(SAID)).toBeInTheDocument();
+      expect(screen.queryByText(en.PermissionDeniedModal.title)).not.toBeInTheDocument();
     });
   });
 
@@ -98,12 +131,13 @@ describe('PermissionDeniedModal', () => {
       const ack = vi.fn();
       renderWithProviders(<PermissionDeniedModal />, {
         browser: createTestBrowserWithSignals({
-          permissionDenied: { message: 'denied' },
+          permissionDenied: { detail: null },
           acknowledgePermissionDenied: ack,
         }),
+        translationManager: english,
       });
 
-      fireEvent.click(screen.getByRole('button', { name: /go back/i }));
+      fireEvent.click(screen.getByRole('button', { name: en.PermissionDeniedModal.goBack }));
 
       expect(ack).toHaveBeenCalled();
       expect(mockHistoryBack).toHaveBeenCalled();
@@ -113,12 +147,13 @@ describe('PermissionDeniedModal', () => {
       const ack = vi.fn();
       renderWithProviders(<PermissionDeniedModal />, {
         browser: createTestBrowserWithSignals({
-          permissionDenied: { message: 'denied' },
+          permissionDenied: { detail: null },
           acknowledgePermissionDenied: ack,
         }),
+        translationManager: english,
       });
 
-      fireEvent.click(screen.getByRole('button', { name: /go to home/i }));
+      fireEvent.click(screen.getByRole('button', { name: en.PermissionDeniedModal.goHome }));
 
       expect(ack).toHaveBeenCalled();
       expect(mockLocation.href).toBe('/');
@@ -129,12 +164,13 @@ describe('PermissionDeniedModal', () => {
       mockLocation.pathname = '/admin/users';
       renderWithProviders(<PermissionDeniedModal />, {
         browser: createTestBrowserWithSignals({
-          permissionDenied: { message: 'denied' },
+          permissionDenied: { detail: null },
           acknowledgePermissionDenied: ack,
         }),
+        translationManager: english,
       });
 
-      fireEvent.click(screen.getByRole('button', { name: /switch account/i }));
+      fireEvent.click(screen.getByRole('button', { name: en.PermissionDeniedModal.switchAccount }));
 
       expect(ack).toHaveBeenCalled();
       expect(mockLocation.href).toBe('/auth/connect?callbackUrl=%2Fadmin%2Fusers');

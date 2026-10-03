@@ -6,9 +6,9 @@
  *   localStorage seeded with a KB + token
  *     → fresh SemiontBrowser constructs SemiontSession for the active KB
  *     → session asks the gateway who the stored token is
- *     → on 401: session clears token + raises sessionExpired$
- *     → SessionExpiredModal (mounted by AuthShell) reads sessionExpired$
- *        and renders
+ *     → on 401: session clears token + raises sessionEnded$
+ *     → SessionEndedModal (mounted by AuthShell) reads sessionEnded$
+ *        and renders, in the copy react-ui ships for the locale
  *
  * If any link in this chain breaks, the user sees an empty page instead of
  * the modal. This is the integration the unit tests miss.
@@ -27,6 +27,11 @@ import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router';
 import { SemiontProvider, WebBrowserStorage } from '@semiont/react-ui';
 import { SemiontBrowser, createHttpSessionFactory } from '@semiont/sdk';
+import en from '@semiont/react-ui/translations/en';
+
+// No translation provider is mounted, so react-ui renders its own English:
+// the copy is read from there, never retyped.
+const copy = en.SessionEndedModal;
 // Set up in beforeEach; tests script what each answers.
 const whoIs = vi.fn<(request: Request) => Promise<Response>>();
 let fetchMock: Mock<(url: string, init?: RequestInit) => Promise<Response>>;
@@ -130,13 +135,13 @@ describe('AuthShell integration — KB session validation → modal', () => {
     });
 
     expect(screen.getByTestId('protected-content')).toBeInTheDocument();
-    expect(screen.queryByText('Signed Out')).not.toBeInTheDocument();
+    expect(screen.queryByText(copy.title)).not.toBeInTheDocument();
     expect(localStorage.getItem(`semiont.session.${KB_ID}`)).not.toBeNull();
 
     await browser.dispose();
   });
 
-  it('surfaces SessionExpiredModal when the gateway refuses the token and the issuer will not renew it', async () => {
+  it('surfaces SessionEndedModal when the gateway refuses the token and the issuer will not renew it', async () => {
     whoIs.mockImplementation(refused);
     // The issuer refuses the refresh grant — the stub's default.
 
@@ -145,11 +150,11 @@ describe('AuthShell integration — KB session validation → modal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Signed Out')).toBeInTheDocument();
+      expect(screen.getByText(copy.title)).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Your session has expired. Please sign in again.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign in again/i })).toBeInTheDocument();
+    expect(screen.getByText(copy.expired)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: copy.signInAgain })).toBeInTheDocument();
     expect(localStorage.getItem(`semiont.session.${KB_ID}`)).toBeNull();
     expect(screen.getByTestId('protected-content')).toBeInTheDocument();
 
@@ -168,20 +173,20 @@ describe('AuthShell integration — KB session validation → modal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('This knowledge base did not accept your sign-in. Please sign in again.')).toBeInTheDocument();
+      expect(screen.getByText(copy.refused)).toBeInTheDocument();
     });
 
     expect(whoIs).toHaveBeenCalledTimes(2);
-    // The title is true of either ending: nothing here says "expired".
-    expect(screen.getByText('Signed Out')).toBeInTheDocument();
-    expect(screen.queryByText(/expired/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /sign in again/i })).toBeInTheDocument();
+    // The title is true of either ending: the expiry sentence is not shown.
+    expect(screen.getByText(copy.title)).toBeInTheDocument();
+    expect(screen.queryByText(copy.expired)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: copy.signInAgain })).toBeInTheDocument();
     expect(localStorage.getItem(`semiont.session.${KB_ID}`)).toBeNull();
 
     await browser.dispose();
   });
 
-  it('does NOT surface SessionExpiredModal when the gateway fails with 500', async () => {
+  it('does NOT surface SessionEndedModal when the gateway fails with 500', async () => {
     whoIs.mockImplementation(async () => new Response(null, { status: 500 }));
 
     const { browser } = renderShell(
@@ -192,7 +197,7 @@ describe('AuthShell integration — KB session validation → modal', () => {
       expect(whoIs).toHaveBeenCalled();
     });
 
-    expect(screen.queryByText('Signed Out')).not.toBeInTheDocument();
+    expect(screen.queryByText(copy.title)).not.toBeInTheDocument();
     expect(localStorage.getItem(`semiont.session.${KB_ID}`)).not.toBeNull();
     expect(refreshCalls()).toHaveLength(0);
 
@@ -211,7 +216,7 @@ describe('AuthShell integration — KB session validation → modal', () => {
 
     await waitFor(() => expect(whoIs).toHaveBeenCalledTimes(2));
     expect(refreshCalls()).toHaveLength(1);
-    expect(screen.queryByText('Signed Out')).not.toBeInTheDocument();
+    expect(screen.queryByText(copy.title)).not.toBeInTheDocument();
     const stored = JSON.parse(localStorage.getItem(`semiont.session.${KB_ID}`)!);
     expect(stored.access).toBe(newAccess);
 

@@ -77,7 +77,7 @@ import {
   SemiontProvider,
   TranslationProvider,
   ProtectedErrorBoundary,
-  SessionExpiredModal,
+  SessionEndedModal,
   PermissionDeniedModal,
 } from '@semiont/react-ui';
 
@@ -91,7 +91,7 @@ function App({ children }) {
           SemiontClient) flow from there. */}
       <SemiontProvider>
         <ProtectedErrorBoundary>
-          <SessionExpiredModal />
+          <SessionEndedModal />
           <PermissionDeniedModal />
           {children}
         </ProtectedErrorBoundary>

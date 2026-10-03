@@ -37,7 +37,7 @@ import type {
   IContentTransport,
   IGatewayOperations,
   ITransport,
-  SemiontError,
+  TransportFailure,
 } from '@semiont/core';
 
 export interface InMemoryTransportOptions {
@@ -62,7 +62,7 @@ export interface InMemoryTransportOptions {
    */
   subscribeToResource?: ITransport['subscribeToResource'];
   state$?: Observable<ConnectionState>;
-  errors$?: Observable<SemiontError>;
+  errors$?: Observable<TransportFailure>;
 }
 
 export function inMemoryTransport(options: InMemoryTransportOptions = {}): ITransport {
@@ -72,7 +72,7 @@ export function inMemoryTransport(options: InMemoryTransportOptions = {}): ITran
     observers = 1,
     subscribeToResource = () => () => {},
     state$ = new BehaviorSubject<ConnectionState>('open').asObservable(),
-    errors$ = new Subject<SemiontError>().asObservable(),
+    errors$ = new Subject<TransportFailure>().asObservable(),
   } = options;
 
   return {

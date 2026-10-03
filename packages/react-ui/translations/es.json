@@ -510,5 +510,23 @@
     "stateCleared": "Las pestañas abiertas y la última posición de esta entrada se han borrado — describían contenidos que esta base de conocimiento no tiene. La entrada del registro permanece sin cambios.",
     "dismiss": "Descartar",
     "reviewKnowledgeBases": "Revisar bases de conocimiento"
+  },
+  "SessionEndedModal": {
+    "title": "Sesión cerrada",
+    "expired": "Su sesión ha expirado. Inicie sesión de nuevo.",
+    "refused": "Esta base de conocimiento no aceptó su inicio de sesión. Inicie sesión de nuevo.",
+    "goHome": "Ir al inicio",
+    "signInAgain": "Iniciar sesión de nuevo"
+  },
+  "PermissionDeniedModal": {
+    "title": "Acceso denegado",
+    "reasonsIntro": "Posibles causas:",
+    "reasonPermissions": "No tiene los permisos necesarios",
+    "reasonRestricted": "El recurso está restringido a usuarios o equipos específicos",
+    "reasonAccountType": "Su tipo de cuenta no incluye esta función",
+    "detailLabel": "La base de conocimiento indicó:",
+    "goBack": "Volver",
+    "goHome": "Ir al inicio",
+    "switchAccount": "Cambiar de cuenta"
   }
 }

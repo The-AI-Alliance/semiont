@@ -3,10 +3,16 @@
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
+import { useTranslations } from '../../contexts/TranslationContext';
 
 /**
  * Modal that surfaces when a 403 forbidden error is reported via
  * the active session's `signals.notifyPermissionDenied(...)`.
+ *
+ * Its own copy is in the person's language. Beneath it, when the gateway
+ * said why it refused, are the gateway's words, unaltered and marked as the
+ * knowledge base's: they are the only part that names what was refused, and
+ * a client cannot translate them.
  *
  * Reads `permissionDenied$` from the active `SessionSignals`. The signals instance clears the
  * flag when the user dismisses the modal. Modal state lives on
@@ -14,11 +20,12 @@ import { useObservable } from '../../hooks/useObservable';
  * (workers/CLIs) don't carry dead observables.
  */
 export function PermissionDeniedModal() {
+  const t = useTranslations('PermissionDeniedModal');
   const signals = useObservable(useSemiont().activeSignals$);
   const permissionDenied = useObservable(signals?.permissionDenied$) ?? null;
   const acknowledgePermissionDenied = () => signals?.acknowledgePermissionDenied();
   const showModal = permissionDenied !== null;
-  const message = permissionDenied?.message;
+  const detail = permissionDenied?.detail ?? null;
 
   const handleGoBack = () => {
     acknowledgePermissionDenied();
@@ -70,11 +77,8 @@ export function PermissionDeniedModal() {
 
                 <div className="semiont-modal__content">
                   <DialogTitle className="semiont-modal__title semiont-modal__title--centered">
-                    Access Denied
+                    {t('title')}
                   </DialogTitle>
-                  <p className="semiont-modal__description">
-                    {message}
-                  </p>
                 </div>
 
                 <div style={{
@@ -86,7 +90,7 @@ export function PermissionDeniedModal() {
                   marginBottom: '1rem',
                 }}>
                   <p style={{ color: 'var(--semiont-text-secondary)', marginBottom: '0.5rem' }}>
-                    This could be because:
+                    {t('reasonsIntro')}
                   </p>
                   <ul style={{
                     listStyle: 'disc',
@@ -96,11 +100,30 @@ export function PermissionDeniedModal() {
                     flexDirection: 'column',
                     gap: '0.25rem',
                   }}>
-                    <li>You don't have the required permissions</li>
-                    <li>The resource is restricted to specific users or teams</li>
-                    <li>Your account type doesn't include this feature</li>
+                    <li>{t('reasonPermissions')}</li>
+                    <li>{t('reasonRestricted')}</li>
+                    <li>{t('reasonAccountType')}</li>
                   </ul>
                 </div>
+
+                {detail !== null && (
+                  <figure style={{
+                    margin: '0 0 1rem',
+                    fontSize: 'var(--semiont-text-sm, 0.875rem)',
+                  }}>
+                    <figcaption style={{ color: 'var(--semiont-text-secondary)', marginBottom: '0.25rem' }}>
+                      {t('detailLabel')}
+                    </figcaption>
+                    <blockquote style={{
+                      margin: 0,
+                      paddingLeft: '0.75rem',
+                      borderLeft: '2px solid var(--semiont-border-primary)',
+                      color: 'var(--semiont-text-primary)',
+                    }}>
+                      {detail}
+                    </blockquote>
+                  </figure>
+                )}
 
                 <div className="semiont-modal__actions">
                   <button
@@ -108,14 +131,14 @@ export function PermissionDeniedModal() {
                     onClick={handleGoBack}
                     className="semiont-button--primary semiont-button--flex"
                   >
-                    Go Back
+                    {t('goBack')}
                   </button>
                   <button
                     type="button"
                     onClick={handleGoHome}
                     className="semiont-button--secondary semiont-button--flex"
                   >
-                    Go to Home
+                    {t('goHome')}
                   </button>
                 </div>
                 <div className="semiont-modal__actions" style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--semiont-border-primary)' }}>
@@ -125,7 +148,7 @@ export function PermissionDeniedModal() {
                     className="semiont-button--secondary semiont-button--flex"
                     style={{ fontSize: 'var(--semiont-text-sm, 0.875rem)' }}
                   >
-                    Switch Account
+                    {t('switchAccount')}
                   </button>
                 </div>
               </DialogPanel>

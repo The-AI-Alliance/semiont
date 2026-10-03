@@ -17,7 +17,7 @@ import React from 'react';
 import { useLocation } from 'react-router';
 import {
   ProtectedErrorBoundary,
-  SessionExpiredModal,
+  SessionEndedModal,
   PermissionDeniedModal,
   KbIdentityConflictModal,
 } from '@semiont/react-ui';
@@ -26,7 +26,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   return (
     <ProtectedErrorBoundary resetKeys={[location.pathname]}>
-      <SessionExpiredModal />
+      <SessionEndedModal />
       <PermissionDeniedModal />
       <KbIdentityConflictModal />
       {children}

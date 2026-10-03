@@ -142,11 +142,12 @@ false) is how the layout knows to render the unauth view with a
            └── SemiontSession constructs, validates token via /api/users/me
                ├── 200 → activeSession$.next(session), sessionActivating$ → false
                └── 401 → session disposes itself, activeSession$ stays null,
-                         session raises sessionExpired$ on the dead session (see below)
+                         session raises sessionEnded$ on the dead session (see below)
 
 3. Out-of-band 401/403 from any HTTP / bus call
    └── transport stamps unauthorized/forbidden → session.errors$ → SemiontBrowser
-       └── routes to the active session's SessionSignals (notifySessionExpired / notifyPermissionDenied)
+       └── 401 → session.refresh(); a session that cannot be renewed raises notifySessionEnded
+       └── 403 → the active session's SessionSignals (notifyPermissionDenied)
            └── Modal reads the flag via useObservable and surfaces
 
 4. Sign out
@@ -177,14 +178,22 @@ stream and routes failures to that session's `SessionSignals`:
 ```typescript
 // SemiontBrowser, on session activation (packages/sdk/src/session/semiont-browser.ts)
 session.errors$.subscribe((err) => {
-  if (err.code === 'unauthorized') signals.notifySessionExpired(err.message);
-  else if (err.code === 'forbidden') signals.notifyPermissionDenied(err.message);
+  if (err.code === 'unauthorized') void session.refresh();
+  else if (err.code === 'forbidden') signals.notifyPermissionDenied(err.said);
 });
 ```
 
+A `401` is not the end of a session: `refresh()` renews the token, and only a
+session that cannot be renewed, or whose renewed token the knowledge base also
+refuses, ends. The session's own `onAuthFailed` then raises `notifySessionEnded`
+with why: `expired` or `refused`. A `403` raises `notifyPermissionDenied` with
+the gateway's own words (`said`, from its `ErrorResponse.error`) when it gave
+any, and `null` when it did not: the transport's fallback status line is never
+shown as the gateway's.
+
 `SessionSignals` exposes the modal state as `BehaviorSubject`s
-(`sessionExpired$`, `permissionDenied$`, …), surfaced by the browser
-as `activeSignals$`. `SessionExpiredModal` and `PermissionDeniedModal`
+(`sessionEnded$`, `permissionDenied$`, …), surfaced by the browser
+as `activeSignals$`. `SessionEndedModal` and `PermissionDeniedModal`
 subscribe to it via `useObservable` — so a failure raised entirely
 outside React still drives the UI.
 

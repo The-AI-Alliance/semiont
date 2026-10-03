@@ -510,5 +510,23 @@
     "stateCleared": "As abas abertas e a última posição desta entrada foram limpas — descreviam conteúdos que esta base de conhecimento não tem. A entrada do registro permanece inalterada.",
     "dismiss": "Dispensar",
     "reviewKnowledgeBases": "Revisar bases de conhecimento"
+  },
+  "SessionEndedModal": {
+    "title": "Desconectado",
+    "expired": "Sua sessão expirou. Entre novamente.",
+    "refused": "Esta base de conhecimento não aceitou seu login. Entre novamente.",
+    "goHome": "Ir para o início",
+    "signInAgain": "Entrar novamente"
+  },
+  "PermissionDeniedModal": {
+    "title": "Acesso negado",
+    "reasonsIntro": "Possíveis causas:",
+    "reasonPermissions": "Você não tem as permissões necessárias",
+    "reasonRestricted": "O recurso é restrito a usuários ou equipes específicos",
+    "reasonAccountType": "Seu tipo de conta não inclui esta funcionalidade",
+    "detailLabel": "A base de conhecimento informou:",
+    "goBack": "Voltar",
+    "goHome": "Ir para o início",
+    "switchAccount": "Trocar de conta"
   }
 }

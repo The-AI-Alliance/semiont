@@ -510,5 +510,23 @@
     "stateCleared": "Le schede aperte e l'ultima posizione di questa voce sono state cancellate — descrivevano contenuti che questa base di conoscenza non ha. La voce del registro è invariata.",
     "dismiss": "Ignora",
     "reviewKnowledgeBases": "Rivedi le basi di conoscenza"
+  },
+  "SessionEndedModal": {
+    "title": "Disconnesso",
+    "expired": "La tua sessione è scaduta. Accedi di nuovo.",
+    "refused": "Questa base di conoscenza non ha accettato il tuo accesso. Accedi di nuovo.",
+    "goHome": "Vai alla home",
+    "signInAgain": "Accedi di nuovo"
+  },
+  "PermissionDeniedModal": {
+    "title": "Accesso negato",
+    "reasonsIntro": "Possibili cause:",
+    "reasonPermissions": "Non hai le autorizzazioni necessarie",
+    "reasonRestricted": "La risorsa è limitata a utenti o team specifici",
+    "reasonAccountType": "Il tuo tipo di account non include questa funzionalità",
+    "detailLabel": "La base di conoscenza ha indicato:",
+    "goBack": "Torna indietro",
+    "goHome": "Vai alla home",
+    "switchAccount": "Cambia account"
   }
 }

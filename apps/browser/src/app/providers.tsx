@@ -21,8 +21,8 @@ import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager
  * the app root — mounting it here is cheap because the singleton itself
  * survives every React re-render and route change.
  *
- * Auth-dependent UI (ProtectedErrorBoundary, SessionExpiredModal,
- * PermissionDeniedModal) is bundled in `AuthShell` and mounted only in
+ * Auth-dependent UI (ProtectedErrorBoundary, SessionEndedModal,
+ * PermissionDeniedModal, KbIdentityConflictModal) is bundled in `AuthShell` and mounted only in
  * protected layouts (know/, admin/, moderate/, auth/welcome/). Pre-app
  * routes (landing, OAuth flow) intentionally do NOT mount AuthShell —
  * they have no session UI.

@@ -41,26 +41,26 @@ component that gates on a role flag is gating on `undefined`.
 
 #### 2. PermissionDeniedModal (`@semiont/react-ui`)
 
-A library modal that surfaces when users encounter 403 errors. It reads the active session's `SessionSignals` (specifically `permissionDenied$`, exposed by the browser as `activeSignals$`), so it appears whenever that signal becomes non-null. Recovery options:
+A library modal that surfaces when users encounter 403 errors. It reads the active session's `SessionSignals` (specifically `permissionDenied$`, exposed by the browser as `activeSignals$`), so it appears whenever that signal becomes non-null. Its own copy is in the person's language; beneath it, when the gateway said why it refused, are the gateway's words, unaltered and marked as the knowledge base's. Recovery options:
 
 - **Go Back** - Return to previous page
 - **Go to Home** - Navigate to home page
 - **Switch Account** - Sign in with different credentials
 
-The modal is mounted inside `AuthShell` alongside `SessionExpiredModal`.
+The modal is mounted inside `AuthShell` alongside `SessionEndedModal`.
 
 #### 3. `signals.notifyPermissionDenied` (`@semiont/sdk`)
 
 A 403 from the gateway surfaces on the transport's error stream; the `SemiontBrowser` observes it and raises the signal on the active session's `SessionSignals`:
 
 ```typescript
-// inside SemiontBrowser, observing transport errors
-if (error instanceof APIError && error.status === 403) {
-  signals.notifyPermissionDenied(error.message);
+// inside SemiontBrowser, observing the session's transport errors
+if (err.code === 'forbidden') {
+  signals.notifyPermissionDenied(err.said); // the gateway's own words, or null
 }
 ```
 
-When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so nothing is raised. The signal is cleared (`clearPermissionDenied`) when the user dismisses the modal.
+When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so nothing is raised. The signal is cleared (`acknowledgePermissionDenied`) when the user dismisses the modal.
 
 ## 403 Error Handling Flow
 

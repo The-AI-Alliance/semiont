@@ -301,17 +301,14 @@ impl Shared {
                 tokio::time::sleep(RETRY_PAUSE.max(stated_wait.unwrap_or_default())).await;
                 continue;
             }
-            let message = response
+            // `ErrorResponse.error` is the gateway's sentence, and the only
+            // field of its error body that is one.
+            let said = response
                 .json::<Value>()
                 .await
                 .ok()
-                .and_then(|body| {
-                    ["message", "error"]
-                        .iter()
-                        .find_map(|key| body.get(*key).and_then(Value::as_str).map(str::to_owned))
-                })
-                .unwrap_or_else(|| format!("HTTP {status}"));
-            return Err(self.failed(TransportError::of_status(message, status, stated_wait)));
+                .and_then(|body| body.get("error").and_then(Value::as_str).map(str::to_owned));
+            return Err(self.failed(TransportError::refusal(status, said, stated_wait)));
         }
     }
 
@@ -370,6 +367,7 @@ impl Shared {
                 code: TransportErrorCode::Error,
                 status: Some(status),
                 message: format!("{method} {path} answered what is not its declared body: {error}"),
+                said: None,
                 retry_after: None,
             })
         })

@@ -22,7 +22,8 @@ use semiont::discovery::{
 use semiont::errors::{IdentityUnverifiableReason, SessionErrorCode, SignInError, SignInErrorCode};
 use semiont::session::{
     HttpEndpoint, KbEndpoint, KbTarget, KnowledgeBase, Protocol, SemiontBrowser,
-    SemiontBrowserConfig, SemiontSession, StoredSession, save_knowledge_bases, session_key,
+    SemiontBrowserConfig, SemiontSession, SessionEndReason, StoredSession, save_knowledge_bases,
+    session_key,
     store_session, stored_session,
 };
 use semiont::sign_in_store::{FILE_NAME, SignInStore};
@@ -1225,13 +1226,13 @@ async fn a_gateway_that_refuses_what_its_issuer_issues_is_asked_twice_and_then_l
     // An issuer that renews for as long as it is asked.
     world.answers((2..60).map(|n| granted(&jwt(3600, n), Some("r"))));
     let storage = Arc::new(InMemorySessionStorage::new());
-    let told: Arc<Mutex<Vec<String>>> = Arc::default();
+    let told: Arc<Mutex<Vec<SessionEndReason>>> = Arc::default();
     let reported: Arc<Mutex<Vec<SessionErrorCode>>> = Arc::default();
     let (telling, reporting) = (told.clone(), reported.clone());
 
     let session = ends(session_from_issued(IssuedSession {
-        on_auth_failed: Some(Arc::new(move |message| {
-            telling.lock().unwrap().push(message.to_owned());
+        on_auth_failed: Some(Arc::new(move |reason| {
+            telling.lock().unwrap().push(reason);
         })),
         on_error: Some(Arc::new(move |error| {
             reporting.lock().unwrap().push(error.code);
@@ -1243,7 +1244,7 @@ async fn a_gateway_that_refuses_what_its_issuer_issues_is_asked_twice_and_then_l
     assert_eq!(world.staged.asked_who.lock().unwrap().len(), 2);
     assert_eq!(
         *told.lock().unwrap(),
-        ["This knowledge base did not accept your sign-in. Please sign in again."]
+        [SessionEndReason::Refused]
     );
     assert_eq!(
         *reported.lock().unwrap(),
@@ -1277,12 +1278,12 @@ async fn a_running_session_whose_gateway_starts_refusing_ends_on_the_first_refus
             .chain((3..60).map(|n| granted(&jwt(3600, n), Some("r")))),
     );
     let storage = Arc::new(InMemorySessionStorage::new());
-    let told: Arc<Mutex<Vec<String>>> = Arc::default();
+    let told: Arc<Mutex<Vec<SessionEndReason>>> = Arc::default();
     let reported: Arc<Mutex<Vec<SessionErrorCode>>> = Arc::default();
     let (telling, reporting) = (told.clone(), reported.clone());
     let session = ends(session_from_issued(IssuedSession {
-        on_auth_failed: Some(Arc::new(move |message| {
-            telling.lock().unwrap().push(message.to_owned());
+        on_auth_failed: Some(Arc::new(move |reason| {
+            telling.lock().unwrap().push(reason);
         })),
         on_error: Some(Arc::new(move |error| {
             reporting.lock().unwrap().push(error.code);
@@ -1313,7 +1314,7 @@ async fn a_running_session_whose_gateway_starts_refusing_ends_on_the_first_refus
     );
     assert_eq!(
         *told.lock().unwrap(),
-        ["This knowledge base did not accept your sign-in. Please sign in again."]
+        [SessionEndReason::Refused]
     );
     assert_eq!(
         *reported.lock().unwrap(),

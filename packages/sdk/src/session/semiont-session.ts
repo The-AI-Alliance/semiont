@@ -5,7 +5,7 @@
  * connection; lifetime is decoupled from React mount lifetime.
  *
  * Headless by design. Runs in browsers, CLIs, workers, and tests.
- * UI-specific state (session-expired/permission-denied modals) lives
+ * UI-specific state (session-ended/permission-denied modals) lives
  * in `SessionSignals`, which wraps a session — the session
  * itself has no modal observables, no user-facing notifications.
  *
@@ -22,11 +22,12 @@
  *     one before. Frontend passes the gateway's answer; worker omits
  *     this (service principals have no user record).
  *
- *   - `onAuthFailed(message)` — optional. Invoked when the session is
- *     over: its token could not be renewed, or the gateway refused a
- *     token the issuer had just issued. UI hosts typically wire this to
- *     `SessionSignals.notifySessionExpired` so a modal surfaces;
- *     headless consumers typically just log.
+ *   - `onAuthFailed(reason)` — optional. Invoked when the session is
+ *     over, with why: `expired`, its token could not be renewed, or
+ *     `refused`, the gateway refused a token the issuer had just issued.
+ *     UI hosts typically wire this to `SessionSignals.notifySessionEnded`
+ *     so a modal surfaces, in the person's language; headless consumers
+ *     typically just log.
  *
  * Persistence goes through a `SessionStorage` adapter provided at
  * construction — the session never touches `localStorage` or `window`
@@ -42,7 +43,7 @@ import {
 } from '@semiont/core';
 import type { components, EventMap } from '@semiont/core';
 import { SemiontClient, APIError, HttpTransport, HttpContentTransport } from '../client';
-import type { SemiontError } from '@semiont/core';
+import type { TransportFailure } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import type { KbTarget } from './knowledge-base';
 import {
@@ -59,16 +60,10 @@ import {
 import { SemiontSessionError } from './errors';
 import type { SemiontSessionErrorCode } from '@semiont/core';
 import type { SessionStorage } from './session-storage';
+import type { SessionEndReason } from './session-signals';
 import { SCRIPT_CLIENT_ID, refreshStoredSession, signInWithDeviceGrant, type DeviceCode } from './oauth';
 
 export type UserInfo = components['schemas']['UserResponse'];
-
-/**
- * What a person is told when their session ends, as
- * specs/src/session/cases.json states it for every SDK (`messages`).
- */
-const EXPIRED = 'Your session has expired. Please sign in again.';
-const REFUSED = 'This knowledge base did not accept your sign-in. Please sign in again.';
 
 /** Why a renewal gave no token, for whoever reads the error. */
 const notRenewed = (failure: string | undefined): string =>
@@ -105,10 +100,10 @@ export interface SemiontSessionConfig {
    */
   validate?: (token: AccessToken) => Promise<UserInfo | null>;
   /**
-   * Invoked when refresh terminally fails. Frontend consumers wire
-   * this to a UI signal that surfaces the session-expired modal.
+   * Invoked once when the session ends, with why. Frontend consumers wire
+   * this to a UI signal that surfaces the session-ended modal.
    */
-  onAuthFailed?: (message: string | null) => void;
+  onAuthFailed?: (reason: SessionEndReason) => void;
   /** Called for session-level failures (auth, refresh exhaustion). */
   onError?: (err: SemiontSessionError) => void;
 }
@@ -140,17 +135,16 @@ export class SemiontSession {
   readonly user$: BehaviorSubject<UserInfo | null>;
   readonly streamState$: Observable<ConnectionState>;
   /**
-   * Stream of `SemiontError` instances surfaced by the underlying transport
+   * Stream of `TransportFailure`s surfaced by the underlying transport
    * just before they're thrown to the caller. For `HttpTransport` this is
-   * an `APIError` (status-coded); other transports emit their own subclass.
-   * Surfaced here so a host layer (e.g. `SemiontBrowser`) can route by
-   * `err.code` to global notifications without every call site handling
+   * an `APIError` (status-coded). Surfaced here so a host layer (e.g.
+   * `SemiontBrowser`) can route by `err.code` to global notifications without every call site handling
    * errors itself. Headless consumers can subscribe for logging.
    *
    * Re-published from `client.transport.errors$` per the `ITransport`
    * contract — the session is purely a passthrough.
    */
-  readonly errors$: Observable<SemiontError>;
+  readonly errors$: Observable<TransportFailure>;
 
   /** Resolves after the initial validation round-trip completes (success or failure). */
   readonly ready: Promise<void>;
@@ -158,7 +152,7 @@ export class SemiontSession {
   private readonly storage: SessionStorage;
   private readonly doRefresh?: () => Promise<string | null>;
   private readonly doValidate?: (token: AccessToken) => Promise<UserInfo | null>;
-  private readonly onAuthFailed: (message: string | null) => void;
+  private readonly onAuthFailed: (reason: SessionEndReason) => void;
   private readonly onError: (err: SemiontSessionError) => void;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   /** Whether the session is still doing what it does at its start. */
@@ -269,7 +263,7 @@ export class SemiontSession {
           return;
         }
         if (justIssued) {
-          this.signedOut(REFUSED, 'session.credential-refused', 'The gateway refused a token its issuer had just issued');
+          this.signedOut('refused', 'session.credential-refused', 'The gateway refused a token its issuer had just issued');
           return;
         }
         // The session's token is no longer the one asked about: the stream
@@ -285,7 +279,7 @@ export class SemiontSession {
         const { token: renewed, failure } = await this.tryRefresh();
         if (this.disposed) return;
         if (!renewed) {
-          this.signedOut(EXPIRED, 'session.refresh-exhausted', notRenewed(failure));
+          this.signedOut('expired', 'session.refresh-exhausted', notRenewed(failure));
           return;
         }
         this.token$.next(accessToken(renewed));
@@ -301,7 +295,7 @@ export class SemiontSession {
    * application are each told why. The one teardown, whichever way the
    * session ended.
    */
-  private signedOut(told: string, code: SemiontSessionErrorCode, why: string): void {
+  private signedOut(told: SessionEndReason, code: SemiontSessionErrorCode, why: string): void {
     this.clearRefreshTimer();
     this.token$.next(null);
     clearStoredSession(this.storage, this.kb.id);
@@ -314,7 +308,7 @@ export class SemiontSession {
    * On success, pushes the new token into `token$` and schedules the
    * next proactive refresh. On failure, clears persisted state and
    * fires `onAuthFailed` — the frontend's wiring of that callback is
-   * what surfaces the session-expired modal.
+   * what surfaces the session-ended modal.
    */
   /**
    * Call the configured refresh callback, converting a THROW into the same
@@ -381,7 +375,7 @@ export class SemiontSession {
       // the gateway was being asked (another context signed in, or renewed)
       // is no longer the session's to be refused.
       if (refused && this.token$.getValue() === renewed) {
-        this.signedOut(REFUSED, 'session.credential-refused', 'The gateway refused a token its issuer had just issued');
+        this.signedOut('refused', 'session.credential-refused', 'The gateway refused a token its issuer had just issued');
       }
     }
     return this.disposed ? null : this.token$.getValue();
@@ -415,7 +409,7 @@ export class SemiontSession {
       this.token$.next(null);
       return null;
     }
-    this.signedOut(EXPIRED, 'session.refresh-exhausted', notRenewed(failure));
+    this.signedOut('expired', 'session.refresh-exhausted', notRenewed(failure));
     return null;
   }
 
@@ -522,7 +516,7 @@ export class SemiontSession {
     token?: AccessToken | string | null;
     refresh?: () => Promise<string | null>;
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
-    onAuthFailed?: (message: string | null) => void;
+    onAuthFailed?: (reason: SessionEndReason) => void;
     onError?: (err: SemiontSessionError) => void;
   }): SemiontSession {
     const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
@@ -557,7 +551,7 @@ export class SemiontSession {
     baseUrl: BaseUrl | string;
     session: StoredSession;
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
-    onAuthFailed?: (message: string | null) => void;
+    onAuthFailed?: (reason: SessionEndReason) => void;
     onError?: (err: SemiontSessionError) => void;
   }): Promise<SemiontSession> {
     setStoredSession(opts.storage, opts.kb.id, opts.session);
@@ -595,7 +589,7 @@ export class SemiontSession {
     onCode: (code: DeviceCode) => void;
     signal?: AbortSignal;
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
-    onAuthFailed?: (message: string | null) => void;
+    onAuthFailed?: (reason: SessionEndReason) => void;
     onError?: (err: SemiontSessionError) => void;
   }): Promise<SemiontSession> {
     if (opts.kb.endpoint.kind !== 'http') {
