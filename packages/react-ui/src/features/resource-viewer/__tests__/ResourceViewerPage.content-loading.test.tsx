@@ -41,15 +41,19 @@ const announcements = vi.hoisted(() => ({
   announceResourceLoaded: vi.fn(),
 }));
 
+// Every content the viewer was rendered with, in order.
+const viewerRenders = vi.hoisted(() => [] as string[]);
+
 // The viewer is stood in so the content it is HANDED is observable without
 // mounting CodeMirror or PDF.js; everything that loads content stays real.
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
   return {
     ...actual,
-    ResourceViewer: ({ resource }: { resource: { content: string } }) => (
-      <div data-testid="resource-viewer">{resource.content}</div>
-    ),
+    ResourceViewer: ({ resource }: { resource: { content: string } }) => {
+      viewerRenders.push(resource.content);
+      return <div data-testid="resource-viewer">{resource.content}</div>;
+    },
     Toolbar: () => <div data-testid="toolbar">Toolbar</div>,
     useResourceLoadingAnnouncements: () => announcements,
   };
@@ -68,6 +72,7 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0)) await cleanup();
   announcements.announceResourceLoading.mockClear();
   announcements.announceResourceLoaded.mockClear();
+  viewerRenders.length = 0;
 });
 
 /**
@@ -206,5 +211,19 @@ describe('ResourceViewerPage — an empty document is a loaded document', () => 
     expect(announcements.announceResourceLoaded).toHaveBeenCalledWith('Fixture');
     expect(getBinary).toHaveBeenCalledTimes(1);
     expect(viewerContent()).toBe('');
+  });
+});
+
+// The page shows the viewer whenever nothing is loading, so a hook that says
+// "not loading" on the frame before its fetch starts gets the viewer mounted
+// on an empty document, torn down for the loading notice, and mounted again.
+describe('ResourceViewerPage — the viewer mounts with its content, not before it', () => {
+  it('a text resource never renders the viewer on an empty document first', async () => {
+    await mountPageFor('text/plain', 'hello');
+
+    await waitFor(() => expect(viewerContent()).toBe('hello'));
+    await settle();
+
+    expect(viewerRenders).not.toContain('');
   });
 });

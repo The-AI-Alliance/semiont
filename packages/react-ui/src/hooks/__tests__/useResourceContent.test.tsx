@@ -13,9 +13,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { resourceId } from '@semiont/core';
-import type { ResourceDescriptor } from '@semiont/core';
+import type { ResourceDescriptor, ResourceId } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
-import { useResourceContent } from '../useResourceContent';
+import { useResourceContent, type UseResourceContentResult } from '../useResourceContent';
 
 const mockResourceRepresentation = vi.fn();
 const client = {
@@ -124,25 +124,6 @@ describe('useResourceContent — undefined means not loaded, never an empty docu
     expect(result.current.error).toBeNull();
   });
 
-  it('one resource\'s content never stands in for the next one\'s', async () => {
-    mockResourceRepresentation.mockResolvedValueOnce({ data: utf8('first'), contentType: 'text/plain' });
-    const { result, rerender } = renderHook(
-      ({ rid }) => useResourceContent(client, rid, resource),
-      { initialProps: { rid: RID } },
-    );
-    await waitFor(() => expect(result.current.content).toBe('first'));
-
-    const next = deferred<{ data: ArrayBuffer; contentType: string }>();
-    mockResourceRepresentation.mockReturnValueOnce(next.promise);
-    rerender({ rid: resourceId('res-2') });
-
-    expect(result.current.content).toBeUndefined();
-    expect(result.current.loading).toBe(true);
-
-    next.resolve({ data: utf8('second'), contentType: 'text/plain' });
-    await waitFor(() => expect(result.current.content).toBe('second'));
-  });
-
   it('disabling mid-fetch returns to idle: not loading, no content, and the late reply is dropped', async () => {
     const fetch = deferred<{ data: ArrayBuffer; contentType: string }>();
     mockResourceRepresentation.mockReturnValue(fetch.promise);
@@ -162,5 +143,67 @@ describe('useResourceContent — undefined means not loaded, never an empty docu
     });
     expect(result.current.content).toBeUndefined();
     expect(result.current.loading).toBe(false);
+  });
+});
+
+// State cleared in an effect arrives one render late: for that frame a caller
+// holding resource B is handed A's content, A's error, or "not loading". These
+// specs record what EVERY render returned, so a single stale frame shows.
+describe('useResourceContent — every render answers for its own inputs', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const NEXT = resourceId('res-2');
+
+  function renderRecording() {
+    const renders: Array<{ rid: ResourceId } & UseResourceContentResult> = [];
+    const hook = renderHook(
+      ({ rid }) => {
+        const returned = useResourceContent(client, rid, resource);
+        renders.push({ rid, ...returned });
+        return returned;
+      },
+      { initialProps: { rid: RID } },
+    );
+    return { ...hook, rendersFor: (rid: ResourceId) => renders.filter((r) => r.rid === rid) };
+  }
+
+  it('is loading from the first render — no frame says idle while its fetch is about to start', () => {
+    mockResourceRepresentation.mockReturnValue(deferred().promise);
+
+    const { rendersFor } = renderRecording();
+
+    expect(rendersFor(RID).map((r) => r.loading)).not.toContain(false);
+  });
+
+  it('never returns the previous resource\'s content on a render for the next', async () => {
+    mockResourceRepresentation.mockResolvedValueOnce({ data: utf8('first'), contentType: 'text/plain' });
+    const { result, rerender, rendersFor } = renderRecording();
+    await waitFor(() => expect(result.current.content).toBe('first'));
+
+    const next = deferred<{ data: ArrayBuffer; contentType: string }>();
+    mockResourceRepresentation.mockReturnValueOnce(next.promise);
+    rerender({ rid: NEXT });
+
+    expect(rendersFor(NEXT)).not.toHaveLength(0);
+    expect(rendersFor(NEXT).map((r) => r.content)).not.toContain('first');
+    expect(rendersFor(NEXT).map((r) => r.loading)).not.toContain(false);
+
+    next.resolve({ data: utf8('second'), contentType: 'text/plain' });
+    await waitFor(() => expect(result.current.content).toBe('second'));
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('never returns the previous resource\'s error on a render for the next', async () => {
+    mockResourceRepresentation.mockRejectedValueOnce(new Error('first failed'));
+    const { result, rerender, rendersFor } = renderRecording();
+    await waitFor(() => expect(result.current.error?.message).toBe('first failed'));
+
+    mockResourceRepresentation.mockReturnValueOnce(deferred().promise);
+    rerender({ rid: NEXT });
+
+    expect(rendersFor(NEXT)).not.toHaveLength(0);
+    expect(rendersFor(NEXT).map((r) => r.error?.message)).not.toContain('first failed');
   });
 });
