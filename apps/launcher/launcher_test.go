@@ -5972,10 +5972,12 @@ func TestCleanShowsEachSecretItDeletesFromTheFilesystem(t *testing.T) {
 
 // --- semiont settings (LAUNCHER-SETTINGS) ---
 
-// settingRow: the line `semiont settings` prints for one setting, or "". A
-// label may carry its flag: "secret-store --default".
+// settingRow: what `semiont settings` prints for one setting, or "": its line,
+// and the line below when a wide value put its explanation there. A label may
+// carry its flag: "secret-store --default".
 func settingRow(out, label string) string {
-	for _, line := range strings.Split(out, "\n") {
+	lines := strings.Split(out, "\n")
+	for i, line := range lines {
 		f := strings.Fields(line)
 		if len(f) == 0 {
 			continue
@@ -5984,12 +5986,20 @@ func settingRow(out, label string) string {
 		if len(f) > 1 && strings.HasPrefix(f[1], "--") {
 			got += " " + f[1]
 		}
-		if got == label {
-			return line
+		if got != label {
+			continue
 		}
+		if i+1 < len(lines) && strings.HasPrefix(lines[i+1], settingContinuation) {
+			return line + "\n" + lines[i+1]
+		}
+		return line
 	}
 	return ""
 }
+
+// settingContinuation: the indent of an explanation printed below its value —
+// the two-space margin, the 24-wide name column and the space after it.
+var settingContinuation = strings.Repeat(" ", 27)
 
 func TestSettingsListsEverySetting(t *testing.T) {
 	s := newScenario(t, "container", "docker", "op")
@@ -6091,6 +6101,51 @@ func TestSettingsSetsAndClearsTheStickyOnes(t *testing.T) {
 	mustContain(t, "runtime row", settingRow(out, "runtime"), "auto-detect")
 	mustContain(t, "keycloak-port row", settingRow(out, "keycloak-port"), "8080", "default")
 	mustContain(t, "config row", settingRow(out, "config"), "ollama-gemma", "default")
+}
+
+// A value too wide for its column puts its explanation on the next line, under
+// the value. Sharing the line left one space between them: a secret's source
+// ran into "read at each start", and the file store's "for development only"
+// into "the default".
+func TestSettingsKeepsAWideValueApartFromItsExplanation(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	if _, stderr, code := s.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+		t.Fatalf("secret set: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, stderr, code := s.run(t, "settings")
+	if code != 0 {
+		t.Fatalf("settings: exit %d\nstderr:\n%s", code, stderr)
+	}
+	lines := strings.Split(stdout, "\n")
+	// explanationBelow: the row whose value starts and ends as given carries
+	// its explanation alone on the next line, in the value's column.
+	explanationBelow := func(valueStart, valueEnd, explanation string) {
+		t.Helper()
+		for i, line := range lines {
+			at := strings.Index(line, valueStart)
+			if at < 0 {
+				continue
+			}
+			if !strings.HasSuffix(line, valueEnd) {
+				t.Errorf("a wide value shares its line with what follows it:\n%q", line)
+				return
+			}
+			if want := strings.Repeat(" ", at) + explanation; lines[i+1] != want {
+				t.Errorf("the line after the value is\n%q, want\n%q", lines[i+1], want)
+			}
+			return
+		}
+		t.Errorf("no row holds %q:\n%s", valueStart, stdout)
+	}
+	explanationBelow("ANTHROPIC_API_KEY ← op://", "op://OSS/Anthropic/credential", "read at each start; the environment wins")
+	explanationBelow("the files under ", "not secure: for development only", "the default")
+
+	// A value that fits keeps its explanation beside it.
+	for _, line := range lines {
+		if strings.Contains(line, "auto-detect (container)") && !strings.Contains(line, "the default: the first of") {
+			t.Errorf("a value that fits lost its explanation to another line:\n%q", line)
+		}
+	}
 }
 
 // The machine's default store applies to new knowledge bases only

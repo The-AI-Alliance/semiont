@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // setting: one setting `semiont settings` lists.
@@ -36,6 +37,19 @@ type setting struct {
 }
 
 type settingLine struct{ value, source string }
+
+// settingValueWidth: the value column of the listing.
+const settingValueWidth = 44
+
+// settingRowText: one line of the listing. A value that leaves room in its
+// column has its explanation beside it; a wider one has it on the next line,
+// under the value, so the two are never a single space apart.
+func settingRowText(u *UI, label string, l settingLine) string {
+	if utf8.RuneCountInString(l.value) < settingValueWidth {
+		return fmt.Sprintf("  %-24s %-*s %s\n", label, settingValueWidth, l.value, u.Dim(l.source))
+	}
+	return fmt.Sprintf("  %-24s %s\n  %-24s %s\n", label, l.value, "", u.Dim(l.source))
+}
 
 const (
 	scopeMachine = "machine"
@@ -185,7 +199,7 @@ func Settings(args []string) int {
 		}
 		for _, s := range inScope {
 			for _, l := range s.show(u, root) {
-				fmt.Printf("  %-24s %-44s %s\n", strings.TrimSpace(s.name+" "+s.flag), l.value, u.Dim(l.source))
+				fmt.Print(settingRowText(u, strings.TrimSpace(s.name+" "+s.flag), l))
 			}
 			if name != "" && s.detail != nil {
 				s.detail(u, root)
