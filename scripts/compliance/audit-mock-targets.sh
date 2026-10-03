@@ -25,10 +25,11 @@ set -euo pipefail
 # 'node:fs') resolves through node_modules or tsconfig paths — a different
 # question, and one a missing package already fails loudly on.
 #
-# Markdown is excluded deliberately. A snippet's `../../db` has no real
-# anchor directory to resolve against, so every doc hit would be a false
-# positive. Doc snippets in packages/sdk/docs are covered by
-# audit-doc-snippets.sh instead; elsewhere they are unguarded.
+# Markdown is excluded deliberately, and so are the copies of its fences that
+# audit-doc-snippets.sh extracts into `.generated/`. A snippet's `../../db` has
+# no real anchor directory to resolve against, so every doc hit would be a
+# false positive. The sdk, react-ui and Browser docs' snippets are covered by
+# audit-doc-snippets.sh instead.
 #
 # Exit code: 0 if clean, 1 if violations found.
 
@@ -51,7 +52,7 @@ const CANDIDATES = [
 // A filesystem walk, not `git grep`: a test file written but not yet staged is
 // exactly when this is worth knowing, and git would report it clean. Rooted at
 // the workspaces so no stale worktree under .claude/ is ever descended into.
-const SKIP = new Set(['node_modules', 'dist', 'dist-types', 'coverage', '.git', '.next', 'build']);
+const SKIP = new Set(['node_modules', 'dist', 'dist-types', 'coverage', '.git', '.next', 'build', '.generated']);
 const SOURCE = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
 
 function walk(dir, out = []) {

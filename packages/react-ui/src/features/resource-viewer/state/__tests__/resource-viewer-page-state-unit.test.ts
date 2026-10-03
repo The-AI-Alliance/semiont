@@ -27,8 +27,6 @@ function clientWithNamespaces(overrides: {
   entityTypes$?: BehaviorSubject<string[] | undefined>;
   events$?: BehaviorSubject<unknown[] | undefined>;
   referencedBy$?: BehaviorSubject<unknown[] | undefined>;
-  resourceRepresentation?: ReturnType<typeof vi.fn>;
-  mediaToken?: ReturnType<typeof vi.fn>;
 } = {}): TestSession {
   const annotations$ = overrides.annotations$ ?? new BehaviorSubject<unknown[] | undefined>([]);
   const entityTypes$ = overrides.entityTypes$ ?? new BehaviorSubject<string[] | undefined>(['Person']);
@@ -41,13 +39,6 @@ function clientWithNamespaces(overrides: {
       entityTypes: () => asStates(entityTypes$.asObservable()),
       events: () => asStates(events$.asObservable()),
       referencedBy: () => asStates(referencedBy$.asObservable()),
-      resourceRepresentation: overrides.resourceRepresentation ?? vi.fn().mockResolvedValue({
-        data: new TextEncoder().encode('hello').buffer,
-        contentType: 'text/plain',
-      }),
-    },
-    auth: {
-      mediaToken: overrides.mediaToken ?? vi.fn().mockResolvedValue({ token: 'tok-123' }),
     },
     mark: {
       annotation: vi.fn().mockResolvedValue({ annotationId: 'ann-new' }),
@@ -134,57 +125,6 @@ describe('createResourceViewerPageStateUnit', () => {
 
     const refs = await firstValueFrom(stateUnit.referencedBy.value$);
     expect(refs).toEqual([{ resourceId: 'r2' }]);
-
-    stateUnit.dispose();
-  });
-
-  it('fetches media token for binary types', async () => {
-    const mediaToken = vi.fn().mockResolvedValue({ token: 'tok-456' });
-    tc = clientWithNamespaces({ mediaToken });
-    const stateUnit = createResourceViewerPageStateUnit(
-      tc.session, RID, 'en', mockBrowse(),
-      { mediaType: 'image/png' },
-    );
-
-    const token = await firstValueFrom(stateUnit.mediaToken$.pipe(filter((t) => t !== null)));
-    expect(token).toBe('tok-456');
-
-    stateUnit.dispose();
-  });
-
-  // isBinaryType keys off textSourceOf(...) !== 'decode', not render mode:
-  // storage-tier binary (ZIP, gif/webp) must be fetched as bytes, never
-  // decoded as text — the client-side twin of the Phase 3a serving-side fix.
-  it('fetches storage-tier binary (ZIP) as bytes, never the text-decode path', async () => {
-    const mediaToken = vi.fn().mockResolvedValue({ token: 'tok-zip' });
-    const resourceRepresentation = vi.fn();
-    tc = clientWithNamespaces({ mediaToken, resourceRepresentation });
-    const stateUnit = createResourceViewerPageStateUnit(
-      tc.session, RID, 'en', mockBrowse(),
-      { mediaType: 'application/zip' },
-    );
-
-    const token = await firstValueFrom(stateUnit.mediaToken$.pipe(filter((t) => t !== null)));
-    expect(token).toBe('tok-zip');
-    expect(resourceRepresentation).not.toHaveBeenCalled();
-
-    stateUnit.dispose();
-  });
-
-  it('decodes a registry-miss text/* subtype via the text path (RFC 2046)', async () => {
-    const mediaToken = vi.fn();
-    const resourceRepresentation = vi.fn().mockResolvedValue({
-      data: new TextEncoder().encode('hi').buffer,
-      contentType: 'text/x-custom',
-    });
-    tc = clientWithNamespaces({ mediaToken, resourceRepresentation });
-    const stateUnit = createResourceViewerPageStateUnit(
-      tc.session, RID, 'en', mockBrowse(),
-      { mediaType: 'text/x-custom' },
-    );
-
-    expect(resourceRepresentation).toHaveBeenCalled();
-    expect(mediaToken).not.toHaveBeenCalled();
 
     stateUnit.dispose();
   });
@@ -348,12 +288,7 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
           attempts.push(s);
           return s.asObservable();
         },
-        resourceRepresentation: vi.fn().mockResolvedValue({
-          data: new TextEncoder().encode('hello').buffer,
-          contentType: 'text/plain',
-        }),
       },
-      auth: { mediaToken: vi.fn().mockResolvedValue({ token: 'tok' }) },
       mark: { annotation: vi.fn(), delete: vi.fn(), assist: vi.fn(() => new Observable(() => {})) },
       gather: { annotation: vi.fn(() => new Observable(() => {})) },
       match: { search: vi.fn(() => new Observable(() => {})) },
@@ -392,7 +327,7 @@ describe('ResourceViewerPageStateUnit — StateUnit axioms', () => {
           teardown: () => tc.bus.destroy(),
         };
       },
-      surfaces: (u) => [u.wizard$, u.content$, u.contentLoading$, u.mediaToken$],
+      surfaces: (u) => [u.wizard$],
       invocations: (u) => [() => u.closeWizard()],
       // A7-owned: the internally-constructed children must be disposed when the page
       // disposes — proven by their own surfaces completing. (Match has no public

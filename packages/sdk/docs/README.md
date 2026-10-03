@@ -29,7 +29,7 @@ Rules of placement:
   `scripts/compliance/audit-doc-snippets.sh` — CI fails on snippet rot. Names
   a snippet doesn't define come from the ambient prelude at
   [`__snippets__/prelude.ts`](./__snippets__/prelude.ts); extend the prelude
-  rather than adding boilerplate to a snippet. Mark a fence ` ```ts no-check `
+  rather than adding boilerplate to a snippet. Mark a fence ` ```ts sketch `
   ONLY for genuine pseudocode or display-only shapes — exemptions are counted
   and the census should hold flat or shrink.
 - Wire-level truth lives OUTSIDE this package, in

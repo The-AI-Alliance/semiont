@@ -13,7 +13,8 @@
  * Phase 1 GREEN. Provider-free; real AnnotateToolbar (its controls are the subject).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, fireEvent, within, waitFor } from '@testing-library/react';
+import { fireEvent, within, waitFor } from '@testing-library/react';
+import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
@@ -101,15 +102,15 @@ describe('ResourceViewer — toolbar prefs as props', () => {
   it('keystone: three viewers — controlled A/B independent, C uncontrolled; B\'s Mode click fires only B\'s callback', async () => {
     const { session, client } = liveSession();
     const onB = vi.fn();
-    const a = render(
+    const a = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
         annotateMode={true} clickAction="follow" onAnnotateModeChange={vi.fn()} onClickActionChange={vi.fn()} />,
     );
-    const b = render(
+    const b = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
         annotateMode={false} onAnnotateModeChange={onB} />,
     );
-    const c = render(
+    const c = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource()} annotations={annotations} />,
     );
 
@@ -133,7 +134,7 @@ describe('ResourceViewer — toolbar prefs as props', () => {
     localStorage.setItem('annotateMode', 'true'); // legacy key must be IGNORED
     getSpy.mockClear(); setSpy.mockClear();
     const { session, fire } = liveSession();
-    const u = render(
+    const u = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource()} annotations={annotations} />,
     );
     expect(isBrowse(u.container)).toBe(true);      // plain default, not the stored 'true'
@@ -147,7 +148,7 @@ describe('ResourceViewer — toolbar prefs as props', () => {
   it('clickAction: controlled renders the value; the bar control reports and does not mutate', async () => {
     const { session, client } = liveSession();
     const onChange = vi.fn();
-    const v = render(
+    const v = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
         clickAction="follow" onClickActionChange={onChange} />,
     );
@@ -164,7 +165,7 @@ describe('ResourceViewer — toolbar prefs as props', () => {
   it('selectionMotivation: controlled renders the value; picking reports; re-picking the current reports null', async () => {
     const { session, client } = liveSession();
     const onChange = vi.fn();
-    const v = render(
+    const v = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()}
         selectionMotivation="highlighting" onSelectionMotivationChange={onChange} />,
@@ -184,7 +185,7 @@ describe('ResourceViewer — toolbar prefs as props', () => {
   it('shape: controlled renders the value; picking reports and does not mutate', async () => {
     const { session, client } = liveSession();
     const onChange = vi.fn();
-    const v = render(
+    const v = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource('image/png')} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()}
         shape="circle" onShapeChange={onChange} />,

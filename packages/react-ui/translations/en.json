@@ -321,7 +321,7 @@
     "modalNavBackward": "Navigate backward through buttons",
     "modalActivate": "Activate focused button",
     "accessibilityTitle": "Accessibility",
-    "a11ySkipLinks": "Navigate to skip links (when at page start)",
+    "a11ySkipLinks": "Navigate to the skip link (when at page start)",
     "a11yFollowLink": "Follow skip link",
     "macNote": "Using Mac keyboard shortcuts. ⌘ is the Command key.",
     "windowsNote": "Using Windows/Linux keyboard shortcuts. Ctrl is the Control key.",
@@ -510,5 +510,26 @@
     "stateCleared": "Open tabs and last position for this entry have been cleared — they described contents this knowledge base does not have. The registry entry itself is unchanged.",
     "dismiss": "Dismiss",
     "reviewKnowledgeBases": "Review knowledge bases"
+  },
+  "SessionEndedModal": {
+    "title": "Signed Out",
+    "expired": "Your session has expired. Please sign in again.",
+    "refused": "This knowledge base did not accept your sign-in. Please sign in again.",
+    "goHome": "Go to Home",
+    "signInAgain": "Sign In Again"
+  },
+  "PermissionDeniedModal": {
+    "title": "Access Denied",
+    "reasonsIntro": "This could be because:",
+    "reasonPermissions": "You don't have the required permissions",
+    "reasonRestricted": "The resource is restricted to specific users or teams",
+    "reasonAccountType": "Your account type doesn't include this feature",
+    "detailLabel": "The knowledge base said:",
+    "goBack": "Go Back",
+    "goHome": "Go to Home",
+    "switchAccount": "Switch Account"
+  },
+  "SkipLinks": {
+    "mainContent": "Skip to main content"
   }
 }

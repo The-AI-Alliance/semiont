@@ -302,21 +302,22 @@ describe('AsyncErrorBoundary', () => {
     expect(screen.getByText('Retry')).toBeInTheDocument();
   });
 
-  it('should show generic message when error has no message', () => {
+  it('shows no message of its own for an error that has none', () => {
     const errorWithoutMessage = new Error();
     errorWithoutMessage.message = '';
-    
+
     const ThrowEmptyError = () => {
       throw errorWithoutMessage;
     };
-    
-    render(
+
+    const { container } = render(
       <AsyncErrorBoundary>
         <ThrowEmptyError />
       </AsyncErrorBoundary>
     );
-    
-    expect(screen.getByText('An unexpected error occurred')).toBeInTheDocument();
+
+    expect(screen.getByText('Retry')).toBeInTheDocument();
+    expect(container.querySelector('.semiont-async-error-message')).toBeEmptyDOMElement();
   });
 
   it('should handle retry functionality', () => {

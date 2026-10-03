@@ -595,7 +595,7 @@ contract.
 
 Worker-side adapters live with their domain and consume `BusRequestPrimitive`, the transport-neutral bus interface that `@semiont/core` exports. `createJobClaimAdapter` is exported by `@semiont/jobs`; `smelterFanIn` by `@semiont/make-meaning`. The primitive has six members: `emit(channel, payload, envelope?)`; `stream(channel)` and `frames(channel)`, the payload and envelope views of a channel; `state$`; `trackReply(correlationId)`; and `isSubscribed(channel)`. `emit`, `stream` and `frames` are typed by the channel name, so the payload comes from `EventMap[channel]` rather than from a type argument a caller supplies. The HTTP `ActorStateUnit` from `@semiont/http-transport` extends it; in-process code gets one from an `EventBus` with `asBusRequestPrimitive` (`@semiont/make-meaning`). A worker hands the adapter the HTTP actor like this:
 
-```typescript no-check
+```typescript sketch
 import type { HttpTransport } from '@semiont/sdk';
 import { createJobClaimAdapter } from '@semiont/jobs';
 
@@ -726,7 +726,7 @@ try {
     // bus-specific for `BusRequestError`, session-specific for
     // `SemiontSessionError`.
     if (error.code === 'unauthorized') {
-      // log in / show session-expired modal
+      // renew; a session that cannot be renewed ends, with why
     } else if (error.code === 'forbidden') {
       // surface permission-denied
     } else {
@@ -748,7 +748,7 @@ if (error instanceof APIError) {
 }
 ```
 
-`SemiontSessionError` is asynchronous — it reaches you through `SemiontBrowser.error$`, not as a thrown rejection on a namespace call. The transport-level `errors$` stream (`client.transport.errors$`) carries every transport-mediated error just before it's thrown, so a host layer (e.g. `SemiontBrowser`'s session-expired / permission-denied modal routing) can subscribe once and surface them globally.
+`SemiontSessionError` is asynchronous — it reaches you through `SemiontBrowser.error$`, not as a thrown rejection on a namespace call. The transport-level `errors$` stream (`client.transport.errors$`) carries every transport-mediated error just before it's thrown, so a host layer (e.g. `SemiontBrowser`'s session-ended / permission-denied modal routing) can subscribe once and surface them globally.
 
 ## Logging
 

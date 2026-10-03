@@ -15,23 +15,16 @@ Design principles and architectural decisions for `@semiont/react-ui`.
 - Provider Pattern for all cross-cutting concerns
 - Apps provide framework-specific implementations
 
-**Example:**
+**Example:** a component takes `useTranslations` from `@semiont/react-ui`, never from a
+framework package such as `next-intl`:
 
 ```tsx
-// ❌ WRONG - Couples to Next.js
-import { useTranslations } from 'next-intl';
-
-function Toolbar() {
-  const t = useTranslations('Toolbar');
-  return <button>{t('save')}</button>;
-}
-
 // ✅ CORRECT - Framework-agnostic
 import { useTranslations } from '@semiont/react-ui';
 
-function Toolbar() {
+function SettingsButton() {
   const t = useTranslations('Toolbar');
-  return <button>{t('save')}</button>;
+  return <button>{t('settings')}</button>;
 }
 ```
 
@@ -54,13 +47,15 @@ function Toolbar() {
 
 **Example:**
 
-```tsx
+```ts
 // ❌ WRONG - Creating alias for "backward compatibility"
+export function all() { /* ... */ }
 export const list = all; // Don't do this!
-export function all() { ... }
+```
 
+```ts
 // ✅ CORRECT - Just change all call sites
-export function list() { ... }
+export function list() { /* ... */ }
 // Update every usage of `all()` to `list()`
 ```
 
@@ -88,7 +83,8 @@ export function list() { ... }
 ```tsx
 // ❌ WRONG - Unnecessary wrapper
 class ResourceService {
-  async getAll() {
+  constructor(private readonly client: SemiontClient) {}
+  getAll() {
     return this.client.browse.resources();
   }
 }
@@ -97,7 +93,7 @@ class ResourceService {
 import { useObservable, useSemiont } from '@semiont/react-ui';
 import { readyValue } from '@semiont/sdk';
 
-function ResourceList() {
+function ResourceNames() {
   const browser = useSemiont();
   const client = useObservable(browser.activeSession$)?.client; // SemiontClient | undefined
   // `client.browse.resources(...)` emits CacheState<ResourceList> from the
@@ -105,7 +101,7 @@ function ResourceList() {
   // readyValue projects the ready envelope, whose array is `.resources`.
   const state = useObservable(client?.browse.resources({}));
   const resources = (state && readyValue(state)?.resources) ?? [];
-  return <ul>{resources.map((r) => <li key={r.id}>{r.name}</li>)}</ul>;
+  return <ul>{resources.map((r) => <li key={r['@id']}>{r.name}</li>)}</ul>;
 }
 ```
 
@@ -128,7 +124,7 @@ function ResourceList() {
 **Three-Layer Pattern:**
 
 1. **Service Layer**: Bus subscription (the page state unit's `browse.*(resourceId)` live-query subscriptions acquire the resource scope by observation; #847)
-2. **Hook Layer**: Event subscriptions + React state (`useEventSubscriptions` + `useState`)
+2. **Hook Layer**: State-unit observables read with `useObservable`, plus `useEventSubscriptions` for bus side effects
 3. **Component Layer**: Pure React (hooks + JSX)
 
 **Example - Three Layers in Action:**
@@ -137,44 +133,28 @@ function ResourceList() {
 // Layer 1 (Service): the page state unit subscribes to client.browse.*(rId)
 // live queries, which acquire the resource scope by observation (#847) —
 // no explicit subscribeToResource call, no component-level hook needed.
-function ResourceViewerPage({ rId }) {
-  // ...
-}
 
-// Layer 2 (Hook): State management from events (the unified job channels)
-export function useAssistProgress() {
-  const [progress, setProgress] = useState(null);
-
-  useEventSubscriptions({
-    'job:report-progress': ({ progress }) => setProgress(progress),
-    'job:complete': () => setProgress(null),
-    'job:fail': () => setProgress(null),
-  });
-
-  return { progress };
+// Layer 2 (Hook): read the mark state unit's assist observables; the state
+// unit itself follows the unified job channels
+export function useMarkAssist(mark: MarkStateUnit | undefined) {
+  const assistingMotivation = useObservable(mark?.assistingMotivation$) ?? null;
+  const progress = useObservable(mark?.progress$) ?? null;
+  return { assistingMotivation, progress };
 }
 
 // Layer 3 (Component): UI rendering
-function ResourceViewerPage({ rId }) {
-  const { progress } = useAssistProgress();
-  return <div>{progress && <p>Detecting… {progress.message}</p>}</div>;
+function AssistStatus({ mark }: { mark: MarkStateUnit | undefined }) {
+  const { assistingMotivation, progress } = useMarkAssist(mark);
+  return <div>{assistingMotivation && <p>Detecting… {progress?.percentage ?? 0}%</p>}</div>;
 }
 ```
-
-**Real Results from MAKE-IT-STOP Refactoring:**
-
-- **Eliminated render props:** 4 container components (636 lines) → 4 hooks (200 lines)
-- **Reduced indirection:** ~1,370 lines → ~450 lines (67% reduction)
-- **Simplified ResourceViewerPage:** 734 lines → 601 lines
-- **Zero callback props:** 17 callback props eliminated (100%)
-- **Zero ref stabilization:** 9 useRef eliminated (100%)
 
 **Setup:**
 
 ```tsx
 import { SemiontProvider } from '@semiont/react-ui';
 
-export default function App({ children }) {
+export default function App({ children }: { children: React.ReactNode }) {
   return (
     <SemiontProvider>
       {children}
@@ -212,20 +192,14 @@ without any separate event-bus provider.
 
 **Example:**
 
-```tsx
+```ts
 // ❌ WRONG - Silencing type errors
-const data = response as any;
-data.whatever.you.want; // No type checking!
+const loose = resource as any;
+loose.whatever.you.want; // No type checking!
 
-// ✅ CORRECT - Proper typing
-interface Resource {
-  id: string;
-  name: string;
-  created: Date;
-}
-
-const data: Resource = response;
-data.name; // Type-safe access
+// ✅ CORRECT - The type generated from the API spec
+const typed: ResourceDescriptor = resource;
+typed.name; // Type-safe access
 ```
 
 ---
@@ -242,33 +216,25 @@ data.name; // Type-safe access
 **How:**
 - Components accept `Link` component as a prop
 - Apps pass their router's Link component
-- Type as `React.ComponentType<any>` for flexibility
+- Type it as `React.ComponentType<LinkComponentProps>`
 
-**Example:**
+**Example:** a component never imports a router's `Link` (`next/link`, `react-router`);
+it renders the one it is given:
 
 ```tsx
-// ❌ WRONG - Couples to Next.js
-import Link from 'next/link';
-
-export function AuthErrorDisplay() {
-  return <Link href="/">Back to home</Link>;
-}
-
 // ✅ CORRECT - Framework-agnostic
-export interface AuthErrorDisplayProps {
-  Link: React.ComponentType<any>;
-  // ... other props
-}
-
-export function AuthErrorDisplay({ Link, ...props }: AuthErrorDisplayProps) {
+function BackHome({ Link }: { Link: React.ComponentType<LinkComponentProps> }) {
   return <Link href="/">Back to home</Link>;
 }
+```
 
-// Apps provide their Link
-import { AuthErrorDisplay } from '@semiont/react-ui';
-import Link from 'next/link'; // or from 'react-router-dom', etc.
+The app passes its router's `Link` — the Browser's adapts React Router's, in
+`apps/browser/src/lib/routing.tsx`:
 
-<AuthErrorDisplay Link={Link} ... />
+```tsx
+function SignInError({ translations }: Pick<AuthErrorDisplayProps, 'translations'>) {
+  return <AuthErrorDisplay errorType="AccessDenied" Link={Link} translations={translations} />;
+}
 ```
 
 **Applies to:**
@@ -293,24 +259,18 @@ import Link from 'next/link'; // or from 'react-router-dom', etc.
 - Providers distribute via Context
 - Components use hooks to access
 
-**Example:**
+**Example:** no `@injectable()` services resolved from a container — the app implements
+the manager interface and hands it to a provider:
 
 ```tsx
-// ❌ WRONG - Dependency Injection framework
-@injectable()
-class TranslationService implements ITranslationService {
-  @inject('LocaleProvider') private locale: ILocaleProvider;
-  translate(key: string) { ... }
-}
-
 // ✅ CORRECT - Provider Pattern
-interface TranslationManager {
-  t: (namespace: string, key: string) => string;
-}
+const manager: TranslationManager = {
+  t: (namespace, key) => `${namespace}.${key}`,
+};
 
 <TranslationProvider translationManager={manager}>
   {children}
-</TranslationProvider>
+</TranslationProvider>;
 ```
 
 See [SESSION.md](SESSION.md) for details.
@@ -319,12 +279,12 @@ See [SESSION.md](SESSION.md) for details.
 
 ## Project Structure
 
-```
+```text
 packages/react-ui/
 ├── src/
 │   ├── types/              # TypeScript interfaces
 │   │   ├── TranslationManager.ts
-│   │   ├── knowledge-base.ts
+│   │   ├── navigation.ts
 │   │   └── ...
 │   ├── session/            # Session provider + storage
 │   │   ├── SemiontProvider.tsx      # SemiontProvider + useSemiont()
@@ -340,7 +300,7 @@ packages/react-ui/
 │   │   │   └── __tests__/
 │   │   ├── resource-viewer/
 │   │   ├── resource-discovery/
-│   │   ├── admin-users/
+│   │   ├── moderate-entity-tags/
 │   │   └── ...
 │   ├── components/         # Shared components
 │   │   ├── navigation/    # Navigation
@@ -348,7 +308,7 @@ packages/react-ui/
 │   │   └── __tests__/     # Component tests
 │   ├── hooks/             # React hooks
 │   │   ├── useObservable.ts  # Subscribe to SDK live-query observables
-│   │   ├── useTheme.ts
+│   │   ├── useSessionStateUnit.ts  # A state unit per live session
 │   │   └── __tests__/     # Hook tests
 │   ├── lib/               # Utility libraries
 │   │   ├── validation.ts  # Form validation
@@ -479,7 +439,7 @@ that are HTTP routes: binary content and the gateway's own operations.
 
 Component code handles no 401. The session refreshes its token on one, and when that cannot
 recover, the active session's `SessionSignals` (`browser.activeSignals$`) say so.
-`SessionExpiredModal`, `PermissionDeniedModal` and `KbIdentityConflictModal` read those signals;
+`SessionEndedModal`, `PermissionDeniedModal` and `KbIdentityConflictModal` read those signals;
 a host mounts the three once.
 
 ### Error Boundaries
@@ -499,9 +459,9 @@ a host mounts the three once.
 Test individual functions and hooks:
 
 ```tsx
-describe('formatDate', () => {
-  it('should format ISO date', () => {
-    expect(formatDate('2024-01-01')).toBe('Jan 1, 2024');
+describe('formatTime', () => {
+  it('formats hours and minutes', () => {
+    expect(formatTime(5_400_000)).toBe('1h 30m');
   });
 });
 ```
@@ -512,10 +472,12 @@ Test components with providers:
 
 ```tsx
 import { renderWithProviders } from '@semiont/react-ui/test-utils';
+import { screen } from '@testing-library/react';
 
-it('should fetch and display resources', async () => {
-  renderWithProviders(<ResourceList />);
-  await screen.findByText('Resource 1');
+it('renders the document toolbar inside the providers', () => {
+  renderWithProviders(<Toolbar context="document" activePanel={null} />);
+  // The default test translation manager renders keys as `Namespace.key`
+  expect(screen.getByLabelText('Toolbar.history')).toBeTruthy();
 });
 ```
 
@@ -559,13 +521,13 @@ Use `useMemo` and `useCallback` judiciously:
 
 ```tsx
 // ✅ DO: Memoize expensive calculations
-const sorted = useMemo(() =>
-  items.sort((a, b) => a.name.localeCompare(b.name)),
-  [items]
+const sorted = useMemo(
+  () => [...openResources].sort((a, b) => a.name.localeCompare(b.name)),
+  [openResources],
 );
 
 // ❌ DON'T: Over-optimize simple operations
-const doubled = useMemo(() => count * 2, [count]); // Unnecessary
+const tabCount = useMemo(() => openResources.length, [openResources]); // Unnecessary
 ```
 
 ---
@@ -611,7 +573,7 @@ When making breaking changes:
 - **Bearer-only:** the access token is sent as `Authorization: Bearer <jwt>` — no cookie, no ambient credential
 - Access tokens are **short-lived**; signing out revokes the refresh token at the issuer (RFC 7009), so no new access token can be obtained, and the one in hand expires within minutes
 - The access + refresh tokens are held in memory and persisted per-KB through the `SessionStorage` adapter; the short TTL plus revocation at the issuer are the XSS mitigation (the token lives in app-controlled storage, not a browser-managed credential)
-- Handle 401/403 globally — the active session's `SessionSignals` surface `SessionExpiredModal` / `PermissionDeniedModal`
+- Handle 401/403 globally — the active session's `SessionSignals` surface `SessionEndedModal` / `PermissionDeniedModal`
 - See the canonical [AUTHENTICATION.md](../../../docs/system/administration/AUTHENTICATION.md) for the full model
 
 ### XSS Prevention
@@ -619,11 +581,6 @@ When making breaking changes:
 - React escapes by default
 - Use `dangerouslySetInnerHTML` only with sanitized HTML
 - Validate all user input
-
-### CSRF Protection
-
-- API client includes CSRF tokens
-- Apps must configure CSRF middleware
 
 ---
 
@@ -642,10 +599,12 @@ All components must meet:
 ### Testing
 
 ```tsx
-import { axe } from 'jest-axe';
+import { axe, toHaveNoViolations } from 'jest-axe';
+
+expect.extend(toHaveNoViolations);
 
 it('should have no a11y violations', async () => {
-  const { container } = render(<MyComponent />);
+  const { container } = renderInEnglish(<SkipLinks />);
   const results = await axe(container);
   expect(results).toHaveNoViolations();
 });
@@ -657,14 +616,16 @@ it('should have no a11y violations', async () => {
 
 ### Code Comments
 
-```tsx
+```ts
 /**
- * Fetches resources from the API
- * @param limit - Maximum number of resources to return
- * @returns Promise resolving to array of resources
+ * Resources whose name contains the query, ignoring case
+ * @param resources - The resources to filter
+ * @param query - Text to look for in each name
+ * @returns The matching resources, in their original order
  */
-export async function fetchResources(limit: number): Promise<Resource[]> {
-  // Implementation
+export function filterByName(resources: ResourceDescriptor[], query: string): ResourceDescriptor[] {
+  const needle = query.toLowerCase();
+  return resources.filter((r) => r.name.toLowerCase().includes(needle));
 }
 ```
 
@@ -758,13 +719,13 @@ Not breaking:
 
 5. **Browser processes everything:**
    - Imports `@semiont/react-ui/styles`
-   - PostCSS with `postcss-import` resolves all `@import` statements
+   - Vite resolves the `@import` statements
    - Bundles into single CSS file
 
 ### CSS Build System
 
 - **react-ui:** tsup builds TypeScript only (no CSS bundling)
-- **Browser:** Next.js PostCSS processes CSS with `postcss-import`
+- **Browser:** Vite processes the CSS (PostCSS plugins in `apps/browser/postcss.config.js`)
 - **Key insight:** `import './Component.css'` in TypeScript is a type hint - doesn't bundle anything
 
 ### CSS Quality Standards

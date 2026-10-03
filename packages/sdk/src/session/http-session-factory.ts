@@ -103,7 +103,7 @@ export function createHttpSessionFactory(): SessionFactory {
       token$,
       refresh: performRefresh,
       validate: performValidate,
-      onAuthFailed: (msg) => signals.notifySessionExpired(msg),
+      onAuthFailed: (reason) => signals.notifySessionEnded(reason),
       onError,
     });
     return session;

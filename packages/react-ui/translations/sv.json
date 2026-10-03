@@ -321,7 +321,7 @@
     "modalNavBackward": "Navigera bakåt genom knappar",
     "modalActivate": "Aktivera fokuserad knapp",
     "accessibilityTitle": "Tillgänglighet",
-    "a11ySkipLinks": "Navigera till hoppa över-länkar (när i sidans början)",
+    "a11ySkipLinks": "Navigera till hoppa över-länken (när i sidans början)",
     "a11yFollowLink": "Följ hoppa över-länk",
     "macNote": "Använder Mac-tangentbordsgenvägar. ⌘ är Command-tangenten.",
     "windowsNote": "Använder Windows/Linux-tangentbordsgenvägar. Ctrl är Control-tangenten.",
@@ -510,5 +510,26 @@
     "stateCleared": "Öppna flikar och senaste position för denna post har rensats — de beskrev innehåll som denna kunskapsbas inte har. Själva registerposten är oförändrad.",
     "dismiss": "Avfärda",
     "reviewKnowledgeBases": "Granska kunskapsbaser"
+  },
+  "SessionEndedModal": {
+    "title": "Utloggad",
+    "expired": "Din session har gått ut. Logga in igen.",
+    "refused": "Den här kunskapsbasen godtog inte din inloggning. Logga in igen.",
+    "goHome": "Gå till startsidan",
+    "signInAgain": "Logga in igen"
+  },
+  "PermissionDeniedModal": {
+    "title": "Åtkomst nekad",
+    "reasonsIntro": "Möjliga orsaker:",
+    "reasonPermissions": "Du har inte de behörigheter som krävs",
+    "reasonRestricted": "Resursen är begränsad till vissa användare eller team",
+    "reasonAccountType": "Din kontotyp omfattar inte den här funktionen",
+    "detailLabel": "Kunskapsbasen svarade:",
+    "goBack": "Gå tillbaka",
+    "goHome": "Gå till startsidan",
+    "switchAccount": "Byt konto"
+  },
+  "SkipLinks": {
+    "mainContent": "Hoppa till huvudinnehåll"
   }
 }

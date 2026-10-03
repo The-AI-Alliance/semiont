@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useSemiont } from '../../session/SemiontProvider';
+import type { LinkComponentProps } from '../../contexts/RoutingContext';
 
 export interface SimpleNavigationItem {
   name: string;
@@ -14,7 +15,7 @@ export interface SimpleNavigationProps {
   title: string;
   items: SimpleNavigationItem[];
   currentPath: string;
-  LinkComponent: React.ComponentType<any>;
+  Link: React.ComponentType<LinkComponentProps>;
   dropdownContent?: (onClose: () => void) => React.ReactNode;
   isCollapsed: boolean;
   icons: {
@@ -35,7 +36,7 @@ export function SimpleNavigation({
   title,
   items,
   currentPath,
-  LinkComponent,
+  Link,
   dropdownContent,
   isCollapsed,
   icons,
@@ -109,7 +110,7 @@ export function SimpleNavigation({
           {items.map((item) => {
             const isActive = currentPath === item.href;
             return (
-              <LinkComponent
+              <Link
                 key={item.href}
                 href={item.href}
                 className={`semiont-nav-tab ${isActive ? 'semiont-nav-tab--active' : ''}`}
@@ -118,7 +119,7 @@ export function SimpleNavigation({
               >
                 <item.icon className="semiont-nav-tab__icon" aria-hidden="true" />
                 <span className="semiont-nav-tab__text">{item.name}</span>
-              </LinkComponent>
+              </Link>
             );
           })}
         </nav>
@@ -130,7 +131,7 @@ export function SimpleNavigation({
           {items.map((item) => {
             const isActive = currentPath === item.href;
             return (
-              <LinkComponent
+              <Link
                 key={item.href}
                 href={item.href}
                 className={`semiont-nav-tab ${isActive ? 'semiont-nav-tab--active' : ''}`}
@@ -139,7 +140,7 @@ export function SimpleNavigation({
                 aria-label={item.name}
               >
                 <item.icon className="semiont-nav-tab__icon" aria-hidden="true" />
-              </LinkComponent>
+              </Link>
             );
           })}
         </nav>

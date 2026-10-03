@@ -27,14 +27,19 @@ any media type. **Bring-your-own-session:** it takes your `SemiontSession` direc
 ```tsx
 import { ResourceViewer, useResourceLoader } from '@semiont/react-ui';
 
-const { resource, annotations } = useResourceLoader(session.client, resourceId);
+function ResourcePane({ rId }: { rId: ResourceId }) {
+  const { resource, annotations } = useResourceLoader(session.client, rId);
+  if (!resource) return null;  // still loading
 
-<ResourceViewer
-  session={session}
-  resource={{ ...resource, content }}    // `content` is the host's to fetch
-  annotations={annotations}
-  onOpenResource={(id) => navigate(id)}  // host-owned nav for a followed reference
-/>
+  return (
+    <ResourceViewer
+      session={session}
+      resource={{ ...resource, content }}    // `content` is the host's to fetch
+      annotations={annotations}
+      onOpenResource={(id) => navigate(id)}  // host-owned nav for a followed reference
+    />
+  );
+}
 ```
 
 **Props:**
@@ -47,13 +52,21 @@ const { resource, annotations } = useResourceLoader(session.client, resourceId);
 
 **Ids are typed.** `useResourceLoader` takes a `ResourceId`, and `onOpenResource` hands one
 back. A description's `@id` is one already. Text from outside the SDK — a route parameter, a
-query string — becomes one through `@semiont/core`:
+query string — becomes one through `@semiont/core`. Ask before any hook runs, in a component of
+its own:
 
 ```tsx
 import { isResourceId } from '@semiont/core';
 
-if (!isResourceId(params.id)) return <NotFound />;   // narrows `params.id` to a ResourceId
-const { resource, annotations } = useResourceLoader(session.client, params.id);
+function ResourceRoute({ id }: { id: string }) {
+  if (!isResourceId(id)) return <p>No such resource.</p>;  // narrows `id` to a ResourceId
+  return <ResourcePane rId={id} />;
+}
+
+function ResourcePane({ rId }: { rId: ResourceId }) {
+  const { resource, annotations } = useResourceLoader(session.client, rId);
+  return resource ? <ResourceViewer session={session} resource={{ ...resource, content }} annotations={annotations} /> : null;
+}
 ```
 
 `isResourceId` asks without throwing. The constructor `resourceId(text)` throws a `TypeError`
@@ -74,10 +87,12 @@ a resource object) and a `SemiontSession` for its bus. Most hosts use `ResourceV
 than this directly.
 
 ```tsx
-import { BrowseView } from '@semiont/react-ui';
+import { BrowseView, useResourceLoader } from '@semiont/react-ui';
+
+const { annotations } = useResourceLoader(session.client, resourceId);  // grouped by motivation
 
 <BrowseView
-  content={text}
+  content={content}
   mimeType="text/markdown"
   resourceUri={resource['@id']}
   annotations={annotations}
@@ -95,15 +110,22 @@ The annotate-mode layer that `ResourceViewer` composes for creating annotations 
 UI state. Most hosts use `ResourceViewer`.
 
 ```tsx
-import { AnnotateView } from '@semiont/react-ui';
+import { AnnotateView, useResourceLoader, type AnnotationUIState } from '@semiont/react-ui';
+
+const { annotations } = useResourceLoader(session.client, resourceId);  // grouped by motivation
+const [uiState, setUiState] = useState<AnnotationUIState>({
+  selectedMotivation: 'highlighting',
+  selectedClick: 'detail',
+  selectedShape: 'rectangle',
+});
 
 <AnnotateView
-  content={text}
+  content={content}
   mimeType="text/markdown"
   resourceUri={resource['@id']}
   annotations={annotations}
   uiState={uiState}
-  onUIStateChange={setUiState}
+  onUIStateChange={(changes) => setUiState((current) => ({ ...current, ...changes }))}
   annotateMode={true}
   session={session}
 />
@@ -131,7 +153,7 @@ import { AnnotationHistory } from '@semiont/react-ui';
 Neither signing in nor signing up is a form here. A knowledge base trusts an issuer, and the
 Browser sends the user there (`SemiontBrowser.beginSignIn` / `completeSignIn` in `@semiont/sdk`);
 accounts are created at that issuer by an administrator. No component in this package collects a
-credential, and the only one left is the error display below.
+credential; the one authentication component is the error display below.
 
 ### AuthErrorDisplay
 
@@ -139,7 +161,6 @@ Display authentication error messages.
 
 ```tsx
 import { AuthErrorDisplay } from '@semiont/react-ui';
-import Link from 'next/link';
 
 <AuthErrorDisplay
   errorType="AccessDenied" // or "Configuration", "Verification", etc.
@@ -147,15 +168,18 @@ import Link from 'next/link';
   translations={{
     pageTitle: 'Authentication Error',
     tryAgain: 'Try signing in again',
-    // ... error message translations
+    errorConfiguration: 'There is a problem with the server configuration.',
+    errorAccessDenied: 'Your account is not permitted to sign in.',
+    errorVerification: 'The verification token has expired or has already been used.',
+    errorGeneric: 'An authentication error occurred.',
   }}
 />
 ```
 
 **Props:**
-- `errorType` - Type of authentication error
+- `errorType` - Type of authentication error (`string | null`)
 - `Link` - Link component from your router
-- `translations` - Translation strings including error messages
+- `translations` - The page title, the try-again link, and one message per error type (`AuthErrorDisplayProps['translations']`)
 
 **Supported Error Types:**
 - `Configuration` - Server configuration issues
@@ -175,18 +199,18 @@ source of truth for the full (and evolving) list; the essentials are below.
 
 ### PageLayout
 
-The standard page shell — composes `UnifiedHeader` around your content. (It does
-*not* take `header` / `sidebar` slots.)
+The standard page shell — composes `UnifiedHeader` around your content, which it renders
+in a `MainContent`. (It does *not* take `header` / `sidebar` slots.)
 
 ```tsx
 import { PageLayout } from '@semiont/react-ui';
 
-<PageLayout Link={Link} routes={routes} t={t} tNav={tNav} tHome={tHome}>
+<PageLayout Link={Link} routes={routes} tNav={tNav} tHome={tHome}>
   {content}
 </PageLayout>
 ```
 
-Also optional: `className`, `showAuthLinks`, `onOpenKeyboardHelp`.
+Also optional: `className`, `showAuthLinks`.
 
 ### UnifiedHeader
 
@@ -212,11 +236,11 @@ may be a render function `(isCollapsed, toggleCollapsed, navigationMenu) => Reac
 
 ### NavigationMenu
 
-The Know / Moderate / Administer nav. Every entry is shown to every authenticated user — no
+The Know / Moderate nav. Every entry is shown to every authenticated user — no
 role gates it, because no role exists to gate it with. `currentPath` highlights the active one.
 
 ```tsx
-<NavigationMenu Link={Link} routes={routes} t={t} currentPath={currentPath} />
+<NavigationMenu Link={Link} routes={routes} t={t} currentPath={pathname} />
 ```
 
 
@@ -232,17 +256,25 @@ applies it — the bar holds no pref state, emits no bus events, and touches no 
 Composed for you by `ResourceViewer`; use it directly only for a custom annotate surface.
 
 ```tsx
-import { AnnotateToolbar } from '@semiont/react-ui';
+import { AnnotateToolbar, ANNOTATORS, type SelectionMotivation, type ClickAction } from '@semiont/react-ui';
 
-<AnnotateToolbar
-  selectedMotivation={selectedMotivation}   // 'linking' | 'highlighting' | 'assessing' | 'commenting' | 'tagging' | null
-  selectedClick={selectedClick}             // 'detail' | 'follow' | 'jsonld' | 'deleting'
-  annotateMode
-  annotators={annotators}
-  onSelectionChange={setSelectedMotivation}
-  onClickActionChange={setSelectedClick}
-  onModeChange={setAnnotateMode}
-/>
+function AnnotateBar() {
+  const [selectedMotivation, setSelectedMotivation] = useState<SelectionMotivation | null>(null);
+  const [selectedClick, setSelectedClick] = useState<ClickAction>('detail');
+  const [annotateMode, setAnnotateMode] = useState(true);
+
+  return (
+    <AnnotateToolbar
+      selectedMotivation={selectedMotivation}   // 'linking' | 'highlighting' | 'assessing' | 'commenting' | 'tagging' | null
+      selectedClick={selectedClick}             // 'detail' | 'follow' | 'jsonld' | 'deleting'
+      annotateMode={annotateMode}
+      annotators={ANNOTATORS}
+      onSelectionChange={setSelectedMotivation}
+      onClickActionChange={setSelectedClick}
+      onModeChange={setAnnotateMode}
+    />
+  );
+}
 ```
 
 Optional: `parts` (which of the four control groups to render — `'clickAction' | 'mode' | 'selection' | 'shape'`), `compact` (icon-only inline form), `selectedShape` + `onShapeChange`, `mediaType` (gates the shape group), `showDeleteButton`. See the `AnnotateToolbarProps` interface for the rest.
@@ -257,14 +289,16 @@ through the session's client, and follow `browse:click` on its bus for entry foc
 `session={null}` renders inert (display-only).
 
 ```tsx
-import { HighlightPanel } from '@semiont/react-ui';
+import { HighlightPanel, useResourceLoader } from '@semiont/react-ui';
 
-// One motivation — no providers, just the session:
+const { annotations } = useResourceLoader(session.client, rId);
+
+// One motivation — no session provider, just the session:
 <HighlightPanel
   session={session}
   resourceId={rId}
-  annotations={highlights}
-  pendingAnnotation={pending}
+  annotations={annotations.highlights}
+  pendingAnnotation={null}  // the mark in progress (`MarkStateUnit.pendingAnnotation$`), or null
   annotateMode
 />
 ```
@@ -275,7 +309,8 @@ additionally takes `annotators`, `Link` + `routes` for its reference-tab links, 
 `onOpenResource?` for host-owned navigation when a resolved reference is followed).
 Each panel's `Props` interface lists its state inputs. `resourceId` is a `ResourceId`, and
 `onOpenResource` is called with one. `JsonLdPanel` is the one exception
-that still reads `SemiontProvider`.
+that still reads `SemiontProvider`; its editor also reads `LineNumbersProvider` and, for
+its light or dark theme, `ThemeProvider`.
 
 ### Panel Entries
 
@@ -286,14 +321,16 @@ chrome around the same interaction contract: `HighlightEntry`, `ReferenceEntry`,
 ```tsx
 import { CommentEntry, ReferenceEntry } from '@semiont/react-ui';
 
-<CommentEntry session={session} comment={annotation} isFocused={false} />
+<>
+  <CommentEntry session={session} comment={annotation} isFocused={false} />
 
-<ReferenceEntry
-  session={session}
-  reference={annotation}
-  isFocused={false}
-  onOpenResource={(id) => navigate(id)}  // 🔗 opens the resolved resource (host nav)
-/>
+  <ReferenceEntry
+    session={session}
+    reference={annotation}
+    isFocused={false}
+    onOpenResource={(id) => navigate(id)}  // 🔗 opens the resolved resource (host nav)
+  />
+</>
 ```
 
 **The shared contract:**
@@ -306,20 +343,37 @@ import { CommentEntry, ReferenceEntry } from '@semiont/react-ui';
 
 ## Modals & Overlays
 
-### SessionExpiredModal
+### SessionEndedModal
 
-Displays when user session expires.
+Displays when the active knowledge base's session ends: its token could not be
+renewed (`expired`), or the knowledge base refused the sign-in (`refused`).
+Reads `sessionEnded$` from the active session's `SessionSignals`.
 
 ```tsx
-import { SessionExpiredModal } from '@semiont/react-ui';
+import { SessionEndedModal } from '@semiont/react-ui';
 
-<SessionExpiredModal />
+<SessionEndedModal />
 ```
 
 **Features:**
-- Auto-detects session expiration
-- Prompts user to re-authenticate
-- Redirects after sign-in
+- Says why the session ended, in the person's language (namespace `SessionEndedModal`)
+- Offers signing in again, or going home; either acknowledges the signal
+
+### PermissionDeniedModal
+
+Displays when a request is refused for lack of permission. Reads
+`permissionDenied$` from the active session's `SessionSignals`.
+
+```tsx
+import { PermissionDeniedModal } from '@semiont/react-ui';
+
+<PermissionDeniedModal />
+```
+
+**Features:**
+- Its own copy in the person's language (namespace `PermissionDeniedModal`)
+- Beneath it, the refusal's own message, unaltered and marked as the knowledge base's
+- Offers going back, going home, or switching account
 
 ### KeyboardShortcutsHelpModal
 
@@ -327,6 +381,8 @@ Displays keyboard shortcuts help.
 
 ```tsx
 import { KeyboardShortcutsHelpModal } from '@semiont/react-ui';
+
+const [showHelp, setShowHelp] = useState(false);
 
 <KeyboardShortcutsHelpModal
   isOpen={showHelp}
@@ -348,7 +404,7 @@ import { Toolbar } from '@semiont/react-ui';
 
 <Toolbar
   context="document"        // 'document' | 'simple'
-  activePanel={activePanel} // the open panel key, or null
+  activePanel={null}        // the open panel key, or null
   isArchived={false}
 />
 ```
@@ -368,11 +424,11 @@ function MyComponent() {
   const toast = useToast();
 
   const handleSave = () => {
-    toast.success('Saved successfully');
+    toast.showSuccess('Saved successfully');
     // or
-    toast.error('Save failed');
+    toast.showError('Save failed');
     // or
-    toast.info('Processing...');
+    toast.showInfo('Processing...');
   };
 }
 ```
@@ -442,13 +498,26 @@ import { UserMenuSkeleton } from '@semiont/react-ui';
 
 ### SkipLinks
 
-Skip-navigation links for keyboard users. Takes no props — it renders the standard skip targets
-(main content, navigation).
+The skip link for keyboard users. Takes no props — it renders one link, which lands on
+`MainContent`. Its text is its own copy in the person's language (namespace `SkipLinks`):
+"Skip to main content" in English. Mount it once, ahead of your routes and inside your
+`TranslationProvider`.
 
 ```tsx
 import { SkipLinks } from '@semiont/react-ui';
 
 <SkipLinks />
+```
+
+### MainContent
+
+The page's `<main>` landmark, and the element the skip link lands on. Takes the props of
+`<main>`, less `id` and `tabIndex`, which are its own.
+
+```tsx
+import { MainContent } from '@semiont/react-ui';
+
+<MainContent className="page-body">{children}</MainContent>
 ```
 
 ---
@@ -495,20 +564,22 @@ it always renders markdown — there is no `language` prop.
 ```tsx
 import { CodeMirrorRenderer } from '@semiont/react-ui';
 
-<CodeMirrorRenderer content={text} editable={false} showLineNumbers hoverDelayMs={200} />
+<CodeMirrorRenderer content={content} editable={false} showLineNumbers hoverDelayMs={200} />
 ```
 
 `content` and `hoverDelayMs` are required; also optional: `segments`, `onTextSelect`, `onChange`, `session`, `sparkleAnnotationIds`, `hoveredAnnotationId`, `scrollToAnnotationId`, `sourceView`, `enableWidgets`, `getTargetResourceName`, `generatingReferenceId`.
 
 ### StatusDisplay
 
-Renders the gateway-connection / auth health indicator. Takes the current auth flags (not a
-free-form status/message).
+Renders the gateway-connection / auth health indicator. Takes the host's current auth flags
+(not a free-form status/message); each defaults to `false`.
 
 ```tsx
 import { StatusDisplay } from '@semiont/react-ui';
 
-<StatusDisplay isAuthenticated={isAuthenticated} isFullyAuthenticated={isFullyAuthed} hasValidGatewayToken={tokenValid} />
+function Status({ isFullyAuthed, tokenValid }: { isFullyAuthed: boolean; tokenValid: boolean }) {
+  return <StatusDisplay isAuthenticated={isAuthenticated} isFullyAuthenticated={isFullyAuthed} hasValidGatewayToken={tokenValid} />;
+}
 ```
 
 ### ResourceTagsInline
@@ -574,24 +645,16 @@ function MyComponent() {
 
 ## Styling
 
-Components use Tailwind CSS utility classes. To customize:
+Components ship plain CSS: `semiont-`-prefixed BEM classes, data attributes, and CSS custom
+properties — no utility framework. A component that takes `className` adds it beside its own
+classes:
 
 ```tsx
-// Pass className prop
-<NavigationMenu className="custom-nav" />
-
-// Or use Tailwind config
-// tailwind.config.js
-module.exports = {
-  theme: {
-    extend: {
-      colors: {
-        primary: '#your-color'
-      }
-    }
-  }
-}
+<NavigationMenu Link={Link} routes={routes} t={t} className="custom-nav" />
 ```
+
+Theme through the CSS custom properties (`@semiont/react-ui/styles/variables.css`); see
+[STYLES.md](STYLES.md).
 
 ## Accessibility
 
@@ -603,13 +666,16 @@ All components follow WCAG 2.1 AA guidelines:
 - ✅ ARIA labels and roles
 - ✅ Color contrast compliance
 
-Test with:
+Test with `jest-axe` (see [TESTING.md](TESTING.md#testing-accessibility) for its types):
 
 ```tsx
-import { axe } from 'jest-axe';
+import { render } from '@testing-library/react';
+import { axe, toHaveNoViolations } from 'jest-axe';
+
+expect.extend(toHaveNoViolations);
 
 it('should have no accessibility violations', async () => {
-  const { container } = render(<MyComponent />);
+  const { container } = render(<NavigationMenu Link={Link} routes={routes} t={t} />);
   const results = await axe(container);
   expect(results).toHaveNoViolations();
 });

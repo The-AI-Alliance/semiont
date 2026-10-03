@@ -321,7 +321,7 @@
     "modalNavBackward": "Nawiguj wstecz po przyciskach",
     "modalActivate": "Aktywuj zaznaczony przycisk",
     "accessibilityTitle": "Dostępność",
-    "a11ySkipLinks": "Nawiguj do odnośników pomijania (na początku strony)",
+    "a11ySkipLinks": "Nawiguj do odnośnika pomijania (na początku strony)",
     "a11yFollowLink": "Podążaj za odnośnikiem pomijania",
     "macNote": "Używanie skrótów klawiszowych Mac. ⌘ to klawisz Command.",
     "windowsNote": "Używanie skrótów klawiszowych Windows/Linux. Ctrl to klawisz Control.",
@@ -510,5 +510,26 @@
     "stateCleared": "Otwarte karty i ostatnia pozycja tego wpisu zostały wyczyszczone — opisywały treści, których ta baza wiedzy nie ma. Sam wpis rejestru pozostaje bez zmian.",
     "dismiss": "Odrzuć",
     "reviewKnowledgeBases": "Przejrzyj bazy wiedzy"
+  },
+  "SessionEndedModal": {
+    "title": "Wylogowano",
+    "expired": "Twoja sesja wygasła. Zaloguj się ponownie.",
+    "refused": "Ta baza wiedzy nie zaakceptowała Twojego logowania. Zaloguj się ponownie.",
+    "goHome": "Przejdź do strony głównej",
+    "signInAgain": "Zaloguj się ponownie"
+  },
+  "PermissionDeniedModal": {
+    "title": "Odmowa dostępu",
+    "reasonsIntro": "Możliwe przyczyny:",
+    "reasonPermissions": "Nie masz wymaganych uprawnień",
+    "reasonRestricted": "Zasób jest dostępny tylko dla określonych użytkowników lub zespołów",
+    "reasonAccountType": "Twój typ konta nie obejmuje tej funkcji",
+    "detailLabel": "Baza wiedzy podała:",
+    "goBack": "Wróć",
+    "goHome": "Przejdź do strony głównej",
+    "switchAccount": "Przełącz konto"
+  },
+  "SkipLinks": {
+    "mainContent": "Przejdź do głównej treści"
   }
 }

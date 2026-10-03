@@ -2,8 +2,10 @@
  * EMBEDDABLE-RESOURCE-VIEWER — keystone acceptance spec.
  *
  * The consumer's (my-chat) actual requirement: render + interact with a resource
- * fed ONLY a `SemiontSession`, with NO SemiontProvider / TranslationProvider /
- * cache context mounted. This is the definition of done for provider-free
+ * fed ONLY a `SemiontSession`, with NO SemiontProvider / cache context mounted.
+ * Translations are the one thing the host mounts, because react-ui assumes no
+ * language: a `TranslationProvider` with its locale or its own manager. This
+ * is the definition of done for provider-free
  * rendering — the "an external host can import the pieces" half of the plan's
  * dual acceptance test.
  *
@@ -12,12 +14,12 @@
  * subtree is covered by AnnotateView.embeddable.test.tsx.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, act, waitFor } from '@testing-library/react';
+import { screen, act, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
 import { annotationId, resourceId } from '@semiont/core';
-import { createTestSemiontWrapper } from '../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
 import { ResourceViewer } from '../ResourceViewer';
 
 // Minimal bring-your-own-session double: just the surface ResourceViewer + its
@@ -65,11 +67,11 @@ const loadedHighlight: Annotation = {
 
 const annotationsWithHighlight = { ...annotations, highlights: [loadedHighlight] };
 
-describe('ResourceViewer — embeddable (bring-your-own-session, no providers)', () => {
+describe('ResourceViewer — embeddable (bring-your-own-session, no session provider)', () => {
   // GREEN: the whole browse-mode subtree (ResourceViewer → BrowseView →
   // AnnotateToolbar) renders provider-free from a bare session.
-  it('renders content fed only a session, with NO providers mounted', () => {
-    render(
+  it('renders content fed only a session, with no session provider mounted', () => {
+    renderInEnglish(
       <ResourceViewer
         session={fakeSession()}
         resource={resource}
@@ -88,7 +90,7 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no providers)',
     const { session, eventBus } = createTestSemiontWrapper();
     const onOpenPanel = vi.fn();
 
-    render(
+    renderInEnglish(
       <ResourceViewer
         session={session}
         resource={resource}
@@ -127,7 +129,7 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no providers)',
     const { session, eventBus } = createTestSemiontWrapper();
     const onOpenPanel = vi.fn();
 
-    render(
+    renderInEnglish(
       <ResourceViewer
         session={session}
         resource={resource}

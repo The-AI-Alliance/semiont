@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { SemiontBranding, buttonStyles, useSemiont, useObservable } from '@semiont/react-ui';
+import { MainContent, SemiontBranding, buttonStyles, useSemiont, useObservable } from '@semiont/react-ui';
 import { useRouter } from '@/i18n/routing';
 
 const AUTO_TRANSITION_MS = 5000;
@@ -42,8 +42,7 @@ export default function Home() {
   }, []);
 
   return (
-    <main
-      role="main"
+    <MainContent
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -57,6 +56,6 @@ export default function Home() {
       <button onClick={goToWorkspace} className={buttonStyles.primary.base}>
         {t('begin')}
       </button>
-    </main>
+    </MainContent>
   );
 }

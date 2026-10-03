@@ -24,7 +24,7 @@ vi.mock('@semiont/react-ui', async () => {
     ...actual,
     ProtectedErrorBoundary: ({ children }: { children: React.ReactNode }) =>
       <div data-testid="protected-error-boundary">{children}</div>,
-    SessionExpiredModal: () => <div data-testid="session-expired-modal" />,
+    SessionEndedModal: () => <div data-testid="session-ended-modal" />,
     PermissionDeniedModal: () => <div data-testid="permission-denied-modal" />,
     KbIdentityConflictModal: () => <div data-testid="kb-identity-conflict-modal" />,
   };
@@ -52,10 +52,10 @@ describe('AuthShell', () => {
     expect(screen.getByTestId('protected-error-boundary')).toBeInTheDocument();
   });
 
-  it('mounts SessionExpiredModal inside the boundary', () => {
+  it('mounts SessionEndedModal inside the boundary', () => {
     renderShell();
     const boundary = screen.getByTestId('protected-error-boundary');
-    expect(boundary).toContainElement(screen.getByTestId('session-expired-modal'));
+    expect(boundary).toContainElement(screen.getByTestId('session-ended-modal'));
   });
 
   it('mounts PermissionDeniedModal inside the boundary', () => {

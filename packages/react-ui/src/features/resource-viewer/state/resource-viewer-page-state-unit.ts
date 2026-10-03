@@ -11,7 +11,7 @@ import { createGatherStateUnit, type GatherStateUnit } from '@semiont/sdk';
 import { createMatchStateUnit } from '@semiont/sdk';
 import { createYieldStateUnit, type YieldStateUnit } from '@semiont/sdk';
 import type { SemiontSession } from '@semiont/sdk';
-import { decodeWithCharset, textSourceOf, uuidV4 } from '@semiont/core';
+import { uuidV4 } from '@semiont/core';
 import { groupAnnotations } from '../../../lib/annotation-groups';
 import type { ReferencedByEntry } from '@semiont/sdk';
 
@@ -51,9 +51,6 @@ export interface ResourceViewerPageStateUnit extends StateUnit {
   referencedBy: ListState<ReferencedByEntry[]>;
   /** Derived from `annotations.value$`; failure/loading live on `annotations`. */
   annotationGroups$: Observable<AnnotationGroups>;
-  content$: Observable<string>;
-  contentLoading$: Observable<boolean>;
-  mediaToken$: Observable<string | null>;
   wizard$: Observable<WizardState>;
 
   closeWizard(): void;
@@ -68,7 +65,6 @@ export function createResourceViewerPageStateUnit(
   resourceId: ResourceId,
   locale: string,
   browse: ShellStateUnit,
-  options?: { mediaType?: string },
 ): ResourceViewerPageStateUnit {
   const { client } = session;
   const disposer = createDisposer();
@@ -100,33 +96,6 @@ export function createResourceViewerPageStateUnit(
 
   const annotationGroups$: Observable<AnnotationGroups> =
     annotations.state.value$.pipe(map(groupAnnotations));
-
-  const content$ = new BehaviorSubject<string>('');
-  const contentLoading$ = new BehaviorSubject<boolean>(false);
-  const mediaToken$ = new BehaviorSubject<string | null>(null);
-
-  const mediaType = options?.mediaType || 'text/plain';
-  // "Fetch raw bytes or decode as text?" — binary iff the registry says this
-  // type does not decode to text. Storage-tier images (gif/webp) are
-  // render:'none' but still binary, and a ZIP must avoid the text path; a
-  // mechanical render-mode check would mis-route both into mojibake.
-  const isBinaryType = textSourceOf(mediaType) !== 'decode';
-
-  if (!isBinaryType && mediaType) {
-    contentLoading$.next(true);
-    client.browse.resourceRepresentation(resourceId)
-      .then(({ data, contentType }) => {
-        content$.next(decodeWithCharset(data, contentType));
-        contentLoading$.next(false);
-      })
-      .catch(() => { contentLoading$.next(false); });
-  }
-
-  if (isBinaryType) {
-    client.auth!.mediaToken(resourceId)
-      .then(({ token }) => mediaToken$.next(token))
-      .catch(() => {});
-  }
 
   const wizard$ = new BehaviorSubject<WizardState>(WIZARD_CLOSED);
 
@@ -163,16 +132,10 @@ export function createResourceViewerPageStateUnit(
     events: events.state,
     referencedBy: referencedBy.state,
     annotationGroups$,
-    content$: content$.asObservable(),
-    contentLoading$: contentLoading$.asObservable(),
-    mediaToken$: mediaToken$.asObservable(),
     wizard$: wizard$.asObservable(),
     closeWizard: () => wizard$.next(WIZARD_CLOSED),
     dispose: () => {
       wizard$.complete();
-      content$.complete();
-      contentLoading$.complete();
-      mediaToken$.complete();
       disposer.dispose();
     },
   };

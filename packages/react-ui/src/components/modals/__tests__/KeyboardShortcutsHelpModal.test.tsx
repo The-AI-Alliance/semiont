@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
-import { renderWithProviders } from '../../../test-utils';
+import { renderInEnglish, renderWithProviders } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { KeyboardShortcutsHelpModal } from '../KeyboardShortcutsHelpModal';
 
@@ -46,6 +46,12 @@ describe('KeyboardShortcutsHelpModal', () => {
     renderWithProviders(<KeyboardShortcutsHelpModal {...defaultProps} />);
     expect(screen.getByText('KeyboardShortcuts.navOpenSearch')).toBeInTheDocument();
     expect(screen.getByText('KeyboardShortcuts.annotHighlight')).toBeInTheDocument();
+  });
+
+  it('describes the one skip link a page has', () => {
+    renderInEnglish(<KeyboardShortcutsHelpModal {...defaultProps} />);
+    expect(screen.getByText('Navigate to the skip link (when at page start)')).toBeInTheDocument();
+    expect(screen.getByText('Follow skip link')).toBeInTheDocument();
   });
 
   it('renders kbd elements for shortcuts', () => {

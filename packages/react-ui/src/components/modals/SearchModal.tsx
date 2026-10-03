@@ -14,20 +14,21 @@ import './SearchModal.css';
 const SEARCH_DEBOUNCE_MS = 300;
 const SEARCH_LIMIT = 5;
 
-interface SearchModalProps {
+export interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigate: (type: 'resource' | 'entity', id: string) => void;
-  translations?: {
-    placeholder?: string;
-    searching?: string;
-    noResults?: string;
-    startTyping?: string;
-    navigate?: string;
-    select?: string;
-    close?: string;
-    enter?: string;
-    esc?: string;
+  /** Every string the modal shows; it has none of its own. */
+  translations: {
+    placeholder: string;
+    searching: string;
+    noResults: string;
+    startTyping: string;
+    navigate: string;
+    select: string;
+    close: string;
+    enter: string;
+    esc: string;
   };
 }
 
@@ -43,7 +44,7 @@ export function SearchModal({
   isOpen,
   onClose,
   onNavigate,
-  translations = {}
+  translations,
 }: SearchModalProps) {
   const { announceSearchResults, announceSearching } = useSearchAnnouncements();
   const semiont = useObservable(useSemiont().activeSession$)?.client;
@@ -53,18 +54,6 @@ export function SearchModal({
   const semiontRef = useRef(semiont);
   semiontRef.current = semiont;
   const [selectedIndex, setSelectedIndex] = useState(0);
-
-  const t = {
-    placeholder: translations.placeholder || 'Search resources, entities...',
-    searching: translations.searching || 'Searching...',
-    noResults: translations.noResults || 'No results found for',
-    startTyping: translations.startTyping || 'Start typing to search...',
-    navigate: translations.navigate || 'Navigate',
-    select: translations.select || 'Select',
-    close: translations.close || 'Close',
-    enter: translations.enter || 'Enter',
-    esc: translations.esc || 'ESC',
-  };
 
   // ── Search pipeline ─────────────────────────────────────────────────────
   // The fetch closure maps ResourceDescriptor → SearchResult inside the
@@ -182,13 +171,13 @@ export function SearchModal({
                     value={query}
                     onChange={(e) => pipeline.setQuery(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder={t.placeholder}
+                    placeholder={translations.placeholder}
                     className="semiont-search-modal__input"
                     autoFocus
                   />
                   <div className="semiont-search-modal__esc-wrapper">
                     <kbd className="semiont-search-modal__kbd">
-                      {t.esc}
+                      {translations.esc}
                     </kbd>
                   </div>
                 </div>
@@ -197,13 +186,13 @@ export function SearchModal({
                 <div className="semiont-search-modal__results">
                   {loading && (
                     <div className="semiont-search-modal__empty">
-                      {t.searching}
+                      {translations.searching}
                     </div>
                   )}
 
                   {!loading && query && results.length === 0 && (
                     <div className="semiont-search-modal__empty">
-                      {t.noResults} "{query}"
+                      {translations.noResults} "{query}"
                     </div>
                   )}
 
@@ -249,7 +238,7 @@ export function SearchModal({
                           {index === selectedIndex && (
                             <div className="semiont-search-modal__result-action">
                               <kbd className="semiont-search-modal__kbd">
-                                {t.enter}
+                                {translations.enter}
                               </kbd>
                             </div>
                           )}
@@ -261,20 +250,20 @@ export function SearchModal({
                   {!loading && !query && (
                     <div className="semiont-search-modal__help">
                       <div className="semiont-search-modal__help-text">
-                        {t.startTyping}
+                        {translations.startTyping}
                       </div>
                       <div className="semiont-search-modal__shortcuts">
                         <div className="semiont-search-modal__shortcut">
                           <kbd className="semiont-search-modal__kbd semiont-search-modal__kbd--small">↑↓</kbd>
-                          {t.navigate}
+                          {translations.navigate}
                         </div>
                         <div className="semiont-search-modal__shortcut">
-                          <kbd className="semiont-search-modal__kbd semiont-search-modal__kbd--small">{t.enter}</kbd>
-                          {t.select}
+                          <kbd className="semiont-search-modal__kbd semiont-search-modal__kbd--small">{translations.enter}</kbd>
+                          {translations.select}
                         </div>
                         <div className="semiont-search-modal__shortcut">
-                          <kbd className="semiont-search-modal__kbd semiont-search-modal__kbd--small">Esc</kbd>
-                          {t.close}
+                          <kbd className="semiont-search-modal__kbd semiont-search-modal__kbd--small">{translations.esc}</kbd>
+                          {translations.close}
                         </div>
                       </div>
                     </div>

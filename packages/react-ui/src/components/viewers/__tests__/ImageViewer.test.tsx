@@ -8,6 +8,7 @@ describe('ImageViewer', () => {
   const defaultProps = {
     imageUrl: 'http://localhost:4000/resources/abc-123?token=tok',
     mimeType: 'image/png',
+    alt: 'A diagram',
   };
 
   it('should render an img element with the provided src', () => {
@@ -17,11 +18,12 @@ describe('ImageViewer', () => {
     expect(img).toHaveAttribute('src', defaultProps.imageUrl);
   });
 
-  it('should use default alt text when none provided', () => {
-    renderWithProviders(<ImageViewer {...defaultProps} />);
+  it('takes its alt text from its caller', () => {
+    const { alt: _alt, ...withoutAlt } = defaultProps;
+    // @ts-expect-error no alt text
+    const element = <ImageViewer {...withoutAlt} />;
 
-    const img = screen.getByRole('img');
-    expect(img).toHaveAttribute('alt', 'Resource image');
+    expect(element).toBeTruthy();
   });
 
   it('should use custom alt text when provided', () => {

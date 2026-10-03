@@ -4,9 +4,22 @@ import { getPrimaryMediaType, decodeWithCharset } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
 
 export interface UseResourceContentResult {
-  content: string;
+  /**
+   * The decoded text, or `undefined` until it has loaded. A zero-byte document
+   * loads as `''`, so "is it loaded?" is `content !== undefined` — never a
+   * length check, which gets every empty document wrong.
+   */
+  content: string | undefined;
   loading: boolean;
   error: Error | null;
+}
+
+/** A finished fetch, held with the inputs it was made for. */
+interface Outcome {
+  client: SemiontClient;
+  rUri: ResourceId;
+  mediaType: string;
+  result: { content: string } | { error: Error };
 }
 
 /**
@@ -24,27 +37,38 @@ export function useResourceContent(
 ): UseResourceContentResult {
   const mediaType = enabled ? (getPrimaryMediaType(resource) || 'text/plain') : '';
 
-  const [content, setContent] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
 
   useEffect(() => {
-    if (!client || !enabled || !mediaType) return;
+    if (!client || !enabled) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
     client.browse.resourceRepresentation(rUri).then(({ data, contentType }) => {
       if (cancelled) return;
-      setContent(decodeWithCharset(data, contentType));
-      setLoading(false);
+      setOutcome({ client, rUri, mediaType, result: { content: decodeWithCharset(data, contentType) } });
     }).catch((err) => {
       if (cancelled) return;
-      setError(err instanceof Error ? err : new Error(String(err)));
-      setLoading(false);
+      setOutcome({ client, rUri, mediaType, result: { error: err instanceof Error ? err : new Error(String(err)) } });
     });
 
     return () => { cancelled = true; };
   }, [client, rUri, mediaType, enabled]);
 
-  return { content, loading, error };
+  if (!client || !enabled) return { content: undefined, loading: false, error: null };
+
+  // An outcome answers only for the inputs it was fetched for, and that is
+  // checked HERE, during render. State cleared in the effect arrives one render
+  // late: for that frame the caller is handed the previous resource's content,
+  // its error, or "not loading" for a fetch that has not started yet.
+  if (
+    outcome === null ||
+    outcome.client !== client ||
+    outcome.rUri !== rUri ||
+    outcome.mediaType !== mediaType
+  ) {
+    return { content: undefined, loading: true, error: null };
+  }
+
+  return 'content' in outcome.result
+    ? { content: outcome.result.content, loading: false, error: null }
+    : { content: undefined, loading: false, error: outcome.result.error };
 }

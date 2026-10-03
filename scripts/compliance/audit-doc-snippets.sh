@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Audit: every ```ts/```tsx/```typescript fence in packages/sdk/docs/*.md
+# Audit: every ```ts/```tsx/```typescript fence in the documented packages
 # type-checks against the BUILT packages, resolved through the exports map the
-# way an external consumer resolves them (SAFE-DOCS). Doc rot fails CI instead
-# of waiting for a reader to paste a dead snippet.
+# way that doc's reader resolves them (SAFE-DOCS). Doc rot fails CI instead of
+# waiting for a reader to paste a dead snippet. Two suites:
+#   - sdk: packages/sdk/docs plus the repo-root and packages/sdk READMEs.
+#   - ui:  packages/react-ui/docs and apps/browser/docs plus their READMEs.
 #
 # What green does NOT claim (do not oversell it):
 #   - Shape, not meaning: a method whose semantics changed under a stable
@@ -12,10 +14,8 @@ set -euo pipefail
 #     suites (CACHE-SEMANTICS B-numbers, liveness axioms).
 #   - `tsc` alone cannot see thenable-era rot (`await` on a non-thenable is
 #     legal TS); the checker's await-thenable walk covers that class.
-#   - Fences marked `no-check` are exempt (genuine pseudocode / display-only
+#   - Fences marked `sketch` are exempt (genuine pseudocode / display-only
 #     shapes); the run prints the exemption census — hold it flat or shrink it.
-#   - Scope is the sdk docs PLUS the repo-root and packages/sdk READMEs, which
-#     carry the first sdk code a reader meets and rot unobserved otherwise.
 #
 # POST-BUILD gate: requires dist for core/http-transport/sdk/react-ui/make-meaning and an
 # installed workspace tree (the fixture at packages/sdk/docs/__snippets__).
@@ -34,5 +34,5 @@ if [ ! -d "$REPO_ROOT/node_modules/@semiont/sdk" ]; then
   exit 1
 fi
 
-echo "📚 Checking sdk doc snippets compile against dist (exports-map resolution)..."
+echo "📚 Checking doc snippets compile against dist (exports-map resolution)..."
 node "$FIXTURE/check.mjs"

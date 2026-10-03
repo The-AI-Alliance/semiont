@@ -151,7 +151,7 @@ The mock server (`npm run dev:mock`) provides:
 ### Adding a New Page
 
 **1. Create the page** under `src/app/[locale]/`, one directory per route:
-```typescript sketch
+```tsx sketch
 // src/app/[locale]/dashboard/page.tsx
 import { AsyncErrorBoundary } from "@semiont/react-ui";
 import { DashboardContent } from "@/components/DashboardContent";
@@ -177,7 +177,7 @@ const DashboardPage = React.lazy(() => import('./app/[locale]/dashboard/page'));
 ```
 
 **3. Create component** in `src/components/`:
-```typescript sketch
+```tsx sketch
 // src/components/DashboardContent.tsx
 import { useSemiont, useObservable } from "@semiont/react-ui";
 
@@ -230,7 +230,7 @@ See [API Integration Guide](./API-INTEGRATION.md) for the namespace + bus model.
 ### Adding New UI Components
 
 **1. Create component** in `src/components/`:
-```typescript sketch
+```tsx sketch
 // src/components/MetricsCard.tsx
 import { ReactNode } from 'react';
 
@@ -276,7 +276,7 @@ export function MetricsCard({
 ```
 
 **2. Use with error boundary**:
-```typescript sketch
+```tsx sketch
 <AsyncErrorBoundary>
   <MetricsCard
     title="Active Users"
@@ -324,7 +324,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 ### Adding Authentication Guards
 
 **1. Create protected route wrapper**:
-```typescript sketch
+```tsx sketch
 // src/components/ProtectedRoute.tsx
 import { useSemiont, useObservable } from "@semiont/react-ui";
 import { useNavigate } from "react-router-dom";
@@ -351,7 +351,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 ```
 
 **2. Use in protected pages**:
-```typescript sketch
+```tsx sketch
 // src/app/admin/page.tsx
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
@@ -538,12 +538,12 @@ When you need to add spacing or layout to @semiont/react-ui components:
 // Good - adds spacing without breaking component styles
 <Button variant="primary" className="mt-4">
   Submit
-</Button>
+</Button>;
 
 // Bad - overriding semantic classes
 <Button variant="primary" className="bg-blue-500 hover:bg-blue-600">
   Submit
-</Button>
+</Button>;
 ```
 
 ### CSS Import Structure

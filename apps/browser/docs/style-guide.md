@@ -9,46 +9,45 @@ The Semiont Browser uses a hybrid CSS architecture that combines:
 ### Technical Implementation
 
 #### @semiont/react-ui Styles
-All React UI components from `@semiont/react-ui` come with semantic CSS classes following BEM methodology. These styles are automatically imported in `globals.css`:
+All React UI components from `@semiont/react-ui` come with semantic CSS classes following BEM methodology. These styles are imported in `globals.css`, ahead of Tailwind:
 
 ```css
 /* apps/browser/src/app/globals.css */
 @import '@semiont/react-ui/styles';
+@import "tailwindcss";
 ```
 
 The styles are organized into a modular architecture:
-- **Core UI Elements** (`core/`) - Fundamental components like buttons, toggles, sliders, badges, tags
-- **Components** (`components/`) - Complex composed components like forms, modals, cards
-- **Panels** (`panels/`) - Layout containers for content sections
+- **Core UI Elements** (`core/`) - Fundamental elements like buttons, toggles, sliders, inputs, tags
+- **Patterns** (`patterns/`) - Shared panel and card structures
+- **Panels** (`panels/`) - Styles for individual panels
 - **Motivations** (`motivations/`) - W3C Web Annotation standard styles
 - **Features** (`features/`) - Feature-specific styling
+- **Component-level CSS** - Composed components (modals, navigation, resource panels, toolbar) keep their CSS beside their code
 
 This provides all component styles with the `semiont-` prefix:
 - `semiont-button`, `semiont-button--primary` (from `core/buttons.css`)
-- `semiont-card`, `semiont-card__header` (from `components/cards.css`)
-- `semiont-panel`, `semiont-panel__title` (from `panels/`)
+- `semiont-card` (from `patterns/cards.css`)
+- `semiont-panel`, `semiont-panel-header__title` (from `patterns/panels-base.css`)
 - `semiont-toggle`, `semiont-progress`, `semiont-slider` (from `core/`)
 - And more...
 
 #### Tailwind Configuration
-The Browser app uses Tailwind for its own components and layout. The configuration excludes @semiont/react-ui from content scanning since it doesn't use Tailwind classes:
+The Browser app uses Tailwind for its own components and layout. `globals.css` loads `tailwind.config.js` with `@config` and names the sources Tailwind scans for class names — the Browser's own `src`, and `packages/react-ui/src`:
 
-```typescript
-// tailwind.config.ts
-content: [
-  "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
-  "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
-  "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-  "./src/lib/**/*.{js,ts,jsx,tsx,mdx}",
-  // Note: @semiont/react-ui is NOT included
-]
+```css
+/* apps/browser/src/app/globals.css */
+@config "../../tailwind.config.js";
+@plugin "@tailwindcss/typography";
+@source "../../src";
+@source "../../../../packages/react-ui/src";
 ```
 
 ### Using @semiont/react-ui Components
 
 When using components from @semiont/react-ui, they already have all necessary styling:
 
-```typescript
+```tsx
 import { Button, Toolbar } from '@semiont/react-ui';
 
 // Components come pre-styled with semantic classes
@@ -57,29 +56,27 @@ import { Button, Toolbar } from '@semiont/react-ui';
 
 ### Dark Mode Support
 
-Both systems support dark mode:
-- **@semiont/react-ui**: Uses `data-theme="dark"` attribute
-- **Browser Tailwind**: Uses `class="dark"` on HTML element
+`ThemeProvider` from @semiont/react-ui resolves the theme (`light`, `dark`, or `system`) and sets `data-theme` on the `<html>` element. The react-ui styles and the Browser's `globals.css` key their dark rules off `[data-theme="dark"]`.
 
-The Browser handles this coordination automatically through the theme provider.
+The Browser's `tailwind.config.js` sets `darkMode: ['selector', '[data-theme="dark"]']`, so Tailwind's `dark:` variants respond to the same attribute: a `dark:` class applies exactly when react-ui's dark rules do.
 
 ### Custom Styling Approach
 
 #### For @semiont/react-ui Components
 If you need to customize a react-ui component, add additional classes without overriding the semantic ones:
 
-```typescript
+```tsx
 // Good - adds spacing without breaking component styles
-<Button className="mt-4" variant="primary">Submit</Button>
+const spaced = <Button className="mt-4" variant="primary">Submit</Button>;
 
 // Bad - don't override semantic classes
-<Button className="my-custom-button" variant="primary">Submit</Button>
+const overridden = <Button className="my-custom-button" variant="primary">Submit</Button>;
 ```
 
 #### For App-Specific Components
 Use Tailwind utilities freely for components defined in the Browser app:
 
-```typescript
+```tsx
 // App-specific component using Tailwind
 <div className="flex items-center gap-4 p-6 bg-white dark:bg-gray-800">
   <span className="text-lg font-semibold">Custom content</span>
@@ -100,20 +97,20 @@ The design system uses CSS custom properties from @semiont/react-ui:
 Centralized tokens ensure consistency across all panels:
 - `--semiont-panel-padding`: 1rem
 - `--semiont-panel-title-size`: var(--semiont-text-lg)
-- `--semiont-panel-title-weight`: 600
-- `--semiont-panel-header-margin-bottom`: 1rem
+- `--semiont-panel-title-weight`: var(--semiont-font-semibold)
+- `--semiont-panel-header-margin-bottom`: 0.75rem
 - `--semiont-panel-section-gap`: 1.5rem
-- `--semiont-panel-icon-size`: 1.25rem
+- `--semiont-panel-icon-size`: 1.125rem
 
 ### Primary Colors
 The Semiont design system uses a **blue/cyan** color palette as its primary theme:
 
-- **Primary Blue:** `blue-600` (RGB: 59, 130, 246) - Used for primary actions, links, and selections
-- **Cyan Accent:** `cyan-600` (RGB: 6, 182, 212) - Used in gradients and accent elements
-- **Blue/Cyan Gradient:** `from-blue-600 to-cyan-600` - Used for buttons, progress bars, and special elements
+- **Primary Blue:** `--semiont-color-blue-500` (RGB: 59, 130, 246) - Used for primary actions, links, and selections
+- **Cyan Accent:** `--semiont-color-cyan-500` (RGB: 6, 182, 212) - Used in gradients and accent elements
+- **Cyan/Blue Gradient:** `--semiont-gradient-primary` - Cyan-500 to blue-500 at 20% opacity, deepening to cyan-600 → blue-600 on hover
 
 ### Secondary Colors
-- **Yellow:** Reserved exclusively for text highlights (`yellow-200` light / `yellow-900/50` dark)
+- **Yellow:** Reserved exclusively for text highlights (yellow-200 light / yellow-900 at 50% dark)
 - **Green:** Success states and completion messages
 - **Red:** Error states and destructive actions
 - **Gray:** Neutral UI elements, backgrounds, and disabled states
@@ -134,27 +131,33 @@ Use blue and cyan colors for:
 Yellow is reserved exclusively for text highlights in documents. This creates a clear visual distinction between highlighted text and interactive references.
 
 #### Gradients
-Use the blue-to-cyan gradient (`from-blue-600 to-cyan-600`) for:
-- Primary action buttons
-- Progress bars
-- Special interactive elements
-- AI detection features
+The cyan-to-blue gradient (`--semiont-gradient-primary`) marks primary action buttons (`semiont-button--primary`). Reference annotations carry a lighter cyan-to-blue gradient (`--semiont-motivation-reference-bg`).
 
 ## Core UI Elements from @semiont/react-ui
 
 The react-ui package provides fundamental UI elements in the `core/` directory:
 
 ### Toggle Switches
-```typescript
-// Use the semantic classes from core/toggles.css
-<label className="semiont-toggle">
-  <input type="checkbox" className="semiont-toggle__input" />
-  <span className="semiont-toggle__slider"></span>
+```tsx
+// From core/toggles.css
+const [isOn, setIsOn] = useState(false);
+
+<label className="semiont-toggle-label">
+  <span className="semiont-toggle-label__text">Line numbers</span>
+  <button
+    type="button"
+    role="switch"
+    aria-checked={isOn}
+    onClick={() => setIsOn(!isOn)}
+    className={`semiont-toggle ${isOn ? 'semiont-toggle--active' : ''}`}
+  >
+    <span className={`semiont-toggle__slider ${isOn ? 'semiont-toggle__slider--active' : ''}`} />
+  </button>
 </label>
 ```
 
 ### Progress Bars
-```typescript
+```tsx
 // From core/progress.css
 <div className="semiont-progress">
   <div className="semiont-progress__fill" style={{width: '60%'}}></div>
@@ -162,52 +165,45 @@ The react-ui package provides fundamental UI elements in the `core/` directory:
 ```
 
 ### Range Sliders
-```typescript
+```tsx
 // From core/sliders.css
-<input type="range" className="semiont-slider" min="0" max="100" />
-<input type="range" className="semiont-slider semiont-slider--small" /> // Small variant
+<>
+  <input type="range" className="semiont-slider" min="0" max="100" />
+  {/* Small variant */}
+  <input type="range" className="semiont-slider semiont-slider--small" />
+</>
 ```
 
-### Tags and Badges
-```typescript
-// Tags from core/tags.css
-<span className="semiont-tag">Category</span>
-<span className="semiont-tag semiont-tag--secondary">Secondary</span>
-
-// Badges from core/badges.css
-<span className="semiont-badge semiont-badge--admin">Admin</span>
-<span className="semiont-badge semiont-badge--active">Active</span>
+### Tags
+```tsx
+// From core/tags.css
+<>
+  <span className="semiont-tag">Category</span>
+  <span className="semiont-tag semiont-tag--secondary">Secondary</span>
+</>
 ```
 
 ### Status Indicators
-```typescript
+```tsx
 // From core/indicators.css
-<span className="semiont-indicator semiont-indicator--online"></span>
-<span className="semiont-indicator semiont-indicator--busy"></span>
+<>
+  <span className="semiont-indicator semiont-indicator--online"></span>
+  <span className="semiont-indicator semiont-indicator--busy"></span>
+</>
 ```
 
 ## W3C Web Annotation Motivations
 
-The react-ui package includes dedicated styles for W3C Web Annotation standard motivations:
+The react-ui package includes dedicated styles for W3C Web Annotation standard motivations, one file per motivation in `motivations/`.
 
 ### Available Motivation Classes
-- `.semiont-motivation--linking` - Blue to cyan gradient (references)
-- `.semiont-motivation--highlighting` - Yellow background
-- `.semiont-motivation--assessing` - Red wavy underline
-- `.semiont-motivation--commenting` - Dashed outline
-- `.semiont-motivation--tagging` - Orange to amber gradient
+- `.annotation-reference` - Cyan to blue gradient (linking)
+- `.annotation-highlight` - Yellow background (highlighting)
+- `.annotation-assessment` - Red wavy underline (assessing)
+- `.annotation-comment` - Dashed outline (commenting)
+- `.annotation-tag` - Orange to amber gradient (tagging)
 
-### Usage Example
-```typescript
-// Apply motivation-specific styling
-<div className="semiont-motivation--highlighting">
-  Highlighted text
-</div>
-
-<div className="semiont-motivation--linking">
-  Reference to another resource
-</div>
-```
+Which class an annotation gets is decided by the `ANNOTATORS` registry — see [Annotation Styles](#annotation-styles).
 
 ## Component Styling Guidelines
 
@@ -216,21 +212,21 @@ The react-ui package includes dedicated styles for W3C Web Annotation standard m
 Components from @semiont/react-ui come with built-in semantic CSS classes. Here's how to use them:
 
 #### Buttons
-```typescript
+```tsx
 import { Button } from '@semiont/react-ui';
 
-// Primary button - uses semiont-button semiont-button--primary
-<Button variant="primary">Primary Action</Button>
+// Primary button - renders class="semiont-button" data-variant="primary"
+const primary = <Button variant="primary">Primary Action</Button>;
 
-// Secondary button - uses semiont-button semiont-button--secondary
-<Button variant="secondary">Secondary Action</Button>
+// Secondary button - renders class="semiont-button" data-variant="secondary"
+const secondary = <Button variant="secondary">Secondary Action</Button>;
 
 // With additional spacing (combines semantic + utility)
-<Button variant="primary" className="mt-4">Submit</Button>
+const spaced = <Button variant="primary" className="mt-4">Submit</Button>;
 ```
 
 #### Cards
-```typescript
+```tsx
 // A card is a class, not a component
 <div className="semiont-card">
   <h3>Title</h3>
@@ -239,11 +235,11 @@ import { Button } from '@semiont/react-ui';
 ```
 
 #### Panels
-```typescript
+```tsx
 // Using semantic classes directly
 <div className="semiont-panel">
-  <div className="semiont-panel__header">
-    <h2 className="semiont-panel__title">Panel Title</h2>
+  <div className="semiont-panel-header">
+    <h2 className="semiont-panel-header__title">Panel Title</h2>
   </div>
   <div className="semiont-panel__content">
     Panel content
@@ -251,14 +247,11 @@ import { Button } from '@semiont/react-ui';
 </div>
 ```
 
-### App-Specific Styling with Tailwind
+### Button Class Strings
 
-For components specific to the Browser app, use Tailwind utilities:
+For a plain `<button>`, `@semiont/react-ui` exports `buttonStyles`: ready-made `semiont-button` class strings. The Browser's home page renders its Begin button with `buttonStyles.primary.base`.
 
-#### Custom Button Styles
-We have three standard button styles defined in `/src/lib/button-styles.ts` for app-specific buttons:
-
-##### Primary Buttons
+#### Primary Buttons
 **When to use:** Main call-to-action buttons that represent the primary action on a page or in a modal.
 
 **Style:** Cyan/blue gradient with hover effects
@@ -269,14 +262,16 @@ We have three standard button styles defined in `/src/lib/button-styles.ts` for 
 - "New Document"
 - "Save" (when it's the main action)
 
-```typescript
-import { buttonStyles } from '@/lib/button-styles';
+```tsx
+import { buttonStyles } from '@semiont/react-ui';
 
-<button className={buttonStyles.primary.base}>Primary Action</button>
-<button className={buttonStyles.primary.large}>Large Primary Action</button>
+<>
+  <button className={buttonStyles.primary.base}>Primary Action</button>
+  <button className={buttonStyles.primary.large}>Large Primary Action</button>
+</>
 ```
 
-##### Secondary Buttons
+#### Secondary Buttons
 **When to use:** Supporting actions that are important but not the primary focus.
 
 **Style:** Gray with subtle black/white outline
@@ -287,12 +282,14 @@ import { buttonStyles } from '@/lib/button-styles';
 - "Learn More"
 - "Back"
 
-```typescript
-<button className={buttonStyles.secondary.base}>Secondary Action</button>
-<button className={buttonStyles.secondary.withScale}>Secondary with Hover Scale</button>
+```tsx
+<>
+  <button className={buttonStyles.secondary.base}>Secondary Action</button>
+  <button className={buttonStyles.secondary.withScale}>Secondary with Hover Scale</button>
+</>
 ```
 
-##### Tertiary Buttons
+#### Tertiary Buttons
 **When to use:** Less important actions, navigation items, or options within a set.
 
 **Style:** Minimal, with just text and hover background
@@ -303,17 +300,19 @@ import { buttonStyles } from '@/lib/button-styles';
 - "View More" links
 - Filter options
 
-```typescript
+```tsx
 <button className={buttonStyles.tertiary.base}>Tertiary Action</button>
 ```
+
+`buttonStyles.danger.base` covers destructive actions.
 
 ## Special Cases
 
 ### Highlight Button
-The "Create Highlight" button uses a custom yellow theme to match the visual language of highlights:
+For a highlight action, use the amber `buttonStyles.warning.base` (`semiont-button--warning`), which matches the visual language of highlights:
 
-```typescript
-className="w-full py-2 bg-yellow-200 hover:bg-yellow-300 dark:bg-yellow-900/50 dark:hover:bg-yellow-800/50 border border-yellow-400/30 dark:border-yellow-600/30 text-gray-900 dark:text-white rounded-lg transition-all duration-300"
+```tsx
+<button className={buttonStyles.warning.base}>Highlight</button>
 ```
 
 ### Selected States
@@ -323,38 +322,36 @@ When showing selected items, use blue backgrounds:
 - **Active filters:** `bg-blue-100 dark:bg-blue-900/30 border border-blue-300`
 
 ### Disabled States
-All button styles include `disabled:opacity-50 disabled:cursor-not-allowed`. Always disable buttons when:
+Every `semiont-button` dims to 50% opacity with a `not-allowed` cursor when it is `:disabled` or carries `data-disabled="true"`. Always disable buttons when:
 - An action is in progress
 - Required fields are empty
 - The action is not available
 
 ## Annotation Styles
 
-Annotation styles are centralized in `/src/lib/annotation-styles.ts` for consistent appearance across the application.
+Each motivation's class name lives in the `ANNOTATORS` registry (`packages/react-ui/src/lib/annotation-registry.ts`); its colours live in `packages/react-ui/src/styles/motivations/`.
 
 ### Highlights
-- **Background:** Yellow (`bg-yellow-200 dark:bg-yellow-900/50`)
-- **Border:** Dashed outline for visibility in dark mode
-- **Hover:** Deeper yellow (`bg-yellow-300 dark:bg-yellow-900/60`)
+- **Background:** Yellow (`--semiont-motivation-highlight-bg`: yellow-200; yellow-900 at 50% in dark mode)
+- **Border:** Dashed outline in dark mode
+- **Hover:** Deeper yellow (yellow-300; yellow-900 at 60% in dark mode)
 - **Purpose:** Visual prominence for highlighted text
 
 ### References (All Types)
-- **Background:** Cyan/blue gradient (`from-cyan-200 to-blue-200`)
-- **Border:** Dashed outline for visibility (`outline-cyan-500/60`)
-- **Hover:** Deeper blue gradient
+- **Background:** Cyan/blue gradient (`--semiont-motivation-reference-bg`: cyan-200 → blue-200)
+- **Border:** Dashed cyan outline in dark mode
+- **Hover:** Deeper gradient (cyan-300 → blue-300)
 - **Purpose:** Show connections between documents and entities
 - **Note:** All references use the same blue/cyan styling for consistency
 
 ### Usage
-```typescript
-import { annotationStyles } from '@/lib/annotation-styles';
+```tsx
+import { ANNOTATORS } from '@semiont/react-ui';
 
-// Get style for an annotation
-const className = annotationStyles.getAnnotationStyle(annotation);
+// The annotator whose motivation matches supplies the class
+const annotator = Object.values(ANNOTATORS).find((a) => a.matchesAnnotation(annotation));
 
-// Use specific styles
-<span className={annotationStyles.highlight.className}>Highlighted text</span>
-<span className={annotationStyles.tags.entity}>Entity tag</span>
+<span className={annotator?.className}>Annotated text</span>
 ```
 
 ### Administrative/Moderation
@@ -365,23 +362,22 @@ const className = annotationStyles.getAnnotationStyle(annotation);
 ## Form Elements
 
 ### Text Inputs
-Standard input styling using Tailwind:
-```typescript
-className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-```
+Inputs take react-ui's `semiont-input` (`core/inputs.css`), as the Browser's `KnowledgeBasePanel` form does. A labelled field wraps it in the `core/forms.css` classes:
 
-For @semiont/react-ui form components:
-```typescript
+```tsx
 <div className="semiont-form__field">
-  <label className="semiont-form__label">Label</label>
-  <input className="semiont-form__input" />
-  <p className="semiont-form__helper-text">Helper text</p>
+  <label htmlFor="host" className="semiont-form__label">Host</label>
+  <input id="host" type="text" className="semiont-input" />
+  <p className="semiont-form__help">Helper text</p>
 </div>
 ```
 
 ### Select Dropdowns
-```typescript
-className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+```tsx
+<select className="semiont-select">
+  <option value="http">HTTP</option>
+  <option value="https">HTTPS</option>
+</select>
 ```
 
 ## Layout Patterns
@@ -392,36 +388,29 @@ className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-
 3. **Actions:** Bottom area with primary/secondary buttons
 
 ### Card Components
-For app-specific cards using Tailwind:
-```typescript
-className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 p-4"
-```
-
-For @semiont/react-ui cards:
-```typescript
+```tsx
 <div className="semiont-card">
   {/* Card content */}
 </div>
 ```
 
 ### Navigation Sidebars
-- Width: `w-64`
-- Background: `bg-white dark:bg-gray-900`
-- Border: `border-r border-gray-200 dark:border-gray-700`
+The knowledge and moderation layouts use react-ui's `LeftSidebar`, styled by its own `LeftSidebar.css`.
 
 ## SemiontBranding Component
 
-The `SemiontBranding` component is our main brand identity element, featuring the "SEMIONT" text with the "make meaning" tagline. It's resizable and used in different contexts throughout the application.
+The `SemiontBranding` component is our main brand identity element: the "SEMIONT" wordmark over a tagline, which it renders as `t('tagline')` — "make meaning" under the Browser's `Home` messages. It's resizable and used in different contexts throughout the application.
 
 ### Component Props
-```typescript
-interface SemiontBrandingProps {
-  size?: 'sm' | 'md' | 'lg' | 'xl';
-  showTagline?: boolean;
-  compactTagline?: boolean;  // Shows tagline on same line with backslash separator
-  animated?: boolean;         // Adds fade-in animation
-  className?: string;
-}
+```tsx
+<SemiontBranding
+  t={tHome}               // required: renders t('tagline')
+  size="lg"               // 'sm' | 'md' | 'lg' | 'xl'; default 'lg'
+  showTagline={true}      // default true
+  animated={true}         // fade-in animation; default true
+  compactTagline={false}  // wider tagline letter-spacing; default false
+  className=""            // appended to semiont-branding
+/>
 ```
 
 ### Size Variants
@@ -430,49 +419,46 @@ interface SemiontBrandingProps {
 **When to use:** Headers and navigation bars where space is limited
 
 **Where used:**
-- DashboardHeader (top left corner)
-- Authenticated pages header
+- `UnifiedHeader` (the branding button that opens the navigation menu)
+- `LeftSidebar`, expanded, without the tagline
 
 **Example:**
-```typescript
+```tsx
 <SemiontBranding
+  t={tHome}
   size="sm"
   showTagline={true}
-  compactTagline={true}  // "SEMIONT \ make meaning" on one line
+  compactTagline={true}
   animated={false}
 />
 ```
 
 #### Medium (`size="md"`)
-**When to use:** Default size for general use
+**When to use:** General use
 
 **Example:**
-```typescript
-<SemiontBranding />  // Defaults to md
+```tsx
+<SemiontBranding t={tHome} size="md" />
 ```
 
 #### Large (`size="lg"`)
-**When to use:** Feature sections, about pages
+**When to use:** Feature sections, about pages. `lg` is the default size.
 
 **Example:**
-```typescript
-<SemiontBranding
-  size="lg"
-  showTagline={true}
-  animated={true}
-/>
+```tsx
+<SemiontBranding t={tHome} />
 ```
 
 #### Extra Large (`size="xl"`)
 **When to use:** Hero sections and landing pages
 
 **Where used:**
-- Home page hero section
-- Landing page above the CTA buttons
+- The Browser's home page (`src/app/[locale]/page.tsx`), above the Begin button
 
 **Example:**
-```typescript
+```tsx
 <SemiontBranding
+  t={tHome}
   size="xl"
   animated={true}
   className="mb-8"
@@ -482,9 +468,9 @@ interface SemiontBrandingProps {
 ### Styling Details
 
 The component uses the Orbitron font for "SEMIONT" and includes:
-- **Gradient text:** Cyan to blue gradient for brand consistency
+- **Gradient text:** Black → primary-600 → black, and white → primary-400 → white in dark mode
 - **Animation:** Optional fade-in effect for landing pages
-- **Responsive sizing:** Text scales appropriately for each size variant
+- **Responsive sizing:** Title and tagline sizes are set per `data-size` in `Branding.css`, and the title steps up at the 640px and 768px breakpoints
 - **Dark mode support:** Adjusts gradient and colors for dark backgrounds
 
 ### Usage Guidelines
@@ -492,22 +478,17 @@ The component uses the Orbitron font for "SEMIONT" and includes:
 1. **Headers:** Use `size="sm"` with `compactTagline={true}` to keep navigation compact
 2. **Landing pages:** Use `size="xl"` with `animated={true}` for visual impact
 3. **Click behavior:** In headers, wrap with Link to make it navigate to home/dashboard
-4. **Spacing:** The component doesn't include margin/padding - add via `className` prop
-
-### Typography Scale
-- **Small:** `text-xl` (SEMIONT), `text-xs` (tagline)
-- **Medium:** `text-2xl` (SEMIONT), `text-sm` (tagline)
-- **Large:** `text-4xl` (SEMIONT), `text-base` (tagline)
-- **Extra Large:** `text-6xl` (SEMIONT), `text-lg` (tagline)
+4. **Spacing:** The component doesn't include outer margin/padding - add via `className` prop
 
 ## Best Practices
 
 ### CSS Architecture
 1. **Component Organization:** @semiont/react-ui styles are organized into:
-   - `core/` - Fundamental UI elements (buttons, toggles, sliders)
-   - `components/` - Complex components (forms, modals, cards)
-   - `panels/` - Panel layouts and containers
+   - `core/` - Fundamental UI elements (buttons, toggles, sliders, inputs)
+   - `patterns/` - Shared panel and card structures
+   - `panels/` - Styles for individual panels
    - `motivations/` - W3C Web Annotation standard styles
+   - CSS beside each composed component under `src/components/`
 2. **Use Design Tokens:** Leverage panel design tokens and CSS variables for consistency
 3. **App Styles:** Use Tailwind for app-specific components and layouts
 4. **Don't Mix:** Avoid overriding semantic classes from @semiont/react-ui with Tailwind utilities
@@ -527,46 +508,43 @@ When migrating components:
 1. **Check @semiont/react-ui first:** See if the component exists in the UI library
 2. **Use semantic classes:** If using react-ui components, rely on their semantic CSS
 3. **Add utility classes carefully:** Only add Tailwind utilities for spacing/layout, not core styling
-4. **Test dark mode:** Ensure both `data-theme="dark"` (react-ui) and `dark:` (Tailwind) work correctly
+4. **Test dark mode:** Switch the theme and check the component in both; `data-theme="dark"` drives react-ui's styles and Tailwind's `dark:` utilities alike
 
 ## Importing Styles
 
 ### For App Components
-Always import button styles at the top of your component:
+Import button styles from `@semiont/react-ui` at the top of your component:
 
 ```typescript
-import { buttonStyles } from '@/lib/button-styles';
+import { buttonStyles } from '@semiont/react-ui';
 ```
 
 ### For Combining Classes
-```typescript
+```tsx
 // Combining semantic + utility classes
-className={`${buttonStyles.primary.base} w-full`}
-
-// Using clsx for conditional classes
-import clsx from 'clsx';
-className={clsx(
-  'semiont-button semiont-button--primary',
-  isLoading && 'opacity-50'
-)}
+<button className={`${buttonStyles.primary.base} w-full`}>Save</button>
 ```
+
+react-ui's `Button` merges its `className` prop after `semiont-button`, so `<Button className="mt-4">` combines the two the same way.
 
 ## File Organization
 
 ### Browser App Files
-- `/src/lib/button-styles.ts` - App-specific button styles using Tailwind
-- `/src/lib/annotation-styles.ts` - Annotation and highlight styles
-- `/src/app/globals.css` - Global styles and @semiont/react-ui import
+- `src/app/globals.css` - Global styles, the @semiont/react-ui import, and the Tailwind setup
+- `tailwind.config.js` - Tailwind configuration (`darkMode`, theme extensions)
 
 ### @semiont/react-ui Style Organization
 - `@semiont/react-ui/styles/` - Main styles directory
-  - `index.css` - Entry point that imports all styles
+  - `index.css` - Entry point that imports all styles, including component-level CSS
   - `variables.css` - Design tokens and CSS custom properties
+  - `base/` - Reset and semantic utility classes
   - `core/` - Fundamental UI elements
     - `buttons.css`, `toggles.css`, `progress.css`, `sliders.css`
+    - `inputs.css`, `checkboxes.css`, `textareas.css`, `selects.css`, `forms.css`
     - `badges.css`, `tags.css`, `indicators.css`
-  - `components/` - Complex composed components
-  - `panels/` - Panel layouts (12 different panel styles)
+  - `patterns/` - Shared panel and card structures
+  - `panels/` - History and user panel styles
   - `motivations/` - W3C Web Annotation standard (5 motivation styles)
   - `features/` - Feature-specific styling
+  - `layout/` - Page and container layouts
   - `utilities/` - Accessibility and interaction helpers

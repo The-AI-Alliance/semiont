@@ -13,7 +13,8 @@
  * and "terminal answers stay cached" as one ask PER MOUNT.
  */
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderInEnglish } from '../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { resourceId } from '@semiont/core';
@@ -48,7 +49,7 @@ function sessionAnswering(answer: Record<string, unknown>) {
 }
 
 async function renderAndVisitBothPages(session: SemiontSession) {
-  render(
+  renderInEnglish(
     <PdfAnnotationCanvas
       resourceUri={resourceId(String(resourceId('123')))}
       pdfUrl="https://example.com/resources/123.pdf"
@@ -109,7 +110,7 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
 
     test('`not-yet` masks drawing and shows the hint', async () => {
       const { session } = sessionAnswering({ kind: 'not-yet' });
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas
           resourceUri={resourceId(String(resourceId('123')))}
           pdfUrl="https://example.com/resources/123.pdf"
@@ -125,7 +126,7 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
 
     test('`extracted` defers nothing', async () => {
       const { session } = sessionAnswering({ kind: 'extracted', pages: [] });
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas
           resourceUri={resourceId(String(resourceId('123')))}
           pdfUrl="https://example.com/resources/123.pdf"
@@ -141,7 +142,7 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
 
     test('terminal absences stay annotatable, geometry-only, no hint', async () => {
       const { session } = sessionAnswering({ kind: 'no-map' });
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas
           resourceUri={resourceId(String(resourceId('123')))}
           pdfUrl="https://example.com/resources/123.pdf"
@@ -163,7 +164,7 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
     client: { browse: { resourceAnchoredText } },
     subscribe: () => () => {},
   } as unknown as SemiontSession;
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas
           resourceUri={resourceId(String(resourceId('123')))}
           pdfUrl="https://example.com/resources/123.pdf"

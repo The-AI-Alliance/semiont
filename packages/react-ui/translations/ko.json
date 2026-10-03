@@ -510,5 +510,26 @@
     "stateCleared": "이 항목의 열린 탭과 마지막 위치가 지워졌습니다 — 이 지식 베이스에 없는 콘텐츠를 가리키고 있었기 때문입니다. 레지스트리 항목 자체는 변경되지 않았습니다.",
     "dismiss": "닫기",
     "reviewKnowledgeBases": "지식 베이스 검토"
+  },
+  "SessionEndedModal": {
+    "title": "로그아웃됨",
+    "expired": "세션이 만료되었습니다. 다시 로그인하세요.",
+    "refused": "이 지식 베이스가 로그인을 수락하지 않았습니다. 다시 로그인하세요.",
+    "goHome": "홈으로 이동",
+    "signInAgain": "다시 로그인"
+  },
+  "PermissionDeniedModal": {
+    "title": "액세스 거부됨",
+    "reasonsIntro": "가능한 원인:",
+    "reasonPermissions": "필요한 권한이 없습니다",
+    "reasonRestricted": "이 리소스는 특정 사용자 또는 팀으로 제한되어 있습니다",
+    "reasonAccountType": "계정 유형에 이 기능이 포함되어 있지 않습니다",
+    "detailLabel": "지식 베이스의 응답:",
+    "goBack": "뒤로 가기",
+    "goHome": "홈으로 이동",
+    "switchAccount": "계정 전환"
+  },
+  "SkipLinks": {
+    "mainContent": "본문으로 건너뛰기"
   }
 }

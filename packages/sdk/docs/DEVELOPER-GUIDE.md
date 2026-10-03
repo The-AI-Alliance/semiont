@@ -431,8 +431,9 @@ no cache or translation context — it consumes the same `SemiontSession` you bu
 Two hooks load from that session's client (both take the bare `session.client`, not a
 provider): `useResourceLoader` for the resource and its grouped annotations, and
 `useMediaToken` for the short-lived authed URL that image/PDF media need. The *content* is the
-host's to fetch — text via `browse.resourceRepresentation`, binary via the media-token URL —
-and handed to the viewer on the resource, so the viewer stays agnostic about how bytes arrive.
+host's to fetch — text via `browse.resourceRepresentation`, an image or PDF via the media-token
+URL, nothing for a type with no preview — and handed to the viewer on the resource, so the
+viewer stays agnostic about how bytes arrive.
 
 ```tsx
 import { useState, useEffect } from 'react';
@@ -449,19 +450,21 @@ function ResourcePane({ session, id, onOpenResource }: {
   const { resource, annotations, loading, error } = useResourceLoader(session.client, rid);
 
   const mediaType = resource ? getPrimaryMediaType(resource) ?? 'text/plain' : 'text/plain';
-  const isBinary = ['image', 'pdf'].includes(capabilitiesOf(mediaType)?.render ?? '');
+  const render = capabilitiesOf(mediaType)?.render ?? 'none';
+  const byUrl = render === 'image' || render === 'pdf';
 
-  // Binary media loads through a short-lived authed token URL; text is fetched + decoded.
-  const { token } = useMediaToken(isBinary ? session.client : null, rid);
+  // Load what the view reads: an image/PDF view takes a short-lived authed token URL, a text
+  // view takes the fetched + decoded text, and a type with no preview takes nothing.
+  const { token } = useMediaToken(byUrl ? session.client : null, rid);
   const [text, setText] = useState('');
   useEffect(() => {
-    if (!resource || isBinary) return;
+    if (!resource || render !== 'text') return;
     void session.client.browse.resourceRepresentation(rid)
       .then(({ data, contentType }) => setText(decodeWithCharset(data, contentType)))
       .catch(() => { /* leave empty — the viewer falls back to metadata + download */ });
-  }, [session, rid, resource, isBinary]);
+  }, [session, rid, resource, render]);
 
-  const content = isBinary
+  const content = byUrl
     ? (token ? `${session.client.baseUrl}/api/resources/${rid}?token=${token}` : '')
     : text;
 

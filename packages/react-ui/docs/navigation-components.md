@@ -1,248 +1,72 @@
 # Navigation Components
 
-This document describes the navigation components available in @semiont/react-ui.
+The sidebar and menu navigation in `@semiont/react-ui`. None of these components imports a router
+or an icon library: the host passes its `Link` (see [ROUTING.md](ROUTING.md)) and its icons as
+props, and the components report what the user did as events on the bus.
 
-## Overview
+| Component | Renders |
+|---|---|
+| `CollapsibleResourceNavigation` | A sidebar of fixed items followed by one tab per open resource, reorderable by drag or keyboard |
+| `SortableResourceTab` | One open-resource tab; `CollapsibleResourceNavigation` renders these |
+| `SimpleNavigation` | A titled sidebar of fixed items |
+| `NavigationMenu` | The Know and Moderate links, for a header dropdown or a sidebar |
+| `ObservableLink` | A plain anchor that emits `nav:link-clicked` when clicked |
 
-The navigation components in this library are designed to be completely platform-agnostic, working with any React framework or routing solution. They accept platform-specific dependencies (like Link components and routing functions) as props, enabling them to work seamlessly in Next.js, Vite, React Native, or any other React environment.
+## CollapsibleResourceNavigation
 
-## Components
-
-### CollapsibleResourceNavigation
-
-A comprehensive navigation component with collapsible state, fixed navigation items, and draggable resource tabs.
-
-#### Features
-
-- **Collapsible/Expandable**: Toggle between full and compact views
-- **Fixed Navigation Items**: Static menu items that don't change
-- **Dynamic Resource Tabs**: Draggable tabs for open resources/documents
-- **Drag & Drop Reordering**: Reorder resource tabs when expanded
-- **Platform-Agnostic**: Works with any routing solution
-
-#### Props
-
-```typescript
-interface CollapsibleResourceNavigationProps {
-  // Fixed navigation items
-  fixedItems: NavigationItem[];
-
-  // Dynamic resources
-  resources: OpenResource[];
-
-  // Collapse state
-  isCollapsed: boolean;
-  onToggleCollapse: () => void;
-
-  // Resource management
-  onResourceClose: (id: string) => void;
-  onResourceReorder: (oldIndex: number, newIndex: number) => void;
-
-  // Navigation
-  currentPath: string;
-  LinkComponent: ComponentType<any>;
-  onNavigate?: (path: string) => void;
-  getResourceHref: (resourceId: string) => string;
-
-  // Styling
-  className?: string;
-  activeClassName?: string;
-  inactiveClassName?: string;
-
-  // Translations
-  translations: {
-    title?: string;
-    collapseSidebar?: string;
-    expandSidebar?: string;
-    dragToReorder?: string;
-    closeResource?: string;
-  };
-
-  // Icons (platform-specific)
-  icons: {
-    chevronLeft: ComponentType<{ className?: string }>;
-    bars: ComponentType<{ className?: string }>;
-    close: ComponentType<{ className?: string }>;
-  };
-}
-```
-
-#### Usage Example
+Props: `CollapsibleResourceNavigationProps`. The resources are the session's open resources
+(`OpenResource` from `@semiont/sdk`); `getResourceHref` turns a resource id into its path, which
+is usually `routes.resourceDetail`.
 
 ```tsx
 import { CollapsibleResourceNavigation } from '@semiont/react-ui';
-import { Link } from 'next/link';
-import { ChevronLeftIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Bars3Icon, ChevronLeftIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
-function MyNavigation() {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [resources, setResources] = useState([]);
-
-  const handleResourceReorder = (oldIndex: number, newIndex: number) => {
-    const newResources = [...resources];
-    const [removed] = newResources.splice(oldIndex, 1);
-    newResources.splice(newIndex, 0, removed);
-    setResources(newResources);
-  };
-
-  return (
-    <CollapsibleResourceNavigation
-      fixedItems={[
-        { name: 'Browse', href: '/browse', icon: FolderIcon },
-        { name: 'Create', href: '/create', icon: PlusIcon }
-      ]}
-      resources={resources}
-      isCollapsed={isCollapsed}
-      onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
-      onResourceClose={(id) => removeResource(id)}
-      onResourceReorder={handleResourceReorder}
-      currentPath={pathname}
-      LinkComponent={Link}
-      getResourceHref={(id) => `/resource/${id}`}
-      icons={{
-        chevronLeft: ChevronLeftIcon,
-        bars: Bars3Icon,
-        close: XMarkIcon
-      }}
-      translations={{
-        title: 'Navigation',
-        collapseSidebar: 'Collapse sidebar',
-        expandSidebar: 'Expand sidebar'
-      }}
-    />
-  );
-}
+<CollapsibleResourceNavigation
+  fixedItems={[{ name: 'Discover', href: '/know/discover', icon: MagnifyingGlassIcon }]}
+  resources={openResources}
+  isCollapsed={isCollapsed}
+  currentPath={pathname}
+  Link={Link}
+  getResourceHref={routes.resourceDetail}
+  onNavigate={navigate}
+  translations={{ title: 'Knowledge' }}
+  icons={{ chevronLeft: ChevronLeftIcon, bars: Bars3Icon, close: XMarkIcon }}
+/>
 ```
 
-### SortableResourceTab
+It changes nothing itself. Reordering emits `tabs:reorder`, closing a tab emits `tabs:close`, and
+the collapse control emits `shell:sidebar-toggle`; the host's state follows those events. Closing
+the tab that is showing calls `onNavigate` with the first fixed item's `href`, so the page does
+not stay on a resource that is no longer open.
 
-A draggable tab component for resources, used within CollapsibleResourceNavigation.
+`navigationMenu`, when given, renders in a dropdown under the header and receives a function that
+closes it.
 
-#### Props
+The Semiont Browser's use is `apps/browser/src/components/knowledge/KnowledgeNavigation.tsx`.
 
-```typescript
-interface SortableResourceTabProps {
-  resource: OpenResource;
-  isCollapsed: boolean;
-  isActive: boolean;
-  href: string;
-  onClose: (id: string, e: React.MouseEvent) => void;
-  LinkComponent: ComponentType<any>;
-  translations: {
-    dragToReorder?: string;
-    closeResource?: string;
-  };
-}
-```
+## SimpleNavigation
 
-#### Features
+Props: `SimpleNavigationProps`, with items of type `SimpleNavigationItem`. A title, a list of fixed
+items, and the same `Link`, `isCollapsed`, `icons` and dropdown (`dropdownContent`) as above. The
+collapse control emits `shell:sidebar-toggle`.
 
-- **Drag Handle**: Icon serves as drag handle when expanded
-- **Click Navigation**: Navigates to resource when clicked
-- **Close Button**: Remove resource from navigation
-- **Collapsed Mode**: Shows only icon when sidebar is collapsed
-- **Visual States**: Different styles for active/inactive/dragging
+The Semiont Browser's use is `apps/browser/src/components/moderation/ModerationNavigation.tsx`.
 
-## Platform Integration Examples
+## NavigationMenu
 
-### Next.js Integration
+Takes `Link`, `routes` and a translate function `t`, and renders links to `routes.knowledge()`
+and `routes.moderate()`, or to `/know` and `/moderate` when `routes` lacks them. `currentPath` marks the current one with `aria-current="page"`, and
+`onItemClick` runs when either is clicked, which a dropdown uses to close itself.
 
-```tsx
-import { CollapsibleResourceNavigation } from '@semiont/react-ui';
-import { Link } from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
+## ObservableLink
 
-export function NextJsNavigation() {
-  const router = useRouter();
-  const pathname = usePathname();
-
-  return (
-    <CollapsibleResourceNavigation
-      LinkComponent={Link}
-      currentPath={pathname}
-      onNavigate={(path) => router.push(path)}
-      // ... other props
-    />
-  );
-}
-```
-
-### React Router Integration
-
-```tsx
-import { CollapsibleResourceNavigation } from '@semiont/react-ui';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-
-export function ReactRouterNavigation() {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  return (
-    <CollapsibleResourceNavigation
-      LinkComponent={Link}
-      currentPath={location.pathname}
-      onNavigate={(path) => navigate(path)}
-      // ... other props
-    />
-  );
-}
-```
+Props: `ObservableLinkProps`, an anchor's attributes plus an optional `label`. It renders an
+`<a>`, not the host's `Link`, and emits `nav:link-clicked` with the `href` and `label` before the
+browser follows it.
 
 ## Styling
 
-All navigation components use BEM-style CSS classes for consistent styling:
-
-```css
-/* CollapsibleResourceNavigation */
-.collapsible-resource-navigation
-.collapsible-resource-navigation__header
-.collapsible-resource-navigation__title
-.collapsible-resource-navigation__collapse-btn
-.collapsible-resource-navigation__expand-btn
-.collapsible-resource-navigation__content
-.collapsible-resource-navigation__resources
-
-/* SortableResourceTab */
-.semiont-resource-tab
-.semiont-resource-tab--active
-.semiont-resource-tab--inactive
-.semiont-resource-tab--dragging
-.semiont-resource-tab__link
-.semiont-resource-tab__drag-handle
-.semiont-resource-tab__icon
-.semiont-resource-tab__name
-.semiont-resource-tab__close
-```
-
-You can override these styles or add additional utility classes as needed.
-
-## Accessibility
-
-All navigation components include:
-
-- Proper ARIA labels and roles
-- Keyboard navigation support
-- Screen reader announcements for drag & drop
-- Focus management
-- Semantic HTML structure
-
-## Type Definitions
-
-All types are exported from the package:
-
-```typescript
-import type {
-  NavigationItem,
-  CollapsibleResourceNavigationProps,
-  SortableResourceTabProps
-} from '@semiont/react-ui';
-import type { OpenResource } from '@semiont/sdk';
-```
-
-## Best Practices
-
-1. **Pass Icons as Props**: Don't import icon libraries in react-ui; pass them from the consuming app
-2. **Handle Routing Externally**: Let the consuming app handle all routing logic
-3. **Provide Translations**: Pass all UI text as props for internationalization
-4. **Use Semantic Classes**: Add layout classes but don't override component styling
-5. **Test Across Platforms**: Ensure components work in different React environments
+Each component's classes are defined beside it: `CollapsibleResourceNavigation.css`,
+`SimpleNavigation.css`, `NavigationMenu.css` and `NavigationTabs.css` in
+`packages/react-ui/src/components/navigation/`.

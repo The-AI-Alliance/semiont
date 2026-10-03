@@ -115,7 +115,7 @@ val documents = client.documentsApi.listDocuments()
 - Faster development
 
 **Starting Point**:
-```typescript sketch
+```tsx sketch
 // apps/mobile-app
 import { SemiontClient, readyValue } from '@semiont/sdk';
 import { useObservable } from '@semiont/react-ui';

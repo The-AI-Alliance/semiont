@@ -15,11 +15,10 @@ This document explains how user interactions with annotations flow through the S
 **What it does**:
 - CRUD operations for annotations (via the SDK)
 - TypeScript types generated from `specs/openapi.json` (in `@semiont/core`)
-- Utility functions for annotation manipulation (e.g., `getAnnotationExactText`, `getBodySource`) (in `@semiont/sdk`)
+- Utility functions for annotation manipulation (e.g., `getAnnotationExactText`, `getBodySource`) (in `@semiont/core`)
 
 **What it does NOT do**:
 - NO knowledge of React, DOM, or UI state
-- NO event emission or subscription
 - NO component rendering logic
 
 **Key Types**:
@@ -31,7 +30,7 @@ type Motivation = components['schemas']['Motivation'];
 // 'linking' | 'commenting' | 'highlighting' | 'tagging' | 'assessing'
 ```
 
-**Location**: types in `packages/core/`; annotation utilities in `packages/sdk/` (http-transport is HTTP-transport-only)
+**Location**: types and annotation utilities in `packages/core/`; the SDK in `packages/sdk/`
 
 ### Layer 2: State Layer (React Components)
 
@@ -41,9 +40,8 @@ type Motivation = components['schemas']['Motivation'];
 
 1. **ResourceViewerPage** (`features/resource-viewer/components/ResourceViewerPage.tsx`)
    - Central coordinator for annotation state
-   - Owns `annotations` array (updated via SSE)
-   - Manages `hoveredAnnotationId`, `scrollToAnnotationId`, `activePanel`
-   - Subscribes to coordination events
+   - Composes the resource-viewer page state unit (`createResourceViewerPageStateUnit`), whose units subscribe to the coordination events
+   - Reads `annotations` (an SDK live query the SDK keeps fresh off bus events), `hoveredAnnotationId` (the beckon state unit), and `activePanel` / `scrollToAnnotationId` (the shell state unit) with `useObservable`
    - Passes state down via props
 
 2. **UnifiedAnnotationsPanel** (`components/resource/panels/UnifiedAnnotationsPanel.tsx`)
@@ -56,7 +54,7 @@ type Motivation = components['schemas']['Motivation'];
    - Uses ref callbacks to track entry elements
 
 4. **Entry Components** (e.g., `ReferenceEntry`, `CommentEntry`)
-   - Uses `forwardRef` to expose DOM element to parent
+   - Takes `ref` as an ordinary prop to expose its DOM element to the parent
    - Emits coordination events on user interaction
    - Applies CSS classes based on `isHovered` prop
 
@@ -82,7 +80,7 @@ session's channels; the browser holds a second, app-scoped one for shell channel
 **Invalid Use Cases**:
 - ❌ Parent → Child communication (use props instead)
 - ❌ Tracking DOM refs (use React ref callbacks instead)
-- ❌ Data persistence (use API client instead)
+- ❌ Data persistence (use the SDK instead)
 
 **Location**: `packages/core/src/event-bus.ts` (the bus), `packages/core/src/bus-protocol.ts` (the channels)
 
@@ -92,41 +90,36 @@ All events are typed by `EventMap` in `@semiont/core`, generated from the spec. 
 carry are typed (`AnnotationId`, `ResourceId`), not `string`:
 
 ```typescript
-interface EventMap {
-  // User clicks annotation on resource overlay
-  'browse:click': {
-    annotationId: AnnotationId;
-    // Local-only extra: viewport geometry for anchoring a popup. Never on the
-    // wire — a bridged-in remote click simply arrives without one.
-    anchorRect?: AnchorRect;
-  };
+// User clicks annotation on resource overlay. `browse:click` may also carry
+// `anchorRect`, local-only viewport geometry for anchoring a popup: it never
+// crosses the wire, so a bridged-in remote click arrives without one.
+const click: EventMap['browse:click'] = { annotationId };
 
-  // Bidirectional hover: annotation overlay ↔ panel entry
-  'beckon:hover': {
-    annotationId: AnnotationId | null;  // null = unhover
-  };
+// Bidirectional hover: annotation overlay ↔ panel entry
+const hover: EventMap['beckon:hover'] = { annotationId: null }; // null = unhover
 
-  // Coordinator requests panel to open with specific tab
-  'panel:open': {
-    panel: string;
-    scrollToAnnotationId?: AnnotationId;
-  };
+// Coordinator requests the annotations panel, scrolled to an entry; the
+// motivation picks the tab
+const open: EventMap['panel:open'] = {
+  panel: 'annotations',
+  scrollToAnnotationId: annotationId,
+  motivation: 'linking',
+};
 
-  // Reference resolution wizard
-  'bind:initiate': {
-    annotationId: AnnotationId;
-    resourceId: ResourceId;
-    defaultTitle: string;
-    entityTypes: string[];
-  };
+// Reference resolution wizard
+const initiate: EventMap['bind:initiate'] = {
+  annotationId,
+  resourceId,
+  defaultTitle: 'Ada Lovelace',
+  entityTypes: ['Person'],
+};
 
-  // Annotation body updates
-  'bind:update-body': {
-    annotationId: AnnotationId;
-    resourceId: ResourceId;
-    operations: Array<{ op: string; item: any }>;
-  };
-}
+// Annotation body updates
+const updateBody: EventMap['bind:update-body'] = {
+  annotationId,
+  resourceId,
+  operations: [{ op: 'remove', item: { type: 'SpecificResource', source: resourceId, purpose: 'linking' } }],
+};
 ```
 
 ## Interaction Flows
@@ -139,43 +132,49 @@ interface EventMap {
 sequenceDiagram
     participant User
     participant Overlay as AnnotationOverlay
-    participant Bus as EventBus
+    participant Bus as Session bus
     participant Coord as ResourceViewer<br/>(Coordinator)
     participant Page as ResourceViewerPage
+    participant App as App bus<br/>(SemiontBrowser)
+    participant Shell as ShellStateUnit
     participant Panel as UnifiedAnnotationsPanel
     participant Specific as ReferencesPanel
     participant Entry as ReferenceEntry
 
     User->>Overlay: Click annotation shape
-    Overlay->>Bus: emit('browse:click', {<br/>  annotationId: 'anno-123'<br/>})
+    Overlay->>Bus: session.client.browse.click('anno-123')<br/>→ 'browse:click' { annotationId: 'anno-123' }
     Bus->>Coord: browse:click event
+    Bus->>Specific: browse:click event<br/>(entry marked focused for 3s)
 
-    Note over Coord: Resolves the annotation by id,<br/>derives its motivation → panel type<br/>'linking' → 'references'
+    Note over Coord: Resolves the annotation by id;<br/>its annotator has a side panel<br/>and the click action is 'detail'
 
-    Coord->>Bus: emit('panel:open', {<br/>  panel: 'references',<br/>  scrollToAnnotationId: 'anno-123'<br/>})
-    Bus->>Page: panel:open event
+    Coord->>Page: onOpenPanel({<br/>  panel: 'annotations',<br/>  scrollToAnnotationId: 'anno-123',<br/>  motivation: 'linking'<br/>})
+    Page->>App: browser.emit('panel:open', event)
+    App->>Shell: panel:open event
 
-    Page->>Page: setState({<br/>  activePanel: 'references',<br/>  scrollToAnnotationId: 'anno-123'<br/>})
+    Note over Shell: activePanel$ = 'annotations'<br/>scrollToAnnotationId$ = 'anno-123'<br/>panelInitialTab$ = 'reference'<br/>(annotatorKeyForMotivation('linking'))
 
-    Page->>Panel: props: {<br/>  activePanel: 'references',<br/>  scrollToAnnotationId: 'anno-123'<br/>}
+    Shell->>Page: useObservable(...)
+    Page->>Panel: props: {<br/>  initialTab: 'reference',<br/>  scrollToAnnotationId: 'anno-123'<br/>}
     Panel->>Specific: props: {<br/>  scrollToAnnotationId: 'anno-123',<br/>  onScrollCompleted: callback<br/>}
 
     Note over Specific: useEffect sees scrollToAnnotationId
 
-    Specific->>Entry: forwardRef → ref callback
+    Specific->>Entry: ref callback
     Entry->>Specific: DOM element stored in entryRefs Map
 
     Specific->>Specific: element = entryRefs.get('anno-123')
     Specific->>Specific: Calculate scroll position<br/>Center element in container
     Specific->>Entry: scrollTo({ top, behavior: 'smooth' })
     Specific->>Entry: classList manipulation for pulse<br/>(force reflow trick)
-    Specific->>Page: onScrollCompleted()
+    Specific->>Shell: onScrollCompleted()
 
-    Page->>Page: setState({ scrollToAnnotationId: null })
+    Note over Shell: scrollToAnnotationId$ = null
 ```
 
 **Key Points**:
-- Event bus used to cross component boundaries (Overlay → Page)
+- Event buses cross component boundaries: the session bus carries the click to ResourceViewer, and the app bus carries `panel:open` to the shell state unit
+- ResourceViewer never emits `panel:open` itself: the host owns its panels and receives the request through `onOpenPanel`
 - Props used for parent-child data flow (Page → Panel → Entry)
 - Direct ref management eliminates timing issues
 - Scroll happens synchronously when ref is available
@@ -188,18 +187,21 @@ sequenceDiagram
 sequenceDiagram
     participant User
     participant Overlay as AnnotationOverlay
-    participant Bus as EventBus
+    participant Bus as Session bus
+    participant Beckon as BeckonStateUnit
     participant Page as ResourceViewerPage
     participant Panel as UnifiedAnnotationsPanel
     participant Specific as ReferencesPanel
     participant Entry as ReferenceEntry
 
     User->>Overlay: Mouse enter annotation
-    Overlay->>Bus: emit('beckon:hover', {<br/>  annotationId: 'anno-123'<br/>})
-    Bus->>Page: beckon:hover event
+    Note over Overlay: Dwells for the hover delay
+    Overlay->>Bus: session.client.beckon.hover('anno-123')<br/>→ 'beckon:hover' { annotationId: 'anno-123' }
+    Bus->>Beckon: beckon:hover event
 
-    Page->>Page: setState({<br/>  hoveredAnnotationId: 'anno-123'<br/>})
+    Note over Beckon: hoveredAnnotationId$ = 'anno-123'
 
+    Beckon->>Page: useObservable(...)
     Page->>Panel: props: {<br/>  hoveredAnnotationId: 'anno-123'<br/>}
     Panel->>Specific: props: {<br/>  hoveredAnnotationId: 'anno-123'<br/>}
 
@@ -220,17 +222,18 @@ sequenceDiagram
     Note over Entry: CSS animation plays
 
     User->>Overlay: Mouse leave annotation
-    Overlay->>Bus: emit('beckon:hover', {<br/>  annotationId: null<br/>})
-    Bus->>Page: beckon:hover event
+    Overlay->>Bus: session.client.beckon.hover(null)<br/>→ 'beckon:hover' { annotationId: null }
+    Bus->>Beckon: beckon:hover event
 
-    Page->>Page: setState({<br/>  hoveredAnnotationId: null<br/>})
+    Note over Beckon: hoveredAnnotationId$ = null
 
-    Page->>Entry: props: { isHovered: false }
+    Beckon->>Page: useObservable(...)
+    Page->>Entry: props: { isHovered: false }<br/>(through Panel and ReferencesPanel)
     Entry->>Entry: Pulse class removed
 ```
 
 **Key Points**:
-- Central state management in ResourceViewerPage
+- Hover state lives in the beckon state unit; ResourceViewerPage reads it and passes it down
 - Bidirectional: Same event used for both directions
 - Only scrolls entry if not already visible
 - Pulse effect applied regardless of scroll
@@ -243,37 +246,37 @@ sequenceDiagram
 sequenceDiagram
     participant User
     participant Entry as ReferenceEntry
-    participant Bus as EventBus
+    participant Bus as Session bus
+    participant Beckon as BeckonStateUnit
     participant Page as ResourceViewerPage
     participant Viewer as ResourceViewer
-    participant Overlay as AnnotationOverlay
+    participant View as AnnotateView / BrowseView
 
     User->>Entry: Mouse enter entry
-    Entry->>Bus: emit('beckon:hover', {<br/>  annotationId: 'anno-123'<br/>})
-    Bus->>Page: beckon:hover event
+    Note over Entry: useHoverEmitter dwells for the hover delay
+    Entry->>Bus: session.client.beckon.hover('anno-123')<br/>→ 'beckon:hover' { annotationId: 'anno-123' }
+    Bus->>Beckon: beckon:hover event
+    Bus->>View: BrowseView: beckon:hover event<br/>(scrolls the annotation into view)
 
-    Page->>Page: setState({<br/>  hoveredAnnotationId: 'anno-123'<br/>})
+    Note over Beckon: hoveredAnnotationId$ = 'anno-123'
 
+    Beckon->>Page: useObservable(...)
     Page->>Viewer: props: {<br/>  hoveredAnnotationId: 'anno-123'<br/>}
-    Viewer->>Overlay: props: {<br/>  hoveredAnnotationId: 'anno-123'<br/>}
-
-    Note over Overlay: Annotation shape highlighted/scaled via CSS
-
-    Overlay->>Overlay: Apply highlight styles
+    Viewer->>View: AnnotateView: uiState.hoveredAnnotationId
 
     User->>Entry: Mouse leave entry
-    Entry->>Bus: emit('beckon:hover', {<br/>  annotationId: null<br/>})
-    Bus->>Page: beckon:hover event
+    Entry->>Bus: session.client.beckon.hover(null)<br/>→ 'beckon:hover' { annotationId: null }
+    Bus->>Beckon: beckon:hover event
 
-    Page->>Page: setState({<br/>  hoveredAnnotationId: null<br/>})
+    Note over Beckon: hoveredAnnotationId$ = null
 
-    Page->>Overlay: props: { hoveredAnnotationId: null }
-    Overlay->>Overlay: Remove highlight styles
+    Beckon->>Page: useObservable(...)
+    Page->>Viewer: props: { hoveredAnnotationId: null }
 ```
 
 **Key Points**:
 - Entry emits same event type as overlay
-- ResourceViewerPage is single source of truth
+- The beckon state unit is the single source of truth
 - Both directions use identical coordination mechanism
 - No special "reverse flow" logic needed
 
@@ -281,18 +284,31 @@ sequenceDiagram
 
 ### Example 1: Panel with Direct Ref Management
 
-```typescript
-// ReferencesPanel.tsx
-export const ReferencesPanel: FC<Props> = ({
-  annotations,
+```tsx
+// ReferencesPanel.tsx — the ref, scroll and focus handling
+import { getTargetSelector, getTextPositionSelector } from '@semiont/core';
+
+function ReferencesPanelExcerpt({
+  session,
+  annotations = [],
   scrollToAnnotationId,
   hoveredAnnotationId,
   onScrollCompleted,
   // ... other props
-}) => {
-  // Direct ref management - no event subscriptions needed
+}: React.ComponentProps<typeof ReferencesPanel>) {
+  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
+
+  // Direct ref management - refs, not events
   const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Sort annotations by their position in the resource
+  const sortedAnnotations = useMemo(() => [...annotations].sort((a, b) => {
+    const aSelector = getTextPositionSelector(getTargetSelector(a.target));
+    const bSelector = getTextPositionSelector(getTargetSelector(b.target));
+    if (!aSelector || !bSelector) return 0;
+    return aSelector.start - bSelector.start;
+  }), [annotations]);
 
   // Ref callback for entries
   const setEntryRef = useCallback((id: string, element: HTMLDivElement | null) => {
@@ -327,41 +343,50 @@ export const ReferencesPanel: FC<Props> = ({
         onScrollCompleted();
       }
     }
-  }, [scrollToAnnotationId, onScrollCompleted]);
+  }, [scrollToAnnotationId]);
 
   // Handle hover scroll only (pulse is handled by isHovered prop on entry)
   useEffect(() => {
     if (!hoveredAnnotationId) return;
 
     const element = entryRefs.current.get(hoveredAnnotationId);
-    if (element && containerRef.current) {
-      // Only scroll if not fully visible
-      const container = containerRef.current;
-      const elementRect = element.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
+    if (!element || !containerRef.current) return;
 
-      const isVisible =
-        elementRect.top >= containerRect.top &&
-        elementRect.bottom <= containerRect.bottom;
+    // Only scroll if not fully visible
+    const container = containerRef.current;
+    const elementRect = element.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
 
-      if (!isVisible) {
-        const elementTop = element.offsetTop;
-        const containerHeight = container.clientHeight;
-        const elementHeight = element.offsetHeight;
-        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+    const isVisible =
+      elementRect.top >= containerRect.top &&
+      elementRect.bottom <= containerRect.bottom;
 
-        container.scrollTo({ top: scrollTo, behavior: 'smooth' });
-      }
+    if (!isVisible) {
+      const elementTop = element.offsetTop;
+      const containerHeight = container.clientHeight;
+      const elementHeight = element.offsetHeight;
+      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
 
-      // Pulse effect is handled by isHovered prop passed to ReferenceEntry
-      // This keeps styling in the component's render method, not in imperative DOM manipulation
+      container.scrollTo({ top: scrollTo, behavior: 'smooth' });
     }
+
+    // Pulse effect is handled by isHovered prop passed to ReferenceEntry
+    // This keeps styling in the component's render method, not in imperative DOM manipulation
   }, [hoveredAnnotationId]);
 
+  // A click on an annotation, wherever it happens, focuses its entry for three seconds
+  useSessionEventSubscriptions(session, {
+    'browse:click': ({ annotationId }) => {
+      setFocusedAnnotationId(annotationId);
+      setTimeout(() => setFocusedAnnotationId(null), 3000);
+    },
+  });
+
   return (
-    <div ref={containerRef} className="semiont-references-panel">
+    <div ref={containerRef} className="semiont-panel__content">
       {sortedAnnotations.map((reference) => (
         <ReferenceEntry
+          session={session}
           key={reference.id}
           reference={reference}
           isFocused={reference.id === focusedAnnotationId}
@@ -371,115 +396,101 @@ export const ReferencesPanel: FC<Props> = ({
       ))}
     </div>
   );
-};
+}
 ```
 
-### Example 2: Entry Component with forwardRef
+### Example 2: Entry Component with a `ref` Prop
 
-```typescript
-// ReferenceEntry.tsx
-interface ReferenceEntryProps {
-  reference: Annotation;
-  isFocused: boolean;
-  isHovered?: boolean;  // For pulse effect from parent
-  routes: RouteBuilder;
-  annotateMode?: boolean;
-  isGenerating?: boolean;
+The entry takes `ref` as an ordinary prop and hands it to its root element.
+
+```tsx
+// ReferenceEntry.tsx — the interaction wiring
+function ReferenceEntryExcerpt({
+  session,
+  reference,
+  isFocused,
+  isHovered = false,  // For pulse effect from parent
+  ref,
+}: React.ComponentProps<typeof ReferenceEntry>) {
+  // Hover entry → highlight annotation on resource: emits beckon:hover after
+  // the hover delay, and beckon:hover with null on leave
+  const hoverProps = useHoverEmitter(session, reference.id);
+
+  return (
+    <div
+      ref={ref}
+      className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
+      data-type="reference"
+      data-focused={isFocused ? 'true' : 'false'}
+      onClick={() => {
+        // Click → Open panel
+        // The id is the whole address; the viewer derives the motivation
+        // from the annotation it names.
+        session?.client.browse.click(reference.id);
+      }}
+      {...hoverProps}
+    >
+      {/* Entry content */}
+    </div>
+  );
 }
-
-export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
-  function ReferenceEntry(
-    {
-      reference,
-      isFocused,
-      isHovered = false,
-      routes,
-      annotateMode = true,
-      isGenerating = false,
-    },
-    ref
-  ) {
-    const session = useObservable(useSemiont().activeSession$);
-
-    return (
-      <div
-        ref={ref}
-        className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
-        data-type="reference"
-        data-focused={isFocused ? 'true' : 'false'}
-        onClick={() => {
-          // Click → Open panel
-          // The id is the whole address; the viewer derives the motivation
-          // from the annotation it names.
-          session?.client.browse.click(reference.id);
-        }}
-        onMouseEnter={() => {
-          // Hover entry → Highlight annotation on resource
-          session?.client.beckon.hover(reference.id);
-        }}
-        onMouseLeave={() => {
-          // Unhover entry → Clear annotation highlight
-          session?.client.beckon.hover(null);
-        }}
-      >
-        {/* Entry content */}
-      </div>
-    );
-  }
-);
 ```
 
 ### Example 3: Central State Coordinator
 
-```typescript
-// ResourceViewerPage.tsx
-export const ResourceViewerPage: FC<Props> = ({ resourceId }) => {
-  const [annotations, setAnnotations] = useState<Annotation[]>([]);
-  const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
-  const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
-  const [activePanel, setActivePanel] = useState<PanelType>('references');
+The page holds no coordination state of its own: the state units it composes subscribe to the
+events, and the page reads their observables and passes the values down.
 
-  // Subscribe to coordination events
-  useEventSubscriptions({
-    'beckon:hover': ({ annotationId }: { annotationId: AnnotationId | null }) => {
-      // Central hover state - used by both resource overlay and panel entries
-      setHoveredAnnotationId(annotationId);
-    },
+```tsx
+// ResourceViewerPage.tsx — the coordination
+function ResourceViewerPageExcerpt() {
+  const browser = useSemiont();
+  const session = useObservable(browser.activeSession$) ?? null;
 
-    'panel:open': ({ panel, scrollToAnnotationId }: {
-      panel: string;
-      scrollToAnnotationId?: AnnotationId;
-    }) => {
-      setActivePanel(panel);
-      if (scrollToAnnotationId) {
-        setScrollToAnnotationId(scrollToAnnotationId);
-      }
-    },
-  });
+  // The page state unit composes the flow units: beckon (hover), mark
+  // (pending annotation) and the app-scoped shell unit (panels, scroll target)
+  const browseStateUnit = useShellStateUnit();
+  const stateUnit = useSessionStateUnit(
+    session ?? undefined,
+    (s) => createResourceViewerPageStateUnit(s, rId, locale, browseStateUnit),
+  );
 
-  const handleScrollCompleted = useCallback(() => {
-    // Clear scroll target after scroll completes
-    setScrollToAnnotationId(null);
-  }, []);
+  const annotations = useObservable(stateUnit?.annotations.value$) ?? [];
+  const groups = useObservable(stateUnit?.annotationGroups$);
+  const pendingAnnotation = useObservable(stateUnit?.mark.pendingAnnotation$) ?? null;
+  // Central hover state - set by beckon:hover from both the resource and the panel
+  const hoveredAnnotationId = useObservable(stateUnit?.beckon.hoveredAnnotationId$) ?? null;
+  // Set by panel:open, cleared by onScrollCompleted
+  const scrollToAnnotationId = useObservable(stateUnit?.browse.scrollToAnnotationId$) ?? null;
+  const panelInitialTab = useObservable(stateUnit?.browse.panelInitialTab$) ?? null;
 
   return (
-    <div className="resource-viewer-page">
+    <div className="semiont-document-viewer">
       <ResourceViewer
-        resourceId={resourceId}
-        annotations={annotations}
+        resource={{ ...resource, content }}
+        annotations={groups ?? { highlights: [], comments: [], assessments: [], references: [], tags: [] }}
+        session={session}
+        onOpenPanel={(event) => browser.emit('panel:open', event)}  // The host owns its panels
         hoveredAnnotationId={hoveredAnnotationId}  // Resource highlights annotation
       />
 
       <UnifiedAnnotationsPanel
+        session={session}
         annotations={annotations}
-        activePanel={activePanel}
+        annotators={ANNOTATORS}
+        resourceId={rId}
+        pendingAnnotation={pendingAnnotation}
+        initialTab={panelInitialTab?.tab}  // The clicked annotation's tab
+        initialTabGeneration={panelInitialTab?.generation}
         scrollToAnnotationId={scrollToAnnotationId}  // Panel scrolls to entry
         hoveredAnnotationId={hoveredAnnotationId}     // Panel pulses entry
-        onScrollCompleted={handleScrollCompleted}
+        onScrollCompleted={stateUnit?.browse.onScrollCompleted}
+        Link={Link}
+        routes={routes}
       />
     </div>
   );
-};
+}
 ```
 
 ## Decision Matrix: Event Bus vs Props
@@ -488,7 +499,7 @@ export const ResourceViewerPage: FC<Props> = ({ resourceId }) => {
 |----------|---------------|-----------|-----|
 | User clicks annotation on resource | ✅ | ❌ | Crosses major component boundaries (ResourceViewer → ResourceViewerPage → UnifiedAnnotationsPanel) |
 | User hovers annotation | ✅ | ❌ | Bidirectional coordination: Resource ↔ Panel need same state |
-| Parent needs child's DOM ref | ❌ | ✅ | Standard React pattern (forwardRef/callback) |
+| Parent needs child's DOM ref | ❌ | ✅ | Standard React pattern (`ref` prop with a callback) |
 | Parent passes data to child | ❌ | ✅ | Props are React's primary data flow mechanism |
 | Child notifies parent of action | ❌ | ✅ | Callback props (e.g., `onScrollCompleted`) |
 | Cross-panel communication | ✅ | ❌ | Panels don't have direct parent-child relationship |
@@ -500,28 +511,37 @@ export const ResourceViewerPage: FC<Props> = ({ resourceId }) => {
 
 **❌ WRONG - Fighting over the same CSS class**:
 
-```typescript
-// Panel useEffect - adds pulse via DOM
-useEffect(() => {
-  if (!hoveredAnnotationId) return undefined;
-  const element = entryRefs.current.get(hoveredAnnotationId);
-  if (!element) return undefined;
+```tsx
+// Panel - adds pulse via DOM
+function Panel({ hoveredAnnotationId }: { hoveredAnnotationId: string | null }) {
+  const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  const timeoutId = setTimeout(() => {
-    element.classList.add('semiont-annotation-pulse');  // DOM manipulation
-  }, 100);
+  useEffect(() => {
+    if (!hoveredAnnotationId) return undefined;
+    const element = entryRefs.current.get(hoveredAnnotationId);
+    if (!element) return undefined;
 
-  return () => {
-    clearTimeout(timeoutId);
-    element.classList.remove('semiont-annotation-pulse');
-  };
-}, [hoveredAnnotationId]);
+    const timeoutId = setTimeout(() => {
+      element.classList.add('semiont-annotation-pulse');  // DOM manipulation
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      element.classList.remove('semiont-annotation-pulse');
+    };
+  }, [hoveredAnnotationId]);
+  // ...
+}
 
 // Entry component - also tries to control pulse via className
-<div
-  ref={ref}
-  className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
->
+function Entry({ isHovered, ref }: { isHovered: boolean; ref: React.Ref<HTMLDivElement> }) {
+  return (
+    <div
+      ref={ref}
+      className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
+    />
+  );
+}
 ```
 
 **Problem**: Two mechanisms fighting over the same CSS class:
@@ -533,27 +553,41 @@ useEffect(() => {
 
 **✅ CORRECT - Single source of truth**:
 
-```typescript
-// Panel useEffect - ONLY handles scrolling
-useEffect(() => {
-  if (!hoveredAnnotationId) return;
-  const element = entryRefs.current.get(hoveredAnnotationId);
-  if (!element || !containerRef.current) return;
+```tsx
+// Panel - ONLY handles scrolling
+function Panel({ hoveredAnnotationId }: { hoveredAnnotationId: string | null }) {
+  const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Check visibility and scroll if needed
-  const isVisible = /* ... */;
-  if (!isVisible) {
-    containerRef.current.scrollTo({ top: scrollTo, behavior: 'smooth' });
-  }
+  useEffect(() => {
+    if (!hoveredAnnotationId) return;
+    const element = entryRefs.current.get(hoveredAnnotationId);
+    const container = containerRef.current;
+    if (!element || !container) return;
 
-  // Pulse effect is handled by isHovered prop on entry - don't touch it here!
-}, [hoveredAnnotationId]);
+    // Check visibility and scroll if needed
+    const elementRect = element.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const isVisible = elementRect.top >= containerRect.top && elementRect.bottom <= containerRect.bottom;
+    if (!isVisible) {
+      const scrollTo = element.offsetTop - container.clientHeight / 2 + element.offsetHeight / 2;
+      container.scrollTo({ top: scrollTo, behavior: 'smooth' });
+    }
+
+    // Pulse effect is handled by isHovered prop on entry - don't touch it here!
+  }, [hoveredAnnotationId]);
+  // ...
+}
 
 // Entry component - Single source of truth for pulse styling
-<div
-  ref={ref}
-  className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
->
+function Entry({ isHovered, ref }: { isHovered: boolean; ref: React.Ref<HTMLDivElement> }) {
+  return (
+    <div
+      ref={ref}
+      className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
+    />
+  );
+}
 ```
 
 **Why this works**:
@@ -569,13 +603,13 @@ useEffect(() => {
 These rules MUST be followed:
 
 1. **Data Layer has NO React knowledge**
-   - `@semiont/core` (types) and `@semiont/sdk` (annotation utilities) cannot import React, DOM types, or UI state
+   - `@semiont/core` (types and annotation utilities) and `@semiont/sdk` cannot import React, DOM types, or UI state
    - Only TypeScript types and pure functions
 
 2. **Event Bus is for coordination ONLY**
    - NOT for parent-child communication (use props)
    - NOT for DOM element tracking (use refs)
-   - NOT for data persistence (use API)
+   - NOT for data persistence (use the SDK)
 
 3. **State flows DOWN, Events flow UP**
    - Parent manages state, passes via props to children
@@ -583,9 +617,9 @@ These rules MUST be followed:
    - Children use callbacks to notify parent of local actions
 
 4. **One source of truth per state**
-   - `hoveredAnnotationId`: Owned by ResourceViewerPage
-   - `annotations`: Owned by ResourceViewerPage (via SSE)
-   - `scrollToAnnotationId`: Owned by ResourceViewerPage (set by panel:open event)
+   - `hoveredAnnotationId`: Owned by the beckon state unit (set by beckon:hover), read by ResourceViewerPage
+   - `annotations`: Owned by the SDK's `browse.annotations` live query, read through the page state unit
+   - `scrollToAnnotationId`: Owned by the shell state unit (set by panel:open, cleared by `onScrollCompleted`)
    - DOM refs: Owned by panel components (via Map)
 
 5. **Refs are synchronous**
@@ -597,4 +631,4 @@ These rules MUST be followed:
 
 - **OpenAPI Spec**: `specs/openapi.json` - Source of truth for annotation types
 - **Event channels**: `packages/core/src/bus-protocol.ts` - `EventMap`, the channel type definitions
-- **Annotation Utilities**: `packages/sdk/src/` - Pure functions for annotation manipulation
+- **Annotation Utilities**: `packages/core/src/web-annotation-utils.ts` - Pure functions for annotation manipulation

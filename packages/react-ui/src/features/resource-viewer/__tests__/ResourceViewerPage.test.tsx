@@ -5,15 +5,16 @@
  * All internal data fetching (content, annotations, etc.) is mocked at the hook level.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { screen } from '@testing-library/react';
 import React from 'react';
 import { ResourceViewerPage } from '../components/ResourceViewerPage';
 import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
 import { ToastProvider } from '../../../components/Toast';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
 import { LineNumbersProvider } from '../../../contexts/LineNumbersContext';
-import { createTestSemiontWrapper } from '../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
+import type { LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { BodyOperation, EventMap, ResourceId, UserId } from '@semiont/core';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 
@@ -160,8 +161,8 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
   },
   rUri: 'test-123' as any,
   locale: 'en',
-  Link: ({ children }: any) => <a>{children}</a>,
-  routes: {},
+  Link: ({ href, children }: LinkComponentProps) => <a href={href}>{children}</a>,
+  routes: { resourceDetail: (id) => `/know/resource/${id}`, knowledge: () => '/know' },
   refetchDocument: vi.fn().mockResolvedValue(undefined),
   streamStatus: 'open' as const,
   ToolbarPanels: ({ children, activePanel }: any) =>
@@ -172,7 +173,7 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
 // Test wrapper to provide all required providers
 const renderWithProviders = (ui: React.ReactElement) => {
   const { SemiontWrapper } = createTestSemiontWrapper();
-  return render(
+  return renderInEnglish(
     <ThemeProvider>
       <LineNumbersProvider>
         <ToastProvider>
@@ -259,9 +260,33 @@ describe('ResourceViewerPage — resolution sparkles', () => {
   });
 });
 
-describe('ResourceViewerPage', () => {
-  beforeEach(() => {
+// The page builds every path it navigates to from the host's `routes`; it
+// knows no path of its own.
+describe('ResourceViewerPage — navigation goes through the host routes', () => {
+  const renderAndGetHandlers = () => {
+    mockUseEventSubscriptions.mockClear();
+    stubBrowser.emit.mockClear();
+    renderWithProviders(<ResourceViewerPage {...createMockProps()} />);
+    return mockUseEventSubscriptions.mock.calls.at(-1)?.[0] as {
+      'browse:resource-open': (event: { resourceId: string }) => void;
+      'browse:entity-type-clicked': (event: { entityType: string }) => void;
+    };
+  };
+
+  it('opens a resource at routes.resourceDetail', () => {
+    renderAndGetHandlers()['browse:resource-open']({ resourceId: 'res-9' });
+
+    expect(stubBrowser.emit).toHaveBeenCalledWith('nav:push', { path: '/know/resource/res-9', reason: 'reference-link' });
   });
+
+  it('filters by an entity type at routes.knowledge', () => {
+    renderAndGetHandlers()['browse:entity-type-clicked']({ entityType: 'Person Name' });
+
+    expect(stubBrowser.emit).toHaveBeenCalledWith('nav:push', { path: '/know?entityType=Person%20Name', reason: 'entity-type-filter' });
+  });
+});
+
+describe('ResourceViewerPage', () => {
 
   describe('Basic Rendering', () => {
     it('renders without crashing', () => {

@@ -97,15 +97,17 @@ describe('HighlightEntry', () => {
       expect(screen.getByText(/alice@example.com/)).toBeInTheDocument();
     });
 
-    it('should show "Unknown" for missing creator', () => {
+    it('names no creator when the highlight has none', () => {
       const highlight = createMockHighlight();
       delete (highlight as Record<string, unknown>).creator;
 
-      renderWithProviders(
+      const { container } = renderWithProviders(
         <HighlightEntry highlight={highlight} isFocused={false} session={session} />
       );
 
-      expect(screen.getByText(/Unknown/)).toBeInTheDocument();
+      const metadata = container.querySelector('.semiont-annotation-entry__metadata');
+      expect(metadata).toBeInTheDocument();
+      expect(metadata?.textContent).not.toMatch(/By|Unknown/);
     });
 
     it('should format relative time', () => {

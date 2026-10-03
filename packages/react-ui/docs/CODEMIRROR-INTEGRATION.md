@@ -20,7 +20,7 @@ Annotations are stored as character positions in source markdown. When markdown 
 
 The component creates a CodeMirror instance once on mount and updates it incrementally:
 
-1. **View lifecycle**: Created once, persists for component lifetime. Destroyed on unmount.
+1. **View lifecycle**: Created once, persists for component lifetime (recreated only when `hoverDelayMs` changes). Destroyed on unmount.
 2. **Content updates**: Dispatched as transactions (preserves cursor position).
 3. **Annotation decorations**: Updated via `StateField` + `StateEffect` — no view recreation.
 4. **Widget decorations**: Separate `StateField` for reference resolution widgets.
@@ -28,29 +28,46 @@ The component creates a CodeMirror instance once on mount and updates it increme
 
 ### Props
 
-```typescript
-interface Props {
-  content: string;
-  segments?: TextSegment[];
-  onTextSelect?: (exact: string, position: { start: number; end: number }) => void;
-  onChange?: (content: string) => void;
-  editable?: boolean;
-  newAnnotationIds?: Set<string>;
-  hoveredAnnotationId?: string | null;
-  scrollToAnnotationId?: string | null;
-  sourceView?: boolean;
-  showLineNumbers?: boolean;
-  enableWidgets?: boolean;
-  eventBus?: EventBus;
-  getTargetDocumentName?: (documentId: string) => string | undefined;
-  generatingReferenceId?: string | null;
-  hoverDelayMs: number;
-}
+AnnotateView's text renderer (`TextAnnotateRenderer`, `src/components/resource/annotate-renderers.tsx`) mounts it along these lines:
+
+```tsx
+declare const segments: TextSegment[];          // segmentTextWithAnnotations(content, annotations)
+declare const sparkleAnnotationIds: Set<string>;
+declare const getTargetResourceName: (resourceId: string) => string | undefined;
+
+<CodeMirrorRenderer
+  content={content}
+  segments={segments}
+  editable={false}
+  sparkleAnnotationIds={sparkleAnnotationIds}
+  hoveredAnnotationId={hoveredAnnotationId}
+  sourceView={true}
+  showLineNumbers={false}
+  hoverDelayMs={150}
+  enableWidgets={true}
+  session={session}
+  getTargetResourceName={getTargetResourceName}
+/>;
 ```
+
+`content` and `hoverDelayMs` are required. The rest are optional: `onChange` and
+`editable` for editing (Compose uses them), `scrollToAnnotationId`, and
+`generatingReferenceId` (the reference whose widget shows ✨). Emissions go
+through `session` — its client's `browse` and `beckon` namespaces.
 
 ### Incremental Decoration Updates
 
 ```typescript
+import { StateEffect, StateField } from '@codemirror/state';
+import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
+
+// File-local in CodeMirrorRenderer.tsx
+interface AnnotationUpdate {
+  segments: TextSegment[];
+  sparkleAnnotationIds?: Set<string>;
+}
+declare function buildAnnotationDecorations(segments: TextSegment[], sparkleAnnotationIds?: Set<string>): DecorationSet;
+
 // Effect triggers decoration rebuild
 const updateAnnotationsEffect = StateEffect.define<AnnotationUpdate>();
 
@@ -63,7 +80,7 @@ const annotationDecorationsField = StateField.define<DecorationSet>({
       if (effect.is(updateAnnotationsEffect)) {
         decorations = buildAnnotationDecorations(
           effect.value.segments,
-          effect.value.newAnnotationIds
+          effect.value.sparkleAnnotationIds
         );
       }
     }
@@ -87,7 +104,7 @@ A clean `fast-path` / `unique-occurrence` anchor is silent; anything else is the
 
 ### CRLF Position Conversion
 
-CodeMirror normalizes all line endings to LF. Annotations store positions in original content (which may have CRLF). `convertSegmentPositions()` adjusts using binary search:
+CodeMirror normalizes all line endings to LF. Annotations store positions in original content (which may have CRLF). `convertSegmentPositions()` (`src/lib/codemirror-logic.ts`) adjusts using binary search:
 
 ```typescript
 function convertSegmentPositions(segments: TextSegment[], content: string): TextSegment[] {
@@ -127,7 +144,7 @@ All event handling uses container-level delegation — no per-annotation or per-
 
 **Annotation clicks**: `click` handler on CodeMirror's DOM finds `[data-annotation-id]` via `closest()`, looks up the segment from `segmentsByIdRef` (O(1) Map), and emits `browse:click`.
 
-**Annotation hovers**: `mouseover`/`mouseout` handlers use `createHoverHandlers` with configurable delay, emitting `beckon:hover`.
+**Annotation hovers**: `mouseover`/`mouseout` handlers use `createHoverHandlers` with configurable delay, calling `session.client.beckon.hover(id)` (`beckon:hover`).
 
 **Widget interactions**: `click`, `mouseenter` (capture), `mouseleave` (capture) handlers find `.reference-preview-widget` via `closest()` and read data attributes for routing. See [CODEMIRROR-WIDGETS.md](./CODEMIRROR-WIDGETS.md).
 
@@ -147,18 +164,18 @@ When `hoveredAnnotationId` changes, the component:
 
 AnnotateView provides:
 
-- **Text segmentation**: `segmentTextWithAnnotations()` anchors each annotation via `anchorAnnotation` (from `@semiont/core`) — verbatim-only, carrying a `strategy`/`confidence` onto each segment
+- **Text segmentation**: its text renderer, `TextAnnotateRenderer`, calls `segmentTextWithAnnotations()`, which anchors each annotation via `anchorAnnotation` (from `@semiont/core`) — verbatim-only, carrying a `strategy`/`confidence` onto each segment
 - **Position calculation**: `CodeMirror.posAtDOM()` converts DOM selection to source positions
-- **Annotation creation**: Emits `mark:requested` with dual selectors (`TextPositionSelector` + `TextQuoteSelector` with prefix/suffix context)
-- **MIME routing**: Routes to `CodeMirrorRenderer` (text), `PdfAnnotationCanvas` (PDF), or `SvgDrawingCanvas` (image)
+- **Annotation creation**: `session.client.mark.request(...)` emits `mark:requested` with dual selectors (`TextPositionSelector` + `TextQuoteSelector` with prefix/suffix context)
+- **MIME routing**: `defaultAnnotateRenderers` (overridable through the `renderers` prop) routes to `CodeMirrorRenderer` (text), `PdfAnnotationCanvas` (PDF), or `SvgDrawingCanvas` (image)
 
 ## Performance Optimizations
 
-- **Binary search CRLF conversion**: O(log n) per segment (was O(n) with `.filter()`)
-- **Annotation ID index**: `Map<string, TextSegment>` for O(1) click lookups (was O(n) with `.find()`)
+- **Binary search CRLF conversion**: O(log n) per segment
+- **Annotation ID index**: `Map<string, TextSegment>` for O(1) click lookups
 - **Position-hint fast path**: `anchorAnnotation()` short-circuits when `content.substring(start, start + exact.length) === exact` — the stored offset already lands on the quote, so no occurrence search runs
 - **Event delegation**: Container-level listeners replace per-annotation and per-widget handlers
-- **Incremental decorations**: View created once, decorations updated via transactions (~10x improvement)
+- **Incremental decorations**: View created once, decorations updated via transactions
 
 ## Testing
 

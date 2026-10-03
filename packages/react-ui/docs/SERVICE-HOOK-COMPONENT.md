@@ -38,13 +38,13 @@ across all of them), and the last unsubscribe releases it. There is no
 explicit `subscribeToResource` call.
 
 ```typescript
-// packages/react-ui/src/features/resource-viewer/state/resource-viewer-page-state-unit.ts
-const annotations = trackList<Annotation[]>(() => client.browse.annotations(resourceId), []);
-const events = trackList<StoredEventResponse[]>(() => client.browse.events(resourceId), []);
-const referencedBy = trackList<ReferencedByEntry[]>(() => client.browse.referencedBy(resourceId), []);
-// trackList opens the CacheState<T> live query and exposes its `state.value$`
-// projection. Subscribing to any of these (from Layer 2 / Layer 3) keeps the
-// resource scope live; dropping the last subscriber releases it on teardown.
+// The live queries packages/react-ui/src/features/resource-viewer/state/resource-viewer-page-state-unit.ts
+// tracks, each through trackList, which exposes it as a ListState (value$, loading$, error$):
+const annotations = client.browse.annotations(resourceId);     // CacheObservable<Annotation[]>
+const events = client.browse.events(resourceId);               // CacheObservable<StoredEventResponse[]>
+const referencedBy = client.browse.referencedBy(resourceId);   // CacheObservable<ReferencedByEntry[]>
+// Subscribing to any of these (from Layer 2 / Layer 3) keeps the resource
+// scope live; dropping the last subscriber releases it on teardown.
 ```
 
 Under the hood: a `browse.*(resourceId)` subscription drives the transport's
@@ -90,15 +90,10 @@ internally; the hook is pure read-through.
 ```typescript
 // A thin hook that exposes the mark state unit's assist observables.
 // (In ResourceViewerPage these are read inline via useObservable; the same
-// values can be packaged into a hook.)
-export interface MarkAssistState {
-  assistingMotivation: Motivation | null;
-  progress: JobProgress | null;
-}
-
-export function useMarkAssist(stateUnit: ResourceViewerPageStateUnit): MarkAssistState {
-  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
-  const progress = useObservable(stateUnit.mark.progress$) ?? null;
+// values can be packaged into a hook.) Called as useMarkAssist(stateUnit?.mark).
+export function useMarkAssist(mark: MarkStateUnit | undefined) {
+  const assistingMotivation = useObservable(mark?.assistingMotivation$) ?? null;
+  const progress = useObservable(mark?.progress$) ?? null;
 
   // Return data only (no JSX)
   return { assistingMotivation, progress };
@@ -144,50 +139,46 @@ export function useAssistToasts(resourceId: ResourceId) {
 - ❌ NO SSE stream creation (use the SDK)
 - ❌ NO SSE parsing
 
-**Example**: Component reading the mark state unit and triggering assist
+**Example**: the page reads the mark state unit; the panel it renders triggers assist
 
-```typescript
-// packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx
-export function ResourceViewerPage({ rUri, resource, ... }: ResourceViewerPageProps) {
+```tsx
+// packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx, condensed
+export function ResourceViewerPage({ rUri, locale, Link, routes }: ResourceViewerPageProps) {
   const browser = useSemiont();
   const session = useObservable(browser.activeSession$);
-  const semiont = session?.client;
 
-  // Layer 1: the page state unit owns the mark/browse observables.
-  // `browse` is the app-scoped ShellStateUnit (panel state); the page
-  // state unit re-exposes it as stateUnit.browse.
+  // Layer 1: the page state unit owns the mark/browse observables, one per
+  // live session. `browse` is the app-scoped ShellStateUnit (panel state);
+  // the page state unit re-exposes it as stateUnit.browse.
   const browseStateUnit = useShellStateUnit();
-  const stateUnit = useStateUnit(() =>
-    createResourceViewerPageStateUnit(semiont!, rUri, locale, browseStateUnit));
+  const stateUnit = useSessionStateUnit(session ?? undefined, (s) =>
+    createResourceViewerPageStateUnit(s, rUri, locale, browseStateUnit));
 
   // Layer 2: read state-unit observables with useObservable
-  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
-  const progress = useObservable(stateUnit.mark.progress$) ?? null;
-  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
+  const annotations = useObservable(stateUnit?.annotations.value$) ?? [];
+  const pendingAnnotation = useObservable(stateUnit?.mark.pendingAnnotation$) ?? null;
+  const assistingMotivation = useObservable(stateUnit?.mark.assistingMotivation$) ?? null;
+  const progress = useObservable(stateUnit?.mark.progress$) ?? null;
+  const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
 
-  // Trigger detection (user interaction): emit the local assist-request via the
-  // SDK. The mark state unit picks it up and runs `client.mark.assist(...)`.
-  const handleDetectClick = useCallback(() => {
-    semiont?.mark.requestAssist('linking', {
-      entityTypes: ['Person', 'Organization'],
-    });
-  }, [semiont]);
-
-  // Layer 3: Render JSX
+  // Layer 3: render JSX. The panels trigger assist through the session they
+  // are handed — session.client.mark.requestAssist(...) — which the mark
+  // state unit picks up and runs as client.mark.assist(...).
   return (
-    <div className="resource-viewer">
-      <Toolbar onDetect={handleDetectClick} />
-      <ResourceViewer
-        content={content}
-        assistingMotivation={assistingMotivation}
-        progress={progress}
-      />
-      <UnifiedAnnotationsPanel
-        annotations={annotations}
-        assistingMotivation={assistingMotivation}
-        progress={progress}
-        activePanel={activePanel}
-      />
+    <div className="semiont-document-viewer">
+      {activePanel === 'annotations' && (
+        <UnifiedAnnotationsPanel
+          session={session ?? null}
+          resourceId={rUri}
+          annotations={annotations}
+          annotators={ANNOTATORS}
+          assistingMotivation={assistingMotivation}
+          progress={progress}
+          pendingAnnotation={pendingAnnotation}
+          Link={Link}
+          routes={routes}
+        />
+      )}
     </div>
   );
 }
@@ -199,7 +190,7 @@ export function ResourceViewerPage({ rUri, resource, ... }: ResourceViewerPagePr
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Layer 3: Component (ResourceViewerPage)                     │
+│ Layer 3: Components (ResourceViewerPage + panels)           │
 │                                                              │
 │  - Reads state-unit observables via useObservable           │
 │  - Triggers operations (session.client.mark.requestAssist)  │
@@ -239,74 +230,15 @@ export function ResourceViewerPage({ rUri, resource, ... }: ResourceViewerPagePr
 
 ---
 
-## Complete Example
-
-### Layer 1: Service (SSE Connection)
-
-```typescript
-// In ResourceViewerPage.tsx
-export function ResourceViewerPage({ rId, ... }: ResourceViewerPageProps) {
-  // Layer 1: the page state unit's browse.*(rId) live queries acquire the
-  // resource scope when observed — no explicit subscribe call, no per-component hook.
-
-  // ... rest of component
-}
-```
-
-The service layer runs automatically once per resource page.
-
-### Layer 2: State unit + hooks (State Management)
-
-```typescript
-// State lives in the SDK MarkStateUnit; the hook reads it via useObservable.
-export function useMarkAssist(stateUnit: ResourceViewerPageStateUnit) {
-  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
-  const progress = useObservable(stateUnit.mark.progress$) ?? null;
-  return { assistingMotivation, progress };
-}
-```
-
-### Layer 3: Component (UI)
-
-```typescript
-// packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx
-export function ResourceViewerPage({ rUri, ... }: ResourceViewerPageProps) {
-  const session = useObservable(useSemiont().activeSession$);
-  const semiont = session?.client;
-
-  // Read state from the mark state unit (Layer 2)
-  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
-  const progress = useObservable(stateUnit.mark.progress$) ?? null;
-
-  // Trigger assist via the SDK (the mark state unit runs the job)
-  const handleDetect = useCallback(() => {
-    semiont?.mark.requestAssist('linking', { entityTypes: ['Person'] });
-  }, [semiont]);
-
-  // Render UI
-  return (
-    <div>
-      <button onClick={handleDetect} disabled={!!assistingMotivation}>
-        {assistingMotivation ? 'Detecting...' : 'Detect Entities'}
-      </button>
-      {progress && <p role="status">{progress.message}</p>}
-    </div>
-  );
-}
-```
-
----
-
 ## Common Patterns
 
 ### Pattern 1: Triggering Operations (User Actions)
 
 Components trigger operations via the SDK on `session.client`, not callback props:
 
-```typescript
-function ReferencesPanel() {
-  const session = useObservable(useSemiont().activeSession$);
-
+```tsx
+// Condensed from ReferencesPanel.tsx: the panel is handed the session as a prop.
+function ReferencesPanel({ session }: { session: SemiontSession | null }) {
   const handleDetect = () => {
     // Trigger assist via the SDK. mark.requestAssist emits the local
     // 'mark:assist-request' event; the mark state unit runs the job.
@@ -325,14 +257,14 @@ State lives in the state unit; hooks/components read it with `useObservable`:
 
 ```typescript
 // ✅ CORRECT: read the mark state unit's observables
-export function useMarkAssist(stateUnit: ResourceViewerPageStateUnit) {
-  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
-  const progress = useObservable(stateUnit.mark.progress$) ?? null;
+export function useMarkAssist(mark: MarkStateUnit | undefined) {
+  const assistingMotivation = useObservable(mark?.assistingMotivation$) ?? null;
+  const progress = useObservable(mark?.progress$) ?? null;
   return { assistingMotivation, progress };
 }
 
 // ❌ WRONG: re-deriving state from raw bus events with useState
-export function useMarkAssist(stateUnit: ResourceViewerPageStateUnit) {
+export function useMarkAssistFromBus() {
   const session = useObservable(useSemiont().activeSession$);
   const [assisting, setAssisting] = useState(null);
 
@@ -420,66 +352,81 @@ Layer Separation Violations (❌)
 
 ### Layer 1: State Unit Tests
 
-Test that the mark state unit drives its observables off the unified job channels:
+Test the mark state unit's observables directly, over the SDK's test client
+(a real `SemiontClient` on a scriptable in-memory transport):
 
 ```typescript
-it('should set assistingMotivation$ on assist-request and clear on job:complete', async () => {
-  const mark = createMarkStateUnit(client, testUri);
+import { createTestClient } from '@semiont/sdk/testing';
 
-  // Trigger assist (local request → mark state unit runs client.mark.assist)
-  client.bus.emit('mark:assist-request', {
-    motivation: 'linking',
-    options: { entityTypes: ['Person'] },
-  });
+it('sets assistingMotivation$ on an assist request', () => {
+  const { client } = createTestClient();
+  const mark = createMarkStateUnit(client, resourceId);
+  const motivations: (Motivation | null)[] = [];
+  mark.assistingMotivation$.subscribe((m) => motivations.push(m));
 
-  expect(await firstValueFrom(mark.assistingMotivation$)).toBe('linking');
+  // The local request the mark state unit answers by running client.mark.assist
+  client.mark.requestAssist('linking', { entityTypes: ['Person'] });
 
-  // Simulate the job finishing on the unified channel
-  client.bus.emit('job:complete', { jobId, resourceId: testUri, jobType: 'reference-annotation' });
-
-  // assistingMotivation$ returns to null
+  expect(motivations.at(-1)).toBe('linking');
+  mark.dispose();
 });
 ```
 
 ### Layer 2: Hook Tests
 
-Test that the hook reads state-unit observables:
+Test that a hook reads state-unit observables:
 
 ```typescript
-it('should expose assistingMotivation from the mark state unit', () => {
-  const { result } = renderHook(() => useMarkAssist(stateUnit), {
-    wrapper: SemiontProvider
-  });
+import { createTestClient } from '@semiont/sdk/testing';
+
+it('reflects the mark state unit in React state', () => {
+  const { client } = createTestClient();
+  const mark = createMarkStateUnit(client, resourceId);
+  const { result } = renderHook(() => useObservable(mark.assistingMotivation$));
 
   // Drive the state unit's observable
   act(() => {
-    client.bus.emit('mark:assist-request', {
-      motivation: 'linking',
-      options: { entityTypes: ['Person'] },
-    });
+    client.mark.requestAssist('linking', { entityTypes: ['Person'] });
   });
 
   // Verify the hook reflects it
-  expect(result.current.assistingMotivation).toBe('linking');
+  expect(result.current).toBe('linking');
+  mark.dispose();
 });
 ```
 
 ### Layer 3: Component Tests
 
-Test UI rendering and operation triggering:
+Test UI rendering and operation triggering. The panels take the session as a
+prop, so a test hands them a real one:
 
-```typescript
-it('should call mark.requestAssist when button clicked', async () => {
+```tsx
+import { createTestSession } from '@semiont/sdk/testing';
+import { screen } from '@testing-library/react';
+import { renderInEnglish } from '@semiont/react-ui/test-utils';
+
+it('calls mark.requestAssist when Annotate is clicked', () => {
+  const { session } = createTestSession();
   const requestAssist = vi.spyOn(session.client.mark, 'requestAssist');
 
-  render(
-    <SemiontProvider value={semiont}>
-      <ResourceViewerPage rUri={testId} {...props} />
-    </SemiontProvider>
+  renderInEnglish(
+    <ReferencesPanel
+      session={session}
+      resourceId={resourceId}
+      annotations={[]}
+      isAssisting={false}
+      progress={null}
+      pendingAnnotation={null}
+      allEntityTypes={['Person', 'Organization']}
+      Link={Link}
+      routes={routes}
+    />,
   );
 
-  // Click detect button
-  fireEvent.click(screen.getByText('Detect Entities'));
+  // Pick the entity types, then start the assist
+  fireEvent.click(screen.getByRole('button', { name: 'Select Person' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Select Organization' }));
+  fireEvent.click(screen.getByTitle('Annotate'));
 
   // Verify the SDK was invoked
   expect(requestAssist).toHaveBeenCalledWith('linking', expect.objectContaining({
@@ -493,7 +440,7 @@ it('should call mark.requestAssist when button clicked', async () => {
 ## RxJS Foundation
 
 The three-layer architecture runs on RxJS. The buses are RxJS `EventBus`
-instances (mitt is no longer used):
+instances:
 
 - Layer 1: SSE → `Observable` streams (`client.browse.*(rId)` live queries)
 - Layer 2: Hooks subscribe via `useEventSubscriptions` / `useObservable`
@@ -517,7 +464,7 @@ event library.
 ### ✅ DO
 
 - **Components**: Call hooks, emit events, render JSX
-- **Hooks**: Use `useEventSubscriptions`, manage state with `useState`, return data objects
+- **Hooks**: Read state-unit observables with `useObservable`, use `useEventSubscriptions` for side effects, return data objects
 - **Service**: Bus connection managed by `SemiontClient` (one ActorStateUnit per client; resource-scoped channels acquired by subscribing to `client.browse.*(resourceId)` live queries — freshness follows observation)
 
 ### ❌ DON'T

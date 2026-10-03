@@ -1,86 +1,57 @@
 # Internationalization (i18n)
 
-`@semiont/react-ui` provides flexible internationalization support with three usage modes, making it suitable for any React application.
+`@semiont/react-ui` provides internationalization through a `TranslationProvider`, in one of two modes, making it suitable for any React application.
 
 ## Overview
 
 The library provides:
 
-1. **Built-in translations** - English and Spanish translations included (with dynamic loading for non-English locales)
+1. **Built-in translations** - 29 locales (`AVAILABLE_LOCALES`), each loaded on demand
 2. **TranslationManager interface** - Contract for custom implementations
-3. **TranslationProvider** - Optional React Context for configuration
+3. **TranslationProvider** - The React Context every translated component reads
 4. **useTranslations hook** - Access translations in components
-5. **Dynamic loading** - Non-English translations are loaded on-demand to optimize bundle size
 
-## Three Usage Modes
+## No Default Language
 
-### 1. Default English (No Configuration Required)
+Nothing in the library assumes a language:
 
-Components work out-of-the-box with English translations - no provider needed:
+- `useTranslations` throws when there is no `TranslationProvider` above it.
+- `TranslationProvider` takes a `locale` or a `translationManager`: one of
+  them, and not both.
+- A `locale` whose translations cannot be loaded is an error, thrown to the
+  nearest error boundary. No other language is shown in its place.
 
-```tsx
-import { Toolbar } from '@semiont/react-ui';
+## Two Usage Modes
 
-// Components use default English translations
-function App() {
-  return <Toolbar context="simple" />;
-}
-```
-
-### 2. Built-in Locale Support (English & Spanish)
+### 1. Built-in Locale Support
 
 Use the `TranslationProvider` with a `locale` prop to use built-in translations:
 
 ```tsx
-import { TranslationProvider, Toolbar } from '@semiont/react-ui';
+import { SemiontProvider, TranslationProvider, Toolbar } from '@semiont/react-ui';
 
 function App() {
   return (
     <TranslationProvider locale="es">
-      <Toolbar context="simple" />
+      <SemiontProvider>
+        <Toolbar context="simple" activePanel={null} />
+      </SemiontProvider>
     </TranslationProvider>
   );
 }
 ```
 
-Available locales:
-- `ar` - Arabic
-- `bn` - Bengali
-- `cs` - Czech
-- `da` - Danish
-- `de` - German
-- `el` - Greek
-- `en` - English (default)
-- `es` - Spanish
-- `fa` - Persian/Farsi
-- `fi` - Finnish
-- `fr` - French
-- `he` - Hebrew
-- `hi` - Hindi
-- `id` - Indonesian
-- `it` - Italian
-- `ja` - Japanese
-- `ko` - Korean
-- `ms` - Malay
-- `nl` - Dutch
-- `no` - Norwegian
-- `pl` - Polish
-- `pt` - Portuguese
-- `ro` - Romanian
-- `sv` - Swedish
-- `th` - Thai
-- `tr` - Turkish
-- `uk` - Ukrainian
-- `vi` - Vietnamese
-- `zh` - Chinese
+`locale` is one of `AVAILABLE_LOCALES`, which is the list; it is not restated here.
 
-### 3. Custom Translation Implementation
+### 2. Custom Translation Implementation
 
 Provide your own translation system via `TranslationManager`. This is especially useful for languages not included in the built-in translations:
 
 ```tsx
-import { TranslationProvider, Toolbar } from '@semiont/react-ui';
+import { SemiontProvider, TranslationProvider, Toolbar } from '@semiont/react-ui';
 import type { TranslationManager } from '@semiont/react-ui';
+
+declare const myTranslations: Record<string, Record<string, string>>; // your app's messages
 
 const myTranslationManager: TranslationManager = {
   t: (namespace: string, key: string, params?: Record<string, any>) => {
@@ -93,7 +64,9 @@ const myTranslationManager: TranslationManager = {
 function App() {
   return (
     <TranslationProvider translationManager={myTranslationManager}>
-      <Toolbar context="simple" />
+      <SemiontProvider>
+        <Toolbar context="simple" activePanel={null} />
+      </SemiontProvider>
     </TranslationProvider>
   );
 }
@@ -108,30 +81,16 @@ import { TranslationProvider } from '@semiont/react-ui';
 import type { TranslationManager } from '@semiont/react-ui';
 
 // Klingon translations for react-ui components
-const klingonTranslations = {
+const klingonTranslations: Record<string, Record<string, string>> = {
   Toolbar: {
     annotations: 'DIch',           // "annotations"
     resourceInfo: 'teywI\' nugh',  // "resource info"
     history: 'qej',                // "history"
     collaboration: 'jup DIlo\'',   // "collaboration"
     userAccount: 'lo\'wI\' DIch',  // "user account"
-    settings: 'nugh choq'          // "settings"
+    settings: 'nugh choq',         // "settings"
+    knowledgeBase: 'Sov qach',     // "knowledge base"
   },
-  Common: {
-    save: 'choq',                  // "preserve"
-    cancel: 'mev',                 // "stop"
-    delete: 'teq',                 // "remove"
-    edit: 'choq',                  // "alter"
-    close: 'SoQ',                  // "close"
-    loading: 'cha\'...',           // "showing..."
-    error: 'Qob'                   // "danger/error"
-  },
-  Navigation: {
-    home: 'juH',                   // "home"
-    know: 'Sov',                   // "know"
-    moderate: 'mI\'',              // "moderate"
-    administer: 'vu\''             // "administer"
-  }
   // ... add more namespaces as needed
 };
 
@@ -143,11 +102,11 @@ const klingonTranslationManager: TranslationManager = {
 };
 
 // Use throughout your app
-function App() {
+function KlingonApp({ children }: { children: React.ReactNode }) {
   return (
     <TranslationProvider translationManager={klingonTranslationManager}>
-      {/* All components will now use Klingon translations */}
-      <YourApp />
+      {/* All components use Klingon translations */}
+      {children}
     </TranslationProvider>
   );
 }
@@ -158,57 +117,29 @@ This approach works for any language or constructed language (Elvish, Dothraki, 
 ## Benefits
 
 This approach allows apps to:
-- ✅ Work immediately with zero configuration
 - ✅ Use built-in translations for rapid prototyping
-- ✅ Integrate with any i18n library (next-intl, react-i18next, FormatJS, custom)
+- ✅ Integrate with any i18n library (react-i18next, FormatJS, custom)
 - ✅ Choose their own translation file format (JSON, YAML, TypeScript, API)
 - ✅ Support any set of languages
 - ✅ Implement custom translation logic (pluralization, interpolation, etc.)
-- ✅ Optimized bundle size with dynamic loading for non-English locales
+- ✅ Optimized bundle size: every built-in locale is loaded on demand
 
 ## Implementation Guide
 
 ### 1. Define TranslationManager
 
-Create a hook that implements the `TranslationManager` interface:
+Implement the `TranslationManager` interface — one method,
+`t(namespace, key, params?)`, returning the string to show:
 
 ```typescript
-import { TranslationManager } from '@semiont/react-ui';
-
-interface TranslationManager {
-  t: (namespace: string, key: string) => string;
-}
-```
-
-### 2. Example: Using next-intl
-
-```tsx
-// app/hooks/useTranslationManager.ts
-import { useLocale } from 'next-intl';
-import { useMemo } from 'react';
 import type { TranslationManager } from '@semiont/react-ui';
 
-// Import all message files
-import en from '@/messages/en.json';
-import es from '@/messages/es.json';
-import fr from '@/messages/fr.json';
-
-const messages = { en, es, fr };
-
-export function useTranslationManager(): TranslationManager {
-  const locale = useLocale();
-
-  return useMemo(() => ({
-    t: (namespace: string, key: string) => {
-      const localeMessages = messages[locale] || messages.en;
-      const namespaceMessages = localeMessages[namespace];
-      return namespaceMessages?.[key] || key; // Fallback to key
-    }
-  }), [locale]);
-}
+const echo: TranslationManager = {
+  t: (namespace, key) => `${namespace}.${key}`,
+};
 ```
 
-### 3. Example: Using react-i18next
+### 2. Example: Using react-i18next
 
 ```tsx
 // src/hooks/useTranslationManager.ts
@@ -227,7 +158,12 @@ export function useTranslationManager(): TranslationManager {
 }
 ```
 
-### 4. Example: Custom Implementation
+The Semiont Browser's manager, `useMergedTranslationManager`
+(`apps/browser/src/hooks/useMergedTranslationManager.ts`), reads the active
+locale's bundle from i18next and interpolates it with `interpolateTranslation`,
+the function the built-in managers use.
+
+### 3. Example: Custom Implementation
 
 ```tsx
 // src/hooks/useTranslationManager.ts
@@ -247,14 +183,15 @@ export function useTranslationManager(): TranslationManager {
 }
 ```
 
-### 5. Provide to App
+### 4. Provide to App
 
 ```tsx
 // app/providers.tsx
 import { TranslationProvider } from '@semiont/react-ui';
-import { useTranslationManager } from './hooks/useTranslationManager';
 
-export function Providers({ children }) {
+declare function useTranslationManager(): TranslationManager; // one of the hooks above
+
+export function Providers({ children }: { children: React.ReactNode }) {
   const translationManager = useTranslationManager();
 
   return (
@@ -265,19 +202,19 @@ export function Providers({ children }) {
 }
 ```
 
-### 6. Use in Components
+### 5. Use in Components
 
 ```tsx
 import { useTranslations } from '@semiont/react-ui';
 
-function Toolbar() {
+function PanelButtons() {
   const t = useTranslations('Toolbar');
 
   return (
     <div>
-      <button>{t('save')}</button>
-      <button>{t('cancel')}</button>
-      <button>{t('delete')}</button>
+      <button>{t('history')}</button>
+      <button>{t('settings')}</button>
+      <button>{t('userAccount')}</button>
     </div>
   );
 }
@@ -285,79 +222,51 @@ function Toolbar() {
 
 ## Translation Namespaces
 
-The library uses **namespace-based** translations. Each component or feature area has its own namespace.
+The library uses **namespace-based** translations. Each component or feature
+area has its own namespace, named after it: a modal's copy is under the modal's
+name, read with `useTranslations('SessionEndedModal')`.
 
-### Common Namespaces
-
-**Shared UI Strings:**
-- `Common` - save, cancel, delete, edit, close, loading, error
-
-**Navigation:**
-- `Navigation` - home, know, moderate, administer
-
-**User Interface:**
-- `Settings` - title, lineNumbers, theme, language
-- `Toolbar` - Various toolbar actions
-- `AnnotateToolbar` - Annotation tools
-- `ResourceViewer` - Resource viewing UI
-
-**Modals:**
-- `KeyboardShortcutsModal` - Keyboard shortcuts help
-- `SessionExpiredModal` - Session expiration messages
-
-**Resource Management:**
-- `ResourceInfoPanel` - Resource metadata
-- `TaggingPanel` - Tagging interface
-- `CommentsPanel` - Comments UI
-- `ReferencesPanel` - References display
-- `AssessmentPanel` - Assessment interface
-
-**Annotations:**
-- `HighlightPanel` - Highlight annotations
-- `JsonLdPanel` - JSON-LD view
-- `DetectSection` - Entity detection
+The namespaces are the top-level keys of `translations/en.json`, which is the
+list; it is not restated here. Every locale has every namespace and every key:
+`npm run lint:translations` fails the build on any key missing from, or extra
+in, any locale.
 
 ## Translation File Structure
 
-### Recommended Structure (JSON)
+One JSON file per locale, namespaces at the top level (an excerpt of
+`translations/en.json`):
 
 ```json
 {
-  "Common": {
-    "save": "Save",
-    "cancel": "Cancel",
-    "delete": "Delete",
-    "edit": "Edit",
-    "close": "Close",
-    "loading": "Loading...",
-    "error": "An error occurred"
-  },
   "Toolbar": {
-    "save": "Save",
-    "undo": "Undo",
-    "redo": "Redo",
-    "bold": "Bold",
-    "italic": "Italic"
+    "annotations": "Annotations",
+    "history": "History",
+    "resourceInfo": "Resource Info",
+    "collaboration": "Collaboration",
+    "userAccount": "User Account",
+    "settings": "Settings",
+    "knowledgeBase": "Knowledge Base"
   },
-  "Navigation": {
-    "home": "Home",
-    "know": "Know",
-    "moderate": "Moderate",
-    "administer": "Administer"
+  "SessionEndedModal": {
+    "title": "Signed Out",
+    "expired": "Your session has expired. Please sign in again.",
+    "refused": "This knowledge base did not accept your sign-in. Please sign in again.",
+    "goHome": "Go to Home",
+    "signInAgain": "Sign In Again"
   }
 }
 ```
 
 ### TypeScript Type Safety
 
-For type-safe translations, generate types from your message files:
+For type-safe translations, derive the types from the English messages:
 
 ```typescript
 // types/translations.ts
-import en from '@/messages/en.json';
+import en from '@semiont/react-ui/translations/en';
 
-export type TranslationNamespace = keyof typeof en;
-export type TranslationKey<NS extends TranslationNamespace> = keyof typeof en[NS];
+export type TranslationNamespace = keyof typeof en & string;
+export type TranslationKey<NS extends TranslationNamespace> = keyof (typeof en)[NS] & string;
 
 // Usage with stronger typing
 function useTypedTranslations<NS extends TranslationNamespace>(namespace: NS) {
@@ -368,67 +277,68 @@ function useTypedTranslations<NS extends TranslationNamespace>(namespace: NS) {
 
 ## Interpolation and Pluralization
 
-The `TranslationManager` interface returns strings. If you need interpolation or pluralization, implement it in your manager:
+`t` receives the call's `params`; interpolation and pluralization are the
+manager's to implement. The built-in managers use `interpolateTranslation`,
+which a custom manager can call for the same result. In one pass over the
+string it resolves ICU plural expressions and replaces `{{name}}` with
+`params.name`:
 
 ```tsx
-interface AdvancedTranslationManager extends TranslationManager {
-  t: (namespace: string, key: string, params?: Record<string, any>) => string;
-}
+import { interpolateTranslation, type TranslationManager } from '@semiont/react-ui';
 
-export function useTranslationManager(): AdvancedTranslationManager {
-  const locale = useLocale();
+declare const locale: string; // the language the messages are written in
+declare const messages: Record<string, Record<string, string>>; // the active locale's messages
 
-  return {
-    t: (namespace, key, params = {}) => {
-      let message = messages[locale]?.[namespace]?.[key] || key;
+const manager: TranslationManager = {
+  t: (namespace, key, params = {}) => {
+    const message = messages[namespace]?.[key] ?? `${namespace}.${key}`;
 
-      // Simple interpolation: "Hello {name}" -> "Hello John"
-      Object.entries(params).forEach(([k, v]) => {
-        message = message.replace(`{${k}}`, String(v));
-      });
-
-      return message;
-    }
-  };
-}
+    // "Page {{page}} of {{total}}" -> "Page 3 of 12"
+    return interpolateTranslation(message, params, locale);
+  },
+};
 
 // Usage
-const t = useTranslations('Navigation');
-const copyright = t('copyright', { year: 2024 });
-// "© 2024 Semiont. All rights reserved."
+const t = useTranslations('PdfViewer');
+const pageLabel = t('pageOf', { page: 3, total: 12 });
+// "Page 3 of 12"
 ```
 
-**Note:** If you extend the interface, you'll need to cast in components:
+A plural expression names a param and gives a branch per case:
 
-```tsx
-const manager = useContext(TranslationContext) as AdvancedTranslationManager;
-const t = (key: string, params?: any) => manager.t('Toolbar', key, params);
+```json
+{
+  "found": "Found {count, plural, =0 {nothing} one {# item} other {# items}} in {{scope}}"
+}
 ```
+
+- A branch is chosen by exact count (`=0`, `=1`, …) first, then by the plural
+  category the count falls in (`zero`, `one`, `two`, `few`, `many`), then
+  `other`. The categories are the locale's: English has `one` and `other`,
+  Polish has `one`, `few`, `many` and `other`.
+- `#` in a branch stands for the count.
+- A string may hold several plural expressions, and a branch may hold
+  `{{name}}` placeholders and further plural expressions.
+- A value goes in as written: a count or a param's value that itself holds
+  `{{name}}`, `#` or a plural expression is text, not more template.
+- What cannot be resolved is left as written, whole: a placeholder or plural
+  whose param is not passed, a plural with no branch for the count, and a
+  plural that never closes together with what follows it.
 
 ## Language Switching
 
-Implement language switching in your app:
+Switching languages is the host's job. react-ui's `SettingsPanel` emits
+`settings:locale-changed` with the chosen locale; the host applies it — the
+Semiont Browser re-routes to the same path under the new locale prefix:
 
 ```tsx
-// With next-intl
-import { useRouter, usePathname } from 'next/navigation';
+import { useEventSubscription } from '@semiont/react-ui';
 
-export function LanguageSwitcher() {
-  const router = useRouter();
-  const pathname = usePathname();
-
-  const switchLocale = (locale: string) => {
-    const newPath = pathname.replace(/^\/[^/]+/, `/${locale}`);
-    router.push(newPath);
-  };
-
-  return (
-    <select onChange={(e) => switchLocale(e.target.value)}>
-      <option value="en">English</option>
-      <option value="es">Español</option>
-      <option value="fr">Français</option>
-    </select>
-  );
+function LocaleSwitching() {
+  useEventSubscription('settings:locale-changed', ({ locale }) => {
+    navigate(pathname.replace(/^\/[^/]+/, `/${locale}`));
+  });
+  return null;
 }
 ```
 
@@ -437,15 +347,13 @@ export function LanguageSwitcher() {
 The library doesn't enforce RTL. Implement in your app:
 
 ```tsx
-// app/layout.tsx
-export default function RootLayout({ children }) {
-  const locale = useLocale();
-  const direction = locale === 'ar' || locale === 'he' ? 'rtl' : 'ltr';
+function DirectionalRoot({ children }: { children: React.ReactNode }) {
+  const direction = locale === 'ar' || locale === 'he' || locale === 'fa' ? 'rtl' : 'ltr';
 
   return (
-    <html lang={locale} dir={direction}>
-      <body>{children}</body>
-    </html>
+    <div lang={locale} dir={direction}>
+      {children}
+    </div>
   );
 }
 ```
@@ -455,86 +363,64 @@ export default function RootLayout({ children }) {
 Use the test utilities to provide mock translations:
 
 ```tsx
-import { renderWithProviders, createMockTranslationManager } from '@semiont/react-ui/test-utils';
+import { renderWithProviders, createMockTranslationManager, screen } from '@semiont/react-ui/test-utils';
 
 it('should display translated text', () => {
   const translations = createMockTranslationManager({
     Toolbar: {
-      save: 'Guardar',
-      cancel: 'Cancelar'
+      settings: 'Ajustes',
+      userAccount: 'Cuenta'
     }
   });
 
-  renderWithProviders(<Toolbar />, {
+  renderWithProviders(<Toolbar context="simple" activePanel={null} />, {
     translationManager: translations
   });
 
-  expect(screen.getByText('Guardar')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Ajustes' })).not.toBeNull();
 });
 ```
+
+Or render under react-ui's own English strings, for a test that asserts on the copy:
+
+```tsx
+import { useTranslations } from '@semiont/react-ui';
+import { renderInEnglish, screen } from '@semiont/react-ui/test-utils';
+
+function SettingsButton() {
+  const t = useTranslations('Toolbar');
+  return <button>{t('settings')}</button>;
+}
+
+it('should name the button in English', () => {
+  renderInEnglish(<SettingsButton />);
+
+  expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeNull();
+});
+```
+
+`englishTranslationManager` is the manager behind it, for a test that mounts
+its own providers.
 
 Or use the default mock (returns `"Namespace.key"`):
 
 ```tsx
-it('should render with default translations', () => {
-  renderWithProviders(<Toolbar />);
+import { renderWithProviders, screen } from '@semiont/react-ui/test-utils';
 
-  expect(screen.getByText('Toolbar.save')).toBeInTheDocument();
+it('should render with default translations', () => {
+  renderWithProviders(<Toolbar context="simple" activePanel={null} />);
+
+  expect(screen.queryByRole('button', { name: 'Toolbar.settings' })).not.toBeNull();
 });
 ```
 
-## Migration from next-intl
-
-If you're migrating from direct `next-intl` usage:
-
-**Before (coupled to next-intl):**
-```tsx
-import { useTranslations } from 'next-intl';
-
-function Toolbar() {
-  const t = useTranslations('Toolbar');
-  return <button>{t('save')}</button>;
-}
-```
-
-**After (framework-agnostic):**
-```tsx
-import { useTranslations } from '@semiont/react-ui';
-
-function Toolbar() {
-  const t = useTranslations('Toolbar');
-  return <button>{t('save')}</button>;
-}
-```
-
-The API is identical, but now the implementation comes from your app's `TranslationManager`, not directly from next-intl.
-
 ## Best Practices
-
-### ✅ Do: Load messages statically
-
-```tsx
-import en from '@/messages/en.json';
-import es from '@/messages/es.json';
-
-const messages = { en, es };
-
-export function useTranslationManager(): TranslationManager {
-  const locale = useLocale();
-
-  return {
-    t: (namespace, key) => messages[locale]?.[namespace]?.[key] || key
-  };
-}
-```
 
 ### ❌ Don't: Call hooks conditionally
 
 ```tsx
 // WRONG - Violates Rules of Hooks
 export function useTranslationManager(): TranslationManager {
-  const locale = useLocale();
-
   return {
     t: (namespace, key) => {
       const translator = useTranslations(namespace); // ❌ Can't call hooks here
@@ -549,8 +435,8 @@ export function useTranslationManager(): TranslationManager {
 ```tsx
 // All "Toolbar" translations together
 const t = useTranslations('Toolbar');
-const save = t('save');
-const cancel = t('cancel');
+const history = t('history');
+const settings = t('settings');
 ```
 
 ### ❌ Don't: Mix namespaces unnecessarily
@@ -558,29 +444,17 @@ const cancel = t('cancel');
 ```tsx
 // Avoid switching namespaces mid-component
 const toolbarT = useTranslations('Toolbar');
-const commonT = useTranslations('Common');
-const navT = useTranslations('Navigation'); // Too many!
+const settingsT = useTranslations('Settings');
+const shortcutsT = useTranslations('KeyboardShortcuts'); // Too many!
 ```
 
 ### ✅ Do: Provide fallbacks
 
 ```tsx
-t: (namespace, key) => {
-  return messages[locale]?.[namespace]?.[key] || key; // Fallback to key
-}
-```
+declare const messages: Record<string, Record<string, string>>; // the active locale's messages
 
-### ✅ Do: Document your translation keys
-
-Create a types file documenting all namespaces and keys:
-
-```typescript
-// types/translations.d.ts
-export type TranslationNamespaces = {
-  Common: 'save' | 'cancel' | 'delete' | 'edit' | 'close';
-  Toolbar: 'save' | 'undo' | 'redo' | 'bold' | 'italic';
-  Navigation: 'home' | 'know' | 'moderate' | 'administer';
-  // ... etc
+const manager: TranslationManager = {
+  t: (namespace, key) => messages[namespace]?.[key] ?? `${namespace}.${key}`, // Fallback to the key path
 };
 ```
 
@@ -588,24 +462,18 @@ export type TranslationNamespaces = {
 
 ### Bundle Size Optimization
 
-The library uses dynamic imports for non-English translations to optimize bundle size:
+The library loads every built-in locale with a dynamic import:
 
-- **English**: Always included in the bundle (as fallback)
-- **Other locales**: Loaded on-demand when requested
+- **No locale is in the main bundle**: each is fetched when a `TranslationProvider` asks for it
 - **Caching**: Loaded translations are cached for the session
 
 ### Adding New Locales
 
-To add support for a new locale (e.g., French):
+To add support for another locale:
 
-1. Add the translation file: `translations/fr.json`
-2. Update the `AVAILABLE_LOCALES` constant in `TranslationContext.tsx`
+1. Add the translation file, `translations/<code>.json`, with every namespace and key (`npm run lint:translations` checks)
+2. Add the code to the `AVAILABLE_LOCALES` constant in `packages/react-ui/src/contexts/TranslationContext.tsx` (a test fails when the constant and the translation files differ)
 3. The locale will be dynamically loaded when used
-
-```tsx
-// TranslationContext.tsx
-export const AVAILABLE_LOCALES = ['en', 'es', 'fr'] as const; // Add 'fr'
-```
 
 ### Preloading Translations
 
@@ -635,14 +503,15 @@ function LanguageSwitcher() {
 
 ### Loading State
 
-When using dynamic locale loading, you can provide a loading component:
+`TranslationProvider` renders its children once the locale's translations are
+loaded, and until then renders `loadingComponent` (nothing, when none is given):
 
 ```tsx
 <TranslationProvider
   locale="es"
   loadingComponent={<div>Loading translations...</div>}
 >
-  <App />
+  {children}
 </TranslationProvider>
 ```
 

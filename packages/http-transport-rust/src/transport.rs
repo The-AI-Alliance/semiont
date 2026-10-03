@@ -310,7 +310,14 @@ impl Shared {
                         .iter()
                         .find_map(|key| body.get(*key).and_then(Value::as_str).map(str::to_owned))
                 })
-                .unwrap_or_else(|| format!("HTTP {status}"));
+                .unwrap_or_else(|| {
+                    // Worded as the TypeScript transport words it.
+                    let reason = reqwest::StatusCode::from_u16(status)
+                        .ok()
+                        .and_then(|code| code.canonical_reason())
+                        .unwrap_or_default();
+                    format!("HTTP {status}: {reason}")
+                });
             return Err(self.failed(TransportError::of_status(message, status, stated_wait)));
         }
     }

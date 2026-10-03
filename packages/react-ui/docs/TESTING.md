@@ -30,13 +30,14 @@ vi.mock('../NavigationMenu', () => ({
 **✅ Do: Use real components via composition**
 ```tsx
 // CORRECT - Test with real components
-import { NavigationMenu } from '../NavigationMenu';
-import { SemiontBranding } from '../SemiontBranding';
+import { render, screen } from '@testing-library/react';
+
+const t = (key: string) => `nav.${key}`;
 
 it('should render navigation with branding', () => {
   render(
-    <LeftSidebar>
-      <NavigationMenu {...props} />
+    <LeftSidebar Link={Link} routes={routes} t={t} tHome={tHome}>
+      <NavigationMenu Link={Link} routes={routes} t={t} />
     </LeftSidebar>
   );
 
@@ -54,33 +55,42 @@ it('should render navigation with branding', () => {
 - Follows React's component model
 
 **When mocking is acceptable:**
-- **Hooks** for UI state (`useDropdown`, `useModal`)
+- **Hooks** for UI state (`useDropdown`)
 - **External APIs** (`fetch`, API clients)
 - **Browser APIs** not available in jsdom (`scrollIntoView`, `IntersectionObserver`)
-- **Utility modules** (`formatDate`, `parseJson`)
+- **Utility modules** (`getAnnotationExactText`, `getResourceIcon`)
 
 ### Event-Driven Testing
 
 A component says things on a bus; a test listens on the real bus rather than mocking it.
-`renderWithProviders` hands back both buses on request:
+A provider-free component — a panel, an entry, a viewer — speaks on the session it is handed,
+so the test makes that session with `createTestSemiontWrapper` and listens on its `eventBus`:
 
 ```tsx
-import { renderWithProviders, screen, fireEvent } from '@semiont/react-ui/test-utils';
+import { createTestSemiontWrapper, renderWithProviders, fireEvent } from '@semiont/react-ui/test-utils';
 
-// Session-scoped channels (mark:*, beckon:*, browse:click, …): the client's bus
-const { eventBus } = renderWithProviders(<ReferenceEntry {...props} />, { returnEventBus: true });
+// Session-scoped channels (mark:*, beckon:*, browse:click, …): the bus of the session the component is given
+const { session, eventBus } = createTestSemiontWrapper();
+const { container } = renderWithProviders(
+  <ReferenceEntry session={session} reference={annotation} isFocused={false} />,
+);
 const clicked = vi.fn();
-const sub = eventBus!.on('browse:click').subscribe(clicked);
+const sub = eventBus.on('browse:click').subscribe(clicked);
 
-fireEvent.click(screen.getByRole('button'));
+fireEvent.click(container.firstChild!);
 
-expect(clicked).toHaveBeenCalledWith(expect.objectContaining({ annotationId: props.reference.id }));
+expect(clicked).toHaveBeenCalledWith({ annotationId: annotation.id });
 sub.unsubscribe();
 ```
 
+`renderWithProviders` hands back the `SemiontBrowser` it provides on request
+(`returnShellBus`); its `stream(channel)` reads the app-scoped channels. (`returnEventBus`
+returns the bus of the session it provides, for a component that reads its session from
+`SemiontProvider`.)
+
 ```tsx
 // App-scoped channels (panel:*, shell:*, tabs:*, nav:*, settings:*): the browser
-const { browser } = renderWithProviders(<Toolbar {...props} />, { returnShellBus: true });
+const { browser } = renderWithProviders(<Toolbar context="document" activePanel={null} />, { returnShellBus: true });
 const toggled = vi.fn();
 const sub = browser!.stream('panel:toggle').subscribe(toggled);
 ```
@@ -100,7 +110,8 @@ import { renderWithProviders } from '@semiont/react-ui/test-utils';
 
 ### renderWithProviders
 
-Renders components with all necessary providers pre-configured.
+Renders a component inside `TranslationProvider`, `SemiontProvider`, `ToastProvider` and
+`LineNumbersProvider`.
 
 **Basic Usage:**
 
@@ -108,33 +119,27 @@ Renders components with all necessary providers pre-configured.
 import { renderWithProviders, screen } from '@semiont/react-ui/test-utils';
 
 it('should render component', () => {
-  renderWithProviders(<MyComponent />);
-  expect(screen.getByText('Hello')).toBeInTheDocument();
+  renderWithProviders(<Toolbar context="simple" activePanel={null} />);
+  expect(screen.getByLabelText('Toolbar.settings')).toBeInTheDocument();
 });
 ```
 
 **With Custom Providers:**
 
+`translationManager` and `browser` replace the [defaults](#defaults); every other option is a
+React Testing Library render option.
+
 ```tsx
-import { renderWithProviders, createMockTranslationManager, createTestBrowserWithSignals } from '@semiont/react-ui/test-utils';
+import { renderWithProviders, createMockTranslationManager, screen } from '@semiont/react-ui/test-utils';
 
-it('should work with authenticated client', () => {
-  const translations = createMockTranslationManager({
-    Toolbar: {
-      save: 'Guardar',
-      cancel: 'Cancelar'
-    }
-  });
-
-  renderWithProviders(<MyComponent />, {
-    apiBaseUrl: 'https://api.test.com',
-    translationManager: translations,
-    browser: createTestBrowserWithSignals({
-      sessionExpired: { message: 'Token expired' },
+it('labels the toolbar in the given words', () => {
+  renderWithProviders(<Toolbar context="simple" activePanel={null} />, {
+    translationManager: createMockTranslationManager({
+      Toolbar: { settings: 'Ajustes' },
     }),
   });
 
-  expect(screen.getByText('Guardar')).toBeInTheDocument();
+  expect(screen.getByLabelText('Ajustes')).toBeInTheDocument();
 });
 ```
 
@@ -142,119 +147,107 @@ it('should work with authenticated client', () => {
 
 ### createMockTranslationManager
 
-Creates a translation manager with custom translations:
+Creates a translation manager from a namespace → key → text table. A key the table lacks
+renders as the bare key:
 
 ```tsx
 import { createMockTranslationManager } from '@semiont/react-ui/test-utils';
 
 const translations = createMockTranslationManager({
-  Common: {
-    save: 'Save',
-    cancel: 'Cancel'
-  },
   Toolbar: {
-    undo: 'Undo',
-    redo: 'Redo'
+    annotations: 'Annotations',
+    history: 'History'
   }
 });
 
-renderWithProviders(<Toolbar />, { translationManager: translations });
+renderWithProviders(<Toolbar context="document" activePanel={null} />, { translationManager: translations });
 ```
 
 ### createTestBrowserWithSignals
 
-Builds a fake `SemiontBrowser` with the active `SessionSignals` observables
-pre-populated, so modal tests can control the modal-driving flags without
-driving a real session through its state machine. Tests pass it via the
-`browser` option to `renderWithProviders`. The only overrides are the
-modal flags and their acknowledgement callbacks:
+Builds a real `SemiontBrowser` whose active `SessionSignals` are pre-populated, so modal
+tests can control the modal-driving flags without driving a session through its state
+machine. Tests pass it via the `browser` option to `renderWithProviders`. The overrides
+are the two flags, raised through the methods production calls, and their acknowledgement
+callbacks, which stand in for the real methods under a spy:
 
 ```tsx
 import { createTestBrowserWithSignals } from '@semiont/react-ui/test-utils';
 
 const browser = createTestBrowserWithSignals({
-  sessionExpired: { message: 'Token expired at 5pm' },
-  acknowledgeSessionExpired: vi.fn(),
+  sessionEnded: { reason: 'expired' },
+  acknowledgeSessionEnded: vi.fn(),
 });
 
-renderWithProviders(<SessionExpiredModal />, { browser });
+renderWithProviders(<SessionEndedModal />, { browser });
 ```
 
-Permission-denied modal tests follow the same shape:
+Permission-denied modal tests follow the same shape. `detail` is the gateway's own words, or
+`null` when it gave none:
 
 ```tsx
 const browser = createTestBrowserWithSignals({
-  permissionDenied: { message: 'Not allowed' },
+  permissionDenied: { detail: 'Archiving needs the curator role.' },
   acknowledgePermissionDenied: vi.fn(),
 });
 
 renderWithProviders(<PermissionDeniedModal />, { browser });
 ```
 
-## Default Mocks
+## Defaults
 
-When you don't provide custom values, `renderWithProviders` uses these defaults:
+Without `translationManager`, `renderWithProviders` uses `defaultMocks.translationManager`,
+which renders every key as `Namespace.key`:
 
-```typescript
-{
-  translationManager: {
-    t: (namespace, key) => `${namespace}.${key}` // Returns "Toolbar.save"
-  },
+```ts
+import { defaultMocks } from '@semiont/react-ui/test-utils';
 
-  apiBaseUrl: 'http://localhost:4000', // default
-
-  // browser: when omitted, renderWithProviders builds a fake SemiontBrowser
-  // (createFakeBrowserForTests) seeded with a fake active session whose
-  // `client` is a real SemiontClient pointed at `apiBaseUrl`. All flags are
-  // unset: empty KB list, no active KB, no modal flags raised, mutations are
-  // vi.fn() stubs. The app-scoped (shell) bus is a real EventBus so
-  // `semiont.emit/on/stream` round-trip through a live subject.
-}
+defaultMocks.translationManager.t('Toolbar', 'settings'); // 'Toolbar.settings'
 ```
+
+Without `browser`, it builds a real `SemiontBrowser` whose active session is a real
+`SemiontSession` from `createTestSession({ gateway: stubGateway() })` (`@semiont/sdk/testing`):
+no HTTP, no network. Every browser and client made this way is disposed after each test.
 
 ## Testing API Integration
 
-### Mocking API Client
+### Stubbing a Live Query
+
+A provider-free component reads through the session it is handed. Take that session from
+`createTestSemiontWrapper`, spy on its client's query, and render inside its `SemiontWrapper`.
+A query's failure is an emission — `{ status: 'failed', error }` — never a stream error, so a
+failure is stubbed the same way:
 
 ```tsx
-import { vi } from 'vitest';
-import { SemiontClient, BrowseNamespace } from '@semiont/sdk';
+import { of } from 'rxjs';
+import { createTestSemiontWrapper, renderInEnglish, screen } from '@semiont/react-ui/test-utils';
 
-it('should fetch resources', async () => {
-  // Spy on the namespace method that the component uses.
-  // The SemiontProvider inside renderWithProviders constructs the client;
-  // spy on the prototype to intercept calls from any instance.
-  vi.spyOn(BrowseNamespace.prototype, 'resources').mockReturnValue(
-    of({ resources: [{ id: 'r1', name: 'Resource 1' }] } as any),
+it('names the resource this one was derived from', () => {
+  const { SemiontWrapper, session, client } = createTestSemiontWrapper();
+  vi.spyOn(client.browse, 'resource').mockReturnValue(
+    CacheObservable.from(of<CacheState<ResourceDescriptor>>({ status: 'ready', value: { ...resource, name: 'Source Doc' } })),
   );
 
-  renderWithProviders(<ResourceList />, {
-    apiBaseUrl: 'https://api.test.com',
-  });
+  renderInEnglish(
+    <ResourceInfoPanel session={session} resourceId={rId} documentEntityTypes={[]} wasDerivedFrom={resourceId} />,
+    { wrapper: SemiontWrapper },
+  );
 
-  await screen.findByText('Resource 1');
+  expect(screen.getByText('Source Doc')).toBeInTheDocument();
 });
-```
 
-### Testing Bus-Backed Queries
-
-For components that subscribe to `semiont.browse.*` Observables, mock
-the namespace methods on the prototype. The `renderWithProviders` helper
-creates a real `SemiontClient` internally; prototype spies intercept
-calls from that instance.
-
-```tsx
-import { BrowseNamespace } from '@semiont/sdk';
-import { of, throwError } from 'rxjs';
-
-it('should handle query errors', async () => {
-  vi.spyOn(BrowseNamespace.prototype, 'resources').mockReturnValue(
-    throwError(() => new Error('Network error')),
+it('keeps the raw id when the source cannot be read', () => {
+  const { SemiontWrapper, session, client } = createTestSemiontWrapper();
+  vi.spyOn(client.browse, 'resource').mockReturnValue(
+    CacheObservable.from(of<CacheState<ResourceDescriptor>>({ status: 'failed', error: new Error('Network error') })),
   );
 
-  renderWithProviders(<ResourceList />);
+  renderInEnglish(
+    <ResourceInfoPanel session={session} resourceId={rId} documentEntityTypes={[]} wasDerivedFrom={resourceId} />,
+    { wrapper: SemiontWrapper },
+  );
 
-  await screen.findByText(/error/i);
+  expect(screen.getByText(resourceId)).toBeInTheDocument();
 });
 ```
 
@@ -263,86 +256,93 @@ it('should handle query errors', async () => {
 ### Test with Specific Translations
 
 ```tsx
+import { renderWithProviders, createMockTranslationManager, screen } from '@semiont/react-ui/test-utils';
+
 it('should display Spanish translations', () => {
   const translations = createMockTranslationManager({
     Toolbar: {
-      save: 'Guardar',
-      cancel: 'Cancelar',
-      delete: 'Eliminar'
+      annotations: 'Anotaciones',
+      history: 'Historial',
+      settings: 'Configuración'
     }
   });
 
-  renderWithProviders(<Toolbar />, { translationManager: translations });
+  renderWithProviders(<Toolbar context="document" activePanel={null} />, { translationManager: translations });
 
-  expect(screen.getByText('Guardar')).toBeInTheDocument();
-  expect(screen.getByText('Cancelar')).toBeInTheDocument();
+  expect(screen.getByLabelText('Anotaciones')).toBeInTheDocument();
+  expect(screen.getByLabelText('Historial')).toBeInTheDocument();
 });
 ```
 
 ### Test with Default Mock
 
 ```tsx
+import { renderWithProviders, screen } from '@semiont/react-ui/test-utils';
+
 it('should render with namespace.key format', () => {
-  renderWithProviders(<Toolbar />);
+  renderWithProviders(<Toolbar context="document" activePanel={null} />);
 
   // Default mock returns "Namespace.key"
-  expect(screen.getByText('Toolbar.save')).toBeInTheDocument();
-  expect(screen.getByText('Toolbar.cancel')).toBeInTheDocument();
+  expect(screen.getByLabelText('Toolbar.annotations')).toBeInTheDocument();
+  expect(screen.getByLabelText('Toolbar.history')).toBeInTheDocument();
 });
 ```
 
 ## Testing Session State
 
 `createTestBrowserWithSignals` drives the modal flags on the active
-`SessionSignals`. Set `sessionExpired` (or `permissionDenied`) to
-raise the corresponding modal, and pass the result via the `browser` option:
+`SessionSignals`. Set `sessionEnded` (or `permissionDenied`) to
+raise the corresponding modal, and pass the result via the `browser` option.
+The modal tests also replace `@headlessui/react`'s dialog parts with plain
+elements through `vi.mock`, as `SessionEndedModal.test.tsx` does:
 
 ```tsx
-import { renderWithProviders, createTestBrowserWithSignals } from '@semiont/react-ui/test-utils';
+import { renderWithProviders, createTestBrowserWithSignals, screen } from '@semiont/react-ui/test-utils';
 
-describe('SessionExpiredModal', () => {
-  it('should show when the session has expired', () => {
+describe('SessionEndedModal', () => {
+  it('says why the session ended', () => {
     const browser = createTestBrowserWithSignals({
-      sessionExpired: { message: 'Token expired' },
+      sessionEnded: { reason: 'expired' },
     });
 
-    renderWithProviders(<SessionExpiredModal />, { browser });
+    // The default translation manager renders each key as `Namespace.key`.
+    renderWithProviders(<SessionEndedModal />, { browser });
 
-    expect(screen.getByText(/session expired/i)).toBeInTheDocument();
+    expect(screen.getByText('SessionEndedModal.expired')).toBeInTheDocument();
   });
 
-  it('should not show when no expiry flag is raised', () => {
+  it('should not show when nothing is raised', () => {
     const browser = createTestBrowserWithSignals();
 
-    renderWithProviders(<SessionExpiredModal />, { browser });
+    renderWithProviders(<SessionEndedModal />, { browser });
 
-    expect(screen.queryByText(/session expired/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
 ```
 
 ## Testing User Interactions
 
-Open-resource mutations live on the `SemiontBrowser`. Inject a browser
-whose mutation is a `vi.fn()` via the `browser` option, then assert on it:
+Drive a component the way a person does, with `user-event`, and assert on what it asks of
+the SDK: spy on the client the component was handed.
 
 ```tsx
-import { renderWithProviders, screen, createTestBrowserWithSignals } from '@semiont/react-ui/test-utils';
+import { createTestSemiontWrapper, renderInEnglish, screen } from '@semiont/react-ui/test-utils';
 import { userEvent } from '@testing-library/user-event';
 
-it('should call addOpenResource when button clicked', async () => {
+it('opens the resource this one was derived from', async () => {
   const user = userEvent.setup();
-  const browser = createTestBrowserWithSignals();
+  const { SemiontWrapper, session, client } = createTestSemiontWrapper();
+  const openResource = vi.spyOn(client.browse, 'openResource');
 
-  renderWithProviders(<AddDocumentButton />, { browser });
-
-  await user.click(screen.getByRole('button', { name: /add/i }));
-
-  expect(browser.addOpenResource).toHaveBeenCalledWith(
-    'doc-123',
-    'New Document',
-    'text/plain'
+  renderInEnglish(
+    <ResourceInfoPanel session={session} resourceId={rId} documentEntityTypes={[]} wasDerivedFrom={resourceId} />,
+    { wrapper: SemiontWrapper },
   );
+
+  await user.click(screen.getByText(resourceId));
+
+  expect(openResource).toHaveBeenCalledWith(resourceId);
 });
 ```
 
@@ -352,12 +352,17 @@ it('should call addOpenResource when button clicked', async () => {
 import { renderWithProviders } from '@semiont/react-ui/test-utils';
 
 it('should match snapshot', () => {
-  const { container } = renderWithProviders(<NavigationMenu />);
+  const { container } = renderWithProviders(<NavigationMenu Link={Link} routes={routes} t={t} />);
   expect(container).toMatchSnapshot();
 });
 ```
 
 ## Testing Accessibility
+
+`jest-axe` ships no type declarations: react-ui declares them in
+`packages/react-ui/src/types/jest-axe.d.ts`, adds the matcher to vitest's `Assertion` in
+`packages/react-ui/src/types/vitest-matchers.d.ts`, and its `vitest.setup.ts` extends
+`expect` once for every test.
 
 ```tsx
 import { renderWithProviders, screen } from '@semiont/react-ui/test-utils';
@@ -366,36 +371,35 @@ import { axe, toHaveNoViolations } from 'jest-axe';
 expect.extend(toHaveNoViolations);
 
 it('should have no accessibility violations', async () => {
-  const { container } = renderWithProviders(<Toolbar />);
+  const { container } = renderWithProviders(<Toolbar context="document" activePanel={null} />);
   const results = await axe(container);
   expect(results).toHaveNoViolations();
 });
 
 it('should have proper ARIA labels', () => {
-  renderWithProviders(<CloseButton />);
+  renderWithProviders(<Toolbar context="document" activePanel="info" />);
 
-  const button = screen.getByRole('button', { name: /close/i });
-  expect(button).toHaveAttribute('aria-label', 'Close');
+  const button = screen.getByRole('button', { name: 'Toolbar.resourceInfo' });
+  expect(button).toHaveAttribute('aria-pressed', 'true');
 });
 ```
 
 ## Testing Keyboard Navigation
 
 ```tsx
+import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 
 it('should navigate with keyboard', async () => {
   const user = userEvent.setup();
 
-  renderWithProviders(<NavigationMenu />);
+  render(<NavigationMenu Link={Link} routes={routes} t={(key) => key} />);
 
-  const firstLink = screen.getByRole('link', { name: /home/i });
-  firstLink.focus();
+  await user.tab();
+  expect(screen.getByRole('link', { name: 'know' })).toHaveFocus();
 
-  await user.keyboard('{Tab}');
-
-  const secondLink = screen.getByRole('link', { name: /know/i });
-  expect(secondLink).toHaveFocus();
+  await user.tab();
+  expect(screen.getByRole('link', { name: 'moderate' })).toHaveFocus();
 });
 ```
 
@@ -440,21 +444,21 @@ Organize tests into logical describe blocks with clear test names:
 // src/components/layout/__tests__/LeftSidebar.test.tsx
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { LeftSidebar } from '../LeftSidebar';
+import { LeftSidebar, type LinkComponentProps, type RouteBuilder } from '@semiont/react-ui';
 
 // No mocks - using real components via composition
 
 // Mock Link component
-const MockLink = ({ href, children, ...props }: any) => (
+const MockLink = ({ href, children, ...props }: LinkComponentProps) => (
   <a href={href} {...props}>{children}</a>
 );
 
 // Mock routes
-const mockRoutes = {
-  home: () => '/',
-} as any;
+const mockRoutes: RouteBuilder = {
+  resourceDetail: (id) => `/know/resource/${id}`,
+};
 
 // Mock translation functions
 const mockT = (key: string) => `nav.${key}`;
@@ -513,7 +517,6 @@ describe('LeftSidebar Component', () => {
 
       const nav = screen.getByRole('navigation');
       expect(nav).toHaveAttribute('aria-label', 'Main navigation');
-      expect(nav).toHaveAttribute('id', 'main-navigation');
     });
   });
 });
@@ -530,26 +533,26 @@ describe('LeftSidebar Component', () => {
 ### Hook Test Pattern
 
 ```tsx
-// src/hooks/__tests__/useMyHook.test.ts
+// src/hooks/__tests__/useUI.test.tsx
 import { describe, it, expect } from 'vitest';
-import { renderHook } from '@testing-library/react';
-import { useMyHook } from '../useMyHook';
+import { renderHook, act } from '@testing-library/react';
+import { useDropdown } from '@semiont/react-ui';
 
-describe('useMyHook', () => {
-  it('should return initial value', () => {
-    const { result } = renderHook(() => useMyHook());
+describe('useDropdown', () => {
+  it('starts closed', () => {
+    const { result } = renderHook(() => useDropdown());
 
-    expect(result.current.value).toBe(0);
+    expect(result.current.isOpen).toBe(false);
   });
 
-  it('should update value', () => {
-    const { result } = renderHook(() => useMyHook());
+  it('toggle opens and closes', () => {
+    const { result } = renderHook(() => useDropdown());
 
-    act(() => {
-      result.current.increment();
-    });
+    act(() => result.current.toggle());
+    expect(result.current.isOpen).toBe(true);
 
-    expect(result.current.value).toBe(1);
+    act(() => result.current.toggle());
+    expect(result.current.isOpen).toBe(false);
   });
 });
 ```
@@ -558,15 +561,18 @@ describe('useMyHook', () => {
 
 ### SearchModal Tests (Skipped)
 
-All SearchModal component tests are currently skipped due to memory issues with HeadlessUI Dialog in jsdom:
+Four SearchModal test files are skipped because of memory issues with HeadlessUI Dialog in jsdom:
 
 - **Issue**: HeadlessUI's `<Dialog>` component creates complex DOM structures with portals, transitions, and focus management that cause Out Of Memory errors in jsdom, even with increased heap size
-- **Impact**: 38 tests across 4 test files are skipped
+- **Impact**: 36 tests across 4 test files are skipped
 - **Files affected**:
-  - `SearchModal.basic.test.tsx` (8 tests)
+  - `SearchModal.basic.test.tsx` (6 tests)
   - `SearchModal.visual.test.tsx` (15 tests)
   - `SearchModal.accessibility.test.tsx` (7 tests)
   - `SearchModal.keyboard.test.tsx` (8 tests)
+
+`SearchModal.search-wiring.test.tsx` runs: it replaces HeadlessUI's dialog parts with plain
+elements through `vi.mock`.
 
 **Potential solutions**:
 1. Mock HeadlessUI Dialog component entirely
@@ -581,12 +587,12 @@ The tests remain in place with detailed TODO comments for future implementation.
 
 ```tsx
 // CORRECT - Test with real child components
-import { NavigationMenu } from '../NavigationMenu';
+import { render, screen } from '@testing-library/react';
 
 it('should render navigation', () => {
   render(
-    <LeftSidebar>
-      <NavigationMenu {...props} />
+    <LeftSidebar Link={Link} routes={routes} t={(key) => `nav.${key}`} tHome={tHome}>
+      {(isCollapsed, toggleCollapsed, navigationMenu) => navigationMenu(() => {})}
     </LeftSidebar>
   );
 
@@ -608,41 +614,47 @@ vi.mock('@/hooks/useUI', () => ({
   })),
 }));
 
-// CORRECT - Mock browser APIs not in jsdom
-vi.mock('window.scrollTo', () => vi.fn());
+// CORRECT - Spy on browser APIs jsdom lacks (vitest.setup.ts gives scrollIntoView a no-op to spy on)
+vi.spyOn(Element.prototype, 'scrollIntoView');
 ```
 
 ### ✅ Do: Test actual rendered content
 
 ```tsx
+import { render, screen } from '@testing-library/react';
+
 it('should display translated text', () => {
-  render(<MyComponent t={(key) => `translated.${key}`} />);
+  render(<NavigationMenu Link={Link} routes={routes} t={(key) => `translated.${key}`} />);
 
   // Verify actual text rendered by component
-  expect(screen.getByText('translated.title')).toBeInTheDocument();
+  expect(screen.getByText('translated.know')).toBeInTheDocument();
 });
 ```
 
 ### ✅ Do: Test error states
 
 ```tsx
-it('should display error message on failure', async () => {
-  vi.spyOn(BrowseNamespace.prototype, 'resources').mockReturnValue(
-    throwError(() => new Error('Network error')),
-  );
+import { render, screen, fireEvent } from '@testing-library/react';
 
-  renderWithProviders(<ResourceList />);
+it('should display error message on failure', () => {
+  const onRetry = vi.fn();
+  render(<ResourceErrorState error={new Error('Network error')} onRetry={onRetry} />);
 
-  await screen.findByText(/error/i);
+  expect(screen.getByText('Network error')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try Again' }));
+  expect(onRetry).toHaveBeenCalledTimes(1);
 });
 ```
 
 ### ✅ Do: Test loading states
 
 ```tsx
-it('should show loading spinner', () => {
-  renderWithProviders(<ResourceList />);
-  expect(screen.getByRole('status')).toBeInTheDocument();
+import { render, screen } from '@testing-library/react';
+
+it('should show the loading message', () => {
+  render(<ResourceLoadingState />);
+  expect(screen.getByText('Loading resource...')).toBeInTheDocument();
 });
 ```
 
@@ -655,37 +667,43 @@ vi.mock('../NavigationMenu', () => ({
 }));
 
 // CORRECT - Use real component
-import { NavigationMenu } from '../NavigationMenu';
+import { NavigationMenu } from '@semiont/react-ui';
 ```
 
 ### ❌ Don't: Mock EventBus methods
 
 ```tsx
+import { EventBus } from '@semiont/core';
+
 // WRONG - Breaks real event flow
-vi.spyOn(EventBus, 'on');
-vi.spyOn(EventBus, 'emit');
+vi.spyOn(EventBus.prototype, 'on');
+vi.spyOn(EventBus.prototype, 'emit');
 
 // CORRECT - Listen on the real bus
-const { eventBus } = renderWithProviders(<MyComponent />, { returnEventBus: true });
+const { browser } = renderWithProviders(<Toolbar context="document" activePanel={null} />, { returnShellBus: true });
 const seen = vi.fn();
-eventBus!.on('browse:click').subscribe(seen);
+browser!.stream('panel:toggle').subscribe(seen);
 ```
 
 ### ❌ Don't: Test implementation details
 
 ```tsx
-// WRONG - Testing internal state
-expect(component.state.count).toBe(5);
+import { screen } from '@testing-library/react';
+
+const { container } = renderWithProviders(<Toolbar context="document" activePanel="info" />);
+
+// WRONG - Testing internal markup
+expect(container.querySelector('[data-panel="info"]')).toHaveAttribute('data-active', 'true');
 
 // CORRECT - Testing behavior
-expect(screen.getByText('Count: 5')).toBeInTheDocument();
+expect(screen.getByLabelText('Toolbar.resourceInfo')).toHaveAttribute('aria-pressed', 'true');
 ```
 
 ### ❌ Don't: Make tests dependent on each other
 
 ```tsx
 // WRONG - Tests share state
-let sharedData;
+let sharedData: { value: number };
 
 it('test 1', () => {
   sharedData = { value: 1 };
@@ -714,7 +732,7 @@ The `@semiont/react-ui` library uses **composition-based testing** as the primar
 ### Core Principles
 
 1. **Real components, not mocks** - Tests use actual React components via composition
-2. **The real bus for events** - A test subscribes on the bus `renderWithProviders` returns instead of mocking `EventBus`
+2. **The real bus for events** - A test subscribes on the real bus — the session's, or the browser's `stream` — instead of mocking `EventBus`
 3. **Mock minimally** - Only mock hooks, external APIs, and browser APIs not available in jsdom
 4. **Test behavior, not implementation** - Verify what users see, not internal state
 5. **Isolated tests** - Each test is independent with clean state
@@ -722,10 +740,10 @@ The `@semiont/react-ui` library uses **composition-based testing** as the primar
 ### What to Mock
 
 **✅ DO Mock:**
-- UI state hooks (`useDropdown`, `useModal`, `useCollapsible`)
+- UI state hooks (`useDropdown`)
 - External APIs (`fetch`, API client methods)
 - Browser APIs not in jsdom (`scrollIntoView`, `IntersectionObserver`)
-- Utility modules (`formatDate`, `parseJson`)
+- Utility modules (`getAnnotationExactText`, `getResourceIcon`)
 
 **❌ DON'T Mock:**
 - React components (`NavigationMenu`, `SemiontBranding`)
@@ -756,7 +774,7 @@ Our codebase includes 1300+ tests demonstrating these patterns:
 - **[UnifiedHeader.test.tsx](../src/components/layout/__tests__/UnifiedHeader.test.tsx)** - Header with real child components and dropdown hook
 - **[PageLayout.test.tsx](../src/components/layout/__tests__/PageLayout.test.tsx)** - Full page layout with a real UnifiedHeader
 - **[BrowseView.test.tsx](../src/components/resource/__tests__/BrowseView.test.tsx)** - Event-driven component listening on the real bus
-- **[AnnotateToolbar.test.tsx](../src/components/annotation/__tests__/AnnotateToolbar.test.tsx)** - Event emissions and subscriptions on the real bus
+- **[AnnotateToolbar.test.tsx](../src/components/annotation/__tests__/AnnotateToolbar.test.tsx)** - Presentational component: values in, choices reported through callbacks
 - **[ResourceInfoPanel.test.tsx](../src/components/resource/panels/__tests__/ResourceInfoPanel.test.tsx)** - Panel component with event tracking
 
 ### Key Benefits

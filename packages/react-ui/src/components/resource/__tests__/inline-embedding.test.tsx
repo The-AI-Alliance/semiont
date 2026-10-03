@@ -13,7 +13,7 @@
  */
 import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -52,15 +52,15 @@ describe('inline embedding (Phase 1)', () => {
       content: 'x', mimeType: 'text/plain', resourceUri: resourceId('res-1'),
       annotations: emptyAnnotations, annotateMode: false, session: fakeSession(),
     };
-    const { container: pane } = render(<BrowseView {...props} />);
+    const { container: pane } = renderInEnglish(<BrowseView {...props} />);
     expect(pane.querySelector('.semiont-browse-view')).not.toHaveClass('semiont-browse-view--inline');
 
-    const { container } = render(<BrowseView {...props} inline />);
+    const { container } = renderInEnglish(<BrowseView {...props} inline />);
     expect(container.querySelector('.semiont-browse-view')).toHaveClass('semiont-browse-view--inline');
   });
 
   it('ResourceViewer: `inline` marks its root and threads to BrowseView', () => {
-    const { container } = render(
+    const { container } = renderInEnglish(
       <ResourceViewer
         resource={resource} annotations={emptyAnnotations}
         session={fakeSession()} inline

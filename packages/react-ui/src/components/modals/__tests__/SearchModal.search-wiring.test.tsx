@@ -87,6 +87,17 @@ describe('SearchModal — search wiring', () => {
     isOpen: true,
     onClose: vi.fn(),
     onNavigate: vi.fn(),
+    translations: {
+      placeholder: 'Search resources, entities...',
+      searching: 'Searching...',
+      noResults: 'No results found for',
+      startTyping: 'Start typing to search...',
+      navigate: 'Navigate',
+      select: 'Select',
+      close: 'Close',
+      enter: 'Enter',
+      esc: 'ESC',
+    },
   };
 
   beforeEach(() => {

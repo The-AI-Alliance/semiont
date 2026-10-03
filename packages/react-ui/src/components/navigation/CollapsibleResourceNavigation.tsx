@@ -38,7 +38,7 @@ export function CollapsibleResourceNavigation({
   resources,
   isCollapsed,
   currentPath,
-  LinkComponent,
+  Link,
   onNavigate,
   getResourceHref,
   className = '',
@@ -213,7 +213,7 @@ export function CollapsibleResourceNavigation({
             {fixedItems.map((item) => {
               const isActive = currentPath === item.href;
               return (
-                <LinkComponent
+                <Link
                   key={item.href}
                   href={item.href}
                   className={`semiont-nav-tab ${isActive ? 'semiont-nav-tab--active' : ''}`}
@@ -222,7 +222,7 @@ export function CollapsibleResourceNavigation({
                 >
                   <item.icon className="semiont-nav-tab__icon" aria-hidden="true" />
                   <span className="semiont-nav-tab__text">{item.name}</span>
-                </LinkComponent>
+                </Link>
               );
             })}
           </nav>
@@ -234,7 +234,7 @@ export function CollapsibleResourceNavigation({
             {fixedItems.map((item) => {
               const isActive = currentPath === item.href;
               return (
-                <LinkComponent
+                <Link
                   key={item.href}
                   href={item.href}
                   className={`semiont-nav-tab ${isActive ? 'semiont-nav-tab--active' : ''}`}
@@ -243,7 +243,7 @@ export function CollapsibleResourceNavigation({
                   aria-label={item.name}
                 >
                   <item.icon className="semiont-nav-tab__icon" aria-hidden="true" />
-                </LinkComponent>
+                </Link>
               );
             })}
           </nav>
@@ -265,7 +265,7 @@ export function CollapsibleResourceNavigation({
                         isActive={isActive}
                         href={resourceHref}
                         onClose={handleResourceClose}
-                        LinkComponent={LinkComponent}
+                        Link={Link}
                         translations={{
                           dragToReorder: mergedTranslations.dragToReorder,
                           dragToReorderDoc: mergedTranslations.dragToReorderDoc,
@@ -301,7 +301,7 @@ export function CollapsibleResourceNavigation({
                             onReorder={handleKeyboardReorder}
                             index={index}
                             totalCount={resources.length}
-                            LinkComponent={LinkComponent}
+                            Link={Link}
                             translations={{
                               dragToReorder: mergedTranslations.dragToReorder,
                               dragToReorderDoc: mergedTranslations.dragToReorderDoc,

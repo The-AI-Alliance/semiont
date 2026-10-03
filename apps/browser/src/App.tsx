@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, Outlet, useParams, useNavigate } from 'react-router';
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, Navigate, Outlet, useParams, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { DEFAULT_LOCALE, isSupportedLocale } from './i18n/config';
+import { isSupportedLocale } from './i18n/config';
+import { LanguagePicker } from './app/language-picker';
 
 // Lazy-load page components for code splitting
 const LocaleLayout = React.lazy(() => import('./app/[locale]/layout'));
@@ -24,22 +25,45 @@ const NotFoundPage = React.lazy(() => import('./app/[locale]/not-found'));
 
 /**
  * LocaleGuard — validates the :locale param and loads the locale bundle.
- * Renders children once the locale bundle is ready; redirects unknown locales to default.
+ *
+ * No language is assumed. A locale the Browser does not serve gets the
+ * language picker. Children render only once i18next has a language whose
+ * bundle is loaded: nothing before the first one arrives, and the language
+ * already on screen while the route's next one loads. A locale whose bundle
+ * cannot be loaded is an error.
  */
 function LocaleGuard({ children }: { children: React.ReactNode }) {
   const { locale } = useParams<{ locale: string }>();
+  const { pathname, search, hash } = useLocation();
   const { i18n } = useTranslation();
+  const [outcome, setOutcome] = useState<{ locale: string; loaded: boolean } | null>(null);
+  const routeLocale = locale !== undefined && isSupportedLocale(locale) ? locale : null;
 
   useEffect(() => {
-    if (!locale) return;
-    const lang = isSupportedLocale(locale) ? locale : DEFAULT_LOCALE;
-    if (i18n.language !== lang) {
-      i18n.changeLanguage(lang);
-    }
-  }, [locale, i18n]);
+    if (routeLocale === null) return;
+    if (i18n.language === routeLocale && i18n.hasResourceBundle(routeLocale, 'translation')) return;
 
-  if (!locale || !isSupportedLocale(locale)) {
-    return <Navigate to={`/${DEFAULT_LOCALE}`} replace />;
+    let current = true;
+    i18n.changeLanguage(routeLocale).then(() => {
+      if (current) {
+        setOutcome({ locale: routeLocale, loaded: i18n.hasResourceBundle(routeLocale, 'translation') });
+      }
+    });
+    return () => {
+      current = false;
+    };
+  }, [routeLocale, i18n]);
+
+  if (routeLocale === null) {
+    return <LanguagePicker path={pathname.replace(/^\/[^/]+/, '') + search + hash} />;
+  }
+
+  if (outcome?.locale === routeLocale && !outcome.loaded) {
+    throw new Error(`The translations for ${routeLocale} could not be loaded`);
+  }
+
+  if (!i18n.language || !i18n.hasResourceBundle(i18n.language, 'translation')) {
+    return null;
   }
 
   return <>{children}</>;
@@ -61,26 +85,25 @@ function ProtectedLayout() {
 }
 
 /**
- * RootRedirect — detect browser language and redirect / to /:locale
+ * RootLocale — sends / to the browser's language when the Browser serves it,
+ * and offers the language picker when it does not.
  */
-function RootRedirect() {
-  const navigate = useNavigate();
+function RootLocale() {
+  const browserLocale = navigator.language.split('-')[0];
 
-  useEffect(() => {
-    const browserLocale = navigator.language.split('-')[0] ?? DEFAULT_LOCALE;
-    const locale = isSupportedLocale(browserLocale) ? browserLocale : DEFAULT_LOCALE;
-    navigate(`/${locale}`, { replace: true });
-  }, [navigate]);
+  if (browserLocale !== undefined && isSupportedLocale(browserLocale)) {
+    return <Navigate to={`/${browserLocale}`} replace />;
+  }
 
-  return null;
+  return <LanguagePicker path="" />;
 }
 
 export default function App() {
   return (
     <React.Suspense fallback={null}>
       <Routes>
-        {/* Root: detect locale and redirect */}
-        <Route path="/" element={<RootRedirect />} />
+        {/* Root: the browser's language, or the language picker */}
+        <Route path="/" element={<RootLocale />} />
 
         {/* Locale-prefixed routes */}
         <Route
@@ -121,9 +144,6 @@ export default function App() {
           {/* 404 within locale */}
           <Route path="*" element={<NotFoundPage />} />
         </Route>
-
-        {/* Global 404 fallback */}
-        <Route path="*" element={<Navigate to={`/${DEFAULT_LOCALE}`} replace />} />
       </Routes>
     </React.Suspense>
   );

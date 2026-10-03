@@ -14,7 +14,8 @@
  * that its latency — up to and including "never" — cannot hold the image.
  */
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { waitFor } from '@testing-library/react';
+import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { resourceId } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
@@ -55,7 +56,7 @@ describe('PdfAnnotationCanvas — pixels before anchoring', () => {
       subscribe: () => () => {},
     } as unknown as SemiontSession;
 
-    render(
+    renderInEnglish(
       <PdfAnnotationCanvas
         resourceUri={resourceId(String(resourceId('123')))}
         pdfUrl="https://example.com/resources/123.pdf"
@@ -80,7 +81,7 @@ describe('PdfAnnotationCanvas — pixels before anchoring', () => {
       subscribe: () => () => {},
     } as unknown as SemiontSession;
 
-    render(
+    renderInEnglish(
       <PdfAnnotationCanvas
         resourceUri={resourceId(String(resourceId('123')))}
         pdfUrl="https://example.com/resources/123.pdf"

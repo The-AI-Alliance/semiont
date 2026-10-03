@@ -3,7 +3,7 @@
 ## Overview
 
 The Semiont Browser carries the machinery for fine-grained access control, but
-nothing currently exercises it. The gateway has exactly one authorization gate —
+nothing exercises it. The gateway has exactly one authorization gate —
 authenticate, or 401 — and returns no 403 anywhere, so the permission-denied path
 below is wired end to end and dormant. It is the place a future per-resource
 permission model would arrive, not a description of a system running today.
@@ -41,26 +41,37 @@ component that gates on a role flag is gating on `undefined`.
 
 #### 2. PermissionDeniedModal (`@semiont/react-ui`)
 
-A library modal that surfaces when users encounter 403 errors. It reads the active session's `SessionSignals` (specifically `permissionDenied$`, exposed by the browser as `activeSignals$`), so it appears whenever that signal becomes non-null. Recovery options:
+A library modal that surfaces when users encounter 403 errors. It reads the active session's `SessionSignals` (specifically `permissionDenied$`, exposed by the browser as `activeSignals$`), so it appears whenever that signal becomes non-null. Its own copy is in the person's language; beneath it is the refusal's own message, unaltered and marked as the knowledge base's. Recovery options:
 
 - **Go Back** - Return to previous page
 - **Go to Home** - Navigate to home page
 - **Switch Account** - Sign in with different credentials
 
-The modal is mounted inside `AuthShell` alongside `SessionExpiredModal`.
+The modal is mounted inside `AuthShell` alongside `SessionEndedModal`.
 
 #### 3. `signals.notifyPermissionDenied` (`@semiont/sdk`)
 
 A 403 from the gateway surfaces on the transport's error stream; the `SemiontBrowser` observes it and raises the signal on the active session's `SessionSignals`:
 
 ```typescript
-// inside SemiontBrowser, observing transport errors
-if (error instanceof APIError && error.status === 403) {
-  signals.notifyPermissionDenied(error.message);
-}
+// inside SemiontBrowser, observing the session's transport errors
+declare const signals: SessionSignals; // the session's signals
+
+session.errors$.subscribe((err) => {
+  if (err.code === 'unauthorized') {
+    void session.refresh();
+  } else if (err.code === 'forbidden') {
+    signals.notifyPermissionDenied(err.message);
+  }
+});
 ```
 
-When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so nothing is raised. The signal is cleared (`clearPermissionDenied`) when the user dismisses the modal.
+A `401` is not routed to the modal directly: `session.refresh()` either heals
+the session in silence or, when renewal is exhausted, ends it and raises
+session-ended. A `403` has no recovery, so it raises permission-denied with the
+refusal's message as its detail.
+
+When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so nothing is raised. The signal is cleared (`acknowledgePermissionDenied`) when the user dismisses the modal.
 
 ## 403 Error Handling Flow
 
@@ -85,11 +96,7 @@ flowchart TD
    - Preserves error context from the gateway
 
 2. **Session Level** (`@semiont/sdk` — `SemiontBrowser`)
-   ```typescript
-   if (error instanceof APIError && error.status === 403) {
-     signals.notifyPermissionDenied('Permission denied');
-   }
-   ```
+   - Routes a `forbidden` error to `signals.notifyPermissionDenied(err.message)` (above)
 
 3. **Component Level**
    - Nothing to check proactively. With no role flags and no 403s, a component
@@ -133,7 +140,7 @@ interface PermissionError {
 
 #### 2. Permission-Aware Components
 
-```typescript sketch
+```tsx sketch
 function DocumentEditor({ document }) {
   const permissions = useDocumentPermissions(document.id);
 
@@ -183,11 +190,11 @@ interface AccessRequest {
 #### Permission Caching Strategy
 
 ```typescript
-const permissionCache = new Map({
-  'document:123': ['read', 'comment'],
-  'collection:abc': ['read', 'write'],
-  'global': ['create_document']
-});
+const permissionCache = new Map<string, string[]>([
+  ['document:123', ['read', 'comment']],
+  ['collection:abc', ['read', 'write']],
+  ['global', ['create_document']],
+]);
 ```
 
 ## Integration with Authentication
@@ -206,15 +213,15 @@ Both systems use the same event-driven architecture for consistent error handlin
 There is no permission to check before acting. What the session can tell you is
 who the caller is — which is what attribution and "is this mine?" need:
 
-```typescript
+```tsx
 function MyComponent() {
   const session = useObservable(useSemiont().activeSession$);
   const me = useObservable(session?.user$);
 
   // Recognise this viewer's own work in the data.
-  const mine = annotations.filter((a) => a.creator === me?.did);
+  const mine = annotations.filter((a) => a.creator?.['@id'] === me?.did);
 
-  return <AnnotationList items={mine} />;
+  return <p>{mine.length} of these annotations are yours</p>;
 }
 ```
 
@@ -239,25 +246,27 @@ try {
 1. **Trigger 403 error** - Access restricted resource
 2. **Verify modal appears** - PermissionDeniedModal should show
 3. **Test recovery options** - Each button should work correctly
-4. **Check toast notifications** - Brief error message should appear
 
 ### Automated Testing
 
-```typescript
+Raise the signal on a real test browser and render the modal against it —
+the pattern of
+`packages/react-ui/src/components/modals/__tests__/PermissionDeniedModal.test.tsx`,
+which also replaces `@headlessui/react`'s `Dialog` and `Transition` with plain
+elements:
+
+```tsx
+import { renderWithProviders, createTestBrowserWithSignals, screen } from '@semiont/react-ui/test-utils';
+
+const SAID = 'Archiving needs the curator role.';
+
 describe('Authorization', () => {
-  it('shows PermissionDeniedModal on 403', async () => {
-    // Mock API to return 403
-    server.use(
-      http.get('/api/resources/*', () => {
-        return new Response('Forbidden', { status: 403 });
-      })
-    );
+  it("shows the knowledge base's refusal beneath the modal's own copy", () => {
+    renderWithProviders(<PermissionDeniedModal />, {
+      browser: createTestBrowserWithSignals({ permissionDenied: { detail: SAID } }),
+    });
 
-    // Trigger API call
-    await userEvent.click(screen.getByText('Admin Action'));
-
-    // Verify modal appears
-    expect(screen.getByText('Access Denied')).toBeInTheDocument();
+    expect(screen.getByText(SAID).tagName).toBe('BLOCKQUOTE');
   });
 });
 ```
@@ -266,7 +275,7 @@ describe('Authorization', () => {
 
 ### Environment Variables
 
-There are currently no authorization-specific environment variables.
+There are no authorization-specific environment variables.
 
 ### Permission Definitions
 
@@ -288,7 +297,7 @@ const permissions = {
      refusal is a 401 — so against it the modal is expected never to show.
    - Check that the transport surfaced a `forbidden` error on `session.errors$` (it drives `notifyPermissionDenied`)
    - Verify `PermissionDeniedModal` is mounted inside `AuthShell`
-   - Confirm the page is inside the protected layout boundary — outside it, no provider is mounted and the notify call is a no-op
+   - Confirm the page is inside the protected layout boundary — outside it, `AuthShell` and so the modal are not mounted
    - Check browser console for errors
 
 2. **Looking for role flags**

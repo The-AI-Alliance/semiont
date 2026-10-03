@@ -18,11 +18,11 @@
  * (CACHE-SEMANTICS B20), so a list nothing observes is not invalidated at all.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, act, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { ResourceDescriptor as SemiontResource, ResourceId, StoredEvent, EventOfType, UserId, EventMetadata, Annotation } from '@semiont/core';
 import { annotationId, resourceId as makeResourceId } from '@semiont/core';
-import { createTestSemiontWrapper } from '../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
 import { ResourceViewer } from '../ResourceViewer';
 
 const TEST_USER = 'did:web:test:users:test' as UserId;
@@ -70,7 +70,7 @@ const annotations = { highlights: [], references: [], assessments: [], comments:
 function mountTwoViewers() {
   const wrapper = createTestSemiontWrapper();
   const spy = vi.spyOn(wrapper.client.browse, 'invalidateAnnotationList');
-  render(
+  renderInEnglish(
     <>
       <ResourceViewer
         session={wrapper.session}

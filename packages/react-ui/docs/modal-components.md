@@ -16,48 +16,29 @@ A comprehensive global search modal with keyboard navigation and real-time searc
 
 - **Real-time Search**: Debounced search with loading states
 - **Keyboard Navigation**: Arrow keys to navigate, Enter to select, ESC to close
-- **Result Types**: Supports different result types (resources, entities, etc.)
+- **Result Types**: Renders resource and entity rows; the search it runs returns resources
 - **Visual Feedback**: Loading states, empty states, and result highlighting
 - **Accessibility**: Full keyboard and screen reader support
 
 #### Props
 
-```typescript
-interface SearchModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onNavigate: (type: 'resource' | 'entity', id: string) => void;
-  translations?: {
-    placeholder?: string;
-    searching?: string;
-    noResults?: string;
-    startTyping?: string;
-    navigate?: string;
-    select?: string;
-    close?: string;
-    enter?: string;
-    esc?: string;
-  };
-}
-```
+The props are the component's own — `ComponentProps<typeof SearchModal>`:
+
+- `isOpen`, `onClose` — the parent owns the open state; picking a result calls `onClose` before `onNavigate`.
+- `onNavigate(type, id)` — called with the picked result's type (`'resource' | 'entity'`) and id; the host routes.
+- `translations` — `placeholder`, `searching`, `noResults`, `startTyping`, `navigate`, `select`, `close`, `enter`, `esc`. All nine are required: the modal has no strings of its own.
 
 #### Usage Example
 
 ```tsx
 import { SearchModal } from '@semiont/react-ui';
-import { useRouter } from 'next/navigation';
 
 function GlobalSearch() {
   const [isOpen, setIsOpen] = useState(false);
-  const router = useRouter();
 
+  // The search returns resources
   const handleNavigate = (type: 'resource' | 'entity', id: string) => {
-    if (type === 'resource') {
-      router.push(`/resource/${id}`);
-    } else {
-      router.push(`/entity/${id}`);
-    }
-    setIsOpen(false);
+    if (type === 'resource') navigate(routes.resourceDetail(id));
   };
 
   return (
@@ -71,10 +52,15 @@ function GlobalSearch() {
         onClose={() => setIsOpen(false)}
         onNavigate={handleNavigate}
         translations={{
-          placeholder: 'Search resources, entities...',
-          searching: 'Searching...',
-          noResults: 'No results found',
-          startTyping: 'Start typing to search'
+          placeholder: t('placeholder'),
+          searching: t('searching'),
+          noResults: t('noResults'),
+          startTyping: t('startTyping'),
+          navigate: t('navigate'),
+          select: t('select'),
+          close: t('close'),
+          enter: t('enter'),
+          esc: t('esc'),
         }}
       />
     </>
@@ -91,7 +77,7 @@ Modal components use BEM-style CSS classes:
 .semiont-search-modal
 .semiont-search-modal__backdrop
 .semiont-search-modal__panel
-.semiont-search-modal__header
+.semiont-search-modal__input-container
 .semiont-search-modal__input
 .semiont-search-modal__results
 .semiont-search-modal__result
@@ -133,41 +119,16 @@ import { SearchModal, useSemiont } from '@semiont/react-ui';
 
 ## Platform Integration Examples
 
-### Next.js with App Router
-
-```tsx
-import { SearchModal } from '@semiont/react-ui';
-import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
-
-export function NextSearchModal({ isOpen, onClose }) {
-  const router = useRouter();
-  const t = useTranslations('Search');
-
-  return (
-    <SearchModal
-      isOpen={isOpen}
-      onClose={onClose}
-      onNavigate={(type, id) => {
-        router.push(`/${type}/${id}`);
-      }}
-      translations={{
-        placeholder: t('placeholder'),
-        searching: t('searching'),
-        // ... other translations
-      }}
-    />
-  );
-}
-```
-
 ### Vite with React Router
 
+The Semiont Browser's own wrapper is `GlobalSearchModal`
+(`apps/browser/src/components/modals/GlobalSearchModal.tsx`).
+
 ```tsx
 import { SearchModal } from '@semiont/react-ui';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
-export function ViteSearchModal({ isOpen, onClose }) {
+export function ViteSearchModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const navigate = useNavigate();
 
   return (
@@ -178,8 +139,15 @@ export function ViteSearchModal({ isOpen, onClose }) {
         navigate(`/${type}/${id}`);
       }}
       translations={{
-        placeholder: 'Search...',
-        // ... translations
+        placeholder: t('placeholder'),
+        searching: t('searching'),
+        noResults: t('noResults'),
+        startTyping: t('startTyping'),
+        navigate: t('navigate'),
+        select: t('select'),
+        close: t('close'),
+        enter: t('enter'),
+        esc: t('esc'),
       }}
     />
   );
@@ -188,14 +156,10 @@ export function ViteSearchModal({ isOpen, onClose }) {
 
 ## Type Definitions
 
-All modal types are exported:
+Derive the props type from the component:
 
 ```typescript
-import type {
-  SearchModalProps,
-  BaseModalProps,
-  NavigableModalProps
-} from '@semiont/react-ui';
+type Props = ComponentProps<typeof SearchModal>;
 ```
 
 ## Best Practices
@@ -213,6 +177,8 @@ import type {
 ### Global Command Palette
 
 ```tsx
+const [searchOpen, setSearchOpen] = useState(false);
+
 // Add keyboard shortcut to open search
 useEffect(() => {
   const handleKeyDown = (e: KeyboardEvent) => {

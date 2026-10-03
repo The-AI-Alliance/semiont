@@ -9,8 +9,9 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use semiont::client::SemiontClient;
 use semiont::errors::{SemiontError, SessionError, SessionErrorCode, TransportError};
 use semiont::session::{
-    KbIdentityConflict, KbTarget, Protocol, SemiontSession, SemiontSessionConfig, SessionNotice,
-    SessionSignals, StoredSession, session_key, store_session, stored_session,
+    KbIdentityConflict, KbTarget, PermissionDenied, Protocol, SemiontSession, SemiontSessionConfig,
+    SessionEndReason, SessionEnded, SessionSignals, StoredSession, session_key, store_session,
+    stored_session,
 };
 use semiont::storage::SessionStorage;
 use semiont::testing::axioms::{AxiomSubject, Fresh, Surface, assert_state_unit_axioms};
@@ -161,11 +162,11 @@ impl World {
                     .unwrap_or_else(|| Ok(alice()));
                 Box::pin(async move { answer })
             })),
-            on_auth_failed: Some(Arc::new(move |message| {
+            on_auth_failed: Some(Arc::new(move |reason: SessionEndReason| {
                 auth_failed
                     .lock()
                     .expect("auth failed")
-                    .push(message.to_owned());
+                    .push(reason.as_str().to_owned());
             })),
             on_error: Some(Arc::new(move |error| {
                 errors.lock().expect("errors").push(error);
@@ -213,8 +214,6 @@ async fn ready(session: &SemiontSession) {
 async fn settle() {
     tokio::time::sleep(Duration::from_millis(1)).await;
 }
-
-const EXPIRED: &str = "Your session has expired. Please sign in again.";
 
 // ── How it starts ───────────────────────────────────────────────────────
 
@@ -330,7 +329,7 @@ async fn a_token_the_gateway_refuses_and_nothing_renews_ends_the_session() {
     assert_eq!(*session.token().borrow(), None);
     assert_eq!(*session.user().borrow(), None);
     assert!(!world.has_stored());
-    assert_eq!(world.auth_failed(), [EXPIRED]);
+    assert_eq!(world.auth_failed(), ["expired"]);
 }
 
 #[tokio::test(start_paused = true)]
@@ -425,15 +424,10 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
         assert_eq!(ends, case["ends"].as_str().expect("ends"), "{why}");
         let told: Vec<String> = case["told"]
             .as_str()
-            .map(|name| {
-                table["messages"][name]
-                    .as_str()
-                    .expect("a message")
-                    .to_owned()
-            })
+            .map(str::to_owned)
             .into_iter()
             .collect();
-        assert_eq!(world.auth_failed(), told, "{why}: what the person is told");
+        assert_eq!(world.auth_failed(), told, "{why}: why the session ended");
         let reported: Vec<&str> = world
             .errors()
             .iter()
@@ -545,15 +539,10 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
         assert_eq!(ends, case["ends"].as_str().expect("ends"), "{why}");
         let told: Vec<String> = case["told"]
             .as_str()
-            .map(|name| {
-                table["messages"][name]
-                    .as_str()
-                    .expect("a message")
-                    .to_owned()
-            })
+            .map(str::to_owned)
             .into_iter()
             .collect();
-        assert_eq!(world.auth_failed(), told, "{why}: what the person is told");
+        assert_eq!(world.auth_failed(), told, "{why}: why the session ended");
         let reported: Vec<&str> = world
             .errors()
             .iter()
@@ -880,7 +869,7 @@ async fn a_session_that_cannot_be_renewed_is_over_and_says_so_once() {
     assert_eq!(*session.token().borrow(), None);
     // The dead credential is not kept to be used again.
     assert!(!world.has_stored());
-    assert_eq!(world.auth_failed(), [EXPIRED]);
+    assert_eq!(world.auth_failed(), ["expired"]);
     assert_eq!(
         world.errors(),
         [(
@@ -905,7 +894,7 @@ async fn a_renewal_that_failed_ends_the_session_as_a_refusal_does_and_names_its_
 
     assert_eq!(session.refresh().await, None);
     assert!(!world.has_stored());
-    assert_eq!(world.auth_failed(), [EXPIRED]);
+    assert_eq!(world.auth_failed(), ["expired"]);
     assert_eq!(
         world.errors(),
         [(
@@ -1065,55 +1054,64 @@ async fn a_closed_session_hears_nothing_of_the_storage() {
 
 // ── What a host shows about a session ───────────────────────────────────
 
-fn notice(message: &str) -> Option<SessionNotice> {
-    Some(SessionNotice {
-        message: message.to_owned(),
+fn ended(reason: SessionEndReason) -> Option<SessionEnded> {
+    Some(SessionEnded { reason })
+}
+
+fn denied(detail: Option<&str>) -> Option<PermissionDenied> {
+    Some(PermissionDenied {
+        detail: detail.map(str::to_owned),
     })
 }
 
 #[test]
 fn nothing_is_raised_until_something_is() {
     let signals = SessionSignals::new();
-    assert_eq!(*signals.session_expired().borrow(), None);
+    assert_eq!(*signals.session_ended().borrow(), None);
     assert_eq!(*signals.permission_denied().borrow(), None);
     assert_eq!(*signals.kb_identity_conflict().borrow(), None);
 }
 
 #[test]
-fn a_notice_carries_its_message_or_the_one_it_has_when_given_none() {
+fn a_notice_carries_what_happened_not_a_sentence() {
     let signals = SessionSignals::new();
-    signals.notify_session_expired(Some("The issuer signed you out."));
-    signals.notify_permission_denied(Some("Not yours to archive."));
+    signals.notify_session_ended(SessionEndReason::Refused);
+    signals.notify_permission_denied(Some("Archiving needs the curator role."));
     assert_eq!(
-        *signals.session_expired().borrow(),
-        notice("The issuer signed you out.")
+        *signals.session_ended().borrow(),
+        ended(SessionEndReason::Refused)
     );
     assert_eq!(
         *signals.permission_denied().borrow(),
-        notice("Not yours to archive.")
+        denied(Some("Archiving needs the curator role."))
     );
+}
 
-    signals.notify_session_expired(None);
+#[test]
+fn a_gateway_that_said_nothing_is_no_detail_never_a_sentence_made_up_for_it() {
+    let signals = SessionSignals::new();
     signals.notify_permission_denied(None);
-    assert_eq!(*signals.session_expired().borrow(), notice(EXPIRED));
-    assert_eq!(
-        *signals.permission_denied().borrow(),
-        notice("You do not have permission to perform this action.")
-    );
+    assert_eq!(*signals.permission_denied().borrow(), denied(None));
+}
+
+#[test]
+fn a_reason_is_named_as_the_table_names_it() {
+    assert_eq!(SessionEndReason::Expired.as_str(), "expired");
+    assert_eq!(SessionEndReason::Refused.as_str(), "refused");
 }
 
 #[test]
 fn a_second_occurrence_is_told_even_when_it_says_the_same() {
     let signals = SessionSignals::new();
-    let mut expired = signals.session_expired();
+    let mut ended = signals.session_ended();
     let mut denied = signals.permission_denied();
 
-    signals.notify_session_expired(None);
+    signals.notify_session_ended(SessionEndReason::Expired);
     signals.notify_permission_denied(None);
-    assert!(expired.moved() && denied.moved());
-    signals.notify_session_expired(None);
+    assert!(ended.moved() && denied.moved());
+    signals.notify_session_ended(SessionEndReason::Expired);
     signals.notify_permission_denied(None);
-    assert!(expired.moved() && denied.moved());
+    assert!(ended.moved() && denied.moved());
 }
 
 #[test]
@@ -1123,15 +1121,15 @@ fn acknowledging_a_signal_lowers_it() {
         expected_did: "did:web:example.org:kb-a".to_owned(),
         observed_did: "did:web:example.org:kb-b".to_owned(),
     };
-    signals.notify_session_expired(None);
+    signals.notify_session_ended(SessionEndReason::Expired);
     signals.notify_permission_denied(None);
     signals.notify_kb_identity_conflict(conflict.clone());
     assert_eq!(*signals.kb_identity_conflict().borrow(), Some(conflict));
 
-    signals.acknowledge_session_expired();
+    signals.acknowledge_session_ended();
     signals.acknowledge_permission_denied();
     signals.acknowledge_kb_identity_conflict();
-    assert_eq!(*signals.session_expired().borrow(), None);
+    assert_eq!(*signals.session_ended().borrow(), None);
     assert_eq!(*signals.permission_denied().borrow(), None);
     assert_eq!(*signals.kb_identity_conflict().borrow(), None);
 }
@@ -1147,7 +1145,7 @@ impl AxiomSubject for Signals {
 
     fn surfaces(&self, unit: &SessionSignals) -> Vec<Box<dyn Surface>> {
         vec![
-            Box::new(unit.session_expired()),
+            Box::new(unit.session_ended()),
             Box::new(unit.permission_denied()),
             Box::new(unit.kb_identity_conflict()),
         ]
@@ -1155,9 +1153,9 @@ impl AxiomSubject for Signals {
 
     fn invocations<'a>(&self, unit: &'a SessionSignals) -> Vec<Box<dyn Fn() + 'a>> {
         vec![
-            Box::new(|| unit.notify_session_expired(None)),
+            Box::new(|| unit.notify_session_ended(SessionEndReason::Expired)),
             Box::new(|| unit.notify_permission_denied(Some("no"))),
-            Box::new(|| unit.acknowledge_session_expired()),
+            Box::new(|| unit.acknowledge_session_ended()),
             Box::new(|| unit.acknowledge_kb_identity_conflict()),
         ]
     }

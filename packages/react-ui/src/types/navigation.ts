@@ -1,4 +1,4 @@
-import { ComponentType, ReactNode } from 'react';
+import { ComponentType } from 'react';
 
 /**
  * Represents a single navigation item
@@ -13,25 +13,3 @@ export interface NavigationItem {
   /** Optional description/tooltip text */
   description?: string;
 }
-
-/**
- * Props for navigation components that need framework-specific routing
- */
-export interface NavigationProps {
-  /** List of navigation items to display */
-  items: NavigationItem[];
-  /** Current active path for highlighting */
-  currentPath: string;
-  /** Framework-specific Link component (e.g., Next.js Link) */
-  LinkComponent: ComponentType<{
-    href: string;
-    className?: string;
-    children: ReactNode;
-    title?: string;
-  }>;
-  /** Optional CSS class name */
-  className?: string;
-  /** Optional section title */
-  title?: string;
-}
-

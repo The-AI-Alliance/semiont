@@ -4,11 +4,12 @@ import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../test-utils';
 import { SimpleNavigation } from '../SimpleNavigation';
 import type { SimpleNavigationItem } from '../SimpleNavigation';
+import type { LinkComponentProps } from '../../../contexts/RoutingContext';
 
 const MockChevronLeft = (props: any) => <span data-testid="chevron" {...props} />;
 const MockBars = (props: any) => <span data-testid="bars" {...props} />;
 
-const MockLink = ({ href, children, ...props }: any) => (
+const MockLink = ({ href, children, ...props }: LinkComponentProps) => (
   <a href={href} {...props}>{children}</a>
 );
 
@@ -24,7 +25,7 @@ const defaultProps = {
   title: 'Administration',
   items: defaultItems,
   currentPath: '/admin/dashboard',
-  LinkComponent: MockLink,
+  Link: MockLink,
   isCollapsed: false,
   icons: {
     chevronLeft: MockChevronLeft,

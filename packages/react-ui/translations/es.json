@@ -321,7 +321,7 @@
     "modalNavBackward": "Navegar hacia atrás por los botones",
     "modalActivate": "Activar botón enfocado",
     "accessibilityTitle": "Accesibilidad",
-    "a11ySkipLinks": "Navegar a enlaces de salto (al inicio de la página)",
+    "a11ySkipLinks": "Navegar al enlace de salto (al inicio de la página)",
     "a11yFollowLink": "Seguir enlace de salto",
     "macNote": "Usando atajos de teclado de Mac. ⌘ es la tecla Command.",
     "windowsNote": "Usando atajos de teclado de Windows/Linux. Ctrl es la tecla Control.",
@@ -510,5 +510,26 @@
     "stateCleared": "Las pestañas abiertas y la última posición de esta entrada se han borrado — describían contenidos que esta base de conocimiento no tiene. La entrada del registro permanece sin cambios.",
     "dismiss": "Descartar",
     "reviewKnowledgeBases": "Revisar bases de conocimiento"
+  },
+  "SessionEndedModal": {
+    "title": "Sesión cerrada",
+    "expired": "Su sesión ha expirado. Inicie sesión de nuevo.",
+    "refused": "Esta base de conocimiento no aceptó su inicio de sesión. Inicie sesión de nuevo.",
+    "goHome": "Ir al inicio",
+    "signInAgain": "Iniciar sesión de nuevo"
+  },
+  "PermissionDeniedModal": {
+    "title": "Acceso denegado",
+    "reasonsIntro": "Posibles causas:",
+    "reasonPermissions": "No tiene los permisos necesarios",
+    "reasonRestricted": "El recurso está restringido a usuarios o equipos específicos",
+    "reasonAccountType": "Su tipo de cuenta no incluye esta función",
+    "detailLabel": "La base de conocimiento indicó:",
+    "goBack": "Volver",
+    "goHome": "Ir al inicio",
+    "switchAccount": "Cambiar de cuenta"
+  },
+  "SkipLinks": {
+    "mainContent": "Saltar al contenido principal"
   }
 }

@@ -3,6 +3,7 @@ import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../test-utils';
 import type { SortableResourceTabProps } from '../../../types/collapsible-navigation';
+import type { LinkComponentProps } from '../../../contexts/RoutingContext';
 
 // Mock @dnd-kit/sortable
 const mockSetNodeRef = vi.fn();
@@ -40,7 +41,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { SortableResourceTab } from '../SortableResourceTab';
 
 describe('SortableResourceTab', () => {
-  const MockLink = ({ href, children, ...props }: any) => (
+  const MockLink = ({ href, children, ...props }: LinkComponentProps) => (
     <a href={href} {...props}>
       {children}
     </a>
@@ -57,8 +58,8 @@ describe('SortableResourceTab', () => {
     isActive: false,
     href: '/resources/resource-1',
     onClose: vi.fn(),
-    LinkComponent: MockLink,
-    translations: {},
+    Link: MockLink,
+    translations: { closeResource: 'Close resource' },
     index: 0,
     totalCount: 3,
   };
@@ -210,11 +211,17 @@ describe('SortableResourceTab', () => {
       expect(closeButton).toBeInTheDocument();
     });
 
-    it('should default to "Close resource" title', () => {
-      renderWithProviders(<SortableResourceTab {...defaultProps} />);
+    it('takes its close title from its caller', () => {
+      const { translations: _translations, ...withoutTranslations } = defaultProps;
 
-      const closeButton = screen.getByTitle('Close resource');
-      expect(closeButton).toBeInTheDocument();
+      const elements = [
+        // @ts-expect-error no translations
+        <SortableResourceTab {...withoutTranslations} />,
+        // @ts-expect-error no close title
+        <SortableResourceTab {...defaultProps} translations={{}} />,
+      ];
+
+      expect(elements).toHaveLength(2);
     });
   });
 

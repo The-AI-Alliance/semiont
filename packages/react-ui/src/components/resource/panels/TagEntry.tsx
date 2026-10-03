@@ -9,7 +9,7 @@ import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
 import { useObservable } from '../../../hooks/useObservable';
 import type { SemiontSession } from '@semiont/sdk';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
-import { renderAgentLabel } from './agent-label';
+import { renderAgentLabels } from './agent-label';
 
 interface TagEntryProps {
   /** Session for interaction routing (browse.click, tag schemas); the panel threads it. */
@@ -75,11 +75,9 @@ export function TagEntry({
       <div className="semiont-annotation-entry__quote" data-type="tag">
         "{selectedText.substring(0, 150)}{selectedText.length > 150 ? '...' : ''}"
       </div>
-      {tag.generator && (
+      {tag.generator && renderAgentLabels(tag.generator) && (
         <div className="semiont-annotation-entry__metadata">
-          Via {Array.isArray(tag.generator)
-            ? tag.generator.map(renderAgentLabel).join(', ')
-            : renderAgentLabel(tag.generator)}
+          Via {renderAgentLabels(tag.generator)}
         </div>
       )}
     </div>

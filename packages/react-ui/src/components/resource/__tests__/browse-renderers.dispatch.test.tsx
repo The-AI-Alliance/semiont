@@ -14,7 +14,8 @@
  * all; pdf: no session) → GREEN.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, within } from '@testing-library/react';
+import { within } from '@testing-library/react';
+import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, AnnotationId } from '@semiont/core';
@@ -82,7 +83,7 @@ describe('browse-renderers — annotation + session forwarding (dispatch contrac
   it('image browse mounts the read-only annotation canvas with the annotations and session', () => {
     const session = fakeSession();
     const annotations = { ...emptyAnnotations, highlights: [shapeAnnotation()] };
-    const { container } = render(
+    const { container } = renderInEnglish(
       <BrowseView {...baseProps} content="blob:image-url" mimeType="image/png"
         annotations={annotations} session={session} />,
     );
@@ -99,7 +100,7 @@ describe('browse-renderers — annotation + session forwarding (dispatch contrac
   it('pdf browse keeps its annotations (pinned) and gains the session (the healed click gap)', async () => {
     const session = fakeSession();
     const annotations = { ...emptyAnnotations, highlights: [shapeAnnotation()] };
-    const { container } = render(
+    const { container } = renderInEnglish(
       <BrowseView {...baseProps} content="blob:pdf-url" mimeType="application/pdf"
         annotations={annotations} session={session} />,
     );
@@ -121,7 +122,7 @@ describe('browse-renderers — annotation + session forwarding (dispatch contrac
   it('the annotate registry asks for the column as well, with the live tool', async () => {
     const session = fakeSession();
     const { AnnotateView } = await import('../AnnotateView');
-    const { container } = render(
+    const { container } = renderInEnglish(
       <AnnotateView
         content="blob:pdf-url"
         mimeType="application/pdf"

@@ -8,7 +8,7 @@ import { UploadProgressBar } from '../components/UploadProgressBar';
 describe('UploadProgressBar', () => {
   describe('null progress', () => {
     it('renders nothing when progress is null', () => {
-      const { container } = render(<UploadProgressBar progress={null} />);
+      const { container } = render(<UploadProgressBar progress={null} label="Upload" />);
       expect(container.firstChild).toBeNull();
     });
   });
@@ -16,8 +16,15 @@ describe('UploadProgressBar', () => {
   describe('phase: started', () => {
     const started: UploadProgress = { phase: 'started', totalBytes: 1024 };
 
-    it('shows the starting label with default "Upload" prefix', () => {
-      render(<UploadProgressBar progress={started} />);
+    it('takes its label from its caller', () => {
+      // @ts-expect-error no label
+      const element = <UploadProgressBar progress={started} />;
+
+      expect(element).toBeTruthy();
+    });
+
+    it('shows the starting line under the label it is given', () => {
+      render(<UploadProgressBar progress={started} label="Upload" />);
       expect(screen.getByText('Upload: starting…')).toBeInTheDocument();
     });
 
@@ -27,14 +34,14 @@ describe('UploadProgressBar', () => {
     });
 
     it('renders an indeterminate bar (no role=progressbar in this phase)', () => {
-      const { container } = render(<UploadProgressBar progress={started} />);
+      const { container } = render(<UploadProgressBar progress={started} label="Upload" />);
       expect(screen.getByRole('status')).toBeInTheDocument();
       expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       expect(container.querySelector('.semiont-progress--indeterminate')).not.toBeNull();
     });
 
     it('marks the live region polite for assistive tech', () => {
-      render(<UploadProgressBar progress={started} />);
+      render(<UploadProgressBar progress={started} label="Upload" />);
       const status = screen.getByRole('status');
       expect(status).toHaveAttribute('aria-live', 'polite');
     });
@@ -47,7 +54,7 @@ describe('UploadProgressBar', () => {
         bytesUploaded: 512,
         totalBytes: 2048,
       };
-      render(<UploadProgressBar progress={progress} />);
+      render(<UploadProgressBar progress={progress} label="Upload" />);
       expect(screen.getByText('Upload: 25%')).toBeInTheDocument();
       expect(screen.getByText('512 B / 2.0 KB')).toBeInTheDocument();
     });
@@ -58,7 +65,7 @@ describe('UploadProgressBar', () => {
         bytesUploaded: 333,
         totalBytes: 1000,
       };
-      render(<UploadProgressBar progress={progress} />);
+      render(<UploadProgressBar progress={progress} label="Upload" />);
       // 333/1000 = 33.3% → rounds to 33
       expect(screen.getByText('Upload: 33%')).toBeInTheDocument();
     });
@@ -69,7 +76,7 @@ describe('UploadProgressBar', () => {
         bytesUploaded: 5000,
         totalBytes: 1000,
       };
-      render(<UploadProgressBar progress={progress} />);
+      render(<UploadProgressBar progress={progress} label="Upload" />);
       expect(screen.getByText('Upload: 100%')).toBeInTheDocument();
       const bar = screen.getByRole('progressbar');
       expect(bar).toHaveAttribute('aria-valuenow', '100');
@@ -81,7 +88,7 @@ describe('UploadProgressBar', () => {
         bytesUploaded: 500,
         totalBytes: 1000,
       };
-      render(<UploadProgressBar progress={progress} />);
+      render(<UploadProgressBar progress={progress} label="Upload" />);
       const bar = screen.getByRole('progressbar');
       expect(bar).toHaveAttribute('aria-valuemin', '0');
       expect(bar).toHaveAttribute('aria-valuemax', '100');
@@ -94,7 +101,7 @@ describe('UploadProgressBar', () => {
         bytesUploaded: 750,
         totalBytes: 1000,
       };
-      const { container } = render(<UploadProgressBar progress={progress} />);
+      const { container } = render(<UploadProgressBar progress={progress} label="Upload" />);
       const fill = container.querySelector('.semiont-progress__fill') as HTMLElement;
       expect(fill).not.toBeNull();
       expect(fill.style.width).toBe('75%');
@@ -106,7 +113,7 @@ describe('UploadProgressBar', () => {
         bytesUploaded: 100,
         totalBytes: 1000,
       };
-      const { container } = render(<UploadProgressBar progress={progress} />);
+      const { container } = render(<UploadProgressBar progress={progress} label="Upload" />);
       expect(container.querySelector('.semiont-progress--indeterminate')).toBeNull();
     });
 
@@ -128,7 +135,7 @@ describe('UploadProgressBar', () => {
         bytesUploaded: 4096,
         totalBytes: 0,
       };
-      render(<UploadProgressBar progress={progress} />);
+      render(<UploadProgressBar progress={progress} label="Upload" />);
       expect(screen.getByText('Upload: 4.0 KB…')).toBeInTheDocument();
       expect(screen.queryByText(/%/)).not.toBeInTheDocument();
     });
@@ -139,7 +146,7 @@ describe('UploadProgressBar', () => {
         bytesUploaded: 1234,
         totalBytes: -1,
       };
-      render(<UploadProgressBar progress={progress} />);
+      render(<UploadProgressBar progress={progress} label="Upload" />);
       expect(screen.getByText('Upload: 1.2 KB…')).toBeInTheDocument();
     });
 
@@ -149,7 +156,7 @@ describe('UploadProgressBar', () => {
         bytesUploaded: 100,
         totalBytes: 0,
       };
-      render(<UploadProgressBar progress={progress} />);
+      render(<UploadProgressBar progress={progress} label="Upload" />);
       const bar = screen.getByRole('progressbar');
       expect(bar).toHaveAttribute('aria-valuemin', '0');
       expect(bar).not.toHaveAttribute('aria-valuemax');
@@ -162,7 +169,7 @@ describe('UploadProgressBar', () => {
         bytesUploaded: 100,
         totalBytes: 0,
       };
-      const { container } = render(<UploadProgressBar progress={progress} />);
+      const { container } = render(<UploadProgressBar progress={progress} label="Upload" />);
       expect(container.querySelector('.semiont-progress--indeterminate')).not.toBeNull();
       const fill = container.querySelector('.semiont-progress__fill') as HTMLElement;
       expect(fill.style.width).toBe('');
@@ -176,7 +183,7 @@ describe('UploadProgressBar', () => {
     };
 
     it('renders an "uploaded" label', () => {
-      render(<UploadProgressBar progress={finished} />);
+      render(<UploadProgressBar progress={finished} label="Upload" />);
       expect(screen.getByText('Upload: uploaded')).toBeInTheDocument();
     });
 
@@ -186,7 +193,7 @@ describe('UploadProgressBar', () => {
     });
 
     it('reports 100% on the progressbar', () => {
-      render(<UploadProgressBar progress={finished} />);
+      render(<UploadProgressBar progress={finished} label="Upload" />);
       const bar = screen.getByRole('progressbar');
       expect(bar).toHaveAttribute('aria-valuemin', '0');
       expect(bar).toHaveAttribute('aria-valuemax', '100');
@@ -194,7 +201,7 @@ describe('UploadProgressBar', () => {
     });
 
     it('applies the success fill modifier and full width', () => {
-      const { container } = render(<UploadProgressBar progress={finished} />);
+      const { container } = render(<UploadProgressBar progress={finished} label="Upload" />);
       const fill = container.querySelector('.semiont-progress__fill--success') as HTMLElement;
       expect(fill).not.toBeNull();
       expect(fill.style.width).toBe('100%');
@@ -218,7 +225,7 @@ describe('UploadProgressBar', () => {
         bytesUploaded: bytes,
         totalBytes: 0,
       };
-      render(<UploadProgressBar progress={progress} />);
+      render(<UploadProgressBar progress={progress} label="Upload" />);
       expect(screen.getByText(`Upload: ${expected}…`)).toBeInTheDocument();
     });
   });

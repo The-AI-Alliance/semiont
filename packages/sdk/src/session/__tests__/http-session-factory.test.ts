@@ -115,9 +115,7 @@ describe('a session over HTTP, starting on a stored credential', () => {
     await session.ready;
 
     expect(asked.who).toHaveLength(2);
-    expect(signals.sessionExpired$.getValue()).toEqual({
-      message: 'This knowledge base did not accept your sign-in. Please sign in again.',
-    });
+    expect(signals.sessionEnded$.getValue()).toEqual({ reason: 'refused' });
     expect(errors.map((error) => error.code)).toEqual(['session.credential-refused']);
     expect(getStoredSession(storage, KB.id)).toBeNull();
 
@@ -154,9 +152,7 @@ describe('a session over HTTP, starting on a stored credential', () => {
     expect(asked.who).toHaveLength(3);
     expect(asked.who[1]).toBe(stored);
     expect(asked.who[2]).not.toBe(stored);
-    expect(signals.sessionExpired$.getValue()).toEqual({
-      message: 'This knowledge base did not accept your sign-in. Please sign in again.',
-    });
+    expect(signals.sessionEnded$.getValue()).toEqual({ reason: 'refused' });
     expect(errors.map((error) => error.code)).toEqual(['session.credential-refused']);
     expect(getStoredSession(storage, KB.id)).toBeNull();
     expect(session.token$.getValue()).toBeNull();

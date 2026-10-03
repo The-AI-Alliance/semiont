@@ -1,11 +1,5 @@
 # Authenticated Media Access
 
-> **What changed.** This doc used to describe a Next.js server-side *proxy route*
-> (`/api/resources/[id]`) and was named `RESOURCE-PROXY.md`. That route is **gone**
-> — the Browser is now a pure Vite + React SPA (#557) with **no server**, and auth
-> is **bearer-only** (#890). There is nothing to proxy through; the live mechanism
-> is the **`?token=` media token** documented below.
-
 ## The problem: header-less elements can't authenticate
 
 Semiont's gateway is **bearer-only** — every request must carry
@@ -20,6 +14,8 @@ headers**:
 ```
 
 ```typescript
+import * as pdfjsLib from 'pdfjs-dist';
+
 // ❌ PDF.js fetches by URL and likewise cannot add an Authorization header
 const pdf = await pdfjsLib.getDocument({
   url: 'https://gateway.example.com/api/resources/123',
@@ -39,9 +35,12 @@ The Browser mints a **media token** — a narrowed credential the browser *can*
 carry, because it rides on the URL as a query parameter rather than in a header:
 
 ```typescript
-const { token } = await client.auth.mediaToken(resourceId);
-const url = `${client.baseUrl}/api/resources/${resourceId}?token=${token}`;
-// Hand `url` to <img src>, pdfjsLib.getDocument({ url }), etc.
+// `client.auth` exists on a client built with gateway operations — every HTTP session's is
+if (client.auth) {
+  const { token } = await client.auth.mediaToken(resourceId);
+  const url = mediaUrl(client, resourceId, token); // `${client.baseUrl}/api/resources/${id}?token=…`
+  // Hand `url` to <img src>, pdfjsLib.getDocument({ url }), etc.
+}
 ```
 
 `auth.mediaToken` calls `POST /api/tokens/media` (itself authenticated with the
@@ -91,12 +90,12 @@ a link that is already known to 401. The same rule applies to `<a download>` as
 to `<img>`: an anchor sends no Authorization header either.
 
 `ResourceViewerPage` calls this automatically for any resource whose media type
-renders as an image (which includes `application/pdf`), so callers of
+renders as an image or a PDF, and for no other, so callers of
 `ResourceViewerPage` get authenticated `<img>`/PDF rendering for free.
 
 ## Data flow for binary resources
 
-```
+```text
 ResourceViewerPage
   → useMediaToken(client, resourceId)
       → POST /api/tokens/media   (bearer-authenticated, once per 4 min)
@@ -119,6 +118,9 @@ The split is **display vs programmatic**, not text vs binary:
   through the authenticated representation endpoint and decoded to a string —
   a normal bearer-authenticated request, no media token.
 - **Binary display** (`<img>`, PDF.js) uses media tokens, as above.
+- **No preview** (archives, office documents, source code, any type the registry
+  does not know) loads nothing up front. The viewer shows a fallback whose
+  download link mints a media token of its own.
 - **Non-browser consumers** (CLI, daemon, MCP server) never need a media token:
   they read binary content through `IContentTransport.getBinary` with normal
   `Authorization` headers, and upload through `client.yield.resource(...)` /

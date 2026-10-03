@@ -7,13 +7,14 @@
 The Browser uses **i18next** + **react-i18next** for internationalization.
 
 - **Translation files**: Merged from two sources before every build/test/dev run
-- **Locale routing**: React Router v7 with `/:locale/*` prefix
-- **Dynamic loading**: Non-English locales loaded on-demand via `i18next-http-backend`
+- **Locale routing**: React Router with `/:locale/*` prefix
+- **Dynamic loading**: Each locale's bundle is loaded on demand via `i18next-http-backend`
+- **No default language**: i18next has no fallback language, and a URL that names no served locale gets the language picker
 - **Interpolation format**: `{{variable}}` (standard i18next)
 
 ## Architecture
 
-```
+```text
 packages/react-ui/translations/{locale}.json   ← component-level strings
        +
 apps/browser/messages-source/{locale}.json   ← app-level strings
@@ -32,17 +33,24 @@ The `messages/` and `public/messages/` directories are **generated** — never e
 `src/i18n/config.ts` initialises i18next with `i18next-http-backend`:
 
 ```typescript
+import i18n from 'i18next';
+import { initReactI18next } from 'react-i18next';
+import HttpBackend from 'i18next-http-backend';
+import { AVAILABLE_LOCALES } from '@semiont/react-ui';
+
 i18n
   .use(HttpBackend)
   .use(initReactI18next)
   .init({
     ns: ['translation'],
     defaultNS: 'translation',
-    fallbackLng: 'en',
-    gateway: {
+    fallbackLng: false,
+    supportedLngs: [...AVAILABLE_LOCALES],
+    backend: {
       loadPath: '/messages/{{lng}}.json',
     },
     interpolation: { escapeValue: false },
+    initAsync: false,
   });
 ```
 
@@ -50,7 +58,7 @@ i18n
 
 The namespace-binding pattern keeps call sites clean:
 
-```typescript
+```tsx
 import { useTranslation } from 'react-i18next';
 
 export function MyComponent() {
@@ -87,21 +95,19 @@ Translation file (`messages-source/en.json`):
 
 1. Add translation file for the Browser:
    ```bash
-   cp apps/browser/messages-source/en.json apps/browser/messages-source/fr.json
-   # Translate all values in fr.json
+   cp apps/browser/messages-source/en.json apps/browser/messages-source/{locale}.json
+   # Translate all values in {locale}.json
    ```
 
-2. Add react-ui translations if needed:
+2. Add the react-ui translations:
    ```bash
-   cp packages/react-ui/translations/en.json packages/react-ui/translations/fr.json
-   # Translate all values in fr.json
+   cp packages/react-ui/translations/en.json packages/react-ui/translations/{locale}.json
+   # Translate all values in {locale}.json
    ```
 
-3. Add locale to config:
-   ```typescript
-   // src/i18n/config.ts
-   export const SUPPORTED_LOCALES = [..., 'fr'] as const;
-   ```
+   `npm run lint:translations` checks both sets for every key in every locale.
+
+3. Add the locale's code to `AVAILABLE_LOCALES` in `packages/react-ui/src/contexts/TranslationContext.tsx`. The Browser supports exactly that list; a test in each package fails when the list and that package's translation files differ.
 
 4. Run the merge:
    ```bash
@@ -126,11 +132,25 @@ t('count', { count: 5 })          // "5 items found"
 
 ## Locale Routing
 
-Locale is part of the URL path: `/:locale/*` (e.g., `/en/know`, `/es/admin`).
+Locale is part of the URL path: `/:locale/*` (e.g., `/en/know`, `/es/moderate`).
 
-`src/i18n/routing.tsx` exports React Router wrappers: `Link`, `useRouter`, `usePathname`, `useLocale` — import from `@/i18n/routing`, not directly from react-router-dom.
+`src/i18n/routing.tsx` exports React Router wrappers: `Link`, `useRouter`, `usePathname`, `useLocale` — import from `@/i18n/routing`, not directly from react-router.
 
 `LocaleGuard` in `App.tsx` validates the `:locale` param and calls `i18n.changeLanguage()`.
+
+There is no default locale:
+
+- `/` goes to the browser's language when it is one the Browser serves.
+- A URL that names no served locale — `/` under any other browser language, or
+  an unsupported `/xx/...` — gets the language picker
+  (`src/app/language-picker.tsx`). The picker has no translated text: it lists
+  each language under its own name, and keeps the rest of the URL for the one
+  chosen.
+- Nothing renders until the route's bundle is loaded; while a later locale
+  loads, the language already on screen stays. A bundle that cannot be loaded
+  is an error.
+- `useLocale` and the helpers built on it throw when the route names no locale
+  and i18next has no language.
 
 ## Testing Translations
 

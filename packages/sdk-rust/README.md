@@ -222,9 +222,11 @@ flight ends by being told and not by the runtime stopping.
     and each open resource is checked against it; only a resource the
     knowledge base says is gone is closed, and a different knowledge base
     answering voids what was open and is raised for a host to show.
-  - `SessionSignals` is what a host shows about a session: that it expired,
-    that a request was refused for lack of permission, that a different
-    knowledge base is answering.
+  - `SessionSignals` is what a host shows about a session: that it ended,
+    and why (`SessionEndReason`: expired, or its credential refused); that a
+    request was refused for lack of permission, with the refusal's message;
+    that a different knowledge base is answering. A notice
+    says what happened, never a sentence: what a person reads is the host's.
   - `SessionFactory` builds a knowledge base's session and ends its
     credentials. A browser is given one, and so knows nothing of how a
     knowledge base is reached. `semiont-http-transport` has the one over a

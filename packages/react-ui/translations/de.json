@@ -321,7 +321,7 @@
     "modalNavBackward": "Rückwärts durch Schaltflächen navigieren",
     "modalActivate": "Fokussierte Schaltfläche aktivieren",
     "accessibilityTitle": "Barrierefreiheit",
-    "a11ySkipLinks": "Zu Sprunglinks navigieren (am Seitenanfang)",
+    "a11ySkipLinks": "Zum Sprunglink navigieren (am Seitenanfang)",
     "a11yFollowLink": "Sprunglink folgen",
     "macNote": "Mac-Tastenkombinationen aktiv. ⌘ ist die Befehlstaste.",
     "windowsNote": "Windows/Linux-Tastenkombinationen aktiv. Strg ist die Steuerungstaste.",
@@ -510,5 +510,26 @@
     "stateCleared": "Offene Tabs und letzte Position dieses Eintrags wurden gelöscht — sie beschrieben Inhalte, die diese Wissensbasis nicht hat. Der Registrierungseintrag selbst ist unverändert.",
     "dismiss": "Schließen",
     "reviewKnowledgeBases": "Wissensbasen überprüfen"
+  },
+  "SessionEndedModal": {
+    "title": "Abgemeldet",
+    "expired": "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
+    "refused": "Diese Wissensbasis hat Ihre Anmeldung nicht akzeptiert. Bitte melden Sie sich erneut an.",
+    "goHome": "Zur Startseite",
+    "signInAgain": "Erneut anmelden"
+  },
+  "PermissionDeniedModal": {
+    "title": "Zugriff verweigert",
+    "reasonsIntro": "Mögliche Gründe:",
+    "reasonPermissions": "Sie haben nicht die erforderlichen Berechtigungen",
+    "reasonRestricted": "Die Ressource ist auf bestimmte Benutzer oder Teams beschränkt",
+    "reasonAccountType": "Ihr Kontotyp umfasst diese Funktion nicht",
+    "detailLabel": "Die Wissensbasis meldete:",
+    "goBack": "Zurück",
+    "goHome": "Zur Startseite",
+    "switchAccount": "Konto wechseln"
+  },
+  "SkipLinks": {
+    "mainContent": "Zum Hauptinhalt springen"
   }
 }

@@ -34,7 +34,18 @@ describe.skip('SearchModal Component - Visual States', () => {
   const defaultProps = {
     isOpen: true,
     onClose: vi.fn(),
-    onNavigate: vi.fn()
+    onNavigate: vi.fn(),
+    translations: {
+      placeholder: 'Search resources, entities...',
+      searching: 'Searching...',
+      noResults: 'No results found for',
+      startTyping: 'Start typing to search...',
+      navigate: 'Navigate',
+      select: 'Select',
+      close: 'Close',
+      enter: 'Enter',
+      esc: 'ESC',
+    },
   };
 
   beforeEach(() => {
@@ -86,14 +97,6 @@ describe.skip('SearchModal Component - Visual States', () => {
   });
 
   describe('Edge Cases', () => {
-    it('should handle empty translations object', () => {
-      render(<SearchModal {...defaultProps} translations={{}} />);
-
-      // Should fall back to default translations
-      expect(screen.getByPlaceholderText('Search resources, entities...')).toBeInTheDocument();
-      expect(screen.getByText('Start typing to search...')).toBeInTheDocument();
-    });
-
     it('should handle rapid open/close', () => {
       const { rerender } = render(<SearchModal {...defaultProps} />);
 

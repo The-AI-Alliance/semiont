@@ -321,7 +321,7 @@
     "modalNavBackward": "Düğmeler arasında geri gezin",
     "modalActivate": "Odaklanan düğmeyi etkinleştir",
     "accessibilityTitle": "Erişilebilirlik",
-    "a11ySkipLinks": "Atlama bağlantılarına git (sayfa başındayken)",
+    "a11ySkipLinks": "Atlama bağlantısına git (sayfa başındayken)",
     "a11yFollowLink": "Atlama bağlantısını takip et",
     "macNote": "Mac klavye kısayolları kullanılıyor. Command tuşu Command tuşudur.",
     "windowsNote": "Windows/Linux klavye kısayolları kullanılıyor. Ctrl, Ctrl tuşudur.",
@@ -510,5 +510,26 @@
     "stateCleared": "Bu kaydın açık sekmeleri ve son konumu temizlendi — bu bilgi tabanında olmayan içeriği tarif ediyorlardı. Kayıt girdisinin kendisi değişmedi.",
     "dismiss": "Kapat",
     "reviewKnowledgeBases": "Bilgi tabanlarını gözden geçir"
+  },
+  "SessionEndedModal": {
+    "title": "Çıkış yapıldı",
+    "expired": "Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.",
+    "refused": "Bu bilgi tabanı girişinizi kabul etmedi. Lütfen tekrar giriş yapın.",
+    "goHome": "Ana sayfaya git",
+    "signInAgain": "Tekrar giriş yap"
+  },
+  "PermissionDeniedModal": {
+    "title": "Erişim reddedildi",
+    "reasonsIntro": "Olası nedenler:",
+    "reasonPermissions": "Gerekli izinlere sahip değilsiniz",
+    "reasonRestricted": "Kaynak belirli kullanıcılar veya ekiplerle sınırlıdır",
+    "reasonAccountType": "Hesap türünüz bu özelliği içermiyor",
+    "detailLabel": "Bilgi tabanı şunu bildirdi:",
+    "goBack": "Geri dön",
+    "goHome": "Ana sayfaya git",
+    "switchAccount": "Hesap değiştir"
+  },
+  "SkipLinks": {
+    "mainContent": "Ana içeriğe atla"
   }
 }

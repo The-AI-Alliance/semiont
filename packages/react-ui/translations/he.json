@@ -321,7 +321,7 @@
     "modalNavBackward": "ניווט אחורה בין כפתורים",
     "modalActivate": "הפעלת כפתור ממוקד",
     "accessibilityTitle": "נגישות",
-    "a11ySkipLinks": "ניווט לקישורי דילוג (בתחילת הדף)",
+    "a11ySkipLinks": "ניווט לקישור הדילוג (בתחילת הדף)",
     "a11yFollowLink": "מעקב אחר קישור דילוג",
     "macNote": "שימוש בקיצורי מקלדת של Mac. ⌘ הוא מקש Command.",
     "windowsNote": "שימוש בקיצורי מקלדת של Windows/Linux. Ctrl הוא מקש Control.",
@@ -510,5 +510,26 @@
     "stateCleared": "הכרטיסיות הפתוחות והמיקום האחרון של רשומה זו נמחקו — הם תיארו תוכן שאין בבסיס ידע זה. רשומת הרישום עצמה לא השתנתה.",
     "dismiss": "סגור",
     "reviewKnowledgeBases": "סקירת בסיסי ידע"
+  },
+  "SessionEndedModal": {
+    "title": "יצאתם מהמערכת",
+    "expired": "תוקף ההתחברות שלכם פג. אנא התחברו מחדש.",
+    "refused": "בסיס הידע הזה לא קיבל את ההתחברות שלכם. אנא התחברו מחדש.",
+    "goHome": "מעבר לדף הבית",
+    "signInAgain": "התחברות מחדש"
+  },
+  "PermissionDeniedModal": {
+    "title": "הגישה נדחתה",
+    "reasonsIntro": "סיבות אפשריות:",
+    "reasonPermissions": "אין לכם את ההרשאות הנדרשות",
+    "reasonRestricted": "המשאב מוגבל למשתמשים או לצוותים מסוימים",
+    "reasonAccountType": "סוג החשבון שלכם אינו כולל תכונה זו",
+    "detailLabel": "בסיס הידע מסר:",
+    "goBack": "חזרה",
+    "goHome": "מעבר לדף הבית",
+    "switchAccount": "החלפת חשבון"
+  },
+  "SkipLinks": {
+    "mainContent": "דילוג לתוכן הראשי"
   }
 }

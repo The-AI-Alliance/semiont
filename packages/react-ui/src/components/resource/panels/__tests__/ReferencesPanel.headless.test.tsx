@@ -12,7 +12,8 @@
  * prop) and GREEN once B2 lands.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
+import { renderInEnglish } from '../../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, AnnotationId } from '@semiont/core';
@@ -54,18 +55,15 @@ function referenceAnnotation(): Annotation {
 const TestLink = ({ href, children, ...rest }: LinkComponentProps) => (
   <a href={href} {...rest}>{children}</a>
 );
-const testRoutes = {
-  resourceDetail: (id: string) => `/r/${id}`,
-  know: '/know',
-} as unknown as RouteBuilder;
+const testRoutes: RouteBuilder = { resourceDetail: (id) => `/r/${id}` };
 
-describe('ReferencesPanel — headless (session prop, no providers)', () => {
+describe('ReferencesPanel — headless (session prop, no session provider)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('mounts provider-free, lists the reference, and routes an entry click through the session prop', () => {
     const { session, client } = fakeSession();
 
-    render(
+    renderInEnglish(
       <ReferencesPanel
         session={session}
         resourceId={resourceId('res-1')}
@@ -108,7 +106,7 @@ describe('ReferencesPanel — headless (session prop, no providers)', () => {
     };
 
     it('reports the failure instead of an endless loading line', () => {
-      render(
+      renderInEnglish(
         <ReferencesPanel
           {...base()}
           referencedBy={[]}
@@ -123,7 +121,7 @@ describe('ReferencesPanel — headless (session prop, no providers)', () => {
 
     it('offers a retry that calls back', () => {
       const onRetryReferencedBy = vi.fn();
-      render(
+      renderInEnglish(
         <ReferencesPanel
           {...base()}
           referencedBy={[]}
@@ -137,7 +135,7 @@ describe('ReferencesPanel — headless (session prop, no providers)', () => {
     });
 
     it('with no error, a still-loading list keeps its loading affordance', () => {
-      render(
+      renderInEnglish(
         <ReferencesPanel
           {...base()}
           referencedBy={[]}
@@ -156,7 +154,7 @@ describe('ReferencesPanel — headless (session prop, no providers)', () => {
 
     it('does not present a failed entity-type load as "none exist"', () => {
       const { session } = fakeSession();
-      render(
+      renderInEnglish(
         <ReferencesPanel
           session={session}
           resourceId={resourceId('res-1')}

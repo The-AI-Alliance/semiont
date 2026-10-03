@@ -211,8 +211,8 @@ impl SessionFactory for ScriptedSessions {
                     answer
                 })
             })),
-            on_auth_failed: Some(Arc::new(move |message| {
-                signals.notify_session_expired(Some(message));
+            on_auth_failed: Some(Arc::new(move |reason| {
+                signals.notify_session_ended(reason);
             })),
             on_error: Some(options.on_error),
         }))

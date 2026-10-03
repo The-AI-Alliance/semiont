@@ -2,6 +2,7 @@ import { Outlet } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   LeftSidebar,
+  MainContent,
   useSemiont,
   useObservable,
 } from '@semiont/react-ui';
@@ -45,11 +46,11 @@ function ModerateLayoutBody() {
             />
           )}
         </LeftSidebar>
-        <main className="flex-1 p-6 flex flex-col">
+        <MainContent className="flex-1 p-6 flex flex-col">
           <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full">
             <Outlet />
           </div>
-        </main>
+        </MainContent>
       </div>
     </div>
   );

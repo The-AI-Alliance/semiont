@@ -321,7 +321,7 @@
     "modalNavBackward": "Navigace zpět přes tlačítka",
     "modalActivate": "Aktivovat zaměřené tlačítko",
     "accessibilityTitle": "Přístupnost",
-    "a11ySkipLinks": "Přejít na přeskočovací odkazy (na začátku stránky)",
+    "a11ySkipLinks": "Přejít na přeskočovací odkaz (na začátku stránky)",
     "a11yFollowLink": "Následovat přeskočovací odkaz",
     "macNote": "Používáte klávesové zkratky pro Mac. ⌘ je klávesa Command.",
     "windowsNote": "Používáte klávesové zkratky pro Windows/Linux. Ctrl je klávesa Control.",
@@ -510,5 +510,26 @@
     "stateCleared": "Otevřené karty a poslední pozice tohoto záznamu byly vymazány — popisovaly obsah, který tato znalostní báze nemá. Samotný záznam v registru je beze změny.",
     "dismiss": "Zavřít",
     "reviewKnowledgeBases": "Zkontrolovat znalostní báze"
+  },
+  "SessionEndedModal": {
+    "title": "Odhlášeno",
+    "expired": "Vaše relace vypršela. Přihlaste se prosím znovu.",
+    "refused": "Tato znalostní báze nepřijala vaše přihlášení. Přihlaste se prosím znovu.",
+    "goHome": "Přejít na úvod",
+    "signInAgain": "Přihlásit se znovu"
+  },
+  "PermissionDeniedModal": {
+    "title": "Přístup odepřen",
+    "reasonsIntro": "Možné příčiny:",
+    "reasonPermissions": "Nemáte potřebná oprávnění",
+    "reasonRestricted": "Zdroj je omezen na konkrétní uživatele nebo týmy",
+    "reasonAccountType": "Typ vašeho účtu tuto funkci nezahrnuje",
+    "detailLabel": "Znalostní báze uvedla:",
+    "goBack": "Zpět",
+    "goHome": "Přejít na úvod",
+    "switchAccount": "Přepnout účet"
+  },
+  "SkipLinks": {
+    "mainContent": "Přejít na hlavní obsah"
   }
 }

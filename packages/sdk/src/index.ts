@@ -140,7 +140,12 @@ export {
 export { IdentityUnverifiableError, type ConnectionIdentity, describeConnection } from './session/connect';
 export type { SessionFactory, SessionFactoryOptions } from './session/session-factory';
 export { createHttpSessionFactory } from './session/http-session-factory';
-export { SessionSignals } from './session/session-signals';
+export {
+  SessionSignals,
+  type SessionEndReason,
+  type SessionEnded,
+  type PermissionDenied,
+} from './session/session-signals';
 export { SemiontSessionError } from './session/errors';
 export { getBrowser, type GetBrowserOptions } from './session/registry';
 export {

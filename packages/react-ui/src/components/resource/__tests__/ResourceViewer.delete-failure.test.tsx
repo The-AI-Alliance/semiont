@@ -11,11 +11,11 @@
  * `ResourceViewer` has none, which is why the report cannot be left to one.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, act, waitFor, fireEvent } from '@testing-library/react';
+import { screen, act, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { Annotation, ResourceDescriptor as SemiontResource } from '@semiont/core';
 import { annotationId, resourceId } from '@semiont/core';
-import { createTestSemiontWrapper } from '../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
 import { ResourceViewer } from '../ResourceViewer';
 
 const resource: SemiontResource & { content: string } = {
@@ -47,7 +47,7 @@ describe('ResourceViewer — a refused delete', () => {
     const reported: unknown[] = [];
     const sub = eventBus.on('mark:delete-error').subscribe((e) => reported.push(e));
 
-    render(
+    renderInEnglish(
       <ResourceViewer
         session={session}
         resource={resource}

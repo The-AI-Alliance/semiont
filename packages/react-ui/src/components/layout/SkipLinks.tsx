@@ -1,35 +1,34 @@
 'use client';
 
+import type { ComponentProps } from 'react';
+import { useTranslations } from '../../contexts/TranslationContext';
 import './SkipLinks.css';
 
+const MAIN_CONTENT_ID = 'main-content';
+
 /**
- * Skip links for keyboard navigation accessibility
- * These links are visually hidden but become visible when focused
- * They allow keyboard users to quickly jump to main content areas
+ * Skip link for keyboard navigation accessibility
+ * The link is visually hidden but becomes visible when focused
+ * It lets keyboard users jump past the page's chrome to its MainContent
  */
 export function SkipLinks() {
+  const t = useTranslations('SkipLinks');
+
   return (
     <div className="semiont-skip-links">
       <div className="semiont-skip-links-container">
-        <a
-          href="#main-content"
-          className="semiont-skip-link semiont-skip-link-first"
-        >
-          Skip to main content
-        </a>
-        <a
-          href="#main-navigation"
-          className="semiont-skip-link"
-        >
-          Skip to navigation
-        </a>
-        <a
-          href="#search"
-          className="semiont-skip-link semiont-skip-link-last"
-        >
-          Skip to search
+        <a href={`#${MAIN_CONTENT_ID}`} className="semiont-skip-link">
+          {t('mainContent')}
         </a>
       </div>
     </div>
   );
+}
+
+/**
+ * The page's main landmark, and the element the skip link lands on.
+ * `tabIndex={-1}` lets it take focus from the link without joining the tab order.
+ */
+export function MainContent(props: Omit<ComponentProps<'main'>, 'id' | 'tabIndex'>) {
+  return <main {...props} id={MAIN_CONTENT_ID} tabIndex={-1} />;
 }

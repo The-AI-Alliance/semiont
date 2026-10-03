@@ -60,7 +60,7 @@ For list reads the ready value is the `ResourceList` envelope
 ```tsx
 import { useSemiont, useObservable } from '@semiont/react-ui';
 
-function ResourceList() {
+function RecentResources() {
   const client = useObservable(useSemiont().activeSession$)?.client;
   const state = useObservable(client?.browse.resources({ limit: 20 }));
 
@@ -179,13 +179,13 @@ session bus, and the SDK invalidates the affected cache keys — any live
 is no manual `invalidate`/`refetch` step in the component.
 
 ```tsx
-function ResourceActions({ rUri }) {
+function ResourceActions({ rId }: { rId: ResourceId }) {
   const client = useObservable(useSemiont().activeSession$)?.client;
 
-  const archive = () => client?.mark.archive(rUri);
-  const remove = (annotationId) => client?.mark.delete(rUri, annotationId);
-  const linkReference = (annotationId, targetResourceId) =>
-    client?.bind.body(rUri, annotationId, [
+  const archive = () => client?.mark.archive(rId);
+  const remove = (annotationId: AnnotationId) => client?.mark.delete(rId, annotationId);
+  const linkReference = (annotationId: AnnotationId, targetResourceId: ResourceId) =>
+    client?.bind.body(rId, annotationId, [
       { op: 'add', item: { type: 'SpecificResource', source: targetResourceId, purpose: 'linking' } },
     ]);
 
@@ -210,16 +210,20 @@ don't need to know which scope a channel is on:
 ```tsx
 import { useEventSubscription, useEventSubscriptions } from '@semiont/react-ui';
 
+// The host's own reactions.
+declare function triggerSparkleAnimation(id: AnnotationId): void;
+declare function handleCreated(id: AnnotationId): void;
+
 function SparkleOnCreate() {
-  useEventSubscription('mark:create-ok', ({ annotationId }) => {
-    triggerSparkleAnimation(annotationId);
+  useEventSubscription('mark:create-ok', ({ response }) => {
+    triggerSparkleAnimation(response.annotationId);
   });
   return null;
 }
 
 function ShellWiring() {
   useEventSubscriptions({
-    'mark:create-ok': ({ annotationId }) => handleCreated(annotationId),
+    'mark:create-ok': ({ response }) => handleCreated(response.annotationId),
     'panel:toggle': ({ panel }) => console.log('toggled', panel),
   });
   return null;
@@ -248,10 +252,12 @@ published on the session's error stream — `session.errors$`, republished from
 
 You generally do **not** subscribe to `errors$` yourself for auth UX. The SDK
 already routes `401` / `403` from that stream into the active session's
-`SessionSignals` (`notifySessionExpired` / `notifyPermissionDenied`). The
-`<SessionExpiredModal />` and `<PermissionDeniedModal />` components — mounted
-once in your provider tree (see the README quick start) — read those signals
-and render. Mount the modals and session-expiry/permission handling is done.
+`SessionSignals`: a `401` the session cannot recover from ends it
+(`notifySessionEnded`, with why), and a `403` raises `notifyPermissionDenied`
+with the refusal's message as its detail. The `<SessionEndedModal />` and
+`<PermissionDeniedModal />` components — mounted once in your provider tree
+(see the README quick start) — read those signals and render, in the person's
+language. Mount the modals and session-ending/permission handling is done.
 
 Handle the remaining cases (404, validation, etc.) where you read or write —
 inspect the value/error from the `browse.*` observable, or branch on the
@@ -265,22 +271,25 @@ cache, and `createSearchPipeline` — comes from `@semiont/sdk`.
 ## Testing
 
 See [TESTING.md](TESTING.md) for the full testing guide. To stub a read, mock
-the `BrowseNamespace` method (now exported from `@semiont/sdk`) to return an
-observable:
+the `BrowseNamespace` method (exported from `@semiont/sdk`) to return a
+`CacheObservable` of a ready state:
 
 ```tsx
-import { renderWithProviders } from '@semiont/react-ui/test-utils';
-import { BrowseNamespace } from '@semiont/sdk';
+import { renderWithProviders, screen } from '@semiont/react-ui/test-utils';
+import { BrowseNamespace, CacheObservable, type CacheState, type ResourceList } from '@semiont/sdk';
 import { of } from 'rxjs';
 
+declare function RecentResources(): React.JSX.Element; // the component under test
+
 it('renders resources', async () => {
+  const list: ResourceList = { resources: [resource], total: 1, offset: 0, limit: 20, matchKind: 'lexical' };
   vi.spyOn(BrowseNamespace.prototype, 'resources').mockReturnValue(
-    of([{ '@id': 'r1', name: 'Test' } as any]),
+    CacheObservable.from(of<CacheState<ResourceList>>({ status: 'ready', value: list })),
   );
 
-  renderWithProviders(<ResourceList />);
+  renderWithProviders(<RecentResources />);
 
-  await screen.findByText('Test');
+  await screen.findByText(resource.name);
 });
 ```
 

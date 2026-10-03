@@ -8,7 +8,8 @@
  * Started RED (tsc: no `session` prop) and GREEN once step 1b lands.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { AnnotationUIState } from '../../../types/annotation-props';
@@ -38,9 +39,9 @@ function fakeSession(): SemiontSession {
   } as unknown as SemiontSession;
 }
 
-describe('AnnotateView — embeddable (session prop, no providers)', () => {
-  it('renders (incl. the real AnnotateToolbar) fed only a session, no providers', () => {
-    render(
+describe('AnnotateView — embeddable (session prop, no session provider)', () => {
+  it('renders (incl. the real AnnotateToolbar) fed only a session, no session provider', () => {
+    renderInEnglish(
       <AnnotateView resourceUri={resourceId("res-1")}
         content="hello"
         mimeType="text/plain"
@@ -50,7 +51,7 @@ describe('AnnotateView — embeddable (session prop, no providers)', () => {
         session={fakeSession()}
       />,
     );
-    // The tree (real AnnotateToolbar + mocked CodeMirror) rendered without a provider.
+    // The tree (real AnnotateToolbar + mocked CodeMirror) rendered without a session provider.
     expect(screen.getByText('cm-mock')).toBeInTheDocument();
   });
 });

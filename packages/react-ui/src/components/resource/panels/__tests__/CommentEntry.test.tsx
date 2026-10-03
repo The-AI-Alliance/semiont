@@ -166,11 +166,11 @@ describe('CommentEntry Component', () => {
       expect(screen.getByText(/user@example.com/)).toBeInTheDocument();
     });
 
-    it('should show "Unknown" for missing creator', () => {
+    it('names no creator when the comment has none', () => {
       const { creator, ...rest } = createMockComment();
       const commentWithoutCreator = rest as Annotation;
 
-      renderWithProviders(
+      const { container } = renderWithProviders(
         <CommentEntry
           session={session}
           {...defaultProps}
@@ -178,7 +178,9 @@ describe('CommentEntry Component', () => {
         />
       );
 
-      expect(screen.getByText(/Unknown/)).toBeInTheDocument();
+      const metadata = container.querySelector('.semiont-annotation-entry__metadata');
+      expect(metadata).toBeInTheDocument();
+      expect(metadata?.textContent).not.toMatch(/By|Unknown/);
     });
 
     it('should format relative time correctly for recent comments', () => {

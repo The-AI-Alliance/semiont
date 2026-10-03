@@ -321,7 +321,7 @@
     "modalNavBackward": "Naviger bakover gjennom knapper",
     "modalActivate": "Aktiver fokusert knapp",
     "accessibilityTitle": "Tilgjengelighet",
-    "a11ySkipLinks": "Naviger til hurtiglenker (når øverst på siden)",
+    "a11ySkipLinks": "Naviger til hurtiglenken (når øverst på siden)",
     "a11yFollowLink": "Følg hurtiglenke",
     "macNote": "Bruker Mac-tastatursnarveier. ⌘ er Command-tasten.",
     "windowsNote": "Bruker Windows/Linux-tastatursnarveier. Ctrl er Control-tasten.",
@@ -510,5 +510,26 @@
     "stateCleared": "Åpne faner og siste posisjon for denne oppføringen er fjernet — de beskrev innhold denne kunnskapsbasen ikke har. Selve registeroppføringen er uendret.",
     "dismiss": "Avvis",
     "reviewKnowledgeBases": "Gjennomgå kunnskapsbaser"
+  },
+  "SessionEndedModal": {
+    "title": "Logget ut",
+    "expired": "Økten din har utløpt. Logg inn på nytt.",
+    "refused": "Denne kunnskapsbasen godtok ikke påloggingen din. Logg inn på nytt.",
+    "goHome": "Gå til startsiden",
+    "signInAgain": "Logg inn på nytt"
+  },
+  "PermissionDeniedModal": {
+    "title": "Ingen tilgang",
+    "reasonsIntro": "Mulige årsaker:",
+    "reasonPermissions": "Du har ikke de nødvendige tillatelsene",
+    "reasonRestricted": "Ressursen er begrenset til bestemte brukere eller team",
+    "reasonAccountType": "Kontotypen din inkluderer ikke denne funksjonen",
+    "detailLabel": "Kunnskapsbasen svarte:",
+    "goBack": "Gå tilbake",
+    "goHome": "Gå til startsiden",
+    "switchAccount": "Bytt konto"
+  },
+  "SkipLinks": {
+    "mainContent": "Hopp til hovedinnhold"
   }
 }

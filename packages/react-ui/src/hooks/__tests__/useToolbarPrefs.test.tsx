@@ -9,7 +9,8 @@
  * Started RED (the hook does not exist) and GREEN once Phase 3 lands.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent, within, waitFor } from '@testing-library/react';
+import { fireEvent, within, waitFor } from '@testing-library/react';
+import { renderInEnglish } from '../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
@@ -82,7 +83,7 @@ describe('useToolbarPrefs — the policy layer (Browser parity)', () => {
   });
 
   it('two viewers under one hook stay in lockstep: one Mode click flips both', async () => {
-    const { getByTestId } = render(<TwoViewers session={fakeSession()} />);
+    const { getByTestId } = renderInEnglish(<TwoViewers session={fakeSession()} />);
     const v1 = getByTestId('v1');
     const v2 = getByTestId('v2');
     expect(isAnnotate(v1)).toBe(false);
@@ -98,19 +99,19 @@ describe('useToolbarPrefs — the policy layer (Browser parity)', () => {
 
   it('a change survives a remount via the historical localStorage keys', async () => {
     const session = fakeSession();
-    const first = render(<TwoViewers session={session} />);
+    const first = renderInEnglish(<TwoViewers session={session} />);
     await pickMode(first.getByTestId('v1'), 'Annotate');
     await waitFor(() => expect(isAnnotate(first.getByTestId('v1'))).toBe(true));
     expect(localStorage.getItem('annotateMode')).toBe('true'); // persisted by the POLICY layer
     first.unmount();
 
-    const second = render(<TwoViewers session={session} />);
+    const second = renderInEnglish(<TwoViewers session={session} />);
     expect(isAnnotate(second.getByTestId('v1'))).toBe(true);   // restored on remount
   });
 
   it('initializes from existing keys (users’ saved prefs carry over)', () => {
     localStorage.setItem('semiont-toolbar-click', 'follow');
-    const { getByTestId } = render(<TwoViewers session={fakeSession()} />);
+    const { getByTestId } = renderInEnglish(<TwoViewers session={fakeSession()} />);
     const bar = getByTestId('v1').querySelector('.semiont-annotate-toolbar') as HTMLElement;
     expect(within(bar).getByText('Follow')).toBeInTheDocument();
   });

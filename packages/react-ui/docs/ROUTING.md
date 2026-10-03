@@ -1,7 +1,7 @@
 # Routing
 
-`@semiont/react-ui` has no router and imports none. A component that renders a link or builds
-a URL takes two props from its host: a `Link` component and a `routes` object.
+`@semiont/react-ui` has no router and imports none. A component that renders a link takes the
+host's `Link` component, and one that builds a path takes the host's `routes` object.
 
 ## The two props
 
@@ -24,15 +24,26 @@ interface RouteBuilder {
 
 A `ResourceId` is a string, so `routes.resourceDetail(resourceId)` needs no conversion.
 
+`resourceDetail` is the path of every link to a resource. `knowledge` and `moderate` are optional:
+`NavigationMenu` links to them, and `ResourceViewerPage` filters by an entity type at
+`routes.knowledge()`; a host without those pages leaves them out.
+
 ## Which components take them
 
-`PageLayout`, `UnifiedHeader`, `LeftSidebar`, `AnnotationHistory`, `HistoryEvent`,
-`ReferencesPanel` and `UnifiedAnnotationsPanel`. Each declares `Link` and `routes` in its
-`Props`.
+| Takes | Components |
+|---|---|
+| `Link` and `routes` | `PageLayout`, `UnifiedHeader`, `LeftSidebar`, `NavigationMenu`, `AnnotationHistory`, `HistoryEvent`, `ReferencesPanel`, `UnifiedAnnotationsPanel`, `ResourceViewerPage` |
+| `Link` only | `CollapsibleResourceNavigation`, `SortableResourceTab`, `SimpleNavigation`, `AuthErrorDisplay` |
+
+Each declares them in its props as `Link: ComponentType<LinkComponentProps>` and
+`routes: RouteBuilder`; `NavigationMenu` takes a `Partial<RouteBuilder>`.
 
 ```tsx
 <AnnotationHistory events={events} Link={Link} routes={routes} />
 ```
+
+Two components name paths of their own: `NavigationMenu` links to `/know` and `/moderate` when
+`routes` lacks `knowledge` or `moderate`, and `AuthErrorDisplay` links to `/auth/signin`.
 
 ## Supplying them
 
@@ -71,5 +82,5 @@ A test passes a plain anchor and a literal `routes`:
 const Link = ({ href, children, ...props }: LinkComponentProps) => <a href={href} {...props}>{children}</a>;
 const routes: RouteBuilder = { resourceDetail: (id) => `/resource/${id}` };
 
-render(<AnnotationHistory events={[]} Link={Link} routes={routes} />);
+renderInEnglish(<AnnotationHistory events={[]} Link={Link} routes={routes} />);
 ```

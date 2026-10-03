@@ -9,7 +9,8 @@
  * Started RED (the prop doesn't exist; bars render everywhere) → GREEN.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
+import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
@@ -60,12 +61,12 @@ describe('ResourceViewer — showToolbar opt-out', () => {
 
   it('default pins today’s behavior: the bar renders in browse and annotate modes', () => {
     const { session } = fakeSession();
-    const browse = render(
+    const browse = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource()} annotations={annotations} />,
     );
     expect(bars(browse.container)).toBe(1);
 
-    const annotate = render(
+    const annotate = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()} />,
     );
@@ -74,7 +75,7 @@ describe('ResourceViewer — showToolbar opt-out', () => {
 
   it('showToolbar={false}: no bar in browse mode', () => {
     const { session } = fakeSession();
-    const { container } = render(
+    const { container } = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
         showToolbar={false} />,
     );
@@ -84,20 +85,20 @@ describe('ResourceViewer — showToolbar opt-out', () => {
 
   it('showToolbar={false}: no bar in any annotate render mode (text / image / pdf)', async () => {
     const { session } = fakeSession();
-    const text = render(
+    const text = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource('text/plain')} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()} showToolbar={false} />,
     );
     expect(bars(text.container)).toBe(0);
 
-    const image = render(
+    const image = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource('image/png')} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()} showToolbar={false} />,
     );
     expect(within(image.container).getByText('svg-mock')).toBeInTheDocument();
     expect(bars(image.container)).toBe(0);
 
-    const pdf = render(
+    const pdf = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource('application/pdf')} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()} showToolbar={false} />,
     );
@@ -107,7 +108,7 @@ describe('ResourceViewer — showToolbar opt-out', () => {
 
   it('keystone: with the bar hidden, annotate-mode selection still emits mark.request', () => {
     const { session, client } = fakeSession();
-    const { container } = render(
+    const { container } = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource('text/plain')} annotations={annotations}
         annotateMode={true} onAnnotateModeChange={vi.fn()}
         selectionMotivation="highlighting" onSelectionMotivationChange={vi.fn()}

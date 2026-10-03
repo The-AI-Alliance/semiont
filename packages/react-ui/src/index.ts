@@ -21,6 +21,7 @@ export * from './lib/media-url';
 export { createSearchPipeline, type SearchPipeline, type SearchPipelineOptions, type SearchState } from '@semiont/sdk';
 export * from './lib/annotation-overlay';
 export * from './lib/resource-utils';
+export { interpolateTranslation } from './lib/translation-interpolation';
 export { setPdfWorkerSrc, setPdfWasmUrl } from './lib/browser-pdfjs';
 export * from './lib/validation';
 
@@ -94,7 +95,7 @@ export * from './components/image-annotation/SvgDrawingCanvas';
 // Components - Modals
 export * from './components/modals/KeyboardShortcutsHelpModal';
 export * from './components/modals/PermissionDeniedModal';
-export * from './components/modals/SessionExpiredModal';
+export * from './components/modals/SessionEndedModal';
 export * from './components/modals/KbIdentityConflictModal';
 
 // Components - Resource
@@ -142,16 +143,11 @@ export type {
   CollapsibleResourceNavigationProps,
   SortableResourceTabProps
 } from './types/collapsible-navigation';
-export type {
-  SimpleNavigationItem,
-  SimpleNavigationProps
-} from './types/simple-navigation';
 
 // Components - Modals
 export * from './components/modals/ReferenceWizardModal';
 export * from './components/modals/ResourceGenerateModal';
 export * from './components/modals/SearchModal';
-export type { SearchModalProps } from './types/modals';
 
 // Components - Layout
 export * from './components/layout/SkipLinks';

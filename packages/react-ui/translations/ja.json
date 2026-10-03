@@ -510,5 +510,26 @@
     "stateCleared": "このエントリの開いているタブと最後の位置はクリアされました — このナレッジベースにない内容を指していたためです。レジストリのエントリ自体は変更されていません。",
     "dismiss": "閉じる",
     "reviewKnowledgeBases": "ナレッジベースを確認"
+  },
+  "SessionEndedModal": {
+    "title": "サインアウトしました",
+    "expired": "セッションが期限切れになりました。もう一度サインインしてください。",
+    "refused": "このナレッジベースはサインインを受け付けませんでした。もう一度サインインしてください。",
+    "goHome": "ホームへ移動",
+    "signInAgain": "もう一度サインイン"
+  },
+  "PermissionDeniedModal": {
+    "title": "アクセスが拒否されました",
+    "reasonsIntro": "考えられる理由：",
+    "reasonPermissions": "必要な権限がありません",
+    "reasonRestricted": "このリソースは特定のユーザーまたはチームに限定されています",
+    "reasonAccountType": "お使いのアカウントの種類ではこの機能を利用できません",
+    "detailLabel": "ナレッジベースからのメッセージ：",
+    "goBack": "戻る",
+    "goHome": "ホームへ移動",
+    "switchAccount": "アカウントを切り替える"
+  },
+  "SkipLinks": {
+    "mainContent": "メインコンテンツへスキップ"
   }
 }

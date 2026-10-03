@@ -9,7 +9,7 @@ import type { AnnotationId } from '@semiont/core';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useResourceViewedReport } from '../hooks/useResourceViewedReport';
 import type { components, ResourceDescriptor, ResourceId, EventMap } from '@semiont/core';
-import type { ConnectionState } from '@semiont/core';
+import type { ConnectionState, RenderMode } from '@semiont/core';
 import { folderOf } from '@semiont/core';
 import type { ComposeParams } from '../../../components/modals/ComposeStep';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType, getStorageUri, capabilitiesOf, extensionForMediaType } from '@semiont/core';
@@ -48,9 +48,24 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
 import { ResourceGenerateModal } from '../../../components/modals/ResourceGenerateModal';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
+import type { LinkComponentProps, RouteBuilder } from '../../../contexts/RoutingContext';
 import { toGenerationOptions } from '../generation-options';
 
 type SemiontResource = ResourceDescriptor;
+
+/**
+ * What the page loads for the view each render mode mounts. Exhaustive over
+ * `RenderMode` on purpose: a new mode fails to compile here until someone
+ * decides what its view reads, so it cannot default into a download.
+ */
+type ContentSource = 'text' | 'media-url' | 'none';
+
+const CONTENT_SOURCE: Record<RenderMode, ContentSource> = {
+  text: 'text',
+  image: 'media-url',
+  pdf: 'media-url',
+  none: 'none',
+};
 
 export interface ResourceViewerPageProps {
   /**
@@ -71,12 +86,12 @@ export interface ResourceViewerPageProps {
   /**
    * Link component for routing
    */
-  Link: React.ComponentType<any>;
+  Link: React.ComponentType<LinkComponentProps>;
 
   /**
    * Routes configuration
    */
-  routes: any;
+  routes: RouteBuilder;
 
   /**
    * Component dependencies - passed from framework layer
@@ -181,9 +196,11 @@ export function ResourceViewerPage({
   const { hoverDelayMs } = useHoverDelay();
   const { triggerSparkleAnimation, clearSparkle, sparkleAnnotationIds } = useResourceAnnotations();
 
-  // Render mode chooses the content path: 'text' decodes inline; 'image'
-  // and 'pdf' go through the media-token (binary) path. 'none'/registry-miss
-  // fall to the text path harmlessly — the viewer shows metadata + download.
+  // The view the viewer mounts decides what the page loads: decoded text for a
+  // text view, a media-token URL for an image or PDF view, and nothing for a
+  // type with no preview — that fallback reads no content, and its download
+  // link mints its own token. A registry miss has no preview either, the same
+  // reading BrowseView and AnnotateView take.
   const resourceMediaType = getPrimaryMediaType(resource) || 'text/plain';
 
   // Toolbar prefs: the POLICY layer (TOOLBAR-PREFS-AS-PROPS). The page owns the
@@ -191,23 +208,33 @@ export function ResourceViewerPage({
   // feeds the viewer its controlled props; the components hold no pref state policy.
   const toolbarPrefs = useToolbarPrefs(getSelectorType(resourceMediaType));
   const annotateMode = toolbarPrefs.annotateMode;
-  const renderMode = capabilitiesOf(resourceMediaType)?.render;
-  const isBinary = renderMode === 'image' || renderMode === 'pdf';
+  const contentSource = CONTENT_SOURCE[capabilitiesOf(resourceMediaType)?.render ?? 'none'];
 
-  // Text path: fetch and decode representation (disabled for binary — mediaToken path handles those)
   // Headless hook returns the error; the page (chrome tier) owns the toast.
-  const { content: textContent, loading: textLoading, error: contentError } = useResourceContent(semiont ?? null, rUri, resource, !isBinary);
+  const { content: textContent, loading: textLoading, error: contentError } =
+    useResourceContent(semiont ?? null, rUri, resource, contentSource === 'text');
 
   useEffect(() => {
     if (contentError) showError('Failed to load resource representation');
   }, [contentError, showError]);
 
-  // Binary path: fetch short-lived media token, construct URL
-  const { token: mediaToken, loading: mediaTokenLoading } = useMediaToken(semiont ?? null, rUri);
-  const binaryContent = (isBinary ? mediaUrl(semiont, rUri, mediaToken) : undefined) ?? '';
+  // A null client mints nothing: only a view that loads by URL needs a token.
+  const { token: mediaToken, loading: mediaTokenLoading } =
+    useMediaToken(contentSource === 'media-url' ? semiont ?? null : null, rUri);
 
-  const content = isBinary ? binaryContent : textContent;
-  const contentLoading = isBinary ? mediaTokenLoading : textLoading;
+  const tokenUrl = mediaUrl(semiont, rUri, mediaToken);
+
+  // Each source says what the view reads, whether it is still arriving, and
+  // whether the view has it. Loaded is a fact of the source — the text landed,
+  // the URL exists, there is nothing to load — never inferred from a non-empty
+  // string, which answers "never" for a zero-byte document and for a view that
+  // reads no content.
+  const loadedBy: Record<ContentSource, { content: string; contentLoading: boolean; contentLoaded: boolean }> = {
+    'text': { content: textContent ?? '', contentLoading: textLoading, contentLoaded: textContent !== undefined },
+    'media-url': { content: tokenUrl ?? '', contentLoading: mediaTokenLoading, contentLoaded: tokenUrl !== undefined },
+    'none': { content: '', contentLoading: false, contentLoaded: true },
+  };
+  const { content, contentLoading, contentLoaded } = loadedBy[contentSource];
 
   // Composite state unit — owns all flow VMs, wizard state, annotations, entity types
   const browseStateUnit = useShellStateUnit();
@@ -427,18 +454,15 @@ export function ResourceViewerPage({
   }, [triggerSparkleAnimation]);
 
   const handleResourceOpen = useCallback(({ resourceId }: { resourceId: string }) => {
-    if (routes.resourceDetail) {
-      const path = routes.resourceDetail(resourceId);
-      browser.emit('nav:push', { path, reason: 'reference-link' });
-    }
+    browser.emit('nav:push', { path: routes.resourceDetail(resourceId), reason: 'reference-link' });
   }, [routes.resourceDetail, browser]);
 
+  // A host without a knowledge page has nowhere to filter to.
   const handleEntityTypeClicked = useCallback(({ entityType }: { entityType: string }) => {
-    if (routes.know) {
-      const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
-      browser.emit('nav:push', { path, reason: 'entity-type-filter' });
-    }
-  }, [routes.know, browser]);
+    if (!routes.knowledge) return;
+    const path = `${routes.knowledge()}?entityType=${encodeURIComponent(entityType)}`;
+    browser.emit('nav:push', { path, reason: 'entity-type-filter' });
+  }, [routes.knowledge, browser]);
 
   // Outcome notifications (annotation CRUD failures, job success/decline/fail,
   // assist timed-out) live in useOutcomeToasts — they need only the resource id
@@ -470,15 +494,15 @@ export function ResourceViewerPage({
   useEffect(() => {
     if (contentLoading) {
       announceResourceLoading(resource.name);
-    } else if (content) {
+    } else if (contentLoaded) {
       announceResourceLoaded(resource.name);
     }
-  }, [contentLoading, content, resource.name, announceResourceLoading, announceResourceLoaded]);
+  }, [contentLoading, contentLoaded, resource.name, announceResourceLoading, announceResourceLoaded]);
 
   // Report the arrival on the wire (browse:resource-viewed) — same
   // load-complete condition the announcement uses, so "viewed" means the
-  // content is actually on screen (GUIDED-TOUR P5, D6).
-  useResourceViewedReport(rUri, !contentLoading && !!content);
+  // view is actually on screen (GUIDED-TOUR P5, D6).
+  useResourceViewedReport(rUri, contentLoaded);
 
   // Derived state
   const documentEntityTypes = resource.entityTypes || [];

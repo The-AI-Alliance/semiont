@@ -20,14 +20,14 @@ Framework-agnostic React component library for building Semiont knowledge manage
 - **Component Composition** - Components accept framework-specific implementations (Link, routing) as props
 - **Provider Pattern** - Consistent approach for session, translations, and routing
 - **SDK Live Queries** - Read data with `useObservable()` over the SDK's read-through cache; no bespoke fetching layer
-- **Authentication Components** - Sign-in, sign-up, and error display components
+- **Authentication Components** - Error display; signing in happens at the knowledge base's issuer
 - **Navigation Components** - Collapsible sidebar with drag & drop resource tabs
 - **Modal Components** - Global search and resource selection modals
 - **Accessibility First** - WCAG compliant with keyboard navigation, screen reader support
 - **Comprehensive Testing** - 1250+ tests with extensive coverage
 - **Annotation System** - Rich annotation and tagging capabilities
-- **Built-in Translations** - English and Spanish included, with dynamic loading for optimal bundle size
-- **Flexible i18n** - Three modes: default English, built-in locales, or custom translation system
+- **Built-in Translations** - 29 locales (`AVAILABLE_LOCALES`), each loaded on demand
+- **Flexible i18n** - Two modes: built-in locales or a custom translation system. There is no default language
 - **Favicon Assets** - Complete set of Semiont branded favicons for all platforms
 
 ## Installation
@@ -77,13 +77,13 @@ import {
   SemiontProvider,
   TranslationProvider,
   ProtectedErrorBoundary,
-  SessionExpiredModal,
+  SessionEndedModal,
   PermissionDeniedModal,
+  type TranslationManager,
 } from '@semiont/react-ui';
 
-function App({ children }) {
-  const translationManager = useTranslationManager(); // Your implementation
-
+function App({ translationManager, children }: { translationManager: TranslationManager; children: React.ReactNode }) {
+  // `translationManager` is your implementation (see "Use Translations" below)
   return (
     <TranslationProvider translationManager={translationManager}>
       {/* SemiontProvider puts the SemiontBrowser singleton into context.
@@ -91,7 +91,7 @@ function App({ children }) {
           SemiontClient) flow from there. */}
       <SemiontProvider>
         <ProtectedErrorBoundary>
-          <SessionExpiredModal />
+          <SessionEndedModal />
           <PermissionDeniedModal />
           {children}
         </ProtectedErrorBoundary>
@@ -104,53 +104,55 @@ function App({ children }) {
 ### 2. Use Components
 
 ```tsx
-import { ResourceViewer, useSemiont, useObservable } from '@semiont/react-ui';
+import { ResourceViewer, useResourceLoader, useSemiont, useObservable } from '@semiont/react-ui';
 
-function MyComponent() {
-  const semiont = useObservable(useSemiont().activeSession$)?.client;
-  // browse.resources() is an SDK live query backed by the read-through cache.
-  // It emits CacheState<ResourceList>: pending → ready | failed.
-  const state = useObservable(semiont?.browse.resources({ limit: 20 }));
+function Resource({ rId }: { rId: ResourceId }) {
+  // The active session (null until one is signed in) and its client
+  const session = useObservable(useSemiont().activeSession$) ?? null;
+  // browse.resource() and browse.annotations() are SDK live queries backed by
+  // the read-through cache; useResourceLoader subscribes to both.
+  const { resource, annotations } = useResourceLoader(session?.client ?? null, rId);
 
-  if (!state || state.status === 'pending') return <div>Loading...</div>;
-  if (state.status === 'failed') return <div>Failed to load</div>;
+  if (!resource) return <div>Loading...</div>;
 
-  const { resources } = state.value; // ResourceList: { resources, total, matchKind, … }
-  return <ResourceViewer resource={resources[0]} />;
+  // `content` is the decoded text the host fetched (see useResourceContent)
+  return <ResourceViewer session={session} resource={{ ...resource, content }} annotations={annotations} />;
 }
 ```
 
 ### 3. Use Translations
 
 ```tsx
-import { useTranslations } from '@semiont/react-ui';
+import { TranslationProvider, useTranslations, type TranslationManager } from '@semiont/react-ui';
 
-// Option 1: Default English (no provider needed)
-function Toolbar() {
+// Reads the nearest TranslationProvider, and throws when there is none
+function SettingsButton() {
   const t = useTranslations('Toolbar');
-  return <button>{t('save')}</button>;
+  return <button>{t('settings')}</button>;
 }
 
-// Option 2: Built-in locales
-import { TranslationProvider } from '@semiont/react-ui';
-
-function App() {
+// Option 1: Built-in locales
+function SpanishApp() {
   return (
     <TranslationProvider locale="es">
-      <Toolbar />
+      <SettingsButton />
     </TranslationProvider>
   );
 }
 
-// Option 3: Custom translation system
-const myTranslationManager = {
-  t: (namespace, key, params) => myI18n.translate(`${namespace}.${key}`, params)
+// Option 2: Custom translation system
+const messages: Record<string, Record<string, string>> = {
+  Toolbar: { settings: 'Ajustes' },
 };
 
-function App() {
+const myTranslationManager: TranslationManager = {
+  t: (namespace, key) => messages[namespace]?.[key] ?? `${namespace}.${key}`,
+};
+
+function CustomApp() {
   return (
     <TranslationProvider translationManager={myTranslationManager}>
-      <Toolbar />
+      <SettingsButton />
     </TranslationProvider>
   );
 }
@@ -214,7 +216,7 @@ Cross-cutting concerns use the Provider Pattern:
 
 - **SemiontProvider** - The single React provider for session state. Puts the module-scoped `SemiontBrowser` singleton into context; `useSemiont()` returns it. The browser owns the KB list, active KB, and validated session lifecycle — it's the single source of truth for "which KB and what's the session against it." The active `SemiontSession` (and its `SemiontClient`) flow from `browser.activeSession$`.
 - **TranslationProvider** - Internationalization
-- **RoutingContext** - Framework-agnostic navigation
+- **Routing** - Not a provider: components that link take the host's `Link` and `routes` as props (`LinkComponentProps`, `RouteBuilder`)
 
 See [docs/SESSION.md](docs/SESSION.md) for details.
 
@@ -224,8 +226,7 @@ See [docs/SESSION.md](docs/SESSION.md) for details.
 
 - **Shell** — `createShellStateUnit` (toolbar panel state with `'knowledge-base' | 'common' | 'resource'` taxonomy)
 - **Pages** — `createComposePageStateUnit`, `createResourceViewerPageStateUnit`, `createResourceLoaderStateUnit`
-- **Exchange** — `createExchangeStateUnit` (backup/restore + import/export)
-- **Auth + discovery + moderation** — `createDiscoverStateUnit`, `createEntityTagsStateUnit`
+- **Discovery + moderation** — `createDiscoverStateUnit`, `createEntityTagsStateUnit`
 
 Adjacent to the state units: `useKBDiscovery` binds the sdk's
 launcher-KB discovery subscription (`subscribeDiscovery`) to React state —
@@ -256,7 +257,7 @@ function Example() {
   const resources = state && readyValue(state)?.resources; // undefined until ready
 
   // Write: typed namespace call (cache invalidation is handled by the SDK)
-  const archive = (rUri) => client?.mark.archive(rUri);
+  const archive = (rUri: ResourceId) => client?.mark.archive(rUri);
 }
 ```
 
@@ -267,11 +268,11 @@ See [docs/API-INTEGRATION.md](docs/API-INTEGRATION.md) for details.
 Comprehensive test utilities included:
 
 ```tsx
-import { renderWithProviders } from '@semiont/react-ui/test-utils';
+import { renderWithProviders, screen } from '@semiont/react-ui/test-utils';
 
 it('should render component', () => {
-  renderWithProviders(<MyComponent />);
-  expect(screen.getByText('Hello')).toBeInTheDocument();
+  renderWithProviders(<Toolbar context="simple" activePanel={null} />);
+  expect(screen.getByLabelText('Toolbar.settings')).toBeInTheDocument();
 });
 ```
 
@@ -284,8 +285,8 @@ See [docs/TESTING.md](docs/TESTING.md) for details.
 - [TESTING.md](docs/TESTING.md) - Testing utilities and patterns
 - [API-INTEGRATION.md](docs/API-INTEGRATION.md) - Working with the Semiont API
 - [COMPONENTS.md](docs/COMPONENTS.md) - Component library reference
-- [navigation-components.md](docs/navigation-components.md) - Navigation components (SidebarNavigation, CollapsibleResourceNavigation)
-- [modal-components.md](docs/modal-components.md) - Modal components (SearchModal, ResourceSearchModal)
+- [navigation-components.md](docs/navigation-components.md) - Navigation components (CollapsibleResourceNavigation, SimpleNavigation, NavigationMenu, ObservableLink)
+- [modal-components.md](docs/modal-components.md) - Modal components (SearchModal)
 - [ROUTING.md](docs/ROUTING.md) - Framework-agnostic routing
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Design principles and decisions
 - [STYLES.md](docs/STYLES.md) - CSS architecture and styling guide
@@ -295,25 +296,19 @@ See [docs/TESTING.md](docs/TESTING.md) for details.
 
 ## Examples
 
-### Next.js Integration
+### Vite Integration
 
 ```tsx
-// app/providers.tsx
-'use client';
+// src/App.tsx
+import { TranslationProvider, SemiontProvider, type TranslationManager } from '@semiont/react-ui';
 
-import { useLocale } from 'next-intl';
-import { TranslationProvider, SemiontProvider } from '@semiont/react-ui';
-
-export function useTranslationManager() {
-  const locale = useLocale();
-  const messages = require(`@/messages/${locale}.json`);
-
+function useTranslationManager(): TranslationManager {
   return {
-    t: (namespace, key) => messages[namespace]?.[key] || key
+    t: (namespace, key) => `${namespace}.${key}` // Your i18n library
   };
 }
 
-export function Providers({ children }) {
+function App({ children }: { children: React.ReactNode }) {
   const translationManager = useTranslationManager();
 
   // SemiontProvider defaults to the canonical web setup (WebBrowserStorage +
@@ -329,31 +324,9 @@ export function Providers({ children }) {
 }
 ```
 
-### Vite Integration
-
-```tsx
-// src/App.tsx
-import { useState } from 'react';
-import { TranslationProvider } from '@semiont/react-ui';
-
-function useTranslationManager() {
-  const [locale] = useState('en');
-
-  return {
-    t: (namespace, key) => `${namespace}.${key}` // Your i18n library
-  };
-}
-
-function App() {
-  const translationManager = useTranslationManager();
-
-  return (
-    <TranslationProvider translationManager={translationManager}>
-      {/* Your app */}
-    </TranslationProvider>
-  );
-}
-```
+The Semiont Browser (`apps/browser`, Vite + React Router) is the full reference: its
+`apps/browser/src/app/providers.tsx` mounts the whole provider stack, with a translation
+manager built over react-i18next.
 
 ## Development
 
@@ -391,4 +364,4 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md) in the repository root for full gui
 - [@semiont/sdk](../sdk) - `SemiontBrowser`, `SemiontClient`, the read-through cache, and the state machinery. Its [**Developer Guide**](../sdk/docs/DEVELOPER-GUIDE.md) covers end-to-end use, including embedding this package's `ResourceViewer`.
 - [@semiont/core](../core) - Shared API types (`components`) generated from the OpenAPI spec
 - [@semiont/http-transport](../http-transport) - HTTP transport (`HttpTransport`, `HttpContentTransport`, `APIError`)
-- [semiont-browser](../../apps/browser) - Reference Next.js implementation
+- [semiont-browser](../../apps/browser) - Reference implementation (Vite + React Router)
