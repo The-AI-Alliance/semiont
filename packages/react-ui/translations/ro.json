@@ -321,7 +321,7 @@
     "modalNavBackward": "Navighează înapoi prin butoane",
     "modalActivate": "Activează butonul focalizat",
     "accessibilityTitle": "Accesibilitate",
-    "a11ySkipLinks": "Navighează la linkurile de salt (la începutul paginii)",
+    "a11ySkipLinks": "Navighează la linkul de salt (la începutul paginii)",
     "a11yFollowLink": "Urmează linkul de salt",
     "macNote": "Se utilizează comenzile rapide Mac. Command este tasta Command.",
     "windowsNote": "Se utilizează comenzile rapide Windows/Linux. Ctrl este tasta Control.",

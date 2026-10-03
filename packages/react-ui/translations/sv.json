@@ -321,7 +321,7 @@
     "modalNavBackward": "Navigera bakåt genom knappar",
     "modalActivate": "Aktivera fokuserad knapp",
     "accessibilityTitle": "Tillgänglighet",
-    "a11ySkipLinks": "Navigera till hoppa över-länkar (när i sidans början)",
+    "a11ySkipLinks": "Navigera till hoppa över-länken (när i sidans början)",
     "a11yFollowLink": "Följ hoppa över-länk",
     "macNote": "Använder Mac-tangentbordsgenvägar. ⌘ är Command-tangenten.",
     "windowsNote": "Använder Windows/Linux-tangentbordsgenvägar. Ctrl är Control-tangenten.",

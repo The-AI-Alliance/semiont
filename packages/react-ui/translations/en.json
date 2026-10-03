@@ -321,7 +321,7 @@
     "modalNavBackward": "Navigate backward through buttons",
     "modalActivate": "Activate focused button",
     "accessibilityTitle": "Accessibility",
-    "a11ySkipLinks": "Navigate to skip links (when at page start)",
+    "a11ySkipLinks": "Navigate to the skip link (when at page start)",
     "a11yFollowLink": "Follow skip link",
     "macNote": "Using Mac keyboard shortcuts. ⌘ is the Command key.",
     "windowsNote": "Using Windows/Linux keyboard shortcuts. Ctrl is the Control key.",

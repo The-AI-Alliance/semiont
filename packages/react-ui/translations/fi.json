@@ -321,7 +321,7 @@
     "modalNavBackward": "Selaa painikkeita taaksepäin",
     "modalActivate": "Aktivoi kohdistettu painike",
     "accessibilityTitle": "Saavutettavuus",
-    "a11ySkipLinks": "Siirry ohituslinkkeihin (sivun alussa)",
+    "a11ySkipLinks": "Siirry ohituslinkkiin (sivun alussa)",
     "a11yFollowLink": "Seuraa ohituslinkkiä",
     "macNote": "Käytetään Mac-pikanäppäimiä. ⌘ on Command-näppäin.",
     "windowsNote": "Käytetään Windows/Linux-pikanäppäimiä. Ctrl on Control-näppäin.",

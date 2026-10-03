@@ -321,7 +321,7 @@
     "modalNavBackward": "Rückwärts durch Schaltflächen navigieren",
     "modalActivate": "Fokussierte Schaltfläche aktivieren",
     "accessibilityTitle": "Barrierefreiheit",
-    "a11ySkipLinks": "Zu Sprunglinks navigieren (am Seitenanfang)",
+    "a11ySkipLinks": "Zum Sprunglink navigieren (am Seitenanfang)",
     "a11yFollowLink": "Sprunglink folgen",
     "macNote": "Mac-Tastenkombinationen aktiv. ⌘ ist die Befehlstaste.",
     "windowsNote": "Windows/Linux-Tastenkombinationen aktiv. Strg ist die Steuerungstaste.",

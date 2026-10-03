@@ -321,7 +321,7 @@
     "modalNavBackward": "Naviguer vers l'arrière entre les boutons",
     "modalActivate": "Activer le bouton sélectionné",
     "accessibilityTitle": "Accessibilité",
-    "a11ySkipLinks": "Accéder aux liens de navigation rapide (en début de page)",
+    "a11ySkipLinks": "Accéder au lien de navigation rapide (en début de page)",
     "a11yFollowLink": "Suivre le lien de navigation rapide",
     "macNote": "Utilisation des raccourcis clavier Mac. ⌘ est la touche Commande.",
     "windowsNote": "Utilisation des raccourcis clavier Windows/Linux. Ctrl est la touche Contrôle.",

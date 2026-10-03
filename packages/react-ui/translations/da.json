@@ -321,7 +321,7 @@
     "modalNavBackward": "Naviger baglæns gennem knapper",
     "modalActivate": "Aktiver fokuseret knap",
     "accessibilityTitle": "Tilgængelighed",
-    "a11ySkipLinks": "Naviger til spring-links (ved sidestart)",
+    "a11ySkipLinks": "Naviger til spring-linket (ved sidestart)",
     "a11yFollowLink": "Følg spring-link",
     "macNote": "Bruger Mac-tastaturgenveje. Command er Command-tasten.",
     "windowsNote": "Bruger Windows/Linux-tastaturgenveje. Ctrl er Control-tasten.",

@@ -321,7 +321,7 @@
     "modalNavBackward": "Achterwaarts door knoppen navigeren",
     "modalActivate": "Gefocuste knop activeren",
     "accessibilityTitle": "Toegankelijkheid",
-    "a11ySkipLinks": "Naar skiplinks navigeren (bij begin van pagina)",
+    "a11ySkipLinks": "Naar de skiplink navigeren (bij begin van pagina)",
     "a11yFollowLink": "Skiplink volgen",
     "macNote": "Mac-sneltoetsen worden gebruikt. Command is de Command-toets.",
     "windowsNote": "Windows/Linux-sneltoetsen worden gebruikt. Ctrl is de Control-toets.",

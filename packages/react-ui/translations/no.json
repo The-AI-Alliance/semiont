@@ -321,7 +321,7 @@
     "modalNavBackward": "Naviger bakover gjennom knapper",
     "modalActivate": "Aktiver fokusert knapp",
     "accessibilityTitle": "Tilgjengelighet",
-    "a11ySkipLinks": "Naviger til hurtiglenker (når øverst på siden)",
+    "a11ySkipLinks": "Naviger til hurtiglenken (når øverst på siden)",
     "a11yFollowLink": "Følg hurtiglenke",
     "macNote": "Bruker Mac-tastatursnarveier. ⌘ er Command-tasten.",
     "windowsNote": "Bruker Windows/Linux-tastatursnarveier. Ctrl er Control-tasten.",

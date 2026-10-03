@@ -321,7 +321,7 @@
     "modalNavBackward": "ניווט אחורה בין כפתורים",
     "modalActivate": "הפעלת כפתור ממוקד",
     "accessibilityTitle": "נגישות",
-    "a11ySkipLinks": "ניווט לקישורי דילוג (בתחילת הדף)",
+    "a11ySkipLinks": "ניווט לקישור הדילוג (בתחילת הדף)",
     "a11yFollowLink": "מעקב אחר קישור דילוג",
     "macNote": "שימוש בקיצורי מקלדת של Mac. ⌘ הוא מקש Command.",
     "windowsNote": "שימוש בקיצורי מקלדת של Windows/Linux. Ctrl הוא מקש Control.",

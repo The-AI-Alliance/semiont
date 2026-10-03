@@ -321,7 +321,7 @@
     "modalNavBackward": "Navegar hacia atrás por los botones",
     "modalActivate": "Activar botón enfocado",
     "accessibilityTitle": "Accesibilidad",
-    "a11ySkipLinks": "Navegar a enlaces de salto (al inicio de la página)",
+    "a11ySkipLinks": "Navegar al enlace de salto (al inicio de la página)",
     "a11yFollowLink": "Seguir enlace de salto",
     "macNote": "Usando atajos de teclado de Mac. ⌘ es la tecla Command.",
     "windowsNote": "Usando atajos de teclado de Windows/Linux. Ctrl es la tecla Control.",

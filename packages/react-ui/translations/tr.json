@@ -321,7 +321,7 @@
     "modalNavBackward": "Düğmeler arasında geri gezin",
     "modalActivate": "Odaklanan düğmeyi etkinleştir",
     "accessibilityTitle": "Erişilebilirlik",
-    "a11ySkipLinks": "Atlama bağlantılarına git (sayfa başındayken)",
+    "a11ySkipLinks": "Atlama bağlantısına git (sayfa başındayken)",
     "a11yFollowLink": "Atlama bağlantısını takip et",
     "macNote": "Mac klavye kısayolları kullanılıyor. Command tuşu Command tuşudur.",
     "windowsNote": "Windows/Linux klavye kısayolları kullanılıyor. Ctrl, Ctrl tuşudur.",
