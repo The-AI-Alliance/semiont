@@ -102,7 +102,7 @@ If you find yourself writing focus-management code by hand, switch to `Dialog` i
 
 ### Tab navigation
 
-Sequential focus through page regions: skip links → header → main content → footer. Within each region, controls are grouped logically.
+Sequential focus through page regions: skip link → header → main content → footer. Within each region, controls are grouped logically.
 
 ### Roving tabindex
 
@@ -112,9 +112,9 @@ Used for groups of single-selection items. Tab enters the group; arrow keys move
 
 When a modal opens, focus moves into it and is trapped until close. On close, focus restores to the element that triggered the modal. Always via Headless UI `Dialog`; never hand-rolled.
 
-### Skip links
+### Skip link
 
-`SkipLinks` (in `@semiont/react-ui`) renders visually-hidden-until-focused links to `#main-content`, `#main-navigation` and `#search` that let keyboard users bypass repetitive navigation. The locale layout mounts it ahead of every route, so the skip-link is the first focusable element on every page. Layouts supply the targets: `LeftSidebar` carries `id="main-navigation"`, and `PageLayout`'s `<main>` carries `id="main-content"`.
+`SkipLinks` (in `@semiont/react-ui`) renders one visually-hidden-until-focused link, "Skip to main content", that lets keyboard users bypass repetitive navigation. The locale layout mounts it once, ahead of every route, so the skip link is the first focusable element on every page. It lands on `MainContent`, react-ui's `<main>` landmark: every Browser layout and standalone page renders its content in one, and `PageLayout` renders one around its children. See [ACCESSIBILITY.md § Skip link](ACCESSIBILITY.md#skip-link).
 
 ## Component checklist
 

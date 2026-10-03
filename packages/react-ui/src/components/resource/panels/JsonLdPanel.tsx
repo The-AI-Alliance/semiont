@@ -9,6 +9,7 @@ import { syntaxHighlighting } from '@codemirror/language';
 import { clipboard } from '../../../lib/clipboard';
 import { jsonLightTheme, jsonLightHighlightStyle } from '../../../lib/codemirror-json-theme';
 import { useLineNumbers } from '../../../contexts/LineNumbersContext';
+import { useTheme } from '../../../contexts/ThemeContext';
 import { useResourceGraph } from '../../../hooks/useResourceGraph';
 import type { ResourceId } from '@semiont/core';
 import './JsonLdPanel.css';
@@ -29,6 +30,7 @@ export function JsonLdPanel({ resourceId }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const { showLineNumbers } = useLineNumbers();
+  const { resolvedTheme } = useTheme();
   const { graph, loading, error } = useResourceGraph(resourceId);
 
   const documentText = graph ? JSON.stringify(graph, null, 2) : '';
@@ -36,8 +38,6 @@ export function JsonLdPanel({ resourceId }: Props) {
   // Initialize CodeMirror once the graph has loaded.
   useEffect(() => {
     if (!editorRef.current || !documentText) return;
-
-    const isDarkMode = document.documentElement?.classList.contains('dark') ?? false;
 
     const extensions = [
       json(),
@@ -49,7 +49,7 @@ export function JsonLdPanel({ resourceId }: Props) {
       extensions.push(lineNumbers());
     }
 
-    if (isDarkMode) {
+    if (resolvedTheme === 'dark') {
       extensions.push(oneDark);
     } else {
       extensions.push(jsonLightTheme);
@@ -72,7 +72,7 @@ export function JsonLdPanel({ resourceId }: Props) {
       view.destroy();
       viewRef.current = null;
     };
-  }, [documentText, showLineNumbers]);
+  }, [documentText, showLineNumbers, resolvedTheme]);
 
   const copyTo = clipboard();
   const handleCopyToClipboard = async (to: Clipboard) => {

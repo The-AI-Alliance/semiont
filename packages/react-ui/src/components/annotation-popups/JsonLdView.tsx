@@ -9,6 +9,7 @@ import { syntaxHighlighting } from '@codemirror/language';
 import { clipboard } from '../../lib/clipboard';
 import { jsonLightTheme, jsonLightHighlightStyle } from '../../lib/codemirror-json-theme';
 import { useLineNumbers } from '../../contexts/LineNumbersContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 import type { Annotation } from '@semiont/core';
 
@@ -21,6 +22,7 @@ export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const { showLineNumbers } = useLineNumbers();
+  const { resolvedTheme } = useTheme();
 
   // Store callback in ref to avoid including in dependency arrays
   const onBackRef = useRef(onBack);
@@ -44,9 +46,6 @@ export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
   useEffect(() => {
     if (!editorRef.current) return;
 
-    // Check if dark mode is active
-    const isDarkMode = document.documentElement.classList.contains('dark');
-
     const jsonContent = JSON.stringify(annotation, null, 2);
 
     const extensions = [
@@ -61,7 +60,7 @@ export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
     }
 
     // Add theme based on dark/light mode
-    if (isDarkMode) {
+    if (resolvedTheme === 'dark') {
       extensions.push(oneDark);
     } else {
       extensions.push(jsonLightTheme);
@@ -84,7 +83,7 @@ export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
       view.destroy();
       viewRef.current = null;
     };
-  }, [annotation, showLineNumbers]);
+  }, [annotation, showLineNumbers, resolvedTheme]);
 
   const copyTo = clipboard();
   const handleCopyToClipboard = async (to: Clipboard) => {

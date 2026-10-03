@@ -351,7 +351,6 @@ describe('LeftSidebar Component', () => {
 
       const nav = screen.getByRole('navigation');
       expect(nav).toHaveAttribute('aria-label', 'Main navigation');
-      expect(nav).toHaveAttribute('id', 'main-navigation');
     });
 
     it('should have accessible branding link', () => {

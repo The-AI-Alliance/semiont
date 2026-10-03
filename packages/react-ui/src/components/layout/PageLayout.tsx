@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { UnifiedHeader } from './UnifiedHeader';
-import { SkipLinks } from './SkipLinks';
+import { MainContent } from './SkipLinks';
 import type { LinkComponentProps, RouteBuilder } from '../../contexts/RoutingContext';
 import type { TranslateFn } from '../../types/translation';
 
@@ -27,8 +27,6 @@ export function PageLayout({
 }: PageLayoutProps) {
   return (
     <div className="semiont-page-layout">
-      <SkipLinks />
-
       <header role="banner" className="semiont-page-layout__header">
         <div className="semiont-page-layout__header-container">
           <UnifiedHeader
@@ -43,14 +41,9 @@ export function PageLayout({
         </div>
       </header>
 
-      <main
-        role="main"
-        id="main-content"
-        tabIndex={-1}
-        className={`semiont-page-layout__main ${className}`}
-      >
+      <MainContent className={`semiont-page-layout__main ${className}`}>
         {children}
-      </main>
+      </MainContent>
     </div>
   );
 }

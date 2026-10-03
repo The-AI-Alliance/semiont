@@ -42,9 +42,6 @@ describe('ThemeContext', () => {
       writable: true,
       configurable: true,
     });
-
-    // Mock document.documentElement
-    document.documentElement.classList.remove('light', 'dark');
   });
 
   afterEach(() => {

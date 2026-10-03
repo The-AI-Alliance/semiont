@@ -12,17 +12,49 @@ The Browser meets WCAG 2.1 AA via:
 - **No Keyboard Trap (2.1.2):** standard navigation keys move in and out of every component (modals included).
 - **Focus Visible (2.4.7):** focus rings on all interactive elements.
 - **Focus Order (2.4.3):** logical tab order matching visual layout.
-- **Bypass Blocks (2.4.1):** skip-link to main content, navigation, and search.
+- **Bypass Blocks (2.4.1):** a skip link to the main content, first in the tab order on every route.
 - **Page Titled (2.4.2):** descriptive page titles and heading hierarchy.
+- **Language of Page (3.1.1):** `<html lang>` and `<html dir>` follow the route's locale.
 - **Name, Role, Value (4.1.2):** semantic HTML + ARIA where semantic HTML doesn't suffice.
 
 ## Patterns
 
-### Language attribute
+### Language and direction
 
-[WCAG 3.1.1 Language of Page](https://www.w3.org/WAI/WCAG21/Understanding/language-of-page.html) requires the document's `<html>` element to carry the page language. `apps/browser/index.html` declares `<html lang="en">`. `LocaleGuard` in `src/App.tsx` switches i18next to the route's `:locale` (see [INTERNATIONALIZATION.md](INTERNATIONALIZATION.md)) and leaves `document.documentElement.lang` as it is, so the attribute reads `en` under every locale.
+[WCAG 3.1.1 Language of Page](https://www.w3.org/WAI/WCAG21/Understanding/language-of-page.html) requires the document's `<html>` element to carry the page language. `LocaleGuard` in `src/App.tsx` switches i18next to the route's `:locale` (see [INTERNATIONALIZATION.md](INTERNATIONALIZATION.md)), and `src/i18n/config.ts` writes every language i18next switches to onto `<html>`:
 
-`SkipLinks`, the visually-hidden-until-focused bypass-blocks component from `@semiont/react-ui`, is mounted by the locale layout (`src/app/[locale]/layout.tsx`) ahead of every route.
+```ts
+import i18n from 'i18next';
+
+i18n.on('languageChanged', (language) => {
+  document.documentElement.lang = language;
+  document.documentElement.dir = i18n.dir(language);
+});
+```
+
+`lang` names the language on screen: `languageChanged` fires once the locale's messages have loaded and i18next renders them. `i18n.dir` is i18next's own reading of a language's direction, so `ar`, `he` and `fa` set `dir="rtl"` and every other supported locale sets `dir="ltr"`. `apps/browser/index.html` declares `<html lang="en">`, which stands until the first locale loads.
+
+`src/__tests__/document-language.test.tsx` routes the app through several locales and checks both attributes.
+
+### Skip link
+
+[WCAG 2.4.1 Bypass Blocks](https://www.w3.org/WAI/WCAG21/Understanding/bypass-blocks.html) asks for a way past content repeated on every page. `SkipLinks`, the visually-hidden-until-focused link from `@semiont/react-ui`, is mounted once, by the locale layout (`src/app/[locale]/layout.tsx`), ahead of every route. Its link lands on `MainContent`, react-ui's `<main>` landmark, and every page renders its content in one:
+
+```tsx
+<MainContent className="flex-1 p-6 flex flex-col">
+  {children}
+</MainContent>
+```
+
+The knowledge and moderate layouts render theirs beside the sidebar, the splash, sign-in callback and not-found pages render their own, and the auth error page gets one from react-ui's `PageLayout`. A new page or layout does the same; it does not mount a second `SkipLinks`.
+
+`src/__tests__/skip-link-targets.test.tsx` renders every route in `App`'s route table and fails on a route whose skip link has no target, or that carries more than one `SkipLinks`.
+
+### Dark theme
+
+`ThemeProvider` from `@semiont/react-ui` writes the resolved theme to `data-theme` on `<html>`. react-ui's styles key their dark rules off `[data-theme="dark"]`, and `tailwind.config.js` points Tailwind's `dark:` variant at the same attribute (`darkMode: ['selector', '[data-theme="dark"]']`). A `dark:` class in Browser markup therefore applies in exactly the theme react-ui's components render in: a `dark:` surface and the text on it change together, which [WCAG 1.4.3 Contrast](https://www.w3.org/WAI/WCAG21/Understanding/contrast-minimum.html) depends on.
+
+`src/__tests__/tailwind-dark-variant.test.tsx` compiles `src/app/globals.css` and checks that every `dark:` rule matches under `ThemeProvider`'s dark theme and none under its light theme.
 
 ### Focus management
 
@@ -99,7 +131,7 @@ For JS-driven animations, check `window.matchMedia('(prefers-reduced-motion: red
 
 When building or reviewing a UI component:
 
-- [ ] Uses semantic HTML elements where possible (`<button>`, `<a>`, `<nav>`, `<main>`, `<section>` with headings).
+- [ ] Uses semantic HTML elements where possible (`<button>`, `<a>`, `<nav>`, `<section>` with headings), and `MainContent` for a page's `<main>`.
 - [ ] ARIA labels on icon-only buttons, including state (`aria-expanded`, `aria-pressed`, `aria-selected`).
 - [ ] Keyboard handlers for non-button click targets (Enter + Space minimum).
 - [ ] Visible focus indicator (don't strip without replacing).

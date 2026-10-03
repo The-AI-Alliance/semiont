@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { PageLayout } from '../PageLayout';
+import { SkipLinks } from '../SkipLinks';
 
 // No mocks - using real components via composition
 // Need to mock useDropdown hook used by UnifiedHeader
@@ -234,6 +235,41 @@ describe('PageLayout Component', () => {
       );
 
       expect(screen.getByRole('main')).toBeInTheDocument();
+    });
+
+    it('should leave SkipLinks to the host, which mounts it once for every page', () => {
+      const { container } = render(
+        <PageLayout
+          Link={MockLink}
+          routes={mockRoutes}
+          tNav={mockTNav}
+          tHome={mockTHome}
+        >
+          <div>Content</div>
+        </PageLayout>
+      );
+
+      expect(container.querySelector('.semiont-skip-links')).not.toBeInTheDocument();
+    });
+
+    it("should render the host's skip link target as its main element", () => {
+      render(
+        <div>
+          <SkipLinks />
+          <PageLayout
+            Link={MockLink}
+            routes={mockRoutes}
+            tNav={mockTNav}
+            tHome={mockTHome}
+          >
+            <div>Content</div>
+          </PageLayout>
+        </div>
+      );
+
+      const skipLink = screen.getByRole<HTMLAnchorElement>('link', { name: /skip to main content/i });
+
+      expect(document.querySelector(skipLink.hash)).toBe(screen.getByRole('main'));
     });
 
     it('should maintain proper document structure', () => {

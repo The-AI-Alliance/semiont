@@ -199,8 +199,8 @@ source of truth for the full (and evolving) list; the essentials are below.
 
 ### PageLayout
 
-The standard page shell — composes `UnifiedHeader` around your content. (It does
-*not* take `header` / `sidebar` slots.)
+The standard page shell — composes `UnifiedHeader` around your content, which it renders
+in a `MainContent`. (It does *not* take `header` / `sidebar` slots.)
 
 ```tsx
 import { PageLayout } from '@semiont/react-ui';
@@ -309,7 +309,8 @@ additionally takes `annotators`, `Link` + `routes` for its reference-tab links, 
 `onOpenResource?` for host-owned navigation when a resolved reference is followed).
 Each panel's `Props` interface lists its state inputs. `resourceId` is a `ResourceId`, and
 `onOpenResource` is called with one. `JsonLdPanel` is the one exception
-that still reads `SemiontProvider`.
+that still reads `SemiontProvider`; its editor also reads `LineNumbersProvider` and, for
+its light or dark theme, `ThemeProvider`.
 
 ### Panel Entries
 
@@ -497,13 +498,24 @@ import { UserMenuSkeleton } from '@semiont/react-ui';
 
 ### SkipLinks
 
-Skip-navigation links for keyboard users. Takes no props — it renders the standard skip targets
-(main content, navigation).
+The skip link for keyboard users. Takes no props — it renders one link, "Skip to main content",
+which lands on `MainContent`. Mount it once, ahead of your routes.
 
 ```tsx
 import { SkipLinks } from '@semiont/react-ui';
 
 <SkipLinks />
+```
+
+### MainContent
+
+The page's `<main>` landmark, and the element the skip link lands on. Takes the props of
+`<main>`, less `id` and `tabIndex`, which are its own.
+
+```tsx
+import { MainContent } from '@semiont/react-ui';
+
+<MainContent className="page-body">{children}</MainContent>
 ```
 
 ---

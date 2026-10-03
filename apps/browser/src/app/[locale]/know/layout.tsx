@@ -3,6 +3,7 @@ import { Outlet } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
 import {
+  MainContent,
   ResourceAnnotationsProvider,
   Toolbar,
   useSemiont,
@@ -105,11 +106,11 @@ function UnauthenticatedKnowledgeLayout() {
   return (
     <div className="h-screen semiont-knowledge-layout flex flex-col overflow-hidden">
       <div className="flex flex-1 overflow-hidden">
-        <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
+        <MainContent className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
           <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden items-center justify-center">
             <DiscoverEmptyState />
           </div>
-        </main>
+        </MainContent>
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
@@ -139,12 +140,12 @@ function KnowledgeLayoutBody() {
 
   if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center">
+      <MainContent className="h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
-      </div>
+      </MainContent>
     );
   }
 
@@ -160,11 +161,11 @@ function KnowledgeLayoutBody() {
       <div className="h-screen semiont-knowledge-layout flex flex-col overflow-hidden">
         <div className="flex flex-1 overflow-hidden">
           <KnowledgeSidebarWrapper />
-          <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
+          <MainContent className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
             <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden">
               <Outlet />
             </div>
-          </main>
+          </MainContent>
         </div>
       </div>
     </ResourceAnnotationsProvider>

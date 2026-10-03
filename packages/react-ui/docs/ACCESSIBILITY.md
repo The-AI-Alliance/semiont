@@ -12,16 +12,26 @@
 
 ## Core Components
 
-### SkipLinks
-Implements [WCAG 2.4.1 Bypass Blocks](https://www.w3.org/WAI/WCAG21/Understanding/bypass-blocks.html):
+### SkipLinks and MainContent
+Implement [WCAG 2.4.1 Bypass Blocks](https://www.w3.org/WAI/WCAG21/Understanding/bypass-blocks.html):
 
 ```tsx
-import { SkipLinks } from '@semiont/react-ui';
+import { SkipLinks, MainContent } from '@semiont/react-ui';
 
-<SkipLinks />  // Links to #main-content, #main-navigation and #search
+function Page() {
+  return (
+    <>
+      <SkipLinks />
+      <nav aria-label="Main navigation">{/* repeated on every page */}</nav>
+      <MainContent>{children}</MainContent>
+    </>
+  );
+}
 ```
 
-`SkipLinks` takes no props; the page around it supplies the targets. `LeftSidebar` carries `id="main-navigation"`, and `PageLayout` renders `SkipLinks` itself and carries `id="main-content"` on its `<main>`.
+`SkipLinks` takes no props and renders one link, "Skip to main content", hidden until it takes focus. `MainContent` is the page's `<main>` landmark and that link's target. It takes the props of `<main>`, and owns the two that make it a target: the `id` the link points at, and the `tabIndex={-1}` that lets it take focus without joining the tab order.
+
+The host mounts `SkipLinks` once, ahead of its routes, and every page renders its content in a `MainContent` — its own, or the one `PageLayout` renders around its children. `PageLayout` does not render `SkipLinks`.
 
 ### LiveRegion
 Provides [WCAG 4.1.3 Status Messages](https://www.w3.org/WAI/WCAG21/Understanding/status-messages.html):
@@ -149,7 +159,7 @@ Drag & drop per [ARIA Authoring Practices](https://www.w3.org/WAI/ARIA/apg/patte
 
 ### Language Support
 
-Content language per [WCAG 3.1.2](https://www.w3.org/WAI/WCAG21/Understanding/language-of-parts.html): the interface language belongs on the host's `<html lang>`, and resource content, whose language may differ, carries its own. `ResourceViewerPage` marks its document body this way, and `ResourceComposePage` its editor:
+Content language per [WCAG 3.1.2](https://www.w3.org/WAI/WCAG21/Understanding/language-of-parts.html): the interface language belongs on the host's `<html lang>` (the Browser writes it, and `dir`, from its route's locale — see [its ACCESSIBILITY.md](../../../apps/browser/docs/ACCESSIBILITY.md#language-and-direction)), and resource content, whose language may differ, carries its own. `ResourceViewerPage` marks its document body this way, and `ResourceComposePage` its editor:
 ```tsx
 import { getLanguage } from '@semiont/core';
 
@@ -162,7 +172,7 @@ import { getLanguage } from '@semiont/core';
 |-----------|--------|----------|
 | NavigationMenu | ✅ Complete | WCAG 2.1 AA |
 | LiveRegion | ✅ Complete | WCAG 2.1 AA |
-| SkipLinks | ✅ Complete | WCAG 2.1 AA |
+| SkipLinks, MainContent | ✅ Complete | WCAG 2.1 AA |
 
 ## References
 

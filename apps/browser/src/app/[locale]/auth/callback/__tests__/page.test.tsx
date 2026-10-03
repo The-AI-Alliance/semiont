@@ -34,10 +34,14 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@semiont/react-ui', () => ({
-  useSemiont: () => ({ completeSignIn: mockCompleteSignIn }),
-  useToast: () => ({ showWarning: mockShowWarning, showError: mockShowError }),
-}));
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
+  return {
+    ...actual,
+    useSemiont: () => ({ completeSignIn: mockCompleteSignIn }),
+    useToast: () => ({ showWarning: mockShowWarning, showError: mockShowError }),
+  };
+});
 
 import AuthCallback from '../page';
 

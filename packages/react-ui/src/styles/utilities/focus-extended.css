@@ -265,19 +265,15 @@ select:focus:not(:focus-visible) {
   outline: none;
 }
 
-/* Skip links (always visible on focus) */
-.semiont-skip-link:focus,
-.semiont-skip-link-first:focus-visible,
-.semiont-skip-link-last:focus-visible {
+/* Skip link (always visible on focus) */
+.semiont-skip-link:focus {
   outline: 2px solid var(--semiont-color-primary-500);
   outline-offset: 2px;
   position: relative;
   z-index: 1000;
 }
 
-[data-theme="dark"] .semiont-skip-link:focus,
-[data-theme="dark"] .semiont-skip-link-first:focus-visible,
-[data-theme="dark"] .semiont-skip-link-last:focus-visible {
+[data-theme="dark"] .semiont-skip-link:focus {
   outline-color: var(--semiont-color-primary-400);
 }
 

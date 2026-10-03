@@ -1,5 +1,6 @@
 import { Link } from '@/i18n/routing';
 import { useTranslation } from 'react-i18next';
+import { MainContent } from '@semiont/react-ui';
 import { useLocale } from '@/i18n/routing';
 
 export default function NotFound() {
@@ -8,7 +9,7 @@ export default function NotFound() {
   const locale = useLocale();
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+    <MainContent className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
       <div className="text-center px-4">
         <h1 className="text-6xl font-bold text-gray-900 dark:text-white mb-4">{t('title')}</h1>
         <h2 className="text-2xl font-semibold text-gray-700 dark:text-gray-300 mb-4">
@@ -24,6 +25,6 @@ export default function NotFound() {
           {t('goHome')}
         </Link>
       </div>
-    </div>
+    </MainContent>
   );
 }

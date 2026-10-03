@@ -58,7 +58,7 @@ import { Button, Toolbar } from '@semiont/react-ui';
 
 `ThemeProvider` from @semiont/react-ui resolves the theme (`light`, `dark`, or `system`) and sets `data-theme` on the `<html>` element. The react-ui styles and the Browser's `globals.css` key their dark rules off `[data-theme="dark"]`.
 
-The Browser's `tailwind.config.js` sets `darkMode: 'class'`, so Tailwind's `dark:` variants respond to a `dark` class on an ancestor — a class `ThemeProvider` does not set.
+The Browser's `tailwind.config.js` sets `darkMode: ['selector', '[data-theme="dark"]']`, so Tailwind's `dark:` variants respond to the same attribute: a `dark:` class applies exactly when react-ui's dark rules do.
 
 ### Custom Styling Approach
 
@@ -508,7 +508,7 @@ When migrating components:
 1. **Check @semiont/react-ui first:** See if the component exists in the UI library
 2. **Use semantic classes:** If using react-ui components, rely on their semantic CSS
 3. **Add utility classes carefully:** Only add Tailwind utilities for spacing/layout, not core styling
-4. **Test dark mode:** Ensure both `data-theme="dark"` (react-ui) and `dark:` (Tailwind) work correctly
+4. **Test dark mode:** Switch the theme and check the component in both; `data-theme="dark"` drives react-ui's styles and Tailwind's `dark:` utilities alike
 
 ## Importing Styles
 

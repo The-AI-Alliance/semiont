@@ -36,10 +36,35 @@ vi.mock('@/contexts/LineNumbersContext', async () => {
   return { ...actual, useLineNumbers: vi.fn() };
 });
 vi.mock('@/hooks/useResourceGraph');
+import { EditorState } from '@codemirror/state';
+import { oneDark } from '@codemirror/theme-one-dark';
 import { useLineNumbers } from '@/contexts/LineNumbersContext';
 import { useResourceGraph } from '@/hooks/useResourceGraph';
+import { ThemeProvider, useTheme } from '../../../../contexts/ThemeContext';
+import { jsonLightTheme } from '../../../../lib/codemirror-json-theme';
 
 const RID = resourceId('test-resource-1');
+
+function DarkThemeButton() {
+  const { setTheme } = useTheme();
+  return <button onClick={() => setTheme('dark')}>Dark theme</button>;
+}
+
+/** JsonLdPanel reads the theme, so it renders under the real ThemeProvider. */
+function renderPanel() {
+  return render(
+    <ThemeProvider>
+      <JsonLdPanel resourceId={RID} />
+    </ThemeProvider>,
+  );
+}
+
+/** The extensions the most recent editor was built with. */
+function editorExtensions(): readonly unknown[] {
+  const config = vi.mocked(EditorState.create).mock.calls.at(-1)?.[0];
+  if (!config) throw new Error('no editor was created');
+  return config.extensions as readonly unknown[];
+}
 
 const MOCK_GRAPH: GetResourceResponse = {
   resource: {
@@ -70,8 +95,9 @@ describe('JsonLdPanel Component', () => {
     Object.defineProperty(navigator, 'clipboard', {
       value: mockClipboard, writable: true, configurable: true,
     });
-    Object.defineProperty(document.documentElement, 'classList', {
-      value: { contains: vi.fn().mockReturnValue(false) },
+    localStorage.clear();
+    Object.defineProperty(window, 'matchMedia', {
+      value: vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
       writable: true, configurable: true,
     });
 
@@ -88,14 +114,14 @@ describe('JsonLdPanel Component', () => {
 
   describe('Rendering', () => {
     it('renders the header, copy button, and editor container', () => {
-      const { container } = render(<JsonLdPanel resourceId={RID} />);
+      const { container } = renderPanel();
       expect(screen.getByText('JSON-LD')).toBeInTheDocument();
       expect(screen.getByText(/Copy/)).toBeInTheDocument();
       expect(container.querySelector('.semiont-jsonld-panel__editor')).toBeInTheDocument();
     });
 
     it('fetches the graph for the given resourceId', () => {
-      render(<JsonLdPanel resourceId={RID} />);
+      renderPanel();
       expect(useResourceGraph).toHaveBeenCalledWith(RID);
     });
   });
@@ -103,7 +129,7 @@ describe('JsonLdPanel Component', () => {
   describe('Loading / error states', () => {
     it('shows a loading state and disables Copy while loading', () => {
       vi.mocked(useResourceGraph).mockReturnValue({ graph: null, loading: true, error: null });
-      render(<JsonLdPanel resourceId={RID} />);
+      renderPanel();
       expect(screen.getByText(/Loading JSON-LD/i)).toBeInTheDocument();
       expect(screen.getByText(/Copy/).closest('button')).toBeDisabled();
     });
@@ -112,7 +138,7 @@ describe('JsonLdPanel Component', () => {
       vi.mocked(useResourceGraph).mockReturnValue({
         graph: null, loading: false, error: new Error('boom'),
       });
-      render(<JsonLdPanel resourceId={RID} />);
+      renderPanel();
       expect(screen.getByText(/Failed to load JSON-LD/i)).toBeInTheDocument();
       expect(screen.getByText(/Copy/).closest('button')).toBeDisabled();
     });
@@ -122,7 +148,7 @@ describe('JsonLdPanel Component', () => {
     it('renders no copy control where the page has no Clipboard API, as on an origin that is not a secure context', () => {
       Object.defineProperty(navigator, 'clipboard', { value: undefined, writable: true, configurable: true });
 
-      render(<JsonLdPanel resourceId={RID} />);
+      renderPanel();
 
       // A control that would fail silently is worse than none.
       expect(screen.queryByText(/Copy/)).not.toBeInTheDocument();
@@ -130,7 +156,7 @@ describe('JsonLdPanel Component', () => {
     });
 
     it('copies the full graph — not the bare descriptor', async () => {
-      render(<JsonLdPanel resourceId={RID} />);
+      renderPanel();
       await userEvent.click(screen.getByText(/Copy/));
 
       expect(mockClipboard.writeText).toHaveBeenCalledOnce();
@@ -145,7 +171,7 @@ describe('JsonLdPanel Component', () => {
     });
 
     it('copies pretty-printed, valid JSON', async () => {
-      render(<JsonLdPanel resourceId={RID} />);
+      renderPanel();
       await userEvent.click(screen.getByText(/Copy/));
       const copied = mockClipboard.writeText.mock.calls[0][0];
       expect(copied).toContain('\n');
@@ -155,7 +181,7 @@ describe('JsonLdPanel Component', () => {
 
     it('does not copy when there is no graph yet', async () => {
       vi.mocked(useResourceGraph).mockReturnValue({ graph: null, loading: true, error: null });
-      render(<JsonLdPanel resourceId={RID} />);
+      renderPanel();
       const button = screen.getByText(/Copy/).closest('button')!;
       await userEvent.click(button);
       expect(mockClipboard.writeText).not.toHaveBeenCalled();
@@ -164,7 +190,7 @@ describe('JsonLdPanel Component', () => {
     it('handles clipboard errors gracefully', async () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockClipboard.writeText.mockRejectedValue(new Error('Clipboard error'));
-      render(<JsonLdPanel resourceId={RID} />);
+      renderPanel();
       await userEvent.click(screen.getByText(/Copy/));
       await waitFor(() => {
         expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to copy JSON-LD:', expect.any(Error));
@@ -173,9 +199,43 @@ describe('JsonLdPanel Component', () => {
     });
   });
 
+  describe('Theme', () => {
+    it("builds the editor with the dark theme under ThemeProvider's dark theme", () => {
+      localStorage.setItem('theme', 'dark');
+
+      renderPanel();
+
+      expect(editorExtensions()).toContain(oneDark);
+      expect(editorExtensions()).not.toContain(jsonLightTheme);
+    });
+
+    it("builds the editor with the light theme under ThemeProvider's light theme", () => {
+      localStorage.setItem('theme', 'light');
+
+      renderPanel();
+
+      expect(editorExtensions()).toContain(jsonLightTheme);
+      expect(editorExtensions()).not.toContain(oneDark);
+    });
+
+    it('rebuilds the editor when the theme changes', async () => {
+      localStorage.setItem('theme', 'light');
+      render(
+        <ThemeProvider>
+          <DarkThemeButton />
+          <JsonLdPanel resourceId={RID} />
+        </ThemeProvider>,
+      );
+
+      await userEvent.click(screen.getByText('Dark theme'));
+
+      expect(editorExtensions()).toContain(oneDark);
+    });
+  });
+
   describe('Accessibility / structure', () => {
     it('has the panel structure and a titled copy button', () => {
-      const { container } = render(<JsonLdPanel resourceId={RID} />);
+      const { container } = renderPanel();
       expect(container.firstChild).toHaveClass('semiont-jsonld-panel');
       const copyButton = screen.getByText(/Copy/).closest('button');
       expect(copyButton).toHaveAttribute('title', 'Copy to clipboard');

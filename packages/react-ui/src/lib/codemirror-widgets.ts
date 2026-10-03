@@ -106,8 +106,9 @@ export class ReferenceResolutionWidget extends WidgetType {
         margin: 0;
       `;
 
-      // Add dark mode support - check for Tailwind dark class
-      if (document.documentElement.classList.contains('dark')) {
+      // Inline styles are out of reach of the stylesheet's [data-theme="dark"]
+      // rules, so read the mark ThemeProvider puts on <html>.
+      if (document.documentElement.dataset.theme === 'dark') {
         const innerCircle = indicator.querySelector('span > span:last-child') as HTMLElement;
         if (innerCircle) {
           innerCircle.style.background = 'rgb(31, 41, 55)'; // gray-800

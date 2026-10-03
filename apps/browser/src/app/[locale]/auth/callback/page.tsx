@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from '@/i18n/routing';
-import { useSemiont, useToast } from '@semiont/react-ui';
+import { MainContent, useSemiont, useToast } from '@semiont/react-ui';
 import { IdentityUnverifiableError, SignInError } from '@semiont/sdk';
 
 /**
@@ -49,8 +49,10 @@ export default function AuthCallback() {
   }, [semiont, router, showWarning, showError, t]);
 
   return (
-    <p style={{ padding: '2rem', textAlign: 'center' }} aria-live="polite">
-      {t('signingIn')}
-    </p>
+    <MainContent>
+      <p style={{ padding: '2rem', textAlign: 'center' }} aria-live="polite">
+        {t('signingIn')}
+      </p>
+    </MainContent>
   );
 }

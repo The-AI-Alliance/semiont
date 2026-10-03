@@ -103,7 +103,7 @@ All widget styles are inline — no external CSS dependencies:
 
 - Resolved/stub indicators: 10px font, 0.6 opacity (1.0 on hover)
 - Generating state: Pulsing yellow circle with sparkle
-- Dark mode: Checked via `document.documentElement.classList.contains('dark')`
+- Dark theme: the generating indicator reads `data-theme` on `<html>`, the mark `ThemeProvider` sets, when the widget's DOM is built
 - Tooltips: Absolute positioned, dark background, `fadeIn` animation
 
 ## Related Documentation
