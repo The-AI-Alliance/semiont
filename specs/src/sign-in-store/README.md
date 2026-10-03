@@ -60,6 +60,6 @@ other's.
 A reader that only reads takes no lock: the rename makes each document
 whole.
 
-The Rust SDK takes the lock (`semiont::sign_in_store`). The launcher's Go
-does not take it yet, and is not generated from `SignIn.json` or held to
-`cases.json` yet.
+Both writers take the lock: the Rust SDK (`semiont::sign_in_store`) and the
+launcher (`apps/launcher/internal/launcher/tokens.go`). Each generates its
+entry from `SignIn.json` and runs every case of `cases.json`.

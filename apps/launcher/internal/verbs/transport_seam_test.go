@@ -48,7 +48,7 @@ func verbFixture(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "stack.json"), b, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	toks, _ := json.Marshal(map[string]launcher.TokenEntry{"local": {Token: "test-token", Email: "t@example.com"}})
+	toks, _ := json.Marshal(map[string]launcher.SignIn{"local": {Token: "test-token", Email: "t@example.com"}})
 	if err := os.WriteFile(filepath.Join(dir, "tokens.json"), toks, 0o600); err != nil {
 		t.Fatal(err)
 	}

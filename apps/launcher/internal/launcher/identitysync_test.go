@@ -400,15 +400,15 @@ func TestIdentitySyncReconcilesTheWorkersRolesMapper(t *testing.T) {
 // `--service browser --port N` then produces a stack nobody can sign in to.
 func TestIdentitySyncAddsMissingLoopbackRedirects(t *testing.T) {
 	reps := append(allServiceClientReps(),
-		map[string]any{"clientId": browserClientID, "redirectUris": []any{"http://localhost:3000/*"}},
-		map[string]any{"clientId": CliClientID})
+		map[string]any{"clientId": BrowserClientID, "redirectUris": []any{"http://localhost:3000/*"}},
+		map[string]any{"clientId": ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
 	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest)
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
-	patch, ok := s.updated[browserClientID]
+	patch, ok := s.updated[BrowserClientID]
 	if !ok {
 		t.Fatal("a realm pinned to :3000 was left pinned")
 	}
@@ -431,15 +431,15 @@ func TestIdentitySyncAddsMissingLoopbackRedirects(t *testing.T) {
 // start over it; this is the fix that refusal should be able to name.
 func TestIdentitySyncDisablesTheImplicitFlow(t *testing.T) {
 	reps := append(allServiceClientReps(),
-		map[string]any{"clientId": browserClientID, "implicitFlowEnabled": true,
+		map[string]any{"clientId": BrowserClientID, "implicitFlowEnabled": true,
 			"redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*"}},
-		map[string]any{"clientId": CliClientID})
+		map[string]any{"clientId": ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
 	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
-	patch, ok := s.updated[browserClientID]
+	patch, ok := s.updated[BrowserClientID]
 	if !ok {
 		t.Fatal("a client with the implicit flow enabled was left alone")
 	}
@@ -452,8 +452,8 @@ func TestIdentitySyncDisablesTheImplicitFlow(t *testing.T) {
 // warns when the realm disagrees; nothing could change it.
 func TestIdentitySyncCorrectsTheAccessTokenLifespan(t *testing.T) {
 	reps := append(allServiceClientReps(),
-		map[string]any{"clientId": browserClientID, "redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*"}},
-		map[string]any{"clientId": CliClientID})
+		map[string]any{"clientId": BrowserClientID, "redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*"}},
+		map[string]any{"clientId": ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 	s.realmCfg = map[string]any{"accessTokenLifespan": float64(1800)}
 
@@ -483,10 +483,10 @@ func TestIdentitySyncLeavesACorrectRealmAlone(t *testing.T) {
 		// A correct realm carries the port-ful web origins too: CORS origins
 		// are matched exactly, so the portless redirect URIs beside them
 		// cannot stand in for the Browser's real origin.
-		map[string]any{"clientId": browserClientID, "implicitFlowEnabled": false,
+		map[string]any{"clientId": BrowserClientID, "implicitFlowEnabled": false,
 			"redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*", "http://10.0.0.5:3000/*"},
 			"webOrigins":   []any{"http://localhost:3000", "http://127.0.0.1:3000", "http://10.0.0.5:3000"}},
-		map[string]any{"clientId": CliClientID, "implicitFlowEnabled": false})
+		map[string]any{"clientId": ScriptClientID, "implicitFlowEnabled": false})
 	s := newStubAdmin(t, "semiont", reps)
 	s.realmCfg = map[string]any{"accessTokenLifespan": float64(300)}
 
@@ -552,15 +552,15 @@ func TestIdentityVerbRejectsAnUnknownFlag(t *testing.T) {
 // the repair — and the preflight's finding names this command by name.
 func TestIdentitySyncAddsMissingBrowserWebOrigins(t *testing.T) {
 	reps := append(allServiceClientReps(),
-		map[string]any{"clientId": browserClientID, "webOrigins": []any{"+"}},
-		map[string]any{"clientId": CliClientID})
+		map[string]any{"clientId": BrowserClientID, "webOrigins": []any{"+"}},
+		map[string]any{"clientId": ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
 	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest)
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
-	patch, ok := s.updated[browserClientID]
+	patch, ok := s.updated[BrowserClientID]
 	if !ok {
 		t.Fatal("a realm deriving its origins was left deriving them")
 	}
@@ -584,14 +584,14 @@ func TestIdentitySyncAddsMissingBrowserWebOrigins(t *testing.T) {
 // told about — that is what makes D3's "move then sync" actually work.
 func TestIdentitySyncWritesTheBrowsersActualPort(t *testing.T) {
 	reps := append(allServiceClientReps(),
-		map[string]any{"clientId": browserClientID, "webOrigins": []any{"+"}},
-		map[string]any{"clientId": CliClientID})
+		map[string]any{"clientId": BrowserClientID, "webOrigins": []any{"+"}},
+		map[string]any{"clientId": ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
 	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, 3001, secretForTest); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
-	origins, _ := json.Marshal(s.updated[browserClientID]["webOrigins"])
+	origins, _ := json.Marshal(s.updated[BrowserClientID]["webOrigins"])
 	if !strings.Contains(string(origins), "http://localhost:3001") {
 		t.Errorf("sync did not write the moved port: %s", origins)
 	}
@@ -604,15 +604,15 @@ func TestIdentitySyncLeavesCorrectWebOriginsAlone(t *testing.T) {
 		origins = append(origins, o)
 	}
 	reps := append(allServiceClientReps(),
-		map[string]any{"clientId": browserClientID, "webOrigins": origins,
+		map[string]any{"clientId": BrowserClientID, "webOrigins": origins,
 			"redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*"}},
-		map[string]any{"clientId": CliClientID})
+		map[string]any{"clientId": ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
 	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
-	if patch, ok := s.updated[browserClientID]; ok {
+	if patch, ok := s.updated[BrowserClientID]; ok {
 		if _, touched := patch["webOrigins"]; touched {
 			t.Errorf("a realm already carrying the origins was patched: %v", patch["webOrigins"])
 		}

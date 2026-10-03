@@ -74,7 +74,7 @@ const renewed = `{"access_token":"token-2","refresh_token":"refresh-2","token_ty
 // access token token-1, refresh token refresh-1, the stub as its issuer.
 func storeSession(t *testing.T, issuer *issuerStub, expiresAt time.Time) {
 	t.Helper()
-	if err := launcher.SaveToken("local", launcher.TokenEntry{
+	if err := launcher.SaveToken("local", launcher.SignIn{
 		Token: "token-1", RefreshToken: "refresh-1", Email: "t@example.com",
 		Issuer: issuer.URL, TokenEndpoint: issuer.URL + "/token", ExpiresAt: expiresAt,
 	}); err != nil {
@@ -159,7 +159,7 @@ func TestBusVerbRenewsARejectedSessionAndRetriesOnce(t *testing.T) {
 	if len(grants) != 1 {
 		t.Fatalf("want exactly one refresh grant at the issuer, got %d", len(grants))
 	}
-	if g := grants[0]; g.Get("grant_type") != "refresh_token" || g.Get("client_id") != launcher.CliClientID || g.Get("refresh_token") != "refresh-1" {
+	if g := grants[0]; g.Get("grant_type") != "refresh_token" || g.Get("client_id") != launcher.ScriptClientID || g.Get("refresh_token") != "refresh-1" {
 		t.Errorf("the grant was not the public client's refresh_token grant carrying the stored refresh token")
 	}
 

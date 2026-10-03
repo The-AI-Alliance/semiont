@@ -371,8 +371,8 @@ func TestPublicClientsPassOnAHealthyRealm(t *testing.T) {
 // The failure this whole check exists for: the six services authenticate
 // perfectly and no person can get in.
 func TestPublicClientsRefuseWhenTheBrowserClientIsMissing(t *testing.T) {
-	srv := stubPublicIssuer(t, publicStub{missingClient: browserClientID})
-	f, ok := findingFor(verifyPublicClients(srv.URL), browserClientID)
+	srv := stubPublicIssuer(t, publicStub{missingClient: BrowserClientID})
+	f, ok := findingFor(verifyPublicClients(srv.URL), BrowserClientID)
 	if !ok {
 		t.Fatal("a realm with no semiont-browser client passed")
 	}
@@ -390,8 +390,8 @@ func TestPublicClientsRefuseWhenTheBrowserClientIsMissing(t *testing.T) {
 }
 
 func TestPublicClientsRefuseWhenTheCliClientIsMissing(t *testing.T) {
-	srv := stubPublicIssuer(t, publicStub{missingClient: CliClientID})
-	f, ok := findingFor(verifyPublicClients(srv.URL), CliClientID)
+	srv := stubPublicIssuer(t, publicStub{missingClient: ScriptClientID})
+	f, ok := findingFor(verifyPublicClients(srv.URL), ScriptClientID)
 	if !ok {
 		t.Fatal("a realm with no semiont-cli client passed")
 	}
@@ -403,8 +403,8 @@ func TestPublicClientsRefuseWhenTheCliClientIsMissing(t *testing.T) {
 // The client exists but may not use the grant — a different fix from a missing
 // client, so a different message.
 func TestPublicClientsRefuseWhenTheDeviceGrantIsDisabled(t *testing.T) {
-	srv := stubPublicIssuer(t, publicStub{noDeviceGrant: CliClientID})
-	f, ok := findingFor(verifyPublicClients(srv.URL), CliClientID)
+	srv := stubPublicIssuer(t, publicStub{noDeviceGrant: ScriptClientID})
+	f, ok := findingFor(verifyPublicClients(srv.URL), ScriptClientID)
 	if !ok {
 		t.Fatal("a client that cannot use the device grant passed")
 	}
@@ -422,7 +422,7 @@ func TestPublicClientsRefuseWhenTheDeviceGrantIsDisabled(t *testing.T) {
 func TestPublicClientsWarnButDoNotRefuseOnAPinnedPort(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{pinnedPort: true})
 	findings := verifyPublicClients(srv.URL)
-	f, ok := findingFor(findings, browserClientID)
+	f, ok := findingFor(findings, BrowserClientID)
 	if !ok {
 		t.Fatal("a realm pinning the browser to :3000 produced no finding")
 	}
@@ -436,7 +436,7 @@ func TestPublicClientsWarnButDoNotRefuseOnAPinnedPort(t *testing.T) {
 
 func TestPublicClientsRefuseWhenTheIssuerServesNoDeviceEndpoint(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{omitDevice: true})
-	f, ok := findingFor(verifyPublicClients(srv.URL), CliClientID)
+	f, ok := findingFor(verifyPublicClients(srv.URL), ScriptClientID)
 	if !ok {
 		t.Fatal("an issuer with no device endpoint passed")
 	}
@@ -489,7 +489,7 @@ func TestPublicClientsReportAnUnreachableIssuerOnce(t *testing.T) {
 // interceptable for a client that holds no secret.
 func TestPublicClientsWarnWhenPKCEIsNotRequired(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{pkceOptional: true})
-	f, ok := findingFor(verifyPublicClients(srv.URL), browserClientID)
+	f, ok := findingFor(verifyPublicClients(srv.URL), BrowserClientID)
 	if !ok {
 		t.Fatal("a realm that does not require PKCE produced no finding")
 	}
@@ -516,7 +516,7 @@ func TestPublicClientsDoNotReportPKCEWhenItIsRequired(t *testing.T) {
 // the browser entirely, so it also skips every required action the realm
 // has — including the first-sign-in profile form.
 func TestPublicClientsWarnOnTheResourceOwnerPasswordGrant(t *testing.T) {
-	for _, id := range []string{browserClientID, CliClientID} {
+	for _, id := range []string{BrowserClientID, ScriptClientID} {
 		srv := stubPublicIssuer(t, publicStub{passwordGrant: id})
 		f, ok := findingFor(verifyPublicClients(srv.URL), id)
 		if !ok {
@@ -657,7 +657,7 @@ func TestPublicClientsRefuseWhenImplicitFlowIsEnabled(t *testing.T) {
 	if f.warnOnly {
 		t.Error("the implicit flow must refuse the start, not warn past it")
 	}
-	if f.clientID != browserClientID {
+	if f.clientID != BrowserClientID {
 		t.Errorf("finding names %q, want the Browser client", f.clientID)
 	}
 }
@@ -764,7 +764,7 @@ func TestBrowserOriginRefusedWhenTheRealmDerivesItsOrigins(t *testing.T) {
 	if !bad {
 		t.Fatal("a realm refusing the Browser's origin was not reported")
 	}
-	if f.clientID != browserClientID {
+	if f.clientID != BrowserClientID {
 		t.Errorf("finding names %q, want the Browser client", f.clientID)
 	}
 	if !strings.Contains(f.fix, "identity sync") {

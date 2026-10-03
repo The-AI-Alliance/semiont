@@ -8,6 +8,7 @@ package launcher
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -26,7 +27,7 @@ import (
 type Session struct {
 	u     *UI
 	key   string // token/stack key: "local" or "codespace:<repo>"
-	entry TokenEntry
+	entry SignIn
 }
 
 // LoadSession is the stored session for a stack key, or the refusal that says
@@ -45,32 +46,79 @@ func LoadSession(u *UI, key string) (*Session, bool) {
 // refresh token, or no token endpoint to send one to.
 var errNoRefreshToken = errors.New("no refresh token is stored to renew it")
 
+// errSignedOut: the stack was signed out while its session was being renewed.
+// A session that is over is not handed a credential again.
+var errSignedOut = errors.New("the stack was signed out while its session was being renewed")
+
+// sameTokens: two sign-ins hold the same pair of tokens.
+func sameTokens(a, b SignIn) bool {
+	return a.Token == b.Token && a.RefreshToken == b.RefreshToken
+}
+
 // refresh trades the stored refresh token for a fresh access token at the
 // issuer and SAVES the rotation — the next command must start from the new
 // tokens, the refresh token included if the issuer rotated it.
+//
+// Another program renews the same sign-in (an application on the Rust SDK),
+// so the store is read again on both sides of the grant. Before it: tokens
+// another program has since replaced are taken as they are, and the refresh
+// token this command read is not spent, since an issuer that rotates would
+// refuse it. After it, under the store's lock: tokens another program wrote
+// while the grant was in flight stand, and a stack signed out meanwhile stays
+// signed out.
 func (s *Session) refresh() error {
-	e := s.entry
-	if e.RefreshToken == "" || e.TokenEndpoint == "" {
+	had := s.entry
+	if stored, have := LoadTokens()[s.key]; have && !sameTokens(stored, had) {
+		s.entry, had = stored, stored
+		if !s.expired() {
+			s.u.Note("Session renewed by another program %s", s.u.Dim("(its tokens are used as they are)"))
+			return nil
+		}
+	}
+	if had.RefreshToken == "" || had.TokenEndpoint == "" {
 		return errNoRefreshToken
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	tr, err := refreshTokens(ctx, e.TokenEndpoint, e.RefreshToken)
+	tr, err := refreshTokens(ctx, had.TokenEndpoint, had.RefreshToken)
 	if err != nil {
 		return err
 	}
-	e.Token = tr.AccessToken
+	renewed := had
+	renewed.Token = tr.AccessToken
 	if tr.RefreshToken != "" {
-		e.RefreshToken = tr.RefreshToken
+		renewed.RefreshToken = tr.RefreshToken
 	}
-	e.ObtainedAt = time.Now().UTC()
-	e.ExpiresAt = expiresAt(e.ObtainedAt, tr.ExpiresIn)
-	s.entry = e
+	renewed.ObtainedAt = time.Now().UTC()
+	renewed.ExpiresAt = expiresAt(renewed.ObtainedAt, tr.ExpiresIn)
+
+	var theirs *SignIn
+	signedOut := false
+	err = changeSignIns(func(doc map[string]json.RawMessage) (bool, error) {
+		stored, have := signInOf(doc[s.key])
+		switch {
+		case !have:
+			signedOut = true
+			return false, nil
+		case !sameTokens(stored, had):
+			theirs = &stored
+			return false, nil
+		}
+		return true, putSignIn(doc, s.key, renewed)
+	})
 	// Narrated on stderr, never stdout: a verb's `--json` reply piped to jq
 	// must stay one JSON document.
-	if err := SaveToken(s.key, e); err != nil {
+	switch {
+	case err != nil:
+		s.entry = renewed
 		s.u.Note("Refreshed token could not be stored (%v) — it will work for this command only.", err)
-	} else {
+	case signedOut:
+		return errSignedOut
+	case theirs != nil:
+		s.entry = *theirs
+		s.u.Note("Session renewed by another program %s", s.u.Dim("(its tokens stand; the ones this command was issued are dropped)"))
+	default:
+		s.entry = renewed
 		s.u.Note("Session refreshed %s", s.u.Dim("(access token renewed at the issuer from the stored refresh token)"))
 	}
 	return nil

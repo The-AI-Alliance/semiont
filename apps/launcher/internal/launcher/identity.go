@@ -14,9 +14,6 @@ import (
 const (
 	keycloakAdminUser = "admin"
 	keycloakDatabase  = "keycloak"
-	// browserClientID: the Browser's registration in every KB realm. The
-	// Browser is machine-level, so one public client (PKCE) serves it.
-	browserClientID = "semiont-browser"
 
 	// serviceRole: what a token must carry, in a FLAT `roles` array, for the
 	// gateway to mint a software-agent token for its bearer. Flat and
@@ -240,7 +237,7 @@ authorization {
 }
 
 func browserClient(audience, addr string, browserPort int) map[string]any {
-	c := publicClient(browserClientID, "Semiont Browser", audience)
+	c := publicClient(BrowserClientID, "Semiont Browser", audience)
 	c["standardFlowEnabled"] = true
 	c["redirectUris"] = browserRedirectUris(addr)
 	c["webOrigins"] = browserWebOrigins(addr, browserPort)
@@ -338,7 +335,7 @@ func loopbackRedirectUris() []string {
 }
 
 func cliClient(audience string) map[string]any {
-	c := publicClient(CliClientID, "Semiont launcher", audience)
+	c := publicClient(ScriptClientID, "Semiont launcher", audience)
 	c["standardFlowEnabled"] = false
 	c["attributes"] = map[string]string{
 		"oauth2.device.authorization.grant.enabled": "true",

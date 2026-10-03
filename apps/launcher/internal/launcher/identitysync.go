@@ -82,7 +82,7 @@ func reconcilePublicClients(base, realm, token string, browserPort int, rep *syn
 	if err != nil {
 		return err
 	}
-	for _, id := range []string{browserClientID, CliClientID} {
+	for _, id := range []string{BrowserClientID, ScriptClientID} {
 		c, ok := clients[id]
 		if !ok {
 			continue // absent is a preflight refusal, not something to invent here
@@ -94,7 +94,7 @@ func reconcilePublicClients(base, realm, token string, browserPort int, rep *syn
 			patch["implicitFlowEnabled"] = false
 			changes = append(changes, "implicit flow disabled")
 		}
-		if id == browserClientID {
+		if id == BrowserClientID {
 			have := stringsOf(c.rep["redirectUris"])
 			missing := []string{}
 			for _, want := range loopbackRedirectUris() {

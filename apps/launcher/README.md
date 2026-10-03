@@ -520,6 +520,18 @@ the issuer half didn't complete), and `semiont status --verbose` lists every sto
 session under SESSIONS, live-verified against the stack when reachable —
 valid / expired / unverified, never a guess.
 
+The stored sessions are the sign-in store, a contract in
+`specs/src/sign-in-store`: `<state home>/tokens.json`, which an application
+on the Rust SDK reads and renews too, so one `semiont login` serves both.
+Every change to it is made under an exclusive lock on `tokens.lock`, a member
+the launcher does not understand is written back as it was, and a file it
+cannot read is never written over. A renewal reads the store again before it
+writes: tokens another program renewed meanwhile stand, and a stack signed
+out meanwhile stays signed out. The entry's shape, the two OAuth client ids
+and the sign-in scope are generated from the spec (`npm run
+generate:launcher-contracts`), the state home runs the spec's cases, and CI
+fails when any of them drifts.
+
 ### Driving a participant's Browser
 
 `semiont browse <resourceId> --browser` opens that resource on the

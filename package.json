@@ -17,6 +17,8 @@
     "generate:bus:check": "node scripts/bus/generate-ts.mjs --check && node scripts/bus/generate-go.mjs --check",
     "generate:media-types-go": "node scripts/spec/generate-media-types-go.mjs",
     "generate:media-types-go:check": "node scripts/spec/generate-media-types-go.mjs --check",
+    "generate:launcher-contracts": "node scripts/spec/generate-sign-in-go.mjs && node scripts/spec/generate-oauth-clients-go.mjs",
+    "generate:launcher-contracts:check": "node scripts/spec/generate-sign-in-go.mjs --check && node scripts/spec/generate-oauth-clients-go.mjs --check",
     "build:apps": "npm run build -w semiont-browser",
     "build:all": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces --if-present",
