@@ -1,12 +1,11 @@
 import { merge } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
-import {
-  } from '@semiont/core';
 import type {
   ResourceId,
   AnnotationId,
   Motivation,
   EventBus,
+  EventMap,
   components,
 } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
@@ -240,6 +239,15 @@ export class MarkNamespace implements IMarkNamespace {
 
   dismissProgress(): void {
     this.bus.emit('mark:progress-dismiss', undefined);
+  }
+
+  reportDeleteError(input: EventMap['mark:delete-error']): void {
+    // Local emit: the client-local, resource-stamped UI notice for a delete
+    // that failed at the caller that awaited it (the viewer, which may be
+    // embedded with no state unit mounted); useOutcomeToasts subscribes and
+    // surfaces it. Distinct from the mark:delete-failed wire reply, which is
+    // busRequest plumbing.
+    this.bus.emit('mark:delete-error', input);
   }
 
   private async dispatchAssist(

@@ -404,6 +404,13 @@ export interface MarkNamespace {
 
   /** Dismiss the in-progress AI-assist widget. */
   dismissProgress(): void;
+
+  /**
+   * UI signal: a delete failed at the caller that awaited it. `delete` rejects;
+   * the caller knows whose command failed on which resource and reports it
+   * here, and useOutcomeToasts surfaces it.
+   */
+  reportDeleteError(input: EventMap['mark:delete-error']): void;
 }
 
 /**

@@ -102,18 +102,6 @@ export function createMarkStateUnit(
     }
   }));
 
-  subs.push(client.bus.on('mark:delete').subscribe(async (event) => {
-    // Only what is said to be of this resource: with several resources open
-    // on one client, each has a unit that hears this.
-    if (event.resourceId !== resourceId) return;
-    try {
-      // Same as create above — the wire reply already arrives on client.bus.
-      await client.mark.delete(resourceId, event.annotationId as Parameters<typeof client.mark.delete>[1]);
-    } catch (error) {
-      client.bus.emit('mark:delete-error', { resourceId, message: error instanceof Error ? error.message : String(error) });
-    }
-  }));
-
   // AI assist. The assist() Observable encapsulates the full job
   // lifecycle — it subscribes to job:report-progress/complete/fail
   // filtered by its own jobId, emits JobProgress on `next`, completes
