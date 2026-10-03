@@ -934,8 +934,10 @@ func TestStartNoObserveBoot(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	checkGolden(t, "start-no-observe-boot.argv", s.argv(t))
-	if strings.Contains(stdout, "16686") {
-		t.Errorf("--no-observe stdout mentions Jaeger:\n%s", stdout)
+	// Against the normalized output, for the reason
+	// TestServiceGatewayPortFollowsConfig gives.
+	if said := s.norm(stdout); strings.Contains(said, "16686") {
+		t.Errorf("--no-observe stdout mentions Jaeger:\n%s", said)
 	}
 }
 
@@ -4833,8 +4835,10 @@ func TestServiceGatewayPortFollowsConfig(t *testing.T) {
 	mustContain(t, "stdout", stdout,
 		"require free ports: 4001",
 		"wait: http://localhost:4001/api/health (120s)")
-	if strings.Contains(stdout, "4000") {
-		t.Errorf("static gateway port leaked into the plan:\n%s", stdout)
+	// Against the normalized output: a temporary directory's name ends in a
+	// random number, and one that contained 4000 failed this test.
+	if plan := s.norm(stdout); strings.Contains(plan, "4000") {
+		t.Errorf("static gateway port leaked into the plan:\n%s", plan)
 	}
 }
 
