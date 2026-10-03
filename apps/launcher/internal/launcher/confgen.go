@@ -2,8 +2,10 @@ package launcher
 
 // confgen.go — LAUNCHER-BIRTH P2: the generative semiontconfig builder.
 // NOTHING IS MASTERED (decision 2/3): the config is synthesized from the
-// launcher's own knowledge — the same injected-var and driver shapes
-// derivePlan parses — plus the user's model choices. Bindings are exactly
+// launcher's own knowledge — the driver shapes derivePlan parses — plus the
+// user's model choices. It says what the knowledge base needs and states no
+// address: where each daemon listens is the launcher's to place at every
+// start (topology.go), so the file is the same on every machine. Bindings are exactly
 // the three-name roster (actors.gatherer, actors.matcher, workers.default;
 // resolveWorkerInference falls back to default — verified 2026-07-22);
 // per-worker refinement is the user's edit, as it always really was.
@@ -57,30 +59,24 @@ func generateSemiontconfig(p genParams) string {
 	// in-process signal plane would hold them in one gateway's memory.
 	w(`[environments.local.jobs]`)
 	w(`type = "jetstream"`)
-	w(`servers = "${NATS_HOST}:4222"`)
 	w(``)
 	w(`[environments.local.signal]`)
 	w(`type = "nats"`)
-	w(`servers = "${NATS_HOST}:4222"`)
 	w(``)
 	w(`[environments.local.graph]`)
 	w(`platform = "external"`)
 	w(`type = "neo4j"`)
 	w(`name = "neo4j"`)
-	w(`uri = "bolt://${NEO4J_HOST}:7687"`)
 	w(`username = "neo4j"`)
 	w(`database = "neo4j"`)
 	w(``)
 	w(`[environments.local.vectors]`)
 	w(`type = "qdrant"`)
-	w(`host = "${QDRANT_HOST}"`)
-	w(`port = 6333`)
 	w(``)
 	w(`[environments.local.embedding]`)
 	w(`platform = "external"`)
 	w(`type = "ollama"`)
 	w(`model = %q`, p.EmbeddingModel)
-	w(`baseURL = "http://${OLLAMA_HOST}:11434"`)
 	w(``)
 	w(`[environments.local.embedding.chunking]`)
 	w(`chunkSize = 512`)
@@ -102,7 +98,6 @@ func generateSemiontconfig(p genParams) string {
 	case "ollama":
 		w(`[environments.local.inference.ollama]`)
 		w(`platform = "posix"`)
-		w(`baseURL = "http://${OLLAMA_HOST}:11434"`)
 	}
 	w(``)
 	for _, binding := range []string{
@@ -125,14 +120,11 @@ func generateSemiontconfig(p genParams) string {
 	}
 	w(`[environments.local.database]`)
 	w(`platform = "external"`)
-	w(`host = "${POSTGRES_HOST}"`)
-	w(`port = 5432`)
 	w(`name = "semiont"`)
 	w(`user = "postgres"`)
 	w(``)
 	w(`[environments.local.identity]`)
 	w(`type = "keycloak"`)
-	w(`issuer = "http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms/semiont"`)
 	w(`subjectClaim = "sub"`)
 	return b.String()
 }

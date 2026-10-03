@@ -18,8 +18,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	toml "github.com/pelletier/go-toml/v2"
 )
 
 // stager: writes what a container will read: per-service config copies, the launcher-owned
@@ -416,125 +414,12 @@ func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr 
 	return true
 }
 
-// stagedConfig applies every launcher-owned patch a service's config needs.
-// ONE decider: `stageAll` and `stageOne` stage the same services from the
-// same source and must agree on what each one gets.
+// stagedConfig: a service's copy of the KB config for this start
+// (stagedServiceConfig). ONE decider: `stageAll` and `stageOne` stage the same
+// services from the same source and must agree on what each one gets.
 func (x *liveExec) stagedConfig(svc string, cfg []byte, plan *launchPlan, addr string) []byte {
-	envName := plan.EnvName
-	cfg = patchDaemonCredentials(cfg, svc, plan)
-	if archivistDialers[svc] {
-		cfg = patchArchivistTopology(cfg, envName, addr)
-	}
-	if kbIdentityStaged[svc] {
-		cfg = patchKBIdentity(cfg, effectiveKBName(x.root), committedDomain(x.root))
-	}
-	return cfg
-}
-
-// patchDaemonCredentials points a service's staged config at the credentials
-// of the daemons the launcher runs (SECRET-DELIVERY P4): a service whose
-// sections include [graph] reads ${NEO4J_PASSWORD}; one whose sections include
-// [jobs] reads the broker pair. The KB config names neither — the launcher
-// refuses one that does — and the values reach the service as the variables
-// its sections name (envFor). The section already exists (a daemon the plan
-// runs is one the config declares), so the key is set in it: the copy is
-// re-serialized rather than appended to. Invalid TOML passes through
-// untouched; the consumer's own loader owns that error.
-func patchDaemonCredentials(cfg []byte, svc string, plan *launchPlan) []byte {
-	keys := map[string]map[string]string{}
-	sections := serviceConfigSections[svc]
-	if plan.Roles["graph"].Presence == presenceLauncher && contains(sections, "graph") {
-		keys["graph"] = map[string]string{"password": referenceTo(daemonPasswords["graph"].env)}
-	}
-	if plan.Roles["messaging"].Presence == presenceLauncher && contains(sections, "jobs") {
-		keys["jobs"] = map[string]string{"user": referenceTo("NATS_USER"), "password": referenceTo(daemonPasswords["messaging"].env)}
-	}
-	if len(keys) == 0 {
-		return cfg
-	}
-	var doc map[string]any
-	if err := toml.Unmarshal(cfg, &doc); err != nil {
-		return cfg
-	}
-	envs, _ := doc["environments"].(map[string]any)
-	env, _ := envs[plan.EnvName].(map[string]any)
-	patched := false
-	for section, kv := range keys {
-		table, ok := env[section].(map[string]any)
-		if !ok {
-			continue
-		}
-		for k, v := range kv {
-			table[k] = v
-		}
-		patched = true
-	}
-	if !patched {
-		return cfg
-	}
-	out, err := toml.Marshal(doc)
-	if err != nil {
-		return cfg
-	}
-	return append([]byte("# Staged by the launcher: the KB config, pointed at the credentials of the daemons it runs.\n"), out...)
-}
-
-// patchArchivistTopology appends [environments.<env>.archivist] — with the
-// LITERAL address the launcher computed — to a staged config.
-// Deployment topology is the launcher's to know, never the KB config's to
-// declare: a ${VAR} here would demand that var of every config consumer,
-// which is how ARCHIVIST_HOST briefly existed. A hand-written section wins —
-// the operator is describing a topology the launcher cannot see. Invalid
-// TOML passes through untouched; the consumer's own loader owns that error.
-func patchArchivistTopology(cfg []byte, envName, addr string) []byte {
-	var doc map[string]any
-	if err := toml.Unmarshal(cfg, &doc); err != nil {
-		return cfg
-	}
-	if envs, ok := doc["environments"].(map[string]any); ok {
-		if env, ok := envs[envName].(map[string]any); ok {
-			if _, has := env["archivist"]; has {
-				return cfg
-			}
-		}
-	}
-	stanza := fmt.Sprintf("\n# Staged by the launcher: where THIS stack's archivist listens.\n[environments.%s.archivist]\nhost = %q\nport = %d\n",
-		envName, addr, semiontDescriptor("archivist").ports[0].port)
-	return append(cfg, []byte(stanza)...)
-}
-
-// patchKBIdentity appends a top-level [kb] — the KB's committed identity card
-// — to a staged config (SINGLE-KB-MOUNT D4/P5). Two facts, both read off
-// `<root>/.semiont/config`, for the two services that no longer mount the tree
-// they describe:
-//
-//	name   — how the Librarian and the gateway locate the views the Archivist
-//	         materializes under the shared state mount.
-//	domain — the KB's permanent did:web identity. The gateway REFUSES to boot
-//	         without it (KB-IDENTITY decision 8), and once it stops mounting
-//	         /kb this staged copy is the only way it can see the committed
-//	         value. Omitted when the KB declares none, so the refusal still
-//	         fires: staging a fabricated identity is the one thing worse than
-//	         failing loudly.
-//
-// Top-level deliberately: an environment section cannot override what sits
-// beside [defaults]. A hand-written [kb] wins — the escape hatch for an
-// operator whose state tree lives under a name the current root would not
-// derive. Invalid TOML passes through untouched; the consumer's own loader
-// owns that error.
-func patchKBIdentity(cfg []byte, name, domain string) []byte {
-	var doc map[string]any
-	if err := toml.Unmarshal(cfg, &doc); err != nil {
-		return cfg
-	}
-	if _, has := doc["kb"]; has {
-		return cfg
-	}
-	stanza := fmt.Sprintf("\n# Staged by the launcher: this KB's committed identity (SINGLE-KB-MOUNT D4).\n[kb]\nname = %q\n", name)
-	if domain != "" {
-		stanza += fmt.Sprintf("domain = %q\n", domain)
-	}
-	return append(cfg, []byte(stanza)...)
+	vars := topologyVars(x.rt, addr, plan.Roles["identity"].Port)
+	return stagedServiceConfig(svc, cfg, plan, vars, addr, effectiveKBName(x.root), committedDomain(x.root))
 }
 
 func (x *liveExec) stageAll(fc flowCtx, addr string) (string, bool) {
@@ -1357,7 +1242,7 @@ func (x *planExec) stageCollector(string) (string, bool) {
 	return "<config-stage>", true
 }
 
-func (x *planExec) stageAll(fc flowCtx, _ string) (string, bool) {
+func (x *planExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	staged := make([]string, 0, len(stackServices))
 	for _, svc := range stackServices {
 		if svc != "gateway" && svc != "dispatcher" {
@@ -1367,11 +1252,18 @@ func (x *planExec) stageAll(fc flowCtx, _ string) (string, bool) {
 	x.c("write <config-stage>/%s (the gateway's configuration document: GatewayConfig, resolved)", gatewayDocumentFile)
 	x.c("write <config-stage>/%s (the dispatcher's configuration document: DispatcherConfig, resolved)", dispatcherDocumentFile)
 	x.c("stage per-service config copies under <config-stage>: %s", strings.Join(staged, " "))
+	x.c("write into each copy the addresses this start places, as literals, in the sections that service reads (launcher-staged topology):")
+	// In plan mode the context names the config; the file is under the root.
+	if cfg, err := os.ReadFile(filepath.Join(fc.root, ".semiont", "semiontconfig", fc.configFile+".toml")); err == nil {
+		for _, line := range placedAddresses(cfg, fc.plan.EnvName, topologyVars(x.rt, addr, fc.plan.Roles["identity"].Port)) {
+			x.c("  %s", line)
+		}
+	}
 	x.c("write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)")
 	x.c("write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)")
 	for _, svc := range stackServices {
 		if archivistDialers[svc] {
-			x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", fc.plan.EnvName, svc)
+			x.c("add [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", fc.plan.EnvName, svc)
 		}
 	}
 	return "<config-stage>", true
@@ -1386,9 +1278,9 @@ func (x *planExec) stageOne(svc string, fc flowCtx, _ string) (string, bool) {
 		x.c("write a fresh <config-stage>/%s (the dispatcher's configuration document: DispatcherConfig, resolved)", dispatcherDocumentFile)
 		return "<config-stage>", true
 	}
-	x.c("stage a fresh private config copy under <config-stage>: %s.toml", svc)
+	x.c("stage a fresh private config copy under <config-stage>: %s.toml, with the addresses this start places written into the sections it reads (launcher-staged topology)", svc)
 	if archivistDialers[svc] {
-		x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", fc.plan.EnvName, svc)
+		x.c("add [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", fc.plan.EnvName, svc)
 	}
 	return "<config-stage>", true
 }

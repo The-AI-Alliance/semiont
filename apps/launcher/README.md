@@ -354,12 +354,23 @@ semiont stop
   `docs/system/administration/CONFIGURATION.md`). Per dependency role
   (graph, vectors, database, inference, embedding) the config decides the
   obligation — the launcher's name for the npm CLI's `platform`:
-  an address on a launcher-injected `${*_HOST}` var → the launcher provides
-  a container (driver by `type`, credentials/ports from the config); any
-  other address → externally provided (verified, never launched, skipped by
-  stop, shown as "external" in status); `platform = "posix"` → host-process
-  reuse; section absent / unreferenced → nothing launched, "not configured"
-  in status. **The inference driver is who performs inference per the
+  a section that states no address → the launcher provides a container
+  (driver by `type`) and places it; a section that states one → externally
+  provided (verified, never launched, skipped by stop, shown as "external" in
+  status); `platform = "posix"` → host-process reuse; section absent /
+  unreferenced → nothing launched, "not configured" in status.
+  **Deployment topology is the launcher's to know, never the KB config's to
+  declare.** A config says what a knowledge base needs — a graph, a vector
+  store, an embedding model, an issuer — and nothing of where they listen:
+  no `uri`, `host`, `servers`, `baseURL` or `issuer` line, so the file is the
+  same on every machine. Each service's staged copy states every address
+  this start placed, as a literal, in the sections that service reads; the
+  gateway's and dispatcher's documents carry theirs. No container is told
+  where anything is through its environment. A config may also write an
+  address as the launcher's own reference (`${NEO4J_HOST}`, `${QDRANT_HOST}`,
+  `${POSTGRES_HOST}`, `${NATS_HOST}`, `${OLLAMA_HOST}`, `${KEYCLOAK_HOST}`,
+  `${KEYCLOAK_PORT}`), which reads exactly as leaving it unstated. `semiont
+  start --dry-run` lists what it would place. **The inference driver is who performs inference per the
   bindings, not which process the launcher runs**: any ollama-typed binding →
   the local-Ollama shape (host-process dance, container fallback); all-remote
   bindings (Claude throughout) → `inference (Anthropic)`, an external SaaS

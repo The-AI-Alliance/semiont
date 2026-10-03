@@ -418,6 +418,39 @@ func lastEmit(t *testing.T, s *scenario) string {
 
 // --- start: full boots against the fake runtime ---
 
+// A knowledge base's config says what it needs and nothing of where: with
+// every address line gone, the launcher places the same stack, command for
+// command, as it does for a config that writes each address as the launcher's
+// reference. The golden is the default boot's own.
+func TestStartBootsAConfigThatStatesNoAddress(t *testing.T) {
+	s := newScenario(t, "container", "docker", "podman")
+	p := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stated := regexp.MustCompile(`(?m)^(servers|uri|host|baseURL|issuer) = .*\n`)
+	if n := len(stated.FindAll(b, -1)); n < 6 {
+		t.Fatalf("the fixture config states only %d addresses: this test would prove little", n)
+	}
+	if err := os.WriteFile(p, stated.ReplaceAll(b, nil), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	checkGolden(t, "start-default-boot.argv", s.argv(t))
+	// What each service is staged states where everything is, as literals.
+	librarian := stagedFile(t, s, "librarian.toml")
+	mustContain(t, "staged librarian.toml", librarian,
+		"bolt://192.168.64.1:7687", "http://192.168.64.1:11434", "http://192.168.64.1:8080/realms/semiont")
+	if strings.Contains(librarian, "_HOST}") {
+		t.Errorf("the staged librarian.toml leaves an address to its environment:\n%s", librarian)
+	}
+	mustContain(t, "staged dispatcher.json", stagedFile(t, s, "dispatcher.json"), "192.168.64.1:4222")
+}
+
 func TestStartDefaultBoot(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
 	stdout, stderr, code := s.run(t, "start")
@@ -649,13 +682,14 @@ func movableKeycloakPort(t *testing.T, s *scenario) {
 	}
 }
 
-// CODESPACE-IDENTITY B4: the issuer's port is the launcher's to inject, like
+// CODESPACE-IDENTITY B4: the issuer's port is the launcher's to place, like
 // its host — one Keycloak port per KB, the same number on both ends, so a
 // laptop can hold a forward per codespace KB. KEYCLOAK_PORT follows the
 // launcher's env shape: the environment wins, the root records it, and 8080
 // is the default. The codespace's post-start runs a bare start on every
-// resume, which is why the port a laptop moved it to must stick.
-func TestKeycloakPortIsInjectedAndSticky(t *testing.T) {
+// resume, which is why the port a laptop moved it to must stick. The port
+// reaches each service as part of the issuer its staged config states.
+func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 	s := newScenario(t, "container")
 	movableKeycloakPort(t, s)
 	keycloakRun := func(t *testing.T, argv string) string {
@@ -688,18 +722,14 @@ func TestKeycloakPortIsInjectedAndSticky(t *testing.T) {
 		if run := keycloakRun(t, argv); !strings.Contains(run, "-p "+step.want+":8080") {
 			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
 		}
-		dialers := 0
-		for _, line := range strings.Split(argv, "\n") {
-			if !strings.Contains(line, "KEYCLOAK_HOST=") {
-				continue
-			}
-			dialers++
-			if !strings.Contains(line, "--env KEYCLOAK_PORT="+step.want) {
-				t.Errorf("%s: a container that resolves the issuer lacks KEYCLOAK_PORT=%s:\n%s", step.name, step.want, line)
+		issuer := "http://192.168.64.1:" + step.want + "/realms/semiont"
+		for _, staged := range []string{"worker.toml", "archivist.toml", "gateway.json", "dispatcher.json"} {
+			if !strings.Contains(stagedFile(t, s, staged), issuer) {
+				t.Errorf("%s: the staged %s does not state the issuer at port %s:\n%s", step.name, staged, step.want, stagedFile(t, s, staged))
 			}
 		}
-		if dialers == 0 {
-			t.Fatalf("%s: no container carries KEYCLOAK_HOST — the scan proved nothing", step.name)
+		if strings.Contains(argv, "KEYCLOAK_PORT=") || strings.Contains(argv, "KEYCLOAK_HOST=") {
+			t.Errorf("%s: a container is told of the issuer through its environment:\n%s", step.name, argv)
 		}
 	}
 	roots, err := os.ReadFile(filepath.Join(filepath.Dir(statePathFor(s.home)), "roots.json"))
@@ -744,15 +774,18 @@ func TestDockerAndPodmanNameTheIssuerKeycloakLocalhost(t *testing.T) {
 					if !strings.Contains(line, "--add-host keycloak.localhost:host-gateway") {
 						t.Errorf("a container holding a realm credential cannot resolve the issuer's name:\n%s", line)
 					}
-					if strings.Contains(line, "KEYCLOAK_HOST=") && !strings.Contains(line, "KEYCLOAK_HOST=keycloak.localhost") {
-						t.Errorf("KEYCLOAK_HOST is not the issuer's name:\n%s", line)
-					}
-					if strings.Contains(line, "NEO4J_HOST=") && !strings.Contains(line, "NEO4J_HOST="+probe.addr) {
-						t.Errorf("the probe's answer %s no longer decides the other dependency hosts:\n%s", probe.addr, line)
-					}
 				}
 				if dialers == 0 {
 					t.Fatal("no container carries SEMIONT_OIDC_CLIENT_ID — the scan matched nothing, so it proved nothing")
+				}
+				// The issuer is named in what each service is staged; the probe's
+				// answer still places every other daemon.
+				librarian := stagedFile(t, s, "librarian.toml")
+				if !strings.Contains(librarian, "http://keycloak.localhost:8080/realms/semiont") {
+					t.Errorf("the staged issuer is not the issuer's name:\n%s", librarian)
+				}
+				if !strings.Contains(librarian, "bolt://"+probe.addr+":7687") {
+					t.Errorf("the probe's answer %s no longer places the other daemons:\n%s", probe.addr, librarian)
 				}
 			})
 		}
@@ -6475,9 +6508,10 @@ func TestStartServiceLibrarian(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading staged librarian.toml: %v", err)
 	}
-	mustContain(t, "staged librarian.toml", string(staged),
-		"[kb]",
-		`name = "Test Knowledge Base"`)
+	mustContain(t, "staged librarian.toml", string(staged), "[kb]")
+	if !regexp.MustCompile(`(?m)^name = ['"]Test Knowledge Base['"]$`).Match(staged) {
+		t.Errorf("staged librarian.toml does not carry the committed [kb] name:\n%s", staged)
+	}
 }
 
 // The Archivist restart path: teardown + port settle + staged config + run +
@@ -9263,10 +9297,10 @@ func TestStartRefusesMismatchedMessagingServers(t *testing.T) {
 }
 
 // EXTERNAL-IDENTITY P3 (launcher lane): a config whose [environments.*.identity]
-// selects keycloak on ${KEYCLOAK_HOST} boots Keycloak after PostgreSQL and
-// before the gateway — its database created on that PostgreSQL if absent, the
-// realm file staged and imported, the bootstrap admin password per root — and
-// every service's env carries KEYCLOAK_HOST. The no-identity-section case is
+// selects keycloak and leaves its issuer to the launcher boots Keycloak after
+// PostgreSQL and before the gateway — its database created on that PostgreSQL
+// if absent, the realm file staged and imported, the bootstrap admin password
+// per root — and every service's staged config states the issuer. The no-identity-section case is
 // proven by every other boot golden: only the preflight logs snapshot grows.
 // writeKeycloakConfig REPLACES the KB config's [identity] section and returns
 // the config name to select with --config.

@@ -53,7 +53,7 @@ func environmentSection(doc any, envName string) map[string]any {
 }
 
 // sectionRefs: the user variables the named sections of an environment
-// reference, minus the ones the launcher injects — required when any
+// reference, minus the ones the launcher resolves itself — required when any
 // reference to the name is, by placeholderRefs' rule. `gateway` includes its
 // legacy spelling, `backend`.
 func sectionRefs(envSection map[string]any, sections []string) (required, optional []string) {
@@ -64,12 +64,12 @@ func sectionRefs(envSection map[string]any, sections []string) (required, option
 		case string:
 			req, opt := placeholderRefs(t)
 			for _, name := range req {
-				if !injectedVars[name] {
+				if !launcherResolved(name) {
 					isRequired[name] = true
 				}
 			}
 			for _, name := range opt {
-				if _, named := isRequired[name]; !named && !injectedVars[name] {
+				if _, named := isRequired[name]; !named && !launcherResolved(name) {
 					isRequired[name] = false
 				}
 			}
@@ -84,9 +84,8 @@ func sectionRefs(envSection map[string]any, sections []string) (required, option
 		}
 	}
 	for _, sec := range sections {
-		walk(envSection[sec])
-		if sec == "gateway" {
-			walk(envSection["backend"])
+		for _, name := range sectionSpellings(sec) {
+			walk(envSection[name])
 		}
 	}
 	for name, req := range isRequired {

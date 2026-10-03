@@ -17,13 +17,18 @@ import (
 )
 
 // The config TOMLs reference env vars as ${VAR} (required) or ${VAR:-default}
-// (optional). These are the ones the launcher injects itself, so it neither
-// demands nor forwards them from the user's environment.
+// (optional). These are the ones the launcher sets in a service's environment
+// itself, so it neither demands nor forwards them from the user's. An address
+// the launcher places is not among them: it is resolved at staging
+// (topology.go), and TestNoTopologyTravelsInAnEnvironment holds the two apart.
 var injectedVars = map[string]bool{
-	"GATEWAY_HOST": true, "BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
-	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "NATS_HOST": true, "KEYCLOAK_HOST": true, "KEYCLOAK_PORT": true,
+	"GATEWAY_HOST": true, "BACKEND_HOST": true,
 	"SEMIONT_OIDC_CLIENT_ID": true, "SEMIONT_OIDC_CLIENT_SECRET": true,
 }
+
+// launcherResolved: a reference the user's environment is never asked for —
+// one the launcher injects, or an address it places.
+func launcherResolved(name string) bool { return injectedVars[name] || topologyNames[name] }
 
 // referenceRe: a value that is exactly one required reference, ${NAME}.
 var referenceRe = regexp.MustCompile(`^\$\{([A-Z_][A-Z0-9_]*)\}$`)
@@ -265,21 +270,34 @@ type bindingCfg struct {
 
 // loadConfig parses a semiontconfig TOML once, selecting the
 // defaults.environment block and the section its ${VAR} references are read
-// from (the launcher's single reader of the file). ${VAR} values stay verbatim —
-// classification happens at derivation, interpolation stays the containers'
-// job.
+// from (the launcher's single reader of the file). An address a section leaves
+// unstated is read as the launcher's own reference (placeUnstated), so the
+// environment it returns says of every daemon either "the launcher places
+// this" or where somebody else runs it. ${VAR} values stay verbatim —
+// classification happens at derivation, and resolution at staging.
 func loadConfig(path string) (*envConfig, string, configRefs, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, "", configRefs{}, fmt.Errorf("reading %s: %v", path, err)
 	}
-	var cfg semiontConfig
-	if err := toml.Unmarshal(b, &cfg); err != nil {
+	var written semiontConfig
+	if err := toml.Unmarshal(b, &written); err != nil {
 		return nil, "", configRefs{}, fmt.Errorf("%s is not valid TOML: %v", path, err)
 	}
 	var doc any
 	if err := toml.Unmarshal(b, &doc); err != nil {
 		return nil, "", configRefs{}, fmt.Errorf("%s is not valid TOML: %v", path, err)
+	}
+	if envSection := environmentSection(doc, written.Defaults.Environment); envSection != nil {
+		placeUnstated(envSection, nil)
+	}
+	placed, err := toml.Marshal(doc)
+	if err != nil {
+		return nil, "", configRefs{}, fmt.Errorf("%s: %v", path, err)
+	}
+	var cfg semiontConfig
+	if err := toml.Unmarshal(placed, &cfg); err != nil {
+		return nil, "", configRefs{}, fmt.Errorf("%s: %v", path, err)
 	}
 	if err := refuseEnvironmentSites(cfg.Environments, path); err != nil {
 		return nil, "", configRefs{}, err

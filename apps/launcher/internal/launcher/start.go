@@ -728,21 +728,6 @@ func gatewayHostEnv(addr string) []string {
 	return []string{"--env", "GATEWAY_HOST=" + addr, "--env", "BACKEND_HOST=" + addr}
 }
 
-// dependencyHostEnv: the host variables a service's staged config may
-// interpolate — every dependency on the host address, the issuer on
-// identityHost and its port — with the host entry that makes the issuer's
-// name resolve.
-func dependencyHostEnv(rt, addr string, issuerPort int) []string {
-	return append(identityHostArgs(rt, addr),
-		"--env", "OLLAMA_HOST="+addr,
-		"--env", "NEO4J_HOST="+addr,
-		"--env", "NATS_HOST="+addr,
-		"--env", "KEYCLOAK_HOST="+identityHost(rt, addr),
-		"--env", "KEYCLOAK_PORT="+strconv.Itoa(issuerPort),
-		"--env", "QDRANT_HOST="+addr,
-		"--env", "POSTGRES_HOST="+addr)
-}
-
 // superviseEnv is the per-run supervision opt-in (ORCHESTRATOR-NATIVE-IMAGES
 // D3): boot.sh wraps the image CMD in the shared supervisor only when this is
 // set. Local placement is the one place with no orchestrator restart policy,
@@ -755,7 +740,7 @@ func superviseEnv() []string {
 
 // sidecarArgs covers the three make-meaning sidecars (worker / smelter /
 // weaver) — identical in shape, differing only in name, port, and memory.
-func sidecarArgs(svc string, port int, stage, rt, addr string, issuerPort int, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
+func sidecarArgs(svc string, port int, stage, rt, addr string, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
 	p := strconv.Itoa(port)
 	a := []string{"run", "-d", "--name", "semiont-" + svc, // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor(svc).mem, "--publish", p + ":" + p,
@@ -763,7 +748,7 @@ func sidecarArgs(svc string, port int, stage, rt, addr string, issuerPort int, c
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
-	a = append(a, dependencyHostEnv(rt, addr, issuerPort)...)
+	a = append(a, identityHostArgs(rt, addr)...)
 	a = append(a,
 		// This process's own credential at the realm. It buys an agent token
 		// from the gateway; it is not the agent identity, which is per
@@ -781,11 +766,11 @@ func sidecarArgs(svc string, port int, stage, rt, addr string, issuerPort int, c
 // archivistArgs: the Archivist owns the file-backed record, so its mount
 // shape is the GATEWAY's minus the database — the KB root read-write (it is
 // the git single-writer, D4b), the anchored-text store, and a staged config
-// copy. Env is the sidecar set, which already carries every ${VAR} the
-// config interpolates. Deliberately NO JWT_SECRET: it signs nothing. It
+// copy. Its staged config states every address it dials, so its environment
+// carries none. Deliberately NO JWT_SECRET: it signs nothing. It
 // authenticates as its own service account at the issuer, and admits callers by
 // verifying theirs (the same fact D1's read path relies on).
-func archivistArgs(kbRoot, stage, rt, addr string, issuerPort int, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("archivist").mem, "--publish", "24103:24103",
 		"--volume", kbRoot + ":" + kbMountTarget,
@@ -794,7 +779,7 @@ func archivistArgs(kbRoot, stage, rt, addr string, issuerPort int, clientSecret,
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
-	a = append(a, dependencyHostEnv(rt, addr, issuerPort)...)
+	a = append(a, identityHostArgs(rt, addr)...)
 	a = append(a,
 		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("archivist"),
@@ -806,15 +791,12 @@ func archivistArgs(kbRoot, stage, rt, addr string, issuerPort int, clientSecret,
 // librarianArgs: the Librarian (Matcher — search and match) reads everything
 // and writes nothing durable, and its mounts say so: NO piece of the KB tree
 // (SINGLE-KB-MOUNT P1 — it locates the Archivist's views from the staged
-// [kb] name, see patchKBName), just the shared state tree (D6 reader) and
-// its staged config. Env is the eager-interpolation set — the ${VAR}s a
-// committed KB config may reference, same as the other sidecars. NOT
-// ARCHIVIST_HOST: no config interpolates that var (the archivist address is
-// a literal patchArchivistTopology stages into this service's own config —
-// it reads bytes from the record directly, SINGLE-KB-MOUNT P4). NO
-// JWT_SECRET, and no LIBRARIAN_HOST exists anywhere: nothing dials this
-// service; it dials the gateway for the bus and the Archivist for bytes.
-func librarianArgs(stage, rt, addr string, issuerPort int, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+// [kb] name, see stagedServiceConfig), just the shared state tree (D6 reader) and
+// its staged config, which states every address it dials as a literal — the
+// Archivist's among them (it reads bytes from the record directly,
+// SINGLE-KB-MOUNT P4). NO JWT_SECRET, and nothing dials this service; it dials
+// the gateway for the bus and the Archivist for bytes.
+func librarianArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("librarian").mem, "--publish", "24104:24104",
 		"--volume", stage + "/librarian.toml:/home/semiont/.semiontconfig:ro"}
@@ -822,7 +804,7 @@ func librarianArgs(stage, rt, addr string, issuerPort int, clientSecret, version
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
-	a = append(a, dependencyHostEnv(rt, addr, issuerPort)...)
+	a = append(a, identityHostArgs(rt, addr)...)
 	a = append(a,
 		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("librarian"),

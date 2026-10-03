@@ -76,7 +76,7 @@ type launchPlan struct {
 	Roles       map[string]rolePlan
 	GatewayPort int
 	// EnvName is the [defaults]-selected environment — staging needs it to
-	// address the section it appends (see patchArchivistTopology).
+	// address the section it stages (see stagedServiceConfig).
 	EnvName string
 	// OllamaModels: every model this config asks OLLAMA to serve — the
 	// ollama-typed actor/worker bindings plus an ollama embedding. Distinct
@@ -400,19 +400,21 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		}
 	}
 
-	// classify: an address that is exactly the launcher-injected var means
-	// "the launcher provides this"; anything else is externally provided.
+	// classify: an address that is exactly the launcher's own reference means
+	// "the launcher places this" — what loadConfig writes where a config
+	// states no address (topology.go), and what a config may still write
+	// itself. Anything else is an address the config states: somebody else's
+	// daemon.
 	//
 	// This DELIBERATELY ignores the section's own `platform` key (adjudicated
 	// 2026-07-20), which is read only for the posix case below. The fleet's
-	// configs declare platform = "external" on graph/vectors/database while
-	// pointing at ${NEO4J_HOST}/${QDRANT_HOST}/${POSTGRES_HOST} — addresses
-	// the launcher itself injects — so honoring the declaration would stop
+	// configs declare platform = "external" on graph/vectors/database for
+	// daemons the launcher runs, so honoring the declaration would stop
 	// launching Neo4j, Qdrant and PostgreSQL for every KB in the fleet.
 	// Reading it there is not a latent bug to fix: "external" in those files
 	// means external to the gateway PROCESS, not "someone else runs it".
-	// Until that word means one thing in both places, the address shape is
-	// the authority. See GO-LAUNCHER.md follow-ups.
+	// Until that word means one thing in both places, the address is the
+	// authority. See GO-LAUNCHER.md follow-ups.
 	classify := func(host, injectedVar string) presence {
 		if referenceName(host) == injectedVar {
 			return presenceLauncher
@@ -430,9 +432,6 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		spec, ok := lookupDescriptor("graph", g.Type)
 		if !ok {
 			return nil, secErr("graph", "unknown type %q (known drivers: %s)", g.Type, knownDrivers("graph"))
-		}
-		if g.URI == "" {
-			return nil, secErr("graph", "missing required key %q", "uri")
 		}
 		host, port := parseHostPort(g.URI)
 		if port == 0 {
@@ -470,10 +469,11 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	// launcher reads the same file with its own structs, so it refuses the
 	// same configs, one round trip earlier — before a single container is
 	// launched. Same rule, same words. platform defaults to "external" (the
-	// template omits it); type and host are required.
+	// template omits it); type is required, and the address is the
+	// launcher's unless the config states one.
 	v := env.Vectors
 	if v == nil {
-		return nil, envErr(`names no vector store — add [environments.%s.vectors] with type = "qdrant" and host = "${QDRANT_HOST}". Semiont requires a vector store; nothing is defaulted.`, envName)
+		return nil, envErr(`names no vector store — add [environments.%s.vectors] with type = "qdrant". Semiont requires a vector store; nothing is defaulted.`, envName)
 	}
 	if v.Type == "" {
 		return nil, secErr("vectors", "missing required key %q", "type")
@@ -489,9 +489,6 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	vspec, knownVectors := lookupDescriptor("vectors", v.Type)
 	if !knownVectors {
 		return nil, secErr("vectors", "unknown type %q (known drivers: %s)", v.Type, knownDrivers("vectors"))
-	}
-	if v.Host == "" {
-		return nil, secErr("vectors", "missing required key %q", "host")
 	}
 	vectorsPort := v.Port
 	if vectorsPort == 0 {
@@ -521,9 +518,6 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		spec, ok := lookupDescriptor("database", typ)
 		if !ok {
 			return nil, secErr("database", "unknown type %q (known drivers: %s)", typ, knownDrivers("database"))
-		}
-		if d.Host == "" {
-			return nil, secErr("database", "missing required key %q", "host")
 		}
 		port := d.Port
 		if port == 0 {
@@ -568,9 +562,6 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	if j == nil || j.Type != "jetstream" {
 		return nil, envErr(`must declare [environments.%s.jobs] with type = "jetstream": the dispatcher's queue is JetStream`, envName)
 	}
-	if j.Servers == "" {
-		return nil, secErr("jobs", "missing required key %q (e.g. \"${NATS_HOST}:4222\")", "servers")
-	}
 	if sig != nil {
 		switch sig.Type {
 		case "":
@@ -578,9 +569,6 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		case "in-process", "nats":
 		default:
 			return nil, secErr("signal", "unknown type %q (use \"in-process\", or \"nats\")", sig.Type)
-		}
-		if sig.Type == "nats" && sig.Servers == "" {
-			return nil, secErr("signal", "missing required key %q (e.g. \"${NATS_HOST}:4222\")", "servers")
 		}
 	}
 	user, pass := j.User, j.Password
@@ -647,10 +635,11 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	// One shape for both types: the issuer is stated, never inferred. The
 	// AUDIENCE is not configured at all — it is the KB's own resource
 	// identifier, derived from the committed did:web domain, so it cannot
-	// disagree with the identity the KB already publishes. keycloak on the launcher-injected ${KEYCLOAK_HOST} is
-	// provided — launched with the staged realm, its database on the
-	// PostgreSQL the [database] section names (D6). Any other host, and
-	// every oidc issuer, is external: verified, never launched.
+	// disagree with the identity the KB already publishes. A keycloak whose
+	// issuer the config leaves to the launcher is provided — launched with the
+	// staged realm, its database on the PostgreSQL the [database] section
+	// names (D6). An issuer the config states, and every oidc issuer, is
+	// external: verified, never launched.
 	// MANDATORY (user, 2026-09-21). Absence used to mean "no identity role",
 	// which produced a stack nobody could sign in to and whose gateway could
 	// not reach its own record — a shape only a test harness ever wanted.
@@ -666,17 +655,19 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		default:
 			return nil, secErr("identity", "unknown type %q (use \"keycloak\", or \"oidc\")", id.Type)
 		}
+		// Only an issuer somebody else runs can be unstated here: loadConfig
+		// places a keycloak's.
 		if id.Issuer == "" {
-			return nil, secErr("identity", "missing required key %q (e.g. \"http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms/semiont\")", "issuer")
+			return nil, secErr("identity", "missing required key %q — an issuer Semiont does not run is stated, never inferred (the URL in a token's iss claim)", "issuer")
 		}
 		if id.SubjectClaim == "" {
 			return nil, secErr("identity", "missing required key %q (e.g. \"sub\" — the issuer claim a person's DID is built from: did:web:<site domain>:users:<its value>)", "subjectClaim")
 		}
 		spec := descriptorFor("identity", id.Type)
-		// The port is the launcher's to inject, like the host — but unlike the
+		// The port is the launcher's to place, like the host — but unlike the
 		// host it is a NUMBER every planning decision needs (publish, port
 		// checks, the realm's endpoint), so it resolves here. The host stays
-		// a reference: classify reads it as launcher-provided.
+		// a reference: classify reads it as the launcher's.
 		host, port, path, err := splitIssuer(strings.ReplaceAll(id.Issuer, "${KEYCLOAK_PORT}", strconv.Itoa(keycloakPort)))
 		if err != nil {
 			return nil, secErr("identity", "issuer %q %v", id.Issuer, err)
@@ -733,7 +724,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			rp.Env = []string{"KC_DB=postgres", "KC_DB_USERNAME=" + user,
 				"KC_BOOTSTRAP_ADMIN_USERNAME=" + keycloakAdminUser}
 		case referenceName(host) != "":
-			return nil, secErr("identity", "issuer %q names a launcher-injected host, which only type = \"keycloak\" on ${KEYCLOAK_HOST} can be", id.Issuer)
+			return nil, secErr("identity", "issuer %q names an address only the launcher's own Keycloak has — state the issuer's URL, or use type = \"keycloak\" and state none", id.Issuer)
 		default:
 			rp.Presence = presenceExternal
 			rp.Address = host
@@ -765,17 +756,15 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		if port == 0 {
 			port = spec.defaultPort
 		}
-		// ${OLLAMA_HOST} is the launcher-injected address of the machine
-		// hosting Ollama; the probe runs ON that machine, so it dials
-		// localhost. A voyage config usually names no baseURL at all.
+		// The launcher's reference is the address of the machine hosting
+		// Ollama; the probe runs ON that machine, so it dials localhost. A
+		// voyage config usually names no baseURL at all.
 		host := rawHost
 		switch {
 		case host == "" && e.Type == "voyage":
 			host = "api.voyageai.com"
 		case referenceName(host) != "":
 			host = "localhost"
-		case host == "":
-			return nil, secErr("embedding", "missing required key %q", "baseURL")
 		}
 		rp := rolePlan{
 			Role: "embedding", Presence: presenceExternal,
@@ -851,7 +840,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			baseURL = p.BaseURL
 		}
 		if baseURL == "" {
-			return nil, secErr("embedding", "missing required key %q (ollama is referenced but has no baseURL)", "baseURL")
+			return nil, secErr("inference", "a binding names ollama, and the config has no [environments.%s.inference.ollama] section to say how it runs — add one with a platform", envName)
 		}
 		host, port := parseHostPort(baseURL)
 		if port == 0 {

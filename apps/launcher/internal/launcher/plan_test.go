@@ -377,17 +377,19 @@ uri = "bolt://${NEO4J_HOST}:7687"
 	}
 }
 
+// A graph the launcher runs needs the username it provisions the container
+// with. (Its address is not a key the config owes: unstated, the launcher
+// places it.)
 func TestDerivePlanMissingRequiredKey(t *testing.T) {
 	p := variantConfig(t, map[string]string{"graph": `[environments.local.graph]
 type = "neo4j"
-username = "neo4j"
 `})
 	env, envName, _, err := loadConfig(p)
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
 	_, err = derivePlan(env, envName, p, 8080)
-	if err == nil || !strings.Contains(err.Error(), "graph") || !strings.Contains(err.Error(), "uri") {
+	if err == nil || !strings.Contains(err.Error(), "graph") || !strings.Contains(err.Error(), "username") {
 		t.Errorf("missing key must name section and key, got: %v", err)
 	}
 }
