@@ -114,7 +114,7 @@ When a modal opens, focus moves into it and is trapped until close. On close, fo
 
 ### Skip link
 
-`SkipLinks` (in `@semiont/react-ui`) renders one visually-hidden-until-focused link, "Skip to main content", that lets keyboard users bypass repetitive navigation. The locale layout mounts it once, ahead of every route, so the skip link is the first focusable element on every page. It lands on `MainContent`, react-ui's `<main>` landmark: every Browser layout and standalone page renders its content in one, and `PageLayout` renders one around its children. See [ACCESSIBILITY.md § Skip link](ACCESSIBILITY.md#skip-link).
+`SkipLinks` (in `@semiont/react-ui`) renders one visually-hidden-until-focused link, "Skip to main content" in the page's language, that lets keyboard users bypass repetitive navigation. The locale layout mounts it once, ahead of every route, so the skip link is the first focusable element on every page. It lands on `MainContent`, react-ui's `<main>` landmark: every Browser layout and standalone page renders its content in one, and `PageLayout` renders one around its children. See [ACCESSIBILITY.md § Skip link](ACCESSIBILITY.md#skip-link).
 
 ## Component checklist
 

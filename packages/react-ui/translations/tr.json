@@ -528,5 +528,8 @@
     "goBack": "Geri dön",
     "goHome": "Ana sayfaya git",
     "switchAccount": "Hesap değiştir"
+  },
+  "SkipLinks": {
+    "mainContent": "Ana içeriğe atla"
   }
 }

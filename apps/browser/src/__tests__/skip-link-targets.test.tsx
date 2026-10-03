@@ -9,6 +9,8 @@
  * a section layout are stand-ins, because the layout owns the landmarks.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { ComponentProps, ReactElement, ReactNode } from 'react';
 import { render, waitFor } from '@testing-library/react';
 import { createRoutesFromElements, MemoryRouter, type RouteObject } from 'react-router';
@@ -50,15 +52,18 @@ const harness = vi.hoisted(() => {
 });
 
 vi.mock('@/app/providers', async () => {
-  const { SemiontProvider, ThemeProvider, ToastProvider } =
+  const { SemiontProvider, ThemeProvider, ToastProvider, TranslationProvider } =
     await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
+  const { useMergedTranslationManager } = await import('@/hooks/useMergedTranslationManager');
   return {
     Providers: ({ children }: { children: ReactNode }) => (
-      <SemiontProvider browser={harness.browser as unknown as SemiontBrowser}>
-        <ToastProvider>
-          <ThemeProvider>{children}</ThemeProvider>
-        </ToastProvider>
-      </SemiontProvider>
+      <TranslationProvider translationManager={useMergedTranslationManager()}>
+        <SemiontProvider browser={harness.browser as unknown as SemiontBrowser}>
+          <ToastProvider>
+            <ThemeProvider>{children}</ThemeProvider>
+          </ToastProvider>
+        </SemiontProvider>
+      </TranslationProvider>
     ),
   };
 });
@@ -167,6 +172,17 @@ describe('skip links', () => {
     renderAt(path);
 
     await expectEverySkipLinkToLand();
+  });
+
+  it("reads in the locale's own words, from the messages the Browser serves", async () => {
+    const messages = JSON.parse(readFileSync(resolve(process.cwd(), 'messages/en.json'), 'utf8')) as {
+      SkipLinks: { mainContent: string };
+    };
+
+    renderAt('/en');
+    await expectEverySkipLinkToLand();
+
+    expect(skipLinks().map((link) => link.textContent)).toEqual([messages.SkipLinks.mainContent]);
   });
 
   it.each(Object.entries(REDIRECTS))('%s renders nothing and leaves for %s', async (path, destination) => {

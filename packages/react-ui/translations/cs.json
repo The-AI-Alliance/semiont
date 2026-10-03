@@ -528,5 +528,8 @@
     "goBack": "Zpět",
     "goHome": "Přejít na úvod",
     "switchAccount": "Přepnout účet"
+  },
+  "SkipLinks": {
+    "mainContent": "Přejít na hlavní obsah"
   }
 }

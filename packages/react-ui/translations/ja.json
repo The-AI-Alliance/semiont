@@ -528,5 +528,8 @@
     "goBack": "戻る",
     "goHome": "ホームへ移動",
     "switchAccount": "アカウントを切り替える"
+  },
+  "SkipLinks": {
+    "mainContent": "メインコンテンツへスキップ"
   }
 }

@@ -528,5 +528,8 @@
     "goBack": "Voltar",
     "goHome": "Ir para o início",
     "switchAccount": "Trocar de conta"
+  },
+  "SkipLinks": {
+    "mainContent": "Pular para o conteúdo principal"
   }
 }

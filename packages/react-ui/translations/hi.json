@@ -528,5 +528,8 @@
     "goBack": "वापस जाएँ",
     "goHome": "होम पर जाएँ",
     "switchAccount": "खाता बदलें"
+  },
+  "SkipLinks": {
+    "mainContent": "मुख्य सामग्री पर जाएं"
   }
 }

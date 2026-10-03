@@ -528,5 +528,8 @@
     "goBack": "חזרה",
     "goHome": "מעבר לדף הבית",
     "switchAccount": "החלפת חשבון"
+  },
+  "SkipLinks": {
+    "mainContent": "דילוג לתוכן הראשי"
   }
 }

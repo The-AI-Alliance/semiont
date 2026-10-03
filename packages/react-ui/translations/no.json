@@ -528,5 +528,8 @@
     "goBack": "Gå tilbake",
     "goHome": "Gå til startsiden",
     "switchAccount": "Bytt konto"
+  },
+  "SkipLinks": {
+    "mainContent": "Hopp til hovedinnhold"
   }
 }

@@ -528,5 +528,8 @@
     "goBack": "Quay lại",
     "goHome": "Về trang chủ",
     "switchAccount": "Chuyển tài khoản"
+  },
+  "SkipLinks": {
+    "mainContent": "Chuyển đến nội dung chính"
   }
 }

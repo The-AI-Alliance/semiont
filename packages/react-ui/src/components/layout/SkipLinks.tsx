@@ -1,6 +1,7 @@
 'use client';
 
 import type { ComponentProps } from 'react';
+import { useTranslations } from '../../contexts/TranslationContext';
 import './SkipLinks.css';
 
 const MAIN_CONTENT_ID = 'main-content';
@@ -11,11 +12,13 @@ const MAIN_CONTENT_ID = 'main-content';
  * It lets keyboard users jump past the page's chrome to its MainContent
  */
 export function SkipLinks() {
+  const t = useTranslations('SkipLinks');
+
   return (
     <div className="semiont-skip-links">
       <div className="semiont-skip-links-container">
         <a href={`#${MAIN_CONTENT_ID}`} className="semiont-skip-link">
-          Skip to main content
+          {t('mainContent')}
         </a>
       </div>
     </div>

@@ -528,5 +528,8 @@
     "goBack": "Takaisin",
     "goHome": "Siirry etusivulle",
     "switchAccount": "Vaihda tiliä"
+  },
+  "SkipLinks": {
+    "mainContent": "Siirry pääsisältöön"
   }
 }

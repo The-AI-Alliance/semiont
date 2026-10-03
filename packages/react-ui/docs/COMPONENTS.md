@@ -498,8 +498,10 @@ import { UserMenuSkeleton } from '@semiont/react-ui';
 
 ### SkipLinks
 
-The skip link for keyboard users. Takes no props — it renders one link, "Skip to main content",
-which lands on `MainContent`. Mount it once, ahead of your routes.
+The skip link for keyboard users. Takes no props — it renders one link, which lands on
+`MainContent`. Its text is its own copy in the person's language (namespace `SkipLinks`):
+"Skip to main content" in English. Mount it once, ahead of your routes and inside your
+`TranslationProvider`.
 
 ```tsx
 import { SkipLinks } from '@semiont/react-ui';

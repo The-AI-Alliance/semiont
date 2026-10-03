@@ -528,5 +528,8 @@
     "goBack": "Înapoi",
     "goHome": "Mergeți la pagina principală",
     "switchAccount": "Schimbați contul"
+  },
+  "SkipLinks": {
+    "mainContent": "Salt la conținutul principal"
   }
 }

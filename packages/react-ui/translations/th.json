@@ -528,5 +528,8 @@
     "goBack": "ย้อนกลับ",
     "goHome": "ไปที่หน้าแรก",
     "switchAccount": "สลับบัญชี"
+  },
+  "SkipLinks": {
+    "mainContent": "ข้ามไปยังเนื้อหาหลัก"
   }
 }

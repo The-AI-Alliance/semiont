@@ -528,5 +528,8 @@
     "goBack": "Kembali",
     "goHome": "Pergi ke Laman Utama",
     "switchAccount": "Tukar Akaun"
+  },
+  "SkipLinks": {
+    "mainContent": "Langkau ke kandungan utama"
   }
 }

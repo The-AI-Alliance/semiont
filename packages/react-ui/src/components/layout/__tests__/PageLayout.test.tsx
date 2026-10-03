@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { renderInEnglish } from '../../../test-utils';
 import { PageLayout } from '../PageLayout';
 import { SkipLinks } from '../SkipLinks';
 
@@ -253,7 +254,7 @@ describe('PageLayout Component', () => {
     });
 
     it("should render the host's skip link target as its main element", () => {
-      render(
+      renderInEnglish(
         <div>
           <SkipLinks />
           <PageLayout

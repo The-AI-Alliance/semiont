@@ -528,5 +528,8 @@
     "goBack": "返回",
     "goHome": "前往首页",
     "switchAccount": "切换账户"
+  },
+  "SkipLinks": {
+    "mainContent": "跳转到主要内容"
   }
 }

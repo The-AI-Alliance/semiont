@@ -528,5 +528,8 @@
     "goBack": "Ga terug",
     "goHome": "Naar startpagina",
     "switchAccount": "Ander account"
+  },
+  "SkipLinks": {
+    "mainContent": "Ga naar hoofdinhoud"
   }
 }

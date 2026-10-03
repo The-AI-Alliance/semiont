@@ -38,7 +38,7 @@ i18n.on('languageChanged', (language) => {
 
 ### Skip link
 
-[WCAG 2.4.1 Bypass Blocks](https://www.w3.org/WAI/WCAG21/Understanding/bypass-blocks.html) asks for a way past content repeated on every page. `SkipLinks`, the visually-hidden-until-focused link from `@semiont/react-ui`, is mounted once, by the locale layout (`src/app/[locale]/layout.tsx`), ahead of every route. Its link lands on `MainContent`, react-ui's `<main>` landmark, and every page renders its content in one:
+[WCAG 2.4.1 Bypass Blocks](https://www.w3.org/WAI/WCAG21/Understanding/bypass-blocks.html) asks for a way past content repeated on every page. `SkipLinks`, the visually-hidden-until-focused link from `@semiont/react-ui`, is mounted once, by the locale layout (`src/app/[locale]/layout.tsx`), ahead of every route. Its text is one of react-ui's translated strings, so it reads in the route's locale like the rest of the page. Its link lands on `MainContent`, react-ui's `<main>` landmark, and every page renders its content in one:
 
 ```tsx
 <MainContent className="flex-1 p-6 flex flex-col">
@@ -48,7 +48,7 @@ i18n.on('languageChanged', (language) => {
 
 The knowledge and moderate layouts render theirs beside the sidebar, the splash, sign-in callback and not-found pages render their own, and the auth error page gets one from react-ui's `PageLayout`. A new page or layout does the same; it does not mount a second `SkipLinks`.
 
-`src/__tests__/skip-link-targets.test.tsx` renders every route in `App`'s route table and fails on a route whose skip link has no target, or that carries more than one `SkipLinks`.
+`src/__tests__/skip-link-targets.test.tsx` renders every route in `App`'s route table and fails on a route whose skip link has no target, or that carries more than one `SkipLinks`. It also holds the link's text to the messages the Browser serves.
 
 ### Dark theme
 

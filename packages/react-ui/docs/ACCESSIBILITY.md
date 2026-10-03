@@ -29,7 +29,7 @@ function Page() {
 }
 ```
 
-`SkipLinks` takes no props and renders one link, "Skip to main content", hidden until it takes focus. `MainContent` is the page's `<main>` landmark and that link's target. It takes the props of `<main>`, and owns the two that make it a target: the `id` the link points at, and the `tabIndex={-1}` that lets it take focus without joining the tab order.
+`SkipLinks` takes no props and renders one link, hidden until it takes focus. Its text is the `SkipLinks.mainContent` translation, "Skip to main content" in English, so it reads in the language of the `TranslationProvider` above it. `MainContent` is the page's `<main>` landmark and that link's target. It takes the props of `<main>`, and owns the two that make it a target: the `id` the link points at, and the `tabIndex={-1}` that lets it take focus without joining the tab order.
 
 The host mounts `SkipLinks` once, ahead of its routes, and every page renders its content in a `MainContent` — its own, or the one `PageLayout` renders around its children. `PageLayout` does not render `SkipLinks`.
 
@@ -112,16 +112,16 @@ Components announce state changes per [WCAG 4.1.3](https://www.w3.org/WAI/WCAG21
 
 ### Automated Testing with jest-axe
 
-A component's accessibility tests are a `.a11y.test.tsx` file beside it, using [jest-axe](https://github.com/nickcolley/jest-axe). `vitest.setup.ts` registers the `toHaveNoViolations` matcher, and `src/types/jest-axe.d.ts` types the package:
+A component's accessibility tests are a `.a11y.test.tsx` file beside it, using [jest-axe](https://github.com/nickcolley/jest-axe). `vitest.setup.ts` registers the `toHaveNoViolations` matcher, and `src/types/jest-axe.d.ts` types the package. A component with copy of its own, as `SkipLinks` has, renders under a translation provider:
 
 ```tsx
-import { render } from '@testing-library/react';
+import { renderInEnglish } from '@semiont/react-ui/test-utils';
 import { axe, toHaveNoViolations } from 'jest-axe';
 
 expect.extend(toHaveNoViolations);
 
 it('should have no WCAG violations', async () => {
-  const { container } = render(<SkipLinks />);
+  const { container } = renderInEnglish(<SkipLinks />);
   const results = await axe(container);
   expect(results).toHaveNoViolations();
 });

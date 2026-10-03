@@ -10,6 +10,8 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { axe, toHaveNoViolations } from 'jest-axe';
 import userEvent from '@testing-library/user-event';
+import { TranslationProvider } from '../../../contexts/TranslationContext';
+import { renderInEnglish } from '../../../test-utils';
 import { SkipLinks, MainContent } from '../SkipLinks';
 
 // Extend expect with accessibility matchers
@@ -18,7 +20,7 @@ expect.extend(toHaveNoViolations);
 describe('SkipLinks - Accessibility', () => {
   describe('WCAG 2.1 AA - Automated axe-core Tests', () => {
     it('should have no accessibility violations', async () => {
-      const { container } = render(
+      const { container } = renderInEnglish(
         <div>
           <SkipLinks />
           <MainContent>Main content</MainContent>
@@ -32,20 +34,20 @@ describe('SkipLinks - Accessibility', () => {
 
   describe('WCAG 2.4.1 - Bypass Blocks', () => {
     it('should provide skip to main content link', () => {
-      render(<SkipLinks />);
+      renderInEnglish(<SkipLinks />);
 
       const skipLink = screen.getByRole('link', { name: /skip to main content/i });
       expect(skipLink).toBeInTheDocument();
     });
 
     it('should link only to main content', () => {
-      render(<SkipLinks />);
+      renderInEnglish(<SkipLinks />);
 
       expect(screen.getAllByRole('link')).toHaveLength(1);
     });
 
     it('should land on MainContent', () => {
-      render(
+      renderInEnglish(
         <div>
           <SkipLinks />
           <nav>Navigation</nav>
@@ -100,14 +102,14 @@ describe('SkipLinks - Accessibility', () => {
 
   describe('WCAG 2.1.1 - Keyboard Navigation', () => {
     it('should be keyboard accessible', () => {
-      render(<SkipLinks />);
+      renderInEnglish(<SkipLinks />);
 
       expect(screen.getByRole('link')).not.toHaveAttribute('tabindex', '-1');
     });
 
     it('should become visible on focus', async () => {
       const user = userEvent.setup();
-      render(<SkipLinks />);
+      renderInEnglish(<SkipLinks />);
 
       // Tab to the link
       await user.tab();
@@ -118,7 +120,7 @@ describe('SkipLinks - Accessibility', () => {
 
     it('should hide when focus leaves', async () => {
       const user = userEvent.setup();
-      render(
+      renderInEnglish(
         <div>
           <SkipLinks />
           <button>Next focusable element</button>
@@ -139,7 +141,7 @@ describe('SkipLinks - Accessibility', () => {
 
   describe('WCAG 2.4.3 - Focus Order', () => {
     it('should be at the beginning of the document', () => {
-      const { container } = render(
+      const { container } = renderInEnglish(
         <div>
           <SkipLinks />
           <header>Header</header>
@@ -157,21 +159,31 @@ describe('SkipLinks - Accessibility', () => {
 
   describe('WCAG 2.4.6 - Headings and Labels', () => {
     it('should have descriptive link text', () => {
-      render(<SkipLinks />);
+      renderInEnglish(<SkipLinks />);
 
       expect(screen.getByRole('link')).toHaveTextContent(/skip to main content/i);
     });
 
     it('should have an accessible name', () => {
-      render(<SkipLinks />);
+      renderInEnglish(<SkipLinks />);
 
       expect(screen.getByRole('link')).toHaveAccessibleName();
+    });
+
+    it("should take its text from the provider's translations", () => {
+      render(
+        <TranslationProvider translationManager={{ t: (namespace, key) => `${namespace}.${key}, as the reader's language has it` }}>
+          <SkipLinks />
+        </TranslationProvider>
+      );
+
+      expect(screen.getByRole('link')).toHaveTextContent("SkipLinks.mainContent, as the reader's language has it");
     });
   });
 
   describe('Visual Design', () => {
     it('should carry the class that hides it until focused', () => {
-      render(<SkipLinks />);
+      renderInEnglish(<SkipLinks />);
 
       expect(screen.getByRole('link')).toHaveClass('semiont-skip-link');
     });
@@ -179,7 +191,7 @@ describe('SkipLinks - Accessibility', () => {
 
   describe('Fragment Navigation', () => {
     it('should use a fragment identifier for same-page navigation', () => {
-      render(<SkipLinks />);
+      renderInEnglish(<SkipLinks />);
 
       expect(screen.getByRole('link').getAttribute('href')).toMatch(/^#/);
     });
