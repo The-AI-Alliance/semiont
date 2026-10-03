@@ -78,6 +78,29 @@ describe('SemiontProject', () => {
     dirs.length = 0;
   });
 
+  describe('destroy()', () => {
+    it('deletes the state tree and leaves the event log, which is the record', async () => {
+      const dir = await makeTempDir();
+      dirs.push(dir);
+      await fs.mkdir(join(dir, '.semiont'), { recursive: true });
+      await fs.writeFile(join(dir, '.semiont', 'config'), '[project]\nname = "destroy-under-test"\n');
+      const project = new SemiontProject(dir, { anchoredTextDir: join(dir, 'anchored-text') });
+
+      await fs.mkdir(project.resourcesDir, { recursive: true });
+      await fs.writeFile(join(project.resourcesDir, 'view.json'), '{}');
+      await fs.mkdir(project.eventsDir, { recursive: true });
+      await fs.writeFile(join(project.eventsDir, 'events-000001.jsonl'), '{}\n');
+
+      await project.destroy();
+
+      await expect(fs.stat(project.stateDir)).rejects.toThrow(/ENOENT/);
+      expect(await fs.readFile(join(project.eventsDir, 'events-000001.jsonl'), 'utf8')).toBe('{}\n');
+
+      // What is already gone is not an error to destroy again.
+      await expect(project.destroy()).resolves.toBeUndefined();
+    });
+  });
+
   describe('gitBranch()', () => {
     it('returns the current branch in a git repo', async () => {
       const dir = await makeTempDir();
