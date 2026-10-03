@@ -93,9 +93,9 @@ describe('AnnotateView — media-renderer registry', () => {
   });
 
   it('a mode in neither the defaults nor the override falls back to unsupported, download intact', () => {
-    // Deliberately unlike the browse side, where a registry miss falls through
-    // to the text renderer harmlessly. Annotating an unknown type is not
-    // harmless, so the miss must stay explicit.
+    // The browse side gives a type it cannot preview the same kind of answer.
+    // Annotating a type nothing here can render is not harmless, so the
+    // missing renderer must stay explicit.
     const { container } = renderInEnglish(<AnnotateView {...base('application/octet-stream')} />);
 
     expect(container.querySelector('[data-mime-type="unsupported"]')).toBeInTheDocument();

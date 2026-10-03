@@ -225,9 +225,12 @@ export function AnnotateView({
   const mediaRenderers: AnnotateMediaRenderers = { ...defaultAnnotateRenderers, ...renderers };
   const Renderer = mediaRenderers[render];
 
-  // D4: a registry MISS is explicit here, unlike the browse side where it
-  // falls through to text harmlessly. Annotating an unknown type is not
-  // harmless, and the toolbar is deliberately absent in this branch.
+  // D4: a mode with no renderer, in neither the defaults nor the override,
+  // gets no annotating surface. That is every type with no preview and every
+  // registry miss — both read as 'none' above — and the browse side answers
+  // them the same way, with its own no-preview fallback. Annotating a type
+  // nothing here can render is not harmless, so the toolbar is deliberately
+  // absent in this branch.
   if (!Renderer) {
     return (
       <div ref={containerRef} className="semiont-annotate-view semiont-annotate-view--unsupported" data-mime-type="unsupported">
