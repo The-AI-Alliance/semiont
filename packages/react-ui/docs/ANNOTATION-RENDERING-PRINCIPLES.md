@@ -235,5 +235,4 @@ Property-based tests verify:
 - See `@semiont/sdk` package - API client and utilities
 
 ### Testing
-- `src/lib/__tests__/annotation-rendering.test.tsx` - Property-based tests implementing these axioms
 - `src/lib/__tests__/pdf-coordinates.test.ts` - Property-based tests for PDF coordinate transformations

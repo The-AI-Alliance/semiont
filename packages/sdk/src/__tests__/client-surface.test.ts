@@ -180,6 +180,7 @@ const CALLS: Calls = {
     submit: (c, a) => c.mark.submit(a['input'] as components['schemas']['MarkSubmitEvent']),
     cancelPending: (c) => c.mark.cancelPending(),
     dismissProgress: (c) => c.mark.dismissProgress(),
+    reportDeleteError: (c, a) => c.mark.reportDeleteError(a['input'] as EventMap['mark:delete-error']),
   },
   bind: {
     body: (c, a) => c.bind.body(rid(a), aid(a), a['operations'] as BodyOperation[]),

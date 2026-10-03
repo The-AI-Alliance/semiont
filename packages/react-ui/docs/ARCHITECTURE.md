@@ -89,7 +89,7 @@ export function list() { ... }
 // ❌ WRONG - Unnecessary wrapper
 class ResourceService {
   async getAll() {
-    return this.client.listResources();
+    return this.client.browse.resources();
   }
 }
 
@@ -455,49 +455,37 @@ const t = useTranslations('Common');
 
 ## Error Handling
 
-### API Errors
+### Command Errors
+
+A command is a request on the bus. It rejects with a `BusRequestError`, whose `code` says what
+happened:
 
 ```tsx
-import { APIError } from '@semiont/http-transport';
+import { BusRequestError } from '@semiont/core';
 
 try {
-  await client.mark.create(rId, motivation, selectors);
+  await client.mark.delete(rId, annotationId);
 } catch (error) {
-  if (error instanceof APIError) {
-    if (error.status === 401) {
-      // Handle unauthorized
-    } else if (error.status === 404) {
-      // Handle not found
-    }
+  if (error instanceof BusRequestError) {
+    // error.code: 'bus.timeout', 'bus.rejected', 'bus.closed', …
   }
 }
 ```
+
+An `APIError` (from `@semiont/http-transport`, with an HTTP `status`) comes only from the calls
+that are HTTP routes: binary content and the gateway's own operations.
 
 ### Global Error Handlers
 
-The SDK surfaces transport failures on the bus. `notifySessionExpired` and
-`notifyPermissionDenied` are module-scoped functions the active session
-registers itself with on mount, so a 401/403 anywhere in the SDK reaches the
-mounted UI:
-
-```tsx
-import { notifySessionExpired, notifyPermissionDenied } from '@semiont/react-ui';
-import { APIError } from '@semiont/http-transport';
-
-function handleError(error: unknown) {
-  if (error instanceof APIError) {
-    if (error.status === 401) notifySessionExpired('Session expired');
-    if (error.status === 403) notifyPermissionDenied('Access denied');
-  }
-}
-```
-
-When no session is mounted (e.g. on the landing page), the calls are no-ops.
+Component code handles no 401. The session refreshes its token on one, and when that cannot
+recover, the active session's `SessionSignals` (`browser.activeSignals$`) say so.
+`SessionExpiredModal`, `PermissionDeniedModal` and `KbIdentityConflictModal` read those signals;
+a host mounts the three once.
 
 ### Error Boundaries
 
 ```tsx
-<ErrorBoundary fallback={<ErrorPage />}>
+<ErrorBoundary fallback={(error, reset) => <button onClick={reset}>{error.message}. Try again</button>}>
   {children}
 </ErrorBoundary>
 ```
@@ -614,22 +602,6 @@ When making breaking changes:
 4. **Update documentation** - Reflect new APIs
 5. **Increment version** - Follow semver
 
-**Example migration:**
-
-```typescript
-// v1.0: Old API
-client.browse.all();
-
-// v2.0: New API (breaking change)
-client.browse.resources({});
-
-// Migration:
-// 1. Update ALL files using .all()
-// 2. Delete .all() entirely
-// 3. Update major version
-// 4. Document in CHANGELOG
-```
-
 ---
 
 ## Security
@@ -641,17 +613,6 @@ client.browse.resources({});
 - The access + refresh tokens are held in memory and persisted per-KB through the `SessionStorage` adapter; the short TTL plus revocation at the issuer are the XSS mitigation (the token lives in app-controlled storage, not a browser-managed credential)
 - Handle 401/403 globally — the active session's `SessionSignals` surface `SessionExpiredModal` / `PermissionDeniedModal`
 - See the canonical [AUTHENTICATION.md](../../../docs/system/administration/AUTHENTICATION.md) for the full model
-
-### Input Validation
-
-```tsx
-import { validateResourceInput } from '@semiont/react-ui';
-
-const errors = validateResourceInput(formData);
-if (errors.length > 0) {
-  // Display errors
-}
-```
 
 ### XSS Prevention
 

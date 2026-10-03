@@ -99,7 +99,9 @@ interface Props {
 }
 
 /**
- * Deletion calls `session.client.mark.delete(...)` directly (no bus emit);
+ * Deletion calls `session.client.mark.delete(...)` directly and reports a
+ * refusal through `session.client.mark.reportDeleteError(...)`, since the
+ * viewer is the caller that knows which resource the failed delete was on;
  * panel opening invokes the host's `onOpenPanel` callback — the host owns
  * the panel and any `panel:open` emission.
  *
@@ -222,7 +224,13 @@ export function ResourceViewer({
 
   // Handle deleting annotations
   const handleDeleteAnnotation = useCallback((id: AnnotationId) => {
-    session?.client.mark.delete(rUri, id);
+    if (!session) return;
+    session.client.mark.delete(rUri, id).catch((error: unknown) => {
+      session.client.mark.reportDeleteError({
+        resourceId: rUri,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    });
   }, [session, rUri]);
 
   // Handle annotation clicks - memoized

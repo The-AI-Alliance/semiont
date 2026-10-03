@@ -619,7 +619,7 @@ interface W3CAnnotation {
 The Browser uses a simplified `OverlayAnnotation` type for the DOM overlay:
 
 ```typescript
-// src/lib/annotation-overlay.ts
+// packages/react-ui/src/lib/annotation-overlay.ts
 export interface OverlayAnnotation {
   id: string;
   exact: string;    // The annotated text

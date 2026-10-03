@@ -26,12 +26,11 @@ export interface LinkComponentProps {
  *
  * @example
  * ```tsx
- * // In app (e.g., frontend/src/lib/routing.ts)
+ * // In the app (apps/browser/src/lib/routing.tsx)
  * export const routes: RouteBuilder = {
  *   resourceDetail: (id) => `/know/resource/${id}`,
- *   userProfile: (id) => `/users/${id}`,
- *   search: (query) => `/search?q=${query}`,
- *   home: () => '/',
+ *   knowledge: () => '/know',
+ *   moderate: () => '/moderate',
  * };
  *
  * // Pass to components as props
@@ -42,21 +41,9 @@ export interface RouteBuilder {
   /** Resource detail page */
   resourceDetail: (id: string) => string;
 
-  /** User profile page */
-  userProfile: (id: string) => string;
-
-  /** Search page with query */
-  search: (query: string) => string;
-
-  /** Home/root page */
-  home: () => string;
-
   /** Knowledge base page */
   knowledge?: () => string;
 
   /** Moderation dashboard */
   moderate?: () => string;
-
-  /** Admin dashboard */
-  admin?: () => string;
 }

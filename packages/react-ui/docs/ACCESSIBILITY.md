@@ -49,16 +49,6 @@ import { SettingsPanel } from '@semiont/react-ui';
 
 ## Accessibility Hooks
 
-### useFormValidation
-Manages form accessibility per [WCAG 3.3 Input Assistance](https://www.w3.org/WAI/WCAG21/Understanding/input-assistance):
-
-```tsx
-const { errors, getFieldProps, getErrorProps } = useFormValidation();
-
-<input {...getFieldProps('email')} />
-{errors.email && <span {...getErrorProps('email')}>{errors.email}</span>}
-```
-
 ### useLiveRegion
 Announces dynamic content ([ARIA Live Regions](https://www.w3.org/WAI/ARIA/apg/patterns/liveregion/)):
 
@@ -121,10 +111,10 @@ it('should have no WCAG violations', async () => {
 ```yaml
 # .github/workflows/accessibility-tests.yml
 - name: Run accessibility tests
-  run: npm test -- --grep "Accessibility"
+  run: npm run test:a11y --workspace=@semiont/react-ui
 
 - name: Run Lighthouse CI
-  run: npm run lighthouse
+  run: lhci autorun
   env:
     LIGHTHOUSE_ACCESSIBILITY_THRESHOLD: 90
 ```

@@ -287,7 +287,7 @@ flight ends by being told and not by the runtime stopping.
 
   | Unit | holds | hears, or is told |
   |---|---|---|
-  | `MarkStateUnit` (one resource) | the annotation being composed; the motivation and progress of the assist running | `client.mark.request`, `submit`, `cancel_pending`, `request_assist`, `dismiss_progress`; `mark:select-*`, and a `mark:delete` that names its resource, on the client's bus |
+  | `MarkStateUnit` (one resource) | the annotation being composed; the motivation and progress of the assist running | `client.mark.request`, `submit`, `cancel_pending`, `request_assist`, `dismiss_progress`; `mark:select-*` on the client's bus |
   | `GatherStateUnit` (one resource) | an annotation's context, and a resource's, each with its loading and its failure | `gather:requested` on the client's bus; `gather_resource` |
   | `MatchStateUnit` | nothing: it answers on the bus, under the asker's correlation id | `client.match_.request_search` |
   | `YieldStateUnit` | whether a generation runs, its progress, what it produced, and why it ended without a result | `generate`, `dismiss_progress` |

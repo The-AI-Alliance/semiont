@@ -1361,72 +1361,6 @@ async fn mark_says_a_creation_that_failed_and_keeps_the_annotation_pending() {
     assert!(unit.pending().borrow().is_some());
 }
 
-#[tokio::test(start_paused = true)]
-async fn mark_deletes_an_annotation_of_its_resource_and_says_a_deletion_that_failed() {
-    let (client, transport) = world();
-    transport.queue_reply("mark:delete", [Some(json!({ "annotationId": "ann-1" }))]);
-    let _unit = MarkStateUnit::new(client.clone(), &as_id(RES));
-    let mut errors = client.bus().frames("mark:delete-error");
-
-    say(
-        &client,
-        "mark:delete",
-        json!({ "annotationId": "ann-1", "resourceId": RES }),
-    );
-    settle().await;
-    let sent = requests(&transport, "mark:delete");
-    assert_eq!(sent.len(), 1);
-    assert_eq!(
-        Value::Object(sent[0].payload.clone()),
-        json!({ "annotationId": "ann-1", "resourceId": RES })
-    );
-    assert!(heard(&mut errors).await.is_empty());
-
-    // Nothing is scripted to answer the second.
-    say(
-        &client,
-        "mark:delete",
-        json!({ "annotationId": "ann-2", "resourceId": RES }),
-    );
-    settle().await;
-    let said = payloads(heard(&mut errors).await);
-    assert_eq!(said.len(), 1);
-    assert_eq!(said[0]["resourceId"], RES);
-    assert!(
-        said[0]["message"]
-            .as_str()
-            .is_some_and(|m| m.contains("mark:delete")),
-        "{said:?}"
-    );
-}
-
-#[tokio::test(start_paused = true)]
-async fn mark_deletes_only_what_is_said_to_be_of_its_resource() {
-    let (client, transport) = world();
-    transport.queue_reply("mark:delete", [Some(json!({ "annotationId": "ann-1" }))]);
-    // Two resources are open on one client, each with its unit.
-    let _here = MarkStateUnit::new(client.clone(), &as_id(RES));
-    let _there = MarkStateUnit::new(client.clone(), &as_id("res-2"));
-
-    say(
-        &client,
-        "mark:delete",
-        json!({ "annotationId": "ann-1", "resourceId": "res-2" }),
-    );
-    // One that names no resource is no unit's to act on.
-    say(&client, "mark:delete", json!({ "annotationId": "ann-9" }));
-    settle().await;
-
-    let sent: Vec<Value> = requests(&transport, "mark:delete")
-        .into_iter()
-        .map(|entry| Value::Object(entry.payload))
-        .collect();
-    assert_eq!(
-        sent,
-        [json!({ "annotationId": "ann-1", "resourceId": "res-2" })]
-    );
-}
-
 fn ask_for_an_assist(client: &SemiontClient, options: Value) {
     client.mark.request_assist(
         Motivation::Highlighting,
@@ -1672,11 +1606,9 @@ async fn mark_disposed_is_inert() {
     let mut pending = unit.pending();
     let mut motivation = unit.assisting();
     let mut shown = unit.progress();
-    let mut said = client.bus().frames_among(&[
-        "mark:assist-timeout",
-        "mark:create-error",
-        "mark:delete-error",
-    ]);
+    let mut said = client
+        .bus()
+        .frames_among(&["mark:assist-timeout", "mark:create-error"]);
 
     unit.dispose();
     client.mark.request(
@@ -1685,11 +1617,6 @@ async fn mark_disposed_is_inert() {
         Motivation::Commenting,
     );
     submit(&client, RES, "hello");
-    say(
-        &client,
-        "mark:delete",
-        json!({ "annotationId": "ann-1", "resourceId": RES }),
-    );
     say(&client, "job:report-progress", progress(HIGHLIGHT, 40.0));
     ask_for_an_assist(&client, json!({}));
     tokio::time::sleep(ASSIST_SILENCE * 2).await;
@@ -1700,7 +1627,6 @@ async fn mark_disposed_is_inert() {
     assert!(heard(&mut said).await.is_empty());
     assert_eq!(requests(&transport, "job:create").len(), 1);
     assert!(requests(&transport, "mark:create-request").is_empty());
-    assert!(requests(&transport, "mark:delete").is_empty());
     assert!(!client.bus().destroyed());
 }
 

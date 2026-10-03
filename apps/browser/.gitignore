@@ -5,15 +5,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Next.js build output
-.next/
-out/
-build/
+# Build output
 dist/
-
-# Next.js specific
-next-env.d.ts
-.next/
 
 # Vercel
 .vercel/
@@ -41,16 +34,6 @@ test-results.json
 
 # Storybook (if added later)
 storybook-static/
-
-# Bundle analysis
-.next/analyze/
-analyze/
-
-# Performance monitoring
-.next/static/chunks/polyfills-*.js
-.next/static/chunks/webpack-*.js
-
-performance-reports/*
 
 # Cache directories
 .cache/

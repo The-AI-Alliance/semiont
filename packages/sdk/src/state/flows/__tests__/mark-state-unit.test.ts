@@ -9,13 +9,11 @@ const RID = makeResourceId('res-1');
 
 function withMark(overrides: Partial<{
   annotation: ReturnType<typeof vi.fn>;
-  delete: ReturnType<typeof vi.fn>;
   assist: ReturnType<typeof vi.fn>;
 }> = {}): TestClient {
   return makeTestClient({
     mark: {
       annotation: overrides.annotation ?? vi.fn().mockResolvedValue({ annotationId: 'ann-new' }),
-      delete: overrides.delete ?? vi.fn().mockResolvedValue(undefined),
       assist: overrides.assist ?? vi.fn(() => new Observable(() => {})),
     },
   });
@@ -185,51 +183,6 @@ describe('createMarkStateUnit', () => {
     await vi.waitFor(() => expect(failures).toHaveLength(1));
     expect(failures[0]).toEqual({ resourceId: 'res-1', message: 'Network error' });
     stateUnit.dispose();
-  });
-
-  it('emits mark:delete-error (resource-stamped, client-local) when delete errors', async () => {
-    const deleteFn = vi.fn().mockRejectedValue(new Error('gone wrong'));
-    tc = withMark({ delete: deleteFn });
-    const stateUnit = createMarkStateUnit(tc.client, RID);
-    const failures: unknown[] = [];
-    tc.bus.on('mark:delete-error').subscribe(e => failures.push(e));
-
-    tc.bus.emit('mark:delete', { annotationId: annotationId('ann-del'), resourceId: RID });
-
-    await vi.waitFor(() => expect(failures).toHaveLength(1));
-    expect(failures[0]).toEqual({ resourceId: 'res-1', message: 'gone wrong' });
-    stateUnit.dispose();
-  });
-
-  it('bridges mark:delete to client.mark.delete', async () => {
-    const deleteFn = vi.fn().mockResolvedValue(undefined);
-    tc = withMark({ delete: deleteFn });
-    const stateUnit = createMarkStateUnit(tc.client, RID);
-
-    tc.bus.emit('mark:delete', { annotationId: annotationId('ann-del'), resourceId: RID });
-
-    // As with submit above: the call-through is the bridge, and `mark:delete-ok`
-    // arrives from the wire rather than from this state unit.
-    await vi.waitFor(() => expect(deleteFn).toHaveBeenCalledOnce());
-    expect(deleteFn).toHaveBeenCalledWith(RID, 'ann-del');
-    stateUnit.dispose();
-  });
-
-  it('deletes only what is said to be of its resource: two units on one client send one delete', async () => {
-    const deleteFn = vi.fn().mockResolvedValue(undefined);
-    tc = withMark({ delete: deleteFn });
-    const here = createMarkStateUnit(tc.client, RID);
-    const there = createMarkStateUnit(tc.client, makeResourceId('res-2'));
-
-    tc.bus.emit('mark:delete', { annotationId: annotationId('ann-del'), resourceId: makeResourceId('res-2') });
-    // One that names no resource is no unit's to act on.
-    tc.bus.emit('mark:delete', { annotationId: annotationId('ann-other') });
-
-    await vi.waitFor(() => expect(deleteFn).toHaveBeenCalled());
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(deleteFn.mock.calls).toEqual([['res-2', 'ann-del']]);
-    here.dispose();
-    there.dispose();
   });
 
   // ── AI assist ──────────────────────────────────────────────

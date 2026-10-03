@@ -61,69 +61,32 @@ it('should render navigation with branding', () => {
 
 ### Event-Driven Testing
 
-For components that use EventBus, use the **EventTracker pattern** instead of mocking EventBus methods:
+A component says things on a bus; a test listens on the real bus rather than mocking it.
+`renderWithProviders` hands back both buses on request:
 
-**❌ Don't: Mock EventBus methods**
 ```tsx
-// WRONG - Breaks real event flow
-vi.spyOn(EventBus, 'on');
-vi.spyOn(EventBus, 'emit');
+import { renderWithProviders, screen, fireEvent } from '@semiont/react-ui/test-utils';
+
+// Session-scoped channels (mark:*, beckon:*, browse:click, …): the client's bus
+const { eventBus } = renderWithProviders(<ReferenceEntry {...props} />, { returnEventBus: true });
+const clicked = vi.fn();
+const sub = eventBus!.on('browse:click').subscribe(clicked);
+
+fireEvent.click(screen.getByRole('button'));
+
+expect(clicked).toHaveBeenCalledWith(expect.objectContaining({ annotationId: props.reference.id }));
+sub.unsubscribe();
 ```
 
-**✅ Do: Use EventTracker to verify events**
 ```tsx
-// CORRECT - Real EventBus with event tracking
-import { createEventTracker, EventTrackingWrapper } from '@/test-utils/eventTracker';
-
-it('should emit resource-selected event', () => {
-  const tracker = createEventTracker();
-
-  render(
-    <EventTrackingWrapper tracker={tracker}>
-      <BrowseView {...props} />
-    </EventTrackingWrapper>
-  );
-
-  fireEvent.click(screen.getByText('Resource 1'));
-
-  expect(tracker.getEvents('resource-selected')).toHaveLength(1);
-  expect(tracker.getLastEvent('resource-selected')?.payload).toEqual({
-    resourceId: 'res-1',
-    resourceName: 'Resource 1'
-  });
-});
+// App-scoped channels (panel:*, shell:*, tabs:*, nav:*, settings:*): the browser
+const { browser } = renderWithProviders(<Toolbar {...props} />, { returnShellBus: true });
+const toggled = vi.fn();
+const sub = browser!.stream('panel:toggle').subscribe(toggled);
 ```
 
-**EventTracker benefits:**
-- Tests real EventBus subscriptions and emissions
-- Verifies event payloads and order
-- No mock maintenance when EventBus API changes
-- Catches event-driven integration bugs
-- Provides helper methods: `getEvents()`, `getLastEvent()`, `clearEvents()`
-
-**Real example from BrowseView.test.tsx:**
-```tsx
-describe('Event Emissions', () => {
-  it('should emit resource-selected when clicking resource', () => {
-    const tracker = createEventTracker();
-
-    render(
-      <EventTrackingWrapper tracker={tracker}>
-        <BrowseView resources={mockResources} />
-      </EventTrackingWrapper>
-    );
-
-    fireEvent.click(screen.getByText('Document 1'));
-
-    const events = tracker.getEvents('resource-selected');
-    expect(events).toHaveLength(1);
-    expect(events[0].payload).toMatchObject({
-      resourceId: 'doc-1',
-      resourceName: 'Document 1'
-    });
-  });
-});
-```
+The browser, session and client in these tests are the real ones, over the in-memory doubles
+of `@semiont/sdk/testing`. A bus operation nobody scripted rejects, naming itself.
 
 ## Test Utilities
 
@@ -564,89 +527,6 @@ describe('LeftSidebar Component', () => {
 5. **Test real behavior** - Verify actual rendered text, not mock artifacts
 6. **Clean setup** - Use `beforeEach` to reset state between tests
 
-### Testing Event-Driven Components
-
-For components that emit or listen to EventBus events, use the EventTracker pattern:
-
-```tsx
-// src/components/annotation/__tests__/AnnotateToolbar.test.tsx
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { AnnotateToolbar } from '../AnnotateToolbar';
-import { createEventTracker, EventTrackingWrapper } from '@/test-utils/eventTracker';
-
-describe('AnnotateToolbar', () => {
-  let tracker: ReturnType<typeof createEventTracker>;
-
-  beforeEach(() => {
-    tracker = createEventTracker();
-  });
-
-  describe('Event Emissions', () => {
-    it('should emit annotation-mode-changed when toggling mode', () => {
-      render(
-        <EventTrackingWrapper tracker={tracker}>
-          <AnnotateToolbar currentMode="select" />
-        </EventTrackingWrapper>
-      );
-
-      // Click highlight button
-      const highlightBtn = screen.getByLabelText('Highlight mode');
-      fireEvent.click(highlightBtn);
-
-      // Verify event was emitted
-      const events = tracker.getEvents('annotation-mode-changed');
-      expect(events).toHaveLength(1);
-      expect(events[0].payload).toEqual({ mode: 'highlight' });
-    });
-
-    it('should emit save-annotations when save clicked', () => {
-      render(
-        <EventTrackingWrapper tracker={tracker}>
-          <AnnotateToolbar currentMode="highlight" />
-        </EventTrackingWrapper>
-      );
-
-      fireEvent.click(screen.getByLabelText('Save annotations'));
-
-      const events = tracker.getEvents('save-annotations');
-      expect(events).toHaveLength(1);
-    });
-  });
-
-  describe('Event Subscriptions', () => {
-    it('should update UI when receiving annotation-created event', () => {
-      const { rerender } = render(
-        <EventTrackingWrapper tracker={tracker}>
-          <AnnotateToolbar currentMode="select" />
-        </EventTrackingWrapper>
-      );
-
-      // Simulate EventBus event
-      tracker.emit('annotation-created', {
-        annotationId: 'ann-1',
-        type: 'highlight'
-      });
-
-      rerender(
-        <EventTrackingWrapper tracker={tracker}>
-          <AnnotateToolbar currentMode="select" />
-        </EventTrackingWrapper>
-      );
-
-      // Verify UI updated - undo button should now be enabled
-      expect(screen.getByLabelText('Undo')).not.toBeDisabled();
-    });
-  });
-});
-```
-
-**EventTracker API:**
-- `tracker.getEvents(eventName)` - Get all events of a specific type
-- `tracker.getLastEvent(eventName)` - Get most recent event of a type
-- `tracker.clearEvents()` - Reset event history between tests
-- `tracker.emit(eventName, payload)` - Simulate EventBus events
-
 ### Hook Test Pattern
 
 ```tsx
@@ -712,24 +592,6 @@ it('should render navigation', () => {
 
   // Verify real NavigationMenu rendered
   expect(screen.getByText('nav.know')).toBeInTheDocument();
-});
-```
-
-### ✅ Do: Use EventTracker for event-driven components
-
-```tsx
-it('should emit events on interaction', () => {
-  const tracker = createEventTracker();
-
-  render(
-    <EventTrackingWrapper tracker={tracker}>
-      <BrowseView {...props} />
-    </EventTrackingWrapper>
-  );
-
-  fireEvent.click(screen.getByText('Resource 1'));
-
-  expect(tracker.getEvents('resource-selected')).toHaveLength(1);
 });
 ```
 
@@ -803,8 +665,10 @@ import { NavigationMenu } from '../NavigationMenu';
 vi.spyOn(EventBus, 'on');
 vi.spyOn(EventBus, 'emit');
 
-// CORRECT - Use EventTracker
-const tracker = createEventTracker();
+// CORRECT - Listen on the real bus
+const { eventBus } = renderWithProviders(<MyComponent />, { returnEventBus: true });
+const seen = vi.fn();
+eventBus!.on('browse:click').subscribe(seen);
 ```
 
 ### ❌ Don't: Test implementation details
@@ -850,7 +714,7 @@ The `@semiont/react-ui` library uses **composition-based testing** as the primar
 ### Core Principles
 
 1. **Real components, not mocks** - Tests use actual React components via composition
-2. **EventTracker for events** - Event-driven testing with `createEventTracker()` instead of mocking EventBus
+2. **The real bus for events** - A test subscribes on the bus `renderWithProviders` returns instead of mocking `EventBus`
 3. **Mock minimally** - Only mock hooks, external APIs, and browser APIs not available in jsdom
 4. **Test behavior, not implementation** - Verify what users see, not internal state
 5. **Isolated tests** - Each test is independent with clean state
@@ -891,8 +755,8 @@ Our codebase includes 1300+ tests demonstrating these patterns:
 - **[LeftSidebar.test.tsx](../src/components/layout/__tests__/LeftSidebar.test.tsx)** - Layout component with real NavigationMenu and SemiontBranding
 - **[UnifiedHeader.test.tsx](../src/components/layout/__tests__/UnifiedHeader.test.tsx)** - Header with real child components and dropdown hook
 - **[PageLayout.test.tsx](../src/components/layout/__tests__/PageLayout.test.tsx)** - Full page layout with a real UnifiedHeader
-- **[BrowseView.test.tsx](../src/components/resource/__tests__/BrowseView.test.tsx)** - Event-driven component using EventTracker
-- **[AnnotateToolbar.test.tsx](../src/components/annotation/__tests__/AnnotateToolbar.test.tsx)** - Event emissions and subscriptions with EventTracker
+- **[BrowseView.test.tsx](../src/components/resource/__tests__/BrowseView.test.tsx)** - Event-driven component listening on the real bus
+- **[AnnotateToolbar.test.tsx](../src/components/annotation/__tests__/AnnotateToolbar.test.tsx)** - Event emissions and subscriptions on the real bus
 - **[ResourceInfoPanel.test.tsx](../src/components/resource/panels/__tests__/ResourceInfoPanel.test.tsx)** - Panel component with event tracking
 
 ### Key Benefits

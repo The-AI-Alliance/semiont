@@ -478,10 +478,13 @@ React error boundary for graceful error handling.
 ```tsx
 import { ErrorBoundary } from '@semiont/react-ui';
 
-<ErrorBoundary fallback={<ErrorPage />}>
+<ErrorBoundary fallback={(error, reset) => <button onClick={reset}>{error.message}. Try again</button>}>
   {children}
 </ErrorBoundary>
 ```
+
+`fallback?` is a function of the error and a `reset`; without it the boundary renders its own
+notice.
 
 ### CodeMirrorRenderer
 
@@ -538,15 +541,15 @@ function MyComponent() {
 
 ### With Routing
 
-Components that need navigation use routing context:
+Components that render a link take the host's `Link` and `routes` as props (see
+[ROUTING.md](ROUTING.md)):
 
 ```tsx
-import { useRouting } from '@semiont/react-ui';
+import type { ResourceId } from '@semiont/core';
+import type { LinkComponentProps, RouteBuilder } from '@semiont/react-ui';
 
-function MyComponent() {
-  const { Link, routes } = useRouting();
-
-  return <Link href={routes.home}>Home</Link>;
+function MyComponent({ Link, routes, resourceId }: { Link: React.ComponentType<LinkComponentProps>; routes: RouteBuilder; resourceId: ResourceId }) {
+  return <Link href={routes.resourceDetail(resourceId)}>Open</Link>;
 }
 ```
 
@@ -562,10 +565,10 @@ function MyComponent() {
   // Emissions are CacheState<ResourceList>: pending → ready | failed.
   const state = useObservable(client?.browse.resources());
 
-  if (!state || state.status === 'pending') return <Spinner />;
-  if (state.status === 'failed') return <ErrorNotice error={state.error} />;
+  if (!state || state.status === 'pending') return <p>Loading…</p>;
+  if (state.status === 'failed') return <p role="alert">{state.error.message}</p>;
 
-  return <ResourceList items={state.value.resources} />;
+  return <ul>{state.value.resources.map((r) => <li key={r['@id']}>{r.name}</li>)}</ul>;
 }
 ```
 

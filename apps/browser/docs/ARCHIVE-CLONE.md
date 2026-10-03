@@ -1,169 +1,60 @@
-# Archive and Clone Features
+# Archive and Clone
 
-> **⚠️ Note:** Code examples in this document use an older API pattern. The current architecture calls the SDK's verb-namespace client (`semiont.browse.*`, `semiont.mark.*`, …) and subscribes via `useObservable`. See [ARCHITECTURE.md](./ARCHITECTURE.md) and [AUTHENTICATION.md](./AUTHENTICATION.md) for current patterns.
+Two lifecycle actions on a resource. Both live in the **Resource Info** panel
+(`ResourceInfoPanel`, `@semiont/react-ui`) and both go through the SDK.
 
-## Overview
+## Archive
 
-The Archive and Clone features provide document lifecycle management capabilities, allowing users to preserve important documents and create working copies.
+Archiving marks a resource as archived; unarchiving reverses it.
 
-## Archive Feature
-
-### Purpose
-The Archive feature makes a document read-only to prevent accidental modifications while preserving all existing annotations (highlights and references).
-
-### User Interface
-
-Located in the "Manage" section of the document sidebar:
-
-```tsx
-// Location: /app/know/document/[id]/page.tsx
-<button onClick={handleArchive}>
-  {document.archived ? 'Unarchive' : 'Archive'}
-</button>
+```ts
+await session.client.mark.archive(resourceId);
+await session.client.mark.unarchive(resourceId);
 ```
 
-### Behavior
+Each is a confirmed write: it resolves when the knowledge base has answered, and rejects if the
+command failed. The panel shows **Archive** or **Unarchive** according to the resource's
+archived state, and the resource page shows an archived badge in annotate mode.
 
-When a document is archived:
-- **Visual indicator**: "Archived" badge appears in the Manage section
-- **Text selection disabled**: No sparkle appears, can't create new highlights/references
-- **Annotation interaction**: 
-  - Existing annotations remain visible
-  - Click navigation still works for references
-  - Right-click menu is disabled
-- **Document tags disabled**: Cannot add or remove entity types
-- **Reversible**: Can be unarchived at any time
+## Clone
 
-### Implementation Details
+Cloning makes a new, editable resource from an existing one, and records where it came from.
 
-```typescript
-// API call to toggle archive status
-await apiService.documents.update(documentId, {
-  archived: !document.archived
-});
+1. **Ask for a token.** The Clone action asks the knowledge base for a short-lived token for
+   the source:
 
-// Conditional rendering based on archive status
-<AnnotationRenderer
-  {...(!document.archived && { 
-    onTextSelect: handleTextSelection,
-    onAnnotationRightClick: handleAnnotationRightClick
-  })}
-/>
-```
+   ```ts
+   const { token, expiresAt } = await session.client.yield.cloneToken(resourceId);
+   ```
 
-## Clone Feature
+2. **Go to Compose.** The Browser navigates to `/know/compose?mode=clone&token=<token>`.
 
-### Purpose
-Creates an editable copy of a document, preserving the original while allowing modifications to the copy. Maintains provenance tracking.
+3. **Load the source.** The Compose page resolves the token to the source's description and
+   reads its content, so the copy starts from the source's name and text:
 
-### User Interface
+   ```ts
+   const source = await client.yield.fromToken(token);
+   const { data, contentType } = await client.browse.resourceRepresentation(source['@id']);
+   ```
 
-Located in the "Manage" section below the Archive button:
+4. **Save.** Saving creates the new resource from the token:
 
-```tsx
-<button onClick={handleClone}>Clone</button>
-```
+   ```ts
+   const { resourceId } = await client.yield.createFromToken({
+     token,
+     name,
+     content,
+     archiveOriginal,   // archive the source once the copy exists
+   });
+   ```
 
-### Workflow
+The copy's description carries `wasDerivedFrom`, the source's `ResourceId`. The Resource Info
+panel shows it as a link back to the source.
 
-1. **Initiate Clone**: User clicks "Clone" button
-2. **Token Generation**: Gateway creates a short-lived token
-3. **Redirect**: User redirected to `/know/create?mode=clone&token=xxx`
-4. **Edit Copy**: Create page loads source document for editing
-5. **Save**: Creates new document with provenance link
+The token carries its own `expiresAt`. Tokens are issued and checked by the Archivist's
+`CloneTokenManager` (see [KNOWLEDGE-SYSTEM.md](../../../docs/system/KNOWLEDGE-SYSTEM.md)).
 
-### Token-Based Architecture
+## Related
 
-The clone process uses a secure token mechanism:
-
-```typescript
-// Step 1: Generate clone token
-const response = await apiService.documents.clone(documentId);
-// Returns: { token: string, expiresAt: string }
-
-// Step 2: Redirect with token
-router.push(`/know/create?mode=clone&token=${response.token}`);
-
-// Step 3: Fetch source document using token
-const sourceData = await apiService.documents.getByToken(token);
-
-// Step 4: Create new document from token
-await apiService.documents.createFromToken({
-  token,
-  name: editedName,
-  content: editedContent,
-  archiveOriginal: false // optional
-});
-```
-
-### Provenance Tracking
-
-Cloned documents maintain a link to their source:
-
-```tsx
-// Displayed in sidebar for cloned documents
-{document.sourceDocumentId && document.creationMethod === 'clone' && (
-  <div className="provenance-section">
-    <span>Cloned from: </span>
-    <Link href={`/know/document/${document.sourceDocumentId}`}>
-      {sourceDocumentName}
-    </Link>
-  </div>
-)}
-```
-
-### Selection Preservation
-
-All highlights and references from the source document are copied to the clone:
-- Maintains same text positions
-- Preserves reference links
-- Copies metadata and tags
-- Each selection tracks its cloned origin
-
-## Combined Workflow Example
-
-Common use case: Archive and Clone
-
-1. User completes work on a document
-2. Archives the document to preserve it
-3. Later needs to make changes
-4. Clones the archived document
-5. Works on the clone
-6. Original remains safely archived
-
-## API Endpoints Used
-
-### Archive
-- `PUT /api/documents/:id` - Update document with `archived` field
-
-### Clone
-- `POST /api/documents/:id/clone` - Generate clone token
-- `GET /api/documents/token/:token` - Fetch source document via token
-- `POST /api/documents/create-from-token` - Create new document from clone
-
-## State Management
-
-Both features update local state immediately after API calls:
-
-```typescript
-// Reload document after archive toggle
-await loadDocument();
-
-// Clone redirects to new page, no local state update needed
-router.push(`/know/create?mode=clone&token=${token}`);
-```
-
-## Error Handling
-
-- **Archive**: Shows alert on failure, document state unchanged
-- **Clone Token Expiry**: Returns error if the token expired — see [CloneTokenManager](../../../docs/system/KNOWLEDGE-SYSTEM.md#clonetokenmanager) for the lifetime
-- **Clone Token Invalid**: Returns error if token doesn't exist or belongs to another user
-
-## Security Considerations
-
-1. **Archive**: Only document owner can archive/unarchive
-2. **Clone Tokens**: 
-   - Single use (deleted after use)
-   - Time-limited
-   - User-scoped (can't use another user's token)
-   - Stored in memory (cleared on server restart)
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — how the Browser reaches the knowledge base
+- [API-INTEGRATION.md](./API-INTEGRATION.md) — the SDK's namespaces and the bus

@@ -19,7 +19,7 @@ All favicon files are available in `node_modules/@semiont/react-ui/public/favico
 
 Create a script to copy favicons to your public directory:
 
-```javascript
+```javascript sketch
 // scripts/copy-favicons.js
 const fs = require('fs');
 const path = require('path');
@@ -42,7 +42,7 @@ files.forEach(file => {
 ```
 
 Add to your build process:
-```json
+```json sketch
 {
   "scripts": {
     "build": "node scripts/copy-favicons.js && your-build-command"

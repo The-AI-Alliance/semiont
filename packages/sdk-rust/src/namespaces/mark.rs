@@ -8,7 +8,7 @@ use crate::bus::payload_of;
 use crate::channels::Empty;
 use crate::channels::{
     MarkArchive, MarkAssistRequest, MarkCancelPending, MarkCreateRequest as CreateRequest,
-    MarkDelete, MarkProgressDismiss, MarkRequested, MarkSubmit, MarkUnarchive,
+    MarkDelete, MarkDeleteError, MarkProgressDismiss, MarkRequested, MarkSubmit, MarkUnarchive,
     MarkUpdateEntityTypes,
 };
 use crate::client::Links;
@@ -20,7 +20,7 @@ use crate::types::{
     AnnotationSelector, CreateAnnotationRequest, JobCreateCommand, JobType, MarkArchiveCommand,
     MarkAssistRequestEvent, MarkAssistRequestEventOptions, MarkCreateOkResponse, MarkCreateRequest,
     MarkDeleteCommand, MarkRequestedEvent, MarkSubmitEvent, MarkUnarchiveCommand,
-    MarkUpdateEntityTypesCommand, Motivation,
+    MarkUpdateEntityTypesCommand, Motivation, ResourceErrorEvent,
 };
 use serde::{Deserialize, Serialize};
 
@@ -248,5 +248,12 @@ impl MarkNamespace {
     pub fn dismiss_progress(&self) {
         self.links
             .signal::<MarkProgressDismiss>(&Empty {}, Envelope::default());
+    }
+
+    /// Signal: a delete failed where nothing could show it. Said by whoever
+    /// awaited [`delete`](Self::delete), which knows the resource.
+    pub fn report_delete_error(&self, input: ResourceErrorEvent) {
+        self.links
+            .signal::<MarkDeleteError>(&input, Envelope::default());
     }
 }

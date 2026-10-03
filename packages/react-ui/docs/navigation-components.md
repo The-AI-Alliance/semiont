@@ -8,48 +8,6 @@ The navigation components in this library are designed to be completely platform
 
 ## Components
 
-### SidebarNavigation
-
-A simple, flexible sidebar navigation component for fixed menu items.
-
-#### Props
-
-```typescript
-interface SidebarNavigationProps {
-  items: NavigationItem[];
-  title?: string;
-  currentPath: string;
-  LinkComponent: ComponentType<any>;
-  className?: string;
-  showDescriptions?: boolean;
-  activeClassName?: string;
-  inactiveClassName?: string;
-  isCollapsed?: boolean;
-  showText?: boolean;
-}
-```
-
-#### Usage Example
-
-```tsx
-import { SidebarNavigation } from '@semiont/react-ui';
-import { Link } from 'next/link'; // or react-router, etc.
-import { HomeIcon, SettingsIcon } from '@heroicons/react/24/outline';
-
-const navigation = [
-  { name: 'Home', href: '/', icon: HomeIcon },
-  { name: 'Settings', href: '/settings', icon: SettingsIcon }
-];
-
-<SidebarNavigation
-  items={navigation}
-  currentPath={pathname}
-  LinkComponent={Link}
-  showDescriptions={true}
-  isCollapsed={false}
-/>
-```
-
 ### CollapsibleResourceNavigation
 
 A comprehensive navigation component with collapsible state, fixed navigation items, and draggable resource tabs.
@@ -230,48 +188,11 @@ export function ReactRouterNavigation() {
 }
 ```
 
-### React Native Integration
-
-```tsx
-import { CollapsibleResourceNavigation } from '@semiont/react-ui';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { TouchableOpacity } from 'react-native';
-
-// Create a Link adapter for React Native
-const NativeLink = ({ href, children, ...props }) => (
-  <TouchableOpacity onPress={() => navigation.navigate(href)} {...props}>
-    {children}
-  </TouchableOpacity>
-);
-
-export function NativeNavigation() {
-  const navigation = useNavigation();
-  const route = useRoute();
-
-  return (
-    <CollapsibleResourceNavigation
-      LinkComponent={NativeLink}
-      currentPath={route.name}
-      onNavigate={(path) => navigation.navigate(path)}
-      // ... other props
-    />
-  );
-}
-```
-
 ## Styling
 
 All navigation components use BEM-style CSS classes for consistent styling:
 
 ```css
-/* SidebarNavigation */
-.sidebar-navigation
-.sidebar-navigation__header
-.sidebar-navigation__title
-.sidebar-navigation__items
-.sidebar-navigation__item
-.sidebar-navigation__item--active
-
 /* CollapsibleResourceNavigation */
 .collapsible-resource-navigation
 .collapsible-resource-navigation__header
@@ -312,11 +233,10 @@ All types are exported from the package:
 ```typescript
 import type {
   NavigationItem,
-  OpenResource,
   CollapsibleResourceNavigationProps,
-  SidebarNavigationProps,
   SortableResourceTabProps
 } from '@semiont/react-ui';
+import type { OpenResource } from '@semiont/sdk';
 ```
 
 ## Best Practices

@@ -133,7 +133,7 @@ interface PermissionError {
 
 #### 2. Permission-Aware Components
 
-```typescript
+```typescript sketch
 function DocumentEditor({ document }) {
   const permissions = useDocumentPermissions(document.id);
 
@@ -147,7 +147,7 @@ function DocumentEditor({ document }) {
 
 #### 3. Optimistic Permission Checking
 
-```typescript
+```typescript sketch
 // Check before making API call
 const { canDelete } = useResourcePermissions(resourceId);
 if (!canDelete) {
@@ -229,31 +229,6 @@ try {
     // The transport stamped this as `forbidden` and already routed it to
     // SessionSignals → PermissionDeniedModal appears
   }
-}
-```
-
-### Protected UI Elements
-
-```typescript
-function ActionButtons({ document }) {
-  const { canEdit, canDelete } = useDocumentPermissions(document);
-
-  return (
-    <>
-      <Button
-        disabled={!canEdit}
-        title={!canEdit ? 'You need edit permission' : ''}
-      >
-        Edit
-      </Button>
-      <Button
-        disabled={!canDelete}
-        title={!canDelete ? 'You need delete permission' : ''}
-      >
-        Delete
-      </Button>
-    </>
-  );
 }
 ```
 
