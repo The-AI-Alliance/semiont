@@ -206,4 +206,40 @@ describe('useResourceContent — every render answers for its own inputs', () =>
     expect(rendersFor(NEXT)).not.toHaveLength(0);
     expect(rendersFor(NEXT).map((r) => r.error?.message)).not.toContain('first failed');
   });
+
+  // The other side of "an outcome answers for the inputs it was fetched for":
+  // when the SAME inputs come back, the text already fetched for them is still
+  // the answer. It is served at once and refreshed behind, rather than blanked
+  // for a round trip — text does not expire the way a media token does.
+  it('re-enabling for the same inputs serves the fetched content at once, and refetches', async () => {
+    mockResourceRepresentation.mockResolvedValueOnce({ data: utf8('first'), contentType: 'text/plain' });
+    const renders: Array<{ enabled: boolean } & UseResourceContentResult> = [];
+    const { result, rerender } = renderHook(
+      ({ enabled }) => {
+        const returned = useResourceContent(client, RID, resource, enabled);
+        renders.push({ enabled, ...returned });
+        return returned;
+      },
+      { initialProps: { enabled: true } },
+    );
+    await waitFor(() => expect(result.current.content).toBe('first'));
+
+    rerender({ enabled: false });
+    expect(result.current).toEqual({ content: undefined, loading: false, error: null });
+
+    const refetch = deferred<{ data: ArrayBuffer; contentType: string }>();
+    mockResourceRepresentation.mockReturnValueOnce(refetch.promise);
+    const rendersBefore = renders.length;
+    rerender({ enabled: true });
+
+    const sinceReenabled = renders.slice(rendersBefore);
+    expect(sinceReenabled).not.toHaveLength(0);
+    expect(sinceReenabled.map((r) => r.content)).toEqual(sinceReenabled.map(() => 'first'));
+    expect(sinceReenabled.map((r) => r.loading)).not.toContain(true);
+    expect(mockResourceRepresentation).toHaveBeenCalledTimes(2);
+
+    refetch.resolve({ data: utf8('second'), contentType: 'text/plain' });
+    await waitFor(() => expect(result.current.content).toBe('second'));
+    expect(result.current.loading).toBe(false);
+  });
 });

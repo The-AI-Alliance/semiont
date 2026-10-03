@@ -42,6 +42,10 @@ export function useMediaToken(client: SemiontClient | null, id: ResourceId): Use
     return () => {
       cancelled = true;
       clearInterval(refreshInterval);
+      // The loop above is what keeps a served token fresh. When it stops the
+      // token goes with it: if these same inputs come back later, a token
+      // minted before the gap may have expired.
+      setMinted(null);
     };
   }, [client, auth, id]);
 

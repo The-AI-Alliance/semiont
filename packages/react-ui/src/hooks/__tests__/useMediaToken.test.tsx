@@ -81,15 +81,21 @@ describe('useMediaToken', () => {
 // token — a request the gateway refuses. These specs record what EVERY render
 // returned, so a single stale frame shows.
 describe('useMediaToken — every render answers for its own inputs', () => {
+  interface Inputs {
+    client: SemiontClient | null;
+    id: ResourceId;
+  }
+
   function renderRecording(initialClient: SemiontClient) {
-    const renders: Array<{ client: SemiontClient; id: ResourceId } & UseMediaTokenResult> = [];
+    const renders: Array<Inputs & UseMediaTokenResult> = [];
+    const initialProps: Inputs = { client: initialClient, id: resourceId('res-1') };
     const hook = renderHook(
-      ({ client, id }) => {
+      ({ client, id }: Inputs) => {
         const returned = useMediaToken(client, id);
         renders.push({ client, id, ...returned });
         return returned;
       },
-      { initialProps: { client: initialClient, id: resourceId('res-1') } },
+      { initialProps },
     );
     return { ...hook, renders };
   }
@@ -125,5 +131,31 @@ describe('useMediaToken — every render answers for its own inputs', () => {
     expect(forBare).not.toHaveLength(0);
     expect(forBare.map((r) => r.token)).not.toContain('tok-1');
     expect(forBare.map((r) => r.loading)).not.toContain(true);
+  });
+
+  // A token is only good while something keeps refreshing it. Once the client
+  // goes away the refresh loop stops, so by the time the same client returns
+  // the token minted before the gap may have expired: the hook starts again
+  // from "no token yet" instead of serving it for the length of a round trip.
+  it('a returning client starts from no token, never the one minted before the gap', async () => {
+    const mediaToken = vi.fn()
+      .mockResolvedValueOnce({ token: 'tok-1' })
+      .mockReturnValueOnce(new Promise(() => {})); // the re-mint, still in flight
+    const client = { auth: { mediaToken } } as unknown as SemiontClient;
+    const id = resourceId('res-1');
+    const { result, rerender, renders } = renderRecording(client);
+    await waitFor(() => expect(result.current.token).toBe('tok-1'));
+
+    rerender({ client: null, id });
+    expect(result.current).toEqual({ token: undefined, loading: false });
+
+    const rendersBefore = renders.length;
+    rerender({ client, id });
+
+    const sinceReturned = renders.slice(rendersBefore);
+    expect(sinceReturned).not.toHaveLength(0);
+    expect(sinceReturned.map((r) => r.token)).not.toContain('tok-1');
+    expect(sinceReturned.map((r) => r.loading)).not.toContain(false);
+    expect(mediaToken).toHaveBeenCalledTimes(2);
   });
 });
