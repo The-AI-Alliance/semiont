@@ -1968,6 +1968,24 @@ fn message(error: semiont::errors::SemiontError) -> String {
     }
 }
 
+#[tokio::test]
+async fn a_refusal_with_no_body_is_worded_as_the_typescript_transport_words_it() {
+    let world = World::start().await;
+    *world.staged.refuses_everyone.lock().unwrap() = true;
+    let client = world.client("a-token");
+
+    let refused = client
+        .auth
+        .as_ref()
+        .expect("a gateway")
+        .me()
+        .await
+        .expect_err("the gateway refuses everyone");
+
+    assert_eq!(refused.code(), "unauthorized");
+    assert_eq!(message(refused), "HTTP 401: Unauthorized");
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_gateway_operation_that_is_never_answered_fails_at_the_deadline_and_is_not_asked_again() {
     let world = World::on_a_quick_clock().await;

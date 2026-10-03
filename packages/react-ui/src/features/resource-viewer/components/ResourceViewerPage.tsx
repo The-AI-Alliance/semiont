@@ -48,6 +48,7 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
 import { ResourceGenerateModal } from '../../../components/modals/ResourceGenerateModal';
 import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
+import type { LinkComponentProps, RouteBuilder } from '../../../contexts/RoutingContext';
 import { toGenerationOptions } from '../generation-options';
 
 type SemiontResource = ResourceDescriptor;
@@ -71,12 +72,12 @@ export interface ResourceViewerPageProps {
   /**
    * Link component for routing
    */
-  Link: React.ComponentType<any>;
+  Link: React.ComponentType<LinkComponentProps>;
 
   /**
    * Routes configuration
    */
-  routes: any;
+  routes: RouteBuilder;
 
   /**
    * Component dependencies - passed from framework layer
@@ -427,18 +428,15 @@ export function ResourceViewerPage({
   }, [triggerSparkleAnimation]);
 
   const handleResourceOpen = useCallback(({ resourceId }: { resourceId: string }) => {
-    if (routes.resourceDetail) {
-      const path = routes.resourceDetail(resourceId);
-      browser.emit('nav:push', { path, reason: 'reference-link' });
-    }
+    browser.emit('nav:push', { path: routes.resourceDetail(resourceId), reason: 'reference-link' });
   }, [routes.resourceDetail, browser]);
 
+  // A host without a knowledge page has nowhere to filter to.
   const handleEntityTypeClicked = useCallback(({ entityType }: { entityType: string }) => {
-    if (routes.know) {
-      const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
-      browser.emit('nav:push', { path, reason: 'entity-type-filter' });
-    }
-  }, [routes.know, browser]);
+    if (!routes.knowledge) return;
+    const path = `${routes.knowledge()}?entityType=${encodeURIComponent(entityType)}`;
+    browser.emit('nav:push', { path, reason: 'entity-type-filter' });
+  }, [routes.knowledge, browser]);
 
   // Outcome notifications (annotation CRUD failures, job success/decline/fail,
   // assist timed-out) live in useOutcomeToasts — they need only the resource id

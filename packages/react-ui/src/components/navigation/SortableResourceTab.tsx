@@ -19,7 +19,7 @@ export function SortableResourceTab({
   onReorder,
   index,
   totalCount,
-  LinkComponent,
+  Link,
   translations = {},
   isDragging = false
 }: SortableResourceTabProps) {
@@ -76,7 +76,7 @@ export function SortableResourceTab({
       role="tab"
     >
       {/* Document Link with Icon */}
-      <LinkComponent
+      <Link
         href={href}
         className="semiont-resource-tab__link"
         title={tooltipText}
@@ -87,7 +87,7 @@ export function SortableResourceTab({
         {!isCollapsed && (
           <span className="semiont-resource-tab__text">{resource.name}</span>
         )}
-      </LinkComponent>
+      </Link>
 
       {/* Close button - only visible when not collapsed */}
       {!isCollapsed && (

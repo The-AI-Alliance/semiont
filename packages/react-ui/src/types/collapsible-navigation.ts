@@ -1,5 +1,6 @@
 import { ComponentType, ReactNode } from 'react';
 import type { OpenResource } from '@semiont/sdk';
+import type { LinkComponentProps } from '../contexts/RoutingContext';
 /**
  * Props for the sortable resource tab component
  */
@@ -12,7 +13,7 @@ export interface SortableResourceTabProps {
   onReorder?: (resourceId: string, direction: 'up' | 'down') => void;
   index?: number;
   totalCount?: number;
-  LinkComponent: ComponentType<any>;
+  Link: ComponentType<LinkComponentProps>;
   dragHandleProps?: any;
   isDragging?: boolean;
   translations: {
@@ -44,7 +45,7 @@ export interface CollapsibleResourceNavigationProps {
 
   // Navigation
   currentPath: string;
-  LinkComponent: ComponentType<any>;
+  Link: ComponentType<LinkComponentProps>;
   onNavigate?: (path: string) => void;
 
   // Resource URL builder

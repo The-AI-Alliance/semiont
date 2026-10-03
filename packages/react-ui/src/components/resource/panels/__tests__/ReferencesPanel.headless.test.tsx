@@ -54,10 +54,7 @@ function referenceAnnotation(): Annotation {
 const TestLink = ({ href, children, ...rest }: LinkComponentProps) => (
   <a href={href} {...rest}>{children}</a>
 );
-const testRoutes = {
-  resourceDetail: (id: string) => `/r/${id}`,
-  know: '/know',
-} as unknown as RouteBuilder;
+const testRoutes: RouteBuilder = { resourceDetail: (id) => `/r/${id}` };
 
 describe('ReferencesPanel — headless (session prop, no providers)', () => {
   beforeEach(() => vi.clearAllMocks());

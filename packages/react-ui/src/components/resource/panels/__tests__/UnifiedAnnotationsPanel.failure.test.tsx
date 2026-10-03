@@ -15,15 +15,13 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
-import type { RouteBuilder } from '../../../../contexts/RoutingContext';
+import type { LinkComponentProps, RouteBuilder } from '../../../../contexts/RoutingContext';
 import { UnifiedAnnotationsPanel } from '../UnifiedAnnotationsPanel';
 import { ANNOTATORS } from '../../../../lib/annotation-registry';
 import { resourceId } from '@semiont/core';
 
-const TestLink = ({ href, children, ...rest }: any) => <a href={href} {...rest}>{children}</a>;
-const testRoutes = {
-  resourceDetail: (id: string) => `/r/${id}`,
-} as unknown as RouteBuilder;
+const TestLink = ({ href, children, ...rest }: LinkComponentProps) => <a href={href} {...rest}>{children}</a>;
+const testRoutes: RouteBuilder = { resourceDetail: (id) => `/r/${id}` };
 
 function fakeSession(): SemiontSession {
   return {

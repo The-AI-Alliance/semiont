@@ -3,6 +3,7 @@ import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../test-utils';
 import type { SortableResourceTabProps } from '../../../types/collapsible-navigation';
+import type { LinkComponentProps } from '../../../contexts/RoutingContext';
 
 // Mock @dnd-kit/sortable
 const mockSetNodeRef = vi.fn();
@@ -40,7 +41,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { SortableResourceTab } from '../SortableResourceTab';
 
 describe('SortableResourceTab', () => {
-  const MockLink = ({ href, children, ...props }: any) => (
+  const MockLink = ({ href, children, ...props }: LinkComponentProps) => (
     <a href={href} {...props}>
       {children}
     </a>
@@ -57,7 +58,7 @@ describe('SortableResourceTab', () => {
     isActive: false,
     href: '/resources/resource-1',
     onClose: vi.fn(),
-    LinkComponent: MockLink,
+    Link: MockLink,
     translations: {},
     index: 0,
     totalCount: 3,

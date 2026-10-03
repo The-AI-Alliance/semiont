@@ -5,13 +5,13 @@
  */
 
 import React from 'react';
-
+import type { LinkComponentProps } from '../../../contexts/RoutingContext';
 
 export interface AuthErrorDisplayProps {
   /**
    * Link component for routing - passed from parent
    */
-  Link: React.ComponentType<any>;
+  Link: React.ComponentType<LinkComponentProps>;
 
   /**
    * Error type from URL parameter

@@ -142,10 +142,6 @@ export type {
   CollapsibleResourceNavigationProps,
   SortableResourceTabProps
 } from './types/collapsible-navigation';
-export type {
-  SimpleNavigationItem,
-  SimpleNavigationProps
-} from './types/simple-navigation';
 
 // Components - Modals
 export * from './components/modals/ReferenceWizardModal';
