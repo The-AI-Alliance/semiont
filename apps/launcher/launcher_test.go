@@ -449,6 +449,25 @@ func nowhere(t *testing.T, names ...string) string {
 	return filepath.Join(append([]string{asTheSystemNamesIt(t, t.TempDir())}, names...)...)
 }
 
+// setKeyExample: the help's example of setting a provider key, in this
+// system's shell.
+func setKeyExample() string {
+	if runtime.GOOS == "windows" {
+		return `$env:ANTHROPIC_API_KEY = "<your-key>"`
+	}
+	return "export ANTHROPIC_API_KEY=<your-key>"
+}
+
+// keyAdvice: the two lines a start prints under a JWT_SECRET key that is too
+// short, in this system's shell: how to make one, and how to rotate to it.
+func keyAdvice() []string {
+	if runtime.GOOS == "windows" {
+		const key = `$b = [byte[]]::new(32); [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); -join ($b | % { '{0:x2}' -f $_ })`
+		return []string{"Generate one:  " + key, `Rotate with:   $env:JWT_SECRET = "$(` + key + `),$OLD"`}
+	}
+	return []string{"Generate one:  openssl rand -hex 32", "Rotate with:   export JWT_SECRET=$(openssl rand -hex 32),$OLD"}
+}
+
 // stopHint: the command the launcher suggests for ending processes here.
 func stopHint(pid string) string {
 	if runtime.GOOS == "windows" {
@@ -1032,7 +1051,7 @@ func TestStartHelpOutsideClone(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("start --help outside a clone must exit 0, got %d", code)
 	}
-	mustContain(t, "stdout", stdout, "--config <name>", "--dry-run", "--ollama-cache")
+	mustContain(t, "stdout", stdout, "--config <name>", "--dry-run", "--ollama-cache", setKeyExample())
 	if got := s.argv(t); got != "" {
 		t.Errorf("--help must not run any external command, ran:\n%s", got)
 	}
@@ -5713,7 +5732,7 @@ func TestStartRefusesAShortJWTSecretRingMember(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("a short ring member must be refused, got exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "stderr", stderr, "32", "JWT_SECRET", "openssl rand -hex 32")
+	mustContain(t, "stderr", stderr, append([]string{"32", "JWT_SECRET"}, keyAdvice()...)...)
 }
 
 // The gateway signs every token with JWT_SECRET and is the only service that

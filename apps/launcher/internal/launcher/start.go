@@ -146,7 +146,7 @@ Examples:
   semiont start
 
   # Anthropic cloud inference
-  export ANTHROPIC_API_KEY=<your-key>
+  %s
   semiont start --config anthropic
 
   # First user, once the stack is up
@@ -154,7 +154,7 @@ Examples:
 
   # See available configs
   semiont start --list-configs
-`, roleListWrapped(78, "                        "))
+`, roleListWrapped(78, "                        "), setVarHint(systemName(), "ANTHROPIC_API_KEY", "<your-key>"))
 
 // Start implements `semiont start` — the port of the fleet's start.sh.
 func Start(args []string) int {
@@ -1106,7 +1106,7 @@ func requirePortFree(u *UI, port int, service string) bool {
 		return true
 	}
 	u.Fail("Port %d (needed for %s) is held by %s.", port, service, describeProcs(pids))
-	fmt.Fprintln(os.Stderr, "  This is not a Semiont container. Stop it and re-run (e.g. "+stopProcessesHint(pids)+").")
+	fmt.Fprintln(os.Stderr, "  This is not a Semiont container. Stop it and re-run (e.g. "+stopProcessesHint(systemName(), pids)+").")
 	return false
 }
 

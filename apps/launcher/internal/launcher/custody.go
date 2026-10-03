@@ -200,8 +200,8 @@ func loadOrCreateJWTSecret(u *UI, root string) (string, bool) {
 				u.Fail("JWT_SECRET key %d of %d is %d characters; the gateway requires at least 32 and will refuse to start.",
 					i+1, len(keys), len(strings.TrimSpace(k)))
 				fmt.Fprintln(os.Stderr, "  JWT_SECRET is an ordered list: the first key signs, every key verifies.")
-				fmt.Fprintln(os.Stderr, "  Generate one:  openssl rand -hex 32")
-				fmt.Fprintln(os.Stderr, "  Rotate with:   export JWT_SECRET=$(openssl rand -hex 32),$OLD")
+				fmt.Fprintln(os.Stderr, "  Generate one:  "+randomHexHint(systemName(), 32))
+				fmt.Fprintln(os.Stderr, "  Rotate with:   "+setVarHint(systemName(), "JWT_SECRET", inlineRandomHex(systemName(), 32)+",$OLD"))
 				return "", false
 			}
 		}
@@ -210,7 +210,7 @@ func loadOrCreateJWTSecret(u *UI, root string) (string, bool) {
 	}
 
 	exportHint := func() {
-		fmt.Fprintln(os.Stderr, "  Or export one yourself:  export JWT_SECRET=$(openssl rand -hex 32)")
+		fmt.Fprintln(os.Stderr, "  Or export one yourself:  "+setVarHint(systemName(), "JWT_SECRET", inlineRandomHex(systemName(), 32)))
 	}
 	store, ok := custodyFor(u, root)
 	if !ok {
@@ -316,6 +316,8 @@ func loadOrCreateServiceClientSecret(u *UI, root, svc string) (string, bool) {
 func loadOrCreateKeycloakAdminPassword(u *UI, root string) (string, bool) {
 	s, source, ok := keycloakAdminPassword(u, root)
 	if !ok {
+		// The store did not answer; the environment is the other way in.
+		fmt.Fprintln(os.Stderr, "  Or export one yourself:  "+setVarHint(systemName(), "KC_BOOTSTRAP_ADMIN_PASSWORD", inlineRandomHex(systemName(), 16)))
 		return "", false
 	}
 	if s != "" {
@@ -324,7 +326,6 @@ func loadOrCreateKeycloakAdminPassword(u *UI, root string) (string, bool) {
 	}
 	store, ok := custodyFor(u, root)
 	if !ok {
-		fmt.Fprintln(os.Stderr, "  Or export one yourself:  export KC_BOOTSTRAP_ADMIN_PASSWORD=$(openssl rand -hex 16)")
 		return "", false
 	}
 	secret, ok := generateHexSecret(u, 16, "Keycloak's admin password")
