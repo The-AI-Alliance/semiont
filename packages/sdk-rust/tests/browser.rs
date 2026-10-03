@@ -14,7 +14,8 @@ use semiont::session::{
     ACTIVE_KEY, Expected, HttpEndpoint, KNOWLEDGE_BASES_KEY, KbEndpoint, KbIdentityConflict,
     KbRead, KbReadVerdict, KbSessionStatus, KnowledgeBase, LAST_VIEWED_RESOURCE_BY_KB_KEY,
     NewKnowledgeBase, OPEN_RESOURCES_BY_KB_KEY, OpenResource, Protocol, SemiontBrowser,
-    SemiontBrowserConfig, SemiontSession, SessionNotice, SignedIn, StoredSession,
+    PermissionDenied, SemiontBrowserConfig, SemiontSession, SessionEndReason, SessionEnded,
+    SignedIn, StoredSession,
     save_knowledge_bases, session_key, store_session, stored_session,
 };
 use semiont::storage::SessionStorage;
@@ -667,14 +668,14 @@ async fn what_a_host_shows_about_a_session_is_there_exactly_when_the_session_is(
 
     live(&browser).await;
     let first = browser.active_signals().borrow().clone().expect("signals");
-    assert_eq!(*first.session_expired().borrow(), None);
+    assert_eq!(*first.session_ended().borrow(), None);
 
     // A sign-in on the active knowledge base replaces both together.
     browser.sign_in(A, &tokens("r2")).await;
     live(&browser).await;
     let second = browser.active_signals().borrow().clone().expect("signals");
     assert!(!Arc::ptr_eq(&first, &second));
-    assert!(first.session_expired().has_changed().is_err());
+    assert!(first.session_ended().has_changed().is_err());
 
     browser.sign_out(A).await;
     assert!(browser.active_signals().borrow().is_none());
@@ -1383,13 +1384,14 @@ fn refusal(status: u16) -> TransportError {
     TransportError::of_status(format!("HTTP {status}"), status, None)
 }
 
-fn notice(browser: &SemiontBrowser, expired: bool) -> Option<SessionNotice> {
+fn ended(browser: &SemiontBrowser) -> Option<SessionEnded> {
     let signals = browser.active_signals().borrow().clone()?;
-    if expired {
-        signals.session_expired().borrow().clone()
-    } else {
-        signals.permission_denied().borrow().clone()
-    }
+    signals.session_ended().borrow().clone()
+}
+
+fn denied(browser: &SemiontBrowser) -> Option<PermissionDenied> {
+    let signals = browser.active_signals().borrow().clone()?;
+    signals.permission_denied().borrow().clone()
 }
 
 #[tokio::test(start_paused = true)]
@@ -1408,7 +1410,7 @@ async fn a_refusal_for_want_of_a_token_renews_the_session_quietly_when_it_can() 
 
     assert_eq!(world.factory.sessions.renewed(), 1);
     assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
-    assert_eq!(notice(&browser, true), None);
+    assert_eq!(ended(&browser), None);
     assert!(stored_session(world.storage.as_ref(), A).is_some());
 }
 
@@ -1425,9 +1427,9 @@ async fn a_session_that_cannot_be_renewed_is_said_to_have_expired_and_its_creden
     settle().await;
 
     assert_eq!(
-        notice(&browser, true),
-        Some(SessionNotice {
-            message: "Your session has expired. Please sign in again.".to_owned()
+        ended(&browser),
+        Some(SessionEnded {
+            reason: SessionEndReason::Expired
         })
     );
     assert!(stored_session(world.storage.as_ref(), A).is_none());
@@ -1442,12 +1444,12 @@ async fn a_session_that_cannot_be_renewed_is_said_to_have_expired_and_its_creden
     signals_acknowledged(&browser);
     world.factory.transports(A)[0].fail(refusal(401));
     settle().await;
-    assert_eq!(notice(&browser, true), None);
+    assert_eq!(ended(&browser), None);
 }
 
 fn signals_acknowledged(browser: &SemiontBrowser) {
     if let Some(signals) = browser.active_signals().borrow().clone() {
-        signals.acknowledge_session_expired();
+        signals.acknowledge_session_ended();
     }
 }
 
@@ -1461,7 +1463,7 @@ async fn a_refusal_with_nothing_stored_is_being_signed_out_and_not_an_expiry() {
     world.factory.transports(A)[0].fail(refusal(401));
     settle().await;
 
-    assert_eq!(notice(&browser, true), None);
+    assert_eq!(ended(&browser), None);
 }
 
 #[tokio::test(start_paused = true)]
@@ -1475,19 +1477,29 @@ async fn a_refusal_for_lack_of_permission_is_said_and_any_other_failure_is_not()
         transport.fail(refusal(status));
     }
     settle().await;
-    assert_eq!(notice(&browser, false), None);
-    assert_eq!(notice(&browser, true), None);
+    assert_eq!(denied(&browser), None);
+    assert_eq!(ended(&browser), None);
     assert_eq!(world.factory.sessions.renewed(), 0);
 
+    // What answered was not the gateway's error body: its status line is
+    // the transport's, and is never shown as the gateway's words.
     transport.fail(refusal(403));
     settle().await;
+    assert_eq!(denied(&browser), Some(PermissionDenied { detail: None }));
+    assert_eq!(ended(&browser), None);
+
+    transport.fail(TransportError::refusal(
+        403,
+        Some("Archiving needs the curator role.".to_owned()),
+        None,
+    ));
+    settle().await;
     assert_eq!(
-        notice(&browser, false),
-        Some(SessionNotice {
-            message: "HTTP 403".to_owned()
+        denied(&browser),
+        Some(PermissionDenied {
+            detail: Some("Archiving needs the curator role.".to_owned())
         })
     );
-    assert_eq!(notice(&browser, true), None);
 }
 
 // ── How it ends ─────────────────────────────────────────────────────────

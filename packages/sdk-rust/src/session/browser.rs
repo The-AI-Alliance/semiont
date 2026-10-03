@@ -1049,8 +1049,10 @@ async fn route(session: Arc<SemiontSession>, signals: Arc<SessionSignals>) {
                     session.refresh().await;
                 });
             }
+            // The gateway's own words when it gave any, never the
+            // transport's fallback line.
             TransportErrorCode::Forbidden => {
-                signals.notify_permission_denied(Some(&failure.message));
+                signals.notify_permission_denied(failure.said.as_deref());
             }
             _ => {}
         }

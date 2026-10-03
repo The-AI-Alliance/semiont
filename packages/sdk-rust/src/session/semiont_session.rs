@@ -10,8 +10,9 @@
 //! - `validate` asks the gateway who a token is: when the session starts,
 //!   and of a token renewed because the gateway refused the one before. A
 //!   session of a service has none: there is nobody to ask about.
-//! - `on_auth_failed` is told when the session is over: it could not be
-//!   renewed, or the gateway refused a token the issuer had just issued.
+//! - `on_auth_failed` is told when the session is over, and why: it could
+//!   not be renewed (`Expired`), or the gateway refused a token the issuer
+//!   had just issued (`Refused`). What a person reads of it is the host's.
 //!   `on_error` is told of every failure that makes the session unusable.
 //!
 //! A session that cannot be renewed clears its token and what it stored, so a
@@ -28,6 +29,7 @@
 //! runtime.
 
 use super::knowledge_base::KbTarget;
+use super::signals::SessionEndReason;
 use super::stored::{
     StoredSession, clear_stored_session, is_token_expired, session_key, stored_session,
 };
@@ -53,16 +55,11 @@ pub type Refresh =
 pub type Validate =
     Arc<dyn Fn(String) -> BoxFuture<'static, Result<UserResponse, SemiontError>> + Send + Sync>;
 
-/// Told that the session is over, with what to say of it.
-pub type OnAuthFailed = Arc<dyn Fn(&str) + Send + Sync>;
+/// Told that the session is over, and why.
+pub type OnAuthFailed = Arc<dyn Fn(SessionEndReason) + Send + Sync>;
 
 /// Told of a failure that makes the session unusable.
 pub type OnSessionError = Arc<dyn Fn(SessionError) + Send + Sync>;
-
-/// What a person is told when their session ends, as
-/// specs/src/session/cases.json states it for every SDK (`messages`).
-const EXPIRED: &str = "Your session has expired. Please sign in again.";
-const REFUSED: &str = "This knowledge base did not accept your sign-in. Please sign in again.";
 
 /// Why a renewal gave no token, for whoever reads the error.
 fn not_renewed(failure: Option<String>) -> String {
@@ -318,7 +315,7 @@ impl Shared {
         // credential, so the refusals that follow it are quiet too.
         stored_session(self.storage.as_ref(), &self.kb.id)?;
         self.signed_out(
-            EXPIRED,
+            SessionEndReason::Expired,
             SessionErrorCode::RefreshExhausted,
             not_renewed(failure),
         );
@@ -368,7 +365,7 @@ impl Shared {
             && self.token.now().as_deref() == Some(renewed.as_str())
         {
             self.signed_out(
-                REFUSED,
+                SessionEndReason::Refused,
                 SessionErrorCode::CredentialRefused,
                 "The gateway refused a token its issuer had just issued".to_owned(),
             );
@@ -379,7 +376,7 @@ impl Shared {
     /// The session is over: its credential is forgotten, and the person and
     /// the application are each told why. The one teardown, whichever way
     /// the session ended.
-    fn signed_out(&self, told: &str, code: SessionErrorCode, why: String) {
+    fn signed_out(&self, told: SessionEndReason, code: SessionErrorCode, why: String) {
         self.token.set(None);
         clear_stored_session(self.storage.as_ref(), &self.kb.id);
         if let Some(on_auth_failed) = &self.on_auth_failed {
@@ -441,7 +438,7 @@ impl Shared {
                 {
                     if just_issued {
                         self.signed_out(
-                            REFUSED,
+                            SessionEndReason::Refused,
                             SessionErrorCode::CredentialRefused,
                             "The gateway refused a token its issuer had just issued".to_owned(),
                         );
@@ -470,7 +467,7 @@ impl Shared {
                         }
                         None => {
                             self.signed_out(
-                                EXPIRED,
+                                SessionEndReason::Expired,
                                 SessionErrorCode::RefreshExhausted,
                                 not_renewed(failure),
                             );
