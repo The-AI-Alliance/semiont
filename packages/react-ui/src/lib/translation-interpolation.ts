@@ -84,7 +84,7 @@ export function interpolateTranslation(
 ): string {
   let result = processPluralFormat(translation, params, locale);
   Object.entries(params).forEach(([paramKey, paramValue]) => {
-    result = result.replace(new RegExp(`\\{\\{${paramKey}\\}\\}`, 'g'), String(paramValue));
+    result = result.replace(new RegExp(`\\{\\{${paramKey}\\}\\}`, 'g'), () => String(paramValue));
   });
   return result;
 }

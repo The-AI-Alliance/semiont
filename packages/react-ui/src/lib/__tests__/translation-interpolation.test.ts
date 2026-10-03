@@ -75,6 +75,20 @@ describe('interpolateTranslation — double-brace parameter substitution', () =>
       interpolateTranslation('Using {{mode}} mode', {}, 'en')
     ).toBe('Using {{mode}} mode');
   });
+
+  it('inserts a value holding `$` sequences as written', () => {
+    // `String.prototype.replace` reads `$&`, `$$`, `` $` `` and `$'` in a
+    // replacement string as patterns; a value is text, not a pattern.
+    expect(interpolateTranslation('Name: {{n}}', { n: 'a$&b' }, 'en')).toBe('Name: a$&b');
+    expect(interpolateTranslation('Price: {{p}} each', { p: '$$5' }, 'en')).toBe('Price: $$5 each');
+    expect(interpolateTranslation('Before {{v}} after', { v: '$`' }, 'en')).toBe('Before $` after');
+    expect(interpolateTranslation('Before {{v}} after', { v: "$'" }, 'en')).toBe("Before $' after");
+  });
+
+  it('inserts a count holding `$` sequences as written', () => {
+    expect(interpolateTranslation('{count, plural, other {# items}}', { count: '$&' }, 'en'))
+      .toBe('$& items');
+  });
 });
 
 describe('processPluralFormat — ICU MessageFormat plural syntax', () => {
