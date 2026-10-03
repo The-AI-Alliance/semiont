@@ -186,6 +186,7 @@ const METHODS: &[(&str, &[&str])] = &[
             "submit",
             "cancelPending",
             "dismissProgress",
+            "reportDeleteError",
         ],
     ),
     ("bind", &["body", "initiate", "reportBodyError"]),
@@ -395,6 +396,7 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
         ("mark", "submit") => client.mark.submit(args.typed("input")),
         ("mark", "cancelPending") => client.mark.cancel_pending(),
         ("mark", "dismissProgress") => client.mark.dismiss_progress(),
+        ("mark", "reportDeleteError") => client.mark.report_delete_error(args.typed("input")),
 
         ("bind", "body") => {
             let (resource_id, annotation_id) = (args.text("resourceId"), args.text("annotationId"));

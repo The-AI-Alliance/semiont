@@ -6,10 +6,7 @@
 //! Submitting it (`client.mark.submit`) creates it, and it stops being
 //! pending when the knowledge base says it is recorded; a creation that
 //! fails leaves it pending and says `mark:create-error` on the client's own
-//! bus. `client.mark.cancel_pending` drops it. A `mark:delete` on that bus
-//! that names this resource deletes the annotation, and says
-//! `mark:delete-error` when that fails; one that names another resource, or
-//! none, is not this unit's.
+//! bus. `client.mark.cancel_pending` drops it.
 //!
 //! A request and a submission name the resource they are for, and a unit
 //! acts only on its own: several units over one client, one per open
@@ -26,8 +23,8 @@
 
 use super::{Held, Tasks, said, signal};
 use crate::channels::{
-    Channel, MarkAssistRequest, MarkAssistTimeout, MarkCancelPending, MarkCreateError, MarkDelete,
-    MarkDeleteError, MarkProgressDismiss, MarkRequested, MarkSelectAssessment, MarkSelectComment,
+    Channel, MarkAssistRequest, MarkAssistTimeout, MarkCancelPending, MarkCreateError,
+    MarkProgressDismiss, MarkRequested, MarkSelectAssessment, MarkSelectComment,
     MarkSelectReference, MarkSelectTag, MarkSubmit,
 };
 use crate::client::SemiontClient;
@@ -141,7 +138,6 @@ impl MarkStateUnit {
             MarkSelectReference::NAME,
             MarkCancelPending::NAME,
             MarkSubmit::NAME,
-            MarkDelete::NAME,
             MarkAssistRequest::NAME,
             MarkProgressDismiss::NAME,
         ]);
@@ -202,23 +198,6 @@ async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
             if submission.source == shared.resource_id {
                 shared.tasks.spawn(create(shared.clone(), submission));
             }
-        } else if let Some(deletion) = said::<MarkDelete>(&frame) {
-            // Only what is said to be of this resource: with several
-            // resources open on one client, each has a unit that hears this.
-            if deletion.resource_id.as_ref() != Some(&shared.resource_id) {
-                continue;
-            }
-            let deleting = shared.clone();
-            shared.tasks.spawn(async move {
-                let deleted = deleting
-                    .client
-                    .mark
-                    .delete(&deleting.resource_id, &deletion.annotation_id)
-                    .await;
-                if let Err(error) = deleted {
-                    deleting.failed::<MarkDeleteError>(&error);
-                }
-            });
         } else if let Some(request) = said::<MarkAssistRequest>(&frame) {
             shared.assisting.set(Some(request.motivation));
             shared.progress.set(None);

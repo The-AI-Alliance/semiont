@@ -348,10 +348,7 @@
               "args": { "input": { "resourceId": "res-1", "message": "the delete was refused" } },
               "sends": { "resourceId": "res-1", "message": "the delete was refused" }
             }
-          ],
-          "absent": {
-            "rust": "Not ported yet. The Rust MarkStateUnit still raises mark:delete-error itself, from a local mark:delete that no host says; porting this method and deleting that handler is the SDK session's work."
-          }
+          ]
         }
       ]
     },
