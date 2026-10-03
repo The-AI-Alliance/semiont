@@ -20,52 +20,41 @@ The Browser meets WCAG 2.1 AA via:
 
 ### Language attribute
 
-Per [WCAG 3.1.1 Language of Page](https://www.w3.org/WAI/WCAG21/Understanding/language-of-page.html), the document's `<html>` element carries the active locale:
+[WCAG 3.1.1 Language of Page](https://www.w3.org/WAI/WCAG21/Understanding/language-of-page.html) requires the document's `<html>` element to carry the page language. `apps/browser/index.html` declares `<html lang="en">`. `LocaleGuard` in `src/App.tsx` switches i18next to the route's `:locale` (see [INTERNATIONALIZATION.md](INTERNATIONALIZATION.md)) and leaves `document.documentElement.lang` as it is, so the attribute reads `en` under every locale.
 
-```tsx
-<html lang={locale}>
-  <body>
-    <SkipLinks />
-    {children}
-  </body>
-</html>
-```
+`SkipLinks`, the visually-hidden-until-focused bypass-blocks component from `@semiont/react-ui`, is mounted by the locale layout (`src/app/[locale]/layout.tsx`) ahead of every route.
 
-The locale comes from the i18n provider (see [INTERNATIONALIZATION.md](INTERNATIONALIZATION.md)). `SkipLinks` is the visually-hidden-until-focused bypass-blocks component from `@semiont/react-ui`.
-
-### Focus management on route change
-
-When the route changes (resource navigation, modal close, panel transitions), focus restores to the main content region:
-
-```tsx
-useEffect(() => {
-  const main = document.getElementById('main-content');
-  main?.focus();
-}, [pathname]);
-```
+### Focus management
 
 For modals, [Headless UI's `Dialog`](https://headlessui.com/react/dialog) handles focus trap on open and restoration on close — use it for every overlay rather than hand-rolling focus management.
 
 ### Form input assistance
 
-Per [WCAG 3.3 Input Assistance](https://www.w3.org/WAI/WCAG21/Understanding/input-assistance), errors are announced via `aria-invalid` + `role="alert"`, and required fields are marked `aria-required`:
+Per [WCAG 3.3 Input Assistance](https://www.w3.org/WAI/WCAG21/Understanding/input-assistance), an invalid field carries `aria-invalid` and points `aria-describedby` at its error, and the error carries `role="alert"` so it is announced — the pattern react-ui's `ConfigureGenerationStep` follows:
 
 ```tsx
-<input
-  aria-required="true"
-  aria-invalid={!!errors.email}
-  aria-describedby={errors.email ? 'email-error' : undefined}
-/>
-{errors.email && (
-  <span id="email-error" role="alert">
-    {errors.email}
-  </span>
-)}
+function TitleField({ error }: { error?: string }) {
+  return (
+    <div className="semiont-form__field">
+      <input
+        className="semiont-input"
+        required
+        aria-invalid={!!error}
+        aria-describedby={error ? 'title-error' : undefined}
+      />
+      {error && (
+        <p id="title-error" className="semiont-form__error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
 ```
 
 ### Live regions for dynamic content
 
-`@semiont/react-ui` ships a `LiveRegion` provider and `useLiveRegion()` hook. Use it for any UI update that should be announced to screen readers:
+`@semiont/react-ui` ships `LiveRegionProvider` (mounted in the Browser's `src/app/providers.tsx`) and the `useLiveRegion()` hook. Use it for any UI update that should be announced to screen readers:
 
 - search result counts
 - form validation outcomes
@@ -81,21 +70,28 @@ announce('5 results found', 'polite');
 
 ### Focus indicators
 
-All interactive components use the standard ring utility classes:
+`@semiont/react-ui` gives every interactive element a keyboard focus outline, in light and dark themes alike:
 
-```tsx
-<button className="focus:outline-none focus:ring-2 focus:ring-cyan-500">
+```css
+/* packages/react-ui/src/styles/utilities/focus.css */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
 ```
 
-The `focus:outline-none` + `focus:ring-2` pattern preserves the focus indicator while letting the design system control its appearance. **Never** drop the ring without providing an alternative visible indicator — that fails 2.4.7.
+**Never** remove that outline without providing an alternative visible indicator — that fails 2.4.7.
 
 ### Reduced motion
 
-Animation classes are gated through Tailwind's `motion-reduce` variant:
-
-```tsx
-<div className="transition-all motion-reduce:transition-none">
-```
+`packages/react-ui/src/styles/utilities/motion-overrides.css` cuts every animation and transition on the page to 0.01ms under `@media (prefers-reduced-motion: reduce)` — react-ui and Browser markup alike.
 
 For JS-driven animations, check `window.matchMedia('(prefers-reduced-motion: reduce)')` and disable.
 
@@ -115,20 +111,9 @@ When building or reviewing a UI component:
 
 ### Automated
 
-[`jest-axe`](https://github.com/nickcolley/jest-axe) for component-level accessibility assertions. Add to any test that renders interactive UI:
+Component-level [`jest-axe`](https://github.com/nickcolley/jest-axe) assertions live with the components, in `@semiont/react-ui`'s `*.a11y.test.tsx` files — see [react-ui ACCESSIBILITY.md § Testing](../../../packages/react-ui/docs/ACCESSIBILITY.md#testing) for the pattern. The Browser has no `jest-axe` dependency of its own.
 
-```tsx
-import { axe, toHaveNoViolations } from 'jest-axe';
-expect.extend(toHaveNoViolations);
-
-it('has no WCAG violations', async () => {
-  const { container } = render(<Page />);
-  const results = await axe(container);
-  expect(results).toHaveNoViolations();
-});
-```
-
-The CI pipeline runs accessibility tests on every PR via `.github/workflows/accessibility-tests.yml` — see [docs/development/TESTING.md](../../../docs/development/TESTING.md) for the testing-overview.
+The CI pipeline runs accessibility tests on every PR via `.github/workflows/accessibility-tests.yml` — react-ui's axe tests, the Browser's test suite, and a Lighthouse accessibility audit with a score threshold of 90. See [docs/development/TESTING.md](../../../docs/development/TESTING.md) for the testing-overview.
 
 ### Manual
 

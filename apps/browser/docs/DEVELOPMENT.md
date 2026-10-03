@@ -538,12 +538,12 @@ When you need to add spacing or layout to @semiont/react-ui components:
 // Good - adds spacing without breaking component styles
 <Button variant="primary" className="mt-4">
   Submit
-</Button>
+</Button>;
 
 // Bad - overriding semantic classes
 <Button variant="primary" className="bg-blue-500 hover:bg-blue-600">
   Submit
-</Button>
+</Button>;
 ```
 
 ### CSS Import Structure

@@ -5,6 +5,8 @@
 // Package exports need no entry here: check.mjs imports them for a snippet
 // from the ui suite's ambient modules. This file names only the host app's
 // values a snippet leans on without declaring, typed against the real surface.
+// jest-dom's matchers on vitest's `expect`, as the repo's component tests use them.
+import '@testing-library/jest-dom/vitest';
 import type { ComponentProps, ComponentType, ReactNode } from 'react';
 import type {
   SemiontSession as _SemiontSession,

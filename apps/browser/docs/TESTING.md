@@ -1,7 +1,5 @@
 # Browser Testing Guide
 
-**Last Updated**: 2026-01-12
-
 Comprehensive guide to testing the Semiont Browser and how it integrates with the @semiont/react-ui component library testing.
 
 ## Table of Contents
@@ -26,7 +24,7 @@ Testing in the Semiont Browser is split between two packages following the compo
 **Key Principles**:
 1. **Type Safety First** - TypeScript provides compile-time validation
 2. **Separation of Concerns** - Business logic tested in react-ui, integration tested in the Browser
-3. **API Mocking** - MSW v2 provides realistic mocking without code changes
+3. **Scripted Collaborators** - Component tests script the `SemiontBrowser` that `useSemiont()` returns; integration tests run the real SDK against a `fetch` stub
 4. **Performance as Testing** - Bundle analysis catches regressions
 5. **Error Boundaries** - Runtime error handling for edge cases
 
@@ -60,15 +58,15 @@ Testing in the Semiont Browser is split between two packages following the compo
 
 **In @semiont/react-ui** (framework-agnostic):
 - Pure components with business logic
-- Custom hooks (useResources, useAnnotations, etc.)
+- Custom hooks (useObservable, useResourceLoader, useResourceContent, etc.)
 - Utility functions
 - Provider logic
-- UI components (Button, Card, ResourceViewer, etc.)
+- UI components (Button, Toolbar, ResourceViewer, etc.)
 
 **In apps/browser** (Vite SPA specific):
 - App shell, routing, and provider composition (`providers.tsx`, `AuthShell`)
-- Integration flows across pages (e.g. the sign-up flow)
-- App-specific components (Home, KnowledgeBasePanel, etc.)
+- Integration flows across components (e.g. a stored session the gateway refuses, surfacing the session-ended modal)
+- App-specific components (Home, KnowledgeBasePanel, UserPanel, etc.)
 
 ## Running Tests
 
@@ -77,8 +75,8 @@ Run these from `apps/browser/`:
 ```bash
 npm test                    # Everything
 npm run test:unit           # Excludes integration tests
-npm run test:integration    # Integration tests only (signup flows, etc.)
-npm run test:security       # Admin page/layout + validation
+npm run test:integration    # Tests whose names match "integration"
+npm run test:security       # Protected-layout session gates, the locale layout, validation
 npm run test:a11y           # Accessibility assertions
 npm run test:coverage       # Everything, with an HTML report in coverage/
 npm run test:watch          # Watch mode
@@ -89,9 +87,9 @@ npm run typecheck:all       # Source + test tsconfigs
 npm run build               # Typechecks as a prebuild step
 ```
 
-Every script sets `SEMIONT_ROOT` itself — you do not need to export it. (The Browser
-tests read no environment config, so there is no environment to select.) To run one of
-them from the repo root instead, use `npm run test:unit --workspace=apps/browser`.
+The Browser tests read no environment config, so there is nothing to export and no
+environment to select. To run one of these from the repo root instead, use
+`npm run test:unit --workspace=apps/browser`.
 
 There is no `semiont test` command: the `semiont` launcher runs knowledge bases,
 not this monorepo's test suite.
@@ -103,7 +101,6 @@ matrix, see [docs/development/TESTING.md](../../../docs/development/TESTING.md).
 
 - **Test Runner**: [Vitest](https://vitest.dev/) - Fast, ESM-native test runner built on Vite
 - **Testing Library**: [React Testing Library](https://testing-library.com/react) for component testing
-- **API Mocking**: [MSW v2](https://mswjs.io/) for intercepting and mocking API requests
 - **Assertions**: Vitest's built-in assertions + [@testing-library/jest-dom](https://github.com/testing-library/jest-dom)
 
 ## Test Structure
@@ -134,7 +131,7 @@ src/
 ```
 
 **What to test**:
-- Multi-step user flows (signup, login, document creation)
+- Multi-step user flows (a refused session surfacing its modal)
 - Component interactions across boundaries
 - End-to-end feature workflows
 
@@ -157,44 +154,81 @@ src/
 
 ### Security Tests
 
-Security-focused tests are identified by naming pattern (`*security*`) and test:
-- Authentication flows and JWT validation
-- GDPR compliance features (cookie consent, data export)
-- Admin access controls and authorization
-- Input validation and sanitization
+`npm run test:security` runs the protected-layout session gates
+(`src/app/[locale]/__tests__/protected-layout-session-gates.test.tsx`), the locale
+layout test (`src/app/[locale]/__tests__/layout.test.tsx`), and the input-validation
+tests (`src/lib/__tests__/validation.test.ts`).
 
-### Mock Infrastructure
+### Test Doubles
 
-```
-src/mocks/                        # MSW mock handlers
-├── browser.ts                    # Browser-side MSW setup
-├── server.ts                     # Node-side MSW setup
-└── handlers.ts                   # API mock handlers
-```
+Component tests replace `react-i18next` with a lookup table and `useSemiont()` with a
+scripted browser, through `vi.mock`. Integration tests construct a real `SemiontBrowser`
+over `WebBrowserStorage` and stub `fetch`; nothing inside `@semiont/sdk` is mocked
+(`src/contexts/__tests__/AuthShell.integration.test.tsx`).
 
 ## Writing Tests
 
 ### Component Test Example
 
+Condensed from `src/components/__tests__/KnowledgeBasePanel.test.tsx`:
+
 ```tsx
-// src/components/__tests__/KnowledgeBasePanel.test.tsx
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
+import { render, screen } from '@testing-library/react';
+import { KnowledgeBasePanel } from '@/components/KnowledgeBasePanel';
+
+const translations: Record<string, string> = {
+  'KnowledgeBasePanel.title': 'Knowledge Bases',
+};
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => translations[key] ?? key,
+    i18n: { language: 'en' },
+  }),
+}));
+
+vi.mock('@/i18n/routing', () => ({
+  usePathname: () => '/know/discover',
+}));
+
+// The panel reads the SemiontBrowser through useSemiont(); the test scripts one.
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
+  const { BehaviorSubject } = await vi.importActual<typeof import('rxjs')>('rxjs');
+  const production = {
+    id: 'kb-1',
+    did: 'did:web:prod.example',
+    label: 'Production',
+    endpoint: { kind: 'http', host: 'prod.example.com', port: 4000, protocol: 'https' },
+  };
+  const browser = {
+    kbs$: new BehaviorSubject([production]),
+    activeSession$: new BehaviorSubject({ kb: production }),
+    setActiveKb: vi.fn(),
+    removeKb: vi.fn(),
+    signOut: vi.fn(),
+    beginSignIn: vi.fn(),
+    readActiveKb: vi.fn().mockResolvedValue({ kind: 'recorded' }),
+    getKbSessionStatus: () => 'authenticated',
+    emit: vi.fn(),
+  };
+  return {
+    ...actual,
+    useSemiont: () => browser,
+    useKBDiscovery: () => ({ state: null, kbs: [] }),
+  };
+});
 
 describe('KnowledgeBasePanel', () => {
-  it('lists each recorded knowledge base', async () => {
+  it('should render the panel title', () => {
     render(<KnowledgeBasePanel />);
-
-    expect(screen.getByText(/knowledge base/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Knowledge Bases/ })).toBeInTheDocument();
   });
 
-  it('selects one when clicked', async () => {
-    const onSelect = vi.fn();
-    render(<KnowledgeBasePanel onSelect={onSelect} />);
-
-    fireEvent.click(screen.getAllByRole('button')[0]);
-    expect(onSelect).toHaveBeenCalled();
+  it('should render each recorded knowledge base', () => {
+    render(<KnowledgeBasePanel />);
+    expect(screen.getByText('Production')).toBeInTheDocument();
   });
 });
 ```
@@ -204,19 +238,21 @@ describe('KnowledgeBasePanel', () => {
 Vitest provides a Jest-compatible API with better ESM support:
 
 ```typescript
-// Mocking modules
-vi.mock('@/lib/session', () => ({
-  getStoredSession: vi.fn(),
-  clearStoredSession: vi.fn(),
-}));
+import { screen } from '@testing-library/react';
+
+// Mocking modules: keep the real exports, replace one
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
+  return { ...actual, useKBDiscovery: () => ({ state: null, kbs: [] }) };
+});
 
 // Spying on functions
-const mockFn = vi.fn();
-vi.spyOn(window, 'fetch').mockResolvedValue(response);
+const onRetry = vi.fn();
+vi.spyOn(console, 'error').mockImplementation(() => {});
 
 // Assertions
-expect(element).toBeInTheDocument();
-expect(mockFn).toHaveBeenCalledWith(expectedArgs);
+expect(screen.getByText('Knowledge Bases')).toBeInTheDocument();
+expect(onRetry).toHaveBeenCalledTimes(1);
 ```
 
 ### Hook Testing Example
@@ -224,7 +260,7 @@ expect(mockFn).toHaveBeenCalledWith(expectedArgs);
 ```typescript
 // Mock useSemiont to return a browser with a fake active session, then assert
 // downstream behavior. (For richer cases, inject a real SemiontBrowser via
-// `<SemiontProvider browser={…}>` — see src/test-utils.tsx.)
+// `<SemiontProvider browser={…}>`, as `src/contexts/__tests__/AuthShell.integration.test.tsx` does.)
 import { render } from '@testing-library/react';
 import { vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
@@ -244,7 +280,7 @@ vi.mock('@semiont/react-ui', async () => {
 });
 
 describe('some component using session state', () => {
-  it('renders for admin users', () => {
+  it('renders for the signed-in user', () => {
     // ...
   });
 });
@@ -275,13 +311,26 @@ export function ResourceTitle({ id }: { id: ResourceId }): JSX.Element {
 
 ### Error Boundary Testing
 
-Runtime error capture and graceful degradation:
+Runtime error capture and graceful degradation, from
+`src/components/__tests__/ErrorBoundary.test.tsx`:
 
 ```tsx
-// Wrap components in error boundaries
-<AsyncErrorBoundary>
-  <ComponentThatMightFail />
-</AsyncErrorBoundary>
+import { render, screen } from '@testing-library/react';
+
+const ThrowError = ({ message }: { message: string }) => {
+  throw new Error(message);
+};
+
+it('should display specialized async error UI when child throws', () => {
+  render(
+    <AsyncErrorBoundary>
+      <ThrowError message="Async error" />
+    </AsyncErrorBoundary>
+  );
+
+  expect(screen.getByText('Failed to load this section')).toBeInTheDocument();
+  expect(screen.getByText('Async error')).toBeInTheDocument();
+});
 ```
 
 **What this provides**:
@@ -305,27 +354,37 @@ The Browser relies on multiple layers of quality assurance:
 
 ### Vitest Configuration
 
-```javascript
-// vitest.config.js
-import { defineConfig } from 'vitest/config';
-import path from 'path';
+`vitest.config.mjs` extends the repo's shared config (`vitest.shared.config.ts`: globals,
+the `src/**/*.test.{ts,tsx}` layout, v8 coverage):
 
-export default defineConfig({
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: ['./vitest.setup.js'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+```javascript
+// vitest.config.mjs (condensed)
+import { mergeConfig, defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import baseConfig from '../../vitest.shared.config.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export default mergeConfig(
+  baseConfig,
+  defineConfig({
+    plugins: [react()],
+    test: {
+      environment: 'jsdom',
+      setupFiles: ['./vitest.setup.ts'],
+      typecheck: {
+        tsconfig: './tsconfig.test.json',
+      },
     },
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, './src'),
+      },
     },
-  },
-});
+  }),
+);
 ```
 
 ### TypeScript Support for Tests
@@ -345,8 +404,6 @@ npm run typecheck:all
 
 A separate `tsconfig.test.json` extends the main TypeScript config to include test files, ensuring type safety across all code.
 
-**Note**: Test files were previously excluded from TypeScript compilation but now have full type checking enabled for better test quality and maintainability.
-
 ### ESM Configuration
 
 The project uses native ES modules throughout, ensuring compatibility with modern JavaScript tooling.
@@ -355,7 +412,7 @@ The project uses native ES modules throughout, ensuring compatibility with moder
 
 ### Overview
 
-The codebase follows the **Humble Object Pattern** for React components, with business logic components now living in @semiont/react-ui and thin wrappers in the Browser.
+The codebase follows the **Humble Object Pattern** for React components, with business logic components living in @semiont/react-ui and thin wrappers in the Browser.
 
 ### Component Architecture with @semiont/react-ui
 
@@ -367,90 +424,65 @@ The codebase follows the **Humble Object Pattern** for React components, with bu
 
 **Route Wrapper** (in `apps/browser/src/`):
 - Implements provider interfaces for the app shell
-- Calls React Router hooks (`useNavigate`, `useSearchParams`, etc.)
+- Calls React Router hooks (`useParams`, `useSearchParams`, etc.)
 - Wraps components from @semiont/react-ui
 - So thin it rarely needs testing
 
 ### Example Structure
 
-```tsx
-// ✅ Pure Component (@semiont/react-ui/src/components/ResourceViewer.tsx)
-export interface ResourceViewerProps {
-  resourceId: string;
-  onEdit?: (resource: Resource) => void;
-  className?: string;
-}
+The resource page is one such pair:
 
-export function ResourceViewer(props: ResourceViewerProps) {
-  // Reads the active session's client from context (SemiontProvider)
-  const client = useObservable(useSemiont().activeSession$)?.client;
-  const { t } = useTranslations(); // From TranslationProvider
-
-  // CacheState<ResourceDescriptor> | undefined — unwrap via readyValue(...)
-  const state = useObservable(client?.browse.resource(props.resourceId));
-
-  // Pure component logic - all framework-agnostic
-  return (
-    <div className={props.className}>
-      <h1>{t('resource.title')}</h1>
-      {/* ... rest of UI */}
-    </div>
-  );
-}
-
-// ✅ Route component (a React Router v7 route element)
-import { useParams } from 'react-router-dom';
-import { ResourceViewer } from '@semiont/react-ui';
-
-export function ResourcePage() {
-  // Thin wrapper - reads the route param and passes it through
-  const { id } = useParams();
-  return <ResourceViewer resourceId={id!} />;
-}
-```
+- **Pure page** — `ResourceViewerPage` in `@semiont/react-ui`. The wrapper hands it the
+  resource and its id, the locale, `Link` + `routes`, the Browser's `ToolbarPanels`, a
+  `refetchDocument` callback, the session's stream status, and the knowledge base's name.
+- **Route wrapper** — `src/app/[locale]/know/resource/[id]/page.tsx`. It reads the `:id`
+  param and checks it with `isResourceId`, renders nothing but a loading state until a session
+  is live, loads the resource through `createResourceLoaderStateUnit`, and renders
+  `ResourceViewerPage` with what it loaded.
 
 ### Testing with Factored Components
 
-**Test in @semiont/react-ui** (business logic):
+**Test in @semiont/react-ui** (business logic), modeled on
+`packages/react-ui/src/components/resource/__tests__/ResourceViewer.embeddable.test.tsx`:
 
 ```tsx
-// packages/react-ui/src/components/resource/__tests__/ResourceViewer.embeddable.test.tsx
-import { screen } from '@testing-library/react';
-import { BehaviorSubject } from 'rxjs';
-import { BrowseNamespace } from '@semiont/sdk';
-import { ResourceViewer } from '../ResourceViewer';
-import { renderWithProviders } from '../../test-utils';
+import { render, screen } from '@testing-library/react';
+import { createTestSemiontWrapper } from '@semiont/react-ui/test-utils';
 
-it('renders resource title', async () => {
-  const mockResource = {
-    id: '123',
-    title: 'Test Resource',
-    content: 'Test content'
-  };
+it('renders content fed only a session, with no providers mounted', () => {
+  const { session } = createTestSemiontWrapper();
 
-  // Emit the mock from the SDK's browse query (spy on the namespace prototype)
-  vi.spyOn(BrowseNamespace.prototype, 'resource')
-    .mockReturnValue(new BehaviorSubject(mockResource) as never);
+  render(
+    <ResourceViewer
+      session={session}
+      resource={{
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        '@id': rId,
+        name: 'Doc',
+        representations: [{ mediaType: 'text/plain', byteSize: 10 }],
+        content: 'Embeddable content.',
+      }}
+      annotations={{ highlights: [], references: [], assessments: [], comments: [], tags: [] }}
+    />,
+  );
 
-  renderWithProviders(<ResourceViewer resourceId="123" />);
-
-  expect(await screen.findByText('Resource Title')).toBeInTheDocument();
-  expect(screen.getByText('Test Resource')).toBeInTheDocument();
+  expect(screen.getByText('Embeddable content.')).toBeInTheDocument();
 });
 ```
 
-**Browser wrapper tests** (minimal, if needed):
+**Browser wrapper tests** cover only what the wrapper adds.
+`src/app/[locale]/know/resource/[id]/__tests__/navigation.test.tsx` checks that the
+resource route rebuilds its loader when the `:id` or the session changes, with the pure
+page replaced:
 
 ```tsx
-// apps/browser/src/app/[locale]/know/resource/[id]/__tests__/navigation.test.tsx
-// Usually not needed - wrapper is too thin
-// If testing is required, mock @semiont/react-ui components
-
-vi.mock('@semiont/react-ui', () => ({
-  ResourceViewer: ({ resourceId }: { resourceId: string }) => (
-    <div>ResourceViewer: {resourceId}</div>
-  )
-}));
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
+  return {
+    ...actual,
+    ResourceViewerPage: ({ rUri }: { rUri: string }) => <div data-testid="resource-rid">{rUri}</div>,
+  };
+});
 ```
 
 ### Testing Pattern
@@ -475,8 +507,12 @@ it('renders page title', () => {
     activePanel: null,
     translations: {
       pageTitle: 'Entity Tags',
-      pageDescription: 'Govern the entity type vocabulary',
-      // ... rest of translations
+      pageDescription: 'Manage entity type tags',
+      sectionTitle: 'Available Tags',
+      sectionDescription: 'Tags for categorizing entities',
+      inputPlaceholder: 'Enter new tag',
+      addTag: 'Add Tag',
+      adding: 'Adding...',
     },
     Toolbar: () => <div>Toolbar</div>,
     ToolbarPanels: () => <div>Panels</div>,
@@ -492,7 +528,7 @@ it('renders page title', () => {
 
 ```tsx
 // ❌ Bad: Testing page wrapper requires mocking everything
-import Page from '../page'; // The wrapper
+import Page from '@/app/[locale]/moderate/entity-tags/page'; // The wrapper
 
 it('renders page', () => {
   // Need to mock: the SDK session/client, useTheme, useTranslations, etc.
@@ -511,10 +547,10 @@ it('renders page', () => {
 
 ### Current Status
 
-**Component testing is now split across packages:**
+**Component testing is split across packages:**
 
 **@semiont/react-ui (1250+ tests):**
-- Core UI components: `Button`, `Card`, `Toast`, `StatusDisplay`
+- Core UI components: `Button`, `Toast`, `StatusDisplay`
 - Resource components: `ResourceViewer`, `AnnotateView`, `BrowseView`
 - Auth components: `AuthErrorDisplay`
 - Annotation components: All annotation UI and popups
@@ -524,7 +560,7 @@ it('renders page', () => {
 **apps/browser:**
 - App shell & routing: providers, AuthShell, route guards
 - Integration tests: Multi-step user flows
-- App-specific components: Home, KnowledgeBasePanel, ResourceViewer
+- App-specific components: Home, KnowledgeBasePanel, UserPanel
 
 ### Reference Examples
 
@@ -560,7 +596,6 @@ Planned improvements for higher test coverage:
 2. **Hook Testing** - Custom React hook validation
 3. **Integration Tests** - Full user authentication flows
 4. **Visual Regression Tests** - UI consistency validation with Percy/Chromatic
-5. **E2E Testing** - Complete user journey validation with Playwright
 
 ## Related Documentation
 
@@ -576,11 +611,4 @@ Planned improvements for higher test coverage:
 ### External Resources
 - [Vitest Documentation](https://vitest.dev/)
 - [React Testing Library](https://testing-library.com/react)
-- [MSW Documentation](https://mswjs.io/)
 - [Testing Library Best Practices](https://kentcdodds.com/blog/common-mistakes-with-react-testing-library)
-
----
-
-**Test Runner**: Vitest
-**Coverage Tool**: V8
-**Last Updated**: 2026-01-05

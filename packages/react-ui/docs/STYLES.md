@@ -78,87 +78,71 @@ This pattern provides:
 
 ### Directory Structure
 
-```
+```text
 packages/react-ui/src/
-├── components/               # Components with co-located CSS
-│   └── pdf-annotation/
-│       ├── PdfAnnotationCanvas.tsx
-│       └── PdfAnnotationCanvas.css  # Component-level CSS
-├── styles/
-│   ├── index.css             # Main entry point (imports all CSS)
-│   ├── variables.css          # Design tokens and CSS custom properties
-├── base/                      # Foundation styles
-│   ├── reset.css             # CSS reset/normalize
-│   └── utilities.css         # Semantic utility classes
-├── utilities/                 # Accessibility and interaction utilities
-│   ├── focus.css             # Focus management
-│   ├── focus-extended.css    # Extended focus patterns
-│   ├── motion.css            # Animation preferences
-│   ├── motion-overrides.css  # Motion overrides
-│   ├── contrast.css          # High contrast support
-│   └── semantic-indicators.css # Semantic state indicators
-├── layout/                    # Layout patterns
-│   └── layout.css            # Page and container layouts
-├── core/                      # Fundamental UI elements
-│   ├── index.css             # Core imports
-│   ├── buttons.css           # Button system
-│   ├── toggles.css           # Toggle switches
-│   ├── progress.css          # Progress bars
-│   ├── sliders.css           # Range inputs
-│   ├── badges.css            # Status badges
-│   ├── tags.css              # Content tags
-│   └── indicators.css        # Status indicators
-├── components/                # Complex composed components
-│   ├── forms.css             # Form controls
-│   ├── auth.css              # Authentication UI
-│   ├── cards.css             # Card components
-│   ├── modals.css            # Modal dialogs
-│   ├── panels-base.css       # Base panel styles
-│   ├── panel-sections.css    # Panel section patterns
-│   ├── references.css        # Reference components
-│   ├── status-display.css    # Status displays
-│   ├── tables.css            # Data tables
-│   ├── toast.css             # Toast notifications
-│   ├── toolbar.css           # Toolbar components
-│   ├── branding.css          # Branding elements
-│   ├── sidebar-navigation.css # Sidebar navigation
-│   ├── collapsible-resource-navigation.css # Resource nav
-│   ├── annotations.css       # Annotation components
-│   ├── annotation-entries.css # Annotation entries
-│   └── skip-links.css        # Accessibility skip links
-├── motivations/               # W3C Web Annotation motivations
-│   ├── motivation-reference.css  # Linking (blue gradient)
-│   ├── motivation-highlight.css  # Highlighting (yellow)
-│   ├── motivation-assessment.css # Assessing (red underline)
-│   ├── motivation-comment.css    # Commenting (dashed outline)
-│   └── motivation-tag.css        # Tagging (orange gradient)
-├── panels/                    # Panel layouts
-│   ├── collaboration-panel.css   # Collaboration panel
-│   ├── jsonld-panel.css         # JSON-LD panel
-│   ├── references-panel.css     # References panel
-│   ├── settings-panel.css       # Settings panel
-│   ├── unified-annotations-panel.css # Unified annotations
-│   ├── resource-info-panel.css  # Resource info
-│   ├── tagging-panel.css        # Tagging panel
-│   ├── highlight-panel.css      # Highlight panel
-│   ├── comments-panel.css       # Comments panel
-│   ├── assessment-panel.css     # Assessment panel
-│   ├── statistics-panel.css     # Statistics panel
-│   └── history-panel.css        # History panel
-├── features/                  # Feature-specific styles
-│   ├── admin.css             # Admin dashboard
-│   ├── compose.css           # Resource composition
-│   ├── devops.css            # DevOps features
-│   ├── entity-tags.css       # Entity tag management
-│   ├── recent-docs.css       # Recent documents
-│   ├── resource.css          # Core resource styles
-│   ├── resource-discovery.css # Resource discovery
-│   ├── resource-viewer.css   # Resource viewing/editing
-│   ├── schemas.css           # Tag schemas
-│   └── welcome.css           # Welcome/onboarding
-└── patterns/                  # Reusable patterns
-    ├── errors.css            # Error states
-    └── loading.css           # Loading states
+├── components/                    # Components with co-located CSS
+│   ├── pdf-annotation/
+│   │   ├── PdfAnnotationCanvas.tsx
+│   │   └── PdfAnnotationCanvas.css    # Component-level CSS
+│   ├── branding/Branding.css
+│   ├── layout/                        # Header, LeftSidebar, ResizeHandle, SkipLinks
+│   ├── modals/                        # modals.css, SearchModal.css
+│   ├── navigation/                    # one file per navigation component
+│   ├── resource/panels/               # one file per resource panel
+│   ├── loading-states/loading.css     # Loading states
+│   ├── error-states/errors.css        # Error states
+│   └── …                              # Toast, Toolbar, StatusDisplay, annotation entries, …
+├── features/auth/auth.css         # Authentication UI
+└── styles/
+    ├── index.css                  # Main entry point (imports all CSS)
+    ├── variables.css              # Design tokens and CSS custom properties
+    ├── base/                      # Foundation styles
+    │   ├── reset.css              # CSS reset/normalize
+    │   └── utilities.css          # Semantic utility classes
+    ├── utilities/                 # Accessibility and interaction utilities
+    │   ├── focus.css              # Focus management
+    │   ├── focus-extended.css     # Extended focus patterns
+    │   ├── motion.css             # Animation preferences
+    │   ├── motion-overrides.css   # Reduced-motion overrides
+    │   ├── contrast.css           # High contrast support
+    │   └── semantic-indicators.css # Semantic state indicators
+    ├── layout/
+    │   └── layout.css             # Page and container layouts
+    ├── core/                      # Fundamental UI elements
+    │   ├── index.css              # Core imports
+    │   ├── buttons.css            # Button system
+    │   ├── toggles.css            # Toggle switches
+    │   ├── progress.css           # Progress bars
+    │   ├── sliders.css            # Range inputs
+    │   ├── inputs.css             # Text inputs
+    │   ├── checkboxes.css         # Checkboxes
+    │   ├── textareas.css          # Multi-line inputs
+    │   ├── selects.css            # Dropdowns
+    │   ├── forms.css              # Form field wrappers and layout
+    │   ├── badges.css             # Section headers and a pulse keyframe; no badge classes
+    │   ├── tags.css               # Content tags
+    │   └── indicators.css         # Status indicators
+    ├── motivations/               # W3C Web Annotation motivations
+    │   ├── motivation-reference.css  # Linking (cyan/blue gradient)
+    │   ├── motivation-highlight.css  # Highlighting (yellow)
+    │   ├── motivation-assessment.css # Assessing (red wavy underline)
+    │   ├── motivation-comment.css    # Commenting (dashed outline)
+    │   └── motivation-tag.css        # Tagging (orange/amber gradient)
+    ├── panels/
+    │   ├── history-panel.css      # History panel
+    │   └── user-panel.css         # User panel
+    ├── features/                  # Feature-specific styles
+    │   ├── compose.css            # Resource composition
+    │   ├── entity-tags.css        # Entity tag management
+    │   ├── recent-docs.css        # Recent documents
+    │   ├── resource.css           # Core resource styles
+    │   ├── resource-discovery.css # Resource discovery
+    │   ├── resource-viewer.css    # Resource viewing/editing
+    │   └── schemas.css            # Tag schemas
+    └── patterns/                  # Reusable design-system patterns
+        ├── panels-base.css        # Base panel styles
+        ├── panel-helpers.css      # Annotation-prompt helpers
+        └── cards.css              # Cards
 ```
 
 ## Naming Convention
@@ -184,18 +168,17 @@ We use BEM (Block Element Modifier) methodology with the `semiont-` prefix:
 ### Examples
 
 ```css
-/* Card component */
-.semiont-card { }
-.semiont-card__header { }
-.semiont-card__title { }
-.semiont-card__content { }
-.semiont-card--large { }
+/* Panel */
+.semiont-panel { }
+.semiont-panel__content { }
+.semiont-panel__section-title { }
+.semiont-panel__section-title--collapsible { }
 
-/* Button component */
+/* Button */
 .semiont-button { }
 .semiont-button--primary { }
 .semiont-button--danger { }
-.semiont-button--disabled { }
+.semiont-button--large { }
 ```
 
 ## Dark Mode Support
@@ -207,8 +190,7 @@ Dark mode is served two ways, and choosing the right one is the whole of it.
 redefined under `[data-theme="dark"]` in `variables.css`. A rule built from
 them is already dark-aware, and **must not** be given a `[data-theme="dark"]`
 twin — an override with the same value on both sides is a rule that provably
-changes nothing. 106 of those had accumulated before the linter learned the
-difference; they were deleted, not blessed.
+changes nothing.
 
 ```css
 /* Both themes, one rule — the token carries the theme. */
@@ -247,7 +229,7 @@ Design tokens are defined in `variables.css`:
 ### Color Palette
 
 ```css
---semiont-color-primary-500: #3b82f6;
+--semiont-color-primary-500: #0080ff;
 --semiont-color-gray-50: #f9fafb;
 --semiont-color-gray-900: #111827;
 --semiont-color-white: #ffffff;
@@ -282,20 +264,20 @@ Design tokens are defined in `variables.css`:
 ```css
 /* Centralized panel styling for consistency */
 --semiont-panel-padding: 1rem;
---semiont-panel-gap: 1.5rem;
---semiont-panel-border-radius: 0.5rem;
+--semiont-panel-gap: 1rem;
+--semiont-panel-border-radius: var(--semiont-radius-lg);
 --semiont-panel-title-size: var(--semiont-text-lg);
---semiont-panel-title-weight: 600;
---semiont-panel-header-margin-bottom: 1rem;
+--semiont-panel-title-weight: var(--semiont-font-semibold);
+--semiont-panel-header-margin-bottom: 0.75rem;
 --semiont-panel-section-gap: 1.5rem;
 --semiont-panel-field-gap: 0.5rem;
---semiont-panel-icon-size: 1.25rem;
+--semiont-panel-icon-size: 1.125rem;
 ```
 
 ### Border Radius
 
 ```css
---semiont-radius-sm: 0.25rem;
+--semiont-radius-sm: 0.125rem;
 --semiont-radius-md: 0.375rem;
 --semiont-radius-lg: 0.5rem;
 --semiont-radius-full: 9999px;
@@ -315,21 +297,30 @@ Located in `core/buttons.css`, provides a comprehensive button system:
 ```
 
 Available modifiers:
-- `semiont-button--primary` - Primary action
+- `semiont-button--primary` - Primary action (cyan/blue gradient)
 - `semiont-button--secondary` - Secondary action
 - `semiont-button--tertiary` - Tertiary action
 - `semiont-button--danger` - Destructive action
-- `semiont-button--ghost` - Minimal style
-- `semiont-button--small` - Smaller size
-- `semiont-button--large` - Larger size
+- `semiont-button--warning` - Amber; highlight actions
+- `semiont-button--large` - Full width, larger padding
+- `semiont-button--scale` - Grows on hover
+
+`buttonStyles` (exported from `@semiont/react-ui`) holds these combinations as ready-made class strings. The `Button` component styles itself through data attributes instead: `data-variant` (`primary`, `secondary`, `tertiary`, `danger`, `warning`, `ghost`) and `data-size` (`xs` through `xl`) on `.semiont-button`.
 
 ### Toggle Switches
 Located in `core/toggles.css`, for binary on/off controls:
 
 ```jsx
-<label className="semiont-toggle">
-  <input type="checkbox" className="semiont-toggle__input" />
-  <span className="semiont-toggle__slider"></span>
+<label className="semiont-toggle-label">
+  <span className="semiont-toggle-label__text">Line numbers</span>
+  <button
+    type="button"
+    role="switch"
+    aria-checked={isOn}
+    className={`semiont-toggle ${isOn ? 'semiont-toggle--active' : ''}`}
+  >
+    <span className={`semiont-toggle__slider ${isOn ? 'semiont-toggle__slider--active' : ''}`} />
+  </button>
 </label>
 ```
 
@@ -338,7 +329,7 @@ Located in `core/progress.css`, for showing completion status:
 
 ```jsx
 <div className="semiont-progress">
-  <div className="semiont-progress__bar" style={{width: '60%'}}></div>
+  <div className="semiont-progress__fill" style={{width: '60%'}}></div>
 </div>
 ```
 
@@ -357,14 +348,6 @@ Located in `core/tags.css`, for content categorization:
 <span className="semiont-tag semiont-tag--secondary">Secondary Tag</span>
 ```
 
-### Badges
-Located in `core/badges.css`, for status indicators:
-
-```jsx
-<span className="semiont-badge semiont-badge--admin">Admin</span>
-<span className="semiont-badge semiont-badge--active">Active</span>
-```
-
 ### Status Indicators
 Located in `core/indicators.css`, for online/offline states:
 
@@ -375,29 +358,29 @@ Located in `core/indicators.css`, for online/offline states:
 
 ## W3C Web Annotation Motivations
 
-The `motivations/` directory contains styles for the five W3C Web Annotation standard motivations:
+The `motivations/` directory contains styles for the five W3C Web Annotation standard motivations. Each file defines its `--semiont-motivation-<type>-*` custom properties on `:root`, styles inline annotations through an `annotation-<type>` class, and styles that motivation's panel entries (`.semiont-annotation-entry[data-type="<type>"]`). The class an annotation renders with comes from its entry in `ANNOTATORS` (`src/lib/annotation-registry.ts`).
 
 ### Linking (References)
 Located in `motivation-reference.css`:
-- Visual: Blue to cyan gradient background
+- Visual: Cyan to blue gradient background; dashed outline in dark mode
 - Use: For annotations that link to other resources
 
 ```css
-.semiont-motivation--linking {
-  background: linear-gradient(135deg,
-    var(--semiont-color-blue-100) 0%,
-    var(--semiont-color-cyan-50) 100%);
+.annotation-reference {
+  background: var(--semiont-motivation-reference-bg);   /* cyan-200 → blue-200 */
+  color: var(--semiont-motivation-reference-text);
 }
 ```
 
 ### Highlighting
 Located in `motivation-highlight.css`:
-- Visual: Yellow background
+- Visual: Yellow background; dashed outline in dark mode
 - Use: For text highlighting and emphasis
 
 ```css
-.semiont-motivation--highlighting {
-  background: var(--semiont-color-yellow-100);
+.annotation-highlight {
+  background: var(--semiont-motivation-highlight-bg);   /* yellow-200 */
+  color: var(--semiont-motivation-highlight-text);
 }
 ```
 
@@ -407,67 +390,68 @@ Located in `motivation-assessment.css`:
 - Use: For quality assessments and evaluations
 
 ```css
-.semiont-motivation--assessing {
-  text-decoration: underline wavy var(--semiont-color-red-500);
+.annotation-assessment {
+  text-decoration: underline wavy;
+  text-decoration-color: var(--semiont-motivation-assessment-primary);   /* red-500 */
 }
 ```
 
 ### Commenting
 Located in `motivation-comment.css`:
-- Visual: Black (light) or white (dark) dashed outline
+- Visual: Dark (light theme) or light (dark theme) dashed outline
 - Use: For discussion and commentary
 
 ```css
-.semiont-motivation--commenting {
-  border: 2px dashed var(--semiont-color-black);
-  border-radius: var(--semiont-radius-md);
+.annotation-comment {
+  outline: 2px dashed var(--semiont-motivation-comment-outline);   /* gray-900 */
+  outline-offset: 1px;
 }
 ```
 
 ### Tagging
 Located in `motivation-tag.css`:
-- Visual: Orange to amber gradient background
+- Visual: Orange to amber gradient background; dashed outline in dark mode
 - Use: For categorization and classification
 
 ```css
-.semiont-motivation--tagging {
-  background: linear-gradient(135deg,
-    var(--semiont-color-orange-100) 0%,
-    var(--semiont-color-amber-50) 100%);
+.annotation-tag {
+  background: var(--semiont-motivation-tag-bg);   /* orange-200 → amber-200 */
+  color: var(--semiont-motivation-tag-text);
 }
 ```
 
+## Patterns
+
 ### Cards
+Located in `patterns/cards.css`:
 
 ```jsx
 <div className="semiont-card">
-  <div className="semiont-card__header">
-    <h3 className="semiont-card__title">Card Title</h3>
-  </div>
-  <div className="semiont-card__content">
-    Content goes here
-  </div>
+  <h3>Card Title</h3>
+  <p>Content goes here</p>
 </div>
 ```
 
 ### Forms
+Located in `core/forms.css` and `core/inputs.css`:
 
 ```jsx
 <div className="semiont-form">
   <div className="semiont-form__field">
-    <label className="semiont-form__label">Label</label>
-    <input className="semiont-form__input" />
-    <p className="semiont-form__helper-text">Helper text</p>
+    <label htmlFor="title" className="semiont-form__label">Label</label>
+    <input id="title" className="semiont-input" />
+    <p className="semiont-form__help">Helper text</p>
   </div>
 </div>
 ```
 
 ### Panels
+Located in `patterns/panels-base.css`:
 
 ```jsx
 <div className="semiont-panel">
-  <div className="semiont-panel__header">
-    <h3 className="semiont-panel__title">Panel Title</h3>
+  <div className="semiont-panel-header">
+    <h2 className="semiont-panel-header__title">Panel Title</h2>
   </div>
   <div className="semiont-panel__content">
     Panel content
@@ -495,27 +479,30 @@ Example of token cascading:
 --semiont-panel-title-size: var(--semiont-text-lg);
 
 /* Usage in component */
-.semiont-panel__title {
+.semiont-panel-header__title {
   font-size: var(--semiont-panel-title-size);
 }
 ```
 
 ### Directory Organization
 
-The CSS is organized by conceptual level:
+The CSS under `styles/` is organized by conceptual level:
 
-1. **Core** (`core/`) - Fundamental, atomic UI elements
-2. **Components** (`components/`) - Composed, complex components
-3. **Panels** (`panels/`) - Layout containers and panel structures
-4. **Features** (`features/`) - Feature-specific, non-reusable styles
-5. **Motivations** (`motivations/`) - W3C Web Annotation standard styles
-6. **Utilities** (`utilities/`) - Accessibility and interaction helpers
-7. **Patterns** (`patterns/`) - Reusable state patterns
+1. **Base** (`base/`) - Reset and semantic utility classes
+2. **Core** (`core/`) - Fundamental, atomic UI elements
+3. **Patterns** (`patterns/`) - Reusable panel and card patterns
+4. **Panels** (`panels/`) - Styles for individual panels
+5. **Features** (`features/`) - Feature-specific, non-reusable styles
+6. **Motivations** (`motivations/`) - W3C Web Annotation standard styles
+7. **Utilities** (`utilities/`) - Accessibility and interaction helpers
+8. **Layout** (`layout/`) - Page and container layouts
+
+Composed components (modals, navigation, resource panels, toolbar) carry their CSS beside their `.tsx` under `src/components/`.
 
 ### Separation of Concerns
 
-- **Core vs Components**: Core elements are atomic (buttons, toggles), while components are composed (forms, modals)
-- **Components vs Panels**: Components are UI pieces, panels are layout containers
+- **Core vs Components**: Core elements are atomic (buttons, toggles), while composed components (modals, navigation) keep their CSS next to their code
+- **Patterns vs Panels**: Patterns are shared panel and card structures; a panel's own CSS holds what is specific to it
 - **Features vs Components**: Features are page-specific, components are reusable
 - **Motivations**: Dedicated styles for W3C Web Annotation standard, kept separate for clarity
 
@@ -527,7 +514,7 @@ Always use semantic classes that describe the component, not its appearance:
 
 ```css
 /* Good */
-.semiont-card__header { }
+.semiont-panel-header__title { }
 .semiont-button--primary { }
 
 /* Avoid */
@@ -541,14 +528,14 @@ Keep the hierarchy clear and consistent:
 
 ```css
 /* Block */
-.semiont-resource-viewer { }
+.semiont-document-viewer { }
 
 /* Elements (direct children) */
-.semiont-resource-viewer__header { }
-.semiont-resource-viewer__content { }
+.semiont-document-viewer__header { }
+.semiont-document-viewer__content { }
 
 /* Modifiers (variants) */
-.semiont-resource-viewer--compact { }
+.semiont-document-viewer--panel-open { }
 ```
 
 ### 3. Use CSS Variables
@@ -599,12 +586,11 @@ When adding new components or features:
      - Example: `src/components/video-annotation/VideoAnnotationCanvas.css`
    - **Consolidated styles** (existing patterns):
      - Fundamental UI elements → `core/`
-     - Complex composed components → `components/`
+     - Shared panel and card patterns → `patterns/`
      - Panel layouts → `panels/`
      - Feature-specific styles → `features/`
      - W3C motivation styles → `motivations/`
      - Layout patterns → `layout/`
-     - State patterns → `patterns/`
      - Accessibility utilities → `utilities/`
 
 2. **For component-level CSS** (preferred pattern):
@@ -628,7 +614,7 @@ When adding new components or features:
 
 3. **For consolidated styles** (existing pattern):
    ```css
-   /* core/new-element.css or components/new-component.css */
+   /* core/new-element.css or features/new-feature.css */
    /**
     * New Element/Component Styles
     *
@@ -642,7 +628,7 @@ When adding new components or features:
    @import './new-element.css';
 
    /* For other files, add to styles/index.css in correct section */
-   @import './components/new-component.css';
+   @import './features/new-feature.css';
    ```
 
 4. **Follow naming convention**:
@@ -734,8 +720,8 @@ npm run lint:css
 #### semiont/invariants
 Enforces design system consistency:
 - **No hardcoded colors** - Must use CSS variables instead of hex values
-- **Dark mode required** - All components must have `[data-theme="dark"]` variants
-- **Design tokens** - Enforces usage of predefined CSS custom properties
+- **Dark variant where the colour is fixed** - A `semiont-` rule that sets a colour property from a palette token or a literal needs a `[data-theme="dark"]` variant; one built only from semantic tokens needs none (see [Dark Mode Support](#dark-mode-support))
+- **Naming** - No utility class names, and react-ui classes carry the `semiont-` prefix (with the same short allowlist as `selector-class-pattern`)
 
 #### semiont/accessibility
 Ensures WCAG 2.1 AA compliance:
@@ -778,7 +764,7 @@ The package includes comprehensive global accessibility utilities that apply to 
    color: #2563eb;
    ```
 
-2. **Always provide dark mode variants:**
+2. **Give a fixed palette colour a dark mode variant:**
    ```css
    .semiont-component {
      background-color: var(--semiont-color-gray-100);
@@ -809,20 +795,20 @@ The package includes comprehensive global accessibility utilities that apply to 
 ### Fixing Linter Errors
 
 **Hardcoded color error:**
-```bash
-✖ Hardcoded color #3b82f6. Use var(--semiont-color-blue-500)
+```text
+Hardcoded color "#3b82f6" detected. Use CSS variables instead.
 ```
-Fix: Replace hex color with appropriate CSS variable from `variables.css`
+Fix: Replace hex color with appropriate CSS variable from `variables.css` (here `var(--semiont-color-blue-500)`)
 
 **Missing dark mode variant:**
-```bash
-⚠ Missing dark theme variant for ".semiont-component"
+```text
+Missing dark theme variant for ".semiont-component". Add [data-theme="dark"] variant.
 ```
 Fix: Add `[data-theme="dark"] .semiont-component { }` selector
 
 **Animation without reduced motion:**
-```bash
-⚠ Animation "transition" should respect prefers-reduced-motion
+```text
+Animation/transition "transition" should respect prefers-reduced-motion. Add @media (prefers-reduced-motion: reduce) variant.
 ```
 Note: This warning should not appear for files in `src/components/` or `src/features/` as they inherit global motion overrides. If you see this, verify the file is in the correct location.
 

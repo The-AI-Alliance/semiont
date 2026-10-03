@@ -6,7 +6,7 @@ This document defines the fundamental axioms and correctness properties that gov
 
 ## Fundamental Axioms
 
-The annotation rendering system is built on ten fundamental axioms, verified through property-based and unit testing:
+The annotation rendering system is built on ten fundamental axioms, verified by the tests listed under [Testing](#testing):
 
 ### 1. POSITION PRESERVATION
 
@@ -20,8 +20,8 @@ Annotations must preserve the exact character positions from the source text, re
 **Example:**
 ```typescript
 const text = "# Title\n- dog\n- cat";
-const annotation = { offset: 8, length: 3, text: "dog" };
-// Position 8-11 always refers to "dog" in source, regardless of how markdown renders
+const annotation = { offset: 10, length: 3, text: "dog" };
+// Position 10-13 always refers to "dog" in source, regardless of how markdown renders
 ```
 
 ### 2. NON-OVERLAPPING
@@ -29,11 +29,12 @@ const annotation = { offset: 8, length: 3, text: "dog" };
 Multiple annotations can exist but the renderer must handle overlapping gracefully.
 
 **Strategy:**
-- Skip overlapping annotations (first-come-first-served)
+- AnnotateView (CodeMirror): skip overlapping annotations (first-come-first-served)
+- BrowseView (overlay): nest overlapping spans per region, the later annotation innermost
 - Maintain clear visual boundaries
 - Prevent annotation collision in the DOM
 
-**Rationale:** Overlapping spans in HTML create ambiguous click targets and complex event handling. Skipping overlaps provides predictable behavior.
+**Rationale:** Overlapping CodeMirror marks create ambiguous click targets and complex event handling, so segmentation skips overlaps for predictable behavior. The BrowseView overlay works in offset space against the pristine text nodes, so its overlap geometry is exact and every annotation renders.
 
 ### 3. CONTENT INTEGRITY
 
@@ -44,11 +45,10 @@ The rendered text content must match the source content exactly.
 - All characters from source must appear in rendered output
 - Text reconstruction from segments must equal original text
 
-**Verification:**
+**Verification:** the segments `segmentTextWithAnnotations(content, annotations)` returns (in `src/lib/text-segmentation.ts`) cover the content exactly:
 ```typescript
-const segments = segmentTextWithAnnotations(text, annotations);
-const reconstructed = segments.map(s => s.text).join('');
-assert(reconstructed === text); // Must always be true
+declare const segments: TextSegment[];
+expect(segments.map((s) => s.exact).join('')).toBe(content); // Must always be true
 ```
 
 ### 4. SELECTION INDEPENDENCE
@@ -60,7 +60,7 @@ User text selection must work independently of annotations.
 - Selecting text doesn't interfere with annotation rendering
 - Copy/paste operations work on the underlying text
 
-**Implementation:** Annotations use CSS styling and data attributes rather than nested DOM structures that break text selection.
+**Implementation:** Annotations are spans carrying CSS classes and `data-annotation-*` attributes around the unchanged text, so selection and copy see the underlying text.
 
 ### 5. MARKDOWN TRANSPARENCY
 
@@ -93,7 +93,7 @@ Click/hover on annotations should not trigger on the wrong annotation or affect 
 - Click targets are precise
 - No event bubbling issues
 
-**Implementation:** Each annotation span has unique `data-annotation-id` attributes, and event handlers verify they're operating on the correct annotation.
+**Implementation:** Each annotation span carries its annotation's `data-annotation-id` (an annotation cut by node boundaries yields sibling spans sharing it), and event handlers verify they're operating on the correct annotation.
 
 ### 8. REACTIVITY
 
@@ -136,61 +136,20 @@ The renderer trusts the stored selector and re-anchors only on a verbatim quote 
 
 **Affordance:** every anchor carries a `strategy` and `confidence`. Anything below `confidence: 'high'` gets the `.annotation-low-confidence` class (dotted underline), a hover tooltip naming the strategy, and a one-shot `console.warn`, so corpus-wide anchor drift surfaces instead of staying invisible.
 
-## Property-Based Testing
+## Testing
 
-The system uses [fast-check](https://github.com/dubzzz/fast-check) for property-based testing to verify axioms hold across a wide range of inputs.
+The segmentation axioms are pinned by unit tests in `src/lib/__tests__/text-segmentation.test.ts`:
 
-### Testing Approach
+1. Content integrity: empty content, content with no annotations, and an annotation spanning the whole document each yield segments covering the content
+2. Position preservation: single, leading, and multiple non-overlapping annotations land on their offsets
+3. Non-overlapping: an overlapping annotation is skipped and the earlier one kept
+4. Invalid and zero-length positions are filtered out
+5. Verbatim re-anchoring: a stale `TextPositionSelector` re-anchors through the `TextQuoteSelector`, and annotated segments carry their anchor `strategy` and `confidence`
+6. Low confidence: the `annotation-low-confidence` class and the strategy tooltip, and one degraded-anchor warning per annotation
 
-```typescript
-import fc from 'fast-check';
+The BrowseView overlay is covered by `src/lib/__tests__/annotation-overlay.test.ts`: the source→rendered offset map across markdown syntax, the per-type CSS class, nested spans for overlapping annotations (later annotation innermost), one mutation per annotated text node, and a clean restore of the original text.
 
-// Property: Content Integrity
-fc.property(
-  fc.string({ minLength: 0, maxLength: 1000 }),
-  fc.array(annotationGenerator),
-  (text, annotations) => {
-    const segments = segmentTextWithAnnotations(text, annotations);
-    const reconstructed = segments.map(s => s.text).join('');
-    return reconstructed === text;
-  }
-);
-
-// Property: Position Preservation
-fc.property(
-  fc.string(),
-  fc.array(annotationGenerator),
-  (text, annotations) => {
-    const segments = segmentTextWithAnnotations(text, annotations);
-
-    for (const annotation of annotations) {
-      const annotatedText = text.slice(
-        annotation.offset,
-        annotation.offset + annotation.length
-      );
-
-      // Find corresponding segment
-      const segment = segments.find(s =>
-        s.annotation?.id === annotation.id
-      );
-
-      if (segment) {
-        return segment.text === annotatedText;
-      }
-    }
-    return true;
-  }
-);
-```
-
-### Test Coverage
-
-Property-based tests verify:
-1. Content integrity across random text and annotation combinations
-2. Position preservation for valid and edge-case offsets
-3. Non-overlapping handling (first annotation wins)
-4. Incremental stability (adding/removing doesn't affect others)
-5. Markdown transparency (positions match source regardless of rendering)
+Property-based tests ([fast-check](https://github.com/dubzzz/fast-check)) cover the PDF coordinate transformations in `src/lib/__tests__/pdf-coordinates.test.ts` and the per-page rectangles in `src/components/pdf-annotation/__tests__/rects-for-page.test.ts`.
 
 ## Design Decisions Informed by Axioms
 
@@ -204,30 +163,22 @@ Property-based tests verify:
 
 **Axiom Satisfied:** MARKDOWN TRANSPARENCY, POSITION PRESERVATION
 
-### Why Skip Overlapping Annotations?
+### Why Skip Overlapping Annotations in AnnotateView?
 
-**Problem:** HTML spans can't cleanly overlap: `<span>hello <span>wo</span>rld</span>` creates ambiguous click targets.
+**Problem:** Overlapping CodeMirror marks, like `<span>hello <span>wo</span>rld</span>`, create ambiguous click targets.
 
-**Solution:** First annotation wins, later overlapping annotations are skipped during segmentation.
+**Solution:** First annotation wins, later overlapping annotations are skipped during segmentation. BrowseView's overlay nests overlapping spans instead, so every annotation renders there.
 
-**Tradeoff:** Some annotations might not render, but rendered ones are always clickable and correct.
+**Tradeoff:** Some annotations might not render in AnnotateView, but rendered ones are always clickable and correct.
 
 **Axiom Satisfied:** NON-OVERLAPPING, INTERACTION ISOLATION
-
-### Why Optimistic Updates?
-
-**Problem:** Waiting for server confirmation creates laggy UX.
-
-**Solution:** Update UI immediately, rollback on error.
-
-**Tradeoff:** Possible temporary inconsistency, much better perceived performance.
-
-**Axiom Satisfied:** REACTIVITY
 
 ## Related Documentation
 
 ### Implementation Details
-- See `src/lib/annotation-registry.ts` - Annotation rendering logic
+- See `src/lib/text-segmentation.ts` - AnnotateView's text segmentation
+- See `src/lib/annotation-overlay.ts` - BrowseView's annotation overlay
+- See `src/lib/annotation-registry.ts` - Per-motivation class names
 - See `src/components/resource/AnnotateView.tsx` - Main annotation UI
 
 ### Data Model & API
@@ -235,4 +186,6 @@ Property-based tests verify:
 - See `@semiont/sdk` package - API client and utilities
 
 ### Testing
+- `src/lib/__tests__/text-segmentation.test.ts` - Segmentation axioms
+- `src/lib/__tests__/annotation-overlay.test.ts` - Overlay geometry
 - `src/lib/__tests__/pdf-coordinates.test.ts` - Property-based tests for PDF coordinate transformations

@@ -106,9 +106,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 }
 ```
 
-Most components never read the client directly — dedicated hooks
-(`useMediaToken`, `useResourceContent`, the flow state units) encapsulate the
-`activeSession$ → client` read.
+Hooks that need a client — `useMediaToken`, `useResourceContent` — take it as
+an argument rather than reading context, so a host can bring its own session.
 
 **Reference**: see
 [`packages/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md)

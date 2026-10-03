@@ -19,8 +19,8 @@ For the broader accessibility implementation guide, see **[ACCESSIBILITY.md](ACC
 
 1. **Progressive enhancement.** Start with semantic HTML; enhance with JS. Keyboard navigation works even if advanced features fail.
 2. **Platform consistency.** `Cmd` on macOS, `Ctrl` on Windows/Linux; arrow keys for menu navigation; standard `Esc` to dismiss.
-3. **Discoverability.** Every shortcut registers a description that the help modal (`?`) renders.
-4. **Context awareness.** Single-letter shortcuts disable themselves when focus is inside an input field, so they don't fight with normal typing.
+3. **Discoverability.** `?` opens `KeyboardShortcutsHelpModal`, which lists the shortcuts by group.
+4. **Context awareness.** Shortcuts don't fire while focus is inside an input field, so they don't fight with normal typing.
 5. **Accessibility first.** Keyboard and screen reader users are primary, not retrofit.
 
 ## Core primitives
@@ -32,11 +32,13 @@ Centralized keyboard event handling with platform detection and context-awarenes
 ```typescript
 import { useKeyboardShortcuts } from '@semiont/react-ui';
 
+const [isSearchOpen, setIsSearchOpen] = useState(false);
+
 useKeyboardShortcuts([
   {
     key: 'k',
     ctrlOrCmd: true,
-    handler: () => openGlobalSearch(),
+    handler: () => setIsSearchOpen(true),
     description: 'Open global search',
   },
 ]);
@@ -44,24 +46,32 @@ useKeyboardShortcuts([
 
 Features:
 - Platform-specific modifier resolution (`ctrlOrCmd` → `metaKey` on macOS, `ctrlKey` elsewhere)
-- Context-aware activation (no fire when an `<input>` / `<textarea>` / contenteditable has focus, unless explicitly opted in)
-- Modifier-key support
-- `description` field consumed by the in-app shortcut help modal
+- Context-aware activation (no fire while an `<input>`, `<textarea>`, or contenteditable element has focus)
+- `shift` and `alt` modifiers, matched exactly — a shortcut without `shift` doesn't fire while Shift is held
+- `enabled: false` switches a shortcut off without unregistering it
+- A matched shortcut calls `preventDefault()` and `stopPropagation()` before its handler runs
+
+The Browser's `KeyboardShortcutsProvider` registers the global set: `Cmd/Ctrl+K` and `/` open search, `Cmd/Ctrl+N` opens compose, `?` opens the help modal, and a double `Esc` (`useDoubleKeyPress`) closes the search and help modals.
 
 ### `useRovingTabIndex`
 
-Arrow-key navigation for widget groups (toolbars, tab bars, entity-type grids, annotation lists):
+Arrow-key navigation for widget groups — on the discover page, the entity-type filter row and the resource grid:
 
-```typescript
+```tsx
 import { useRovingTabIndex } from '@semiont/react-ui';
 
-useRovingTabIndex(itemCount, {
-  orientation: 'horizontal',  // or 'vertical' or 'grid'
+const entityTypes = ['Person', 'Organization', 'Location'];
+const roving = useRovingTabIndex<HTMLDivElement>(entityTypes.length, {
+  orientation: 'horizontal',  // or 'vertical', or 'grid' with `cols`
   loop: true,
 });
+
+<div ref={roving.containerRef} onKeyDown={roving.handleKeyDown}>
+  {entityTypes.map((type) => <button key={type}>{type}</button>)}
+</div>
 ```
 
-Manages the `tabindex` attributes so only one element in the group is in the tab order at a time, and arrow keys move between them. Supports `Home` / `End` for first/last.
+Manages the `tabindex` attributes of the buttons, `[role="button"]` and `[tabindex]` elements inside `containerRef` so only one is in the tab order at a time, and arrow keys move between them. Supports `Home` / `End` for first/last; `focusItem(index)` moves focus programmatically.
 
 ### `useLiveRegion`
 
@@ -75,7 +85,7 @@ announce('5 results found', 'polite');
 announce('Validation failed', 'assertive');
 ```
 
-Wraps a polite/assertive ARIA live region; `announce()` queues a message and clears it after a short delay so the same message can be re-announced. See [ACCESSIBILITY.md](ACCESSIBILITY.md#live-regions-for-dynamic-content) for usage guidance.
+Wraps a polite/assertive ARIA live region; `announce()` sets the region's message and clears it after a second so the same message can be re-announced. See [ACCESSIBILITY.md](ACCESSIBILITY.md#live-regions-for-dynamic-content) for usage guidance.
 
 ### `Headless UI Dialog` for modals
 
@@ -104,7 +114,7 @@ When a modal opens, focus moves into it and is trapped until close. On close, fo
 
 ### Skip links
 
-`SkipLinks` (in `@semiont/react-ui`) renders visually-hidden-until-focused links that let keyboard users bypass repetitive navigation. The skip-link is the first focusable element on every page.
+`SkipLinks` (in `@semiont/react-ui`) renders visually-hidden-until-focused links to `#main-content`, `#main-navigation` and `#search` that let keyboard users bypass repetitive navigation. The locale layout mounts it ahead of every route, so the skip-link is the first focusable element on every page. Layouts supply the targets: `LeftSidebar` carries `id="main-navigation"`, and `PageLayout`'s `<main>` carries `id="main-content"`.
 
 ## Component checklist
 
@@ -112,24 +122,30 @@ Every interactive component should:
 
 1. Use semantic HTML first (`<button>`, `<a>`, `<nav>`, `<input>`).
 2. Add ARIA enhancement (`aria-label`, `aria-expanded`, `aria-pressed`, `aria-describedby`) where semantics aren't sufficient.
-3. Have visible focus indicators (Tailwind: `focus:ring-2 focus:ring-cyan-500`).
+3. Have visible focus indicators — react-ui's `utilities/focus.css` gives buttons, links, form controls, `[role="button"]` and `[tabindex]` a `:focus-visible` outline; don't strip it.
 4. Handle Enter and Space for any non-button click target:
 
 ```tsx
-<div
-  role="button"
-  tabIndex={0}
-  onClick={handleClick}
-  onKeyDown={(e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleClick();
-    }
-  }}
-  aria-label="Delete annotation"
->
-  <DeleteIcon aria-hidden="true" />
-</div>
+import { TrashIcon } from '@heroicons/react/24/outline';
+
+function DeleteAnnotationControl({ onDelete }: { onDelete: () => void }) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onDelete}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onDelete();
+        }
+      }}
+      aria-label="Delete annotation"
+    >
+      <TrashIcon aria-hidden="true" />
+    </div>
+  );
+}
 ```
 
 (Prefer `<button>` over `<div role="button">` whenever you can — but the pattern above is the fallback when the surrounding markup constrains you.)
@@ -171,7 +187,7 @@ window.addEventListener('keydown', (e) => {
 Common issues:
 
 - **Focus disappears after action.** A handler removed the focused element from the DOM. Restore focus to a sensible neighbor before the removal, or use Headless UI components that handle this automatically.
-- **Shortcut doesn't trigger.** Check focus location — single-letter shortcuts disable in inputs by design. Also check for conflict with browser shortcuts (`Cmd+T`, etc.).
+- **Shortcut doesn't trigger.** Check focus location — shortcuts don't fire in inputs by design. Also check for conflict with browser shortcuts (`Cmd+T`, etc.).
 - **Screen reader silent.** Verify the live region exists in the DOM and has the right `aria-live` attribute. The most common cause is announcing before the live region has mounted.
 
 ## See also

@@ -33,6 +33,8 @@ Cloning makes a new, editable resource from an existing one, and records where i
    reads its content, so the copy starts from the source's name and text:
 
    ```ts
+   declare const token: string; // from the page's ?token= query
+
    const source = await client.yield.fromToken(token);
    const { data, contentType } = await client.browse.resourceRepresentation(source['@id']);
    ```
@@ -40,11 +42,14 @@ Cloning makes a new, editable resource from an existing one, and records where i
 4. **Save.** Saving creates the new resource from the token:
 
    ```ts
+   declare const token: string;
+   declare const name: string; // the copy's name, as edited
+
    const { resourceId } = await client.yield.createFromToken({
      token,
      name,
      content,
-     archiveOriginal,   // archive the source once the copy exists
+     archiveOriginal: true,   // archive the source once the copy exists — the Compose page's default
    });
    ```
 

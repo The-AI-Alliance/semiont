@@ -2,9 +2,8 @@
 
 How the Semiont Browser is shipped and run.
 
-> **The CLI no longer deploys the Browser.** The `semiont publish` / `semiont update` commands and
-> the AWS platform they targeted have been **removed**. The Browser ships as a published container
-> image; running it anywhere beyond the supported path below is **an exercise for the reader**.
+> **No Semiont command deploys the Browser.** It ships as a published container image; running it
+> anywhere beyond the supported path below is **an exercise for the reader**.
 
 ## What ships
 

@@ -56,8 +56,8 @@ const reached: number = client.bus.emit('beckon:hover', { annotationId });
 const hovers: Observable<EventMap['beckon:hover']> = client.bus.on('beckon:hover');
 ```
 
-The client owns its bus (`client.bus`, an `EventBus`). Typed namespace methods
-are the way to say something on it — `client.browse.click(id)`,
+Typed namespace methods are the way to say something on the bus —
+`client.browse.click(id)`,
 `client.mark.submit(input)`, `client.beckon.hover(id)` — and StateUnit
 factories take `client` and listen through `client.bus.on(...)`.
 
@@ -262,14 +262,13 @@ channels live on:
   `client: SemiontClient` and route through `client.bus.emit` /
   `client.bus.on`. Their lifetime is tied to the session
   (`useSessionStateUnit`).
-- **Shell-scoped state units** (`ShellStateUnit` — toolbar panel state, sidebar
-  collapse) take `browser: SemiontBrowser` and route through
+- **Shell-scoped state units** (`ShellStateUnit` — toolbar panel state) take
+  `browser: SemiontBrowser` and route through
   `browser.emit` / `browser.stream`. Their lifetime is tied to the app.
 
 Why the split matters: `ShellStateUnit` must function on unauth pages
-(sign-in form visible, no active session). If it were wired to the
-client bus, toolbar panel state and sidebar collapse would fail
-whenever no session existed.
+(signed out, no active session). If it were wired to the client bus,
+toolbar panel state would fail whenever no session existed.
 
 ```tsx
 // localStorage-backed, beside the hook

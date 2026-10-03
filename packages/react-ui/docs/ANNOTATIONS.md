@@ -31,15 +31,18 @@
 
 The annotation system follows the **Provider Pattern** to maintain framework independence. Apps provide implementations while `@semiont/react-ui` defines the interfaces.
 
-```typescript
-// Interfaces defined in react-ui
-interface AnnotationManager {
-  createAnnotation: (params: CreateAnnotationParams) => Promise<Annotation | undefined>;
-  deleteAnnotation: (params: DeleteAnnotationParams) => Promise<void>;
-}
+```tsx
+// react-ui defines the interface: markAnnotation(params) and deleteAnnotation(params)
+declare const annotationManager: AnnotationManager; // the app's implementation
 
-// Apps provide implementations
-const annotationManager = useAnnotationManager(); // App-specific
+// Apps provide it…
+<AnnotationProvider annotationManager={annotationManager}>{children}</AnnotationProvider>;
+
+// …and components read it back
+function MyComponent() {
+  const { markAnnotation, deleteAnnotation } = useAnnotationManager();
+  // ...
+}
 ```
 
 Cache freshness is **not** an app responsibility: the SDK's read-through cache
@@ -55,49 +58,46 @@ See [SESSION.md](SESSION.md) for detailed Provider Pattern documentation.
 
 #### Generic Creation (Recommended)
 
-All annotation types are created through a single, generic function:
+All annotation types are created through a single, generic function, `markAnnotation`. It
+resolves to the created annotation's id:
 
-```typescript
+```tsx
+import type { Selector } from '@semiont/core';
 import { useResourceAnnotations } from '@semiont/react-ui';
 
 function MyComponent() {
-  const { createAnnotation } = useResourceAnnotations();
+  const { markAnnotation } = useResourceAnnotations();
 
-  // Create a highlight
-  await createAnnotation(rId, 'highlighting', [
-    {
-      type: 'TextPositionSelector',
-      start: 0,
-      end: 10,
-    },
-    {
-      type: 'TextQuoteSelector',
-      exact: 'Hello World',
-    }
-  ]);
+  const selector: Selector[] = [
+    { type: 'TextPositionSelector', start: 0, end: 11 },
+    { type: 'TextQuoteSelector', exact: 'Hello World' },
+  ];
 
-  // Create a comment
-  await createAnnotation(rId, 'commenting', selector, {
-    type: 'TextualBody',
-    value: 'Great point!',
-    format: 'text/plain',
-    purpose: 'commenting',
-  });
+  const annotate = async (targetId: ResourceId) => {
+    // Create a highlight (no body)
+    await markAnnotation(rId, 'highlighting', selector);
 
-  // Create a reference
-  await createAnnotation(rId, 'linking', selector, [
-    { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
-    { type: 'SpecificResource', source: targetDocId, purpose: 'linking' }
-  ]);
+    // Create a comment
+    await markAnnotation(rId, 'commenting', selector, [
+      { type: 'TextualBody', value: 'Great point!', format: 'text/plain', purpose: 'commenting' },
+    ]);
+
+    // Create a reference
+    await markAnnotation(rId, 'linking', selector, [
+      { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
+      { type: 'SpecificResource', source: targetId, purpose: 'linking' },
+    ]);
+  };
+  // ...
 }
 ```
 
 #### Annotation Deletion
 
-```typescript
-const { deleteAnnotation } = useResourceAnnotations();
+Deletion goes through the SDK. It resolves once the gateway confirms and rejects on failure:
 
-await deleteAnnotation(rId, annotationId);
+```typescript
+await session.client.mark.delete(rId, annotationId);
 ```
 
 ## Annotation Views
@@ -109,14 +109,13 @@ Main component for viewing annotated resources:
 ```tsx
 import { ResourceViewer } from '@semiont/react-ui';
 
+declare const grouped: AnnotationsCollection; // the resource's annotations, bucketed by motivation
+
 <ResourceViewer
-  content={content}
-  mimeType="text/plain"
-  resourceId={rId}
-  annotations={annotationsCollection}
-  handlers={annotationHandlers}
-  uiState={uiState}
-  onUIStateChange={handleUIStateChange}
+  resource={{ ...resource, content }}
+  annotations={grouped}
+  session={session}
+  onOpenResource={(id) => navigate(`/know/resource/${id}`)}
 />
 ```
 
@@ -172,39 +171,39 @@ given with each annotator's `matchesAnnotation`.
 
 ### Annotator Metadata
 
-Each annotator provides:
+Each annotator provides the fields of the `Annotator` type:
 
 ```typescript
-interface Annotator {
+const {
   // W3C standard
-  motivation: Motivation; // 'highlighting', 'commenting', etc.
-  internalType: string;
+  motivation,          // 'highlighting', 'commenting', etc.
+  internalType,        // 'highlight'
 
   // Display
-  displayName: string; // "Highlight"
-  description: string; // "Mark text for attention"
-  iconEmoji?: string; // "🟡"
+  displayName,         // "Highlight"
+  description,         // "Mark text for attention"
+  iconEmoji,           // "🟡" (optional)
 
   // Styling
-  className: string; // semantic `semiont-*` class names
+  className,           // 'annotation-highlight'
 
   // Behavior
-  isClickable: boolean;
-  hasHoverInteraction: boolean;
-  hasSidePanel: boolean;
+  isClickable,
+  hasHoverInteraction,
+  hasSidePanel,
 
   // Type checking
-  matchesAnnotation: (ann: Annotation) => boolean;
+  matchesAnnotation,   // (annotation: Annotation) => boolean
 
   // Accessibility: what a screen reader hears when one is created
-  announceOnCreate: string;
+  announceOnCreate,
 
-  // AI Detection (optional)
-  detection?: DetectionConfig;
+  // AI Detection (optional): a DetectionConfig
+  detection,
 
-  // How this type is created
-  create: CreateConfig;
-}
+  // How this type is created: a CreateConfig
+  create,
+}: Annotator = ANNOTATORS.highlight;
 ```
 
 ## AI-Powered Detection
@@ -291,19 +290,18 @@ See [EVENTS.md](EVENTS.md) for complete event documentation.
 
 Each annotator can declare its assist capability via the `detection`
 (`DetectionConfig`) field in its registry metadata (`lib/annotation-registry.ts`).
-It carries display metadata used by the progress UI:
+It carries display names and a formatter for the request parameters:
 
 ```typescript
-detection: {
-  sseMethod: 'detectHighlights',
-  countField: 'createdCount',
-  displayNamePlural: 'highlights',
-  displayNameSingular: 'highlight',
-  formatRequestParams: (args) => [
-    { label: 'Instructions', value: args[0] },
-    { label: 'Density', value: args[2] }
-  ]
-}
+const { detection } = ANNOTATORS.highlight;
+
+detection.sseMethod;            // 'detectHighlights'
+detection.countField;           // 'createdCount'
+detection.displayNamePlural;    // 'highlights'
+detection.displayNameSingular;  // 'highlight'
+detection.formatRequestParams(['Focus on definitions', undefined, 3]);
+// [{ label: 'Instructions', value: 'Focus on definitions' },
+//  { label: 'Density', value: '3 per 2000 words' }]
 ```
 
 ---
@@ -315,28 +313,27 @@ detection: {
 ```tsx
 import { SvgDrawingCanvas } from '@semiont/react-ui';
 
+declare const imageUrl: string; // the image's media URL
+
 <SvgDrawingCanvas
-  resourceId={rId}
-  existingAnnotations={imageAnnotations}
-  drawingMode={selectedShape} // 'rectangle', 'circle', 'polygon'
-  selectedMotivation={motivation}
-  onAnnotationCreate={async (svg, position) => {
-    await createAnnotation(rId, motivation, {
-      type: 'SvgSelector',
-      value: svg
-    });
-  }}
-  onAnnotationClick={handleClick}
-  onAnnotationHover={handleHover}
+  imageUrl={imageUrl}
+  resourceUri={rId}
+  existingAnnotations={annotations}
+  drawingMode="rectangle" // 'rectangle', 'circle', 'polygon'
+  selectedMotivation="highlighting"
+  session={session}
+  hoveredAnnotationId={hoveredAnnotationId}
 />
 ```
+
+The canvas takes no callbacks: drawing a shape calls `session.client.mark.request(...)`, which
+emits `mark:requested` with an `SvgSelector`, and clicking an existing shape emits `browse:click`.
 
 ### Supported Shapes
 
 - Rectangle
 - Circle
 - Polygon
-- Freehand drawing
 
 ---
 
@@ -345,32 +342,25 @@ import { SvgDrawingCanvas } from '@semiont/react-ui';
 ### Annotation Structure
 
 ```typescript
-{
-  "@context": "http://www.w3.org/ns/anno.jsonld",
-  "type": "Annotation",
-  "id": "http://example.org/annotations/ann-123",
-  "motivation": "highlighting",
-  "created": "2025-01-03T12:00:00Z",
-  "creator": { "id": "http://example.org/users/user-456" },
-  "target": {
-    "source": "http://example.org/resources/doc-789",
-    "selector": [
-      {
-        "type": "TextPositionSelector",
-        "start": 0,
-        "end": 10
-      },
-      {
-        "type": "TextQuoteSelector",
-        "exact": "Hello World",
-        "prefix": "",
-        "suffix": "! This is"
-      }
-    ]
+const highlight: Annotation = {
+  '@context': 'http://www.w3.org/ns/anno.jsonld',
+  type: 'Annotation',
+  id: annotationId,
+  motivation: 'highlighting',
+  created: '2025-01-03T12:00:00Z',
+  target: {
+    source: resourceId,
+    selector: [
+      { type: 'TextPositionSelector', start: 0, end: 11 },
+      { type: 'TextQuoteSelector', exact: 'Hello World', prefix: '', suffix: '! This is' },
+    ],
   },
-  "body": []
-}
+  // No body: a highlight's motivation says everything
+};
 ```
+
+`creator`, `generator` and `wasAttributedTo` are derived by the knowledge base at write time,
+never supplied by the emitter.
 
 ### Selectors
 
@@ -383,32 +373,22 @@ import { SvgDrawingCanvas } from '@semiont/react-ui';
 
 ### Bodies
 
-**Tagging:**
-```typescript
-{
-  type: 'TextualBody',
-  value: 'Person',
-  purpose: 'tagging'
-}
-```
+Each body is a `BodyItem`: a `TextualBody` states text, a `SpecificResource` points at a resource.
 
-**Commenting:**
 ```typescript
-{
+// Tagging
+const tag: BodyItem = { type: 'TextualBody', value: 'Person', purpose: 'tagging' };
+
+// Commenting
+const comment: BodyItem = {
   type: 'TextualBody',
   value: 'Great point!',
   format: 'text/plain',
-  purpose: 'commenting'
-}
-```
+  purpose: 'commenting',
+};
 
-**Linking:**
-```typescript
-{
-  type: 'SpecificResource',
-  source: 'http://example.org/resources/target-doc',
-  purpose: 'linking'
-}
+// Linking: the target resource's id
+const link: BodyItem = { type: 'SpecificResource', source: resourceId, purpose: 'linking' };
 ```
 
 ---
@@ -417,22 +397,14 @@ import { SvgDrawingCanvas } from '@semiont/react-ui';
 
 ### Overlay Annotations
 
-Convert W3C annotations to overlay format:
+`toOverlayAnnotations` (in `annotation-overlay.ts`) converts W3C annotations to the overlay
+format BrowseView paints:
 
 ```typescript
-// annotation-overlay.ts
-function toOverlayAnnotations(annotations: Annotation[]): OverlayAnnotation[] {
-  return annotations.map(ann => {
-    const posSelector = getTextPositionSelector(getTargetSelector(ann.target));
-    return {
-      id: ann.id,
-      exact: getExactText(getTargetSelector(ann.target)),
-      offset: posSelector?.start ?? 0,
-      length: (posSelector?.end ?? 0) - (posSelector?.start ?? 0),
-      type: getAnnotationInternalType(ann),
-      source: getBodySource(ann.body)
-    };
-  });
+for (const { id, exact, offset, length, type, source } of toOverlayAnnotations(annotations)) {
+  // offset, length: the TextPositionSelector span in the markdown source
+  // type: the matching annotator's internalType ('highlight', 'comment', …)
+  // source: the resource a SpecificResource body links to, else null
 }
 ```
 
@@ -445,26 +417,38 @@ function toOverlayAnnotations(annotations: Annotation[]): OverlayAnnotation[] {
 ```tsx
 import { CodeMirrorRenderer } from '@semiont/react-ui';
 
-<CodeMirrorRenderer
-  content={content}
-  segments={textSegments}
-  onAnnotationClick={handleClick}
-  onAnnotationHover={handleHover}
-  sparkleAnnotationIds={sparkleAnnotationIds}
-  hoveredAnnotationId={hoveredId}
-  showLineNumbers={true}
-  enableWidgets={true}
-/>
+function AnnotatedSource({ segments }: { segments: TextSegment[] }) {
+  const { sparkleAnnotationIds } = useResourceAnnotations();
+
+  return (
+    <CodeMirrorRenderer
+      content={content}
+      segments={segments}
+      session={session}
+      sparkleAnnotationIds={sparkleAnnotationIds}
+      hoveredAnnotationId={hoveredAnnotationId}
+      showLineNumbers={true}
+      enableWidgets={true}
+      hoverDelayMs={HOVER_DELAY_MS}
+    />
+  );
+}
 ```
+
+Clicks and hovers on annotated text go through `session`: a click emits `browse:click`, and a
+hover emits `beckon:hover` once the pointer has dwelt for `hoverDelayMs`.
 
 ### Text Segmentation
 
+`TextAnnotateRenderer` derives the segments with `segmentTextWithAnnotations(content, annotations)`.
+Each `TextSegment` is one run of the content:
+
 ```typescript
-interface TextSegment {
-  exact: string;
-  start: number;
-  end: number;
-  annotation?: Annotation;
+declare const segments: TextSegment[];
+
+for (const { exact, start, end, annotation, strategy, confidence } of segments) {
+  // exact === content.slice(start, end)
+  // annotation, strategy, confidence: present only on annotated segments
 }
 ```
 
@@ -516,32 +500,26 @@ function AnnotationsList({ rId }: { rId: ResourceId }) {
 
 ### Real-Time Collaboration
 
-The event bus architecture enables real-time collaboration by broadcasting UI events to peers:
+Some UI events cross between participants. `browse.click` opens an annotation on this viewer's
+screen only; `beckon.click` sends the same `browse:click` over the wire to every other participant,
+where it arrives on their session bus and the same subscribers handle it:
 
 ```tsx
-import { useSemiont, useEventSubscription } from '@semiont/react-ui';
+import { useEventSubscription } from '@semiont/react-ui';
 
-// Local component emits selection event
-function TextSelector() {
-  const semiont = useSemiont();
+// Open an annotation for this viewer: a local emit
+session.client.browse.click(annotationId);
 
-  const handleSelection = (selection) => {
-    // Emit on the bus
-    semiont.emit('ui:mark:select-comment', selection);
+// Open it on every other participant's screen: over the wire. Resolves with
+// how many subscribers it reached, or undefined when the transport doesn't count
+const reached = await session.client.beckon.click(annotationId);
 
-    // Future: Broadcast to peers for real-time collaboration
-    // peerConnection.broadcast('ui:mark:select-comment', selection);
-  };
-
-  return <div onMouseUp={handleSelection}>...</div>;
-}
-
-// Other components (local or remote) subscribe to the same event
-function CollaborativeAnnotationPanel() {
-  useEventSubscription('ui:mark:select-comment', (selection) => {
-    // Show peer's selection/annotation in real-time
-    showPeerActivity(selection);
+// Subscribers handle a local and a remote click alike
+function ClickLog() {
+  useEventSubscription('browse:click', ({ annotationId }) => {
+    console.log('opened', annotationId);
   });
+  return null;
 }
 ```
 

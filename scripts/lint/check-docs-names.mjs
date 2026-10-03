@@ -37,25 +37,6 @@ import { fileURLToPath } from 'url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (p) => readFileSync(p, 'utf8');
 
-/**
- * Component names that only ever mean "your component here". A snippet rendering
- * one is showing where the reader's own code goes, not naming something of ours.
- */
-const PLACEHOLDERS = new Set(['MyComponent', 'Component', 'YourApp', 'Page']);
-
-/** Findings a person has looked at and kept, with why. Key: `<doc>::<finding>`. */
-const ALLOWLIST = new Map([
-  ['packages/react-ui/docs/SESSION.md::SignInPrompt', 'the host\'s own sign-in prompt, rendered when no session exists'],
-  ['apps/browser/docs/AUTHENTICATION.md::SignInPrompt', 'the host\'s own sign-in prompt, rendered when no session exists'],
-  ['apps/browser/docs/AUTHENTICATION.md::LoadingSpinner', 'stands for the inline spinner in know/layout.tsx; the example condenses it'],
-  ['apps/browser/docs/AUTHENTICATION.md::AuthenticatedKnowledgeLayout', 'stands for the inline authed layout in know/layout.tsx'],
-  ['apps/browser/docs/AUTHORIZATION.md::AnnotationList', 'the reader\'s own list, given the signed-in person'],
-  ['packages/react-ui/docs/TESTING.md::AddDocumentButton', 'the component under test in a testing-pattern example'],
-  ['packages/react-ui/docs/TESTING.md::CloseButton', 'the component under test in a testing-pattern example'],
-  ['apps/browser/docs/KEYBOARD-NAV.md::DeleteIcon', 'the host\'s icon, passed in; react-ui ships no icon set'],
-  ['apps/browser/docs/TESTING.md::ComponentThatMightFail', 'the child an error-boundary test throws from'],
-]);
-
 // ── What the tree has ─────────────────────────────────────────────────────────
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', '__tests__', 'coverage', '.claude']);
@@ -215,7 +196,6 @@ const lineOf = (block, index) => block.line + block.text.slice(0, index).split('
 
 const findings = [];
 function report(doc, line, kind, detail) {
-  if (ALLOWLIST.has(`${doc}::${detail}`)) return;
   findings.push({ doc, line, kind, detail });
 }
 
@@ -245,7 +225,7 @@ for (const doc of DOCS) {
       if (!known(m[1]) && !REACT_HOOKS.has(m[1])) report(doc, lineOf(block, m.index), 'hook', m[1]);
     }
     for (const m of block.text.matchAll(/(?<![\w.$])<([A-Z][\w]*)(?=[\s/>])/g)) {
-      if (!known(m[1]) && !REACT_COMPONENTS.has(m[1]) && !PLACEHOLDERS.has(m[1])) report(doc, lineOf(block, m.index), 'component', m[1]);
+      if (!known(m[1]) && !REACT_COMPONENTS.has(m[1])) report(doc, lineOf(block, m.index), 'component', m[1]);
     }
     for (const m of block.text.matchAll(/\b(client|session\??\.client|semiont)\??\.([a-z]\w*)\??\.([a-z]\w*)\(/g)) {
       const [, recv, ns, method] = m;

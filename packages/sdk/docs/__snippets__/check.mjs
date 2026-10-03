@@ -81,7 +81,14 @@ const SUITES = {
       'packages/react-ui/README.md',
       'apps/browser/README.md',
     ],
-    preludes: ['prelude-ui.ts', 'prelude-ui-assets.ts'],
+    // react-ui's own declarations for the untyped jest-axe and its vitest
+    // matcher ride along, so its accessibility tests read as the docs show them.
+    preludes: [
+      'prelude-ui.ts',
+      'prelude-ui-assets.ts',
+      '../../../react-ui/src/types/jest-axe.d.ts',
+      '../../../react-ui/src/types/vitest-matchers.d.ts',
+    ],
     options: {
       module: ts.ModuleKind.ESNext,
       moduleResolution: ts.ModuleResolutionKind.Bundler,
@@ -100,28 +107,52 @@ const SUITES = {
   },
 };
 
+// The names a prelude declares in its `declare global` blocks.
+function preludeVocabulary(preludePaths) {
+  const names = new Set();
+  for (const path of preludePaths) {
+    const source = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true);
+    for (const statement of source.statements) {
+      if (!ts.isModuleDeclaration(statement) || statement.name.text !== 'global' || !statement.body) continue;
+      for (const declaration of statement.body.statements) {
+        if (ts.isVariableStatement(declaration)) {
+          declaration.declarationList.declarations.forEach((d) => ts.isIdentifier(d.name) && names.add(d.name.text));
+        } else if (declaration.name && ts.isIdentifier(declaration.name)) {
+          names.add(declaration.name.text);
+        }
+      }
+    }
+  }
+  return names;
+}
+
 // Each name a module exports, mapped to the first of `modules` that exports it.
-// Names the global scope already holds — DOM and language types, and the
-// prelude's vocabulary, which wins over an export of the same name — are left
-// to it.
+// The prelude's vocabulary always wins over an export of the same name. A DOM
+// or language global wins over a type-only export — React code writes React's
+// synthetic event as `React.MouseEvent`, so a bare `MouseEvent` is the DOM's —
+// but not over an exported value: a snippet calling `screen.getByRole` means
+// testing-library's `screen`, not `window.screen`.
 function exportedNames(modules, options, probeDir, preludePaths) {
   if (modules.length === 0) return new Map();
   const probe = join(probeDir, '__exports_probe.ts');
   writeFileSync(probe, `${modules.map((m, i) => `import * as m${i} from '${m}';`).join('\n')}\nexport {};\n`);
-  const program = ts.createProgram([probe, ...preludePaths], options);
+  const program = ts.createProgram([probe], options);
   const checker = program.getTypeChecker();
   const source = program.getSourceFile(probe);
   const globals = new Set(
     checker.getSymbolsInScope(source.endOfFileToken, ts.SymbolFlags.Value | ts.SymbolFlags.Type)
       .map((s) => s.name),
   );
+  const vocabulary = preludeVocabulary(preludePaths);
   const owner = new Map();
   source.statements.filter(ts.isImportDeclaration).forEach((decl, i) => {
     const moduleSymbol = checker.getSymbolAtLocation(decl.moduleSpecifier);
     if (!moduleSymbol) throw new Error(`doc-snippets: ambient module '${modules[i]}' does not resolve`);
     for (const exported of checker.getExportsOfModule(moduleSymbol)) {
       const exportedName = exported.name;
-      if (exportedName === 'default' || globals.has(exportedName) || owner.has(exportedName)) continue;
+      if (exportedName === 'default' || vocabulary.has(exportedName) || owner.has(exportedName)) continue;
+      const target = exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
+      if (globals.has(exportedName) && !(target.flags & ts.SymbolFlags.Value)) continue;
       owner.set(exportedName, modules[i]);
     }
   });

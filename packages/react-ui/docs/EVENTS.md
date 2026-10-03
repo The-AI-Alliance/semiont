@@ -14,7 +14,7 @@ The app has **two independent `EventBus` instances**:
 
 | Bus | Owner | Lifetime | Channels |
 |---|---|---|---|
-| **Session bus** | `SemiontClient` (private) | One per KB session — reborn on every `signIn` / `setActiveKb` | KB-content traffic: `browse:*`, `mark:*`, `beckon:*`, `gather:*`, `match:*`, `bind:*`, `yield:*`, `job:*` |
+| **Session bus** | `SemiontClient` (`client.bus`) | One per KB session — reborn on every `signIn` / `setActiveKb` | KB-content traffic: `browse:*`, `mark:*`, `beckon:*`, `gather:*`, `match:*`, `bind:*`, `yield:*`, `job:*` |
 | **Shell bus** | `SemiontBrowser` (private) | App lifetime — survives sign-out, KB swap, and zero-KB state | UI shell traffic: `panel:*`, `shell:*`, `tabs:*`, `nav:*`, `settings:*` |
 
 The split exists because the shell must keep working when there is
@@ -22,21 +22,24 @@ no active session: sidebar toggles, panel switches, tab reorders,
 settings changes, and in-app nav clicks all fire with or without a
 signed-in user.
 
-Both buses expose the same surface — `.emit(channel, payload)`,
-`.on(channel, handler)`, `.stream(channel)`. Neither exposes the
-raw `EventBus` (both fields are private). Every channel lives on
-exactly **one** bus; emitting to the wrong bus is a silent no-op.
+The shell bus is reached through `SemiontBrowser`'s `.emit(channel, payload)`,
+`.on(channel, handler)` and `.stream(channel)`; its `EventBus` is private.
+The session bus is reached through the client's typed namespace methods,
+with `session.subscribe(channel, handler)` as the one generic
+subscription. Every channel lives on exactly **one** bus; emitting to
+the wrong bus is a silent no-op.
 
 ## Subscribing
 
 Use `useEventSubscription` — one channel at a time:
 
 ```tsx
-import { useEventSubscription } from '@semiont/react-ui';
+import { useEventSubscription, useResourceAnnotations } from '@semiont/react-ui';
 
 function AnnotationReactor() {
-  useEventSubscription('mark:create-ok', ({ annotationId }) => {
-    triggerSparkleAnimation(annotationId);
+  const { triggerSparkleAnimation } = useResourceAnnotations();
+  useEventSubscription('mark:added', (stored) => {
+    triggerSparkleAnimation(stored.payload.annotation.id);
   });
   return null;
 }
@@ -46,8 +49,8 @@ Or `useEventSubscriptions` for multiple channels in one hook:
 
 ```tsx
 useEventSubscriptions({
-  'mark:create-ok': ({ annotationId }) => { ... },
-  'mark:create-failed': ({ error }) => { ... },
+  'mark:added': (stored) => { /* stored.payload.annotation */ },
+  'mark:create-error': ({ resourceId, message }) => { /* ... */ },
 });
 ```
 
@@ -72,7 +75,10 @@ function Toolbar() {
   );
 }
 
-function MarkButton({ resourceId, selector }) {
+function MarkButton({ resourceId, selector }: {
+  resourceId: ResourceId;
+  selector: EventMap['mark:requested']['selector'];
+}) {
   const session = useObservable(useSemiont().activeSession$);
   if (!session) return null;
 
@@ -124,7 +130,10 @@ carrying its `correlationId`, and resolves with the reply or rejects with a `Bus
 The SDK's namespace methods call it:
 
 ```ts
-const { annotationId } = await client.mark.annotation(input);   // mark:create → its reply
+const { annotationId } = await client.mark.annotation({         // mark:create-request → its reply
+  motivation: 'highlighting',
+  target: { source: resourceId, selector: { type: 'TextQuoteSelector', exact: 'quoted text' } },
+});
 await client.mark.delete(resourceId, annotationId);              // rejects if it failed
 ```
 
@@ -211,8 +220,8 @@ purely by observing the live queries.
 - **Session swap invalidates any direct handler.** If you stashed
   a `.on(...)` callback's unsubscribe into a ref or module-level
   variable, and then `signIn`/`setActiveKb` constructed a new
-  client, the old unsubscribe does nothing and the handler no
-  longer fires. Prefer `useEventSubscription` — it re-subscribes
+  client, the old unsubscribe does nothing and the handler stops
+  firing. Prefer `useEventSubscription` — it re-subscribes
   on session swap.
 - **Large SSE payloads can span multiple reader chunks.** The
   parser in `ActorStateUnit` holds event-assembly state across

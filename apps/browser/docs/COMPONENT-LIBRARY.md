@@ -42,8 +42,8 @@ composes the library.
 - **Core UI** — Toolbar, StatusDisplay, Toast
 - **Resource viewer** — ResourceViewer, ResourceViewerPage
 - **Annotation system** — panels (Comments, References, Tags, Assessments, Highlights), entry components, popups
-- **Navigation** — NavigationMenu, SkipLinks, SidebarNavigation, CollapsibleResourceNavigation, SortableResourceTab
-- **Modals** — SearchModal, ResourceSearchModal, KeyboardShortcutsHelpModal, SessionEndedModal, PermissionDeniedModal, KbIdentityConflictModal
+- **Navigation** — NavigationMenu, SkipLinks, SimpleNavigation, CollapsibleResourceNavigation, SortableResourceTab
+- **Modals** — SearchModal, ReferenceWizardModal, ResourceGenerateModal, KeyboardShortcutsHelpModal, SessionEndedModal, PermissionDeniedModal, KbIdentityConflictModal
 - **Layout** — UnifiedHeader, LeftSidebar, PageLayout
 - **Session** — SessionTimer, SessionExpiryBanner
 - **Branding** — SemiontBranding
@@ -56,30 +56,32 @@ composes the library.
 - `SemiontProvider` — puts the `SemiontBrowser` singleton (sessions, KBs, the per-KB `SemiontClient`) into context; read via `useSemiont()`
 - `TranslationProvider` — pluggable i18n manager
 - `AnnotationProvider`, `ResourceAnnotationsProvider` — annotation + workspace state
-- `ThemeProvider`, `ToastProvider`, `LiveRegionProvider` — theming, toasts, a11y live region
+- `ThemeProvider`, `LineNumbersProvider`, `ToastProvider`, `LiveRegionProvider` — theming, line-number display, toasts, a11y live region
 
 #### Flow state units (from `@semiont/sdk`, re-exported)
-- `createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBindStateUnit`, `createBeckonStateUnit`, `createShellStateUnit`
-- Resource-page composition: `createResourceViewerPageStateUnit`
+- `createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`
+
+#### Page state units (react-ui's own)
+- Shell and resource-page composition: `createShellStateUnit`, `createResourceViewerPageStateUnit`
 
 ### What Stays in `apps/browser`
 
 #### Routing and app shell
 - Vite + React Router v7 routes
-- Locale-scoped layouts (`[locale]/know`, `[locale]/admin`, `[locale]/moderate`)
+- Locale-scoped layouts (`[locale]/know`, `[locale]/moderate`)
 - `AuthShell` composition and protected boundaries
-- Middleware and per-route data loading
+- Per-route data loading
 
 #### App-specific pages
-- Home, About, Privacy, Terms
-- Sign-in / Sign-up / Error pages
-- Admin pages (user management, DevOps dashboard)
-- Moderation pages (entity tags, schemas)
+- Home
+- The sign-in hand-off pages (`auth/connect`, `auth/callback`, `auth/error`)
+- Know pages (discover, compose, resource)
+- Moderation pages (recent, entity tags, tag schemas)
 
 #### Framework integration
 - React Router `Link` component adapter
 - Route builders and locale prefixing
-- Custom hooks (e.g. `useOpenResourcesManager`) that bridge app state into library providers
+- Custom hooks (e.g. `useMergedTranslationManager`) that bridge app state into library providers
 
 ## Provider Composition
 
@@ -94,29 +96,50 @@ behind `SemiontProvider` carries all session state, so there is **no**
 per-layout auth/client provider:
 
 ```tsx
-<TranslationProvider translationManager={…}>
-  <SemiontProvider>            {/* sessions, KBs, the per-KB SemiontClient */}
-    <ToastProvider>
-      <LiveRegionProvider>
-        <KeyboardShortcutsProvider>
-          <ThemeProvider>
-            {/* app */}
-          </ThemeProvider>
-        </KeyboardShortcutsProvider>
-      </LiveRegionProvider>
-    </ToastProvider>
-  </SemiontProvider>
-</TranslationProvider>
+import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
+import { NavigationHandler } from '@/components/knowledge/NavigationHandler';
+import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const translationManager = useMergedTranslationManager();
+
+  return (
+    <TranslationProvider translationManager={translationManager}>
+      <SemiontProvider>            {/* sessions, KBs, the per-KB SemiontClient */}
+        <ToastProvider>
+          <LiveRegionProvider>
+            <KeyboardShortcutsProvider>
+              <ThemeProvider>
+                <LineNumbersProvider>
+                  <NavigationHandler />
+                  {children}
+                </LineNumbersProvider>
+              </ThemeProvider>
+            </KeyboardShortcutsProvider>
+          </LiveRegionProvider>
+        </ToastProvider>
+      </SemiontProvider>
+    </TranslationProvider>
+  );
+}
 ```
 
-Protected layouts additionally mount `AuthShell`, which adds the protected
-error boundary and the session-expired / permission-denied modals (they
-read the active session's signals):
+The protected routes share one layout (`ProtectedLayout` in `src/App.tsx`) that mounts
+`AuthShell`, which adds the protected error boundary and the session-ended,
+permission-denied and KB-identity-conflict modals (they read the active
+session's signals):
 
 ```tsx
-<AuthShell>
-  {/* authenticated routes */}
-</AuthShell>
+import { Outlet } from 'react-router';
+import { AuthShell } from '@/contexts/AuthShell';
+
+function ProtectedLayout() {
+  return (
+    <AuthShell>
+      <Outlet />
+    </AuthShell>
+  );
+}
 ```
 
 The library owns provider implementations; the Browser owns the
@@ -132,9 +155,12 @@ decision about where to mount them. For the provider/session API reference
 import { Toolbar, ResourceViewer, useSemiont } from '@semiont/react-ui';
 ```
 
-Components read from the provider stack via hooks — no explicit props
+Provider-reading components (`Toolbar`, `SearchModal`, `SessionEndedModal`,
+anything calling `useSemiont()`) read from the provider stack via hooks — no explicit props
 for the client, event bus, or token. Layouts mount providers once; any
-component in the subtree has access.
+component in the subtree has access. The bring-your-own-session ones
+(`ResourceViewer`, the annotation panels and their entries) take the
+`SemiontSession` as a prop instead.
 
 ### Subscribing to observable data
 
@@ -145,7 +171,7 @@ Flow VMs and namespace methods return RxJS Observables. The
 import { useSemiont, useObservable } from '@semiont/react-ui';
 import { readyValue } from '@semiont/sdk';
 
-function ResourceTitle({ resourceId }) {
+function ResourceTitle({ resourceId }: { resourceId: ResourceId }) {
   // The client lives on the active session (null until one is active)
   const client = useObservable(useSemiont().activeSession$)?.client;
   const state = useObservable(client?.browse.resource(resourceId)); // CacheState<ResourceDescriptor>
@@ -168,11 +194,13 @@ default styles. Apps layer layout utilities over them; they should not
 override component-internal styling.
 
 ```tsx
-// Good — layout utility only
-<Button variant="primary" className="mt-4 w-full">Submit</Button>
+<>
+  {/* Good — layout utility only */}
+  <Button variant="primary" className="mt-4 w-full">Submit</Button>
 
-// Bad — overrides component styling
-<Button variant="primary" className="bg-blue-500">Submit</Button>
+  {/* Bad — overrides component styling */}
+  <Button variant="primary" className="bg-blue-500">Submit</Button>
+</>
 ```
 
 ## Benefits
@@ -190,8 +218,8 @@ override component-internal styling.
 When developing features that span both packages:
 
 ```bash
-# Watch react-ui for changes
-cd packages/react-ui && npm run dev
+# Rebuild react-ui after changing it (the Browser consumes its dist/)
+npm run build --workspace=@semiont/react-ui
 
 # Run the Browser
 cd apps/browser && npm run dev
@@ -224,23 +252,30 @@ library components as needed, use framework-specific APIs directly.
 
 Library components that need framework-specific capabilities accept
 them as props rather than importing them. Example — a navigation
-component takes the host's `Link` as a prop rather than importing
-`react-router`:
+component takes the host's `Link` and icon set as props rather than
+importing `react-router` or an icon library (condensed from
+`src/components/knowledge/KnowledgeNavigation.tsx`):
 
 ```tsx
 import { CollapsibleResourceNavigation } from '@semiont/react-ui';
-import { Link } from '@/lib/routing';
+import { PlusIcon, ChevronLeftIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Link, routes } from '@/lib/routing';
 
 <CollapsibleResourceNavigation
   Link={Link}
-  onNavigate={(path) => router.push(path)}
-  fixedItems={items}
+  icons={{ chevronLeft: ChevronLeftIcon, bars: Bars3Icon, close: XMarkIcon }}
+  onNavigate={navigate}
+  getResourceHref={(id) => routes.resourceDetail(id)}
+  fixedItems={[{ name: 'Compose', href: '/know/compose', icon: PlusIcon }]}
   resources={openResources}
+  isCollapsed={isCollapsed}
+  currentPath={pathname}
+  translations={{ title: 'Knowledge' }}
 />
 ```
 
-Same pattern for icons, date pickers, file uploaders — anything that
-would otherwise force a framework dependency.
+Same pattern for anything that would otherwise force a framework
+dependency.
 
 ## Troubleshooting
 

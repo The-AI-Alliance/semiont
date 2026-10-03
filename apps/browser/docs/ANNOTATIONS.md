@@ -2,22 +2,21 @@
 
 ## Overview
 
-The Semiont annotation system enables users to mark up documents with highlights, comments, assessments, and references, creating a rich knowledge graph. Built on the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/), annotations are standards-compliant objects with motivations following the W3C specification.
+The Semiont annotation system enables users to mark up documents with highlights, comments, assessments, tags, and references, creating a rich knowledge graph. Built on the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/), annotations are standards-compliant objects with motivations following the W3C specification.
 
 This document describes the Browser UI patterns, component architecture, user workflows, and the annotation registry system. For the complete W3C implementation across all gateway components (API, Event Store, and Graph Database), see [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md).
 
 ## Supported Annotation Types
 
-The W3C Web Annotation Data Model defines 13 standard motivations (`assessing`, `bookmarking`, `classifying`, `commenting`, `describing`, `editing`, `highlighting`, `identifying`, `linking`, `moderating`, `questioning`, `replying`, `tagging`). The `@semiont/http-transport` package provides the complete type as `components['schemas']['Motivation']`.
+The W3C Web Annotation vocabulary defines 13 motivations (`assessing`, `bookmarking`, `classifying`, `commenting`, `describing`, `editing`, `highlighting`, `identifying`, `linking`, `moderating`, `questioning`, `replying`, `tagging`). Semiont **supports five of them**: the spec's `Motivation` schema enumerates exactly those five, and `@semiont/core` generates the type (re-exported by `@semiont/sdk` as `Motivation`).
 
-Currently, Semiont Browser **implements 4 of these motivations**:
-
-| W3C Motivation | Internal Type | Description | Visual Style |
-|----------------|---------------|-------------|--------------|
-| `highlighting` | `highlight` | Mark text for attention | Yellow background with sparkle |
-| `commenting` | `comment` | Add a comment about the text | Dashed outline, opens Comments Panel |
-| `assessing` | `assessment` | Provide evaluation or assessment | Red underline |
-| `linking` | `reference` | Link to another resource | Gradient cyan-to-blue with link icon |
+| W3C Motivation | Annotator Key | Description | Class | Visual Style |
+|----------------|---------------|-------------|-------|--------------|
+| `highlighting` | `highlight` | Mark text for attention | `annotation-highlight` | Tinted background |
+| `commenting` | `comment` | Add a comment about the text | `annotation-comment` | Dashed outline |
+| `assessing` | `assessment` | Provide evaluation or assessment | `annotation-assessment` | Wavy underline |
+| `linking` | `reference` | Link to another resource | `annotation-reference` | Tinted background |
+| `tagging` | `tag` | Structural role annotation | `annotation-tag` | Tinted background |
 
 All annotation types are centrally managed through the **Annotation Registry** system (see [Annotation Registry](#annotation-registry) below).
 
@@ -28,57 +27,47 @@ All annotation types are centrally managed through the **Annotation Registry** s
 - **Enhanced features on demand**: References and entity linking available through progressive disclosure
 - **Graceful degradation**: System remains usable even if advanced features fail
 
-### 2. Contextual Intelligence
-- **Smart defaults**: System suggests appropriate annotation types based on context
-- **Minimal cognitive load**: Users shouldn't need to think about the mechanics
-- **Inline workflows**: Actions happen where the user is looking, not in distant UI
-
-### 3. Accessibility First
+### 2. Accessibility First
 - **Keyboard navigation**: All annotation features accessible without mouse
 - **Screen reader support**: Proper ARIA labels and live regions
 - **Visual feedback**: Clear focus indicators and state changes
 
-### 4. Performance & Responsiveness
-- **Instant feedback**: Visual confirmation of actions without waiting for server
-- **Optimistic updates**: UI updates immediately, with graceful rollback on error
+### 3. Performance & Responsiveness
+- **Markdown renders once**: BrowseView paints annotations as an overlay, so an annotation change rebuilds only the annotated text nodes
 - **Lightweight components**: Minimal DOM manipulation and re-renders
 
-### 5. Standards Compliance
+### 4. Standards Compliance
 - **W3C Web Annotation Data Model**: All annotations follow the W3C specification
 - **Multi-body arrays**: Support for entity type tags (`TextualBody` with `purpose: "tagging"`) and document links (`SpecificResource` with `purpose: "linking"`)
-- **JSON-LD export**: W3C-compliant serialization for semantic web integration
+- **JSON-LD view**: W3C-compliant serialization for semantic web integration
 - **Interoperability**: Standards-based approach enables data portability and tool integration
 
 ## Architecture
 
 ### Component Hierarchy
 
-```
-ResourceViewer (Container)
-├── AnnotateView / BrowseView (Display Layer)
-│   ├── Text Segments with Annotations
-│   └── Selection Detection & Sparkle UI
-├── AnnotationPopup (Interaction Layer)
-│   ├── CreateAnnotationPopup
-│   ├── HighlightPopup
-│   ├── StubReferencePopup
-│   └── ResolvedReferencePopup
-└── DocumentAnnotationsContext (State Layer)
-    ├── Annotation CRUD Operations
-    ├── Optimistic Updates
-    └── Server Synchronization
+All of these come from `@semiont/react-ui`; the Browser's resource page renders `ResourceViewerPage`.
+
+```text
+ResourceViewerPage (page shell; composes the resource-viewer page state unit)
+├── ResourceViewer (bring-your-own-session viewer)
+│   ├── BrowseView — rendered content, annotations painted as an overlay
+│   ├── AnnotateView — text selection, image and PDF shape drawing
+│   │   (both carry the AnnotateToolbar)
+│   └── PopupContainer — JsonLdView, or the delete confirmation
+└── UnifiedAnnotationsPanel — statistics plus one tab per annotator
+    └── HighlightPanel / ReferencesPanel / AssessmentPanel / CommentsPanel / TaggingPanel
+        └── HighlightEntry / ReferenceEntry / AssessmentEntry / CommentEntry / TagEntry
 ```
 
 ### Data Flow
 
-1. **User Selection** → Text selection in AnnotateView
-2. **Visual Feedback** → Sparkle UI appears with dashed border
-3. **Action Trigger** → Click sparkle or keyboard shortcut
-4. **Popup Display** → Contextual popup based on selection state
-5. **User Decision** → Choose annotation type and properties
-6. **Optimistic Update** → Immediate UI update with sparkle animation
-7. **Server Sync** → Background API call persisted to Event Store (with materialized views) and Graph Database
-8. **Confirmation** → Animation complete, W3C-compliant annotation persisted across all gateway components
+1. **Selection** → In annotate mode, with a motivation picked in the AnnotateToolbar, the user selects text (or draws a shape on an image or PDF)
+2. **Request** → AnnotateView builds a `TextPositionSelector` + `TextQuoteSelector` pair and calls `session.client.mark.request(...)`, emitting `mark:requested`
+3. **Pending** → The mark state unit holds the pending annotation; ResourceViewerPage opens the annotations panel
+4. **Compose** → The motivation's panel shows a composer for the pending annotation; a highlight needs none and is submitted at once
+5. **Submit** → The panel calls `session.client.mark.submit(...)`; the mark state unit calls `client.mark.annotation(...)`, which resolves once the gateway confirms, and clears the pending annotation
+6. **Refresh** → The gateway persists the annotation to the Event Store (with materialized views) and Graph Database; the resulting `mark:added` refreshes the SDK's `browse.annotations` live query, the views re-render, and the created annotation sparkles
 
 For complete architecture details on how annotations flow through the gateway data storage components, see [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md).
 
@@ -86,7 +75,7 @@ For complete architecture details on how annotations flow through the gateway da
 
 ### Purpose
 
-The Annotation Registry is provided by `@semiont/react-ui` and is a centralized system that provides a **single source of truth** for all annotation type metadata. This eliminates hard-coded lists scattered across the codebase and makes it trivial to add new W3C annotation motivations.
+The Annotation Registry is provided by `@semiont/react-ui` and is a centralized system that provides a **single source of truth** for all annotation type metadata. This eliminates hard-coded lists scattered across the codebase.
 
 **Implementation**: [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/react-ui/src/lib/annotation-registry.ts)
 
@@ -96,265 +85,124 @@ The registry follows these core principles:
 - **Clean, direct, and ruthless**: No backward compatibility layers or aliasing
 - **Single source of truth**: All annotation metadata in one place
 - **Type safety**: TypeScript ensures all metadata fields are provided
-- **Extensibility**: Adding new motivations requires editing only 1 file
 
 ### Registry Structure
 
-Each annotation type is defined with comprehensive metadata:
+Each annotation type is an `Annotator`:
 
 ```typescript
-export interface AnnotationTypeMetadata {
+const {
   // W3C specification
-  motivation: Motivation;           // W3C motivation from http-transport
-  internalType: string;             // Internal identifier (e.g., 'comment')
+  motivation,          // 'highlighting'
+  internalType,        // 'highlight'
 
   // Display
-  displayName: string;              // User-facing name
-  description: string;              // User-facing description
+  displayName,         // 'Highlight'
+  description,         // 'Mark text for attention'
 
   // Visual styling
-  className: string;                // CSS classes for rendering (app-specific uses Tailwind)
-  iconEmoji?: string;               // Optional emoji icon
+  className,           // 'annotation-highlight'
+  iconEmoji,           // optional emoji icon
 
   // Behavior flags
-  isClickable: boolean;             // Can user click this annotation?
-  hasHoverInteraction: boolean;     // Should hover trigger visual feedback?
-  hasSidePanel: boolean;            // Opens side panel (e.g., Comments Panel)?
+  isClickable,
+  hasHoverInteraction,
+  hasSidePanel,        // Opens the annotations panel
 
-  // Type detection
-  matchesAnnotation: (annotation: Annotation) => boolean;
+  // Type detection: (annotation: Annotation) => boolean
+  matchesAnnotation,
 
-  // Accessibility
-  announceOnCreate: string;         // Screen reader announcement
-}
+  // Accessibility: screen reader announcement
+  announceOnCreate,    // 'Highlight created'
+
+  // AI assist display metadata (optional), and how the body is built
+  detection,
+  create,
+}: Annotator = ANNOTATORS.highlight;
 ```
 
 ### Current Implementation
 
-The registry defines metadata for all 4 supported annotation types:
+`ANNOTATORS` holds one annotator per supported motivation, keyed `highlight`, `comment`, `assessment`, `reference` and `tag` (the `AnnotatorKey` type). It is checked with `satisfies Record<string, Annotator>`, so every entry provides every field and keeps its literal type.
+
+### Lookups
 
 ```typescript
-export const ANNOTATION_TYPES: Record<string, AnnotationTypeMetadata> = {
-  highlight: {
-    motivation: 'highlighting',
-    internalType: 'highlight',
-    displayName: 'Highlight',
-    description: 'Mark text for attention',
-    className: 'rounded px-0.5 cursor-pointer transition-all duration-200 bg-yellow-200 hover:bg-yellow-300 text-gray-900 dark:bg-yellow-900/50 dark:hover:bg-yellow-900/60 dark:text-white dark:outline dark:outline-2 dark:outline-dashed dark:outline-yellow-500/60 dark:outline-offset-1',
-    iconEmoji: '🖍️',
-    isClickable: true,
-    hasHoverInteraction: true,
-    hasSidePanel: false,
-    matchesAnnotation: (ann) => isHighlight(ann),
-    announceOnCreate: 'Highlight created'
-  },
+// The annotator an annotation belongs to: each annotator answers for itself
+const annotator = Object.values(ANNOTATORS).find((a) => a.matchesAnnotation(annotation));
 
-  comment: {
-    motivation: 'commenting',
-    internalType: 'comment',
-    hasSidePanel: true,  // Opens Comments Panel
-    // ... other metadata
-  },
-
-  assessment: {
-    motivation: 'assessing',
-    internalType: 'assessment',
-    // ... other metadata
-  },
-
-  reference: {
-    motivation: 'linking',
-    internalType: 'reference',
-    // ... other metadata
-  }
-};
+// The registry key for a W3C motivation ('linking' → 'reference')
+const key: AnnotatorKey | undefined = annotatorKeyForMotivation(annotation.motivation);
 ```
 
-### Helper Functions
-
-The registry provides utility functions for working with annotations:
-
-```typescript
-// Get all metadata for an annotation
-getAnnotationTypeMetadata(annotation: Annotation): AnnotationTypeMetadata | null
-
-// Get just the className
-getAnnotationClassName(annotation: Annotation): string
-
-// Get internal type string ('highlight', 'comment', etc.)
-getAnnotationInternalType(annotation: Annotation): string
-
-// Group annotations by type
-groupAnnotationsByType(annotations: Annotation[]): Record<string, Annotation[]>
-```
-
-### Usage Examples
+### Usage
 
 #### Rendering Annotations
 
-Before the registry, className logic was duplicated in multiple places:
+AnnotateView's CodeMirror decorations take the class from the annotation's annotator:
 
 ```typescript
-// OLD: Hard-coded styling logic (appeared in 3+ files)
-let className: string;
-if (annotation.motivation === 'commenting') {
-  className = 'rounded px-0.5 cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800 outline outline-2 outline-dashed outline-gray-900 dark:outline-gray-100 outline-offset-1';
-} else if (annotation.motivation === 'assessing') {
-  className = 'red-underline cursor-pointer transition-all duration-200 hover:opacity-80';
-} else if (isReference(annotation)) {
-  className = 'rounded px-0.5 cursor-pointer transition-all duration-200 bg-gradient-to-r from-cyan-200 to-blue-200 hover:from-cyan-300 hover:to-blue-300 text-gray-900 dark:from-blue-900/50 dark:to-cyan-900/50 dark:hover:from-blue-900/60 dark:hover:to-cyan-900/60 dark:text-white dark:outline dark:outline-2 dark:outline-dashed dark:outline-cyan-500/60 dark:outline-offset-1';
-} else {
-  className = 'rounded px-0.5 cursor-pointer transition-all duration-200 bg-yellow-200 hover:bg-yellow-300 text-gray-900 dark:bg-yellow-900/50 dark:hover:bg-yellow-900/60 dark:text-white dark:outline dark:outline-2 dark:outline-dashed dark:outline-yellow-500/60 dark:outline-offset-1';
+const className =
+  Object.values(ANNOTATORS).find((a) => a.matchesAnnotation(annotation))?.className ?? 'annotation-highlight';
+```
+
+BrowseView's overlay records each annotation's `internalType` and wraps its text in an `annotation-<type>` span.
+
+#### Routing Clicks
+
+When an annotation is clicked, `ResourceViewer` finds its annotator. If the annotator has a side panel (`hasSidePanel`) and the toolbar's click action is `detail`, the viewer asks the host to open the annotations panel at that annotation; the shell state unit turns the motivation into the panel's tab with `annotatorKeyForMotivation`.
+
+#### Grouping Annotations
+
+`UnifiedAnnotationsPanel` takes the registry as its `annotators` prop and groups what it is given by each annotator's `internalType`:
+
+```typescript
+const groups: Record<string, Annotation[]> = {};
+for (const ann of annotations) {
+  const annotator = Object.values(ANNOTATORS).find((a) => a.matchesAnnotation(ann));
+  if (annotator) (groups[annotator.internalType] ??= []).push(ann);
 }
-```
-
-Now it's a single line:
-
-```typescript
-// NEW: Single line using registry
-const className = getAnnotationClassName(annotation);
-```
-
-#### Routing Hover Events
-
-Before the registry, hover detection had hard-coded motivation checks:
-
-```typescript
-// OLD: Hard-coded motivation check
-const handleAnnotationHover = (annotationId: string | null) => {
-  if (annotationId) {
-    const annotation = annotationMap.get(annotationId);
-    if (annotation?.motivation === 'commenting') {
-      onCommentHover(annotationId);
-      return;
-    }
-  }
-  onAnnotationHover(annotationId);
-};
-```
-
-Now it uses metadata flags:
-
-```typescript
-// NEW: Uses registry metadata
-const handleAnnotationHover = (annotationId: string | null) => {
-  if (annotationId) {
-    const annotation = annotationMap.get(annotationId);
-    const metadata = annotation ? getAnnotationTypeMetadata(annotation) : null;
-
-    // Route to side panel if annotation type has one
-    if (metadata?.hasSidePanel && onCommentHover) {
-      onCommentHover(annotationId);
-      return;
-    }
-  }
-  onAnnotationHover(annotationId);
-};
-```
-
-#### Filtering Annotations
-
-Before the registry:
-
-```typescript
-// OLD: Manual filtering (4 separate filter calls)
-const highlights = annotations.filter((a: Annotation) => a.motivation === 'highlighting');
-const references = annotations.filter((a: Annotation) => a.motivation === 'linking');
-const assessments = annotations.filter((a: Annotation) => a.motivation === 'assessing');
-const comments = annotations.filter((a: Annotation) => a.motivation === 'commenting');
-```
-
-After the registry:
-
-```typescript
-// NEW: Single function call
-const groups = groupAnnotationsByType(annotations);
-const highlights = groups.highlight || [];
-const references = groups.reference || [];
-const assessments = groups.assessment || [];
-const comments = groups.comment || [];
 ```
 
 #### Accessibility Announcements
 
-Before the registry, announcements only supported 2 types:
+`useDocumentAnnouncements` announces each type's own `announceOnCreate`:
 
 ```typescript
-// OLD: Hard-coded type string
-const announceAnnotationCreated = (type: 'highlight' | 'reference') => {
-  announce(`${type === 'highlight' ? 'Highlight' : 'Reference'} created`, 'polite');
-};
-```
+const { announceAnnotationCreated } = useDocumentAnnouncements(ANNOTATORS);
 
-Now it supports all types automatically:
-
-```typescript
-// NEW: Uses registry metadata
-const announceAnnotationCreated = (annotation: Annotation) => {
-  const metadata = getAnnotationTypeMetadata(annotation);
-  const message = metadata?.announceOnCreate ?? 'Annotation created';
-  announce(message, 'polite');
-};
+announceAnnotationCreated(annotation); // 'Highlight created', 'Comment created', …
 ```
 
 ### Adding New Annotation Types
 
-To add a new W3C motivation (e.g., `tagging`), edit **only** [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/react-ui/src/lib/annotation-registry.ts):
+The registry holds every per-motivation fact, but supporting another motivation takes more than a registry entry. It touches:
 
-```typescript
-export const ANNOTATORS: Record<string, Annotator> = {
-  // ... existing types ...
-
-  tag: {
-    motivation: 'tagging',
-    displayName: 'Tag',
-    description: 'Add semantic tags to content',
-    className: 'rounded px-0.5 cursor-pointer transition-all duration-200 bg-green-200 hover:bg-green-300 text-gray-900 dark:bg-green-900/50',
-    iconEmoji: '🏷️',
-    isClickable: true,
-    hasHoverInteraction: true,
-    hasSidePanel: true,  // If tags have a side panel
-    matchesAnnotation: (ann) => ann.motivation === 'tagging'
-  }
-};
-```
-
-That's it! All styling, filtering, hover behavior, click handling, and accessibility work automatically.
+- `specs/src/components/schemas/Motivation.json` — the `Motivation` enum must admit it (then regenerate the types in `@semiont/core`), and a type guard in `@semiont/core` recognizes it
+- [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/react-ui/src/lib/annotation-registry.ts) — its annotator
+- `packages/react-ui/src/types/annotation-props.ts` and `packages/react-ui/src/lib/annotation-groups.ts` — `AnnotationsCollection` and the grouping that fills it have one bucket per motivation
+- `packages/react-ui/src/components/resource/panels/UnifiedAnnotationsPanel.tsx` — its tab, and a panel for it
+- `packages/react-ui/src/styles/motivations/` — the stylesheet for its `annotation-<type>` class
 
 ### Files Using the Registry
 
-The registry is imported and used in `@semiont/react-ui` components:
+The registry is imported and used in `@semiont/react-ui`:
 
-- [`@semiont/react-ui/src/lib/annotation-overlay.ts`](../../../packages/react-ui/src/lib/annotation-overlay.ts) - Annotation overlay (DOM Range-based)
-- [`@semiont/react-ui/src/components/CodeMirrorRenderer.tsx`](../../../packages/react-ui/src/components/CodeMirrorRenderer.tsx) - Code editor rendering
+- [`@semiont/react-ui/src/lib/annotation-overlay.ts`](../../../packages/react-ui/src/lib/annotation-overlay.ts) - Annotation overlay (BrowseView)
+- [`@semiont/react-ui/src/lib/codemirror-logic.ts`](../../../packages/react-ui/src/lib/codemirror-logic.ts) - CodeMirror decoration classes
 - [`@semiont/react-ui/src/components/resource/BrowseView.tsx`](../../../packages/react-ui/src/components/resource/BrowseView.tsx) - Browse mode rendering
 - [`@semiont/react-ui/src/components/resource/AnnotateView.tsx`](../../../packages/react-ui/src/components/resource/AnnotateView.tsx) - Annotate mode rendering
 - [`@semiont/react-ui/src/components/resource/ResourceViewer.tsx`](../../../packages/react-ui/src/components/resource/ResourceViewer.tsx) - Click handlers
-
-And in the Browser app:
-- [src/app/[locale]/know/resource/[id]/page.tsx](../src/app/%5Blocale%5D/know/resource/%5Bid%5D/page.tsx) - Annotation filtering and detection handlers
+- [`@semiont/react-ui/src/components/resource/panels/UnifiedAnnotationsPanel.tsx`](../../../packages/react-ui/src/components/resource/panels/UnifiedAnnotationsPanel.tsx) - Grouping and tabs
+- [`@semiont/react-ui/src/state/shell-state-unit.ts`](../../../packages/react-ui/src/state/shell-state-unit.ts) - Motivation → panel tab
 
 ### Benefits
 
-1. **Extensibility**: Add new annotation types by editing 1 file instead of 7+
-2. **Maintainability**: Single source of truth for annotation metadata
-3. **Consistency**: All components use the same styling/behavior logic
-4. **Type Safety**: TypeScript ensures all metadata fields are provided
-5. **Documentation**: Registry serves as living documentation of supported types
-6. **Testing**: Easier to test annotation behavior in isolation
-
-### Implementation History
-
-The registry was implemented in October 2025 as part of a comprehensive refactoring to eliminate hard-coded annotation lists throughout the codebase.
-
-**Key changes:**
-- Created centralized registry with all annotation metadata
-- Removed ~70 lines of duplicate className logic
-- Updated 7+ files to use registry functions
-- Deleted legacy `annotation-styles.ts` file
-- Removed debug console.logs and implemented TODOs
-
-The refactoring followed a clean, direct approach with no backward compatibility layers - all call sites were updated directly to use the registry functions.
+1. **Maintainability**: Single source of truth for annotation metadata
+2. **Consistency**: All components use the same styling/behavior logic
+3. **Type Safety**: TypeScript ensures all metadata fields are provided
+4. **Documentation**: Registry serves as living documentation of supported types
+5. **Testing**: Easier to test annotation behavior in isolation
 
 ## Component Design
 
@@ -362,275 +210,153 @@ The refactoring followed a clean, direct approach with no backward compatibility
 **Purpose**: Renders document content with interactive annotations
 
 **Key Features**:
-- Segments text into annotated and non-annotated parts
-- Handles text selection with visual feedback (dashed border + sparkle)
-- Manages focus state for keyboard navigation
-- Provides click and right-click handlers for annotations
+- Segments text into annotated and non-annotated parts, rendered by CodeMirror
+- Turns a text selection into a `TextPositionSelector` + `TextQuoteSelector` pair and requests an annotation with the toolbar's motivation (`mark:requested`)
+- Draws shapes on images (`SvgDrawingCanvas`) and PDFs
+- Emits `browse:click` for a click on an annotation and `beckon:hover` for a hover
 
 **Implementation Details**:
-```typescript
-// Text segmentation algorithm
-1. Sort annotations by offset
-2. Split text at annotation boundaries
-3. Render segments with appropriate styling
-4. Apply sparkle animation to new annotations
+```text
+segmentTextWithAnnotations(content, annotations)   — lib/text-segmentation.ts
+1. Anchor each annotation: the stored position, re-anchored on a verbatim quote match
+2. Drop anchors outside the content or empty; sort by start
+3. Skip an annotation that overlaps an earlier one
+4. Emit plain and annotated segments covering the whole content
 ```
 
-### AnnotationPopup System
-**Purpose**: Modular popup system for annotation operations
+### Click Actions
+**Purpose**: The AnnotateToolbar's click action decides what clicking an annotation does
 
-**Component Breakdown**:
-- **CreateAnnotationPopup**: Initial selection, no existing annotation (creates W3C annotation with entity type tags)
-- **HighlightPopup**: Existing highlight, can convert to reference (annotation with empty body array)
-- **StubReferencePopup**: Unresolved reference with entity types (`TextualBody` with `purpose: "tagging"`), can link to document, includes JSON-LD export button
-- **ResolvedReferencePopup**: Linked reference with entity types + document link (`SpecificResource` with `purpose: "linking"`), can edit or unlink, includes JSON-LD export button
+- **detail**: Opens the annotations panel at the annotation
+- **follow**: Navigates to a resolved reference's target resource
+- **jsonld**: Shows the annotation's JSON-LD in `JsonLdView`
+- **deleting**: Asks for confirmation, then deletes (annotate mode only)
 
-**Shared Features**:
-- Headless UI Dialog for accessibility
-- Consistent visual design with glass morphism
-- Keyboard navigation and focus management
-- Escape key and click-outside dismissal
-
-### DocumentAnnotationsContext
-**Purpose**: Centralized state management for annotations
+### ResourceAnnotationsContext
+**Purpose**: UI state for the annotations on screen; the annotations themselves come from the SDK's live queries
 
 **Responsibilities**:
-- Maintain local annotation state
-- Handle CRUD operations with optimistic updates
-- Track newly created annotations for sparkle animation
-- Synchronize with gateway API
-- Provide hooks for components to access annotation data
+- Track recently created or resolved annotations for the sparkle animation (`sparkleAnnotationIds`, `triggerSparkleAnimation`, `clearSparkle`)
+- Create annotations of any motivation (`markAnnotation`)
 
 ## User Workflows
 
-### Creating a Highlight
-1. Select text in document
-2. See sparkle appear (or press 'H' key)
-3. Click sparkle → creates highlight immediately
-4. Yellow background with sparkle animation confirms creation
+### Creating an Annotation
+1. Switch to annotate mode and pick a motivation in the AnnotateToolbar
+2. Select text in the document (or draw a shape on an image or PDF)
+3. The annotations panel opens on that motivation's composer; a highlight is created at once
+4. Fill in the composer (a reference takes optional entity types) and create it
+5. The created annotation appears with its motivation's styling and sparkles
 
-### Creating a Reference
-1. Select text in document
-2. Press 'R' key (or click sparkle → click Reference)
-3. Choose entity type (optional)
-4. Enter reference details or search for document
-5. Reference created with appropriate styling
-
-### Converting Between Types
-1. Click existing annotation
-2. Popup shows current state
-3. Choose "Convert to Reference" or "Convert to Highlight"
-4. Annotation updates in place with animation
-
-### Keyboard Workflows
-- **H**: Quick highlight from selection
-- **R**: Quick reference from selection
-- **Delete**: Remove focused annotation
-- **Tab/Shift-Tab**: Navigate through annotations
-- **Enter/Space**: Activate focused annotation
+### Resolving a Reference
+1. In annotate mode, click the ❓ icon on an unresolved reference's panel entry
+2. The reference wizard opens (`bind:initiate`) to link it to a resource
+3. A resolved reference's 🔗 icon opens its target; its unlink control removes the link
 
 ## Visual Design System
 
-### Color Coding
-```css
-/* Highlights */
-background: rgb(254, 240, 138)  /* Yellow */
-
-/* References by Type */
-Stub Reference: rgb(243, 232, 255)      /* Light Purple */
-Resolved Reference: rgb(219, 234, 254)  /* Light Blue */
-Entity Reference: rgb(209, 250, 229)    /* Light Green */
-```
+Each motivation's styles live in `packages/react-ui/src/styles/motivations/` (`motivation-highlight.css`, `motivation-comment.css`, …) as its `annotation-<type>` class, with dark-theme variants.
 
 ### Interaction States
-- **Hover**: Slight darkening, cursor pointer
-- **Focus**: Cyan ring with offset
-- **Active**: Sparkle animation on creation
-- **Selection**: Dashed yellow border with pulse
-
-### Animation System
-```css
-/* Sparkle animation for new annotations */
-@keyframes sparkle {
-  0%, 100% { opacity: 0; transform: scale(0) rotate(0deg); }
-  50% { opacity: 1; transform: scale(1) rotate(180deg); }
-}
-
-/* Pulse animation for selection */
-@keyframes pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
-}
-```
+- **Hover**: Each annotation class has its own hover style
+- **Active**: `annotation-sparkle` on recently created or resolved annotations
+- **Low confidence**: `annotation-low-confidence` on an annotation anchored below high confidence (dotted underline, with a tooltip naming the anchoring strategy)
 
 ## Accessibility Features
 
-### WCAG 2.1 Level AA Compliance
-- **Color Contrast**: All text meets minimum contrast ratios
-- **Keyboard Access**: Full functionality without mouse
-- **Focus Management**: Clear focus indicators and logical tab order
-- **Screen Reader Support**: Proper ARIA labels and live regions
-- **Error Handling**: Clear error messages with proper announcement
-
-### ARIA Implementation
-```html
-<!-- Annotation with ARIA -->
-<span
-  role="button"
-  tabIndex={0}
-  aria-label="Highlight: [text content]"
-  aria-describedby="annotation-tooltip"
->
-
-<!-- Live Region for Updates -->
-<div role="status" aria-live="polite">
-  Highlight created
-</div>
-```
+### Live Regions
+`LiveRegionProvider` renders a polite (`role="status"`) and an assertive (`role="alert"`) live region; `useLiveRegion().announce(message, priority)` writes to them, and `useDocumentAnnouncements` builds the annotation announcements on it.
 
 ## Performance Optimizations
 
 ### Rendering Strategy
-- **Memoization**: DocumentCard and annotation components use React.memo
-- **Segment Caching**: Text segmentation only recalculates on annotation changes
-- **Virtual Focus**: Only focused annotation has tabIndex={0}
+- **Markdown renders once**: BrowseView caches the rendered markdown; an annotation change touches only the overlay spans, with no markdown re-parse and no AST walk
+- **One mutation per text node**: The overlay rebuilds each annotated text node once, off-DOM, in offset space, so overlapping annotations cost no extra DOM mutations
 
 ### State Management
-- **Optimistic Updates**: UI updates before server confirmation
-- **Debounced Search**: 300ms delay on document search
-- **Selective Re-renders**: Context updates only affected components
+- **Live queries**: Annotation lists are SDK live queries; the SDK refreshes them off `mark:added`, `mark:removed` and `mark:body-updated`, so components make no refetch calls
 
-### Bundle Size
-- **Code Splitting**: Annotation popups loaded on demand
-- **Tree Shaking**: Unused Headless UI components excluded
-- **Minimal Dependencies**: Lightweight implementation without heavy libraries
+## SDK Integration
 
-## API Integration
+The Browser never calls the HTTP API directly; every annotation operation goes through `@semiont/sdk`:
 
-### Endpoints
 ```typescript
-// Annotation CRUD
-POST   /api/documents/{id}/annotations
-GET    /api/documents/{id}/annotations
-PUT    /api/annotations/{id}
-DELETE /api/annotations/{id}
+// Create: resolves once the gateway confirms
+const { annotationId: created } = await session.client.mark.annotation({
+  motivation: 'highlighting',
+  target: { source: rId, selector: { type: 'TextQuoteSelector', exact: 'Hello World' } },
+});
 
-// Reference Resolution
-GET    /api/documents/search
-GET    /api/entity-types
-POST   /api/annotations/{id}/resolve
+// Delete
+await session.client.mark.delete(rId, created);
+
+// Read: a live query the SDK keeps fresh
+const annotations$ = session.client.browse.annotations(rId);
+
+// Resolve a reference: add a link to its body
+await session.client.bind.body(rId, aId, [
+  { op: 'add', item: { type: 'SpecificResource', source: resourceId, purpose: 'linking' } },
+]);
+
+// Entity types for reference composers
+const entityTypes$ = session.client.browse.entityTypes();
 ```
 
 ### Error Handling
-- **Network Failures**: Optimistic updates rollback with toast notification
-- **Validation Errors**: Inline error messages in popups
-- **Permission Errors**: Clear messaging about access restrictions
-- **Conflict Resolution**: Last-write-wins with user notification
+- **Confirmed writes**: `mark.annotation`, `mark.delete` and `bind.body` await the gateway's reply and reject on failure
+- **Outcome toasts**: `useOutcomeToasts` surfaces failed creates, deletes and body updates on the resource page
 
-## Testing Strategy
+## Testing
 
-### Unit Tests
-- Text segmentation algorithm
-- Annotation CRUD operations
-- Keyboard shortcut handlers
-- ARIA attribute generation
-
-### Integration Tests
-- Popup workflows end-to-end
-- Keyboard navigation sequences
-- Focus management scenarios
-- API synchronization
-
-### Accessibility Tests
-- Screen reader compatibility
-- Keyboard-only navigation
-- Color contrast validation
-- Focus trap verification
-
-## Future Enhancements
-
-### Planned Features
-- **Collaborative Annotations**: Real-time multi-user editing
-- **Annotation Threading**: Comments and discussions on annotations
-- **Smart Suggestions**: AI-powered entity recognition
-- **Bulk Operations**: Select multiple annotations for batch actions
-- **Version History**: Track annotation changes over time
-
-### Technical Improvements
-- **WebSocket Sync**: Real-time updates without polling
-- **Offline Support**: Service worker for offline annotation
-- **Advanced Search**: Search within annotations
-- **Export/Import**: Annotation portability between documents
+- `packages/react-ui/src/lib/__tests__/annotation-registry.test.ts` - The registry
+- `packages/react-ui/src/lib/__tests__/text-segmentation.test.ts` - Text segmentation
+- `packages/react-ui/src/lib/__tests__/annotation-overlay.test.ts` - The BrowseView overlay
 
 ## W3C Annotation Data Model
 
 ### Schema
 
-Semiont uses the full [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/). All annotations follow the W3C specification:
+Semiont uses the full [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/). The `Annotation` type (from `@semiont/core`, re-exported by `@semiont/sdk`) is generated from the spec:
 
 ```typescript
-// From @semiont/http-transport
-type Annotation = components['schemas']['Annotation'];
-type Motivation = components['schemas']['Motivation'];
-
-// W3C Annotation structure (simplified)
-interface W3CAnnotation {
-  '@context': 'http://www.w3.org/ns/anno.jsonld';
-  type: 'Annotation';
-  id: string;                    // URI of the annotation
-  motivation: Motivation;        // W3C motivation (e.g., 'highlighting', 'commenting')
+const reference: Annotation = {
+  '@context': 'http://www.w3.org/ns/anno.jsonld',
+  type: 'Annotation',
+  id: annotationId,
+  motivation: 'linking',
+  created: '2025-01-03T12:00:00Z',
 
   // Target: What is being annotated
   target: {
-    source: string;              // URI of the document
-    selector: {
-      type: 'TextQuoteSelector';
-      exact: string;             // The exact text being annotated
-      prefix?: string;           // Text before (for disambiguation)
-      suffix?: string;           // Text after (for disambiguation)
-    };
-  };
+    source: rId,
+    selector: [
+      { type: 'TextPositionSelector', start: 120, end: 132 },
+      { type: 'TextQuoteSelector', exact: 'Ada Lovelace', prefix: 'by ', suffix: ' in' },
+    ],
+  },
 
-  // Body: The annotation content (array)
-  body: Array<
-    | {
-        type: 'TextualBody';
-        value: string;           // Comment text, assessment content, etc.
-        purpose?: string;        // 'commenting', 'assessing', etc.
-      }
-    | {
-        type: 'SpecificResource';
-        source: string;          // URI of referenced document
-        purpose: 'linking';      // For references
-      }
-  >;
-
-  creator?: {
-    id: string;
-    name?: string;
-  };
-  created?: string;              // ISO 8601 timestamp
-  modified?: string;             // ISO 8601 timestamp
-}
+  // Body: the annotation content (optional; a highlight has none)
+  body: [
+    { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
+    { type: 'SpecificResource', source: resourceId, purpose: 'linking' },
+  ],
+};
 ```
+
+`creator`, `generator` and `wasAttributedTo` are derived by the knowledge base at write time, never supplied by the emitter.
 
 ### Browser-Specific Types
 
-The Browser uses a simplified `OverlayAnnotation` type for the DOM overlay:
+BrowseView paints from a lightweight `OverlayAnnotation`, created by `toOverlayAnnotations()` from the full W3C annotations for efficient DOM rendering:
 
 ```typescript
-// packages/react-ui/src/lib/annotation-overlay.ts
-export interface OverlayAnnotation {
-  id: string;
-  exact: string;    // The annotated text
-  offset: number;   // Character offset in markdown source
-  length: number;   // Length of annotation
-  type: string;     // Internal type from registry ('highlight', 'comment', etc.)
-  source: string | null;  // Referenced document URI (for references)
+for (const { id, exact, offset, length, type, source } of toOverlayAnnotations(annotations)) {
+  // exact: the annotated text
+  // offset, length: the span in the markdown source
+  // type: internal type from the registry ('highlight', 'comment', …)
+  // source: the resource a SpecificResource body links to, else null
 }
 ```
-
-This lightweight format is created by `toOverlayAnnotations()` from the full W3C annotations for efficient DOM Range-based rendering.
 
 ## Conclusion
 
@@ -642,6 +368,7 @@ The modular architecture ensures maintainability and extensibility, while the pr
 
 ### React UI Library
 - [`@semiont/react-ui/docs/ANNOTATIONS.md`](../../../packages/react-ui/docs/ANNOTATIONS.md) - Complete annotation system documentation with Provider Pattern architecture
+- [`@semiont/react-ui/docs/ANNOTATION-CLICK.md`](../../../packages/react-ui/docs/ANNOTATION-CLICK.md) - Click and hover coordination
 - [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/react-ui/src/lib/annotation-registry.ts) - Source code for the Annotation Registry
 
 ### W3C Web Annotation Implementation
@@ -654,5 +381,4 @@ The modular architecture ensures maintainability and extensibility, while the pr
 
 ### System Documentation
 - [System Documentation](../../../docs/system/README.md) - Overall system architecture
-- [Database Guide](../../../docs/system/administration/DATABASE.md) - PostgreSQL for user accounts and job queue
 - [Graph Package](../../../packages/graph/) - Graph database implementations (Neo4j, Neptune, JanusGraph)

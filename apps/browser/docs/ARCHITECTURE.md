@@ -17,7 +17,7 @@ This document describes the high-level architecture of the Semiont Browser appli
 
 ## Overview
 
-The Semiont Browser is a Vite + React Router v7 SPA. The architecture emphasizes:
+The Semiont Browser is a Vite + React Router SPA. The architecture emphasizes:
 
 - **Type Safety**: TypeScript throughout with strict mode enabled
 - **Server State Management**: RxJS observable caches on the SDK's verb-namespace client, invalidated automatically by gateway domain events
@@ -28,9 +28,9 @@ The Semiont Browser is a Vite + React Router v7 SPA. The architecture emphasizes
 ## Technology Stack
 
 ### Core Framework
-- **Vite** + **React Router v7** - SPA build tooling and client-side routing
-- **React 18** - UI library with concurrent features
-- **TypeScript 5** - Type safety and developer experience
+- **Vite** + **React Router** - SPA build tooling and client-side routing
+- **React 19** - UI library with concurrent features
+- **TypeScript 6** - Type safety and developer experience
 
 ### State Management
 - **RxJS (BehaviorSubject)** - Server-state caching and live updates via the SDK's verb-namespace observables, subscribed through `useObservable`
@@ -43,8 +43,8 @@ The Semiont Browser is a Vite + React Router v7 SPA. The architecture emphasizes
 The Browser uses a hybrid CSS approach that combines:
 - **@semiont/react-ui** - Semantic CSS with BEM methodology for all UI components, organized into:
   - `core/` - Fundamental UI elements (buttons, toggles, sliders, badges, tags, indicators)
-  - `components/` - Complex composed components (forms, modals, cards)
-  - `panels/` - Panel layouts and containers (12 different panel styles)
+  - `patterns/` - Shared patterns (cards, panel base and helpers)
+  - `panels/` - Panel-specific styles (history, user)
   - `motivations/` - W3C Web Annotation standard styles (5 motivation types)
   - `features/` - Feature-specific styling
 - **Tailwind CSS** - Utility-first CSS for app-specific layouts and custom components
@@ -60,14 +60,13 @@ This architecture ensures:
 #### UI Libraries
 - **CodeMirror 6** - Code editor for document content
 - **Headless UI** - Accessible UI components with Tailwind integration
-- **Radix UI** - Low-level UI primitives
 
 ### Component Library Architecture
 
 The Browser leverages **@semiont/react-ui**, a comprehensive framework-agnostic component library that provides:
 
 #### Core Components
-- **UI Components**: Button, Card, Toolbar, Toast, StatusDisplay
+- **UI Components**: Button, Toolbar, Toast, StatusDisplay
 - **Resource Components**: ResourceViewer, AnnotateView, BrowseView
 - **Annotation Components**: Complete annotation system with popups and overlays
 - **Panel Components**: Comments, References, Tags, Statistics, JSON-LD panels
@@ -79,25 +78,33 @@ The Browser leverages **@semiont/react-ui**, a comprehensive framework-agnostic 
 - **Data Hooks**: `useObservable` / `useObservableBrowse` for subscribing to the SDK's verb-namespace observable caches
 - **UI Hooks**: useTheme, useKeyboardShortcuts, useToast, useDebounce
 - **Resource Hooks**: useResourceContent, useMediaToken
-- **Form Hooks**: useFormValidation with built-in validation rules
 
 #### Provider Pattern
 @semiont/react-ui uses a two-layer provider model — global (every page) and protected (only routes that require auth):
 
 ```tsx
-// Global layer — auth-independent (apps/browser/src/app/providers.tsx)
-<TranslationProvider translationManager={i18nextManager}>
-  <SemiontProvider>            {/* the SemiontBrowser singleton: sessions, KBs, the client */}
-    {/* Toast, LiveRegion, KeyboardShortcuts, Theme, then the app */}
+import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
 
-    {/* Protected layer — AuthShell, mounted only inside layouts that require auth */}
-    <ProtectedErrorBoundary>
-      <SessionEndedModal />
-      <PermissionDeniedModal />
-      {/* Auth-aware components live here */}
-    </ProtectedErrorBoundary>
-  </SemiontProvider>
-</TranslationProvider>
+function AppTree() {
+  const translationManager = useMergedTranslationManager(); // i18next-backed
+
+  // Global layer — auth-independent (apps/browser/src/app/providers.tsx)
+  return (
+    <TranslationProvider translationManager={translationManager}>
+      <SemiontProvider>            {/* the SemiontBrowser singleton: sessions, KBs, the client */}
+        {/* Toast, LiveRegion, KeyboardShortcuts, Theme, LineNumbers, then the app */}
+
+        {/* Protected layer — AuthShell, mounted only around the routes that require auth */}
+        <ProtectedErrorBoundary>
+          <SessionEndedModal />
+          <PermissionDeniedModal />
+          <KbIdentityConflictModal />
+          {/* Auth-aware components live here */}
+        </ProtectedErrorBoundary>
+      </SemiontProvider>
+    </TranslationProvider>
+  );
+}
 ```
 
 This architecture enables:
@@ -112,29 +119,28 @@ See [Component Library Integration Guide](./COMPONENT-LIBRARY.md) for detailed u
 ### API Communication
 - **Fetch API** - HTTP client (wrapped with authentication)
 - **Server-Sent Events (SSE)** - Real-time updates for long-running operations
-- **WebSockets** - (Future) Real-time collaboration
 
 ### Request Routing
 
-The SPA serves static files. All routing is client-side (React Router v7):
+The SPA serves static files. All routing is client-side (React Router):
 
 ```
 Browser → http://localhost/
   ↓
 Static file server (Envoy/nginx serves index.html for all non-asset paths)
   ↓
-React Router v7 handles /:locale/* routes client-side
+React Router handles /:locale/* routes client-side
   ↓
-API calls go directly to gateway (/api/*)
+The SDK calls the gateway (/bus/*, /api/*)
 ```
 
 **Path-Based Routing:**
 
-- **`/api/*`** → Gateway API (called directly from browser)
-  - All REST API endpoints
-  - WebSocket connections
-  - SSE streams
-  - Browser sends `Authorization: Bearer <jwt>` based on the active KB's stored token
+- **`/bus/*`** → Gateway bus (called by the SDK from the browser)
+  - `/bus/subscribe` — the SSE stream
+  - `/bus/emit` — commands and requests
+- **`/api/*`** → Gateway HTTP routes (`/api/users/me`, `/api/tokens/media`, `/api/health`, `/api/status`)
+- On both, the SDK sends `Authorization: Bearer <jwt>` from the active KB's session
 
 - **`/*`** → Static Browser SPA (served by Envoy/nginx)
   - Vite-built static files
@@ -142,7 +148,7 @@ API calls go directly to gateway (/api/*)
 
 **Key Architecture Points:**
 - No Browser-side Node.js server process at runtime
-- Gateway handles all OAuth callbacks and token issuance, returning JWTs the Browser stores per KB
+- The knowledge base's issuer signs the user in and issues the tokens; the Browser completes the exchange on its callback route and stores the session per KB
 - Each KB has its own JWT in `localStorage` keyed by KB id; the Browser includes the active KB's token on outgoing API calls
 
 ## Authentication Architecture
@@ -171,7 +177,7 @@ SemiontProvider (app root) → SemiontBrowser singleton (library-side, outside R
 **Token Management:**
 - Bearer-only: every request carries `Authorization: Bearer <jwt>` — there is no cookie and no ambient credential
 - The per-KB session (short-lived access token + long-lived refresh token — TTLs in [Authentication](../../../docs/system/administration/AUTHENTICATION.md)) is held in memory and persisted per-KB via the storage adapter (localStorage on web), so it survives reload
-- The browser exposes mutations (`addKnowledgeBase`, `signIn`, `signOut`); `signOut(kbId)` forgets the stored session and revokes the refresh token at the issuer (RFC 7009), so it cannot be exchanged again. The gateway takes no part: it never issued the session. The access token already in hand stays valid until it expires, minutes later.
+- The browser exposes mutations (`addKb`, `signIn`, `signOut`); `signOut(kbId)` forgets the stored session and revokes the refresh token at the issuer (RFC 7009), so it cannot be exchanged again. The gateway takes no part: it never issued the session. The access token already in hand stays valid until it expires, minutes later.
 
 ### Authentication Hooks
 
@@ -186,7 +192,7 @@ const activeKbId = useObservable(browser.activeKbId$);
 // The SemiontClient lives on the active session; namespace verbs hang off it.
 // The session feeds the client its in-memory bearer token automatically.
 // (One-shot read: .fresh() is the explicit fetch on a CacheObservable.)
-const resource = await session?.client.browse.resource(id).fresh();
+const resource = await session?.client.browse.resource(resourceId).fresh();
 
 // Mutations go through the browser:
 await browser.signOut(activeKbId!);
@@ -208,14 +214,14 @@ High-churn entity data and browser-persistent application state are managed as o
 
 These update automatically when gateway domain events arrive through the bus gateway (`mark:added`, `yield:updated`, etc.) — no manual cache-invalidation calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/sdk` Usage.md](../../../packages/sdk/docs/Usage.md) for the full verb namespace API.
 
-**Application state stores** (live in `apps/browser/src/stores/`, browser-coupled):
+**Application state** lives on the `SemiontBrowser` singleton (`@semiont/sdk`) and in `@semiont/react-ui` hooks:
 
-| Store | What it holds |
+| Where | What it holds |
 |---|---|
-| `OpenResourcesStore` | Open document tabs; persisted to `localStorage`, synced across browser tabs via `StorageEvent` |
-| `SessionStore` | Session expiry state derived from the JWT; drives the "expiring soon" warning |
+| `browser.openResources$` | Open document tabs, per KB; persisted through the `SessionStorage` adapter, which on the web is `WebBrowserStorage` (`localStorage`, synced across browser tabs by the `storage` event) |
+| `useSessionExpiry()` | Time left on the active session's access token (`session.expiresAt`); drives the "expiring soon" warning |
 
-These stores depend on browser APIs (`localStorage`, `window`) and so cannot live in the framework-agnostic `http-transport` package.
+The browser APIs (`localStorage`, `window`) stay in `WebBrowserStorage` (`@semiont/react-ui`); the SDK sees only the `SessionStorage` interface.
 
 **React integration**: `SemiontProvider` exposes the `SemiontBrowser` singleton via `useSemiont()`. Each per-KB `SemiontSession` owns its `SemiontClient` and feeds it the in-memory bearer token as `token$`; the client reads the observable's current value on every request, so token refreshes propagate automatically without any React-specific wiring.
 
@@ -235,9 +241,9 @@ ResourceViewerPage
       → browser/PDF.js fetches directly, streams
 ```
 
-`ResourceViewerPage` branches on `getMimeCategory(resource)`:
-- `'text'` → `useResourceContent` (fetch + decode to string) → text viewer
-- `'image'` (includes `application/pdf`) → `useMediaToken` → URL passed to image/PDF viewer
+`ResourceViewerPage` branches on the media type's render mode (`capabilitiesOf(mediaType)?.render`, from `@semiont/core`):
+- `'image'` or `'pdf'` → `useMediaToken` → URL passed to the image/PDF viewer
+- anything else → `useResourceContent` (fetch + decode to string) → text viewer
 
 Callers of `ResourceViewerPage` do not manage media tokens; the component handles it internally. The `useMediaToken` hook is available from `@semiont/react-ui` for any component that needs a token-authenticated URL independently.
 
@@ -250,14 +256,13 @@ UI-only state and framework-agnostic providers:
 **Framework-Agnostic Providers** (from `@semiont/react-ui`):
 - `SemiontProvider` - Puts the `SemiontBrowser` singleton (KB list, active KB, per-KB `SemiontSession` + its `SemiontClient`, open resources) into context; read via `useSemiont()`
 - `TranslationProvider` - Injects `TranslationManager` for i18n
-- `AnnotationProvider` - Injects `AnnotationManager` for annotation mutations
+- `ToastProvider` - Toast notification queue
+- `LiveRegionProvider` - ARIA live region for screen reader announcements
 
 These providers are framework-independent and can work with Next.js, Vite, or any React framework. The app provides framework-specific manager implementations.
 
 **App-Specific Contexts:**
 - `KeyboardShortcutsProvider` - Keyboard shortcut registration and handling
-- `ToastProvider` - Toast notification queue
-- `LiveRegionProvider` - ARIA live region for screen reader announcements
 
 See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for complete Provider Pattern documentation.
 
@@ -268,38 +273,33 @@ See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSIO
 Components never call REST routes or generated query hooks. Each per-KB `SemiontSession` owns a `SemiontClient` whose surface is a set of **verb namespaces** — methods grouped by intent rather than by resource:
 
 ```typescript
-const semiont = useObservable(useSemiont().activeSession$)?.client;
+// In a component: const semiont = useObservable(useSemiont().activeSession$)?.client;
 
 // browse — reads. Live queries return CacheObservable<T> (subscribe via useObservable);
 //          one-shot reads return Promise<T>.
-semiont.browse.resource(id);         // CacheObservable<ResourceDescriptor>
-semiont.browse.annotations(id);      // CacheObservable<Annotation[]>
-semiont.browse.entityTypes();        // CacheObservable<string[]>
-semiont.browse.resourceContent(id);  // Promise<string> (one-shot)
+semiont.browse.resource(resourceId);         // CacheObservable<ResourceDescriptor>
+semiont.browse.annotations(resourceId);      // CacheObservable<Annotation[]>
+semiont.browse.entityTypes();                // CacheObservable<string[]>
+semiont.browse.resourceContent(resourceId);  // Promise<string> (one-shot)
 
 // mark / yield / frame / bind / gather / match — writes and long-running operations
-semiont.mark.annotation(input);      // Promise<{ annotationId }>
-semiont.mark.delete(rId, aId);       // Promise<void>
-semiont.yield.fromContext(...);      // StreamObservable<YieldGenerationEvent>
-semiont.frame.addEntityType(type);   // Promise<void>
+semiont.mark.annotation({                    // Promise<{ annotationId }>
+  motivation: 'highlighting',
+  target: { source: resourceId, selector: { type: 'TextQuoteSelector', exact: 'quoted text' } },
+});
+semiont.mark.delete(rId, aId);               // Promise<void>
+const context = await semiont.gather.resource(resourceId);                      // Promise<GatheredContext>
+semiont.yield.fromContext(context, { title: 'Summary', storageUri: 'file://summary.md' }); // StreamObservable<YieldGenerationEvent>
+semiont.frame.addEntityType('Person');       // Promise<void>
 ```
 
 `StreamObservable<T>` extends RxJS `Observable<T>` and is also `PromiseLike<T>`, so both `.subscribe()` and `await` work without any wrapper. `CacheObservable<T>` extends `Observable<CacheState<T>>` — subscribe (or `useObservable`) for the live pending/ready/failed view, or call `.fresh()` for a one-shot `Promise<T>`. See [`@semiont/sdk` Usage.md](../../../packages/sdk/docs/Usage.md) for the full namespace API.
 
 ### Caching and Invalidation
 
-There are no query keys to manage. Each live `browse.*` query is backed by an internal `Cache` primitive keyed by its resource id. Caches invalidate themselves in response to gateway **domain events** delivered over the bus gateway — call sites never invalidate anything by hand:
+There are no query keys to manage. Each live `browse.*` query is backed by an internal `Cache` primitive keyed by its resource id. Caches refresh themselves in response to gateway **domain events** delivered over the bus gateway — call sites never invalidate anything by hand. `mark:added`, for example, refetches the resource's annotation list and history, and `frame:entity-type-added` refetches the entity types.
 
-| Domain event | Cache effect |
-|---|---|
-| `mark:create-ok` / `mark:removed` | Invalidate the resource's annotation list |
-| `mark:body-updated` | Write-through update to the annotation detail + list caches |
-| `mark:archived` / `mark:unarchived` | Invalidate the resource descriptor and resource lists |
-| `yield:create-ok` / `yield:update-ok` | Invalidate the resource descriptor and resource lists |
-| `frame:entity-type-added` | Invalidate the entity-types cache |
-| `frame:tag-schema-added` | Invalidate the tag-schemas cache |
-
-On reconnect, a detected event gap (`bus:resume-gap`) triggers a blanket invalidation so no update is silently missed.
+The table of what each event does to which cache is `specs/src/client/refresh.json` (generated into `packages/core/src/generated/cache-refresh.ts`); [CACHE-SEMANTICS.md](../../../packages/sdk/docs/CACHE-SEMANTICS.md) states the contract. A stream reopened after a drop, and a detected event gap (`bus:resume-gap`), have rows of their own, so no update is silently missed.
 
 ### Error Handling
 
@@ -307,6 +307,7 @@ On reconnect, a detected event gap (`bus:resume-gap`) triggers a blanket invalid
 
 ```typescript
 // SemiontBrowser, when a session activates (packages/sdk/src/session/semiont-browser.ts)
+const signals = new SessionSignals(); // handed to the session factory, then published as activeSignals$
 session.errors$.subscribe((err) => {
   if (err.code === 'unauthorized') void session.refresh();
   else if (err.code === 'forbidden') signals.notifyPermissionDenied(err.message);
@@ -321,13 +322,17 @@ the refusal's message as its detail.
 
 `SessionSignals` holds the modal state as `BehaviorSubject`s, one per signal (`sessionEnded$`, `permissionDenied$`, `kbIdentityConflict$`), each null until raised. A notice says what happened, never a sentence: `SessionEndedModal` and `PermissionDeniedModal` write what a person reads, in their language, and render by subscribing to the browser's `activeSignals$` via `useObservable`. When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so auth errors have nowhere to surface and are no-ops.
 
-**Component-level:** a live query carries its own loading/error state in the value it emits — `useObservable(semiont.browse.resource(id))` yields `CacheState` values (`pending` / `ready` / `failed`, plus `undefined` on the very first render). One-shot hooks such as `useResourceGraph` return an explicit `{ data, loading, error }` shape:
+**Component-level:** a live query carries its own loading/error state in the value it emits — `useObservable(semiont.browse.resource(id))` yields `CacheState` values (`pending` / `ready` / `failed`, plus `undefined` on the very first render). One-shot hooks such as `useResourceContent` return an explicit `{ content, loading, error }` shape:
 
 ```tsx
-const { graph, loading, error } = useResourceGraph(id);
+function ResourceText() {
+  const semiont = useObservable(useSemiont().activeSession$)?.client;
+  const { content, loading, error } = useResourceContent(semiont ?? null, resourceId, resource);
 
-if (error) {
-  return <p role="alert">{error.message}</p>;
+  if (error) {
+    return <p role="alert">{error.message}</p>;
+  }
+  return loading ? <p>Loading…</p> : <pre>{content}</pre>;
 }
 ```
 
@@ -349,7 +354,7 @@ Component renders
 ```
 User action (e.g., create annotation)
     └── await semiont.mark.annotation(input)   (Bearer token attached)
-        └── gateway applies the change, broadcasts a domain event (mark:create-ok)
+        └── gateway applies the change, broadcasts a domain event (mark:added)
             └── event arrives over the bus gateway → browse Cache invalidates the affected query
                 └── live Observable re-emits → subscribed components re-render
 ```
@@ -374,75 +379,96 @@ SemiontClient creates one ActorStateUnit (single SSE to /bus/subscribe)
 The provider tree has two distinct layers:
 
 1. **Root providers** mounted in `[locale]/layout.tsx` — auth-independent. Available on every page including the landing page, the OAuth flow, and static pages.
-2. **Auth shell** mounted only in protected layouts (`know/`, `admin/`, `moderate/`). Bundles authentication, the active KB, and the auth-failure modals. Pre-app routes intentionally do not mount the auth shell — surfacing a "session expired" modal on the landing page would be confusing because the user has not yet entered the app.
+2. **Auth shell** mounted only around the protected routes (`know/`, `moderate/`). Bundles the protected error boundary and the auth-failure modals. Pre-app routes intentionally do not mount the auth shell — surfacing a "session expired" modal on the landing page would be confusing because the user has not yet entered the app.
 
 ### Root layer (always present)
 
 ```tsx
 // apps/browser/src/app/providers.tsx
-<TranslationProvider>          // @semiont/react-ui — i18n
-  <SemiontProvider>            // @semiont/react-ui — the SemiontBrowser singleton (sessions, KBs, the per-KB SemiontClient + app-scoped event bus)
-    <ToastProvider>            // @semiont/react-ui — toast notifications
-      <LiveRegionProvider>     // @semiont/react-ui — screen reader announcements
-        <KeyboardShortcutsProvider>  // app-specific
-          <ThemeProvider>      // @semiont/react-ui — theme
-            <NavigationHandler />
-            {children}          // landing, about, privacy, terms, /auth/connect, /auth/callback, /auth/error, or any of the AuthShell-wrapped subtrees below
+import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
+import { NavigationHandler } from '@/components/knowledge/NavigationHandler';
+import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const translationManager = useMergedTranslationManager();
+
+  return (
+    <TranslationProvider translationManager={translationManager}>  {/* @semiont/react-ui — i18n */}
+      <SemiontProvider>            {/* @semiont/react-ui — the SemiontBrowser singleton (sessions, KBs, the per-KB SemiontClient + app-scoped event bus) */}
+        <ToastProvider>            {/* @semiont/react-ui — toast notifications */}
+          <LiveRegionProvider>     {/* @semiont/react-ui — screen reader announcements */}
+            <KeyboardShortcutsProvider>  {/* app-specific */}
+              <ThemeProvider>      {/* @semiont/react-ui — theme */}
+                <LineNumbersProvider>  {/* @semiont/react-ui — line-numbers display */}
+                  <NavigationHandler />
+                  {children}       {/* the landing page, /auth/connect, /auth/callback, /auth/error, or the AuthShell-wrapped routes below */}
+                </LineNumbersProvider>
+              </ThemeProvider>
+            </KeyboardShortcutsProvider>
+          </LiveRegionProvider>
+        </ToastProvider>
+      </SemiontProvider>
+    </TranslationProvider>
+  );
+}
 ```
 
-### Auth shell (mounted in protected layouts only)
+### Auth shell (mounted around protected routes only)
 
 ```tsx
 // apps/browser/src/contexts/AuthShell.tsx — no provider; the SemiontBrowser
 // singleton (mounted at the app root) already holds all session state.
-<ProtectedErrorBoundary>            // catches render-time crashes inside the protected tree
-  <SessionEndedModal />             // reads sessionEnded$ from the active session's signals
-  <PermissionDeniedModal />         // reads permissionDenied$ from the active session's signals
-  {children}                        // protected layout body
+export function AuthShell({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedErrorBoundary resetKeys={[pathname]}>  {/* catches render-time crashes inside the protected tree; navigating away resets it */}
+      <SessionEndedModal />            {/* reads sessionEnded$ from the active session's signals */}
+      <PermissionDeniedModal />        {/* reads permissionDenied$ from the active session's signals */}
+      <KbIdentityConflictModal />      {/* reads kbIdentityConflict$ from the active session's signals */}
+      {children}                       {/* protected layout body */}
+    </ProtectedErrorBoundary>
+  );
+}
 ```
 
 ### Where the auth shell mounts
 
-| Route            | Mounted in                                          |
-|------------------|-----------------------------------------------------|
-| `/know/*`        | `apps/browser/src/app/[locale]/know/layout.tsx`    |
-| `/moderate/*`    | `apps/browser/src/app/[locale]/moderate/layout.tsx`|
+`AuthShell` mounts once, in `ProtectedLayout` in `apps/browser/src/App.tsx`: a pathless route
+that wraps both protected sections, `/know/*` and `/moderate/*`. Navigating between the sections
+keeps the shell mounted rather than tearing it down and rebuilding it.
 
 ### Why the split
 
 - **Pre-app surfaces** (landing page, OAuth flow, static pages) do not need a validated session and should not surface auth-failure modals.
-- **Protected layouts** mount `AuthShell`, which surfaces the auth-failure modals from the active session's signals (`activeSignals$`). A 401 that can't be refreshed ends the session and `SessionEndedModal` surfaces, saying why.
+- **Protected routes** sit under `AuthShell`, which surfaces the auth-failure modals from the active session's signals (`activeSignals$`). A 401 that can't be refreshed ends the session and `SessionEndedModal` surfaces, saying why.
 - **Switching KBs swaps `activeSession$`** to the new KB's session (with its own `SemiontClient` pointing at that KB's gateway) — the `SemiontBrowser` singleton handles it, with no per-layout provider or external bridge.
 
 See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for details on the Provider Pattern architecture.
 
 ## Directory Structure
 
-```
+```text
 apps/browser/src/
-├── App.tsx                # React Router v7 route tree
+├── App.tsx                # React Router route tree
 ├── main.tsx               # Entry point
 ├── app/[locale]/          # Locale-prefixed page components
-│   ├── auth/             # Auth pages (signin, signup, etc.)
+│   ├── auth/             # Auth pages (connect, callback, error)
 │   ├── know/             # Knowledge management pages
-│   ├── moderate/         # Moderation pages
-│   └── admin/            # Admin pages
+│   └── moderate/         # Moderation pages
 ├── components/            # App-specific UI components
 │   ├── modals/            # Modal dialogs
 │   └── ...                # Other app-specific components
 ├── contexts/              # App-specific React Context providers
-│   ├── AuthShell.tsx      # Wraps protected layouts with the library session provider, boundary, and modals
+│   ├── AuthShell.tsx      # Wraps protected routes with the error boundary and the auth-failure modals
 │   ├── KeyboardShortcutsContext.tsx
 │   └── ...
 ├── hooks/                 # App-specific custom hooks
 │   └── ...
 ├── i18n/                  # i18next config and routing wrappers
 │   ├── config.ts          # i18next initialisation
-│   └── routing.tsx        # Link, useRouter, usePathname, useLocale
+│   └── routing.tsx        # Link, useRouter, usePathname, redirect
 ├── lib/                   # App-specific utility libraries
-│   ├── env.ts             # Runtime environment configuration
-│   ├── routing.tsx        # Routing utilities
-│   ├── cookies/           # Cookie helpers
+│   ├── routing.tsx        # Link and routes for @semiont/react-ui
+│   ├── tracing.ts         # OpenTelemetry tracer
 │   └── browser-stubs/     # Browser API stubs
 └── types/                 # TypeScript type definitions
 
@@ -500,30 +526,26 @@ See [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) for documentat
 The `@semiont/react-ui` library uses the **Provider Pattern** to remain framework-agnostic:
 
 ```tsx
-// @semiont/react-ui defines the INTERFACE
-interface AnnotationManager {
-  createAnnotation: (params: CreateAnnotationParams) => Promise<Annotation | undefined>;
-  deleteAnnotation: (params: DeleteAnnotationParams) => Promise<void>;
+// @semiont/react-ui defines the INTERFACE (TranslationManager); the Browser
+// provides an IMPLEMENTATION backed by i18next
+import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
+
+function I18nRoot({ children }: { children: React.ReactNode }) {
+  const translationManager: TranslationManager = useMergedTranslationManager();
+
+  // Inject the implementation via the provider
+  return (
+    <TranslationProvider translationManager={translationManager}>
+      {children}
+    </TranslationProvider>
+  );
 }
-
-// Apps provide an IMPLEMENTATION backed by the SDK client
-const annotationManager: AnnotationManager = {
-  createAnnotation: (params) => semiont.mark.annotation(params),
-  deleteAnnotation: (params) => semiont.mark.delete(params.rId, params.aId),
-};
-// No manual cache invalidation: the gateway's domain events (mark:create-ok,
-// mark:removed, …) drive the browse caches automatically.
-
-// Inject the implementation via the provider
-<AnnotationProvider annotationManager={annotationManager}>
-  <App />
-</AnnotationProvider>
 ```
 
 **Benefits:**
-- ✅ The UI library depends only on RxJS and the SDK's observable model — no external data-fetching library
-- ✅ Cache invalidation is automatic (domain-event driven), so host implementations stay thin
-- ✅ Easy to test with mock implementations
+- ✅ The UI library imports no i18n library; the host brings its own (the Browser's is i18next)
+- ✅ Routing works the same way: components take the host's `Link` and `routes` as props
+- ✅ Easy to test with mock implementations (`createMockTranslationManager` in `@semiont/react-ui/test-utils`)
 - ✅ Clear separation of concerns
 
 See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for complete documentation.
@@ -535,26 +557,35 @@ See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSIO
 **Example:**
 ```typescript
 // ❌ WRONG - hides missing configuration
-const apiUrl = config?.apiUrl || 'http://localhost:4000';
+function apiUrlOrDefault(apiUrl: string | undefined): string {
+  return apiUrl || 'http://localhost:4000';
+}
 
 // ✅ RIGHT - fails loudly
-if (!config?.apiUrl) {
-  throw new Error('API URL not configured!');
+function requiredApiUrl(apiUrl: string | undefined): string {
+  if (!apiUrl) {
+    throw new Error('API URL not configured!');
+  }
+  return apiUrl;
 }
 ```
 
-### 2. Fail-Fast Authentication
+### 3. Fail-Fast Authentication
 
 **Philosophy:** Better to fail immediately than work with wrong/missing auth.
 
 ```typescript
-// All API calls require authentication - no fallback
-if (!session?.gatewayToken) {
-  throw new Error('Authentication required');
+// Every call goes through the active session's client — with no session there
+// is no anonymous fallback (as ResourceViewerPage does before a write)
+async function archive(semiont: SemiontClient | undefined, id: ResourceId) {
+  if (!semiont) {
+    throw new Error('No active session');
+  }
+  await semiont.mark.archive(id);
 }
 ```
 
-### 3. Data Fetching in Components
+### 4. Data Fetching in Components
 
 **Philosophy:** Components fetch their own data, not through props drilling.
 
@@ -570,18 +601,21 @@ function ResourceView({ resourceId }: { resourceId: ResourceId }) {
 }
 ```
 
-### 4. Event-Driven Invalidation Over Manual Refetch
+### 5. Event-Driven Invalidation Over Manual Refetch
 
 **Philosophy:** Let gateway domain events drive cache invalidation automatically.
 
 ```typescript
 // A write is just a verb call — no onSuccess, no invalidate.
-await semiont.mark.annotation(input);
-// The gateway broadcasts mark:create-ok over the bus; the browse cache
-// invalidates the affected query and every subscriber re-renders.
+await semiont.mark.annotation({
+  motivation: 'highlighting',
+  target: { source: resourceId, selector: { type: 'TextQuoteSelector', exact: 'quoted text' } },
+});
+// The gateway broadcasts mark:added over the bus; the browse cache
+// refetches the affected query and every subscriber re-renders.
 ```
 
-### 5. Separation of Concerns
+### 6. Separation of Concerns
 
 **Contexts handle UI state only:**
 - Keyboard shortcuts
@@ -597,21 +631,23 @@ await semiont.mark.annotation(input);
 
 ### Document Page Layout
 
-The document page (`/know/document/[id]/page.tsx`) consists of:
+The resource page (`apps/browser/src/app/[locale]/know/resource/[id]/page.tsx`, which renders `ResourceViewerPage`) consists of:
 
 **Main Content Area**:
 - **AnnotateView**: Curation mode with text selection and annotation creation
 - **BrowseView**: Read-only mode for document viewing
 
-**Right Panel** (conditionally visible based on activeToolbarPanel state):
-- **History Panel**: Append-only event log showing document changes (📒 icon)
-- **Stats Panel**: Document metadata and "Referenced By" section (ℹ️ icon)
-- **Detect Panel**: Reference detection UI (🔵 icon, only in curation mode)
+**Right Panel** (conditionally visible based on the shell state unit's `activePanel$`):
+- **Annotations** (`UnifiedAnnotationsPanel`): the resource's annotations, grouped by motivation, with AI assist in Annotate mode
+- **History** (`AnnotationHistory`): the resource's append-only event log
+- **Info** (`ResourceInfoPanel`): metadata and provenance
+- **Collaboration** (`CollaborationPanel`): bus connection state and the KB's collaborators
+- **JSON-LD** (`JsonLdPanel`): the resource's JSON-LD graph
 
 **Toolbar** (far right, vertical icon strip):
 - Vertically aligned buttons for toggling right panel content
 - Visual feedback: left border accent + background color when active
-- Icons: 🔵 Detect References, 📒 History, ℹ️ Statistics
+- Buttons: annotations, resource info, history, collaboration, JSON-LD, user account, settings
 
 ### Bi-directional Document ↔ History Focusing
 
@@ -659,20 +695,3 @@ Panels keep their entries' DOM nodes through React ref callbacks, not through an
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
 - [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
 - [KEYBOARD-NAV.md](./KEYBOARD-NAV.md) - Keyboard navigation implementation
-
-## Migration Notes
-
-Two major refactors are complete:
-
-**MERGED-KB-SESSION** (Track 2 of AUTH-CLEANUP): Merged the previously-separate `KnowledgeBaseProvider`, `AuthProvider`, and `SessionProvider` into one library-side session model — now the `SemiontBrowser` singleton behind `SemiontProvider` in `@semiont/react-ui` (the interim `KnowledgeBaseSessionProvider` was itself later folded into it).
-- Browser `AuthContext.tsx`, `KnowledgeBaseContext.tsx`, `useAuth.ts`, `useSessionManager.ts` are gone
-- Library `SessionContext.tsx`, `auth-events.ts`, and `dispatch401Error`/`dispatch403Error` are gone
-- Auth state via `useSemiont()` → `activeSession$` → `user$` from `@semiont/react-ui`
-- Cross-tree 401/403 signaling via the active session's `SessionSignals` (`notifySessionEnded` / `notifyPermissionDenied`)
-
-**NO-NEXTJS**: Replaced Next.js with Vite + React Router v7 + i18next.
-- `next build` → `vite build` (output: static files)
-- `next dev` → `vite --host`
-- `next-intl` → `i18next` + `react-i18next`
-- `[locale]/layout.tsx` → React Router layout routes with `<Outlet />`
-- No Node.js server process at runtime
