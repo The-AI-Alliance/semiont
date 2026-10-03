@@ -34,7 +34,7 @@ use crate::storage::{SessionStorage, StorageChange, StorageSubscription};
 use serde_json::{Map, Value};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -43,24 +43,76 @@ include!(concat!(env!("OUT_DIR"), "/sign_in.rs"));
 /// The file's name in the launcher's state home.
 pub const FILE_NAME: &str = "tokens.json";
 
+/// The systems the state home differs by, as
+/// specs/src/sign-in-store/cases.json names them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum System {
+    MacOs,
+    Windows,
+    /// Anything else: Linux, and every other Unix.
+    Other,
+}
+
+impl System {
+    /// The system this crate was built for.
+    pub const fn of_this_build() -> System {
+        if cfg!(target_os = "macos") {
+            System::MacOs
+        } else if cfg!(windows) {
+            System::Windows
+        } else {
+            System::Other
+        }
+    }
+
+    /// The system as the cases name it: `macos`, `windows`, or anything else.
+    pub fn named(name: &str) -> System {
+        match name {
+            "macos" => System::MacOs,
+            "windows" => System::Windows,
+            _ => System::Other,
+        }
+    }
+}
+
 /// The launcher's state home, from what the system says of the person's
 /// directories (specs/src/sign-in-store/cases.json): `home` is the home
-/// directory and `xdg_state_home` is `XDG_STATE_HOME`, each none when it is
-/// not set. None when there is no home.
+/// directory (`HOME`, or `USERPROFILE` on Windows), `xdg_state_home` is
+/// `XDG_STATE_HOME` and `local_app_data` is `LOCALAPPDATA`, each none when it
+/// is not set. None when there is no home.
+///
+/// The path is composed with the system's own separator, not this build's: a
+/// case gives one answer whichever machine computes it.
 ///
 /// This crate reads no environment: a service links it, and what a service
 /// reads of its environment is a contract. An application reads its own and
 /// says what it found:
-/// `state_dir(cfg!(target_os = "macos"), home, xdg_state_home)`.
-pub fn state_dir(macos: bool, home: Option<&str>, xdg_state_home: Option<&str>) -> Option<PathBuf> {
+/// `state_dir(System::of_this_build(), home, xdg_state_home, local_app_data)`.
+pub fn state_dir(
+    system: System,
+    home: Option<&str>,
+    xdg_state_home: Option<&str>,
+    local_app_data: Option<&str>,
+) -> Option<PathBuf> {
     let home = home.filter(|home| !home.is_empty())?;
-    Some(if macos {
-        Path::new(home).join("Library/Application Support/semiont")
-    } else {
-        match xdg_state_home.filter(|state| !state.is_empty()) {
-            Some(state) => Path::new(state).join("semiont"),
-            None => Path::new(home).join(".local/state/semiont"),
+    let under = |separator: char, base: &str, names: &[&str]| {
+        let mut dir = base.trim_end_matches(separator).to_owned();
+        for name in names {
+            dir.push(separator);
+            dir.push_str(name);
         }
+        PathBuf::from(dir)
+    };
+    Some(match system {
+        System::MacOs => under('/', home, &["Library", "Application Support", "semiont"]),
+        System::Windows => match local_app_data.filter(|local| !local.is_empty()) {
+            Some(local) => under('\\', local, &["semiont"]),
+            None => under('\\', home, &["AppData", "Local", "semiont"]),
+        },
+        System::Other => match xdg_state_home.filter(|state| !state.is_empty()) {
+            Some(state) => under('/', state, &["semiont"]),
+            None => under('/', home, &[".local", "state", "semiont"]),
+        },
     })
 }
 

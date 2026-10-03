@@ -39,8 +39,8 @@ written by a later release, is written back as it was.
 ## Where it is
 
 `<stateDir>` is the launcher's state home:
-[`cases.json`](cases.json) says where that is on each system, and every
-program that finds the file runs those cases.
+[`cases.json`](cases.json) says where that is on each system — macOS, Windows,
+and everything else — and every program that finds the file runs those cases.
 
 The file holds bearer credentials. It is created with mode `0600`, and
 written by writing a sibling temporary file and renaming it over the old
@@ -52,8 +52,8 @@ file.
 Every change to the document is a read, a change and a write, and two
 programs make them: the launcher's `login`, `logout` and each verb's
 renewal, and an SDK session's renewal and sign-out. Each holds an exclusive
-advisory lock (`flock`) on `<stateDir>/tokens.lock` from before its read
-until after its rename. Without it, two renewals at once would each write
+lock on `<stateDir>/tokens.lock` (`flock`; on Windows, `LockFileEx`) from
+before its read until after its rename. Without it, two renewals at once would each write
 the document they read, and one stack's new tokens would be lost under the
 other's.
 

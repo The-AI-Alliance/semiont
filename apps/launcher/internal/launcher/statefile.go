@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -94,20 +95,44 @@ func (st *StackState) platform() platform {
 }
 
 // stateDirFor: the launcher's state home, from what the system says of the
-// person's directories: the application-support directory on macOS,
-// $XDG_STATE_HOME/semiont (default ~/.local/state/semiont) elsewhere, and ""
-// when there is no home. specs/src/sign-in-store/cases.json states it, and
-// every program that finds tokens.json runs those cases.
-func stateDirFor(macos bool, home, xdgStateHome string) string {
-	switch {
-	case home == "":
+// person's directories: the application-support directory on macOS, the local
+// application-data directory on Windows, $XDG_STATE_HOME/semiont (default
+// ~/.local/state/semiont) elsewhere, and "" when there is no home.
+// specs/src/sign-in-store/cases.json states it, and every program that finds
+// tokens.json runs those cases. system is the spec's name for the OS: "macos",
+// "windows", or anything else.
+//
+// The path is composed with the SYSTEM's separator, not this build's: a case
+// gives one answer whichever machine computes it.
+func stateDirFor(system, home, xdgStateHome, localAppData string) string {
+	if home == "" {
 		return ""
-	case macos:
-		return filepath.Join(home, "Library", "Application Support", "semiont")
-	case xdgStateHome != "":
-		return filepath.Join(xdgStateHome, "semiont")
 	}
-	return filepath.Join(home, ".local", "state", "semiont")
+	under := func(sep, base string, names ...string) string {
+		return strings.TrimRight(base, sep) + sep + strings.Join(names, sep)
+	}
+	switch {
+	case system == "macos":
+		return under("/", home, "Library", "Application Support", "semiont")
+	case system == "windows" && localAppData != "":
+		return under(`\`, localAppData, "semiont")
+	case system == "windows":
+		return under(`\`, home, "AppData", "Local", "semiont")
+	case xdgStateHome != "":
+		return under("/", xdgStateHome, "semiont")
+	}
+	return under("/", home, ".local", "state", "semiont")
+}
+
+// systemName: this build's OS as the spec's cases name it.
+func systemName() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "macos"
+	case "windows":
+		return "windows"
+	}
+	return runtime.GOOS
 }
 
 // StateDir is the launcher's state home on this machine. "" when no home is
@@ -117,7 +142,7 @@ func StateDir() string {
 	if err != nil {
 		return ""
 	}
-	return stateDirFor(runtime.GOOS == "darwin", home, os.Getenv("XDG_STATE_HOME"))
+	return stateDirFor(systemName(), home, os.Getenv("XDG_STATE_HOME"), os.Getenv("LOCALAPPDATA"))
 }
 
 func statePath() string {

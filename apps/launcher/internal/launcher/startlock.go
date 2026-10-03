@@ -9,9 +9,9 @@ package launcher
 // move did exactly that, and the stack ended half on each issuer port. The
 // second start now waits for the first, then runs its own whole sequence.
 //
-// An flock on a file in the root's state dir: held for the process's life and
-// released by the kernel when it exits, crashes included, so there is no
-// stale lock to clean up. The file records who holds it, for the message a
+// A lock (filelock.go) on a file in the root's state dir: held for the
+// process's life and released by the kernel when it exits, crashes included,
+// so there is no stale lock to clean up. The file records who holds it, for the message a
 // waiting start prints and for `status`.
 
 import (
@@ -20,7 +20,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -63,7 +62,7 @@ func acquireStartLock(u *UI, root string) bool {
 	t0 := time.Now()
 	announced := false
 	for {
-		err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		err := lockFile(f, false)
 		if err == nil {
 			// Who holds it, for a waiting start's message and for `status`.
 			// Not the lock itself: a start that cannot record it still runs,
@@ -75,7 +74,7 @@ func acquireStartLock(u *UI, root string) bool {
 			heldStartLock = f
 			return true
 		}
-		if !errors.Is(err, syscall.EWOULDBLOCK) {
+		if !errors.Is(err, errLockHeld) {
 			f.Close()
 			u.Fail("cannot take the start lock %s: %v", p, err)
 			return false
@@ -107,10 +106,10 @@ func startInProgress(root string) (holder string, busy bool) {
 		return "", false // never started here
 	}
 	defer f.Close()
-	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err := lockFile(f, false); err != nil {
 		return startLockHolder(p), true
 	}
-	_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	_ = unlockFile(f)
 	return "", false
 }
 

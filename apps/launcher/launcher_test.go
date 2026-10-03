@@ -28,7 +28,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -1278,7 +1277,7 @@ func TestStoreClearKeepsMountRootDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat of the held state-store handle: %v", err)
 	}
-	if st, ok := fi.Sys().(*syscall.Stat_t); ok && st.Nlink == 0 {
+	if links, ok := linkCount(fi); ok && links == 0 {
 		t.Error("the state store dir was unlinked by the clear — every share attached before it is orphaned; clear contents, keep the directory")
 	}
 }

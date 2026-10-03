@@ -525,6 +525,21 @@ jobs:
       - name: Vet launcher
         run: cd apps/launcher && go vet ./...
 
+      # Every target a release ships, and Windows, which none ships yet. A
+      # POSIX-only call compiles on this job's Linux and on a developer's Mac;
+      # without this, the next person to try the Windows port finds it. `vet`
+      # compiles the tests too.
+      - name: Launcher compiles for every target
+        run: |
+          cd apps/launcher
+          for os in darwin linux windows; do
+            for arch in amd64 arm64; do
+              echo "::group::$os/$arch"
+              GOOS=$os GOARCH=$arch go vet ./...
+              echo "::endgroup::"
+            done
+          done
+
       # An EXPLICIT budget. These tests drive a fake runtime through real
       # start/stop lifecycles, so the suite is minutes long and serial; it had
       # been running at 594-612s against Go's undeclared 600s default, and the
@@ -542,9 +557,10 @@ jobs:
       - name: Vet, build and test sdk-go
         run: cd packages/sdk-go && go vet ./... && go build ./... && go test -timeout 5m ./...
 
-      # The launcher's deps are go-toml and packages/sdk-go (whose client
-      # pulls oapi-codegen/runtime), plus the Go stdlib compiled into the
-      # shipped binary (distributed via Homebrew). govulncheck scans stdlib +
+      # The launcher's deps are go-toml, golang.org/x/sys (the Windows build's
+      # file lock and process calls) and packages/sdk-go (whose client pulls
+      # oapi-codegen/runtime), plus the Go stdlib compiled into the shipped
+      # binary (distributed via Homebrew). govulncheck scans stdlib +
       # deps and reports only vulns reachable from our code.
       - name: Vulnerability scan launcher (govulncheck)
         run: |

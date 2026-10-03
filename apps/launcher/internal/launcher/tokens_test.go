@@ -285,6 +285,7 @@ func TestTheStateHomeIsWhereTheContractSays(t *testing.T) {
 			OS           string  `json:"os"`
 			Home         *string `json:"home"`
 			XDGStateHome *string `json:"xdgStateHome"`
+			LocalAppData *string `json:"localAppData"`
 			Dir          *string `json:"dir"`
 		} `json:"cases"`
 	}
@@ -302,7 +303,7 @@ func TestTheStateHomeIsWhereTheContractSays(t *testing.T) {
 		return *s
 	}
 	for _, c := range table.Cases {
-		if got, want := stateDirFor(c.OS == "macos", set(c.Home), set(c.XDGStateHome)), set(c.Dir); got != want {
+		if got, want := stateDirFor(c.OS, set(c.Home), set(c.XDGStateHome), set(c.LocalAppData)), set(c.Dir); got != want {
 			t.Errorf("%s: the state home is %q, want %q", c.Why, got, want)
 		}
 	}
