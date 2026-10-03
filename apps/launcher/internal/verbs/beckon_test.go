@@ -20,15 +20,16 @@ func TestAudienceNote(t *testing.T) {
 	for _, c := range []struct {
 		name        string
 		subscribers int
+		counted     bool
 		want        string
 		absent      string
 	}{
-		{"nobody listening is said plainly", 0, "nothing is subscribed to beckon:focus", "no delivery confirmation"},
-		{"an unreadable count claims nothing", -1, "no delivery confirmation", "nothing is subscribed"},
-		{"one subscriber, still not delivery", 1, "1 subscriber", "1 subscribers"},
-		{"several subscribers", 4, "4 subscribers", "nothing is subscribed"},
+		{"nobody listening is said plainly", 0, true, "nothing is subscribed to beckon:focus", "no delivery confirmation"},
+		{"an uncounted emit claims nothing", 0, false, "no delivery confirmation", "nothing is subscribed"},
+		{"one subscriber, still not delivery", 1, true, "1 subscriber", "1 subscribers"},
+		{"several subscribers", 4, true, "4 subscribers", "nothing is subscribed"},
 	} {
-		got := audienceNote(u, c.subscribers, "beckon:focus")
+		got := audienceNote(u, c.subscribers, c.counted, "beckon:focus")
 		if !strings.Contains(got, c.want) {
 			t.Errorf("%s: audienceNote(%d) = %q, want it to contain %q", c.name, c.subscribers, got, c.want)
 		}
@@ -37,7 +38,7 @@ func TestAudienceNote(t *testing.T) {
 		}
 	}
 	// A positive count must never be read as delivery.
-	if got := audienceNote(u, 3, "beckon:focus"); !strings.Contains(got, "no confirmation anyone looked") {
+	if got := audienceNote(u, 3, true, "beckon:focus"); !strings.Contains(got, "no confirmation anyone looked") {
 		t.Errorf("a subscriber count must not be dressed up as delivery: %q", got)
 	}
 }

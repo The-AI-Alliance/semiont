@@ -113,7 +113,7 @@ func rejecting() *bustest.Fake {
 // counts one subscriber for a signal.
 func answering() *bustest.Fake {
 	f := bustest.NewFake()
-	f.Subscribers = 1
+	f.Counted(1)
 	f.Replies["browse:resources-requested"] = reply(`{"resources":[],"total":0}`)
 	return f
 }

@@ -35,9 +35,9 @@ type Requested struct {
 	Payload any
 }
 
-// Fake implements bus.Transport. The zero value is not ready — use NewFake, so
-// Subscribers defaults to the honest "unknown" rather than a silent 0 that
-// would read as "nobody is listening".
+// Fake implements bus.Transport. The zero value is not ready — use NewFake.
+// An emit is uncounted until a test calls Counted: the honest default, where
+// a silent 0 would read as "nobody is listening".
 type Fake struct {
 	mu sync.Mutex
 
@@ -47,9 +47,9 @@ type Fake struct {
 	// care the credential reached the transport at all.
 	Token string
 
-	// Subscribers is what Emit returns. -1 (the default from NewFake) is
-	// "unknown", 0 is a genuine empty room; tests choose deliberately.
-	Subscribers int
+	// What Emit reports, set by Counted.
+	subscribers int
+	counted     bool
 	// EmitErr, when set, is returned by Emit instead of a count.
 	EmitErr error
 
@@ -67,22 +67,29 @@ type Fake struct {
 
 func NewFake() *Fake {
 	return &Fake{
-		Base:        "http://fake.test",
-		Subscribers: -1, // unknown until a test says otherwise
-		Replies:     map[bus.Channel]json.RawMessage{},
+		Base:    "http://fake.test",
+		Replies: map[bus.Channel]json.RawMessage{},
 	}
+}
+
+// Counted makes every Emit from here on report that the gateway counted n
+// subscribers. Zero is a genuine empty room; tests choose deliberately.
+func (f *Fake) Counted(n int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.subscribers, f.counted = n, true
 }
 
 func (f *Fake) BaseURL() string { return f.Base }
 
-func (f *Fake) Emit(_ context.Context, ch bus.Channel, payload any, scope string) (int, error) {
+func (f *Fake) Emit(_ context.Context, ch bus.Channel, payload any, scope string) (int, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.Emits = append(f.Emits, Emitted{Channel: ch, Payload: payload, Scope: scope})
 	if f.EmitErr != nil {
-		return -1, f.EmitErr
+		return 0, false, f.EmitErr
 	}
-	return f.Subscribers, nil
+	return f.subscribers, f.counted, nil
 }
 
 func (f *Fake) Subscribe(context.Context, []bus.Channel, []bus.Channel, string) (*bus.Subscription, error) {

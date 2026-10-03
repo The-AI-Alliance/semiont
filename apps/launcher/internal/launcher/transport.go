@@ -57,13 +57,12 @@ func (t *sessionTransport) under(token string) bus.Transport {
 	return t.inner
 }
 
-func (t *sessionTransport) Emit(ctx context.Context, ch bus.Channel, payload any, scope string) (int, error) {
-	var n int
-	err := t.sess.Authorized(func(token string) (err error) {
-		n, err = t.under(token).Emit(ctx, ch, payload, scope)
+func (t *sessionTransport) Emit(ctx context.Context, ch bus.Channel, payload any, scope string) (subscribers int, counted bool, err error) {
+	err = t.sess.Authorized(func(token string) (err error) {
+		subscribers, counted, err = t.under(token).Emit(ctx, ch, payload, scope)
 		return err
 	})
-	return n, err
+	return subscribers, counted, err
 }
 
 func (t *sessionTransport) Subscribe(ctx context.Context, channels, scoped []bus.Channel, scope string) (*bus.Subscription, error) {
