@@ -277,10 +277,8 @@ func (x *liveExec) hostOllamaReachable(addr string, port int) bool {
 	x.u.Warn("Ollama is running on the host but not reachable from containers.")
 	fmt.Printf("   The gateway runs in a container and needs Ollama at %s:%d.\n", addr, port)
 	fmt.Println()
-	if runSilent("pgrep", "-f", "Ollama.app/Contents") == nil {
-		fmt.Println("   Detected: Ollama Desktop app")
-	} else if runSilent("pgrep", "-f", "ollama serve") == nil {
-		fmt.Println("   Detected: ollama serve daemon")
+	if found := ollamaOnHost(); found != "" {
+		fmt.Println("   Detected: " + found)
 	}
 	fmt.Println()
 	fmt.Println("   Fix: configure Ollama to listen on all interfaces:")
@@ -336,16 +334,20 @@ func (x *liveExec) recordPorts(ports []portNeed) {
 	saveStack(x.st)
 }
 
-// stageDir makes a fresh directory per run, mode 0700 (MkdirTemp): that is
+// stageDir makes a fresh directory per run and keeps it to its owner: that is
 // what keeps the secrets staged in it — the realm's client secrets, the
 // broker's credentials — from other users. The files inside stay 0644 because
 // Docker on Linux and rootless Podman present a bind-mounted file with its host
 // owner and mode, and the containers read them as their own users (Keycloak as
 // uid 1000); a 0600 file would be readable only when the uids happen to match.
 func (x *liveExec) stageDir() (string, bool) {
-	stage, err := os.MkdirTemp("/tmp", "semiont-config.")
+	stage, err := os.MkdirTemp(stagingParent(), "semiont-config.")
 	if err != nil {
 		x.u.Fail("Cannot create config staging dir: %v", err)
+		return "", false
+	}
+	if err := ownerOnlyDir(stage); err != nil {
+		x.u.Fail("Cannot keep config staging dir %s to its owner: %v", stage, err)
 		return "", false
 	}
 	return stage, true
@@ -1161,8 +1163,8 @@ func (x *liveExec) openStoreDirs(spec stateStoreSpec, root string) bool {
 	// unmounted parent of all of them — no container sees it — so owner-only
 	// here keeps other local users from traversing to any store.
 	dir := stateRootDir(root)
-	if err := os.Chmod(dir, 0o700); err != nil {
-		x.u.Fail("cannot chmod state dir %s: %v", dir, err)
+	if err := ownerOnlyDir(dir); err != nil {
+		x.u.Fail("cannot keep state dir %s to its owner: %v", dir, err)
 		return false
 	}
 	return true
@@ -1203,7 +1205,7 @@ func (x *planExec) snapshotLogs(string, []string) {
 }
 func (x *planExec) stopRm(name string) bool { x.p("stop", name); x.p("rm", name); return false }
 func (x *planExec) settle(...int)           {} // plan mode tears nothing down
-func (x *planExec) sweepStaging()           { x.c("remove staged config copies: /tmp/semiont-config.*") }
+func (x *planExec) sweepStaging()           { x.c("remove staged config copies: %s", stagingPattern()) }
 
 func (x *planExec) sweepStray(names []string) bool {
 	for _, rt := range installedRuntimes() {

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1005,6 +1006,7 @@ func spawnForward(u *UI, name string, remote, local int) (int, <-chan struct{}, 
 	// an unbounded one would grow for the life of a long-running tunnel.
 	cmd.Stdout = nil
 	cmd.Stderr = newForwardLog()
+	detachFromConsole(cmd)
 	if err := cmd.Start(); err != nil {
 		u.Fail("Could not start the port forward: %v", err)
 		return 0, nil, 1
@@ -1560,8 +1562,7 @@ func forwardProcAlive(pid int) bool {
 	if pid == 0 || !processAlive(pid) {
 		return false
 	}
-	comm, err := capture("ps", "-p", fmt.Sprintf("%d", pid), "-o", "comm=")
-	return err == nil && strings.Contains(comm, "gh")
+	return strings.Contains(processName(strconv.Itoa(pid)), "gh")
 }
 
 // forwardAlive: is the forward actually FORWARDING? A live gh process can
@@ -1885,7 +1886,7 @@ func establishForward(u *UI, name string, remote, local int, askable bool) (int,
 			u.Fail("Nothing is listening on the codespace's port %d — its stack is not up.", remote)
 		default:
 			u.Fail("The port forward exited before it could bind — localhost:%d is probably already in use.", local)
-			fmt.Fprintf(os.Stderr, "  See what holds it:  lsof -ti :%d\n", local)
+			fmt.Fprintf(os.Stderr, "  See what holds it:  %s\n", holdersHint(local))
 		}
 		if ghErr != "" {
 			fmt.Fprintf(os.Stderr, "  gh said: %s\n", ghErr)

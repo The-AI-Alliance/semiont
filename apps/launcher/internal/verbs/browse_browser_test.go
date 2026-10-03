@@ -95,9 +95,7 @@ func TestBrowseBrowserRefusesWhenNoOneIsWatching(t *testing.T) {
 // useless. It gets its own sentence and the same two fix-its.
 func TestBrowseBrowserNamesAContainerThatIsNotAnswering(t *testing.T) {
 	shim := t.TempDir()
-	if err := os.WriteFile(filepath.Join(shim, "docker"), []byte("#!/bin/sh\necho exited\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	harness.StandIn(t, shim, "docker", harness.Says{Out: "exited"})
 	fake, restore := withFake(t)
 	defer restore()
 	t.Setenv("PATH", shim)

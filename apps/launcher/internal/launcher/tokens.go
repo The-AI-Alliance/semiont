@@ -128,7 +128,7 @@ func changeSignIns(change func(doc map[string]json.RawMessage) (changed bool, er
 		_ = os.Remove(tmp)
 		return err
 	}
-	return nil
+	return ownerOnlyFile(p)
 }
 
 // LoadTokens: every sign-in the store holds, by stack key. It takes no lock:

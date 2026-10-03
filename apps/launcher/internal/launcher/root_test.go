@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
 // A moved KB re-registers its did at the new path; the old path's row is
@@ -12,9 +14,7 @@ import (
 // the SAME did at OTHER paths that no longer exist on disk; a same-did row
 // whose path still exists stays (two live clones are real, not a corpse).
 func TestReRegistrationDropsMovedKBCorpse(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_STATE_HOME", "")
-	t.Setenv("XDG_DATA_HOME", "")
+	harness.Home(t)
 
 	kb := filepath.Join(t.TempDir(), "family")
 	if err := os.MkdirAll(filepath.Join(kb, ".semiont"), 0o755); err != nil {

@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -105,44 +103,23 @@ func (st *StackState) platform() platform {
 // The path is composed with the SYSTEM's separator, not this build's: a case
 // gives one answer whichever machine computes it.
 func stateDirFor(system, home, xdgStateHome, localAppData string) string {
-	if home == "" {
-		return ""
-	}
-	under := func(sep, base string, names ...string) string {
-		return strings.TrimRight(base, sep) + sep + strings.Join(names, sep)
-	}
 	switch {
+	case home == "":
+		return ""
 	case system == "macos":
-		return under("/", home, "Library", "Application Support", "semiont")
-	case system == "windows" && localAppData != "":
-		return under(`\`, localAppData, "semiont")
+		return pathUnder(system, home, "Library", "Application Support", "semiont")
 	case system == "windows":
-		return under(`\`, home, "AppData", "Local", "semiont")
+		return pathUnder(system, localAppDataFor(home, localAppData), "semiont")
 	case xdgStateHome != "":
-		return under("/", xdgStateHome, "semiont")
+		return pathUnder(system, xdgStateHome, "semiont")
 	}
-	return under("/", home, ".local", "state", "semiont")
-}
-
-// systemName: this build's OS as the spec's cases name it.
-func systemName() string {
-	switch runtime.GOOS {
-	case "darwin":
-		return "macos"
-	case "windows":
-		return "windows"
-	}
-	return runtime.GOOS
+	return pathUnder(system, home, ".local", "state", "semiont")
 }
 
 // StateDir is the launcher's state home on this machine. "" when no home is
 // resolvable.
 func StateDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return stateDirFor(systemName(), home, os.Getenv("XDG_STATE_HOME"), os.Getenv("LOCALAPPDATA"))
+	return stateDirFor(systemName(), userHome(), os.Getenv("XDG_STATE_HOME"), os.Getenv("LOCALAPPDATA"))
 }
 
 func statePath() string {
@@ -267,7 +244,7 @@ func (ss *StackSet) refuseUnreadable(u *UI) bool {
 	fmt.Fprintln(os.Stderr, "  cannot read it, and treating that as \"no stacks recorded\" would report")
 	fmt.Fprintln(os.Stderr, "  nothing to stop while the real stack keeps running.")
 	fmt.Fprintln(os.Stderr, "  Set the record aside, then stop what is running by name:")
-	fmt.Fprintf(os.Stderr, "    mv %s %s.unreadable\n", p, p)
+	fmt.Fprintf(os.Stderr, "    %s\n", setAsideHint(p, p+".unreadable"))
 	fmt.Fprintln(os.Stderr, "    semiont stop          (sweeps this machine's containers by name)")
 	fmt.Fprintln(os.Stderr, "    gh codespace list     (a codespace stack stops there)")
 	return true

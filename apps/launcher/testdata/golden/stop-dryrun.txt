@@ -97,5 +97,5 @@ podman stop semiont-prometheus
 podman rm semiont-prometheus
 podman stop semiont-jaeger
 podman rm semiont-jaeger
-# remove staged config copies: /tmp/semiont-config.*
+# remove staged config copies: <config-stages>
 # wait until the stack's ports are released; report any still-held holder

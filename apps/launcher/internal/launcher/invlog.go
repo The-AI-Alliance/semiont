@@ -4,27 +4,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 )
 
-// logDir is where launcher logs live: ~/Library/Logs/semiont on macOS (the
-// platform's log home), $XDG_STATE_HOME/semiont (default ~/.local/state/
-// semiont) elsewhere — the XDG base-dir spec assigns logs and history to the
-// state dir. "" when no home is resolvable.
+// logDir is where launcher logs live on this machine (logDirFor). "" when no
+// home is resolvable.
 func logDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return ""
-	}
-	if runtime.GOOS == "darwin" {
-		return filepath.Join(home, "Library", "Logs", "semiont")
-	}
-	if s := os.Getenv("XDG_STATE_HOME"); s != "" {
-		return filepath.Join(s, "semiont")
-	}
-	return filepath.Join(home, ".local", "state", "semiont")
+	return logDirFor(systemName(), userHome(), os.Getenv("XDG_STATE_HOME"), os.Getenv("LOCALAPPDATA"))
 }
 
 // LogInvocation appends an "invoke" line for this run to launcher.log and

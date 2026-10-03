@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 	toml "github.com/pelletier/go-toml/v2"
 )
 
@@ -27,12 +28,8 @@ func TestStagedRealmIsReachableOnlyByItsOwner(t *testing.T) {
 	}
 	dir := filepath.Dir(p)
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	fi, err := os.Stat(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if perm := fi.Mode().Perm(); perm&0o077 != 0 {
-		t.Fatalf("the realm is staged in %s, mode %v: other users can reach the client secrets in it", dir, perm)
+	if open := harness.OpenToOthers(t, dir); open != "" {
+		t.Fatalf("the realm is staged in %s, which %s: other users can reach the client secrets in it", dir, open)
 	}
 }
 

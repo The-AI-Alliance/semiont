@@ -42,8 +42,7 @@ func TestPromptToOpenAlwaysShowsTheCodeAndURI(t *testing.T) {
 	// that the two facts a person needs are on stdout either way.
 }
 
-// A pipe or a regular file is decided without spawning anything — the stty
-// probe is only reached for a character device.
+// A pipe or a regular file is not a terminal.
 func TestStdinIsNotATerminalUnderTest(t *testing.T) {
 	if stdinIsTerminal() {
 		t.Skip("this runner gave the test binary a real terminal; nothing to assert")
@@ -52,10 +51,13 @@ func TestStdinIsNotATerminalUnderTest(t *testing.T) {
 
 // The platform mapping is a fact per OS, not a guess at one.
 func TestOpenBrowserNamesThePlatformCommand(t *testing.T) {
-	for _, goos := range []string{"darwin", "linux"} {
-		want := map[string]string{"darwin": "open", "linux": "xdg-open"}[goos]
-		if got := browserCommand(goos, "https://x.test"); got[0] != want {
+	for goos, want := range map[string]string{"darwin": "open", "linux": "xdg-open", "windows": "rundll32"} {
+		got := browserCommand(goos, "https://x.test")
+		if got[0] != want {
 			t.Errorf("%s: want %q, got %q", goos, want, got[0])
+		}
+		if got[len(got)-1] != "https://x.test" {
+			t.Errorf("%s: the URL is not what the command is handed: %v", goos, got)
 		}
 	}
 }

@@ -21,32 +21,14 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 )
 
-// dataDir is the launcher's data home: the same ~/Library/Application
-// Support/semiont bucket the state file uses on macOS (Apple keeps one home
-// for both), $XDG_DATA_HOME/semiont (default ~/.local/share/semiont)
-// elsewhere — DB contents are XDG data, not XDG state. "" when no home is
-// resolvable.
+// dataDir is the launcher's data home on this machine (dataDirFor). "" when
+// no home is resolvable.
 func dataDir() string {
-	if runtime.GOOS == "darwin" {
-		dir, err := os.UserConfigDir()
-		if err != nil {
-			return ""
-		}
-		return filepath.Join(dir, "semiont")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return ""
-	}
-	if s := os.Getenv("XDG_DATA_HOME"); s != "" {
-		return filepath.Join(s, "semiont")
-	}
-	return filepath.Join(home, ".local", "share", "semiont")
+	return dataDirFor(systemName(), userHome(), os.Getenv("XDG_DATA_HOME"), os.Getenv("LOCALAPPDATA"))
 }
 
 var keyUnsafe = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)

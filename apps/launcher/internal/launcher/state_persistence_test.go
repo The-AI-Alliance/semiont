@@ -3,6 +3,8 @@ package launcher
 import (
 	"strings"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
 // The "state" store is the one host volume at /semiont-state. The Archivist
@@ -14,8 +16,8 @@ import (
 // silently fall back inside the container and die with it.
 
 func TestStateStoreMountsSemiontStateOnHostVolume(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("XDG_DATA_HOME", home) // the launcher's data home backs the state store
+	harness.Home(t)
+	home := dataDir() // the launcher's data home backs the state store
 
 	args := stateMountArgs("state", "some-root")
 	if len(args) == 0 {
@@ -43,8 +45,13 @@ func volumeMount(args []string, want string) (target, host string, ok bool) {
 		if args[i] != "-v" && args[i] != "--volume" {
 			continue
 		}
-		host, target, found := strings.Cut(args[i+1], ":")
-		if found && target == want {
+		// The last colon: a Windows host path has one of its own, after the
+		// drive letter.
+		at := strings.LastIndex(args[i+1], ":")
+		if at < 0 {
+			continue
+		}
+		if host, target := args[i+1][:at], args[i+1][at+1:]; target == want {
 			return target, host, true
 		}
 	}

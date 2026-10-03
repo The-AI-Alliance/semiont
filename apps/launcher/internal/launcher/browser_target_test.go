@@ -10,8 +10,6 @@ package launcher
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
@@ -27,10 +25,7 @@ func TestBrowserTargetFallsBackToTheStableNameForAStaleID(t *testing.T) {
 	shim := t.TempDir()
 	// A docker that knows only `semiont-browser`, so a lookup by the stale
 	// recorded ID fails exactly as the real one would.
-	script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = semiont-browser ] && { echo running; exit 0; }; done\nexit 1\n"
-	if err := os.WriteFile(filepath.Join(shim, "docker"), []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	harness.StandIn(t, shim, "docker", harness.Says{Out: "running", OnlyGiven: "semiont-browser"})
 	t.Setenv("PATH", shim)
 
 	ss := &StackSet{Browser: &ServiceState{

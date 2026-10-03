@@ -17,6 +17,7 @@ require (
 	github.com/The-AI-Alliance/semiont/packages/sdk-go v0.0.0-00010101000000-000000000000
 	github.com/pelletier/go-toml/v2 v2.4.3
 	golang.org/x/sys v0.48.0
+	golang.org/x/term v0.46.0
 )
 
 require (

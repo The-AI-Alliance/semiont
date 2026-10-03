@@ -35,9 +35,13 @@ fact explains a good deal of what follows, including how services stay alive.
 brew install the-ai-alliance/semiont/semiont
 ```
 
-macOS and Linux (and Windows via WSL2), arm64 and amd64. The binary is static:
-no language runtime bleeds onto your host. Besides the launcher you need only
-`git` and one container runtime (`container`, `docker`, or `podman`) on PATH.
+macOS, Linux and Windows, arm64 and amd64. Homebrew serves macOS and Linux;
+the [GitHub Release](https://github.com/The-AI-Alliance/semiont/releases)
+carries an archive for each system, for Windows a zip holding `semiont.exe` —
+see [Semiont on Windows](../../docs/system/platforms/WINDOWS.md), which also
+covers running the Linux build inside WSL2. The binary is static: no language
+runtime bleeds onto your host. Besides the launcher you need only `git` and
+one container runtime (`container`, `docker`, or `podman`) on PATH.
 
 ## Use
 
@@ -810,10 +814,12 @@ container run --rm -v "$(pwd)":/work -w /work/apps/launcher golang:1.27.1 \
 The tests in `launcher_test.go` are the executable spec: golden files under
 `testdata/golden/` pin the exact runtime argv sequences per scenario, and a
 fake-runtime binary (`internal/fakert`) impersonates
-container/docker/podman/git/lsof/ps on a private PATH — tests never touch a
-real runtime. If a behavior change is intended, adjudicate deliberately
-(the goldens are the spec), then refresh them with
-`go test -run <Test> . -update-goldens`.
+container/docker/podman/git, and lsof/ps (netstat/tasklist on Windows), on a
+private PATH — tests never touch a real runtime. If a behavior change is
+intended, adjudicate deliberately (the goldens are the spec), then refresh
+them with `go test -run <Test> . -update-goldens`. The goldens are written on
+Linux, with placeholders for every host path; a run on macOS or Windows
+compares against them as that system runs.
 
 The suite refuses to run when `/tmp/semiont-config.*` exists (a live stack may
 be mounting those staged configs, and the launcher's preflight sweeps them) —

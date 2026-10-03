@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
 // LAUNCHER-SERVICE-MODEL P5. Two mechanisms shared the word "secret".
@@ -22,9 +24,7 @@ import (
 
 func custodyRoot(t *testing.T) string {
 	t.Helper()
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
+	home := harness.Home(t)
 	t.Setenv("JWT_SECRET", "")
 	root := filepath.Join(home, "kb")
 	if err := os.MkdirAll(root, 0o755); err != nil {
@@ -80,12 +80,11 @@ func TestCustodyIsKeptPerRootAndPrivate(t *testing.T) {
 		t.Fatal("no custody store for this root")
 	}
 	p := store.where(custodyJWTSecret)
-	fi, err := os.Stat(p)
-	if err != nil {
+	if _, err := os.Stat(p); err != nil {
 		t.Fatalf("the key was not kept: %v", err)
 	}
-	if mode := fi.Mode().Perm(); mode != 0o600 {
-		t.Errorf("%s is mode %04o — a signing key is readable only by its owner", p, mode)
+	if open := harness.OpenToOthers(t, p); open != "" {
+		t.Errorf("%s %s — a signing key is readable only by its owner", p, open)
 	}
 	if got, _ := store.get(u, custodyJWTSecret); got != secret {
 		t.Errorf("the kept value is not the one handed out: %q vs %q", got, secret)
@@ -95,19 +94,28 @@ func TestCustodyIsKeptPerRootAndPrivate(t *testing.T) {
 	}
 }
 
+// testVault registers a provider whose CLI prints the file it is given, and
+// puts that CLI on PATH. The argv is built by the launcher from the stored
+// path, exactly as a real provider's is.
+func testVault(t *testing.T) {
+	t.Helper()
+	bin := t.TempDir()
+	harness.StandIn(t, bin, "testvault", harness.Says{PrintsTheFile: true})
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	secretProviders["testvault"] = secretProvider{
+		display: "Test vault", bin: "testvault", pathHint: "<file>",
+		argv: func(p string) []string { return []string{p} },
+	}
+	t.Cleanup(func() { delete(secretProviders, "testvault") })
+}
+
 // A resolution value is RE-READ. The launcher holds nothing between two
 // resolutions, so a value that changed at the provider is the value the next
 // start uses.
 func TestResolutionIsReReadEveryTime(t *testing.T) {
 	dir := t.TempDir()
 	vault := filepath.Join(dir, "value")
-	// A provider whose "CLI" is `cat`: the argv is built by the launcher from
-	// the stored path, exactly as a real provider's is.
-	secretProviders["testvault"] = secretProvider{
-		display: "Test vault", bin: "cat", pathHint: "<file>",
-		argv: func(p string) []string { return []string{p} },
-	}
-	t.Cleanup(func() { delete(secretProviders, "testvault") })
+	testVault(t)
 	ref := secretRef{Provider: "testvault", Path: vault}
 
 	if err := os.WriteFile(vault, []byte("first-value\n"), 0o600); err != nil {
@@ -139,11 +147,7 @@ func TestResolutionValueReachesNoDisk(t *testing.T) {
 	if err := os.WriteFile(vault, []byte(sentinel+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	secretProviders["testvault"] = secretProvider{
-		display: "Test vault", bin: "cat", pathHint: "<file>",
-		argv: func(p string) []string { return []string{p} },
-	}
-	t.Cleanup(func() { delete(secretProviders, "testvault") })
+	testVault(t)
 
 	if got, err := resolveSecret(secretRef{Provider: "testvault", Path: vault}); err != nil || got != sentinel {
 		t.Fatalf("resolve = %q, %v", got, err)
@@ -194,9 +198,7 @@ func TestCustodyOwnedNamesCannotBeResolved(t *testing.T) {
 }
 
 func TestSecretSetRefusesACustodyOwnedName(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
+	harness.Home(t)
 	if code := secretSet(NewUI(false), "JWT_SECRET", "op://vault/item/field"); code == 0 {
 		t.Error("registering a provider for JWT_SECRET was accepted; the launcher mints that value itself and would discard whatever the provider returned")
 	}
@@ -211,10 +213,7 @@ func TestSecretSetRefusesACustodyOwnedName(t *testing.T) {
 // moments earlier was invisible — it warned that the model list could not be
 // fetched, then told the user to register the source they already had.
 func TestResolvedSecretValueReadsTheRegisteredSource(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	harness.Home(t)
 	t.Setenv("SOME_API_KEY", "")
 	u := NewUI(false)
 
@@ -226,11 +225,7 @@ func TestResolvedSecretValueReadsTheRegisteredSource(t *testing.T) {
 	if err := os.WriteFile(vault, []byte("from-the-vault\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	secretProviders["testvault"] = secretProvider{
-		display: "Test vault", bin: "cat", pathHint: "<file>",
-		argv: func(p string) []string { return []string{p} },
-	}
-	t.Cleanup(func() { delete(secretProviders, "testvault") })
+	testVault(t)
 	reg := loadRoots()
 	if reg.Secrets == nil {
 		reg.Secrets = map[string]secretRef{}

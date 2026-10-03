@@ -1,0 +1,5 @@
+# Every text file is checked out with LF line endings, on every system, and
+# committed with them. Git for Windows otherwise rewrites them to CRLF on
+# checkout, and much here is compared or parsed byte for byte: test goldens
+# and fixtures, the spec's JSON, Dockerfiles, shell scripts.
+* text=auto eol=lf

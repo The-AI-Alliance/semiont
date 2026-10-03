@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 	toml "github.com/pelletier/go-toml/v2"
 )
 
@@ -55,10 +56,7 @@ func TestGeneratedConfigSelectsAJobsDriverTheDispatcherCanRun(t *testing.T) {
 // chose. `start` already consults the root's sticky config preference; init
 // registered the root with an empty one.
 func TestInitRecordsTheConfigItWroteAsTheRootsPreference(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	home := harness.Home(t)
 	root := filepath.Join(home, "born")
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatal(err)
@@ -87,10 +85,7 @@ func TestInitRecordsTheConfigItWroteAsTheRootsPreference(t *testing.T) {
 // Defaults now: ollama inference on a small model, which is the provider that
 // needs no credential and the size that a first KB can actually pull.
 func TestBareInitProducesAStartableKB(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	home := harness.Home(t)
 	root := filepath.Join(home, "bare")
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		t.Fatal(err)
@@ -130,10 +125,7 @@ func TestBareInitProducesAStartableKB(t *testing.T) {
 // in. Ollama's path already warned and proceeded when it could not verify a
 // model; anthropic refused. Same situation, opposite answer.
 func TestAnthropicInitNeedsNoKeyToWriteAConfig(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	home := harness.Home(t)
 	t.Setenv("ANTHROPIC_API_KEY", "")
 	root := filepath.Join(home, "kb")
 	if err := os.MkdirAll(root, 0o755); err != nil {

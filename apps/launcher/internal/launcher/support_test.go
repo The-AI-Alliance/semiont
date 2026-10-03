@@ -2,8 +2,6 @@ package launcher
 
 import (
 	"net"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -56,22 +54,21 @@ func TestWaitForHTTPHonorsWallClockBudget(t *testing.T) {
 // while it runs or while the runtime cannot say.
 func TestWaitForContainerHTTPEndsWhenTheContainerStops(t *testing.T) {
 	cases := []struct {
-		runtime, inspect string
-		ends             bool
+		runtime, name string
+		inspect       harness.Says
+		ends          bool
 	}{
-		{"docker", "echo exited", true},
-		{"docker", "echo dead", true},
-		{"container", `echo '[{"status":"stopped"}]'`, true},
-		{"docker", "echo running", false},
-		{"container", `echo '[{"status":"running"}]'`, false},
-		{"docker", "exit 1", false},
+		{"docker", "says exited", harness.Says{Out: "exited"}, true},
+		{"docker", "says dead", harness.Says{Out: "dead"}, true},
+		{"container", "says stopped", harness.Says{Out: `[{"status":"stopped"}]`}, true},
+		{"docker", "says running", harness.Says{Out: "running"}, false},
+		{"container", "says running", harness.Says{Out: `[{"status":"running"}]`}, false},
+		{"docker", "cannot say", harness.Says{Exit: 1}, false},
 	}
 	for _, c := range cases {
-		t.Run(c.runtime+": "+c.inspect, func(t *testing.T) {
+		t.Run(c.runtime+" "+c.name, func(t *testing.T) {
 			shim := t.TempDir()
-			if err := os.WriteFile(filepath.Join(shim, c.runtime), []byte("#!/bin/sh\n"+c.inspect+"\n"), 0o755); err != nil {
-				t.Fatal(err)
-			}
+			harness.StandIn(t, shim, c.runtime, c.inspect)
 			t.Setenv("PATH", shim)
 
 			t0 := time.Now()

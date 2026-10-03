@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
 // signInFor: a whole sign-in whose tokens name which write it was.
@@ -30,7 +32,7 @@ func signInFor(n int) SignIn {
 // their last tokens. Without the lock each wrote the document it had read, and
 // one stack's tokens were lost under the other's.
 func TestTwoWritersOfTheSignInStoreLoseNothingOfEachOthers(t *testing.T) {
-	stateHome(t)
+	harness.Home(t)
 	const writes = 100
 	keys := []string{"local", "codespace:owner/name"}
 	var wg sync.WaitGroup
@@ -59,7 +61,7 @@ func TestTwoWritersOfTheSignInStoreLoseNothingOfEachOthers(t *testing.T) {
 // as it was: its keys in their order and its numbers as they were spelled,
 // which a writer that decoded and re-encoded it would not keep.
 func TestSavingASignInKeepsAMemberThatIsNotOne(t *testing.T) {
-	stateHome(t)
+	harness.Home(t)
 	const later = `{"z":1.0,"of":"something <else> & more","a":[1e3,null]}`
 	if err := os.MkdirAll(StateDir(), 0o755); err != nil {
 		t.Fatal(err)
@@ -113,7 +115,7 @@ func TestSavingASignInRefusesAFileItCannotRead(t *testing.T) {
 		"empty":         ``,
 	} {
 		t.Run(name, func(t *testing.T) {
-			stateHome(t)
+			harness.Home(t)
 			if err := os.MkdirAll(StateDir(), 0o755); err != nil {
 				t.Fatal(err)
 			}
@@ -136,18 +138,15 @@ func TestSavingASignInRefusesAFileItCannotRead(t *testing.T) {
 	}
 }
 
-// The file holds bearer credentials: mode 0600, and no stray temporary file.
+// The file holds bearer credentials: kept to its owner, and no stray
+// temporary file.
 func TestTheSignInStoreIsWrittenPrivately(t *testing.T) {
-	stateHome(t)
+	harness.Home(t)
 	if err := SaveToken("local", signInFor(1)); err != nil {
 		t.Fatal(err)
 	}
-	fi, err := os.Stat(tokensPath())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if perm := fi.Mode().Perm(); perm != 0o600 {
-		t.Errorf("tokens.json mode = %o, want 600", perm)
+	if open := harness.OpenToOthers(t, tokensPath()); open != "" {
+		t.Errorf("tokens.json %s", open)
 	}
 	entries, _ := os.ReadDir(filepath.Dir(tokensPath()))
 	for _, e := range entries {
@@ -195,7 +194,7 @@ func sessionAt(t *testing.T, endpoint string) *Session {
 // program that renewed the stack while this one's grant was in flight keeps
 // its tokens, and this command goes on with them.
 func TestARenewalLeavesWhatAnotherProgramRenewedMeanwhile(t *testing.T) {
-	stateHome(t)
+	harness.Home(t)
 	endpoint, _ := renewingIssuer(t, func() {
 		if err := SaveToken("local", signInFor(9)); err != nil {
 			t.Error(err)
@@ -216,7 +215,7 @@ func TestARenewalLeavesWhatAnotherProgramRenewedMeanwhile(t *testing.T) {
 // A stack signed out while its session was being renewed stays signed out:
 // the renewed tokens are not written back, and the renewal says so.
 func TestARenewalDoesNotSignBackInAStackThatWasSignedOut(t *testing.T) {
-	stateHome(t)
+	harness.Home(t)
 	endpoint, _ := renewingIssuer(t, func() {
 		if err := deleteToken("local"); err != nil {
 			t.Error(err)
@@ -235,7 +234,7 @@ func TestARenewalDoesNotSignBackInAStackThatWasSignedOut(t *testing.T) {
 // this command read is no longer the current one, and spending it at an issuer
 // that rotates would be refused.
 func TestARenewalSpendsNoRefreshTokenAnotherProgramReplaced(t *testing.T) {
-	stateHome(t)
+	harness.Home(t)
 	endpoint, grants := renewingIssuer(t, nil)
 	s := sessionAt(t, endpoint)
 	theirs := signInFor(9)
@@ -256,7 +255,7 @@ func TestARenewalSpendsNoRefreshTokenAnotherProgramReplaced(t *testing.T) {
 
 // With nothing else writing, a renewal keeps what the issuer rotated.
 func TestARenewalKeepsWhatTheIssuerRotated(t *testing.T) {
-	stateHome(t)
+	harness.Home(t)
 	endpoint, grants := renewingIssuer(t, nil)
 	s := sessionAt(t, endpoint)
 	if err := s.refresh(); err != nil {

@@ -11,11 +11,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"golang.org/x/term"
 )
 
 const loginUsage = `Usage: semiont login [--repo <owner/name> | --runtime <rt>]
@@ -153,24 +153,20 @@ func GatewayBase(st *StackState) string {
 }
 
 // readPassword reads one line from stdin. On a terminal the prompt goes to
-// stderr and echo is disabled via stty (best-effort — no extra dependency);
-// piped input is read as-is, which is the scripting path.
+// stderr and the line is read with echo off; piped input is read as-is, which
+// is the scripting path.
 func readPassword(u *UI) (string, bool) {
-	fi, err := os.Stdin.Stat()
-	tty := err == nil && fi.Mode()&os.ModeCharDevice != 0
-	if tty {
+	var line string
+	var err error
+	if fd := int(os.Stdin.Fd()); term.IsTerminal(fd) {
 		fmt.Fprint(os.Stderr, "Password: ")
-		off := exec.Command("stty", "-echo")
-		off.Stdin = os.Stdin
-		_ = off.Run()
-		defer func() {
-			on := exec.Command("stty", "echo")
-			on.Stdin = os.Stdin
-			_ = on.Run()
-			fmt.Fprintln(os.Stderr)
-		}()
+		var typed []byte
+		typed, err = term.ReadPassword(fd)
+		fmt.Fprintln(os.Stderr)
+		line = string(typed)
+	} else {
+		line, err = bufio.NewReader(os.Stdin).ReadString('\n')
 	}
-	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	pw := strings.TrimRight(line, "\r\n")
 	if pw == "" {
 		if err != nil {

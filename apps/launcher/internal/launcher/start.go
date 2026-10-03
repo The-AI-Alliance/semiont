@@ -1047,40 +1047,13 @@ func resolveHostAddr(rt string) (addr, why string) {
 	return "", why
 }
 
-// removeStagedConfigs sweeps /tmp/semiont-config.* — shared by start's
-// preflight and semiont stop.
+// removeStagedConfigs sweeps every staging dir (stagingPattern) — shared by
+// start's preflight and semiont stop.
 func removeStagedConfigs() {
-	dirs, _ := filepath.Glob("/tmp/semiont-config.*")
+	dirs, _ := filepath.Glob(stagingPattern())
 	for _, d := range dirs {
 		_ = os.RemoveAll(d)
 	}
-}
-
-// listenersOn returns the PIDs LISTENING on a TCP port. Several is normal
-// (parent+child servers, SO_REUSEPORT), so callers iterate.
-//
-// Both flags are load-bearing. Without `-sTCP:LISTEN`, lsof also matches CLOSED
-// outbound sockets, so a browser that once talked to a since-stopped gateway
-// makes the port read as held. And `-t` is absent because macOS lsof prints
-// nothing when `-t` meets `-s`: the terse form would report every port free.
-func listenersOn(port int) []string {
-	out, err := capture("lsof", "-nP", fmt.Sprintf("-iTCP:%d", port), "-sTCP:LISTEN")
-	if err != nil || out == "" {
-		return nil
-	}
-	var pids []string
-	seen := map[string]bool{}
-	for _, line := range strings.Split(out, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 || fields[1] == "PID" {
-			continue
-		}
-		if !seen[fields[1]] {
-			seen[fields[1]] = true
-			pids = append(pids, fields[1])
-		}
-	}
-	return pids
 }
 
 // portHeld reports whether anything holds the port, without judging it. The
@@ -1133,7 +1106,7 @@ func requirePortFree(u *UI, port int, service string) bool {
 		return true
 	}
 	u.Fail("Port %d (needed for %s) is held by %s.", port, service, describeProcs(pids))
-	fmt.Fprintln(os.Stderr, "  This is not a Semiont container. Stop it and re-run (e.g. kill "+strings.Join(pids, " ")+").")
+	fmt.Fprintln(os.Stderr, "  This is not a Semiont container. Stop it and re-run (e.g. "+stopProcessesHint(pids)+").")
 	return false
 }
 
@@ -1141,8 +1114,8 @@ func requirePortFree(u *UI, port int, service string) bool {
 func describeProcs(pids []string) string {
 	procs := make([]string, 0, len(pids))
 	for _, p := range pids {
-		comm, err := capture("ps", "-p", p, "-o", "comm=")
-		if err != nil || comm == "" {
+		comm := processName(p)
+		if comm == "" {
 			comm = "<unknown>"
 		}
 		procs = append(procs, fmt.Sprintf("%s (%s)", p, comm))

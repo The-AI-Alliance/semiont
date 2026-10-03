@@ -525,9 +525,9 @@ jobs:
       - name: Vet launcher
         run: cd apps/launcher && go vet ./...
 
-      # Every target a release ships, and Windows, which none ships yet. A
-      # POSIX-only call compiles on this job's Linux and on a developer's Mac;
-      # without this, the next person to try the Windows port finds it. `vet`
+      # Every target a release ships. A call one system lacks compiles on
+      # this job's Linux and on a developer's Mac; this is what finds it for
+      # the others, arm64 Windows included, which no runner below runs. `vet`
       # compiles the tests too.
       - name: Launcher compiles for every target
         run: |
@@ -558,11 +558,55 @@ jobs:
         run: cd packages/sdk-go && go vet ./... && go build ./... && go test -timeout 5m ./...
 
       # The launcher's deps are go-toml, golang.org/x/sys (the Windows build's
-      # file lock and process calls) and packages/sdk-go (whose client pulls
+      # file lock, access lists and process calls), golang.org/x/term (hidden
+      # input and the terminal's size) and packages/sdk-go (whose client pulls
       # oapi-codegen/runtime), plus the Go stdlib compiled into the shipped
-      # binary (distributed via Homebrew). govulncheck scans stdlib +
-      # deps and reports only vulns reachable from our code.
+      # binary (distributed via Homebrew and the release's archives).
+      # govulncheck scans stdlib + deps and reports only vulns reachable from
+      # our code.
       - name: Vulnerability scan launcher (govulncheck)
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           cd apps/launcher && govulncheck ./...
+
+  # The same suite, run as a Windows program. The job above proves the
+  # launcher compiles for Windows; nothing but a Windows machine proves what
+  # it does there: the access lists that stand in for file modes, the file
+  # lock, where state lives, how a port's holder is found, and every scenario
+  # the fake runtime drives.
+  #
+  # The checkout is byte-for-byte what Linux gets (.gitattributes), which the
+  # goldens and fixtures are compared against.
+  test-launcher-windows:
+    name: Launcher Tests (Go, Windows)
+    runs-on: windows-latest
+    # A ceiling, not an estimate: how long the suite takes on a Windows runner
+    # is measured by its first runs. It starts a process per fake command,
+    # which costs more there than on Linux.
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: apps/launcher
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: apps/launcher/go.mod
+          cache-dependency-path: apps/launcher/go.sum
+
+      - name: Vet launcher
+        run: go vet ./...
+
+      # An explicit budget, as the Linux job has, under the job's ceiling.
+      - name: Test launcher
+        run: go test -timeout 50m ./...
+
+      # The launcher's Windows binary carries this module's client and bus
+      # registry.
+      - name: Test sdk-go
+        working-directory: packages/sdk-go
+        run: go test -timeout 5m ./...
