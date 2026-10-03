@@ -319,8 +319,9 @@ function useTypedTranslations<NS extends TranslationNamespace>(namespace: NS) {
 
 `t` receives the call's `params`; interpolation and pluralization are the
 manager's to implement. The built-in managers use `interpolateTranslation`,
-which a custom manager can call for the same result. It resolves ICU plural
-expressions and then replaces `{{name}}` with `params.name`:
+which a custom manager can call for the same result. In one pass over the
+string it resolves ICU plural expressions and replaces `{{name}}` with
+`params.name`:
 
 ```tsx
 import { interpolateTranslation, type TranslationManager } from '@semiont/react-ui';
@@ -358,8 +359,11 @@ A plural expression names a param and gives a branch per case:
 - `#` in a branch stands for the count.
 - A string may hold several plural expressions, and a branch may hold
   `{{name}}` placeholders and further plural expressions.
-- An expression whose param is not passed, or that has no branch for the
-  count, is left as written.
+- A value goes in as written: a count or a param's value that itself holds
+  `{{name}}`, `#` or a plural expression is text, not more template.
+- What cannot be resolved is left as written, whole: a placeholder or plural
+  whose param is not passed, a plural with no branch for the count, and a
+  plural that never closes together with what follows it.
 
 ## Language Switching
 

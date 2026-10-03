@@ -33,61 +33,67 @@ function selectBranch(
 }
 
 /**
- * Resolve every ICU MessageFormat plural expression in a string:
- * `{count, plural, =0 {text} one {text} other {text}}`.
- *
- * A branch is chosen by exact match (`=N`) first, then by the plural category
- * the count falls in under `locale`'s rules (`zero`, `one`, `two`, `few`,
- * `many`), then `other`. `#` in a branch stands for the count. A branch may
- * hold `{{param}}` placeholders and further plural expressions. An expression
- * whose param is missing, or that has no branch for the count, is left as
- * written.
+ * Walk a template once, replacing what it names: a plural expression with its
+ * chosen branch, a `{{param}}` placeholder with the param's value and, in the
+ * branch of a plural, `#` with that plural's count. Only a template is walked,
+ * the chosen branch included; a value goes in as written.
  */
-export function processPluralFormat(
-  text: string,
+function interpolate(
+  template: string,
   params: Record<string, unknown>,
   locale: string,
+  count: string | undefined,
 ): string {
-  const header = /\{(\w+),\s*plural,\s*/g;
-  let resolved = '';
-  let unresolvedFrom = 0;
+  const named = /\{(\w+),\s*plural,\s*|\{\{([^{}]+)\}\}|#/g;
+  let result = '';
+  let copiedTo = 0;
   let match;
-  while ((match = header.exec(text)) !== null) {
-    const end = closingBrace(text, header.lastIndex);
-    if (end === -1) break;
+  while ((match = named.exec(template)) !== null) {
+    const [, pluralParam, placeholderParam] = match;
+    let value: string | undefined;
 
-    const count = params[match[1]];
-    const branch = count === undefined
-      ? undefined
-      : selectBranch(pluralBranches(text.slice(header.lastIndex, end)), count, locale);
-    if (branch !== undefined) {
-      // A nested plural resolves first, so the `#`s left are this plural's own.
-      resolved += text.slice(unresolvedFrom, match.index)
-        + processPluralFormat(branch, params, locale).replace(/#/g, () => String(count));
-      unresolvedFrom = end + 1;
+    if (pluralParam !== undefined) {
+      const end = closingBrace(template, named.lastIndex);
+      if (end === -1) break;
+      const pluralCount = params[pluralParam];
+      const branch = pluralCount === undefined
+        ? undefined
+        : selectBranch(pluralBranches(template.slice(named.lastIndex, end)), pluralCount, locale);
+      if (branch !== undefined) value = interpolate(branch, params, locale, String(pluralCount));
+      named.lastIndex = end + 1;
+    } else if (placeholderParam !== undefined) {
+      if (Object.hasOwn(params, placeholderParam)) value = String(params[placeholderParam]);
+    } else {
+      value = count;
     }
-    header.lastIndex = end + 1;
+
+    if (value !== undefined) {
+      result += template.slice(copiedTo, match.index) + value;
+      copiedTo = named.lastIndex;
+    }
   }
-  return resolved + text.slice(unresolvedFrom);
+  return result + template.slice(copiedTo);
 }
 
 /**
- * The interpolation every translation string goes through: plural format
- * first (since it may consume more of the string), then `{{paramKey}}`
- * parameter substitution. `locale` is the language the string is written in;
- * its plural rules decide which branch a count takes.
+ * The interpolation every translation string goes through.
  *
- * Placeholders are replaced in one pass over the string, not one param at a
- * time, so a value inserted for one placeholder is not scanned for another.
+ * - `{count, plural, =0 {text} one {text} other {text}}` becomes one of its
+ *   branches: the exact match (`=N`) first, then the plural category the count
+ *   falls in (`zero`, `one`, `two`, `few`, `many`), then `other`. `locale` is
+ *   the language the string is written in; its rules decide the category.
+ *   `#` in a branch stands for the count, and a branch may hold placeholders
+ *   and further plural expressions.
+ * - `{{paramKey}}` becomes the param's value.
+ *
+ * What cannot be resolved is left as written: a placeholder or plural whose
+ * param is missing, a plural with no branch for the count, and a plural that
+ * never closes together with what follows it.
  */
 export function interpolateTranslation(
   translation: string,
   params: Record<string, unknown>,
   locale: string,
 ): string {
-  return processPluralFormat(translation, params, locale).replace(
-    /\{\{([^{}]+)\}\}/g,
-    (placeholder, paramKey: string) =>
-      Object.hasOwn(params, paramKey) ? String(params[paramKey]) : placeholder,
-  );
+  return interpolate(translation, params, locale, undefined);
 }

@@ -12,14 +12,14 @@ type Messages = Record<string, Record<string, string>>;
  * TranslationManager.t(namespace, key) maps directly to this structure.
  *
  * Interpolation is react-ui's `interpolateTranslation`, the one its built-in
- * managers use. It supports two syntaxes, in this precedence order:
+ * managers use. It supports two syntaxes:
  *
- * 1. ICU MessageFormat plural — `{count, plural, =0 {…} one {…} other {…}}`
- *    — used for count-sensitive strings like "1 category selected" /
- *    "3 categories selected". The active language's plural rules decide
- *    which category a count falls in.
- * 2. Double-brace parameter substitution — `{{paramKey}}` — used for
- *    everything else (`{{mode}}`, `{{delay}}`, etc.).
+ * - ICU MessageFormat plural — `{count, plural, =0 {…} one {…} other {…}}`
+ *   — used for count-sensitive strings like "1 category selected" /
+ *   "3 categories selected". The active language's plural rules decide
+ *   which category a count falls in.
+ * - Double-brace parameter substitution — `{{paramKey}}` — used for
+ *   everything else (`{{mode}}`, `{{delay}}`, etc.).
  */
 export function useMergedTranslationManager(): TranslationManager {
   const { i18n } = useTranslation();
