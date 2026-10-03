@@ -23,8 +23,7 @@ use semiont::errors::{IdentityUnverifiableReason, SessionErrorCode, SignInError,
 use semiont::session::{
     HttpEndpoint, KbEndpoint, KbTarget, KnowledgeBase, Protocol, SemiontBrowser,
     SemiontBrowserConfig, SemiontSession, SessionEndReason, StoredSession, save_knowledge_bases,
-    session_key,
-    store_session, stored_session,
+    session_key, store_session, stored_session,
 };
 use semiont::sign_in_store::{FILE_NAME, SignInStore};
 use semiont::storage::{InMemorySessionStorage, SessionStorage};
@@ -1242,10 +1241,7 @@ async fn a_gateway_that_refuses_what_its_issuer_issues_is_asked_twice_and_then_l
     .await;
 
     assert_eq!(world.staged.asked_who.lock().unwrap().len(), 2);
-    assert_eq!(
-        *told.lock().unwrap(),
-        [SessionEndReason::Refused]
-    );
+    assert_eq!(*told.lock().unwrap(), [SessionEndReason::Refused]);
     assert_eq!(
         *reported.lock().unwrap(),
         [SessionErrorCode::CredentialRefused]
@@ -1312,10 +1308,7 @@ async fn a_running_session_whose_gateway_starts_refusing_ends_on_the_first_refus
         *world.staged.asked_who.lock().unwrap(),
         [first.clone(), first, renewed]
     );
-    assert_eq!(
-        *told.lock().unwrap(),
-        [SessionEndReason::Refused]
-    );
+    assert_eq!(*told.lock().unwrap(), [SessionEndReason::Refused]);
     assert_eq!(
         *reported.lock().unwrap(),
         [SessionErrorCode::CredentialRefused]

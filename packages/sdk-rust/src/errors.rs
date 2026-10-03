@@ -51,7 +51,11 @@ impl TransportError {
     /// The gateway's refusal, as every request reports one: in the gateway's
     /// own words when its body states them (`ErrorResponse.error`), and with
     /// the wait its `Retry-After` states.
-    pub fn refusal(status: u16, said: Option<String>, retry_after: Option<Duration>) -> TransportError {
+    pub fn refusal(
+        status: u16,
+        said: Option<String>,
+        retry_after: Option<Duration>,
+    ) -> TransportError {
         TransportError {
             code: TransportErrorCode::of_status(status),
             status: Some(status),

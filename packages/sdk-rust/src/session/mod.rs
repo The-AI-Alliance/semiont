@@ -44,7 +44,9 @@ pub use semiont_session::{
     OnAuthFailed, OnSessionError, Refresh, SemiontSession, SemiontSessionConfig, SessionRenewer,
     Validate,
 };
-pub use signals::{KbIdentityConflict, PermissionDenied, SessionEndReason, SessionEnded, SessionSignals};
+pub use signals::{
+    KbIdentityConflict, PermissionDenied, SessionEndReason, SessionEnded, SessionSignals,
+};
 pub use stored::{
     ACTIVE_KEY, KNOWLEDGE_BASES_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY,
     StoredSession, clear_stored_session, is_token_expired, kb_of_session_key, load_knowledge_bases,

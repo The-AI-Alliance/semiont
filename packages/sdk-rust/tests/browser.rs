@@ -13,10 +13,9 @@ use semiont::errors::{SessionErrorCode, TransportError};
 use semiont::session::{
     ACTIVE_KEY, Expected, HttpEndpoint, KNOWLEDGE_BASES_KEY, KbEndpoint, KbIdentityConflict,
     KbRead, KbReadVerdict, KbSessionStatus, KnowledgeBase, LAST_VIEWED_RESOURCE_BY_KB_KEY,
-    NewKnowledgeBase, OPEN_RESOURCES_BY_KB_KEY, OpenResource, Protocol, SemiontBrowser,
-    PermissionDenied, SemiontBrowserConfig, SemiontSession, SessionEndReason, SessionEnded,
-    SignedIn, StoredSession,
-    save_knowledge_bases, session_key, store_session, stored_session,
+    NewKnowledgeBase, OPEN_RESOURCES_BY_KB_KEY, OpenResource, PermissionDenied, Protocol,
+    SemiontBrowser, SemiontBrowserConfig, SemiontSession, SessionEndReason, SessionEnded, SignedIn,
+    StoredSession, save_knowledge_bases, session_key, store_session, stored_session,
 };
 use semiont::storage::SessionStorage;
 use semiont::testing::as_id;
