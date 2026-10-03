@@ -222,15 +222,19 @@ export function ResourceViewerPage({
   const { token: mediaToken, loading: mediaTokenLoading } =
     useMediaToken(contentSource === 'media-url' ? semiont ?? null : null, rUri);
 
-  const loadedBy: Record<ContentSource, { content: string; contentLoading: boolean }> = {
-    'text': { content: textContent, contentLoading: textLoading },
-    'media-url': { content: mediaUrl(semiont, rUri, mediaToken) ?? '', contentLoading: mediaTokenLoading },
-    'none': { content: '', contentLoading: false },
+  const tokenUrl = mediaUrl(semiont, rUri, mediaToken);
+
+  // Each source says what the view reads, whether it is still arriving, and
+  // whether the view has it. Loaded is a fact of the source — the text landed,
+  // the URL exists, there is nothing to load — never inferred from a non-empty
+  // string, which answers "never" for a zero-byte document and for a view that
+  // reads no content.
+  const loadedBy: Record<ContentSource, { content: string; contentLoading: boolean; contentLoaded: boolean }> = {
+    'text': { content: textContent ?? '', contentLoading: textLoading, contentLoaded: textContent !== undefined },
+    'media-url': { content: tokenUrl ?? '', contentLoading: mediaTokenLoading, contentLoaded: tokenUrl !== undefined },
+    'none': { content: '', contentLoading: false, contentLoaded: true },
   };
-  const { content, contentLoading } = loadedBy[contentSource];
-  // Nothing to load is loaded at once — not never, which a bare `!!content`
-  // answers for a view that reads no content.
-  const contentLoaded = contentSource === 'none' || (!contentLoading && !!content);
+  const { content, contentLoading, contentLoaded } = loadedBy[contentSource];
 
   // Composite state unit — owns all flow VMs, wizard state, annotations, entity types
   const browseStateUnit = useShellStateUnit();

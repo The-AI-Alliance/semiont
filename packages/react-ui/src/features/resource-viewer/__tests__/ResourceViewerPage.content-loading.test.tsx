@@ -191,3 +191,20 @@ describe('ResourceViewerPage — a type with no preview loads nothing', () => {
     expect(resourceViewed).toHaveBeenCalledWith(resourceId);
   });
 });
+
+// Loaded is a fact of the source, never inferred from a non-empty string: a
+// zero-byte document that has been fetched is on screen like any other.
+describe('ResourceViewerPage — an empty document is a loaded document', () => {
+  it('a zero-byte text resource is announced, and reported viewed once', async () => {
+    const { resourceId, getBinary, resourceViewed } = await mountPageFor('text/plain', '');
+
+    await waitFor(() => expect(resourceViewed).toHaveBeenCalledTimes(1));
+    await settle();
+
+    expect(resourceViewed).toHaveBeenCalledTimes(1);
+    expect(resourceViewed).toHaveBeenCalledWith(resourceId);
+    expect(announcements.announceResourceLoaded).toHaveBeenCalledWith('Fixture');
+    expect(getBinary).toHaveBeenCalledTimes(1);
+    expect(viewerContent()).toBe('');
+  });
+});

@@ -10,7 +10,7 @@
  * no client param) and GREEN once the de-provider lands.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { resourceId } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
@@ -30,6 +30,13 @@ const resource = {
 
 const RID = resourceId('res-1');
 const utf8 = (s: string) => new TextEncoder().encode(s).buffer;
+
+/** A promise the test settles by hand, to observe the state while it is pending. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => { resolve = r; });
+  return { promise, resolve };
+}
 
 describe('useResourceContent — bring-your-own-client, no providers', () => {
   beforeEach(() => {
@@ -66,12 +73,12 @@ describe('useResourceContent — bring-your-own-client, no providers', () => {
     expect(result.current.loading).toBe(false);
   });
 
-  it('client=null stays idle — no fetch, not loading', () => {
+  it('client=null stays idle — no fetch, not loading, no content', () => {
     const { result } = renderHook(() => useResourceContent(null, RID, resource));
 
     expect(mockResourceRepresentation).not.toHaveBeenCalled();
     expect(result.current.loading).toBe(false);
-    expect(result.current.content).toBe('');
+    expect(result.current.content).toBeUndefined();
     expect(result.current.error).toBeNull();
   });
 
@@ -90,6 +97,70 @@ describe('useResourceContent — bring-your-own-client, no providers', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.error).toBeInstanceOf(Error);
     expect(result.current.error?.message).toBe('Network error');
-    expect(result.current.content).toBe('');
+    expect(result.current.content).toBeUndefined();
+  });
+});
+
+// `content` is the loaded fact: `undefined` until the text has arrived, the
+// text afterwards. An empty string is a document — a zero-byte one — so it
+// must never also mean "not loaded yet", or a caller asking "is it loaded?"
+// can only guess from length and gets every empty document wrong.
+describe('useResourceContent — undefined means not loaded, never an empty document', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('a zero-byte representation loads as the empty string', async () => {
+    const fetch = deferred<{ data: ArrayBuffer; contentType: string }>();
+    mockResourceRepresentation.mockReturnValue(fetch.promise);
+
+    const { result } = renderHook(() => useResourceContent(client, RID, resource));
+    expect(result.current.content).toBeUndefined();
+
+    fetch.resolve({ data: utf8(''), contentType: 'text/plain' });
+
+    await waitFor(() => expect(result.current.content).toBe(''));
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
+  it('one resource\'s content never stands in for the next one\'s', async () => {
+    mockResourceRepresentation.mockResolvedValueOnce({ data: utf8('first'), contentType: 'text/plain' });
+    const { result, rerender } = renderHook(
+      ({ rid }) => useResourceContent(client, rid, resource),
+      { initialProps: { rid: RID } },
+    );
+    await waitFor(() => expect(result.current.content).toBe('first'));
+
+    const next = deferred<{ data: ArrayBuffer; contentType: string }>();
+    mockResourceRepresentation.mockReturnValueOnce(next.promise);
+    rerender({ rid: resourceId('res-2') });
+
+    expect(result.current.content).toBeUndefined();
+    expect(result.current.loading).toBe(true);
+
+    next.resolve({ data: utf8('second'), contentType: 'text/plain' });
+    await waitFor(() => expect(result.current.content).toBe('second'));
+  });
+
+  it('disabling mid-fetch returns to idle: not loading, no content, and the late reply is dropped', async () => {
+    const fetch = deferred<{ data: ArrayBuffer; contentType: string }>();
+    mockResourceRepresentation.mockReturnValue(fetch.promise);
+
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useResourceContent(client, RID, resource, enabled),
+      { initialProps: { enabled: true } },
+    );
+    await waitFor(() => expect(result.current.loading).toBe(true));
+
+    rerender({ enabled: false });
+    expect(result.current.loading).toBe(false);
+
+    await act(async () => {
+      fetch.resolve({ data: utf8('late'), contentType: 'text/plain' });
+      await fetch.promise;
+    });
+    expect(result.current.content).toBeUndefined();
+    expect(result.current.loading).toBe(false);
   });
 });

@@ -323,7 +323,7 @@ the refusal's message as its detail.
 
 `SessionSignals` holds the modal state as `BehaviorSubject`s, one per signal (`sessionEnded$`, `permissionDenied$`, `kbIdentityConflict$`), each null until raised. A notice says what happened, never a sentence: `SessionEndedModal` and `PermissionDeniedModal` write what a person reads, in their language, and render by subscribing to the browser's `activeSignals$` via `useObservable`. When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so auth errors have nowhere to surface and are no-ops.
 
-**Component-level:** a live query carries its own loading/error state in the value it emits — `useObservable(semiont.browse.resource(id))` yields `CacheState` values (`pending` / `ready` / `failed`, plus `undefined` on the very first render). One-shot hooks such as `useResourceContent` return an explicit `{ content, loading, error }` shape:
+**Component-level:** a live query carries its own loading/error state in the value it emits — `useObservable(semiont.browse.resource(id))` yields `CacheState` values (`pending` / `ready` / `failed`, plus `undefined` on the very first render). One-shot hooks such as `useResourceContent` return an explicit `{ content, loading, error }` shape, where `content` is `undefined` until the text has loaded and a zero-byte document loads as `''`:
 
 ```tsx
 function ResourceText() {
