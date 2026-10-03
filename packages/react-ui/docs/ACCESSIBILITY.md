@@ -95,7 +95,7 @@ const { announceFormSubmitting, announceFormSuccess, announceFormError, announce
 const { announceLanguageChanging, announceLanguageChanged } = useLanguageChangeAnnouncements();
 
 // Document and annotation changes
-const { announceAnnotationCreated, announceAnnotationDeleted, announceError } = useDocumentAnnouncements();
+const { announceAnnotationCreated, announceAnnotationDeleted, announceError } = useDocumentAnnouncements(ANNOTATORS);
 ```
 
 ## Live Regions

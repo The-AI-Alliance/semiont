@@ -6,7 +6,7 @@ import type { Annotation } from '@semiont/core';
 import { getAnnotationExactText, getCommentText } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
-import { renderAgentLabel } from './agent-label';
+import { creatorName, renderAgentLabels } from './agent-label';
 
 interface CommentEntryProps {
   /** Session for interaction routing (browse.click etc.); the panel threads it. */
@@ -138,13 +138,11 @@ export function CommentEntry({
       {!isEditing && (
         <div className="semiont-annotation-entry__footer">
           <div className="semiont-annotation-entry__metadata">
-            By {typeof comment.creator === 'string' ? comment.creator : comment.creator?.name || 'Unknown'} • {formatRelativeTime(comment.created || new Date().toISOString())}
+            {creatorName(comment.creator) && <>By {creatorName(comment.creator)} • </>}{formatRelativeTime(comment.created || new Date().toISOString())}
           </div>
-          {comment.generator && (
+          {comment.generator && renderAgentLabels(comment.generator) && (
             <div className="semiont-annotation-entry__metadata">
-              Via {Array.isArray(comment.generator)
-                ? comment.generator.map(renderAgentLabel).join(', ')
-                : renderAgentLabel(comment.generator)}
+              Via {renderAgentLabels(comment.generator)}
             </div>
           )}
           {annotateMode && (

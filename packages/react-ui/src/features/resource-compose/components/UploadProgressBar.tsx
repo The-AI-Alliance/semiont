@@ -20,8 +20,8 @@ import type { UploadProgress } from '@semiont/sdk';
 
 export interface UploadProgressBarProps {
   progress: UploadProgress | null;
-  /** Optional label for the "starting" / "uploaded" lines. Defaults to "Upload". */
-  label?: string;
+  /** What is being uploaded, named at the head of each line. */
+  label: string;
 }
 
 function formatBytes(bytes: number): string {
@@ -31,7 +31,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-export function UploadProgressBar({ progress, label = 'Upload' }: UploadProgressBarProps): React.ReactElement | null {
+export function UploadProgressBar({ progress, label }: UploadProgressBarProps): React.ReactElement | null {
   if (!progress) return null;
 
   if (progress.phase === 'started') {

@@ -1,10 +1,10 @@
 interface ImageViewerProps {
   imageUrl: string;
   mimeType: string;
-  alt?: string;
+  alt: string;
 }
 
-export function ImageViewer({ imageUrl, alt = 'Resource image' }: ImageViewerProps) {
+export function ImageViewer({ imageUrl, alt }: ImageViewerProps) {
   return (
     <div className="semiont-image-viewer">
       <img

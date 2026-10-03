@@ -19,7 +19,7 @@ export interface SortableResourceTabProps {
   translations: {
     dragToReorder?: string;
     dragToReorderDoc?: string;
-    closeResource?: string;
+    closeResource: string;
     moveUp?: string;
     moveDown?: string;
   };

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderAgentLabel } from '../agent-label';
+import { creatorName, renderAgentLabel, renderAgentLabels } from '../agent-label';
 import type { components } from '@semiont/core';
 
 type Agent = components['schemas']['Agent'];
@@ -85,9 +85,26 @@ describe('renderAgentLabel', () => {
       expect(renderAgentLabel(agent)).toBe('did:web:example.com:users:bob%40example.com');
     });
 
-    it('falls back to "unknown" when nothing identifies the agent', () => {
+    it('has no label when nothing identifies the agent', () => {
       const agent = { '@type': 'Person', name: '' } as unknown as Agent;
-      expect(renderAgentLabel(agent)).toBe('unknown');
+      expect(renderAgentLabel(agent)).toBeUndefined();
     });
+  });
+});
+
+describe('an agent that names itself in no way', () => {
+  const nameless = { '@type': 'Person' } as Agent;
+
+  it('is left out of a list of labels', () => {
+    const alice = { '@type': 'Person', name: 'Alice' } as Agent;
+
+    expect(renderAgentLabels([alice, nameless])).toBe('Alice');
+    expect(renderAgentLabels(nameless)).toBe('');
+  });
+
+  it('has no creator name', () => {
+    expect(creatorName(nameless)).toBeUndefined();
+    expect(creatorName(undefined)).toBeUndefined();
+    expect(creatorName('did:web:example.com:users:bob')).toBe('did:web:example.com:users:bob');
   });
 });

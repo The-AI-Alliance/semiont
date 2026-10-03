@@ -9,7 +9,7 @@ import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
 import { readyValue, type SemiontSession } from '@semiont/sdk';
 import { useObservable } from '../../../hooks/useObservable';
-import { renderAgentLabel } from './agent-label';
+import { renderAgentLabels } from './agent-label';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
 
 interface ReferenceEntryProps {
@@ -187,11 +187,9 @@ export function ReferenceEntry({
           ))}
         </div>
       )}
-      {reference.generator && (
+      {reference.generator && renderAgentLabels(reference.generator) && (
         <div className="semiont-annotation-entry__metadata">
-          Via {Array.isArray(reference.generator)
-            ? reference.generator.map(renderAgentLabel).join(', ')
-            : renderAgentLabel(reference.generator)}
+          Via {renderAgentLabels(reference.generator)}
         </div>
       )}
     </div>

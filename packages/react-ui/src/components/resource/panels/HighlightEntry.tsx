@@ -5,7 +5,7 @@ import type { Annotation } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
-import { renderAgentLabel } from './agent-label';
+import { creatorName, renderAgentLabels } from './agent-label';
 
 interface HighlightEntryProps {
   /** Session for interaction routing (browse.click etc.); the panel threads it. */
@@ -64,13 +64,11 @@ export function HighlightEntry({
 
       {/* Metadata */}
       <div className="semiont-annotation-entry__metadata">
-        By {typeof highlight.creator === 'string' ? highlight.creator : highlight.creator?.name || 'Unknown'} • {formatRelativeTime(highlight.created || new Date().toISOString())}
+        {creatorName(highlight.creator) && <>By {creatorName(highlight.creator)} • </>}{formatRelativeTime(highlight.created || new Date().toISOString())}
       </div>
-      {highlight.generator && (
+      {highlight.generator && renderAgentLabels(highlight.generator) && (
         <div className="semiont-annotation-entry__metadata">
-          Via {Array.isArray(highlight.generator)
-            ? highlight.generator.map(renderAgentLabel).join(', ')
-            : renderAgentLabel(highlight.generator)}
+          Via {renderAgentLabels(highlight.generator)}
         </div>
       )}
     </div>

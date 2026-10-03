@@ -26,7 +26,7 @@ The props are the component's own — `ComponentProps<typeof SearchModal>`:
 
 - `isOpen`, `onClose` — the parent owns the open state; picking a result calls `onClose` before `onNavigate`.
 - `onNavigate(type, id)` — called with the picked result's type (`'resource' | 'entity'`) and id; the host routes.
-- `translations?` — `placeholder`, `searching`, `noResults`, `startTyping`, `navigate`, `select`, `close`, `enter`, `esc`; each one left out falls back to English.
+- `translations` — `placeholder`, `searching`, `noResults`, `startTyping`, `navigate`, `select`, `close`, `enter`, `esc`. All nine are required: the modal has no strings of its own.
 
 #### Usage Example
 
@@ -52,10 +52,15 @@ function GlobalSearch() {
         onClose={() => setIsOpen(false)}
         onNavigate={handleNavigate}
         translations={{
-          placeholder: 'Search resources, entities...',
-          searching: 'Searching...',
-          noResults: 'No results found',
-          startTyping: 'Start typing to search'
+          placeholder: t('placeholder'),
+          searching: t('searching'),
+          noResults: t('noResults'),
+          startTyping: t('startTyping'),
+          navigate: t('navigate'),
+          select: t('select'),
+          close: t('close'),
+          enter: t('enter'),
+          esc: t('esc'),
         }}
       />
     </>
@@ -136,7 +141,13 @@ export function ViteSearchModal({ isOpen, onClose }: { isOpen: boolean; onClose:
       translations={{
         placeholder: t('placeholder'),
         searching: t('searching'),
-        // ... translations
+        noResults: t('noResults'),
+        startTyping: t('startTyping'),
+        navigate: t('navigate'),
+        select: t('select'),
+        close: t('close'),
+        enter: t('enter'),
+        esc: t('esc'),
       }}
     />
   );

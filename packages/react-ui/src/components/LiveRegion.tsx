@@ -87,8 +87,14 @@ export function useSearchAnnouncements() {
   };
 }
 
-export function useDocumentAnnouncements(annotators?: Record<string, Annotator>) {
+export function useDocumentAnnouncements(annotators: Record<string, Annotator>) {
   const { announce } = useLiveRegion();
+
+  const annotatorOf = useCallback((annotation: Annotation): Annotator => {
+    const annotator = Object.values(annotators).find(a => a.matchesAnnotation(annotation));
+    if (!annotator) throw new Error('No annotator matches the annotation');
+    return annotator;
+  }, [annotators]);
 
   const announceDocumentSaved = useCallback(() => {
     announce('Document saved successfully', 'polite');
@@ -99,20 +105,16 @@ export function useDocumentAnnouncements(annotators?: Record<string, Annotator>)
   }, [announce]);
 
   const announceAnnotationCreated = useCallback((annotation: Annotation) => {
-    const metadata = annotators ? Object.values(annotators).find(a => a.matchesAnnotation(annotation)) : null;
-    const message = metadata?.announceOnCreate ?? 'Annotation created';
-    announce(message, 'polite');
-  }, [announce, annotators]);
+    announce(annotatorOf(annotation).announceOnCreate, 'polite');
+  }, [announce, annotatorOf]);
 
   const announceAnnotationDeleted = useCallback(() => {
     announce('Annotation deleted', 'polite');
   }, [announce]);
 
   const announceAnnotationUpdated = useCallback((annotation: Annotation) => {
-    const metadata = annotators ? Object.values(annotators).find(a => a.matchesAnnotation(annotation)) : null;
-    const message = `${metadata?.displayName ?? 'Annotation'} updated`;
-    announce(message, 'polite');
-  }, [announce, annotators]);
+    announce(`${annotatorOf(annotation).displayName} updated`, 'polite');
+  }, [announce, annotatorOf]);
 
   const announceError = useCallback((message: string) => {
     announce(`Error: ${message}`, 'assertive');
@@ -132,22 +134,16 @@ export function useDocumentAnnouncements(annotators?: Record<string, Annotator>)
 export function useResourceLoadingAnnouncements() {
   const { announce } = useLiveRegion();
 
-  const announceResourceLoading = useCallback((resourceName?: string) => {
-    const message = resourceName
-      ? `Loading ${resourceName}...`
-      : 'Loading resource...';
-    announce(message, 'polite');
+  const announceResourceLoading = useCallback((resourceName: string) => {
+    announce(`Loading ${resourceName}...`, 'polite');
   }, [announce]);
 
   const announceResourceLoaded = useCallback((resourceName: string) => {
     announce(`${resourceName} loaded successfully`, 'polite');
   }, [announce]);
 
-  const announceResourceLoadError = useCallback((resourceName?: string) => {
-    const message = resourceName
-      ? `Failed to load ${resourceName}`
-      : 'Failed to load resource';
-    announce(message, 'assertive');
+  const announceResourceLoadError = useCallback((resourceName: string) => {
+    announce(`Failed to load ${resourceName}`, 'assertive');
   }, [announce]);
 
   const announceResourceUpdating = useCallback((resourceName: string) => {
@@ -170,12 +166,12 @@ export function useFormAnnouncements() {
     announce('Submitting form...', 'polite');
   }, [announce]);
 
-  const announceFormSuccess = useCallback((message?: string) => {
-    announce(message || 'Form submitted successfully', 'polite');
+  const announceFormSuccess = useCallback((message: string) => {
+    announce(message, 'polite');
   }, [announce]);
 
-  const announceFormError = useCallback((message?: string) => {
-    announce(message || 'Form submission failed. Please check your entries and try again.', 'assertive');
+  const announceFormError = useCallback((message: string) => {
+    announce(message, 'assertive');
   }, [announce]);
 
   const announceFormValidationError = useCallback((fieldCount: number) => {

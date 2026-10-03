@@ -126,15 +126,17 @@ describe('AssessmentEntry', () => {
       expect(screen.getByText(/reviewer@example.com/)).toBeInTheDocument();
     });
 
-    it('should show "Unknown" for missing creator', () => {
+    it('names no creator when the assessment has none', () => {
       const assessment = createMockAssessment();
       delete (assessment as Record<string, unknown>).creator;
 
-      renderWithProviders(
+      const { container } = renderWithProviders(
         <AssessmentEntry assessment={assessment} isFocused={false} session={session} />
       );
 
-      expect(screen.getByText(/Unknown/)).toBeInTheDocument();
+      const metadata = container.querySelector('.semiont-annotation-entry__metadata');
+      expect(metadata).toBeInTheDocument();
+      expect(metadata?.textContent).not.toMatch(/By|Unknown/);
     });
 
     it('should handle missing body gracefully', () => {

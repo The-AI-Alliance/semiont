@@ -20,7 +20,7 @@ export function SortableResourceTab({
   index,
   totalCount,
   Link,
-  translations = {},
+  translations,
   isDragging = false
 }: SortableResourceTabProps) {
   const {
@@ -94,7 +94,7 @@ export function SortableResourceTab({
         <button
           onClick={(e) => onClose(resource.id, e)}
           className="semiont-resource-tab__close"
-          title={translations.closeResource || 'Close resource'}
+          title={translations.closeResource}
           aria-label={`Close ${resource.name}`}
           type="button"
         >

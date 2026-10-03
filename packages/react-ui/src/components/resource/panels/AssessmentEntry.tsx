@@ -5,7 +5,7 @@ import type { Annotation } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { useHoverEmitter } from '../../../hooks/useHoverEmitter';
-import { renderAgentLabel } from './agent-label';
+import { creatorName, renderAgentLabels } from './agent-label';
 
 // W3C Annotation TextualBody type
 interface TextualBody {
@@ -108,13 +108,11 @@ export function AssessmentEntry({
 
       {/* Metadata */}
       <div className="semiont-annotation-entry__metadata">
-        By {typeof assessment.creator === 'string' ? assessment.creator : assessment.creator?.name || 'Unknown'} • {formatRelativeTime(assessment.created || new Date().toISOString())}
+        {creatorName(assessment.creator) && <>By {creatorName(assessment.creator)} • </>}{formatRelativeTime(assessment.created || new Date().toISOString())}
       </div>
-      {assessment.generator && (
+      {assessment.generator && renderAgentLabels(assessment.generator) && (
         <div className="semiont-annotation-entry__metadata">
-          Via {Array.isArray(assessment.generator)
-            ? assessment.generator.map(renderAgentLabel).join(', ')
-            : renderAgentLabel(assessment.generator)}
+          Via {renderAgentLabels(assessment.generator)}
         </div>
       )}
     </div>

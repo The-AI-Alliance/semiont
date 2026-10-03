@@ -20,12 +20,12 @@ export function UserPanel() {
   const session = useObservable(semiont.activeSession$);
   const user = useObservable(session?.user$) ?? null;
   const activeKnowledgeBase = session?.kb ?? null;
-  const displayName = user?.name ?? user?.email?.split('@')[0] ?? 'User';
+  const displayName = user?.name ?? user?.email?.split('@')[0] ?? t('user');
   const avatarUrl = user?.image ?? null;
   const userDomain = user?.domain || user?.email?.split('@')[1];
   const [imageError, setImageError] = useState(false);
   const { timeRemaining } = useSessionExpiry();
-  const sessionTimeFormatted = formatTime(timeRemaining) ?? 'Unknown';
+  const sessionTimeFormatted = formatTime(timeRemaining);
 
   // Sanitize and validate the profile image URL
   const profileImageUrl = (() => {
@@ -59,7 +59,7 @@ export function UserPanel() {
         <div className="flex items-center gap-3">
           <img
             src={profileImageUrl}
-            alt={t('profileAlt', { name: displayName || t('user') })}
+            alt={t('profileAlt', { name: displayName })}
             width={48}
             height={48}
             className="w-12 h-12 rounded-full object-cover"
@@ -67,7 +67,7 @@ export function UserPanel() {
           />
           <div className="flex-1 min-w-0">
             <div className="semiont-panel-text">
-              {displayName || t('user')}
+              {displayName}
             </div>
             {userDomain && (
               <div className="semiont-panel-text-secondary">
@@ -83,9 +83,11 @@ export function UserPanel() {
             {t('session')}
           </label>
           <div className="semiont-session-box">
-            <div className="semiont-panel-hint">
-              {t('expiresIn', { time: sessionTimeFormatted })}
-            </div>
+            {sessionTimeFormatted !== null && (
+              <div className="semiont-panel-hint">
+                {t('expiresIn', { time: sessionTimeFormatted })}
+              </div>
+            )}
           </div>
         </div>
 

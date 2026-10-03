@@ -142,7 +142,7 @@ describe('UserPanel Component', () => {
     mockUseTranslations.mockImplementation((key: string, params?: any) => {
       const translations: Record<string, string> = {
         'UserPanel.account': 'Account',
-        'UserPanel.user': 'User',
+        'UserPanel.user': '[UserPanel.user]',
         'UserPanel.profileAlt': 'Profile picture of {name}',
         'UserPanel.session': 'Session',
         'UserPanel.expiresIn': 'Expires in {time}',
@@ -229,11 +229,11 @@ describe('UserPanel Component', () => {
       });
     });
 
-    it('should display "User" when displayName is null', () => {
-      // user$ null => displayName falls through to 'User'
+    it('names a user who has no name with the translated word for one', () => {
       user$.next(null);
       render(<UserPanel />);
-      expect(screen.getByText('User')).toBeInTheDocument();
+      expect(screen.getByText('[UserPanel.user]')).toBeInTheDocument();
+      expect(screen.queryByText('User')).not.toBeInTheDocument();
     });
 
     it('should not render domain when userDomain is null', () => {
@@ -250,10 +250,10 @@ describe('UserPanel Component', () => {
       expect(screen.getByText('Expires in 45 minutes')).toBeInTheDocument();
     });
 
-    it('should show "Unknown" when time formatting returns null', () => {
+    it('shows no expiry when the time remaining is not known', () => {
       mockFormatTime.mockReturnValue(null);
       render(<UserPanel />);
-      expect(screen.getByText('Expires in Unknown')).toBeInTheDocument();
+      expect(screen.queryByText(/Expires in/)).not.toBeInTheDocument();
     });
 
     it('should pass timeRemaining to formatTime', () => {
@@ -347,7 +347,7 @@ describe('UserPanel Component', () => {
     it('should have proper alt text for fallback avatar', () => {
       user$.next(null);
       render(<UserPanel />);
-      expect(screen.getByAltText('Profile picture of User')).toBeInTheDocument();
+      expect(screen.getByAltText('Profile picture of [UserPanel.user]')).toBeInTheDocument();
     });
 
     it('should have semantic label elements', () => {
@@ -362,7 +362,7 @@ describe('UserPanel Component', () => {
       mockUseSessionExpiry.mockReturnValue({ timeRemaining: undefined });
       mockFormatTime.mockReturnValue(null);
       render(<UserPanel />);
-      expect(screen.getByText('Expires in Unknown')).toBeInTheDocument();
+      expect(screen.queryByText(/Expires in/)).not.toBeInTheDocument();
     });
 
     it('should log warning when invalid avatar URL is detected', () => {

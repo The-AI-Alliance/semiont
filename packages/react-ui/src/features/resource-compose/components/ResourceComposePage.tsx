@@ -640,7 +640,7 @@ export function ResourceComposePage({
 
           {/* Inline upload progress — renders below the action buttons while
               an upload is in flight. `null` between saves and after completion. */}
-          <UploadProgressBar progress={uploadProgress} />
+          <UploadProgressBar progress={uploadProgress} label={t.uploadFile} />
         </form>
       </div>
       </div>

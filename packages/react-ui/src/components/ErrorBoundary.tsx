@@ -143,7 +143,7 @@ export function AsyncErrorBoundary({ children }: { children: ReactNode }) {
                 Failed to load this section
               </h3>
               <p className="semiont-async-error-message">
-                {error.message || 'An unexpected error occurred'}
+                {error.message}
               </p>
               <button
                 onClick={reset}
