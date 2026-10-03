@@ -224,16 +224,16 @@ library components as needed, use framework-specific APIs directly.
 
 Library components that need framework-specific capabilities accept
 them as props rather than importing them. Example — a navigation
-component takes a `LinkComponent` prop rather than importing from
-`next/link` or `react-router`:
+component takes the host's `Link` as a prop rather than importing
+`react-router`:
 
 ```tsx
 import { CollapsibleResourceNavigation } from '@semiont/react-ui';
 import { Link } from '@/lib/routing';
 
 <CollapsibleResourceNavigation
-  LinkComponent={Link}
-  onNavigate={(path) => router.navigate(path)}
+  Link={Link}
+  onNavigate={(path) => router.push(path)}
   fixedItems={items}
   resources={openResources}
 />

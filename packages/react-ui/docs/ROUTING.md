@@ -1,7 +1,7 @@
 # Routing
 
-`@semiont/react-ui` has no router and imports none. A component that renders a link or builds
-a URL takes two props from its host: a `Link` component and a `routes` object.
+`@semiont/react-ui` has no router and imports none. A component that renders a link takes the
+host's `Link` component, and one that builds a path takes the host's `routes` object.
 
 ## The two props
 
@@ -24,15 +24,26 @@ interface RouteBuilder {
 
 A `ResourceId` is a string, so `routes.resourceDetail(resourceId)` needs no conversion.
 
+`resourceDetail` is the path of every link to a resource. `knowledge` and `moderate` are optional:
+`NavigationMenu` links to them, and `ResourceViewerPage` filters by an entity type at
+`routes.knowledge()`; a host without those pages leaves them out.
+
 ## Which components take them
 
-`PageLayout`, `UnifiedHeader`, `LeftSidebar`, `AnnotationHistory`, `HistoryEvent`,
-`ReferencesPanel` and `UnifiedAnnotationsPanel`. Each declares `Link` and `routes` in its
-`Props`.
+| Takes | Components |
+|---|---|
+| `Link` and `routes` | `PageLayout`, `UnifiedHeader`, `LeftSidebar`, `NavigationMenu`, `AnnotationHistory`, `HistoryEvent`, `ReferencesPanel`, `UnifiedAnnotationsPanel`, `ResourceViewerPage` |
+| `Link` only | `CollapsibleResourceNavigation`, `SortableResourceTab`, `SimpleNavigation`, `AuthErrorDisplay` |
+
+Each declares them in its props as `Link: ComponentType<LinkComponentProps>` and
+`routes: RouteBuilder`; `NavigationMenu` takes a `Partial<RouteBuilder>`.
 
 ```tsx
 <AnnotationHistory events={events} Link={Link} routes={routes} />
 ```
+
+Two components name paths of their own: `NavigationMenu` links to `/know` and `/moderate` when
+`routes` lacks `knowledge` or `moderate`, and `AuthErrorDisplay` links to `/auth/signin`.
 
 ## Supplying them
 
@@ -40,7 +51,6 @@ A host writes both once and passes them wherever they are asked for. React Route
 `to` where `LinkComponentProps` has `href`, so a host over React Router adapts it:
 
 ```tsx
-<<<<<<< HEAD
 import { Link as RouterLink } from 'react-router';
 import type { LinkComponentProps, RouteBuilder } from '@semiont/react-ui';
 
@@ -52,26 +62,6 @@ export const routes: RouteBuilder = {
   resourceDetail: (id) => `/know/resource/${id}`,
   knowledge: () => '/know',
   moderate: () => '/moderate',
-=======
-import React from 'react';
-import { Link as RouterLink } from 'react-router';
-import type { LinkComponentProps, RouteBuilder } from '@semiont/react-ui';
-
-export const Link = React.forwardRef<HTMLAnchorElement, LinkComponentProps>(
-  function Link({ href, ...props }, ref) {
-    return <RouterLink ref={ref} to={href} {...props} />;
-  },
-);
-
-export const routes: RouteBuilder = {
-  resourceDetail: (id) => `/know/resource/${id}`,
-  userProfile: (id) => `/users/${id}`,
-  search: (query) => `/search?q=${encodeURIComponent(query)}`,
-  home: () => '/',
-  knowledge: () => '/know',
-  moderate: () => '/moderate',
-  admin: () => '/admin',
->>>>>>> 7ed63a20b (Browser and react-ui docs: remove what no longer exists — routing provider, deleted modals and hooks, client.emit, and a performance guide with no commands)
 };
 ```
 
@@ -90,16 +80,7 @@ A test passes a plain anchor and a literal `routes`:
 
 ```tsx
 const Link = ({ href, children, ...props }: LinkComponentProps) => <a href={href} {...props}>{children}</a>;
-<<<<<<< HEAD
 const routes: RouteBuilder = { resourceDetail: (id) => `/resource/${id}` };
-=======
-const routes: RouteBuilder = {
-  resourceDetail: (id) => `/resource/${id}`,
-  userProfile: (id) => `/users/${id}`,
-  search: (query) => `/search?q=${query}`,
-  home: () => '/',
-};
->>>>>>> 7ed63a20b (Browser and react-ui docs: remove what no longer exists — routing provider, deleted modals and hooks, client.emit, and a performance guide with no commands)
 
 render(<AnnotationHistory events={[]} Link={Link} routes={routes} />);
 ```

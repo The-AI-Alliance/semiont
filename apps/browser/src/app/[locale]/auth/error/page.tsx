@@ -3,8 +3,7 @@ import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { PageLayout, AuthErrorDisplay } from '@semiont/react-ui';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
-import { Link as RoutingLink, routes } from '@/lib/routing';
-import { Link } from '@/i18n/routing';
+import { Link, routes } from '@/lib/routing';
 
 export default function AuthError() {
   const { t: _t } = useTranslation();
@@ -27,7 +26,7 @@ export default function AuthError() {
 
   return (
     <PageLayout
-      Link={RoutingLink}
+      Link={Link}
       routes={routes}
       tNav={tNav}
       tHome={tHome}

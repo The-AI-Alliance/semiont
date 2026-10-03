@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from '@/i18n/routing';
 import { usePathname } from '@/i18n/routing';
+import { Link } from '@/lib/routing';
 import { SimpleNavigation, useEventSubscriptions } from '@semiont/react-ui';
 import type { SimpleNavigationItem } from '@semiont/react-ui';
 import {
@@ -16,11 +16,6 @@ interface ModerationNavigationProps {
   isCollapsed: boolean;
   toggleCollapsed: () => void;
   navigationMenu?: (onClose: () => void) => React.ReactNode;
-}
-
-// Adapter: SimpleNavigation passes href, but our Link uses `to`
-function HrefLink({ href, to: _to, ...props }: React.ComponentProps<typeof Link> & { href?: string }) {
-  return <Link to={(href ?? '') as string} {...props} />;
 }
 
 export function ModerationNavigation({ isCollapsed, toggleCollapsed, navigationMenu }: ModerationNavigationProps) {
@@ -66,7 +61,7 @@ export function ModerationNavigation({ isCollapsed, toggleCollapsed, navigationM
       title={t('title')}
       items={navigation}
       currentPath={pathname}
-      LinkComponent={HrefLink as any}
+      Link={Link}
       {...(navigationMenu && { dropdownContent: navigationMenu })}
       isCollapsed={isCollapsed}
       icons={{

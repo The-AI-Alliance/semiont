@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
+import { Link } from '@/lib/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import {
   useSemiont,
@@ -20,11 +20,6 @@ interface KnowledgeNavigationProps {
   isCollapsed: boolean;
   toggleCollapsed: () => void;
   navigationMenu?: (onClose: () => void) => React.ReactNode;
-}
-
-// Adapter: CollapsibleResourceNavigation passes href, but our Link uses `to`
-function HrefLink({ href, to: _to, ...props }: React.ComponentProps<typeof Link> & { href?: string }) {
-  return <Link to={(href ?? '') as string} {...props} />;
 }
 
 export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMenu }: KnowledgeNavigationProps) {
@@ -97,7 +92,7 @@ export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMe
           resources={openResources as OpenResource[]}
           isCollapsed={isCollapsed}
           currentPath={pathname}
-          LinkComponent={HrefLink as any}
+          Link={Link}
           onNavigate={handleNavigate}
           getResourceHref={getResourceHref}
           className="knowledge-navigation"
