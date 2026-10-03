@@ -1594,6 +1594,17 @@ func busSubscriberCount(channel string) int {
 	return n
 }
 
+// fakeJobResults: what a job of each type completes with when a test scripts
+// no result — the member of the JobResult union that type reports.
+var fakeJobResults = map[string]map[string]any{
+	"generation":            {"kind": "generation", "resourceId": "res-new", "resourceName": "Generated", "truncated": false},
+	"highlight-annotation":  {"kind": "highlight-annotation", "highlightsFound": 4, "highlightsCreated": 3},
+	"comment-annotation":    {"kind": "comment-annotation", "commentsFound": 2, "commentsCreated": 2},
+	"assessment-annotation": {"kind": "assessment-annotation", "assessmentsFound": 1, "assessmentsCreated": 1},
+	"reference-annotation":  {"kind": "reference-annotation", "totalFound": 5, "totalEmitted": 4, "errors": 1},
+	"tag-annotation":        {"kind": "tag-annotation", "tagsFound": 6, "tagsCreated": 6, "byCategory": map[string]any{"rule": 4, "issue": 2}},
+}
+
 // busPublish emits one frame. corrID rides the ENVELOPE beside the channel,
 // which is where the real gateway puts it (routes/bus.ts writes
 // `{channel, correlationId, payload}`) and where the Go client reads it.
@@ -2221,16 +2232,45 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						// the request used.
 						if body.Channel == "job:create" {
 							jobID := "fake-job-1"
-							busPublish("job:report-progress", "", map[string]any{
-								"jobId": jobID, "progress": map[string]any{"message": map[string]any{"code": "generating-resource"}}})
+							// The job is the one that was asked for: its type and
+							// its resource are the request's. A generation names no
+							// resource (its context's focus does), so the fake's
+							// stands in.
+							jobType, _ := body.Payload["jobType"].(string)
+							resourceID, _ := body.Payload["resourceId"].(string)
+							if resourceID == "" {
+								resourceID = "res-src"
+							}
+							job := func(more map[string]any) map[string]any {
+								frame := map[string]any{"jobId": jobID, "resourceId": resourceID, "jobType": jobType}
+								for k, v := range more {
+									frame[k] = v
+								}
+								return frame
+							}
+							code := "analyzing"
+							if jobType == "generation" {
+								code = "generating-resource"
+							}
+							busPublish("job:report-progress", "", job(map[string]any{
+								"progress": map[string]any{"message": map[string]any{"code": code}}}))
+							// FAKERT_JOB_RETRY=<message>: the first attempt fails and
+							// the queue runs the job again. That failure is an event
+							// of a job still running, and the terminal event follows.
+							if msg := os.Getenv("FAKERT_JOB_RETRY"); msg != "" {
+								busPublish("job:fail", "", job(map[string]any{"error": msg, "attempt": 1, "willRetry": true}))
+								busPublish("job:report-progress", "", job(map[string]any{
+									"attempt": 2, "progress": map[string]any{"message": map[string]any{"code": code}}}))
+							}
 							if msg := os.Getenv("FAKERT_JOB_FAIL"); msg != "" {
-								busPublish("job:fail", "", map[string]any{"jobId": jobID, "error": msg})
+								busPublish("job:fail", "", job(map[string]any{"error": msg}))
 							} else {
 								// FAKERT_JOB_RESULT=<json>: which member of the
 								// JobResult union this job completes with. A
 								// DECLINE is one of them — a job that ran fine
-								// and deliberately produced nothing.
-								var result any = map[string]any{"kind": "generation", "resourceId": "res-new", "resourceName": "Generated", "truncated": false}
+								// and deliberately produced nothing. Left unset,
+								// the job completes as its type does.
+								var result any = fakeJobResults[jobType]
 								if raw := os.Getenv("FAKERT_JOB_RESULT"); raw != "" {
 									var custom any
 									if json.Unmarshal([]byte(raw), &custom) != nil {
@@ -2238,10 +2278,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 									}
 									result = custom
 								}
-								busPublish("job:complete", "", map[string]any{
-									"jobId": jobID, "resourceId": "res-src", "jobType": "generation",
-									"result": result,
-								})
+								busPublish("job:complete", "", job(map[string]any{"result": result}))
 							}
 						}
 					}

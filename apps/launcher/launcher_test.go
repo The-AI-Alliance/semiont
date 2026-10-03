@@ -8773,6 +8773,139 @@ func TestYieldDelegateNeedsStorageUri(t *testing.T) {
 	mustContain(t, "refusal", stderr, "--storage-uri")
 }
 
+// --- mark --delegate: annotation through the job lifecycle ---
+
+// jobCreate: the job:create a verb emitted, decoded.
+func jobCreate(t *testing.T, emit string) (jobType, resourceID string, params map[string]any) {
+	t.Helper()
+	var e struct {
+		Channel string `json:"channel"`
+		Payload struct {
+			JobType    string         `json:"jobType"`
+			ResourceID string         `json:"resourceId"`
+			Params     map[string]any `json:"params"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal([]byte(emit), &e); err != nil || e.Channel != "job:create" {
+		t.Fatalf("the last emit is not a job:create (%v):\n%s", err, emit)
+	}
+	if e.Payload.Params == nil {
+		t.Errorf("job:create carries no params object; the schema requires one:\n%s", emit)
+	}
+	return e.Payload.JobType, e.Payload.ResourceID, e.Payload.Params
+}
+
+// The delegated form of mark is yield --delegate's sibling: it creates a job
+// of the type its motivation names, and follows it to its end. The stack's
+// worker reads the resource and writes the annotations.
+func TestMarkDelegateFollowsJobToCompletion(t *testing.T) {
+	s := busScenario(t)
+
+	stdout, stderr, code := s.run(t, "mark", "--delegate", "res-1", "--motivation", "highlighting",
+		"--instructions", "key claims", "--density", "5")
+	if code != 0 {
+		t.Fatalf("mark --delegate: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Annotating res-1", "highlighting", "fake-job-1", "Analyzing text", "3 highlights", "4 found")
+	jobType, resourceID, params := jobCreate(t, lastEmit(t, s))
+	if jobType != "highlight-annotation" || resourceID != "res-1" {
+		t.Errorf("job:create asks for a %q job on %q, want highlight-annotation on res-1", jobType, resourceID)
+	}
+	if params["instructions"] != "key claims" || params["density"] != float64(5) {
+		t.Errorf("the job's params are %v, want the instructions and a density of 5", params)
+	}
+	// The dispatcher refuses a job:create whose params name the resource: the
+	// resource is the command's.
+	if _, named := params["resourceId"]; named {
+		t.Errorf("params names the resource, which the dispatcher refuses: %v", params)
+	}
+
+	// Linking: the entity types to detect, and descriptive references.
+	stdout, stderr, code = s.run(t, "mark", "--delegate", "res-1", "--motivation", "linking",
+		"--entity-type", "Person", "--entity-type", "Place", "--descriptive", "--source-language", "fr")
+	if code != 0 {
+		t.Fatalf("mark --delegate linking: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "4 references", "5 found", "1 error")
+	jobType, _, params = jobCreate(t, lastEmit(t, s))
+	if jobType != "reference-annotation" {
+		t.Errorf("linking asks for a %q job, want reference-annotation", jobType)
+	}
+	if got := fmt.Sprint(params["entityTypes"]); got != "[Person Place]" || params["includeDescriptiveReferences"] != true || params["sourceLanguage"] != "fr" {
+		t.Errorf("the linking job's params are %v", params)
+	}
+
+	// Tagging: a schema and the categories of it to tag.
+	stdout, stderr, code = s.run(t, "mark", "--delegate", "res-1", "--motivation", "tagging",
+		"--schema", "legal-irac", "--category", "issue", "--category", "rule", "--language", "de")
+	if code != 0 {
+		t.Fatalf("mark --delegate tagging: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "6 tags", "issue 2", "rule 4")
+	jobType, _, params = jobCreate(t, lastEmit(t, s))
+	if jobType != "tag-annotation" || params["schemaId"] != "legal-irac" || fmt.Sprint(params["categories"]) != "[issue rule]" || params["language"] != "de" {
+		t.Errorf("tagging asks for a %q job with params %v", jobType, params)
+	}
+
+	// --json prints the completion as the stack sent it, and still succeeds.
+	stdout, stderr, code = s.run(t, "mark", "--delegate", "res-1", "--motivation", "commenting", "--tone", "scholarly", "--json")
+	if code != 0 {
+		t.Fatalf("mark --delegate --json: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "raw completion", stdout, `"kind":"comment-annotation"`, `"commentsCreated":2`)
+	if _, _, params = jobCreate(t, lastEmit(t, s)); params["tone"] != "scholarly" {
+		t.Errorf("the commenting job's params are %v, want the tone", params)
+	}
+}
+
+func TestMarkDelegateReportsJobFailure(t *testing.T) {
+	s := busScenario(t, "FAKERT_JOB_FAIL=model refused")
+	stdout, stderr, code := s.run(t, "mark", "--delegate", "res-1", "--motivation", "assessing")
+	if code == 0 {
+		t.Fatalf("a failed job must fail the command\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "failure", stdout+stderr, "Annotation failed", "model refused")
+	if strings.Contains(stdout, "Marked") {
+		t.Errorf("claimed a mark that never happened:\n%s", stdout)
+	}
+}
+
+// An annotation job is run again after a failed attempt. That failure is an
+// event of a job still running: the worker says the queue will retry it, and a
+// client that stopped there would report a recovering run as a failed one.
+func TestMarkDelegateGoesOnThroughARetriedAttempt(t *testing.T) {
+	s := busScenario(t, "FAKERT_JOB_RETRY=provider overloaded")
+	stdout, stderr, code := s.run(t, "mark", "--delegate", "res-1", "--motivation", "highlighting")
+	if code != 0 {
+		t.Fatalf("a job that recovered on its second attempt failed the command: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the retried attempt", stdout+stderr, "provider overloaded", "again")
+	mustContain(t, "stdout", stdout, "3 highlights")
+	if strings.Contains(stdout+stderr, "Annotation failed") {
+		t.Errorf("a retried attempt was reported as the job's failure:\n%s", stdout+stderr)
+	}
+}
+
+// A decline completes the job: the resource had no text to read. Nothing was
+// annotated, so the command fails, in either output format, and does not call
+// it a crash.
+func TestMarkDelegateReportsADecline(t *testing.T) {
+	s := busScenario(t, `FAKERT_JOB_RESULT={"kind":"declined","declined":true,"reason":"no-text-layer"}`)
+	stdout, stderr, code := s.run(t, "mark", "--delegate", "res-1", "--motivation", "highlighting")
+	if code == 0 {
+		t.Fatalf("a declined job annotated nothing; exit 0 tells a script to carry on\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "decline", stdout+stderr, "no-text-layer", "could not be recognized", "Nothing was annotated")
+	if strings.Contains(stdout, "Marked") || strings.Contains(stdout+stderr, "Annotation failed") {
+		t.Errorf("a decline is neither a mark nor a failure:\n%s", stdout+stderr)
+	}
+	stdout, _, code = s.run(t, "mark", "--delegate", "res-1", "--motivation", "highlighting", "--json")
+	if code == 0 {
+		t.Fatalf("--json must not turn a decline into a success\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "raw completion", stdout, `"declined":true`, `"no-text-layer"`)
+}
+
 // The roots registry had an upsert and nothing else, so a row whose
 // directory vanished (a moved KB, a deleted trial root) was permanent
 // listing noise with no in-product removal — the same record-outlives-its-

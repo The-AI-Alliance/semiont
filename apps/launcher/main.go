@@ -41,10 +41,12 @@ Settings:
             from and where they are kept, each knowledge base's config
 
 Knowledge base (need login):
-  browse    Read the KB: resources, annotations, entity types
+  browse    Read the KB: resources, annotations, entity types, tag schemas
   bind      Resolve a linking annotation to its target resource
-  yield     Upload files from the KB root as resources
-  mark      Annotate a resource; --delete removes an annotation
+  yield     Upload files from the KB root as resources, or have the stack
+            generate one (--delegate)
+  mark      Annotate a resource, or have the stack do it (--delegate);
+            --delete removes an annotation
   frame     Add entity types to the KB's schema vocabulary
   gather    Assemble LLM context for a resource or annotation
   match     Find resources an annotation could bind to
