@@ -179,7 +179,7 @@ stream and routes failures to that session's `SessionSignals`:
 // SemiontBrowser, on session activation (packages/sdk/src/session/semiont-browser.ts)
 session.errors$.subscribe((err) => {
   if (err.code === 'unauthorized') void session.refresh();
-  else if (err.code === 'forbidden') signals.notifyPermissionDenied(err.said);
+  else if (err.code === 'forbidden') signals.notifyPermissionDenied(err.message);
 });
 ```
 
@@ -187,9 +187,7 @@ A `401` is not the end of a session: `refresh()` renews the token, and only a
 session that cannot be renewed, or whose renewed token the knowledge base also
 refuses, ends. The session's own `onAuthFailed` then raises `notifySessionEnded`
 with why: `expired` or `refused`. A `403` raises `notifyPermissionDenied` with
-the gateway's own words (`said`, from its `ErrorResponse.error`) when it gave
-any, and `null` when it did not: the transport's fallback status line is never
-shown as the gateway's.
+the refusal's message as its detail.
 
 `SessionSignals` exposes the modal state as `BehaviorSubject`s
 (`sessionEnded$`, `permissionDenied$`, …), surfaced by the browser

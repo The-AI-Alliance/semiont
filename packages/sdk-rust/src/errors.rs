@@ -22,12 +22,6 @@ pub struct TransportError {
     /// The HTTP status, when a server stated one.
     pub status: Option<u16>,
     pub message: String,
-    /// The gateway's own words (`ErrorResponse.error`), when its body stated
-    /// them; none when it did not, or when what answered was not the
-    /// gateway's error body. Kept apart from `message`, which falls back to
-    /// the status: a host that shows a person what the gateway said must
-    /// never show them a sentence the transport made up.
-    pub said: Option<String>,
     /// The wait the refusal's `Retry-After` stated.
     pub retry_after: Option<Duration>,
 }
@@ -43,24 +37,6 @@ impl TransportError {
             code: TransportErrorCode::of_status(status),
             status: Some(status),
             message: message.into(),
-            said: None,
-            retry_after,
-        }
-    }
-
-    /// The gateway's refusal, as every request reports one: in the gateway's
-    /// own words when its body states them (`ErrorResponse.error`), and with
-    /// the wait its `Retry-After` states.
-    pub fn refusal(
-        status: u16,
-        said: Option<String>,
-        retry_after: Option<Duration>,
-    ) -> TransportError {
-        TransportError {
-            code: TransportErrorCode::of_status(status),
-            status: Some(status),
-            message: said.clone().unwrap_or_else(|| format!("HTTP {status}")),
-            said,
             retry_after,
         }
     }
@@ -74,7 +50,6 @@ impl TransportError {
             code,
             status: None,
             message: message.into(),
-            said: None,
             retry_after: None,
         }
     }

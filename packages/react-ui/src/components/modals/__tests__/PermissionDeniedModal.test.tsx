@@ -3,8 +3,8 @@
  *
  * The modal renders content when `permissionDenied$` holds a notice on the
  * active signals, and is hidden otherwise. Its own copy comes from the
- * person's locale; beneath it, when the gateway said why it refused, are the
- * gateway's words, unaltered and marked as the knowledge base's. Button
+ * person's locale; beneath it, the refusal's own message, unaltered and
+ * marked as the knowledge base's. Button
  * clicks call `acknowledgePermissionDenied()` and navigate the window or
  * history.
  */

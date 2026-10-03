@@ -250,7 +250,7 @@ You generally do **not** subscribe to `errors$` yourself for auth UX. The SDK
 already routes `401` / `403` from that stream into the active session's
 `SessionSignals`: a `401` the session cannot recover from ends it
 (`notifySessionEnded`, with why), and a `403` raises `notifyPermissionDenied`
-with the gateway's own words when it gave any. The `<SessionEndedModal />` and
+with the refusal's message as its detail. The `<SessionEndedModal />` and
 `<PermissionDeniedModal />` components — mounted once in your provider tree
 (see the README quick start) — read those signals and render, in the person's
 language. Mount the modals and session-ending/permission handling is done.

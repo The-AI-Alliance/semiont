@@ -28,7 +28,7 @@
 import type { BusEnvelope, BusFrame } from '@semiont/core';
 import type { Observable, Subscription } from 'rxjs';
 import { BehaviorSubject, Subject } from 'rxjs';
-import type { TransportFailure } from '@semiont/core';
+import type { SemiontError } from '@semiont/core';
 import type {
   BaseUrl,
   EventBus,
@@ -70,9 +70,9 @@ export interface LocalTransportConfig {
 export class LocalTransport implements ITransport {
   readonly baseUrl: BaseUrl;
   readonly state$: BehaviorSubject<ConnectionState>;
-  private readonly errorsSubject: Subject<TransportFailure> = new Subject<TransportFailure>();
+  private readonly errorsSubject: Subject<SemiontError> = new Subject<SemiontError>();
   /**
-   * Stream of `TransportFailure`s surfaced from transport-mediated
+   * Stream of `SemiontError` instances surfaced from transport-mediated
    * round-trips (typed-wire methods on this transport that fail). The
    * in-process implementation does not currently surface errors through
    * this stream — most failures here originate inside the make-meaning
@@ -81,7 +81,7 @@ export class LocalTransport implements ITransport {
    * contract; future expansion (e.g. transport-level guard failures)
    * can publish into it.
    */
-  readonly errors$: Observable<TransportFailure> = this.errorsSubject.asObservable();
+  readonly errors$: Observable<SemiontError> = this.errorsSubject.asObservable();
 
   private readonly bus: EventBus;
   private readonly userId: UserId;

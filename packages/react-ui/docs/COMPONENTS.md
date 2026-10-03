@@ -335,7 +335,7 @@ import { PermissionDeniedModal } from '@semiont/react-ui';
 
 **Features:**
 - Its own copy in the person's language (namespace `PermissionDeniedModal`)
-- Beneath it, when the gateway said why it refused, the gateway's words, unaltered and marked as the knowledge base's
+- Beneath it, the refusal's own message, unaltered and marked as the knowledge base's
 - Offers going back, going home, or switching account
 
 ### KeyboardShortcutsHelpModal

@@ -43,8 +43,8 @@ pub struct SessionEnded {
     pub reason: SessionEndReason,
 }
 
-/// A request was refused for lack of permission. `detail` is the gateway's
-/// own words (`ErrorResponse.error`), untranslated, and none when it gave none.
+/// A request was refused for lack of permission. `detail` is the refusal's
+/// own message, untranslated; none when there is none.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PermissionDenied {
     pub detail: Option<String>,

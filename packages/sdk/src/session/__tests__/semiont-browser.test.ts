@@ -889,14 +889,14 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
       await browser.dispose();
     });
 
-    it('forbidden still routes to permission-denied, carrying only what the gateway said', async () => {
+    it("forbidden still routes to permission-denied, with the refusal's message as its detail", async () => {
       const browser = await makeConnectedBrowser();
       const signals = browser.activeSignals$.getValue()!;
 
-      pushError(browser, { code: 'forbidden', message: 'HTTP 403: Forbidden', said: null });
+      pushError(browser, { code: 'forbidden', message: 'HTTP 403: Forbidden' });
       await settled();
 
-      expect(signals.permissionDenied$.getValue()).toEqual({ detail: null });
+      expect(signals.permissionDenied$.getValue()).toEqual({ detail: 'HTTP 403: Forbidden' });
 
       await browser.dispose();
     });
@@ -1607,25 +1607,6 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     subj.next(APIError.refusal(403, 'Forbidden', { error: 'Archiving needs the curator role.' }, null));
 
     expect(signals.permissionDenied$.getValue()).toEqual({ detail: 'Archiving needs the curator role.' });
-    await browser.dispose();
-  });
-
-  it("a 403 that is not the gateway's error body carries no detail: the transport's status line is never shown as the gateway's words", async () => {
-    const { APIError } = await import('@semiont/http-transport');
-    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
-    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
-    storage.set(ACTIVE_KEY, KB_A.id);
-
-    const browser = makeBrowser();
-    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
-    const signals = browser.activeSignals$.getValue()!;
-
-    // A proxy in front of the gateway answers with its own page.
-    const refusal = APIError.refusal(403, 'Forbidden', '<html>Forbidden</html>', null);
-    expect(refusal.message).toBe('HTTP 403: Forbidden');
-    (session!.client.transport as any).errorsSubject.next(refusal);
-
-    expect(signals.permissionDenied$.getValue()).toEqual({ detail: null });
     await browser.dispose();
   });
 

@@ -41,7 +41,7 @@ component that gates on a role flag is gating on `undefined`.
 
 #### 2. PermissionDeniedModal (`@semiont/react-ui`)
 
-A library modal that surfaces when users encounter 403 errors. It reads the active session's `SessionSignals` (specifically `permissionDenied$`, exposed by the browser as `activeSignals$`), so it appears whenever that signal becomes non-null. Its own copy is in the person's language; beneath it, when the gateway said why it refused, are the gateway's words, unaltered and marked as the knowledge base's. Recovery options:
+A library modal that surfaces when users encounter 403 errors. It reads the active session's `SessionSignals` (specifically `permissionDenied$`, exposed by the browser as `activeSignals$`), so it appears whenever that signal becomes non-null. Its own copy is in the person's language; beneath it is the refusal's own message, unaltered and marked as the knowledge base's. Recovery options:
 
 - **Go Back** - Return to previous page
 - **Go to Home** - Navigate to home page
@@ -56,7 +56,7 @@ A 403 from the gateway surfaces on the transport's error stream; the `SemiontBro
 ```typescript
 // inside SemiontBrowser, observing the session's transport errors
 if (err.code === 'forbidden') {
-  signals.notifyPermissionDenied(err.said); // the gateway's own words, or null
+  signals.notifyPermissionDenied(err.message);
 }
 ```
 

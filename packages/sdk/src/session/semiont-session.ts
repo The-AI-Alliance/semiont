@@ -43,7 +43,7 @@ import {
 } from '@semiont/core';
 import type { components, EventMap } from '@semiont/core';
 import { SemiontClient, APIError, HttpTransport, HttpContentTransport } from '../client';
-import type { TransportFailure } from '@semiont/core';
+import type { SemiontError } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import type { KbTarget } from './knowledge-base';
 import {
@@ -135,16 +135,17 @@ export class SemiontSession {
   readonly user$: BehaviorSubject<UserInfo | null>;
   readonly streamState$: Observable<ConnectionState>;
   /**
-   * Stream of `TransportFailure`s surfaced by the underlying transport
+   * Stream of `SemiontError` instances surfaced by the underlying transport
    * just before they're thrown to the caller. For `HttpTransport` this is
-   * an `APIError` (status-coded). Surfaced here so a host layer (e.g.
-   * `SemiontBrowser`) can route by `err.code` to global notifications without every call site handling
+   * an `APIError` (status-coded); other transports emit their own subclass.
+   * Surfaced here so a host layer (e.g. `SemiontBrowser`) can route by
+   * `err.code` to global notifications without every call site handling
    * errors itself. Headless consumers can subscribe for logging.
    *
    * Re-published from `client.transport.errors$` per the `ITransport`
    * contract — the session is purely a passthrough.
    */
-  readonly errors$: Observable<TransportFailure>;
+  readonly errors$: Observable<SemiontError>;
 
   /** Resolves after the initial validation round-trip completes (success or failure). */
   readonly ready: Promise<void>;

@@ -35,25 +35,8 @@ import type { EventMap } from './bus-protocol';
 import type { BusEnvelope, BusFrame } from './event-bus';
 import type { EventBus } from './event-bus';
 import type { SemiontError } from './errors';
-import type { TransportErrorCode } from './generated/error-codes';
 
 type Agent = components['schemas']['Agent'];
-
-/**
- * A transport's failure, as `errors$` delivers it: a code from
- * `TransportErrorCode`, whatever the transport's native errors, and the
- * gateway's own words (`ErrorResponse.error`) when it gave any — null when it
- * did not, or when nothing that answered was the gateway's error body. The
- * routing layer reads these and nothing transport-specific, so it stays
- * transport-neutral. Rust's `TransportError` carries the same two.
- *
- * Structural, like `HttpStatusError`: http-transport's `APIError` is the class,
- * and cannot be named from here.
- */
-export interface TransportFailure extends SemiontError {
-  code: TransportErrorCode;
-  readonly said: string | null;
-}
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
 // ── Connection state ────────────────────────────────────────────────────
@@ -220,13 +203,14 @@ export interface ITransport {
   /**
    * Stream of transport-level errors surfaced from typed-wire methods or
    * other transport-mediated round-trips, just before they're thrown to
-   * the caller. Each emission is a `TransportFailure` (HTTP emits
-   * `APIError`). Consumers can subscribe for global error handling
+   * the caller. Each emission is a `SemiontError` (or subclass — HTTP
+   * emits `APIError`, in-process transports emit whatever subclass is
+   * appropriate). Consumers can subscribe for global error handling
    * (e.g. surfacing 401/403 as modals, logging) without wrapping every
    * call site in try/catch. Distinct from bus-level errors, which are
    * surfaced via the channel-correlation pattern in `busRequest`.
    */
-  readonly errors$: Observable<TransportFailure>;
+  readonly errors$: Observable<SemiontError>;
 
   dispose(): void;
 }

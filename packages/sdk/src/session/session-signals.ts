@@ -43,8 +43,8 @@ export interface SessionEnded {
 }
 
 /**
- * A request was refused for lack of permission. `detail` is the gateway's own
- * words (`ErrorResponse.error`), untranslated, and null when it gave none.
+ * A request was refused for lack of permission. `detail` is the refusal's own
+ * message, untranslated; null when there is none.
  */
 export interface PermissionDenied {
   detail: string | null;

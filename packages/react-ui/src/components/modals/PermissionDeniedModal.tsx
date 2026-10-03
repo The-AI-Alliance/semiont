@@ -9,10 +9,9 @@ import { useTranslations } from '../../contexts/TranslationContext';
  * Modal that surfaces when a 403 forbidden error is reported via
  * the active session's `signals.notifyPermissionDenied(...)`.
  *
- * Its own copy is in the person's language. Beneath it, when the gateway
- * said why it refused, are the gateway's words, unaltered and marked as the
- * knowledge base's: they are the only part that names what was refused, and
- * a client cannot translate them.
+ * Its own copy is in the person's language. Beneath it is the refusal's own
+ * message, unaltered and marked as the knowledge base's: it is the only part
+ * that names what was refused, and a client cannot translate it.
  *
  * Reads `permissionDenied$` from the active `SessionSignals`. The signals instance clears the
  * flag when the user dismisses the modal. Modal state lives on

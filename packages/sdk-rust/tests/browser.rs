@@ -1480,25 +1480,15 @@ async fn a_refusal_for_lack_of_permission_is_said_and_any_other_failure_is_not()
     assert_eq!(ended(&browser), None);
     assert_eq!(world.factory.sessions.renewed(), 0);
 
-    // What answered was not the gateway's error body: its status line is
-    // the transport's, and is never shown as the gateway's words.
     transport.fail(refusal(403));
-    settle().await;
-    assert_eq!(denied(&browser), Some(PermissionDenied { detail: None }));
-    assert_eq!(ended(&browser), None);
-
-    transport.fail(TransportError::refusal(
-        403,
-        Some("Archiving needs the curator role.".to_owned()),
-        None,
-    ));
     settle().await;
     assert_eq!(
         denied(&browser),
         Some(PermissionDenied {
-            detail: Some("Archiving needs the curator role.".to_owned())
+            detail: Some("HTTP 403".to_owned())
         })
     );
+    assert_eq!(ended(&browser), None);
 }
 
 // ── How it ends ─────────────────────────────────────────────────────────

@@ -24,7 +24,7 @@ import '@testing-library/jest-dom';
 import { BehaviorSubject, Subject, map } from 'rxjs';
 import { readyValue } from '@semiont/sdk';
 import { inMemoryContent } from '@semiont/sdk/testing';
-import type { ConnectionState, TransportFailure } from '@semiont/core';
+import type { ConnectionState, SemiontError } from '@semiont/core';
 import { EventBus, baseUrl } from '@semiont/core';
 import { type ITransport } from '@semiont/core';
 import { BrowseNamespace } from '@semiont/sdk';
@@ -89,7 +89,7 @@ function inMemoryTransport(
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     isSubscribed: () => true,
     trackReply: () => () => {},
-    errors$: new Subject<TransportFailure>().asObservable(),
+    errors$: new Subject<SemiontError>().asObservable(),
     dispose: () => {},
   };
 }

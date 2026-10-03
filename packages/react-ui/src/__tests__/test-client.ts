@@ -29,7 +29,7 @@
 
 import { BehaviorSubject, Subject, type Observable, map as rxMap } from 'rxjs';
 import { EventBus } from '@semiont/core';
-import type { ConnectionState, TransportFailure } from '@semiont/core';
+import type { ConnectionState, SemiontError } from '@semiont/core';
 import type { CacheState } from '@semiont/sdk';
 import type { SemiontClient, SemiontSession } from '@semiont/sdk';
 import { SemiontSession as RealSemiontSession, httpKb, InMemorySessionStorage } from '@semiont/sdk';
@@ -50,7 +50,7 @@ export function makeTestClient(
     // Surfaces a REAL `SemiontSession` reads at construction — present by
     // default so `makeTestSession` can wrap this client; overridable.
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-    transport: { errors$: new Subject<TransportFailure>().asObservable() },
+    transport: { errors$: new Subject<SemiontError>().asObservable() },
     ...overrides,
     bus,
   } as unknown as SemiontClient;
@@ -94,7 +94,7 @@ export function makeTestSession(
 export function sessionOf(client: SemiontClient): SemiontSession {
   const complete = {
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
-    transport: { errors$: new Subject<TransportFailure>().asObservable() },
+    transport: { errors$: new Subject<SemiontError>().asObservable() },
     ...(client as unknown as Record<string, unknown>),
   } as unknown as SemiontClient;
   return new RealSemiontSession({

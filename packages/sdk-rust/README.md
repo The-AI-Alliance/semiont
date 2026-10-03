@@ -224,8 +224,8 @@ flight ends by being told and not by the runtime stopping.
     answering voids what was open and is raised for a host to show.
   - `SessionSignals` is what a host shows about a session: that it ended,
     and why (`SessionEndReason`: expired, or its credential refused); that a
-    request was refused for lack of permission, with the gateway's own words
-    when it gave any; that a different knowledge base is answering. A notice
+    request was refused for lack of permission, with the refusal's message;
+    that a different knowledge base is answering. A notice
     says what happened, never a sentence: what a person reads is the host's.
   - `SessionFactory` builds a knowledge base's session and ends its
     credentials. A browser is given one, and so knows nothing of how a
