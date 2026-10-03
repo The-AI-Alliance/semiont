@@ -1,18 +1,22 @@
 // fakert is the hermetic test double for every external command the launcher
-// runs: the container runtimes (container / docker / podman) plus git, lsof,
-// ps, and pgrep. The test harness symlinks this one binary under each of
-// those names on a private PATH — tests never touch a real runtime (mutating
-// commands are never test-run; this binary exists so that rule can hold).
+// runs: the container runtimes (container / docker / podman) plus git, and
+// what the launcher asks about ports and processes — lsof, ps and pgrep, or
+// netstat and tasklist on Windows. The test harness puts this one binary
+// under each of those names on a private PATH — tests never touch a real
+// runtime (mutating commands are never test-run; this binary exists so that
+// rule can hold).
 //
 // Behavior is scripted through FAKERT_* environment variables set per test:
 //
 //	FAKERT_LOG               append-one-line-per-invocation argv log (the golden seam)
 //	FAKERT_DIR               scratch dir for serve pidfiles
 //	FAKERT_GIT_ROOT          `git rev-parse --show-toplevel` output; unset = not a repo
-//	FAKERT_LSOF_<port>       newline-separated PIDs "holding" the port; UNSET =
-//	                         answer for real (dial it), because a fake that
-//	                         calls a truly-held port "free" hides real bugs
-//	FAKERT_PS_<pid>          comm= output for a PID (default "fakeproc")
+//	FAKERT_LSOF_<port>       newline-separated PIDs "holding" the port, for lsof
+//	                         and for netstat; UNSET = answer for real, because
+//	                         a fake that calls a truly-held port "free" hides
+//	                         real bugs
+//	FAKERT_PS_<pid>          what a PID runs, for ps and for tasklist
+//	                         (default "fakeproc")
 //	FAKERT_NSLOOKUP          "ok" makes the host-alias probe succeed
 //	FAKERT_GATEWAY           default-gateway probe output (default 192.168.64.1)
 //	FAKERT_OLLAMA_REACHABLE  "1" makes the busybox wget probe of :11434 succeed
@@ -60,10 +64,12 @@ import (
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "__serve" {
-		serveDetached(os.Args[2], os.Args[3:])
+		serveDetached(os.Args[2], os.Args[3], os.Args[4:])
 		return
 	}
-	base := filepath.Base(os.Args[0])
+	// The name it was started by: on Windows a program on PATH is a file
+	// ending in .exe, and the name is what comes before it.
+	base := strings.TrimSuffix(filepath.Base(os.Args[0]), ".exe")
 	logArgv(base, os.Args[1:])
 	switch base {
 	case "git":
@@ -72,6 +78,10 @@ func main() {
 		lsof(os.Args[1:])
 	case "ps":
 		psCmd(os.Args[1:])
+	case "netstat":
+		netstat(os.Args[1:])
+	case "tasklist":
+		tasklist(os.Args[1:])
 	case "pgrep":
 		os.Exit(1)
 	case "op":
@@ -988,31 +998,80 @@ func opReadItemField(path string) (string, bool) {
 func psCmd(args []string) {
 	// The launcher calls `ps -p <pid> -o comm=`.
 	if len(args) == 4 && args[0] == "-p" && args[2] == "-o" && args[3] == "comm=" {
-		comm := os.Getenv("FAKERT_PS_" + args[1])
-		if comm == "" {
-			// A pid matching one of our own forward pidfiles IS the fake gh
-			// forward — report it as gh, the comm the real forward has
-			// (the launcher's forwardAlive depends on this). The pid is the
-			// file's first line; the ports it holds follow.
-			if dir := os.Getenv("FAKERT_DIR"); dir != "" {
-				files, _ := filepath.Glob(filepath.Join(dir, "serve-gh-forward-*.pid"))
-				for _, f := range files {
-					if b, err := os.ReadFile(f); err == nil {
-						if pid, _, _ := strings.Cut(strings.TrimSpace(string(b)), "\n"); strings.TrimSpace(pid) == args[1] {
-							comm = "gh"
-						}
-					}
-				}
-			}
-		}
-		if comm == "" {
-			comm = "fakeproc"
-		}
-		fmt.Println(comm)
+		fmt.Println(processName(args[1]))
 		return
 	}
 	fmt.Fprintf(os.Stderr, "fakert ps: unscripted args %v\n", args)
 	os.Exit(64)
+}
+
+// processName: what a process runs, as `ps` and `tasklist` each report it.
+// FAKERT_PS_<pid> scripts one.
+func processName(pid string) string {
+	if comm := os.Getenv("FAKERT_PS_" + pid); comm != "" {
+		return comm
+	}
+	// A pid matching one of our own forward pidfiles IS the fake gh forward —
+	// report it as gh, the name the real forward has (the launcher's
+	// forwardAlive depends on this). The pid is the file's first line; the
+	// ports it holds follow.
+	if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+		files, _ := filepath.Glob(filepath.Join(dir, "serve-gh-forward-*.pid"))
+		for _, f := range files {
+			if b, err := os.ReadFile(f); err == nil {
+				if recorded, _, _ := strings.Cut(strings.TrimSpace(string(b)), "\n"); strings.TrimSpace(recorded) == pid {
+					return "gh"
+				}
+			}
+		}
+	}
+	return "fakeproc"
+}
+
+// tasklist fakes what the launcher asks Windows for a process's name:
+// `tasklist /FI "PID eq <pid>" /FO CSV /NH`, one CSV row whose first field
+// is the image.
+func tasklist(args []string) {
+	if len(args) == 5 && args[0] == "/FI" && args[2] == "/FO" && args[3] == "CSV" && args[4] == "/NH" {
+		if pid, ok := strings.CutPrefix(args[1], "PID eq "); ok {
+			fmt.Printf("%q,%q,\"Console\",\"1\",\"10,000 K\"\r\n", processName(pid)+".exe", pid)
+			return
+		}
+	}
+	fmt.Fprintf(os.Stderr, "fakert tasklist: unscripted args %v\n", args)
+	os.Exit(64)
+}
+
+// netstat fakes what the launcher asks Windows for a port's listeners:
+// `netstat -ano -p TCP`, the whole table. The scripted holders
+// (FAKERT_LSOF_<port>) are rows of it, and the rest is the machine's own
+// table, for the reason lsof binds the port: a port something really holds
+// has to read as held.
+func netstat(args []string) {
+	if len(args) != 3 || args[0] != "-ano" || args[1] != "-p" || args[2] != "TCP" {
+		fmt.Fprintf(os.Stderr, "fakert netstat: unscripted args %v\n", args)
+		os.Exit(64)
+	}
+	fmt.Print("\r\nActive Connections\r\n\r\n  Proto  Local Address          Foreign Address        State           PID\r\n")
+	for _, kv := range os.Environ() {
+		name, pids, _ := strings.Cut(kv, "=")
+		port, ok := strings.CutPrefix(name, "FAKERT_LSOF_")
+		if !ok {
+			continue
+		}
+		for _, pid := range strings.Fields(pids) {
+			fmt.Printf("  TCP    0.0.0.0:%-15s 0.0.0.0:0              LISTENING       %s\r\n", port, pid)
+		}
+	}
+	real, err := exec.Command(filepath.Join(os.Getenv("SystemRoot"), "System32", "netstat.exe"), args...).Output()
+	if err != nil {
+		return
+	}
+	for _, row := range strings.Split(string(real), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(row), "TCP") {
+			fmt.Print(strings.TrimRight(row, "\r") + "\r\n")
+		}
+	}
 }
 
 func runtimeCmd(base string, args []string) {
@@ -1281,18 +1340,19 @@ func run(args []string) {
 		// The container NAME rides along: a fake service answers the route
 		// its image declares and 404s the rest (FAKE-RUNTIME-FIDELITY P1),
 		// and the name is how it knows which image it is.
-		cmd := exec.Command(self, append([]string{"__serve", name}, ports...)...)
-		cmd.Stdout, cmd.Stderr = nil, nil
-		report, wr, err := os.Pipe()
+		// Where the child reports whether it is serving: a loopback
+		// listener, which every system can hand a child the address of. An
+		// inherited pipe would do on two of the three.
+		reports, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			os.Exit(64)
 		}
-		cmd.ExtraFiles = []*os.File{wr} // fd 3 in the child: serveDetached's report
+		cmd := exec.Command(self, append([]string{"__serve", reports.Addr().String(), name}, ports...)...)
+		cmd.Stdout, cmd.Stderr = nil, nil
 		if err := cmd.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "fakert run: serve spawn: %v\n", err)
 			os.Exit(1)
 		}
-		wr.Close()
 		pidfile := ""
 		if dir := os.Getenv("FAKERT_DIR"); dir != "" {
 			// pid, then the ports it holds — `stop` waits for THOSE to be
@@ -1305,9 +1365,14 @@ func run(args []string) {
 		// exists; modelling the service's own startup latency is not this
 		// fake's job, and the launcher's not-ready-yet paths have their own
 		// scripted tests.
-		_ = report.SetReadDeadline(time.Now().Add(10 * time.Second))
-		line, _ := bufio.NewReader(report).ReadString('\n')
-		report.Close()
+		_ = reports.(*net.TCPListener).SetDeadline(time.Now().Add(10 * time.Second))
+		line := ""
+		if report, err := reports.Accept(); err == nil {
+			_ = report.SetReadDeadline(time.Now().Add(10 * time.Second))
+			line, _ = bufio.NewReader(report).ReadString('\n')
+			report.Close()
+		}
+		reports.Close()
 		line = strings.TrimSpace(line)
 		if line != "bound" {
 			_ = cmd.Process.Kill()
@@ -1893,14 +1958,17 @@ func serve(container string, ports []string) {
 	serveOn(container, routes, listeners)
 }
 
-// serveDetached is the `__serve` child of `run -d`. It tells its parent on
-// fd 3 whether it is serving: "bound" once every port listens, "unbound
-// <port>" when one is taken, "error <why>" when it cannot start at all. The
-// parent returns only for a container that is really serving, as a runtime
-// does; before, it dialed the ports, and a port another process held
-// answered for a listener that had already exited.
-func serveDetached(container string, ports []string) {
-	ready := os.NewFile(3, "ready")
+// serveDetached is the `__serve` child of `run -d`. It tells its parent, at
+// the address the parent listens on for it, whether it is serving: "bound"
+// once every port listens, "unbound <port>" when one is taken, "error <why>"
+// when it cannot start at all. The parent returns only for a container that
+// is really serving, as a runtime does; before, it dialed the ports, and a
+// port another process held answered for a listener that had already exited.
+func serveDetached(reportTo, container string, ports []string) {
+	ready, err := net.DialTimeout("tcp", reportTo, 10*time.Second)
+	if err != nil {
+		os.Exit(64)
+	}
 	routes, err := servedRoutes(container)
 	if err != nil {
 		fmt.Fprintf(ready, "error %v\n", err)

@@ -35,9 +35,13 @@ fact explains a good deal of what follows, including how services stay alive.
 brew install the-ai-alliance/semiont/semiont
 ```
 
-macOS and Linux (and Windows via WSL2), arm64 and amd64. The binary is static:
-no language runtime bleeds onto your host. Besides the launcher you need only
-`git` and one container runtime (`container`, `docker`, or `podman`) on PATH.
+macOS, Linux and Windows, arm64 and amd64. Homebrew serves macOS and Linux;
+the [GitHub Release](https://github.com/The-AI-Alliance/semiont/releases)
+carries an archive for each system, for Windows a zip holding `semiont.exe` —
+see [Semiont on Windows](../../docs/system/platforms/WINDOWS.md), which also
+covers running the Linux build inside WSL2. The binary is static: no language
+runtime bleeds onto your host. Besides the launcher you need only `git` and
+one container runtime (`container`, `docker`, or `podman`) on PATH.
 
 ## Use
 
@@ -354,12 +358,28 @@ semiont stop
   `docs/system/administration/CONFIGURATION.md`). Per dependency role
   (graph, vectors, database, inference, embedding) the config decides the
   obligation — the launcher's name for the npm CLI's `platform`:
-  an address on a launcher-injected `${*_HOST}` var → the launcher provides
-  a container (driver by `type`, credentials/ports from the config); any
-  other address → externally provided (verified, never launched, skipped by
-  stop, shown as "external" in status); `platform = "posix"` → host-process
-  reuse; section absent / unreferenced → nothing launched, "not configured"
-  in status. **The inference driver is who performs inference per the
+  `platform = "external"` → somebody else runs the daemon: the section states
+  its address, and it is verified, never launched, skipped by stop and shown
+  as "external" in status; any other platform, or none → the launcher
+  provides a container (driver by `type`) and places it, and an address
+  stated there is refused, since it would be a second answer to who runs it;
+  `platform = "posix"` → host-process reuse; section absent / unreferenced →
+  nothing launched, "not configured" in status. An `oidc` issuer and a remote
+  provider (Anthropic, Voyage) are somebody else's by their type.
+  **Deployment topology is the launcher's to know, never the KB config's to
+  declare.** A config says what a knowledge base needs — a graph, a vector
+  store, an embedding model, an issuer — and, of the daemons the launcher
+  runs, nothing of where they listen: no `uri`, `host`, `servers`, `baseURL`
+  or `issuer` line, so the file is the same on every machine. Each service's
+  staged copy states every address this start placed, as a literal, in the
+  sections that service reads; the gateway's and dispatcher's documents carry
+  theirs. No container is told where anything is through its environment. A
+  config may also write a launcher-run daemon's address as the launcher's own
+  reference (`${NEO4J_HOST}`, `${QDRANT_HOST}`, `${POSTGRES_HOST}`,
+  `${NATS_HOST}`, `${OLLAMA_HOST}`, `${KEYCLOAK_HOST}`, `${KEYCLOAK_PORT}`),
+  which reads exactly as leaving it unstated, whatever the section's platform
+  says. `semiont start --dry-run` lists what it would place.
+  **The inference driver is who performs inference per the
   bindings, not which process the launcher runs**: any ollama-typed binding →
   the local-Ollama shape (host-process dance, container fallback); all-remote
   bindings (Claude throughout) → `inference (Anthropic)`, an external SaaS
@@ -794,10 +814,12 @@ container run --rm -v "$(pwd)":/work -w /work/apps/launcher golang:1.27.1 \
 The tests in `launcher_test.go` are the executable spec: golden files under
 `testdata/golden/` pin the exact runtime argv sequences per scenario, and a
 fake-runtime binary (`internal/fakert`) impersonates
-container/docker/podman/git/lsof/ps on a private PATH — tests never touch a
-real runtime. If a behavior change is intended, adjudicate deliberately
-(the goldens are the spec), then refresh them with
-`go test -run <Test> . -update-goldens`.
+container/docker/podman/git, and lsof/ps (netstat/tasklist on Windows), on a
+private PATH — tests never touch a real runtime. If a behavior change is
+intended, adjudicate deliberately (the goldens are the spec), then refresh
+them with `go test -run <Test> . -update-goldens`. The goldens are written on
+Linux, with placeholders for every host path; a run on macOS or Windows
+compares against them as that system runs.
 
 The suite refuses to run when `/tmp/semiont-config.*` exists (a live stack may
 be mounting those staged configs, and the launcher's preflight sweeps them) —

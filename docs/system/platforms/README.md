@@ -21,6 +21,8 @@ own launcher runs the stack. See [apps/launcher](../../../apps/launcher/README.m
 
 - [CONTAINER-TOPOLOGY.md](../CONTAINER-TOPOLOGY.md) — what runs where, and which layer runs it
 - [administration/DEPLOYMENT.md](../administration/DEPLOYMENT.md) — how stacks are deployed
+- [Semiont on Windows](./WINDOWS.md) — the launcher inside WSL2, or as `semiont.exe`; Docker
+  Desktop either way
 - [Running Semiont on AWS](./AWS.md) — scheduling the images on ECS Fargate or similar; unsupported,
   and entirely your own integration
 - [administration/IMAGES.md](../administration/IMAGES.md) — how the images are built and published

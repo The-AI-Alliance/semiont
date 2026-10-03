@@ -12,11 +12,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
 // heldPort: a loopback port this test holds open until it ends.
@@ -57,6 +60,18 @@ func shimCmd(s *scenario, name string, args ...string) *exec.Cmd {
 	return cmd
 }
 
+// namedByTheFake: what the fake says a process runs, asked the way the
+// launcher asks this system.
+func namedByTheFake(s *scenario, pid string) (string, error) {
+	if runtime.GOOS == "windows" {
+		out, err := shimCmd(s, "tasklist", "/FI", "PID eq "+pid, "/FO", "CSV", "/NH").Output()
+		image, _, _ := strings.Cut(strings.TrimPrefix(string(out), `"`), `"`)
+		return strings.TrimSuffix(image, ".exe"), err
+	}
+	out, err := shimCmd(s, "ps", "-p", pid, "-o", "comm=").Output()
+	return strings.TrimSpace(string(out)), err
+}
+
 // A real runtime refuses to publish a port something else holds — Docker says
 // "port is already allocated" and exits 125. fakert used to report success
 // when its listener could not bind, because its readiness check only dialed
@@ -89,7 +104,10 @@ func (r *errorRecorder) Errorf(format string, a ...any) {
 func TestKillServesNamesAPortItCouldNotFree(t *testing.T) {
 	s := newScenario(t)
 	port := heldPort(t) // held by this test, so no kill frees it
-	child := exec.Command("sleep", "30")
+	// A process that is not a listener: killing it frees nothing.
+	bin := t.TempDir()
+	harness.StandIn(t, bin, "bystander", harness.Says{Waits: true})
+	child := exec.Command(filepath.Join(bin, harness.Exe("bystander")))
 	if err := child.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -129,10 +147,9 @@ func TestForwardPidfileRecordsItsPort(t *testing.T) {
 	if len(lines) != 2 || strings.TrimSpace(lines[1]) != local {
 		t.Fatalf("forward pidfile %q does not record port %s", b, local)
 	}
-	// The fake ps still reports the forward as gh, which forwardAlive requires.
-	out, err := shimCmd(s, "ps", "-p", strings.TrimSpace(lines[0]), "-o", "comm=").Output()
-	if err != nil || strings.TrimSpace(string(out)) != "gh" {
-		t.Errorf("ps reports the forward as %q (%v), want gh", out, err)
+	// The fake still names the forward gh, which forwardAlive requires.
+	if name, err := namedByTheFake(s, strings.TrimSpace(lines[0])); err != nil || name != "gh" {
+		t.Errorf("the forward is named %q (%v), want gh", name, err)
 	}
 	s.killServes(t)
 	if !portIsFree(local) {

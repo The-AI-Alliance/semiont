@@ -23,6 +23,7 @@ import (
 	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"golang.org/x/term"
 )
 
 const deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code"
@@ -146,34 +147,29 @@ func promptToOpen(u *UI, da deviceAuthorization, where string, expires time.Dura
 // `os.Stdin.Stat()` and `ModeCharDevice` is the usual shorthand and it is
 // wrong here: `/dev/null` is a character device, so a CI step — whose stdin is
 // commonly /dev/null — reads as interactive under it, and this prompted a
-// runner that has no browser. Asking `stty` is what the launcher already does
-// to control echo in readPassword, and it answers the real question: stty
-// fails on anything that is not a terminal.
+// runner that has no browser. term.IsTerminal asks the real question: it
+// succeeds only on a terminal, on every system.
 func stdinIsTerminal() bool {
-	fi, err := os.Stdin.Stat()
-	if err != nil || fi.Mode()&os.ModeCharDevice == 0 {
-		return false // a pipe or a file, decided without spawning anything
-	}
-	probe := exec.Command("stty", "size")
-	probe.Stdin = os.Stdin
-	return probe.Run() == nil
+	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
 // browserCommand: how one platform opens a URL. Separated from running it so
 // the mapping is a fact a test can read, not a guess compiled into one branch.
 //
-// Two platforms, because the launcher ships for two: .goreleaser.yaml builds
-// darwin and linux, and local-build falls back to linux for anything else. A
-// windows branch lived here and could not run in any shipped binary.
+// One entry per system the launcher builds for; anything else is treated as
+// Linux. Windows has no `open`: rundll32 hands the URL to whatever handles it.
 func browserCommand(goos, url string) []string {
-	if goos == "darwin" {
+	switch goos {
+	case "darwin":
 		return []string{"open", url}
+	case "windows":
+		return []string{"rundll32", "url.dll,FileProtocolHandler", url}
 	}
 	return []string{"xdg-open", url}
 }
 
-// openBrowser hands a URL to whatever the platform uses. Shelled out rather
-// than taken as a dependency, the same call readPassword makes for `stty`.
+// openBrowser hands a URL to whatever the platform uses, shelled out rather
+// than taken as a dependency.
 func openBrowser(url string) error {
 	argv := browserCommand(runtime.GOOS, url)
 	return exec.Command(argv[0], argv[1:]...).Start()

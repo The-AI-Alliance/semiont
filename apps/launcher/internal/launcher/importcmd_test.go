@@ -19,19 +19,10 @@ import (
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
-// stateHome isolates roots.json so an import in a test cannot touch the real
-// registry.
-func stateHome(t *testing.T) {
-	t.Helper()
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_STATE_HOME", filepath.Join(home, "state"))
-}
-
 // ── A3: the round trip ──────────────────────────────────────────────────
 
 func TestExportImportRoundTrips(t *testing.T) {
-	stateHome(t)
+	harness.Home(t)
 	src := fakeKB(t)
 	dir := t.TempDir()
 	archive := filepath.Join(dir, "kb.tar.gz")
@@ -70,7 +61,7 @@ func TestExportImportRoundTrips(t *testing.T) {
 // The restored KB is registered, so `semiont start --root` and `status` can
 // see it without the operator re-registering by hand.
 func TestImportRegistersTheRestoredRoot(t *testing.T) {
-	stateHome(t)
+	harness.Home(t)
 	src := fakeKB(t)
 	dir := t.TempDir()
 	archive := filepath.Join(dir, "kb.tar.gz")
@@ -94,7 +85,7 @@ func TestImportRegistersTheRestoredRoot(t *testing.T) {
 // ── the irreversible mistake ────────────────────────────────────────────
 
 func TestImportRefusesANonEmptyRoot(t *testing.T) {
-	stateHome(t)
+	harness.Home(t)
 	src := fakeKB(t)
 	dir := t.TempDir()
 	archive := filepath.Join(dir, "kb.tar.gz")
@@ -132,7 +123,7 @@ func TestImportRefusesANonEmptyRoot(t *testing.T) {
 // An archive comes from wherever the operator got it. A crafted entry name
 // must not write outside the root.
 func TestImportRefusesPathTraversal(t *testing.T) {
-	stateHome(t)
+	harness.Home(t)
 	dir := t.TempDir()
 	archive := filepath.Join(dir, "evil.tar.gz")
 	writeTarGzFixture(t, archive, map[string]string{
@@ -155,7 +146,7 @@ func TestImportRefusesPathTraversal(t *testing.T) {
 // A tarball that is not a KB should say so, rather than registering a
 // directory that will fail confusingly at the next start.
 func TestImportRefusesANonKBArchive(t *testing.T) {
-	stateHome(t)
+	harness.Home(t)
 	dir := t.TempDir()
 	archive := filepath.Join(dir, "notakb.tar.gz")
 	writeTarGzFixture(t, archive, map[string]string{"README.md": "just a tarball"})
@@ -169,7 +160,7 @@ func TestImportRefusesANonKBArchive(t *testing.T) {
 }
 
 func TestImportRefusals(t *testing.T) {
-	stateHome(t)
+	harness.Home(t)
 	for _, c := range []struct {
 		name, want string
 		args       []string

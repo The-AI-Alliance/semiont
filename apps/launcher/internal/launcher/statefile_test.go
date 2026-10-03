@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
 // statefile_test.go — the record is either read or refused, never silently
@@ -19,7 +21,7 @@ import (
 // follows the launcher to whichever home this platform uses.
 func recordPath(t *testing.T) string {
 	t.Helper()
-	stateHome(t)
+	harness.Home(t)
 	p := statePath()
 	if p == "" {
 		t.Fatal("no state path with HOME set")

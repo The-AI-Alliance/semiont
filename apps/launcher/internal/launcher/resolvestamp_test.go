@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
 // SHARED-STORE-CLEAR-PREFLIGHT: resolution must RESTAMP the moment it
@@ -13,16 +15,13 @@ import (
 // written its jobs tree into the shared store — and cleared a second time,
 // mid-boot, deleting what a sharer had just written.
 func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_DATA_HOME", "")
+	harness.Home(t)
 	root := t.TempDir()
 	// A runtime that accepts the store clear. What the clear removes is the
 	// root package's to assert (TestStateProjectionAutoCleans, through
 	// fakert); this test is about the stamp.
 	shim := t.TempDir()
-	if err := os.WriteFile(filepath.Join(shim, "container"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	harness.StandIn(t, shim, "container", harness.Says{})
 	t.Setenv("PATH", shim)
 	x := &liveExec{u: NewUI(true), rt: "container"}
 

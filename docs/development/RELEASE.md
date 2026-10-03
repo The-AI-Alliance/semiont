@@ -31,7 +31,7 @@ Semiont publishes a release in these steps:
 4. **Launcher Release** — a separate action
    ([`launcher-release.yml`](../../.github/workflows/launcher-release.yml))
    that publishes the `semiont` launcher (the host binary that runs KB
-   stacks): goreleaser builds darwin/linux × arm64/amd64 static binaries,
+   stacks): goreleaser builds darwin/linux/windows × arm64/amd64 static binaries,
    attaches them (with checksums + SBOMs) to the GitHub Release, attests
    provenance, and pushes the Homebrew formula to
    `The-AI-Alliance/homebrew-semiont`. Unlike the image workflows it takes
@@ -168,8 +168,9 @@ the **tag** `v<version>` in the branch/tag dropdown.)
 
 ### What it publishes
 
-- `semiont_<version>_{darwin,linux}_{arm64,amd64}.tar.gz` + `checksums.txt`
-  + SBOMs, attached to the existing GitHub Release (`mode: keep-existing` —
+- `semiont_<version>_{darwin,linux}_{arm64,amd64}.tar.gz`,
+  `semiont_<version>_windows_{arm64,amd64}.zip`, `checksums.txt` and SBOMs,
+  attached to the existing GitHub Release (`mode: keep-existing` —
   it never clobbers the release the main pipeline created)
 - Build-provenance attestation for the archives
   (`gh attestation verify <archive> -R The-AI-Alliance/semiont`)
@@ -438,8 +439,8 @@ brew install the-ai-alliance/semiont/semiont
 semiont version   # semiont <version> (commit <sha>, built <date>)
 ```
 
-Direct downloads (macOS/Linux, arm64/amd64) live on the GitHub Release as
-`semiont_<version>_<os>_<arch>.tar.gz`, with `checksums.txt`, SBOMs, and
+Direct downloads (macOS/Linux/Windows, arm64/amd64) live on the GitHub Release
+as `semiont_<version>_<os>_<arch>.tar.gz` — `.zip` for Windows — with `checksums.txt`, SBOMs, and
 provenance attestations.
 
 
@@ -543,7 +544,7 @@ After releasing:
 - [ ] If desktop was checked, verify the desktop artifacts on the GitHub Release
 - [ ] Publish the Browser container image ([Step 1b](#step-1b-publish-the-browser-container-image)) and confirm the `:<version>` and `:latest` tags on GHCR
 - [ ] Publish the seven service images (`publish-service-images.yml`) and confirm `semiont-gateway`, `semiont-worker`, `semiont-smelter`, `semiont-weaver`, `semiont-archivist`, `semiont-librarian`, and `semiont-dispatcher` carry `:<version>` and `:latest` on GHCR
-- [ ] Publish the launcher ([Step 1c](#step-1c-publish-the-launcher-homebrew--binaries), dispatched `--ref v<version>`) and confirm the four `semiont_<version>_*.tar.gz` archives on the GitHub Release and the updated formula in [`homebrew-semiont`](https://github.com/The-AI-Alliance/homebrew-semiont)
+- [ ] Publish the launcher ([Step 1c](#step-1c-publish-the-launcher-homebrew--binaries), dispatched `--ref v<version>`) and confirm the four `semiont_<version>_*.tar.gz` archives and the two `semiont_<version>_windows_*.zip` on the GitHub Release and the updated formula in [`homebrew-semiont`](https://github.com/The-AI-Alliance/homebrew-semiont)
 - [ ] Test launcher installation: `brew install the-ai-alliance/semiont/semiont && semiont version` (upgrades: `brew upgrade semiont`). a long-deprecated npm package (no longer built from this repo) also installed a `semiont` bin — if `which semiont` does not resolve to the brew copy, that leftover is shadowing the launcher
 - [ ] Smoke-test a stack: from a KB directory, `semiont start && semiont status`, then `semiont stop`
 - [ ] Bump version for next cycle: `./scripts/release/version-bump.sh`

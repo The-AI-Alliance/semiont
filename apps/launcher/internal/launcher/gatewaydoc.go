@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
@@ -76,17 +75,12 @@ func gatewayNamedVars(env *envConfig) []string {
 }
 
 // gatewayVars: what a ${VAR} in the gateway's settings resolves against — the
-// dependency hosts the launcher gives every service, and the user's own
-// variables. The gateway-host variables are absent on purpose: the gateway
-// never received them (gatewayArgs), so a ${GATEWAY_HOST:-…} in its
-// publicURL takes its default, as it always has.
+// addresses the launcher places (topologyVars), and the user's own variables.
+// The gateway-host variables are absent on purpose: the gateway never received
+// them (gatewayArgs), so a ${GATEWAY_HOST:-…} in its publicURL takes its
+// default, as it always has.
 func gatewayVars(rt, addr string, issuerPort int, userEnv []string) map[string]string {
-	vars := map[string]string{}
-	for _, name := range []string{"POSTGRES_HOST", "NEO4J_HOST", "NATS_HOST", "QDRANT_HOST", "OLLAMA_HOST"} {
-		vars[name] = addr
-	}
-	vars["KEYCLOAK_HOST"] = identityHost(rt, addr)
-	vars["KEYCLOAK_PORT"] = strconv.Itoa(issuerPort)
+	vars := topologyVars(rt, addr, issuerPort)
 	for name, value := range userEnvVars(userEnv) {
 		vars[name] = value
 	}

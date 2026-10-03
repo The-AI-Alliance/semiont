@@ -2,8 +2,9 @@
 // the fleet's start.sh/logs.sh/stop.sh (GO-LAUNCHER.md §3).
 //
 // Everything external is faked: a private PATH holds one binary (fakert)
-// symlinked as container/docker/podman/git/lsof/ps/pgrep, which records every
-// invocation to an argv log and plays scripted responses. Detached `run -d`
+// under the name of each program the launcher runs — container, docker,
+// podman, git, and what it asks this system about ports and processes — which
+// records every invocation to an argv log and plays scripted responses. Detached `run -d`
 // spawns real localhost listeners on the published ports so the launcher's
 // health gates open. Tests never touch a real runtime.
 //
@@ -28,9 +29,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
 var updateGoldens = flag.Bool("update-goldens", false, "rewrite golden files from observed output")
@@ -46,9 +48,13 @@ func TestMain(m *testing.M) {
 	// launcher's preflight sweeps /tmp/semiont-config.* and deleting the
 	// backing files under a live container mount breaks that stack. In CI and
 	// in a build container /tmp is clean; on a dev host, stop the stack first.
-	if pre, _ := filepath.Glob("/tmp/semiont-config.*"); len(pre) > 0 {
-		fmt.Fprintf(os.Stderr, "refusing to run: %v exist — a live stack may mount them (run semiont stop, or test in a container)\n", pre)
-		os.Exit(1)
+	// Windows has no shared /tmp to guard: a scenario there stages under the
+	// temporary directory its own environment names.
+	if runtime.GOOS != "windows" {
+		if pre, _ := filepath.Glob("/tmp/semiont-config.*"); len(pre) > 0 {
+			fmt.Fprintf(os.Stderr, "refusing to run: %v exist — a live stack may mount them (run semiont stop, or test in a container)\n", pre)
+			os.Exit(1)
+		}
 	}
 	binDir, err := os.MkdirTemp("", "launcher-bins")
 	if err != nil {
@@ -56,8 +62,8 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	defer os.RemoveAll(binDir)
-	launcherBin = filepath.Join(binDir, "semiont")
-	fakertBin = filepath.Join(binDir, "fakert")
+	launcherBin = filepath.Join(binDir, harness.Exe("semiont"))
+	fakertBin = filepath.Join(binDir, harness.Exe("fakert"))
 	for target, pkg := range map[string]string{launcherBin: ".", fakertBin: "./internal/fakert"} {
 		out, err := exec.Command("go", "build", "-o", target, pkg).CombinedOutput()
 		if err != nil {
@@ -68,13 +74,28 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// askedOfTheSystem: the programs the launcher asks this system about ports
+// and processes, which fakert answers as in every scenario.
+func askedOfTheSystem() []string {
+	if runtime.GOOS == "windows" {
+		return []string{"netstat", "tasklist"}
+	}
+	return []string{"lsof", "ps", "pgrep"}
+}
+
 // shimDir builds a private PATH dir where fakert impersonates the given
-// runtimes plus git/lsof/ps/pgrep (always present).
+// runtimes plus git and what the launcher asks the system (always present).
 func shimDir(t *testing.T, runtimes ...string) string {
 	t.Helper()
 	dir := t.TempDir()
-	for _, name := range append([]string{"git", "lsof", "ps", "pgrep"}, runtimes...) {
-		if err := os.Symlink(fakertBin, filepath.Join(dir, name)); err != nil {
+	for _, name := range append(append([]string{"git"}, askedOfTheSystem()...), runtimes...) {
+		// A symlink, or on Windows a hard link: a program is found there by
+		// its .exe, and making a symlink takes a privilege.
+		link := os.Symlink
+		if runtime.GOOS == "windows" {
+			link = os.Link
+		}
+		if err := link(fakertBin, filepath.Join(dir, harness.Exe(name))); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -126,9 +147,14 @@ func newScenario(t *testing.T, runtimes ...string) *scenario {
 	t.Helper()
 	s := &scenario{
 		shim:      shimDir(t, runtimes...),
-		kb:        mkKB(t),
-		home:      t.TempDir(),
+		kb:        asTheSystemNamesIt(t, mkKB(t)),
+		home:      asTheSystemNamesIt(t, t.TempDir()),
 		fakertDir: t.TempDir(),
+	}
+	if runtime.GOOS == "windows" {
+		if err := os.MkdirAll(s.stagingParent(), 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
 	s.log = filepath.Join(s.fakertDir, "argv.log")
 	// The audience fakert's issuer stamps into service-account tokens, so the
@@ -141,6 +167,39 @@ func newScenario(t *testing.T, runtimes ...string) *scenario {
 	}
 	t.Cleanup(func() { s.killServes(t) })
 	return s
+}
+
+// asTheSystemNamesIt: a directory by the one name the launcher will print for
+// it. A temporary directory can be reached by another: through a symlink, or
+// on Windows by a short name (RUNNER~1), and a path the launcher resolved
+// would then match no placeholder.
+func asTheSystemNamesIt(t *testing.T, dir string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resolved
+}
+
+// stagingParent: where this scenario's launcher stages the configs it mounts.
+// /tmp on macOS and Linux, which every scenario shares; on Windows the
+// temporary directory the scenario's environment names.
+func (s *scenario) stagingParent() string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(s.home, "AppData", "Local", "Temp")
+	}
+	return "/tmp"
+}
+
+// stagingPattern: every staging dir under it, as the launcher prints it.
+func (s *scenario) stagingPattern() string {
+	return filepath.Join(s.stagingParent(), "semiont-config.*")
+}
+
+// stageRe matches one staging dir.
+func (s *scenario) stageRe() *regexp.Regexp {
+	return regexp.MustCompile(regexp.QuoteMeta(filepath.Join(s.stagingParent(), "semiont-config.")) + `[A-Za-z0-9]+`)
 }
 
 // kbFixtureResource: the resource identifier the KB fixture's committed
@@ -261,6 +320,16 @@ func (s *scenario) env() []string {
 		// fake reads the Dockerfile, it is not told the answer.
 		"FAKERT_REPO=" + repoRoot(),
 	}
+	if runtime.GOOS == "windows" {
+		// Windows names the home, the application-data directory and the
+		// temporary directory by variables of its own.
+		env = append(env,
+			"USERPROFILE="+s.home,
+			"LOCALAPPDATA="+filepath.Join(s.home, "AppData", "Local"),
+			"TEMP="+s.stagingParent(),
+			"TMP="+s.stagingParent(),
+		)
+	}
 	{
 		// Pinned so the boot goldens are deterministic: an unpinned run
 		// generates a fresh credential per service and every golden would
@@ -326,8 +395,6 @@ func (s *scenario) containerEnv(t *testing.T, container, name string) (string, b
 	return "", false
 }
 
-var stageRe = regexp.MustCompile(`/tmp/semiont-config\.[A-Za-z0-9]+`)
-
 // argv returns the recorded invocation log with run-specific paths
 // normalized to stable placeholders.
 func (s *scenario) argv(t *testing.T) string {
@@ -347,9 +414,18 @@ func (s *scenario) argv(t *testing.T) string {
 // either (the discovery mount taught us) can never bake a tmp dir into a
 // golden that greens on refresh and reds on every later run.
 func (s *scenario) norm(text string) string {
-	out := strings.ReplaceAll(text, s.kb, "<kb-root>")
-	out = stageRe.ReplaceAllString(out, "<config-stage>")
-	out = strings.ReplaceAll(out, s.home, "<home>")
+	// A directory before the one it is under: on Windows the staging dir and
+	// both homes are under the scenario's home.
+	out := strings.ReplaceAll(text, s.stagingPattern(), "<config-stages>")
+	out = withPlaceholder(out, s.stageRe(), "<config-stage>")
+	for _, d := range []struct{ dir, placeholder string }{
+		{dataHomeFor(s.home), "<data-home>"},
+		{stateHomeFor(s.home), "<state-home>"},
+		{s.kb, "<kb-root>"},
+		{s.home, "<home>"},
+	} {
+		out = withPlaceholder(out, regexp.MustCompile(regexp.QuoteMeta(d.dir)), d.placeholder)
+	}
 	// The Keycloak bootstrap admin password is GENERATED per root and
 	// persisted there, so it is different in every scenario and every run —
 	// a value that bakes into a golden which greens on refresh and reds
@@ -360,6 +436,62 @@ func (s *scenario) norm(text string) string {
 	return out
 }
 
+// inJSON: a path as it reads inside a JSON string, where Windows' separator
+// is written twice.
+func inJSON(path string) string {
+	return strings.ReplaceAll(path, `\`, `\\`)
+}
+
+// nowhere: an absolute path, on this system, to a directory that is not
+// there.
+func nowhere(t *testing.T, names ...string) string {
+	t.Helper()
+	return filepath.Join(append([]string{asTheSystemNamesIt(t, t.TempDir())}, names...)...)
+}
+
+// stopHint: the command the launcher suggests for ending processes here.
+func stopHint(pid string) string {
+	if runtime.GOOS == "windows" {
+		return "taskkill /PID " + pid
+	}
+	return "kill " + pid
+}
+
+// withPlaceholder swaps a per-run directory for a stable placeholder wherever
+// text names it or a path beneath it, and writes that path with slashes,
+// which is how the goldens have it on every system.
+func withPlaceholder(text string, dir *regexp.Regexp, placeholder string) string {
+	if os.PathSeparator == '/' {
+		return dir.ReplaceAllString(text, placeholder)
+	}
+	beneath := regexp.MustCompile(`(` + dir.String() + `)((?:\\[^\\\s:"',]+)*)`)
+	return beneath.ReplaceAllStringFunc(text, func(path string) string {
+		tail := beneath.FindStringSubmatch(path)[2]
+		return placeholder + strings.ReplaceAll(tail, `\`, "/")
+	})
+}
+
+// asThisSystemRuns: a golden as this system's launcher produces it. The
+// goldens are written on Linux, which differs from the others in two ways a
+// placeholder cannot hide: it keeps its state and its data in two homes where
+// macOS and Windows keep one, and it asks lsof and ps what Windows asks
+// netstat and tasklist.
+func asThisSystemRuns(golden string) string {
+	if dataHomeFor("") == stateHomeFor("") {
+		golden = strings.ReplaceAll(golden, "<state-home>", "<data-home>")
+	}
+	if runtime.GOOS == "windows" {
+		golden = lsofLine.ReplaceAllString(golden, "netstat -ano -p TCP")
+		golden = psLine.ReplaceAllString(golden, "tasklist /FI PID eq $1 /FO CSV /NH")
+	}
+	return golden
+}
+
+var (
+	lsofLine = regexp.MustCompile(`(?m)^lsof -nP -iTCP:\d+ -sTCP:LISTEN$`)
+	psLine   = regexp.MustCompile(`(?m)^ps -p (\d+) -o comm=$`)
+)
+
 // Any generated value — the hex the launcher mints — but NOT a pinned one a
 // test set deliberately (KC_BOOTSTRAP_ADMIN_PASSWORD=test-keycloak-admin),
 // which is stable and worth asserting verbatim.
@@ -369,16 +501,19 @@ func checkGolden(t *testing.T, name, got string) {
 	t.Helper()
 	path := filepath.Join("testdata", "golden", name)
 	if *updateGoldens {
+		if runtime.GOOS != "linux" {
+			t.Fatalf("the goldens are written on Linux (asThisSystemRuns): -update-goldens on %s would write this system's into them", runtime.GOOS)
+		}
 		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		return
 	}
-	want, err := os.ReadFile(path)
+	written, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("missing golden %s (run with -update-goldens after adjudicating): %v", name, err)
 	}
-	if string(want) != got {
+	if want := asThisSystemRuns(string(written)); want != got {
 		t.Errorf("golden mismatch for %s\n--- want ---\n%s\n--- got ---\n%s", name, want, got)
 	}
 }
@@ -417,6 +552,39 @@ func lastEmit(t *testing.T, s *scenario) string {
 }
 
 // --- start: full boots against the fake runtime ---
+
+// A knowledge base's config says what it needs and nothing of where: with
+// every address line gone, the launcher places the same stack, command for
+// command, as it does for a config that writes each address as the launcher's
+// reference. The golden is the default boot's own.
+func TestStartBootsAConfigThatStatesNoAddress(t *testing.T) {
+	s := newScenario(t, "container", "docker", "podman")
+	p := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stated := regexp.MustCompile(`(?m)^(servers|uri|host|baseURL|issuer) = .*\n`)
+	if n := len(stated.FindAll(b, -1)); n < 6 {
+		t.Fatalf("the fixture config states only %d addresses: this test would prove little", n)
+	}
+	if err := os.WriteFile(p, stated.ReplaceAll(b, nil), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	checkGolden(t, "start-default-boot.argv", s.argv(t))
+	// What each service is staged states where everything is, as literals.
+	librarian := stagedFile(t, s, "librarian.toml")
+	mustContain(t, "staged librarian.toml", librarian,
+		"bolt://192.168.64.1:7687", "http://192.168.64.1:11434", "http://192.168.64.1:8080/realms/semiont")
+	if strings.Contains(librarian, "_HOST}") {
+		t.Errorf("the staged librarian.toml leaves an address to its environment:\n%s", librarian)
+	}
+	mustContain(t, "staged dispatcher.json", stagedFile(t, s, "dispatcher.json"), "192.168.64.1:4222")
+}
 
 func TestStartDefaultBoot(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
@@ -649,13 +817,14 @@ func movableKeycloakPort(t *testing.T, s *scenario) {
 	}
 }
 
-// CODESPACE-IDENTITY B4: the issuer's port is the launcher's to inject, like
+// CODESPACE-IDENTITY B4: the issuer's port is the launcher's to place, like
 // its host — one Keycloak port per KB, the same number on both ends, so a
 // laptop can hold a forward per codespace KB. KEYCLOAK_PORT follows the
 // launcher's env shape: the environment wins, the root records it, and 8080
 // is the default. The codespace's post-start runs a bare start on every
-// resume, which is why the port a laptop moved it to must stick.
-func TestKeycloakPortIsInjectedAndSticky(t *testing.T) {
+// resume, which is why the port a laptop moved it to must stick. The port
+// reaches each service as part of the issuer its staged config states.
+func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 	s := newScenario(t, "container")
 	movableKeycloakPort(t, s)
 	keycloakRun := func(t *testing.T, argv string) string {
@@ -688,18 +857,14 @@ func TestKeycloakPortIsInjectedAndSticky(t *testing.T) {
 		if run := keycloakRun(t, argv); !strings.Contains(run, "-p "+step.want+":8080") {
 			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
 		}
-		dialers := 0
-		for _, line := range strings.Split(argv, "\n") {
-			if !strings.Contains(line, "KEYCLOAK_HOST=") {
-				continue
-			}
-			dialers++
-			if !strings.Contains(line, "--env KEYCLOAK_PORT="+step.want) {
-				t.Errorf("%s: a container that resolves the issuer lacks KEYCLOAK_PORT=%s:\n%s", step.name, step.want, line)
+		issuer := "http://192.168.64.1:" + step.want + "/realms/semiont"
+		for _, staged := range []string{"worker.toml", "archivist.toml", "gateway.json", "dispatcher.json"} {
+			if !strings.Contains(stagedFile(t, s, staged), issuer) {
+				t.Errorf("%s: the staged %s does not state the issuer at port %s:\n%s", step.name, staged, step.want, stagedFile(t, s, staged))
 			}
 		}
-		if dialers == 0 {
-			t.Fatalf("%s: no container carries KEYCLOAK_HOST — the scan proved nothing", step.name)
+		if strings.Contains(argv, "KEYCLOAK_PORT=") || strings.Contains(argv, "KEYCLOAK_HOST=") {
+			t.Errorf("%s: a container is told of the issuer through its environment:\n%s", step.name, argv)
 		}
 	}
 	roots, err := os.ReadFile(filepath.Join(filepath.Dir(statePathFor(s.home)), "roots.json"))
@@ -744,15 +909,18 @@ func TestDockerAndPodmanNameTheIssuerKeycloakLocalhost(t *testing.T) {
 					if !strings.Contains(line, "--add-host keycloak.localhost:host-gateway") {
 						t.Errorf("a container holding a realm credential cannot resolve the issuer's name:\n%s", line)
 					}
-					if strings.Contains(line, "KEYCLOAK_HOST=") && !strings.Contains(line, "KEYCLOAK_HOST=keycloak.localhost") {
-						t.Errorf("KEYCLOAK_HOST is not the issuer's name:\n%s", line)
-					}
-					if strings.Contains(line, "NEO4J_HOST=") && !strings.Contains(line, "NEO4J_HOST="+probe.addr) {
-						t.Errorf("the probe's answer %s no longer decides the other dependency hosts:\n%s", probe.addr, line)
-					}
 				}
 				if dialers == 0 {
 					t.Fatal("no container carries SEMIONT_OIDC_CLIENT_ID — the scan matched nothing, so it proved nothing")
+				}
+				// The issuer is named in what each service is staged; the probe's
+				// answer still places every other daemon.
+				librarian := stagedFile(t, s, "librarian.toml")
+				if !strings.Contains(librarian, "http://keycloak.localhost:8080/realms/semiont") {
+					t.Errorf("the staged issuer is not the issuer's name:\n%s", librarian)
+				}
+				if !strings.Contains(librarian, "bolt://"+probe.addr+":7687") {
+					t.Errorf("the probe's answer %s no longer places the other daemons:\n%s", probe.addr, librarian)
 				}
 			})
 		}
@@ -766,8 +934,10 @@ func TestStartNoObserveBoot(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	checkGolden(t, "start-no-observe-boot.argv", s.argv(t))
-	if strings.Contains(stdout, "16686") {
-		t.Errorf("--no-observe stdout mentions Jaeger:\n%s", stdout)
+	// Against the normalized output, for the reason
+	// TestServiceGatewayPortFollowsConfig gives.
+	if said := s.norm(stdout); strings.Contains(said, "16686") {
+		t.Errorf("--no-observe stdout mentions Jaeger:\n%s", said)
 	}
 }
 
@@ -851,7 +1021,7 @@ func TestStartPortConflict(t *testing.T) {
 	}
 	mustContain(t, "stderr", stderr,
 		"Port 7474 (needed for Neo4j HTTP) is held by 12345 (node).",
-		"This is not a Semiont container. Stop it and re-run (e.g. kill 12345).")
+		"This is not a Semiont container. Stop it and re-run (e.g. "+stopHint("12345")+").")
 	checkGolden(t, "start-port-conflict.argv", s.argv(t))
 }
 
@@ -921,7 +1091,7 @@ func TestStartConfigNotFound(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("want exit 1, got %d", code)
 	}
-	mustContain(t, "stderr", stderr, "Config not found: .semiont/semiontconfig/nope.toml")
+	mustContain(t, "stderr", stderr, "Config not found: "+filepath.FromSlash(".semiont/semiontconfig/nope.toml"))
 }
 
 func TestStartNoRuntime(t *testing.T) {
@@ -1015,14 +1185,30 @@ func TestStartDryRunLocalVersion(t *testing.T) {
 
 // --- local-stack state persistence (LAUNCHER-STATE.md) ---
 
-// stateRootFor mirrors the launcher's per-root state dir (dataDir) for the
-// scenario's fake HOME — GOOS-aware like statePathFor, though the suite's
-// home is the linux golang container in practice.
-func stateRootFor(home, key string) string {
-	if runtime.GOOS == "darwin" {
-		return filepath.Join(home, "Library", "Application Support", "semiont", "roots", key)
+// stateHomeFor and dataHomeFor: where the launcher keeps its state and its
+// data under a scenario's home, on this system. Linux has the two XDG homes;
+// macOS and Windows keep both in one.
+func stateHomeFor(home string) string {
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(home, "Library", "Application Support", "semiont")
+	case "windows":
+		return filepath.Join(home, "AppData", "Local", "semiont")
 	}
-	return filepath.Join(home, ".local", "share", "semiont", "roots", key)
+	return filepath.Join(home, ".local", "state", "semiont")
+}
+
+func dataHomeFor(home string) string {
+	switch runtime.GOOS {
+	case "darwin", "windows":
+		return stateHomeFor(home)
+	}
+	return filepath.Join(home, ".local", "share", "semiont")
+}
+
+// stateRootFor: a root's state dir under the scenario's home.
+func stateRootFor(home, key string) string {
+	return filepath.Join(dataHomeFor(home), "roots", key)
 }
 
 // testKBKey: the slug of the test KB's did:web (testdata/kb/.semiont/config).
@@ -1039,7 +1225,7 @@ func TestStatePersistsAcrossStarts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("meta.json after start: %v", err)
 	}
-	mustContain(t, "meta.json", string(meta), "postgres:15.18-alpine", s.kb)
+	mustContain(t, "meta.json", string(meta), "postgres:15.18-alpine", inJSON(s.kb))
 	if _, err := os.Stat(filepath.Join(dir, "postgres")); err != nil {
 		t.Fatalf("postgres state dir after start: %v", err)
 	}
@@ -1050,7 +1236,7 @@ func TestStatePersistsAcrossStarts(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mount := dir + "/postgres:/var/lib/postgresql/data"
+	mount := filepath.Join(dir, "postgres") + ":/var/lib/postgresql/data"
 	if got := strings.Count(string(s.mustLog(t)), mount); got != 2 {
 		t.Errorf("state mount should appear in both boots (want 2, got %d)", got)
 	}
@@ -1074,7 +1260,7 @@ func TestGatewayDataPersistsAcrossStarts(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "anchored-text")); err != nil {
 		t.Fatalf("anchored-text state dir after start: %v", err)
 	}
-	mount := dir + "/anchored-text:/anchored-text"
+	mount := filepath.Join(dir, "anchored-text") + ":/anchored-text"
 	firstBoot := strings.Count(string(s.mustLog(t)), mount)
 
 	s.killServes(t)
@@ -1144,7 +1330,7 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(pg, "PG_VERSION"), []byte("14\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	meta := `{"kbRoot":"` + s.kb + `","stores":{"database":{"image":"postgres:14.9-alpine"}}}`
+	meta := `{"kbRoot":"` + inJSON(s.kb) + `","stores":{"database":{"image":"postgres:14.9-alpine"}}}`
 	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1182,7 +1368,7 @@ func TestSharedStoreClearResolvesBeforeFirstRun(t *testing.T) {
 	if err := os.WriteFile(sentinel, []byte("old"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	meta := `{"kbRoot":"` + s.kb + `","stores":{"state":{"image":"ghcr.io/the-ai-alliance/semiont-archivist:0.0.0-old"}}}`
+	meta := `{"kbRoot":"` + inJSON(s.kb) + `","stores":{"state":{"image":"ghcr.io/the-ai-alliance/semiont-archivist:0.0.0-old"}}}`
 	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1225,7 +1411,7 @@ func TestStoreClearKeepsMountRootDir(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(sd, "stale-view"), []byte("old"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	meta := `{"kbRoot":"` + s.kb + `","stores":{"state":{"image":"ghcr.io/the-ai-alliance/semiont-archivist:0.0.0-old"}}}`
+	meta := `{"kbRoot":"` + inJSON(s.kb) + `","stores":{"state":{"image":"ghcr.io/the-ai-alliance/semiont-archivist:0.0.0-old"}}}`
 	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1245,7 +1431,7 @@ func TestStoreClearKeepsMountRootDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat of the held state-store handle: %v", err)
 	}
-	if st, ok := fi.Sys().(*syscall.Stat_t); ok && st.Nlink == 0 {
+	if links, ok := linkCount(fi); ok && links == 0 {
 		t.Error("the state store dir was unlinked by the clear — every share attached before it is orphaned; clear contents, keep the directory")
 	}
 }
@@ -1264,7 +1450,7 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(stale, "stale.db"), []byte("old"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	meta := `{"kbRoot":"` + s.kb + `","stores":{"graph":{"image":"neo4j:5.20.0-community"}}}`
+	meta := `{"kbRoot":"` + inJSON(s.kb) + `","stores":{"graph":{"image":"neo4j:5.20.0-community"}}}`
 	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1302,10 +1488,8 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 	// ...while the root's state dir — the UNMOUNTED parent of every store —
 	// is clamped owner-only, so the 0777 leaves nothing traversable by other
 	// local users.
-	if fi, err := os.Stat(dir); err != nil {
-		t.Fatalf("root state dir: %v", err)
-	} else if perm := fi.Mode().Perm(); perm != 0o700 {
-		t.Errorf("root state dir mode = %o, want 700 (owner-only parent clamp)", perm)
+	if open := harness.OpenToOthers(t, dir); open != "" {
+		t.Errorf("root state dir %s (owner-only parent clamp)", open)
 	}
 }
 
@@ -1371,7 +1555,7 @@ func TestStartRefusesKBWithoutDid(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("declared-domain start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "state key", stdout, "roots/example.github.io-no-did-kb/postgres")
+	mustContain(t, "state key", s.norm(stdout), "roots/example.github.io-no-did-kb/postgres")
 }
 
 // --- clean ---
@@ -1394,7 +1578,7 @@ func seedStateDir(t *testing.T, s *scenario) string {
 			t.Fatal(err)
 		}
 	}
-	meta := `{"kbRoot":"` + s.kb + `","did":"did:web:example.github.io:test-kb","stores":{` +
+	meta := `{"kbRoot":"` + inJSON(s.kb) + `","did":"did:web:example.github.io:test-kb","stores":{` +
 		`"database":{"image":"postgres:15.18-alpine"},` +
 		`"vectors":{"image":"qdrant/qdrant:v1.19.1"},` +
 		`"graph":{"image":"neo4j:5.26.28-community"}}}`
@@ -1490,7 +1674,7 @@ func TestCleanRefusesRunningStack(t *testing.T) {
 	seedStateDir(t, s)
 	// A recorded local stack on this root: clean must refuse — those dirs
 	// may be mounted right now.
-	stack := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"` + s.kb +
+	stack := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"` + inJSON(s.kb) +
 		`","kbDid":"did:web:example.github.io:test-kb","services":{}}}}`
 	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
 		t.Fatal(err)
@@ -1583,7 +1767,7 @@ func TestStatusVerboseDiskUsage(t *testing.T) {
 	_ = code // status exit reflects health; the paths section prints regardless
 	_ = stderr
 	mustContain(t, "active-root data row", stdout,
-		"roots/"+testKBKey,
+		filepath.Join("roots", testKBKey),
 		"postgres 3 B", "qdrant 2.0 KB", "neo4j 1.0 KB")
 	mustContain(t, "all-roots row", stdout,
 		"2 roots", "1 orphaned", "semiont clean --root gone.example.org-old-kb")
@@ -1606,10 +1790,7 @@ func TestStatusVerboseNoState(t *testing.T) {
 // tokensPathFor mirrors the launcher's token store path for the scenario's
 // fake HOME — GOOS-aware like statePathFor.
 func tokensPathFor(home string) string {
-	if runtime.GOOS == "darwin" {
-		return filepath.Join(home, "Library", "Application Support", "semiont", "tokens.json")
-	}
-	return filepath.Join(home, ".local", "state", "semiont", "tokens.json")
+	return filepath.Join(stateHomeFor(home), "tokens.json")
 }
 
 // EXTERNAL-IDENTITY P4 (launcher lane): `semiont login` is the device
@@ -1644,10 +1825,8 @@ func TestLoginDeviceGrantStoresTokens(t *testing.T) {
 	}
 	mustContain(t, "tokens.json", string(b), "fake-jwt-token", "fake-refresh-token", `"local"`,
 		`"issuer"`, "http://localhost:4000/realms/semiont", `"tokenEndpoint"`)
-	if fi, err := os.Stat(tokensPathFor(s.home)); err == nil {
-		if perm := fi.Mode().Perm(); perm != 0o600 {
-			t.Errorf("tokens.json mode = %o, want 600 (it holds a bearer token)", perm)
-		}
+	if open := harness.OpenToOthers(t, tokensPathFor(s.home)); open != "" {
+		t.Errorf("tokens.json %s (it holds a bearer token)", open)
 	}
 }
 
@@ -1885,7 +2064,7 @@ func TestStatusVerboseShowsSessions(t *testing.T) {
 func TestStopSweepsAllRuntimes(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
 	// Simulate leftover staging from a previous run.
-	stage, err := os.MkdirTemp("/tmp", "semiont-config.")
+	stage, err := os.MkdirTemp(s.stagingParent(), "semiont-config.")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1930,7 +2109,7 @@ func TestStopDryRun(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
 	}
-	checkGolden(t, "stop-dryrun.txt", stdout)
+	checkGolden(t, "stop-dryrun.txt", s.norm(stdout))
 	if got := s.argv(t); got != "" {
 		t.Errorf("dry run executed external commands:\n%s", got)
 	}
@@ -2004,7 +2183,7 @@ func TestStatusMixed(t *testing.T) {
 		t.Fatalf("status --verbose: exit %d", vcode)
 	}
 	mustContain(t, "verbose stdout", vstdout,
-		"LAUNCHER PATHS", "config", "cache", "staging", "/tmp/semiont-config.*")
+		"LAUNCHER PATHS", "config", "cache", "staging", s.stagingPattern())
 
 	for _, line := range strings.Split(stdout, "\n") {
 		if !strings.Contains(line, "localhost") {
@@ -2059,7 +2238,10 @@ func invLogPath(home string) string {
 	if runtime.GOOS == "darwin" {
 		return filepath.Join(home, "Library", "Logs", "semiont", "launcher.log")
 	}
-	return filepath.Join(home, ".local", "state", "semiont", "launcher.log")
+	if runtime.GOOS == "windows" {
+		return filepath.Join(stateHomeFor(home), "logs", "launcher.log")
+	}
+	return filepath.Join(stateHomeFor(home), "launcher.log")
 }
 
 func TestInvocationLog(t *testing.T) {
@@ -2182,7 +2364,7 @@ func TestUseradd(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"`+s.kb+`","services":{}}}}`), 0o644); err != nil {
+	if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"`+inJSON(s.kb)+`","services":{}}}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	s.stdin = ""
@@ -2569,7 +2751,7 @@ func TestStartDemandsOnlyTheVariablesSomethingReads(t *testing.T) {
 func TestStartServiceResolvesWhatTheLauncherReadsForIt(t *testing.T) {
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "external-db", stdGraph+stdVectors+stdEmbedding+
-		"[environments.local.database]\nhost = \"db.example.com\"\nport = 5432\nname = \"semiont\"\nuser = \"semiont\"\npassword = \"${EXT_PG}\"\n\n")
+		"[environments.local.database]\nplatform = \"external\"\nhost = \"db.example.com\"\nport = 5432\nname = \"semiont\"\nuser = \"semiont\"\npassword = \"${EXT_PG}\"\n\n")
 	s.extraEnv = append(s.extraEnv, "EXT_PG=pgsecret", "ANTHROPIC_API_KEY=test-key")
 	for _, c := range []struct{ service, config string }{{"identity", "external-db"}, {"inference", "anthropic"}} {
 		if stdout, stderr, code := s.run(t, "start", "--service", c.service, "--config", c.config); code != 0 {
@@ -4511,11 +4693,12 @@ const stdDatabase = "[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\
 const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\n\n"
 
 func TestStartExternalGraphBoot(t *testing.T) {
-	// graph at a literal address: verify reachability, launch no container,
-	// claim no graph ports.
+	// A graph somebody else runs (platform = "external"), at the address the
+	// config states: verify reachability, launch no container, claim no graph
+	// ports.
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "external-graph",
-		"[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://127.0.0.1:7777\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
+		"[environments.local.graph]\nplatform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://127.0.0.1:7777\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
 			stdVectors+stdEmbedding+stdDatabase)
 	serveHealth(t, 7777)
 	stdout, stderr, code := s.run(t, "start", "--config", "external-graph")
@@ -4621,7 +4804,7 @@ func TestStartServiceExternalIsNoop(t *testing.T) {
 	// P0 q5: --service on an externally-provided role warns and exits 0.
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "external-graph",
-		"[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://graph.example.com:7687\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
+		"[environments.local.graph]\nplatform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://graph.example.com:7687\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
 			stdVectors+stdEmbedding+stdDatabase)
 	stdout, stderr, code := s.run(t, "start", "--service", "graph", "--config", "external-graph")
 	if code != 0 {
@@ -4652,8 +4835,10 @@ func TestServiceGatewayPortFollowsConfig(t *testing.T) {
 	mustContain(t, "stdout", stdout,
 		"require free ports: 4001",
 		"wait: http://localhost:4001/api/health (120s)")
-	if strings.Contains(stdout, "4000") {
-		t.Errorf("static gateway port leaked into the plan:\n%s", stdout)
+	// Against the normalized output: a temporary directory's name ends in a
+	// random number, and one that contained 4000 failed this test.
+	if plan := s.norm(stdout); strings.Contains(plan, "4000") {
+		t.Errorf("static gateway port leaked into the plan:\n%s", plan)
 	}
 }
 
@@ -4722,10 +4907,7 @@ func TestRootNotFound(t *testing.T) {
 // --- roots registry + --root ---
 
 func rootsPathFor(home string) string {
-	if runtime.GOOS == "darwin" {
-		return filepath.Join(home, "Library", "Application Support", "semiont", "roots.json")
-	}
-	return filepath.Join(home, ".local", "state", "semiont", "roots.json")
+	return filepath.Join(stateHomeFor(home), "roots.json")
 }
 
 func TestRootsRegistryAndRootFlag(t *testing.T) {
@@ -4883,7 +5065,7 @@ func TestConfigStickiness(t *testing.T) {
 		t.Fatalf("vanished recorded config: want exit 1, got %d", code)
 	}
 	mustContain(t, "stderr", stderr,
-		"Config not found: .semiont/semiontconfig/gone.toml",
+		"Config not found: "+filepath.FromSlash(".semiont/semiontconfig/gone.toml"),
 		"'gone' is this KB's recorded preference")
 }
 
@@ -4935,10 +5117,7 @@ func TestLogsRecordAware(t *testing.T) {
 
 // statePathFor mirrors the launcher's statePath for the scenario's fake HOME.
 func statePathFor(home string) string {
-	if runtime.GOOS == "darwin" {
-		return filepath.Join(home, "Library", "Application Support", "semiont", "stack.json")
-	}
-	return filepath.Join(home, ".local", "state", "semiont", "stack.json")
+	return filepath.Join(stateHomeFor(home), "stack.json")
 }
 
 // TestStackStateLifecycle drives boot → status → stop --service → stop and
@@ -5119,11 +5298,11 @@ func TestStackStateLifecycle(t *testing.T) {
 func TestStopTwiceIsHonest(t *testing.T) {
 	// A stop with no record, no containers, and no staging says so — it
 	// doesn't claim to have stopped a stack that wasn't there.
-	removeStale, _ := filepath.Glob("/tmp/semiont-config.*")
+	s := newScenario(t, "container", "docker")
+	removeStale, _ := filepath.Glob(s.stagingPattern())
 	for _, d := range removeStale {
 		os.RemoveAll(d) // suite-order leftovers from boot tests
 	}
-	s := newScenario(t, "container", "docker")
 	stdout, _, code := s.run(t, "stop")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, stdout)
@@ -5221,7 +5400,7 @@ func TestStopRuntimeMismatchKeepsRecordAndStaging(t *testing.T) {
 	// configs (live mounts!) or its record — the real stack may be running.
 	s := newScenario(t, "container", "docker")
 	writeStackState(t, s, "container")
-	stage, err := os.MkdirTemp("/tmp", "semiont-config.")
+	stage, err := os.MkdirTemp(s.stagingParent(), "semiont-config.")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -5584,8 +5763,8 @@ func TestStartInjectsPersistentJWTSecret(t *testing.T) {
 	if strings.TrimSpace(string(b)) != first {
 		t.Errorf("persisted secret differs from the injected one\nfile: %q\nargv: %q", strings.TrimSpace(string(b)), first)
 	}
-	if info, err := os.Stat(path); err == nil && info.Mode().Perm() != 0o600 {
-		t.Errorf("%s is %o, want 600 — it is a signing key", path, info.Mode().Perm())
+	if open := harness.OpenToOthers(t, path); open != "" {
+		t.Errorf("%s %s — it is a signing key", path, open)
 	}
 
 	// Restarting just the gateway must rejoin the SAME key. This is the case
@@ -5825,7 +6004,7 @@ func TestSecretStoreNeverFallsBackToTheFilesystem(t *testing.T) {
 	if _, stderr, code := s.run(t, "settings", "secret-store", "op://Semiont"); code != 0 {
 		t.Fatalf("secret store: exit %d\nstderr:\n%s", code, stderr)
 	}
-	if err := os.Remove(filepath.Join(s.shim, "op")); err != nil {
+	if err := os.Remove(filepath.Join(s.shim, harness.Exe("op"))); err != nil {
 		t.Fatal(err)
 	}
 	_, stderr, code := s.run(t, "start")
@@ -6383,7 +6562,7 @@ func TestStartServiceWorker(t *testing.T) {
 	}
 	mustContain(t, "stack.json", string(b),
 		`"imageVersion": "latest"`,
-		`"kbRoot": "`+s.kb+`"`,
+		`"kbRoot": "`+inJSON(s.kb)+`"`,
 		`"kbDid": "did:web:example.github.io:test-kb"`)
 }
 
@@ -6475,9 +6654,10 @@ func TestStartServiceLibrarian(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading staged librarian.toml: %v", err)
 	}
-	mustContain(t, "staged librarian.toml", string(staged),
-		"[kb]",
-		`name = "Test Knowledge Base"`)
+	mustContain(t, "staged librarian.toml", string(staged), "[kb]")
+	if !regexp.MustCompile(`(?m)^name = ['"]Test Knowledge Base['"]$`).Match(staged) {
+		t.Errorf("staged librarian.toml does not carry the committed [kb] name:\n%s", staged)
+	}
 }
 
 // The Archivist restart path: teardown + port settle + staged config + run +
@@ -6565,7 +6745,7 @@ func TestStartServiceRejections(t *testing.T) {
 
 func TestStopService(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
-	stage, err := os.MkdirTemp("/tmp", "semiont-config.")
+	stage, err := os.MkdirTemp(s.stagingParent(), "semiont-config.")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -7367,7 +7547,7 @@ func TestDiscoveryFileTracksStacks(t *testing.T) {
 	// only, never a secret. The Browser mounts its directory read-only.
 	s := newCodespaceScenario(t)
 	disc := func() string {
-		b, _ := os.ReadFile(filepath.Join(s.home, ".local", "state", "semiont", "discovery", "kbs.json"))
+		b, _ := os.ReadFile(filepath.Join(stateHomeFor(s.home), "discovery", "kbs.json"))
 		return string(b)
 	}
 
@@ -7379,7 +7559,7 @@ func TestDiscoveryFileTracksStacks(t *testing.T) {
 		`"did": "did:web:example.github.io:test-kb"`, `"siteName": "Test Knowledge Base"`,
 		`"managedBy": "semiont-launcher"`)
 	// The Browser mounts the directory, read-only.
-	mustContain(t, "browser mount", s.argv(t), "-v <home>/.local/state/semiont/discovery:/discovery:ro")
+	mustContain(t, "browser mount", s.argv(t), asThisSystemRuns("-v <state-home>/discovery:/discovery:ro"))
 
 	// Codespace start adds its forward (local holds 4000 → allocated 4001).
 	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
@@ -7425,7 +7605,7 @@ func TestDiscoveryOneEntryPerAddress(t *testing.T) {
 	// its PID, but KEEPS ForwardPort — so the resolver itself leaves the
 	// record shape the writer published as a live address.
 	s := newCodespaceScenario(t)
-	discPath := filepath.Join(s.home, ".local", "state", "semiont", "discovery", "kbs.json")
+	discPath := filepath.Join(stateHomeFor(s.home), "discovery", "kbs.json")
 	entries := func(t *testing.T) []struct {
 		Port      int    `json:"port"`
 		Placement string `json:"placement"`
@@ -7517,7 +7697,7 @@ func TestDiscoveryPublishesOneKBInTwoPlaces(t *testing.T) {
 			Did       string `json:"did"`
 		} `json:"kbs"`
 	}
-	b, err := os.ReadFile(filepath.Join(s.home, ".local", "state", "semiont", "discovery", "kbs.json"))
+	b, err := os.ReadFile(filepath.Join(stateHomeFor(s.home), "discovery", "kbs.json"))
 	if err != nil {
 		t.Fatalf("discovery view: %v", err)
 	}
@@ -7686,7 +7866,7 @@ func TestInitBirthsIdentity(t *testing.T) {
 	}
 	// The launcher runs git with -C <dir>; assert the subcommands.
 	mustContain(t, "argv", s.argv(t), " init", " add .semiont")
-	roots, _ := os.ReadFile(filepath.Join(s.home, ".local", "state", "semiont", "roots.json"))
+	roots, _ := os.ReadFile(rootsPathFor(s.home))
 	mustContain(t, "roots.json", string(roots), "family-kb")
 
 	// Refuse a second birth without --force — .semiont/ is not overwritable
@@ -8210,7 +8390,9 @@ func TestInitCopilotHardening(t *testing.T) {
 
 	// (5) a symlinked template config is refused.
 	tpl2 := templateFixture(t, false)
-	_ = os.Symlink("/etc/hosts", filepath.Join(tpl2, ".semiont", "semiontconfig", "evil.toml"))
+	if err := os.Symlink("/etc/hosts", filepath.Join(tpl2, ".semiont", "semiontconfig", "evil.toml")); err != nil {
+		t.Fatalf("this test needs a symlink in the template, and making one failed: %v", err)
+	}
 	s5 := newScenario(t, "container")
 	s5.cwd = t.TempDir()
 	_, stderr, code = s5.run(t, "init", "--name", "kb", "--domain", "d.io:kb", "--yes", "--from-template", tpl2)
@@ -8941,14 +9123,15 @@ func TestForgetDropsRegistryRow(t *testing.T) {
 // the hint offered to clean the running family stack's postgres).
 func TestForgetCorpseWithLiveTwinSuggestsNoClean(t *testing.T) {
 	s := newScenario(t, "container")
+	corpse := nowhere(t, "old", "family")
 	seedRootsRegistry(t, s,
-		`{"path":"/gone/old/family","did":"did:web:pingel.org","lastUsed":"2026-01-01T00:00:00Z"}`,
-		`{"path":"`+s.kb+`","did":"did:web:pingel.org","lastUsed":"2026-02-01T00:00:00Z"}`)
+		`{"path":"`+inJSON(corpse)+`","did":"did:web:pingel.org","lastUsed":"2026-01-01T00:00:00Z"}`,
+		`{"path":"`+inJSON(s.kb)+`","did":"did:web:pingel.org","lastUsed":"2026-02-01T00:00:00Z"}`)
 	// The shared state dir exists — the situation where the hint would fire.
 	if err := os.MkdirAll(filepath.Join(stateRootFor(s.home, "pingel.org")), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	stdout, stderr, code := s.run(t, "forget", "/gone/old/family")
+	stdout, stderr, code := s.run(t, "forget", corpse)
 	if code != 0 {
 		t.Fatalf("forget: exit %d\nstderr:\n%s", code, stderr)
 	}
@@ -8973,8 +9156,8 @@ func TestForgetRefusesAmbiguityAndRunningStack(t *testing.T) {
 	// The running stack's row is refused — the registry is how status and
 	// --root find it; stop first.
 	seedRootsRegistry(t, s,
-		`{"path":"`+s.kb+`","did":"did:web:running.example","lastUsed":"2026-03-01T00:00:00Z"}`)
-	body := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"` + s.kb + `","services":{}}}}`
+		`{"path":"`+inJSON(s.kb)+`","did":"did:web:running.example","lastUsed":"2026-03-01T00:00:00Z"}`)
+	body := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"` + inJSON(s.kb) + `","services":{}}}}`
 	if err := os.WriteFile(statePathFor(s.home), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -8984,7 +9167,7 @@ func TestForgetRefusesAmbiguityAndRunningStack(t *testing.T) {
 	}
 	mustContain(t, "running-stack refusal", stderr, "running stack", "semiont stop")
 	b, _ := os.ReadFile(rootsPathFor(s.home))
-	mustContain(t, "row kept", string(b), s.kb)
+	mustContain(t, "row kept", string(b), inJSON(s.kb))
 }
 
 // seedRootsRegistry writes roots.json with the given row literals.
@@ -9007,7 +9190,7 @@ func seedRootsRegistry(t *testing.T, s *scenario, rows ...string) {
 func TestRootsVerbOwnsTheCatalogStatusPoints(t *testing.T) {
 	s := newScenario(t, "container")
 	seedRootsRegistry(t, s,
-		`{"path":"`+s.kb+`","did":"did:web:example.github.io:test-kb","siteName":"Test Knowledge Base","config":"anthropic","lastUsed":"2026-09-01T00:00:00Z"}`,
+		`{"path":"`+inJSON(s.kb)+`","did":"did:web:example.github.io:test-kb","siteName":"Test Knowledge Base","config":"anthropic","lastUsed":"2026-09-01T00:00:00Z"}`,
 		`{"path":"/gone/other-kb","did":"did:web:example.org:other","lastUsed":"2026-08-01T00:00:00Z"}`)
 
 	stdout, stderr, code := s.run(t, "roots")
@@ -9037,7 +9220,7 @@ func TestRootsVerbOwnsTheCatalogStatusPoints(t *testing.T) {
 func TestStatusFlagsCwdKBDifferentFromRunningStack(t *testing.T) {
 	s := newScenario(t, "container")
 	other := mkKB(t)
-	body := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"` + other + `","services":{}}}}`
+	body := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"` + inJSON(other) + `","services":{}}}}`
 	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -9059,7 +9242,7 @@ func TestStatusFlagsCwdKBDifferentFromRunningStack(t *testing.T) {
 func stagedFile(t *testing.T, s *scenario, name string) string {
 	t.Helper()
 	log, _ := os.ReadFile(s.log)
-	stages := stageRe.FindAllString(string(log), -1)
+	stages := s.stageRe().FindAllString(string(log), -1)
 	if len(stages) == 0 {
 		t.Fatalf("no staging dir in the argv log")
 	}
@@ -9263,10 +9446,10 @@ func TestStartRefusesMismatchedMessagingServers(t *testing.T) {
 }
 
 // EXTERNAL-IDENTITY P3 (launcher lane): a config whose [environments.*.identity]
-// selects keycloak on ${KEYCLOAK_HOST} boots Keycloak after PostgreSQL and
-// before the gateway — its database created on that PostgreSQL if absent, the
-// realm file staged and imported, the bootstrap admin password per root — and
-// every service's env carries KEYCLOAK_HOST. The no-identity-section case is
+// selects keycloak and leaves its issuer to the launcher boots Keycloak after
+// PostgreSQL and before the gateway — its database created on that PostgreSQL
+// if absent, the realm file staged and imported, the bootstrap admin password
+// per root — and every service's staged config states the issuer. The no-identity-section case is
 // proven by every other boot golden: only the preflight logs snapshot grows.
 // writeKeycloakConfig REPLACES the KB config's [identity] section and returns
 // the config name to select with --config.

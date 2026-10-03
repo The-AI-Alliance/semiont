@@ -1,6 +1,10 @@
 package launcher
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+)
 
 // The documented first run is `semiont start` then `semiont useradd`. It
 // refused on a healthy stack — "No config recorded for this root, so there is
@@ -10,9 +14,7 @@ import "testing"
 // its config the whole time: `start` records the resolved name in stack.json
 // every time. useradd has no --config flag, so there was no way forward.
 func TestRealmConfigComesFromTheRunningStack(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_STATE_HOME", "")
-	t.Setenv("XDG_DATA_HOME", "")
+	harness.Home(t)
 	root := t.TempDir()
 
 	if got := configForRealm(root); got != "" {

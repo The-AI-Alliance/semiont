@@ -9,9 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 )
 
@@ -168,7 +168,7 @@ func startCodespace(u *UI, opts startOptions) int {
 		// A dead recorded forward is normal here; a live one means the
 		// stack is already reachable and respawning would fail the binds.
 		if forwardProcAlive(st.Codespace.ForwardPID) { // zombie or healthy, it must go before respawn
-			_ = syscall.Kill(st.Codespace.ForwardPID, syscall.SIGTERM)
+			terminateProcess(st.Codespace.ForwardPID)
 			time.Sleep(200 * time.Millisecond)
 		}
 		if forwardProcAlive(st.Codespace.KeycloakForwardPID) {
@@ -1006,6 +1006,7 @@ func spawnForward(u *UI, name string, remote, local int) (int, <-chan struct{}, 
 	// an unbounded one would grow for the life of a long-running tunnel.
 	cmd.Stdout = nil
 	cmd.Stderr = newForwardLog()
+	detachFromConsole(cmd)
 	if err := cmd.Start(); err != nil {
 		u.Fail("Could not start the port forward: %v", err)
 		return 0, nil, 1
@@ -1146,7 +1147,7 @@ func stopCodespace(u *UI, st *StackState, service string, del, dryRun bool) int 
 	hadLens := forwardProcAlive(st.Codespace.ForwardPID)
 	if hadLens {
 		u.Log("Stopping the port forward %s", u.Dim(fmt.Sprintf("(pid %d)", st.Codespace.ForwardPID)))
-		_ = syscall.Kill(st.Codespace.ForwardPID, syscall.SIGTERM)
+		terminateProcess(st.Codespace.ForwardPID)
 	}
 	if forwardProcAlive(st.Codespace.KeycloakForwardPID) {
 		u.Log("Stopping the issuer forward %s", u.Dim(fmt.Sprintf("(pid %d)", st.Codespace.KeycloakForwardPID)))
@@ -1558,11 +1559,10 @@ func requireGh(u *UI, what string) bool {
 // SIGTERMing) a recycled PID hits an unrelated process. The PID counts only
 // if it is alive AND running gh. Use this for cleanup decisions.
 func forwardProcAlive(pid int) bool {
-	if pid == 0 || syscall.Kill(pid, 0) != nil {
+	if pid == 0 || !processAlive(pid) {
 		return false
 	}
-	comm, err := capture("ps", "-p", fmt.Sprintf("%d", pid), "-o", "comm=")
-	return err == nil && strings.Contains(comm, "gh")
+	return strings.Contains(processName(strconv.Itoa(pid)), "gh")
 }
 
 // forwardAlive: is the forward actually FORWARDING? A live gh process can
@@ -1886,7 +1886,7 @@ func establishForward(u *UI, name string, remote, local int, askable bool) (int,
 			u.Fail("Nothing is listening on the codespace's port %d — its stack is not up.", remote)
 		default:
 			u.Fail("The port forward exited before it could bind — localhost:%d is probably already in use.", local)
-			fmt.Fprintf(os.Stderr, "  See what holds it:  lsof -ti :%d\n", local)
+			fmt.Fprintf(os.Stderr, "  See what holds it:  %s\n", holdersHint(local))
 		}
 		if ghErr != "" {
 			fmt.Fprintf(os.Stderr, "  gh said: %s\n", ghErr)
@@ -1902,7 +1902,7 @@ func retireForward(pid int) {
 	if pid == 0 {
 		return
 	}
-	_ = syscall.Kill(pid, syscall.SIGTERM)
+	terminateProcess(pid)
 	time.Sleep(200 * time.Millisecond) // let the bind release
 }
 

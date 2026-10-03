@@ -361,7 +361,7 @@ func Stop(args []string) int {
 		case st != nil && !useState:
 			fmt.Println("# staged config copies and stack.json left in place (recorded stack is under " + st.Runtime + ")")
 		default:
-			fmt.Println("# remove staged config copies: /tmp/semiont-config.*")
+			fmt.Println("# remove staged config copies: " + stagingPattern())
 			fmt.Println("# wait until the stack's ports are released; report any still-held holder")
 		}
 		return 0
@@ -440,7 +440,7 @@ func Stop(args []string) int {
 	}
 
 	// Per-service config copies staged by semiont start for the bind mounts.
-	staged, _ := filepath.Glob("/tmp/semiont-config.*")
+	staged, _ := filepath.Glob(stagingPattern())
 	removeStagedConfigs()
 	if len(staged) > 0 {
 		u.Ok("Removed %d staged config dir(s)", len(staged))

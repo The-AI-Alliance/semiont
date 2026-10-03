@@ -13,10 +13,14 @@ set -euo pipefail
 #     or carries a named reason here. The gateway is not here: its
 #     environment is specs/src/service-environment/variables.json, which
 #     lint:service-environment checks in both directions.
-# B2  [kb] identity census: every `config.kb?.X` read is a key
-#     patchKBIdentity stages.
+# B2  [kb] identity census: every `config.kb?.X` read is a key the launcher
+#     stages in the [kb] table (stagedServiceConfig).
 # B3  archivist topology census: every `services.archivist.X` read is a key
-#     patchArchivistTopology stages.
+#     the launcher stages in the archivist table (stagedServiceConfig).
+#
+# B2 and B3 read the launcher's Go source for the keys it stages. A census
+# that finds none there has lost what it reads, and says so: an empty list
+# would pass nothing and report nothing.
 #
 # Exit code: 0 if clean, 1 if violations found.
 
@@ -24,8 +28,28 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
 START_GO="apps/launcher/internal/launcher/start.go"
-EXECUTOR_GO="apps/launcher/internal/launcher/executor.go"
+TOPOLOGY_GO="apps/launcher/internal/launcher/topology.go"
 FAIL=0
+
+# The function that writes a service's staged config: the [kb] table and the
+# archivist table are built here, and nowhere else.
+staging=$(awk '/^func stagedServiceConfig\(/,/^}/' "$TOPOLOGY_GO")
+if [ -z "$staging" ]; then
+  echo "❌ B2/B3: no stagedServiceConfig in $TOPOLOGY_GO — the census has lost the function it reads the staged keys from."
+  exit 1
+fi
+
+# staging_lines <pattern>: the lines of that function that match, or none.
+# Finding none is an answer, not a failure: under `set -e` and `pipefail` a
+# grep that matches nothing would otherwise end this script without a word.
+staging_lines() {
+  echo "$staging" | grep -E "$1" || true
+}
+
+# literal_keys: the keys of the Go map literals on the lines given.
+literal_keys() {
+  grep -oE '"[a-zA-Z]+":' | tr -d '":' || true
+}
 
 # Per-service runtime file sets. Approximations are deliberate and named:
 # the make-meaning services are scoped to their entry files, where every env
@@ -95,11 +119,19 @@ done
 # ── B2 — [kb] identity census ───────────────────────────────────────────────
 kb_reads=$(grep -rhoE 'config\.kb\??\.[a-zA-Z]+' packages/make-meaning/src \
   --include='*.ts' 2>/dev/null | grep -v __tests__ | sed -E 's/.*\.//' | sort -u || true)
-kb_staged=$(sed -n '/func patchKBIdentity/,/^}/p' "$EXECUTOR_GO" | sed 's/\\n/ /g' \
-  | grep -oE '[a-zA-Z]+ = (%q|%d|%s|\[)' | awk '{print $1}' | sort -u)
+# The table is `kb := map[string]any{…}`, and a key it may lack is assigned
+# afterwards, `kb["domain"] = …`.
+kb_staged=$({
+  staging_lines 'kb := map\[string\]any\{' | literal_keys
+  staging_lines 'kb\["[a-zA-Z]+"\] =' | sed -E 's/.*kb\["([a-zA-Z]+)"\] =.*/\1/'
+} | sort -u)
+if [ -z "$kb_staged" ]; then
+  echo "❌ B2: stagedServiceConfig ($TOPOLOGY_GO) builds no [kb] table this census can read — it looks for \`kb := map[string]any{…}\` and \`kb[\"key\"] = …\`."
+  FAIL=1
+fi
 for key in $kb_reads; do
   if ! echo "$kb_staged" | grep -qxF "$key"; then
-    echo "❌ B2: config.kb.$key is read but patchKBIdentity (executor.go) never stages it — the reader will see undefined in every extracted container."
+    echo "❌ B2: config.kb.$key is read but stagedServiceConfig ($TOPOLOGY_GO) never stages it — the reader will see undefined in every extracted container."
     FAIL=1
   fi
 done
@@ -107,11 +139,15 @@ done
 # ── B3 — archivist topology census ──────────────────────────────────────────
 arch_reads=$(grep -rhoE 'services\??\.archivist\??\.[a-zA-Z]+' apps packages \
   --include='*.ts' 2>/dev/null | grep -vE '__tests__|/dist/' | sed -E 's/.*\.//' | sort -u || true)
-arch_staged=$(sed -n '/func patchArchivistTopology/,/^}/p' "$EXECUTOR_GO" | sed 's/\\n/ /g' \
-  | grep -oE '[a-zA-Z]+ = (%q|%d|%s|\[)' | awk '{print $1}' | sort -u)
+# The table is `env["archivist"] = map[string]any{…}`.
+arch_staged=$(staging_lines 'env\["archivist"\] = map\[string\]any\{' | literal_keys | sort -u)
+if [ -z "$arch_staged" ]; then
+  echo "❌ B3: stagedServiceConfig ($TOPOLOGY_GO) builds no archivist table this census can read — it looks for \`env[\"archivist\"] = map[string]any{…}\`."
+  FAIL=1
+fi
 for key in $arch_reads; do
   if ! echo "$arch_staged" | grep -qxF "$key"; then
-    echo "❌ B3: services.archivist.$key is read but patchArchivistTopology (executor.go) never stages it."
+    echo "❌ B3: services.archivist.$key is read but stagedServiceConfig ($TOPOLOGY_GO) never stages it."
     FAIL=1
   fi
 done

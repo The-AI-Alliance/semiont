@@ -19,7 +19,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"syscall"
 )
 
 func tokensPath() string {
@@ -86,8 +85,8 @@ func plainJSON(v any, indent string) ([]byte, error) {
 
 // changeSignIns makes one change to the store as one step: the lock, a read,
 // the change, and a write when it changed. The lock is the contract's: an
-// exclusive flock on tokens.lock, held from before the read until after the
-// rename, so a Rust SDK session renewing another stack waits for this, and
+// exclusive lock on tokens.lock (filelock.go), held from before the read until
+// after the rename, so a Rust SDK session renewing another stack waits for this, and
 // this for it. The write is a sibling temporary file renamed over the old
 // one: no reader sees half a document, and no credential is left in a stray
 // file.
@@ -105,12 +104,7 @@ func changeSignIns(change func(doc map[string]json.RawMessage) (changed bool, er
 	}
 	// Closing the file releases the lock.
 	defer lock.Close()
-	for {
-		if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != syscall.EINTR {
-			break
-		}
-	}
-	if err != nil {
+	if err := lockFile(lock, true); err != nil {
 		return fmt.Errorf("cannot lock %s: %w", lock.Name(), err)
 	}
 	doc, err := readSignIns(p)
@@ -134,7 +128,7 @@ func changeSignIns(change func(doc map[string]json.RawMessage) (changed bool, er
 		_ = os.Remove(tmp)
 		return err
 	}
-	return nil
+	return ownerOnlyFile(p)
 }
 
 // LoadTokens: every sign-in the store holds, by stack key. It takes no lock:

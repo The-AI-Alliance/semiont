@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
 // declaredUser: the USER an image's Dockerfile switches to last — the uid its
@@ -59,8 +61,7 @@ func TestStoresASemiontImageWritesAreWritableByItsUser(t *testing.T) {
 		}
 		for _, first := range slices.Sorted(maps.Keys(mounts)) {
 			t.Run(role+"/"+first+"-first", func(t *testing.T) {
-				t.Setenv("HOME", t.TempDir())
-				t.Setenv("XDG_DATA_HOME", "")
+				harness.Home(t)
 				root := t.TempDir()
 				if !mounts[first](&liveExec{u: NewUI(true)}, root) {
 					t.Fatal("mount prep refused on a fresh data home")
@@ -79,12 +80,8 @@ func TestStoresASemiontImageWritesAreWritableByItsUser(t *testing.T) {
 				// The mount dirs are open to every uid; what keeps other local
 				// users out is the root's state dir, which no container sees.
 				dir := stateRootDir(root)
-				fi, err := os.Stat(dir)
-				if err != nil {
-					t.Fatal(err)
-				}
-				if perm := fi.Mode().Perm(); perm != 0o700 {
-					t.Errorf("%s is %v, want 0700 — it is the only thing between other local users and a world-writable store", dir, perm)
+				if open := harness.OpenToOthers(t, dir); open != "" {
+					t.Errorf("%s %s — it is the only thing between other local users and a world-writable store", dir, open)
 				}
 			})
 		}

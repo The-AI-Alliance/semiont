@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
 // brewCaveat: the caveat .goreleaser.yaml gives the Homebrew formula, which
@@ -40,8 +42,16 @@ func TestBrewCaveatNamesOnlyRealCommands(t *testing.T) {
 	if !strings.Contains(caveat, "semiont settings") {
 		t.Fatalf("the caveat does not point at semiont settings:\n%s", caveat)
 	}
+	// A home of its own: the launcher logs every invocation under its home,
+	// and the real one is not this test's to write in.
+	home := os.Environ()
+	for name, value := range harness.HomeEnv(t.TempDir()) {
+		home = append(home, name+"="+value)
+	}
 	run := func(args ...string) string {
-		out, err := exec.Command(launcherBin, args...).CombinedOutput()
+		cmd := exec.Command(launcherBin, args...)
+		cmd.Env = home
+		out, err := cmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("semiont %v: %v\n%s", args, err, out)
 		}

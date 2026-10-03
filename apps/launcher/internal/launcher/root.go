@@ -379,18 +379,19 @@ func requireGitClone(u *UI, root string) bool {
 // icloudZone classifies a KB root against the macOS iCloud-managed areas:
 // "mobile" under ~/Library/Mobile Documents (always iCloud), "desktop" under
 // ~/Desktop or ~/Documents (iCloud only when "Desktop & Documents Folders"
-// sync is on), "" elsewhere. Pure so it is testable off-macOS; the darwin
-// gate and the sync-setting read live in warnICloudRoot.
+// sync is on), "" elsewhere. Pure, and about macOS paths whatever system
+// runs it, so it is testable off-macOS; the darwin gate and the sync-setting
+// read live in warnICloudRoot.
 func icloudZone(root, home string) string {
 	if home == "" {
 		return ""
 	}
 	under := func(dir string) bool {
-		p := filepath.Join(home, dir)
-		return root == p || strings.HasPrefix(root, p+string(os.PathSeparator))
+		p := home + "/" + dir
+		return root == p || strings.HasPrefix(root, p+"/")
 	}
 	switch {
-	case under(filepath.Join("Library", "Mobile Documents")):
+	case under("Library/Mobile Documents"):
 		return "mobile"
 	case under("Desktop"), under("Documents"):
 		return "desktop"
@@ -417,11 +418,8 @@ func warnICloudRoot(u *UI, root string) {
 		return
 	}
 	zone := icloudZone(root, home)
-	if zone == "desktop" {
-		out, err := capture("defaults", "read", "com.apple.finder", "FXICloudDriveDesktop")
-		if err != nil || strings.TrimSpace(out) != "1" {
-			return
-		}
+	if zone == "desktop" && !desktopSyncsToICloud() {
+		return
 	}
 	if zone != "" {
 		u.Warn("KB root %s is in an iCloud-managed folder — container reads can fail on iCloud-evicted files (errno -35), typically once the event log is non-empty. Prefer a non-synced path (e.g. ~/Developer).", root)

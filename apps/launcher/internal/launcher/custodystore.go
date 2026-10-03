@@ -226,6 +226,10 @@ func (f fileBackend) put(u *UI, name, value string) bool {
 		u.Fail("Writing %s: %v", p, err)
 		return false
 	}
+	if err := ownerOnlyFile(p); err != nil {
+		u.Fail("Keeping %s to its owner: %v", p, err)
+		return false
+	}
 	return true
 }
 

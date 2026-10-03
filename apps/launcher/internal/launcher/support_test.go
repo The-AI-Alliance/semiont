@@ -2,8 +2,6 @@ package launcher
 
 import (
 	"net"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -56,22 +54,21 @@ func TestWaitForHTTPHonorsWallClockBudget(t *testing.T) {
 // while it runs or while the runtime cannot say.
 func TestWaitForContainerHTTPEndsWhenTheContainerStops(t *testing.T) {
 	cases := []struct {
-		runtime, inspect string
-		ends             bool
+		runtime, name string
+		inspect       harness.Says
+		ends          bool
 	}{
-		{"docker", "echo exited", true},
-		{"docker", "echo dead", true},
-		{"container", `echo '[{"status":"stopped"}]'`, true},
-		{"docker", "echo running", false},
-		{"container", `echo '[{"status":"running"}]'`, false},
-		{"docker", "exit 1", false},
+		{"docker", "says exited", harness.Says{Out: "exited"}, true},
+		{"docker", "says dead", harness.Says{Out: "dead"}, true},
+		{"container", "says stopped", harness.Says{Out: `[{"status":"stopped"}]`}, true},
+		{"docker", "says running", harness.Says{Out: "running"}, false},
+		{"container", "says running", harness.Says{Out: `[{"status":"running"}]`}, false},
+		{"docker", "cannot say", harness.Says{Exit: 1}, false},
 	}
 	for _, c := range cases {
-		t.Run(c.runtime+": "+c.inspect, func(t *testing.T) {
+		t.Run(c.runtime+" "+c.name, func(t *testing.T) {
 			shim := t.TempDir()
-			if err := os.WriteFile(filepath.Join(shim, c.runtime), []byte("#!/bin/sh\n"+c.inspect+"\n"), 0o755); err != nil {
-				t.Fatal(err)
-			}
+			harness.StandIn(t, shim, c.runtime, c.inspect)
 			t.Setenv("PATH", shim)
 
 			t0 := time.Now()
@@ -91,14 +88,13 @@ func TestWaitForContainerHTTPEndsWhenTheContainerStops(t *testing.T) {
 }
 
 // The command line shows what the launcher injects and carries no credential.
-// KEYCLOAK_PORT was injected (config.go) but missing from a hand-kept echo
-// allowlist, so the one number a moved issuer is about read <redacted>
+// The echo's allowlist is derived from injectedVars, not kept by hand: a
+// hand-kept one once hid an injected value an operator needed to see
 // (bugs/codespace-move-output-misleads.md). Since SECRET-DELIVERY P6 the
 // credentials leave argv itself, for the runtime command's environment.
 func TestCommandLineShowsInjectedValuesAndCarriesNoCredentials(t *testing.T) {
 	argv, env := offCommandLine([]string{"run",
-		"--env", "KEYCLOAK_PORT=8081",
-		"--env", "KEYCLOAK_HOST=keycloak.localhost",
+		"--env", "GATEWAY_HOST=192.168.64.1",
 		"--env", "SEMIONT_OIDC_CLIENT_ID=semiont-worker",
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET=s3cret",
 		"--env", "JWT_SECRET=jwt-value",
@@ -106,7 +102,7 @@ func TestCommandLineShowsInjectedValuesAndCarriesNoCredentials(t *testing.T) {
 		"-e", "POSTGRES_PASSWORD=pg-value",
 	})
 	got := strings.Join(argv, " ")
-	for _, shown := range []string{"KEYCLOAK_PORT=8081", "KEYCLOAK_HOST=keycloak.localhost", "SEMIONT_OIDC_CLIENT_ID=semiont-worker"} {
+	for _, shown := range []string{"GATEWAY_HOST=192.168.64.1", "SEMIONT_OIDC_CLIENT_ID=semiont-worker"} {
 		if !strings.Contains(got, shown) {
 			t.Errorf("%s was hidden:\n%s", shown, got)
 		}

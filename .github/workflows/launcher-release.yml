@@ -51,4 +51,6 @@ jobs:
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4.2.2
         with:
-          subject-path: apps/launcher/dist/*.tar.gz
+          subject-path: |
+            apps/launcher/dist/*.tar.gz
+            apps/launcher/dist/*.zip

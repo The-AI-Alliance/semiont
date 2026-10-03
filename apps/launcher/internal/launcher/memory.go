@@ -21,8 +21,6 @@ package launcher
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 )
@@ -78,8 +76,8 @@ func startCeilingsGB(plan *launchPlan, opts startOptions) float64 {
 }
 
 // memoryBudgetWarning renders the preflight verdict, or "" when the sum fits.
-// Split from the sysctl read so the threshold and wording are testable with
-// an injected host size.
+// Split from the read of the machine's memory (hostMemGB, per OS) so the
+// threshold and wording are testable with an injected host size.
 func memoryBudgetWarning(sumGB, hostGB float64) string {
 	if hostGB <= 0 || sumGB <= hostGB*0.75 {
 		return ""
@@ -87,28 +85,4 @@ func memoryBudgetWarning(sumGB, hostGB float64) string {
 	return fmt.Sprintf(
 		"Memory ceilings total %.1fG of this machine's %.0fG. On Apple container each ceiling sizes a per-container VM, so the stack can grow toward that total — expect pressure (compression, swap). Each container's ceiling is on its --dry-run line; the gateway's %s is the largest fixed one.",
 		sumGB, hostGB, semiontDescriptor("gateway").mem)
-}
-
-// hostMemGB reads the machine's physical memory: sysctl on darwin,
-// /proc/meminfo elsewhere. 0 = unknown, which silences the preflight rather
-// than warning on garbage.
-func hostMemGB() float64 {
-	if out, err := exec.Command("sysctl", "-n", "hw.memsize").Output(); err == nil {
-		if b, err := strconv.ParseFloat(strings.TrimSpace(string(out)), 64); err == nil && b > 0 {
-			return b / (1 << 30)
-		}
-	}
-	if b, err := os.ReadFile("/proc/meminfo"); err == nil {
-		for _, line := range strings.Split(string(b), "\n") {
-			if kb, ok := strings.CutPrefix(line, "MemTotal:"); ok {
-				f := strings.Fields(kb)
-				if len(f) > 0 {
-					if n, err := strconv.ParseFloat(f[0], 64); err == nil {
-						return n / (1 << 20)
-					}
-				}
-			}
-		}
-	}
-	return 0
 }

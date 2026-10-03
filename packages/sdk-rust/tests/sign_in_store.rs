@@ -6,7 +6,7 @@
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use semiont::session::{StoredSession, session_key, store_session, stored_session};
-use semiont::sign_in_store::{SignInStore, state_dir};
+use semiont::sign_in_store::{SignInStore, System, state_dir};
 use semiont::storage::{InMemorySessionStorage, SessionStorage};
 use serde_json::{Value, json};
 use std::path::PathBuf;
@@ -23,9 +23,10 @@ fn the_state_home_is_where_the_shared_cases_say() {
     assert!(!cases.is_empty());
     for case in cases {
         let found = state_dir(
-            case["os"] == "macos",
+            System::named(case["os"].as_str().expect("a case names its system")),
             case["home"].as_str(),
             case["xdgStateHome"].as_str(),
+            case["localAppData"].as_str(),
         );
         assert_eq!(
             found.map(|dir| dir.to_string_lossy().into_owned()),

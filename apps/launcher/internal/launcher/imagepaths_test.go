@@ -141,11 +141,11 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 	// the property expressed in the signatures themselves.
 	fleet := map[string][]string{
 		"gateway":   gatewayArgs("/stage", "container", "1.2.3.4", "secret", "jwt", "v", 4000, nil, nil),
-		"archivist": archivistArgs(kbRoot, "/stage", "container", "1.2.3.4", 8080, "client-secret", "v", nil, nil),
-		"librarian": librarianArgs("/stage", "container", "1.2.3.4", 8080, "client-secret", "v", nil, nil),
-		"worker":    sidecarArgs("worker", 24100, "/stage", "container", "1.2.3.4", 8080, "client-secret", "v", nil, nil),
-		"smelter":   sidecarArgs("smelter", 24101, "/stage", "container", "1.2.3.4", 8080, "client-secret", "v", nil, nil),
-		"weaver":    sidecarArgs("weaver", 24102, "/stage", "container", "1.2.3.4", 8080, "client-secret", "v", nil, nil),
+		"archivist": archivistArgs(kbRoot, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"librarian": librarianArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"worker":    sidecarArgs("worker", 24100, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"smelter":   sidecarArgs("smelter", 24101, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"weaver":    sidecarArgs("weaver", 24102, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 	}
 
 	var mounters []string
@@ -258,8 +258,8 @@ func TestGatewayDocumentMountsOntoItsOwnPath(t *testing.T) {
 		t.Errorf("the gateway's document is not mounted onto %s:\n%s", gatewayDocumentTarget, args)
 	}
 	for name, args := range map[string][]string{
-		"archivist": archivistArgs("/kb", "/stage", "container", "1.2.3.4", 8080, "client-secret", "v", nil, nil),
-		"worker":    sidecarArgs("worker", 24100, "/stage", "container", "1.2.3.4", 8080, "client-secret", "v", nil, nil),
+		"archivist": archivistArgs("/kb", "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"worker":    sidecarArgs("worker", 24100, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 	} {
 		if strings.Contains(strings.Join(args, " "), gatewayDocumentTarget) {
 			t.Errorf("%s mounts the gateway's document path", name)

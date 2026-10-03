@@ -29,9 +29,7 @@ import (
 // started stack.
 func verbFixture(t *testing.T) {
 	t.Helper()
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_STATE_HOME", filepath.Join(home, "state"))
+	harness.Home(t)
 	dir := launcher.StateDir()
 	if dir == "" {
 		t.Fatal("StateDir() is empty under the fixture HOME")

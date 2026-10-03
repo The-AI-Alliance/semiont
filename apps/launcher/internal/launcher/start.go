@@ -728,21 +728,6 @@ func gatewayHostEnv(addr string) []string {
 	return []string{"--env", "GATEWAY_HOST=" + addr, "--env", "BACKEND_HOST=" + addr}
 }
 
-// dependencyHostEnv: the host variables a service's staged config may
-// interpolate — every dependency on the host address, the issuer on
-// identityHost and its port — with the host entry that makes the issuer's
-// name resolve.
-func dependencyHostEnv(rt, addr string, issuerPort int) []string {
-	return append(identityHostArgs(rt, addr),
-		"--env", "OLLAMA_HOST="+addr,
-		"--env", "NEO4J_HOST="+addr,
-		"--env", "NATS_HOST="+addr,
-		"--env", "KEYCLOAK_HOST="+identityHost(rt, addr),
-		"--env", "KEYCLOAK_PORT="+strconv.Itoa(issuerPort),
-		"--env", "QDRANT_HOST="+addr,
-		"--env", "POSTGRES_HOST="+addr)
-}
-
 // superviseEnv is the per-run supervision opt-in (ORCHESTRATOR-NATIVE-IMAGES
 // D3): boot.sh wraps the image CMD in the shared supervisor only when this is
 // set. Local placement is the one place with no orchestrator restart policy,
@@ -755,7 +740,7 @@ func superviseEnv() []string {
 
 // sidecarArgs covers the three make-meaning sidecars (worker / smelter /
 // weaver) — identical in shape, differing only in name, port, and memory.
-func sidecarArgs(svc string, port int, stage, rt, addr string, issuerPort int, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
+func sidecarArgs(svc string, port int, stage, rt, addr string, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
 	p := strconv.Itoa(port)
 	a := []string{"run", "-d", "--name", "semiont-" + svc, // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor(svc).mem, "--publish", p + ":" + p,
@@ -763,7 +748,7 @@ func sidecarArgs(svc string, port int, stage, rt, addr string, issuerPort int, c
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
-	a = append(a, dependencyHostEnv(rt, addr, issuerPort)...)
+	a = append(a, identityHostArgs(rt, addr)...)
 	a = append(a,
 		// This process's own credential at the realm. It buys an agent token
 		// from the gateway; it is not the agent identity, which is per
@@ -781,11 +766,11 @@ func sidecarArgs(svc string, port int, stage, rt, addr string, issuerPort int, c
 // archivistArgs: the Archivist owns the file-backed record, so its mount
 // shape is the GATEWAY's minus the database — the KB root read-write (it is
 // the git single-writer, D4b), the anchored-text store, and a staged config
-// copy. Env is the sidecar set, which already carries every ${VAR} the
-// config interpolates. Deliberately NO JWT_SECRET: it signs nothing. It
+// copy. Its staged config states every address it dials, so its environment
+// carries none. Deliberately NO JWT_SECRET: it signs nothing. It
 // authenticates as its own service account at the issuer, and admits callers by
 // verifying theirs (the same fact D1's read path relies on).
-func archivistArgs(kbRoot, stage, rt, addr string, issuerPort int, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("archivist").mem, "--publish", "24103:24103",
 		"--volume", kbRoot + ":" + kbMountTarget,
@@ -794,7 +779,7 @@ func archivistArgs(kbRoot, stage, rt, addr string, issuerPort int, clientSecret,
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
-	a = append(a, dependencyHostEnv(rt, addr, issuerPort)...)
+	a = append(a, identityHostArgs(rt, addr)...)
 	a = append(a,
 		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("archivist"),
@@ -806,15 +791,12 @@ func archivistArgs(kbRoot, stage, rt, addr string, issuerPort int, clientSecret,
 // librarianArgs: the Librarian (Matcher — search and match) reads everything
 // and writes nothing durable, and its mounts say so: NO piece of the KB tree
 // (SINGLE-KB-MOUNT P1 — it locates the Archivist's views from the staged
-// [kb] name, see patchKBName), just the shared state tree (D6 reader) and
-// its staged config. Env is the eager-interpolation set — the ${VAR}s a
-// committed KB config may reference, same as the other sidecars. NOT
-// ARCHIVIST_HOST: no config interpolates that var (the archivist address is
-// a literal patchArchivistTopology stages into this service's own config —
-// it reads bytes from the record directly, SINGLE-KB-MOUNT P4). NO
-// JWT_SECRET, and no LIBRARIAN_HOST exists anywhere: nothing dials this
-// service; it dials the gateway for the bus and the Archivist for bytes.
-func librarianArgs(stage, rt, addr string, issuerPort int, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+// [kb] name, see stagedServiceConfig), just the shared state tree (D6 reader) and
+// its staged config, which states every address it dials as a literal — the
+// Archivist's among them (it reads bytes from the record directly,
+// SINGLE-KB-MOUNT P4). NO JWT_SECRET, and nothing dials this service; it dials
+// the gateway for the bus and the Archivist for bytes.
+func librarianArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("librarian").mem, "--publish", "24104:24104",
 		"--volume", stage + "/librarian.toml:/home/semiont/.semiontconfig:ro"}
@@ -822,7 +804,7 @@ func librarianArgs(stage, rt, addr string, issuerPort int, clientSecret, version
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
-	a = append(a, dependencyHostEnv(rt, addr, issuerPort)...)
+	a = append(a, identityHostArgs(rt, addr)...)
 	a = append(a,
 		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("librarian"),
@@ -1065,40 +1047,13 @@ func resolveHostAddr(rt string) (addr, why string) {
 	return "", why
 }
 
-// removeStagedConfigs sweeps /tmp/semiont-config.* — shared by start's
-// preflight and semiont stop.
+// removeStagedConfigs sweeps every staging dir (stagingPattern) — shared by
+// start's preflight and semiont stop.
 func removeStagedConfigs() {
-	dirs, _ := filepath.Glob("/tmp/semiont-config.*")
+	dirs, _ := filepath.Glob(stagingPattern())
 	for _, d := range dirs {
 		_ = os.RemoveAll(d)
 	}
-}
-
-// listenersOn returns the PIDs LISTENING on a TCP port. Several is normal
-// (parent+child servers, SO_REUSEPORT), so callers iterate.
-//
-// Both flags are load-bearing. Without `-sTCP:LISTEN`, lsof also matches CLOSED
-// outbound sockets, so a browser that once talked to a since-stopped gateway
-// makes the port read as held. And `-t` is absent because macOS lsof prints
-// nothing when `-t` meets `-s`: the terse form would report every port free.
-func listenersOn(port int) []string {
-	out, err := capture("lsof", "-nP", fmt.Sprintf("-iTCP:%d", port), "-sTCP:LISTEN")
-	if err != nil || out == "" {
-		return nil
-	}
-	var pids []string
-	seen := map[string]bool{}
-	for _, line := range strings.Split(out, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 || fields[1] == "PID" {
-			continue
-		}
-		if !seen[fields[1]] {
-			seen[fields[1]] = true
-			pids = append(pids, fields[1])
-		}
-	}
-	return pids
 }
 
 // portHeld reports whether anything holds the port, without judging it. The
@@ -1151,7 +1106,7 @@ func requirePortFree(u *UI, port int, service string) bool {
 		return true
 	}
 	u.Fail("Port %d (needed for %s) is held by %s.", port, service, describeProcs(pids))
-	fmt.Fprintln(os.Stderr, "  This is not a Semiont container. Stop it and re-run (e.g. kill "+strings.Join(pids, " ")+").")
+	fmt.Fprintln(os.Stderr, "  This is not a Semiont container. Stop it and re-run (e.g. "+stopProcessesHint(pids)+").")
 	return false
 }
 
@@ -1159,8 +1114,8 @@ func requirePortFree(u *UI, port int, service string) bool {
 func describeProcs(pids []string) string {
 	procs := make([]string, 0, len(pids))
 	for _, p := range pids {
-		comm, err := capture("ps", "-p", p, "-o", "comm=")
-		if err != nil || comm == "" {
+		comm := processName(p)
+		if comm == "" {
 			comm = "<unknown>"
 		}
 		procs = append(procs, fmt.Sprintf("%s (%s)", p, comm))

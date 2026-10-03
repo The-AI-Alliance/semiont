@@ -859,12 +859,12 @@ func printLauncherPaths(u *UI) {
 	if p := statePath(); p != "" {
 		row("state", p, exists(p))
 	}
-	staged, _ := filepath.Glob("/tmp/semiont-config.*")
+	staged, _ := filepath.Glob(stagingPattern())
 	note := "none"
 	if n := len(staged); n > 0 {
 		note = fmt.Sprintf("%d present", n)
 	}
-	row("staging", "/tmp/semiont-config.*", note)
+	row("staging", stagingPattern(), note)
 	if home, err := os.UserHomeDir(); err == nil {
 		p := filepath.Join(home, ".ollama")
 		row("inference", p, exists(p))
