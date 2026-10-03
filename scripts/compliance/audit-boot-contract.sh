@@ -10,7 +10,9 @@ set -euo pipefail
 #     service's runtime files is provided by its Dockerfile ENV, its
 #     launcher argv builder's --env list, or the named allowlist below.
 #     Silence cannot come back: a new env read fails until it is provided
-#     or carries a named reason here. The gateway is not here: its
+#     or carries a named reason here. And every entry of the allowlist is
+#     still a read: an entry nothing reads is a reason given for something
+#     that is not there. The gateway is not here: its
 #     environment is specs/src/service-environment/variables.json, which
 #     lint:service-environment checks in both directions.
 # B2  [kb] identity census: every `config.kb?.X` read is a key the launcher
@@ -86,22 +88,21 @@ builder_for() {
 # before the server starts. An entry with neither property is a bug here.
 ALLOW="
 archivist SEMIONT_SKIP_REBUILD — operator escape hatch; default is to rebuild
-archivist HOME — present in every image runtime (config path resolution)
-librarian HOME — present in every image runtime (config path resolution)
-smelter HOME — present in every image runtime (config path resolution)
-weaver HOME — present in every image runtime (config path resolution)
-worker HOME — present in every image runtime (config path resolution)
-weaver XDG_STATE_HOME — optional; the checkpoint falls back to a container-local dir, and losing it means a full replay by design
 "
 
 allowed() { # allowed <service> <var>
   echo "$ALLOW" | grep -qE "^$1 $2 "
 }
 
+# demand_of <service>: every variable the service's runtime files read.
+demand_of() {
+  service_files "$1" | xargs grep -hoE 'process\.env\.[A-Z_]+' 2>/dev/null \
+    | sed 's/process\.env\.//' | sort -u || true
+}
+
 # ── B1 — per-service env census ─────────────────────────────────────────────
 for svc in worker smelter weaver archivist librarian; do
-  demand=$(service_files "$svc" | xargs grep -hoE 'process\.env\.[A-Z_]+' 2>/dev/null \
-    | sed 's/process\.env\.//' | sort -u || true)
+  demand=$(demand_of "$svc")
   df=$(dockerfile_for "$svc")
   df_env=$(grep -hE '^ENV ' "$df" | sed -E 's/^ENV +//' | cut -d= -f1 || true)
   builder=$(builder_for "$svc")
@@ -115,6 +116,18 @@ for svc in worker smelter weaver archivist librarian; do
     FAIL=1
   done
 done
+
+# The allowlist names only reads that exist.
+while IFS= read -r entry; do
+  [ -z "$entry" ] && continue
+  key="${entry%% — *}"
+  svc="${key%% *}"
+  var="${key#* }"
+  if ! demand_of "$svc" | grep -qxF "$var"; then
+    echo "❌ B1: the allowlist names \"$key\", and $svc does not read \$$var. Remove the entry."
+    FAIL=1
+  fi
+done <<< "$ALLOW"
 
 # ── B2 — [kb] identity census ───────────────────────────────────────────────
 kb_reads=$(grep -rhoE 'config\.kb\??\.[a-zA-Z]+' packages/make-meaning/src \

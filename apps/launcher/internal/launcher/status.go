@@ -823,41 +823,45 @@ func printSessions(u *UI, ss *StackSet) {
 	}
 }
 
-// printLauncherPaths reports the host-side paths the stack touches, under
-// --verbose only — the everyday report leads with roots and stacks
-// instead. (Paths, not "directories" — the state entry is a file.) They
-// are: the launcher's XDG-resolved config/cache homes (reserved by design
-// — see GO-LAUNCHER.md host need #1; Go maps them to XDG_* on Linux and
-// ~/Library/... on macOS), the live config staging under /tmp (never
-// $TMPDIR — Apple container cannot sustain mounts from /var/folders), the
-// Ollama model cache a container run may share, and the persistent
-// per-root stack state with its disk consumption (LAUNCHER-STATE.md):
-// the active root's stores, then the total across every root, orphans
-// called out with the clean command that removes them.
+// printLauncherPaths reports the host-side paths the launcher keeps things
+// in, under --verbose only — the everyday report leads with roots and stacks
+// instead. It names only directories something is kept in:
+//
+//   - the state home (the stack record, the registry, sign-ins, discovery),
+//     and the data home where the system keeps the two apart;
+//   - the launcher's log, the live config staging, and the Ollama model cache
+//     a container run may share;
+//   - for the knowledge base this command was run in: its root, and the
+//     directory its stores are kept in, each store by its own directory with
+//     what it takes on disk;
+//   - every knowledge base's directory, with the total and the orphans, each
+//     named by the clean command that removes it.
 func printLauncherPaths(u *UI) {
 	u.Section("LAUNCHER PATHS")
 	row := func(label, path, note string) {
+		if note == "" {
+			fmt.Printf("  %-10s %s\n", label, path)
+			return
+		}
 		fmt.Printf("  %-10s %s %s\n", label, path, u.Dim("("+note+")"))
 	}
+	more := func(text string) { fmt.Printf("  %-10s %s\n", "", text) }
 	exists := func(path string) string {
 		if _, err := os.Stat(path); err == nil {
 			return "present"
 		}
 		return "absent"
 	}
-	if cfg, err := os.UserConfigDir(); err == nil {
-		p := filepath.Join(cfg, "semiont")
-		row("config", p, exists(p))
+	state, data := StateDir(), dataDir()
+	if state != "" {
+		row("state", state, "stack record, registry, sign-ins, discovery")
 	}
-	if cache, err := os.UserCacheDir(); err == nil {
-		p := filepath.Join(cache, "semiont")
-		row("cache", p, exists(p))
+	if data != "" && data != state {
+		row("data", data, "each knowledge base's stores and kept secrets")
 	}
 	if p := logDir(); p != "" {
-		row("logs", p, exists(p))
-	}
-	if p := statePath(); p != "" {
-		row("state", p, exists(p))
+		log := filepath.Join(p, "launcher.log")
+		row("log", log, exists(log))
 	}
 	staged, _ := filepath.Glob(stagingPattern())
 	note := "none"
@@ -865,28 +869,22 @@ func printLauncherPaths(u *UI) {
 		note = fmt.Sprintf("%d present", n)
 	}
 	row("staging", stagingPattern(), note)
-	if home, err := os.UserHomeDir(); err == nil {
+	if home := userHome(); home != "" {
 		p := filepath.Join(home, ".ollama")
-		row("inference", p, exists(p))
+		row("models", p, exists(p)+"; the Ollama model cache a container may share")
 	}
-
-	// Persistent per-root stack state (LAUNCHER-STATE.md requirement 5):
-	// the active root's stores and the all-roots total.
-	d := dataDir()
-	if d == "" {
+	if data == "" {
 		return
 	}
-	rootsDir := filepath.Join(d, "roots")
+
+	rootsDir := filepath.Join(data, "roots")
 	if root, _, err := resolveKBRoot(); err == nil {
-		dir := filepath.Join(rootsDir, rootKey(root))
-		note := "absent"
-		if parts, total, any := storeSizes(dir); any {
-			note = humanBytes(total) + ": " + strings.Join(parts, ", ")
-		}
-		row("data", dir, note)
+		fmt.Println()
+		printKBPaths(u, row, more, root, rootsDir)
 	}
+
 	entries, err := os.ReadDir(rootsDir)
-	roots := 0
+	kbs := 0
 	var total int64
 	var orphanKeys []string
 	if err == nil {
@@ -894,8 +892,8 @@ func printLauncherPaths(u *UI) {
 			if !e.IsDir() {
 				continue
 			}
-			roots++
-			sz, _ := dirSize(filepath.Join(rootsDir, e.Name()))
+			kbs++
+			sz, _ := diskUse(filepath.Join(rootsDir, e.Name()))
 			total += sz
 			// Orphan = the stamped kb path DOES NOT EXIST — only that.
 			// Permission or IO errors are unknowns, and unknown is not
@@ -908,35 +906,102 @@ func printLauncherPaths(u *UI) {
 			}
 		}
 	}
-	if roots == 0 {
-		row("all roots", rootsDir, "no persistent state")
+	fmt.Println()
+	if kbs == 0 {
+		row("all KBs", rootsDir, "nothing is kept for any knowledge base")
 		return
 	}
-	rootsNote := fmt.Sprintf("%d roots, %s total", roots, humanBytes(total))
-	if roots == 1 {
-		rootsNote = fmt.Sprintf("1 root, %s total", humanBytes(total))
+	all := fmt.Sprintf("%d knowledge bases, %s on disk", kbs, humanBytes(total))
+	if kbs == 1 {
+		all = fmt.Sprintf("1 knowledge base, %s on disk", humanBytes(total))
 	}
 	if n := len(orphanKeys); n > 0 {
-		rootsNote += fmt.Sprintf("; %d orphaned — kb path no longer exists; semiont clean --root %s",
+		all += fmt.Sprintf("; %d orphaned — KB root no longer exists; semiont clean --root %s",
 			n, strings.Join(orphanKeys, ", "))
 	}
-	row("all roots", rootsDir, rootsNote)
+	row("all KBs", rootsDir, all)
 }
 
-// storeSizes: one root's per-store disk breakdown, fixed display order,
-// present stores only — absent is absent, not 0 B.
-func storeSizes(dir string) (parts []string, total int64, any bool) {
-	for _, role := range []string{"database", "vectors", "graph", "anchored-text"} {
-		spec := stateStores[role]
-		sz, ok := dirSize(filepath.Join(dir, spec.dir))
-		if !ok {
-			continue
-		}
-		any = true
-		total += sz
-		parts = append(parts, spec.dir+" "+humanBytes(sz))
+// printKBPaths: the knowledge base a command was run in — its root, which is
+// the knowledge base itself, and the directory the launcher keeps its stores
+// in, which is another place. Each store is shown by its own directory there.
+func printKBPaths(u *UI, row func(label, path, note string), more func(string), root, rootsDir string) {
+	key := rootKey(root)
+	dir := filepath.Join(rootsDir, key)
+	row("KB root", root, "")
+	if did := loadKBIdentity(root).didWeb(); did != "" {
+		more(did)
 	}
-	return
+	row("its stores", dir, "")
+	// Stores are keyed by the knowledge base's identity, so another clone of
+	// it shares them; say so when the last start was from elsewhere.
+	if last := loadRootMeta(dir).KBRoot; last != "" && last != root {
+		more("last started from " + last)
+	}
+	uses, total, any := storeUse(dir)
+	if !any {
+		more("nothing kept yet")
+	} else {
+		more(humanBytes(total) + " on disk, in these directories beneath it:")
+		for _, use := range uses {
+			fmt.Printf("  %-10s   %-16s %10s   %s\n", "", use.dir+string(os.PathSeparator), humanBytes(use.bytes), use.holds)
+		}
+	}
+	// Where its secrets are kept is a setting; counting the ones kept in
+	// files is a look at the directory, and asking another store is not this
+	// report's to do.
+	ref, configured, err := storeSettingFor(key)
+	switch {
+	case err != nil:
+	case configured:
+		more("its secrets are kept in " + custodyStoreNamed(key, ref, true).describe())
+	default:
+		kept := 0
+		for _, name := range custodyNames() {
+			if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+				kept++
+			}
+		}
+		switch {
+		case kept == 1:
+			more("and 1 kept secret (semiont settings secret-store lists it)")
+		case kept > 1:
+			more(fmt.Sprintf("and %d kept secrets (semiont settings secret-store lists them)", kept))
+		}
+	}
+}
+
+// storeUseRow: one directory under a knowledge base's stores, what it holds
+// and what it takes on disk.
+type storeUseRow struct {
+	dir, holds string
+	bytes      int64
+}
+
+// kbLogsDir: where the container logs a start snapshots before removing the
+// containers are kept, beside the stores.
+const kbLogsDir = "logs"
+
+// storeUse: what a knowledge base's directory takes on disk, and each
+// directory in it that is there, largest first — absent is absent, not 0 B.
+// The total is the whole directory's, kept secrets and the stamp included.
+func storeUse(dir string) (uses []storeUseRow, total int64, any bool) {
+	for _, spec := range stateStores {
+		if sz, ok := diskUse(filepath.Join(dir, spec.dir)); ok {
+			uses = append(uses, storeUseRow{spec.dir, spec.holds, sz})
+		}
+	}
+	if sz, ok := diskUse(filepath.Join(dir, kbLogsDir)); ok {
+		uses = append(uses, storeUseRow{kbLogsDir, "container logs kept from earlier starts", sz})
+	}
+	sort.Slice(uses, func(i, j int) bool {
+		if uses[i].bytes != uses[j].bytes {
+			return uses[i].bytes > uses[j].bytes
+		}
+		return uses[i].dir < uses[j].dir
+	})
+	total, _ = diskUse(dir)
+	return uses, total, len(uses) > 0
 }
 
 // containerState asks each runtime for the container's state, first hit wins.

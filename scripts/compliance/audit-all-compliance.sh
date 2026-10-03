@@ -48,8 +48,9 @@ bash "$COMPLIANCE_DIR/audit-toolbar-pref-storage.sh"
 echo ""
 
 # Boot contract: env/config demands covered by image + launcher; tests export no dead SEMIONT_* vars
-echo "🐳 Checking boot contract (B1-B3), test-env hygiene (H1) and vi.mock targets..."
+echo "🐳 Checking boot contract (B1-B3), path environment (P1-P3), test-env hygiene (H1) and vi.mock targets..."
 bash "$COMPLIANCE_DIR/audit-boot-contract.sh"
+bash "$COMPLIANCE_DIR/audit-path-env.sh"
 bash "$COMPLIANCE_DIR/audit-test-env-hygiene.sh"
 bash "$COMPLIANCE_DIR/audit-mock-targets.sh"
 bash "$COMPLIANCE_DIR/audit-supervision.sh"

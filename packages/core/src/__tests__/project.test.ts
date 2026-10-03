@@ -48,7 +48,6 @@ describe('SemiontState — the half that needs no KB root', () => {
     expect(state.stateDir).toContain('semiont/kb-under-test');
     expect(state.resourcesDir).toBe(join(state.stateDir, 'resources'));
     expect(state.projectionsDir).toBe(join(state.stateDir, 'projections'));
-    expect(state.gatewayPidFile).toBe(join(state.runtimeDir, 'gateway.pid'));
   });
 
   it('takes NOTHING but the name — every path here derives from it', () => {

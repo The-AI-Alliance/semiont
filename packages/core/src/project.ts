@@ -26,8 +26,6 @@ import { isObject, isString } from './type-guards';
  *   resourcesDir    — stateDir/resources/  (the per-resource materialized views)
  *   projectionsDir  — stateDir/projections/  (KB-global projections + the storage-uri index)
  *   anchoredTextDir — supplied by the caller; required, no default
- *   runtimeDir      — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
- *   gatewayPidFile  — runtimeDir/gateway.pid
  *
  * Everything ephemeral that is DERIVED sits under stateDir together —
  * the projections (from the event log). The anchored-text store is
@@ -104,21 +102,12 @@ export class SemiontState {
   readonly resourcesDir: string;
   readonly projectionsDir: string;
 
-  // Ephemeral — runtime
-  readonly runtimeDir: string;
-  readonly gatewayPidFile: string;
-
   constructor(opts: { name: string }) {
     this.name = opts.name;
 
     this.stateDir = stateDirFor(this.name);
     this.resourcesDir = path.join(this.stateDir, 'resources');
     this.projectionsDir = path.join(this.stateDir, 'projections');
-
-    const xdgRuntime = process.env.XDG_RUNTIME_DIR;
-    const runtimeBase = xdgRuntime ?? process.env.TMPDIR ?? '/tmp';
-    this.runtimeDir = path.join(runtimeBase, 'semiont', this.name);
-    this.gatewayPidFile = path.join(this.runtimeDir, 'gateway.pid');
   }
 }
 
@@ -195,14 +184,11 @@ export class SemiontProject extends SemiontState {
   }
 
   /**
-   * Delete all ephemeral state for this project (stateDir + runtimeDir).
+   * Delete all ephemeral state for this project (stateDir).
    * Does not touch eventsDir — the event log is the system of record.
    */
   async destroy(): Promise<void> {
-    await Promise.all([
-      fs.promises.rm(this.stateDir, { recursive: true, force: true }),
-      fs.promises.rm(this.runtimeDir, { recursive: true, force: true }),
-    ]);
+    await fs.promises.rm(this.stateDir, { recursive: true, force: true });
   }
 
   /**

@@ -1769,7 +1769,41 @@ func TestCleanNothingToRemove(t *testing.T) {
 
 func TestStatusVerboseDiskUsage(t *testing.T) {
 	s := newScenario(t, "container")
-	seedStateDir(t, s) // postgres 3 B, qdrant 2048 B, neo4j 1024 B
+	dir := seedStateDir(t, s)
+	// Whole megabytes, each store a different number of them: what a file of
+	// that size takes on disk is the same on every filesystem this runs on,
+	// and the order of the rows is the order of the sizes.
+	megabyte := strings.Repeat("x", 1<<20)
+	for file, megabytes := range map[string]int{
+		"postgres/pgdata/base":              3,
+		"qdrant/collections/segment":        2,
+		"neo4j/data/databases/store":        1,
+		"logs/20260101-000000Z/gateway.log": 0,
+	} {
+		p := filepath.Join(dir, filepath.FromSlash(file))
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(strings.Repeat(megabyte, megabytes)+"a line of a container's log\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "jwt-secret"), []byte("kept\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// A file that is long and takes little: a sparse one, as a vector store
+	// keeps. The report is of disk use, so it adds nothing to speak of. (A
+	// file made this way on Windows is given all its space.)
+	if runtime.GOOS != "windows" {
+		sparse, err := os.Create(filepath.Join(dir, "qdrant", "collections", "sparse"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := sparse.Truncate(64 << 20); err != nil {
+			t.Fatal(err)
+		}
+		sparse.Close()
+	}
 	// A second, ORPHANED root: stamped kbRoot no longer exists.
 	orphan := stateRootFor(s.home, "gone.example.org-old-kb")
 	if err := os.MkdirAll(filepath.Join(orphan, "qdrant"), 0o755); err != nil {
@@ -1785,23 +1819,86 @@ func TestStatusVerboseDiskUsage(t *testing.T) {
 	stdout, stderr, code := s.run(t, "status", "--verbose")
 	_ = code // status exit reflects health; the paths section prints regardless
 	_ = stderr
-	mustContain(t, "active-root data row", stdout,
-		filepath.Join("roots", testKBKey),
-		"postgres 3 B", "qdrant 2.0 KB", "neo4j 1.0 KB")
-	mustContain(t, "all-roots row", stdout,
-		"2 roots", "1 orphaned", "semiont clean --root gone.example.org-old-kb")
+	// The knowledge base itself, and — another place — where its stores are.
+	mustContain(t, "the knowledge base's rows", stdout,
+		"KB root    "+s.kb,
+		"did:web:example.github.io:test-kb",
+		"its stores "+dir,
+		"on disk, in these directories beneath it:",
+		"and 1 kept secret (semiont settings secret-store lists it)")
+	// Each store by its own directory, what it takes, and what it holds.
+	sep := regexp.QuoteMeta(string(os.PathSeparator))
+	at := map[string]int{}
+	for _, row := range []struct{ store, size, holds string }{
+		{"postgres", `3\.\d MB`, "database"},
+		{"qdrant", `2\.\d MB`, "vectors"},
+		{"neo4j", `1\.\d MB`, "graph"},
+		{"logs", `\d+(\.\d)? K?B`, "container logs kept from earlier starts"},
+	} {
+		line := regexp.MustCompile(`(?m)^\s+` + row.store + sep + `\s+` + row.size + `\s+` + regexp.QuoteMeta(row.holds) + `$`)
+		found := line.FindStringIndex(stdout)
+		if found == nil {
+			t.Errorf("no row for %s with a size like %s and %q; full text:\n%s", row.store, row.size, row.holds, stdout)
+			continue
+		}
+		at[row.store] = found[0]
+	}
+	if len(at) == 4 && !(at["postgres"] < at["qdrant"] && at["qdrant"] < at["neo4j"] && at["neo4j"] < at["logs"]) {
+		t.Errorf("the stores are not listed largest first:\n%s", stdout)
+	}
+	mustContain(t, "every knowledge base's row", stdout,
+		"all KBs    "+filepath.Dir(dir),
+		"2 knowledge bases", "1 orphaned", "semiont clean --root gone.example.org-old-kb")
+}
+
+// A knowledge base's stores are keyed by its identity, so another clone of it
+// shares them. When the last start was from elsewhere, the report says where.
+func TestStatusVerboseNamesWhereTheStoresWereLastStartedFrom(t *testing.T) {
+	s := newScenario(t, "container")
+	dir := seedStateDir(t, s)
+	elsewhere := asTheSystemNamesIt(t, mkKB(t))
+	meta := `{"kbRoot":"` + inJSON(elsewhere) + `","did":"did:web:example.github.io:test-kb","stores":{}}`
+	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, _ := s.run(t, "status", "--verbose")
+	mustContain(t, "another clone", stdout, "KB root    "+s.kb, "last started from "+elsewhere)
+
+	// From the root that started them, there is nothing to add.
+	same := newScenario(t, "container")
+	seedStateDir(t, same)
+	stdout, _, _ = same.run(t, "status", "--verbose")
+	mustNotContain(t, "the same clone", stdout, "last started from")
+}
+
+// Where a knowledge base's secrets are kept is a setting. The report names
+// another store without asking it anything.
+func TestStatusVerboseNamesAnotherSecretStoreWithoutAskingIt(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	seedStateDir(t, s)
+	if _, stderr, code := s.run(t, "settings", "secret-store", "op://Semiont"); code != 0 {
+		t.Fatalf("secret store: exit %d\nstderr:\n%s", code, stderr)
+	}
+	asked := strings.Count(string(s.mustLog(t)), "\nop ")
+	stdout, _, _ := s.run(t, "status", "--verbose")
+	mustContain(t, "another store", stdout, "its secrets are kept in", "Semiont")
+	mustNotContain(t, "another store", stdout, "kept secret (", "kept secrets (")
+	if after := strings.Count(string(s.mustLog(t)), "\nop "); after != asked {
+		t.Errorf("status ran 1Password %d more times; the report is not to ask a store anything", after-asked)
+	}
 }
 
 func TestStatusVerboseNoState(t *testing.T) {
 	s := newScenario(t, "container")
 	stdout, _, _ := s.run(t, "status", "--verbose")
-	// No state anywhere: the data row says so honestly — absent, not a
-	// zero-byte fiction.
-	mustContain(t, "data row absent", stdout, "data")
-	if strings.Contains(stdout, "0 B:") {
-		t.Errorf("absent state must read as absent, not zero bytes:\n%s", stdout)
+	// Nothing kept anywhere: the rows say so — absent, not a zero-byte
+	// fiction.
+	mustContain(t, "nothing kept", stdout,
+		"KB root    "+s.kb, "its stores "+stateRootFor(s.home, testKBKey), "nothing kept yet",
+		"nothing is kept for any knowledge base")
+	if strings.Contains(stdout, "0 B") {
+		t.Errorf("absent stores must read as absent, not zero bytes:\n%s", stdout)
 	}
-	mustContain(t, "no roots", stdout, "no persistent state")
 }
 
 // --- login (sdk-go glue) ---
@@ -2202,7 +2299,21 @@ func TestStatusMixed(t *testing.T) {
 		t.Fatalf("status --verbose: exit %d", vcode)
 	}
 	mustContain(t, "verbose stdout", vstdout,
-		"LAUNCHER PATHS", "config", "cache", "staging", s.stagingPattern())
+		"LAUNCHER PATHS",
+		"state      "+stateHomeFor(s.home)+" (stack record, registry, sign-ins, discovery)",
+		"log        "+invLogPath(s.home),
+		"staging    "+s.stagingPattern(),
+		"models     "+filepath.Join(s.home, ".ollama"))
+	// The data home has a row of its own where the system keeps it apart.
+	dataRow := "data       " + dataHomeFor(s.home) + " (each knowledge base's stores and kept secrets)"
+	if apart := dataHomeFor(s.home) != stateHomeFor(s.home); apart != strings.Contains(vstdout, dataRow) {
+		t.Errorf("the data home's row is there exactly when it is not the state home (apart: %v):\n%s", apart, vstdout)
+	}
+	// Only directories something is kept in: the launcher keeps no config
+	// and no cache.
+	if row := regexp.MustCompile(`(?m)^  (config|cache)\s`).FindString(vstdout); row != "" {
+		t.Errorf("LAUNCHER PATHS has a %q row, a directory the launcher keeps nothing in:\n%s", strings.TrimSpace(row), vstdout)
+	}
 
 	for _, line := range strings.Split(stdout, "\n") {
 		if !strings.Contains(line, "localhost") {
