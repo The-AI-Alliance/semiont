@@ -1,39 +1,29 @@
 # Internationalization (i18n)
 
-`@semiont/react-ui` provides flexible internationalization support with three usage modes, making it suitable for any React application.
+`@semiont/react-ui` provides internationalization through a `TranslationProvider`, in one of two modes, making it suitable for any React application.
 
 ## Overview
 
 The library provides:
 
-1. **Built-in translations** - 29 locales bundled (`AVAILABLE_LOCALES`): English statically, the others loaded on demand
+1. **Built-in translations** - 29 locales (`AVAILABLE_LOCALES`), each loaded on demand
 2. **TranslationManager interface** - Contract for custom implementations
-3. **TranslationProvider** - Optional React Context for configuration
+3. **TranslationProvider** - The React Context every translated component reads
 4. **useTranslations hook** - Access translations in components
-5. **Dynamic loading** - Non-English translations are loaded on-demand to optimize bundle size
 
-## Three Usage Modes
+## No Default Language
 
-### 1. Default English (No Configuration Required)
+Nothing in the library assumes a language:
 
-Components work out-of-the-box with English translations - no translation
-provider needed. (`Toolbar` reads the session through `useSemiont()`, so it
-sits inside `SemiontProvider`; translations ask for nothing.)
+- `useTranslations` throws when there is no `TranslationProvider` above it.
+- `TranslationProvider` takes a `locale` or a `translationManager`: one of
+  them, and not both.
+- A `locale` whose translations cannot be loaded is an error, thrown to the
+  nearest error boundary. No other language is shown in its place.
 
-```tsx
-import { SemiontProvider, Toolbar } from '@semiont/react-ui';
+## Two Usage Modes
 
-// Components use default English translations
-function App() {
-  return (
-    <SemiontProvider>
-      <Toolbar context="simple" activePanel={null} />
-    </SemiontProvider>
-  );
-}
-```
-
-### 2. Built-in Locale Support
+### 1. Built-in Locale Support
 
 Use the `TranslationProvider` with a `locale` prop to use built-in translations:
 
@@ -51,38 +41,9 @@ function App() {
 }
 ```
 
-Available locales:
-- `ar` - Arabic
-- `bn` - Bengali
-- `cs` - Czech
-- `da` - Danish
-- `de` - German
-- `el` - Greek
-- `en` - English (default)
-- `es` - Spanish
-- `fa` - Persian/Farsi
-- `fi` - Finnish
-- `fr` - French
-- `he` - Hebrew
-- `hi` - Hindi
-- `id` - Indonesian
-- `it` - Italian
-- `ja` - Japanese
-- `ko` - Korean
-- `ms` - Malay
-- `nl` - Dutch
-- `no` - Norwegian
-- `pl` - Polish
-- `pt` - Portuguese
-- `ro` - Romanian
-- `sv` - Swedish
-- `th` - Thai
-- `tr` - Turkish
-- `uk` - Ukrainian
-- `vi` - Vietnamese
-- `zh` - Chinese
+`locale` is one of `AVAILABLE_LOCALES`, which is the list; it is not restated here.
 
-### 3. Custom Translation Implementation
+### 2. Custom Translation Implementation
 
 Provide your own translation system via `TranslationManager`. This is especially useful for languages not included in the built-in translations:
 
@@ -156,13 +117,12 @@ This approach works for any language or constructed language (Elvish, Dothraki, 
 ## Benefits
 
 This approach allows apps to:
-- ✅ Work immediately with zero configuration
 - ✅ Use built-in translations for rapid prototyping
 - ✅ Integrate with any i18n library (react-i18next, FormatJS, custom)
 - ✅ Choose their own translation file format (JSON, YAML, TypeScript, API)
 - ✅ Support any set of languages
 - ✅ Implement custom translation logic (pluralization, interpolation, etc.)
-- ✅ Optimized bundle size with dynamic loading for non-English locales
+- ✅ Optimized bundle size: every built-in locale is loaded on demand
 
 ## Implementation Guide
 
@@ -421,6 +381,27 @@ it('should display translated text', () => {
 });
 ```
 
+Or render under react-ui's own English strings, for a test that asserts on the copy:
+
+```tsx
+import { useTranslations } from '@semiont/react-ui';
+import { renderInEnglish, screen } from '@semiont/react-ui/test-utils';
+
+function SettingsButton() {
+  const t = useTranslations('Toolbar');
+  return <button>{t('settings')}</button>;
+}
+
+it('should name the button in English', () => {
+  renderInEnglish(<SettingsButton />);
+
+  expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeNull();
+});
+```
+
+`englishTranslationManager` is the manager behind it, for a test that mounts
+its own providers.
+
 Or use the default mock (returns `"Namespace.key"`):
 
 ```tsx
@@ -481,10 +462,9 @@ const manager: TranslationManager = {
 
 ### Bundle Size Optimization
 
-The library uses dynamic imports for non-English translations to optimize bundle size:
+The library loads every built-in locale with a dynamic import:
 
-- **English**: Always included in the bundle (as fallback)
-- **Other locales**: Loaded on-demand when requested
+- **No locale is in the main bundle**: each is fetched when a `TranslationProvider` asks for it
 - **Caching**: Loaded translations are cached for the session
 
 ### Adding New Locales
@@ -523,7 +503,8 @@ function LanguageSwitcher() {
 
 ### Loading State
 
-When using dynamic locale loading, you can provide a loading component:
+`TranslationProvider` renders its children once the locale's translations are
+loaded, and until then renders `loadingComponent` (nothing, when none is given):
 
 ```tsx
 <TranslationProvider

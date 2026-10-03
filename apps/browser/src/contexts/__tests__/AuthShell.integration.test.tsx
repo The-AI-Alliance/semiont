@@ -25,12 +25,13 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router';
-import { SemiontProvider, WebBrowserStorage } from '@semiont/react-ui';
+import { SemiontProvider, TranslationProvider, WebBrowserStorage } from '@semiont/react-ui';
+import { englishTranslationManager } from '@semiont/react-ui/test-utils';
 import { SemiontBrowser, createHttpSessionFactory } from '@semiont/sdk';
 import en from '@semiont/react-ui/translations/en';
 
-// No translation provider is mounted, so react-ui renders its own English:
-// the copy is read from there, never retyped.
+// The shell is mounted under react-ui's own English, and the copy is read
+// from there, never retyped.
 const copy = en.SessionEndedModal;
 // Set up in beforeEach; tests script what each answers.
 const whoIs = vi.fn<(request: Request) => Promise<Response>>();
@@ -94,9 +95,11 @@ function renderShell(children: React.ReactNode) {
     browser,
     ...render(
       <MemoryRouter>
-        <SemiontProvider browser={browser}>
-          <AuthShell>{children}</AuthShell>
-        </SemiontProvider>
+        <TranslationProvider translationManager={englishTranslationManager}>
+          <SemiontProvider browser={browser}>
+            <AuthShell>{children}</AuthShell>
+          </SemiontProvider>
+        </TranslationProvider>
       </MemoryRouter>
     ),
   };

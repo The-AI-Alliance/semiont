@@ -11,7 +11,8 @@
  * annotation D2 exists to protect.
  */
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, act } from '@testing-library/react';
+import { act } from '@testing-library/react';
+import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { resourceId } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
@@ -52,7 +53,7 @@ function mount(resourceAnchoredText: ReturnType<typeof vi.fn>) {
       return () => { const i = busSubs.indexOf(entry); if (i >= 0) busSubs.splice(i, 1); };
     },
   } as unknown as SemiontSession;
-  return render(
+  return renderInEnglish(
     <PdfAnnotationCanvas
       resourceUri={resourceId(String(resourceId('123')))}
       pdfUrl="https://example.com/resources/123.pdf"

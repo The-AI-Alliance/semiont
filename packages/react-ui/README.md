@@ -26,8 +26,8 @@ Framework-agnostic React component library for building Semiont knowledge manage
 - **Accessibility First** - WCAG compliant with keyboard navigation, screen reader support
 - **Comprehensive Testing** - 1250+ tests with extensive coverage
 - **Annotation System** - Rich annotation and tagging capabilities
-- **Built-in Translations** - 29 locales (`AVAILABLE_LOCALES`): English bundled, the rest loaded on demand
-- **Flexible i18n** - Three modes: default English, built-in locales, or custom translation system
+- **Built-in Translations** - 29 locales (`AVAILABLE_LOCALES`), each loaded on demand
+- **Flexible i18n** - Two modes: built-in locales or a custom translation system. There is no default language
 - **Favicon Assets** - Complete set of Semiont branded favicons for all platforms
 
 ## Installation
@@ -125,13 +125,13 @@ function Resource({ rId }: { rId: ResourceId }) {
 ```tsx
 import { TranslationProvider, useTranslations, type TranslationManager } from '@semiont/react-ui';
 
-// Option 1: Default English (no provider needed)
+// Reads the nearest TranslationProvider, and throws when there is none
 function SettingsButton() {
   const t = useTranslations('Toolbar');
   return <button>{t('settings')}</button>;
 }
 
-// Option 2: Built-in locales
+// Option 1: Built-in locales
 function SpanishApp() {
   return (
     <TranslationProvider locale="es">
@@ -140,7 +140,7 @@ function SpanishApp() {
   );
 }
 
-// Option 3: Custom translation system
+// Option 2: Custom translation system
 const messages: Record<string, Record<string, string>> = {
   Toolbar: { settings: 'Ajustes' },
 };

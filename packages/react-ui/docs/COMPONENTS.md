@@ -293,7 +293,7 @@ import { HighlightPanel, useResourceLoader } from '@semiont/react-ui';
 
 const { annotations } = useResourceLoader(session.client, rId);
 
-// One motivation — no providers, just the session:
+// One motivation — no session provider, just the session:
 <HighlightPanel
   session={session}
   resourceId={rId}

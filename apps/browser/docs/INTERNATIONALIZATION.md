@@ -8,7 +8,8 @@ The Browser uses **i18next** + **react-i18next** for internationalization.
 
 - **Translation files**: Merged from two sources before every build/test/dev run
 - **Locale routing**: React Router with `/:locale/*` prefix
-- **Dynamic loading**: Non-English locales loaded on-demand via `i18next-http-backend`
+- **Dynamic loading**: Each locale's bundle is loaded on demand via `i18next-http-backend`
+- **No default language**: i18next has no fallback language, and a URL that names no served locale gets the language picker
 - **Interpolation format**: `{{variable}}` (standard i18next)
 
 ## Architecture
@@ -36,7 +37,6 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import HttpBackend from 'i18next-http-backend';
 import { AVAILABLE_LOCALES } from '@semiont/react-ui';
-import { DEFAULT_LOCALE } from '@/i18n/config';
 
 i18n
   .use(HttpBackend)
@@ -44,7 +44,7 @@ i18n
   .init({
     ns: ['translation'],
     defaultNS: 'translation',
-    fallbackLng: DEFAULT_LOCALE,
+    fallbackLng: false,
     supportedLngs: [...AVAILABLE_LOCALES],
     backend: {
       loadPath: '/messages/{{lng}}.json',
@@ -137,6 +137,20 @@ Locale is part of the URL path: `/:locale/*` (e.g., `/en/know`, `/es/moderate`).
 `src/i18n/routing.tsx` exports React Router wrappers: `Link`, `useRouter`, `usePathname`, `useLocale` — import from `@/i18n/routing`, not directly from react-router.
 
 `LocaleGuard` in `App.tsx` validates the `:locale` param and calls `i18n.changeLanguage()`.
+
+There is no default locale:
+
+- `/` goes to the browser's language when it is one the Browser serves.
+- A URL that names no served locale — `/` under any other browser language, or
+  an unsupported `/xx/...` — gets the language picker
+  (`src/app/language-picker.tsx`). The picker has no translated text: it lists
+  each language under its own name, and keeps the rest of the URL for the one
+  chosen.
+- Nothing renders until the route's bundle is loaded; while a later locale
+  loads, the language already on screen stays. A bundle that cannot be loaded
+  is an error.
+- `useLocale` and the helpers built on it throw when the route names no locale
+  and i18next has no language.
 
 ## Testing Translations
 

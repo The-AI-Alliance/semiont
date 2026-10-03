@@ -11,7 +11,8 @@
  */
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { AnnotationUIState } from '../../../types/annotation-props';
@@ -66,7 +67,7 @@ describe('AnnotateView — media-renderer registry', () => {
       <div data-testid="custom-text">custom: {content}</div>
     );
 
-    render(<AnnotateView {...base('text/plain')} renderers={{ text: CustomText }} />);
+    renderInEnglish(<AnnotateView {...base('text/plain')} renderers={{ text: CustomText }} />);
 
     expect(screen.getByTestId('custom-text')).toHaveTextContent('custom: the-body');
     expect(screen.queryByTestId('default-text')).not.toBeInTheDocument();
@@ -77,7 +78,7 @@ describe('AnnotateView — media-renderer registry', () => {
       <div data-testid="custom-pdf">{content}</div>
     );
 
-    render(<AnnotateView {...base('application/pdf')} renderers={{ pdf: CustomPdf }} />);
+    renderInEnglish(<AnnotateView {...base('application/pdf')} renderers={{ pdf: CustomPdf }} />);
 
     expect(screen.getByTestId('custom-pdf')).toBeInTheDocument();
   });
@@ -85,7 +86,7 @@ describe('AnnotateView — media-renderer registry', () => {
   it('merges over the defaults rather than replacing them: overriding text leaves image alone', () => {
     const CustomText = () => <div data-testid="custom-text" />;
 
-    render(<AnnotateView {...base('image/png')} renderers={{ text: CustomText }} />);
+    renderInEnglish(<AnnotateView {...base('image/png')} renderers={{ text: CustomText }} />);
 
     expect(screen.getByTestId('default-image')).toBeInTheDocument();
     expect(screen.queryByTestId('custom-text')).not.toBeInTheDocument();
@@ -95,7 +96,7 @@ describe('AnnotateView — media-renderer registry', () => {
     // Deliberately unlike the browse side, where a registry miss falls through
     // to the text renderer harmlessly. Annotating an unknown type is not
     // harmless, so the miss must stay explicit.
-    const { container } = render(<AnnotateView {...base('application/octet-stream')} />);
+    const { container } = renderInEnglish(<AnnotateView {...base('application/octet-stream')} />);
 
     expect(container.querySelector('[data-mime-type="unsupported"]')).toBeInTheDocument();
     expect(screen.getByText(/Annotation not supported/)).toBeInTheDocument();
@@ -106,7 +107,7 @@ describe('AnnotateView — media-renderer registry', () => {
     // The collapse this plan is really about: three branches used to repeat
     // the wrapper, the toolbar block and the content div verbatim.
     for (const mimeType of ['text/plain', 'application/pdf', 'image/png']) {
-      const { container, unmount } = render(<AnnotateView {...base(mimeType)} />);
+      const { container, unmount } = renderInEnglish(<AnnotateView {...base(mimeType)} />);
       expect(container.querySelectorAll('.semiont-annotate-view')).toHaveLength(1);
       expect(container.querySelectorAll('.semiont-annotate-view__content')).toHaveLength(1);
       unmount();

@@ -12,7 +12,8 @@
  */
 import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -43,15 +44,15 @@ const toolbarProps = {
 
 describe('Annotate Bar display forms (Phase 3)', () => {
   it('`compact` adds the display modifier; default does not', () => {
-    const { container: normal } = render(<AnnotateToolbar {...toolbarProps} />);
+    const { container: normal } = renderInEnglish(<AnnotateToolbar {...toolbarProps} />);
     expect(normal.querySelector('.semiont-annotate-toolbar')).not.toHaveClass('semiont-annotate-toolbar--compact');
 
-    const { container } = render(<AnnotateToolbar {...toolbarProps} compact />);
+    const { container } = renderInEnglish(<AnnotateToolbar {...toolbarProps} compact />);
     expect(container.querySelector('.semiont-annotate-toolbar')).toHaveClass('semiont-annotate-toolbar--compact');
   });
 
   it('compact is display-only: the functional groups are still present', () => {
-    render(<AnnotateToolbar {...toolbarProps} compact />);
+    renderInEnglish(<AnnotateToolbar {...toolbarProps} compact />);
     // Groups render with their aria labels (default-English translations, no provider).
     expect(screen.getByLabelText(/mode/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/click/i)).toBeInTheDocument();
@@ -62,10 +63,10 @@ describe('Annotate Bar display forms (Phase 3)', () => {
       content: 'x', mimeType: 'text/plain', resourceUri: resourceId('res-1'),
       annotations: emptyAnnotations, annotateMode: false, session: fakeSession(),
     };
-    const { container: pane } = render(<BrowseView {...props} />);
+    const { container: pane } = renderInEnglish(<BrowseView {...props} />);
     expect(pane.querySelector('.semiont-annotate-toolbar')).not.toHaveClass('semiont-annotate-toolbar--compact');
 
-    const { container } = render(<BrowseView {...props} inline />);
+    const { container } = renderInEnglish(<BrowseView {...props} inline />);
     expect(container.querySelector('.semiont-annotate-toolbar')).toHaveClass('semiont-annotate-toolbar--compact');
   });
 

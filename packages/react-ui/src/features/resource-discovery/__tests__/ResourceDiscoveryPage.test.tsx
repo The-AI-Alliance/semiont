@@ -6,10 +6,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
 import { ResourceDiscoveryPage } from '../components/ResourceDiscoveryPage';
 import type { ResourceDiscoveryPageProps } from '../components/ResourceDiscoveryPage';
-import { createTestSemiontWrapper } from '../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
 import { resourceId } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 
@@ -67,7 +67,7 @@ const createMockProps = (overrides?: Partial<ResourceDiscoveryPageProps>): Resou
 // Helper to render with SemiontProvider (gives components access to session.emit)
 const renderWithProviders = (ui: React.ReactElement) => {
   const { SemiontWrapper } = createTestSemiontWrapper();
-  return render(<SemiontWrapper>{ui}</SemiontWrapper>);
+  return renderInEnglish(<SemiontWrapper>{ui}</SemiontWrapper>);
 };
 
 describe('ResourceDiscoveryPage', () => {

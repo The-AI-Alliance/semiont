@@ -3,8 +3,6 @@ import { initReactI18next } from 'react-i18next';
 import HttpBackend from 'i18next-http-backend';
 import { AVAILABLE_LOCALES, type AvailableLocale } from '@semiont/react-ui';
 
-export const DEFAULT_LOCALE: AvailableLocale = 'en';
-
 export function isSupportedLocale(locale: string): locale is AvailableLocale {
   return (AVAILABLE_LOCALES as readonly string[]).includes(locale);
 }
@@ -17,7 +15,8 @@ i18n
     // (a single file per locale with all namespaces as top-level keys)
     ns: ['translation'],
     defaultNS: 'translation',
-    fallbackLng: DEFAULT_LOCALE,
+    // No language stands in for another: a locale's own bundle or nothing
+    fallbackLng: false,
     supportedLngs: [...AVAILABLE_LOCALES],
     backend: {
       loadPath: '/messages/{{lng}}.json',

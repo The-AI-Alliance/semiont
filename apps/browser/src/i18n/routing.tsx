@@ -20,7 +20,7 @@ import {
   Navigate,
 } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { DEFAULT_LOCALE, isSupportedLocale } from './config';
+import { isSupportedLocale } from './config';
 
 // ── Link ─────────────────────────────────────────────────────────────────────
 
@@ -31,9 +31,7 @@ type LinkProps = React.ComponentProps<typeof RouterLink>;
  */
 export const Link = React.forwardRef<HTMLAnchorElement, LinkProps>(
   function Link({ to, ...props }, ref) {
-    const { i18n } = useTranslation();
-    const params = useParams<{ locale?: string }>();
-    const locale = i18n.language || params.locale || DEFAULT_LOCALE;
+    const locale = useLocale();
     const target = typeof to === 'string' ? `/${locale}${to.startsWith('/') ? to : `/${to}`}` : to;
     return <RouterLink ref={ref} to={target} {...props} />;
   },
@@ -45,11 +43,10 @@ type RouterOptions = { locale?: string };
 
 export function useRouter() {
   const navigate = useNavigate();
-  const { i18n } = useTranslation();
-  const params = useParams<{ locale?: string }>();
+  const currentLocale = useLocale();
 
   function prefixLocale(path: string, locale?: string): string {
-    const lang = locale || i18n.language || params.locale || DEFAULT_LOCALE;
+    const lang = locale || currentLocale;
     return `/${lang}${path.startsWith('/') ? path : `/${path}`}`;
   }
 
@@ -98,15 +95,19 @@ export function usePathname(): string {
  * or just a string href to redirect to an absolute path.
  */
 export function redirect(target: string | { href: string; locale?: string }): React.ReactElement {
-  const { i18n } = useTranslation();
-  const locale = typeof target === 'string' ? (i18n.language || DEFAULT_LOCALE) : (target.locale || i18n.language || DEFAULT_LOCALE);
+  const currentLocale = useLocale();
+  const locale = typeof target === 'string' ? currentLocale : (target.locale || currentLocale);
   const href = typeof target === 'string' ? target : target.href;
   const to = `/${locale}${href.startsWith('/') ? href : `/${href}`}`;
   return <Navigate to={to} replace />;
 }
 
-// ── useParams with locale ────────────────────────────────────────────────────
+// ── useLocale ────────────────────────────────────────────────────────────────
 
+/**
+ * The locale in use: the route's, or failing that the language i18next is
+ * rendering. There is no default, so with neither this throws.
+ */
 export function useLocale(): string {
   const params = useParams<{ locale?: string }>();
   const { i18n } = useTranslation();
@@ -114,5 +115,8 @@ export function useLocale(): string {
   if (localeFromParams && isSupportedLocale(localeFromParams)) {
     return localeFromParams;
   }
-  return i18n.language || DEFAULT_LOCALE;
+  if (i18n.language) {
+    return i18n.language;
+  }
+  throw new Error('No locale: the route names none and i18next has no language');
 }

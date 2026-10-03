@@ -63,7 +63,6 @@ vi.mock('@/app/[locale]/not-found', () => ({ default: () => <div data-testid="no
 
 // i18n config used by App.tsx
 vi.mock('@/i18n/config', () => ({
-  DEFAULT_LOCALE: 'en',
   isSupportedLocale: (l: string) => l === 'en',
 }));
 
@@ -71,7 +70,7 @@ vi.mock('@/i18n/config', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (k: string) => k,
-    i18n: { language: 'en', changeLanguage: vi.fn() },
+    i18n: { language: 'en', changeLanguage: vi.fn(), hasResourceBundle: () => true },
   }),
 }));
 

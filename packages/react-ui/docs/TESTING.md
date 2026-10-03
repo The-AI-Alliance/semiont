@@ -220,7 +220,7 @@ failure is stubbed the same way:
 
 ```tsx
 import { of } from 'rxjs';
-import { createTestSemiontWrapper, render, screen } from '@semiont/react-ui/test-utils';
+import { createTestSemiontWrapper, renderInEnglish, screen } from '@semiont/react-ui/test-utils';
 
 it('names the resource this one was derived from', () => {
   const { SemiontWrapper, session, client } = createTestSemiontWrapper();
@@ -228,7 +228,7 @@ it('names the resource this one was derived from', () => {
     CacheObservable.from(of<CacheState<ResourceDescriptor>>({ status: 'ready', value: { ...resource, name: 'Source Doc' } })),
   );
 
-  render(
+  renderInEnglish(
     <ResourceInfoPanel session={session} resourceId={rId} documentEntityTypes={[]} wasDerivedFrom={resourceId} />,
     { wrapper: SemiontWrapper },
   );
@@ -242,7 +242,7 @@ it('keeps the raw id when the source cannot be read', () => {
     CacheObservable.from(of<CacheState<ResourceDescriptor>>({ status: 'failed', error: new Error('Network error') })),
   );
 
-  render(
+  renderInEnglish(
     <ResourceInfoPanel session={session} resourceId={rId} documentEntityTypes={[]} wasDerivedFrom={resourceId} />,
     { wrapper: SemiontWrapper },
   );
@@ -327,7 +327,7 @@ Drive a component the way a person does, with `user-event`, and assert on what i
 the SDK: spy on the client the component was handed.
 
 ```tsx
-import { createTestSemiontWrapper, render, screen } from '@semiont/react-ui/test-utils';
+import { createTestSemiontWrapper, renderInEnglish, screen } from '@semiont/react-ui/test-utils';
 import { userEvent } from '@testing-library/user-event';
 
 it('opens the resource this one was derived from', async () => {
@@ -335,7 +335,7 @@ it('opens the resource this one was derived from', async () => {
   const { SemiontWrapper, session, client } = createTestSemiontWrapper();
   const openResource = vi.spyOn(client.browse, 'openResource');
 
-  render(
+  renderInEnglish(
     <ResourceInfoPanel session={session} resourceId={rId} documentEntityTypes={[]} wasDerivedFrom={resourceId} />,
     { wrapper: SemiontWrapper },
   );

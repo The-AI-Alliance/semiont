@@ -9,7 +9,8 @@
  * parity: every type reaches its renderer from one component.)
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
@@ -45,7 +46,7 @@ function makeResource(mediaType: string, content: string): SemiontResource & { c
 }
 
 function mount(mediaType: string, content: string) {
-  return render(
+  return renderInEnglish(
     <ResourceViewer
       resource={makeResource(mediaType, content)}
       annotations={emptyAnnotations}

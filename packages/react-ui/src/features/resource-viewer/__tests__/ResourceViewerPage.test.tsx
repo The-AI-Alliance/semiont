@@ -6,14 +6,14 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import React from 'react';
 import { ResourceViewerPage } from '../components/ResourceViewerPage';
 import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
 import { ToastProvider } from '../../../components/Toast';
 import { ThemeProvider } from '../../../contexts/ThemeContext';
 import { LineNumbersProvider } from '../../../contexts/LineNumbersContext';
-import { createTestSemiontWrapper } from '../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
 import type { LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { BodyOperation, EventMap, ResourceId, UserId } from '@semiont/core';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
@@ -173,7 +173,7 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
 // Test wrapper to provide all required providers
 const renderWithProviders = (ui: React.ReactElement) => {
   const { SemiontWrapper } = createTestSemiontWrapper();
-  return render(
+  return renderInEnglish(
     <ThemeProvider>
       <LineNumbersProvider>
         <ToastProvider>

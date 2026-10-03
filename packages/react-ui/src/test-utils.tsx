@@ -22,7 +22,9 @@ import { TranslationProvider } from './contexts/TranslationContext';
 import { LineNumbersProvider } from './contexts/LineNumbersContext';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
+import { createTranslationManager } from './lib/translation-manager';
 import { SemiontProvider } from './session/SemiontProvider';
+import en from '../translations/en.json';
 
 /**
   * Every browser below is a REAL `SemiontBrowser` over the SDK's own
@@ -89,6 +91,28 @@ export const defaultMocks = {
     },
   } as TranslationManager,
 };
+
+/**
+ * react-ui's own English strings, for a test that asserts on the copy. Nothing
+ * in react-ui assumes a language, so a test that wants one names it.
+ */
+export const englishTranslationManager = createTranslationManager('en', en);
+
+/**
+ * Render under react-ui's English translations. A `wrapper` in the options is
+ * mounted inside them; no other provider is added.
+ */
+export function renderInEnglish(ui: ReactElement, options?: RenderOptions): RenderResult {
+  const Wrapper = options?.wrapper;
+  return render(ui, {
+    ...options,
+    wrapper: ({ children }) => (
+      <TranslationProvider translationManager={englishTranslationManager}>
+        {Wrapper ? <Wrapper>{children}</Wrapper> : children}
+      </TranslationProvider>
+    ),
+  });
+}
 
 /**
  * Options for renderWithProviders

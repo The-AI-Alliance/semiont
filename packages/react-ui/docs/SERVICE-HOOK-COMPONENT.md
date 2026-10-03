@@ -403,12 +403,13 @@ prop, so a test hands them a real one:
 ```tsx
 import { createTestSession } from '@semiont/sdk/testing';
 import { screen } from '@testing-library/react';
+import { renderInEnglish } from '@semiont/react-ui/test-utils';
 
 it('calls mark.requestAssist when Annotate is clicked', () => {
   const { session } = createTestSession();
   const requestAssist = vi.spyOn(session.client.mark, 'requestAssist');
 
-  render(
+  renderInEnglish(
     <ReferencesPanel
       session={session}
       resourceId={resourceId}

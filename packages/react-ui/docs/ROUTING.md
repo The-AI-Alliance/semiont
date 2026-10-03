@@ -82,5 +82,5 @@ A test passes a plain anchor and a literal `routes`:
 const Link = ({ href, children, ...props }: LinkComponentProps) => <a href={href} {...props}>{children}</a>;
 const routes: RouteBuilder = { resourceDetail: (id) => `/resource/${id}` };
 
-render(<AnnotationHistory events={[]} Link={Link} routes={routes} />);
+renderInEnglish(<AnnotationHistory events={[]} Link={Link} routes={routes} />);
 ```

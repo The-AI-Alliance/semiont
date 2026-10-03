@@ -8,10 +8,9 @@
  * becomes user-visible: the same click works or doesn't depending on the mode.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { AnnotationUIState } from '../../../types/annotation-props';
-import { createTestSemiontWrapper } from '../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish } from '../../../test-utils';
 
 const scrollSpy = vi.hoisted(() => vi.fn());
 vi.mock('../../../lib/scroll-utils', () => ({
@@ -39,7 +38,7 @@ describe('AnnotateView — beckon:focus scrolls the content', () => {
   it('scrolls to the annotation when the session emits beckon:focus', () => {
     const { session, client } = createTestSemiontWrapper();
 
-    render(
+    renderInEnglish(
       <AnnotateView
         content="hello world"
         mimeType="text/plain"
@@ -71,7 +70,7 @@ describe('AnnotateView — beckon:focus is guarded by resourceId (P6/D7)', () =>
 
   const renderAt = (resourceUri: string) => {
     const { session, client } = createTestSemiontWrapper();
-    render(
+    renderInEnglish(
       <AnnotateView
         content="hello world"
         mimeType="text/plain"

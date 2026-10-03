@@ -12,7 +12,8 @@
  */
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
+import { renderInEnglish } from '../../../../test-utils';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { LinkComponentProps, RouteBuilder } from '../../../../contexts/RoutingContext';
@@ -45,7 +46,7 @@ const base = (): PanelProps => ({
 
 describe('UnifiedAnnotationsPanel — annotations load failure', () => {
   it('reports the failure rather than presenting an empty annotation set as fact', () => {
-    render(
+    renderInEnglish(
       <UnifiedAnnotationsPanel
         {...base()}
         annotationsError={new Error('Resource not found')}
@@ -57,7 +58,7 @@ describe('UnifiedAnnotationsPanel — annotations load failure', () => {
 
   it('offers a retry that calls back', () => {
     const onRetryAnnotations = vi.fn();
-    render(
+    renderInEnglish(
       <UnifiedAnnotationsPanel
         {...base()}
         annotationsError={new Error('boom')}
@@ -70,7 +71,7 @@ describe('UnifiedAnnotationsPanel — annotations load failure', () => {
   });
 
   it('says nothing about failure when the annotations are merely empty', () => {
-    render(<UnifiedAnnotationsPanel {...base()} />);
+    renderInEnglish(<UnifiedAnnotationsPanel {...base()} />);
 
     expect(screen.queryByText(/Could not load annotations/)).not.toBeInTheDocument();
   });

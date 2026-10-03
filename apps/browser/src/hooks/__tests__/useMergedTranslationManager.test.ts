@@ -74,6 +74,12 @@ describe('useMergedTranslationManager', () => {
     expect(manager().t('Search', 'files', { count: 5 })).toBe('5 plików');
   });
 
+  it('throws when no translations are loaded for the active language', () => {
+    active.language = 'ko';
+
+    expect(() => manager().t('Search', 'title')).toThrow('No translations are loaded for locale ko');
+  });
+
   it('returns the namespaced key for a missing translation', () => {
     expect(manager().t('Search', 'missing')).toBe('Search.missing');
     expect(manager().t('Unknown', 'title')).toBe('Unknown.title');

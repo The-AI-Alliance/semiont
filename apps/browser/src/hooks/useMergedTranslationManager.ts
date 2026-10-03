@@ -28,7 +28,10 @@ export function useMergedTranslationManager(): TranslationManager {
     return {
       t: (namespace: string, key: string, params?: Record<string, unknown>): string => {
         const messages = i18n.getResourceBundle(i18n.language, 'translation') as Messages | undefined;
-        const translation = messages?.[namespace]?.[key];
+        if (!messages) {
+          throw new Error(`No translations are loaded for locale ${i18n.language}`);
+        }
+        const translation = messages[namespace]?.[key];
 
         if (!translation) {
           if (process.env.NODE_ENV === 'development') {

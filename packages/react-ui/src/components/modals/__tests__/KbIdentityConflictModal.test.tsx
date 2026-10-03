@@ -9,7 +9,8 @@
  * re-registration; the modal opens it, decides nothing.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
+import { renderInEnglish } from '../../../test-utils';
 import '@testing-library/jest-dom';
 import { BehaviorSubject } from 'rxjs';
 import { SessionSignals } from '@semiont/sdk';
@@ -46,7 +47,7 @@ function mount(withConflict: boolean) {
     }),
     emit: vi.fn(),
   };
-  render(<KbIdentityConflictModal />);
+  renderInEnglish(<KbIdentityConflictModal />);
   return { signals };
 }
 

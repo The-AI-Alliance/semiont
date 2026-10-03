@@ -2,26 +2,18 @@
 
 import { createContext, useContext, ReactNode, useState, useEffect, useMemo } from 'react';
 import type { TranslationManager } from '../types/TranslationManager';
-import { interpolateTranslation } from '../lib/translation-interpolation';
-
-// Static import for default English only - always needed as fallback
-import enTranslations from '../../translations/en.json';
+import { createTranslationManager, type Messages } from '../lib/translation-manager';
 
 const TranslationContext = createContext<TranslationManager | null>(null);
 
-type Messages = Record<string, Record<string, string>>;
-
-// The strings a built-in manager serves and the language they are written in.
+// Messages, and the locale they were loaded for.
 interface LoadedTranslations {
   locale: string;
   messages: Messages;
 }
 
-// Served with no provider, with no locale, and when a locale's file cannot be loaded.
-const ENGLISH: LoadedTranslations = { locale: 'en', messages: enTranslations };
-
 // Cache for dynamically loaded translations
-const translationCache = new Map<string, any>();
+const translationCache = new Map<string, Messages>();
 
 // List of available locales (can be extended without importing all files)
 export const AVAILABLE_LOCALES = [
@@ -58,132 +50,98 @@ export const AVAILABLE_LOCALES = [
 export type AvailableLocale = typeof AVAILABLE_LOCALES[number];
 
 // Lazy load translations for a specific locale
-async function loadTranslations(locale: string): Promise<LoadedTranslations> {
-  // Check cache first
-  if (translationCache.has(locale)) {
-    return { locale, messages: translationCache.get(locale) };
-  }
+async function loadTranslations(locale: string): Promise<Messages> {
+  const cached = translationCache.get(locale);
+  if (cached) return cached;
 
-  // English is already loaded statically
-  if (locale === 'en') {
-    translationCache.set('en', enTranslations);
-    return ENGLISH;
-  }
-
-  try {
-    // Dynamic import for all other locales
-    const translations = await import(`../../translations/${locale}.json`);
-    const translationData = translations.default || translations;
-    translationCache.set(locale, translationData);
-    return { locale, messages: translationData };
-  } catch (error) {
-    console.error(`Failed to load translations for locale: ${locale}`, error);
-    return ENGLISH;
-  }
+  const translations = await import(`../../translations/${locale}.json`);
+  const messages: Messages = translations.default || translations;
+  translationCache.set(locale, messages);
+  return messages;
 }
 
-function createTranslationManager({ locale, messages }: LoadedTranslations): TranslationManager {
-  return {
-    t: (namespace: string, key: string, params?: Record<string, any>) => {
-      const translation = messages[namespace]?.[key];
-
-      if (!translation) {
-        console.warn(`Translation not found for ${namespace}.${key} in locale ${locale}`);
-        return `${namespace}.${key}`;
-      }
-
-      if (params && typeof translation === 'string') {
-        return interpolateTranslation(translation, params, locale);
-      }
-
-      return translation;
-    },
-  };
-}
-
-const defaultTranslationManager = createTranslationManager(ENGLISH);
-
-export interface TranslationProviderProps {
-  /**
-   * Option 1: Provide a complete TranslationManager implementation
-   */
-  translationManager?: TranslationManager;
-
-  /**
-   * Option 2: Use built-in translations by specifying a locale
-   * When adding new locales, just add the JSON file and update AVAILABLE_LOCALES
-   */
-  locale?: string;
-
-  /**
-   * Loading component to show while translations are being loaded
-   * Only relevant when using dynamic locale loading
-   */
-  loadingComponent?: ReactNode;
-
-  children: ReactNode;
-}
+export type TranslationProviderProps =
+  | {
+      /** A complete TranslationManager implementation */
+      translationManager: TranslationManager;
+      locale?: never;
+      loadingComponent?: never;
+      children: ReactNode;
+    }
+  | {
+      /** Built-in translations for this locale, one of AVAILABLE_LOCALES */
+      locale: string;
+      /** Shown while the locale's translations are being loaded */
+      loadingComponent?: ReactNode;
+      translationManager?: never;
+      children: ReactNode;
+    };
 
 /**
- * Provider for translation management with dynamic loading
+ * Provider for translation management
  *
- * Three modes of operation:
- * 1. No provider: Components use default English strings
- * 2. With locale prop: Dynamically loads translations for that locale
- * 3. With translationManager: Use custom translation implementation
+ * Two modes of operation, and no language is assumed in either:
+ * 1. With translationManager: uses that translation implementation
+ * 2. With locale: dynamically loads the built-in translations for that locale.
+ *    A locale whose translations cannot be loaded is an error.
  */
-export function TranslationProvider({
-  translationManager,
-  locale,
-  loadingComponent = null,
-  children,
-}: TranslationProviderProps) {
-  const [loadedTranslations, setLoadedTranslations] = useState<LoadedTranslations | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Load translations when locale changes
-  useEffect(() => {
-    if (locale && !translationManager) {
-      setIsLoading(true);
-      loadTranslations(locale).then(loaded => {
-        setLoadedTranslations(loaded);
-        setIsLoading(false);
-      });
-    }
-  }, [locale, translationManager]);
-
-  // Create translation manager from loaded translations
-  const localeManager = useMemo(
-    () => loadedTranslations && createTranslationManager(loadedTranslations),
-    [loadedTranslations],
-  );
-
-  // If custom translation manager provided, use it
-  if (translationManager) {
+export function TranslationProvider(props: TranslationProviderProps) {
+  if (props.translationManager) {
     return (
-      <TranslationContext.Provider value={translationManager}>
-        {children}
+      <TranslationContext.Provider value={props.translationManager}>
+        {props.children}
       </TranslationContext.Provider>
     );
   }
 
-  // If locale provided and still loading, show loading component
-  if (locale && isLoading) {
+  return (
+    <LocaleTranslations locale={props.locale} loadingComponent={props.loadingComponent}>
+      {props.children}
+    </LocaleTranslations>
+  );
+}
+
+function LocaleTranslations({
+  locale,
+  loadingComponent,
+  children,
+}: {
+  locale: string;
+  loadingComponent: ReactNode;
+  children: ReactNode;
+}) {
+  const [loaded, setLoaded] = useState<LoadedTranslations | null>(null);
+  const [failure, setFailure] = useState<Error | null>(null);
+
+  useEffect(() => {
+    let current = true;
+    loadTranslations(locale).then(
+      messages => {
+        if (current) setLoaded({ locale, messages });
+      },
+      cause => {
+        if (current) setFailure(new Error(`Failed to load translations for locale: ${locale}`, { cause }));
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [locale]);
+
+  const manager = useMemo(
+    () => (loaded?.locale === locale ? createTranslationManager(loaded.locale, loaded.messages) : null),
+    [loaded, locale],
+  );
+
+  // Thrown while rendering so the nearest error boundary sees it.
+  if (failure) throw failure;
+
+  if (!manager) {
     return <>{loadingComponent}</>;
   }
 
-  // If locale provided and translations loaded, use them
-  if (locale && localeManager) {
-    return (
-      <TranslationContext.Provider value={localeManager}>
-        {children}
-      </TranslationContext.Provider>
-    );
-  }
-
-  // Default: use English translations
   return (
-    <TranslationContext.Provider value={defaultTranslationManager}>
+    <TranslationContext.Provider value={manager}>
       {children}
     </TranslationContext.Provider>
   );
@@ -192,17 +150,17 @@ export function TranslationProvider({
 /**
  * Hook to access translations within a namespace
  *
- * Works in three modes:
- * 1. Without provider: Returns default English translations
- * 2. With provider using locale: Returns dynamically loaded translations for that locale
- * 3. With custom provider: Uses the custom translation manager
+ * Reads the manager of the nearest TranslationProvider, and throws when there
+ * is none.
  *
  * @param namespace - Translation namespace (e.g., 'Toolbar', 'ResourceViewer')
  * @returns Function to translate keys within the namespace
  */
 export function useTranslations(namespace: string) {
-  // No provider: default English translations
-  const manager = useContext(TranslationContext) ?? defaultTranslationManager;
+  const manager = useContext(TranslationContext);
+  if (!manager) {
+    throw new Error('useTranslations must be used within a TranslationProvider');
+  }
 
   // Return a function that translates keys within this namespace
   return (key: string, params?: Record<string, any>) => manager.t(namespace, key, params);

@@ -11,9 +11,9 @@
 import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, act, waitFor } from '@testing-library/react';
+import { screen, act, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { createTestSemiontWrapper } from '../../../../test-utils';
+import { createTestSemiontWrapper, renderInEnglish } from '../../../../test-utils';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
 import type { SemiontSession } from '@semiont/sdk';
 
@@ -26,8 +26,7 @@ const props = {
 function mountWithAnswer(answer: Record<string, unknown>) {
   const { SemiontWrapper, eventBus, client, session } = createTestSemiontWrapper();
   const ask = vi.spyOn(client.browse, 'resourceAnchoredText').mockResolvedValue(answer as never);
-  const Wrapper = ({ children }: { children: React.ReactNode }) => <SemiontWrapper>{children}</SemiontWrapper>;
-  render(React.cloneElement(<ResourceInfoPanel {...props} />, { session }), { wrapper: Wrapper });
+  renderInEnglish(React.cloneElement(<ResourceInfoPanel {...props} />, { session }), { wrapper: SemiontWrapper });
   return { eventBus, ask };
 }
 

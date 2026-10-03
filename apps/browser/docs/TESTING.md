@@ -446,13 +446,13 @@ The resource page is one such pair:
 `packages/react-ui/src/components/resource/__tests__/ResourceViewer.embeddable.test.tsx`:
 
 ```tsx
-import { render, screen } from '@testing-library/react';
-import { createTestSemiontWrapper } from '@semiont/react-ui/test-utils';
+import { screen } from '@testing-library/react';
+import { createTestSemiontWrapper, renderInEnglish } from '@semiont/react-ui/test-utils';
 
-it('renders content fed only a session, with no providers mounted', () => {
+it('renders content fed only a session, with no session provider mounted', () => {
   const { session } = createTestSemiontWrapper();
 
-  render(
+  renderInEnglish(
     <ResourceViewer
       session={session}
       resource={{

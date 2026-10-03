@@ -8,11 +8,11 @@
  */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
 import { TranslationProvider } from '../../../contexts/TranslationContext';
-import { defaultMocks } from '../../../test-utils';
+import { defaultMocks, renderInEnglish } from '../../../test-utils';
 import { resourceId, annotationId, parseFragmentSelector } from '@semiont/core';
 import { pdfToCanvasCoordinates } from '../../../lib/pdf-coordinates';
 import { loadPdfDocument, renderPdfPageToDataUrl } from '../../../lib/browser-pdfjs';
@@ -187,7 +187,7 @@ describe('PdfAnnotationCanvas', () => {
   });
 
   test('renders loading state initially', () => {
-    render(
+    renderInEnglish(
       <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
         pdfUrl={mockPdfUrl}
         drawingMode={null}
@@ -198,7 +198,7 @@ describe('PdfAnnotationCanvas', () => {
   });
 
   test('renders page navigation controls after loading', async () => {
-    render(
+    renderInEnglish(
       <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
         pdfUrl={mockPdfUrl}
         drawingMode={null}
@@ -214,7 +214,7 @@ describe('PdfAnnotationCanvas', () => {
   });
 
   test('previous button is disabled on first page', async () => {
-    render(
+    renderInEnglish(
       <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
         pdfUrl={mockPdfUrl}
         drawingMode={null}
@@ -230,7 +230,7 @@ describe('PdfAnnotationCanvas', () => {
   });
 
   test('next button is disabled on last page', async () => {
-    render(
+    renderInEnglish(
       <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
         pdfUrl={mockPdfUrl}
         drawingMode={null}
@@ -275,7 +275,7 @@ describe('PdfAnnotationCanvas', () => {
       }
     ];
 
-    render(
+    renderInEnglish(
       <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
         pdfUrl={mockPdfUrl}
         existingAnnotations={mockAnnotations}
@@ -333,7 +333,7 @@ describe('PdfAnnotationCanvas', () => {
       }
     ];
 
-    render(
+    renderInEnglish(
       <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
         pdfUrl={mockPdfUrl}
         existingAnnotations={mockAnnotations}
@@ -396,7 +396,7 @@ describe('PdfAnnotationCanvas', () => {
       }
     ];
 
-    render(
+    renderInEnglish(
       <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
         pdfUrl={mockPdfUrl}
         existingAnnotations={mockAnnotations}
@@ -455,7 +455,7 @@ describe('PdfAnnotationCanvas', () => {
       client: { mark: { request }, beckon: { hover: vi.fn() } },
     } as unknown as import('@semiont/sdk').SemiontSession;
 
-    render(
+    renderInEnglish(
       <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
         pdfUrl={mockPdfUrl}
         drawingMode="rectangle"
@@ -553,7 +553,7 @@ describe('PdfAnnotationCanvas', () => {
       },
     } as unknown as import('@semiont/sdk').SemiontSession;
 
-    render(
+    renderInEnglish(
       <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
         pdfUrl={mockPdfUrl}
         drawingMode="rectangle"
@@ -606,7 +606,7 @@ describe('PdfAnnotationCanvas', () => {
       client: { beckon: { hover: vi.fn() }, browse: { resourceAnchoredText } },
     } as unknown as import('@semiont/sdk').SemiontSession;
 
-    render(
+    renderInEnglish(
       <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
         pdfUrl={mockPdfUrl}
         drawingMode={null}
@@ -664,7 +664,7 @@ describe('PdfAnnotationCanvas', () => {
   });
 
   test('accepts a drawing gesture without throwing when drawing mode is active', async () => {
-    render(
+    renderInEnglish(
       <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
         pdfUrl={mockPdfUrl}
         drawingMode="rectangle"
@@ -715,7 +715,7 @@ describe('PdfAnnotationCanvas', () => {
       const io = stubIntersectionObserver();
       scannedDoc();
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -738,7 +738,7 @@ describe('PdfAnnotationCanvas', () => {
       const io = stubIntersectionObserver();
       scannedDoc();
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -767,7 +767,7 @@ describe('PdfAnnotationCanvas', () => {
       const io = stubIntersectionObserver();
       scannedDoc();
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -800,7 +800,7 @@ describe('PdfAnnotationCanvas', () => {
         client: { beckon: { hover: vi.fn() }, browse: { resourceAnchoredText } },
       } as unknown as import('@semiont/sdk').SemiontSession;
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -828,7 +828,7 @@ describe('PdfAnnotationCanvas', () => {
       const io = stubIntersectionObserver();
       scannedDoc();
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -869,7 +869,7 @@ describe('PdfAnnotationCanvas', () => {
         client: { mark: { request }, beckon: { hover: vi.fn() } },
       } as unknown as import('@semiont/sdk').SemiontSession;
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode="rectangle"
@@ -906,7 +906,7 @@ describe('PdfAnnotationCanvas', () => {
       const io = stubIntersectionObserver();
       scannedDoc();
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode="rectangle"
@@ -935,7 +935,7 @@ describe('PdfAnnotationCanvas', () => {
       const io = stubIntersectionObserver();
       scannedDoc();
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -972,7 +972,7 @@ describe('PdfAnnotationCanvas', () => {
       Object.defineProperty(scroller, 'clientHeight', { value: 513, configurable: true });
       document.body.appendChild(scroller);
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -997,7 +997,7 @@ describe('PdfAnnotationCanvas', () => {
         .spyOn(Element.prototype, 'scrollIntoView')
         .mockImplementation(() => {});
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -1029,7 +1029,7 @@ describe('PdfAnnotationCanvas', () => {
         .spyOn(Element.prototype, 'scrollIntoView')
         .mockImplementation(() => {});
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -1073,7 +1073,7 @@ describe('PdfAnnotationCanvas', () => {
         .spyOn(Element.prototype, 'scrollIntoView')
         .mockImplementation(() => {});
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -1113,7 +1113,7 @@ describe('PdfAnnotationCanvas', () => {
       scannedDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -1146,7 +1146,7 @@ describe('PdfAnnotationCanvas', () => {
       scannedDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -1174,7 +1174,7 @@ describe('PdfAnnotationCanvas', () => {
       scannedDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -1210,7 +1210,7 @@ describe('PdfAnnotationCanvas', () => {
       scannedDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -1243,7 +1243,7 @@ describe('PdfAnnotationCanvas', () => {
       scannedDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode={null}
@@ -1274,7 +1274,7 @@ describe('PdfAnnotationCanvas', () => {
       scannedDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")} pdfUrl={mockPdfUrl}
           drawingMode={null} pageLayout="scroll" />
       );
@@ -1310,7 +1310,7 @@ describe('PdfAnnotationCanvas', () => {
         failingDoc as unknown as Awaited<ReturnType<typeof loadPdfDocument>>,
       );
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")} pdfUrl={mockPdfUrl} drawingMode={null} />
       );
 
@@ -1334,7 +1334,7 @@ describe('PdfAnnotationCanvas', () => {
       vi.stubGlobal('IntersectionObserver', undefined);
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")} pdfUrl={mockPdfUrl}
           drawingMode={null} pageLayout="scroll" />
       );
@@ -1358,7 +1358,7 @@ describe('PdfAnnotationCanvas', () => {
         client: { beckon: { hover: vi.fn() }, browse: { resourceAnchoredText } },
       } as unknown as import('@semiont/sdk').SemiontSession;
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")} pdfUrl={mockPdfUrl}
           drawingMode={null} pageLayout="scroll" session={session} />
       );
@@ -1380,7 +1380,7 @@ describe('PdfAnnotationCanvas', () => {
         .spyOn(Element.prototype, 'scrollIntoView')
         .mockImplementation(() => {});
 
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")} pdfUrl={mockPdfUrl}
           drawingMode={null} pageLayout="scroll" />
       );
@@ -1404,7 +1404,7 @@ describe('PdfAnnotationCanvas', () => {
     });
 
     test('keeps the paged layout when no layout is requested', async () => {
-      render(
+      renderInEnglish(
         <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
           pdfUrl={mockPdfUrl}
           drawingMode="rectangle"
@@ -1427,7 +1427,7 @@ describe('PdfAnnotationCanvas', () => {
   // than from a literal that happens to read the same in English.
   describe('viewer chrome', () => {
     const renderTranslated = (ui: React.ReactElement) =>
-      render(<TranslationProvider translationManager={defaultMocks.translationManager}>{ui}</TranslationProvider>);
+      renderInEnglish(<TranslationProvider translationManager={defaultMocks.translationManager}>{ui}</TranslationProvider>);
 
     test('takes its controls and page indicator from translations', async () => {
       renderTranslated(

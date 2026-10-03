@@ -137,6 +137,21 @@ describe('TranslationContext', () => {
       expect(screen.getByTestId('missing-namespace')).toHaveTextContent('anyKey');
     });
 
+    it('takes a locale or a translation manager, and not neither or both', () => {
+      const manager: TranslationManager = { t: (namespace, key) => `${namespace}.${key}` };
+
+      const elements = [
+        <TranslationProvider locale="en"><div /></TranslationProvider>,
+        <TranslationProvider translationManager={manager}><div /></TranslationProvider>,
+        // @ts-expect-error neither a locale nor a translation manager
+        <TranslationProvider><div /></TranslationProvider>,
+        // @ts-expect-error both a locale and a translation manager
+        <TranslationProvider locale="en" translationManager={manager}><div /></TranslationProvider>,
+      ];
+
+      expect(elements).toHaveLength(4);
+    });
+
     it('should render children', () => {
       const mockManager: TranslationManager = {
         t: (namespace: string, key: string) => `${namespace}.${key}`,
@@ -194,19 +209,13 @@ describe('TranslationContext', () => {
   });
 
   describe('useTranslations', () => {
-    it('should use default English translations when used outside provider', () => {
-      // Suppress console.warn for this test since we'll get warnings about missing translations
-      const consoleWarn = console.warn;
-      console.warn = () => {};
+    it('throws when used outside a TranslationProvider', () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      render(<TestConsumer namespace="Toolbar" />);
+      expect(() => render(<TestConsumer namespace="Toolbar" />))
+        .toThrow('useTranslations must be used within a TranslationProvider');
 
-      // Without a provider, it should return namespace.key format as fallback
-      expect(screen.getByTestId('translation-1')).toHaveTextContent('Toolbar.key1');
-      expect(screen.getByTestId('translation-2')).toHaveTextContent('Toolbar.key2');
-      expect(screen.getByTestId('translation-missing')).toHaveTextContent('Toolbar.missingKey');
-
-      console.warn = consoleWarn;
+      consoleError.mockRestore();
     });
 
     it('should return translation function scoped to namespace', () => {
