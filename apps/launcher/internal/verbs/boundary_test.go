@@ -33,7 +33,7 @@ var allowedLauncherSurface = map[string]bool{
 	// Session and credentials.
 	"Session": true, "SessionRejected": true, "LoadSession": true, "RejectedFail": true,
 	"VerbSession": true, "VerbTarget": true, "Bearer": true,
-	"SaveToken": true, "LoadTokens": true, "TokenEntry": true, "CliClientID": true,
+	"SaveToken": true, "LoadTokens": true, "SignIn": true, "ScriptClientID": true,
 	// Recorded state, and which stack a verb talks to.
 	"StackSet": true, "StackState": true, "ServiceState": true, "StateDir": true,
 	"LoadStackSet": true, "SelectVerbStack": true, "SelectRuntime": true,

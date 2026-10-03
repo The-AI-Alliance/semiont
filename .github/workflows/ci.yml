@@ -460,6 +460,15 @@ jobs:
       - name: Media-type registry vs generated Go
         run: node scripts/spec/generate-media-types-go.mjs --check
 
+      # The launcher shares the sign-in store with the Rust SDK, and signs in
+      # as the clients every SDK does. Its entry type, the client ids and the
+      # scope are committed Go generated from the same spec files, so they are
+      # what can go stale.
+      - name: Sign-in store and OAuth clients vs the launcher's generated Go
+        run: |
+          node scripts/spec/generate-sign-in-go.mjs --check
+          node scripts/spec/generate-oauth-clients-go.mjs --check
+
       # specs/openapi.json is a BUILD ARTIFACT (gitignored) — redocly bundles
       # it from specs/src/. A fresh checkout has no such file, so the client
       # check has to produce it first. Version pinned to the repo's devDependency:

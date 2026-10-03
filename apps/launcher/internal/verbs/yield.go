@@ -329,13 +329,8 @@ func yieldOne(u *launcher.UI, cli *semiont.ClientWithResponses, sess *launcher.S
 
 // --- delegate mode: generation via the job lifecycle -------------------
 //
-// Unlike every other verb here, delegate is NOT one request/reply. It
-// creates a job (job:create → job:created carries the jobId) and then
-// follows job:report-progress / job:complete / job:fail, which are
-// BROADCASTS correlated by jobId — not by the correlationId the bus client
-// uses elsewhere. The subscription therefore opens BEFORE the job is
-// created: the jobId is unknown at that moment, so events are buffered and
-// filtered once it arrives. Subscribing after would race a fast job.
+// Unlike the upload above, delegate is not one request and its reply: it
+// gathers context, creates a generation job, and follows it (job.go).
 
 const delegateUsage = `Usage: semiont yield --delegate <resourceId> [<annotationId>] --storage-uri <file://…> [options]
 
@@ -398,15 +393,6 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string
 		gathered = gc.Response
 	}
 
-	// Subscribe BEFORE creating the job: the lifecycle events are broadcasts
-	// keyed by a jobId that does not exist yet, so they are buffered here and
-	// filtered below.
-	sub, err := cli.Subscribe(ctx, []bus.Channel{"job:report-progress", "job:complete", "job:fail"}, nil, "")
-	if err != nil {
-		return busFail(u, "yield --delegate", err)
-	}
-	defer sub.Close()
-
 	// GenerationJobParams requires title, storageUri and context; the rest are
 	// optional and omitted when empty.
 	params := map[string]any{"title": opts.title, "storageUri": opts.storageURI, "context": gathered}
@@ -426,211 +412,46 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string
 	// know would be rejected, and the focus is authoritative anyway. The gather
 	// above is what puts the right focus in the context: annotation-focused with
 	// two positionals, resource-focused with one.
-	created, err := cli.Request(ctx, "job:create", semiont.JobCreateCommand{
-		JobType: semiont.JobType("generation"),
-		Params:  params,
-	}, nil)
-	if err != nil {
-		return busFail(u, "yield --delegate", err)
-	}
-	var jc semiont.JobCreatedResult
-	if json.Unmarshal(created, &jc) != nil || jc.Response.JobId == "" {
-		u.Fail("yield --delegate: the gateway accepted the job but named no jobId.")
+	done, raw, ok := delegatedJob{
+		verb: "yield --delegate", doing: "Generating", failed: "Generation",
+		check: "semiont browse " + resourceID,
+		create: semiont.JobCreateCommand{
+			JobType: semiont.JobTypeGeneration,
+			Params:  params,
+		},
+	}.run(u, cli)
+	if !ok {
 		return 1
 	}
-	jobID := jc.Response.JobId
-	u.Log("Generating %s", u.Dim("(job "+jobID+")"))
-
-	// Follow the job. A generation can run for minutes; narrate it rather
-	// than leaving a silent terminal.
-	for {
-		select {
-		case <-ctx.Done():
+	// A decline is read first: the job ran and produced nothing, so there is
+	// no resource to name.
+	result := jobResult(done)
+	declined, isDecline := result.(semiont.JobDeclinedResult)
+	if opts.asJSON {
+		fmt.Println(string(raw))
+		// The exit code is a property of the outcome, not of the output
+		// format.
+		if isDecline {
 			return 1
-		case ev, open := <-sub.Events:
-			if !open {
-				u.Fail("The event stream closed before job %s finished.", jobID)
-				fmt.Fprintln(os.Stderr, "  The job may still be running:  semiont browse "+resourceID)
-				return 1
-			}
-			// Each job channel carries its own command schema, so each is read
-			// with its own generated type. The lifecycle correlates by jobId —
-			// these are broadcasts, and every viewer of the KB sees them.
-			switch ev.Channel {
-			case "job:report-progress":
-				var p semiont.JobReportProgressCommand
-				if json.Unmarshal(ev.Payload, &p) != nil || p.JobId != jobID {
-					continue // another job's broadcast
-				}
-				// JobProgress is the one progress shape for every job type.
-				// The wire carries a code + typed params, never a sentence —
-				// each client owns its own words, and this terminal's are
-				// English-only by design (ASSIST-PROGRESS-CONSOLIDATION P1).
-				// Narrating the stage too is what makes a minutes-long
-				// generation legible.
-				if p.Progress != nil {
-					// The CODE is the narration now. `stage` was removed as
-					// redundant denormalization (P5) — every code mapped to
-					// exactly one stage. An unrecognized or absent code prints
-					// NOTHING rather than an empty bullet: the previous form
-					// printed `stage` as the label with this as dim detail, so
-					// when both were empty it emitted a bare "▸ " with no text.
-					if text := progressText(p.Progress.Message); text != "" {
-						u.Log("%s", u.Dim(text))
-					}
-				}
-			case "job:fail":
-				var f semiont.JobFailCommand
-				if json.Unmarshal(ev.Payload, &f) != nil || f.JobId != jobID {
-					continue
-				}
-				u.Fail("Generation failed: %s", f.Error)
-				return 1
-			case "job:complete":
-				var done semiont.JobCompleteCommand
-				if json.Unmarshal(ev.Payload, &done) != nil || done.JobId != jobID {
-					continue
-				}
-				// A DECLINE is read first, and by its DISCRIMINANT. Every
-				// generated As*() accessor is a bare json.Unmarshal with no
-				// discriminant check, so a declined result decodes cleanly
-				// into JobGenerationResult with a zero-value resource id.
-				// A real generation ALWAYS carries the id (the worker holds
-				// it before job:complete — the schema requires it), so the
-				// empty check below is a decline-detector, not a missing-id
-				// fallback. Ordering alone would not be enough either:
-				// AsJobDeclinedResult succeeds on a generation too, with
-				// Declined false.
-				declined, ok := declinedResult(done.Result)
-				if opts.asJSON {
-					fmt.Println(string(ev.Payload))
-					// The exit code is a property of the outcome, not of the
-					// output format.
-					if ok {
-						return 1
-					}
-					return 0
-				}
-				if ok {
-					// Not a failure — the job ran correctly and found nothing
-					// to work with, so this is deliberately not the job:fail
-					// wording. Non-zero all the same: the caller asked for a
-					// resource and has none, and nothing downstream of a
-					// `yield --delegate && ...` should run.
-					u.Fail("Declined (%s): %s", declined.Reason, declineText(declined.Reason))
-					fmt.Fprintf(os.Stderr, "  Nothing was written to %s.\n", opts.storageURI)
-					return 1
-				}
-				// JobResult is a union over every job type; a generation names
-				// the resource it produced.
-				if done.Result != nil {
-					if gen, err := done.Result.AsJobGenerationResult(); err == nil && gen.ResourceId != "" {
-						u.Ok("Yielded %s → %s %s", opts.storageURI, gen.ResourceId, u.Dim(gen.ResourceName))
-						return 0
-					}
-				}
-				u.Ok("Yielded %s", opts.storageURI)
-				return 0
-			}
 		}
+		return 0
 	}
-}
-
-// declinedResult reads the DECLINE member out of a JobResult, and reports
-// false for every shape that actually did the work.
-//
-// The discriminant is what makes this safe, and it has to be checked
-// explicitly: oapi-codegen's As*() accessors are bare json.Unmarshal calls
-// with no discriminant test, so every union member "decodes" successfully
-// against every other member's payload. AsJobDeclinedResult on a generation
-// result returns a zero-valued struct — err nil, Declined false. Only the
-// schema's `"declined": true` const separates the two, so only reading it
-// tells them apart.
-// declineText renders a decline reason as English terminal copy — the sibling
-// of progressText below, and for the same reason: the wire carries a CODE, and
-// each client owns its words. react-ui translates these five reasons into 29
-// locales; a terminal is English-only by design, which is exactly why the
-// gateway must not compose the sentence for both.
-//
-// An unrecognized reason falls back to the raw code rather than an empty
-// string: for a CLI a bare token is still diagnostic, and a decline the user
-// cannot name is worse than an ugly one.
-func declineText(reason semiont.JobDeclinedResultReason) string {
-	switch reason {
-	case "no-text-layer":
-		return "this PDF is a scan whose text could not be recognized, so there was nothing to annotate"
-	case "encrypted":
-		return "this PDF is password-protected, so its text could not be read"
-	case "corrupt":
-		return "this PDF could not be read — the file may be damaged"
-	case "too-large":
-		return "this document is too large to extract text from"
-	case "empty":
-		return "this document has no text to annotate"
+	if isDecline {
+		// Not a failure — the job ran correctly and found nothing to work
+		// with, so this is deliberately not the job:fail wording. Non-zero
+		// all the same: the caller asked for a resource and has none, and
+		// nothing downstream of a `yield --delegate && ...` should run.
+		u.Fail("Declined (%s): %s", declined.Reason, declineText(declined.Reason))
+		fmt.Fprintf(os.Stderr, "  Nothing was written to %s.\n", opts.storageURI)
+		return 1
 	}
-	return string(reason)
-}
-
-// progressText renders a JobProgressMessage code as English terminal copy.
-// The wire deliberately carries no sentence — every client owns its words
-// (react-ui translates into 29 locales; this terminal is English-only by
-// design). Decodes the union through its raw JSON into one flat shape
-// rather than the generated As*() accessors, which unmarshal with no
-// discriminant check (see the decline handling below for that lesson).
-// An unknown or absent code renders "" and the caller falls back to the
-// stage — new codes degrade legibly instead of breaking old launchers.
-func progressText(m *semiont.JobProgressMessage) string {
-	if m == nil {
-		return ""
+	// A generation names the resource it produced.
+	if gen, ok := result.(semiont.JobGenerationResult); ok && gen.ResourceId != "" {
+		u.Ok("Yielded %s → %s %s", opts.storageURI, gen.ResourceId, u.Dim(gen.ResourceName))
+		return 0
 	}
-	raw, err := m.MarshalJSON()
-	if err != nil {
-		return ""
-	}
-	var flat struct {
-		Code       string `json:"code"`
-		EntityType string `json:"entityType"`
-		Count      int    `json:"count"`
-		Kind       string `json:"kind"`
-	}
-	if json.Unmarshal(raw, &flat) != nil {
-		return ""
-	}
-	switch flat.Code {
-	case "loading":
-		return "Loading resource"
-	case "analyzing":
-		return "Analyzing text"
-	case "analyzing-tags":
-		return "Analyzing text for tags"
-	case "generating-resource":
-		return "Generating resource"
-	case "creating-resource":
-		return "Creating resource"
-	case "complete-generated":
-		return "Created resource"
-	case "detecting-entities":
-		return fmt.Sprintf("Detecting %s entities", flat.EntityType)
-	case "creating-annotations":
-		return fmt.Sprintf("Creating %d annotations", flat.Count)
-	case "creating-tag-annotations":
-		return fmt.Sprintf("Creating %d tag annotations", flat.Count)
-	case "complete-created":
-		return fmt.Sprintf("Created %d %ss", flat.Count, flat.Kind)
-	default:
-		return ""
-	}
-}
-
-func declinedResult(r *semiont.JobResult) (semiont.JobDeclinedResult, bool) {
-	if r == nil {
-		return semiont.JobDeclinedResult{}, false
-	}
-	d, err := r.AsJobDeclinedResult()
-	if err != nil || !bool(d.Declined) {
-		return semiont.JobDeclinedResult{}, false
-	}
-	return d, true
+	u.Ok("Yielded %s", opts.storageURI)
+	return 0
 }
 
 type delegateOptions struct {

@@ -123,7 +123,7 @@ func Login(args []string) int {
 	}
 	email := string(me.JSON200.Email)
 	now := time.Now().UTC()
-	if err := SaveToken(key, TokenEntry{
+	if err := SaveToken(key, SignIn{
 		Token:              tr.AccessToken,
 		RefreshToken:       tr.RefreshToken,
 		Email:              email,

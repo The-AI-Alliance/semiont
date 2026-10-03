@@ -1051,7 +1051,7 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 		fmt.Fprintln(os.Stderr, "  nobody could open the knowledge base.")
 		return false
 	}
-	x.u.Log("Sign-in clients: %s", x.u.Dim(browserClientID+" and "+CliClientID+" verified at the realm"))
+	x.u.Log("Sign-in clients: %s", x.u.Dim(BrowserClientID+" and "+ScriptClientID+" verified at the realm"))
 	return true
 }
 
@@ -1554,10 +1554,10 @@ func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]s
 		x.c("client-credentials grant at %s as %s — require flat `roles` containing %q and `aud` containing %s",
 			issuerBase, serviceClientID(svc), serviceRole, audience)
 	}
-	x.c("device authorization at %s as %s — require the grant to be enabled for it", issuerBase, CliClientID)
-	x.c("authorization request at %s as %s — require a redirect to %s", issuerBase, browserClientID, probeRedirect)
+	x.c("device authorization at %s as %s — require the grant to be enabled for it", issuerBase, ScriptClientID)
+	x.c("authorization request at %s as %s — require a redirect to %s", issuerBase, BrowserClientID, probeRedirect)
 	x.c("the same request carrying NO code challenge — require it to be refused, so PKCE is enforced rather than merely offered")
-	x.c("password grant at %s as %s and %s, sending no credential — require both to refuse it", issuerBase, browserClientID, CliClientID)
+	x.c("password grant at %s as %s and %s, sending no credential — require both to refuse it", issuerBase, BrowserClientID, ScriptClientID)
 	if wantLifespan > 0 {
 		x.c("compare `exp - iat` on those tokens against the configured %ds — warn if the realm was imported with another", wantLifespan)
 	}
@@ -1571,7 +1571,7 @@ func (x *planExec) openAdminToThisMachine(string) {
 
 func (x *planExec) preflightBrowserMove(issuerBase string, port int) bool {
 	x.c("authorization request at %s as %s — require a redirect to http://localhost:%d/en/auth/callback, the port this move puts the Browser on",
-		issuerBase, browserClientID, port)
+		issuerBase, BrowserClientID, port)
 	return true
 }
 

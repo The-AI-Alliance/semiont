@@ -49,6 +49,7 @@ Options:
   --limit <n>           Maximum results (default 20)
   --annotations         With a resourceId: show its annotations here
   --entity-types        List the KB's entity-type vocabulary
+  --tag-schemas         List the KB's tag schemas and their categories
   --json                Raw JSON reply instead of a table
   --repo <owner/name>   Target a codespace stack (default: the local stack)
   --runtime <rt>        Target the local stack explicitly
@@ -61,7 +62,7 @@ func Browse(args []string) int {
 	u := launcher.NewUI(false)
 	var resourceID, search, entityType, repo, browserURL, annotation string
 	limit := 20
-	annotations, entityTypes, asJSON, wantLocal := false, false, false, false
+	annotations, entityTypes, tagSchemas, asJSON, wantLocal := false, false, false, false, false
 	toBrowser, launch := false, false
 
 	for i := 0; i < len(args); i++ {
@@ -113,6 +114,8 @@ func Browse(args []string) int {
 			annotations = true
 		case "--entity-types":
 			entityTypes = true
+		case "--tag-schemas":
+			tagSchemas = true
 		case "--json":
 			asJSON = true
 		case "--browser":
@@ -165,7 +168,7 @@ func Browse(args []string) int {
 		for _, conflict := range []struct {
 			set  bool
 			flag string
-		}{{asJSON, "--json"}, {annotations, "--annotations"}, {entityTypes, "--entity-types"}} {
+		}{{asJSON, "--json"}, {annotations, "--annotations"}, {entityTypes, "--entity-types"}, {tagSchemas, "--tag-schemas"}} {
 			if conflict.set {
 				u.Fail("--browser opens it in the Browser; %s renders it here. Pick one.", conflict.flag)
 				return 1
@@ -251,6 +254,9 @@ func Browse(args []string) int {
 	case entityTypes:
 		op = "browse:entity-types-requested"
 		payload = semiont.BrowseEntityTypesRequest{}
+	case tagSchemas:
+		op = "browse:tag-schemas-requested"
+		payload = semiont.BrowseTagSchemasRequest{}
 	case annotations:
 		op = "browse:annotations-requested"
 		payload = semiont.BrowseAnnotationsRequest{ResourceId: resourceID}
@@ -434,6 +440,23 @@ func renderBrowse(u *launcher.UI, op bus.Channel, reply json.RawMessage) int {
 		}
 		for _, e := range r.Response.EntityTypes {
 			fmt.Printf("  %s\n", e)
+		}
+	case "browse:tag-schemas-requested":
+		var r semiont.BrowseTagSchemasResult
+		if err := json.Unmarshal(reply, &r); err != nil {
+			return rawFallback(reply)
+		}
+		if len(r.Response.TagSchemas) == 0 {
+			u.Log("This KB declares no tag schemas yet.")
+			return 0
+		}
+		// A schema's id and its categories' names are what a delegated
+		// tagging pass is asked by:  semiont mark --delegate --help
+		for _, schema := range r.Response.TagSchemas {
+			fmt.Printf("  %-24s %s %s\n", schema.Id, schema.Name, u.Dim("("+schema.Domain+")"))
+			for _, category := range schema.Tags {
+				fmt.Printf("    %-22s %s\n", category.Name, u.Dim(category.Description))
+			}
 		}
 	default:
 		return rawFallback(reply)

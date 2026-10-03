@@ -520,6 +520,44 @@ the issuer half didn't complete), and `semiont status --verbose` lists every sto
 session under SESSIONS, live-verified against the stack when reachable —
 valid / expired / unverified, never a guess.
 
+The stored sessions are the sign-in store, a contract in
+`specs/src/sign-in-store`: `<state home>/tokens.json`, which an application
+on the Rust SDK reads and renews too, so one `semiont login` serves both.
+Every change to it is made under an exclusive lock on `tokens.lock`, a member
+the launcher does not understand is written back as it was, and a file it
+cannot read is never written over. A renewal reads the store again before it
+writes: tokens another program renewed meanwhile stand, and a stack signed
+out meanwhile stays signed out. The entry's shape, the two OAuth client ids
+and the sign-in scope are generated from the spec (`npm run
+generate:launcher-contracts`), the state home runs the spec's cases, and CI
+fails when any of them drifts.
+
+### Delegating to the stack
+
+Yield and mark each have a hand form and a delegated one. By hand, `semiont
+yield --upload` registers a file and `semiont mark <resourceId>` writes one
+annotation from a selector and a body. Delegated, the stack's worker does the
+work as a job the launcher creates and follows to its end, narrating its
+progress:
+
+- `semiont yield --delegate <resourceId> [<annotationId>] --storage-uri
+  <uri> --title <text>` gathers context around the resource (or one of its
+  annotations) and generates a new resource from it.
+- `semiont mark --delegate <resourceId> --motivation <m>` has the worker read
+  the whole resource and annotate it: `highlighting`, `commenting`,
+  `assessing`, `linking` (references to the entity types `--entity-type`
+  names) or `tagging` (a tag schema's categories, `--schema` and
+  `--category`). `semiont browse --entity-types` and `semiont browse
+  --tag-schemas` list what a KB offers for those.
+
+Both end with what the job did: the resource generated, or how many
+annotations were created of how many were found. A job the queue runs again
+after a failed attempt is followed through the retry. A decline (a resource
+with no text the worker could read) and a failure both exit non-zero, and
+`--json` prints the job's completion as the stack sent it. What `mark
+--delegate` sends for each motivation is the `mark.assist` row of
+`specs/src/client/surface.json`, which the TypeScript and Rust SDKs run too.
+
 ### Driving a participant's Browser
 
 `semiont browse <resourceId> --browser` opens that resource on the

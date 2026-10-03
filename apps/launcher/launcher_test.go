@@ -5972,10 +5972,12 @@ func TestCleanShowsEachSecretItDeletesFromTheFilesystem(t *testing.T) {
 
 // --- semiont settings (LAUNCHER-SETTINGS) ---
 
-// settingRow: the line `semiont settings` prints for one setting, or "". A
-// label may carry its flag: "secret-store --default".
+// settingRow: what `semiont settings` prints for one setting, or "": its line,
+// and the line below when a wide value put its explanation there. A label may
+// carry its flag: "secret-store --default".
 func settingRow(out, label string) string {
-	for _, line := range strings.Split(out, "\n") {
+	lines := strings.Split(out, "\n")
+	for i, line := range lines {
 		f := strings.Fields(line)
 		if len(f) == 0 {
 			continue
@@ -5984,12 +5986,20 @@ func settingRow(out, label string) string {
 		if len(f) > 1 && strings.HasPrefix(f[1], "--") {
 			got += " " + f[1]
 		}
-		if got == label {
-			return line
+		if got != label {
+			continue
 		}
+		if i+1 < len(lines) && strings.HasPrefix(lines[i+1], settingContinuation) {
+			return line + "\n" + lines[i+1]
+		}
+		return line
 	}
 	return ""
 }
+
+// settingContinuation: the indent of an explanation printed below its value —
+// the two-space margin, the 24-wide name column and the space after it.
+var settingContinuation = strings.Repeat(" ", 27)
 
 func TestSettingsListsEverySetting(t *testing.T) {
 	s := newScenario(t, "container", "docker", "op")
@@ -6091,6 +6101,51 @@ func TestSettingsSetsAndClearsTheStickyOnes(t *testing.T) {
 	mustContain(t, "runtime row", settingRow(out, "runtime"), "auto-detect")
 	mustContain(t, "keycloak-port row", settingRow(out, "keycloak-port"), "8080", "default")
 	mustContain(t, "config row", settingRow(out, "config"), "ollama-gemma", "default")
+}
+
+// A value too wide for its column puts its explanation on the next line, under
+// the value. Sharing the line left one space between them: a secret's source
+// ran into "read at each start", and the file store's "for development only"
+// into "the default".
+func TestSettingsKeepsAWideValueApartFromItsExplanation(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	if _, stderr, code := s.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+		t.Fatalf("secret set: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, stderr, code := s.run(t, "settings")
+	if code != 0 {
+		t.Fatalf("settings: exit %d\nstderr:\n%s", code, stderr)
+	}
+	lines := strings.Split(stdout, "\n")
+	// explanationBelow: the row whose value starts and ends as given carries
+	// its explanation alone on the next line, in the value's column.
+	explanationBelow := func(valueStart, valueEnd, explanation string) {
+		t.Helper()
+		for i, line := range lines {
+			at := strings.Index(line, valueStart)
+			if at < 0 {
+				continue
+			}
+			if !strings.HasSuffix(line, valueEnd) {
+				t.Errorf("a wide value shares its line with what follows it:\n%q", line)
+				return
+			}
+			if want := strings.Repeat(" ", at) + explanation; lines[i+1] != want {
+				t.Errorf("the line after the value is\n%q, want\n%q", lines[i+1], want)
+			}
+			return
+		}
+		t.Errorf("no row holds %q:\n%s", valueStart, stdout)
+	}
+	explanationBelow("ANTHROPIC_API_KEY ← op://", "op://OSS/Anthropic/credential", "read at each start; the environment wins")
+	explanationBelow("the files under ", "not secure: for development only", "the default")
+
+	// A value that fits keeps its explanation beside it.
+	for _, line := range lines {
+		if strings.Contains(line, "auto-detect (container)") && !strings.Contains(line, "the default: the first of") {
+			t.Errorf("a value that fits lost its explanation to another line:\n%q", line)
+		}
+	}
 }
 
 // The machine's default store applies to new knowledge bases only
@@ -8716,6 +8771,139 @@ func TestYieldDelegateNeedsStorageUri(t *testing.T) {
 		t.Fatal("--delegate without --storage-uri must refuse")
 	}
 	mustContain(t, "refusal", stderr, "--storage-uri")
+}
+
+// --- mark --delegate: annotation through the job lifecycle ---
+
+// jobCreate: the job:create a verb emitted, decoded.
+func jobCreate(t *testing.T, emit string) (jobType, resourceID string, params map[string]any) {
+	t.Helper()
+	var e struct {
+		Channel string `json:"channel"`
+		Payload struct {
+			JobType    string         `json:"jobType"`
+			ResourceID string         `json:"resourceId"`
+			Params     map[string]any `json:"params"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal([]byte(emit), &e); err != nil || e.Channel != "job:create" {
+		t.Fatalf("the last emit is not a job:create (%v):\n%s", err, emit)
+	}
+	if e.Payload.Params == nil {
+		t.Errorf("job:create carries no params object; the schema requires one:\n%s", emit)
+	}
+	return e.Payload.JobType, e.Payload.ResourceID, e.Payload.Params
+}
+
+// The delegated form of mark is yield --delegate's sibling: it creates a job
+// of the type its motivation names, and follows it to its end. The stack's
+// worker reads the resource and writes the annotations.
+func TestMarkDelegateFollowsJobToCompletion(t *testing.T) {
+	s := busScenario(t)
+
+	stdout, stderr, code := s.run(t, "mark", "--delegate", "res-1", "--motivation", "highlighting",
+		"--instructions", "key claims", "--density", "5")
+	if code != 0 {
+		t.Fatalf("mark --delegate: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "Annotating res-1", "highlighting", "fake-job-1", "Analyzing text", "3 highlights", "4 found")
+	jobType, resourceID, params := jobCreate(t, lastEmit(t, s))
+	if jobType != "highlight-annotation" || resourceID != "res-1" {
+		t.Errorf("job:create asks for a %q job on %q, want highlight-annotation on res-1", jobType, resourceID)
+	}
+	if params["instructions"] != "key claims" || params["density"] != float64(5) {
+		t.Errorf("the job's params are %v, want the instructions and a density of 5", params)
+	}
+	// The dispatcher refuses a job:create whose params name the resource: the
+	// resource is the command's.
+	if _, named := params["resourceId"]; named {
+		t.Errorf("params names the resource, which the dispatcher refuses: %v", params)
+	}
+
+	// Linking: the entity types to detect, and descriptive references.
+	stdout, stderr, code = s.run(t, "mark", "--delegate", "res-1", "--motivation", "linking",
+		"--entity-type", "Person", "--entity-type", "Place", "--descriptive", "--source-language", "fr")
+	if code != 0 {
+		t.Fatalf("mark --delegate linking: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "4 references", "5 found", "1 error")
+	jobType, _, params = jobCreate(t, lastEmit(t, s))
+	if jobType != "reference-annotation" {
+		t.Errorf("linking asks for a %q job, want reference-annotation", jobType)
+	}
+	if got := fmt.Sprint(params["entityTypes"]); got != "[Person Place]" || params["includeDescriptiveReferences"] != true || params["sourceLanguage"] != "fr" {
+		t.Errorf("the linking job's params are %v", params)
+	}
+
+	// Tagging: a schema and the categories of it to tag.
+	stdout, stderr, code = s.run(t, "mark", "--delegate", "res-1", "--motivation", "tagging",
+		"--schema", "legal-irac", "--category", "issue", "--category", "rule", "--language", "de")
+	if code != 0 {
+		t.Fatalf("mark --delegate tagging: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "6 tags", "issue 2", "rule 4")
+	jobType, _, params = jobCreate(t, lastEmit(t, s))
+	if jobType != "tag-annotation" || params["schemaId"] != "legal-irac" || fmt.Sprint(params["categories"]) != "[issue rule]" || params["language"] != "de" {
+		t.Errorf("tagging asks for a %q job with params %v", jobType, params)
+	}
+
+	// --json prints the completion as the stack sent it, and still succeeds.
+	stdout, stderr, code = s.run(t, "mark", "--delegate", "res-1", "--motivation", "commenting", "--tone", "scholarly", "--json")
+	if code != 0 {
+		t.Fatalf("mark --delegate --json: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "raw completion", stdout, `"kind":"comment-annotation"`, `"commentsCreated":2`)
+	if _, _, params = jobCreate(t, lastEmit(t, s)); params["tone"] != "scholarly" {
+		t.Errorf("the commenting job's params are %v, want the tone", params)
+	}
+}
+
+func TestMarkDelegateReportsJobFailure(t *testing.T) {
+	s := busScenario(t, "FAKERT_JOB_FAIL=model refused")
+	stdout, stderr, code := s.run(t, "mark", "--delegate", "res-1", "--motivation", "assessing")
+	if code == 0 {
+		t.Fatalf("a failed job must fail the command\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "failure", stdout+stderr, "Annotation failed", "model refused")
+	if strings.Contains(stdout, "Marked") {
+		t.Errorf("claimed a mark that never happened:\n%s", stdout)
+	}
+}
+
+// An annotation job is run again after a failed attempt. That failure is an
+// event of a job still running: the worker says the queue will retry it, and a
+// client that stopped there would report a recovering run as a failed one.
+func TestMarkDelegateGoesOnThroughARetriedAttempt(t *testing.T) {
+	s := busScenario(t, "FAKERT_JOB_RETRY=provider overloaded")
+	stdout, stderr, code := s.run(t, "mark", "--delegate", "res-1", "--motivation", "highlighting")
+	if code != 0 {
+		t.Fatalf("a job that recovered on its second attempt failed the command: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the retried attempt", stdout+stderr, "provider overloaded", "again")
+	mustContain(t, "stdout", stdout, "3 highlights")
+	if strings.Contains(stdout+stderr, "Annotation failed") {
+		t.Errorf("a retried attempt was reported as the job's failure:\n%s", stdout+stderr)
+	}
+}
+
+// A decline completes the job: the resource had no text to read. Nothing was
+// annotated, so the command fails, in either output format, and does not call
+// it a crash.
+func TestMarkDelegateReportsADecline(t *testing.T) {
+	s := busScenario(t, `FAKERT_JOB_RESULT={"kind":"declined","declined":true,"reason":"no-text-layer"}`)
+	stdout, stderr, code := s.run(t, "mark", "--delegate", "res-1", "--motivation", "highlighting")
+	if code == 0 {
+		t.Fatalf("a declined job annotated nothing; exit 0 tells a script to carry on\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "decline", stdout+stderr, "no-text-layer", "could not be recognized", "Nothing was annotated")
+	if strings.Contains(stdout, "Marked") || strings.Contains(stdout+stderr, "Annotation failed") {
+		t.Errorf("a decline is neither a mark nor a failure:\n%s", stdout+stderr)
+	}
+	stdout, _, code = s.run(t, "mark", "--delegate", "res-1", "--motivation", "highlighting", "--json")
+	if code == 0 {
+		t.Fatalf("--json must not turn a decline into a success\nstdout:\n%s", stdout)
+	}
+	mustContain(t, "raw completion", stdout, `"declined":true`, `"no-text-layer"`)
 }
 
 // The roots registry had an upsert and nothing else, so a row whose

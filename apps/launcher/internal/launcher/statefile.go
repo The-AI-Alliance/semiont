@@ -93,25 +93,31 @@ func (st *StackState) platform() platform {
 	return platformLocal
 }
 
-// StateDir is the launcher's XDG state home: ~/Library/Application Support/
-// semiont on macOS (Apple's state-and-config home), $XDG_STATE_HOME/semiont
-// (default ~/.local/state/semiont) elsewhere. "" when no home is resolvable.
-func StateDir() string {
-	if runtime.GOOS == "darwin" {
-		dir, err := os.UserConfigDir()
-		if err != nil {
-			return ""
-		}
-		return filepath.Join(dir, "semiont")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
+// stateDirFor: the launcher's state home, from what the system says of the
+// person's directories: the application-support directory on macOS,
+// $XDG_STATE_HOME/semiont (default ~/.local/state/semiont) elsewhere, and ""
+// when there is no home. specs/src/sign-in-store/cases.json states it, and
+// every program that finds tokens.json runs those cases.
+func stateDirFor(macos bool, home, xdgStateHome string) string {
+	switch {
+	case home == "":
 		return ""
-	}
-	if s := os.Getenv("XDG_STATE_HOME"); s != "" {
-		return filepath.Join(s, "semiont")
+	case macos:
+		return filepath.Join(home, "Library", "Application Support", "semiont")
+	case xdgStateHome != "":
+		return filepath.Join(xdgStateHome, "semiont")
 	}
 	return filepath.Join(home, ".local", "state", "semiont")
+}
+
+// StateDir is the launcher's state home on this machine. "" when no home is
+// resolvable.
+func StateDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return stateDirFor(runtime.GOOS == "darwin", home, os.Getenv("XDG_STATE_HOME"))
 }
 
 func statePath() string {

@@ -25,14 +25,7 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
-const (
-	CliClientID = "semiont-cli"
-	// offline_access asks for a refresh token that outlives the issuer's
-	// browser session — a CLI session is a once-a-month event, not an
-	// hourly chore.
-	deviceScope     = "openid email profile offline_access"
-	deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code"
-)
+const deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code"
 
 type issuerEndpoints struct {
 	Issuer              string `json:"issuer"`
@@ -60,7 +53,7 @@ func discoverIssuer(ctx context.Context, cli *semiont.ClientWithResponses, base 
 		return issuerEndpoints{}, fmt.Errorf("issuer %s: discovery names no token endpoint", issuer)
 	}
 	if ep.DeviceAuthorization == "" {
-		return issuerEndpoints{}, fmt.Errorf("issuer %s offers no device authorization endpoint — semiont login needs the device grant (RFC 8628) enabled for client %s", issuer, CliClientID)
+		return issuerEndpoints{}, fmt.Errorf("issuer %s offers no device authorization endpoint — semiont login needs the device grant (RFC 8628) enabled for client %s", issuer, ScriptClientID)
 	}
 	return ep, nil
 }
@@ -190,8 +183,8 @@ func openBrowser(url string) error {
 func deviceLogin(ctx context.Context, u *UI, ep issuerEndpoints) (tokenResponse, error) {
 	var da deviceAuthorization
 	status, err := postForm(ctx, ep.DeviceAuthorization, url.Values{
-		"client_id": {CliClientID},
-		"scope":     {deviceScope},
+		"client_id": {ScriptClientID},
+		"scope":     {SignInScope},
 	}, &da)
 	if err != nil {
 		return tokenResponse{}, fmt.Errorf("device authorization request: %w", err)
@@ -228,7 +221,7 @@ func deviceLogin(ctx context.Context, u *UI, ep issuerEndpoints) (tokenResponse,
 		status, err := postForm(ctx, ep.Token, url.Values{
 			"grant_type":  {deviceGrantType},
 			"device_code": {da.DeviceCode},
-			"client_id":   {CliClientID},
+			"client_id":   {ScriptClientID},
 		}, &tr)
 		if err != nil {
 			return tokenResponse{}, fmt.Errorf("token request: %w", err)
@@ -256,7 +249,7 @@ func refreshTokens(ctx context.Context, tokenEndpoint, refreshToken string) (tok
 	status, err := postForm(ctx, tokenEndpoint, url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {refreshToken},
-		"client_id":     {CliClientID},
+		"client_id":     {ScriptClientID},
 	}, &tr)
 	if err != nil {
 		return tokenResponse{}, err
@@ -273,7 +266,7 @@ func revokeToken(ctx context.Context, revocationEndpoint, refreshToken string) e
 	status, err := postForm(ctx, revocationEndpoint, url.Values{
 		"token":           {refreshToken},
 		"token_type_hint": {"refresh_token"},
-		"client_id":       {CliClientID},
+		"client_id":       {ScriptClientID},
 	}, nil)
 	if err != nil {
 		return err
