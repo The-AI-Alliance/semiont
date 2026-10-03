@@ -133,7 +133,7 @@ interface PermissionError {
 
 #### 2. Permission-Aware Components
 
-```typescript sketch
+```tsx sketch
 function DocumentEditor({ document }) {
   const permissions = useDocumentPermissions(document.id);
 
@@ -206,7 +206,7 @@ Both systems use the same event-driven architecture for consistent error handlin
 There is no permission to check before acting. What the session can tell you is
 who the caller is — which is what attribution and "is this mine?" need:
 
-```typescript
+```tsx
 function MyComponent() {
   const session = useObservable(useSemiont().activeSession$);
   const me = useObservable(session?.user$);

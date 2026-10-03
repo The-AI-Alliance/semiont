@@ -167,7 +167,7 @@ All state lives in the closure. **No module-scoped mutable state** — no module
 
 Every piece of state a consumer cares about is exposed as `Observable<T>` — not as a getter, not as a snapshot method, not as a callback. Consumers subscribe; they don't poll.
 
-```ts no-check
+```ts sketch
 // ✅
 loading$: Observable<boolean>;
 

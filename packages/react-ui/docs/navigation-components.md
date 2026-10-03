@@ -20,10 +20,10 @@ is usually `routes.resourceDetail`.
 
 ```tsx
 import { CollapsibleResourceNavigation } from '@semiont/react-ui';
-import { Link, routes } from './routing';
+import { Bars3Icon, ChevronLeftIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 <CollapsibleResourceNavigation
-  fixedItems={[{ name: 'Discover', href: '/know/discover', icon: TelescopeIcon }]}
+  fixedItems={[{ name: 'Discover', href: '/know/discover', icon: MagnifyingGlassIcon }]}
   resources={openResources}
   isCollapsed={isCollapsed}
   currentPath={pathname}

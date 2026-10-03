@@ -50,7 +50,7 @@ i18n
 
 The namespace-binding pattern keeps call sites clean:
 
-```typescript
+```tsx
 import { useTranslation } from 'react-i18next';
 
 export function MyComponent() {

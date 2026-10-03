@@ -595,7 +595,7 @@ contract.
 
 Worker-side adapters live with their domain and consume `BusRequestPrimitive`, the transport-neutral bus interface that `@semiont/core` exports. `createJobClaimAdapter` is exported by `@semiont/jobs`; `smelterFanIn` by `@semiont/make-meaning`. The primitive has six members: `emit(channel, payload, envelope?)`; `stream(channel)` and `frames(channel)`, the payload and envelope views of a channel; `state$`; `trackReply(correlationId)`; and `isSubscribed(channel)`. `emit`, `stream` and `frames` are typed by the channel name, so the payload comes from `EventMap[channel]` rather than from a type argument a caller supplies. The HTTP `ActorStateUnit` from `@semiont/http-transport` extends it; in-process code gets one from an `EventBus` with `asBusRequestPrimitive` (`@semiont/make-meaning`). A worker hands the adapter the HTTP actor like this:
 
-```typescript no-check
+```typescript sketch
 import type { HttpTransport } from '@semiont/sdk';
 import { createJobClaimAdapter } from '@semiont/jobs';
 

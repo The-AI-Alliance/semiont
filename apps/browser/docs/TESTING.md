@@ -176,7 +176,7 @@ src/mocks/                        # MSW mock handlers
 
 ### Component Test Example
 
-```typescript
+```tsx
 // src/components/__tests__/KnowledgeBasePanel.test.tsx
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -256,7 +256,7 @@ describe('some component using session state', () => {
 
 TypeScript provides compile-time validation across all components:
 
-```typescript
+```tsx
 // All components are fully typed
 export function ResourceTitle({ id }: { id: ResourceId }): JSX.Element {
   const semiont = useObservable(useSemiont().activeSession$)?.client;
@@ -277,7 +277,7 @@ export function ResourceTitle({ id }: { id: ResourceId }): JSX.Element {
 
 Runtime error capture and graceful degradation:
 
-```typescript
+```tsx
 // Wrap components in error boundaries
 <AsyncErrorBoundary>
   <ComponentThatMightFail />
@@ -373,7 +373,7 @@ The codebase follows the **Humble Object Pattern** for React components, with bu
 
 ### Example Structure
 
-```typescript
+```tsx
 // ✅ Pure Component (@semiont/react-ui/src/components/ResourceViewer.tsx)
 export interface ResourceViewerProps {
   resourceId: string;
@@ -413,7 +413,7 @@ export function ResourcePage() {
 
 **Test in @semiont/react-ui** (business logic):
 
-```typescript
+```tsx
 // packages/react-ui/src/components/resource/__tests__/ResourceViewer.embeddable.test.tsx
 import { screen } from '@testing-library/react';
 import { BehaviorSubject } from 'rxjs';
@@ -441,7 +441,7 @@ it('renders resource title', async () => {
 
 **Browser wrapper tests** (minimal, if needed):
 
-```typescript
+```tsx
 // apps/browser/src/app/[locale]/know/resource/[id]/__tests__/navigation.test.tsx
 // Usually not needed - wrapper is too thin
 // If testing is required, mock @semiont/react-ui components
@@ -457,7 +457,7 @@ vi.mock('@semiont/react-ui', () => ({
 
 **Test the pure component** (contains all business logic):
 
-```typescript
+```tsx
 // ✅ Good: Test pure component
 import { render, screen } from '@testing-library/react';
 import { EntityTagsPage } from '@semiont/react-ui';
@@ -490,7 +490,7 @@ it('renders page title', () => {
 
 **Skip the page wrapper** (too thin to test):
 
-```typescript
+```tsx
 // ❌ Bad: Testing page wrapper requires mocking everything
 import Page from '../page'; // The wrapper
 

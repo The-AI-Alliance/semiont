@@ -323,7 +323,7 @@ the refusal's message as its detail.
 
 **Component-level:** a live query carries its own loading/error state in the value it emits — `useObservable(semiont.browse.resource(id))` yields `CacheState` values (`pending` / `ready` / `failed`, plus `undefined` on the very first render). One-shot hooks such as `useResourceGraph` return an explicit `{ data, loading, error }` shape:
 
-```typescript
+```tsx
 const { graph, loading, error } = useResourceGraph(id);
 
 if (error) {
@@ -499,7 +499,7 @@ See [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) for documentat
 
 The `@semiont/react-ui` library uses the **Provider Pattern** to remain framework-agnostic:
 
-```typescript
+```tsx
 // @semiont/react-ui defines the INTERFACE
 interface AnnotationManager {
   createAnnotation: (params: CreateAnnotationParams) => Promise<Annotation | undefined>;

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "SAFE-DOCS fixture: compile-checks the sdk docs' and the two SDK-bearing READMEs' code fences against dist through the exports map, the way an external consumer resolves them",
+  "description": "SAFE-DOCS fixture: compile-checks the code fences of the sdk docs and of the react-ui and Browser docs, with their READMEs, against dist through the exports map, the way each doc's reader resolves them",
   "scripts": {
     "check": "node check.mjs"
   },

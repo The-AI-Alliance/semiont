@@ -303,7 +303,7 @@ export function ResourceViewerPage({ rUri, ... }: ResourceViewerPageProps) {
 
 Components trigger operations via the SDK on `session.client`, not callback props:
 
-```typescript
+```tsx
 function ReferencesPanel() {
   const session = useObservable(useSemiont().activeSession$);
 
@@ -468,7 +468,7 @@ it('should expose assistingMotivation from the mark state unit', () => {
 
 Test UI rendering and operation triggering:
 
-```typescript
+```tsx
 it('should call mark.requestAssist when button clicked', async () => {
   const requestAssist = vi.spyOn(session.client.mark, 'requestAssist');
 

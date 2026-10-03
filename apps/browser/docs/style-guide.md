@@ -48,7 +48,7 @@ content: [
 
 When using components from @semiont/react-ui, they already have all necessary styling:
 
-```typescript
+```tsx
 import { Button, Toolbar } from '@semiont/react-ui';
 
 // Components come pre-styled with semantic classes
@@ -79,7 +79,7 @@ If you need to customize a react-ui component, add additional classes without ov
 #### For App-Specific Components
 Use Tailwind utilities freely for components defined in the Browser app:
 
-```typescript
+```tsx
 // App-specific component using Tailwind
 <div className="flex items-center gap-4 p-6 bg-white dark:bg-gray-800">
   <span className="text-lg font-semibold">Custom content</span>
@@ -145,7 +145,7 @@ Use the blue-to-cyan gradient (`from-blue-600 to-cyan-600`) for:
 The react-ui package provides fundamental UI elements in the `core/` directory:
 
 ### Toggle Switches
-```typescript
+```tsx
 // Use the semantic classes from core/toggles.css
 <label className="semiont-toggle">
   <input type="checkbox" className="semiont-toggle__input" />
@@ -154,7 +154,7 @@ The react-ui package provides fundamental UI elements in the `core/` directory:
 ```
 
 ### Progress Bars
-```typescript
+```tsx
 // From core/progress.css
 <div className="semiont-progress">
   <div className="semiont-progress__fill" style={{width: '60%'}}></div>
@@ -230,7 +230,7 @@ import { Button } from '@semiont/react-ui';
 ```
 
 #### Cards
-```typescript
+```tsx
 // A card is a class, not a component
 <div className="semiont-card">
   <h3>Title</h3>
@@ -239,7 +239,7 @@ import { Button } from '@semiont/react-ui';
 ```
 
 #### Panels
-```typescript
+```tsx
 // Using semantic classes directly
 <div className="semiont-panel">
   <div className="semiont-panel__header">
@@ -303,7 +303,7 @@ import { buttonStyles } from '@/lib/button-styles';
 - "View More" links
 - Filter options
 
-```typescript
+```tsx
 <button className={buttonStyles.tertiary.base}>Tertiary Action</button>
 ```
 
@@ -371,7 +371,7 @@ className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focu
 ```
 
 For @semiont/react-ui form components:
-```typescript
+```tsx
 <div className="semiont-form__field">
   <label className="semiont-form__label">Label</label>
   <input className="semiont-form__input" />
@@ -398,7 +398,7 @@ className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 da
 ```
 
 For @semiont/react-ui cards:
-```typescript
+```tsx
 <div className="semiont-card">
   {/* Card content */}
 </div>
@@ -434,7 +434,7 @@ interface SemiontBrandingProps {
 - Authenticated pages header
 
 **Example:**
-```typescript
+```tsx
 <SemiontBranding
   size="sm"
   showTagline={true}
@@ -447,7 +447,7 @@ interface SemiontBrandingProps {
 **When to use:** Default size for general use
 
 **Example:**
-```typescript
+```tsx
 <SemiontBranding />  // Defaults to md
 ```
 
@@ -455,7 +455,7 @@ interface SemiontBrandingProps {
 **When to use:** Feature sections, about pages
 
 **Example:**
-```typescript
+```tsx
 <SemiontBranding
   size="lg"
   showTagline={true}
@@ -471,7 +471,7 @@ interface SemiontBrandingProps {
 - Landing page above the CTA buttons
 
 **Example:**
-```typescript
+```tsx
 <SemiontBranding
   size="xl"
   animated={true}

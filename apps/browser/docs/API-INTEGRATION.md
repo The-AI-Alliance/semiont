@@ -11,10 +11,10 @@ gateway transport, and W3C annotation model.
 The Browser integrates with the gateway through a layered architecture
 that maintains framework independence:
 
-```
+```text
 ┌─────────────────────────────────────┐
-│         apps/browser               │
-│         (Vite + React Router v7)    │
+│         apps/browser                │
+│         (Vite + React Router)       │
 │                                     │
 │  • Auth + session wiring            │
 │  • Page layouts and routing         │
@@ -91,11 +91,19 @@ The app mounts the provider once at the root (see
 `apps/browser/src/app/providers.tsx`):
 
 ```tsx
-<TranslationProvider …>
-  <SemiontProvider>
-    {/* Toast, LiveRegion, KeyboardShortcuts, Theme, then the app */}
-  </SemiontProvider>
-</TranslationProvider>
+import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const translationManager = useMergedTranslationManager();
+  return (
+    <TranslationProvider translationManager={translationManager}>
+      <SemiontProvider>
+        {/* Toast, LiveRegion, KeyboardShortcuts, Theme and LineNumbers providers wrap the app */}
+        {children}
+      </SemiontProvider>
+    </TranslationProvider>
+  );
+}
 ```
 
 Most components never read the client directly — dedicated hooks
@@ -132,22 +140,27 @@ cookie, no ambient credential.
   `activeSession$`, and revokes the refresh token at the issuer (RFC 7009).
 
 Protected layouts mount `AuthShell`, which mounts the protected error boundary
-and the two auth-failure modals; the modals read the active session's signals
-(`activeSignals$`):
+(reset on every route change) and the three signals modals — session ended,
+permission denied, KB identity conflict; each reads the active session's
+signals (`activeSignals$`):
 
 ```tsx
 // apps/browser/src/contexts/AuthShell.tsx
+import { useLocation } from 'react-router';
 import {
   ProtectedErrorBoundary,
   SessionEndedModal,
   PermissionDeniedModal,
+  KbIdentityConflictModal,
 } from '@semiont/react-ui';
 
-export function AuthShell({ children }) {
+export function AuthShell({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
   return (
-    <ProtectedErrorBoundary>
+    <ProtectedErrorBoundary resetKeys={[location.pathname]}>
       <SessionEndedModal />
       <PermissionDeniedModal />
+      <KbIdentityConflictModal />
       {children}
     </ProtectedErrorBoundary>
   );
@@ -198,38 +211,47 @@ for interoperability with other annotation systems.
 
 ### Annotation Structure
 
+The wire type is `Annotation`, generated from the OpenAPI spec and exported
+by `@semiont/sdk`:
+
 ```typescript
-interface Annotation {
-  "@context": "http://www.w3.org/ns/anno.jsonld";
-  type: "Annotation";
-  id: string;
-  created: string;                 // ISO 8601
-  creator: { id: string; type: "Person" };
+const linked: Annotation = {
+  '@context': 'http://www.w3.org/ns/anno.jsonld',
+  type: 'Annotation',
+  id: annotationId,
+  motivation: 'linking',
+  created: '2026-01-15T09:30:00Z',         // ISO 8601
   target: {
-    source: string;                // resource id
-    selector: Selector[];          // position + quote
-  };
-  body: AnnotationBody[];          // multi-body: tags + links
-}
+    source: resourceId,                     // the annotated resource
+    selector: [                             // position + quote
+      { type: 'TextPositionSelector', start: 100, end: 115 },
+      { type: 'TextQuoteSelector', exact: 'knowledge graph' },
+    ],
+  },
+  body: [                                   // multi-body: tags + links
+    { type: 'TextualBody', purpose: 'tagging', value: 'Person' },
+    { type: 'SpecificResource', purpose: 'linking', source: resourceId },
+  ],
+};
 ```
+
+`creator` and `wasAttributedTo` are derived by the knowledge base at write
+time and never accepted from an emitter.
 
 ### Multi-Body Annotations
 
-Annotations combine entity-type tags and resource links:
+Annotations combine entity-type tags and resource links. Each body is a
+`BodyItem`, told apart by `type`:
 
 **Entity tag** (`TextualBody`):
 ```typescript
-{ type: "TextualBody", purpose: "tagging", value: "Person" }
+const tag: BodyItem = { type: 'TextualBody', purpose: 'tagging', value: 'Person' };
 ```
 
-**Resource link** (`SpecificResource`):
+**Resource link** (`SpecificResource`) — `source` is the id of the resource
+the body leads to:
 ```typescript
-{
-  type: "SpecificResource",
-  purpose: "linking",
-  source: "doc-einstein-bio",
-  relationship: "definition",
-}
+const link: BodyItem = { type: 'SpecificResource', purpose: 'linking', source: resourceId };
 ```
 
 ### Selectors
@@ -238,17 +260,21 @@ Two complementary selector types anchor annotations to text:
 
 **TextPositionSelector** — character offsets (fast, precise):
 ```typescript
-{ type: "TextPositionSelector", start: 100, end: 115 }
+import type { TextPositionSelector } from '@semiont/core';
+
+const position: TextPositionSelector = { type: 'TextPositionSelector', start: 100, end: 115 };
 ```
 
 **TextQuoteSelector** — text with context (resilient to edits):
 ```typescript
-{
-  type: "TextQuoteSelector",
-  exact: "knowledge graph",
-  prefix: "building a ",
-  suffix: " using annotations",
-}
+import type { TextQuoteSelector } from '@semiont/core';
+
+const quote: TextQuoteSelector = {
+  type: 'TextQuoteSelector',
+  exact: 'knowledge graph',
+  prefix: 'building a ',
+  suffix: ' using annotations',
+};
 ```
 
 Together they survive both precise edits (offsets shift) and large
@@ -282,14 +308,15 @@ final result event arrives in the same HTTP turnaround as the command
 
 ### Error Shape
 
-Gateway errors follow a consistent shape:
+Every gateway error answers with the spec's `ErrorResponse` body, whatever
+the status and route:
 
 ```typescript
-{
-  error: string;       // human-readable
-  code: string;        // machine-readable
-  details?: unknown;   // context
-}
+import type { components } from '@semiont/core';
+
+type ErrorResponse = components['schemas']['ErrorResponse'];
+// error: what went wrong, in a sentence; code?: a machine-readable class;
+// hint?: what the caller can do about it; details?: context
 ```
 
 ### In the Client
@@ -298,6 +325,8 @@ HTTP errors from the http-transport surface as `APIError`:
 
 ```typescript
 import { APIError } from '@semiont/http-transport';
+
+declare const input: CreateAnnotationInput;
 
 try {
   await semiont.mark.annotation(input);

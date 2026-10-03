@@ -106,7 +106,7 @@ await deleteAnnotation(rId, annotationId);
 
 Main component for viewing annotated resources:
 
-```typescript
+```tsx
 import { ResourceViewer } from '@semiont/react-ui';
 
 <ResourceViewer
@@ -223,7 +223,7 @@ observables that the UI reads via `useObservable`:
 To trigger detection, a panel calls the SDK directly — there is no handler to
 wire up and no detection context object:
 
-```typescript
+```tsx
 import { useObservable, useSemiont } from '@semiont/react-ui';
 
 function ReferencesAssist({ stateUnit }: { stateUnit: ResourceViewerPageStateUnit }) {
@@ -312,7 +312,7 @@ detection: {
 
 ### SVG Drawing Canvas
 
-```typescript
+```tsx
 import { SvgDrawingCanvas } from '@semiont/react-ui';
 
 <SvgDrawingCanvas
@@ -442,7 +442,7 @@ function toOverlayAnnotations(annotations: Annotation[]): OverlayAnnotation[] {
 
 ### Annotation Rendering
 
-```typescript
+```tsx
 import { CodeMirrorRenderer } from '@semiont/react-ui';
 
 <CodeMirrorRenderer
@@ -489,7 +489,7 @@ resource's `browse.*` live queries acquires its SSE scope; gateway events on the
 session bus then drive the cache to refresh automatically. Components that just
 need the data read it via `useObservable`:
 
-```typescript
+```tsx
 import { useObservable, useSemiont } from '@semiont/react-ui';
 import { readyValue } from '@semiont/sdk';
 
@@ -518,7 +518,7 @@ function AnnotationsList({ rId }: { rId: ResourceId }) {
 
 The event bus architecture enables real-time collaboration by broadcasting UI events to peers:
 
-```typescript
+```tsx
 import { useSemiont, useEventSubscription } from '@semiont/react-ui';
 
 // Local component emits selection event

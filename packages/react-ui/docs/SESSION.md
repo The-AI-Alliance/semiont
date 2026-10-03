@@ -2,52 +2,58 @@
 
 The session layer is the per-KB authentication, token-refresh, event-bus,
 and HTTP client glue that sits between the React tree and the gateway.
-This document describes the current shape after the UNREACT and
-state-units-from-session refactors.
 
 ## Package layout
 
-```
+```text
 @semiont/sdk
-├── client.ts                 ← SemiontClient (HTTP + private EventBus)
-├── session/                  ← per-KB session, app-level browser, storage
-│   ├── session-storage.ts    ← SessionStorage interface + InMemorySessionStorage
-│   ├── semiont-session.ts    ← SemiontSession (per-KB)
-│   ├── semiont-browser.ts    ← SemiontBrowser (app singleton)
-│   ├── registry.ts           ← getBrowser({ storage }) singleton
-│   ├── storage.ts            ← pure helpers + adapter-fed loaders
-│   ├── refresh.ts            ← token refresh with in-flight dedup
-│   ├── notify.ts             ← out-of-React notify handlers
-│   ├── errors.ts             ← SemiontError + codes
-│   ├── knowledge-base.ts     ← KnowledgeBase, KbSessionStatus types
-│   └── open-resource.ts      ← OpenResource type
-└── state/              ← state-unit factories; take `client`, not a bus
-    ├── flows/                ← beckon, browse, gather, mark, match, yield
-    ├── domain/                ← actor, job-queue, welcome, admin-*, …
-    └── pages/                 ← compose-page, resource-viewer-page
+├── client.ts                    ← SemiontClient (transport + its EventBus)
+├── session/                     ← per-KB session, app-level browser, storage
+│   ├── session-storage.ts       ← SessionStorage interface + InMemorySessionStorage
+│   ├── semiont-session.ts       ← SemiontSession (per-KB)
+│   ├── semiont-browser.ts       ← SemiontBrowser (app singleton)
+│   ├── session-signals.ts       ← SessionSignals (the modals' state)
+│   ├── session-factory.ts       ← SessionFactory type
+│   ├── http-session-factory.ts  ← createHttpSessionFactory()
+│   ├── registry.ts              ← getBrowser({ storage, sessionFactory }) singleton
+│   ├── oauth.ts                 ← issuer discovery, PKCE / device grants, refresh, revoke
+│   ├── connect.ts               ← what a completed sign-in learns about the KB
+│   ├── storage.ts               ← pure helpers + adapter-fed loaders
+│   ├── errors.ts                ← SemiontSessionError
+│   ├── knowledge-base.ts        ← KnowledgeBase, KbSessionStatus types
+│   └── open-resource.ts         ← OpenResource type
+└── state/                       ← state-unit factories; take `client`, not a bus
+    ├── flows/                   ← beckon, gather, mark, match, yield
+    └── lib/                     ← createDisposer, search pipeline
 
 @semiont/react-ui
-└── session/
-    ├── SemiontProvider.tsx   ← React context provider + useSemiont hook
-    └── web-browser-storage.ts ← WebBrowserStorage (localStorage + storage event)
+├── session/
+│   ├── SemiontProvider.tsx      ← React context provider + useSemiont hook
+│   └── web-browser-storage.ts   ← WebBrowserStorage (localStorage + storage event)
+└── state/
+    └── shell-state-unit.ts      ← ShellStateUnit (toolbar panel state)
 ```
 
-No session logic lives in `@semiont/react-ui` anymore. The React surface is
-exactly two exports: `SemiontProvider` / `useSemiont` (context) and
-`WebBrowserStorage` (the browser-backed `SessionStorage` implementation).
+No session logic lives in `@semiont/react-ui`. Its session surface is
+`SemiontProvider` / `useSemiont` (context) and `WebBrowserStorage` (the
+browser-backed `SessionStorage` implementation).
 
 ## Core classes
 
 ### `SemiontClient`
 
-Owns HTTP (via `ky`), an actor-shaped SSE connection, and a private
-`EventBus`. Workspace-scoped: one client per connected KB.
+Owns its transport (`client.transport` — for HTTP, an `HttpTransport` over
+`ky` with one SSE connection) and its `EventBus` (`client.bus`, read-only).
+Workspace-scoped: one client per connected KB.
 
 Bus surface:
 
 ```ts
-client.bus.emit<K>(channel: K, payload: EventMap[K]): number
-client.bus.on<K>(channel: K): Observable<EventMap[K]>
+import type { Observable } from 'rxjs';
+
+// emit returns how many subscribers the payload reached
+const reached: number = client.bus.emit('beckon:hover', { annotationId });
+const hovers: Observable<EventMap['beckon:hover']> = client.bus.on('beckon:hover');
 ```
 
 The client owns its bus (`client.bus`, an `EventBus`). Typed namespace methods
@@ -63,8 +69,15 @@ Per-KB lifetime object. Owns:
   its typed namespace methods and listen with `session.subscribe(channel,
   handler)`, which returns its own unsubscribe.
 - `token$`, `user$` — observable auth state.
-- Modal state: `sessionEnded$`, `permissionDenied$` and `kbIdentityConflict$`, each null until raised. A session-ended notice carries why it ended (`reason`: `expired` or `refused`); a permission notice carries the refusal's message (`detail`). Neither carries a sentence: the modals write what a person reads.
+- `errors$` — the transport's errors, republished.
 - `refresh()` — token refresh entrypoint.
+
+Modal state sits beside the session in its `SessionSignals`
+(`browser.activeSignals$`): `sessionEnded$`, `permissionDenied$` and
+`kbIdentityConflict$`, each null until raised. A session-ended notice carries
+why it ended (`reason`: `expired` or `refused`); a permission notice carries
+the refusal's message (`detail`). Neither carries a sentence: the modals write
+what a person reads.
 
 The session is **not** a bus wrapper. It does not forward `emit`/`on` —
 that surface is on the client directly. Components hold the session, read
@@ -75,7 +88,8 @@ that surface is on the client directly. Components hold the session, read
 App-level singleton. Owns:
 
 - `kbs$` — configured KB list
-- `activeKbId$`, `activeSession$` — active selection + session
+- `activeKbId$`, `activeSession$`, `activeSignals$` — active selection,
+  its session, and that session's `SessionSignals`
 - `sessionActivating$` — true while a session is actively being
   constructed (`setActiveKb`/`signIn` in flight, awaiting
   `session.ready`). Layouts that show a loading spinner while the
@@ -105,10 +119,12 @@ with a distinct scope and lifetime:
 
 | Bus | Owner | Lifetime | Channels |
 |---|---|---|---|
-| Session bus | `SemiontClient` (private) | Per-KB session (reborn every `signIn` / `setActiveKb`) | KB-content traffic: `browse:*` (reads), `mark:*`, `beckon:*`, `gather:*`, `match:*`, `bind:*`, `yield:*`, `job:*` |
+| Session bus | `SemiontClient` (`client.bus`, read-only) | Per-KB session (reborn every `signIn` / `setActiveKb`) | KB-content traffic: `browse:*` (reads), `mark:*`, `beckon:*`, `gather:*`, `match:*`, `bind:*`, `yield:*`, `job:*` |
 | Shell bus | `SemiontBrowser` (private) | App lifetime (survives sign-out / KB swap) | UI shell traffic: `panel:*`, `shell:*`, `tabs:*`, `nav:*`, `settings:*` |
 
-Both buses expose the same `emit` / `on` / `stream` surface. The split
+The browser exposes its bus as `emit` / `on` / `stream`; the client exposes
+`client.bus` (`emit` / `on`), and components listen on it through
+`session.subscribe(channel, handler)`. The split
 exists because the shell bus must keep working when there is no
 active session: panels can toggle, sidebar can collapse, tabs can
 close, and the settings panel is reachable, even on a signed-out KB
@@ -130,7 +146,7 @@ const session = useObservable(semiont.activeSession$);
 semiont.emit('panel:toggle', { panel: 'settings' });
 
 // KB-content event — requires an active session.
-session?.client.mark.request(resourceId, selector, 'highlighting');
+session?.client.mark.request(resourceId, { type: 'TextPositionSelector', start: 0, end: 12 }, 'highlighting');
 ```
 
 The `useEventSubscription(channel, handler)` hook hides this: it
@@ -154,7 +170,6 @@ Implementations:
 - `InMemorySessionStorage` (in `@semiont/sdk`) — for tests / in-memory.
 - `WebBrowserStorage` (in `@semiont/react-ui`) — wraps `localStorage` and
   the `window` `storage` event for cross-tab sync.
-- Future `FileSystemSessionStorage` for CLI persistence — not yet built.
 
 ## React surface
 
@@ -163,7 +178,7 @@ Implementations:
 ```tsx
 import { SemiontProvider } from '@semiont/react-ui';
 
-export default function AppLayout({ children }) {
+export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SemiontProvider>
       {children}
@@ -172,12 +187,18 @@ export default function AppLayout({ children }) {
 }
 ```
 
-`SemiontProvider` defaults to constructing its `SemiontBrowser` with
-`new WebBrowserStorage()` via `getBrowser({ storage: new WebBrowserStorage() })`.
-Tests can inject a different browser:
+`SemiontProvider` defaults to the canonical web setup,
+`getBrowser({ storage: new WebBrowserStorage(), sessionFactory: createHttpSessionFactory() })`;
+its `storage` and `sessionFactory` props override either half. Tests inject a
+whole browser — a real `SemiontBrowser` over the SDK's in-memory doubles:
 
 ```tsx
-<SemiontProvider browser={testBrowser}>{...}</SemiontProvider>
+import { createTestSession, stubGateway } from '@semiont/sdk/testing';
+
+const { session, storage } = createTestSession({ gateway: stubGateway() });
+const testBrowser = new SemiontBrowser({ storage, sessionFactory: () => session });
+
+<SemiontProvider browser={testBrowser}>{children}</SemiontProvider>;
 ```
 
 Inside components:
@@ -190,7 +211,7 @@ function MyComponent() {
   const session = useObservable(browser.activeSession$);
   const user = useObservable(session?.user$);
 
-  if (!user) return <SignInPrompt />;
+  if (!user) return <p>Not signed in</p>;
   return <div>Hello, {user.name}</div>;
 }
 ```
@@ -200,7 +221,7 @@ function MyComponent() {
 Components say things through the client's typed namespace methods:
 
 ```tsx
-function MarkButton({ annotationId }) {
+function MarkButton({ annotationId }: { annotationId: AnnotationId }) {
   const session = useObservable(useSemiont().activeSession$);
   return (
     <button onClick={() => session?.client.browse.click(annotationId)}>
@@ -216,9 +237,11 @@ stale-closure + cleanup correctly:
 ```tsx
 import { useEventSubscription } from '@semiont/react-ui';
 
+declare function triggerSparkleAnimation(id: AnnotationId): void; // the host's own
+
 function AnnotationReactor() {
-  useEventSubscription('mark:create-ok', ({ annotationId }) => {
-    triggerSparkleAnimation(annotationId);
+  useEventSubscription('mark:create-ok', ({ response }) => {
+    triggerSparkleAnimation(response.annotationId);
   });
   return null;
 }
@@ -235,10 +258,10 @@ receives payloads; the other stays silent. If the active session swaps
 Every state-unit factory takes exactly one bus-owner, matching the bus its
 channels live on:
 
-- **Session-scoped state units** (mark, beckon, gather, match, bind, yield,
-  browse) take `client: SemiontClient` and route through
-  `client.bus.emit` / `client.bus.on`. Their lifetime is tied to the
-  session.
+- **Session-scoped state units** (mark, beckon, gather, match, yield) take
+  `client: SemiontClient` and route through `client.bus.emit` /
+  `client.bus.on`. Their lifetime is tied to the session
+  (`useSessionStateUnit`).
 - **Shell-scoped state units** (`ShellStateUnit` — toolbar panel state, sidebar
   collapse) take `browser: SemiontBrowser` and route through
   `browser.emit` / `browser.stream`. Their lifetime is tied to the app.
@@ -249,6 +272,10 @@ client bus, toolbar panel state and sidebar collapse would fail
 whenever no session existed.
 
 ```tsx
+// localStorage-backed, beside the hook
+declare function readPanel(): ToolbarPanelType | null;
+declare function persistPanel(panel: ToolbarPanelType | null): void;
+
 export function useShellStateUnit(): ShellStateUnit {
   const semiont = useSemiont();
   return useStateUnit(() => createShellStateUnit(semiont, {
@@ -258,9 +285,8 @@ export function useShellStateUnit(): ShellStateUnit {
 }
 ```
 
-state-unit factories import only from `@semiont/sdk` and call
-`.stream(channel).subscribe(...)` / `.emit(channel, payload)`. No
-factory touches a raw `EventBus`.
+State-unit factories never construct an `EventBus`: they reach the bus
+through the client or browser they are given.
 
 ### `useKBDiscovery` — launcher-published KBs
 
@@ -302,11 +328,12 @@ const { state, kbs } = useKBDiscovery();          // same-origin httpDiscovery()
    session; `setActiveKb` is the only path to swap.
 2. **Session classes are environment-agnostic.** No `window` or
    `localStorage` references. Storage goes through `SessionStorage`.
-3. **Both `eventBus` fields are private.** All bus access is via
-   `.emit` / `.on` / `.stream` on the owning object (client or
-   browser). Enforced by TypeScript.
-4. **state-unit factories import only from `@semiont/sdk`.** No
-   `import { EventBus } from '@semiont/core'` in state unit files.
+3. **The browser's bus is private; the client's is read-only.** Shell
+   traffic goes through `browser.emit` / `.on` / `.stream`; session
+   traffic through the client's typed namespace methods, `client.bus`,
+   or `session.subscribe`.
+4. **State-unit factories never construct an `EventBus`.** They take the
+   client or browser that owns one.
 5. **Every channel belongs to exactly one bus.** `EventMap` in
    `@semiont/core/bus-protocol.ts` is the source of truth. Don't
    split a channel across buses; don't emit to both.
@@ -315,23 +342,24 @@ const { state, kbs } = useKBDiscovery();          // same-origin httpDiscovery()
    construction must AND-gate on `sessionActivating$`; otherwise
    they get stuck spinning after `signOut`.
 7. **React layer is provider + hook only.** All session types live in
-   `@semiont/sdk`; the React package exports only `SemiontProvider`,
+   `@semiont/sdk`; the React package's session surface is `SemiontProvider`,
    `useSemiont`, and `WebBrowserStorage`.
 
 ## Non-React consumers
 
-Because session/browser now live in `@semiont/sdk`, CLI and MCP can
-use them directly:
+Because session/browser live in `@semiont/sdk`, CLI and MCP can use them
+directly:
 
 ```ts
-import { SemiontBrowser, InMemorySessionStorage } from '@semiont/sdk';
+import { SemiontBrowser, InMemorySessionStorage, createHttpSessionFactory } from '@semiont/sdk';
 
-const browser = new SemiontBrowser({ storage: new InMemorySessionStorage() });
-// ...
+const browser = new SemiontBrowser({
+  storage: new InMemorySessionStorage(),
+  sessionFactory: createHttpSessionFactory(),
+});
 ```
 
-CLI commands that previously needed ad-hoc `new EventBus()` plumbing now
-just use the client's `emit`/`on`/`stream` methods directly — no bus
+They say things through the client's typed namespace methods — no bus
 wiring required.
 
 ## Testing
@@ -342,17 +370,17 @@ without depending on jsdom's `localStorage`. See
 `packages/sdk/src/session/__tests__/test-storage-helpers.ts` for
 the test harness pattern.
 
-StateUnit factory tests use `makeTestClient()` from
-`packages/sdk/src/__tests__/test-client.ts`:
+StateUnit factory tests drive a real `SemiontClient` from `createTestClient()`
+(`@semiont/sdk/testing`) — real caches, real `busRequest`, real namespaces
+over a scriptable `FaultyTransport`:
 
 ```ts
-import { makeTestClient } from '../../../__tests__/test-client';
+import { createTestClient } from '@semiont/sdk/testing';
 
-const { client, bus } = makeTestClient({
-  mark: { annotation: vi.fn().mockResolvedValue({ annotationId: 'x' }) },
-});
-const vm = createMarkStateUnit(client, resourceId);
-client.mark.submit({ ... });
-// ... assert ...
-bus.destroy(); // in afterEach
+const { client, transport } = createTestClient();
+const unit = createMarkStateUnit(client, resourceId);
+client.mark.request(resourceId, { type: 'TextQuoteSelector', exact: 'hello' }, 'highlighting');
+// assert on unit.pendingAnnotation$; script gateway replies with transport.queueReply(...)
+unit.dispose();
+client.dispose(); // in afterEach
 ```

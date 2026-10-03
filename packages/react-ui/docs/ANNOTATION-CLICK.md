@@ -281,7 +281,7 @@ sequenceDiagram
 
 ### Example 1: Panel with Direct Ref Management
 
-```typescript
+```tsx
 // ReferencesPanel.tsx
 export const ReferencesPanel: FC<Props> = ({
   annotations,
@@ -376,7 +376,7 @@ export const ReferencesPanel: FC<Props> = ({
 
 ### Example 2: Entry Component with forwardRef
 
-```typescript
+```tsx
 // ReferenceEntry.tsx
 interface ReferenceEntryProps {
   reference: Annotation;
@@ -431,7 +431,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
 
 ### Example 3: Central State Coordinator
 
-```typescript
+```tsx
 // ResourceViewerPage.tsx
 export const ResourceViewerPage: FC<Props> = ({ resourceId }) => {
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
