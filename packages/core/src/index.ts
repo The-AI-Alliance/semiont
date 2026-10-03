@@ -316,13 +316,13 @@ export type {
 // Locale info table
 export {
   LOCALES,
+  LOCALE_CODES,
   getLocaleInfo,
   getLocaleNativeName,
   getLocaleEnglishName,
   formatLocaleDisplay,
-  getAllLocaleCodes,
 } from './locales';
-export type { LocaleInfo } from './locales';
+export type { LocaleCode, LocaleInfo } from './locales';
 
 // SVG utilities
 export {

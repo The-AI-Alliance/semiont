@@ -14,7 +14,7 @@ import { Component, type ReactNode } from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { AVAILABLE_LOCALES } from '@semiont/react-ui';
+import { LOCALE_CODES } from '@semiont/core';
 
 vi.unmock('react-router');
 vi.unmock('react-i18next');
@@ -173,9 +173,9 @@ describe('the root path', () => {
 
     renderAt('/');
 
-    await waitFor(() => expect(pickerLinks()).toHaveLength(AVAILABLE_LOCALES.length));
+    await waitFor(() => expect(pickerLinks()).toHaveLength(LOCALE_CODES.length));
     expect(pickerLinks().map((link) => link.getAttribute('href'))).toEqual(
-      AVAILABLE_LOCALES.map((code) => `/${code}`),
+      LOCALE_CODES.map((code) => `/${code}`),
     );
     expect(screen.queryByTestId('home-page')).not.toBeInTheDocument();
   });
@@ -187,8 +187,8 @@ describe('the language picker', () => {
 
     renderAt('/');
 
-    await waitFor(() => expect(pickerLinks()).toHaveLength(AVAILABLE_LOCALES.length));
-    expect(pickerLinks().map((link) => link.lang)).toEqual([...AVAILABLE_LOCALES]);
+    await waitFor(() => expect(pickerLinks()).toHaveLength(LOCALE_CODES.length));
+    expect(pickerLinks().map((link) => link.lang)).toEqual([...LOCALE_CODES]);
     expect(screen.getByRole('link', { name: 'Français' })).toHaveAttribute('href', '/fr');
     expect(screen.getByRole('link', { name: 'العربية' })).toHaveAttribute('href', '/ar');
     expect(screen.getByRole('link', { name: '日本語' })).toHaveAttribute('href', '/ja');
@@ -197,7 +197,7 @@ describe('the language picker', () => {
   it('is what an unsupported locale gets, with the rest of the URL kept for the language chosen', async () => {
     renderAt('/xx/know/discover?tab=recent#top');
 
-    await waitFor(() => expect(pickerLinks()).toHaveLength(AVAILABLE_LOCALES.length));
+    await waitFor(() => expect(pickerLinks()).toHaveLength(LOCALE_CODES.length));
     expect(screen.getByRole('link', { name: 'Français' }))
       .toHaveAttribute('href', '/fr/know/discover?tab=recent#top');
     expect(screen.queryByTestId('home-page')).not.toBeInTheDocument();
@@ -206,7 +206,7 @@ describe('the language picker', () => {
   it('does not ask i18next for the unsupported locale', async () => {
     renderAt('/xx');
 
-    await waitFor(() => expect(pickerLinks()).toHaveLength(AVAILABLE_LOCALES.length));
+    await waitFor(() => expect(pickerLinks()).toHaveLength(LOCALE_CODES.length));
     expect(backend.requested).not.toContain('xx');
   });
 });

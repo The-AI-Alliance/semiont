@@ -1,24 +1,10 @@
 import { describe, test, expect } from 'vitest';
 import {
-  LOCALES,
   getLocaleInfo,
   getLocaleNativeName,
   getLocaleEnglishName,
   formatLocaleDisplay,
-  getAllLocaleCodes,
 } from '../locales';
-
-describe('LOCALES', () => {
-  test('contains English', () => {
-    const en = LOCALES.find(l => l.code === 'en');
-    expect(en).toEqual({ code: 'en', nativeName: 'English', englishName: 'English' });
-  });
-
-  test('has unique codes', () => {
-    const codes = LOCALES.map(l => l.code);
-    expect(new Set(codes).size).toBe(codes.length);
-  });
-});
 
 describe('getLocaleInfo', () => {
   test('returns info for valid code', () => {
@@ -79,14 +65,5 @@ describe('formatLocaleDisplay', () => {
 
   test('lowercases the code in output', () => {
     expect(formatLocaleDisplay('FR')).toBe('Français (fr)');
-  });
-});
-
-describe('getAllLocaleCodes', () => {
-  test('returns array of codes', () => {
-    const codes = getAllLocaleCodes();
-    expect(codes).toContain('en');
-    expect(codes).toContain('zh');
-    expect(codes.length).toBe(LOCALES.length);
   });
 });

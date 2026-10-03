@@ -18,8 +18,8 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('@/i18n/config', async () => {
-  const { AVAILABLE_LOCALES } = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
-  return { isSupportedLocale: (locale: string) => (AVAILABLE_LOCALES as readonly string[]).includes(locale) };
+  const { LOCALE_CODES } = await vi.importActual<typeof import('@semiont/core')>('@semiont/core');
+  return { isSupportedLocale: (locale: string) => (LOCALE_CODES as readonly string[]).includes(locale) };
 });
 
 import { Link, useLocale } from '../routing';

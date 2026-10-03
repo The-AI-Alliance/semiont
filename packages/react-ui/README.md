@@ -26,7 +26,7 @@ Framework-agnostic React component library for building Semiont knowledge manage
 - **Accessibility First** - WCAG compliant with keyboard navigation, screen reader support
 - **Comprehensive Testing** - 1250+ tests with extensive coverage
 - **Annotation System** - Rich annotation and tagging capabilities
-- **Built-in Translations** - 29 locales (`AVAILABLE_LOCALES`), each loaded on demand
+- **Built-in Translations** - one per supported language (`LOCALE_CODES` from `@semiont/core`), each loaded on demand
 - **Flexible i18n** - Two modes: built-in locales or a custom translation system. There is no default language
 - **Favicon Assets** - Complete set of Semiont branded favicons for all platforms
 

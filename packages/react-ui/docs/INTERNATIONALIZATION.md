@@ -6,7 +6,7 @@
 
 The library provides:
 
-1. **Built-in translations** - 29 locales (`AVAILABLE_LOCALES`), each loaded on demand
+1. **Built-in translations** - one per supported language (`LOCALE_CODES` from `@semiont/core`), each loaded on demand
 2. **TranslationManager interface** - Contract for custom implementations
 3. **TranslationProvider** - The React Context every translated component reads
 4. **useTranslations hook** - Access translations in components
@@ -41,7 +41,7 @@ function App() {
 }
 ```
 
-`locale` is one of `AVAILABLE_LOCALES`, which is the list; it is not restated here.
+`locale` is a `LocaleCode` from `@semiont/core`: the code of one of the languages `specs/src/locales/registry.json` names. The list is not restated here.
 
 ### 2. Custom Translation Implementation
 
@@ -471,9 +471,10 @@ The library loads every built-in locale with a dynamic import:
 
 To add support for another locale:
 
-1. Add the translation file, `translations/<code>.json`, with every namespace and key (`npm run lint:translations` checks)
-2. Add the code to the `AVAILABLE_LOCALES` constant in `packages/react-ui/src/contexts/TranslationContext.tsx` (a test fails when the constant and the translation files differ)
-3. The locale will be dynamically loaded when used
+1. Add the language's row to `specs/src/locales/registry.json`; `@semiont/core` generates `LOCALE_CODES` from it
+2. Add the translation file, `translations/<code>.json`, with every namespace and key
+3. `npm run lint:translations` fails until every language the registry names has a file, and no file exists for a language it does not name
+4. The locale will be dynamically loaded when used
 
 ### Preloading Translations
 
