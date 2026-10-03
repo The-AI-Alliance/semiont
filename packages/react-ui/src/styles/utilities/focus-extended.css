@@ -265,18 +265,6 @@ select:focus:not(:focus-visible) {
   outline: none;
 }
 
-/* Skip link (always visible on focus) */
-.semiont-skip-link:focus {
-  outline: 2px solid var(--semiont-color-primary-500);
-  outline-offset: 2px;
-  position: relative;
-  z-index: 1000;
-}
-
-[data-theme="dark"] .semiont-skip-link:focus {
-  outline-color: var(--semiont-color-primary-400);
-}
-
 /* ========================================
    Table Components (when interactive)
    ======================================== */
@@ -300,7 +288,6 @@ select:focus:not(:focus-visible) {
   .semiont-toolbar-menu-button:focus-visible,
   .semiont-resource-button:focus-visible,
   .semiont-signout-button:focus-visible,
-  .semiont-skip-link:focus,
   input:focus-visible,
   textarea:focus-visible,
   select:focus-visible {
