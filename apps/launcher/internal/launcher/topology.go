@@ -7,11 +7,13 @@ package launcher
 // store, an embedding model, an issuer. WHERE those listen on this machine
 // today is a fact of the start that placed them. So:
 //
-//   - A section that states no address leaves it to the launcher. loadConfig
+//   - A daemon is the launcher's to run and to place unless its section says
+//     `platform = "external"`. Its section states no address: loadConfig
 //     writes the launcher's own reference there (unstatedAddresses), which the
 //     plan reads as "the launcher places this daemon".
-//   - A section that states one describes a daemon somebody else runs: it is
-//     verified, never launched, and reaches each service as it was written.
+//   - `platform = "external"` says somebody else runs the daemon. The section
+//     states where; it is verified, never launched, and its address reaches
+//     each service as it was written.
 //   - Each service's staged copy states every placed address as a literal
 //     (stagedServiceConfig), so no container's environment says anything of
 //     where its dependencies are.
@@ -113,6 +115,11 @@ func placeUnstated(envSection map[string]any, sections []string) {
 			}
 		}
 		if stated, ok := table[a.key]; ok && stated != "" {
+			continue
+		}
+		// A daemon somebody else runs has no address the launcher could give
+		// it: the section states one, and derivePlan refuses it if not.
+		if table["platform"] == "external" {
 			continue
 		}
 		table[a.key] = a.value()

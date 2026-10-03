@@ -2602,7 +2602,7 @@ func TestStartDemandsOnlyTheVariablesSomethingReads(t *testing.T) {
 func TestStartServiceResolvesWhatTheLauncherReadsForIt(t *testing.T) {
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "external-db", stdGraph+stdVectors+stdEmbedding+
-		"[environments.local.database]\nhost = \"db.example.com\"\nport = 5432\nname = \"semiont\"\nuser = \"semiont\"\npassword = \"${EXT_PG}\"\n\n")
+		"[environments.local.database]\nplatform = \"external\"\nhost = \"db.example.com\"\nport = 5432\nname = \"semiont\"\nuser = \"semiont\"\npassword = \"${EXT_PG}\"\n\n")
 	s.extraEnv = append(s.extraEnv, "EXT_PG=pgsecret", "ANTHROPIC_API_KEY=test-key")
 	for _, c := range []struct{ service, config string }{{"identity", "external-db"}, {"inference", "anthropic"}} {
 		if stdout, stderr, code := s.run(t, "start", "--service", c.service, "--config", c.config); code != 0 {
@@ -4544,11 +4544,12 @@ const stdDatabase = "[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\
 const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\n\n"
 
 func TestStartExternalGraphBoot(t *testing.T) {
-	// graph at a literal address: verify reachability, launch no container,
-	// claim no graph ports.
+	// A graph somebody else runs (platform = "external"), at the address the
+	// config states: verify reachability, launch no container, claim no graph
+	// ports.
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "external-graph",
-		"[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://127.0.0.1:7777\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
+		"[environments.local.graph]\nplatform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://127.0.0.1:7777\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
 			stdVectors+stdEmbedding+stdDatabase)
 	serveHealth(t, 7777)
 	stdout, stderr, code := s.run(t, "start", "--config", "external-graph")
@@ -4654,7 +4655,7 @@ func TestStartServiceExternalIsNoop(t *testing.T) {
 	// P0 q5: --service on an externally-provided role warns and exits 0.
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "external-graph",
-		"[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://graph.example.com:7687\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
+		"[environments.local.graph]\nplatform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://graph.example.com:7687\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
 			stdVectors+stdEmbedding+stdDatabase)
 	stdout, stderr, code := s.run(t, "start", "--service", "graph", "--config", "external-graph")
 	if code != 0 {

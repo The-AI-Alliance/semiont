@@ -400,26 +400,27 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		}
 	}
 
-	// classify: an address that is exactly the launcher's own reference means
-	// "the launcher places this" — what loadConfig writes where a config
-	// states no address (topology.go), and what a config may still write
-	// itself. Anything else is an address the config states: somebody else's
-	// daemon.
+	// somebodyElses: who runs the daemon a section names. `platform =
+	// "external"` is how a config says somebody else does: the section then
+	// states where it is, and the launcher verifies it and launches nothing.
+	// Under any other platform, or none, the daemon is the launcher's to run
+	// and to place, and an address stated there is refused: it would be a
+	// second answer to who runs it.
 	//
-	// This DELIBERATELY ignores the section's own `platform` key (adjudicated
-	// 2026-07-20), which is read only for the posix case below. The fleet's
-	// configs declare platform = "external" on graph/vectors/database for
-	// daemons the launcher runs, so honoring the declaration would stop
-	// launching Neo4j, Qdrant and PostgreSQL for every KB in the fleet.
-	// Reading it there is not a latent bug to fix: "external" in those files
-	// means external to the gateway PROCESS, not "someone else runs it".
-	// Until that word means one thing in both places, the address is the
-	// authority. See GO-LAUNCHER.md follow-ups.
-	classify := func(host, injectedVar string) presence {
-		if referenceName(host) == injectedVar {
-			return presenceLauncher
+	// The launcher's own reference is the launcher's whatever the platform
+	// says — what loadConfig writes where no address is stated (topology.go),
+	// and what the fleet's configs were committed with under `platform =
+	// "external"`, where that word meant external to the gateway process.
+	somebodyElses := func(section, key, platform, address, host, reference string) (bool, error) {
+		switch {
+		case referenceName(host) == reference:
+			return false, nil
+		case platform != "external":
+			return false, secErr(section, "states %s = %q, and the launcher places every daemon it runs — add platform = \"external\" if somebody else runs this one, or delete %s", key, address, key)
+		case address == "":
+			return false, secErr(section, "says platform = \"external\": somebody else runs this, so the section states where — add %q", key)
 		}
-		return presenceExternal
+		return true, nil
 	}
 
 	// graph
@@ -442,11 +443,18 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			img = g.Image
 		}
 		rp := rolePlan{Role: "graph", Driver: g.Type, Port: port}
+		external, err := somebodyElses("graph", "uri", g.Platform, g.URI, host, "NEO4J_HOST")
+		if err != nil {
+			return nil, err
+		}
 		switch {
+		case external:
+			rp.Presence = presenceExternal
+			rp.Address = host
 		case g.Platform == "posix":
 			rp.Presence = presenceHostPreferred
 			rp.Image = img
-		case classify(host, "NEO4J_HOST") == presenceLauncher:
+		default:
 			if g.Password != "" {
 				return nil, launcherOwnedErr("graph", "password", "Neo4j")
 			}
@@ -457,9 +465,6 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			rp.Image = img
 			rp.User = g.Username
 			rp.Env = []string{"NEO4J_ACCEPT_LICENSE_AGREEMENT=yes"}
-		default:
-			rp.Presence = presenceExternal
-			rp.Address = host
 		}
 		plan.Roles["graph"] = rp
 	}
@@ -495,7 +500,11 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		vectorsPort = vspec.defaultPort
 	}
 	vectorsPlan := rolePlan{Role: "vectors", Driver: v.Type, Port: vectorsPort}
-	if classify(v.Host, "QDRANT_HOST") == presenceLauncher {
+	vectorsExternal, err := somebodyElses("vectors", "host", v.Platform, v.Host, v.Host, "QDRANT_HOST")
+	if err != nil {
+		return nil, err
+	}
+	if !vectorsExternal {
 		vectorsPlan.Presence = presenceLauncher
 		vectorsPlan.Image = vspec.image
 		if v.Image != "" {
@@ -524,7 +533,11 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			port = spec.defaultPort
 		}
 		rp := rolePlan{Role: "database", Driver: typ, Port: port}
-		if classify(d.Host, "POSTGRES_HOST") == presenceLauncher {
+		external, err := somebodyElses("database", "host", d.Platform, d.Host, d.Host, "POSTGRES_HOST")
+		if err != nil {
+			return nil, err
+		}
+		if !external {
 			if d.Password != "" {
 				return nil, launcherOwnedErr("database", "password", "PostgreSQL")
 			}
@@ -579,6 +592,9 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		if sig.Servers != j.Servers {
 			return nil, secErr("signal", "[jobs] and [signal] name different servers (%q vs %q) — one role is one daemon; they must match", j.Servers, sig.Servers)
 		}
+		if (sig.Platform == "external") != (j.Platform == "external") {
+			return nil, secErr("signal", "[jobs] and [signal] disagree on who runs the broker (platform %q vs %q) — one role is one daemon; they must match", j.Platform, sig.Platform)
+		}
 		if user != "" && sig.User != "" && sig.User != user {
 			return nil, secErr("signal", "[jobs] and [signal] name different broker users (%q vs %q) — one role is one daemon; they must match", j.User, sig.User)
 		}
@@ -605,7 +621,11 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		port = spec.defaultPort
 	}
 	messaging := rolePlan{Role: "messaging", Driver: "jetstream", Port: port}
-	if classify(host, "NATS_HOST") == presenceLauncher {
+	brokerExternal, err := somebodyElses("jobs", "servers", j.Platform, j.Servers, host, "NATS_HOST")
+	if err != nil {
+		return nil, err
+	}
+	if !brokerExternal {
 		// The broker the launcher runs is always authenticated, with a pair
 		// the launcher keeps (SECRET-DELIVERY P4): a config naming one is a
 		// second place deciding it.
@@ -691,8 +711,15 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			lifespan = *id.AccessTokenLifespan
 		}
 		rp := rolePlan{Role: "identity", Driver: id.Type, Port: port, Issuer: id.Issuer, AccessTokenLifespan: lifespan}
+		// An oidc issuer is somebody else's by its type; a keycloak says so.
+		keycloakExternal := false
+		if id.Type == "keycloak" {
+			if keycloakExternal, err = somebodyElses("identity", "issuer", id.Platform, id.Issuer, host, "KEYCLOAK_HOST"); err != nil {
+				return nil, err
+			}
+		}
 		switch {
-		case id.Type == "keycloak" && classify(host, "KEYCLOAK_HOST") == presenceLauncher:
+		case id.Type == "keycloak" && !keycloakExternal:
 			if keycloakRealm(path) == "" {
 				return nil, secErr("identity", "issuer %q must end in /realms/<realm> for type \"keycloak\"", id.Issuer)
 			}
@@ -756,6 +783,16 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		if port == 0 {
 			port = spec.defaultPort
 		}
+		// An ollama embedding is served by the stack's own Ollama unless the
+		// section says somebody else runs one. Voyage is remote by its type.
+		ownOllama := false
+		if e.Type == "ollama" {
+			external, err := somebodyElses("embedding", "baseURL", e.Platform, e.BaseURL, rawHost, "OLLAMA_HOST")
+			if err != nil {
+				return nil, err
+			}
+			ownOllama = !external
+		}
 		// The launcher's reference is the address of the machine hosting
 		// Ollama; the probe runs ON that machine, so it dials localhost. A
 		// voyage config usually names no baseURL at all.
@@ -778,7 +815,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		// anthropic config: Claude does the inference, Ollama exists solely
 		// for embeddings — then EMBEDDING owns the host-process dance itself,
 		// and the inference role is free to be what it really is: Anthropic.
-		if e.Type == "ollama" && rawHost == "${OLLAMA_HOST}" {
+		if ownOllama {
 			if bindingsUseOllama {
 				rp.SharesOllamaWith = "inference"
 			} else {
@@ -832,17 +869,24 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		plan.Roles["inference"] = rolePlan{Role: "inference", Presence: presenceAbsent}
 	default:
 		spec := descriptorFor("inference", "ollama")
-		baseURL := ""
+		// Where the Ollama that performs inference is: the embedding's, when
+		// the embedding is ollama too (one process serves both), else the
+		// provider section's.
+		section, platform, baseURL := "", "", ""
 		if env.Embedding != nil && env.Embedding.Type == "ollama" {
-			baseURL = env.Embedding.BaseURL
+			section, platform, baseURL = "embedding", env.Embedding.Platform, env.Embedding.BaseURL
 		}
 		if p, ok := env.Inference["ollama"]; ok && baseURL == "" {
-			baseURL = p.BaseURL
+			section, platform, baseURL = "inference.ollama", p.Platform, p.BaseURL
 		}
-		if baseURL == "" {
+		if section == "" {
 			return nil, secErr("inference", "a binding names ollama, and the config has no [environments.%s.inference.ollama] section to say how it runs — add one with a platform", envName)
 		}
 		host, port := parseHostPort(baseURL)
+		external, err := somebodyElses(section, "baseURL", platform, baseURL, host, "OLLAMA_HOST")
+		if err != nil {
+			return nil, err
+		}
 		if port == 0 {
 			port = spec.defaultPort
 		}
@@ -852,7 +896,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		}
 		rp := rolePlan{Role: "inference", Driver: "ollama", Port: port, Image: img}
 		rp.Models = bindingModels(env)
-		if host == "${OLLAMA_HOST}" {
+		if !external {
 			rp.Presence = presenceHostPreferred
 		} else {
 			rp.Presence = presenceExternal

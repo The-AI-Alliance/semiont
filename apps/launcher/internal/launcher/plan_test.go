@@ -40,7 +40,7 @@ func variantConfig(t *testing.T, replace map[string]string) string {
 	t.Helper()
 	sections := map[string]string{
 		"graph": `[environments.local.graph]
-platform = "external"
+platform = "container"
 type = "neo4j"
 uri = "bolt://${NEO4J_HOST}:7687"
 username = "neo4j"
@@ -51,14 +51,13 @@ host = "${QDRANT_HOST}"
 port = 6333
 `,
 		"database": `[environments.local.database]
-platform = "external"
+platform = "container"
 host = "${POSTGRES_HOST}"
 port = 5432
 name = "semiont"
 user = "postgres"
 `,
 		"embedding": `[environments.local.embedding]
-platform = "external"
 type = "ollama"
 model = "nomic-embed-text"
 baseURL = "http://${OLLAMA_HOST}:11434"
@@ -588,7 +587,9 @@ func TestLauncherRunBrokerIsAlwaysAuthenticated(t *testing.T) {
 // For a broker somebody else runs, the config supplies the pair, and the two
 // sections naming one daemon must agree.
 func TestBrokerCredentialsMustAgreeAcrossSections(t *testing.T) {
-	external := func(section string) string { return strings.ReplaceAll(section, "${NATS_HOST}", "nats.example.com") }
+	external := func(section string) string {
+		return strings.Replace(strings.ReplaceAll(section, "${NATS_HOST}", "nats.example.com"), "type = ", "platform = \"external\"\ntype = ", 1)
+	}
 	brokerSignal, brokerJobs := external(brokerSignal), external(brokerJobs)
 	_, err := planForBroker(t, brokerSignal,
 		strings.Replace(brokerJobs, `password = "broker-pw"`, `password = "a-different-one"`, 1))
@@ -633,8 +634,8 @@ func TestAHalfBrokerCredentialIsRefused(t *testing.T) {
 // only, so the pair is required.
 func TestAnExternalBrokerWithNoPairIsRefused(t *testing.T) {
 	_, err := planForBroker(t,
-		"[environments.local.signal]\ntype = \"nats\"\nservers = \"nats.example.com:4222\"\n",
-		"[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"nats.example.com:4222\"\n")
+		"[environments.local.signal]\nplatform = \"external\"\ntype = \"nats\"\nservers = \"nats.example.com:4222\"\n",
+		"[environments.local.jobs]\nplatform = \"external\"\ntype = \"jetstream\"\nservers = \"nats.example.com:4222\"\n")
 	if err == nil {
 		t.Fatal("an external broker with no user or password was accepted")
 	}

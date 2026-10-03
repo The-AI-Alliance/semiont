@@ -142,12 +142,12 @@ func TestAStagedConfigStatesEveryPlacedAddressAsALiteral(t *testing.T) {
 	}
 }
 
-// An address a config states is the operator describing a topology the
-// launcher cannot see: the daemon is somebody else's, and the address reaches
-// each service as it was written.
+// A daemon somebody else runs (`platform = "external"`) is a topology the
+// launcher cannot see: its address is the config's to state, and reaches each
+// service as it was written.
 func TestAStatedAddressIsStagedAsWritten(t *testing.T) {
 	cfg := []byte(strings.Replace(string(withoutAddresses(fixtureConfig(t, "ollama-gemma.toml"))),
-		"type = \"qdrant\"\nport = 6333\n", "type = \"qdrant\"\nhost = \"qdrant.internal\"\nport = 7000\n", 1))
+		"type = \"qdrant\"\nport = 6333\n", "platform = \"external\"\ntype = \"qdrant\"\nhost = \"qdrant.internal\"\nport = 7000\n", 1))
 	if !strings.Contains(string(cfg), "qdrant.internal") {
 		t.Fatal("the fixture's [vectors] no longer reads as this test expects")
 	}
@@ -335,5 +335,141 @@ func TestAGeneratedConfigStatesNoAddress(t *testing.T) {
 		if plan.Roles["graph"].Presence != presenceLauncher || plan.Roles["messaging"].Presence != presenceLauncher {
 			t.Errorf("%s: the launcher does not place the daemons of the config it generated", inference)
 		}
+	}
+}
+
+// `platform = "external"` is how a config says somebody else runs a daemon.
+// The section then states where it is, and the launcher verifies it and
+// launches nothing.
+func TestPlatformExternalSaysSomebodyElseRunsTheDaemon(t *testing.T) {
+	for _, c := range []struct {
+		role, section, body, address string
+	}{
+		{"graph", "graph", "[environments.local.graph]\nplatform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://graph.internal:7687\"\nusername = \"neo4j\"\npassword = \"${GRAPH_PASSWORD}\"\n", "graph.internal"},
+		{"vectors", "vectors", "[environments.local.vectors]\nplatform = \"external\"\ntype = \"qdrant\"\nhost = \"qdrant.internal\"\n", "qdrant.internal"},
+		{"database", "database", "[environments.local.database]\nplatform = \"external\"\nhost = \"pg.internal\"\nname = \"semiont\"\nuser = \"postgres\"\npassword = \"${PG_PASSWORD}\"\n", "pg.internal"},
+		{"messaging", "jobs", "[environments.local.jobs]\nplatform = \"external\"\ntype = \"jetstream\"\nservers = \"nats.internal:4222\"\nuser = \"${BROKER_USER}\"\npassword = \"${BROKER_PASSWORD}\"\n", "nats.internal"},
+		{"identity", "identity", "[environments.local.identity]\nplatform = \"external\"\ntype = \"keycloak\"\nissuer = \"https://login.example.com/realms/kb\"\nsubjectClaim = \"sub\"\n", "login.example.com"},
+		{"embedding", "embedding", "[environments.local.embedding]\nplatform = \"external\"\ntype = \"ollama\"\nmodel = \"nomic-embed-text\"\nbaseURL = \"http://gpu.internal:11434\"\n", "gpu.internal"},
+	} {
+		plan := mustDerive(t, variantConfig(t, map[string]string{c.section: c.body}))
+		if rp := plan.Roles[c.role]; rp.Presence != presenceExternal || rp.Address != c.address {
+			t.Errorf("%s: planned as (%v, %q), want somebody else's at %s", c.role, rp.Presence, rp.Address, c.address)
+		}
+	}
+}
+
+// refusal: derivePlan refuses the config variant, and the refusal says each
+// of the wanted things.
+func refusal(t *testing.T, replace map[string]string, want ...string) {
+	t.Helper()
+	path := variantConfig(t, replace)
+	env, envName, _, err := loadConfig(path)
+	if err == nil {
+		_, err = derivePlan(env, envName, "variant.toml", 8080)
+	}
+	if err == nil {
+		t.Errorf("the config was accepted; want a refusal naming %v", want)
+		return
+	}
+	for _, w := range want {
+		if !strings.Contains(err.Error(), w) {
+			t.Errorf("the refusal %q does not say %q", err, w)
+		}
+	}
+}
+
+// A section that says somebody else runs its daemon states where: the
+// launcher has no address to give it.
+func TestPlatformExternalStatesItsAddress(t *testing.T) {
+	refusal(t, map[string]string{"graph": "[environments.local.graph]\nplatform = \"external\"\ntype = \"neo4j\"\nusername = \"neo4j\"\n"}, "graph", "uri", `platform = "external"`)
+	refusal(t, map[string]string{"vectors": "[environments.local.vectors]\nplatform = \"external\"\ntype = \"qdrant\"\n"}, "vectors", "host", `platform = "external"`)
+	refusal(t, map[string]string{"database": "[environments.local.database]\nplatform = \"external\"\nname = \"semiont\"\n"}, "database", "host", `platform = "external"`)
+	refusal(t, map[string]string{"jobs": "[environments.local.jobs]\nplatform = \"external\"\ntype = \"jetstream\"\n"}, "jobs", "servers", `platform = "external"`)
+	refusal(t, map[string]string{"embedding": "[environments.local.embedding]\nplatform = \"external\"\ntype = \"ollama\"\nmodel = \"m\"\n"}, "embedding", "baseURL", `platform = "external"`)
+	refusal(t, map[string]string{"identity": "[environments.local.identity]\nplatform = \"external\"\ntype = \"keycloak\"\nsubjectClaim = \"sub\"\n"}, "identity", "issuer")
+}
+
+// An address is stated only for a daemon somebody else runs. One stated
+// without `platform = "external"` is two answers to who runs it, so the
+// launcher refuses and says both ways out.
+func TestAStatedAddressNeedsPlatformExternal(t *testing.T) {
+	refusal(t, map[string]string{"graph": "[environments.local.graph]\nplatform = \"container\"\ntype = \"neo4j\"\nuri = \"bolt://graph.internal:7687\"\nusername = \"neo4j\"\n"}, "graph", "uri", `platform = "external"`, "delete")
+	refusal(t, map[string]string{"vectors": "[environments.local.vectors]\ntype = \"qdrant\"\nhost = \"qdrant.internal\"\n"}, "vectors", "host", `platform = "external"`, "delete")
+	refusal(t, map[string]string{"database": "[environments.local.database]\nplatform = \"container\"\nhost = \"pg.internal\"\nname = \"semiont\"\n"}, "database", "host", `platform = "external"`)
+	refusal(t, map[string]string{"jobs": "[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"nats.internal:4222\"\n"}, "jobs", "servers", `platform = "external"`)
+	refusal(t, map[string]string{"embedding": "[environments.local.embedding]\ntype = \"ollama\"\nmodel = \"m\"\nbaseURL = \"http://gpu.internal:11434\"\n"}, "embedding", "baseURL", `platform = "external"`)
+	refusal(t, map[string]string{"identity": "[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"https://login.example.com/realms/kb\"\nsubjectClaim = \"sub\"\n"}, "identity", "issuer", `platform = "external"`)
+}
+
+// The shape the fleet's configs were committed in says `platform = "external"`
+// on a graph, a database and an embedding the launcher runs, each with its
+// address written as the launcher's own reference. That reference is the
+// launcher's whatever the platform says, so those configs start as they did.
+func TestTheLaunchersReferenceIsTheLaunchersUnderAnyPlatform(t *testing.T) {
+	plan := mustDerive(t, variantConfig(t, map[string]string{
+		"graph":     "[environments.local.graph]\nplatform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\n",
+		"database":  "[environments.local.database]\nplatform = \"external\"\nhost = \"${POSTGRES_HOST}\"\nport = 5432\nname = \"semiont\"\nuser = \"postgres\"\n",
+		"embedding": "[environments.local.embedding]\nplatform = \"external\"\ntype = \"ollama\"\nmodel = \"nomic-embed-text\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n",
+	}))
+	for _, role := range []string{"graph", "database"} {
+		if plan.Roles[role].Presence != presenceLauncher {
+			t.Errorf("%s: planned as %v, want the launcher's", role, plan.Roles[role].Presence)
+		}
+	}
+	if rp := plan.Roles["embedding"]; rp.Presence != presenceHostPreferred {
+		t.Errorf("embedding: planned as %v, want the launcher's own Ollama", rp.Presence)
+	}
+}
+
+// What a config says of who runs each daemon is what the launcher does: in
+// the scenario KB's configs and in every config the launcher generates, a
+// section says `platform = "external"` exactly when its daemon is planned as
+// somebody else's.
+func TestOnlyAnExternalDaemonSaysPlatformExternal(t *testing.T) {
+	configs := map[string][]byte{
+		"ollama-gemma.toml":   fixtureConfig(t, "ollama-gemma.toml"),
+		"anthropic.toml":      fixtureConfig(t, "anthropic.toml"),
+		"generated ollama":    []byte(generateSemiontconfig(genParams{Inference: "ollama", Model: "m", EmbeddingModel: "e"})),
+		"generated anthropic": []byte(generateSemiontconfig(genParams{Inference: "anthropic", Model: "m", EmbeddingModel: "e"})),
+	}
+	roleOf := map[string]string{"graph": "graph", "vectors": "vectors", "database": "database", "jobs": "messaging"}
+	for name, cfg := range configs {
+		_, plan := loadedFrom(t, cfg)
+		var doc map[string]any
+		if err := toml.Unmarshal(cfg, &doc); err != nil {
+			t.Fatal(err)
+		}
+		env := environmentSection(doc, "local")
+		for section, role := range roleOf {
+			table, ok := env[section].(map[string]any)
+			if !ok {
+				continue
+			}
+			says := table["platform"] == "external"
+			if is := plan.Roles[role].Presence == presenceExternal; says != is {
+				t.Errorf("%s: [%s] says platform = %v, and the launcher plans its %s as %v", name, section, table["platform"], role, plan.Roles[role].Presence)
+			}
+		}
+		// The local Ollama is the launcher's, whichever section names it.
+		if table, ok := env["embedding"].(map[string]any); ok && table["type"] == "ollama" && table["platform"] == "external" {
+			t.Errorf("%s: [embedding] says platform = external of the Ollama this stack runs", name)
+		}
+	}
+}
+
+// [jobs] and [signal] name one broker, so they agree on who runs it.
+func TestTheBrokersTwoSectionsAgreeOnWhoRunsIt(t *testing.T) {
+	const pair = "user = \"${BROKER_USER}\"\npassword = \"${BROKER_PASSWORD}\"\n"
+	refusal(t, map[string]string{
+		"jobs":   "[environments.local.jobs]\nplatform = \"external\"\ntype = \"jetstream\"\nservers = \"nats.internal:4222\"\n" + pair,
+		"signal": "[environments.local.signal]\ntype = \"nats\"\nservers = \"nats.internal:4222\"\n" + pair,
+	}, "signal", "who runs the broker")
+	plan := mustDerive(t, variantConfig(t, map[string]string{
+		"jobs":   "[environments.local.jobs]\nplatform = \"external\"\ntype = \"jetstream\"\nservers = \"nats.internal:4222\"\n" + pair,
+		"signal": "[environments.local.signal]\nplatform = \"external\"\ntype = \"nats\"\nservers = \"nats.internal:4222\"\n" + pair,
+	}))
+	if rp := plan.Roles["messaging"]; rp.Presence != presenceExternal || rp.Address != "nats.internal" {
+		t.Errorf("the broker is planned as (%v, %q), want somebody else's at nats.internal", rp.Presence, rp.Address)
 	}
 }

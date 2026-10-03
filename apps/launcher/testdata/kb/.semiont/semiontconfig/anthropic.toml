@@ -11,7 +11,7 @@ port = 4000
 publicURL = "http://${BACKEND_HOST:-localhost}:4000"
 
 [environments.local.graph]
-platform = "external"
+platform = "container"
 type = "neo4j"
 name = "neo4j"
 uri = "bolt://${NEO4J_HOST}:7687"
@@ -24,7 +24,6 @@ host = "${QDRANT_HOST}"
 port = 6333
 
 [environments.local.embedding]
-platform = "external"
 type = "ollama"
 model = "nomic-embed-text"
 baseURL = "http://${OLLAMA_HOST}:11434"
@@ -75,7 +74,7 @@ type = "anthropic"
 model = "claude-sonnet-4-5-20250929"
 
 [environments.local.database]
-platform = "external"
+platform = "container"
 host = "${POSTGRES_HOST}"
 port = 5432
 name = "semiont"

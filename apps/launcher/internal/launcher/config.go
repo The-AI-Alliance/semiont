@@ -211,12 +211,12 @@ type databaseCfg struct {
 }
 
 // jobsCfg is [environments.<env>.jobs], which only the launcher reads (it
-// writes the dispatcher's queue settings from it): type "jetstream", and a
-// servers address whose host may be the launcher-injected ${NATS_HOST}
-// (provided) or anything else (externally provided broker).
+// writes the dispatcher's queue settings from it): type "jetstream", and,
+// for a broker somebody else runs (platform = "external"), its servers.
 type jobsCfg struct {
-	Type    string `toml:"type"`
-	Servers string `toml:"servers"`
+	Platform string `toml:"platform"`
+	Type     string `toml:"type"`
+	Servers  string `toml:"servers"`
 	// Broker credentials. Named by the CONFIG like every other service
 	// credential here — graph carries neo4j's, database carries postgres's —
 	// and delivered to the daemon as its own environment, never as argv.
@@ -228,8 +228,9 @@ type jobsCfg struct {
 // P2): the gateway selects its Signal Plane driver from this section; the
 // LAUNCHER reads it only to decide whether the messaging daemon must run.
 type signalCfg struct {
-	Type    string `toml:"type"`
-	Servers string `toml:"servers"`
+	Platform string `toml:"platform"`
+	Type     string `toml:"type"`
+	Servers  string `toml:"servers"`
 	// The same broker as [jobs], so the same pair; plan.go refuses a
 	// disagreement rather than picking one.
 	User     string `toml:"user"`
@@ -237,13 +238,17 @@ type signalCfg struct {
 }
 
 // identityCfg mirrors the TypeScript IdentityServiceConfig: type "keycloak" |
-// "oidc", the issuer URL the gateway trusts (a keycloak issuer on the
-// launcher-injected ${KEYCLOAK_HOST} is provided; any other host, and every
-// oidc issuer, is external). The audience is NOT configured: it is derived
-// from the KB's committed did:web domain (kbResource).
+// "oidc", and the issuer URL the gateway trusts. A keycloak that states no
+// issuer is the launcher's to run; one under platform = "external", and every
+// oidc issuer, is somebody else's and states it. The audience is NOT
+// configured: it is derived from the KB's committed did:web domain
+// (kbResource).
 type identityCfg struct {
-	Type   string `toml:"type"`
-	Issuer string `toml:"issuer"`
+	// Platform: "external" for a Keycloak somebody else runs. An oidc issuer
+	// is somebody else's by its type.
+	Platform string `toml:"platform"`
+	Type     string `toml:"type"`
+	Issuer   string `toml:"issuer"`
 	// SubjectClaim: the issuer claim a person's DID is built from —
 	// did:web:<site domain>:users:<its value>. Required; declared, never
 	// defaulted. The gateway reads it; the launcher only vets its presence, so

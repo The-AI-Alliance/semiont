@@ -354,23 +354,28 @@ semiont stop
   `docs/system/administration/CONFIGURATION.md`). Per dependency role
   (graph, vectors, database, inference, embedding) the config decides the
   obligation — the launcher's name for the npm CLI's `platform`:
-  a section that states no address → the launcher provides a container
-  (driver by `type`) and places it; a section that states one → externally
-  provided (verified, never launched, skipped by stop, shown as "external" in
-  status); `platform = "posix"` → host-process reuse; section absent /
-  unreferenced → nothing launched, "not configured" in status.
+  `platform = "external"` → somebody else runs the daemon: the section states
+  its address, and it is verified, never launched, skipped by stop and shown
+  as "external" in status; any other platform, or none → the launcher
+  provides a container (driver by `type`) and places it, and an address
+  stated there is refused, since it would be a second answer to who runs it;
+  `platform = "posix"` → host-process reuse; section absent / unreferenced →
+  nothing launched, "not configured" in status. An `oidc` issuer and a remote
+  provider (Anthropic, Voyage) are somebody else's by their type.
   **Deployment topology is the launcher's to know, never the KB config's to
   declare.** A config says what a knowledge base needs — a graph, a vector
-  store, an embedding model, an issuer — and nothing of where they listen:
-  no `uri`, `host`, `servers`, `baseURL` or `issuer` line, so the file is the
-  same on every machine. Each service's staged copy states every address
-  this start placed, as a literal, in the sections that service reads; the
-  gateway's and dispatcher's documents carry theirs. No container is told
-  where anything is through its environment. A config may also write an
-  address as the launcher's own reference (`${NEO4J_HOST}`, `${QDRANT_HOST}`,
-  `${POSTGRES_HOST}`, `${NATS_HOST}`, `${OLLAMA_HOST}`, `${KEYCLOAK_HOST}`,
-  `${KEYCLOAK_PORT}`), which reads exactly as leaving it unstated. `semiont
-  start --dry-run` lists what it would place. **The inference driver is who performs inference per the
+  store, an embedding model, an issuer — and, of the daemons the launcher
+  runs, nothing of where they listen: no `uri`, `host`, `servers`, `baseURL`
+  or `issuer` line, so the file is the same on every machine. Each service's
+  staged copy states every address this start placed, as a literal, in the
+  sections that service reads; the gateway's and dispatcher's documents carry
+  theirs. No container is told where anything is through its environment. A
+  config may also write a launcher-run daemon's address as the launcher's own
+  reference (`${NEO4J_HOST}`, `${QDRANT_HOST}`, `${POSTGRES_HOST}`,
+  `${NATS_HOST}`, `${OLLAMA_HOST}`, `${KEYCLOAK_HOST}`, `${KEYCLOAK_PORT}`),
+  which reads exactly as leaving it unstated, whatever the section's platform
+  says. `semiont start --dry-run` lists what it would place.
+  **The inference driver is who performs inference per the
   bindings, not which process the launcher runs**: any ollama-typed binding →
   the local-Ollama shape (host-process dance, container fallback); all-remote
   bindings (Claude throughout) → `inference (Anthropic)`, an external SaaS
