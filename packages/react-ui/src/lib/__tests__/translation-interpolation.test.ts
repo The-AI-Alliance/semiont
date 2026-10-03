@@ -85,6 +85,21 @@ describe('interpolateTranslation — double-brace parameter substitution', () =>
     expect(interpolateTranslation('Before {{v}} after', { v: "$'" }, 'en')).toBe("Before $' after");
   });
 
+  it('inserts a value holding a placeholder as written, whatever the order of the params', () => {
+    // Substituting one param at a time rescans the values already inserted.
+    expect(interpolateTranslation('{{a}} / {{b}}', { a: '{{b}}', b: 'X' }, 'en')).toBe('{{b}} / X');
+    expect(interpolateTranslation('{{a}} / {{b}}', { b: '{{a}}', a: 'X' }, 'en')).toBe('X / {{a}}');
+  });
+
+  it('matches a placeholder to a param by its exact name', () => {
+    expect(interpolateTranslation('{{a.b}} / {{axb}}', { 'a.b': 'X' }, 'en')).toBe('X / {{axb}}');
+  });
+
+  it('reads params from the object itself, not from its prototype', () => {
+    expect(interpolateTranslation('{{toString}} {{constructor}}', {}, 'en'))
+      .toBe('{{toString}} {{constructor}}');
+  });
+
   it('inserts a count holding `$` sequences as written', () => {
     expect(interpolateTranslation('{count, plural, other {# items}}', { count: '$&' }, 'en'))
       .toBe('$& items');

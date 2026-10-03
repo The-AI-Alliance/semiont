@@ -11,12 +11,14 @@ const TranslationContext = createContext<TranslationManager | null>(null);
 
 type Messages = Record<string, Record<string, string>>;
 
-// The strings a locale manager serves and the language they are written in:
-// English, when the requested locale's file could not be loaded.
+// The strings a built-in manager serves and the language they are written in.
 interface LoadedTranslations {
   locale: string;
   messages: Messages;
 }
+
+// Served with no provider, with no locale, and when a locale's file cannot be loaded.
+const ENGLISH: LoadedTranslations = { locale: 'en', messages: enTranslations };
 
 // Cache for dynamically loaded translations
 const translationCache = new Map<string, any>();
@@ -65,7 +67,7 @@ async function loadTranslations(locale: string): Promise<LoadedTranslations> {
   // English is already loaded statically
   if (locale === 'en') {
     translationCache.set('en', enTranslations);
-    return { locale, messages: enTranslations };
+    return ENGLISH;
   }
 
   try {
@@ -76,29 +78,30 @@ async function loadTranslations(locale: string): Promise<LoadedTranslations> {
     return { locale, messages: translationData };
   } catch (error) {
     console.error(`Failed to load translations for locale: ${locale}`, error);
-    // Fall back to English
-    return { locale: 'en', messages: enTranslations };
+    return ENGLISH;
   }
 }
 
-// Default English translation manager (using static import)
-const defaultTranslationManager: TranslationManager = {
-  t: (namespace: string, key: string, params?: Record<string, any>) => {
-    const translations = enTranslations as Record<string, Record<string, string>>;
-    const translation = translations[namespace]?.[key];
+function createTranslationManager({ locale, messages }: LoadedTranslations): TranslationManager {
+  return {
+    t: (namespace: string, key: string, params?: Record<string, any>) => {
+      const translation = messages[namespace]?.[key];
 
-    if (!translation) {
-      console.warn(`Translation not found for ${namespace}.${key}`);
-      return `${namespace}.${key}`;
-    }
+      if (!translation) {
+        console.warn(`Translation not found for ${namespace}.${key} in locale ${locale}`);
+        return `${namespace}.${key}`;
+      }
 
-    if (params && typeof translation === 'string') {
-      return interpolateTranslation(translation, params, 'en');
-    }
+      if (params && typeof translation === 'string') {
+        return interpolateTranslation(translation, params, locale);
+      }
 
-    return translation;
-  },
-};
+      return translation;
+    },
+  };
+}
+
+const defaultTranslationManager = createTranslationManager(ENGLISH);
 
 export interface TranslationProviderProps {
   /**
@@ -150,26 +153,10 @@ export function TranslationProvider({
   }, [locale, translationManager]);
 
   // Create translation manager from loaded translations
-  const localeManager = useMemo<TranslationManager | null>(() => {
-    if (!loadedTranslations) return null;
-
-    return {
-      t: (namespace: string, key: string, params?: Record<string, any>) => {
-        const translation = loadedTranslations.messages[namespace]?.[key];
-
-        if (!translation) {
-          console.warn(`Translation not found for ${namespace}.${key} in locale ${locale}`);
-          return `${namespace}.${key}`;
-        }
-
-        if (params && typeof translation === 'string') {
-          return interpolateTranslation(translation, params, loadedTranslations.locale);
-        }
-
-        return translation;
-      },
-    };
-  }, [loadedTranslations, locale]);
+  const localeManager = useMemo(
+    () => loadedTranslations && createTranslationManager(loadedTranslations),
+    [loadedTranslations],
+  );
 
   // If custom translation manager provided, use it
   if (translationManager) {

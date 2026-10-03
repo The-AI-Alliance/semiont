@@ -8,6 +8,7 @@ const ITEMS = '{count, plural, =1 {# item} other {# items}}';
 vi.mock('../../../translations/en.json', () => ({
   default: {
     Plurals: {
+      plain: 'Search',
       leading: '{count, plural, =1 {# item} other {# items}} found',
       shortPrefix: 'Found {count, plural, =1 {# item} other {# items}}',
       // The prefix is longer than the `{count, plural, ` header itself.
@@ -36,7 +37,7 @@ vi.mock('../../../translations/ja.json', () => {
   throw new Error('ja.json cannot be loaded');
 });
 
-function Message({ id, params }: { id: string; params: Record<string, unknown> }) {
+function Message({ id, params }: { id: string; params?: Record<string, unknown> }) {
   const t = useTranslations('Plurals');
   return <div data-testid="message">{t(id, params)}</div>;
 }
@@ -44,7 +45,7 @@ function Message({ id, params }: { id: string; params: Record<string, unknown> }
 async function translate(
   wrap: (message: ReactElement) => ReactElement,
   id: string,
-  params: Record<string, unknown>,
+  params?: Record<string, unknown>,
 ): Promise<string | null> {
   const { unmount } = render(wrap(<Message id={id} params={params} />));
   const text = (await screen.findByTestId('message')).textContent;
@@ -58,6 +59,31 @@ const PATHS: Array<[string, (message: ReactElement) => ReactElement]> = [
   ['the default English manager', (message) => <TranslationProvider>{message}</TranslationProvider>],
   ['the locale manager', (message) => <TranslationProvider locale="en">{message}</TranslationProvider>],
 ];
+
+describe.each(PATHS)('built-in lookup through %s', (_path, wrap) => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('returns a string as written when no params are passed', async () => {
+    expect(await translate(wrap, 'plain')).toBe('Search');
+    expect(await translate(wrap, 'longPrefixWithParam'))
+      .toBe('The search finished and found {count, plural, =1 {# item} other {# items}} in {{scope}}');
+  });
+
+  it('returns the namespaced key for a missing translation', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(await translate(wrap, 'missing')).toBe('Plurals.missing');
+    expect(await translate(wrap, 'missing', { count: 1 })).toBe('Plurals.missing');
+  });
+
+  it('warns of a missing translation, naming the key and the language of the strings', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await translate(wrap, 'missing');
+
+    expect(warn).toHaveBeenCalledWith('Translation not found for Plurals.missing in locale en');
+  });
+});
 
 describe.each(PATHS)('built-in interpolation through %s', (_path, wrap) => {
   it('resolves a plural at the start of the string', async () => {
@@ -118,5 +144,22 @@ describe('the locale manager pluralizes by the language of the strings it serves
 
     expect(await translate(inLocale('ja'), 'keyword', { count: 1 })).toBe('Found 1 item');
     expect(await translate(inLocale('ja'), 'keyword', { count: 3 })).toBe('Found 3 items');
+  });
+
+  it('names the loaded locale in a missing-translation warning', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await translate(inLocale('pl'), 'missing');
+
+    expect(warn).toHaveBeenCalledWith('Translation not found for Plurals.missing in locale pl');
+  });
+
+  it('names English in a missing-translation warning when it fell back to the English strings', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await translate(inLocale('ja'), 'missing');
+
+    expect(warn).toHaveBeenCalledWith('Translation not found for Plurals.missing in locale en');
   });
 });

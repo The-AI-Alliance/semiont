@@ -76,15 +76,18 @@ export function processPluralFormat(
  * first (since it may consume more of the string), then `{{paramKey}}`
  * parameter substitution. `locale` is the language the string is written in;
  * its plural rules decide which branch a count takes.
+ *
+ * Placeholders are replaced in one pass over the string, not one param at a
+ * time, so a value inserted for one placeholder is not scanned for another.
  */
 export function interpolateTranslation(
   translation: string,
   params: Record<string, unknown>,
   locale: string,
 ): string {
-  let result = processPluralFormat(translation, params, locale);
-  Object.entries(params).forEach(([paramKey, paramValue]) => {
-    result = result.replace(new RegExp(`\\{\\{${paramKey}\\}\\}`, 'g'), () => String(paramValue));
-  });
-  return result;
+  return processPluralFormat(translation, params, locale).replace(
+    /\{\{([^{}]+)\}\}/g,
+    (placeholder, paramKey: string) =>
+      Object.hasOwn(params, paramKey) ? String(params[paramKey]) : placeholder,
+  );
 }
