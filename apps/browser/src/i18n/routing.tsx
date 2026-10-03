@@ -20,9 +20,7 @@ import {
   Navigate,
 } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { SUPPORTED_LOCALES, DEFAULT_LOCALE, isSupportedLocale } from './config';
-
-export { SUPPORTED_LOCALES, DEFAULT_LOCALE };
+import { DEFAULT_LOCALE, isSupportedLocale } from './config';
 
 // ── Link ─────────────────────────────────────────────────────────────────────
 

@@ -2,76 +2,24 @@
 
 import { createContext, useContext, ReactNode, useState, useEffect, useMemo } from 'react';
 import type { TranslationManager } from '../types/TranslationManager';
+import { interpolateTranslation } from '../lib/translation-interpolation';
 
 // Static import for default English only - always needed as fallback
 import enTranslations from '../../translations/en.json';
 
 const TranslationContext = createContext<TranslationManager | null>(null);
 
+type Messages = Record<string, Record<string, string>>;
+
+// The strings a locale manager serves and the language they are written in:
+// English, when the requested locale's file could not be loaded.
+interface LoadedTranslations {
+  locale: string;
+  messages: Messages;
+}
+
 // Cache for dynamically loaded translations
 const translationCache = new Map<string, any>();
-
-/**
- * Process ICU MessageFormat plural syntax
- * Supports: {count, plural, =0 {text} =1 {text} other {text}}
- */
-function processPluralFormat(text: string, params: Record<string, any>): string {
-  // Match {paramName, plural, ...} with proper brace counting
-  const pluralMatch = text.match(/\{(\w+),\s*plural,\s*/);
-  if (!pluralMatch) {
-    return text;
-  }
-
-  const paramName = pluralMatch[1];
-  const count = params[paramName];
-  if (count === undefined) {
-    return text;
-  }
-
-  // Find the matching closing brace by counting
-  let startPos = pluralMatch[0].length;
-  let braceCount = 1; // We're inside the first {
-  let endPos = startPos;
-
-  for (let i = startPos; i < text.length; i++) {
-    if (text[i] === '{') braceCount++;
-    else if (text[i] === '}') {
-      braceCount--;
-      if (braceCount === 0) {
-        endPos = i;
-        break;
-      }
-    }
-  }
-
-  const pluralCases = text.substring(startPos, endPos);
-
-  // Parse plural cases: =0 {text} =1 {text} other {text}
-  const cases: Record<string, string> = {};
-  const caseRegex = /(?:=(\d+)|(\w+))\s*\{([^}]+)\}/g;
-  let caseMatch;
-
-  while ((caseMatch = caseRegex.exec(pluralCases)) !== null) {
-    const [, exactNumber, keyword, textContent] = caseMatch;
-    const key = exactNumber !== undefined ? `=${exactNumber}` : keyword;
-    cases[key] = textContent;
-  }
-
-  // Select appropriate case
-  const exactMatch = cases[`=${count}`];
-  if (exactMatch !== undefined) {
-    const result = exactMatch.replace(/#/g, String(count));
-    return text.substring(0, pluralMatch.index!) + result + text.substring(endPos + 1);
-  }
-
-  const otherCase = cases['other'];
-  if (otherCase !== undefined) {
-    const result = otherCase.replace(/#/g, String(count));
-    return text.substring(0, pluralMatch.index!) + result + text.substring(endPos + 1);
-  }
-
-  return text;
-}
 
 // List of available locales (can be extended without importing all files)
 export const AVAILABLE_LOCALES = [
@@ -108,16 +56,16 @@ export const AVAILABLE_LOCALES = [
 export type AvailableLocale = typeof AVAILABLE_LOCALES[number];
 
 // Lazy load translations for a specific locale
-async function loadTranslations(locale: string): Promise<any> {
+async function loadTranslations(locale: string): Promise<LoadedTranslations> {
   // Check cache first
   if (translationCache.has(locale)) {
-    return translationCache.get(locale);
+    return { locale, messages: translationCache.get(locale) };
   }
 
   // English is already loaded statically
   if (locale === 'en') {
     translationCache.set('en', enTranslations);
-    return enTranslations;
+    return { locale, messages: enTranslations };
   }
 
   try {
@@ -125,11 +73,11 @@ async function loadTranslations(locale: string): Promise<any> {
     const translations = await import(`../../translations/${locale}.json`);
     const translationData = translations.default || translations;
     translationCache.set(locale, translationData);
-    return translationData;
+    return { locale, messages: translationData };
   } catch (error) {
     console.error(`Failed to load translations for locale: ${locale}`, error);
     // Fall back to English
-    return enTranslations;
+    return { locale: 'en', messages: enTranslations };
   }
 }
 
@@ -144,16 +92,8 @@ const defaultTranslationManager: TranslationManager = {
       return `${namespace}.${key}`;
     }
 
-    // Handle parameter interpolation and plural format
     if (params && typeof translation === 'string') {
-      let result = translation;
-      // First process plural format
-      result = processPluralFormat(result, params);
-      // Then handle simple parameter interpolation
-      Object.entries(params).forEach(([paramKey, paramValue]) => {
-        result = result.replace(new RegExp(`\\{\\{${paramKey}\\}\\}`, 'g'), String(paramValue));
-      });
-      return result;
+      return interpolateTranslation(translation, params, 'en');
     }
 
     return translation;
@@ -195,23 +135,17 @@ export function TranslationProvider({
   loadingComponent = null,
   children,
 }: TranslationProviderProps) {
-  const [loadedTranslations, setLoadedTranslations] = useState<any>(null);
+  const [loadedTranslations, setLoadedTranslations] = useState<LoadedTranslations | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   // Load translations when locale changes
   useEffect(() => {
     if (locale && !translationManager) {
       setIsLoading(true);
-      loadTranslations(locale)
-        .then(translations => {
-          setLoadedTranslations(translations);
-          setIsLoading(false);
-        })
-        .catch(error => {
-          console.error('Failed to load translations:', error);
-          setLoadedTranslations(enTranslations); // Fall back to English
-          setIsLoading(false);
-        });
+      loadTranslations(locale).then(loaded => {
+        setLoadedTranslations(loaded);
+        setIsLoading(false);
+      });
     }
   }, [locale, translationManager]);
 
@@ -221,23 +155,15 @@ export function TranslationProvider({
 
     return {
       t: (namespace: string, key: string, params?: Record<string, any>) => {
-        const translation = loadedTranslations[namespace]?.[key];
+        const translation = loadedTranslations.messages[namespace]?.[key];
 
         if (!translation) {
           console.warn(`Translation not found for ${namespace}.${key} in locale ${locale}`);
           return `${namespace}.${key}`;
         }
 
-        // Handle parameter interpolation and plural format
         if (params && typeof translation === 'string') {
-          let result = translation;
-          // First process plural format
-          result = processPluralFormat(result, params);
-          // Then handle simple parameter interpolation
-          Object.entries(params).forEach(([paramKey, paramValue]) => {
-            result = result.replace(new RegExp(`\\{\\{${paramKey}\\}\\}`, 'g'), String(paramValue));
-          });
-          return result;
+          return interpolateTranslation(translation, params, loadedTranslations.locale);
         }
 
         return translation;
@@ -288,37 +214,11 @@ export function TranslationProvider({
  * @returns Function to translate keys within the namespace
  */
 export function useTranslations(namespace: string) {
-  const context = useContext(TranslationContext);
-
-  // If no context (no provider), use default English translations
-  if (!context) {
-    return (key: string, params?: Record<string, any>) => {
-      const translations = enTranslations as Record<string, Record<string, string>>;
-      const translation = translations[namespace]?.[key];
-
-      if (!translation) {
-        console.warn(`Translation not found for ${namespace}.${key}`);
-        return `${namespace}.${key}`;
-      }
-
-      // Handle parameter interpolation and plural format
-      if (params && typeof translation === 'string') {
-        let result = translation;
-        // First process plural format
-        result = processPluralFormat(result, params);
-        // Then handle simple parameter interpolation
-        Object.entries(params).forEach(([paramKey, paramValue]) => {
-          result = result.replace(new RegExp(`\\{\\{${paramKey}\\}\\}`, 'g'), String(paramValue));
-        });
-        return result;
-      }
-
-      return translation;
-    };
-  }
+  // No provider: default English translations
+  const manager = useContext(TranslationContext) ?? defaultTranslationManager;
 
   // Return a function that translates keys within this namespace
-  return (key: string, params?: Record<string, any>) => context.t(namespace, key, params);
+  return (key: string, params?: Record<string, any>) => manager.t(namespace, key, params);
 }
 
 /**

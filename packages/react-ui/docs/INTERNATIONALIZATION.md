@@ -200,8 +200,8 @@ export function useTranslationManager(): TranslationManager {
 
 The Semiont Browser's manager, `useMergedTranslationManager`
 (`apps/browser/src/hooks/useMergedTranslationManager.ts`), reads the active
-locale's bundle from i18next and applies the same interpolation as the
-built-in managers.
+locale's bundle from i18next and interpolates it with `interpolateTranslation`,
+the function the built-in managers use.
 
 ### 3. Example: Custom Implementation
 
@@ -318,23 +318,22 @@ function useTypedTranslations<NS extends TranslationNamespace>(namespace: NS) {
 ## Interpolation and Pluralization
 
 `t` receives the call's `params`; interpolation and pluralization are the
-manager's to implement. The built-in managers replace `{{name}}` with
-`params.name` and process ICU plural syntax
-(`{count, plural, =0 {…} =1 {…} other {…}}`):
+manager's to implement. The built-in managers use `interpolateTranslation`,
+which a custom manager can call for the same result. It resolves ICU plural
+expressions and then replaces `{{name}}` with `params.name`:
 
 ```tsx
+import { interpolateTranslation, type TranslationManager } from '@semiont/react-ui';
+
+declare const locale: string; // the language the messages are written in
 declare const messages: Record<string, Record<string, string>>; // the active locale's messages
 
 const manager: TranslationManager = {
   t: (namespace, key, params = {}) => {
-    let message = messages[namespace]?.[key] ?? `${namespace}.${key}`;
+    const message = messages[namespace]?.[key] ?? `${namespace}.${key}`;
 
-    // Simple interpolation: "Page {{page}} of {{total}}" -> "Page 3 of 12"
-    Object.entries(params).forEach(([k, v]) => {
-      message = message.replaceAll(`{{${k}}}`, String(v));
-    });
-
-    return message;
+    // "Page {{page}} of {{total}}" -> "Page 3 of 12"
+    return interpolateTranslation(message, params, locale);
   },
 };
 
@@ -343,6 +342,24 @@ const t = useTranslations('PdfViewer');
 const pageLabel = t('pageOf', { page: 3, total: 12 });
 // "Page 3 of 12"
 ```
+
+A plural expression names a param and gives a branch per case:
+
+```json
+{
+  "found": "Found {count, plural, =0 {nothing} one {# item} other {# items}} in {{scope}}"
+}
+```
+
+- A branch is chosen by exact count (`=0`, `=1`, …) first, then by the plural
+  category the count falls in (`zero`, `one`, `two`, `few`, `many`), then
+  `other`. The categories are the locale's: English has `one` and `other`,
+  Polish has `one`, `few`, `many` and `other`.
+- `#` in a branch stands for the count.
+- A string may hold several plural expressions, and a branch may hold
+  `{{name}}` placeholders and further plural expressions.
+- An expression whose param is not passed, or that has no branch for the
+  count, is left as written.
 
 ## Language Switching
 
@@ -471,7 +488,7 @@ The library uses dynamic imports for non-English translations to optimize bundle
 To add support for another locale:
 
 1. Add the translation file, `translations/<code>.json`, with every namespace and key (`npm run lint:translations` checks)
-2. Add the code to the `AVAILABLE_LOCALES` constant in `packages/react-ui/src/contexts/TranslationContext.tsx`
+2. Add the code to the `AVAILABLE_LOCALES` constant in `packages/react-ui/src/contexts/TranslationContext.tsx` (a test fails when the constant and the translation files differ)
 3. The locale will be dynamically loaded when used
 
 ### Preloading Translations

@@ -35,7 +35,8 @@ The `messages/` and `public/messages/` directories are **generated** — never e
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import HttpBackend from 'i18next-http-backend';
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '@/i18n/config';
+import { AVAILABLE_LOCALES } from '@semiont/react-ui';
+import { DEFAULT_LOCALE } from '@/i18n/config';
 
 i18n
   .use(HttpBackend)
@@ -44,7 +45,7 @@ i18n
     ns: ['translation'],
     defaultNS: 'translation',
     fallbackLng: DEFAULT_LOCALE,
-    supportedLngs: [...SUPPORTED_LOCALES],
+    supportedLngs: [...AVAILABLE_LOCALES],
     backend: {
       loadPath: '/messages/{{lng}}.json',
     },
@@ -106,7 +107,7 @@ Translation file (`messages-source/en.json`):
 
    `npm run lint:translations` checks both sets for every key in every locale.
 
-3. Add the locale's code to `SUPPORTED_LOCALES` in `src/i18n/config.ts`.
+3. Add the locale's code to `AVAILABLE_LOCALES` in `packages/react-ui/src/contexts/TranslationContext.tsx`. The Browser supports exactly that list; a test in each package fails when the list and that package's translation files differ.
 
 4. Run the merge:
    ```bash
