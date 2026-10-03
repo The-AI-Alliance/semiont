@@ -241,9 +241,10 @@ ResourceViewerPage
       → browser/PDF.js fetches directly, streams
 ```
 
-`ResourceViewerPage` branches on the media type's render mode (`capabilitiesOf(mediaType)?.render`, from `@semiont/core`):
+`ResourceViewerPage` loads what the view for the media type's render mode reads (`capabilitiesOf(mediaType)?.render`, from `@semiont/core`):
 - `'image'` or `'pdf'` → `useMediaToken` → URL passed to the image/PDF viewer
-- anything else → `useResourceContent` (fetch + decode to string) → text viewer
+- `'text'` → `useResourceContent` (fetch + decode to string) → text viewer
+- `'none'`, or a type the registry does not know → nothing. The no-preview fallback reads no content, and its download link mints its own token
 
 Callers of `ResourceViewerPage` do not manage media tokens; the component handles it internally. The `useMediaToken` hook is available from `@semiont/react-ui` for any component that needs a token-authenticated URL independently.
 

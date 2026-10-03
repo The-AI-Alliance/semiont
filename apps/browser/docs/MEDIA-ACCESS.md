@@ -90,7 +90,7 @@ a link that is already known to 401. The same rule applies to `<a download>` as
 to `<img>`: an anchor sends no Authorization header either.
 
 `ResourceViewerPage` calls this automatically for any resource whose media type
-renders as an image (which includes `application/pdf`), so callers of
+renders as an image or a PDF, and for no other, so callers of
 `ResourceViewerPage` get authenticated `<img>`/PDF rendering for free.
 
 ## Data flow for binary resources
@@ -118,6 +118,9 @@ The split is **display vs programmatic**, not text vs binary:
   through the authenticated representation endpoint and decoded to a string —
   a normal bearer-authenticated request, no media token.
 - **Binary display** (`<img>`, PDF.js) uses media tokens, as above.
+- **No preview** (archives, office documents, source code, any type the registry
+  does not know) loads nothing up front. The viewer shows a fallback whose
+  download link mints a media token of its own.
 - **Non-browser consumers** (CLI, daemon, MCP server) never need a media token:
   they read binary content through `IContentTransport.getBinary` with normal
   `Authorization` headers, and upload through `client.yield.resource(...)` /
