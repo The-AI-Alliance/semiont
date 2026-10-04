@@ -69,7 +69,6 @@ declare global {
 
   // ── ids and domain values ────────────────────────────────────────────
   const resourceId: _ResourceId;
-  const questionId: _ResourceId;
   const rId: _ResourceId;
   const sourceDocId: _ResourceId;
   const targetDocId: _ResourceId;

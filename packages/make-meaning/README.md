@@ -89,24 +89,24 @@ It does **not** start the Smelter (a standalone process — `@semiont/make-meani
 ### Gather Context (via EventBus)
 
 ```typescript
-import { firstValueFrom, race, filter, timeout } from 'rxjs';
+import { firstValueFrom, race, filter, map, timeout } from 'rxjs';
 
 const correlationId = crypto.randomUUID();
 
-// Emit gather request for an annotation
-eventBus.get('gather:requested').next({
-  correlationId,
-  annotationId,
-  resourceId,
-  options: { contextWindow: 1000 },
-});
+// Emit gather request for an annotation. The correlation id rides the
+// frame's envelope, not the payload.
+eventBus.emit(
+  'gather:requested',
+  { annotationId, resourceId, options: { contextWindow: 1000 } },
+  { correlationId },
+);
 
-// Await result
+// Await result: the reply is the frame carrying the same correlation id
 const result = await firstValueFrom(
   race(
-    eventBus.get('gather:complete').pipe(filter(e => e.correlationId === correlationId)),
-    eventBus.get('gather:failed').pipe(filter(e => e.correlationId === correlationId)),
-  ).pipe(timeout(30_000)),
+    eventBus.frames('gather:complete').pipe(filter(f => f.correlationId === correlationId)),
+    eventBus.frames('gather:failed').pipe(filter(f => f.correlationId === correlationId)),
+  ).pipe(map(f => f.payload), timeout(30_000)),
 );
 ```
 

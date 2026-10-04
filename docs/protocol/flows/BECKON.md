@@ -40,7 +40,7 @@ await client.beckon.click(annotations[0].id);                  // OPEN it
 
 // Or, for local-only scroll (no broadcast), emit directly on the
 // workspace EventBus:
-eventBus.get('beckon:focus').next({ annotationId: annotations[0].id });
+eventBus.emit('beckon:focus', { annotationId: annotations[0].id });
 ```
 
 ## Events

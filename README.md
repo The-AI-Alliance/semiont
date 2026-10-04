@@ -57,7 +57,7 @@ One command starts the whole stack and ensures the Semiont browser is running at
 semiont start
 ```
 
-`semiont logs` follows it, `semiont stop` tears it down, and `semiont start --help` lists the options.
+`semiont status` reports each service's state and health, `semiont logs` follows it, `semiont stop` tears it down, and `semiont start --help` lists the options.
 
 ### 5. Create a user
 
@@ -116,8 +116,9 @@ your code.
 The Semiont SDK is how your code speaks the same bus — a type-safe client whose namespaces are those eight verbs. It comes in **[TypeScript](packages/sdk/README.md)** (`@semiont/sdk`) and **[Rust](packages/sdk-rust/README.md)** ([`semiont`](https://crates.io/crates/semiont)), full peers held to the same [conformance suite](tests/conformance/sdk/README.md). Your app never calls the gateway's HTTP API directly; the SDK is the boundary.
 
 ```bash
-npm install @semiont/sdk                    # TypeScript
-cargo add semiont semiont-http-transport    # Rust
+npm install @semiont/sdk                               # TypeScript
+cargo add semiont                                      # Rust
+cargo add semiont-http-transport --features sign-in    # Rust, over a gateway
 ```
 
 Built on the SDK: **[@semiont/react-ui](packages/react-ui/README.md)** embeds the resource viewer and annotation UI in your own app, and **[Agent Skills](docs/protocol/skills/)** are ready-made definitions for agentic coding assistants. The contract both SDKs speak is specified independently of either in **[docs/protocol/](docs/protocol/README.md)**.

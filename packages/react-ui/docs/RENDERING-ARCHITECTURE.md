@@ -128,10 +128,11 @@ User selects text in AnnotateView
 → mouseup handler
 → CodeMirror posAtDOM() for accurate source positions
 → extractContext() for prefix/suffix
-→ eventBus.get('mark:requested').next({
-    selector: [TextPositionSelector, TextQuoteSelector],
+→ session.client.mark.request(
+    resourceId,
+    [TextPositionSelector, TextQuoteSelector],
     motivation
-  })
+  )
 ```
 
 ### Bi-directional Focusing

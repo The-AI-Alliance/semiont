@@ -72,7 +72,7 @@ per-method table and the `.run()` rule for progress-plus-result live in
 The `void`-returning signals are protocol-level coordination, not browser-app fluff: a human
 hovers an annotation (`beckon.hover(id)`) and an AI agent across the bus reacts; an agent
 sparkles an annotation and the human's UI lights up. Observers reach the same signals via
-`session.subscribe(channel, handler)` or `client.bus.get(channel)`.
+`session.subscribe(channel, handler)` or `client.bus.on(channel)`.
 
 ### 4. Transport agnosticism
 

@@ -5,7 +5,7 @@ This document describes the wire-level event protocol that every actor in Semion
 If you only want to *use* the protocol from a script, you don't need this doc — read **[../../packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md)**, the SDK already wraps every channel pattern. Read this if you're:
 
 - Building a new transport (e.g. `LocalTransport` for in-process, a hypothetical `GrpcTransport`)
-- Adding a new actor or worker that subscribes to channels directly via `eventBus.get(channel)`
+- Adding a new actor or worker that subscribes to channels directly via `eventBus.on(channel)`
 - Debugging a bus-mediated round-trip with the [bus log](../../tests/e2e/docs/bus-logging.md)
 - Adding a new channel to the EventMap
 
@@ -253,18 +253,21 @@ Three layers, deliberately, because each catches what the others structurally ca
 The Go tests overlap the TypeScript ones on purpose. Both languages generate from one registry, so today they are a second opinion rather than the only guard; that redundancy is the point, because an artifact checked only against the thing that generated it can agree with a mistake indefinitely.
 
 ```ts
-// HttpTransport, on SSE receive. The per-channel generic is load-bearing:
-// inside `bridge`, `K` is ONE channel, so `stream` and `bus.get` are provably
-// the same channel's payload. Written inline over the loop, `channel` is a
-// UNION — and calling `.next` on a union of `Subject`s widens the parameter to
-// the union of their payloads, so a `mark:added` payload would satisfy
-// `yield:created` with nothing to catch it.
-const bridge = <K extends keyof EventMap>(channel: K) => {
-  this.actor.stream(channel).subscribe((payload) => {
-    for (const bus of this.bridges) bus.get(channel).next(payload);
-  });
-};
-for (const channel of BRIDGED_CHANNELS) bridge(channel);
+// HttpTransport, wired once for the actor's lifetime. `relayFrames` owns the
+// hop: each frame crosses with its envelope (the correlation id carried, the
+// scope not), and the sink fans it out to every bridged bus. `this.bridges`
+// is read per frame, because `bridgeInto` appends to it after this is wired.
+const globalChannels = this.config.channels ?? BRIDGED_CHANNELS;
+relayFrames(
+  this._actor,
+  {
+    emit: (channel, payload, envelope) => {
+      for (const bus of this.bridges) bus.emit(channel, payload, envelope);
+    },
+  },
+  [...globalChannels, ...RESOURCE_SCOPED_CHANNELS],
+  (channel, error) => this.logger?.error('Bridge relay failed', { channel, error }),
+);
 ```
 
 This is the *fan-in* set — what the transport pushes onto the client's bus. The set the client emits is open-ended and uses `transport.emit(channel, payload)` directly.
@@ -311,7 +314,7 @@ Three legitimate paths to the bus, each suited to a distinct case:
 
 - **Typed namespace method** (preferred) — `client.mark.annotation(...)`, `client.beckon.hover(...)`. Types catch mistakes; channel names and correlation IDs are internal. The right path whenever a namespace covers the operation.
 - **`session.subscribe(channel, handler)`** — channel-by-name observation. The sanctioned escape hatch when the channel name is dynamic (`useEventSubscription` in React, an agent watching `mark:added` for collaborator activity) or no namespace exposes a typed listener for the channel you care about.
-- **Direct `client.bus.get(channel)` / `client.transport.emit(channel, ...)`** — the lowest-level path, for workers and actors that *are* the handlers (Stower, Gatherer, Matcher, Smelter inside `@semiont/make-meaning` use this), for RxJS operator composition on a channel stream, or for prototyping new operations not yet wrapped by a namespace.
+- **Direct `client.bus.on(channel)` / `client.transport.emit(channel, ...)`** — the lowest-level path, for workers and actors that *are* the handlers (Stower, Gatherer, Matcher, Smelter inside `@semiont/make-meaning` use this), for RxJS operator composition on a channel stream, or for prototyping new operations not yet wrapped by a namespace.
 
 The three paths are documented end-to-end (with code shapes and call-site examples) in [`packages/sdk/docs/REACTIVE-MODEL.md`](../../packages/sdk/docs/REACTIVE-MODEL.md#three-paths-to-the-bus). The bus surface is *not* `@internal` — it's a real surface for advanced and worker use — but the typed namespaces are the canonical entry point for everything else. If you find yourself writing `transport.emit(channel, ...)` from application code, the right move is usually to reach for the namespace, or — if no namespace covers your case — to add one.
 

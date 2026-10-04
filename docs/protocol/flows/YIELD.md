@@ -471,8 +471,9 @@ the worker, resolves the source reference. When the upload carried
 emits `mark:update-body` to add the new resource as a linking body
 ([packages/make-meaning/src/stower.ts](../../../packages/make-meaning/src/stower.ts)):
 ```typescript
-this.eventBus.get('mark:update-body').next({
+this.eventBus.emit('mark:update-body', {
   annotationId: generatedFrom.annotationId,   // the source reference
+  _userId: event._userId,
   resourceId: generatedFrom.resourceId,       // the source resource
   operations: [{
     op: 'add',

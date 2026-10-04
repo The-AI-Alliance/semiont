@@ -81,8 +81,8 @@ const eventStore = createEventStore(project, eventBus, logger);
 ```
 
 The `coreEventBus` parameter is required. After persistence, `appendEvent` publishes the full `StoredEvent` to:
-- The global typed channel (e.g., `eventBus.get('mark:added')`)
-- The resource-scoped typed channel (e.g., `eventBus.scope(resourceId).get('mark:added')`)
+- The global typed channel (e.g., `eventBus.on('mark:added')`)
+- The resource-scoped typed channel (e.g., `eventBus.scope(resourceId).on('mark:added')`)
 
 ### EventLog
 

@@ -179,7 +179,7 @@ Reach for `.subscribe(...)` only when you want progress events or live updates.
 
 ## Gathering Context via EventBus (Low-Level)
 
-For callers that need direct EventBus control, use `correlationId` for matching:
+For callers that need direct EventBus control, match on the frame's `correlationId`, which rides the envelope and not the payload:
 
 ```typescript
 import { firstValueFrom, merge } from 'rxjs';
@@ -188,22 +188,21 @@ import { filter, map, take, timeout } from 'rxjs/operators';
 const correlationId = crypto.randomUUID();
 
 const result$ = merge(
-  eventBus.get('gather:complete').pipe(
-    filter(e => e.correlationId === correlationId),
-    map(e => ({ ok: true as const, response: e.response })),
+  eventBus.frames('gather:complete').pipe(
+    filter(f => f.correlationId === correlationId),
+    map(f => ({ ok: true as const, response: f.payload.response })),
   ),
-  eventBus.get('gather:failed').pipe(
-    filter(e => e.correlationId === correlationId),
-    map(e => ({ ok: false as const, error: new Error(e.message) })),
+  eventBus.frames('gather:failed').pipe(
+    filter(f => f.correlationId === correlationId),
+    map(f => ({ ok: false as const, error: new Error(f.payload.message) })),
   ),
 ).pipe(take(1), timeout(30_000));
 
-eventBus.get('gather:requested').next({
-  correlationId,
-  annotationId,
-  resourceId,
-  options: { contextWindow: 1000 },
-});
+eventBus.emit(
+  'gather:requested',
+  { annotationId, resourceId, options: { contextWindow: 1000 } },
+  { correlationId },
+);
 
 const result = await firstValueFrom(result$);
 if (!result.ok) throw result.error;
@@ -234,22 +233,22 @@ const paths = await kb.graph.findPath(fromId, toId, 3);
 The match flow finds candidate resources for a reference. Use `correlationId` to thread the response back:
 
 ```typescript
-import { filter, take, timeout } from 'rxjs/operators';
+import { filter, map, take, timeout } from 'rxjs/operators';
 
 const correlationId = crypto.randomUUID();
 
-const results$ = eventBus.get('match:search-results').pipe(
-  filter(e => e.correlationId === correlationId),
+const results$ = eventBus.frames('match:search-results').pipe(
+  filter(f => f.correlationId === correlationId),
+  map(f => f.payload),
   take(1),
   timeout(10_000),
 );
 
-eventBus.get('match:search-requested').next({
-  correlationId,
-  resourceId,
-  referenceId: annotationId,
-  context: gatheredContext,
-});
+eventBus.emit(
+  'match:search-requested',
+  { resourceId, referenceId: annotationId, context: gatheredContext },
+  { correlationId },
+);
 
 const results = await firstValueFrom(results$);
 ```
