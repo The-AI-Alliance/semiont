@@ -1,67 +1,48 @@
-# Frame Flow
+# Frame
 
-**Purpose**: Define and evolve the KB's **schema layer** — the conceptual vocabulary the other seven flows are expressed in. Where browse/bind/yield/mark/gather/match/beckon act on content (resources, annotations, references, attention), Frame acts on what *kinds* of things exist: entity types and tag schemas today, eventually relation/predicate types and ontology imports.
+Frame defines the vocabulary a knowledge base is expressed in: what kinds of things exist. It is one of the four writing verbs, with [Yield](YIELD.md), [Mark](MARK.md) and [Bind](BIND.md). Those three write content. Frame writes the vocabulary that content draws on.
 
-**Related Documentation**:
-- [Mark Flow](./MARK.md) - Annotation CRUD operates within the entity-type vocabulary Frame defines, and `mark.assist(rid, 'tagging', ...)` resolves `schemaId` against the per-KB tag-schema registry Frame writes to
-- [Browse Flow](./BROWSE.md) - `browse.entityTypes()` and `browse.tagSchemas()` are the live reads of the two vocabularies Frame writes to
-- [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md) - Event store and the `frame:*` channels
+A knowledge base has two vocabularies:
 
-## Overview
+- **Entity types**: the kinds of thing a reference can be about and a resource can be classified as, such as `Person`, `Organization` or `Concept`.
+- **Tag schemas**: frameworks for a passage's role in a structure, such as IRAC for legal reasoning or IMRAD for a scientific paper. Each has an id and a list of categories.
 
-Frame is the schema-layer flow — the one that stands apart from browse, bind, yield, mark, gather, match, and beckon. It owns the conceptual vocabulary the KB's content is expressed in.
+Neither is fixed by Semiont. The participants in a knowledge base grow them.
 
-The mental model: when a participant joins a KB, the *content* (resources, annotations) is what they see; the *frame* is what they implicitly use to make sense of that content — what types of entities exist (Person, Organization, Concept, ...), what taxonomies are available (a "biological domain" schema with categories Biology / Chemistry / ...), what kinds of relations the KB recognizes. Mark and the other content flows consume the frame; Frame methods evolve it.
+## Operations
 
-Schema-layer changes fan out across participants the same way content changes do: when one participant adds an entity type, others see it through `browse.entityTypes()` on their next live-read. The vocabulary is grow-only at MVP — there's no protocol-level "remove entity type" event, and AI-assisted detection workflows (`mark.assist(...)` with motivation `linking`) consume the current set without caring how it grew.
+| SDK method | Returns | On the wire | Answered by |
+|---|---|---|---|
+| `frame.addEntityType` | nothing | `frame:add-entity-type` | the archivist |
+| `frame.addEntityTypes` | nothing | one `frame:add-entity-type` per type | the archivist |
+| `frame.addTagSchema` | nothing | `frame:add-tag-schema` | the archivist |
 
-## Scope
+Reading the vocabularies is [Browse](BROWSE.md): `browse.entityTypes` and `browse.tagSchemas`.
 
-Frame owns two structural primitives today: **entity-type vocabulary** and **tag-schema registration**. Both are write-side operations on the schema layer — live reads stay on Browse (`browse.entityTypes()`, `browse.tagSchemas()`). Future scope (relation/predicate types, ontology import, schema validation rules — see [Future scope](#future-scope) below) will accrete onto the same namespace as gateway support arrives.
+## What it records
 
-The split between writes (Frame) and live reads (Browse) is intentional. Browse is the live-read everything namespace — it owns cache primitives, live-query semantics, and hook-stable observables. Re-implementing those primitives on Frame for a single read would duplicate machinery without benefit. Writes to the schema layer belong on Frame; observation belongs on Browse.
+| Event | Records | Delivered to |
+|---|---|---|
+| `frame:entity-type-added` | An entity type joined the vocabulary | everyone |
+| `frame:tag-schema-added` | A tag schema was registered, or replaced | everyone |
 
-## Entity types
+Both belong to the knowledge base as a whole and to no resource. They are recorded on the log's system stream.
 
-Add an entity type to the KB's vocabulary. The `frame` namespace emits `frame:add-entity-type` on the bus gateway — the gateway Stower handler persists the addition and the change becomes visible to other participants through `browse.entityTypes()`.
+## Rules
 
-```typescript
-// Add a single entity type
-await client.frame.addEntityType('Person');
+**The vocabulary only grows.** There is no operation that removes an entity type or a tag schema.
 
-// Add multiple in one call
-await client.frame.addEntityTypes(['Organization', 'Location', 'Event']);
+**Adding an entity type twice is a no-op.** Concurrent adds need no coordination.
 
-// Live-read the current vocabulary (lives on Browse, not Frame)
-client.browse.entityTypes().subscribe((types) => {
-  console.log('Current vocabulary:', types);
-});
-```
+**A tag schema is replaced whole, by id.** Registering a schema whose id already exists replaces it. Registering identical content changes nothing.
 
-Adding the same entity type twice is idempotent — the gateway dedupes; the second `frame:add-entity-type` for an existing tag is a no-op. No SDK-level coordination is needed for concurrent adds across participants.
+**There is no batch add on the wire.** `frame.addEntityTypes` sends one request per type. If one is refused, the ones before it have been recorded, and sending the list again is safe.
 
-From the launcher, the same write is `semiont frame`:
+**A tag schema must be registered before it is used.** A [`mark.assist`](MARK.md#assistance) for `tagging` names a schema by id. The dispatcher resolves the id when it admits the job, and refuses a job that names a schema the knowledge base does not have.
 
-```sh
-# Add one or several — repeatable, one command per type on the wire
-semiont frame --entity-type Person --entity-type Organization
+### Tag schemas
 
-# Read the vocabulary back (a Browse read, not a Frame one)
-semiont browse --entity-types
-```
-
-Because the protocol has no batch add, the launcher issues one `frame:add-entity-type` per name and **stops at the first rejection**, naming the types that landed before it. Re-running is safe — the adds that already succeeded become no-ops.
-
-## Tag schemas
-
-Tag schemas are structural-analysis frameworks (IRAC for legal reasoning, IMRAD for scientific papers, Toulmin for argumentation, custom domain schemas). They're **per-KB runtime-registered** — schema *data* lives with the knowledge base that owns it (typically a `src/tag-schemas.ts` module in the KB repo); the SDK ships only the `TagSchema` and `TagCategory` *types* (from `@semiont/core`).
-
-The registration round-trip:
-
-1. Caller invokes `client.frame.addTagSchema(schema)` — emits `frame:add-tag-schema` on the bus.
-2. Stower's [`handleAddTagSchema`](../../../packages/make-meaning/src/stower.ts) appends a `frame:tag-schema-added` domain event to the `__system__` event stream.
-3. The [ViewMaterializer](../../../packages/event-sourcing/src/views/view-materializer.ts) writes the schema to `{stateDir}/projections/__system__/tagschemas.json` (via `materializeTagSchemas`). Most-recent-wins by `schema.id`: identical re-registrations are silent; differing content overwrites and logs a warning.
-4. The bridged `frame:tag-schema-added` event reaches every connected participant; their `browse.tagSchemas()` cache invalidates and re-emits with the new schema.
+A tag schema belongs to the knowledge base that uses it, not to Semiont. A knowledge base registers its own, typically when a skill or script starts:
 
 ```typescript
 import type { TagSchema } from '@semiont/sdk';
@@ -72,65 +53,31 @@ const LEGAL_IRAC_SCHEMA: TagSchema = {
   description: 'Issue / Rule / Application / Conclusion framework for legal reasoning',
   domain: 'legal',
   tags: [
-    { name: 'Issue',       description: 'The legal question to be resolved',    examples: ['What must the court decide?'] },
-    { name: 'Rule',        description: 'The relevant law or principle',         examples: ['What law applies?'] },
-    { name: 'Application', description: 'How the rule applies to the facts',     examples: ['How does the law apply here?'] },
-    { name: 'Conclusion',  description: 'The resolution',                         examples: ['What is the holding?'] },
+    { name: 'Issue',       description: 'The legal question to be resolved',  examples: ['What must the court decide?'] },
+    { name: 'Rule',        description: 'The relevant law or legal principle', examples: ['What law applies?'] },
+    { name: 'Application', description: 'How the rule applies to the facts',  examples: ['How does the law apply here?'] },
+    { name: 'Conclusion',  description: 'The resolution',                       examples: ['What is the holding?'] },
   ],
 };
 
-// Register the schema — typically at skill startup. Idempotent.
-await client.frame.addTagSchema(LEGAL_IRAC_SCHEMA);
-
-// Now mark.assist with motivation 'tagging' can use it. The dispatcher
-// resolves schemaId → TagSchema via the projection at job-creation time
-// and embeds the full schema in worker params, so the worker is
-// independent of the registry.
-await client.mark.assist(rid, 'tagging', {
-  schemaId: LEGAL_IRAC_SCHEMA.id,
-  categories: LEGAL_IRAC_SCHEMA.tags.map((t) => t.name),
-});
-
-// Live-read the registered schemas (lives on Browse, not Frame). The
-// cache invalidates on `frame:tag-schema-added` so it stays current.
-client.browse.tagSchemas().subscribe((schemas) => {
-  console.log('Registered schemas:', schemas.map((s) => s.id));
-});
+await semiont.frame.addTagSchema(LEGAL_IRAC_SCHEMA);
 ```
 
-If `mark.assist` is called with a `schemaId` that isn't in the projection, the dispatcher rejects synchronously with `Tag schema not registered: <id>` — there is no build-time fallback. KBs that ship demo skills typically include a `register-tag-schemas` bootstrap skill plus per-skill self-registration so first-time users see the schemas without needing to run a separate command. Schema-evolution concerns (rename / remove / version / migrate annotation bodies under a renamed category) are deferred, not yet scheduled.
+## Example
 
-## Events
+```typescript
+await semiont.frame.addEntityType('Person');
+await semiont.frame.addEntityTypes(['Location', 'Organization', 'Event']);
+```
 
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `frame:add-entity-type` | `{ tag: string }` | Add an entity type to the KB's vocabulary. Frame's command channel; the verb namespace and the wire-level channel agree on the prefix. |
-| `frame:entity-type-added` | `{ payload: { entityType: string }, ... }` (StoredEvent) | Emitted by Stower after persistence. The entity-type-projection materializer updates the system view; subscribers to `browse.entityTypes()` see the new tag on their next emit. System-level event (no `resourceId`) — fan-out is global. |
-| `frame:add-tag-schema` | `{ schema: TagSchema }` | Register a tag schema with the KB's runtime registry. Most-recent-wins by `schema.id`. |
-| `frame:tag-schema-added` | `{ payload: { schema: TagSchema }, ... }` (StoredEvent) | Emitted by Stower after persistence. The tag-schemas-projection materializer updates `tagschemas.json`; subscribers to `browse.tagSchemas()` see the registration on their next emit. Bridged channel — fan-out is global. |
+From the launcher: `semiont frame --entity-type Person --entity-type Organization`, and `semiont browse --entity-types` to read them back.
 
-## Future scope
+## Where it is implemented
 
-Frame is sized to grow. As the KB's schema layer matures, the namespace can absorb:
-
-- **Schema evolution** — `frame.removeTagSchema(id)`, `frame.renameCategory(id, oldName, newName)`, optional schema-id versioning (`legal-irac@v1`). Today the registry is grow-only with most-recent-wins overwrites; rename / remove / version are deferred, not yet scheduled.
-- **Relation / predicate types** — when the KB grows a typed-relation system on top of W3C annotations (today references are untyped except for entity-type tagging), Frame is where `frame.addRelationType` lives.
-- **Ontology import / export** — bulk schema operations, OWL/RDF round-trip if the system supports them. `frame.importOntology(file)`, `frame.exportOntology()`.
-- **Schema validation rules** — assertions about which entity types can co-occur, required fields, etc.
-
-The design point: Frame's namespace home gives these features a place to grow that isn't on Mark, isn't on Browse, and doesn't require inventing a new namespace each time a schema-layer concern appears.
-
-## Implementation
-
-- **Namespace**: [packages/sdk/src/namespaces/frame.ts](../../../packages/sdk/src/namespaces/frame.ts)
-- **Launcher command**: [apps/launcher/internal/verbs/frame.go](../../../apps/launcher/internal/verbs/frame.go) — `semiont frame` (entity types only; tag-schema registration is SDK-side today)
-- **Interface**: [packages/sdk/src/namespaces/types.ts](../../../packages/sdk/src/namespaces/types.ts) — `FrameNamespace`
-- **Tests**: [packages/sdk/src/namespaces/__tests__/frame.test.ts](../../../packages/sdk/src/namespaces/__tests__/frame.test.ts), [tests/conformance/dispatcher/create.test.ts](../../../tests/conformance/dispatcher/create.test.ts) (dispatcher schema resolution), [packages/make-meaning/src/__tests__/views/tag-schemas-reader.test.ts](../../../packages/make-meaning/src/__tests__/views/tag-schemas-reader.test.ts), [tests/e2e/specs/11-frame-tag-schemas.spec.ts](../../../tests/e2e/specs/11-frame-tag-schemas.spec.ts) (end-to-end registration + tagging round-trip)
-- **Event channels** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `frame:add-entity-type`, `frame:entity-type-added`, `frame:add-tag-schema`, `frame:tag-schema-added`
-- **Bridged channels**: [packages/core/src/bridged-channels.ts](../../../packages/core/src/bridged-channels.ts) — `frame:entity-type-added` and `frame:tag-schema-added` fan out via SSE to all participants
-- **Gateway handler**: [packages/make-meaning/src/stower.ts](../../../packages/make-meaning/src/stower.ts) — `handleAddEntityType` and `handleAddTagSchema` append the corresponding domain events
-- **Materializers**: [packages/event-sourcing/src/views/view-materializer.ts](../../../packages/event-sourcing/src/views/view-materializer.ts) — `materializeEntityTypes` writes `entitytypes.json`; `materializeTagSchemas` writes `tagschemas.json` with most-recent-wins + warning semantics
-- **Projection readers**: [packages/make-meaning/src/views/entity-types-reader.ts](../../../packages/make-meaning/src/views/entity-types-reader.ts), [packages/make-meaning/src/views/tag-schemas-reader.ts](../../../packages/make-meaning/src/views/tag-schemas-reader.ts)
-- **Dispatcher resolution**: [apps/dispatcher/handlers/src/admission.rs](../../../apps/dispatcher/handlers/src/admission.rs) — for `tag-annotation` jobs, resolves caller-supplied `schemaId` against the projection and embeds the full `TagSchema` in worker params
-- **Entity-type defaults**: [packages/ontology/src/entity-types.ts](../../../packages/ontology/src/entity-types.ts) — `DEFAULT_ENTITY_TYPES` (the seed values used to bootstrap a fresh KB; per-KB additions come through Frame)
-- **Tag-schema data**: lives with the KB that owns it (e.g. `semiont-caselaw-kb/src/tag-schemas.ts`). The semiont monorepo ships only the `TagSchema`/`TagCategory` types from `@semiont/core`
+- The SDK namespace: [packages/sdk/src/namespaces/frame.ts](../../../packages/sdk/src/namespaces/frame.ts)
+- What records the events: the Stower, in [packages/make-meaning/src/stower.ts](../../../packages/make-meaning/src/stower.ts)
+- How the two vocabularies are projected and read: [the projection pattern](../../architecture/PROJECTION-PATTERN.md)
+- Where the dispatcher resolves a schema id: [apps/dispatcher/handlers/src/admission.rs](../../../apps/dispatcher/handlers/src/admission.rs)
+- The entity types a new knowledge base starts with: [packages/ontology/src/entity-types.ts](../../../packages/ontology/src/entity-types.ts)
+- The launcher verb: [apps/launcher/internal/verbs/frame.go](../../../apps/launcher/internal/verbs/frame.go)
+- The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

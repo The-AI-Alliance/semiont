@@ -1,790 +1,111 @@
-# Mark Flow
+# Mark
 
-**Purpose**: Create W3C Web Annotations on resources — manually by selecting text, or via AI-assisted detection that identifies highlights, assessments, comments, tags, and entity references. Both human and AI agents participate as peers in annotation creation.
+Mark says something about a passage or a region: a highlight, a comment, an assessment, a tag, or a reference to something. It also records facts about a resource itself: its entity types, and whether it is archived. It is one of the four writing verbs, with [Yield](YIELD.md), [Bind](BIND.md) and [Frame](FRAME.md).
 
-**Related Documentation**:
-- [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Complete W3C specification implementation
-- [W3C Selectors](../W3C-SELECTORS.md) - TextPositionSelector and TextQuoteSelector details
-- [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md) - Event store, view storage, graph database flow
-- [Browser Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - UI patterns and component architecture
-- [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Position accuracy and CRLF handling
-- [@semiont/make-meaning](../../../packages/make-meaning/README.md) - Detection API and job workers
-- [Make-Meaning Job Workers](../../../packages/make-meaning/docs/job-workers.md) - Worker implementation details
-- [AnnotationDetection](../../../packages/jobs/src/workers/annotation-detection.ts) - AI detection methods (highlights, assessments, comments, tags, entity extraction)
+Every mark is a [W3C Web Annotation](../W3C-WEB-ANNOTATION.md). A person and an AI agent produce the same annotation through the same operation, and the record tells them apart only by who it is attributed to.
 
-## Overview
+## Operations
 
-The Mark flow adds structured metadata to resources. The application labels, tags, categorizes, and enriches content through auto-tagging, key term highlighting, priority flagging, and status indicators. AI agents perform named entity recognition, topic classification, and semantic enrichment; human collaborators perform triage and classification — determining what each passage means, its urgency, and where it belongs. The resulting annotations serve as anchors for downstream linking, context assembly, and navigation.
+| SDK method | Returns | On the wire | Answered by |
+|---|---|---|---|
+| `mark.annotation` | the new annotation's id | `mark:create-request` | the archivist |
+| `mark.delete` | nothing | `mark:delete` | the archivist |
+| `mark.archive`, `mark.unarchive` | nothing | `mark:archive`, `mark:unarchive` | the archivist |
+| `mark.updateEntityTypes` | nothing | `mark:update-entity-types` | the archivist |
+| `mark.assist` | a stream: the job's progress, then its outcome | `job:create`, with the job type for the motivation | the dispatcher admits it; a worker runs it |
 
-Semiont creates W3C-compliant annotations through two complementary paths: **manual annotation** (a human selects text and chooses a motivation) and **AI-assisted detection** (an AI agent scans the document and proposes annotations). Both paths produce identical W3C Web Annotations and flow through the same event-sourced pipeline. This system combines:
+A worker commits what it detected with `mark:commit`, one request carrying a batch of annotations and the job they were made for.
 
-1. **W3C Web Annotation Data Model** - Standards-compliant annotation structure with dual selectors
-2. **AI Inference** - LLM-powered text analysis with configurable prompts and user instructions
-3. **Gateway Event Architecture** - Event Store → View Storage → Graph Database flow with <50ms latency
-4. **Browser UI** - Real-time progress display with SSE streaming and visual feedback
+## What it records
 
-**Supported Formats**: Currently available for text-based formats (`text/plain`, `text/markdown`). Support for images and PDFs is planned for future releases
+Each of these is appended to the event log and delivered to the clients viewing that resource:
 
-## Using the SDK
+| Event | Records |
+|---|---|
+| `mark:added` | An annotation was created. The delivered event carries the annotation as it stands |
+| `mark:removed` | An annotation was deleted |
+| `mark:body-updated` | An annotation's body changed, by a list of add, remove and replace operations. The delivered event carries the annotation as it stands |
+| `mark:entity-tag-added`, `mark:entity-tag-removed` | A resource gained or lost an entity type |
+| `mark:archived`, `mark:unarchived` | A resource was archived or restored |
 
-**Manual annotation** — create an annotation directly. The `mark`
-namespace emits `mark:create-request` via the bus gateway; the gateway
-annotation-assembly handler builds the full W3C annotation from the
-intent and passes it to the Stower, which derives `creator` and
-`wasAttributedTo` from the verified emitter — the emitter never names
-itself.
+## Motivations
+
+An annotation's `motivation` says why it was made, and decides its body:
+
+| Motivation | Records | Body |
+|---|---|---|
+| `highlighting` | This passage matters | none |
+| `commenting` | A note on the passage | the comment's text |
+| `assessing` | A judgement of the passage | the assessment's text |
+| `tagging` | The passage's role in a structure | a category, and the id of the [tag schema](FRAME.md#tag-schemas) it belongs to |
+| `linking` | The passage refers to something | entity types, and once [bound](BIND.md), the resource it refers to |
+
+## Rules
+
+**The emitter never names itself.** An annotation's `creator` is derived by the knowledge base from the verified identity of the request. For an assisted annotation the creator is whoever asked for the job, and the model that produced it is its `generator`. `wasAttributedTo` lists both.
+
+**A worker's commit must cite its job.** A commit from a worker that names no job, or a job that worker does not hold, is refused.
+
+**A target is fixed at creation.** No event changes what an annotation points at. What an annotation can point at depends on the resource's media type: characters in text, a region on a page or an image. See [W3C Selectors](../W3C-SELECTORS.md).
+
+**A text target carries two selectors that agree.** A position and a quote, reconciled when the annotation is written, so the quote is exactly the text at that position.
+
+**Creating and deleting never conflict.** Two participants annotating the same passage at once produce two annotations. Nothing is rejected and nothing merges.
+
+**Body updates apply in the order the log received them.** The semantics of each operation under concurrency are in [Bind](BIND.md#concurrent-updates).
+
+**Entity types on a resource are a diff.** `mark.updateEntityTypes` is given the current set and the wanted set, and the difference is recorded as individual added and removed events. It classifies a resource with types the vocabulary already has; adding a type to the vocabulary is [Frame](FRAME.md).
+
+**Assistance is a job.** `mark.assist` has no channel of its own. Progress and the outcome arrive on the job channels, matched by the job's id, and the annotations arrive as `mark:added` like any others. See [Jobs](../JOBS.md).
+
+## Assistance
+
+`mark.assist` takes a resource, a motivation, and options for that motivation:
+
+| Motivation | Job type | Options |
+|---|---|---|
+| `highlighting` | `highlight-annotation` | instructions, density |
+| `commenting` | `comment-annotation` | instructions, density, tone |
+| `assessing` | `assessment-annotation` | instructions, density, tone |
+| `tagging` | `tag-annotation` | a tag schema's id, and which of its categories |
+| `linking` | `reference-annotation` | the entity types to look for, and whether to include descriptive references |
+
+The whole document is read: a long one is processed in pieces sized to the model's limits, never truncated. How detection is done is the worker's: see [the job types](../../../packages/jobs/docs/JobTypes.md).
+
+## Example
 
 ```typescript
-// One argument — the wire layer derives the routing resourceId from
-// `target.source`.
-const { annotationId } = await client.mark.annotation({
+// Annotate by hand
+const { annotationId } = await semiont.mark.annotation({
   motivation: 'highlighting',
   target: {
     source: resourceId,
-    selector: {
-      type: 'TextQuoteSelector',
-      exact: 'Ouranos',
-      prefix: 'In the beginning, ',
-      suffix: ' ruled the universe',
-    },
+    selector: [
+      { type: 'TextPositionSelector', start: 0, end: 11 },
+      { type: 'TextQuoteSelector', exact: 'Hello World' },
+    ],
   },
-  // highlighting carries no body — motivation + target is the whole
-  // annotation per the W3C Web Annotation Model.
 });
-```
 
-**Resource classification** — replace a resource's own entity-type
-stamps. A confirmed write over `mark:update-entity-types` (replies
-`mark:update-entity-types-ok` / `-failed`): the gateway diffs `current`
-vs `updated` and persists the changes as `mark:entity-tag-added` /
-`mark:entity-tag-removed` events, so the new classification surfaces in
-`browse.resources({ entityType })`. This stamps a resource with types
-drawn from the Frame vocabulary — it does not define new types (that is
-`frame.addEntityTypes`; see [FRAME.md](./FRAME.md)).
-
-```typescript
-// Replace/diff: pass the resource's current types and the desired full set.
-await client.mark.updateEntityTypes(resourceId, ['Draft'], ['Draft', 'Question']);
-```
-
-**AI-assisted annotation** — long-running job that streams progress
-events. `client.mark.assist()` returns an Observable; internally it
-emits `job:create` (with `jobType` derived from the motivation) on the
-bus gateway. A worker claims the job, runs detection, and publishes
-`job:start` / `job:report-progress` / `job:complete` / `job:fail`
-events as it goes (filtered by jobId).
-
-```typescript
-// Detect highlights with AI
-client.mark.assist(resourceId, 'highlighting', {
-  instructions: 'Focus on key technical points',
-  density: 5,
+// Have an agent find the references
+semiont.mark.assist(resourceId, 'linking', {
+  entityTypes: ['Person', 'Organization'],
 }).subscribe({
-  next: (event) => console.log('progress:', event),
-  complete: () => console.log('done'),
+  next: (event) => console.log(event.kind, event),
+  complete: () => console.log('Done'),
 });
-
-// Detect entity references
-client.mark.assist(resourceId, 'linking', {
-  entityTypes: ['Person', 'Location'],
-  includeDescriptiveReferences: false,
-}).subscribe({ /* ... */ });
 ```
 
-## Supported Detection Types
+From the launcher: `semiont mark --delegate <resourceId> --motivation linking --entity-type Person`.
 
-| Motivation | W3C Spec | Purpose | Body Content | User Control |
-|------------|----------|---------|--------------|--------------|
-| `highlighting` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Mark important passages | Empty array `[]` | Optional instructions (max 500 chars) + density (1-15) |
-| `assessing` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Evaluate and assess content | Assessment text as `TextualBody` | Optional instructions (max 500 chars) + tone + density (1-10) |
-| `commenting` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Add explanatory comments | Comment text as `TextualBody` with `purpose: "commenting"` | Optional instructions (max 500 chars) + tone + density (2-12) |
-| `tagging` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Identify structural roles | Dual-body structure: category (`purpose: "tagging"`) + schema ID (`purpose: "describing"`) | Selected schema (IRAC/IMRAD/Toulmin) + categories |
-| `linking` | [W3C §3.1](https://www.w3.org/TR/annotation-model/#motivations) | Extract entity references | Entity type tags as `TextualBody` with `purpose: "tagging"` | Selected entity types from registry + include descriptive references option |
+## Local signals
 
-All types create annotations with:
-- **Target**: Text selection with dual selectors (TextPositionSelector + TextQuoteSelector)
-- **Body**: Empty for highlights, assessment text for assessments, comment text for comments, entity type tags for references
-- **Creator**: W3C Agent naming who requested the annotation — derived by the knowledge base from the verified emitter, or from the job the commit cites; never sent
-- **Generator**: W3C `Software` agent — the model that produced it, under its own verified DID (present when software did the work, absent for a person's own annotation)
-- **wasAttributedTo**: PROV-O — `[creator, generator]`, collapsed to one when requester and producer are the same agent; derived, like `creator`
-- **Created**: ISO 8601 timestamp
+`mark.request`, `mark.requestAssist`, `mark.submit`, `mark.cancelPending`, `mark.dismissProgress` and `mark.reportDeleteError` publish on the client's own bus and nowhere else. They coordinate one viewer's annotation interface and are not part of the wire protocol. See [react-ui's events](../../builder/react-ui/EVENTS.md).
 
-### Concurrent Marks
+## Where it is implemented
 
-Mark events split into two shapes for the purpose of concurrent-write semantics:
-
-- **Immutable appends** — `mark:create` (a new annotation) and `mark:archived` (annotation removed) carry their own annotation identity and never collide. Two participants creating annotations on the same passage concurrently produce two distinct annotations; nothing is rejected, nothing merges. Two participants archiving the same annotation concurrently each produce a `mark:archived` event; the projection sees the annotation archived (idempotent).
-
-- **Body updates** — `mark:update-body` events arrive at `EventStore.appendEvent` ([packages/event-sourcing/src/event-store.ts](../../../packages/event-sourcing/src/event-store.ts)) in some order, are persisted to the event log, and replayed through `applyBodyOperations` ([packages/core/src/annotation-assembly.ts](../../../packages/core/src/annotation-assembly.ts)) in arrival order. Each operation runs against the body produced by the previous event — not the body the originator saw when they issued the command. There is no version field, no `If-Match`, no rejection of stale writes. Both writes succeed; the resulting body reflects sequential application of both operation sets.
-
-The Bind flow's `bind:update-body` forwards to `mark:update-body`; see [BIND.md § Concurrent Binds](./BIND.md#concurrent-binds) for the per-operation semantics (`add` is idempotent on equal items, `remove` drops first match, `replace` keys on `oldItem`). Workflows that need single-writer semantics enforce it at the application layer (typically via a coordination signal like `bind:initiate`) rather than expecting the protocol to reject concurrent writers.
-
----
-
-## 1. W3C Web Annotation Basis
-
-### Annotation Structure
-
-Every detected annotation follows the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/):
-
-```json
-{
-  "@context": "http://www.w3.org/ns/anno.jsonld",
-  "type": "Annotation",
-  "id": "http://localhost:4000/annotations/abc123",
-  "motivation": "highlighting",
-  "creator": {
-    "@type": "Person",
-    "@id": "did:web:localhost:users:alice",
-    "name": "Alice"
-  },
-  "generator": {
-    "@type": "Software",
-    "@id": "did:web:localhost:agents:anthropic:claude-sonnet-4-6",
-    "name": "anthropic claude-sonnet-4-6",
-    "provider": "anthropic",
-    "model": "claude-sonnet-4-6"
-  },
-  "created": "2025-12-04T10:30:00Z",
-  "target": {
-    "type": "SpecificResource",
-    "source": "http://localhost:4000/resources/doc-456",
-    "selector": [
-      {
-        "type": "TextPositionSelector",
-        "start": 52,
-        "end": 59
-      },
-      {
-        "type": "TextQuoteSelector",
-        "exact": "Ouranos",
-        "prefix": "In the beginning, ",
-        "suffix": " ruled the universe"
-      }
-    ]
-  },
-  "body": []
-}
-```
-
-**Reference annotation example** (with entity type tags):
-```json
-{
-  "motivation": "linking",
-  "body": [
-    {
-      "type": "TextualBody",
-      "value": "Person",
-      "purpose": "tagging"
-    },
-    {
-      "type": "TextualBody",
-      "value": "Deity",
-      "purpose": "tagging"
-    }
-  ]
-}
-```
-
-**Comment annotation example** (with explanatory text):
-
-```json
-{
-  "motivation": "commenting",
-  "body": [
-    {
-      "type": "TextualBody",
-      "value": "Ouranos (also spelled Uranus) is the primordial Greek deity personifying the sky. In Hesiod's Theogony, he is the son and husband of Gaia (Earth) and father of the Titans.",
-      "purpose": "commenting",
-      "format": "text/plain",
-      "language": "en"
-    }
-  ]
-}
-```
-
-**Implementation**:
-- Detection logic — [AnnotationDetection](../../../packages/jobs/src/workers/annotation-detection.ts): one class with a static method per motivation (`detectHighlights`, `detectAssessments`, `detectComments`, `detectTags`, plus `extractEntities` for references)
-- Job orchestration — [processors.ts](../../../packages/jobs/src/processors.ts): `processHighlightJob`, `processAssessmentJob`, `processCommentJob`, `processReferenceJob`, `processTagJob`
-
-See [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md) for complete details on worker architecture and dependency injection.
-
-### Dual Selectors for Robustness
-
-Every detected annotation uses **both** W3C selector types ([W3C §4.2](https://www.w3.org/TR/annotation-model/#selectors)):
-
-**TextPositionSelector** ([W3C §4.2.1](https://www.w3.org/TR/annotation-model/#text-position-selector)):
-- Character offsets from document start: `{ "start": 52, "end": 59 }`
-- Fast, precise lookup when document unchanged
-- Required by detection workers to create annotations
-
-**TextQuoteSelector** ([W3C §4.2.4](https://www.w3.org/TR/annotation-model/#text-quote-selector)):
-- Exact text with prefix/suffix context
-- Enables fuzzy anchoring when content shifts
-- AI provides 32 characters of prefix/suffix context
-- Disambiguates multiple occurrences of same text
-
-**Why Dual Selectors?**
-- Position-based anchoring works when content unchanged
-- Text-based anchoring recovers from content edits, line ending changes (CRLF ↔ LF)
-- Prefix/suffix enables finding text even when LLM positions are approximate
-
-See [W3C-SELECTORS.md](../W3C-SELECTORS.md) for complete selector documentation.
-
-### Fuzzy Anchoring Implementation
-
-Browser uses fuzzy anchoring ([CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md)) to handle:
-- Documents edited after annotation creation
-- Character position shifts from insertions/deletions
-- Line ending normalization (CRLF → LF)
-- Multiple occurrences of same text
-
-**Implementation**: [packages/core/src/fuzzy-anchor.ts](../../../packages/core/src/fuzzy-anchor.ts) with comprehensive tests.
-
----
-
-## 2. AI Inference & Prompts
-
-### LLM Prompt Architecture
-
-Detection workers use structured prompts optimized for each annotation type:
-
-Detection logic lives in the `AnnotationDetection` class from [@semiont/jobs](../../../packages/jobs/src/workers/annotation-detection.ts). The `process*Job` functions handle job orchestration and progress tracking, while the detection methods handle prompt construction and response parsing.
-
-**Highlight Detection**:
-- **Detection Method**: [AnnotationDetection.detectHighlights()](../../../packages/jobs/src/workers/annotation-detection.ts)
-- **Job processor**: [processHighlightJob](../../../packages/jobs/src/processors.ts)
-- **Task**: Identify important/noteworthy passages
-- **Input**: The whole document, chunked to the derived budget + optional user instructions
-- **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`
-
-**Assessment Detection**:
-- **Detection Method**: [AnnotationDetection.detectAssessments()](../../../packages/jobs/src/workers/annotation-detection.ts)
-- **Job processor**: [processAssessmentJob](../../../packages/jobs/src/processors.ts)
-- **Task**: Assess and evaluate key passages
-- **Input**: The whole document, chunked to the derived budget + optional user instructions
-- **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `assessment`
-
-**Comment Detection**:
-- **Detection Method**: [AnnotationDetection.detectComments()](../../../packages/jobs/src/workers/annotation-detection.ts)
-- **Job processor**: [processCommentJob](../../../packages/jobs/src/processors.ts)
-- **Task**: Identify passages needing explanatory comments
-- **Input**: The whole document, chunked to the derived budget + optional user instructions + optional tone (scholarly/explanatory/conversational/technical)
-- **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `comment`
-- **Guidelines**: Emphasis on selectivity (3-8 comments per 2000 words), value beyond restating text, focus on context/background/clarification
-
-**Tag Detection**:
-- **Detection Method**: [AnnotationDetection.detectTags()](../../../packages/jobs/src/workers/annotation-detection.ts)
-- **Job processor**: [processTagJob](../../../packages/jobs/src/processors.ts)
-- **Task**: Detect and extract structured tags using ontology schemas
-- **Input**: Full document content + schema ID + category
-- **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `category`
-
-**Reference/Entity Detection**:
-- **Detection Method**: [AnnotationDetection.extractEntities()](../../../packages/jobs/src/workers/detection/entity-extractor.ts)
-- **Job processor**: [processReferenceJob](../../../packages/jobs/src/processors.ts)
-- **Task**: Identify entity references by type (Person, Location, Concept, etc.)
-- **Input**: Full document content + selected entity types (with optional examples)
-- **Output**: JSON array with `exact`, `entityType`, `startOffset`, `endOffset`, `prefix`, `suffix`
-- **Concurrency**: entity types are independent, so they run in parallel up to the provider's `maxConcurrency`
-
-**Model parameters are not per-motivation.** All five share `temperature = 0`
-(detection is extraction, not generation) and an output budget **derived from the
-provider's limits** per chunk — there are no hand-set `max_tokens` values left to
-document. See "Long documents are chunked, not truncated" below.
-
-### Detection Parameters
-
-All detection types support various parameters to customize AI behavior and control output.
-
-#### Instructions (Highlights, Assessments, Comments)
-
-Optional free-text guidance (max 500 characters) to influence what the AI detects:
-
-**Highlight Examples**:
-- "Focus on key technical points"
-- "Highlight definitions and important concepts"
-- "Find passages related to security"
-
-**Assessment Examples**:
-- "Evaluate claims for accuracy"
-- "Assess the strength of evidence"
-- "Focus on methodology"
-
-**Comment Examples**:
-- "Focus on technical terminology"
-- "Explain historical references"
-- "Clarify complex concepts"
-
-#### Tone (Assessments, Comments)
-
-Controls the writing style of generated text:
-
-- **Analytical** (Assessments): Objective, evidence-based evaluation
-- **Critical** (Assessments): Rigorous examination, identifies weaknesses
-- **Balanced** (Assessments): Fair consideration of strengths and limitations
-- **Constructive** (Assessments): Improvement-focused, actionable feedback
-- **Scholarly** (Comments): Academic style with citations and formal language
-- **Explanatory** (Comments): Clear, educational explanations for general audience
-- **Conversational** (Comments): Casual, friendly style for approachable learning
-- **Technical** (Comments): Precise, detailed technical explanations for expert audience
-
-#### Density (Highlights, Assessments, Comments)
-
-Controls the target number of annotations per 2000 words:
-
-| Type | Range | Default | Sparse (Low) | Dense (High) |
-|------|-------|---------|--------------|--------------|
-| **Highlights** | 1-15 | 5 | 1-3 per 2000 words | 13-15 per 2000 words |
-| **Assessments** | 1-10 | 4 | 1-2 per 2000 words | 8-10 per 2000 words |
-| **Comments** | 2-12 | 5 | 2-3 per 2000 words | 10-12 per 2000 words |
-
-**Implementation**: Density is communicated to the AI via prompt guidance. The AI aims for the specified density but may vary based on content (e.g., fewer highlights if content lacks noteworthy passages).
-
-**UI**: Density selector includes:
-- Checkbox to enable/disable (enabled by default)
-- Slider control with numeric display
-- Labels showing "sparse" at minimum, "dense" at maximum
-- Current value displayed as "X per 2000 words"
-
-#### Entity Types (References)
-
-**Selection**: Users select from entity type registry (Person, Location, Organization, Event, Concept, etc.)
-- Multiple types can be selected in a single detection run
-- Optional examples can be provided per entity type
-- Detection runs once per selected entity type
-
-#### Include Descriptive References (References)
-
-**Purpose**: Also detect descriptive references in addition to proper names.
-
-**Checkbox option** (default: unchecked):
-- **Unchecked (default)**: Only detect explicit entity names (e.g., "Einstein", "Paris", "IBM")
-- **Checked**: Also detect descriptive references like "the physicist", "the city", "the tech giant"
-
-**Example**:
-- Text: "Albert Einstein was born in Ulm. The physicist later moved to Switzerland."
-- Without descriptive refs: Detects "Albert Einstein", "Ulm", "Switzerland"
-- With descriptive refs: Also detects "the physicist" (referencing Einstein)
-
-**Use Cases**:
-- Academic writing with frequent pronoun/description usage
-- Historical documents using titles and descriptive phrases
-- Technical documents with role-based references ("the CEO", "the lead developer")
-
-**Prompt Impact**: When enabled, the AI is instructed to find both explicit names and descriptive references that clearly refer to entities.
-
-### Long documents are chunked, not truncated
-
-**There is no character cap.** Detection derives its budget from the inference
-provider's *published limits* and chunks the document to fit — no hand-tuned
-constants, and document content never enters the arithmetic.
-
-Providers come in two shapes, and the budget follows:
-
-- **Shared window** (Ollama publishes `maxOutputTokens === contextTokens`): what
-  remains after the prompt scaffold is split input:output **1:2**. Annotation
-  JSON echoes each span plus a fixed envelope, so output needs the larger share.
-- **Separate ceilings** (Anthropic): output takes its full ceiling, duration-capped;
-  input follows the same 1:2 allocation and is **never** more than half the output
-  budget.
-
-Input deliberately does *not* get "the rest of the window." A window-sized chunk of
-entity-dense text demands more output than any budget holds, so the model grinds
-toward `max_tokens` for minutes or collapses to a degenerate empty result.
-**Chunking is the fix for that, not a cost of it.**
-
-**Truncation is typed, and it is a signal.** A response that hits the output budget
-is caught per chunk by `assertNotTruncated` — never predicted in advance — and a
-chunk that overflows is **subdivided in place** rather than retried at the same
-size. That failure is the useful one: deterministic, and therefore actionable.
-
-**Entity types run in parallel, with a bound.** Independent entity types fan out
-concurrently, capped at the provider's `maxConcurrency` — unbounded fan-out just
-trades sequential waiting for 429 thrash, so the cap is the feature, not a
-limitation.
-
-For the numbers behind any of this, read
-[`detection-chunking.ts`](../../../packages/jobs/src/workers/detection/detection-chunking.ts);
-they move with provider limits and are deliberately not restated here.
-
-### Response Validation
-
-All detection types use similar validation:
-
-**Implementation**: [packages/jobs/src/workers/detection/motivation-parsers.ts](../../../packages/jobs/src/workers/detection/motivation-parsers.ts)
-
-```typescript
-// Parse LLM response
-const cleaned = llmResponse.trim().replace(/^```(?:json)?\n?|\n?```$/g, '');
-const parsed = JSON.parse(cleaned);
-
-// Validate structure
-if (!Array.isArray(parsed)) {
-  return [];
-}
-
-// Filter valid entries
-return parsed.filter((h: any) =>
-  h &&
-  typeof h.exact === 'string' &&
-  typeof h.start === 'number' &&
-  typeof h.end === 'number'
-);
-```
-
-**Validation Strategy**:
-- Remove markdown code fences if present
-- Ensure response is JSON array
-- Filter malformed entries
-- Does NOT validate positions against content (relies on fuzzy anchoring)
-
-**Reference detection** additionally validates and corrects positions using prefix/suffix context ([entity-extractor.ts](../../../packages/jobs/src/workers/detection/entity-extractor.ts)).
-
-### Position Accuracy Challenges
-
-**LLM Position Challenges**:
-- Character counting can be imprecise (±5 characters typical)
-- Multi-byte characters (emojis, Unicode) cause offsets
-- Whitespace handling varies
-
-**Mitigation Strategy**:
-1. LLM provides BOTH positions AND exact text
-2. LLM provides prefix/suffix context (32 chars each)
-3. Reference detection validates and corrects positions before creating annotations
-4. Fuzzy anchoring finds correct position even if LLM positions wrong
-5. Browser validates and corrects positions during rendering
-
----
-
-## 3. Gateway Implementation
-
-### Event-Driven Architecture
-
-```
-User clicks ✨ button or selects entity types
-    ↓
-Browser → client.mark.assist(rId, motivation, options) emits job:create
-          via /bus/emit with jobType derived from motivation
-          (highlight-annotation | assessment-annotation | comment-annotation |
-           tag-annotation | reference-annotation)
-    ↓
-Gateway job:create handler builds a PendingJob, persists to queue,
-returns job:created { jobId }
-    ↓
-Worker (separate process, subscribed to job:queued) claims via job:claim
-    ↓
-Worker runs detection, emits the unified job lifecycle —
-job:report-progress / job:complete / job:fail — via /bus/emit
-(filtered by jobId; the SDK matches on the jobId from job:created)
-    ↓
-Worker commits the batch via mark:commit { resourceId, annotations, jobId };
-Stower derives creator (the requester, from the dispatcher's job:assigned
-record for that jobId) and wasAttributedTo, refuses a worker-role commit
-that cites no job or a job this worker does not hold, persists, and
-EventStore publishes enriched mark:added events
-    ↓
-Every connected Browser receives events on /bus/subscribe;
-BrowseNamespace invalidates caches; UI updates in real-time (<50ms)
-```
-
-Commands and result channels:
-
-| Trigger | Request | Progress / Success | Failure |
-|---|---|---|---|
-| `client.mark.assist(..., 'highlighting', ...)` | `job:create` (jobType: `highlight-annotation`) | `job:report-progress` / `job:complete` | `job:fail` |
-| `client.mark.assist(..., 'assessing', ...)` | `job:create` (jobType: `assessment-annotation`) | `job:report-progress` / `job:complete` | `job:fail` |
-| `client.mark.assist(..., 'commenting', ...)` | `job:create` (jobType: `comment-annotation`) | `job:report-progress` / `job:complete` | `job:fail` |
-| `client.mark.assist(..., 'tagging', ...)` | `job:create` (jobType: `tag-annotation`) | `job:report-progress` / `job:complete` | `job:fail` |
-| `client.mark.assist(..., 'linking', ...)` | `job:create` (jobType: `reference-annotation`) | `job:report-progress` / `job:complete` | `job:fail` |
-
-There is no `mark:`-specific assist channel: AI-assisted detection runs as a job, so progress and terminal events flow on the unified `job:*` lifecycle, filtered by `jobId`.
-
-### Gateway Workers (Job Processing)
-
-All annotation jobs run through the same processor pattern in [@semiont/jobs](../../../packages/jobs/): the worker process claims a queued job and dispatches by `jobType` to a `process*Job` function in [processors.ts](../../../packages/jobs/src/processors.ts), each of which calls the matching `AnnotationDetection` method. See [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md) for complete architecture details.
-
-**Highlights**: [processHighlightJob](../../../packages/jobs/src/processors.ts)
-
-**Processing Stages**:
-1. **Load Resource (10%)**: Fetch from Materialized Views → load content via Content Store → charset-aware decoding
-2. **AI Detection (30%)**: Call `AnnotationDetection.detectHighlights()` → parse validated matches
-3. **Create Annotations (60-100%)**: For each highlight → create W3C annotation → emit `mark:create` on EventBus
-
-**Assessments**: [processAssessmentJob](../../../packages/jobs/src/processors.ts)
-
-**Processing Stages**: Same as highlights, but calls `AnnotationDetection.detectAssessments()` and includes assessment text in body
-
-**Comments**: [processCommentJob](../../../packages/jobs/src/processors.ts)
-
-**Processing Stages**:
-1. **Load Resource (10%)**: Fetch from Materialized Views → load content via Content Store → charset-aware decoding
-2. **AI Detection (30%)**: Call `AnnotationDetection.detectComments()` with tone parameter → parse validated matches
-3. **Create Annotations (60-100%)**: For each comment → create W3C annotation with `purpose: "commenting"` → emit `mark:create` on EventBus
-
-**Tags**: [processTagJob](../../../packages/jobs/src/processors.ts)
-
-**Processing Stages**:
-1. **Load Resource (10%)**: Fetch from Materialized Views → load full content
-2. **Per-Category Detection**: For each category → call `AnnotationDetection.detectTags()` → parse validated matches
-3. **Create Annotations (60-100%)**: For each tag → create W3C annotation with dual-body structure (category + schema ID) → emit `mark:create` on EventBus
-
-**References**: [processReferenceJob](../../../packages/jobs/src/processors.ts)
-
-**Processing Stages**:
-1. **Load Resource**: Fetch from Materialized Views → load full content (no truncation)
-2. **Per-Entity-Type Detection**: For each selected entity type → perform AI inference → validate/correct positions
-3. **Create Annotations**: For each entity → create W3C annotation with entity type tags → emit `mark:create` on EventBus
-4. **Progress Updates**: Emit progress after each entity type completes
-
-**Event Emission**: All workers emit the unified `job:start`, `job:report-progress`, `job:complete`, or `job:fail` events to the EventBus. The Stower subscribes to these events and persists them to the Event Store. Workers receive dependencies (JobQueue, EventBus, EnvironmentConfig) via constructor parameters, not singletons.
-
-### Real-Time Updates
-
-Detection events flow through the bus gateway's single SSE connection,
-enabling real-time UI updates for every connected participant:
-
-**Progress Updates**: Workers emit `job:report-progress` on the
-EventBus. The Browser's `SemiontClient` subscribes to these events
-via `/bus/subscribe` and filters by `jobId`; `mark.assist()` surfaces
-them through an Observable.
-
-**Annotation Creation**: When a worker emits `mark:create` on the bus:
-1. Stower persists to the Event Store.
-2. The EventStore enrichment callback attaches the post-materialization
-   annotation to the published event.
-3. Every connected Browser receives the enriched `mark:added` via the
-   bus subscription.
-4. BrowseNamespace updates its cached Observable in place — no HTTP
-   refetch needed.
-
-See [EVENT-BUS.md](../EVENT-BUS.md) and [CHANNELS.md](../CHANNELS.md)
-for the bus protocol and channel inventory.
-
-### Data Flow Through Gateway Layers
-
-**Event Store → View Storage → Graph Database** ([Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md)):
-
-```
-Worker emits mark:create on EventBus
-    ↓
-Stower persists to Event Store (filesystem JSONL - immutable append-only log)
-    ↓
-Stower emits mark:created on EventBus
-    ↓
-View Materializer updates Materialized Views (fast single-doc queries)
-    ↓
-Weaver updates Graph Database (relationship traversal - backlinks, connections)
-```
-
-**Storage Locations**:
-```
-data/events/shards/ab/cd/documents/doc-sha256:abc123/events-000042-{timestamp}.jsonl
-data/views/shards/ab/cd/doc-sha256:abc123.jsonl
-Neptune/In-Memory graph: (Document)-[:HAS_ANNOTATION]->(Annotation)
-```
-
-### Error Handling
-
-**Job Failures**:
-- Worker logs detailed error to gateway console
-- Generic error message sent to Browser ("Detection failed. Please try again later.")
-- Job status preserved in queue for debugging
-- Browser shows user-friendly error toast
-
-**Client Disconnection**:
-- Job continues running even if client disconnects
-- Annotations still created and saved to Event Store
-- User sees result on page refresh (from View Storage)
-
-**Retry Strategy**:
-- Max 1 retry on transient failures
-- Permanent failures marked as `status: 'failed'`
-- No retry on validation errors or missing resources
-
----
-
-## 4. Browser Implementation
-
-### Detection UI Components
-
-**AssistSection** (Highlights/Assessments/Comments): [packages/react-ui/src/components/resource/panels/AssistSection.tsx](../../../packages/react-ui/src/components/resource/panels/AssistSection.tsx)
-
-Shared component for HighlightPanel, AssessmentPanel, and CommentsPanel:
-- Optional instructions textarea (max 500 characters with counter)
-- Optional tone selector dropdown (assessments: analytical/critical/balanced/constructive; comments: scholarly/explanatory/conversational/technical)
-- Optional density slider (checkbox + slider control, enabled by default)
-  - Highlights: 1-15 (default 5)
-  - Assessments: 1-10 (default 4)
-  - Comments: 2-12 (default 5)
-- Sparkle button (✨) triggers detection
-- Real-time progress display during detection
-- Color-coded by motivation (yellow/amber for highlights, red/pink for assessments, purple/indigo for comments)
-
-**ReferencesPanel**: [packages/react-ui/src/components/resource/panels/ReferencesPanel.tsx](../../../packages/react-ui/src/components/resource/panels/ReferencesPanel.tsx)
-
-Entity type selection UI:
-- Checkbox list of available entity types
-- Select all/none buttons
-- "Include descriptive references" checkbox (finds descriptive phrases like "the physicist" in addition to proper names)
-- Detection progress widget showing per-entity-type progress
-- Completion log showing counts per entity type
-
-### Mark Namespace (Observable API)
-
-**File**: [packages/sdk/src/namespaces/mark.ts](../../../packages/sdk/src/namespaces/mark.ts)
-
-The `mark.assist()` Observable handles the full detection lifecycle —
-command emission, progress delivery, completion, and failure — over
-the bus gateway. Components subscribe with RxJS operators; cleanup is
-automatic on unsubscribe.
-
-```typescript
-const subscription = client.mark.assist(resourceId, 'highlighting', {
-  instructions: 'Focus on key technical points',
-  density: 5,
-}).subscribe({
-  next: (progress) => {
-    setDetectionProgress({
-      status: progress.status,
-      percentage: progress.percentage,
-      message: progress.message,
-    });
-  },
-  complete: () => {
-    toast.success('Detection complete');
-    // BrowseNamespace auto-invalidates on mark:added events — no
-    // explicit refetch needed.
-  },
-  error: (err) => {
-    toast.error(err.message);
-    setIsDetecting(false);
-  },
-});
-
-// Cleanup
-subscription.unsubscribe();
-```
-
-### Progress Display
-
-**Highlighting**:
-
-1. 10%: Loading resource...
-2. 30%: Analyzing text with AI...
-3. 60%: Creating N annotations...
-4. 100%: Complete! Created N highlights
-
-**Assessment**:
-
-1. 10%: Loading resource...
-2. 30%: Analyzing text with AI...
-3. 60%: Creating N annotations...
-4. 100%: Complete! Created N assessments
-
-**Comments**:
-
-1. 10%: Loading resource...
-2. 30%: Analyzing text and generating comments...
-3. 60%: Creating N annotations...
-4. 100%: Complete! Created N comments
-
-**References**:
-
-- Per-entity-type progress: "Detecting Person... (1/5)"
-- Completion: "Found X Person, Y Location, Z Organization"
-
-**UI Feedback**:
-
-- Border changes to yellow/red/purple/blue during detection
-- Animated icons (✨ for highlights/assessments/comments, 🔵 for references)
-- Progress percentage or entity type status
-- Real-time message updates
-- Completion toast notification
-
-### Annotation Rendering
-
-After detection completes:
-
-1. Browser refetches annotations from gateway (Materialized Views)
-2. Annotations converted to TextSegments with positions
-3. CRLF → LF position conversion applied ([CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md))
-4. Visual feedback (sparkle animation for new annotations)
-5. Annotations render at correct positions with appropriate styling
-
-**Styling** (from [Annotation Registry](../../../packages/react-ui/src/lib/annotation-registry.ts)):
-
-- Highlights: Yellow background with hover darkening
-- Assessments: Red underline with hover opacity change
-- Comments: Dashed outline with hover background change
-- References: Gradient cyan-to-blue with link icon
-
----
-
-## Validation
-
-### Validation Checks
-
-- **Position accuracy**: Annotations render at correct character positions
-- **Fuzzy anchoring**: Finds correct text even when LLM positions are wrong by searching for exact text and using prefix/suffix context for disambiguation
-- **CRLF handling**: Windows line endings normalized correctly ([CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md))
-- **Chunk coverage**: every motivation processes the whole document — chunk boundaries do not drop spans, and a chunk that overflows its output budget subdivides rather than silently truncating
-- **User instructions**: Influence LLM detection results as expected (highlights/assessments/comments)
-- **Tone selection**: Tone influences writing style as expected
-  - Assessment tones: analytical/critical/balanced/constructive
-  - Comment tones: scholarly/explanatory/conversational/technical
-- **Density control**: Annotation count roughly matches density setting (±20% variance acceptable)
-  - Highlights: 1-15 per 2000 words
-  - Assessments: 1-10 per 2000 words
-  - Comments: 2-12 per 2000 words
-- **Descriptive references**: When enabled, detects both proper names and descriptive phrases
-- **Comment quality**: Comments add value beyond restating text, provide context/background
-- **Entity type selection**: References detect only selected types
-- **W3C compliance**: Annotations validate against W3C schema
-- **Event Store persistence**: Annotations survive gateway restart
-
-### Known Limitations
-
-1. **Position approximation**: LLM positions may be ±5 characters off (fuzzy anchoring and validation compensate)
-2. **Single-pass processing**: No iterative refinement or confidence scores
-3. **No batch position validation**: Highlights/assessments/comments don't validate positions before creating annotations (rely on fuzzy anchoring)
-4. **Comment selectivity**: AI may occasionally over-comment or under-comment (target is 3-8 per 2000 words)
-
-*(Content truncation and a fixed token ceiling were listed here until budgets
-became provider-derived and long documents began chunking — see "Long documents
-are chunked, not truncated" above.)*
-
----
-
-## Related Implementation Files
-
-### Detection (@semiont/jobs)
-
-- [AnnotationDetection](../../../packages/jobs/src/workers/annotation-detection.ts) - Consolidated detection class (one static method per motivation)
-- [processors.ts](../../../packages/jobs/src/processors.ts) - Per-motivation job processors (`processHighlightJob`, `processAssessmentJob`, `processCommentJob`, `processReferenceJob`, `processTagJob`)
-- [detection/](../../../packages/jobs/src/workers/detection/) - Prompt builders, response parsers, entity extractor
-- [Job Workers Documentation](../../../packages/make-meaning/docs/job-workers.md) - Worker architecture
-- [Make-Meaning Examples](../../../packages/make-meaning/docs/examples.md) - Usage examples
-
-### Job dispatch (bus, not REST)
-
-Detection has no dedicated REST endpoints. `mark.assist(...)` emits a `job:create` event; the bus/job path is:
-
-- [packages/sdk/src/namespaces/mark.ts](../../../packages/sdk/src/namespaces/mark.ts) - `assist()` maps motivation → `jobType` and emits `job:create`
-- [apps/dispatcher/handlers/src/handlers.rs](../../../apps/dispatcher/handlers/src/handlers.rs) - the dispatcher's `job:create` / `job:claim` handlers ([docs/protocol/JOBS.md](../JOBS.md))
-- [apps/gateway/src/routes/bus.rs](../../../apps/gateway/src/routes/bus.rs), [stream.rs](../../../apps/gateway/src/routes/stream.rs) - Bus gateway (`/bus/emit`, `/bus/subscribe`)
-
-### Browser
-
-- [packages/react-ui/src/components/resource/panels/AssistSection.tsx](../../../packages/react-ui/src/components/resource/panels/AssistSection.tsx) - Shared assist UI for highlights/assessments/comments (with tone selector)
-- [packages/react-ui/src/components/resource/panels/CommentsPanel.tsx](../../../packages/react-ui/src/components/resource/panels/CommentsPanel.tsx) - Comments panel with detection UI
-- [packages/react-ui/src/components/resource/panels/ReferencesPanel.tsx](../../../packages/react-ui/src/components/resource/panels/ReferencesPanel.tsx) - Reference detection UI
-- [packages/core/src/fuzzy-anchor.ts](../../../packages/core/src/fuzzy-anchor.ts) - Fuzzy anchoring implementation
-- [packages/react-ui/src/lib/annotation-registry.ts](../../../packages/react-ui/src/lib/annotation-registry.ts) - Annotation type metadata
-
-### Documentation
-- [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Complete W3C implementation
-- [W3C Selectors](../W3C-SELECTORS.md) - Dual selector strategy
-- [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md) - Event store architecture
-- [Browser Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - UI patterns and components
-- [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - CRLF position handling
+- The SDK namespace: [packages/sdk/src/namespaces/mark.ts](../../../packages/sdk/src/namespaces/mark.ts)
+- What records the events: the Stower, in [packages/make-meaning/src/stower.ts](../../../packages/make-meaning/src/stower.ts)
+- The detection workers: [packages/jobs](../../../packages/jobs/README.md)
+- The launcher verb: [apps/launcher/internal/verbs/mark.go](../../../apps/launcher/internal/verbs/mark.go)
+- The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

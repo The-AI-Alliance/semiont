@@ -1,17 +1,17 @@
 # Event-Bus Protocol
 
-This document describes the wire-level event protocol that every actor in Semiont speaks: channel naming, payload conventions, the gateway's identity injection, the trace-context carrier, and resource scoping. It is the contract that the transport layer (HTTP+SSE, in-process, future gRPC) implements and that the SDK hides behind typed namespace methods.
+This document describes the wire-level event protocol that every actor in Semiont speaks: channel naming, payload conventions, the gateway's identity injection, the trace-context carrier, and resource scoping. It is the contract that a transport (HTTP with server-sent events, or in-process) implements and that an SDK hides behind typed methods.
 
 If you only want to *use* the protocol from a script, you don't need this doc — read **[../../docs/builder/Usage.md](../builder/Usage.md)**, the SDK already wraps every channel pattern. Read this if you're:
 
-- Building a new transport (e.g. `LocalTransport` for in-process, a hypothetical `GrpcTransport`)
+- Building a transport
 - Adding a new actor or worker that subscribes to channels directly via `eventBus.on(channel)`
 - Debugging a bus-mediated round-trip with the [bus log](../../tests/e2e/docs/bus-logging.md)
 - Adding a new channel to the EventMap
 
-The authority is **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)**; [`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts) (the `EventMap` type and `CHANNEL_SCHEMAS` map) and the Go equivalents are GENERATED from it — see "The registry is the authority" below. This doc is the prose explanation; the registry is the truth.
+The authority is **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)**; [`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts) (the `EventMap` type and `CHANNEL_SCHEMAS` map) and the Go and Rust equivalents are GENERATED from it — see "The registry is the authority" below. This doc is the prose explanation; the registry is the truth.
 
-## What rides the bus, and the four things that deliberately do not
+## What rides the bus, and the five things that deliberately do not
 
 **The bus mediates subsystem messaging.** A request between two Semiont processes is a channel, a
 payload and an envelope — not an HTTP call. That is what makes a subsystem relocatable: the
@@ -39,22 +39,23 @@ table is the system-level view; that header is the gate.
 
 ## Channel naming
 
-Every channel is `verb:action` or `verb:action-state`. The verb is one of the eight flows ([flows/README.md](flows/README.md)) plus a small set of cross-cutting domains.
+Every channel is `verb:action` or `verb:action-state`. The prefix is one of the [eight verbs](flows/README.md), or one of a small set of cross-cutting domains.
 
 | Prefix | Examples | Purpose |
 |---|---|---|
-| `frame:` | `frame:add-entity-type`, `frame:entity-type-added` | Schema-layer vocabulary (entity types; future tag schemas, relation types) |
-| `yield:` | `yield:create`, `yield:created`, `yield:create-ok` | Resource creation, update, move, clone |
-| `mark:` | `mark:create`, `mark:added`, `mark:create-ok` | Annotation CRUD, AI assist |
-| `bind:` | `bind:initiate`, `bind:body-updated` | Reference resolution |
-| `match:` | `match:search-requested`, `match:search-results` | Multi-source candidate retrieval |
-| `gather:` | `gather:requested`, `gather:complete` | Context assembly |
-| `browse:` | `browse:resource-requested`, `browse:click` | Reads + UI navigation |
-| `beckon:` | `beckon:hover`, `beckon:focus`, `beckon:sparkle` | Attention coordination |
-| `job:` | `job:start`, `job:report-progress`, `job:complete` | Worker job lifecycle |
-| `panel:`, `tabs:`, `nav:`, `shell:` | `panel:toggle`, `nav:push` | App-shell UI events (Browser only) |
-| `settings:` | `settings:theme-changed`, `settings:locale-changed` | Browser preferences |
-| `bus:` | `bus:resume-gap` | SSE infrastructure |
+| `yield:` | `yield:create`, `yield:created`, `yield:create-ok` | Writing: resources coming in, by upload, generation or cloning |
+| `mark:` | `mark:create-request`, `mark:added`, `mark:create-ok` | Writing: annotations, and a resource's own facts |
+| `bind:` | `bind:update-body`, `bind:body-updated` | Writing: what a reference refers to |
+| `frame:` | `frame:add-entity-type`, `frame:entity-type-added` | Writing: the vocabulary (entity types and tag schemas) |
+| `browse:` | `browse:resource-requested`, `browse:click` | Reading: the record; and viewer navigation |
+| `match:` | `match:search-requested`, `match:search-results` | Reading: candidates for a reference |
+| `gather:` | `gather:requested`, `gather:complete` | Reading: assembled context |
+| `beckon:` | `beckon:focus`, `beckon:sparkle` | Directing attention |
+| `job:` | `job:create`, `job:report-progress`, `job:complete` | Delegated work ([JOBS.md](JOBS.md)) |
+| `person:`, `session:` | `person:profiled`, `session:joined` | Who a DID belongs to; who is connected |
+| `smelt:`, `weave:` | `smelt:settled`, `weave:applied` | The vector and graph projections reporting what they have applied |
+| `bus:` | `bus:resume-gap` | The stream itself |
+| `panel:`, `tabs:`, `nav:`, `shell:`, `settings:` | `panel:toggle`, `nav:push` | The Browser's interface; never on the wire |
 
 State suffixes follow a small vocabulary:
 
@@ -75,7 +76,7 @@ Each channel falls into one of five payload categories. The category tells you w
 | **Domain event** (`StoredEvent<...>`; `EnrichedEvent<...>` where the EventStore enriches) | branded TypeScript wrapper | no — handlers emit | yes | `yield:created`, `mark:added`, `job:completed` |
 | **Command** | OpenAPI schema (`components['schemas']`) | yes — `/bus/emit` | no | `yield:create`, `mark:archive`, `match:search-requested` |
 | **Result / failure** | OpenAPI schema, wrapped as `{ response }` for some results; the `correlationId` rides the envelope | sometimes (whitelisted set) | no | `yield:create-ok`, `match:search-results`, `gather:failed` |
-| **UI signal** | OpenAPI schema or `void` | yes when schema-typed | no | `beckon:hover`, `panel:toggle`, `mark:selection-changed` |
+| **UI signal** | OpenAPI schema or `void` | yes when schema-typed | no | `beckon:hover`, `panel:toggle`, `mark:select-comment` |
 | **SSE infrastructure** | OpenAPI schema | no | no | `bus:resume-gap` |
 
 `CHANNEL_SCHEMAS` — declared in [the registry](../../specs/src/bus/registry.json), generated into `bus-protocol.ts` — maps every channel to its OpenAPI schema name (or `null` when validation isn't applicable — `StoredEvent` wrappers, `void` signals, compound inline types). The `/bus/emit` route reads this map and rejects payloads that don't validate.
@@ -97,9 +98,8 @@ per-schema accident:
 
 What that buys each generated client: **TypeScript** narrows with an exhaustive
 `switch` whose `default` is `never` — an unhandled member is a compile error, and no
-consumer needs a cast or a property probe (`'resourceId' in result` was the
-pre-discriminant idiom; if you find yourself writing one against a wire union, the
-schema owns the answer). **Go** gets typed variants with `Discriminator()` /
+consumer needs a cast or a property probe (if you find yourself writing
+`'resourceId' in result` against a wire union, the schema owns the answer). **Go** gets typed variants with `Discriminator()` /
 `ValueByDiscriminator()` instead of an opaque `json.RawMessage` — and note that the
 positional `As*()` accessors remain bare unmarshals that succeed on the wrong
 variant; `ValueByDiscriminator()` is the honest dispatch.
@@ -146,7 +146,7 @@ In-process transports (e.g. `LocalTransport` from `@semiont/make-meaning`) emit 
 
 ## Correlation: request/response over a fan-out bus
 
-> **Where the bus lives (SIGNAL-PLANE).** Inside the gateway the bus is a *driver seam*, below the wire this document describes: the in-process driver (one RxJS fabric in the gateway process) is the default, and `[signal] type = "nats"` swaps in a NATS driver that fans out over core subjects across replicas. Neither the wire nor anything below changes — the gateway injects identity, applies entitlement, and mints correlation the same way under both, so this protocol and every SDK client are unaffected by the choice. See [Signal Plane configuration](../operator/administration/CONFIGURATION.md).
+> **Where the bus lives.** Inside the gateway the bus is a *driver seam*, below the wire this document describes: the in-process driver keeps the fan-out inside one gateway process, and `[signal] type = "nats"` swaps in a NATS driver that fans out over core subjects across replicas. Neither the wire nor anything below changes — the gateway injects identity, applies entitlement, and mints correlation the same way under both, so this protocol and every SDK client are unaffected by the choice. See [Signal Plane configuration](../operator/administration/CONFIGURATION.md).
 
 The bus is fan-out: every subscriber to a channel sees every event on it. Request/response semantics are layered on top via a `correlationId`:
 
@@ -238,7 +238,7 @@ Commands, results, and UI signals are transient. They flow across the bus, drive
 
 ## Fan-in: SSE bridging
 
-The SDK's `SemiontClient` owns a local `EventBus`; the HTTP transport bridges wire events into it. `BRIDGED_CHANNELS` in [bridged-channels.ts](../../packages/core/src/bridged-channels.ts) is the set the transport forwards — but it is no longer a hand-list. It is **derived**: every operation's reply channels (result + failure + optional progress) come from the `BUS_OPERATIONS` registry, plus the registry's `audience: everyone` set — the non-request/reply minority (KB-global domain events like `frame:entity-type-added`, UI signals like `beckon:*`, and infra like `bus:resume-gap`). Deriving the reply set from the registry is what makes "a reply channel forgotten from the bridged set" — the recurring silent-timeout bug — unrepresentable.
+The SDK's `SemiontClient` owns a local `EventBus`; the HTTP transport bridges wire events into it. `BRIDGED_CHANNELS` in [bridged-channels.ts](../../packages/core/src/bridged-channels.ts) is the set the transport forwards. It is **derived**, not listed by hand: every operation's reply channels (result + failure + optional progress) come from the `BUS_OPERATIONS` registry, plus the registry's `audience: everyone` set — the non-request/reply minority (KB-global domain events like `frame:entity-type-added`, UI signals like `beckon:*`, and infra like `bus:resume-gap`). Deriving the reply set from the registry is what makes "a reply channel forgotten from the bridged set" — the recurring silent-timeout bug — unrepresentable.
 
 ### Where the invariants are enforced
 
@@ -318,7 +318,7 @@ Three legitimate paths to the bus, each suited to a distinct case:
 
 The three paths are documented end-to-end (with code shapes and call-site examples) in [`docs/builder/REACTIVE-MODEL.md`](../builder/REACTIVE-MODEL.md#three-paths-to-the-bus). The bus surface is *not* `@internal` — it's a real surface for advanced and worker use — but the typed namespaces are the canonical entry point for everything else. If you find yourself writing `transport.emit(channel, ...)` from application code, the right move is usually to reach for the namespace, or — if no namespace covers your case — to add one.
 
-## The registry is the authority; both languages are generated
+## The registry is the authority; every language is generated
 
 `bus-protocol.ts` and `bus-operations.ts` are **generated files** — do not edit
 them. The authority is **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)**:
@@ -329,9 +329,10 @@ Two generators read it:
 |---|---|
 | `packages/core/src/bus-protocol.ts`, `bus-operations.ts`, `bus-classification.ts` | `node scripts/bus/generate-ts.mjs` |
 | `packages/sdk-go/bus/{channels,operations}_gen.go` | `node scripts/bus/generate-go.mjs` |
+| The Rust SDK's channel and operation tables | its build script, [`packages/sdk-rust/build.rs`](../../packages/sdk-rust/build.rs), on every build |
 
 ```sh
-npm run generate:bus          # regenerate both languages
+npm run generate:bus          # regenerate TypeScript and Go
 npm run generate:bus:check    # verify without writing (what CI runs)
 ```
 
@@ -468,4 +469,4 @@ Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` cl
 - **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)** — the bus log format and capture API.
 - **[../../docs/builder/Usage.md](../builder/Usage.md)** — the namespace tour with worked examples per verb.
 - **[../operator/administration/OBSERVABILITY.md](../operator/administration/OBSERVABILITY.md)** — how `_trace` correlates with OpenTelemetry spans and the `busLog` grep timeline.
-- **[flows/README.md](flows/README.md)** — the eight flows that organize the channel namespace.
+- **[flows/README.md](flows/README.md)** — the eight verbs that organize the channel namespace.

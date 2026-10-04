@@ -10,36 +10,32 @@ This page is the conceptual spine: what the protocol contains, why it is shaped 
 
 ## The eight verbs
 
-Every operation belongs to one of eight composable flows — *browse, bind, yield, mark, frame, gather, match, beckon*. Some deposit mappings, some navigate them, and one coordinates the participants doing both. Taken in the order you tend to meet them:
+Every operation belongs to one of eight verbs. They fall into three groups, by what they do to the knowledge base.
 
-**Browse and Bind are ordinary wiki actions.** If you have used a wiki, you already know these.
+**Four verbs write.** Each adds to the record, and what it adds is permanent.
 
-- **[Browse](flows/BROWSE.md)** — navigate resources, panels, and views.
-- **[Bind](flows/BIND.md)** — resolve an ambiguous reference to a specific target: the act of making a mention of "Paris" point at the right Paris.
+- **[Yield](flows/YIELD.md)** brings a resource in: by upload, by generation, by cloning.
+- **[Mark](flows/MARK.md)** annotates a passage or a region: a highlight, a comment, an assessment, a tag, a reference.
+- **[Bind](flows/BIND.md)** says what a reference refers to: the act of making a mention of "Paris" point at the right Paris.
+- **[Frame](flows/FRAME.md)** defines the vocabulary the other three are expressed in: entity types and tag schemas. Neither is fixed by Semiont; the participants in a knowledge base grow them.
 
-**Yield and Mark are where delegation enters.** Each has a hand form and a delegated form that produce the same events — `yield.resource` uploads a document while `yield.fromContext` generates one from gathered context; `mark.annotation` records a highlight you made while `mark.assist` runs AI detection across a resource. Same verb, same result shape, different author. This is where a collaborator — human or agent — takes work off your hands.
+Yield and Mark are where delegation enters. Each has a form done by hand and a delegated form, and the two produce the same events: `yield.resource` uploads a document while `yield.fromContext` generates one, and `mark.annotation` records a highlight you made while `mark.assist` has an agent find them across a resource. Same verb, same result, different author.
 
-- **[Yield](flows/YIELD.md)** — introduce resources: upload documents, load pages, or generate new content from existing material.
-- **[Mark](flows/MARK.md)** — annotate: highlights, assessments, comments, tags, and entity references, by hand or by detection.
+**Three verbs read.** They add no knowledge. They find and assemble what is already there, drawing on everything the knowledge base has accumulated: the record, the graph and the vector index.
 
-**Frame sets the vocabulary those annotations draw on.** Entity types and tag schemas are not fixed by Semiont — participants author them, and the other seven verbs are expressed in whatever vocabulary a knowledge base has grown.
+- **[Browse](flows/BROWSE.md)** reads resources, annotations, history and vocabulary.
+- **[Match](flows/MATCH.md)** searches for what a reference could refer to, and ranks the candidates.
+- **[Gather](flows/GATHER.md)** assembles the context around an annotation or a resource, grounded and attributable.
 
-- **[Frame](flows/FRAME.md)** — define and evolve what *kinds* of things exist: entity types, tag schemas, eventually relation types and ontology imports.
+**One verb directs attention.**
 
-**Gather and Match are the librarian verbs.** They add no knowledge; they find and assemble what is already there, and they are the two that draw on everything the corpus has accumulated — the knowledge graph, the vector index, and optional inference.
+- **[Beckon](flows/BECKON.md)** points another participant at a passage or opens a resource on their screen. It writes nothing and reads nothing. It exists because other people and agents are in the knowledge base at the same time as you.
 
-- **[Gather](flows/GATHER.md)** — assemble grounded, attributable context around a focal annotation or resource.
-- **[Match](flows/MATCHER.md)** — search for candidate resources, combining structural signals with semantic recall and optional LLM re-ranking.
-
-**Beckon is in a category of its own.**
-
-- **[Beckon](flows/BECKON.md)** — direct a participant's attention to a passage or region. It writes nothing and persists nothing; it exists because other people and agents are in the corpus at the same time as you.
-
-Per-flow contracts are in **[flows/README.md](flows/README.md)**.
+Each verb's contract is in **[flows/](flows/README.md)**.
 
 ## Why these eight
 
-**The set is derived from the work, not from a data model.** Put several participants in front of a shared corpus — some of them human — and a short list of questions has to have answers. How do I move around? (Browse) How do I say that this mention means that thing? (Bind) How does new material get in? (Yield) How do I say something about this passage? (Mark) What kinds of things are we tracking? (Frame) How do I assemble everything known about something? (Gather) How do I find what's relevant? (Match) How do I know where you're looking? (Beckon) Eight questions, eight verbs. Remove any one and something becomes impossible to express rather than merely inconvenient.
+**The set is derived from the work, not from a data model.** Put several participants in front of a shared corpus — some of them human — and a short list of questions has to have answers. How does new material get in? (Yield) How do I say something about this passage? (Mark) How do I say that this mention means that thing? (Bind) What kinds of things are we tracking? (Frame) How do I read what is here? (Browse) How do I find what's relevant? (Match) How do I assemble everything known about something? (Gather) How do I show you where to look? (Beckon) Eight questions, eight verbs. Remove any one and something becomes impossible to express rather than merely inconvenient.
 
 **Nothing else earns verb status.** Jobs, sessions, permissions, transports, and storage are how the eight get executed, secured, and delivered. They are machinery. A verb is an operation on knowledge — something a participant *does* to the corpus or to another participant's attention — and that test is what keeps the surface from growing every time the implementation does.
 
@@ -47,7 +43,7 @@ Per-flow contracts are in **[flows/README.md](flows/README.md)**.
 
 **The boundary falls where durability changes.** Applications are ephemeral — rewritten, redesigned, increasingly generated outright. The knowledge they produce is not: it accretes in an event log that outlives every one of them. So the protocol constrains exactly the operations whose consequences persist, and says nothing about presentation. You may improvise screens, layouts, and interaction idioms freely. You may not improvise what an annotation is, how a reference resolves, or what an entity type means — because those choices are permanent and shared across every application that ever touches the corpus. Without that line, each generation of each app silently invents its own micro-schema and the corpus fragments.
 
-**The set has stayed closed under pressure.** The honest test of a verb vocabulary is what happens when it meets a use case it wasn't designed for. So far, expressive pressure has arrived as *options on existing verbs* — output shape and citation controls on Yield, exclusion filters on Gather — rather than as new verbs. A document-grounded chat application was built from Yield, Gather, Mark, and Match with no protocol additions at all.
+**The set has stayed closed under pressure.** The honest test of a verb vocabulary is what happens when it meets a use case it wasn't designed for. So far, expressive pressure has arrived as *options on existing verbs* — output shape and citation controls on Yield, exclusion filters on Gather — rather than as new verbs. A document-grounded chat application was built from Yield, Mark, Match and Gather with no protocol additions at all.
 
 ## What holds across every verb
 
@@ -57,17 +53,19 @@ Per-flow contracts are in **[flows/README.md](flows/README.md)**.
 
 **The event log is the system of record.** Domain events are the durable truth; the graph, the materialized views, and the search indexes are projections that can be rebuilt from it. A projection that disagrees with the log is a bug, not a second opinion.
 
-**Coordination is first-class.** `beckon:hover`, `mark:shape-changed`, `bind:initiate`, `browse:click` and their siblings fan out to every connected participant as protocol events, not local UI state. A human's hover can inform an agent's relevance scoring; an agent's sparkle can direct a human's attention.
+**Coordination is first-class.** `beckon:focus`, `beckon:sparkle`, `browse:click` and `browse:resource-open` reach every connected participant as protocol events, not as one viewer's local state. An agent can direct a person's attention to what it found, and a person can direct an agent's.
 
-## One authority, two generated clients
+## One authority, three generated clients
 
-The bus is not defined in prose. **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** is the machine-readable authority — **171 channels** and **34 request/reply operations**, each naming its payload schema. Of those channels, 19 are persisted domain events; the rest are correlation replies, ephemeral coordination signals, and UI events that nobody stores.
+The bus is not defined in prose. **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** is the machine-readable authority: every channel, the schema of what it carries, the request and reply channels of every operation, which channels are events of the record, and who receives each. [CHANNELS.md](CHANNELS.md) is the readable inventory.
 
-Both the TypeScript types in `packages/core` and the **[Go client](../../packages/sdk-go/README.md)** are *generated* from that file — edit the registry, run the generators. Two independent client implementations derive from one artifact, which is the practical answer to "is this a protocol or just a TypeScript library."
+The TypeScript, Rust and Go clients each *generate* their channel tables from that file. Three implementations in three languages derive from one artifact, which is the practical answer to "is this a protocol or just a TypeScript library."
+
+The same holds one level up. **[`specs/src/client/surface.json`](../../specs/src/client/surface.json)** declares every method an SDK gives each verb and the shape of what it returns. Every SDK is held to it: a lint checks each SDK's methods against the table, and each SDK's own tests run the table's cases.
 
 ## Speaking the protocol
 
-The eight flows are also the eight namespaces on the SDK's `SemiontClient` — `client.frame.*`, `client.mark.*`, `client.gather.*`, and so on. The protocol vocabulary and the typed surface are 1:1, so there is no translation step between reading the flow docs and writing code. Coordination signals appear on the same namespaces as `void`-returning methods (`beckon.hover`, `mark.changeShape`, `bind.initiate`).
+The eight verbs are also the eight namespaces of a client in every SDK: `yield`, `mark`, `bind`, `frame`, `browse`, `match`, `gather` and `beckon`. The protocol's vocabulary and the typed surface are one to one, so there is no translation step between reading a verb's contract and writing code. In TypeScript:
 
 ```typescript
 import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
@@ -80,29 +78,34 @@ const session = await SemiontSession.signInDevice({
 });
 const semiont = session.client;
 
-await semiont.mark.assist(resourceId, 'linking', { entityTypes: ['Person'] });
-const { response: context } = await semiont.gather.annotation(resourceId, annId);
-const results = await semiont.match.search(resourceId, refId, context);
-await semiont.bind.body(resourceId, annId, [{ op: 'add', item: { type: 'SpecificResource', source: targetId } }]);
+await semiont.mark.assist(resourceId, 'linking', { entityTypes: ['Person'] });           // write
+const { response: context } = await semiont.gather.annotation(resourceId, annotationId);   // read
+const results = await semiont.match.search(resourceId, annotationId, context);              // read
+await semiont.bind.body(resourceId, annotationId, [                                          // write
+  { op: 'add', item: { type: 'SpecificResource', source: targetResourceId, purpose: 'linking' } },
+]);
 ```
 
 Three surfaces speak these verbs:
 
-- **[Semiont SDK](../../packages/sdk/README.md)** — the type-safe TypeScript client everything else is built on. RxJS-native, but every return value implements `PromiseLike<T>`, so `await` works without learning RxJS. See **[Usage.md](../builder/Usage.md)** for the per-namespace tour.
-- **[Agent Skills](../builder/skills/)** — ready-made skill definitions that agentic coding assistants like Claude Code use to drive the pipeline without writing integration code.
-- **[Semiont launcher](../../apps/launcher/README.md)** — the host-installed `semiont` binary exposes the flows as terminal verbs against a running stack; `semiont <verb> --help` for each verb's flags.
+- **The SDKs**, in [TypeScript](../../packages/sdk/README.md) and [Rust](../../packages/sdk-rust/README.md), are the typed clients everything else is built on. See **[the builder docs](../builder/README.md)**.
+- **[Agent skills](../builder/skills/)** are ready-made skill definitions that agentic coding assistants use to work in a knowledge base without writing integration code.
+- **[The launcher](../../apps/launcher/README.md)**, the `semiont` binary, exposes the verbs as terminal commands against a running stack; `semiont <verb> --help` for each.
 
 For product framing and getting a knowledge base running, see the **[project README](../../README.md)**.
 
 ## The specifications
 
-- **[flows/README.md](flows/README.md)** — per-flow contracts for all eight verbs
-- **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** — the generated bus authority: channels, payloads, operations
-- **[EVENT-BUS.md](EVENT-BUS.md)** — channel naming, `correlationId` / `_userId` conventions, `_trace` carrier, gateway injection, resource scoping
-- **[CHANNELS.md](CHANNELS.md)** — channel inventory: persisted events, ephemeral signals, correlation responses, resource broadcasts
-- **[JOBS.md](JOBS.md)** — the job protocol: the job record and its states, the nine `job:*` channels the dispatcher answers, claims, checkpoints, retries, cancellation, and the dispatcher's periodic work and health
-- **[TRANSPORT-CONTRACT.md](TRANSPORT-CONTRACT.md)** — abstract `ITransport` guarantees every transport must honor
-- **[TRANSPORT-HTTP.md](TRANSPORT-HTTP.md)** — HTTP+SSE wire format
-- **[CACHE-SEMANTICS.md](CACHE-SEMANTICS.md)** — the numbered behaviours every SDK's live-query cache is held to
-- **[RBAC.md](RBAC.md)** — roles and permissions
-- **[W3C-WEB-ANNOTATION.md](W3C-WEB-ANNOTATION.md)** + **[W3C-SELECTORS.md](W3C-SELECTORS.md)** — standards compliance
+| Doc | What it specifies |
+|---|---|
+| [flows/](flows/README.md) | Each of the eight verbs: its operations, what it records, and the rules a client can rely on |
+| [EVENT-BUS.md](EVENT-BUS.md) | The bus: channel naming, identity stamped by the gateway, correlation, scoping, what is recorded |
+| [CHANNELS.md](CHANNELS.md) | The channel inventory, by class |
+| [JOBS.md](JOBS.md) | Delegated work: the job record and its states, the `job:*` channels the dispatcher answers, claims, checkpoints, retries, cancellation |
+| [TRANSPORT-CONTRACT.md](TRANSPORT-CONTRACT.md) | What every transport promises a client, in any language |
+| [TRANSPORT-HTTP.md](TRANSPORT-HTTP.md) | The HTTP transport: `/bus/emit`, the `/bus/subscribe` stream, content, limits |
+| [CACHE-SEMANTICS.md](CACHE-SEMANTICS.md) | The numbered behaviors every SDK's live queries are held to |
+| [RBAC.md](RBAC.md) | Roles: the one authorization decision, and the two roles that mark services |
+| [W3C-WEB-ANNOTATION.md](W3C-WEB-ANNOTATION.md), [W3C-SELECTORS.md](W3C-SELECTORS.md) | The annotation model, and which selectors apply to which media |
+
+The machine-readable half is [`specs/`](../../specs/README.md): the OpenAPI document, the bus registry, the SDK surface, and the shared case tables every implementation runs.

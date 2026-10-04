@@ -34,35 +34,24 @@ compile), none of them terminal for the stream — and the would-be
 fourth outcome, `pending` forever, is a liveness violation the property
 suites test for.
 
-This document specifies the behavior of the read-through cache in
-`BrowseNamespace` (and the `createCache` primitive in
-`@semiont/sdk`). It is the behavioral contract that implementation must
-satisfy and that tests must verify.
+This document specifies the behavior of an SDK's live queries: the
+read-through cache behind every `browse` live query. It is the contract an
+implementation must satisfy and that tests must verify, in every language.
 
-## Why write this down
+## Who is held to it
 
-The cache is implemented by hand because `@semiont/sdk` is
-framework-agnostic (React, CLI, MCP, worker all consume it), and no
-off-the-shelf library fits the RxJS + StateUnit idiom without
-wrapping. Every bug in the hand-rolled cache so far has been a race
-the published libraries already document how to handle. Writing the
-expected behavior down so we can test against it — and so future
-implementations of the same behavior have a stable target — is the
-cheapest way to end the bug cycle.
+Every SDK. The behaviors are numbered so that each can be tested by name:
 
-Known cases that motivated this:
+- The SDK conformance suite's live cases put each SDK through them against a
+  real gateway ([tests/conformance/sdk](../../tests/conformance/sdk/README.md)).
+- What a bus event refreshes is not prose at all: it is
+  [`specs/src/client/refresh.json`](../../specs/src/client/refresh.json), from
+  which each SDK's handlers are generated.
+- The TypeScript SDK's own suites pin the behaviors one by one
+  ([Test-parity](#test-parity)).
 
-- `invalidate*` that deleted the cached value before refetching, causing
-  downstream consumers that watched "is-loaded" to flip to loading —
-  which in turn unmounted components whose effects held the very
-  subscriptions whose reconnect triggered the invalidation. A 124×
-  refetch storm per navigation, surfaced as test 04 in
-  [tests/e2e/](../../tests/e2e/).
-- `fetching*` guards that were never cleared after a connection-lost
-  refetch, leaving the cache empty forever ("Loading resource…" that
-  never resolves). Fixed in commit 845c6b24.
-- Entity-types lost across a benign (mount-churn) reconnect because
-  the same guard+invalidate pattern misfired.
+The examples are TypeScript, where the cache is `createCache` in
+`@semiont/sdk`. The behaviors are the same in the Rust SDK.
 
 ## Vocabulary
 
@@ -251,10 +240,9 @@ session is bounded by user navigation, and the memory cost is
 minimal compared to the correctness benefit of stable observable
 identities.
 
-A future cache primitive may add subscriber ref-counting and GC.
-For now, the full cache lifetime matches a `SemiontClient`
-instance, which matches a browser tab or a CLI process — so the
-leak is strictly bounded.
+The full cache lifetime matches a `SemiontClient` instance, which
+matches a browser tab or a CLI process — so the leak is strictly
+bounded.
 
 ### B14 — SWR fetch failure retries once (anti-starvation)
 
@@ -394,8 +382,8 @@ Every invalidation a bus event asks for goes through its key's
 Why: each refetch is a `browse:*` request, an emit counted against
 this session's principal (`emitsPerPrincipal`, 100 a second at the
 baseline). Every write by anyone invalidates the keys a session
-observes, so another principal's bulk import used to cost each viewer
-one refetch per event per observed key. Measured: a 1,000-event
+observes, so without coalescing another principal's bulk import costs each
+viewer one refetch per event per observed key. Measured: a 1,000-event
 storm, 100 a second, refetched an observed key 1,000 times. The
 window caps it at one per key per window, and the owed run means the
 last event is always reflected.
@@ -421,12 +409,12 @@ key, so there is nothing to refresh; its first observer fetches it (B1).
 
 Why: an event names what changed, not what this client looks at.
 `yield:created` reaches every client for every resource anyone creates,
-and each used to answer with a `browse:resource-requested` for a resource
-it had never opened: a 1,000-resource import cost every viewer 1,000
-requests, each counted against its own principal, past anything B19 could
-coalesce because every key was distinct. Likewise a `mark:added` on an
-open resource fetched its event history for a viewer that never showed
-one.
+and a client that answered each with a `browse:resource-requested` for a
+resource it had never opened would pay for it: a 1,000-resource import
+would cost every viewer 1,000 requests, each counted against its own
+principal, past anything B19 could coalesce because every key is distinct.
+Likewise a `mark:added` on an open resource would fetch its event history
+for a viewer that never showed one.
 
 ### B13a — Remove ends the key
 
@@ -683,7 +671,7 @@ Boundaries:
   replay, on the bookmark, or on any timing argument.
 
 **Cost, honestly stated:** this gives back part of what B17 bought — a
-reload is no longer request-free. It is not a return to cold-start: the
+reload is not request-free. It is not a return to cold-start: the
 paint is still immediate and never blocks on the wire; what returns is the
 background request per observed key.
 

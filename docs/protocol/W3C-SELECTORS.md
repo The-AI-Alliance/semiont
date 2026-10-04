@@ -4,9 +4,9 @@ Which selectors a Semiont annotation carries, and why the answer depends on the
 resource it points at.
 
 A resource's media type constrains the selectors that can apply to it. Text
-offers character offsets; a PDF offers page geometry. The media-type registry
-records that as `AnchoringModel` — `'text-selector'` or `'spatial'` — and every
-producer follows it. **How** the geometry for a spatial anchor is obtained, and
+offers character offsets; a PDF offers page geometry; an image offers regions.
+The media-type registry records that as `AnchoringModel` — `'text-selector'` or
+`'spatial'` — and every producer follows it. **How** the geometry for a spatial anchor is obtained, and
 how a scanned page gets one at all, is
 [ANCHORING.md](../architecture/ANCHORING.md).
 
@@ -14,14 +14,15 @@ how a scanned page gets one at all, is
 - [Anchoring](../architecture/ANCHORING.md) - How a coordinate map is derived, stored and turned into a selector
 - [W3C Web Annotation Implementation](./W3C-WEB-ANNOTATION.md) - Complete annotation architecture
 - [Semiont Protocol](./README.md) - The eight verbs and the bus these annotations travel on
-- [OpenAPI Specification](../../specs/openapi.json) - Machine-readable API spec
+- [OpenAPI Specification](../../specs/src/openapi.json) - Machine-readable API spec
+- [Media Types](../architecture/MEDIA-TYPES.md) - What each media type declares, and what that changes
 - [@semiont/core Utilities](../../packages/core/docs/Utilities.md) - Implementation aids: fuzzy anchoring, SVG selector parsing, position validation
 
-## Text Selectors (Implemented)
+## Text selectors
 
 Semiont implements **W3C-compliant text selectors** using a combination of TextPositionSelector and TextQuoteSelector for robustness.
 
-### Current Implementation
+### What a text annotation carries
 
 Every text annotation includes both selector types:
 
@@ -97,7 +98,7 @@ This write-time reconciliation (`reconcileSelector` in `@semiont/core`) is where
 
 Because the stored selectors already agree, the renderer trusts them and re-anchors only on a **verbatim** quote match. The one legitimate render-time discrepancy is *positional drift*: content shifted above the span after the annotation was written, so the `TextPositionSelector` is stale but `exact` still exists byte-identical. `anchorAnnotation` (`@semiont/core`) recovers it — uniquely, disambiguated by prefix/suffix, or (for repeated text) by closest-to-offset position — and flags anything it cannot resolve verbatim as low-confidence rather than fuzzy-matching at render time. This is the W3C-intended use of `TextQuoteSelector` for recovery; the fuzzy fallback chain stays on the write side.
 
-## PDF Selectors (Implemented)
+## PDF selectors
 
 A PDF anchors **spatially**. Its characters are drawn at positions rather than
 held at offsets, and the extracted text is a derived artifact — re-extraction
@@ -144,57 +145,26 @@ was drawn around nothing.
 **No `TextPositionSelector`.** See the opening of this section: offsets into a
 derived extraction are not durable.
 
-## Image Selectors (Future)
+## Image selectors
 
-Planned support for image annotation. An image has no text to quote, so a
-region is the whole of the anchor.
-
-### FragmentSelector — media fragments
-
-```json
-{
-  "type": "FragmentSelector",
-  "conformsTo": "http://www.w3.org/TR/media-frags/",
-  "value": "xywh=pixel:100,200,150,80"
-}
-```
-
-Note the different `conformsTo` from the PDF form above: pixels in an image's
-own top-left-origin space, not points on a page.
-
-**W3C Specification:** [§4.2.9 FragmentSelector](https://www.w3.org/TR/annotation-model/#fragment-selector)
-
-**Media Fragments Spec:** [W3C Media Fragments URI](https://www.w3.org/TR/media-frags/)
+An image anchors spatially too, and has no text to quote, so a region is the
+whole of the anchor.
 
 ### SvgSelector
-
-For non-rectangular regions (circles, polygons, freehand):
 
 ```json
 {
   "type": "SvgSelector",
-  "value": "<svg><circle cx='200' cy='200' r='80'/></svg>"
+  "value": "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"100\" y=\"200\" width=\"150\" height=\"80\"/></svg>"
 }
 ```
 
+Three shapes are written and read: a rectangle (`<rect>`), a circle
+(`<circle>`) and a polygon (`<polygon>`). Coordinates are in the image's own
+pixels, origin top-left, whatever size it was displayed at when the region was
+drawn. A selector holding any other markup is not read as a region.
+
 **W3C Specification:** [§4.2.8 SvgSelector](https://www.w3.org/TR/annotation-model/#svg-selector)
-
-### Use Cases
-
-- Annotate UI elements in screenshots
-- Tag regions in architectural diagrams
-- Identify faces or objects in photos
-- Mark up visual documentation
-
-### Security Considerations
-
-SVG selectors will be validated to prevent:
-- XSS attacks via `<script>` tags
-- Event handler injection (`onclick`, `onload`)
-- External resource loading (`<image>`, `xlink:href`)
-- CSS injection via `<style>` attributes
-
-Only basic SVG shapes will be permitted: `<rect>`, `<circle>`, `<ellipse>`, `<polygon>`, `<path>`.
 
 ## References
 
@@ -204,5 +174,4 @@ Only basic SVG shapes will be permitted: `<rect>`, `<circle>`, `<ellipse>`, `<po
 - [TextQuoteSelector](https://www.w3.org/TR/annotation-model/#text-quote-selector)
 - [FragmentSelector](https://www.w3.org/TR/annotation-model/#fragment-selector)
 - [SvgSelector](https://www.w3.org/TR/annotation-model/#svg-selector)
-- [Media Fragments URI](https://www.w3.org/TR/media-frags/)
 - [RFC 3778 — PDF Fragment Identifiers](https://tools.ietf.org/rfc/rfc3778)

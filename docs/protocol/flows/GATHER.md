@@ -1,133 +1,71 @@
-# Gather Flow
+# Gather
 
-**Purpose**: Extract semantic context from an annotation — its surrounding passage, metadata, and knowledge graph neighborhood — for downstream use. The Gatherer assembles a `GatheredContext` that serves as grounding material for the [Yield flow](./YIELD.md), the [Bind flow](./BIND.md), or any other consumer that needs rich context from an annotation.
+Gather assembles context: the passage, what surrounds it, and what the knowledge base knows about its neighborhood. The result is what a model is given to work from, and what a person is shown before deciding. It is one of the three reading verbs, with [Browse](BROWSE.md) and [Match](MATCH.md).
 
-**Related Documentation**:
-- [Yield Flow](./YIELD.md) - Consumer: generation prompt enrichment
-- [Bind Flow](./BIND.md) - Consumer: context-driven search scoring
-- [Mark Flow](./MARK.md) - How annotations (the correlation sources) are created
-- [@semiont/make-meaning Architecture](../../../packages/make-meaning/docs/architecture.md) - Context assembly layer
-- [Make-Meaning API Reference](../../../packages/make-meaning/docs/api-reference.md) - `buildLLMContext` method
+Gather adds no knowledge. It finds and assembles what is already there.
 
-## Overview
+## Operations
 
-The Gather flow assembles related context around a focal annotation. The application surfaces surrounding passage text, annotation metadata, and knowledge graph neighborhood to construct a coherent input for downstream processing. AI agents perform RAG retrieval, context window assembly, and knowledge graph traversal; human collaborators pull prior materials and cross-references. The output is a `GatheredContext` object that provides grounding material for resource generation, context-driven search, or other context-dependent operations.
+| SDK method | Returns | On the wire | Answered by |
+|---|---|---|---|
+| `gather.annotation` | a stream that gives the context around one annotation | `gather:requested` | the librarian |
+| `gather.resource` | the context around a whole resource | `gather:resource-requested` | the librarian |
 
-Gathering is triggered automatically when the Reference Resolution Wizard opens (`bind:initiate`). It runs in parallel with the wizard rendering, so context is typically ready by the time the user interacts with the wizard's first step.
+The replies are `gather:complete` and `gather:resource-complete`, or their `-failed` counterparts.
 
-## Using the SDK
+## The gathered context
 
-Gathering is a long-running operation (LLM calls + graph traversal).
-`client.gather.annotation()` returns an Observable that emits progress
-events while the Gatherer assembles context, then emits the final
-`GatheredContext` on completion.
+Both operations give a `GatheredContext`:
+
+| Part | Holds |
+|---|---|
+| `focus` | What the context is about. For an annotation: the annotation, its resource, and the selected text with what comes before and after it. For a resource: the resource |
+| `graph` | The neighborhood as a graph: resources and annotations as nodes, typed and directed edges between them |
+| `metadata` | The entity types in play and how common each is across the knowledge base, the language, the kind of resource |
+| `semanticContext` | Passages elsewhere that are semantically similar, when the vector index has them |
+| `inferredRelationshipSummary` | A sentence or two from a model on how the passage relates to its neighborhood, when a model is configured |
+
+The lists a consumer usually wants (connected resources, what cites the source, sibling entity types) are derived from `graph` rather than stored beside it.
+
+`focus.kind` says which of the two it is, and what [Yield](YIELD.md) does with a context depends on it.
+
+## Rules
+
+**Gather reads only.** It records nothing.
+
+**Every excerpt is attributable.** Each passage in a context is tied to the resource, and where it applies the annotation, it came from. That is what lets a generation cite its sources.
+
+**The optional parts are optional.** With no model configured there is no summary. With no vectors for a passage there is no semantic context. A gathered context is complete without them.
+
+**Gather waits for the index, briefly.** A resource that was only just written may not be in the vector index yet. Gather waits for it to settle, within a bound, and gives the context without `semanticContext` if it does not.
+
+**The context is independently useful.** [Match](MATCH.md) searches with it and [Yield](YIELD.md) generates from it, and nothing ties it to either.
+
+## Options
+
+`gather.annotation` takes the size of the window of surrounding text. `gather.resource` takes how many links deep to follow, how many resources to take, and entity types to leave out.
+
+## Example
 
 ```typescript
-import { firstValueFrom, lastValueFrom } from 'rxjs';
+// Around one annotation
+semiont.gather.annotation(resourceId, annotationId, { contextWindow: 2000 }).subscribe({
+  next: (complete) => console.log('Context:', complete.response),
+});
 
-// Subscribe for progress + result
-client.gather.annotation(resourceId, annotationId, { contextWindow: 2000 })
-  .subscribe({
-    next: (event) => console.log('progress:', event),
-    complete: () => console.log('done'),
-    error: (err) => console.error(err),
-  });
-
-// Or await the final context (one-shot)
-const final = await lastValueFrom(
-  client.gather.annotation(resourceId, annotationId, { contextWindow: 2000 }),
-);
-const context = (final as { response: GatheredContext }).response;
-
-// gather.annotation returns an annotation-focus GatheredContext — narrow on focus.kind
-if (context.focus.kind === 'annotation') {
-  const focus = context.focus;
-  console.log(focus.selected?.text);      // The exact text the annotation targets
-  console.log(focus.selected?.before);    // Surrounding passage before the selection
-  console.log(focus.selected?.after);     // Surrounding passage after the selection
-  console.log(focus.sourceResource.name); // Source resource name
-
-  // The flattened neighborhood views derive from the shared graph backbone
-  // (deriveViews is exported from @semiont/core)
-  const views = deriveViews(context.graph, String(focus.sourceResource.id), focus.annotation.id);
-  console.log(views.connections);        // Connected resources with scores
-  console.log(views.citedBy);            // Resources citing the source
-  console.log(views.citedByCount);       // Total citation count
-  console.log(views.siblingEntityTypes); // Entity types in the neighborhood
-}
-
-// Shared base (present on every GatheredContext, both focus kinds)
-console.log(context.graph.nodes);                    // KnowledgeGraph: resource + annotation nodes
-console.log(context.metadata.entityTypes);           // Entity type tags
-console.log(context.metadata.entityTypeFrequencies); // IDF-weighted type frequencies
-console.log(context.inferredRelationshipSummary);    // (optional) LLM-generated summary
-console.log(context.semanticContext?.similar);       // (optional) vector-similar passages
+// Around a whole resource
+const context = await semiont.gather.resource(resourceId, {
+  depth: 2,
+  maxResources: 10,
+  excludeEntityTypes: ['Draft'],
+});
 ```
 
-Under the hood: the namespace emits `gather:annotation-request` via
-`/bus/emit` with a correlationId, then filters `gather:complete` and
-`gather:annotation-progress` events coming back through the bus for
-that correlationId. The Gatherer actor on the gateway handles the
-command. See [`EVENT-BUS.md`](../EVENT-BUS.md).
+From the launcher: `semiont gather <resourceId>` for a resource, and `semiont gather <resourceId> <annotationId>` for an annotation.
 
-## Events
+## Where it is implemented
 
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `gather:requested` | `{ correlationId, annotationId, resourceId, options }` | Fetch context for this annotation |
-| `gather:complete` | `{ correlationId, annotationId, response: GatheredContext }` | Context successfully assembled |
-| `gather:failed` | `{ correlationId, annotationId, error }` | Context fetch failed |
-
-## Context Assembly
-
-The Gatherer actor assembles a `GatheredContext` by:
-
-1. Loading the annotation from Materialized Views
-2. Extracting the target text via the annotation's selector
-3. Extracting surrounding text (configurable context window, default ~2000 characters)
-4. Including annotation metadata (entity types, motivation)
-5. Traversing the knowledge graph for connections, citations, and sibling entity types
-6. Computing entity type frequencies (IDF-weighted) across the neighborhood
-7. Optionally generating an `inferredRelationshipSummary` via the InferenceClient
-
-The result is a `GatheredContext` containing:
-- **focus** (`kind: 'annotation'`) — `{ annotation, sourceResource, selected: { text, before, after }, userHint? }` — the annotation, its resource, and the passage text it targets
-- **graph** — a `KnowledgeGraph` (the shared backbone): resource **and** annotation nodes plus typed, directional edges (with a `bidirectional?` flag). The flattened neighborhood views — `connections`, `citedBy` / `citedByCount`, `siblingEntityTypes` — are **derived from `graph`** via `deriveViews` (`@semiont/core`), not stored
-- **metadata** — `{ entityTypes?, entityTypeFrequencies?, language?, resourceType? }` (the IDF-weighted frequency map is a global statistic kept here, not graph-derived)
-- **inferredRelationshipSummary** — (optional) LLM-generated 1-2 sentence summary of how the passage relates to its graph neighborhood
-- **semanticContext** — (optional) `{ similar }` — vector-similar passages, when embeddings are available
-
-## Workflow
-
-### Reference Resolution Wizard
-
-```
-User clicks 🕸️🧙 wizard button on unresolved reference
-    |
-bind:initiate fires
-    |
-ResourceViewerPage emits gather:requested on EventBus (parallel with wizard render)
-    |
-Gatherer assembles GatheredContext (passage + graph + optional inference summary)
-    |
-gather:complete → Wizard Step 1 displays entity types, graph context, passage preview
-    |
-User chooses: Bind (search) / Generate (AI) / Compose (manual)
-```
-
-Both the Bind path (context-driven search) and Generate path (SSE generation) use the same `GatheredContext` gathered in Step 1.
-
-## Relationship to Downstream Flows
-
-Gathering is separate from both generation and search because it is independently useful. Any consumer that needs rich annotation context — the Yield flow, the Bind flow, a search index, an export pipeline, an agent reasoning step — can subscribe to `gather:complete` without triggering other flows.
-
-Current consumers:
-- **Yield flow** — uses gathered context to enrich the generation prompt with graph neighborhood
-- **Bind flow** — passes gathered context to the Matcher for context-driven search scoring
-
-## Implementation
-
-- **StateUnit**: [packages/sdk/src/state/flows/gather-state-unit.ts](../../../packages/sdk/src/state/flows/gather-state-unit.ts)
-- **Event definitions** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `GATHER FLOW` section
-- **API**: `getAnnotationLLMContext` in [@semiont/sdk](../../../packages/sdk/README.md)
-- **Gateway**: Context assembly in [@semiont/make-meaning](../../../packages/make-meaning/docs/api-reference.md)
+- The SDK namespace: [packages/sdk/src/namespaces/gather.ts](../../../packages/sdk/src/namespaces/gather.ts)
+- The Gatherer: [packages/make-meaning/src/gatherer.ts](../../../packages/make-meaning/src/gatherer.ts)
+- The launcher verb: [apps/launcher/internal/verbs/gather.go](../../../apps/launcher/internal/verbs/gather.go)
+- The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)
