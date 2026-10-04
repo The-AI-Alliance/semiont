@@ -23,13 +23,15 @@ No npm, no Node.js — the `semiont` launcher is a single static binary. You'll 
 brew install the-ai-alliance/semiont/semiont
 ```
 
-Point it at a model. Register an [Anthropic](https://www.anthropic.com/) key once — only the pointer is stored, read fresh on every start and written nowhere — or skip this entirely and run a small model on your own machine with [Ollama](https://ollama.com/):
+Homebrew serves macOS and Linux. On Windows, the [GitHub Release](https://github.com/The-AI-Alliance/semiont/releases) carries a zip holding `semiont.exe` — see [Semiont on Windows](https://github.com/The-AI-Alliance/semiont/blob/main/docs/system/platforms/WINDOWS.md).
+
+Configure settings. `semiont settings` lists everything the launcher keeps; the first you are likely to need is an external inference secret — unless you run a small model on your own machine with [Ollama](https://ollama.com/), which needs none. Register an [Anthropic](https://www.anthropic.com/) key once, as a pointer into your vault; only the pointer is stored, read fresh on every start and written nowhere:
 
 ```bash
-semiont secret set ANTHROPIC_API_KEY op://YourVaultName/Anthropic/credential
+semiont settings secret set ANTHROPIC_API_KEY op://YourVaultName/Anthropic/credential
 ```
 
-Birth a knowledge base in place and start it. Change `--domain` — it is the KB's permanent identity, stamped into the committed event log — and use `--inference ollama` if you chose the local model:
+Create a knowledge base in place and start it. Change `--domain` — it is the KB's permanent identity, stamped into the committed event log — and use `--inference ollama` if you chose the local model:
 
 ```bash
 mkdir my-kb && cd my-kb
@@ -43,11 +45,21 @@ One command brings up the whole stack from published, attested container images 
 semiont useradd --email admin@example.com   # prompts for the password
 ```
 
-From there you ingest a document and start marking it up alongside AI agents working the same corpus. The **[Quick Start](https://github.com/The-AI-Alliance/semiont#quick-start)** carries it through end to end.
+Then sign the launcher in, ingest a document, and have the stack detect references to concepts in it — the same work you and AI agents share in the browser:
+
+```bash
+semiont login          # approve in a browser; only tokens come back
+mkdir -p papers
+curl -L -o papers/attention-is-all-you-need.pdf https://arxiv.org/pdf/1706.03762
+semiont yield --upload papers/attention-is-all-you-need.pdf   # prints the resource id
+semiont mark --delegate <resourceId> --motivation linking --entity-type Concept
+```
+
+The **[Quick Start](https://github.com/The-AI-Alliance/semiont#quick-start)** walks through each step.
 
 ### Or start with content already in place
 
-Clone a knowledge base instead of creating one — it arrives with its identity and config set, so `semiont init` is not needed:
+Clone a knowledge base instead of creating one — it arrives with its identity and configs set, so `semiont init` is not needed. A plain `semiont start` runs its local Ollama config; add `--config anthropic` to run on the key you registered:
 
 ```bash
 git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
@@ -61,7 +73,7 @@ semiont start
 
 ## How it works
 
-Humans and AI agents are architectural equals: every operation — whether it comes from the GUI, the [TypeScript SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk), [agent skills](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/skills), or the [`semiont` launcher](https://github.com/The-AI-Alliance/semiont/tree/main/apps/launcher) — travels the same event bus, speaking the same **[eight verbs](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/README.md)**: *browse, bind, yield, mark, frame, gather, match, beckon*. Any workflow can be done manually, automated by an agent, or shared between the two. The **[protocol docs](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol)** cover the design in depth.
+Humans and AI agents are architectural equals: every operation — whether it comes from the GUI, the [TypeScript](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk) or [Rust](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-rust) SDK, [agent skills](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/skills), or the [`semiont` launcher](https://github.com/The-AI-Alliance/semiont/tree/main/apps/launcher) — travels the same event bus, speaking the same **[eight verbs](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/README.md)**: *browse, bind, yield, mark, frame, gather, match, beckon*. Any workflow can be done manually, automated by an agent, or shared between the two. The **[protocol docs](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol)** cover the design in depth.
 
 ## Open Source & Community
 
