@@ -28,6 +28,9 @@ uuid = { workspace = true, features = ["v4"] }
 [dev-dependencies]
 axum = { workspace = true, features = ["http1", "tokio", "json"] }
 http-body-util.workspace = true
+# The telemetry tests install an OpenTelemetry of their own, as an application does.
+opentelemetry = { workspace = true, features = ["trace", "metrics"] }
+opentelemetry_sdk = { workspace = true, features = ["trace", "metrics", "testing"] }
 proptest.workspace = true
 # As an application builds its client: TLS on, and the provider its own choice.
 reqwest = { workspace = true, features = ["rustls-no-provider"] }

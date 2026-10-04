@@ -106,6 +106,21 @@ jobs:
             exit 1
           fi
 
+      # A transport reports through semiont-telemetry's functions, and what
+      # exports is the application's to link: no exporter, no OpenTelemetry
+      # SDK and no allocator reading reaches a client through its transport,
+      # and the transport names no OpenTelemetry of its own.
+      - name: Check the HTTP transport links no exporter and names no OpenTelemetry
+        run: |
+          if cargo tree --locked -p semiont-http-transport -e normal --prefix none | grep -E '^(semiont-observability|opentelemetry_sdk|opentelemetry-otlp|opentelemetry-stdout|tikv-jemalloc[a-z-]*) v'; then
+            echo "✗ semiont-http-transport links an exporter, the OpenTelemetry SDK or jemalloc; those are a service's, in semiont-observability"
+            exit 1
+          fi
+          if cargo tree --locked -p semiont-http-transport -e normal --depth 1 --prefix none | grep -E '^opentelemetry[a-z_-]* v'; then
+            echo "✗ semiont-http-transport names OpenTelemetry itself; a transport reports through semiont-telemetry"
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:

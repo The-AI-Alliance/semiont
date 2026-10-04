@@ -1465,6 +1465,7 @@ dependencies = [
  "portable-atomic",
  "rand 0.9.5",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -2244,6 +2245,7 @@ dependencies = [
  "futures",
  "http-body-util",
  "opentelemetry",
+ "opentelemetry_sdk",
  "proptest",
  "reqwest",
  "ring",

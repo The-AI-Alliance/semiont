@@ -56,7 +56,11 @@ pub fn initialize(service_name: &str, version: &str) -> Result<(), String> {
     }
     semiont::bus_log::set_trace_id_provider(active_trace_id);
     install_fatal_hook();
-    if telemetry().is_some() {
+    if let Some(t) = telemetry() {
+        // The process's telemetry is what any library in it reports to.
+        opentelemetry::global::set_tracer_provider(t.tracer_provider.clone());
+        opentelemetry::global::set_meter_provider(t.meter_provider.clone());
+        opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
         register_process_start();
         register_runtime_gauges();
     }
