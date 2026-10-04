@@ -78,6 +78,7 @@ func stateRootDir(root string) string {
 // stateStoreSpec: how one infra role's container consumes its state subdir.
 type stateStoreSpec struct {
 	dir    string       // the store's subdir under the root's state dir
+	holds  string       // what it keeps, as status --verbose says it beside the directory
 	mounts []stateMount // bind mounts within it
 	env    []string     // extra env the mount shape requires
 	mode   os.FileMode  // non-zero: host-side perms on the mount dirs (see the rows that set it)
@@ -101,6 +102,7 @@ var stateStores = map[string]stateStoreSpec{
 	// the mount root (which virtiofs refuses; Phase 0, 7/7).
 	"database": {
 		dir:    "postgres",
+		holds:  "database",
 		mounts: []stateMount{{"", "/var/lib/postgresql/data"}},
 		env:    []string{"PGDATA=/var/lib/postgresql/data/pgdata"},
 		owner:  "database",
@@ -108,6 +110,7 @@ var stateStores = map[string]stateStoreSpec{
 	// Qdrant just writes files; a plain mount works (Phase 0, 7/7).
 	"vectors": {
 		dir:        "qdrant",
+		holds:      "vectors",
 		mounts:     []stateMount{{"", "/qdrant/storage"}},
 		projection: true,
 		owner:      "vectors",
@@ -118,6 +121,7 @@ var stateStores = map[string]stateStoreSpec{
 	// the chown is never attempted (Phase 0, 8/8).
 	"graph": {
 		dir:        "neo4j",
+		holds:      "graph",
 		mounts:     []stateMount{{"data", "/data"}, {"logs", "/logs"}},
 		mode:       0o777,
 		projection: true,
@@ -143,6 +147,7 @@ var stateStores = map[string]stateStoreSpec{
 	// map ownership and hide it).
 	"anchored-text": {
 		dir:        "anchored-text",
+		holds:      "text positions for each representation",
 		mounts:     []stateMount{{"", "/anchored-text"}},
 		mode:       0o777,
 		projection: true,
@@ -160,6 +165,7 @@ var stateStores = map[string]stateStoreSpec{
 	// ledger claims both live in it.
 	"messaging": {
 		dir:        "nats",
+		holds:      "job queue and signals",
 		mounts:     []stateMount{{"", "/data"}},
 		projection: true,
 		owner:      "messaging",
@@ -172,6 +178,7 @@ var stateStores = map[string]stateStoreSpec{
 	// anchored-text. The Archivist died with EACCES in a codespace (uid 1000).
 	"state": {
 		dir:        "state",
+		holds:      "views and projections",
 		mounts:     []stateMount{{"", "/semiont-state"}},
 		mode:       0o777,
 		projection: true,
@@ -302,21 +309,24 @@ func storeDirNonEmpty(dir string) bool {
 	return err == nil && len(entries) > 0
 }
 
-// dirSize: total bytes of regular files under path, and whether the path
-// exists at all — absent must stay distinguishable from empty ("unknown is
-// not missing"). Go-native walk; unreadable entries are skipped, not fatal.
-func dirSize(path string) (int64, bool) {
+// diskUse: what the regular files under path take on disk, and whether the
+// path exists at all — absent must stay distinguishable from empty ("unknown
+// is not missing"). What a file takes is the space allocated to it, not its
+// length: a sparse file, as a vector store's are, is long and takes little,
+// and summing lengths reported eight times what one held. Go-native walk;
+// unreadable entries are skipped, not fatal.
+func diskUse(path string) (int64, bool) {
 	if _, err := os.Stat(path); err != nil {
 		return 0, false
 	}
 	var total int64
-	_ = filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
 		if d.Type().IsRegular() {
 			if info, e := d.Info(); e == nil {
-				total += info.Size()
+				total += allocatedBytes(p, info)
 			}
 		}
 		return nil

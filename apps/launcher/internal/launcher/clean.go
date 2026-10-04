@@ -137,7 +137,7 @@ func Clean(args []string) int {
 
 	var kept []target
 	for _, tg := range targets {
-		sz, exists := dirSize(tg.path)
+		sz, exists := diskUse(tg.path)
 		if !exists {
 			continue
 		}

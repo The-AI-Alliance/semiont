@@ -275,13 +275,15 @@ semiont stop
   running here, headed by the root it belongs to and its did:web), LOCAL
   ROOTS, KNOWLEDGE BASES (local file:// clones plus codespace-hosted
   https:// repos, their state, and each
-  KB's local port). `--verbose` adds LAUNCHER PATHS — the launcher's own
-  config, cache, log, state, staging and model-cache paths, plus the
-  persistent per-root stack state with its disk consumption: a `data` row
-  for the current root (per-store breakdown — postgres, qdrant, neo4j) and
-  an `all roots` row totaling every root, with orphaned state (its KB
-  directory no longer exists) called out alongside the `semiont clean
-  --root <key>` that removes it. Roots and KBs are the durable
+  KB's local port). `--verbose` adds LAUNCHER PATHS — the launcher's state
+  home, log, config staging and model cache; then, for the knowledge base
+  the command was run in, its `KB root` and the directory its stores are in
+  (`its stores`), with each store's own directory, what it takes on disk and
+  what it holds, largest first; and an `all KBs` row totaling every
+  knowledge base's directory, with orphaned ones (the KB root no longer
+  exists) called out alongside the `semiont clean --root <key>` that
+  removes each. Sizes are what the files take on disk, not their lengths: a
+  vector store's sparse files are long and take little. Roots and KBs are the durable
   things; a stack is status layered on one of them. Per service it
   shows the container STATE as the runtime sees it plus a host-side health
   probe, with the concrete product in the service cell (`database
@@ -349,10 +351,10 @@ semiont stop
 - `semiont about` shows what Semiont is, project links, the image registry,
   and which runtimes were detected on PATH.
 - Every invocation is logged (invoke + exit lines, with `--password` values
-  redacted) to `launcher.log` in the launcher's log home: `~/Library/Logs/
-  semiont` on macOS, `$XDG_STATE_HOME/semiont` (default
-  `~/.local/state/semiont`) on Linux. `semiont status --verbose` lists the dir
-  under LAUNCHER PATHS. Logging is best-effort — it never blocks a command.
+  redacted) to `launcher.log`, in the launcher's log directory
+  ([where](#where-the-launcher-keeps-its-files)). `semiont status --verbose`
+  lists it under LAUNCHER PATHS. Logging is best-effort — it never blocks a
+  command.
 - **The launcher derives its work from the KB's semiontconfig TOML** — the
   same file the Semiont containers read (see
   `docs/system/administration/CONFIGURATION.md`). Per dependency role
@@ -493,8 +495,8 @@ semiont stop
   only an explicit flag naming a missing runtime is an error.
 - `start` records what it believes the stack IS — the runtime, and each
   service's container name, runtime-reported ID, and image — in `stack.json`
-  in the launcher's state home (`~/Library/Application Support/semiont` on
-  macOS, `$XDG_STATE_HOME/semiont` on Linux). `stop` and `status` compute
+  in the launcher's state home ([where](#where-the-launcher-keeps-its-files)).
+  `stop` and `status` compute
   their work from those identifiers: they target the recorded runtime by ID
   (no more blind every-runtime name sweep), skip a host-reused Ollama, and a
   full `stop` forgets the record. No record (older launcher, another
@@ -758,13 +760,33 @@ gateway reconnects on its own — no gateway restart. The gateway logs
 `[signal BROKER-DOWN]` when the connection drops and `[signal BROKER-RECONNECTED]`
 when it returns.
 
+### Where the launcher keeps its files
+
+XDG directories on Linux, and each other system's own equivalent:
+
+| What | macOS | Linux | Windows |
+|---|---|---|---|
+| **State home**: the stack record (`stack.json`), the registry of knowledge bases and the machine's settings (`roots.json`), sign-ins (`tokens.json`), `discovery/` | `~/Library/Application Support/semiont` | `$XDG_STATE_HOME/semiont` (default `~/.local/state/semiont`) | `%LOCALAPPDATA%\semiont` |
+| **Data home**: `roots/<key>/` for each knowledge base, holding its stores and its kept secrets | the state home | `$XDG_DATA_HOME/semiont` (default `~/.local/share/semiont`) | the state home |
+| **Log**: `launcher.log` | `~/Library/Logs/semiont` | the state home | `logs\` in the state home |
+| **Staging**: the configs a running stack mounts | `/tmp/semiont-config.*` | `/tmp/semiont-config.*` | `%TEMP%\semiont-config.*` |
+
+A knowledge base's `roots/<key>/` holds one directory per store — `postgres/`
+(database), `neo4j/` (graph), `qdrant/` (vectors), `nats/` (job queue and
+signals), `state/` (views and projections), `anchored-text/` — and `logs/`,
+the container logs a start keeps before it removes the containers. Its kept
+secrets are files beside them, unless `semiont settings secret-store` names
+another store.
+
+This is none of the knowledge base itself, which is its root: the working tree
+you start from. `semiont status --verbose`, run from a root, prints that root,
+the directory its stores are in, and what each store takes on disk.
+
 ### Where state lives
 
 Local-stack databases persist across restarts. Each local semiont root gets
-its own directory under the launcher's data home — `~/Library/Application
-Support/semiont/roots/<key>` on macOS, `$XDG_DATA_HOME/semiont/roots/<key>`
-(default `~/.local/share/...`) on Linux — keyed by the KB's did:web when
-`.semiont/config` declares one (identity travels with the KB, so a moved
+its own directory, `roots/<key>` under the launcher's data home, keyed by the
+KB's did:web when `.semiont/config` declares one (identity travels with the KB, so a moved
 clone keeps its state), else by a hash of the root path. `start`
 bind-mounts each store's subdir into its container: PostgreSQL rows —
 Keycloak's accounts and realms, which the event log does **not** record —
@@ -791,15 +813,12 @@ whose KB directory no longer exists). It refuses while a recorded stack is
 using the state — stop first. `stop` itself never touches state; stopping
 and restarting is exactly the round trip persistence exists for.
 
-**Two homes, not one — and they only look alike on macOS.** Per-root stores
-live under the launcher's *data* home, described above. The machine-level view
-— the discovery document the Browser mounts — lives under its *state* home
-instead. On macOS both resolve to `~/Library/Application Support/semiont`, so
-`roots/` and `discovery/` sit side by side and the distinction is invisible. On
-Linux they are deliberately different trees: `$XDG_DATA_HOME/semiont/roots/<key>`
-(default `~/.local/share/…`) for a root's data, `$XDG_STATE_HOME/semiont/discovery`
-(default `~/.local/state/…`) for the machine-level view. `semiont clean` scopes
-to a root's data and never touches discovery, which the next stack mutation
+**Two homes, not one.** Per-root stores live under the launcher's *data* home.
+The machine-level view — the discovery document the Browser mounts — lives
+under its *state* home instead. On macOS and Windows the two are one directory,
+so `roots/` and `discovery/` sit side by side and the distinction is invisible.
+On Linux they are deliberately different trees. `semiont clean` scopes to a
+root's data and never touches discovery, which the next stack mutation
 regenerates regardless.
 
 ## Development

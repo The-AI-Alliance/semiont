@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { beforeAll, expect, it } from 'vitest';
 import type { GatewayProcess } from '../harness/gateway';
 import { eventually } from '../harness/net';
+import { startHoldingProxy } from '../harness/proxy';
 import { operationFor, spec } from '../harness/spec';
 import { subscribe, type StreamMessage } from '../harness/stream';
 import { eachPlane } from '../harness/world';
@@ -86,6 +87,31 @@ eachPlane('two replicas on one broker', (world) => {
     const carried = (m: StreamMessage) => m.frame?.channel === BROADCAST && m.frame.payload['annotationId'] === annotationId;
     const id = (await here.next('the frame on the replica it was emitted through', carried)).id;
     expect((await there.next('the frame on the other replica', carried)).id).toBe(id);
+  });
+
+  it('a stream\'s first message says the broker has its subscription: a frame emitted after it through another replica is carried, however late the broker heard', async () => {
+    const broker = world().broker;
+    if (!broker) throw new Error('a replica case needs the broker');
+    // What this replica tells the broker waits in the proxy for a second.
+    const proxy = await startHoldingProxy(broker.port);
+    const slow = await world().replica(proxy.url);
+    try {
+      proxy.hold();
+      const stream = await world().open(await world().person('slow-to-be-heard'), { clientId: randomUUID(), global: [BROADCAST] }, slow.origin);
+      const release = setTimeout(() => proxy.release(), 1000);
+      try {
+        await stream.next('the stream\'s first message', () => true);
+        const annotationId = randomUUID();
+        expect((await world().emit(await world().person('emitter'), { channel: BROADCAST, payload: { annotationId } })).status).toBe(202);
+        await stream.frame(BROADCAST, (f) => f.payload['annotationId'] === annotationId, 5_000);
+      } finally {
+        clearTimeout(release);
+      }
+    } finally {
+      proxy.release();
+      await slow.stop();
+      await proxy.close();
+    }
   });
 
   it('a request made through one replica is answered to its requester through that replica, and to no one on the other', async () => {

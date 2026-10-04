@@ -148,16 +148,17 @@ pub trait SignalPlane: Send + Sync {
         scope: Option<String>,
         meta: Option<Meta>,
     ) -> BoxFuture<'_, Result<IngestReceipt, Unavailable>>;
-    /// Every frame on the subscription's channels and scopes, until the
-    /// returned handle closes. Registered with the fabric once `flush` has resolved after it.
+    /// Every frame on the subscription's channels and scopes published once
+    /// this has resolved, until the returned handle closes. It resolves when
+    /// the fabric holds the subscription, and not before: a caller that says
+    /// "subscribed" on its return has missed nothing published after.
     fn subscribe_client(
         &self,
         subscription: ClientSubscription,
     ) -> BoxFuture<'_, Result<Subscription, String>>;
     /// Resolves once everything already issued on this plane's connection
-    /// has been processed by the fabric: after it, a subscription made before
-    /// it receives every frame published after. Delivery, durability and
-    /// ordering across connections are not what it says.
+    /// has been processed by the fabric. Delivery, durability and ordering
+    /// across connections are not what it says.
     fn flush(&self) -> BoxFuture<'_, Result<(), String>>;
     /// The table named `name`. Every handle on one name has the same TTL.
     fn table(

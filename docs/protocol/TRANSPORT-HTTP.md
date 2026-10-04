@@ -220,8 +220,12 @@ is its mechanism over HTTP.
   connections.
 - **Heartbeat.** A `ping` follows the catch-up at once, then one every
   `heartbeatSeconds`.
+- **What the first message says.** A stream sends nothing until its
+  subscription is held wherever frames are routed, across replicas. So a
+  frame published after a stream's first message is carried by it,
+  through whichever replica it was emitted.
 
-*Held by `gateway/stream.test.ts`.*
+*Held by `gateway/stream.test.ts`, `gateway/replicas.test.ts`.*
 
 #### Event id and resumption
 

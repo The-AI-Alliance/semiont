@@ -55,9 +55,9 @@ step — the process exits non-zero, saying what is missing and never a secret:
 4. **The Archivist's operations it calls** must be in the Archivist's spec.
 5. **The signal plane** — `in-process`, or NATS with the credentials the
    document names — composed with the ledger, whose shared tables must open
-   (under NATS, a broker with JetStream); then, under NATS, one round trip
-   through the broker so every subscription made so far is registered before a
-   frame can be missed. Each is bounded at ten seconds.
+   (under NATS, a broker with JetStream), and its standing subscription,
+   which is made only once the broker has confirmed it: nothing is served
+   before a frame could be missed. Bounded at ten seconds.
 6. **The route table** must be exactly the spec's operations
    ([src/routes/mod.rs](../src/routes/mod.rs)): a route the spec does not
    declare, or a declared operation nothing serves, stops the process.
@@ -102,13 +102,14 @@ held: `npm run lint:broker-boundary` fails when the `async_nats` crate is named
 outside `nats.rs`, when the NATS plane is named outside `app.rs` (where the
 plane is chosen), or when the `nats` npm client is imported outside the
 dispatcher's JetStream job queue, whose `JobQueue` interface is the same
-boundary on the Node side. The subjects, the bucket names and the readiness
-flush are private to `nats.rs`. Another broker would take an implementation of
+boundary on the Node side. The subjects, the bucket names and the round trip
+that confirms a subscription are private to `nats.rs`. Another broker would take an implementation of
 `SignalPlane` and `SharedTable` meeting the contract in
 [signal/mod.rs](../src/signal/mod.rs) — delivery at most once, in order per
 channel and scope; tables with an atomic insert-if-absent, a TTL per table, and
 a watch that delivers what is present and then everything after, with no gap; a
-flush that resolves once the fabric has processed everything sent before it —
+subscription that resolves only once the fabric holds it; a flush that resolves
+once the fabric has processed everything sent before it —
 and, around it, a `JobQueue` for the dispatcher, a `signal.type` in
 GatewayConfig, the launcher's container and config, and a plane in the
 conformance suite's harness. It is done when the whole suite passes on that
