@@ -120,21 +120,6 @@ npm install @semiont/sdk                    # TypeScript
 cargo add semiont semiont-http-transport    # Rust
 ```
 
-Here is a grounded answer in TypeScript — gather context by traversing the graph, then generate from it, with each claim cited back to its source:
-
-```typescript
-import { SemiontSession } from '@semiont/sdk';
-
-const { client } = await SemiontSession.signInDevice({ kb, storage, onCode });
-
-const context = await client.gather.resource(questionId, { excludeEntityTypes: ['Question'] });
-
-const answer = await client.yield.fromContext(context, {
-  title: question, storageUri: 'file://generated/answer.md',
-  task: 'answer', structure: 'prose', cite: true,   // cite → linking annotations from claim to source
-}).run((e) => { if (e.kind === 'progress') showProgress(e.data); });
-```
-
 Built on the SDK: **[@semiont/react-ui](packages/react-ui/README.md)** embeds the resource viewer and annotation UI in your own app, and **[Agent Skills](docs/protocol/skills/)** are ready-made definitions for agentic coding assistants. The contract both SDKs speak is specified independently of either in **[docs/protocol/](docs/protocol/README.md)**.
 
 ## Demo and Community KBs
