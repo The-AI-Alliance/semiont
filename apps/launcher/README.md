@@ -90,8 +90,8 @@ semiont stop
 
 - `semiont start --help` lists all flags (`--config`, `--runtime`,
   `--no-observe`, `--ollama-cache`, …).
-- **The Browser is not a stack member** (BROWSER-LIFECYCLE.md): it is the
-  machine-level viewer of every KB, local and codespace, discovery-synced.
+- **The Browser is not a stack member**: it is the machine-level viewer of
+  every KB, local and codespace, discovery-synced.
   ANY start ensures it — including a codespace start, when a local container
   runtime exists — and none churns it: a running Browser is KEPT when its
   image matches what the start would run (image identity, not tag order),
@@ -332,9 +332,9 @@ semiont stop
   generate from it — @semiont/core's types.ts via the OpenAPI pipeline, and
   this launcher's `discovery_types_gen.go` via go-jsonschema (go:generate in
   discovery.go) — so schema drift is a compile error, not a convention. The
-  Browser container mounts the directory read-only at `/discovery` — inert until the Browser image
-  serves it (lane 2); an empty stack set writes an empty list, because an
-  absent file is ambiguous.
+  Browser container mounts the directory read-only at `/discovery`, where the
+  Browser image's server serves it; an empty stack set writes an empty list,
+  because an absent file is ambiguous.
 - `semiont stop` sweeps **every** installed runtime by default, so a stack
   started under `--runtime docker` can't survive a plain stop. Stop's job
   isn't done until the ports are actually free: `start` records the host

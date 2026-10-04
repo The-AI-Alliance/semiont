@@ -1,5 +1,5 @@
 /**
- * B17 (LOCAL-STORAGE) — `CachePersister` backed by the `SessionStorage`
+ * B17 — `CachePersister` backed by the `SessionStorage`
  * adapter seam. Environment-agnostic for the same reason the session layer
  * is: the browser passes its localStorage-backed adapter, a desktop host
  * passes its own, tests pass the in-memory one.
@@ -35,11 +35,11 @@ import type { SessionStorage } from './session/session-storage';
  * A crash between the two writes leaves the ids lagging — the safe
  * direction.
  *
- * MULTI-RESOURCE-SCOPE: watermarks are PER SCOPE (`Record<scope, p-*
- * id>`, JSON under `lastEventIdKey`). A pre-multi-scope single-id
- * bookmark fails the JSON parse and reads as "nothing stored" — safe:
- * rehydrated caches reconcile via B18's refetch-on-rehydrate instead of
- * replay.
+ * One connection holds many resource scopes, so watermarks are PER SCOPE
+ * (`Record<scope, p-* id>`, JSON under `lastEventIdKey`). A pre-multi-scope
+ * single-id bookmark fails the JSON parse and reads as "nothing stored" —
+ * safe: rehydrated caches reconcile via B18's refetch-on-rehydrate instead
+ * of replay.
  */
 export function coupledLastEventId(
   storage: SessionStorage,

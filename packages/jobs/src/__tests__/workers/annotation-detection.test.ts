@@ -350,8 +350,8 @@ describe('AnnotationDetection', () => {
     });
 
     it('throws on malformed AI responses instead of silently returning []', async () => {
-      // Phase 2b: a parse failure is silent data loss — it must surface as a
-      // thrown error (→ job:failed), not a graceful empty array.
+      // A parse failure is silent data loss — it must surface as a thrown
+      // error (→ job:failed), not a graceful empty array.
       mockClient.setResponses(['invalid json']);
 
       await expect(
@@ -360,8 +360,8 @@ describe('AnnotationDetection', () => {
     });
 
     it('throws on a truncated (max_tokens) response instead of under-reporting', async () => {
-      // Phase 2b truncation parity with 2a: the motivation path now reads
-      // stopReason via generateTextWithMetadata and fails the job loudly
+      // Truncation parity with the reference path: the motivation path now
+      // reads stopReason via generateTextWithMetadata and fails the job loudly
       // rather than parsing a valid-but-incomplete array as a partial success.
       mockClient.setResponses(
         [JSON.stringify([{ exact: 'Climate change', start: 0, end: 14 }])],
@@ -420,7 +420,7 @@ describe('AnnotationDetection', () => {
     });
   });
 
-  // ── Phase 3b: input chunking derived from provider limits ─────────────
+  // ── Input chunking derived from provider limits ───────────────────────
   // Small shared-window limits (the Ollama shape) force the derived chunk
   // budget below the content size; detection must loop chunks, reconcile
   // every chunk's results against the FULL document, and keep the progress
@@ -579,7 +579,7 @@ describe('AnnotationDetection', () => {
       });
     });
 
-    // ── adaptive sizing, end to end (DETECTION-QUALITY-THROUGHPUT P2) ──────
+    // ── adaptive sizing, end to end ────────────────────────────────────────
     //
     // `detectInChunks` is ONE loop shared by highlight, comment, assessment and
     // tag — four of the five detection types. The reference path has the same
@@ -642,7 +642,7 @@ describe('AnnotationDetection', () => {
       });
     });
 
-    // ── resuming a unit (CHUNK-GRAIN-RESUME P3) ────────────────────────────
+    // ── resuming a unit ────────────────────────────────────────────────────
     //
     // Four of the five detection types share `detectInChunks`, and each of them
     // runs exactly one unit (tags one per category), so before the cursor a
@@ -721,7 +721,7 @@ describe('AnnotationDetection', () => {
     });
 
     it('reports liveness DURING a single long call — the seam that keeps a one-chunk job visible', async () => {
-      // DETECTION-HEARTBEAT: pins the THREADING through `detectInChunks`, not
+      // The heartbeat: this pins the THREADING through `detectInChunks`, not
       // the timer (the wrapper owns that). One chunk means no boundary event,
       // so if this argument is ever dropped the four motivations go silent for
       // the whole run and no other test in this file notices.
@@ -746,9 +746,9 @@ describe('AnnotationDetection', () => {
         await vi.advanceTimersByTimeAsync(45_000);
 
         expect(activity.length).toBeGreaterThanOrEqual(2);
-        // Liveness, not invented progress: the position never advances (D3).
-        // …and it does NOT invent progress: the cursor stays put (D3). Nothing
-        // has been consumed, because the one call has not returned.
+        // Liveness, not invented progress: a heartbeat carries no completion
+        // estimate, so the cursor stays put. Nothing has been consumed,
+        // because the one call has not returned.
         expect(activity.every(([consumed, total]) => consumed === 0 && total === testContent.length)).toBe(true);
 
         finish({ items: [], stopReason: 'end_turn' });

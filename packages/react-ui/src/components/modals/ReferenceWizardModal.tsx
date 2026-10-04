@@ -32,7 +32,7 @@ export interface ReferenceWizardModalProps {
   /**
    * Roster entry serving `generation`, forwarded to ConfigureGenerationStep so
    * the max-length control is bounded by the model's real output ceiling.
-   * Optional: absent means today's default bounds (INFERENCE-LIMITS-EXPOSURE D3).
+   * Optional: absent means today's default bounds, never an error.
    */
   generationAgent?: Collaborator;
   isOpen: boolean;
@@ -63,7 +63,7 @@ export interface ReferenceWizardModalProps {
   onGenerateSubmit: (referenceId: AnnotationId, config: GenerationConfig) => void;
   onLinkResource: (referenceId: AnnotationId, targetResourceId: ResourceId) => void;
   /**
-   * Create-and-link (COMPOSE-IN-MODAL): the host runs `yield.resource` then
+   * Create-and-link, inside the modal: the host runs `yield.resource` then
    * `bind.body` and settles the promise; rejection keeps the modal open with
    * the compose footer re-enabled. Replaces the old navigate-to-page flow.
    */
@@ -153,9 +153,9 @@ export function ReferenceWizardModal({
 }: ReferenceWizardModalProps) {
   const session = useObservable(useSemiont().activeSession$);
   const [wizardStep, setWizardStep] = useState<WizardStep>({ step: 'gather' });
-  // Both step drafts live HERE, not in the steps (WIZARD-NAVIGATION D3). Stepping
-  // back unmounts a step; if the step owned its values, Back would silently discard
-  // everything typed — which is exactly what it used to do.
+  // Both step drafts live HERE, not in the steps. Stepping back unmounts a step;
+  // if the step owned its values, Back would silently discard everything typed —
+  // which is exactly what it used to do.
   const [searchConfig, setSearchConfig] = useState<SearchConfig>({ limit: 10, useSemanticScoring: true });
   const [generationDraft, setGenerationDraft] = useState<GenerationDraft>(
     () => freshGenerationDraft(defaultTitle, locale),
@@ -256,10 +256,10 @@ export function ReferenceWizardModal({
     onClose();
   }, [annotationId, onComposeSubmit, onClose]);
 
-  // D4 (widened by GATHER-AT-THE-TOP): a modal dies on ✕/Escape/backdrop, but
-  // typed work must not die with it — WHEREVER the user currently is (drafts
-  // survive stepping away, so the guard must too). Typed text only (D5):
-  // seeded titles, toggles, and sliders never nag.
+  // The dirty guard: a modal dies on ✕/Escape/backdrop, but typed work must
+  // not die with it — WHEREVER the user currently is (drafts survive stepping
+  // away, so the guard must too). Typed text only: seeded titles, toggles, and
+  // sliders never nag.
   const draftDirty =
     composeDraft.content.trim() !== '' ||
     composeDraft.storagePath.trim() !== '' ||
@@ -317,7 +317,7 @@ export function ReferenceWizardModal({
   }, [annotationId, onLinkResource, onClose]);
 
   // The evidence display's translations — shared by the gather step and the
-  // strategy steps, which keep the context in view (display-only, GFR A2)
+  // strategy steps, which keep the context in view (display-only)
   // above their forms rather than navigating away from it.
   const displayTranslations = {
     loadingContext: t.loadingContext,

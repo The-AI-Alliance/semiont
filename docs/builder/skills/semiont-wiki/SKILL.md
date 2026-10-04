@@ -22,7 +22,7 @@ Steps 3 to 5 run once for each unbound reference. The score that separates "bind
 
 ## Before you start: declare the entity types
 
-The entity types you detect in step 1 and stamp on generated resources in step 5 belong in the knowledge base's vocabulary, declared with `frame.addEntityTypes`. [`semiont-ingest`](../semiont-ingest/SKILL.md) normally does this once, at ingest. `browse.entityTypes()` is where the Browser and other skills read the vocabulary, and it lists only what was declared.
+The entity types you detect in step 1 and stamp on generated resources in step 5 must be in the knowledge base's vocabulary, declared with `frame.addEntityTypes`. A `linking` job or a generation that names a type nobody declared is refused: `Entity type not registered: <name>`. [`semiont-ingest`](../semiont-ingest/SKILL.md) normally declares them once, at ingest, and `browse.entityTypes()` lists what is declared.
 
 ```typescript
 await semiont.frame.addEntityTypes(['Location', 'Person', 'Organization', 'Concept']);

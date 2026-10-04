@@ -1,6 +1,5 @@
 /**
  * Stower `mark:update-entity-types` vocabulary gate
- * (bugs/update-entity-types-skips-vocabulary-validation.md)
  *
  * Entity tags are a CONTROLLED VOCABULARY (ratified 2026-07-09). The direct
  * update path must enforce the same gate the job path already does — same

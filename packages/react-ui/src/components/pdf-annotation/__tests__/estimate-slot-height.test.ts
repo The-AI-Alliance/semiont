@@ -1,10 +1,10 @@
 /**
- * PDF-CONTINUOUS-SCROLL S1b.
+ * The slot-height estimate of the PDF viewer's scroll column.
  *
  * The scroll column reserves space for unmounted pages. If the reservation is
  * wrong, every mount and unmount changes the column's height and the scrollbar
- * jumps — which is what S1 shipped, by reserving the raster height rather than
- * the displayed one.
+ * jumps — which is what the column first shipped, by reserving the raster
+ * height rather than the displayed one.
  *
  * These pins hold the estimate to the CSS the image is actually under:
  * `max-width: 100%; height: auto`.
@@ -34,7 +34,7 @@ describe('estimateSlotHeight', () => {
   });
 
   it('does NOT use the raster height as a width-independent constant', () => {
-    // The S1 defect, stated as a pin: the raster is 1188px tall, but in a
+    // The original defect, stated as a pin: the raster is 1188px tall, but in a
     // 600px column the page occupies ~776px. Reserving 1188 is what made the
     // column's height lurch on every mount.
     const rasterHeight = Math.round(RASTER_W * ASPECT); // 1188

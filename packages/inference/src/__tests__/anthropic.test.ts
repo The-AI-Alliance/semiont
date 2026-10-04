@@ -31,11 +31,11 @@ const CAPABLE_MODEL = {
 };
 
 describe('AnthropicInferenceClient — the retry count is CHOSEN, not inherited', () => {
-  // RETRY-CLASSIFICATION P4. This was the last census site running on an
-  // unchosen vendor default, and that plan's whole finding is that unchosen
-  // defaults win silently. The value below happens to equal SDK 0.123.0's
-  // default, which is the point: writing it down changes no behavior today and
-  // stops a future SDK bump from changing it for us without anyone noticing.
+  // Every site that decides retryability states its choice. This was the last
+  // one running on an unchosen vendor default, and unchosen defaults win
+  // silently. The value below happens to equal SDK 0.123.0's default, which is
+  // the point: writing it down changes no behavior today and stops a future
+  // SDK bump from changing it for us without anyone noticing.
   it('passes maxRetries explicitly when constructing the SDK client', () => {
     ctorMock.mockClear();
     new AnthropicInferenceClient('key', 'model');
@@ -66,8 +66,8 @@ describe('AnthropicInferenceClient - structured generation is output_config, not
     // Last call: discovery's sampling probe precedes the real request.
     const req = createMock.mock.calls.at(-1)![0];
 
-    // The constraint is response-level — no tool scaffolding (Phase 5
-    // deleted the emit_json_array workaround), and the schema root is the
+    // The constraint is response-level — no tool scaffolding (the
+    // emit_json_array workaround is deleted), and the schema root is the
     // ARRAY itself: no items wrapper, no unwrap.
     expect(req.tools).toBeUndefined();
     expect(req.tool_choice).toBeUndefined();
@@ -139,7 +139,7 @@ describe('AnthropicInferenceClient - plain text mode unchanged', () => {
   });
 });
 
-describe('AnthropicInferenceClient - cancellation threads to the SDK (ABANDONED-INFERENCE P1)', () => {
+describe('AnthropicInferenceClient - cancellation threads to the SDK', () => {
   beforeEach(() => {
     createMock.mockReset();
     retrieveMock.mockReset();
@@ -239,14 +239,13 @@ describe('AnthropicInferenceClient - limits() discovery', () => {
   });
 });
 
-describe('AnthropicInferenceClient - temperature suppression (SONNET-5-MIGRATION P1/P2, D2 active probe, D3 shape 1)', () => {
-  // Measured 2026-09-25 (spikes/sonnet-5-temperature.md): claude-sonnet-5
-  // refuses any non-default `temperature` with a 400 on BOTH the plain and
-  // output_config shapes, and the Models API exposes no sampling capability.
-  // Discovery therefore probes acceptance actively (D2), the client omits
-  // the parameter for rejecting models, and the verdict is exposed on
-  // limits() so the UI can hide the Creativity slider (D3 shape 1 — the
-  // omission is only honest because the capability is visible).
+describe('AnthropicInferenceClient - temperature suppression', () => {
+  // Measured 2026-09-25: claude-sonnet-5 refuses any non-default
+  // `temperature` with a 400 on BOTH the plain and output_config shapes, and
+  // the Models API exposes no sampling capability. Discovery therefore probes
+  // acceptance actively, the client omits the parameter for rejecting models,
+  // and the verdict is exposed on limits() so the UI can hide the Creativity
+  // slider (the omission is only honest because the capability is visible).
   const TEMPERATURE_400 = () =>
     Object.assign(new Error('400 {"type":"error","error":{"type":"invalid_request_error","message":"`temperature` is deprecated for this model."}}'), { status: 400 });
 
@@ -312,7 +311,7 @@ describe('AnthropicInferenceClient - temperature suppression (SONNET-5-MIGRATION
     expect(real.temperature).toBe(0.3);
   });
 
-  it('exposes the verdict on limits() so the capability can reach the UI (D3 shape 1)', async () => {
+  it('exposes the verdict on limits() so the capability can reach the UI', async () => {
     stubRejectingModel();
     const rejecting = new AnthropicInferenceClient('test-key', 'claude-sonnet-5');
     expect((await rejecting.limits()).acceptsTemperature).toBe(false);

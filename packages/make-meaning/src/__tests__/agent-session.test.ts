@@ -144,12 +144,12 @@ describe('startAgentSession', () => {
   });
 
   // The schedule is `refreshDelayMs`, shared with `SemiontSession`
-  // (proactive-refresh-margin-equals-token-lifetime, 2026-09-23). The margin
-  // is a fraction of the token's OWN lifetime, so for these short-lived
-  // fixtures the half-life governs where the old fixed margin did. This test
-  // asserted the constant's arithmetic; it now asserts the derivation's, and
-  // the behaviour it is really about — re-arming from the token just
-  // received — is unchanged.
+  // (2026-09-23). The margin is a fraction of the token's OWN lifetime — a
+  // fixed margin as long as a token's whole lifetime fired the refresh at
+  // zero delay, in a loop — so for these short-lived fixtures the half-life
+  // governs where the old fixed margin did. This test asserted the constant's
+  // arithmetic; it now asserts the derivation's, and the behaviour it is
+  // really about — re-arming from the token just received — is unchanged.
   it('re-authenticates proactively before the token\'s own exp, then re-arms from the new one', async () => {
     // These fixtures carry `exp` but no `iat`, so the lifetime the schedule
     // sees is the life REMAINING when it schedules — which is the honest
@@ -205,13 +205,13 @@ describe('startAgentSession', () => {
     expect(session.token$.value).toBe(second);
   });
 
-  // ── REFRESH-FAILURE-TRANSIENT-VS-TERMINAL P3 ─────────────────────────
+  // ── Refresh failure: an outage re-arms, a refusal stops ──────────────
   // The browser session ended on ANY refresh failure; this one re-armed on any
   // failure forever. Neither disagreement was chosen. Both now read the same
   // named rule: the issuer's answer is the verdict, its absence never is.
 
   it('STOPS re-arming when the credential is refused — a revoked worker is not renewable', async () => {
-    // The behaviour this phase adds. Re-arming forever against a credential an
+    // The behaviour this rule adds. Re-arming forever against a credential an
     // administrator revoked is the case revocation exists to prevent, and it
     // was indistinguishable from riding out a restart.
     const first = tokenExpiringIn(400_000, 'first');

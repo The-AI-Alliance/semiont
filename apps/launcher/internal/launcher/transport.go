@@ -5,7 +5,7 @@ package launcher
 // Every knowledge verb used to construct its own `bus.Client`,
 // which meant the only way to observe one was to run the real binary against a
 // real HTTP server. One construction point, behind a swappable function, makes
-// a verb testable in process (SDK-GO-TRANSPORT P1).
+// a verb testable in process.
 //
 // This is the seam, not a factory: production has exactly one implementation
 // and the indirection exists for substitutability, which is why it is a plain

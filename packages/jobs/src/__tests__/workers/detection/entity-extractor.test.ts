@@ -108,9 +108,9 @@ describe('extractEntities', () => {
   });
 
   it('throws on truncation (max_tokens) instead of silently dropping annotations', async () => {
-    // Phase 2a: a truncated response is data loss, not "no entities". The
-    // truncation check runs BEFORE parse, so even a syntactically-valid but
-    // incomplete array must fail the job loudly rather than return [].
+    // A truncated response is data loss, not "no entities". The truncation
+    // check runs BEFORE parse, so even a syntactically-valid but incomplete
+    // array must fail the job loudly rather than return [].
     const text = 'Alice went to Paris.';
     const mockResponse = [
       { exact: 'Alice', entityType: 'Person', prefix: '', suffix: ' went to' },
@@ -121,8 +121,8 @@ describe('extractEntities', () => {
     // Same input truncates the same way, so the throw must carry the
     // deterministic class — a plain Error here classifies as retryable and
     // burns the retry budget re-issuing a guaranteed-to-truncate request
-    // (ABANDONED-INFERENCE P3; the annotation-detection path already does
-    // this and the two must not diverge).
+    // (the annotation-detection path already does this and the two must not
+    // diverge).
     const pending = extractEntities(text, ['Person'], mockInferenceClient, false, LOGGER);
     await expect(pending).rejects.toThrow(/truncat/i);
     await expect(pending).rejects.toBeInstanceOf(DeterministicJobError);
@@ -186,8 +186,8 @@ describe('extractEntities', () => {
     // An unreadable model response is silent data loss in disguise — it must
     // surface as a thrown error (→ job:failed) rather than an empty success.
     // The throw now originates in the structured surface itself
-    // (STRUCTURED-INFERENCE Phase 2): the mock parses its queued response
-    // and refuses non-arrays exactly as the real providers do.
+    // (`generateStructured`): the mock parses its queued response and refuses
+    // non-arrays exactly as the real providers do.
     mockInferenceClient.setResponses(['This is not JSON']);
 
     await expect(
@@ -231,7 +231,7 @@ describe('extractEntities', () => {
     });
   });
 
-  // ── Phase 3a: input chunking derived from provider limits ─────────────
+  // ── Input chunking derived from provider limits ───────────────────────
   // A shared-window client (maxOutputTokens === contextTokens, the Ollama
   // shape) with a small window forces the derived chunk budget below the
   // content size, so extraction must loop chunks. Budgets come from
@@ -243,8 +243,8 @@ describe('extractEntities', () => {
     );
     const bigText = paragraphs.join('\n\n') + '\n\nFinal note: OMEGA_MARKER closes the document.';
     // Published no-op rate: these tests are about CHUNKING; a rate-silent
-    // fixture would (since P3c) also enable the count-verifier, whose calls
-    // would interleave into `client.calls` and muddy every assertion here.
+    // fixture would also enable the count-verifier, whose calls would
+    // interleave into `client.calls` and muddy every assertion here.
     const SMALL_SHARED_LIMITS = { contextTokens: 2400, maxOutputTokens: 2400, outputTokensPerHour: 3_600_000_000 };
 
     const entity = (exact: string) => JSON.stringify([{ exact, entityType: 'Person' }]);
@@ -369,11 +369,10 @@ describe('extractEntities', () => {
     });
 
     it('fails the job when the structured read throws mid-chunk — never a short-array completion', async () => {
-      // STRUCTURED-INFERENCE Phase 1 (declared RED): extraction must consume
-      // the structured surface, whose mid-chunk throw aborts the job and
-      // surfaces as job:fail. Against HEAD the legacy text surface is
-      // consulted instead — the throw is never reached and this resolves
-      // with entities, which is exactly the silent-completion hazard.
+      // Extraction consumes the structured surface, whose mid-chunk throw
+      // aborts the job and surfaces as job:fail. Were the text surface
+      // consulted instead, the throw would never be reached and this would
+      // resolve with entities, which is exactly the silent-completion hazard.
       let structuredCalls = 0;
       const client = {
         type: 'mock' as const,
@@ -398,7 +397,7 @@ describe('extractEntities', () => {
     });
 
     it('reports liveness DURING a single long call — the seam that keeps a one-chunk job visible', async () => {
-      // DETECTION-HEARTBEAT: this pins the THREADING, not the timer. The
+      // The heartbeat: this pins the THREADING, not the timer. The
       // wrapper's own heartbeat tests would still pass if `extractEntities`
       // stopped forwarding one — and a single-chunk run (every realistic
       // document) has no chunk boundary, so dropping this argument silently
@@ -429,8 +428,9 @@ describe('extractEntities', () => {
 
         // Liveness arrived without any chunk boundary being crossed…
         expect(activity.length).toBeGreaterThanOrEqual(2);
-        // …and it does NOT invent progress: the cursor stays put (D3). Nothing
-        // has been consumed, because the one call has not returned.
+        // …and it does NOT invent progress: a heartbeat carries no completion
+        // estimate, so the cursor stays put. Nothing has been consumed,
+        // because the one call has not returned.
         expect(activity.every(([consumed, total]) => consumed === 0 && total === content.length)).toBe(true);
 
         finish({ items: [], stopReason: 'end_turn' });
@@ -440,7 +440,7 @@ describe('extractEntities', () => {
       }
     });
 
-    // ── adaptive sizing, end to end (DETECTION-QUALITY-THROUGHPUT P2) ──────
+    // ── adaptive sizing, end to end ────────────────────────────────────────
     //
     // The driver and the sizing rule have their own suites. What only a test
     // here can show is that THIS loop is wired to them: that a measurement
@@ -509,7 +509,7 @@ describe('extractEntities', () => {
       });
     });
 
-    // ── resuming a unit (CHUNK-GRAIN-RESUME P3) ────────────────────────────
+    // ── resuming a unit ────────────────────────────────────────────────────
     describe('resuming from a checkpoint', () => {
       const RESUME_LIMITS = { contextTokens: 4_000, maxOutputTokens: 1_200, outputTokensPerHour: 3_600_000_000 };
       const opener = 'OPENING_MARKER begins the document and appears nowhere else.';
@@ -534,7 +534,7 @@ describe('extractEntities', () => {
       }
 
       it('starts its first model call at the checkpoint, not the top of the document', async () => {
-        // The whole point of the arc: the retry must not RE-PAY for inference
+        // The whole point of a resume: the retry must not RE-PAY for inference
         // the dead attempt already bought. The log would dedupe the annotations
         // either way — that is not the saving being claimed here.
         const { client, prompts } = promptRecordingClient();
@@ -597,17 +597,17 @@ describe('temperature', () => {
 });
 
 
-// ── P3c: the count-verifier (OLLAMA-DETECTION-TESTING) ────────────────────
+// ── The count-verifier ────────────────────────────────────────────────────
 //
-// Silent yield collapse (F7): a schema-clean, stop-clean extraction returning
+// Silent yield collapse: a schema-clean, stop-clean extraction returning
 // a fraction of the mentions verifiably present — deterministic, so retries
 // return the identical under-report, and classification-invisible, so nothing
 // downstream can notice. The verifier is a cheap parallel COUNT call compared
 // against the extraction's item count; the expectation comes from the same
-// text, so no input assumption is made. Enabled exactly where the risk was
-// measured: rate-silent providers (the same class P3b's assumed floor
-// targets). A provider that publishes a rate makes NO count call.
-describe('extractEntities — count-verifier (P3c)', () => {
+// text, so no input assumption is made. Enabled where the client declares
+// `verifyDetectionYield`: every real provider does, and a client that
+// declares false makes NO count call.
+describe('extractEntities — count-verifier', () => {
   /** A rate-silent (Ollama-shaped) client: extraction returns `items`, the
    * count call answers `countText`. */
   function verifyingClient(items: unknown[], countText: string) {
@@ -637,9 +637,10 @@ describe('extractEntities — count-verifier (P3c)', () => {
     // 1 extracted vs 50 counted → flagged. Text this small cannot shrink, so
     // it is AT its floor on the first flag (no-shrink rule): exactly one
     // extraction, and the salvage — the entity it DID find, span-verified —
-    // flows through rather than nuking ~20 good chunks with it (the P4
-    // attempt-1 blast radius, ruled on 2026-09-05). Descent on genuinely
-    // shrinkable chunks still discards and retries smaller.
+    // flows through rather than nuking ~20 good chunks with it (the blast
+    // radius the first full Ollama run measured, ruled on 2026-09-05).
+    // Descent on genuinely shrinkable chunks still discards and retries
+    // smaller.
     const items = [{ exact: 'Alice', entityType: 'Person' }];
     const client = verifyingClient(items, '50');
 

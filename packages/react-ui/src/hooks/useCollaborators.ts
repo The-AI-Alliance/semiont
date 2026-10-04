@@ -11,7 +11,7 @@ export interface UseCollaboratorsResult {
 /**
  * The KB's collaborator roster — its declared software agents, each with the
  * job types it serves and, when discovery could answer, its model's context and
- * output ceilings (INFERENCE-LIMITS-EXPOSURE).
+ * output ceilings.
  *
  * Takes the client explicitly rather than reaching for `useSemiont()`, matching
  * `useMediaToken(client)`: a bring-your-own-session host can use it with a bare
@@ -47,9 +47,10 @@ export function useCollaborators(client: SemiontClient | null): UseCollaborators
 
     const sub = client.browse.agents().subscribe({
       next: (state) => {
-        // The three states are exhaustive by construction (CACHE-CONTRACT);
-        // `pending` deliberately leaves the previous roster on screen rather
-        // than blanking it during a revalidation.
+        // The three states are exhaustive by construction (the cache emits
+        // pending | ready | failed, and failure is an emission, not a stream
+        // error); `pending` deliberately leaves the previous roster on screen
+        // rather than blanking it during a revalidation.
         if (state.status === 'ready') {
           setCollaborators(state.value);
           setLoading(false);

@@ -34,8 +34,9 @@ func (k *kbIdentity) didWeb() string {
 
 // kbResource renders the KB's RESOURCE identifier: the did:web resolved to
 // the https URL it names, which is the single value a token's `aud` must
-// carry (EXTERNAL-IDENTITY). did:web turns the colon path into a slash path,
-// so `did:web:example.github.io:my-kb` identifies
+// carry — an audience derived from the KB's committed domain, never
+// configured. did:web turns the colon path into a slash path, so
+// `did:web:example.github.io:my-kb` identifies
 // `https://example.github.io/my-kb`.
 //
 // An identifier, not an address — nothing dereferences it, and a KB reached
@@ -70,8 +71,8 @@ func loadKBIdentity(root string) *kbIdentity {
 // effectiveKBName is the name a container's own reader would compute for
 // this root: the committed [project] name when declared, else the directory
 // basename — the same fallback SemiontProject.readName (packages/core/src/
-// project.ts) applies. The staged [kb] name (SINGLE-KB-MOUNT D4) MUST agree
-// with the name the Archivist derives from its /kb mount, or the Librarian
+// project.ts) applies. The [kb] name the launcher stages MUST agree with
+// the name the Archivist derives from its /kb mount, or the Librarian
 // composes a state path nobody writes to and reads an empty view store.
 func effectiveKBName(root string) string {
 	if id := loadKBIdentity(root); id != nil && id.Name != "" {
@@ -107,10 +108,10 @@ func parseKBIdentity(b []byte) *kbIdentity {
 
 // committedDomain is the KB's permanent did:web identity as its own config
 // declares it, "" when it declares none. The launcher stages this into the
-// services that describe the KB without mounting it (SINGLE-KB-MOUNT P5);
-// staging "" is deliberate — a consumer that needs an identity must refuse,
-// and a fabricated one ('localhost', the dial address) is how two knowledge
-// bases end up sharing a did.
+// services that describe the KB without mounting it; staging "" is
+// deliberate — a consumer that needs an identity must refuse, and a
+// fabricated one ('localhost', the dial address) is how two knowledge bases
+// end up sharing a did.
 func committedDomain(root string) string {
 	if id := loadKBIdentity(root); id != nil {
 		return id.Domain

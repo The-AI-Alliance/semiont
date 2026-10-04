@@ -10,7 +10,7 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
 )
 
-// The knowledge verbs, in process (SDK-GO-TRANSPORT P2).
+// The knowledge verbs, in process against the fake transport.
 //
 // Each of these was a black-box test: build the binary, `start` a fake stack,
 // `login`, run the verb against fakert's HTTP server — ~3 s to observe one
@@ -65,8 +65,8 @@ func TestBrowseBrowserSignalsWithoutReadingInProcess(t *testing.T) {
 	defer restore()
 	// Stated, not defaulted: a fresh fake's emit is uncounted, which prints a
 	// different line. One subscriber is a room with someone in it — the
-	// EMPTY room is now a refusal with its own probe, and belongs to the
-	// BROWSER-HANDOFF tests rather than here.
+	// EMPTY room is now a refusal with its own probe, and belongs to
+	// browse_browser_test.go rather than here.
 	fake.Counted(1)
 
 	out := harness.CaptureStdout(t, func() {
@@ -113,7 +113,7 @@ func TestBrowseBrowserRefusalsInProcess(t *testing.T) {
 	}
 }
 
-// ── browse --annotation --browser: the fourth tour move (TOUR-CLICK P4) ──
+// ── browse --annotation --browser: the fourth tour move ──────────────────
 
 // The click drive: an annotation id is the WHOLE address, so the emit carries
 // it and nothing else, and the verb signals without also reading.
@@ -132,8 +132,8 @@ func TestBrowseAnnotationDrivesAClick(t *testing.T) {
 	}
 	payload := bustest.JSON(fake.Emits[0].Payload)
 	harness.MustContainAll(t, "emit payload", payload, `"annotationId":"ann-9"`)
-	// D2/D3: the id determines the resource, so neither field rides along. A
-	// motivation here would be the denormalization the schema was trimmed of.
+	// The id determines the resource, so neither field rides along. A motivation
+	// here would be the denormalization the schema was trimmed of.
 	for _, gone := range []string{"resourceId", "motivation"} {
 		if strings.Contains(payload, gone) {
 			t.Errorf("payload carries %q, which the wire dropped: %s", gone, payload)

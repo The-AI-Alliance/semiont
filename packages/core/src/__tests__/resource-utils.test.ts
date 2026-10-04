@@ -211,11 +211,11 @@ describe('decodeRepresentation', () => {
   });
 });
 
-// The chokepoint gate (bugs/gather-ships-raw-pdf-bytes-to-inference-as-a-title
-// P1): decoding is only legitimate for media whose text SOURCE is 'decode'.
-// Binary media reaching this function used to yield megabytes of mojibake;
-// now it throws, so no caller — present or future — can decode bytes that
-// were never text. This gate supersedes a caller census: it cannot drift.
+// The chokepoint gate: decoding is only legitimate for media whose text
+// SOURCE is 'decode'. Binary media reaching this function used to yield
+// megabytes of mojibake (a gather shipped a PDF's raw bytes to inference that
+// way); now it throws, so no caller — present or future — can decode bytes
+// that were never text. This gate supersedes a caller census: it cannot drift.
 describe('decodeRepresentation refuses non-decode media', () => {
   test('throws on binary media instead of returning mojibake', () => {
     const buf = Buffer.from('%PDF-1.4 not text', 'utf8');

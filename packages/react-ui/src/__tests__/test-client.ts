@@ -59,8 +59,9 @@ export function makeTestClient(
 
 export interface TestSession extends TestClient {
   /** A REAL `SemiontSession` wrapping the structural client above — for
-   *  session-typed factories (SESSION-TYPED-FACTORIES.md D1). The session
-   *  machinery (id, kb, token$) is real; only the client seam is scripted. */
+   *  state-unit factories, which take a session rather than a client. The
+   *  session machinery (id, kb, token$) is real; only the client seam is
+   *  scripted. */
   session: SemiontSession;
 }
 
@@ -86,10 +87,10 @@ export function makeTestSession(
 /**
  * Wrap a structural client mock in a REAL `SemiontSession` — the bridge for
  * factory tests whose subject is unit logic over a scripted client seam
- * (SESSION-TYPED-FACTORIES.md D1). Supplies the two surfaces the session
- * constructor reads (`state$`, `transport.errors$`) when the mock lacks
- * them; the mock's own members win when present. Same documented
- * structural-mock cast this helper already uses.
+ * (a state-unit factory takes a session, never a bare client). Supplies the
+ * two surfaces the session constructor reads (`state$`, `transport.errors$`)
+ * when the mock lacks them; the mock's own members win when present. Same
+ * documented structural-mock cast this helper already uses.
  */
 export function sessionOf(client: SemiontClient): SemiontSession {
   const complete = {
@@ -113,8 +114,8 @@ export function sessionOf(client: SemiontClient): SemiontSession {
 
 /**
  * Adapt a value-typed fixture stream to the cache's CacheState emission
- * (CACHE-CONTRACT D1): `undefined` → pending, values → ready. Failure is an
- * EMISSION under D1, so B15-driving fixtures push
+ * (pending, ready or failed): `undefined` → pending, values → ready. Failure
+ * is an EMISSION too, so B15-driving fixtures push
  * `{ status: 'failed', error }` themselves rather than erroring the stream.
  */
 export function asStates<T>(source: Observable<T | undefined>): Observable<CacheState<T>> {

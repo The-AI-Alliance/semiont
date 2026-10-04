@@ -1,6 +1,6 @@
 package launcher
 
-// initmodels.go — LAUNCHER-BIRTH P3: live model validation at birth.
+// initmodels.go — live model validation at birth, for `semiont init`.
 // Anthropic choices validate against /v1/models when a key is in hand — a
 // withdrawn or typo'd id becomes a refusal naming what exists, not a KB
 // whose jobs fail later. Ollama choices validate against the local daemon
@@ -22,7 +22,7 @@ import (
 // resolveAnthropicModel validates (key in hand) or passes through with a
 // warning (keyless). model=="" with a key picks the ONE editorial default:
 // the newest capable model — the API lists newest first; prefer the first
-// sonnet-class id, else the newest of all (decision 7).
+// sonnet-class id, else the newest of all.
 // defaultAnthropicModel: what init binds when it can neither be told a model
 // nor fetch the list. A CHOICE, not a derivation — the same kind
 // defaultOllamaModel is — and the one the template every forked KB starts

@@ -40,6 +40,8 @@ Both belong to the knowledge base as a whole and to no resource. They are record
 
 **A tag schema must be registered before it is used.** A [`mark.assist`](MARK.md#assistance) for `tagging` names a schema by id. The dispatcher resolves the id when it admits the job, and refuses a job that names a schema the knowledge base does not have.
 
+**An entity type must be declared before a job names it.** A `mark.assist` for `linking` names the entity types to look for, and a [`yield.fromContext`](YIELD.md) may name the ones to stamp on what it generates. The dispatcher refuses a job that names a type the knowledge base has not declared. See [`job:create`](../JOBS.md#jobcreate).
+
 ### Tag schemas
 
 A tag schema belongs to the knowledge base that uses it, not to Semiont. A knowledge base registers its own, typically when a skill or script starts:

@@ -6,14 +6,14 @@ import { compileTypst, PINNED_CREATION_TIMESTAMP } from '../typst-compiler';
 
 /**
  * Compiler-invocation mechanics, tested against a FAKE `typst` executable
- * prepended to PATH — the real binary lives only in the worker image (P2) and
- * the fixture-generation setup (P4). What this file pins is OUR side of the
- * contract: argument order, the mandatory --creation-timestamp (determinism —
- * unpinned compiles change bytes on identical input, churning checksums into
- * permanent re-embeds), temp-file plumbing, byte return, and legible error
- * capture. Real-compile coverage arrives with P4's fixture globalSetup.
+ * prepended to PATH — the real binary lives only in the worker image. What
+ * this file pins is OUR side of the contract: argument order, the mandatory
+ * --creation-timestamp (determinism — unpinned compiles change bytes on
+ * identical input, churning checksums into permanent re-embeds), temp-file
+ * plumbing, byte return, and legible error capture. Nothing here compiles for
+ * real: that needs a fixture-generation setup that has the binary.
  */
-describe('compileTypst (PDF-GENERATION P3)', () => {
+describe('compileTypst', () => {
   let fakeDir: string;
   let savedPath: string | undefined;
 

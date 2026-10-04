@@ -76,7 +76,7 @@ export class EventStore {
     // to widen or cast to hold it.
     const resourceId: ResourceId = event.resourceId || SYSTEM_SCOPE;
 
-    // Each stage is timed separately (ARCHIVIST-STAYS-UP P7). The useful
+    // Each stage is timed separately. The useful
     // question is never "was the append slow" but WHICH stage: `persist`
     // includes a SYNCHRONOUS git add that blocks the event loop, and
     // `materialize` does work proportional to the resource's annotation

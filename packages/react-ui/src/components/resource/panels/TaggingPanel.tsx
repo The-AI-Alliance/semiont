@@ -101,9 +101,9 @@ export function TaggingPanel({
     [session],
   );
   const schemasState = useObservable(tagSchemas$);
-  // D1 unwrap: value-or-undefined, with the third outcome explicit — a
-  // failed registry read renders like still-loading here (the panel's
-  // failure UI is PANEL-FAILURE-STATES follow-up work, not this migration).
+  // The cache state unwrapped to value-or-undefined, with the third outcome
+  // explicit — a failed registry read renders like still-loading here: this
+  // panel has no failure state for it.
   const schemasObserved = schemasState && isReady(schemasState) ? schemasState.value : undefined;
   const schemas = schemasObserved ?? [];
   // True only AFTER the registry has resolved AND it's empty — distinct

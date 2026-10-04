@@ -83,10 +83,10 @@ const renderWithEmptyRegistry = (component: React.ReactElement<{ session: Semion
 };
 
 // Mock TranslationContext. The component now uses `schema.name` /
-// `category.name` directly off the registered TagSchema objects (Stage 2.B
-// of TAG-SCHEMAS-GAP), so the per-schema/per-category translation keys
-// the older mock carried (`schemaLegal`, `categoryIssue`, etc.) are no
-// longer referenced — kept the mock minimal.
+// `category.name` directly off the registered TagSchema objects (tag schemas
+// are registered per knowledge base at runtime), so the per-schema/per-category
+// translation keys the older mock carried (`schemaLegal`, `categoryIssue`,
+// etc.) are no longer referenced — kept the mock minimal.
 vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: vi.fn(() => (key: string, params?: Record<string, any>) => {
     const translations: Record<string, string> = {

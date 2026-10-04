@@ -1,16 +1,17 @@
 /**
- * RED (CLIENT-SUBSCRIPTION-MANIFEST P2, D2/D3): each sidecar declares ONE
- * manifest, and it covers everything that sidecar consumes.
+ * Each sidecar declares ONE manifest, and it covers everything that sidecar
+ * consumes.
  *
- * The defect this gate exists for, found 2026-09-16 while writing P2: both
- * sidecar fan-ins ask the bus for their streams the moment they are called
- * (`SMELTER_CHANNELS.map((c) => bus.stream(c))`), but the subscription set
- * was widened later, via `addChannels`. The set and the consumption
- * were therefore never comparable at any single moment — which is exactly
- * how a widening can be deleted without any list getting shorter (the
- * 2026-09-16 worker outage), and how P1's `stream` refusal would reject
- * `yield:created` at weaver boot: not in the constructed reply set, and not
- * scopable because it is globally bridged.
+ * The defect this gate exists for, found 2026-09-16 while writing the
+ * manifests: both sidecar fan-ins ask the bus for their streams the moment
+ * they are called (`SMELTER_CHANNELS.map((c) => bus.stream(c))`), but the
+ * subscription set was widened later, via `addChannels`. The set and the
+ * consumption were therefore never comparable at any single moment — which
+ * is exactly how a widening can be deleted without any list getting shorter
+ * (the 2026-09-16 worker outage), and how `stream`'s refusal of a channel
+ * outside the subscription set would reject `yield:created` at weaver boot:
+ * not in the constructed reply set, and not scopable because it is globally
+ * bridged.
  *
  * The manifest is the whole set, stated once, and the transport is
  * constructed with it. Then consumption cannot outrun declaration.

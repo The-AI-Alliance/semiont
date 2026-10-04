@@ -1,14 +1,16 @@
 package launcher
 
-// confgen.go — LAUNCHER-BIRTH P2: the generative semiontconfig builder.
-// NOTHING IS MASTERED (decision 2/3): the config is synthesized from the
-// launcher's own knowledge — the driver shapes derivePlan parses — plus the
-// user's model choices. It says what the knowledge base needs and states no
-// address: where each daemon listens is the launcher's to place at every
-// start (topology.go), so the file is the same on every machine. Bindings are exactly
-// the three-name roster (actors.gatherer, actors.matcher, workers.default;
-// resolveWorkerInference falls back to default — verified 2026-07-22);
-// per-worker refinement is the user's edit, as it always really was.
+// confgen.go — the generative semiontconfig builder, which gives a KB born
+// by `semiont init` its config. NOTHING IS MASTERED — no config instance is
+// embedded in this repo: the config is synthesized from the launcher's own
+// knowledge — the driver shapes derivePlan parses — plus the user's model
+// choices. It says what the knowledge base needs and states no address:
+// where each daemon listens is the launcher's to place at every start
+// (topology.go), so the file is the same on every machine. Bindings are
+// exactly the three-name roster (actors.gatherer, actors.matcher,
+// workers.default; resolveWorkerInference falls back to default — verified
+// 2026-07-22); per-worker refinement is the user's edit, as it always really
+// was.
 //
 // Every generated config passes through the SAME vet as a template copy:
 // loadConfig + derivePlan on a temp file before the real name exists. A
@@ -48,7 +50,7 @@ func generateSemiontconfig(p genParams) string {
 	w(`publicURL = "http://${GATEWAY_HOST:-localhost}:4000"`)
 	w(``)
 	// A born KB gets the same pair a forked one has, served by ONE messaging
-	// daemon with JetStream and its /data store (SIGNAL-PLANE D9).
+	// daemon with JetStream and its /data store.
 	//
 	// It gets jetstream jobs because the dispatcher's queue is JetStream, and
 	// the launcher refuses a config without it.
@@ -131,8 +133,8 @@ func generateSemiontconfig(p genParams) string {
 // writeVettedConfig writes content to .semiont/semiontconfig/<name>.toml —
 // but only after the REAL deriver accepts it: the content lands in a temp
 // file, loadConfig + derivePlan judge it, and only success renames it into
-// place. The same gate template copies pass through (P4): no path may write
-// a config this launcher cannot start.
+// place. The same gate template copies pass through: no path may write a
+// config this launcher cannot start.
 func writeVettedConfig(u *UI, root, name, content string) bool {
 	// name becomes a filename and (via --config-name) is user-controlled — a
 	// separator or ".." would escape .semiont/semiontconfig. Require a plain

@@ -243,10 +243,10 @@ func recordRuntimePref(rt string) {
 }
 
 // keycloakPort: KEYCLOAK_PORT, the issuer's port — one per KB, the same
-// number inside the stack and on the laptop that forwards it
-// (ONE-BROWSER-MANY-ISSUERS D1/D2). The environment wins, then the port this
-// root last started on explicitly, then Keycloak's own. fromEnv says whether
-// a successful start should record it.
+// number inside the stack and on the laptop that forwards it, because a
+// token's `iss` carries it. The environment wins, then the port this root
+// last started on explicitly, then Keycloak's own. fromEnv says whether a
+// successful start should record it.
 func keycloakPort(u *UI, root string) (port int, source string, fromEnv, ok bool) {
 	if v := os.Getenv("KEYCLOAK_PORT"); v != "" {
 		n, err := strconv.Atoi(v)

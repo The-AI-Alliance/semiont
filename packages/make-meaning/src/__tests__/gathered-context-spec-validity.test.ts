@@ -1,6 +1,5 @@
 /**
- * A gathered context validates against the spec `/bus/emit` enforces —
- * GRAPH-ANNOTATION-CODEC P3.
+ * A gathered context validates against the spec `/bus/emit` enforces.
  *
  * The stores used to require a `selector`, so a source-only annotation was
  * stored as `'{}'` and read back as `{}` — which satisfies no branch of the
@@ -47,7 +46,7 @@ const resource = (id: string, name: string): ResourceDescriptor => ({
 /**
  * The shape the bug produced: a generated-from provenance edge, which is
  * resource-level — `source`, no `selector`. Written through a REAL store,
- * which round-trips the codec (D7); a hand-built fixture would have validated
+ * which round-trips the codec; a hand-built fixture would have validated
  * against the old lying store too.
  */
 async function seedGraph(): Promise<{ kb: KnowledgeGraphReads; annotation: Annotation }> {
@@ -93,11 +92,11 @@ function check(schema: 'GatherAnnotationComplete' | 'MatchSearchRequest', payloa
   return validate(payload) ? null : formatErrors(validate.errors);
 }
 
-describe('a gathered context carrying a resource-level edge is emittable (GRAPH-ANNOTATION-CODEC P3)', () => {
+describe('a gathered context carrying a resource-level edge is emittable', () => {
   it('round-trips the provenance annotation with no selector key at all', async () => {
     const { annotation } = await seedGraph();
 
-    // Absence is absence (D4): not `null`, not `{}` — the key must be gone.
+    // Absence is absence: not `null`, not `{}` — the key must be gone.
     const { target } = annotation;
     if (!isObject(target)) throw new Error('expected a structured target');
     expect('selector' in target).toBe(false);

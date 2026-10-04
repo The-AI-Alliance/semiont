@@ -47,7 +47,7 @@
  *     retry also fails and there is no cached value to serve, the key is
  *     `failed`, for every observer of it, instead of `pending` forever —
  *     L1's forbidden fourth state (found by the
- *     P2 property suite). Retriable: the next subscribe, invalidate() or
+ *     liveness property suite). Retriable: the next subscribe, invalidate() or
  *     set() clears it. Keys WITH a value keep B6 stale-beats-error.
  */
 
@@ -78,14 +78,14 @@ export interface CachePersister<K, V> {
 }
 
 /**
- * The three-outcome truth of a cache read (CACHE-CONTRACT D1, settled
- * 2026-07-29): pending (nothing to show yet), ready (a value — possibly
- * stale-while-revalidating, B7), or failed (B15 exhaustion of a value-less
- * key). `failed` is an EMISSION, not a stream death: the observable never
- * errors and never terminates on failure, so a subscription survives the
- * full pending → failed → (resubscribe) → pending → ready life cycle. A
- * two-state consumer no longer compiles — which is the point (SDK-DEBT L1:
- * nine call sites shipped against the hidden third outcome).
+ * The three-outcome truth of a cache read (settled 2026-07-29): pending
+ * (nothing to show yet), ready (a value — possibly stale-while-revalidating,
+ * B7), or failed (B15 exhaustion of a value-less key). `failed` is an
+ * EMISSION, not a stream death: the observable never errors and never
+ * terminates on failure, so a subscription survives the full pending →
+ * failed → (resubscribe) → pending → ready life cycle. A two-state consumer
+ * no longer compiles — which is the point (nine call sites shipped against
+ * the hidden third outcome).
  */
 export type CacheState<T> =
   | { status: 'pending' }
@@ -202,7 +202,7 @@ export function createCache<K, V>(
    * also fails and the store holds nothing to serve. It is STATE, held here
    * beside the store, so a key's `CacheState` is a function of the two and
    * every observer of the key holds the same one. An observer ARRIVING at a
-   * failed key clears the failure and starts a fresh chain (D3 subscribe-time
+   * failed key clears the failure and starts a fresh chain (subscribe-time
    * recovery), which returns the key to `pending` for everyone. Also cleared
    * by invalidate()/set()/remove() and by any fetch success, so the failed
    * state is always retriable.
@@ -384,12 +384,11 @@ export function createCache<K, V>(
             return b.status === 'pending';
           }),
         );
-        // D3 (CACHE-CONTRACT, settled 2026-07-29): the fetch decision runs
-        // per SUBSCRIPTION, not per accessor call — calling an accessor is
-        // pure (render-safe); the effect belongs to the observer that will
-        // see its outcome. Every branch is idempotent under concurrent
-        // subscribers (`inflight`, marker deletion), so N subscribers cost
-        // one chain, same as before.
+        // Settled 2026-07-29: the fetch decision runs per SUBSCRIPTION, not
+        // per accessor call — calling an accessor is pure (render-safe); the
+        // effect belongs to the observer that will see its outcome. Every
+        // branch is idempotent under concurrent subscribers (`inflight`,
+        // marker deletion), so N subscribers cost one chain, same as before.
         obs = new Observable<CacheState<V>>((subscriber) => {
           if (disposed) {
             // B16: the store is completed, so the inner observable completes

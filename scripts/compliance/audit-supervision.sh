@@ -1,8 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Audit: every service image is supervision-CAPABLE and orchestrator-native
-# (GATEWAY-SUPERVISION F1 + ORCHESTRATOR-NATIVE-IMAGES D1/D3/D4/D6).
+# Audit: every service image is supervision-CAPABLE and orchestrator-native.
 #
 # The image half of a split gate. Supervision is decided per RUN by the
 # launcher (SEMIONT_SUPERVISE), so this gate can only prove an image is
@@ -59,7 +58,7 @@ for df in apps/*/Dockerfile; do
   fi
 
   # CMD is the conventional exec form a Kubernetes user expects to see, and
-  # the ONLY statement of the entry path (D4).
+  # the ONLY statement of the entry path.
   if ! grep -qE '^CMD \[("node", "/[^"]+\.js"|"/usr/local/bin/[a-z-]+")(, "[^"]+")*\]$' "$df"; then
     echo "❌ supervision: $df has no exec-form CMD [\"node\", \"<entry>.js\", <args>...] or [\"/usr/local/bin/<binary>\", <args>...]"
     FAIL=1

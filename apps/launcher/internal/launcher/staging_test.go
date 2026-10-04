@@ -59,10 +59,10 @@ siteName = "Example Knowledge Base"
 }
 
 // The whole per-service staging rule in one place. This is the test that
-// catches a boot break: three services REFUSE to start without an Archivist
-// address (SINGLE-KB-MOUNT P4), and the one that describes a KB tree it does
-// not mount needs its committed identity at the same time (P5) — a patch
-// structure that assigned rather than chained would silently drop one.
+// catches a boot break: three services read bytes straight from the Archivist
+// and REFUSE to start without its address, and the one that describes a KB
+// tree it does not mount needs its committed identity at the same time — a
+// patch structure that assigned rather than chained would silently drop one.
 func TestStagedConfigPerService(t *testing.T) {
 	x := &liveExec{root: t.TempDir()}
 

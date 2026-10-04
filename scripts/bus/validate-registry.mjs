@@ -206,10 +206,11 @@ export function validateRegistry(reg) {
   // does not arise for them.
   //
   // Every member names one side and there is no default, because the gateway
-  // reads this to decide whether an emit was an ACT. A channel that fell
+  // reads this to decide whether an emit was an ACT, and it publishes a
+  // person's verified name when that person acts. A channel that fell
   // through would read as "not an act" and quietly stop the record from ever
-  // learning that person's name (PERSON-PROFILE D3) — the same silent shape
-  // as the direction fallthrough that starved every worker.
+  // learning that person's name — the same silent shape as the direction
+  // fallthrough that starved every worker.
   const emittable = new Set([...reg.operations.map((op) => op.request), ...(reg.kind?.command ?? [])]);
   const effectOf = new Map();
   for (const side of ['writes', 'reads']) {

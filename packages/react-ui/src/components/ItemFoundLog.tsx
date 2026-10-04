@@ -15,16 +15,15 @@ export interface ItemFoundLogProps {
 /**
  * "✓ Person: 5 found" — the completed-items log.
  *
- * One markup for one concept (ASSIST-SURFACE-WARTS Lane B). This was two
- * class families a single panel apart: the live progress display used
- * `semiont-annotation-log*` while ReferencesPanel's post-run form log used
- * `semiont-assist-widget__log*`, with the same rows rendered by hand in both.
- * Presentational and provider-free, like AssistProgress — the caller brings
- * the formatter.
+ * One markup for one concept. This was two class families a single panel
+ * apart: the live progress display used `semiont-annotation-log*` while
+ * ReferencesPanel's post-run form log used `semiont-assist-widget__log*`, with
+ * the same rows rendered by hand in both. Presentational and provider-free,
+ * like AssistProgress — the caller brings the formatter.
  *
- * Item-shaped rather than entity-type-shaped (CLEAN-PROGRESS D2): the tag flow
- * counts categories the same way the reference flow counts entity types, and a
- * shared component should not be named for one of its callers.
+ * Item-shaped rather than entity-type-shaped: the tag flow counts categories
+ * the same way the reference flow counts entity types, and a shared component
+ * should not be named for one of its callers.
  */
 export function ItemFoundLog({ entries, formatFound }: ItemFoundLogProps) {
   if (entries.length === 0) return null;

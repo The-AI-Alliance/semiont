@@ -19,7 +19,7 @@ import type { ViewStorage } from '@semiont/event-sourcing';
 import type { AnchoredTextStore } from '@semiont/content';
 import { SmeltProgressTimeout, type SmeltProgress } from './smelt-progress';
 
-/** The barrier-guarded read path's whole surface (EXTRACT-ARCHIVIST P1). */
+/** The barrier-guarded read path's whole surface. */
 export interface AnchoredTextReads {
   views: Pick<ViewStorage, 'get'>;
   anchoredText: Pick<AnchoredTextStore, 'read'>;
@@ -40,7 +40,8 @@ export const ANCHORED_TEXT_SETTLE_TIMEOUT_MS = 15_000;
  * barrier expired, the Smelter settled the resource as skipped, there was no
  * content identity, or the progress fold was disposed — two of which a caller
  * should retry and two of which are terminal. A reader that blocks on this
- * (SMELTER-OWNS-OCR P2) cannot classify its own failure without the
+ * (detection consults it for a geometry-bearing type's text, fetching no bytes
+ * and running no OCR of its own) cannot classify its own failure without the
  * distinction: it would retry forever on a document that will never have a map,
  * or fail terminally on one that is merely still being read.
  *
@@ -52,11 +53,10 @@ export async function readAnchoredText(
   resourceId: ResourceId,
   settleTimeoutMs: number = ANCHORED_TEXT_SETTLE_TIMEOUT_MS,
 ): Promise<AnchoredTextAnswer> {
-  // The `resourceId → checksum` index (PERSIST-ANCHORS P1b, decision A): the
-  // store is keyed by content identity, the caller holds a mutable pointer,
-  // and the index — a live view read — resolves the pointer first, on EVERY
-  // read, hits included. That is the price of the checksum key, measured and
-  // recorded in the plan's P1b log entry; what it buys is that a reader can
+  // The `resourceId → checksum` index: the store is keyed by content
+  // identity, the caller holds a mutable pointer, and the index — a live view
+  // read — resolves the pointer first, on EVERY read, hits included. That is
+  // the measured price of the checksum key; what it buys is that a reader can
   // never receive geometry for bytes the resource no longer has. A resource
   // the view doesn't know, or one without a representation checksum, has no
   // content identity to look up — no map, by construction.

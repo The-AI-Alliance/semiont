@@ -1,5 +1,5 @@
 /**
- * BUS-CARRIES-FRAMES P4 — the other half of the payload census.
+ * The other half of the payload census.
  *
  * `correlation-not-in-payload-types.test.ts` makes the TYPED form of the
  * regression impossible: no `EventMap[K]` declares `correlationId`, so
@@ -18,7 +18,7 @@
  * moment the key moved, with the compiler silent and the symptom a 30-second
  * timeout somewhere else entirely.
  *
- * NOT banned, because these are the shape the arc is FOR:
+ * NOT banned, because these are the shape the move to the envelope is FOR:
  *   - `frame.correlationId`, `envelope.correlationId`, `meta.correlationId`
  *     — reading the envelope, which is where the key now lives;
  *   - `body.correlationId` on a `BusEmitRequest` — the wire envelope, a

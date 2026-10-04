@@ -149,8 +149,8 @@ for (const service of SERVICES) {
   const line = goldenLines.find((l) => l.includes(`--name ${service.container} `));
   if (!line) fail(`${BOOT_GOLDEN} has no ${service.container} line`);
   // Passed either with its value (`--env NAME=value`) or, for a secret, by name alone: the value
-  // crosses through the runtime command's own environment, never the command line
-  // (SECRET-DELIVERY P6), so the golden shows `--env NAME`.
+  // crosses through the runtime command's own environment, never the command line, so the
+  // golden shows `--env NAME`.
   const passed = new Set([...(line ?? '').matchAll(/(?:--env|-e) ([A-Z_][A-Z0-9_]*)(?=[=\s]|$)/g)].map((m) => m[1]));
   const imageSet = new Set(supervisorExports);
   let inEnv = false;

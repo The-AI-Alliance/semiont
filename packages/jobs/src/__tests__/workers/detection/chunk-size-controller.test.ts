@@ -1,8 +1,7 @@
 /**
- * Adaptive chunk sizing (DETECTION-QUALITY-THROUGHPUT P2) — controller unit
- * tests. The plan's RED: grows on sparse output, backs off on dense/truncated,
- * never leaves [floor, ceiling], tracks a gradient rather than betting the run
- * on the first sample.
+ * Adaptive chunk sizing — controller unit tests. What is pinned: it grows on
+ * sparse output, backs off on dense/truncated, never leaves [floor, ceiling],
+ * and tracks a gradient rather than betting the run on the first sample.
  *
  * The controller steers ONE number — output utilization — and leans on
  * subdivision for the hard bounds, so these are all about that one steer.

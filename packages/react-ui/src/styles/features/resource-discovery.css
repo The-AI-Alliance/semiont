@@ -153,7 +153,7 @@
 }
 
 /* Semantic-fallback caption: explains WHY these results, without competing
-   with them. Quieter than the heading it sits under (SEMANTIC-FALLBACK P3b). */
+   with them. Quieter than the heading it sits under. */
 .semiont-card__documents-note {
   margin: -0.25rem 0 0.75rem;
   font-size: 0.8125rem;

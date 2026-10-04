@@ -380,7 +380,7 @@ function replySuppressedCounter(): Counter {
 
 /**
  * A correlated reply was withheld from a subscriber that does not own its
- * correlationId (CORRELATED-REPLY-ROUTING P5).
+ * correlationId.
  *
  * Counts ONLY that case. A frame with no correlationId is a shape violation
  * (warned, not counted), and a cid nobody claimed is the structural in-process
@@ -421,9 +421,9 @@ function unanswerableCounter(): Counter {
 
 /**
  * A request-shaped emit reached no subscriber, so the gateway synthesized its
- * mapped failure (ARCHIVIST-STAYS-UP P3). By channel, this is the absence rate
- * of the service that answers it — the difference between "it went down once"
- * and "it is flapping."
+ * mapped failure at once rather than leave the caller to time out. By
+ * channel, this is the absence rate of the service that answers it — the
+ * difference between "it went down once" and "it is flapping."
  */
 export function recordUnanswerableRequest(channel: string): void {
   unanswerableCounter().add(1, { 'bus.channel': channel });
@@ -498,7 +498,7 @@ function appendStageHistogram(): Histogram {
 }
 
 /**
- * Record one stage of `EventStore.appendEvent` (ARCHIVIST-STAYS-UP P7).
+ * Record one stage of `EventStore.appendEvent`.
  *
  * The append path is the one operation only the Archivist can perform, and it
  * was entirely dark: reads had `recordHandlerDuration` and the bus had its own
@@ -576,10 +576,10 @@ export function recordSubscriberDisconnect(): void {
  *
  * At rest this is zero. A value that climbs and does not come back means the
  * pump is outrunning its transport, which is the leading hypothesis for the
- * load-correlated heap growth in `bugs/absent-archivist-wedges-browse.md`
- * (ARCHIVIST-STAYS-UP P5). The backlog is deliberately unbounded today, so
- * this number is the only thing standing between "the pump is behind" and an
- * OOM whose cause is inferred from RSS after the fact.
+ * load-correlated heap growth under which the Archivist died at its heap
+ * ceiling. The backlog is deliberately unbounded today, so this number is
+ * the only thing standing between "the pump is behind" and an OOM whose
+ * cause is inferred from RSS after the fact.
  */
 export function registerFactPumpDepthProvider(provider: () => number): void {
   _factPumpDepthProvider = provider;
@@ -613,12 +613,13 @@ export function recordGitStagingFailure(reason: 'index-lock' | 'other'): void {
 }
 
 /**
- * Process lifetime telemetry (ARCHIVIST-GIT-STAGER-CRASH).
+ * Process lifetime telemetry.
  *
  * A supervised process that dies and comes back is INVISIBLE in logs unless
  * someone greps for boot lines, and every request in flight when it died looks
  * to its caller like a hang. On 2026-09-08 that cost a multi-hour hunt through
- * search, qdrant, neo4j and the SSE transport for a crash loop that one metric
+ * search, qdrant, neo4j and the SSE transport for a crash loop — the
+ * Archivist dying on a lost race for git's index.lock — that one metric
  * would have named immediately.
  *
  * `start_time` is the diagnostic, not uptime: a CHANGE in it is unambiguous
@@ -796,7 +797,7 @@ function detectionTokensHistogram(): Histogram {
 }
 
 /**
- * Record one detection model call (DETECTION-QUALITY-THROUGHPUT P1).
+ * Record one detection model call.
  *
  * The adapters already record provider/model/duration/tokens for every
  * inference call. What they cannot know is the detection shape around it:
@@ -807,8 +808,9 @@ function detectionTokensHistogram(): Histogram {
  * undifferentiated number.
  *
  * FAILED attempts are recorded too, and that is the point: the calls paid for
- * and thrown away during a descent are exactly the cost later phases exist to
- * avoid, so a record only of successes would hide the thing being optimized.
+ * and thrown away during a descent are exactly the cost adaptive chunk sizing
+ * exists to avoid, so a record only of successes would hide the thing being
+ * optimized.
  *
  * Tokens are the PROVIDER's counts, passed through — never estimated. Absent
  * means the provider did not report them.
@@ -852,7 +854,7 @@ function anchorOutcomeCounter(): Counter {
 }
 
 /**
- * Record how one annotation got anchored (DETECTION-QUALITY-THROUGHPUT P5).
+ * Record how one annotation got anchored.
  *
  * The selector-vs-source check is already a WRITE-TIME INVARIANT — both
  * `buildTextAnnotation` and `buildPdfAnnotation` throw on a selector that does

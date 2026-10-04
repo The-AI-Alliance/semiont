@@ -1,15 +1,15 @@
 /**
- * Liveness axioms P2 — L1/L2 over the REAL sdk composition.
+ * Liveness axioms L1/L2 over the REAL sdk composition.
  *
  * `BrowseNamespace` + `createCache` + `busRequest` run unmodified on
  * `FaultyTransport` while fast-check draws fault schedules (drop / delay /
- * duplicate / reject-emit). Scopes COMPOSE (MULTI-RESOURCE-SCOPE landed —
- * the old single-slot model and its `scopeModel` knob are gone). This
- * generalizes `browse-concurrent-loaders.test.ts` — one hand-picked
- * interleaving — to the interleavings nobody names.
+ * duplicate / reject-emit). Scopes COMPOSE — one connection holds any
+ * number of resource scopes (the old single-slot model and its `scopeModel`
+ * knob are gone). This generalizes `browse-concurrent-loaders.test.ts` —
+ * one hand-picked interleaving — to the interleavings nobody names.
  *
  * L1's "notification" here is a MEANINGFUL one: live queries emit
- * `{ status: 'pending' }` immediately (D1), which would satisfy a naive
+ * `{ status: 'pending' }` immediately, which would satisfy a naive
  * next-counter and defang the axiom — so outputs filter pending out and
  * re-throw `failed` as a stream error for the harness. What must arrive is
  * ready or failed; `pending` forever is exactly the starvation L1 forbids.
@@ -21,10 +21,11 @@
  * issue count ambiguous. The invalidate property widens the budget to 3: an
  * observe chain (≤2) plus a sanctioned invalidate chain (≤2) on one key.
  *
- * L4 (P4): the console-warn spy is the assertion surface, not just a
- * silencer. Property 1 carries the per-run implication — a consumed fault on
- * a MOUNTED rid's observe path ⇒ ≥1 breadcrumb before that run's outputs all
- * settled ([cache RETRY] fires before the retry that gates notification).
+ * L4 (a degraded mode leaves a breadcrumb): the console-warn spy is the
+ * assertion surface, not just a silencer. Property 1 carries the per-run
+ * implication — a consumed fault on a MOUNTED rid's observe path ⇒ ≥1
+ * breadcrumb before that run's outputs all settled ([cache RETRY] fires
+ * before the retry that gates notification).
  * Scoped deliberately: fetch()/await-path faults have NO breadcrumb by design
  * (the caller owns retry policy), and the invalidate property is excluded —
  * an invalidate chain's warn can land after the bound when outputs were
@@ -32,9 +33,10 @@
  * The two cache breadcrumbs ([cache RETRY]/[cache IDLE]) are also pinned
  * individually in the deterministic test at the bottom. The third breadcrumb
  * this suite once pinned — `[browse SCOPE-CONTENTION]` — is GONE with the
- * degradation path it observed: scopes compose (MULTI-RESOURCE-SCOPE Step 6),
- * the contention state is unreachable, and its assertion was removed in the
- * same change (the deliberate axiom-visible L4 edit the plan requires).
+ * degradation path it observed: the transport ref-counts scopes per resource,
+ * so they compose, the contention state is unreachable, and its assertion was
+ * removed in the same change (a deliberate, axiom-visible edit to L4, as a
+ * policy change must be).
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -69,7 +71,7 @@ const noopContent = {
 
 /**
  * One `useResourceLoader`-shaped mount: resource + annotations live queries.
- * D1 note: `failed` is an EMISSION now, not a stream error — for the harness
+ * Note: `failed` is an EMISSION now, not a stream error — for the harness
  * (whose L1 counts value-or-error notifications) a failed state is re-thrown,
  * preserving the axiom's meaning: `pending` forever is the forbidden state.
  */
@@ -86,7 +88,7 @@ function loaderOutputs(browse: BrowseNamespace, rid: string): Observable<unknown
   return [settle(browse.resource(id)), settle(browse.annotations(id))];
 }
 
-describe('liveness axioms over the real BrowseNamespace composition (P2)', () => {
+describe('liveness axioms over the real BrowseNamespace composition', () => {
   // The breadcrumbs ([cache RETRY]/[cache IDLE]) are always-on by design
   // (L4). The spy keeps property runs quiet AND is the L4 assertion
   // surface: property 1 checks degradation ⇒ ≥1 breadcrumb per run; the
@@ -229,10 +231,10 @@ describe('liveness axioms over the real BrowseNamespace composition (P2)', () =>
   //
   // (The suite once pinned a third breadcrumb here — [browse SCOPE-CONTENTION]
   // firing on scope contention. That state is unreachable since scopes
-  // compose (MULTI-RESOURCE-SCOPE Step 6); the breadcrumb, the degradation
-  // path, and the assertion were removed together — the deliberate
-  // axiom-visible L4 edit logged in the plan. Multi-scope composition itself
-  // is pinned in browse-scope-by-observation + browse-concurrent-loaders.)
+  // compose; the breadcrumb, the degradation path, and the assertion were
+  // removed together — a deliberate, axiom-visible edit to L4. Multi-scope
+  // composition itself is pinned in browse-scope-by-observation +
+  // browse-concurrent-loaders.)
 
   it('L4: [cache RETRY] then [cache IDLE] fire when an SWR chain fails and exhausts', async () => {
     // Every request drops its reply → attempt times out (RETRY warn) → the

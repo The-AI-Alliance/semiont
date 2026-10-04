@@ -1,9 +1,9 @@
 /**
- * ARCHIVIST-STAYS-UP P5 — the fact pump.
+ * The fact pump.
  *
  * The Archivist republishes every persisted event onto the gateway bus so
  * projectors see it live. That pump is the leading hypothesis for the
- * load-correlated heap growth in `bugs/absent-archivist-wedges-browse.md`:
+ * load-correlated heap growth that killed an Archivist at its heap ceiling:
  * it fills at Stower's append rate and drains at HTTP round trips, with no
  * bound and no number saying how far behind it is.
  *
@@ -15,7 +15,7 @@
  *     rather than an inference from RSS.
  *
  * What is deliberately NOT here: a bounded queue with a drop policy. The
- * plan's step 1 is to remove the need before designing for it — dropping
+ * first step is to remove the need before designing for it — dropping
  * costs a projection that stays stale until its projector next restarts
  * (catch-up is a startup pass, verified in both `smelter-main` and
  * `weaver-main`). Measure first; the gauge below is what makes that possible.

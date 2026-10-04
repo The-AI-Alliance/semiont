@@ -95,7 +95,7 @@ describe('librarian transport channels', () => {
 describe('archivist transport channels', () => {
   it('subscribes exactly its inbound roster', () => {
     expect([...ARCHIVIST_INBOUND_CHANNELS].sort()).toEqual([
-      // The bind re-emit followed the Stower it drives (EXTRACT-JOBS D2).
+      // The bind re-emit followed the Stower it drives, so the exchange is local.
       'bind:update-body',
       'browse:agents-requested',
       'browse:anchored-text-requested',

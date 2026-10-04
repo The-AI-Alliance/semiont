@@ -152,7 +152,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
   const testResourceId = resourceId('test-resource-id');
   const testAnnotationId = annotationId('test-annotation-id');
 
-  // ── SIMPLE-BUS gap #1: results without subscribeToResource ──────────────
+  // ── Results without subscribeToResource ─────────────────────────────────
   //
   // `match.search()` and `gather.annotation()` return Observables that
   // resolve from a globally-delivered (un-scoped) result event keyed on

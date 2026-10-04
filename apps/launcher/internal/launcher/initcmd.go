@@ -1,11 +1,11 @@
 package launcher
 
-// initcmd.go — `semiont init`, LAUNCHER-BIRTH.md: birth a KB locally with
-// correct identity AT birth (the template path assigns identity by post-fork
-// rewrite — a workaround this command exists to not need). Identity +
-// .semiont/config + git + roots (P1), the generative semiontconfig builder
-// with a derivePlan vet (P2), live model validation (P3), and the explicit
-// template-copy paths (P4) all land here.
+// initcmd.go — `semiont init`: birth a KB locally with correct identity AT
+// birth (the template path assigns identity by post-fork rewrite — a
+// workaround this command exists to not need). Identity + .semiont/config +
+// git + roots, the generative semiontconfig builder with a derivePlan vet
+// (confgen.go), live model validation (initmodels.go), and the explicit
+// template-copy paths (inittemplate.go) all land here.
 
 import (
 	"bufio"
@@ -281,10 +281,10 @@ func Init(args []string) int {
 		return line
 	}
 
-	// The did:web ladder (LAUNCHER-BIRTH decision 6): flag → derived from
-	// the git origin by the SAME rule as the template's post-fork action
-	// (<owner_lc>.github.io:<repo>) → prompt. Permanent identity has no
-	// safe default, so --yes with neither source REFUSES.
+	// The did:web ladder: flag → derived from the git origin by the SAME
+	// rule as the template's post-fork action (<owner_lc>.github.io:<repo>)
+	// → prompt. Permanent identity has no safe default, so --yes with
+	// neither source REFUSES.
 	if domain == "" {
 		if origin, err := capture("git", "-C", dir, "remote", "get-url", "origin"); err == nil && origin != "" {
 			if slug, ok := parseGitHubSlug(origin); ok {

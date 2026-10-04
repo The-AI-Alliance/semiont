@@ -178,23 +178,23 @@ export function PdfAnnotationCanvas({
 
   /**
    * The server-derived map, fetched once per document rather than once per
-   * page (PERSIST-ANCHORS P4). The map is WHOLE-RESOURCE — one artifact
-   * covering every page — so re-reading it per page meant a full refetch and
-   * re-decode on every page turn; on a 400-page scan that is one decode per
-   * interaction instead of one per document. Living on the parent is also
-   * what lets a scrolling column mount many pages against a single fetch.
+   * page. The map is WHOLE-RESOURCE — one artifact covering every page — so
+   * re-reading it per page meant a full refetch and re-decode on every page
+   * turn; on a 400-page scan that is one decode per interaction instead of one
+   * per document. Living on the parent is also what lets a scrolling column
+   * mount many pages against a single fetch.
    *
    * The cache holds the in-flight promise so concurrent page loads share one
    * fetch. TERMINAL answers cache — "no map", "unknown" and a stored decline
    * are definitive — but the wire names retryability in the kind itself
-   * (AnchoredTextAbsent, ANNOTATE-DEFERS-ON-NOT-YET P1/D4): `not-yet` means
-   * the Smelter has not settled this content generation and the caller should
-   * come back, so it clears the entry the way a transport failure always has.
-   * Pinning it was how a scan opened mid-smelt stayed mapless for the whole
-   * mount — every annotation drawn on it permanently mute.
+   * (AnchoredTextAbsent): `not-yet` means the Smelter has not settled this
+   * content generation and the caller should come back, so it clears the entry
+   * the way a transport failure always has. Pinning it was how a scan opened
+   * mid-smelt stayed mapless for the whole mount — every annotation drawn on
+   * it permanently mute.
    *
    * The settled kind rides on the cache entry: the answer, not just the map,
-   * is the parent's fact (P2 lifts it into state to gate Annotate).
+   * is the parent's fact (it is held in state, where it gates Annotate).
    */
   const { anchoredEpoch, annotateDeferred, fetchResourceAnchored } =
     useAnchoredText(session, resourceUri);

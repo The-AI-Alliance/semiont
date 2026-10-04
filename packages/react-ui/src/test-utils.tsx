@@ -9,7 +9,7 @@
  * `stubGateway`, `inMemoryContent`, `refuseUnscriptedOperation`. This module
  * only assembles them into React providers. Reach for the SDK's first; a
  * hand-rolled double here encodes its author's model of a contract the SDK
- * already owns, which is the mistake SDK-DEBT M1 was raised for.
+ * already owns, and a wrong belief encoded that way ships inside green tests.
  */
 
 import React, { ReactElement } from 'react';

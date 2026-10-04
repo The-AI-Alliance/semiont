@@ -183,7 +183,7 @@ describe('ResourceTagsInline', () => {
     });
   });
 
-  // ── RESOURCE-TAGS-INLINE-EDITING: the declared contract, implemented ──
+  // ── Inline tag editing: the declared contract, implemented ────────────
 
   describe('Editing mode', () => {
     it('browse mode renders no editing affordances (pins today’s rendering)', () => {

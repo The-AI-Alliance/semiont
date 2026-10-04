@@ -307,9 +307,9 @@ describe('ResourceInfoPanel Component', () => {
       expect(onGenerate).toHaveBeenCalledTimes(1);
     });
 
-    // ── GENERATE-FROM-RESOURCE P2 (D7/D8): the panel is the progress surface ──
+    // ── Generation: the panel is the progress surface ─────────────────────────
 
-    it('the Generate control lives inside the assist shell (D7)', () => {
+    it('the Generate control lives inside the assist shell', () => {
       const { container } = renderWithEventBus(
         <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
           isGenerating={false} generationProgress={null} />
@@ -329,7 +329,7 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.queryByRole('button', { name: '✨ Generate' })).toBeNull();
     });
 
-    it('the ended frame links the generated resource by name, and dismisses (D8)', () => {
+    it('the ended frame links the generated resource by name, and dismisses', () => {
       const onDismissProgress = vi.fn();
       const { client } = renderWithEventBus(
         <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
@@ -352,7 +352,7 @@ describe('ResourceInfoPanel Component', () => {
       expect(onDismissProgress).toHaveBeenCalledTimes(1);
     });
 
-    it('a truncated completion says so; a natural stop does not (GFR P3b, D6)', () => {
+    it('a truncated completion says so; a natural stop does not', () => {
       // The mocked translator echoes unknown keys, so the assertion reads the
       // KEY the real assistProgressCopy branch picked — structure, not copy.
       const base = { ...defaultProps, onGenerate: () => {}, isGenerating: false };
@@ -374,7 +374,7 @@ describe('ResourceInfoPanel Component', () => {
         .not.toContain('Truncated');
     });
 
-    it('the ended frame speaks completion even when the final progress frame lost the race (GENERATION-ARRIVAL D4/D5)', () => {
+    it('the ended frame speaks completion even when the final progress frame lost the race', () => {
       // The screenshot case: last frame is the 95% "creating" payload, the
       // terminal 100% frame never arrived — but the outcome did. The sentence
       // derives from the OUTCOME, not the racing frame.
@@ -391,7 +391,7 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByTestId('semiont-assist-status').textContent).toBe('codeCompleteGenerated');
     });
 
-    it('a truncated outcome says so — the bit rides the outcome, not the racing frame (D5)', () => {
+    it('a truncated outcome says so — the bit rides the outcome, not the racing frame', () => {
       renderWithEventBus(
         <ResourceInfoPanel {...defaultProps} onGenerate={() => {}}
           isGenerating={false}

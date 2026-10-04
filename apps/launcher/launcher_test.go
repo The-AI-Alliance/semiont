@@ -1,5 +1,6 @@
 // Golden tests for the semiont launcher — the executable spec ported from
-// the fleet's start.sh/logs.sh/stop.sh (GO-LAUNCHER.md §3).
+// the fleet's start.sh/logs.sh/stop.sh: their flags, runtime selection,
+// required-env extraction and the rest.
 //
 // Everything external is faked: a private PATH holds one binary (fakert)
 // under the name of each program the launcher runs — container, docker,
@@ -9,8 +10,7 @@
 // health gates open. Tests never touch a real runtime.
 //
 // Run with -update-goldens to rewrite golden files after an adjudicated
-// change — the bash scripts (and GO-LAUNCHER.md §3) stay the arbiter of what
-// the goldens should say.
+// change — the bash scripts stay the arbiter of what the goldens should say.
 package main_test
 
 import (
@@ -316,8 +316,8 @@ func (s *scenario) env() []string {
 		"FAKERT_LOG=" + s.log,
 		"FAKERT_DIR=" + s.fakertDir,
 		// The repo, so a fake service can read what its own image declares
-		// it serves (FAKE-RUNTIME-FIDELITY P1). A PATH, not a belief: the
-		// fake reads the Dockerfile, it is not told the answer.
+		// it serves. A PATH, not a belief: the fake reads the Dockerfile, it
+		// is not told the answer.
 		"FAKERT_REPO=" + repoRoot(),
 	}
 	if runtime.GOOS == "windows" {
@@ -655,17 +655,18 @@ func TestStartDefaultBoot(t *testing.T) {
 		"semiont stop",
 	)
 	// A service credential must never reach the terminal, or the command line
-	// the terminal echoes: it crosses through the runtime's environment
-	// (SECRET-DELIVERY P6). Six of them, one per service account.
+	// the terminal echoes: it crosses through the runtime's environment. Six
+	// of them, one per service account.
 	if strings.Contains(stdout, "test-gateway-client-secret") || strings.Contains(s.argv(t), "test-gateway-client-secret") {
 		t.Error("a service-account secret reached stdout or a command line")
 	}
 	mustContain(t, "stdout", stdout, "--env SEMIONT_OIDC_CLIENT_SECRET ")
 }
 
-// The launcher half of the split supervision gate (ORCHESTRATOR-NATIVE-IMAGES
-// D3/D6; the image half is scripts/compliance/audit-supervision.sh). Published
-// images run their CMD directly — supervision is a per-run opt-in, and LOCAL
+// The launcher half of the split supervision gate: local runs pass the
+// SEMIONT_SUPERVISE opt-in (the image half, that every image can be
+// supervised, is scripts/compliance/audit-supervision.sh). Published images
+// run their CMD directly — supervision is a per-run opt-in, and LOCAL
 // placement is the one place with no orchestrator restart policy, so the
 // launcher must grant it to every service it starts. A service missing the
 // flag runs silently unsupervised: its first crash stays down, which is
@@ -708,9 +709,8 @@ func TestStartDaemonDownAdvisesSystemStart(t *testing.T) {
 
 // On a codespace resume, post-start's start ran eight seconds after dockerd:
 // the daemon answered, but its first probe container could not run, and start
-// refused — a resumed KB with no stack (bugs/post-start-races-docker-on-resume.md).
-// An answering daemon gets a bounded wait; its own error is quoted if it never
-// comes good.
+// refused — a resumed KB with no stack. An answering daemon gets a bounded
+// wait; its own error is quoted if it never comes good.
 func TestHostProbeWaitsForARuntimeThatCannotRunContainersYet(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_BUSYBOX_FAIL_FIRST=3")
@@ -733,9 +733,8 @@ func TestHostProbeRefusalQuotesTheRuntime(t *testing.T) {
 
 // Two starts on one KB root at once — live 2026-09-29, a codespace's post-start
 // and the laptop's issuer move — interleaved: each swept containers the other was
-// about to use, and the stack ended half on each issuer port
-// (bugs/codespace-issuer-move-races-post-start.md P1). The second now waits for
-// the first, then runs its own whole sequence.
+// about to use, and the stack ended half on each issuer port. A per-root lock
+// makes the second wait for the first, then run its own whole sequence.
 func TestConcurrentStartsOnOneRootQueue(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_RUN_HOLD=semiont-archivist")
@@ -836,13 +835,13 @@ func movableKeycloakPort(t *testing.T, s *scenario) {
 	}
 }
 
-// CODESPACE-IDENTITY B4: the issuer's port is the launcher's to place, like
-// its host — one Keycloak port per KB, the same number on both ends, so a
-// laptop can hold a forward per codespace KB. KEYCLOAK_PORT follows the
-// launcher's env shape: the environment wins, the root records it, and 8080
-// is the default. The codespace's post-start runs a bare start on every
-// resume, which is why the port a laptop moved it to must stick. The port
-// reaches each service as part of the issuer its staged config states.
+// The issuer's port is the launcher's to place, like its host — one Keycloak
+// port per KB, the same number on both ends, so a laptop can hold a forward
+// per codespace KB. KEYCLOAK_PORT follows the launcher's env shape: the
+// environment wins, the root records it, and 8080 is the default. The
+// codespace's post-start runs a bare start on every resume, which is why the
+// port a laptop moved it to must stick. The port reaches each service as part
+// of the issuer its staged config states.
 func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 	s := newScenario(t, "container")
 	movableKeycloakPort(t, s)
@@ -983,10 +982,11 @@ func TestStartHostOllamaBoot(t *testing.T) {
 	mustContain(t, "stdout", stdout, "inference — using host Ollama at http://localhost:11434")
 }
 
-// CODESPACE-IDENTITY B6: a re-run start over a live stack took its OWN Ollama
-// container for a host install — "using host Ollama at http://localhost:11434"
-// on the spike's second run, with semiont-ollama left running and recorded as
-// the host's. B4 reruns start over a live stack, so this is the normal path.
+// A re-run start over a live stack took its OWN Ollama container for a host
+// install — "using host Ollama at http://localhost:11434" on the spike's
+// second run, with semiont-ollama left running and recorded as the host's.
+// Moving a KB's issuer port reruns start over a live stack, so this is the
+// normal path: the re-run removes its own container before it probes.
 func TestRerunStartReplacesItsOwnOllama(t *testing.T) {
 	s := newScenario(t, "container")
 	if stdout, stderr, code := s.run(t, "start"); code != 0 {
@@ -1202,7 +1202,7 @@ func TestStartDryRunLocalVersion(t *testing.T) {
 	checkGolden(t, "start-dryrun-local.txt", s.norm(stdout))
 }
 
-// --- local-stack state persistence (LAUNCHER-STATE.md) ---
+// --- local-stack state persistence ---
 
 // stateHomeFor and dataHomeFor: where the launcher keeps its state and its
 // data under a scenario's home, on this system. Linux has the two XDG homes;
@@ -1292,10 +1292,9 @@ func TestGatewayDataPersistsAcrossStarts(t *testing.T) {
 	//
 	// A literal count would encode fleet size, which is not what this test is
 	// about and which keeps moving: two mounters, then three when the Smelter
-	// took the store (ANCHORED-TEXT-TO-SMELTER P1), and two again at that
-	// plan's P5 when the stamp follows the writer and the gateway's mount
-	// goes. Every one of those is a correct state, and none of them should
-	// make this test fail.
+	// took the store, and two again when the stamp followed the writer and
+	// the gateway's mount went. Every one of those is a correct state, and
+	// none of them should make this test fail.
 	if firstBoot == 0 {
 		t.Fatalf("anchored-text mount absent from the first boot")
 	}
@@ -1312,8 +1311,8 @@ func TestCleanTakesGatewayState(t *testing.T) {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	dir := stateRootFor(s.home, testKBKey)
-	// Sharded the way the KB's own event log is sharded (decision E), so the
-	// sweep must reach through the fan-out, not just the top directory.
+	// Sharded the way the KB's own event log is sharded, so the sweep must
+	// reach through the fan-out, not just the top directory.
 	entry := filepath.Join(dir, "anchored-text", "ab", "cd")
 	if err := os.MkdirAll(entry, 0o755); err != nil {
 		t.Fatal(err)
@@ -1354,7 +1353,7 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 		t.Fatal(err)
 	}
 	// What that earlier stack also kept: the password its data was
-	// initialized with (SECRET-DELIVERY P4).
+	// initialized with.
 	if err := os.WriteFile(filepath.Join(dir, "postgres-password"), []byte("kept-by-an-earlier-start\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -1371,12 +1370,12 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 	}
 }
 
-// SHARED-STORE-CLEAR-PREFLIGHT P1: the state store is SHARED — the gateway
-// and librarian attach what the archivist stamps — so its mismatch-clear
-// must resolve before the boot's first service container runs. A clear at
-// the stamp owner's own prep delete-and-recreates a directory earlier
-// services have already attached, orphaning their virtiofs shares (measured
-// 2026-09-07: ls total 0, every write ENOENT, 14 e2e failures).
+// The state store is SHARED — the gateway and librarian attach what the
+// archivist stamps — so its mismatch-clear must resolve before the boot's
+// first service container runs. A clear at the stamp owner's own prep
+// delete-and-recreates a directory earlier services have already attached,
+// orphaning their virtiofs shares (measured 2026-09-07: ls total 0, every
+// write ENOENT, 14 e2e failures).
 func TestSharedStoreClearResolvesBeforeFirstRun(t *testing.T) {
 	s := newScenario(t, "container")
 	dir := stateRootFor(s.home, testKBKey)
@@ -1412,14 +1411,14 @@ func TestSharedStoreClearResolvesBeforeFirstRun(t *testing.T) {
 	}
 }
 
-// SHARED-STORE-CLEAR-PREFLIGHT P2: a clear removes a store's CONTENTS and
-// keeps the mount-root directory itself. Delete-and-recreate orphans every
-// share attached to the old directory (Apple container virtiofs, measured
-// 2026-09-07); a contents-clear is invisible to attached shares. The test
-// holds the directory open across the boot — exactly what an attached share
-// does — and checks it was never unlinked: an open handle to a deleted
-// directory has link count zero. (Inode-number comparison cannot pin this:
-// an immediate recreate reuses the freed inode number.)
+// A clear removes a store's CONTENTS and keeps the mount-root directory
+// itself. Delete-and-recreate orphans every share attached to the old
+// directory (Apple container virtiofs, measured 2026-09-07); a contents-clear
+// is invisible to attached shares. The test holds the directory open across
+// the boot — exactly what an attached share does — and checks it was never
+// unlinked: an open handle to a deleted directory has link count zero.
+// (Inode-number comparison cannot pin this: an immediate recreate reuses the
+// freed inode number.)
 func TestStoreClearKeepsMountRootDir(t *testing.T) {
 	s := newScenario(t, "container")
 	dir := stateRootFor(s.home, testKBKey)
@@ -1474,7 +1473,7 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 		t.Fatal(err)
 	}
 	// What that earlier stack also kept: the password its data was
-	// initialized with (SECRET-DELIVERY P4).
+	// initialized with.
 	if err := os.WriteFile(filepath.Join(dir, "neo4j-password"), []byte("kept-by-an-earlier-start\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -1545,13 +1544,13 @@ func TestStartRefusesAnEnvironmentSite(t *testing.T) {
 }
 
 func TestStartRefusesKBWithoutDid(t *testing.T) {
-	// A did:web is REQUIRED (KB-IDENTITY-VS-ADDRESS decision 8, 2026-07-27).
-	// The launcher publishes a discovery document in which `did` is a required
-	// field, so a KB with no [site] domain cannot be represented — and the
-	// alternative to refusing is worse than it looks: any default at all would
-	// have every such KB on a machine report one fabricated, colliding
-	// identity. An address wearing a name is the category error this
-	// whole plan is about. Identity is declared, never defaulted.
+	// A did:web is REQUIRED (decided 2026-07-27). The launcher publishes a
+	// discovery document in which `did` is a required field, so a KB with no
+	// [site] domain cannot be represented — and the alternative to refusing is
+	// worse than it looks: any default at all would have every such KB on a
+	// machine report one fabricated, colliding identity. An address wearing a
+	// name is the category error that keeping identity apart from address
+	// exists to prevent. Identity is declared, never defaulted.
 	s := newScenario(t, "container")
 	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "config"),
 		[]byte("[project]\nname = \"No Did KB\"\n"), 0o644); err != nil {
@@ -1609,7 +1608,7 @@ func seedStateDir(t *testing.T, s *scenario) string {
 
 // storeClear: the run that empties a store dir. A container wrote what is
 // in it — as neo4j 7474, postgres 70, qdrant and nats root, Semiont 1001 —
-// and on Linux only a container's root can remove it (CODESPACE-IDENTITY F1).
+// and on Linux only a container's root can remove it.
 func storeClear(sd string) string {
 	return "container run --rm -v " + sd + ":/store busybox:1.38.0 find /store -mindepth 1 -maxdepth 1 -exec rm -rf {} +"
 }
@@ -1909,11 +1908,11 @@ func tokensPathFor(home string) string {
 	return filepath.Join(stateHomeFor(home), "tokens.json")
 }
 
-// EXTERNAL-IDENTITY P4 (launcher lane): `semiont login` is the device
-// authorization grant (RFC 8628). The launcher learns the issuer from the
-// knowledge base's resource metadata, asks it for a code as the launcher's
-// own public client, and stores the tokens the issuer returns — no --email,
-// no stdin, no password anywhere in this process.
+// `semiont login` is the device authorization grant (RFC 8628). The launcher
+// learns the issuer from the knowledge base's resource metadata, asks it for
+// a code as the launcher's own public client, and stores the tokens the
+// issuer returns — no --email, no stdin, no password anywhere in this
+// process.
 func TestLoginDeviceGrantStoresTokens(t *testing.T) {
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
@@ -2286,9 +2285,9 @@ func TestStatusMixed(t *testing.T) {
 	// No stack is recorded here, so the rows are discovered BY NAME and no
 	// config has selected a driver. The report says so by naming no product:
 	// "database (PostgreSQL)" would be a guess that is only right while the
-	// database role has one driver, and guessing it is exactly what the
-	// descriptor set removed (LAUNCHER-SERVICE-MODEL P1). A recorded stack
-	// still names its products — every record carries its driver.
+	// database role has one driver, and guessing it is exactly what keying
+	// the descriptor set by (role, driver) removed. A recorded stack still
+	// names its products — every record carries its driver.
 	mustNotContain(t, "stdout", stdout, "PostgreSQL", "Neo4j", "Qdrant", "Jaeger")
 	// LAUNCHER PATHS describes the launcher, not any KB — asked for, not shown.
 	if strings.Contains(stdout, "LAUNCHER PATHS") {
@@ -2413,8 +2412,8 @@ func TestUseradd(t *testing.T) {
 	const secret = "password123"
 
 	// The LOCAL path administers the realm from here — no container, and the
-	// gateway need not be running (WHO-RUNS-USERADD P3). With no stack
-	// recorded there is no realm to reach, and the refusal says so.
+	// gateway need not be running. With no stack recorded there is no realm
+	// to reach, and the refusal says so.
 	s.stdin = secret + "\n"
 	_, stderr, code := s.run(t, "useradd", "--email", "a@b.co")
 	if code != 1 {
@@ -2588,8 +2587,7 @@ func TestSecretCommand(t *testing.T) {
 	}
 }
 
-// `secret` moved under `settings` (LAUNCHER-SETTINGS D2): the old verb is gone,
-// not kept as an alias.
+// `secret` moved under `settings`: the old verb is gone, not kept as an alias.
 func TestSecretIsNoLongerAVerb(t *testing.T) {
 	s := newScenario(t, "container", "op")
 	_, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential")
@@ -2788,9 +2786,8 @@ func TestCodespaceSecretMissingPointsAtPush(t *testing.T) {
 
 // A secret value never rides a container's command line, where any process on
 // the machine can read it with ps; it crosses through the runtime's own
-// environment and still arrives (SECRET-DELIVERY P6, D3: "keep secret values
-// off the command line"). Custody values, a user's forwarded value and the
-// daemons' credentials alike.
+// environment and still arrives. Custody values, a user's forwarded value and
+// the daemons' credentials alike.
 func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
@@ -2824,11 +2821,10 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 }
 
 // Each service is handed only the variables its own config sections
-// reference (SECRET-DELIVERY P5, D2: "send each service only the secrets it
-// uses"). The anthropic config names ANTHROPIC_API_KEY in [inference], which
-// the Librarian and Worker read and nothing else does: the Archivist lists the
-// collaborator roster without it (ruled 2026-09-29: "The worker and the
-// librarian are the only two images that should get inference secrets").
+// reference. The anthropic config names ANTHROPIC_API_KEY in [inference],
+// which the Librarian and Worker read and nothing else does: the Archivist
+// lists the collaborator roster without it (ruled 2026-09-29: "The worker and
+// the librarian are the only two images that should get inference secrets").
 func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
@@ -2928,7 +2924,7 @@ func TestRemoteModelCheckReadsTheConfiguredKey(t *testing.T) {
 
 // A Node service started alone reaches only for its own sections' variables:
 // the smelter reads no [inference], so restarting it raises no provider
-// prompt for ANTHROPIC_API_KEY (SECRET-DELIVERY P5).
+// prompt for ANTHROPIC_API_KEY.
 func TestStartServiceResolvesOnlyItsOwnSecrets(t *testing.T) {
 	s := newScenario(t, "container", "op")
 	if _, stderr, code := s.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
@@ -2949,8 +2945,8 @@ func TestStartServiceResolvesOnlyItsOwnSecrets(t *testing.T) {
 
 // A ${NAME:-default} names a variable the operator may set. The container's
 // loader resolves it against the environment the launcher forwards, so an
-// exported NAME that is not forwarded loses to its default
-// (SECRET-DELIVERY F7). Unset, nothing is demanded.
+// exported NAME that is not forwarded loses to its default: the launcher
+// forwards it whenever it is set. Unset, nothing is demanded.
 func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	s := newScenario(t, "container", "op")
 	cfg := filepath.Join(s.kb, ".semiont", "semiontconfig", "anthropic.toml")
@@ -2959,7 +2955,7 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	// In a section the worker reads: a service is handed only its own
-	// sections' variables (SECRET-DELIVERY P5).
+	// sections' variables.
 	if _, err := f.WriteString("\n[environments.local.workers.probe]\nnote = \"${SD_OPTIONAL:-fallback}\"\n"); err != nil {
 		t.Fatal(err)
 	}
@@ -3114,7 +3110,7 @@ func TestStartSecretProviderMissing(t *testing.T) {
 		"the environment always wins")
 }
 
-// --- codespace placement (CODESPACE-KB-LAUNCH.md §2) ---
+// --- codespace placement ---
 
 const csRepo = "pingel-org/foo-kb"
 const csSecretRepos = `{"total_count":2,"repositories":[{"full_name":"pingel-org/foo-kb"},{"full_name":"other/bar"}]}`
@@ -3129,8 +3125,9 @@ func newCodespaceScenario(t *testing.T) *scenario {
 }
 
 func TestCodespaceStartCreates(t *testing.T) {
-	// The whole §1 recipe as one command, from a KB clone: preflights,
-	// create, detached forward, health through it, credentials displayed.
+	// The whole manual `gh` recipe as one command, from a KB clone:
+	// preflights, create, detached forward, health through it, credentials
+	// displayed.
 	s := newCodespaceScenario(t)
 	s.extraEnv = append(s.extraEnv, "FAKERT_GIT_DIRTY=1")
 	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
@@ -3142,9 +3139,9 @@ func TestCodespaceStartCreates(t *testing.T) {
 		"gh auth status",
 		"gh api user/codespaces/secrets/ANTHROPIC_API_KEY/repositories",
 		"gh codespace list --json name,state,repository",
-		// Cost levers ride every create, explicitly (CODESPACE-COSTS.md P0
-		// q3/q4): 60m idle, 30-day retention — GitHub's max, stated so a
-		// tighter account default cannot silently shorten the KB's life.
+		// Cost levers ride every create, explicitly: 60m idle, 30-day
+		// retention — GitHub's max, stated so a tighter account default
+		// cannot silently shorten the KB's life.
 		"--idle-timeout 60m --retention-period 720h",
 		"gh codespace create --repo "+csRepo+" --machine premiumLinux",
 		"gh codespace ports forward 4000:4000 -c fake-cs-1") // <codespacePort>:<localPort>
@@ -3423,7 +3420,7 @@ func TestCodespaceAdoptAndDisambiguate(t *testing.T) {
 }
 
 func TestCodespaceCreate503Retry(t *testing.T) {
-	// §1's GitHub-side incident: 503s are retried with backoff, then the
+	// A GitHub-side incident: 503s are retried with backoff, then the
 	// create proceeds.
 	s := newCodespaceScenario(t)
 	s.extraEnv = append(s.extraEnv, "FAKERT_GH_CREATE_FAILS=2")
@@ -3439,8 +3436,8 @@ func TestCodespaceCreate503Retry(t *testing.T) {
 }
 
 func TestCodespacePreflights(t *testing.T) {
-	// §1's silent/late failures become first-second failures — each with
-	// the fix spelled out.
+	// The manual recipe's silent/late failures become first-second failures
+	// — each with the fix spelled out.
 	for _, tc := range []struct {
 		name string
 		env  []string
@@ -3680,11 +3677,11 @@ func TestUseraddCodespace(t *testing.T) {
 	}
 }
 
-// CODESPACE-IDENTITY B5: a codespace can exist with no record on this machine
-// — start adopts one it finds, but writes the record only once the stack
-// answers, so a failed setup leaves a billing codespace nothing else could
-// see. Every --repo verb resolves it the way start does: the record, else
-// what GitHub says the repo has.
+// A codespace can exist with no record on this machine — start adopts one it
+// finds, but writes the record only once the stack answers, so a failed setup
+// leaves a billing codespace nothing else could see. Every --repo verb
+// resolves it the way start does: the record, else what GitHub says the repo
+// has.
 func TestRepoVerbsAdoptAnUnrecordedCodespace(t *testing.T) {
 	const orphan = `FAKERT_GH_CS_LIST=[{"name":"orphan-cs","state":"Available","repository":"` + csRepo + `"}]`
 	for _, c := range []struct {
@@ -3838,8 +3835,8 @@ func writeCodespaceState(t *testing.T, s *scenario) {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// The placement IS the platform (LAUNCHER-SERVICE-MODEL P3): no runtime
-	// key, and the four codespace facts travel together inside it.
+	// The placement IS the platform: no runtime key, and the four codespace
+	// facts travel together inside it.
 	body := `{"schema":3,"stacks":{"codespace:` + csRepo + `":{` +
 		`"codespace":{"name":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001},"ports":[4001],"services":{}}}}`
 	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
@@ -4053,9 +4050,9 @@ func mustLogOrEmpty(s *scenario) []byte {
 	return b
 }
 
-// CODESPACE-IDENTITY B4: a codespace KB's issuer is http://keycloak.localhost:<N>
-// — loopback on this machine — so the laptop forwards <N>:<N>, the same
-// number on both ends, one <N> per KB so one Browser can sign in to several.
+// A codespace KB's issuer is http://keycloak.localhost:<N> — loopback on this
+// machine — so the laptop forwards <N>:<N>, the same number on both ends, one
+// <N> per KB so one Browser can sign in to several.
 func TestCodespaceForwardsItsIssuer(t *testing.T) {
 	record := func(t *testing.T, s *scenario) string {
 		t.Helper()
@@ -4112,7 +4109,7 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 		mustContain(t, "stack.json", record(t, s), `"keycloakPort": 8081`)
 		// The codespace's own summary names ITS ports, which are wrong from
 		// the laptop whenever the laptop allocated others. Only the outer
-		// summary may print URLs (bugs/codespace-move-output-misleads.md).
+		// summary may print URLs.
 		if strings.Contains(stdout, "Semiont stack is up") || strings.Count(stdout, "Semiont KB  ") != 1 {
 			t.Errorf("the codespace's own summary reached the laptop:\n%s", stdout)
 		}
@@ -4267,8 +4264,7 @@ func TestSimultaneousCodespaceCreatesTakeDifferentIssuerPorts(t *testing.T) {
 // The laptop moves a codespace's issuer only once the codespace's OWN start has
 // finished — not when its gateway first answers. Live 2026-09-29, ssh could not
 // answer yet, readiness was proven by the forward (the gateway), and the move's
-// rerun collided with post-start's start still bringing up the rest
-// (bugs/codespace-issuer-move-races-post-start.md P2).
+// rerun collided with post-start's start still bringing up the rest.
 func TestCodespaceMovesOnlyAfterItsOwnStartFinishes(t *testing.T) {
 	s := newCodespaceScenario(t)
 	local := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[8080],"services":{}}}}`
@@ -4305,7 +4301,7 @@ func TestCodespaceMovesOnlyAfterItsOwnStartFinishes(t *testing.T) {
 // A start right after a stop meets GitHub still shutting the codespace down.
 // Live 2026-09-29: the wake was decided once, for exactly "Shutdown", so a
 // resume that saw "ShuttingDown" waited ten minutes on a codespace nothing
-// would ever wake (bugs/codespace-resume-during-shutdown-never-wakes.md).
+// would ever wake.
 func TestCodespaceResumeWakesAfterAShutdownFinishes(t *testing.T) {
 	s := newCodespaceScenario(t)
 	s.extraEnv = append(s.extraEnv,
@@ -4784,7 +4780,7 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 	mustContain(t, "stack.json", string(b), "codespace:"+csRepo)
 }
 
-// --- config-driven boots (LAUNCHER-CONFIG-SYNC P2) ---
+// --- config-driven boots ---
 
 // writeKBConfig drops a variant semiontconfig into the scenario's KB.
 func writeKBConfig(t *testing.T, s *scenario, name, body string) {
@@ -4931,7 +4927,7 @@ func TestStartNoInferenceBoot(t *testing.T) {
 }
 
 func TestStartServiceExternalIsNoop(t *testing.T) {
-	// P0 q5: --service on an externally-provided role warns and exits 0.
+	// --service on an externally-provided role warns and exits 0.
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "external-graph",
 		"[environments.local.graph]\nplatform = \"external\"\ntype = \"neo4j\"\nuri = \"bolt://graph.example.com:7687\"\nusername = \"neo4j\"\npassword = \"remotepass\"\n\n"+
@@ -5293,7 +5289,7 @@ func TestStackStateLifecycle(t *testing.T) {
 		t.Errorf("schema/runtime: got %d/%q", set.Schema, st.Runtime)
 	}
 	// browser is deliberately ABSENT from the stack's services: the Browser
-	// is machine-level (BROWSER-LIFECYCLE.md), recorded under "browser".
+	// is machine-level, a viewer of every KB, recorded under "browser".
 	if _, ok := st.Services["browser"]; ok {
 		t.Error("browser recorded as a stack service — the Browser is machine-level")
 	}
@@ -5755,11 +5751,11 @@ func TestStopVerifiesPortsReleased(t *testing.T) {
 
 // --- JWT_SECRET supply ---
 
-// A-3 (JWT-SECRET-ROTATION.md): loadOrCreateJWTSecret returned silently on all
-// three paths, so the incident that motivated the whole plan — a silently
-// regenerated secret invalidating every live token — was invisible in logs.
-// Which path supplied the key is the one fact that makes that class
-// diagnosable after the fact, and it costs one line.
+// loadOrCreateJWTSecret returned silently on all three paths, so the incident
+// that motivated the JWT_SECRET ring — a silently regenerated secret
+// invalidating every live token — was invisible in logs. Which path supplied
+// the key is the one fact that makes that class diagnosable after the fact,
+// and it costs one line.
 func TestStartNamesWhereTheJWTSecretCameFrom(t *testing.T) {
 	// 1. Freshly generated, because nothing supplied or persisted one.
 	s := newScenario(t, "container")
@@ -5801,10 +5797,10 @@ func TestStartNamesAnOperatorSuppliedJWTSecret(t *testing.T) {
 }
 
 // The gateway now reads JWT_SECRET as an ordered, comma-separated RING: the
-// first value signs, every value verifies (JWT-SECRET-ROTATION.md decision D).
-// The launcher only carries it — but carrying it correctly means passing a
-// ring through untouched, and refusing a member the gateway would reject at
-// boot, where the launcher can still say what to do about it.
+// first value signs, every value verifies. The launcher only carries it — but
+// carrying it correctly means passing a ring through untouched, and refusing
+// a member the gateway would reject at boot, where the launcher can still say
+// what to do about it.
 func TestStartCarriesAJWTSecretRing(t *testing.T) {
 	const newKey = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	const oldKey = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -5988,9 +5984,9 @@ func keptSecrets(t *testing.T, dir string) map[string]string {
 }
 
 // Every secret-store operation is shown on the terminal before it runs: the
-// operation and the secret's name, never its value (SECRETS-STORE, ruled
-// 2026-09-29: "Not the secret values, but their names and the operation").
-// The filesystem store is no exception.
+// operation and the secret's name, never its value (ruled 2026-09-29: "Not
+// the secret values, but their names and the operation"). The filesystem
+// store is no exception.
 func TestStartShowsEverySecretStoreOperation(t *testing.T) {
 	s := newScenario(t, "container")
 	s.noJWTSecret = true
@@ -6026,7 +6022,7 @@ func TestStartShowsEverySecretStoreOperation(t *testing.T) {
 	}
 }
 
-// --- the configured secrets store (SECRETS-STORE P3–P5) ---
+// --- the configured secrets store ---
 
 // opItemFields: the fields of this KB's 1Password item, by label, as the fake
 // CLI keeps them; nil when there is no item.
@@ -6279,7 +6275,7 @@ func TestCleanShowsEachSecretItDeletesFromTheFilesystem(t *testing.T) {
 	}
 }
 
-// --- semiont settings (LAUNCHER-SETTINGS) ---
+// --- semiont settings ---
 
 // settingRow: what `semiont settings` prints for one setting, or "": its line,
 // and the line below when a wide value put its explanation there. A label may
@@ -6457,10 +6453,10 @@ func TestSettingsKeepsAWideValueApartFromItsExplanation(t *testing.T) {
 	}
 }
 
-// The machine's default store applies to new knowledge bases only
-// (LAUNCHER-SETTINGS D4, ruled: "I agree "new KBs only""): a KB with no
-// setting and nothing kept adopts it at its first need, as its own setting,
-// so changing the default later moves nothing.
+// The machine's default store applies to new knowledge bases only (ruled: "I
+// agree "new KBs only""): a KB with no setting and nothing kept adopts it at
+// its first need, as its own setting, so changing the default later moves
+// nothing.
 func TestDefaultSecretStoreIsAdoptedByANewKnowledgeBase(t *testing.T) {
 	s := newScenario(t, "container", "op")
 	s.noJWTSecret = true
@@ -6552,7 +6548,7 @@ func TestDefaultSecretStoreIsNotAdoptedByCleanOrAMove(t *testing.T) {
 }
 
 // A person learns where a knowledge base keeps its secrets from the verbs
-// they already run (LAUNCHER-SETTINGS D5): init's summary and the start's.
+// they already run: init's summary and the start's.
 func TestInitAndStartNameTheSecretsStore(t *testing.T) {
 	s := newScenario(t, "container", "op")
 	if _, stderr, code := s.run(t, "settings", "secret-store", "--default", "op://Semiont"); code != 0 {
@@ -6603,8 +6599,8 @@ func TestSettingsRefusesWhatAStartWould(t *testing.T) {
 }
 
 // gatewayJWTSecret: the value the gateway container was given. It crosses
-// through the runtime's environment, never its command line (SECRET-DELIVERY
-// P6), so it is read from what the container received.
+// through the runtime's environment, never its command line, so it is read
+// from what the container received.
 func gatewayJWTSecret(t *testing.T, s *scenario) string {
 	t.Helper()
 	v, ok := s.containerEnv(t, "semiont-gateway", "JWT_SECRET")
@@ -6735,25 +6731,25 @@ func TestStartServiceBrowserNoClone(t *testing.T) {
 	} else {
 		mustContain(t, "stderr", stderr, "must be a git clone")
 	}
-	// The Archivist mounts /kb as the git WRITER (D4b), so it inherits the
-	// same refusal — a non-clone would fail at its first `git add` instead.
+	// The Archivist mounts /kb as the git WRITER, so it inherits the same
+	// refusal — a non-clone would fail at its first `git add` instead.
 	if _, stderr, code := s.run(t, "start", "--service", "archivist"); code != 1 {
 		t.Errorf("archivist without git: want exit 1, got %d", code)
 	} else {
 		mustContain(t, "stderr", stderr, "must be a git clone")
 	}
-	// The Librarian mounts /kb READ-ONLY — not the git writer, so the clone
-	// invariant deliberately does NOT apply (EXTRACT-LIBRARIAN handoff).
+	// The Librarian mounts no part of the KB tree — it is not the git writer,
+	// so the clone invariant deliberately does NOT apply.
 	if _, stderr, code := s.run(t, "start", "--service", "librarian"); code != 0 {
-		t.Errorf("librarian without git: want exit 0 (read-only mount), got %d\nstderr:\n%s", code, stderr)
+		t.Errorf("librarian without git: want exit 0 (it mounts no KB tree), got %d\nstderr:\n%s", code, stderr)
 	}
 }
 
 // The Librarian restart path — the argv IS the contract: NO piece of the KB
-// tree (SINGLE-KB-MOUNT P1), just the shared state mount, librarian.toml,
-// 24104, and neither JWT_SECRET (it signs nothing) nor LIBRARIAN_HOST
-// (nothing dials it). The staged config carries the committed [kb] name —
-// the one fact the Librarian needs to find the Archivist's views.
+// tree, just the shared state mount, librarian.toml, 24104, and neither
+// JWT_SECRET (it signs nothing) nor LIBRARIAN_HOST (nothing dials it). The
+// staged config carries the committed [kb] name — the one fact the Librarian
+// needs to find the Archivist's views.
 func TestStartServiceLibrarian(t *testing.T) {
 	s := newScenario(t, "container")
 	stdout, stderr, code := s.run(t, "start", "--service", "librarian")
@@ -7210,7 +7206,7 @@ func TestRemoteModelMetadataAndAvailability(t *testing.T) {
 	}
 }
 
-// --- semantic search is mandatory (MANDATORY-EMBEDDING P4) ---
+// --- semantic search is mandatory ---
 
 // A config the gateway refuses to boot must be refused HERE, before a single
 // container is launched. Otherwise start brings the whole stack up and the
@@ -7253,7 +7249,7 @@ func TestStartRefusesAConfigWithNoSemanticSearch(t *testing.T) {
 	}
 }
 
-// --- platform-sourced inference ceilings (INFERENCE-LIMITS-EXPOSURE P4) ---
+// --- platform-sourced inference ceilings ---
 
 // The ceilings status prints come from the PLATFORM — the limits the services
 // holding the inference credentials report over the bus (job:, gather: and
@@ -7302,7 +7298,7 @@ func TestStatusShowsPlatformCeilings(t *testing.T) {
 	mustContain(t, "ceilings", stdout, "128K window", "8K window")
 
 	// Sourced over the bus, from every key holder — not by probing a
-	// provider. (D5: platform data flows through the platform surface.)
+	// provider. (Platform data flows through the platform surface.)
 	for _, op := range []string{"job:limits-requested", "gather:limits-requested", "match:limits-requested"} {
 		found := false
 		for _, e := range emits(t, s) {
@@ -7350,9 +7346,9 @@ func TestStatusCeilingsSurviveRejectedReports(t *testing.T) {
 }
 
 func TestStatusCeilingsAbsentWhenNoKeyHolderReportsThem(t *testing.T) {
-	// D3's absence semantics reach all the way to the terminal: a pair whose
-	// discovery failed is absent from its key holder's report, and its row is
-	// unchanged.
+	// A missing ceiling is normal, never an error, all the way to the
+	// terminal: a pair whose discovery failed is absent from its key holder's
+	// report, and its row is unchanged.
 	s := busScenario(t,
 		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
 		limitsReply(
@@ -7453,8 +7449,8 @@ func TestStatusShowsARemoteCeilingInAnOllamaDrivenRow(t *testing.T) {
 func TestStatusPlatformCeilingReplacesTheProbedWindow(t *testing.T) {
 	// The launcher's own /v1/models probe renders "200K ctx" today. Once the
 	// platform publishes the ceiling, THAT is the one on the row — one context
-	// figure, from the platform (D5), never two from two sources. The probe
-	// keeps rendering what only it knows (identity, release, key visibility).
+	// figure, from the platform, never two from two sources. The probe keeps
+	// rendering what only it knows (identity, release, key visibility).
 	s := mixedStackScenario(t,
 		limitsReply(reportedPair("anthropic", "claude-sonnet-4-5-20250929", `{"contextTokens":200000,"maxOutputTokens":64000}`)))
 	stdout, _, code := s.run(t, "status")
@@ -7593,10 +7589,10 @@ func TestCodespaceCostLevers(t *testing.T) {
 }
 
 func TestCodespaceCostFacts(t *testing.T) {
-	// Tier 1 of CODESPACE-COSTS: status states the hardware burning and
-	// since when — facts only, never invented dollars. Available shows
-	// machine + uptime; Shutdown shows when storage billing ENDS by
-	// auto-deletion; the up-summary names the machine and its auto-stop.
+	// Cost facts: status states the hardware burning and since when — facts
+	// only, never invented dollars. Available shows machine + uptime;
+	// Shutdown shows when storage billing ENDS by auto-deletion; the
+	// up-summary names the machine and its auto-stop.
 	s := newCodespaceScenario(t)
 	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace")
 	if code != 0 {
@@ -7624,10 +7620,10 @@ func TestCodespaceCostFacts(t *testing.T) {
 }
 
 func TestStatusBilling(t *testing.T) {
-	// Tier 2 (CODESPACE-COSTS): GitHub's OWN usage report, opt-in. Their
-	// numbers verbatim — quantities, gross, quota-as-discount, net — never a
-	// launcher estimate; non-codespaces products filtered out; the month
-	// that actually cost money shows its net.
+	// GitHub's OWN usage report, opt-in. Their numbers verbatim — quantities,
+	// gross, quota-as-discount, net — never a launcher estimate;
+	// non-codespaces products filtered out; the month that actually cost
+	// money shows its net.
 	s := newScenario(t, "container", "gh")
 	stdout, stderr, code := s.run(t, "status", "--billing")
 	if code != 0 {
@@ -7672,9 +7668,9 @@ func TestStatusBilling(t *testing.T) {
 }
 
 func TestDiscoveryFileTracksStacks(t *testing.T) {
-	// BROWSER-KB-DISCOVERY lane 1: the export view rides every stack
-	// mutation — local start, codespace start, delete — and is endpoints
-	// only, never a secret. The Browser mounts its directory read-only.
+	// The discovery export view rides every stack mutation — local start,
+	// codespace start, delete — and is endpoints only, never a secret. The
+	// Browser mounts its directory read-only.
 	s := newCodespaceScenario(t)
 	disc := func() string {
 		b, _ := os.ReadFile(filepath.Join(stateHomeFor(s.home), "discovery", "kbs.json"))
@@ -7723,12 +7719,12 @@ func TestDiscoveryFileTracksStacks(t *testing.T) {
 }
 
 func TestDiscoveryOneEntryPerAddress(t *testing.T) {
-	// KB-IDENTITY-VS-ADDRESS P1. A published entry is a promise about what
-	// lives at an address, and only one process can bind a port — so two
-	// entries claiming one address means at most one promise is true. Live
-	// 2026-07-24: a local stack on :4000 and a codespace forward record that
-	// still claimed :4000 were both published, and the Browser rendered the
-	// user's own KB under the other repo's name.
+	// A published entry is a promise about what lives at an address, and only
+	// one process can bind a port — so two entries claiming one address means
+	// at most one promise is true. Live 2026-07-24: a local stack on :4000 and
+	// a codespace forward record that still claimed :4000 were both
+	// published, and the Browser rendered the user's own KB under the other
+	// repo's name.
 	//
 	// The sequence below is the one that produced it, start to finish:
 	// dropCollidingForwards kills a forward the local stack needs and zeroes
@@ -7803,7 +7799,7 @@ func TestDiscoveryPublishesOneKBInTwoPlaces(t *testing.T) {
 	// A did identifies a KNOWLEDGE BASE, not a running copy of one, so two
 	// entries sharing a did is normal and will be COMMON: a local clone and a
 	// codespace of the same repo are one KB reachable at two addresses. The
-	// address is what is unique (P1); the identity deliberately is not.
+	// address is what is unique; the identity deliberately is not.
 	//
 	// This pins the launcher against the tempting inverse — "one entry per
 	// identity" — which would silently hide whichever copy lost the tie, and
@@ -7854,10 +7850,10 @@ func TestDiscoveryPublishesOneKBInTwoPlaces(t *testing.T) {
 }
 
 func TestBrowserOutlivesTheStack(t *testing.T) {
-	// BROWSER-LIFECYCLE P2: the Browser is a machine-level viewer, not a
-	// stack member. Start ensures it; a second start with a current image
-	// KEEPS it; bare stop leaves it running (announced); a stale image is
-	// restarted; --service browser is the explicit off-switch.
+	// The Browser is a machine-level viewer, not a stack member. Start
+	// ensures it; a second start with a current image KEEPS it; bare stop
+	// leaves it running (announced); a stale image is restarted; --service
+	// browser is the explicit off-switch.
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
@@ -7964,7 +7960,7 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 	}
 }
 
-// --- semiont init (LAUNCHER-BIRTH P1) ---
+// --- semiont init ---
 
 func TestInitBirthsIdentity(t *testing.T) {
 	// Flag-driven birth, prompt-free: .semiont/config carries the exact
@@ -8085,16 +8081,16 @@ func TestInitInteractivePrompts(t *testing.T) {
 }
 
 func TestInitGeneratesStartableConfig(t *testing.T) {
-	// LAUNCHER-BIRTH P2: the generative builder. The strongest possible
-	// assertion is the round trip — the generated config must pass the REAL
-	// deriver: `start --dry-run --config <name>` succeeds from the newborn
-	// KB. Bindings are exactly the three-name roster; per-worker refinement
-	// is the user's edit, not ours.
+	// The generative config builder. The strongest possible assertion is the
+	// round trip — the generated config must pass the REAL deriver: `start
+	// --dry-run --config <name>` succeeds from the newborn KB. Bindings are
+	// exactly the three-name roster; per-worker refinement is the user's
+	// edit, not ours.
 	s := newScenario(t, "container")
 	s.cwd = t.TempDir()
 	s.extraEnv = append(s.extraEnv, "FAKERT_GIT_ROOT="+s.cwd)
 	// Seam flags at a dead port: hermetic — validation degrades to the
-	// warn path, which is itself part of the P3 contract.
+	// warn path, which is itself part of live model validation's contract.
 	_, stderr, code := s.run(t, "init",
 		"--name", "kb", "--domain", "d.io:kb", "--yes",
 		"--inference", "anthropic", "--model", "claude-sonnet-4-5-20250929",
@@ -8142,8 +8138,8 @@ func TestInitGeneratesStartableConfig(t *testing.T) {
 		t.Fatalf("ollama config failed the deriver: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "ollama plan", stdout, "host Ollama", "gemma4:26b, nomic-embed-text")
-	// A newborn names its issuer's port by ${KEYCLOAK_PORT} (CODESPACE-IDENTITY
-	// B4), so the laptop that forwards it can move it.
+	// A newborn names its issuer's port by ${KEYCLOAK_PORT}, so the laptop
+	// that forwards it can move it.
 	stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run")
 	_ = stderr
 	if !strings.Contains(stdout, "-p 8080:8080") {
@@ -8350,10 +8346,10 @@ func templateFixture(t *testing.T, includeBad bool) string {
 }
 
 func TestInitFromTemplateCopiesAndVets(t *testing.T) {
-	// LAUNCHER-BIRTH P4: the explicit template-copy path. Every fetched toml
-	// passes the SAME derivePlan vet as generated ones; identity is always
-	// init's own, never the template's; and the copied config round-trips
-	// through the real deriver.
+	// The explicit template-copy path. Every fetched toml passes the SAME
+	// derivePlan vet as generated ones; identity is always init's own, never
+	// the template's; and the copied config round-trips through the real
+	// deriver.
 	tpl := templateFixture(t, false)
 	s := newScenario(t, "container")
 	s.cwd = t.TempDir()
@@ -8711,11 +8707,11 @@ func busScenario(t *testing.T, env ...string) *scenario {
 	return s
 }
 
-// WIRE SMOKE TEST (browse) — SDK-GO-TRANSPORT P2. This family's logic now runs
-// in process against a fake transport (internal/launcher/verbs_test.go). This
-// one stays end-to-end deliberately: it is the only thing proving the BUILT
-// BINARY speaks HTTP a real server understands. A family tested only against a
-// double can agree with a bug in our own client.
+// WIRE SMOKE TEST (browse). This family's logic now runs in process against a
+// fake transport (internal/launcher/verbs_test.go). This one stays end-to-end
+// deliberately: it is the only thing proving the BUILT BINARY speaks HTTP a
+// real server understands. A family tested only against a double can agree with
+// a bug in our own client.
 func TestBrowseListsResources(t *testing.T) {
 	s := busScenario(t, `FAKERT_BUS_REPLY_browse_resources_requested={"resources":[`+
 		`{"@id":"res-1","name":"Letter","entityTypes":["Letter"]},`+
@@ -8766,11 +8762,11 @@ func TestBrowseWithoutSessionAdvisesLogin(t *testing.T) {
 	mustContain(t, "fix-it", stdout+stderr, "semiont login")
 }
 
-// WIRE SMOKE TEST (gather) — SDK-GO-TRANSPORT P2. This family's logic now runs
-// in process against a fake transport (internal/launcher/verbs_test.go). This
-// one stays end-to-end deliberately: it is the only thing proving the BUILT
-// BINARY speaks HTTP a real server understands. A family tested only against a
-// double can agree with a bug in our own client.
+// WIRE SMOKE TEST (gather). This family's logic now runs in process against a
+// fake transport (internal/launcher/verbs_test.go). This one stays end-to-end
+// deliberately: it is the only thing proving the BUILT BINARY speaks HTTP a
+// real server understands. A family tested only against a double can agree with
+// a bug in our own client.
 func TestGatherResourceSummarizes(t *testing.T) {
 	// The REAL GatheredContext shape (schema-defined): metadata +
 	// inferredRelationshipSummary, not the content/summary/resources fields
@@ -8796,11 +8792,11 @@ func TestGatherResourceSummarizes(t *testing.T) {
 		`"includeContent":true`, `"depth":2`, `"maxResources":10`)
 }
 
-// WIRE SMOKE TEST (mark) — SDK-GO-TRANSPORT P2. This family's logic now runs
-// in process against a fake transport (internal/launcher/verbs_test.go). This
-// one stays end-to-end deliberately: it is the only thing proving the BUILT
-// BINARY speaks HTTP a real server understands. A family tested only against a
-// double can agree with a bug in our own client.
+// WIRE SMOKE TEST (mark). This family's logic now runs in process against a
+// fake transport (internal/launcher/verbs_test.go). This one stays end-to-end
+// deliberately: it is the only thing proving the BUILT BINARY speaks HTTP a
+// real server understands. A family tested only against a double can agree with
+// a bug in our own client.
 func TestMarkCreatesWithSelectorAndBody(t *testing.T) {
 	s := busScenario(t, `FAKERT_BUS_REPLY_mark_create_request={"annotationId":"ann-42"}`)
 	stdout, stderr, code := s.run(t, "mark", "res-1",
@@ -8817,11 +8813,11 @@ func TestMarkCreatesWithSelectorAndBody(t *testing.T) {
 		`"motivation":"commenting"`) // inferred from the body
 }
 
-// WIRE SMOKE TEST (bind) — SDK-GO-TRANSPORT P2. This family's logic now runs
-// in process against a fake transport (internal/launcher/verbs_test.go). This
-// one stays end-to-end deliberately: it is the only thing proving the BUILT
-// BINARY speaks HTTP a real server understands. A family tested only against a
-// double can agree with a bug in our own client.
+// WIRE SMOKE TEST (bind). This family's logic now runs in process against a
+// fake transport (internal/launcher/verbs_test.go). This one stays end-to-end
+// deliberately: it is the only thing proving the BUILT BINARY speaks HTTP a
+// real server understands. A family tested only against a double can agree with
+// a bug in our own client.
 func TestBindAddsAndRemovesTarget(t *testing.T) {
 	s := busScenario(t, `FAKERT_BUS_REPLY_bind_update_body={}`)
 	if _, stderr, code := s.run(t, "bind", "res-1", "ann-1", "res-2"); code != 0 {
@@ -8838,11 +8834,11 @@ func TestBindAddsAndRemovesTarget(t *testing.T) {
 	mustContain(t, "emit", b, `"op":"remove"`)
 }
 
-// WIRE SMOKE TEST (match) — SDK-GO-TRANSPORT P2. This family's logic now runs
-// in process against a fake transport (internal/launcher/verbs_test.go). This
-// one stays end-to-end deliberately: it is the only thing proving the BUILT
-// BINARY speaks HTTP a real server understands. A family tested only against a
-// double can agree with a bug in our own client.
+// WIRE SMOKE TEST (match). This family's logic now runs in process against a
+// fake transport (internal/launcher/verbs_test.go). This one stays end-to-end
+// deliberately: it is the only thing proving the BUILT BINARY speaks HTTP a
+// real server understands. A family tested only against a double can agree with
+// a bug in our own client.
 func TestMatchGathersThenSearches(t *testing.T) {
 	// match is TWO exchanges: the search requires a context payload, so a
 	// gather must precede it — not an optimization, a precondition.
@@ -8873,16 +8869,17 @@ func TestMatchGathersThenSearches(t *testing.T) {
 		`"limit":5`, `"useSemanticScoring":true`, `"context"`)
 }
 
-// RETITLED (GUIDED-TOUR P1): the verb still claims no delivery, but it no
-// longer prints a bare ✓ over a signal that reached an empty room. Nothing is
-// subscribed to beckon:focus in this scenario, and the gateway now says so, so
-// the honest line names that — the old "no delivery confirmation" wording is
-// reserved for the case where the count is genuinely unknown.
-// WIRE SMOKE TEST (beckon) — SDK-GO-TRANSPORT P2. This family's logic now runs
-// in process against a fake transport (internal/launcher/verbs_test.go). This
-// one stays end-to-end deliberately: it is the only thing proving the BUILT
-// BINARY speaks HTTP a real server understands. A family tested only against a
-// double can agree with a bug in our own client.
+// RETITLED when an emit began reporting how many subscribers it reached: the
+// verb still claims no delivery, but it no longer prints a bare ✓ over a
+// signal that reached an empty room. Nothing is subscribed to beckon:focus in
+// this scenario, and the gateway now says so, so the honest line names that —
+// the old "no delivery confirmation" wording is reserved for the case where
+// the count is genuinely unknown.
+// WIRE SMOKE TEST (beckon). This family's logic now runs in process against a
+// fake transport (internal/launcher/verbs_test.go). This one stays end-to-end
+// deliberately: it is the only thing proving the BUILT BINARY speaks HTTP a
+// real server understands. A family tested only against a double can agree with
+// a bug in our own client.
 func TestBeckonSaysWhenNobodyIsSubscribed(t *testing.T) {
 	s := busScenario(t)
 	stdout, stderr, code := s.run(t, "beckon", "--resource", "res-1", "--annotation", "ann-2")
@@ -8905,8 +8902,8 @@ func TestBeckonSaysWhenNobodyIsSubscribed(t *testing.T) {
 // are N `frame:add-entity-type` commands. This asserts against every emit,
 // not the last one — a verb that dropped all but the final tag would pass a
 // last-emit check while losing the caller's work.
-// WIRE SMOKE TEST (SDK-GO-TRANSPORT P2). The verb's logic — one command per
-// entity type, stop at the first rejection, refuse bad arguments — moved to
+// WIRE SMOKE TEST. The verb's logic — one command per entity type, stop at the
+// first rejection, refuse bad arguments — moved to
 // internal/launcher/frame_test.go, where it runs in process against a fake
 // transport in ~0 s. This one stays end-to-end on purpose: it is the only thing
 // proving the BUILT BINARY speaks HTTP a server actually understands. Retiring
@@ -9064,9 +9061,9 @@ func TestYieldDelegateJSONSucceedsOnAGeneration(t *testing.T) {
 	mustContain(t, "raw payload", stdout, `"resourceId":"res-new"`)
 }
 
-// title joined storageUri as required when GenerationJobParams gained it
-// (generation-wire-context P1). Refused HERE rather than letting the gateway
-// reject the job: the caller has already paid for a gather by then.
+// title joined storageUri as required when GenerationJobParams gained it.
+// Refused HERE rather than letting the gateway reject the job: the caller has
+// already paid for a gather by then.
 func TestYieldDelegateNeedsTitle(t *testing.T) {
 	s := busScenario(t)
 	_, stderr, code := s.run(t, "yield", "--delegate", "res-src", "--storage-uri", "file://generated/out.md")
@@ -9364,9 +9361,9 @@ func TestStatusFlagsCwdKBDifferentFromRunningStack(t *testing.T) {
 	mustContain(t, "active line", stdout, "active: file://"+other)
 }
 
-// --- SECRET-DELIVERY P4: the passwords of the daemons the launcher runs are
-// the launcher's (D1, RULED: "B for daemons the launcher runs, and A's
-// resolver for ones it doesn't") ---
+// --- the passwords of the daemons the launcher runs are the launcher's: it
+// generates and keeps them, and resolves the config's reference for a daemon
+// it does not run ---
 
 // stagedFile reads a file the last start staged for its containers.
 func stagedFile(t *testing.T, s *scenario, name string) string {
@@ -9395,8 +9392,8 @@ func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
 	if !ok || len(graphPw) < 32 {
 		t.Fatalf("Neo4j was not given a generated password: NEO4J_AUTH=%q", neo)
 	}
-	// Where KB skills are told to read it (FLEET-P4-DAEMON-PASSWORDS): the
-	// layout is a contract with them, so a move breaks this first.
+	// Where KB skills are told to read it, roots/<key>/<name>: the layout is
+	// a contract with them, so a move breaks this first.
 	kept, err := os.ReadFile(filepath.Join(stateRootFor(s.home, testKBKey), "neo4j-password"))
 	if err != nil || strings.TrimSpace(string(kept)) != graphPw {
 		t.Errorf("roots/<key>/neo4j-password does not hold Neo4j's password (read %q, %v)", kept, err)
@@ -9554,9 +9551,10 @@ func TestStartRefusesAJobsDriverTheDispatcherCannotRun(t *testing.T) {
 	}
 }
 
-// D9's same-server refusal: one role is one daemon. Two sections naming two
-// different servers is a configuration error stated at plan time, naming
-// both sections — never silently reconciled.
+// The same-server refusal: [signal] and [jobs] share the messaging role, and
+// one role is one daemon. Two sections naming two different servers is a
+// configuration error stated at plan time, naming both sections — never
+// silently reconciled.
 func TestStartRefusesMismatchedMessagingServers(t *testing.T) {
 	s := newScenario(t, "container")
 	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
@@ -9575,12 +9573,12 @@ func TestStartRefusesMismatchedMessagingServers(t *testing.T) {
 	mustContain(t, "mismatch refusal", stderr, "[jobs] and [signal] name different servers", "must match")
 }
 
-// EXTERNAL-IDENTITY P3 (launcher lane): a config whose [environments.*.identity]
-// selects keycloak and leaves its issuer to the launcher boots Keycloak after
-// PostgreSQL and before the gateway — its database created on that PostgreSQL
-// if absent, the realm file staged and imported, the bootstrap admin password
-// per root — and every service's staged config states the issuer. The no-identity-section case is
-// proven by every other boot golden: only the preflight logs snapshot grows.
+// A config whose [environments.*.identity] selects keycloak and leaves its
+// issuer to the launcher boots Keycloak after PostgreSQL and before the gateway
+// — its database created on that PostgreSQL if absent, the realm file staged
+// and imported, the bootstrap admin password per root — and every service's
+// staged config states the issuer. The no-identity-section case is proven by
+// every other boot golden: only the preflight logs snapshot grows.
 // writeKeycloakConfig REPLACES the KB config's [identity] section and returns
 // the config name to select with --config.
 func writeKeycloakConfig(t *testing.T, s *scenario) string {
@@ -9726,12 +9724,12 @@ func TestStartDryRunExternalIssuerIsPreflighted(t *testing.T) {
 	}
 }
 
-// LAUNCHER-SERVICE-MODEL P4. `start --service <role>` used to reach a SECOND
-// implementation of the per-role launch — flowOneService carried its own
-// copy of the dependency-role branch that flowFullStart reaches through
-// flowDepRole. Two implementations of one launch drift, and a drift here is
-// a container that runs with different arguments depending on which verb
-// started it.
+// `start --service <role>` dispatches to the same per-role flow a full start
+// uses. It used to reach a SECOND implementation of the per-role launch —
+// flowOneService carried its own copy of the dependency-role branch that
+// flowFullStart reaches through flowDepRole. Two implementations of one
+// launch drift, and a drift here is a container that runs with different
+// arguments depending on which verb started it.
 //
 // The full start's dry-run is the argv every role's launch is already pinned
 // to. This requires the single-service dry-run to produce the SAME line.

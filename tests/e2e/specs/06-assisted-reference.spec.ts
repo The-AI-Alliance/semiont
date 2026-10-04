@@ -20,16 +20,15 @@ import { openResourceByName } from '../fixtures/discover';
  * Two assertion levels:
  *   1. **Dispatch** (fast, original regression target): `job:create` →
  *      `job:created` — the chip-selected entity type reaches the wire.
- *   2. **Outcome** (Phase 3 of `entity-extraction-silent-drop.md`): after
- *      the assist runs, ≥1 reference annotation is **persisted** and
- *      survives a reload.
+ *   2. **Outcome**: after the assist runs, ≥1 reference annotation is
+ *      **persisted** and survives a reload.
  *
  * Why the outcome assertion matters: the *previous* version of this spec
  * stopped at the dispatch pair, so a worker that silently dropped every
- * extracted entity (the `entity-extraction-silent-drop` bug — JSON parse
- * failure → `return []`) still passed. This spec is the system-level
- * guard for that fix (P1 tool-use + P2 de-silence); the deterministic RED
- * lives in the `@semiont/jobs` unit tests.
+ * extracted entity (JSON parse failure → `return []`) still passed. This
+ * spec is the system-level guard for that fix (structured output from the
+ * model, and an unreadable extraction failing the job instead of returning
+ * `[]`); the deterministic RED lives in the `@semiont/jobs` unit tests.
  *
  * Entity-type choice: **Concept**, not the "first chip" (= `Person`).
  * The seeded first resource (Photosynthesis) is Concept-dense, so the

@@ -1,5 +1,5 @@
 /**
- * VIEWER-TOOLBAR-OPT-OUT — `showToolbar={false}` is a supported opt-out.
+ * `showToolbar={false}` is a supported opt-out.
  *
  * Tier-2 hosts (controlled props, host-composed controls) hide the built-in
  * bar by CONTRACT, not by CSS-ing react-ui's internals. Hiding the bar must

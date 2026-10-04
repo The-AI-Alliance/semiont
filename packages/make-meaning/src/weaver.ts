@@ -17,7 +17,7 @@
  *   maxBatchSize  (500)              — force flush to bound memory
  *   idleTimeoutMs (200)              — silence before returning to passthrough
  * All timings are injected via the required `WeaverTiming` constructor param
- * (WEAVER-AXIOMS R0) — the axiom harness runs them at ~1 ms.
+ * — the axiom harness runs them at ~1 ms.
  *
  * ## Per-resource serialization
  *
@@ -111,13 +111,13 @@ export class Weaver {
   private readonly logger: Logger;
 
   /**
-   * Transport-blind by construction (WEAVER-ISOLATION P2/P3): graph-relevant
-   * events arrive as an injected `events$` and rebuild commands as
-   * `rebuilds$` (the `weaverFanIn` fan-in — channel selection
-   * lives there); `weave:applied` signals, rebuild replies, and the
-   * catch-up's `browse:*` reads all ride the injected `BusRequestPrimitive`.
-   * In-process everything rides the core EventBus
-   * (`asBusRequestPrimitive`); standalone it all rides the gateway.
+   * Transport-blind by construction: graph-relevant events arrive as an
+   * injected `events$` and rebuild commands as `rebuilds$` (the
+   * `weaverFanIn` fan-in — channel selection lives there); `weave:applied`
+   * signals, rebuild replies, and the catch-up's `browse:*` reads all ride
+   * the injected `BusRequestPrimitive`. In-process everything rides the
+   * core EventBus (`asBusRequestPrimitive`); standalone it all rides the
+   * gateway.
    */
   constructor(
     private graphDb: GraphDatabase,
@@ -174,7 +174,7 @@ export class Weaver {
             idleTimeoutMs: this.timing.idleTimeoutMs,
           }),
           concatMap((eventOrBatch: StoredEvent | StoredEvent[]) => {
-            // Sequence gate (WEAVER-AXIOMS W3): at-least-once delivery can
+            // Sequence gate (weaver axiom W3): at-least-once delivery can
             // redeliver an event AFTER later ones already applied (SSE
             // replay overlapping live). Content-idempotent folds tolerate
             // adjacent duplicates, but a DISPLACED redelivery would clobber
@@ -221,8 +221,8 @@ export class Weaver {
 
   /**
    * Record an applied event's sequence and signal `weave:applied` — the
-   * push half of the applied-offset barrier (GRAPH-PROJECTION-SYNC P2):
-   * `WeaveProgress` folds these signals into the map `whenApplied` awaits.
+   * push half of the applied-offset barrier: `WeaveProgress` folds these
+   * signals into the map `whenApplied` awaits.
    */
   /** Record an apply outcome for the failed-floor bookkeeping (W6). */
   private noteOutcome(event: StoredEvent, ok: boolean): void {
@@ -281,13 +281,13 @@ export class Weaver {
   }
 
   /**
-   * Checkpointed catch-up (WEAVER-ISOLATION P3, D1). Rides EXISTING read
-   * channels: resources discovered via `browse:resources-requested`
+   * Checkpointed catch-up. Rides EXISTING read channels: resources
+   * discovered via `browse:resources-requested`
    * (archived included — no filter), each resource's events fetched via
    * `browse:events-requested` (full StoredEvents), filtered client-side
    * against the persisted checkpoint, and pushed through the normal
    * pipeline — per-resource lanes serialize against live traffic,
-   * idempotent folds (P1) absorb any overlap, and `noteApplied` fires per
+   * idempotent folds absorb any overlap, and `noteApplied` fires per
    * apply so the `whenApplied` barrier keeps working mid-recovery.
    *
    * A checkpoint AHEAD of a resource's log (restore rewound history) is
@@ -784,11 +784,12 @@ export class Weaver {
         mediaType: event.payload.format,
         checksum: event.payload.contentChecksum,
         rel: 'original',
-        // The URI lives on the REPRESENTATION (STORAGE-URI-ONE-HOME D1).
-        // `ResourceDescriptor` is `additionalProperties: true`, so writing it
-        // at the top level typechecks and then reads back as undefined
-        // through `getStorageUri` — which is how the graph projection silently
-        // lost all 57 of its URIs until the P2 live gate caught it.
+        // The URI lives on the REPRESENTATION, its one home: the descriptor
+        // has no such field. `ResourceDescriptor` is
+        // `additionalProperties: true`, so writing it at the top level
+        // typechecks and then reads back as undefined through `getStorageUri`
+        // — which is how the graph projection silently lost all 57 of its
+        // URIs until a live-stack gate caught it.
         ...(event.payload.storageUri ? { storageUri: event.payload.storageUri } : {}),
       }],
       archived: false,
@@ -1099,8 +1100,8 @@ export class Weaver {
     applyFailures: number;
   } {
     return {
-      // One injected source stream since WEAVER-ISOLATION P2 — channel
-      // fan-in (9 channels) lives in weaverFanIn.
+      // One injected source stream — channel fan-in (9 channels) lives in
+      // weaverFanIn.
       subscriptions: this.sourceSubscription ? 1 : 0,
       // A count, deliberately not the map: serializing every per-resource
       // sequence made /health an O(resources) payload (#845 scalability).

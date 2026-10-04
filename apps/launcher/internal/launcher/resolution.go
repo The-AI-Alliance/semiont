@@ -10,8 +10,8 @@ import (
 	"strings"
 )
 
-// resolution.go — the secrets the launcher NEVER HAS
-// (LAUNCHER-SERVICE-MODEL D8), the opposite half of custody.go.
+// resolution.go — the secrets the launcher NEVER HAS, the opposite half of
+// custody.go.
 //
 // The launcher never persists a resolved value, anywhere, ever — asserted by
 // TestResolutionValueReachesNoDisk rather than promised here. What it stores

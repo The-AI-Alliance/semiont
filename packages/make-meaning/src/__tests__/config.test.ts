@@ -4,7 +4,7 @@
  * It exists because two actors need the identical slice (the gateway's
  * `startMakeMeaning` and the Archivist's `archivist-main`), and two copies
  * would drift. Its two throws are the interesting part: `gather` and `search`
- * defaults belong to the TOML loader (D5), so a config arriving without them
+ * defaults belong to the TOML loader, so a config arriving without them
  * bypassed the loader — and this refuses rather than quietly substituting a
  * second default, which is how two defaults for one value get born.
  */
@@ -45,9 +45,9 @@ describe('makeMeaningConfigFrom', () => {
     expect(config.services.embedding).toEqual(SERVICES.embedding);
   });
 
-  // A service reads only the config sections it declares (SECRET-DELIVERY
-  // P5): the view copies nothing at construction, and each part is read from
-  // the loaded config only when the service reads it.
+  // A service reads only the config sections it declares, and the loader
+  // refuses a read of any other: the view copies nothing at construction, and
+  // each part is read from the loaded config only when the service reads it.
   it('reads nothing at construction, and delegates each part at its read', () => {
     const reads: string[] = [];
     const part = <T>(name: string, value: T) => () => { reads.push(name); return value; };
@@ -87,11 +87,11 @@ describe('makeMeaningConfigFrom', () => {
   });
 });
 
-// SINGLE-KB-MOUNT P1: the Librarian has no /kb mount, so the KB name — the
-// one committed fact it needs, to find the views the Archivist materializes —
-// arrives as `[kb] name`, staged by the launcher. Boot refuses without it:
-// a defaulted name would compose a state path nobody writes to, and the
-// Librarian would answer every match from an empty view store forever.
+// The Librarian has no /kb mount, so the KB name — the one committed fact it
+// needs, to find the views the Archivist materializes — arrives as `[kb] name`,
+// staged by the launcher. Boot refuses without it: a defaulted name would
+// compose a state path nobody writes to, and the Librarian would answer every
+// match from an empty view store forever.
 describe('requireKBName', () => {
   it('returns the staged name', () => {
     const config = { ...loaded(), kb: { name: 'example-kb' } } as unknown as EnvironmentConfig;

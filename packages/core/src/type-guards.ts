@@ -73,7 +73,7 @@ export function isDefined<T>(value: T | null | undefined): value is T {
 }
 
 /**
- * Boundary guard for `job:create` generation params (YIELD-FROM-CONTEXT P1).
+ * Boundary guard for `job:create` generation params.
  *
  * Checks the REQUIRED trio the schema declares (`title`, `storageUri`,
  * `context`) plus basic shape — deliberately NOT a full schema validation
@@ -86,12 +86,11 @@ export function isGenerationJobParams(
   value: unknown,
 ): value is import('./payload-types').GenerationJobParams {
   if (!isObject(value)) return false;
-  // Non-empty, not merely present (GENERATION-OUTPUT-FORMAT D9/D9b): the
-  // worker has no fallback, so `storageUri: ''` would write to a bare
-  // `file://` and `title: ''` would name the resource nothing. This guard is
-  // the ONLY runtime enforcement — `JobCreateCommand.params` is
-  // `additionalProperties: true`, so /bus/emit's generated validator never
-  // sees these fields.
+  // Non-empty, not merely present: the worker has no fallback, so
+  // `storageUri: ''` would write to a bare `file://` and `title: ''` would
+  // name the resource nothing. This guard is the ONLY runtime enforcement —
+  // `JobCreateCommand.params` is `additionalProperties: true`, so /bus/emit's
+  // generated validator never sees these fields.
   return (
     typeof value.title === 'string' && value.title.length > 0
     && typeof value.storageUri === 'string' && value.storageUri.length > 0

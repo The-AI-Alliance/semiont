@@ -1,5 +1,5 @@
 /**
- * ASSIST-SURFACE-WARTS Lane D — in-content scroll on `beckon:focus`.
+ * In-content scroll on `beckon:focus`.
  *
  * `beckon:focus` is the established "scroll to and highlight this annotation"
  * contract; BrowseView has subscribed to it all along. AnnotateView did not,
@@ -58,14 +58,14 @@ describe('AnnotateView — beckon:focus scrolls the content', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
-// GUIDED-TOUR P6 (D7) — `resourceId` is a GUARD, not navigation.
+// `resourceId` on `beckon:focus` is a GUARD, not navigation.
 //
 // The schema now says so out loud: "it names the resource this focus applies
 // to, and a viewer currently showing a different resource ignores the event".
 // Without the comparison the field was decorative — a guide beckoning a
 // reference in doc B scrolled every participant's doc A.
 // ─────────────────────────────────────────────────────────────────────
-describe('AnnotateView — beckon:focus is guarded by resourceId (P6/D7)', () => {
+describe('AnnotateView — beckon:focus is guarded by resourceId', () => {
   beforeEach(() => { scrollSpy.mockClear(); });
 
   const renderAt = (resourceUri: string) => {

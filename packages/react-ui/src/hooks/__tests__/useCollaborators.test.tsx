@@ -1,6 +1,6 @@
 /**
- * INFERENCE-LIMITS-EXPOSURE P3a — the roster subscription behind the
- * CollaborationPanel's software-agent rows.
+ * The roster subscription behind the CollaborationPanel's software-agent
+ * rows.
  *
  * Sibling to `useMediaToken`: takes the client explicitly so a
  * bring-your-own-session host can read the roster from a bare session.

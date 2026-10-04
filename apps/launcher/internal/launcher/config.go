@@ -124,9 +124,9 @@ type envConfig struct {
 }
 
 // declaresRole answers whether this config declares a role — the section
-// that would make it part of the stack. It is the DECLARE half of O1
-// (drivers require roles, configs declare them), read by unmetRequirement
-// when a driver names a role it cannot run without.
+// that would make it part of the stack. It is the DECLARE half of the rule
+// that drivers require roles and configs declare them, read by
+// unmetRequirement when a driver names a role it cannot run without.
 //
 // Only the roles a `needs` edge can name appear here, and
 // TestEveryRequiredRoleIsDeclarable fails when a new requirement names one
@@ -224,9 +224,9 @@ type jobsCfg struct {
 	Password string `toml:"password"`
 }
 
-// signalCfg mirrors jobsCfg for [environments.<env>.signal] (SIGNAL-PLANE
-// P2): the gateway selects its Signal Plane driver from this section; the
-// LAUNCHER reads it only to decide whether the messaging daemon must run.
+// signalCfg mirrors jobsCfg for [environments.<env>.signal]: the gateway
+// selects its Signal Plane driver from this section; the LAUNCHER reads it
+// only to decide whether the messaging daemon must run.
 type signalCfg struct {
 	Platform string `toml:"platform"`
 	Type     string `toml:"type"`

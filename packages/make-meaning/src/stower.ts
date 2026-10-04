@@ -58,9 +58,10 @@ export interface CreateResourceResult {
 }
 
 /**
- * The stores Stower writes through (EXTRACT-ARCHIVIST P1): the record's
- * single write seam plus the content lifecycle — never bytes (GATEWAY.md
- * D4a). Resource resolution for moves goes through `project.projectionsDir`.
+ * The stores Stower writes through: the record's single write seam plus the
+ * content lifecycle — never bytes, which travel over HTTP and not through
+ * this seam. Resource resolution for moves goes through
+ * `project.projectionsDir`.
  */
 export interface StowerStores {
   content: ContentLifecycle;
@@ -69,16 +70,17 @@ export interface StowerStores {
 
 /**
  * The command channels Stower subscribes to — the Archivist's inbound wire
- * roster for this actor (EXTRACT-ARCHIVIST P2a). Pinned to `initialize()`'s
- * actual subscriptions by the census gate in archivist-decoupling.test.ts:
- * grow one, and the gate fails until the other moves with it.
+ * roster for this actor. Pinned to `initialize()`'s actual subscriptions by
+ * the census gate in archivist-decoupling.test.ts: grow one, and the gate
+ * fails until the other moves with it.
  */
 export const STOWER_CHANNELS = [
   'yield:create', 'yield:clone-persist', 'yield:update', 'yield:mv',
   'mark:create', 'mark:commit', 'mark:delete', 'mark:update-body',
   'frame:add-entity-type', 'frame:add-tag-schema',
-  // Gateway-emitted when a person ACTS, carrying the name it verified
-  // (PERSON-PROFILE D3). Declared, not bridged: no client consumes it.
+  // Gateway-emitted when a person ACTS — a write, never mere presence —
+  // carrying the name it verified. Declared, not bridged: no client
+  // consumes it.
   'person:profile',
   'mark:archive', 'mark:unarchive', 'mark:update-entity-types',
   'job:start', 'job:assign', 'job:complete', 'job:fail',
@@ -101,9 +103,8 @@ export class Stower {
     this.logger.info('Stower actor initialized');
 
     // `frames`, not `on`: a handler that answers a request must echo the key it
-    // was HANDED. The payload stopped carrying one (BUS-CARRIES-FRAMES P3), so
-    // the envelope is where a responder reads it and where the reply puts it
-    // back.
+    // was HANDED. The payload stopped carrying one, so the envelope is where a
+    // responder reads it and where the reply puts it back.
     const pipe = <K extends keyof EventMap>(
       event: K,
       handler: (e: EventMap[K], correlationId: string | undefined) => Promise<void>,
@@ -207,7 +208,7 @@ export class Stower {
           isDraft: event.isDraft ?? false,
           generatedFrom,
           generationPrompt: event.generationPrompt,
-          // Derived, never taken from the emitter (VERIFIED-PROVENANCE P2).
+          // Derived, never taken from the emitter.
           generator: derived.generator,
           creator: derived.creator,
           wasAttributedTo: derived.wasAttributedTo,
@@ -265,7 +266,8 @@ export class Stower {
    * The token was already validated and the source's entity types already
    * read by the CloneTokenManager — the one party that can do either. What
    * happens here is what only the Stower may do: register the bytes and
-   * append the event (single-writer, GATEWAY.md D4b).
+   * append the event (git has a single writer: the one `git add` for a
+   * resource happens here).
    *
    * Generated resources do NOT come through here. Their provenance is
    * `generatedFrom` on `yield:created`, which is a different relation: a
@@ -388,7 +390,8 @@ export class Stower {
       // The emitter says at most what produced this. Who asked is derived
       // here — for mark:create the emitter itself, since this is the
       // assembled (person's) path and it cites no job. A payload naming a
-      // creator is the assertion this design refuses (VERIFIED-PROVENANCE P2).
+      // creator is the assertion this design refuses: provenance is derived,
+      // never asserted.
       if (annotation.creator !== undefined) {
         throw new Error(`mark:create refused: \`creator\` on annotation ${String(annotation.id)} is derived by the knowledge base, never sent`);
       }
@@ -417,7 +420,7 @@ export class Stower {
 
   /**
    * Persist a detection unit's annotations as ONE acknowledged batch, then
-   * answer (JOB-RESTART-SAFETY P6).
+   * answer.
    *
    * The difference from `mark:create` is the reply, and it is the whole point.
    * `mark:create` is fire-and-forget: the worker's emit resolves when the bus
@@ -430,15 +433,15 @@ export class Stower {
    * record and a batch that half-lands under concurrency is harder to reason
    * about than one that stops at the first failure.
    *
-   * This channel is AT-LEAST-ONCE, and the log must not grow on a repeat
-   * (COMMIT-ACK-FALSE-FAILURE F3). Two paths re-send a batch that already
-   * landed: an acknowledgement lost after a successful append (the unit is
-   * never checkpointed, so the retry re-runs exactly the unit that landed), and
-   * a partial batch, reported as a failure and retried whole. Deterministic ids
-   * (JOB-RESTART-SAFETY P3) made those safe for the PROJECTIONS — the resource
-   * view and the graph both refuse a duplicate id — but a projection's guard
-   * says nothing about the log, which appends whatever it is handed. The result
-   * was a green graph over a doubled log: silent, and not undoable.
+   * This channel is AT-LEAST-ONCE, and the log must not grow on a repeat.
+   * Two paths re-send a batch that already landed: an acknowledgement lost
+   * after a successful append (the unit is never checkpointed, so the retry
+   * re-runs exactly the unit that landed), and a partial batch, reported as a
+   * failure and retried whole. Deterministic, content-addressed ids made those
+   * safe for the PROJECTIONS — the resource view and the graph both refuse a
+   * duplicate id — but a projection's guard says nothing about the log, which
+   * appends whatever it is handed. The result was a green graph over a doubled
+   * log: silent, and not undoable.
    *
    * So the batch is diffed against what the resource already holds. ONE view
    * read per commit, never per annotation: the view for a 1,673-annotation
@@ -731,11 +734,11 @@ export class Stower {
    * `job:started`, so a later write citing this job can be checked against the
    * holder and its `creator` derived from the requester by reading this
    * resource's log alone — nothing outside the record, and nothing the writer
-   * asserted (VERIFIED-PROVENANCE D1).
+   * asserted.
    */
   /**
    * What the knowledge base's issuer says a person is called, recorded once
-   * per CHANGE rather than once per act (PERSON-PROFILE).
+   * per CHANGE rather than once per act.
    *
    * The gateway emits this beside the `_userId` it stamps, so the name is as
    * verified as the DID and never something an emitter asserted. Appending
@@ -792,7 +795,7 @@ export class Stower {
    * check that the writer is the job's recorded holder. A citation the log
    * cannot back, or one made by someone other than the holder, is refused:
    * this is what makes an external worker's writes trustworthy-as-identity
-   * without trusting the worker (VERIFIED-PROVENANCE row 6).
+   * without trusting the worker.
    */
   private async requesterOf(rid: ResourceId, jobId: string, writer: string): Promise<string> {
     const events = await this.stores.eventStore.log.getEvents(rid);
@@ -824,9 +827,9 @@ export class Stower {
         // persisted: the log is where a campaign's spend is reconstructed, and
         // without it the record cannot say a document ran twice.
         ...(event.attempt !== undefined ? { attempt: event.attempt } : {}),
-        // How durability was ESTABLISHED (COMMIT-ACK-FALSE-FAILURE). An
-        // acknowledged batch and one inferred from a probe are different
-        // claims; absent means the question never arose.
+        // How durability was ESTABLISHED. An acknowledged batch and one
+        // inferred from a probe are different claims; absent means the
+        // question never arose.
         ...(event.durability !== undefined ? { durability: event.durability } : {}),
       },
     });
@@ -858,9 +861,9 @@ export class Stower {
         // nobody made into a log nobody can rewrite.
         ...(event.failureClass !== undefined ? { failureClass: event.failureClass } : {}),
         ...(event.willRetry !== undefined ? { willRetry: event.willRetry } : {}),
-        // How durability was ESTABLISHED (COMMIT-ACK-FALSE-FAILURE). An
-        // acknowledged batch and one inferred from a probe are different
-        // claims; absent means the question never arose.
+        // How durability was ESTABLISHED. An acknowledged batch and one
+        // inferred from a probe are different claims; absent means the
+        // question never arose.
         ...(event.durability !== undefined ? { durability: event.durability } : {}),
       },
     });

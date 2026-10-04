@@ -89,11 +89,11 @@ export const BUS_OPERATIONS = {
   'match:limits-requested':              { result: 'match:limits-result',            failure: 'match:limits-failed' },
 
   // ── WEAVE ───────────────────────────────────────────────────────
-  // Graph-projection rebuild, served by the Weaver (WEAVER-ISOLATION D3)
+  // Graph-projection rebuild, served by the Weaver
   'weave:rebuild':                       { result: 'weave:rebuild-ok',               failure: 'weave:rebuild-failed' },
 
   // ── SMELT ────────────────────────────────────────────
-  // Anchored-text rebuild, served by the Smelter (PERSIST-ANCHORS P0)
+  // Anchored-text rebuild, served by the Smelter
   'smelt:rebuild-anchors':               { result: 'smelt:rebuild-anchors-ok',       failure: 'smelt:rebuild-anchors-failed' },
 
   // ── YIELD ───────────────────────────────────────────────────────

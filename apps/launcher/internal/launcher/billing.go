@@ -1,11 +1,12 @@
 package launcher
 
-// billing.go — `semiont status --billing`, Tier 2 of CODESPACE-COSTS.md:
-// ACTUAL money, from GitHub's own usage report, opt-in behind the `user`
-// scope. Everything shown is GitHub's number — quantities, rates, discounts,
-// net — never a launcher estimate; the included-quota story is theirs too
-// (it arrives as discountAmount). Attribution is per REPOSITORY (bare name,
-// no owner — the payload's shape, verified 2026-07-20), never per codespace.
+// billing.go — `semiont status --billing`: ACTUAL money, where the plain
+// status prints only cost-relevant facts. It comes from GitHub's own usage
+// report, opt-in behind the `user` scope. Everything shown is GitHub's number
+// — quantities, rates, discounts, net — never a launcher estimate; the
+// included-quota story is theirs too (it arrives as discountAmount).
+// Attribution is per REPOSITORY (bare name, no owner — the payload's shape,
+// verified 2026-07-20), never per codespace.
 
 import (
 	"encoding/json"
@@ -49,8 +50,8 @@ func statusBilling(u *UI) int {
 	}
 	out, err := captureBoth("gh", "api", "/users/"+strings.TrimSpace(login)+"/settings/billing/usage")
 	if err != nil {
-		// The one expected failure is the missing scope; per the plan, print
-		// exactly the fix and nothing else.
+		// The one expected failure is the missing scope: print exactly the
+		// fix and nothing else.
 		if strings.Contains(out, "user") && strings.Contains(out, "scope") {
 			u.Fail("The billing report needs the `user` scope on gh's token.")
 			fmt.Fprintln(os.Stderr, "  Grant it once:  gh auth refresh -h github.com -s user")

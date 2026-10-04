@@ -57,7 +57,7 @@ set -euo pipefail
 #                                          same reason
 #   - **/__tests__/**                   — tests may assert on bus behavior
 #   - **/test-utils.tsx                 — test helpers
-#   - **/.generated/**                  — build output, not source. The SAFE-DOCS gate
+#   - **/.generated/**                  — build output, not source. The doc-snippets gate
 #                                          extracts every doc code fence into
 #                                          tests/doc-snippets/.generated/*.ts
 #                                          to type-check it; REACTIVE-MODEL.md documents

@@ -2,12 +2,12 @@
  * `@semiont/vectors/testing` — test doubles for the vector surface.
  *
  * Not part of the runtime surface; consumers import it from their test suites.
- * Published as a subpath (the `@semiont/core/testing` pattern) because
- * MANDATORY-EMBEDDING makes an `EmbeddingProvider` required at every
- * KnowledgeBase / Gatherer / Matcher construction site — so every consumer's
- * tests need a double, and a copy per package is the redundancy the house rules
- * forbid. Previously this lived in `src/__tests__/`, which
- * `tsconfig.build.json` excludes, so nothing outside this package could reach it.
+ * Published as a subpath (the `@semiont/core/testing` pattern) because an
+ * `EmbeddingProvider` is required at every KnowledgeBase / Gatherer / Matcher
+ * construction site — so every consumer's tests need a double, and a copy per
+ * package is the redundancy the house rules forbid. Previously this lived in
+ * `src/__tests__/`, which `tsconfig.build.json` excludes, so nothing outside
+ * this package could reach it.
  */
 
 import type { EmbeddingProvider } from './embedding/interface';

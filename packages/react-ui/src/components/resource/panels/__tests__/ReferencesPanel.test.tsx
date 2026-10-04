@@ -69,7 +69,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       cancel: 'Cancel',
       createReference: 'Create Reference',
       annotating: 'Annotating...',
-      // CLEAN-PROGRESS D3: the widget's own strings come from the
+      // The widget's own strings come from the
       // AssistProgress namespace now, not from this panel's.
       inProgress: 'Annotating...',
       complete: 'Annotation complete!',
@@ -120,7 +120,7 @@ describe('ReferencesPanel Component', () => {
     vi.restoreAllMocks();
   });
 
-  // RESOLUTION-SPARKLE D6: the panel threads the host's sparkle set down to
+  // The panel threads the host's sparkle set down to
   // the entries — exactly the ids in the set glow, nothing else.
   describe('Resolution sparkle threading', () => {
     const linkingReference = (id: string): Annotation => ({
@@ -494,8 +494,8 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('renders the entity log with the SAME markup the progress display uses', () => {
-      // ASSIST-SURFACE-WARTS Lane B: this form-side log and AssistProgress's
-      // completed-entity log are the same concept. They had two class families
+      // This form-side log and AssistProgress's completed-entity log are the
+      // same concept. They had two class families
       // (semiont-assist-widget__log* here, semiont-annotation-log* there) one
       // panel apart — one concept, one markup.
       const { container, rerender } = renderWithEventBus(

@@ -1,6 +1,5 @@
 /**
- * WeaveProgress — gateway-local fold of `weave:applied` signals
- * (GRAPH-PROJECTION-SYNC P2, D2 = push).
+ * WeaveProgress — gateway-local fold of `weave:applied` signals.
  *
  * The Weaver emits `weave:applied` after applying an event (or a batch's
  * last event) for a resource. This unit folds those signals into a
@@ -11,8 +10,8 @@
  * bounded timeout so callers can fall back to the bounded-poll floor.
  *
  * Deliberately transport-blind: it subscribes to the channel, not to the
- * Weaver. In-process the signal rides the core EventBus; after
- * WEAVER-ISOLATION the same channel arrives through the bus gateway and
+ * Weaver. In-process the signal rides the core EventBus; with the Weaver in
+ * its own container the same channel arrives through the bus gateway and
  * this unit does not change.
  *
  * The map is ephemeral by design — on gateway restart it rebuilds lazily

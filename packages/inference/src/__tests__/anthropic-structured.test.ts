@@ -1,5 +1,5 @@
 /**
- * STRUCTURED-INFERENCE — pin the read-failure contract (Phases 1–3, 5).
+ * Structured generation — pin the read-failure contract.
  *
  * The original defect: the JSON-mode unwrap collapsed "we could not read the
  * model" into "the model found nothing" (`Array.isArray(items) ? items : []`)
@@ -7,16 +7,16 @@
  * backslash broke the SDK's tool-input parse.
  *
  * `generateStructured` makes unreadable a THROW, distinct from empty, and
- * Phase 5 removed the tool-input accumulation step entirely: structured
- * output now rides `output_config.format` with an ARRAY root (spike
+ * the tool-input accumulation step is gone entirely: structured output
+ * rides `output_config.format` with an ARRAY root (measured accepted
  * 2026-08-06), so the response text IS the JSON and the read path is
  * parse-and-verify. These tests pin the contract across that mechanism:
  * unreadable → throw ("could not be read"); empty → `{ items: [] }`;
  * incapable model → config-actionable refusal before any request.
  *
- * (History: written as Phase 1's declared RED against the tool-use
- * mechanism; fixtures moved from tool_use blocks to text blocks when Phase 5
- * deleted the tool. The assertions never changed.)
+ * (History: written as a declared RED against the tool-use mechanism;
+ * fixtures moved from tool_use blocks to text blocks when the forced tool
+ * was deleted. The assertions never changed.)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -120,7 +120,7 @@ describe('AnthropicInferenceClient.generateStructured — output_config + capabi
   });
 
   it('refuses, before any request is issued, when the model does not support structured outputs', async () => {
-    // D4: no silent degradation. Unconstrained generation IS the behaviour
+    // No silent degradation. Unconstrained generation IS the behaviour
     // that turned 202 entities into a green empty job — a model that cannot
     // honour the schema gets a loud, config-actionable error, not a quiet
     // fallback.
@@ -155,7 +155,7 @@ describe('AnthropicInferenceClient.generateStructured — output_config + capabi
     expect(req.tools).toBeUndefined();
     expect(req.tool_choice).toBeUndefined();
     // The schema is the caller's element schema under an ARRAY root — the
-    // spike-established shape that made the items wrapper deletable.
+    // measured-accepted shape that made the items wrapper deletable.
     expect(req.output_config.format.type).toBe('json_schema');
     expect(req.output_config.format.schema).toEqual({ type: 'array', items: PERSON_ELEMENT });
     // No prefill: the request must not carry an assistant turn.

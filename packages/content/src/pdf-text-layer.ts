@@ -59,7 +59,7 @@ export interface PdfTextLayer extends AnchoredText {
      * Deliberately NOT folded into `text`: the reader reports what the
      * document holds, and each consumer projects what it needs — detection
      * reads `text`/`items` and is unaffected by a form's presence, while the
-     * embedding extractor folds these in (SMELTER-MEDIA-TYPES class E).
+     * embedding extractor folds these in (PDF class E).
      */
     fields: PdfFormField[];
 }

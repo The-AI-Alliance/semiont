@@ -203,7 +203,7 @@ describe('ResourceViewerPage — outcome toasts reach the user', () => {
   });
 });
 
-// RESOLUTION-SPARKLE D2: a reference resolving — from ANY strategy, local or
+// A reference resolving — from ANY strategy, local or
 // remote — arrives as mark:body-updated with a linking-add operation, and the
 // page turns exactly that into a sparkle. The harness mocks
 // useEventSubscriptions, so the pin drives the captured handler directly.
@@ -338,7 +338,7 @@ describe('ResourceViewerPage', () => {
     });
 
     it('clicking a history event focuses that annotation in the content', () => {
-      // ASSIST-SURFACE-WARTS Lane D. `handleEventClick` used to be a no-op with
+      // `handleEventClick` used to be a no-op with
       // a stale comment, while HistoryEvent still rendered a focusable button
       // labelled "View annotation" — a promise to screen-reader users that
       // nothing kept. `beckon:focus` is the existing "scroll to and highlight"
@@ -414,7 +414,7 @@ describe('ResourceViewerPage', () => {
     });
 
     it('shows archived badge when the toolbar prefs hold annotate mode', () => {
-      // Mode is a toolbar PREF now (TOOLBAR-PREFS-AS-PROPS): the page's
+      // Mode is a toolbar PREF now: the page's
       // useToolbarPrefs() policy layer initializes from the persisted key and
       // feeds the viewer controlled props — no mark:mode-toggled bus event.
       localStorage.setItem('annotateMode', 'true');

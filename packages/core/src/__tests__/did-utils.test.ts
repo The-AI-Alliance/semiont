@@ -4,10 +4,9 @@ import { userToDid, didToAgent, agentToDid, softwareToAgent, kbDid, kbResource, 
 import { validators } from '../openapi';
 
 /**
- * The one place `creator` / `generator` / `wasAttributedTo` are built
- * (VERIFIED-PROVENANCE P2). Inputs are DIDs the gateway stamped from tokens;
- * nothing here is read from a payload, which is what makes the output
- * derived rather than asserted.
+ * The one place `creator` / `generator` / `wasAttributedTo` are built. Inputs
+ * are DIDs the gateway stamped from tokens; nothing here is read from a
+ * payload, which is what makes the output derived rather than asserted.
  */
 describe('attribution — derived, never asserted', () => {
   const PERSON = 'did:web:kb.test:users:alice%40example.com';
@@ -106,10 +105,10 @@ describe('didToAgent never emits a non-URI @id (2026-09-09)', () => {
 });
 
 describe('@semiont/core - did-utils', () => {
-  // VERIFIED-PROVENANCE P5: a person is named by the subject the issuer
-  // asserted — the value of the claim `[identity] subjectClaim` selects —
-  // under the DEPLOYMENT's domain. Which claim is not this function's concern;
-  // it names whatever subject it is given.
+  // A person is named by the subject the issuer asserted — the value of the
+  // claim `[identity] subjectClaim` selects — under the DEPLOYMENT's domain.
+  // Which claim is not this function's concern; it names whatever subject it
+  // is given.
   describe('userToDid', () => {
     it('names a person by subject under the deployment domain', () => {
       expect(userToDid({ subject: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', domain: 'example.github.io:my-kb' }))
@@ -184,7 +183,7 @@ describe('@semiont/core - did-utils', () => {
   });
 
   describe('didToAgent', () => {
-    it('parses a Person DID — identified, and NOT named (PERSON-PROFILE)', () => {
+    it('parses a Person DID — identified, and NOT named', () => {
       // The subject is an opaque identifier. Naming a Person after it printed
       // the raw subject on every artifact they authored, which is a value no
       // reader can tell from a real name. What they are called is recorded

@@ -3,10 +3,10 @@
  *
  * `chunk-size-controller.test.ts` pins the sizing RULE in isolation; the rule
  * changed nothing until something cut text with it. The gap between those two
- * files is the whole of DETECTION-QUALITY-THROUGHPUT P2: `chunkText` fixes every
- * boundary up front from provider limits alone, so a measurement taken on chunk
- * N has nowhere to land. This driver cuts chunk N+1 only after chunk N has
- * reported, which is the only ordering in which feedback can act.
+ * files is the whole of adaptive sizing: `chunkText` fixes every boundary up
+ * front from provider limits alone, so a measurement taken on chunk N has
+ * nowhere to land. This driver cuts chunk N+1 only after chunk N has reported,
+ * which is the only ordering in which feedback can act.
  *
  * What is asserted here is the LOOP, not the rule: that the cursor covers the
  * document exactly once however the size moves, that a reported outcome reaches
@@ -216,7 +216,7 @@ describe('runAdaptiveChunks', () => {
 
   it('propagates a failure from a chunk without advancing past it', async () => {
     // A chunk that throws must stop the run where it stands: the cursor is
-    // what CHUNK-GRAIN-RESUME will checkpoint, and a cursor that advanced past
+    // what the job checkpoints for a resume, and a cursor that advanced past
     // an unprocessed chunk would checkpoint a lie.
     const seen: AdaptiveChunk[] = [];
     const budget = budgetFor();
@@ -230,11 +230,12 @@ describe('runAdaptiveChunks', () => {
   });
 });
 
-// ── resuming from a checkpoint (CHUNK-GRAIN-RESUME P3) ────────────────────
+// ── resuming from a checkpoint ────────────────────────────────────────────
 //
-// P2 made the cursor durable; this is the half that spends it. Without it the
-// cursor is a record nobody reads, and a retried job re-pays for every chunk it
-// already committed — the 26-minute attempt this arc exists to stop repeating.
+// The checkpoint makes the cursor durable; this is the half that spends it.
+// Without it the cursor is a record nobody reads, and a retried job re-pays for
+// every chunk it already committed — the 26-minute attempt chunk-grain resume
+// exists to stop repeating.
 describe('runAdaptiveChunks — resuming', () => {
   it('starts at the checkpointed position, not the top', async () => {
     const text = prose(1500);
@@ -246,7 +247,7 @@ describe('runAdaptiveChunks — resuming', () => {
     expect(Math.min(...seen.map((c) => c.at))).toBe(40_000);
   });
 
-  it('seeds the size from the checkpoint and takes ONE shrink step (HD2 option C)', async () => {
+  it('seeds the size from the checkpoint and takes ONE shrink step', async () => {
     // Neither of the losing options. Opening at the default would discard the
     // calibration the dead attempt paid for over its earlier chunks; seeding
     // unchanged would re-cut the identical failing piece, and at

@@ -50,9 +50,9 @@ const IDENTITY: readonly number[] = [1, 0, 0, 1, 0, 0];
  * at 300dpi of ~8 MP.
  *
  * A starting point, not a measured optimum: revisit against a real scanned
- * corpus (SMELTER-MEDIA-TYPES, live-testing follow-up). Lowering the peak
- * itself means removing copies from the chain — passing the decoded samples
- * straight to the encoder — which is a refactor, not a smaller constant.
+ * corpus. Lowering the peak itself means removing copies from the chain —
+ * passing the decoded samples straight to the encoder — which is a refactor,
+ * not a smaller constant.
  */
 export const MAX_IMAGE_PIXELS = 48_000_000;
 

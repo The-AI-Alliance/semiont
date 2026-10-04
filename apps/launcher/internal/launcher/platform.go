@@ -1,6 +1,6 @@
 package launcher
 
-// platform.go — the substrate a stack lives on (LAUNCHER-SERVICE-MODEL D5).
+// platform.go — the substrate a stack lives on.
 //
 // A platform determines the MECHANISM by which a service comes to exist, and
 // it may itself require provisioning before any service can exist on it at

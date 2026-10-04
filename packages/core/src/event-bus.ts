@@ -17,11 +17,11 @@ import type { ResourceId } from './identifiers';
  * What the bus carries: a FRAME, not a bare payload.
  *
  * Routing metadata rides the envelope and never enters a channel's domain
- * type — the rule `BusEmitRequest.clientId` already states for the wire
- * (BUS-ROUTING-DECLARED D2). In-process it had nowhere to live, so
- * `correlationId` was declared in 71 payload schemas and echoed by hand in
- * nine handlers, and `scope` became a channel-key prefix: one fact with two
- * representations depending on the layer.
+ * type — the rule `BusEmitRequest.clientId` already states for the wire.
+ * In-process it had nowhere to live, so `correlationId` was declared in 71
+ * payload schemas and echoed by hand in nine handlers, and `scope` became a
+ * channel-key prefix: one fact with two representations depending on the
+ * layer.
  *
  * A handler cannot tell which fabric it is on — that is the property the
  * signal plane is built on — so the envelope it reads must not depend on the

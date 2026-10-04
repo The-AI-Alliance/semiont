@@ -1,14 +1,14 @@
 /**
- * BROWSER-KB-DISCOVERY P3 — the sdk discovery layer.
+ * The sdk discovery layer.
  *
  * The SDK owns every semantic: parse + validation (core type guards, no
  * casts), the `version` gate, the TYPED absent-vs-managed distinction, and
- * the poll/diff subscription (keyed `did ?? host:port`). IO is abstracted:
- * `httpDiscovery` (fetch + ETag/304 + the content-type check that makes
- * index.html-at-200 read as absent — the pre-L2a reality) and
- * `textDiscovery(read)` — a consumer-supplied text thunk, the fs-free seam a
- * Node consumer wraps `readFile` in (descoped from the plan's fileDiscovery:
- * no fs in the sdk, user decision 2026-07-21).
+ * the poll/diff subscription (keyed `host:port`). IO is abstracted:
+ * `httpDiscovery` (fetch + ETag/304 + the content-type check that makes an
+ * SPA-fallback index.html-at-200 read as absent) and `textDiscovery(read)`
+ * — a consumer-supplied text thunk, the fs-free seam a Node consumer wraps
+ * `readFile` in (in place of a file-reading transport: no fs in the sdk,
+ * user decision 2026-07-21).
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { DISCOVERY_URL_PATH, HTTP_REQUEST_TIMEOUT_MS, type DiscoveredKB } from '@semiont/core';
@@ -63,7 +63,7 @@ describe('parseDiscoveryDocument — the one validator', () => {
     expect(parseDiscoveryDocument(bad)).toMatchObject({ kind: 'absent', reason: 'invalid' });
   });
 
-  it('an entry with no did → absent(invalid) with an actionable diagnostic (decision 8)', () => {
+  it('an entry with no did → absent(invalid) with an actionable diagnostic', () => {
     // Identity is required. An older launcher's document can still carry a
     // did-less entry; rejecting the document — rather than skipping that one
     // entry — keeps the never-partially-parse rule, because a filtered subset
@@ -201,7 +201,7 @@ describe('subscribeDiscovery — poll + diff, keyed did ?? host:port', () => {
   });
 
   it('a KB that moves port is a removal plus an addition, not an update', async () => {
-    // Semantic shift from keying on the address (decision 9): the old
+    // Semantic shift from keying on the address: the old
     // binding is DEAD — nothing answers there — and a new one appeared.
     // Calling it an "update" would leave a panel showing a dead address as
     // live. Under the old did-keyed model this was reported as one update.
@@ -254,13 +254,13 @@ describe('subscribeDiscovery — poll + diff, keyed did ?? host:port', () => {
   });
 
   /**
-   * Decision 9 (KB-IDENTITY-VS-ADDRESS): a did is NOT unique — a local clone
-   * and a codespace of the same repo are one KB at two addresses, and BOTH
-   * are published. The merge key must therefore be `host:port`, the field
-   * the producer guarantees unique (P1); keying on the did collapses the two
-   * copies and the diff starts lying about a running stack.
+   * A did is NOT unique — a local clone and a codespace of the same repo are
+   * one KB at two addresses, and BOTH are published. The merge key must
+   * therefore be `host:port`, the field the producer guarantees unique (the
+   * launcher publishes at most one entry per address); keying on the did
+   * collapses the two copies and the diff starts lying about a running stack.
    */
-  describe('one KB in two places (decision 9)', () => {
+  describe('one KB in two places', () => {
     const CLONE: DiscoveredKB = {
       host: 'localhost', port: 4000, placement: 'local', managedBy: 'semiont-launcher',
       did: 'did:web:example.github.io:kb', siteName: 'KB',
@@ -310,7 +310,7 @@ describe('subscribeDiscovery — poll + diff, keyed did ?? host:port', () => {
       try {
         const { transport } = scripted([{ kind: 'managed', kbs: [CLONE, CODESPACE] }]);
         await collect(transport, async () => {});
-        // Decision 9: same did + different addresses is the COMMON case.
+        // Same did + different addresses is the COMMON case.
         // Warning here would cry wolf on a normal two-copy setup.
         expect(warn).not.toHaveBeenCalled();
       } finally {
@@ -320,10 +320,10 @@ describe('subscribeDiscovery — poll + diff, keyed did ?? host:port', () => {
   });
 
   it('a document with two entries sharing a merge key warns instead of silently merging', async () => {
-    // KB-IDENTITY-VS-ADDRESS decision 4: ambiguity is shown, never resolved
-    // by guessing. Two did-less entries at one address can't both be true,
-    // and the diff's Map membership collapses them — say so rather than let
-    // a claimant vanish (how the predecessor defect hid for a release).
+    // Ambiguity is shown, never resolved by guessing. Two did-less entries
+    // at one address can't both be true, and the diff's Map membership
+    // collapses them — say so rather than let a claimant vanish (how the
+    // predecessor defect hid for a release).
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       // Same ADDRESS, different dids — the real conflict (only one process

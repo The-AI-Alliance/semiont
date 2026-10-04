@@ -1,21 +1,21 @@
 /**
- * Librarian Main — standalone entry point (EXTRACT-LIBRARIAN P1 + P3)
+ * Librarian Main — standalone entry point
  *
  * The reference desk: searches the collection and hands back what is
  * relevant — ranked or assembled — for an inquiry that belongs to someone
  * else. Never concludes anything; concluding is the Generator's job. Runs
  * the LLM-bound actors: `Matcher` (candidate search + scoring for the bind
  * flow) and `Gatherer` (LLM context assembly for the gather flows), plus
- * the gather-summary handler that calls the Gatherer (the fact-consumers-
- * follow-the-actor pattern, D2 i).
+ * the gather-summary handler that calls the Gatherer (a handler runs
+ * beside the actor it serves).
  *
  * Its attachments are the bus (HttpTransport: SSE in, `/bus/emit` out),
  * Neo4j and Qdrant (the retrieval sources), an embedding provider (query
  * embedding), per-actor inference clients, content from the Archivist
- * (D-CONTENT b — bytes ride the byte path; this process reads them from
- * the record's storage authority, like the smelter does), and views
- * from the shared stateDir the Archivist materializes into (D6 — reader
- * mounts shared, never rebuilds). The weave/smelt progress folds run
+ * (bytes ride the byte path, keyed by resource id; this process reads them
+ * from the record's storage authority, like the smelter does), and views
+ * from the shared stateDir the Archivist materializes into (a reader
+ * mounts it shared and never rebuilds). The weave/smelt progress folds run
  * locally, fed by the same `weave:applied` / `smelt:settled` signals over
  * SSE, so the graph grace and the settle barrier work unchanged. This
  * process appends nothing, serves no bytes, and owns no store.
@@ -36,10 +36,10 @@
  * (nothing dials the Librarian — it dials the gateway), and no view
  * rebuild EVER (the Archivist is the one rebuild owner).
  *
- * No KB mount (SINGLE-KB-MOUNT P1): this process never touches the KB tree.
- * The one committed fact it needs — the KB name, to find the views the
- * Archivist materializes under the shared state mount — arrives as
- * `[kb] name` in the staged config (D4), and boot refuses without it.
+ * No KB mount: this process never touches the KB tree. The one committed
+ * fact it needs — the KB name, to find the views the Archivist materializes
+ * under the shared state mount — arrives as `[kb] name` in the config the
+ * launcher stages, and boot refuses without it.
  *
  * Environment variables:
  *   SEMIONT_OIDC_CLIENT_ID     — this process's own account at the KB's
@@ -85,9 +85,10 @@ if (!gatewayPublicURL) {
 const baseUrl: string = gatewayPublicURL;
 
 const config = makeMeaningConfigFrom(envConfig);
-// One decider for the config's shape invariants (graph presence, the A4
-// gather-barrier nesting) — the same assertion the other composition roots
-// run, now that the Gatherer's settle barrier lives in this process.
+// One decider for the config's shape invariants (graph presence, the
+// gather barrier nesting inside the stall watchdog) — the same assertion
+// the other composition roots run, now that the Gatherer's settle barrier
+// lives in this process.
 assertMakeMeaningConfig(config);
 
 const maybeGraphConfig = config.services.graph;
@@ -143,8 +144,8 @@ async function main() {
 
   // A Software peer under the stable identity (semiont, librarian), the same
   // shape as the Archivist: one DID for the reference desk. NOT the actor's
-  // inference pair — this process hosts Matcher now and Gatherer at P3, each
-  // with its own inference config, under one token.
+  // inference pair — this process hosts Matcher and Gatherer, each with its
+  // own inference config, under one token.
   //
   // The token's lifetime and the refresh cadence derived from it are the
   // gateway's to decide; see `startAgentSession`.
@@ -159,8 +160,8 @@ async function main() {
   // ── The stores: reads only, nothing owned ──────────────────────────
   const localBus = new EventBus();
 
-  // The one filesystem read: views from the shared stateDir (D6), located
-  // by the staged KB name alone — no SemiontProject, no KB root. The
+  // The one filesystem read: views from the shared stateDir, located by
+  // the staged KB name alone — no SemiontProject, no KB root. The
   // Archivist materializes them; this process NEVER rebuilds.
   const views = new FilesystemViewStorage(
     new SemiontState({ name: kbName }),
@@ -205,10 +206,10 @@ async function main() {
     // ever added without growing it.
     channels: [...LIBRARIAN_INBOUND_CHANNELS, ...LIBRARIAN_REPLY_CHANNELS],
   });
-  // Bytes from the Archivist, not the gateway (SINGLE-KB-MOUNT P4): the
-  // gateway's content routes proxy onto this same call, so dialing it added
-  // a hop and put the process that is meant to stop touching the KB tree on
-  // the path to it. Throws at boot if the address or the credential is absent.
+  // Bytes from the Archivist, not the gateway: the gateway's content routes
+  // proxy onto this same call, so dialing it added a hop and put the process
+  // that is meant to stop touching the KB tree on the path to it. Throws at
+  // boot if the address or the credential is absent.
   // `envConfig`, not the narrowed `config`: reaching the Archivist needs the
   // issuer this process authenticates at, and `makeMeaningConfigFrom` carries
   // only make-meaning's own services. Every field of `ArchivistAddressConfig`

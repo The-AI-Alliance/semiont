@@ -16,8 +16,7 @@ import { slicedEmbed } from './sliced-batch';
  * The house rule derives budgets from `limits()` rather than hand-tuning them
  * (detection chunking, #1121). Ollama publishes no batch ceiling and no rate
  * limit to derive from, so these are owned constants with their provenance
- * stated — the treatment DETECTION-QUALITY-THROUGHPUT P2 gave its duration
- * setpoint.
+ * stated: what was measured, and what would invalidate it.
  *
  * `sliceSize: 128` — measured: ~1,100 chunks took ~15 s on a host-local
  *   `nomic-embed-text` (~73/s), so 128 is ~1.75 s per round trip, roughly 8x

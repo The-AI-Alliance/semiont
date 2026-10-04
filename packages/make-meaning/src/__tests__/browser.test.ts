@@ -105,14 +105,15 @@ describe('Browser actor', () => {
 
   // ── resources search reply ─────────────────────────────────────────────────
 
-  it('labels the resources reply with matchKind (SEMANTIC-FALLBACK P1b)', async () => {
+  it('labels the resources reply with matchKind', async () => {
     // The wire discriminator is REQUIRED so the compiler finds every emitter:
     // an optional field defaulting to lexical would be a compatibility shim
     // (a missing value silently reads as lexical). The lexical path labels
-    // itself here; P2's fallback labels its answers 'semantic'.
-    // Non-empty on purpose: under MANDATORY-EMBEDDING the empty search page
-    // falls through to the semantic fallback and labels itself 'semantic'
-    // (pinned in resource-context.test.ts) — the lexical label needs a hit.
+    // itself here; the semantic fallback labels its answers 'semantic'.
+    // Non-empty on purpose: vectors and embedding are mandatory, so the empty
+    // search page falls through to the semantic fallback and labels itself
+    // 'semantic' (pinned in resource-context.test.ts) — the lexical label
+    // needs a hit.
     mockKb.graph.listResources = vi.fn().mockResolvedValue({ resources: [{ '@id': 'res-ouranos', name: 'ouranos' }], total: 1 });
 
     const result$ = eventBus.frames('browse:resources-result');
@@ -343,7 +344,7 @@ describe('Browser actor', () => {
     // Typed as the channel declares it, not `object`. The `(eventBus as any)`
     // cast this replaces was hiding the mismatch: every caller already passes
     // a conforming payload, so the cast bought nothing and cost the compiler
-    // its view of three call sites (BUS-CARRIES-FRAMES P1).
+    // its view of three call sites.
     function fire(payload: EventMap['browse:referenced-by-requested'], correlationId: string) {
       eventBus.emit('browse:referenced-by-requested', payload, { correlationId });
     }
@@ -385,9 +386,9 @@ describe('Browser actor', () => {
     });
 
     it('hydrates a graph-lagging citer from the view — never "Untitled Resource" for a known resource', async () => {
-      // The read-after-write artifact (graph-read-after-write-coverage.md P1):
-      // the edge is woven but the citing resource's node is not yet — the
-      // view is the fresher projection and must supply the name.
+      // The read-after-write artifact: the edge is woven but the citing
+      // resource's node is not yet — the view is the fresher projection and
+      // must supply the name.
       const anno = makeAnnotation('anno-lag', DOC_B_URI, String(TARGET_RESOURCE_ID), 'the Titan');
       mockReferencedBy.mockResolvedValue([anno]);
       mockGetResource.mockResolvedValue(null); // graph hasn't woven the citer yet
@@ -483,8 +484,8 @@ describe('Browser actor', () => {
     });
 
     it('a throwing citer hydration degrades that entry — the reply still succeeds', async () => {
-      // Changed contract (graph-read-after-write-coverage.md P1): one
-      // citer's store hiccup must not fail the whole references reply.
+      // Changed contract: one citer's store hiccup must not fail the whole
+      // references reply.
       // resourceWithViewGrace absorbs the per-citer read error and falls
       // back to the view (or Untitled when neither projection answers);
       // an EDGE-QUERY failure still fails the request (spec above).
@@ -506,7 +507,7 @@ describe('Browser actor', () => {
     });
   });
 
-  // ── collaborator directory (COLLABORATOR-DIRECTORY P2) ────────────────────
+  // ── collaborator directory ────────────────────────────────────────────────
 
   describe('agents directory', () => {
     // The KB's canonical identity — the value /api/tokens/agent mints worker
@@ -664,7 +665,7 @@ describe('Browser actor', () => {
     it("codes a missing resource 'not-found' — the verdict a tab can be deleted on", async () => {
       // `assembleResourceGraph` materializes from the EVENT STORE, so null is
       // the system of record saying this KB has no such resource — not a view
-      // lagging (TABS-REVALIDATE-ON-RESTORE D10). That is what earns a code:
+      // lagging. That is what earns a code:
       // the SDK's tab validator removes on this and only this.
       mockAssemble.mockResolvedValue(null);
       const failed = failure();

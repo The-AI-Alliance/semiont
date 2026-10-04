@@ -1,6 +1,6 @@
 /**
- * HEADLESS-ANNOTATION-PANELS Phase 1 (B2) — keystone: the panel family mounts
- * provider-free with a session PROP.
+ * Keystone: the annotation panel family mounts provider-free with a session
+ * PROP.
  *
  * ReferencesPanel rendered with a fake session prop and NO SemiontProvider /
  * routing contexts (Link/routes are already props; translations fall back to
@@ -9,7 +9,7 @@
  * provider anywhere.
  *
  * Started RED (the family reads useSemiont() — provider crash; no session
- * prop) and GREEN once B2 lands.
+ * prop) and GREEN once `session` is a required prop.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';

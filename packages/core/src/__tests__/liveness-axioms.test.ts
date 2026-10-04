@@ -1,7 +1,7 @@
 /**
  * Teeth for the liveness axioms — the same
  * discipline as state-unit-axioms.test.ts: before the harness is trusted
- * GREEN against real compositions (P2/P3), it must FAIL against
+ * GREEN against real compositions, it must FAIL against
  * deliberately-broken doubles reconstructing the pre-fix behaviors from the
  * starvation incident:
  *
@@ -10,7 +10,7 @@
  *   (a3) a swallow-into-pending-forever await variant          → L2 (settlement)
  *   (b)  a swallowed-contention double (the RETIRED single-slot
  *        scope contract, reproduced locally — the real transport
- *        composes since MULTI-RESOURCE-SCOPE)                  → L1
+ *        composes distinct scopes onto one connection)         → L1
  *   (c)  an abort-at-handover connection double                → L3 (lost)
  *   (c2) a double-flush connection double                      → L3 (duplicate)
  *
@@ -40,9 +40,9 @@ const OP = 'browse:resource-requested' as const;
 
 /**
  * The FIXED composition, reconstructed: a cold live-query that starts its
- * request on subscribe, acquires its resource's scope (scopes compose —
- * MULTI-RESOURCE-SCOPE), retries a faulted request once (B14), and surfaces
- * the final rejection as an error notification.
+ * request on subscribe, acquires its resource's scope (scopes compose: one
+ * connection holds any number of them), retries a faulted request once (B14),
+ * and surfaces the final rejection as an error notification.
  */
 function compliantQuery(transport: FaultyTransport, rid: string): Observable<unknown> {
   return new Observable((subscriber) => {
@@ -85,9 +85,9 @@ function stormingQuery(transport: FaultyTransport, rid: string): Observable<unkn
 
 /** (b) Pre-fix scope handling, reproduced end-to-end inside the double: the
  * RETIRED single-slot contract (one distinct scope at a time — the real
- * transport composes since MULTI-RESOURCE-SCOPE) plus the pre-fix swallow of
- * its contention throw. The second distinct rid never issues its request —
- * that output starves, which is exactly what L1 must catch. */
+ * transport composes distinct scopes onto one connection) plus the pre-fix
+ * swallow of its contention throw. The second distinct rid never issues its
+ * request — that output starves, which is exactly what L1 must catch. */
 function makeContentionStarvedQueries(transport: FaultyTransport, rids: readonly string[]): Observable<unknown>[] {
   let activeScope: string | null = null; // the old one-slot contract, local to the double
   return rids.map((rid) =>

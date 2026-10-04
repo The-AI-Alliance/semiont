@@ -1,5 +1,5 @@
 /**
- * weaverFanIn tests (WEAVER-ISOLATION P2)
+ * weaverFanIn tests
  *
  * Domain-event fan-in for the Weaver: the 9 graph-relevant channels merged
  * into one `StoredEvent`-typed `events$`. Transport-neutral over BusRequestPrimitive.
@@ -31,11 +31,13 @@ function fakeBus() {
     // This double delivers whatever a test pushes at it — subjects are created
     // on demand — so `true` is the truth about it. It does not model a
     // NARROWED set; that behavior is proven against the real ActorStateUnit,
-    // and against the real worker manifest by this plan's P3.
+    // and against the real worker manifest in the gateway's two-instance
+    // harness.
     isSubscribed: () => true,
     trackReply: () => () => {},
     // In-process fixture: replies are pushed synchronously onto the streams
-    // above, so 'open' is the truth, not a stub (BUS-ATTACH-GATE.md).
+    // above, so 'open' is the truth, not a stub — busRequest holds its emit
+    // until the state is 'open'.
     state$: new BehaviorSubject<ConnectionState>('open'),
     // Required by the BusRequestPrimitive shape; the fan-in never emits — the Weaver
     // itself emits weave:applied through its own bus handle.

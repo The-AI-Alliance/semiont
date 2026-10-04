@@ -78,7 +78,7 @@ export class JobNamespace implements IJobNamespace {
   }
 
   /**
-   * Cancel ONE job by id (JOB-RESTART-SAFETY P5). Awaited like its category
+   * Cancel ONE job by id. Awaited like its category
    * sibling `cancelByType`, and resolves with what the queue did: a PENDING
    * job is cancelled outright; a RUNNING one is left to its worker, which
    * stops cooperatively at the next unit boundary and keeps its checkpoint

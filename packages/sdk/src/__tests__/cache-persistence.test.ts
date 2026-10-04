@@ -1,5 +1,5 @@
 /**
- * B17 (LOCAL-STORAGE W1) — the persister hook on the cache primitive.
+ * B17 — the persister hook on the cache primitive.
  *
  * Contract under test:
  *  - load-on-construct: rehydrated entries are visible synchronously and an

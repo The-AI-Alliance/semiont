@@ -1,7 +1,7 @@
 /**
- * Bounded concurrency (DETECTION-QUALITY-THROUGHPUT P6). The cap is the whole
- * reason this exists — parallelism without a bound is 429 thrash — so the
- * central test is that in-flight work never exceeds the limit.
+ * Bounded concurrency. The cap is the whole reason this exists — parallelism
+ * without a bound is 429 thrash — so the central test is that in-flight work
+ * never exceeds the limit.
  */
 
 import { describe, it, expect, vi } from 'vitest';

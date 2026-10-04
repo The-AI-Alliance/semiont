@@ -43,11 +43,11 @@ RUN apk upgrade --no-cache
 
 # The Archivist shells out to git: WorkingTreeStore's register/move/remove and
 # the event store's appends all `git add` under the project root — this is the
-# single git writer (GATEWAY.md D4b). smelter/weaver carry no git; this image
-# must. Same as the gateway image: when the mounted KB is owned by a host UID
-# that differs from the in-container semiont user (UID 1001), git's
-# CVE-2022-24765 dubious-ownership check refuses to operate — --system writes
-# /etc/gitconfig, applied to all users including semiont.
+# single git writer. smelter/weaver carry no git; this image must. Same as the
+# gateway image: when the mounted KB is owned by a host UID that differs from
+# the in-container semiont user (UID 1001), git's CVE-2022-24765
+# dubious-ownership check refuses to operate — --system writes /etc/gitconfig,
+# applied to all users including semiont.
 RUN apk add --no-cache git && \
     git config --system --add safe.directory /kb
 
@@ -88,7 +88,7 @@ ENV NODE_ENV=production
 ENV SEMIONT_ROOT=/kb
 ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
 
-# ── Heap ceiling (ARCHIVIST-STAYS-UP P4) ─────────────────────────────────
+# ── Heap ceiling ─────────────────────────────────────────────────────────
 # WHY THIS EXISTS, because a bare number here is unreadable in a year:
 #
 # On 2026-09-03 this process died with "JavaScript heap out of memory" at
@@ -106,8 +106,9 @@ ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
 # ⚠️ THIS NUMBER IS PAIRED with the archivist's `mem` in
 # apps/launcher/internal/launcher/service.go. Changing either without the
 # other silently re-opens the gap this closes. That pairing wants a gate —
-# see ARCHIVIST-STAYS-UP P2, which already cross-checks Dockerfile
-# declarations against launcher facts.
+# its natural home is the launcher test that already cross-checks each
+# service's Dockerfile declarations against launcher facts
+# (TestServiceHealthPortsAgreeAcrossAllHomes).
 #
 # Applies to EVERY node invocation in the container, which is intended: the
 # CMD is supervise.sh, and the child it spawns is the process that needs the

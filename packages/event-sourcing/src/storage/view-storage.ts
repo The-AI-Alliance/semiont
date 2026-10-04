@@ -18,7 +18,8 @@ export interface ResourceView {
   annotations: ResourceAnnotations;
   /**
    * Sequence number of the last event applied to this view — the parity
-   * target the graph-projection barrier waits on (GRAPH-PROJECTION-SYNC).
+   * target the graph-projection barrier waits on: a graph read right after
+   * a write waits until the Weaver has applied this sequence.
    * Absent only in view files written before the stamp existed; the
    * startup rebuild restamps them.
    */
@@ -39,9 +40,9 @@ export class FilesystemViewStorage implements ViewStorage {
 
   // Takes only the views' own directory — not a full SemiontProject, and not
   // the whole state tree: this store can name nothing outside resourcesDir.
-  // The Librarian resolves it from the staged `[kb] name` with no KB mount
-  // (SINGLE-KB-MOUNT P1); in-process callers pass their SemiontProject, which
-  // satisfies the slice structurally.
+  // The Librarian resolves it from the staged `[kb] name` with no KB mount;
+  // in-process callers pass their SemiontProject, which satisfies the slice
+  // structurally.
   constructor(state: { resourcesDir: string }, logger?: Logger) {
     this.logger = logger;
     this.resourcesDir = state.resourcesDir;

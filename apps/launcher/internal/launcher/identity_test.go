@@ -1,9 +1,9 @@
 package launcher
 
-// EXTERNAL-IDENTITY P3 (launcher lane): [environments.*.identity] derives the
-// identity role. keycloak on ${KEYCLOAK_HOST} is provided — launched with its
-// database on the [database] PostgreSQL; an oidc issuer is external —
-// verified, never launched; every incomplete section refuses, naming the key.
+// [environments.*.identity] derives the identity role. keycloak on
+// ${KEYCLOAK_HOST} is provided — launched with its database on the [database]
+// PostgreSQL; an oidc issuer is external — verified, never launched; every
+// incomplete section refuses, naming the key.
 
 import (
 	"slices"
@@ -35,10 +35,11 @@ func TestDerivePlanRefusesAConfigWithNoIdentity(t *testing.T) {
 	}
 }
 
-// The claim a person's DID is built from is DECLARED (VERIFIED-PROVENANCE P5):
-// `did:web:<site domain>:users:<that claim's value>`. A section without it
-// refuses, naming the key — the launcher vets exactly what the gateway's
-// loader would refuse, so no path writes a config the stack cannot start.
+// The claim a person's DID is built from is DECLARED, never defaulted or
+// inferred: `did:web:<site domain>:users:<that claim's value>`. A section
+// without it refuses, naming the key — the launcher vets exactly what the
+// gateway's loader would refuse, so no path writes a config the stack cannot
+// start.
 func TestDerivePlanRefusesIdentityWithNoSubjectClaim(t *testing.T) {
 	p := variantConfig(t, map[string]string{"identity": "[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\n"})
 	env, envName, _, err := loadConfig(p)
@@ -258,14 +259,14 @@ accessTokenLifespan = -5
 	}
 }
 
-// BROWSER-SIGNIN-ORIGIN P1. Keycloak derives a client's CORS origins from
-// `webOrigins`, and matches them EXACTLY — unlike redirect URIs, where RFC 8252
-// §7.3 makes a portless loopback entry match any port. `"+"` means "derive them
-// from the redirect URIs", so the portless entries that make `--port` work
-// yielded `http://localhost` (port 80) and the Browser's real origin,
-// `http://localhost:3000`, was in no set at all. The token POST is cross-origin,
-// so Keycloak answered 403 `Invalid origin` with no CORS header and sign-in died
-// as an opaque `error=Verification`.
+// The browser client's web origins name the Browser's port. Keycloak derives a
+// client's CORS origins from `webOrigins`, and matches them EXACTLY — unlike
+// redirect URIs, where RFC 8252 §7.3 makes a portless loopback entry match any
+// port. `"+"` means "derive them from the redirect URIs", so the portless
+// entries that make `--port` work yielded `http://localhost` (port 80) and the
+// Browser's real origin, `http://localhost:3000`, was in no set at all. The
+// token POST is cross-origin, so Keycloak answered 403 `Invalid origin` with no
+// CORS header and sign-in died as an opaque `error=Verification`.
 func TestBrowserWebOriginsCarryThePort(t *testing.T) {
 	origins := browserWebOrigins("192.168.64.1", 3000)
 	for _, want := range []string{

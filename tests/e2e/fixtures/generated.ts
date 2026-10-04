@@ -11,8 +11,8 @@ import { signInSession } from './sdk-session';
  * `job:complete` proves the worker finished; it does not prove what the worker
  * wrote. Asking the gateway afresh is what distinguishes "the generation ran"
  * from "the generation produced the resource the form asked for" — the
- * distinction GENERATION-OUTPUT-FORMAT's D6 turns on, since the worker used to
- * derive the filename from the title and silently discard `storageUri`.
+ * distinction an authoritative Save location turns on, since the worker used
+ * to derive the filename from the title and silently discard `storageUri`.
  *
  * Polls because `job:complete` and read-model availability are not the same
  * instant.
@@ -55,7 +55,7 @@ export async function expectGeneratedAt(
   const descriptor = await generatedDescriptor(name);
   expect(
     getStorageUri(descriptor),
-    'the artifact landed at the path typed into Save location, not one derived from the title (D6)',
+    'the artifact landed at the path typed into Save location, not one derived from the title',
   ).toBe(`file://${storagePath}`);
   expect(
     getPrimaryMediaType(descriptor),

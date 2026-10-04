@@ -56,10 +56,10 @@ export interface ResourceViewerPageStateUnit extends StateUnit {
   closeWizard(): void;
 }
 
-// Session-typed (SESSION-TYPED-FACTORIES.md D1): the parameter is the
-// lifetime this unit must not outlive. The internal flow units below keep
-// the narrower client — their lifetime is THIS unit's disposer, which is now
-// session-bound; that is layering, not a loophole.
+// Session-typed: the parameter is the lifetime this unit must not outlive.
+// The internal flow units below keep the narrower client — their lifetime is
+// THIS unit's disposer, which is now session-bound; that is layering, not a
+// loophole.
 export function createResourceViewerPageStateUnit(
   session: SemiontSession,
   resourceId: ResourceId,

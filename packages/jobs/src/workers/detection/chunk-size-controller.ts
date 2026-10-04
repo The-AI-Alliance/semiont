@@ -1,5 +1,5 @@
 /**
- * Adaptive chunk sizing (DETECTION-QUALITY-THROUGHPUT P2) — the sizing RULE.
+ * Adaptive chunk sizing — the sizing RULE.
  *
  * `deriveDetectionBudget` picks ONE input size for every document from provider
  * limits alone. It cannot see the document, so it is sized for a worst-case
@@ -34,7 +34,7 @@
 /** What one chunk's call produced — the minimum the sizer needs. Duration and
  * input are NOT here: the guillotine and truncation are the hard bounds, both
  * backstopped by subdivision, so utilization is the only signal that sizing
- * acts on. (P1 telemetry records the fuller picture separately.) */
+ * acts on. (Per-call telemetry records the fuller picture separately.) */
 export interface CallOutcome {
   /** Provider-reported output tokens for the chunk, ABSENT when the provider
    * reported none.

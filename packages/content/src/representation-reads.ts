@@ -7,7 +7,7 @@
  * graph. `@semiont/make-meaning` holds the Archivist itself and satisfies
  * `ContentReads` in-process from the working tree; `@semiont/jobs` holds the
  * Worker and can only reach the record over the wire. make-meaning depends on
- * jobs, so anything both need has to sit under both (SINGLE-KB-MOUNT P4).
+ * jobs, so anything both need has to sit under both.
  *
  * Where the Archivist IS lives in `@semiont/core/node` (`archivistEndpoint`),
  * not here: an address is a config value plus an environment variable, and
@@ -16,8 +16,8 @@
  * facts, and a second copy of either is a second thing to get wrong.
  *
  * Absence fails loudly. A missing host or secret is a misconfiguration, never
- * a reason to fall back to reading a tree locally — the point of
- * SINGLE-KB-MOUNT is that exactly one process touches it.
+ * a reason to fall back to reading a tree locally — the point of the single
+ * KB mount is that exactly one process, the Archivist, touches the tree.
  */
 
 import type { IContentTransport, ResourceId } from '@semiont/core';
@@ -53,7 +53,8 @@ export class RepresentationMissing extends Error {
 
 /**
  * `ContentReads` against the Archivist — how a fleet process that holds no KB
- * mount reads bytes (SINGLE-KB-MOUNT P4).
+ * mount reads bytes: the Smelter, Worker and Librarian fetch them from the
+ * Archivist over HTTP rather than through the gateway.
  *
  * The address resolves HERE, at construction, not per read: a process with no
  * Archivist configured must die while an operator is watching it boot, rather

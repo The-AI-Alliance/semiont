@@ -1,4 +1,4 @@
-// Ambient vocabulary for the builder docs' code fences (SAFE-DOCS design point 3).
+// Ambient vocabulary for the builder docs' code fences.
 //
 // Prose snippets stay terse because the names they lean on are declared here
 // once, typed against the real surface. This file is itself contract surface:

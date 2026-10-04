@@ -1,15 +1,15 @@
 /**
- * GATHER-EVIDENCE-PANES D10 (amended 2026-08-19) — `SearchResultsStep` is pure
- * RESULTS: ranked rows with scores and Link buttons, nothing else.
+ * `SearchResultsStep` is pure RESULTS (since 2026-08-19): ranked rows with
+ * scores and Link buttons, nothing else.
  *
  * The evidence lives with the HOST: the wizard stacks the full display-only
  * `GatherContextStep` (quotation, graph pane, corpus pane, collapsed strategy
- * band) above this step, exactly as on the configure steps. The original D10
+ * band) above this step, exactly as on the configure steps. The earlier
  * concern — corpus matches beside real results reading as a second, staler
  * ranking — dissolved with the stacking: evidence sits above the strategy
  * band, results below it, no competing side-by-side columns. This step
  * therefore renders NO context of its own; a gather pane appearing here means
- * someone re-embedded the minimal context redux this amendment deleted.
+ * someone re-embedded the minimal context redux the stacking replaced.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -23,7 +23,7 @@ const RESULTS = [
   { '@id': 'r2', name: 'Arthur Fisher', score: 25.46, description: 'a citing resource' },
 ] as never[];
 
-describe('SearchResultsStep — pure results (D10 amended)', () => {
+describe('SearchResultsStep — pure results', () => {
   it('renders ranked rows: name, score, reason, and a Link button each', () => {
     render(
       <SearchResultsStep results={RESULTS} onBack={vi.fn()} onLink={vi.fn()} translations={T} />,

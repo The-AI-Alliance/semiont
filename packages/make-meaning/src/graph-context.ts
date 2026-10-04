@@ -18,9 +18,9 @@ import type { ViewStorage } from '@semiont/event-sourcing';
 import { WeaveProgressTimeout, type WeaveProgress } from './weave-progress';
 
 /**
- * What the unified graph builder reads (EXTRACT-LIBRARIAN P2) — Pick-derived,
- * never restated. The weave fold is bus-fed (`weave:applied`), so this slice
- * works identically in-process and in the standalone Librarian.
+ * What the unified graph builder reads — a narrow capability slice,
+ * Pick-derived, never restated. The weave fold is bus-fed (`weave:applied`),
+ * so this slice works identically in-process and in the standalone Librarian.
  */
 export interface KnowledgeGraphReads {
   graph: Pick<GraphDatabase, 'getResource' | 'getResourceConnections' | 'getResourceReferencedBy' | 'getResourceAnnotations'>;
@@ -28,32 +28,33 @@ export interface KnowledgeGraphReads {
   weaveProgress: Pick<WeaveProgress, 'whenApplied'>;
 }
 
-// The unified knowledge-graph shape is the core/spec type (CONTEXT-UNIFICATION):
+// The unified knowledge-graph shape is the core/spec type:
 // resources AND annotations are nodes; edges are typed and directional. The
 // hand-written local twins were deleted — this is the one canonical type definition.
 type KnowledgeGraph = components['schemas']['KnowledgeGraph'];
 
 /**
- * Backoff schedule for the projection-lag grace in `buildKnowledgeGraph`
- * (GRAPH-PROJECTION-SYNC P1). Total wait is bounded at 375 ms — the Weaver
- * applies in tens of milliseconds when merely lagging; anything slower is
- * treated as a real miss.
+ * Backoff schedule for the projection-lag grace in `buildKnowledgeGraph`.
+ * Total wait is bounded at 375 ms — the Weaver applies in tens of
+ * milliseconds when merely lagging; anything slower is treated as a real
+ * miss.
  */
 const PROJECTION_LAG_BACKOFF_MS = [25, 50, 100, 200];
 
 /**
- * Bounded wait for the applied-offset barrier (GRAPH-PROJECTION-SYNC P2).
- * The Weaver applies in tens of milliseconds when merely lagging; a
- * barrier that hasn't woken in 500 ms means signals have stalled and the
- * poll floor above owns the remainder.
+ * Bounded wait for the applied-offset barrier: the graph read awaits the
+ * Weaver's `weave:applied` signal for the view's sequence. The Weaver
+ * applies in tens of milliseconds when merely lagging; a barrier that
+ * hasn't woken in 500 ms means signals have stalled and the poll floor
+ * above owns the remainder.
  */
 const PROJECTION_BARRIER_TIMEOUT_MS = 500;
 
 /**
  * Worst-case graph-barrier spend inside one gather (applied barrier + full
- * poll floor). Participates in the A4 nesting assertion at the composition
- * root (`service.ts`): this budget plus the settle bound must degrade
- * gracefully BEFORE the job-worker stall watchdog fails fast.
+ * poll floor). Participates in the watchdog-nesting assertion at the
+ * composition root (`service.ts`): this budget plus the settle bound must
+ * degrade gracefully BEFORE the job-worker stall watchdog fails fast.
  */
 export const GRAPH_BARRIER_BUDGET_MS =
   PROJECTION_BARRIER_TIMEOUT_MS + PROJECTION_LAG_BACKOFF_MS.reduce((a, b) => a + b, 0);
@@ -64,10 +65,10 @@ export class GraphContext {
    * Build the unified knowledge graph for a resource's neighborhood:
    * resources AND annotations as typed nodes, typed/directional edges.
    *
-   * This is the single graph builder (CONTEXT-UNIFICATION D3) — both the
-   * matcher (ranking) and the resource/viz path consume it. The flattened
-   * signals the matcher reads today (`connections`, `citedBy`/count,
-   * `siblingEntityTypes`, `bidirectional`) are all derivable from this:
+   * This is the single graph builder — both the matcher (ranking) and the
+   * resource/viz path consume it. The flattened signals the matcher reads
+   * today (`connections`, `citedBy`/count, `siblingEntityTypes`,
+   * `bidirectional`) are all derivable from this:
    *  - peer connections → resource nodes + main→peer edges carrying `bidirectional`
    *  - inbound citations → citing-resource nodes + `citation` edges (citing→main),
    *    so citedByCount = inbound citation-edge count
@@ -89,8 +90,8 @@ export class GraphContext {
     if (!mainDoc) {
       const view = await kb.views.get(resourceId);
       if (view) {
-        // Applied-offset barrier first (P2, D2 = push): an event-driven wake
-        // at the moment the Weaver reports parity with the view's sequence.
+        // Applied-offset barrier first: an event-driven wake at the moment
+        // the Weaver reports parity with the view's sequence.
         // Views without a stamp (written pre-stamp) cannot name a parity
         // target and skip straight to the poll floor.
         if (view.lastSequence !== undefined) {
@@ -108,7 +109,7 @@ export class GraphContext {
             if (!(error instanceof WeaveProgressTimeout)) throw error;
           }
         }
-        // Bounded-poll floor (P1): the fallback when the barrier cannot
+        // Bounded-poll floor: the fallback when the barrier cannot
         // engage or its signals stall.
         if (!mainDoc) {
           for (const delayMs of PROJECTION_LAG_BACKOFF_MS) {
@@ -162,7 +163,7 @@ export class GraphContext {
     addResourceNode(mainId, mainDoc.name, getResourceEntityTypes(mainDoc));
 
     // Peer connections → resource nodes + directional/bidirectional edges.
-    // Full neighborhood — capping is a view concern, applied by the resource/viz consumer (Q2=C).
+    // Full neighborhood — capping is a view concern, applied by the resource/viz consumer.
     for (const conn of connections) {
       const peerId = getResourceId(conn.targetResource);
       if (!peerId) continue;
@@ -171,12 +172,12 @@ export class GraphContext {
     }
 
     // Inbound citations: the linking annotation IS the citation's graph
-    // presence (D12) — an annotation node embedding the full W3C object,
+    // presence — an annotation node embedding the full W3C object,
     // anchored by `annotation-of` → its citing resource and `cites` → the
     // focal resource. Every citing annotation is emitted; the citedBy view
     // dedupes per citing resource in `deriveViews`. The citing resource stays
     // a node (added once), labeled by its raw id when its view is missing —
-    // a real reference event is kept either way (Option A).
+    // a real reference event is kept either way.
     const citedSeen = new Set<string>();
     for (const ann of referencedBy) {
       const source = getTargetSource(ann.target);
@@ -193,7 +194,7 @@ export class GraphContext {
     }
 
     // Annotations on this resource → annotation nodes + `annotation-of` edges.
-    // Embedded whole (D11): the node is the annotation, selectors and body
+    // Embedded whole: the node is the annotation, selectors and body
     // included, so a client can place it without a second fetch.
     for (const ann of annotations) {
       if (!ann.id || seen.has(ann.id)) continue;

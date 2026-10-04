@@ -13,7 +13,7 @@ import { RETRY_RULES } from '../retry-rules';
 
 describe('RETRY_RULES', () => {
   it('gives one 500 two answers, from one taxonomy', () => {
-    // The whole plan as a single assertion. Today these two answers live in
+    // The whole taxonomy as a single assertion. Today these two answers live in
     // different packages and neither knows the other exists: core excludes 500
     // on the record ("an unclassified server fault is not a promise to recover"),
     // while jobs retries it because the alternative is discarding a 26-minute
@@ -50,9 +50,10 @@ describe('RETRY_RULES', () => {
   });
 
   describe('the refresh rule separates a refusal from an outage', () => {
-    // REFRESH-FAILURE-TRANSIENT-VS-TERMINAL. A token refresh had one answer for
-    // every failure — `catch { return null }` — and the caller treats null as
-    // terminal, so a lost packet ended the session exactly like a revocation.
+    // A session ends when the issuer refuses its credential, not when the
+    // network is unreliable. A token refresh had one answer for every failure
+    // — `catch { return null }` — and the caller treats null as terminal, so a
+    // lost packet ended the session exactly like a revocation.
 
     it('a refused grant is terminal, on the first answer', () => {
       // RFC 6749 §5.2: a revoked, expired or already-rotated refresh token comes
@@ -96,7 +97,7 @@ describe('RETRY_RULES', () => {
 
   describe('the transport rule keys on method as well as status', () => {
     // The dimension a ReadonlySet<number> cannot express, and the reason the
-    // taxonomy is not typed as one. P3 consumes this.
+    // taxonomy is not typed as one. The transport's retry gate consumes this.
     it('retries a 401 on any method — the request was rejected, not processed', () => {
       expect(RETRY_RULES.transport.retryable({ status: 401, method: 'POST' })).toBe(true);
       expect(RETRY_RULES.transport.retryable({ status: 401, method: 'GET' })).toBe(true);
@@ -127,7 +128,8 @@ describe('RETRY_RULES', () => {
   });
 
   it('leaves the existing predicates answering exactly as they did', async () => {
-    // This phase is additive on purpose: behavior moves in P2/P3, so a
+    // The taxonomy is additive on purpose: behavior moves where the job
+    // classifier and the transport's retry gate consume the rules, so a
     // regression there cannot be mistaken for a taxonomy bug.
     const { isRetryableRequestError } = await import('../retry');
     for (const status of [429, 503, 504]) {

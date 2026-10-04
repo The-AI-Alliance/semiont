@@ -1,6 +1,7 @@
 /**
- * BUG: browse-view-overlay-misses-async-content — the overlay effect must be
- * keyed on everything it reads: the rendered content DOM AND the annotations.
+ * BUG: content arriving after the annotations left the overlay unpainted —
+ * the overlay effect must be keyed on everything it reads: the rendered
+ * content DOM AND the annotations.
  *
  * When annotations arrive BEFORE content (any host loading content async —
  * useResourceContent), the overlay resolved ranges against the empty document

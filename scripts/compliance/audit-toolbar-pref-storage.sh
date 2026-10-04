@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Audit Toolbar-Pref Storage Compliance (TOOLBAR-PREFS-AS-PROPS)
+# Audit Toolbar-Pref Storage Compliance
 #
 # Toolbar preferences (mode, click action, selection motivation, shape) are
 # React state flowing through controlled props. Their localStorage persistence

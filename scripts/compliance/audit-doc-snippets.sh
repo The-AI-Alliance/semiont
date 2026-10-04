@@ -3,8 +3,8 @@ set -euo pipefail
 
 # Audit: every ```ts/```tsx/```typescript fence in the documented packages
 # type-checks against the BUILT packages, resolved through the exports map the
-# way that doc's reader resolves them (SAFE-DOCS). Doc rot fails CI instead of
-# waiting for a reader to paste a dead snippet. Three suites:
+# way that doc's reader resolves them. Doc rot fails CI instead of waiting for
+# a reader to paste a dead snippet. Three suites:
 #   - sdk:    docs/builder, docs/protocol and docs/protocol/flows, plus the repo-root and packages/sdk READMEs.
 #   - skills: the agent skills, docs/builder/skills/*/SKILL.md, and their README.
 #   - ui:     docs/builder/react-ui, packages/react-ui/docs and apps/browser/docs plus their READMEs.

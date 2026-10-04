@@ -222,7 +222,7 @@ export class SemiontBrowser {
     this.activeSession$.subscribe((session) => {
       this.refreshOpenResources();
       this.refreshLastViewedResource();
-      // Rehydrate, THEN revalidate (D1). The list above projects immediately
+      // Rehydrate, THEN revalidate. The list above projects immediately
       // — fast and offline-tolerant — and the claims in it are checked once
       // there is a session to ask. Fire-and-forget: nothing waits on it, and
       // a tab that fails to check simply stays.
@@ -273,7 +273,7 @@ export class SemiontBrowser {
     return this.eventBus.on(channel);
   }
 
-  // ── Identity token (external OAuth/identity bridge; D1) ───────────────
+  // ── Identity token (external OAuth/identity bridge) ───────────────────
 
   /**
    * Set the app-level identity token. Sourced from an external
@@ -390,7 +390,7 @@ export class SemiontBrowser {
   /**
    * Patch a KB in the list: what it last said of itself. The `endpoint`
    * shape isn't editable in place; remove and re-add to change the
-   * connection target, and `did` is never patched (D4).
+   * connection target, and `did` is never patched.
    */
   updateKb(id: string, updates: { label?: string; lastRead?: KbRead }): void {
     this.kbs$.next(
@@ -410,7 +410,7 @@ export class SemiontBrowser {
   }
 
   /**
-   * Switch the active KB. Follows the D2 disposal contract:
+   * Switch the active KB. Follows this disposal contract:
    *   1. Synchronously announce the new id on `activeKbId$` and null out
    *      `activeSession$` so views see a safe empty state first.
    *   2. Begin disposing the session that was live. It is disposed whether or
@@ -638,7 +638,7 @@ export class SemiontBrowser {
 
   /**
    * Check every restored tab against the KB it claims to be from, and drop
-   * the ones the KB says are not there (TABS-REVALIDATE-ON-RESTORE P3).
+   * the ones the KB says are not there.
    *
    * Runs once per ACTIVATION, not per projection: CRUD and cross-tab writes
    * re-project constantly, and re-reading every descriptor on each of those
@@ -646,7 +646,7 @@ export class SemiontBrowser {
    * a boolean so a KB switch — which is an activation — validates the newly
    * active list.
    *
-   * Quiet by design (D4): failures other than `not-found` are logged, and a
+   * Quiet by design: failures other than `not-found` are logged, and a
    * removal needs no toast. The phantom silently ceasing to exist IS the
    * correct outcome.
    */
@@ -655,7 +655,7 @@ export class SemiontBrowser {
     if (!session || !kbId || this.validatedFor === session) return;
     this.validatedFor = session;
 
-    // Identity first, and it short-circuits (KB-IDENTITY D5). If a different
+    // Identity first, and it short-circuits. If a different
     // knowledge base is answering, every per-resource verdict below is an
     // answer to a question asked of the wrong KB — meaningless even when it
     // is `not-found`. One pass, one guard: two async passes racing on one
@@ -674,7 +674,7 @@ export class SemiontBrowser {
     if (ids.length === 0) return;
 
     const checks = new Map<string, TabCheck>();
-    // Bounded concurrency (D4). Tab counts are small, so a fixed lane count
+    // Bounded concurrency. Tab counts are small, so a fixed lane count
     // beats any cleverer scheduler; the point is to not open N requests at
     // once on a connection that just came up.
     const lanes = Array.from({ length: Math.min(4, ids.length) }, async () => {
@@ -686,7 +686,7 @@ export class SemiontBrowser {
     });
     await Promise.all(lanes);
 
-    // D4: logged, not surfaced — and aggregated, because an activation while
+    // Logged, not surfaced — and aggregated, because an activation while
     // the archivist is down would otherwise emit one line per tab.
     const inconclusive = [...checks.values()].filter((c) => c.kind === 'unknown').length;
     if (inconclusive > 0) {
@@ -723,13 +723,13 @@ export class SemiontBrowser {
    * Otherwise record nothing, and say which of the other two it was. This
    * reads; what a conflict does to local state is `voidForConflict`.
    *
-   * **The did is read in one direction only (D1).** A did is not unique — a
+   * **The did is read in one direction only.** A did is not unique — a
    * local clone and a codespace of one repo share one — so it is authoritative
    * for *differs* and says nothing for *matches*. A match concludes nothing
    * about the contents; that is the wipe, and it is the per-resource pass's
    * question.
    *
-   * **No verdict is not a mismatch (D3), and this must never be weakened.** A
+   * **No verdict is not a mismatch, and this must never be weakened.** A
    * read that gets no answer and a KB that refuses to describe itself are
    * different absences, and neither is evidence of anything. Losing a user's
    * tabs because the gateway was briefly down is strictly worse than the
@@ -748,7 +748,7 @@ export class SemiontBrowser {
     }
     const observedDid = kbDid(description.domain);
     if (observedDid !== expectedDid) {
-      // The registry entry is left exactly as the user wrote it (D4):
+      // The registry entry is left exactly as the user wrote it:
       // overwriting `did`/`label` would erase the only evidence a substitution
       // happened and sign them in to a KB they never chose under the name of
       // one they did, and recording the other KB's branch would show its tree
@@ -761,16 +761,15 @@ export class SemiontBrowser {
   }
 
   /**
-   * What activation does when a different KB answered for the active entry
-   * (KB-IDENTITY-CHECKED-ON-ACTIVATION P1): void the state that is a claim
-   * about the entry's contents, and raise the conflict. Re-registering is a
-   * deliberate act; the panel has that flow.
+   * What activation does when a different KB answered for the active entry:
+   * void the state that is a claim about the entry's contents, and raise the
+   * conflict. Re-registering is a deliberate act; the panel has that flow.
    */
   private voidForConflict(kbId: string, observedDid: string): void {
     const expectedDid = this.kbs$.getValue().find((k) => k.id === kbId)?.did;
     if (!expectedDid) return;
 
-    // Both maps, at the same instant (D2). They are keyed the same way and
+    // Both maps, at the same instant. They are keyed the same way and
     // both say "these resources are in that KB"; voiding one would leave the
     // landing redirect pointing into a KB whose tabs were just cleared.
     this.mutateOpenResources(() => []);
@@ -788,11 +787,11 @@ export class SemiontBrowser {
    * One tab's verdict.
    *
    * `.fresh()` is the one-shot read: it fetches, updates the store the viewer
-   * reads from — so a validated tab is also a warmed cache entry (D5) — and
+   * reads from — so a validated tab is also a warmed cache entry — and
    * rejects on failure, which is the only way the verdict reaches us.
    *
-   * Only `bus.not-found` removes (D2/D6). It is a verdict from the event
-   * store, which is the system of record (D10); everything else is a symptom.
+   * Only `bus.not-found` removes. It is a verdict from the event
+   * store, which is the system of record; everything else is a symptom.
    */
   private async checkOpenResource(session: SemiontSession, id: string): Promise<TabCheck> {
     try {
@@ -814,7 +813,7 @@ export class SemiontBrowser {
    * KB (the projection gate), otherwise mutate that KB's list, persist the
    * whole map, and re-project.
    *
-   * **Reads the COMMITTED map, not `this.openByKb`** (D11). The in-memory
+   * **Reads the COMMITTED map, not `this.openByKb`.** The in-memory
    * copy is a projection cache — any sibling context's write may already have
    * outdated it — so mutating it and persisting was a plain lost update: two
    * windows each adding a tab silently lost one. `SessionStorage.get` is

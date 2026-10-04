@@ -22,11 +22,10 @@ import { recordGatherDegrade } from '@semiont/observability';
 import type { ResourceDescriptor } from '@semiont/core';
 
 /**
- * What the resource-gather path reads (EXTRACT-LIBRARIAN P2; content re-keyed
- * by D-CONTENT b) — the graph builder's slice plus this module's own reads.
- * Pick-derived, never restated. In-process roots satisfy it with
- * `workingTreeContentReads` over their `kb`; the Librarian passes
- * `HttpContentTransport`.
+ * What the resource-gather path reads — the graph builder's slice plus this
+ * module's own reads, content keyed by resource id. Pick-derived, never
+ * restated. In-process roots satisfy it with `workingTreeContentReads` over
+ * their `kb`; the Librarian passes `archivistContentReads`.
  */
 export interface ResourceGatherReads {
   views: Pick<ViewStorage, 'get'>;
@@ -62,12 +61,12 @@ export class LLMContext {
     kb: ResourceGatherReads,
     inferenceClient: InferenceClient,
     /**
-     * Bound on the semanticContext read-your-writes barrier
-     * (SMELTER-INDEX-SYNC D3/D5). Operator-owned deployment policy: born in
+     * Bound on the semanticContext read-your-writes barrier. Operator-owned
+     * deployment policy: born in
      * `[environments.<env>.make-meaning.gather] settleTimeoutMs` (the TOML
      * loader holds the ONE default, 15s), threaded here as a plain argument
      * via `MakeMeaningConfig.gather` → Gatherer. Must nest inside downstream
-     * watchdogs (A4) — e.g. my-chat's 90s generation stall watchdog.
+     * watchdogs — e.g. my-chat's 90s generation stall watchdog.
      */
     settleTimeoutMs: number,
     logger: Logger,
@@ -86,7 +85,7 @@ export class LLMContext {
     // Knowledge graph (full neighborhood — resources AND annotations as nodes).
     const graph = await GraphContext.buildKnowledgeGraph(resourceId, kb, logger);
 
-    // Related resources for content. The cap is a view concern (Q2=C): take the first
+    // Related resources for content. The cap is a view concern: take the first
     // (maxResources - 1) peer resource nodes, matching the previous display count.
     const resourceIdStr = resourceId.toString();
     const relatedDocs: ResourceDescriptor[] = [];
@@ -118,10 +117,10 @@ export class LLMContext {
     // The inference garnish — summary + reference suggestions — runs ONLY
     // when the caller asked (`includeSummary`): gather reads as a read
     // operation, and an unrequested inference round trip inside it was an
-    // oversight, now a decision (bugs/gather-ships-raw-pdf-bytes P3). Its
-    // failure DEGRADES to absent with one breadcrumb — the vectors barrier
-    // below models the posture — because a gather that can assemble the
-    // graph must never fail outright over an optional garnish.
+    // oversight, now a decision. Its failure DEGRADES to absent with one
+    // breadcrumb — the vectors barrier below models the posture — because a
+    // gather that can assemble the graph must never fail outright over an
+    // optional garnish.
     let summary: string | undefined;
     let suggestedReferences: string[] | undefined;
     if (options.includeSummary && mainContent) {
@@ -132,9 +131,9 @@ export class LLMContext {
           getResourceEntityTypes(mainDoc),
           inferenceClient
         );
-        // The suggestion prompt takes the resource NAME in its title slot
-        // (P2) — never the content, which for a large resource is a document
-        // where a name belongs.
+        // The suggestion prompt takes the resource NAME in its title slot —
+        // never the content, which for a large resource is a document where
+        // a name belongs.
         suggestedReferences = (await generateReferenceSuggestions(
           { title: mainDoc.name, entityType: getResourceEntityTypes(mainDoc)[0] },
           inferenceClient,
@@ -156,17 +155,17 @@ export class LLMContext {
 
     // Semantic recall over the resource's OWN already-indexed vectors (no
     // re-embedding), excluding caller-supplied entity types. The applied filter
-    // is recorded on semanticContext as build provenance. EXCLUDE-VECTORS Phase 2b.
+    // is recorded on semanticContext as build provenance.
     //
-    // Read-your-writes barrier (SMELTER-INDEX-SYNC P2): probe first (A3) —
-    // an empty result is ambiguous (pending? never-embeddable?) — then wait
-    // for the Smelter's settled decision at exactly this content generation
-    // (D2) before concluding. Scoped to this slice alone: nothing else in
-    // the gather ever waits (D3). Timeout degrades to absent plus exactly
-    // one L4 breadcrumb; a `skipped` decision resolves immediately (D4).
+    // Read-your-writes barrier: probe first — an empty result is ambiguous
+    // (pending? never-embeddable?) — then wait for the Smelter's settled
+    // decision at exactly this content generation, keyed by content
+    // checksum, before concluding. Scoped to this slice alone: nothing else
+    // in the gather ever waits. Timeout degrades to absent plus exactly one
+    // L4 breadcrumb; a `skipped` decision resolves immediately.
     let semanticContext: GatheredContext['semanticContext'];
-    // Vectors are mandatory (MANDATORY-EMBEDDING D0) — the read is
-    // unconditional; only the settle barrier's outcome decides absence.
+    // Vectors are mandatory — the read is unconditional; only the settle
+    // barrier's outcome decides absence.
     const vectors = kb.vectors;
     const excludeEntityTypes = options.excludeEntityTypes ?? [];
     const search = () =>
@@ -202,7 +201,7 @@ export class LLMContext {
     }
 
     if (matches.length > 0) {
-      // Named via the source's view (D9: resourceName required); a source with
+      // Named via the source's view (`resourceName` is required); a source with
       // no view is dropped, never id-labeled.
       const similar: NonNullable<GatheredContext['semanticContext']>['similar'] = [];
       for (const m of matches) {

@@ -4,9 +4,9 @@ import "sort"
 
 // serviceConfigSections: the [environments.<env>] sections each Node service
 // reads — the launcher forwards a service only the variables those sections
-// reference (SECRET-DELIVERY P5). The authority is
-// specs/src/service-config/sections.json, which the TypeScript loader
-// enforces; TestServiceSectionsAgreeWithTheSpec holds this copy to it.
+// reference. The authority is specs/src/service-config/sections.json, which
+// the TypeScript loader enforces; TestServiceSectionsAgreeWithTheSpec holds
+// this copy to it.
 var serviceConfigSections = map[string][]string{
 	"archivist": {"gateway", "graph", "vectors", "embedding", "identity", "make-meaning", "actors", "workers"},
 	"librarian": {"gateway", "graph", "vectors", "embedding", "identity", "archivist", "make-meaning", "actors", "inference"},
@@ -115,10 +115,9 @@ func serviceVars(envSection map[string]any, env *envConfig) map[string][]string 
 }
 
 // withDaemonCredentialVars adds, to each service's variables, the credential
-// names of the daemons the launcher runs that the service dials
-// (SECRET-DELIVERY P4): a [graph] reader the Neo4j password, a [jobs] reader
-// the broker pair, and the gateway the pair when its signal plane is that
-// broker.
+// names of the daemons the launcher runs that the service dials: a [graph]
+// reader the Neo4j password, a [jobs] reader the broker pair, and the gateway
+// the pair when its signal plane is that broker.
 func withDaemonCredentialVars(byService map[string][]string, plan *launchPlan, signalOnBroker bool) map[string][]string {
 	out := map[string][]string{}
 	for svc, names := range byService {

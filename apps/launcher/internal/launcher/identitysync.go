@@ -298,8 +298,8 @@ func reconcileServiceClients(base, realm, token, audience string, secretFor func
 		id := serviceClientID(svc)
 		if c, ok := have[id]; ok {
 			// Present — but the client the import WOULD render may have gained
-			// a role since this one was created (EXTRACT-JOBS P0 gave the
-			// worker one), and the preflight refuses a realm whose mapper
+			// a role since this one was created (the worker's job-claim role
+			// arrived that way), and the preflight refuses a realm whose mapper
 			// still renders the old value. The secret is never reconciled:
 			// sync cannot know it.
 			change, err := reconcileRolesMapper(base, realm, token, svc, c)

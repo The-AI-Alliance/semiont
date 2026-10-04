@@ -114,7 +114,7 @@ describe('ReferenceEntry', () => {
     mockGetEntityTypes.mockReturnValue([]);
   });
 
-  // RESOLUTION-SPARKLE D6: a just-resolved reference announces itself on the
+  // A just-resolved reference announces itself on the
   // panel entry's icon with the same `.annotation-sparkle` glow the document
   // span uses. The host decides WHEN (membership in the sparkle set); the
   // entry only renders the boolean.
@@ -446,7 +446,7 @@ describe('ReferenceEntry', () => {
     });
   });
 
-  // ANNOTATIONS-STAY-W3C P1: the annotation on the wire is exactly W3C — the
+  // The annotation on the wire is exactly W3C — the
   // linked resource's name and media type are read from THAT resource through
   // the SDK's cache, where they are displayed. No `_resolved*` fields.
   describe('Link target resolved through the SDK', () => {

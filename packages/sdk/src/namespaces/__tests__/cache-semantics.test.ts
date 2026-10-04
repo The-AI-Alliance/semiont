@@ -117,14 +117,13 @@ function reopen(state$: BehaviorSubject<ConnectionState>): void {
 }
 
 /**
- * The Browser's P2 reply, verbatim shape:
+ * The Browser's reply to `browse:agents-requested`, verbatim shape:
  * `{ agents: CollaboratorEntry[] }` where an entry is
- * `{ agent, servesJobTypes?, limits? }` — `limits` joined the entry with
- * INFERENCE-LIMITS-EXPOSURE P2, and the deep-equal passthrough pin below
- * is what proves discovered ceilings survive the cache round-trip
- * unreshaped. One worker agent WITH capabilities and ceilings, one
- * actors-only agent WITHOUT either — both pass through as-is (no
- * flattening to Agent[]).
+ * `{ agent, servesJobTypes? }`. The directory carries no limits: the
+ * services holding the inference credentials report those (MOCK_LIMITS
+ * below) and the sdk joins them onto the entries. One worker agent WITH
+ * capabilities, one actors-only agent WITHOUT — both pass through as-is
+ * (no flattening to Agent[]).
  */
 const MOCK_COLLABORATORS = [
   {
@@ -417,12 +416,12 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
     it('value-less key: first-fetch exhaustion errors the observer (B15); guard + marker released', async () => {
       // Two rejections exhaust the observe attempt + its B14 retry. Post-B15
       // the value-less terminal failure is an error notification to this
-      // key's observers — not `undefined` forever (LIVENESS-AXIOMS L1).
+      // key's observers — not `undefined` forever (liveness axiom L1).
       const { browse, emitSpy, state } = createHarness({ rejectNext: 2 });
       const states: string[] = [];
       browse.resource(RID).subscribe((s) => states.push(s.status));
       await flush();
-      // D1: the terminal failure is a `failed` EMISSION through withScope +
+      // The terminal failure is a `failed` EMISSION through withScope +
       // CacheObservable — never a stream error, never silence.
       expect(states).toEqual(['pending', 'failed']);
       expect(emitSpy).toHaveBeenCalledTimes(2); // attempt + B14 retry, then idle
@@ -482,7 +481,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       // Two rejections exhaust the observe attempt + its B14 retry first.
       const { browse, emitSpy, state } = createHarness({ rejectNext: 2 });
       const seen: Array<ResourceDescriptor | undefined> = [];
-      // Value-less exhaustion emits `failed` to this subscriber (B15/D1) —
+      // Value-less exhaustion emits `failed` to this subscriber (B15) —
       // projected to undefined here; this test is about the in-flight guard,
       // not the notification.
       browse.resource(RID).subscribe({ next: (s) => seen.push(readyValue(s)), error: () => {} });
@@ -992,10 +991,10 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
   // make-meaning CI escape (2026-07-05): a B14
   // retry straddled client teardown, busRequest resolved `bus.closed`, and
   // the B15 push errored a handler-less subscriber — an unhandled rejection
-  // racing worker teardown. Structural fix (finding b): BrowseNamespace owns
+  // racing worker teardown. Structural fix: BrowseNamespace owns
   // its caches (A7-owned), so disposing it completes every per-key
   // observable and detaches its bus handlers; the straddling failure then
-  // has no observers to error. No `bus.closed` special-casing (finding a).
+  // has no observers to error. No `bus.closed` special-casing.
   describe('B16 — browse.dispose() completes observers; teardown failures are structural no-ops', () => {
     it('mid-chain dispose: value-less-key subscriber completes, never errors; no post-dispose retry traffic', async () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -1049,7 +1048,8 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
   // The collaborator directory.
   // `agents()` is the third KB-wide singleton (tagSchemas pattern): unscoped,
   // sentinel-keyed, entries passed through UNRESHAPED (`servesJobTypes` is the
-  // field the P1 wrapper exists for — a flattening implementation must fail here).
+  // field the `CollaboratorEntry` wrapper exists for — a flattening
+  // implementation must fail here).
   describe('browse.agents() — collaborator directory', () => {
     it('serves CollaboratorEntry[] unreshaped — servesJobTypes intact, absent stays absent — and caches (one fetch)', async () => {
       const { browse, emitSpy } = createHarness();

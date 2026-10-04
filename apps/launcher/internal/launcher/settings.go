@@ -1,9 +1,9 @@
 package launcher
 
 // settings.go — `semiont settings`: every setting the launcher keeps, in one
-// place (LAUNCHER-SETTINGS). Each row reads its value through the function the
-// start itself uses, so the listing cannot disagree with what a start does,
-// and none reaches for a secret.
+// place. Each row reads its value through the function the start itself uses,
+// so the listing cannot disagree with what a start does, and none reaches for
+// a secret.
 
 import (
 	"fmt"

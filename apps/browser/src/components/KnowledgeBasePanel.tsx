@@ -215,18 +215,19 @@ export function KnowledgeBasePanel() {
   const [confirmRemoveKbId, setConfirmRemoveKbId] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
-  // Launcher discovery (BROWSER-KB-DISCOVERY P5). The document is launcher
-  // BELIEF — health stays this panel's own probe. Collision policy: a
-  // discovered KB matching a registered endpoint is ADOPTED render-only (one
-  // row, managed badge, registry untouched — fully reversible); removal is
-  // projection-only (discovered rows vanish, adopted rows lose the badge).
+  // Launcher discovery. The document is launcher BELIEF — health stays this
+  // panel's own probe. Collision policy: a discovered KB matching a registered
+  // endpoint is ADOPTED render-only (one row, managed badge, registry
+  // untouched — fully reversible); removal is projection-only (discovered rows
+  // vanish, adopted rows lose the badge).
   const { kbs: discoveredKbs } = useKBDiscovery();
-  // The join (KB-IDENTITY-VS-ADDRESS decision 9): **look up by address, verify
-  // by did.** The address is what is unique within a document (P1), so it
-  // SELECTS; the did then confirms the copy we reached is the KB we meant. A
-  // did can match several entries — one KB running in two places is normal and
-  // expected — so it can never be the selector. Grouping survives from P0
-  // because an older document can still contain duplicate addresses.
+  // The join: **look up by address, verify by did.** The launcher publishes at
+  // most one entry per address, so the address is what is unique within a
+  // document and it SELECTS; the did then confirms the copy we reached is the
+  // KB we meant. A did can match several entries — one KB running in two
+  // places is normal and expected — so it can never be the selector. The
+  // grouping below predates that guarantee and stays because an older document
+  // can still contain duplicate addresses.
   const discoveredByEndpoint = new Map<string, DiscoveredKB[]>();
   for (const d of discoveredKbs) {
     const key = endpointKey(d.host, d.port);
@@ -243,8 +244,11 @@ export function KnowledgeBasePanel() {
     const entry = unambiguousAt(endpointKey(kb.endpoint.host, kb.endpoint.port));
     // Verification: an entry at my address that is a DIFFERENT knowledge base
     // is not mine to adopt — it is someone else standing where I connected.
-    // (A registered KB whose address matches nothing is simply unmanaged; the
-    // spelling-mismatch miss is accepted deliberately — see the plan.)
+    // (A registered KB whose address matches nothing is simply unmanaged. A
+    // hand-typed address that spells the same copy differently — `localhost`
+    // against `127.0.0.1` — misses too, and that is accepted deliberately:
+    // normalising spellings would guess at host resolution, and an honest
+    // "not managed" beats a wrong claim.)
     return entry && entry.did === kb.did ? entry : undefined;
   };
   // Only an ADOPTED endpoint drops out of the discovered list; ambiguous ones
@@ -256,14 +260,15 @@ export function KnowledgeBasePanel() {
         : []),
   );
   const unregisteredDiscovered = discoveredKbs.filter(d => !adoptedEndpoints.has(endpointKey(d.host, d.port)));
-  // One KB in two places is normal (decision 9), so a discovered row can carry
+  // One KB in two places is normal, so a discovered row can carry
   // the same name as a KB you are already connected to. Say why, rather than
   // leaving it looking like a duplicate — the identity is what relates them.
   const registeredDids = new Set(knowledgeBases.map(kb => kb.did));
   const isAnotherCopy = (d: DiscoveredKB): boolean => registeredDids.has(d.did);
   // A duplicated ADDRESS is a conflict: only one process binds a port, so at
-  // most one claimant's promise is true (decision 4, narrowed by 9 — a shared
-  // DID is not a conflict). Producers no longer emit these; old documents can.
+  // most one claimant's promise is true. It is shown, never resolved by
+  // guessing (a shared DID is not a conflict). Producers no longer emit these;
+  // old documents can.
   const conflictedAddresses = [...discoveredByEndpoint.entries()]
     .filter(([, bucket]) => bucket.length > 1)
     .map(([address, bucket]) => ({ address, count: bucket.length }));

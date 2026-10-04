@@ -21,19 +21,19 @@ type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
  * This is a deferred-ack pattern: the result event attests that Stower has
  * persisted the annotation, not merely that the command was well-formed.
  *
- * ## The annotatability gate (MEDIA-CAPABILITY-DISPATCH D6)
+ * ## The annotatability gate
  *
  * Every GUI and SDK caller travels `mark:create-request` and is checked here.
  * The check is deliberately NOT on `mark:create`, which Stower consumes: that
  * channel is the fact-writing path, and gating it would need a leniency flag
- * for restore — the compatibility switch D6 was written to avoid.
+ * for restore — the compatibility switch this placement exists to avoid.
  *
- * D6's original second emitter, the TypeScript import/replay path, was deleted
- * by EXPORT-VIA-LAUNCHER P3 (2026-08-27), so nothing travels the ungated
- * channel today. The separation is kept anyway, because restore returns in the
- * launcher and its fact-writing seam is still an open decision (that plan's
- * P5) — a restore that re-subjected historical facts to this gate would be the
- * 2026-07-09 "events are facts, commands are requests" ruling undone.
+ * The ungated channel's original second emitter, the TypeScript import/replay
+ * path, was deleted on 2026-08-27 when export and import left TypeScript for
+ * the launcher, so nothing travels the ungated channel today. The separation
+ * is kept anyway — a restore that re-subjected historical facts to this gate
+ * would be the 2026-07-09 "events are facts, commands are requests" ruling
+ * undone.
  */
 export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { views: Pick<ViewStorage, 'get'> }, parentLogger: Logger): void {
   const logger = parentLogger.child({ component: 'annotation-assembly' });
@@ -59,7 +59,7 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { view
       await assertAnnotatableTarget(kb, target);
 
       // A person states nothing about provenance; the Stower derives who
-      // asked from `_userId` when it stows (VERIFIED-PROVENANCE P2).
+      // asked from `_userId` when it stows.
       const { annotation } = assembleAnnotation(request as CreateAnnotationRequest);
 
       inflight.set(cid, { annotationId: annotation.id });

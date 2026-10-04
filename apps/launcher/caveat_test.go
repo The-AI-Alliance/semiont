@@ -33,10 +33,9 @@ func brewCaveat(t *testing.T) string {
 	return strings.Join(lines, "\n")
 }
 
-// The caveat points a new install at settings (LAUNCHER-SETTINGS D5), and
-// every command it names is one the launcher has: a census of real verbs and
-// settings, so a renamed or deleted one fails here rather than in a person's
-// terminal.
+// The caveat points a new install at settings, and every command it names is
+// one the launcher has: a census of real verbs and settings, so a renamed or
+// deleted one fails here rather than in a person's terminal.
 func TestBrewCaveatNamesOnlyRealCommands(t *testing.T) {
 	caveat := brewCaveat(t)
 	if !strings.Contains(caveat, "semiont settings") {

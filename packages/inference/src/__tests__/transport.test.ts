@@ -1,5 +1,5 @@
 /**
- * Transport ceiling (OLLAMA-DETECTION-TESTING P3.5).
+ * Transport ceiling — the Ollama adapter owns its transport timeouts.
  *
  * Node's fetch is undici, and undici kills any request whose response HEADERS
  * have not arrived within its headersTimeout — 300s by default. With
@@ -15,7 +15,7 @@
  * stops honoring it, the bounded fetch stops dying and that test fails.
  *
  * What cannot be proven at test speed — that a real >5-minute generation now
- * completes — belongs to the P4 live gate.
+ * completes — belongs to a live detection run.
  */
 import { describe, it, expect } from 'vitest';
 import { createServer, type Server } from 'node:http';
@@ -58,8 +58,8 @@ describe('generate transport vs the undici header timeout', () => {
       );
       expect(err).toBeInstanceOf(TypeError);
       expect((err as TypeError).message).toBe('fetch failed');
-      // The classifiable truth hides one level down — P2's harness must
-      // capture `cause`, not just the TypeError shell.
+      // The classifiable truth hides one level down — a harness recording
+      // live failures must capture `cause`, not just the TypeError shell.
       expect((err as { cause?: { code?: string } }).cause?.code).toBe('UND_ERR_HEADERS_TIMEOUT');
     } finally {
       await bounded.close();

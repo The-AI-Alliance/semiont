@@ -1,15 +1,15 @@
 /**
- * FLOW-LIFECYCLE-CONVERGENCE P1 — the ONE stall guard for generation.
+ * The ONE stall guard for generation.
  *
  * The guard lives inside `runGeneration`'s producer, so every consumption of
  * the stream — `await`, `.run()`, and the yield state unit's `drive` — shares
- * it (A1). Pins here:
+ * it. Pins here:
  *  - silence past the deadline → `job:cancel-requested` (jobType generation)
- *    on the wire + a typed `GenerationStallError` (A2)
+ *    on the wire + a typed `GenerationStallError`
  *  - an event inside the window resets it; a terminal inside the window never
- *    cancels (A3)
+ *    cancels
  *  - the deadline derives from `maxTokens` (floor + per-token, ONE site) with
- *    a per-call `stallDeadlineMs` override that NEVER rides the wire (D1a)
+ *    a per-call `stallDeadlineMs` override that NEVER rides the wire
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';

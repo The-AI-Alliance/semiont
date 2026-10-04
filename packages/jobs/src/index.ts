@@ -68,14 +68,14 @@ export {
   type WorkerVitals,
 } from './job-claim-adapter';
 
-// Worker liveness bounds (WORKER-LIVENESS P3). STALL_THRESHOLD_MS also
-// participates in the A4 nesting assertion at make-meaning's composition
+// Worker liveness bounds: the stall watchdog's limit. STALL_THRESHOLD_MS also
+// participates in the nesting assertion at make-meaning's composition
 // root: gather read-barrier budgets must degrade before this watchdog
 // fails fast.
 export { STALL_THRESHOLD_MS } from './worker-runtime';
 /**
- * The worker's complete subscription manifest
- * (CLIENT-SUBSCRIPTION-MANIFEST D2). Exported so a composition-grain test can
+ * The worker's complete subscription manifest: every channel its transport is
+ * constructed with, declared once. Exported so a composition-grain test can
  * subscribe the REAL set rather than a hand-written list of the channel it is
  * testing — the grain every 2026-09-16 bring-up bug slipped through.
  */

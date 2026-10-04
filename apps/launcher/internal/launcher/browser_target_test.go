@@ -1,11 +1,14 @@
 package launcher
 
-// BROWSER-HANDOFF P1–P3, in process.
+// The hand-off from `semiont browse` to the Browser, in process: finding a
+// running Browser, what `--browser` says when it cannot hand off, and
+// `--launch` starting one.
 //
 // The subject is the COLD case: `browse --browser` published a signal and
 // nobody was there to receive it. What the launcher says next is the whole
-// user-facing feature (D6/O1 — it never opens a window), so these tests assert
-// the message and the exit code, not just the branch taken.
+// user-facing feature (it knows the Browser's origin, never a path, and never
+// opens a window), so these tests assert the message and the exit code, not
+// just the branch taken.
 
 import (
 	"net/http"
@@ -95,4 +98,4 @@ func TestRoleHealthyReportsADeadGateway(t *testing.T) {
 	}
 }
 
-// ── P2: what it says when nobody was there ──────────────────────────────
+// ── what it says when nobody was there ──────────────────────────────────

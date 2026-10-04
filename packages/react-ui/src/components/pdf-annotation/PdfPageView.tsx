@@ -57,7 +57,7 @@ interface PdfPageViewProps {
   hoverDelayMs: number;
   /** The document-wide server map, fetched once per resource by the parent. */
   fetchResourceAnchored: () => Promise<AnchoredText | null>;
-  /** Re-resolve trigger: a retry landed the map (P4). */
+  /** Re-resolve trigger: a retry landed the map. */
   anchoredEpoch: number;
 }
 
@@ -138,10 +138,9 @@ export function PdfPageView({
         // `null` is the ordinary answer for a document that has no map and
         // never will; a failure is equally non-fatal. Either way the
         // annotation ships with geometry only, which is what shipped before
-        // this existed. The served record is the full extraction outcome
-        // (PERSIST-ANCHORS D1); a stored decline means extraction ran and
-        // found nothing to anchor — for this canvas the same degradation as
-        // no map at all.
+        // this existed. The served record is the full extraction outcome; a
+        // stored decline means extraction ran and found nothing to anchor —
+        // for this canvas the same degradation as no map at all.
         return await fetchResourceAnchored();
       } catch {
         return null;
@@ -188,7 +187,7 @@ export function PdfPageView({
     };
     // `anchoredEpoch` is deliberately a dep: a retry that lands the map
     // re-resolves this page, so the first annotation after the flip carries
-    // its quote (ANNOTATE-DEFERS-ON-NOT-YET P4).
+    // its quote.
   }, [doc, pageNumber, scale, fetchResourceAnchored, anchoredEpoch]);
 
   // Update display dimensions on resize

@@ -124,10 +124,11 @@ describe('SemiontSession — construction & initial token', () => {
   });
 
   it('survives a THROWN refresh during startup — `ready` resolves, it does not reject', async () => {
-    // The startup path refreshes an expired stored token before validating
-    // (SSE-AUTH-RESILIENCE P0). A throw there used to escape `validate()` and
-    // reject `ready`, so an unreachable gateway did not merely fail to
-    // sign in — it broke session CONSTRUCTION for every caller awaiting it.
+    // The startup path refreshes an expired stored token before validating,
+    // and a refresh that throws there ends the session like one that returns
+    // null. A throw there used to escape `validate()` and reject `ready`, so
+    // an unreachable gateway did not merely fail to sign in — it broke
+    // session CONSTRUCTION for every caller awaiting it.
     const expired = freshJwt(-3600);
     seedStoredSession(storage, KB.id, expired, 'refresh-tok');
     refresh.mockRejectedValue(new Error('ECONNREFUSED'));
@@ -171,7 +172,7 @@ describe('SemiontSession — refresh', () => {
     await session.dispose();
   });
 
-  // ── proactive-refresh-margin-equals-token-lifetime (2026-09-23) ─────
+  // ── A refresh margin equal to the token lifetime (2026-09-23) ───────
   // The unit tests above drive `refresh()` DIRECTLY, so a schedule that fires
   // at `delay = 0` is indistinguishable from one that fires correctly — which
   // is precisely why nothing caught a signed-in tab issuing 1418 successful
@@ -233,7 +234,7 @@ describe('SemiontSession — refresh', () => {
     await session.dispose();
   });
 
-  // ── SSE-AUTH-RESILIENCE P0 ──────────────────────────────────────────
+  // ── A thrown refresh is a failed refresh ────────────────────────────
   // A refresh callback makes an HTTP call, so it can THROW as easily as it can
   // return null — a network blip, DNS failure, or gateway 5xx. Both mean the
   // same thing to the session (this token cannot be renewed), so both must
@@ -284,7 +285,7 @@ describe('SemiontSession — refresh', () => {
     await session.dispose();
   });
 
-  it('a revoked refresh (refresh→null) clears the stored session so the dead token is not reused (SDK-AUTH-CORS Phase 2)', async () => {
+  it('a revoked refresh (refresh→null) clears the stored session so the dead token is not reused', async () => {
     // When the issuer refuses the refresh (the grant was revoked), the factory's
     // performRefresh resolves null, and the session must end: token cleared,
     // stored session cleared (so the dead refresh token is never replayed),

@@ -203,9 +203,9 @@ export function ResourceViewerPage({
   // reading BrowseView and AnnotateView take.
   const resourceMediaType = getPrimaryMediaType(resource) || 'text/plain';
 
-  // Toolbar prefs: the POLICY layer (TOOLBAR-PREFS-AS-PROPS). The page owns the
-  // Browser's global-toolbar UX — shared values, localStorage persistence — and
-  // feeds the viewer its controlled props; the components hold no pref state policy.
+  // Toolbar prefs: the POLICY layer. The page owns the Browser's global-toolbar
+  // UX — shared values, localStorage persistence — and feeds the viewer its
+  // controlled props; the components hold no pref state policy.
   const toolbarPrefs = useToolbarPrefs(getSelectorType(resourceMediaType));
   const annotateMode = toolbarPrefs.annotateMode;
   const contentSource = CONTENT_SOURCE[capabilitiesOf(resourceMediaType)?.render ?? 'none'];
@@ -238,8 +238,8 @@ export function ResourceViewerPage({
 
   // Composite state unit — owns all flow VMs, wizard state, annotations, entity types
   const browseStateUnit = useShellStateUnit();
-  // Session-typed + session-keyed (SESSION-TYPED-FACTORIES.md): no `!`, no
-  // construction without a session, dispose-first rebuild on session swap.
+  // Session-typed + session-keyed: no `!`, no construction without a session,
+  // dispose-first rebuild on session swap.
   const stateUnit = useSessionStateUnit(
     session ?? undefined,
     (s) => createResourceViewerPageStateUnit(s, rUri, locale, browseStateUnit),
@@ -271,11 +271,11 @@ export function ResourceViewerPage({
   const isGenerating = useObservable(stateUnit?.yield.isGenerating$) ?? false;
   const generationOutcome = useObservable(stateUnit?.yield.outcome$) ?? null;
 
-  // GENERATION-ARRIVAL P2: a completion witnessed on this page reveals the
-  // derivation edge the worker minted — the annotations panel opens on
-  // References, scrolls to the provenance reference, and its sparkle is
-  // re-armed (the mark:added glow burned its window unseen). Never navigates
-  // (A2); a held outcome on remount stays quiet (D6, inside the hook).
+  // A completion witnessed on this page reveals the derivation edge the worker
+  // minted — the annotations panel opens on References, scrolls to the
+  // provenance reference, and its sparkle is re-armed (the mark:added glow
+  // burned its window unseen). Never navigates; a held outcome on remount
+  // stays quiet (inside the hook).
   const handleGenerationArrival = useCallback((annId: AnnotationId) => {
     browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annId, motivation: 'linking' });
     triggerSparkleAnimation(annId);
@@ -285,8 +285,8 @@ export function ResourceViewerPage({
   const gatherContext = useObservable(stateUnit?.gather.context$) ?? null;
   const gatherLoading = useObservable(stateUnit?.gather.loading$) ?? false;
   const gatherError = useObservable(stateUnit?.gather.error$) ?? null;
-  // Resource-gather slots (FLOW-LIFECYCLE-CONVERGENCE D2a: separate from the
-  // annotation slots above — the two gathers can be live at once).
+  // Resource-gather slots (separate from the annotation slots above — the two
+  // gathers can be live at once).
   const resourceGatherContext = useObservable(stateUnit?.gather.resourceContext$) ?? null;
   const resourceGatherLoading = useObservable(stateUnit?.gather.resourceLoading$) ?? false;
   const resourceGatherError = useObservable(stateUnit?.gather.resourceError$) ?? null;
@@ -310,10 +310,11 @@ export function ResourceViewerPage({
     stateUnit?.yield.generate(config.context, toGenerationOptions(config, getLanguage(resource)));
   }, [stateUnit, clearSparkle, resource]);
 
-  // Resource-generate flow (GENERATE-FROM-BUTTON): drive the SAME yield progress$
-  // the annotation path uses so the full `AssistProgress` widget shows — NOT a
-  // toast. Both paths are one `generate(context, options)` now: the context's
-  // focus.kind (resource here, annotation above) decides the shape.
+  // Resource-generate flow, from the Generate button: drive the SAME yield
+  // progress$ the annotation path uses so the full `AssistProgress` widget
+  // shows — NOT a toast. Both paths are one `generate(context, options)` now:
+  // the context's focus.kind (resource here, annotation above) decides the
+  // shape.
   const handleResourceGenerateSubmit = useCallback((_resourceId: string, config: GenerationConfig) => {
     stateUnit?.yield.generate(config.context, toGenerationOptions(config, getLanguage(resource)));
   }, [stateUnit, resource]);
@@ -332,10 +333,10 @@ export function ResourceViewerPage({
     }
   }, [rUri, semiont, showSuccess, showError]);
 
-  // COMPOSE-IN-MODAL P3: create-and-link, in place. The old flow stashed the
-  // context in sessionStorage and navigated to the compose page; the modal
-  // already holds the context, so the side-channel dies with the mode.
-  // Text-only by design — uploads stay on the standalone compose page.
+  // The wizard's compose handler: create-and-link, in place. The old flow
+  // stashed the context in sessionStorage and navigated to the compose page;
+  // the modal already holds the context, so the side-channel dies with the
+  // mode. Text-only by design — uploads stay on the standalone compose page.
   const handleWizardComposeSubmit = useCallback(async (referenceId: AnnotationId, params: ComposeParams) => {
     if (!semiont) throw new Error('No active session');
     try {
@@ -440,10 +441,10 @@ export function ResourceViewerPage({
     triggerSparkleAnimation(stored.payload.annotation.id);
   }, [triggerSparkleAnimation]);
 
-  // RESOLUTION-SPARKLE D2: a reference resolving — Compose, Search → Link, a
-  // Generate job landing, or a remote collaborator — is a body update whose
-  // operations add a linking SpecificResource. Exactly that sparkles; an unlink
-  // (remove) or an entity-tag body change stays dark.
+  // A reference resolving — Compose, Search → Link, a Generate job landing, or
+  // a remote collaborator — is a body update whose operations add a linking
+  // SpecificResource. Exactly that sparkles; an unlink (remove) or an
+  // entity-tag body change stays dark.
   const handleAnnotationBodyUpdated = useCallback((stored: EventMap['mark:body-updated']) => {
     const resolves = stored.payload.operations.some(
       (op) => op.op === 'add' && op.item.type === 'SpecificResource' && op.item.purpose === 'linking',
@@ -501,7 +502,7 @@ export function ResourceViewerPage({
 
   // Report the arrival on the wire (browse:resource-viewed) — same
   // load-complete condition the announcement uses, so "viewed" means the
-  // view is actually on screen (GUIDED-TOUR P5, D6).
+  // view is actually on screen.
   useResourceViewedReport(rUri, contentLoaded);
 
   // Derived state
@@ -689,9 +690,9 @@ export function ResourceViewerPage({
                 wasDerivedFrom={resource.wasDerivedFrom}
                 generator={resource.generator as components['schemas']['Agent'] | components['schemas']['Agent'][] | undefined}
                 onGenerate={() => setGenerateOpen(true)}
-                // The panel is generation's progress surface (GENERATE-FROM-
-                // RESOURCE D7); no annotationId ⇒ a resource-gen job — the
-                // annotation path's frame renders in the reference wizard.
+                // The panel is generation's progress surface; no annotationId
+                // ⇒ a resource-gen job — the annotation path's frame renders
+                // in the reference wizard.
                 isGenerating={isGenerating}
                 generationProgress={
                   generationProgress && !generationProgress.annotationId ? generationProgress : null
@@ -801,14 +802,14 @@ export function ResourceViewerPage({
         }}
       />
 
-      {/* Resource-generate flow (GENERATE-FROM-BUTTON) */}
+      {/* Resource-generate flow, opened by the Generate button */}
       <ResourceGenerateModal
         {...(generationAgent ? { generationAgent } : {})}
         isOpen={generateOpen}
         onClose={() => setGenerateOpen(false)}
         resourceId={rUri}
-        // Seed the proposed title from the source resource's name (GFR D4/A4);
-        // the field stays editable and required.
+        // Seed the proposed title from the source resource's name; the field
+        // stays editable and required.
         defaultTitle={resource.name}
         defaultFolder={folderOf(getStorageUri(resource))}
         locale={locale}

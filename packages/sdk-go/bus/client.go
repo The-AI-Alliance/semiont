@@ -9,9 +9,10 @@ package bus
 //   POST /bus/subscribe     the generated semiont.BusSubscribeRequest — this
 //     file marshals that type rather than restating its fields, so a schema
 //     change is a compile error here instead of a silently missing field
-//     (CORRELATED-REPLY-ROUTING P2; the same reason the TS client's body
-//     carries `satisfies BusSubscribeRequest`).
-//     (SSE response, bearer; MULTI-RESOURCE-SCOPE — the GET query form is gone)
+//     (the same reason the TS client's body carries
+//     `satisfies BusSubscribeRequest`).
+//     (SSE response, bearer; the body is a subscription matrix, one
+//     connection holding any number of scopes — the GET query form is gone)
 //     every frame is `event: bus-event` with `data: {channel, payload, scope?}`
 //     — the SSE event name is NOT the channel; the channel is inside the data.
 //     `event: ping` frames are keep-alives and carry nothing.
@@ -58,10 +59,10 @@ func NewClient(base, token string) *Client {
 	return &Client{
 		base:  strings.TrimSuffix(base, "/"),
 		token: token,
-		// Routing address for correlated replies (CORRELATED-REPLY-ROUTING
-		// D1): one per bus-client lifetime, presented on every subscribe and
-		// every emit. This client does not reconnect or replay pendingReplies
-		// (D7), so its lifetime is simply the Client's.
+		// Routing address for correlated replies: one per bus-client
+		// lifetime, presented on every subscribe and every emit. This client
+		// does not reconnect or replay pendingReplies, so its lifetime is
+		// simply the Client's.
 		clientID: uuid.NewString(),
 		// No global timeout: SSE connections are long-lived by design, and a
 		// client-level timeout would sever them mid-stream. Per-request
@@ -175,9 +176,9 @@ func (c *Client) Subscribe(ctx context.Context, channels, scoped []Channel, scop
 		return nil, fmt.Errorf("subscribe: scoped channels require a scope")
 	}
 
-	// POST subscription matrix (MULTI-RESOURCE-SCOPE). This client's signature
-	// is a single-scope convenience — it produces a one-entry matrix over a
-	// wire that composes N scopes.
+	// POST subscription matrix. This client's signature is a single-scope
+	// convenience — it produces a one-entry matrix over a wire that composes
+	// N scopes.
 	global := make([]string, 0, len(channels))
 	for _, ch := range channels {
 		global = append(global, string(ch))

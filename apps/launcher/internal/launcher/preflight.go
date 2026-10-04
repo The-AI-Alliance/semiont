@@ -1,7 +1,7 @@
 package launcher
 
 // preflight.go — prove the service accounts work BEFORE anything tries to use
-// them (IDENTITY-PREFLIGHT P1).
+// them.
 //
 // Until the shared worker secret was retired, there was nothing here a check
 // could have discovered: the launcher generated one value and injected it in
@@ -226,9 +226,9 @@ const probeRedirectOtherPort = "http://localhost:61234/en/auth/callback"
 // Refuses ONLY on a positive answer: the realm was asked and declined. Every
 // other outcome — issuer unreachable, no authorization endpoint, probe error —
 // is "cannot tell", and cannot tell must not block. The Browser is
-// machine-level and belongs to no stack (BROWSER-LIFECYCLE), so moving it with
-// nothing running is ordinary; refusing then would make an absent realm a
-// reason not to move a viewer that does not need one yet.
+// machine-level and belongs to no stack, so moving it with nothing running is
+// ordinary; refusing then would make an absent realm a reason not to move a
+// viewer that does not need one yet.
 func verifyBrowserRedirect(issuerBase string, port int) (publicClientFinding, bool) {
 	eps, err := discoverEndpoints(issuerBase)
 	if err != nil || eps.authorization == "" {

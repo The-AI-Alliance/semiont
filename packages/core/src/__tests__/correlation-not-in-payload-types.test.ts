@@ -1,5 +1,5 @@
 /**
- * BUS-CARRIES-FRAMES P4/D5 — the payload census is a TYPE, not a grep.
+ * The payload census is a TYPE, not a grep.
  *
  * The rule this enforces: `correlationId` is a routing fact that rides the
  * ENVELOPE, so no channel's payload type may declare it. A grep can be
@@ -10,9 +10,9 @@
  * impossible rather than merely absent. Once no `EventMap[K]` declares the
  * key, `handler(event) { event.correlationId }` is a type error at the point
  * it is written — which is the form every one of the nine echoing handlers
- * used before P3.
+ * used before the key moved to the envelope.
  *
- * **The predicate the plan originally specified was wrong, and would have
+ * **The predicate first specified for this census was wrong, and would have
  * failed on a clean registry.** It read:
  *
  *     'correlationId' extends keyof EventMap[K] ? K : never
@@ -53,7 +53,7 @@ type ChannelsWithCidInPayload = {
  */
 const _noPayloadCarriesCorrelation: never = undefined as never as ChannelsWithCidInPayload;
 
-describe('no channel payload type declares correlationId (D5)', () => {
+describe('no channel payload type declares correlationId', () => {
   it('is enforced by the assignment above, which fails the TYPECHECK, not this run', () => {
     // The gate is the `const` above: it is checked by `tsc --noEmit`, which
     // covers test files. This case exists so the rule is discoverable from the

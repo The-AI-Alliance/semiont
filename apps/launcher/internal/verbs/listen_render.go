@@ -1,6 +1,6 @@
 package verbs
 
-// listen_render.go — the human half of `semiont listen` (GUIDED-TOUR P9).
+// listen_render.go — the human half of `semiont listen`.
 //
 // `listen` began as a debug tap: one line per event, whatever identifier the
 // payload happened to carry. That is enough to follow a job and not enough to
@@ -14,9 +14,9 @@ package verbs
 //     knows their tour by title. Names are prefetched ONCE at startup (see
 //     prefetchResourceNames) rather than resolved per event: a per-event lookup
 //     is a correlated bus Request, which opens its own SSE connection — and
-//     since P7, every SSE connection publishes session:joined/left. Resolving
-//     names inline would make the console generate the very presence churn it
-//     is trying to report.
+//     every SSE connection publishes session:joined/left. Resolving names
+//     inline would make the console generate the very presence churn it is
+//     trying to report.
 //   - PRESENCE as state. session:joined/left are events; "who is here now" is
 //     a number. Kept by connectionId, never by participant: one person with two
 //     tabs is two connections, and a map keyed on the DID would report one

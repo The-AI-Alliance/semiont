@@ -1,7 +1,7 @@
 /**
- * DETECTION-RESULT-STREAMING P3: out-of-order arrival renders correctly.
+ * Out-of-order arrival renders correctly.
  *
- * P1 made detection commit per chunk, and units run concurrently — so the
+ * Detection commits per chunk, and units run concurrently — so the
  * annotations array now grows in bursts whose document positions interleave:
  * chunk 2's finds can arrive before chunk 1's. The panel's contract is that
  * LIST ORDER IS DOCUMENT ORDER (sort by TextPositionSelector.start), so

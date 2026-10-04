@@ -1,5 +1,5 @@
 /**
- * HEADLESS-RESOURCE-CONTENT — useResourceContent is bring-your-own-client.
+ * useResourceContent is bring-your-own-client.
  *
  * The last provider-bound hook on the embeddable path joins the
  * useResourceLoader/useMediaToken convention: client-first (`null` → idle),

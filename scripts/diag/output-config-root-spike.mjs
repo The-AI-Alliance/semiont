@@ -1,11 +1,12 @@
 /**
- * STRUCTURED-INFERENCE Phase 5 spike: does `output_config.format` accept a
+ * Structured-output spike: does `output_config.format` accept a
  * TOP-LEVEL ARRAY root schema?
  *
  * Strict tool use provably requires an object root (tool inputs are objects);
  * if response-level structured output accepts an array root, the
  * `emit_json_array` tool + `items` wrapper + unwrap all delete. If the root
- * must be an object, Phase 5 is a no-op and says so.
+ * must be an object, the move to `output_config.format` is a no-op and the
+ * verdict says so.
  *
  * 2×2 discipline (per the 2026-08-06 measurement campaign): the OBJECT-root
  * control must succeed for the ARRAY-root cell to be informative — a 400 on
@@ -168,5 +169,5 @@ if (test.ok && test.isArray) {
 } else if (test.ok) {
   console.log('\nVERDICT: NO-OP (soft) — accepted but did not yield an array root; wrapper still required.');
 } else {
-  console.log('\nVERDICT: NO-OP — array roots are rejected; the object wrapper is required either way, and Phase 5 closes as a documented no-op.');
+  console.log('\nVERDICT: NO-OP — array roots are rejected; the object wrapper is required either way, and the move to output_config.format is a documented no-op.');
 }

@@ -171,9 +171,9 @@ export function retryAfterMs(header: string | null): number | undefined {
  * The status half is DERIVED from `RETRY_RULES.boot` rather than restated here.
  * It used to be a private `RETRYABLE_STATUSES` set holding the same three
  * numbers, which made the taxonomy a second opinion instead of the answer — and
- * a second opinion in the same package is the exact defect RETRY-CLASSIFICATION
- * exists to remove. The reasoning for those three, and for excluding `500`, now
- * lives once, in the rule.
+ * a second opinion in the same package is the exact defect the `RETRY_RULES`
+ * catalog exists to remove. The reasoning for those three, and for excluding
+ * `500`, now lives once, in the rule.
  *
  * The timeout case is the one that is easy to get wrong. `AbortSignal.timeout()`
  * rejects with a **DOMException named `TimeoutError`**, not a `TypeError` —

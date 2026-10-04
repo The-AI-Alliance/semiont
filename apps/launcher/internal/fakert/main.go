@@ -350,9 +350,10 @@ func ghCmd(args []string) {
 		}
 		fmt.Println("fakeuser")
 	case len(args) >= 2 && args[0] == "api" && strings.Contains(args[1], "/settings/billing/usage"):
-		// The Tier 2 payload, shaped exactly like the 2026-07-20 capture:
-		// month buckets, per-repo (bare name), quota-as-discount, and a
-		// non-codespaces product that must be filtered out.
+		// The usage report `status --billing` shows, shaped exactly like
+		// the 2026-07-20 capture: month buckets, per-repo (bare name),
+		// quota-as-discount, and a non-codespaces product that must be
+		// filtered out.
 		if os.Getenv("FAKERT_GH_BILLING_NOSCOPE") != "" {
 			fmt.Fprintln(os.Stderr, "gh: This API operation needs the \"user\" scope (HTTP 403)")
 			os.Exit(1)
@@ -367,11 +368,12 @@ func ghCmd(args []string) {
 		}
 		fmt.Println(body)
 	case len(args) >= 2 && args[0] == "api" && args[1] == "/user/codespaces":
-		// The cost-facts endpoint (CODESPACE-COSTS Tier 1): machine size,
-		// last_used_at (= when last STARTED; verified 2026-07-20),
-		// retention expiry, idle timeout. Every fake codespace reports the
-		// same premiumLinux shape; last_used_at is now-2h30s so "up 2h"
-		// renders deterministically (the 30s absorbs test runtime).
+		// The cost-facts endpoint, which status and the start summary
+		// read: machine size, last_used_at (= when last STARTED; verified
+		// 2026-07-20), retention expiry, idle timeout. Every fake
+		// codespace reports the same premiumLinux shape; last_used_at is
+		// now-2h30s so "up 2h" renders deterministically (the 30s absorbs
+		// test runtime).
 		var entries []string
 		for _, cs := range createdCodespaceNames() {
 			entries = append(entries, `{"name":"`+cs+`","machine":{"name":"premiumLinux","cpus":8,"memory_in_bytes":34359738368},`+
@@ -538,7 +540,8 @@ func ghCodespace(args []string, joined string) {
 		}
 		// A codespace forward carries the KB's GATEWAY, so it serves the
 		// gateway's routes — the forward is a tunnel, not a service. Any
-		// other remote port is the issuer (CODESPACE-IDENTITY B4).
+		// other remote port is the issuer: each KB's Keycloak has a port
+		// of its own, forwarded with the same number on both ends.
 		if forwardRemotePort(args) != "4000" {
 			serve("semiont-keycloak", ports)
 			return
@@ -768,8 +771,8 @@ func lsof(args []string) {
 
 // opCmd fakes the 1Password CLI. Resolution calls `op read op://<path>`; the
 // launcher's 1Password custody store calls the `item` commands, shaped as the
-// real CLI answered them in SECRETS-STORE's P0 probe (op 2.33.1): items live
-// in FAKERT_DIR/op-items.json, values arrive on stdin, never argv.
+// real CLI answered them when it was probed (op 2.33.1): items live in
+// FAKERT_DIR/op-items.json, values arrive on stdin, never argv.
 // FAKERT_OP_FAIL fails every command, as a denied authorization does;
 // FAKERT_OP_VALUE overrides a read of a path no item answers; FAKERT_OP_VAULTS
 // (comma-separated) names the vaults that exist, every vault when unset.
@@ -1338,8 +1341,8 @@ func run(args []string) {
 			os.Exit(64)
 		}
 		// The container NAME rides along: a fake service answers the route
-		// its image declares and 404s the rest (FAKE-RUNTIME-FIDELITY P1),
-		// and the name is how it knows which image it is.
+		// its image declares and 404s the rest, and the name is how it
+		// knows which image it is.
 		// Where the child reports whether it is serving: a loopback
 		// listener, which every system can hand a child the address of. An
 		// inherited pipe would do on two of the three.
@@ -1874,16 +1877,16 @@ func unsignedJWT(claims map[string]any) string {
 
 // servedRoutes: does this container answer that path? Everything else 404s.
 //
-// TWO SOURCES, and neither of them is the launcher (FAKE-RUNTIME-FIDELITY
-// D2). A fake taught by the code under test agrees with it about a wrong
-// route as happily as a right one.
+// TWO SOURCES, and neither of them is the launcher. A fake taught by the
+// code under test agrees with it about a wrong route as happily as a right
+// one.
 //
 //   - Semiont's own services: read from the IMAGE, which declares its health
 //     route as its HEALTHCHECK and its entrypoint's probe. That is the thing
 //     that actually runs.
 //   - Third-party servers: their own facts, which no file in this repo owns.
-//     Each is DATED (D4) — a belief about an upstream, to be re-checked when
-//     the pinned version moves, not a convention we may change.
+//     Each is DATED — a belief about an upstream, to be re-checked when the
+//     pinned version moves, not a convention we may change.
 //
 // Paths the handler already models explicitly (the issuer's realm endpoints,
 // the gateway's bus and token routes, Ollama's API) are reached before this
@@ -1892,9 +1895,11 @@ func unsignedJWT(claims map[string]any) string {
 // KNOWN GAP, measured and not closed here: this predicate is per-CONTAINER,
 // but the handler above it is not — the issuer's realm routes still answer
 // on every port, so a request to the gateway's port for a Keycloak path
-// succeeds. Real stacks put those on different origins, which is the whole
-// subject of BROWSER-SIGNIN-ORIGIN. Closing it belongs with the realm
-// round-trip (P3).
+// succeeds. Real stacks put those on different origins, and a sign-in
+// crosses them: the realm must list the Browser's origin or the token
+// exchange fails CORS. Closing it belongs with a fake issuer that reads the
+// realm document the launcher stages (its clients, their redirect URIs and
+// web origins).
 func servedRoutes(container string) (func(string) bool, error) {
 	// Third-party health routes, captured 2026-09-24 against the versions
 	// pinned in the launcher's descriptor set.
@@ -1922,8 +1927,8 @@ func servedRoutes(container string) (func(string) bool, error) {
 		// Keycloak serves a root document for EVERY realm it holds, which is
 		// what the launcher's readiness wait reads — it does not know which
 		// realm a config named, and must not ask the launcher. Whether the
-		// realm the launcher staged is the one that exists is P3's question,
-		// and needs the staged document.
+		// realm the launcher staged is the one that exists is another
+		// question, and needs the staged document.
 		return func(p string) bool {
 			rest, ok := strings.CutPrefix(p, "/realms/")
 			return ok && rest != "" && !strings.Contains(rest, "/")
@@ -2180,7 +2185,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						// Every service client carries the service role; the worker
 						// client ALSO carries the worker role, mirroring the realm's
 						// grant so a worker's agent-token mint gets the capability
-						// (EXTRACT-JOBS P0). Held to the same literal by
+						// to claim jobs. Held to the same literal by
 						// lint:service-role.
 						roles := []string{"semiont-service"}
 						if r.PostForm.Get("client_id") == "semiont-worker" {
@@ -2366,16 +2371,17 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						w.WriteHeader(401)
 						return
 					}
-					// POST subscription matrix (MULTI-RESOURCE-SCOPE); the GET
-					// query form is gone. Delivery here stays flat by channel —
-					// this fake never scope-gates, same as before.
-					// ClientID is REQUIRED on the real route
-					// (CORRELATED-REPLY-ROUTING D5) and this fake is the
-					// SERVER half of the pair, so it PARSES the field rather
-					// than minting one. It stays contract-true by refusing a
-					// subscribe without it, exactly as the gateway will —
-					// otherwise a client regression passes the launcher tests
-					// and surfaces at the P3 cutover.
+					// POST subscription matrix — one connection subscribing
+					// to any number of resource scopes; the GET query form is
+					// gone. Delivery here stays flat by channel — this fake
+					// never scope-gates, same as before.
+					// ClientID is REQUIRED on the real route — it is the
+					// address a correlated reply is routed to — and this fake
+					// is the SERVER half of the pair, so it PARSES the field
+					// rather than minting one. It stays contract-true by
+					// refusing a subscribe without it, exactly as the gateway
+					// does — otherwise a client regression passes the launcher
+					// tests and surfaces only against a real gateway.
 					var matrix struct {
 						Global   []string `json:"global"`
 						ClientID string   `json:"clientId"`
@@ -2488,7 +2494,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					}
 					_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
 				default:
-					// P1: no catch-all. A path this service does not serve
+					// No catch-all. A path this service does not serve
 					// is a 404, which is what a wrong probe deserves and
 					// what makes it indistinguishable from a service that is
 					// down — because that is what it is.

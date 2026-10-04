@@ -9,9 +9,9 @@
  *
  * `<domain>` is the deployment's `[site] domain` — one identity, with its
  * people and software peers named beneath it. A person's `<subject>` is the
- * value of the issuer claim `[identity] subjectClaim` selects, URI-encoded
- * (VERIFIED-PROVENANCE P5): which claim is declared per deployment, never
- * inferred here, and the person's email is a fact about them, not their name.
+ * value of the issuer claim `[identity] subjectClaim` selects, URI-encoded:
+ * which claim is declared per deployment, never inferred here, and the
+ * person's email is a fact about them, not their name.
  *
  * `didToAgent` is the inverse: parse the DID, recognize whether the
  * subject is a person or a software peer, and return a typed Agent.
@@ -50,8 +50,8 @@ export function kbDid(domain: string): string {
 /**
  * The knowledge base's RESOURCE identifier: its did:web rendered as the https
  * URL that DID method resolves to, and the single value a token's `aud` must
- * carry (EXTERNAL-IDENTITY). `did:web` turns the colon path into a slash path,
- * so `did:web:example.github.io:my-kb` identifies
+ * carry. `did:web` turns the colon path into a slash path, so
+ * `did:web:example.github.io:my-kb` identifies
  * `https://example.github.io/my-kb`.
  *
  * This is an IDENTIFIER, not an address. Nothing dereferences it, and it does
@@ -143,7 +143,7 @@ export function softwareToAgent(software: {
  * today would convert a partial failure into a total one.
  */
 /**
- * Who a record is attributed to — derived, never asserted (VERIFIED-PROVENANCE P2).
+ * Who a record is attributed to — derived, never asserted.
  *
  * `requester` is the DID of whoever asked for the work: the emitter of the
  * `job:create` a write cites, as the dispatcher recorded it on `job:assigned`;
@@ -236,9 +236,9 @@ export function didToAgent(did: string | undefined | null): Agent {
     // `sub`), so naming a Person after it printed "By 59523dd4-a0e3-…" on
     // every artifact — a manufactured value the next reader cannot tell from
     // a real name. What a person is called is a fact ABOUT this identity,
-    // recorded once per change and resolved when a record is READ
-    // (PERSON-PROFILE); absence here is what lets that resolution be the one
-    // place a Person acquires a name.
+    // recorded once per change and resolved when a record is READ; absence
+    // here is what lets that resolution be the one place a Person acquires a
+    // name.
     return {
       '@type': 'Person',
       ...identity,

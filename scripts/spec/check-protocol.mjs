@@ -1,4 +1,4 @@
-// The protocol-completeness gate (GATEWAY-SIMPLIFY P0).
+// The protocol-completeness gate.
 //
 // Each service's protocol lives in the spec: a client, a conformance suite or a
 // second implementation reads `specs/src/` and learns everything the service

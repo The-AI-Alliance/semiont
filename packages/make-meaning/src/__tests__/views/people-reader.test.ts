@@ -1,10 +1,11 @@
 /**
  * People Projection Reader Tests
  *
- * The read side of PERSON-PROFILE. Mirrors `tag-schemas-reader.test.ts`:
- * reading an existing projection, the missing-file case, and — the
- * load-bearing one — the round trip from a bus command through the Stower,
- * the event store and the materializer to what the reader serves back.
+ * The read side of a person's recorded name. Mirrors
+ * `tag-schemas-reader.test.ts`: reading an existing projection, the
+ * missing-file case, and — the load-bearing one — the round trip from a bus
+ * command through the Stower, the event store and the materializer to what
+ * the reader serves back.
  *
  * The properties this pins are the ones the design rests on: a rename
  * REPLACES rather than accumulates (so a reader sees the current name, and a

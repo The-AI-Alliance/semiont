@@ -3,7 +3,7 @@ import { findClaimSpan } from '../pdf-citation-search';
 import { locate, type AnchoredText } from '../pdf-anchoring';
 
 /**
- * The two-stage citation search (PDF-GENERATION P4).
+ * The two-stage citation search over a generated PDF's text layer.
  *
  * A citation's `exact` claim text comes from the Typst SOURCE; the PDF's text
  * layer renders it with line breaks (`anchorRuns` joins runs with " \n") and
@@ -21,7 +21,7 @@ import { locate, type AnchoredText } from '../pdf-anchoring';
  * the strict one already failed, so it can never turn a working citation into
  * a wrong one.
  */
-describe('findClaimSpan (PDF-GENERATION P4)', () => {
+describe('findClaimSpan', () => {
   const anchoredWith = (text: string): AnchoredText => ({ text, items: [] });
 
   it('finds a claim within a single line (strict)', () => {
@@ -33,7 +33,7 @@ describe('findClaimSpan (PDF-GENERATION P4)', () => {
     expect(anchored.text.slice(span!.start, span!.end)).toBe('brown fox jumps');
   });
 
-  it('finds a claim across a line break via normalization (strict — the spike\'s consequence 1)', () => {
+  it('finds a claim across a line break via normalization (strict)', () => {
     // anchorRuns joins runs with " \n": a raw indexOf misses.
     const anchored = anchoredWith('The quick brown \nfox jumps high.');
 
@@ -43,7 +43,7 @@ describe('findClaimSpan (PDF-GENERATION P4)', () => {
     expect(anchored.text.slice(span!.start, span!.end)).toBe('brown \nfox');
   });
 
-  it('finds a hyphenated claim via the break-aware fallback (the spike\'s consequence 2)', () => {
+  it('finds a hyphenated claim via the break-aware fallback', () => {
     // Soft hyphen dropped: "extraor" + "dinarily", no hyphen char anywhere.
     // Plain normalization yields "extraor dinarily" — a strict miss.
     const anchored = anchoredWith('It is extraor \ndinarily complicated today.');
@@ -63,9 +63,9 @@ describe('findClaimSpan (PDF-GENERATION P4)', () => {
   });
 });
 
-describe('locate — proportional boundary narrowing (PDF-GENERATION P4)', () => {
+describe('locate — proportional boundary narrowing', () => {
   // Typst emits one text run per line, so a mid-line phrase used to bound the
-  // WHOLE line. The measured fallback (Q2): proportionally interpolate the
+  // WHOLE line. The measured fallback: proportionally interpolate the
   // boundary items' x-extents by character fraction — a rect narrower than
   // the line, exact font metrics deferred to the operator-list probe.
   it('a mid-line phrase produces a rect narrower than the line', () => {

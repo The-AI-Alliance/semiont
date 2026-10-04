@@ -1,10 +1,10 @@
 /**
- * SINGLE-KB-MOUNT P3 — the ONE resolution of `resourceId → (bytes, mediaType)`.
+ * The ONE resolution of `resourceId → (bytes, mediaType)`.
  *
- * Before this phase the join was written out five times (the plan's table),
- * with three different answers to "what type is this when the record doesn't
- * say" and two different opinions about which field holds the URI. One of the
- * five was already wrong: `LocalContentTransport.loadBinary` read
+ * Before this resolution the join was written out five times, with three
+ * different answers to "what type is this when the record doesn't say" and
+ * two different opinions about which field holds the URI. One of the five
+ * was already wrong: `LocalContentTransport.loadBinary` read
  * `representations[].storageUri`, which `ViewMaterializer` never writes — so
  * `getBinary` threw for every resource in local mode, uncaught because nothing
  * exercised it.
@@ -35,9 +35,8 @@ const URI = 'file://docs/note.md';
 
 describe('representationSource — the one decision', () => {
   it('reads URI and mediaType together from the primary representation — the one home', () => {
-    // STORAGE-URI-ONE-HOME P1: the URI lives where the bytes' other facts
-    // live. No descriptor-level field, so no URI/mediaType mismatch case and
-    // no fallback for it.
+    // The URI lives where the bytes' other facts live. No descriptor-level
+    // field, so no URI/mediaType mismatch case and no fallback for it.
     const resource = {
       representations: [{ mediaType: 'text/markdown', checksum: 'abc', storageUri: URI }],
     } as unknown as ResourceDescriptor;

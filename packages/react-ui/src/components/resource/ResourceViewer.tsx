@@ -57,10 +57,10 @@ interface Props {
   hoverDelayMs?: number;
   hoveredAnnotationId?: string | null;
   /**
-   * Toolbar preferences as controlled props (TOOLBAR-PREFS-AS-PROPS). Supply a value
-   * to own that pref: the instance renders it and reports intents via the callback —
-   * it never self-mutates, never persists, never listens to other instances. Omit for
-   * a plain uncontrolled default (false / 'detail' / 'linking' / 'rectangle').
+   * Toolbar preferences as controlled props. Supply a value to own that pref: the
+   * instance renders it and reports intents via the callback — it never
+   * self-mutates, never persists, never listens to other instances. Omit for a
+   * plain uncontrolled default (false / 'detail' / 'linking' / 'rectangle').
    * Hosts wanting the shared+persisted Browser UX compose `useToolbarPrefs()`.
    */
   annotateMode?: boolean;
@@ -151,10 +151,10 @@ export function ResourceViewer({
   // Same primary-representation semantics as the page and the worker — one helper.
   const mimeType = getPrimaryMediaType(resource) || 'text/plain';
 
-  // Toolbar preferences (TOOLBAR-PREFS-AS-PROPS): controlled (prop supplied) or a
-  // plain uncontrolled default. Preferences are state, not events — no localStorage
-  // and no preference bus channels here; hosts wanting the shared+persisted Browser
-  // UX compose useToolbarPrefs() (the policy layer) and pass the values down.
+  // Toolbar preferences: controlled (prop supplied) or a plain uncontrolled
+  // default. Preferences are state, not events — no localStorage and no
+  // preference bus channels here; hosts wanting the shared+persisted Browser UX
+  // compose useToolbarPrefs() (the policy layer) and pass the values down.
   const [internalAnnotateMode, setInternalAnnotateMode] = useState(false);
   const annotateMode = annotateModeProp ?? internalAnnotateMode;
   const changeAnnotateMode = useCallback((mode: boolean) => {
@@ -165,13 +165,13 @@ export function ResourceViewer({
   // Determine active view based on annotate mode
   const activeView = annotateMode ? 'annotate' : 'browse';
 
-  // NOTE deliberately NO mark:* invalidation here (MULTI-RESOURCE-SCOPE
-  // Step 5). The sdk's BrowseNamespace already invalidates the RIGHT
-  // resource's annotation list on mark:added/mark:removed (payload-keyed,
-  // once per event) and patches mark:body-updated in place. A viewer-side
-  // handler on these session-wide channels was pure duplication — and with
-  // N viewers on one session (the embeddable resource-per-chat-message
-  // pattern), an O(N) refetch amplification on every mark event.
+  // NOTE deliberately NO mark:* invalidation here. The sdk's BrowseNamespace
+  // already invalidates the RIGHT resource's annotation list on
+  // mark:added/mark:removed (payload-keyed, once per event) and patches
+  // mark:body-updated in place. A viewer-side handler on these session-wide
+  // channels was pure duplication — and with N viewers on one session (the
+  // embeddable resource-per-chat-message pattern), an O(N) refetch
+  // amplification on every mark event.
 
   // Remaining toolbar preferences — same controlled/uncontrolled split as mode.
   const [internalSelectionMotivation, setInternalSelectionMotivation] = useState<SelectionMotivation | null>('linking');
@@ -288,10 +288,10 @@ export function ResourceViewer({
   }) => {
     // Resolve the annotation FIRST. The id is the whole address, and the
     // motivation is derived from the annotation it names rather than carried
-    // beside it (TOUR-CLICK D2) — one fact, one encoding. Resolving first also
-    // means a click naming an annotation this viewer has not loaded (a remote
-    // drive that arrived while the participant was elsewhere) finds nothing
-    // and does nothing, which is why the channel needs no resourceId guard.
+    // beside it — one fact, one encoding. Resolving first also means a click
+    // naming an annotation this viewer has not loaded (a remote drive that
+    // arrived while the participant was elsewhere) finds nothing and does
+    // nothing, which is why the channel needs no resourceId guard.
     const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
     const annotation = allAnnotations.find(a => a.id === annotationId);
     if (!annotation) return;

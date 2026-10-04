@@ -8,7 +8,7 @@
  *
  * Seeds two `text/plain` resources (for the text-annotation specs) plus
  * five `application/pdf` resources: a 3-word render smoke fixture (for
- * `14-pdf-render.spec.ts`, the PDFJS-6-UNIFY browser smoke), a
+ * `14-pdf-render.spec.ts`, the pdf.js browser smoke), a
  * text-layer fixture with a Concept-dense paragraph (for
  * `20-pdf-assisted-detection.spec.ts`, AI detection on a PDF), an
  * unreadable scan (for `22-pdf-scanned-decline.spec.ts` and
@@ -614,8 +614,8 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
     // out of it, and specs that open a resource by name start failing at the card
     // — a failure that reads as a regression in whatever they were testing.
     //
-    // `.fresh()` because `browse.resources()` is a CacheObservable and this is a
-    // one-shot read (CACHE-CONTRACT D2). The limit is generous on purpose: a
+    // `.fresh()` because `browse.resources()` is a CacheObservable, which is not
+    // awaitable, and this is a one-shot read. The limit is generous on purpose: a
     // short page would report a present seed as missing and re-create it, which
     // is the bug this replaces.
     const present = new Set<string>();

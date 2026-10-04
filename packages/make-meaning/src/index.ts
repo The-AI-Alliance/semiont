@@ -7,13 +7,13 @@ export type { MakeMeaningService, MakeMeaningConfig } from './service';
 
 // The Archivist's HTTP surface. Exported so the gateway's pipe suite proves
 // its contract against a REAL Archivist rather than a fetch double — the
-// process boundary SINGLE-KB-MOUNT P3 introduces is exactly what that gate
-// has to cross.
+// process boundary between the gateway and the Archivist that serves the
+// bytes is exactly what that gate has to cross.
 export { createArchivistServer } from './archivist-read-path';
 export type { ArchivistServerDeps } from './archivist-read-path';
 // Its address, and the byte read that rides it, live in `@semiont/content`:
 // the Worker needs them too, and `make-meaning` depends on `jobs`, so a
-// shared fact has to sit under both (SINGLE-KB-MOUNT P4).
+// shared fact has to sit under both.
 export { makeMeaningConfigFrom, requireKBName } from './config';
 
 // Knowledge System

@@ -1,11 +1,10 @@
 /**
- * SmeltProgress — gateway-local fold of `smelt:settled` signals
- * (SMELTER-INDEX-SYNC P1, D1 = push barrier).
+ * SmeltProgress — gateway-local fold of `smelt:settled` signals.
  *
  * The Smelter emits `smelt:settled` after deciding a resource's content:
  * `indexed` (embedded + upserted) or `skipped` (media gate, empty text) —
  * keyed by the checksum of the bytes it inspected, and NEVER on transient
- * failures (an error is not a decision; SMELTER-INDEX-SYNC A2). This unit
+ * failures (an error is not a decision; smelter axiom S14). This unit
  * folds those signals per resource and exposes `whenSettled` — the
  * read-your-writes barrier: an event-driven await that resolves the moment
  * the vector projection has settled the exact content generation the caller
@@ -18,9 +17,9 @@
  * would not change (the WeaveProgress precedent).
  *
  * The fold is ephemeral by design — on gateway restart it rebuilds lazily
- * from live signals. Barrier callers probe the vector store first
- * (SMELTER-INDEX-SYNC A3), so a cold fold only costs waits for resources
- * whose settlement genuinely hasn't been observed yet.
+ * from live signals. Barrier callers probe the vector store first, so a
+ * cold fold only costs waits for resources whose settlement genuinely
+ * hasn't been observed yet.
  */
 
 import type { EventBus, StateUnit } from '@semiont/core';

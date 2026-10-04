@@ -3,8 +3,9 @@
  * bytes, the primary representation's `checksum` identifies the bytes the
  * resource actually has.
  *
- * One home, maintained on every path — the answer STORAGE-URI-ONE-HOME gave
- * for the sibling field, applied here. `ResourceDescriptor.currentChecksum`
+ * One home, maintained on every path — the rule the sibling field
+ * `storageUri` follows (it lives only on the primary representation, never on
+ * the descriptor), applied here. `ResourceDescriptor.currentChecksum`
  * used to be a second home: written on created/updated, never on cloned, and
  * read by nothing. The field readers DO use — the representation's — was
  * written on create and then never again.

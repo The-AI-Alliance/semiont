@@ -310,7 +310,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       // Brand the wire type (unbranded @id: string) to the SDK's ResourceDescriptor
       // (@id: ResourceId) at the boundary — same as resourceCache above. The
       // whole envelope is cached, not just the page: `matchKind` and the list
-      // it labels are one value (SEMANTIC-FALLBACK S10).
+      // it labels are one value (semantic fallback axiom S10).
       return { ...result, resources: result.resources as ResourceDescriptor[] };
     });
 
@@ -365,7 +365,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       // Entries pass through unreshaped: `{ agent, servesJobTypes? }` — the
-      // capability field is the point of the wrapper (COLLABORATOR-DIRECTORY P1).
+      // capability field is the point of the wrapper.
       return result.agents;
     });
 
@@ -422,10 +422,10 @@ export class BrowseNamespace implements IBrowseNamespace {
    * Memoized per source so the wrapped observable is stable per key (B4/B11).
    * Each subscription calls `subscribeToResource(rId)`; the transport
    * ref-counts per resource, and DISTINCT resources COMPOSE onto the one SSE
-   * connection's subscription matrix (MULTI-RESOURCE-SCOPE) — N mounted
-   * loaders on N resources are all fully live. The single-scope contention
-   * state (and its `[browse SCOPE-CONTENTION]` degradation,
-   * starvation-fix P2.5) no longer exists: acquisition cannot fail.
+   * connection's subscription matrix — N mounted loaders on N resources are
+   * all fully live. The single-scope contention state (and its
+   * `[browse SCOPE-CONTENTION]` degradation, the interim starvation fix) no
+   * longer exists: acquisition cannot fail.
    */
   private withScope<S>(rId: ResourceId, source: Observable<S>): Observable<S> {
     let scoped = this.scopedSources.get(source) as Observable<S> | undefined;
@@ -543,8 +543,8 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   async resourceAnchoredText(resourceId: ResourceId): Promise<AnchoredTextAnswer> {
     // A bus operation, not an HTTP route: the Archivist answers it and the
-    // reply arrives on the bridged result channel like every other reply
-    // (ANCHORED-TEXT-TO-SMELTER P3). The gateway's proxy hop is gone.
+    // reply arrives on the bridged result channel like every other reply.
+    // The gateway's proxy hop is gone.
     return busRequest(
       this.transport,
       'browse:anchored-text-requested',
@@ -552,18 +552,6 @@ export class BrowseNamespace implements IBrowseNamespace {
       this.busTimeoutMs,
     );
   }
-
-  /**
-   * The same map, addressed by the **content checksum** of the bytes it
-   * derives from rather than by resource — the detection workers' read-through
-   * consult (ANCHORED-TEXT-TO-SMELTER D2). Barrier-free and index-free: no
-   * `views` resolution, no settle wait, because the caller already holds the
-   * bytes it hashed.
-   *
-   * `null` is a miss and means "extract it yourself"; a stored decline is
-   * served whole so a second pass runs neither parser nor engine. Read-only by
-   * design — the Smelter is the only writer of this store.
-   */
 
   async resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse> {
     return this.content.getResourceGraph(resourceId);
@@ -624,8 +612,8 @@ export class BrowseNamespace implements IBrowseNamespace {
    * `beckon.click()`: open it for everyone else.
    *
    * No `motivation` parameter — the id addresses exactly one annotation and
-   * the viewer derives the motivation from it (TOUR-CLICK D2). `anchorRect` is
-   * viewport geometry and stays a local-only extra; it never crosses a wire.
+   * the viewer derives the motivation from it. `anchorRect` is viewport
+   * geometry and stays a local-only extra; it never crosses a wire.
    */
   click(annotationId: AnnotationId, anchorRect?: AnchorRect): void {
     this.bus.emit('browse:click', { annotationId, ...(anchorRect ? { anchorRect } : {}) });
@@ -639,7 +627,8 @@ export class BrowseNamespace implements IBrowseNamespace {
     // REPORT, over the wire (the beckon:focus idiom): the viewer announces
     // arrival — however the user got here — so a remote listener (the tour
     // guide's `semiont listen`) can branch on it. Deliberately a different
-    // channel from the imperative `browse:resource-open` (GUIDED-TOUR D6).
+    // channel from the imperative `browse:resource-open`, so one viewer's
+    // own navigation cannot drive another's page.
     // Best-effort: a refused/failed emit (transport rejects on non-2xx and on
     // network failure) must not surface as an unhandled rejection.
     this.transport.emit('browse:resource-viewed', { resourceId }).catch(() => {});

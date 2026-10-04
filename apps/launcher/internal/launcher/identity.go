@@ -23,10 +23,10 @@ const (
 	// packages/sdk-rust/src/roles.rs (npm run lint:service-role holds them together).
 	serviceRole = "semiont-service"
 
-	// workerRole: the realm role marking a client permitted to CLAIM JOBS
-	// (EXTRACT-JOBS P0). Granted only to the worker client here; a deployment
-	// running FOREIGN workers grants it to their clients the same way, and the
-	// dispatcher's authorization is unchanged. Distinct from serviceRole, which
+	// workerRole: the realm role marking a client permitted to CLAIM JOBS.
+	// Granted only to the worker client here; a deployment running FOREIGN
+	// workers grants it to their clients the same way, and the dispatcher's
+	// authorization is unchanged. Distinct from serviceRole, which
 	// every service client carries: service-ness is the floor, worker-ness the
 	// finer grant. Authorizing a job:claim by this ROLE — not by matching the
 	// worker's client id — is what lets a foreign worker claim. Must equal
@@ -116,11 +116,11 @@ var serviceClients = func() []string {
 func serviceClientID(svc string) string { return "semiont-" + svc }
 
 // serviceRoles: the flat `roles` a service client's token carries. Every
-// service client gets serviceRole; the worker ALSO gets workerRole
-// (EXTRACT-JOBS P0), so a token it presents to /api/tokens/agent is minted an
-// agent token stamped with the worker capability, and the dispatcher admits
-// that agent's job:claim. A deployment running foreign workers grants
-// workerRole to their clients the same way.
+// service client gets serviceRole; the worker ALSO gets workerRole, so a
+// token it presents to /api/tokens/agent is minted an agent token stamped
+// with the worker capability, and the dispatcher admits that agent's
+// job:claim. A deployment running foreign workers grants workerRole to their
+// clients the same way.
 //
 // The ONE statement of which client carries which role: the realm document
 // renders it (serviceRolesClaim), the preflight asks a minted token for every
@@ -502,7 +502,7 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[strin
 	dbHost := db.Address
 	// Authority, not presence: an external PostgreSQL is somebody's shared
 	// server, and creating a database in it is a privileged persistent
-	// change the launcher is not entitled to make (D6).
+	// change the launcher is not entitled to make.
 	if mayConfigure(db) {
 		dbHost = addr
 		if !x.createDatabase(envValue(rp.Env, "KC_DB_USERNAME"), keycloakDatabase) {

@@ -1,5 +1,5 @@
 /**
- * EXTRACT-LIBRARIAN P1 — the decoupling proof for `Matcher`.
+ * The decoupling proof for `Matcher`.
  *
  * The Matcher constructs from narrow capability doubles. `KnowledgeBase`
  * appears nowhere in this file — that absence IS the test: if the actor can
@@ -99,7 +99,7 @@ function makeStores(overrides: {
   };
 }
 
-describe('Matcher decoupling (EXTRACT-LIBRARIAN P1)', () => {
+describe('Matcher decoupling', () => {
   let matcher: Matcher | undefined;
   let eventBus: EventBus;
 

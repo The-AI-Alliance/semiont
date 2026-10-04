@@ -20,12 +20,12 @@ import { useTranslations } from '../contexts/TranslationContext';
  *     layer, #736/#738) → info: a decline is a valid no-op, neither a
  *     success (nothing was detected) nor a failure (nothing broke).
  *
- * **Every string here is localized** (ASSIST-PROGRESS-CONSOLIDATION P5). This
- * hook previously rendered eight English literals and read `useTranslations`
- * zero times, so every toast in the resource viewer was English in all 29
- * locales. Decline copy is keyed on the wire's `reason` CODE — the launcher
- * renders the same codes as English terminal copy, which is correct for a CLI
- * and is exactly why the wire must not carry a sentence.
+ * **Every string here is localized.** This hook previously rendered eight
+ * English literals and read `useTranslations` zero times, so every toast in
+ * the resource viewer was English in all 29 locales. Decline copy is keyed on
+ * the wire's `reason` CODE — the launcher renders the same codes as English
+ * terminal copy, which is correct for a CLI and is exactly why the wire must
+ * not carry a sentence.
  *
  * Every subscribed channel is filtered to `resourceId`, so N mounted
  * viewers each toast only their own resource's outcomes.
@@ -68,14 +68,13 @@ export function useOutcomeToasts(resourceId: string): void {
       // NOT a failure: the job is still running and its annotations will
       // still land (proven live — a run the UI gave up on persisted 221).
       // The client has merely stopped hearing from it, so this is an
-      // advisory, not an error (DETECTION-HEARTBEAT Phase B).
+      // advisory, not an error.
       showInfo(t('assistQuiet'));
     },
     'job:complete': (event) => {
       if (event.resourceId !== resourceId) return;
-      // The union discriminates (WIRE-UNION-DISCRIMINANTS D1): the result
-      // names its own kind, so no cast and no reliance on the envelope's
-      // jobType to know what arrived.
+      // The union discriminates: the result names its own kind, so no cast and
+      // no reliance on the envelope's jobType to know what arrived.
       if (event.result?.kind === 'generation') {
         showSuccess(event.result.resourceName
           ? t('resourceCreatedNamed', { name: event.result.resourceName })
@@ -99,10 +98,9 @@ export function useOutcomeToasts(resourceId: string): void {
     },
     'job:fail': (event) => {
       if (event.resourceId !== resourceId) return;
-      // A failure the queue will retry is "a setback, not an ending"
-      // (JOB-RESTART-SAFETY P5): the run continues on a fresh attempt and the
-      // progress display stays live. An error toast here reported a
-      // recovering run as a failed one.
+      // A failure the queue will retry is "a setback, not an ending": the run
+      // continues on a fresh attempt and the progress display stays live. An
+      // error toast here reported a recovering run as a failed one.
       if (event.willRetry === true) return;
       if (event.jobType === 'generation') {
         showError(t('generationFailed', { detail: event.error }));

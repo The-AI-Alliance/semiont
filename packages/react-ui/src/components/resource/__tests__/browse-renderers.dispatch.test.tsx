@@ -1,13 +1,13 @@
 /**
- * BUG: image-browse-renderer-drops-annotations — the default renderers must
- * forward what BrowseView hands them.
+ * BUG: the image browse renderer dropped its annotations — the default
+ * renderers must forward what BrowseView hands them.
  *
  * ImageBrowseRenderer destructured only content/mimeType and mounted a bare
  * ImageViewer: shape annotations invisible in browse mode (annotate mode
  * proves the data). Fix: the read-only annotation canvas (drawingMode=null),
  * WITH the session extension on MediaRendererProps — clicks/hover route in
  * browse mode too, and the PDF renderer's pre-existing session-less click gap
- * heals in the same motion (per the fork note in the bug doc).
+ * heals in the same motion.
  *
  * Prop-capturing canvas mocks pin the contract: mounted, given the
  * annotations, read-only, session threaded. Started RED (image: no canvas at
@@ -111,11 +111,11 @@ describe('browse-renderers — annotation + session forwarding (dispatch contrac
     expect(props.existingAnnotations).toEqual([shapeAnnotation()]); // pinned — worked before
     expect(props.drawingMode).toBeNull();
     expect(props.session).toBe(session);                            // NEW — was a session-less no-op
-    // PDF-CONTINUOUS-SCROLL S1: browse asks for the scrolling column.
+    // Browse asks for the scrolling column.
     expect(props.pageLayout).toBe('scroll');
   });
 
-  // S2. Annotate is the mode people actually work in, so it gets the
+  // Annotate is the mode people actually work in, so it gets the
   // column too — leaving it on Previous/Next made the feature invisible to
   // its primary audience.
   it('the annotate registry asks for the column as well, with the live tool', async () => {

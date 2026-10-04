@@ -1,17 +1,17 @@
 /**
- * N distinct-rid loaders on one client — the MULTI-RESOURCE-SCOPE acceptance
- * shape at the `BrowseNamespace` level, mimicking `useResourceLoader` per
- * chat message (one `resource(rid)` + one `annotations(rid)` live query per
- * loader).
+ * N distinct-rid loaders on one client — the acceptance shape for concurrent
+ * resource scopes on one connection, at the `BrowseNamespace` level,
+ * mimicking `useResourceLoader` per chat message (one `resource(rid)` + one
+ * `annotations(rid)` live query per loader).
  *
  * History: this file began as the starvation repro
  * (pre-fix, loaders
  * 2..N hit the single-slot `subscribeToResource` throw and starved forever;
- * the interim P2.5 degraded them to unscoped observation). Both states are
+ * the interim fix degraded them to unscoped observation). Both states are
  * gone: distinct resources COMPOSE, so the contract pinned here is stronger —
  * every loader acquires its OWN scope, every loader is FULLY live (its own
  * resource's broadcast invalidations reach it, and only it), and nothing
- * warns. Loaded-ness is judged on `ready` CacheState emissions (D1) — a
+ * warns. Loaded-ness is judged on `ready` CacheState emissions — a
  * `pending` emission must never count as loaded, or starvation detection
  * goes vacuous.
  */

@@ -1,5 +1,5 @@
 /**
- * pdfExtractor — Phase 1 (SMELTER-MEDIA-TYPES.md, #744).
+ * pdfExtractor — the native PDF text layer, and a named decline (#744).
  *
  * The 'pdf-text-layer' registry slot: class A (native text layer) extracts
  * through the shared `extractPdfTextLayer` reader; every other class
@@ -15,8 +15,8 @@ import { extractPdfTextLayer } from '../extract-pdf-text-layer';
 import { derivingExtractorFor } from '../text-extractor';
 import type { AnchoredTextStore } from '../anchored-text-store';
 
-/** Deriving requires the store (READ-VS-EXTRACT P2); these cases are about the
- *  extraction itself, so the store is a black hole that keeps nothing. */
+/** Deriving requires the store that persists what it derives; these cases are
+ *  about the extraction itself, so the store is a black hole that keeps nothing. */
 const NO_CACHE = { key: 'test', store: { read: async () => undefined, write: async () => {} } as unknown as AnchoredTextStore };
 import { classifyPdfError } from '../pdf-extractor';
 
@@ -26,7 +26,7 @@ const readFixture = (name: string): Buffer => fs.readFileSync(path.join(FIXTURES
 
 const KNOWN_PHRASE = 'known phrase from fixture';
 
-describe('pdfExtractor (Phase 1 registry slot)', () => {
+describe('pdfExtractor (the pdf-text-layer slot)', () => {
     it("fills the 'pdf-text-layer' slot", () => {
         expect(derivingExtractorFor('application/pdf')).not.toBeNull();
     });
@@ -60,7 +60,7 @@ describe('pdfExtractor (Phase 1 registry slot)', () => {
     });
 });
 
-describe('class C — hybrid native/scanned routing (Phase 3)', () => {
+describe('class C — hybrid native/scanned routing', () => {
     const extract = async (fixture: string) => {
         const ex = derivingExtractorFor('application/pdf');
         expect(ex).not.toBeNull();
@@ -93,7 +93,7 @@ describe('class C — hybrid native/scanned routing (Phase 3)', () => {
     });
 });
 
-describe('class D — table structure (Phase 2)', () => {
+describe('class D — table structure', () => {
     const extract = async (fixture: string) => {
         const ex = derivingExtractorFor('application/pdf');
         expect(ex).not.toBeNull();
@@ -124,7 +124,7 @@ describe('class D — table structure (Phase 2)', () => {
     });
 
     // Precision over recall: a false table scrambles content, a miss merely
-    // falls back to Phase 1 behavior. Prose must never be read as a grid.
+    // falls back to plain text-layer reading. Prose must never be read as a grid.
     it('falls back to class A for single-column prose', async () => {
         const out = await extract('multi-line.pdf');
         expect(out.pdfClass).toBe('A');
@@ -138,7 +138,7 @@ describe('class D — table structure (Phase 2)', () => {
     });
 });
 
-describe('class E — AcroForm field values (Phase 2)', () => {
+describe('class E — AcroForm field values', () => {
     const extract = async (fixture: string) => {
         const ex = derivingExtractorFor('application/pdf');
         expect(ex).not.toBeNull();

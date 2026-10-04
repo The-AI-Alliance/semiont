@@ -1,12 +1,12 @@
 /**
- * Process-runtime readings (ARCHIVIST-STAYS-UP P4).
+ * Process-runtime readings.
  *
  * Node-only, and deliberately a plain function rather than a gauge callback:
  * the numbers are the thing worth testing, and a callback registered inside
  * an SDK is awkward to assert against.
  *
  * **Why `heapLimit` is the field that matters.** The Archivist died at
- * ~1016 MB inside a 2048 MB container (`bugs/absent-archivist-wedges-browse.md`)
+ * ~1016 MB inside a 2048 MB container, leaving every browse request waiting
  * — not because it exhausted the container, but because it hit V8's OWN
  * default old-space ceiling, which is derived from visible memory and lands
  * well under it. `heapUsed` alone cannot express "how close to death is

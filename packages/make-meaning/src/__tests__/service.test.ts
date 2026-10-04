@@ -77,9 +77,9 @@ describe('Make-Meaning Service', () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
-  describe('mandatory vector pair (MANDATORY-EMBEDDING P3, D1 explicit opt-in)', () => {
+  describe('mandatory vector pair', () => {
     it('a config naming type: memory constructs a WORKING in-memory store, with the rebuild-on-restart breadcrumb', async () => {
-      // D1: `memory` is a first-class explicit choice, never a fallback —
+      // `memory` is a first-class explicit choice, never a fallback —
       // and its cost (the index rebuilds from the event log on every
       // restart) is announced at startup per the L4 discipline, so whoever
       // wrote the config sees what they chose.
@@ -101,11 +101,11 @@ describe('Make-Meaning Service', () => {
 
   describe('config refusals at startup', () => {
     it('rejects a config naming no graph service', async () => {
-      // The other two service sections are required by the schema (P1 of
-      // MANDATORY-EMBEDDING), so the TOML loader turns those away before
-      // startup. `graph` is not, which is why this check is the one that has
-      // to live here — and why it must fail loudly rather than boot a service
-      // whose graph reads all throw on first use.
+      // The other two service sections are required by the schema, so the
+      // TOML loader turns those away before startup. `graph` is not, which is
+      // why this check is the one that has to live here — and why it must fail
+      // loudly rather than boot a service whose graph reads all throw on first
+      // use.
       const badConfig = { ...config, services: { ...config.services, graph: undefined } } as MakeMeaningConfig;
       await expect(startMakeMeaning(project, badConfig, eventBus, mockLogger)).rejects.toThrow(
         /services\.graph is required/,
@@ -113,7 +113,7 @@ describe('Make-Meaning Service', () => {
     });
   });
 
-  describe('A4 nesting assertion (gather barrier budgets vs the worker stall watchdog)', () => {
+  describe('nesting assertion (gather barrier budgets vs the worker stall watchdog)', () => {
     it('rejects a settle bound that cannot degrade before the stall watchdog fails fast', async () => {
       const { STALL_THRESHOLD_MS } = await import('@semiont/jobs');
       const badConfig: MakeMeaningConfig = {
@@ -163,7 +163,7 @@ describe('Make-Meaning Service', () => {
       expect(typeof kb.graph.disconnect).toBe('function');
     });
 
-    it('should initialize WeaveProgress but no in-process Weaver (D4: standalone-only)', async () => {
+    it('should initialize WeaveProgress but no in-process Weaver (standalone-only)', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
       const { kb } = service.knowledgeSystem;
 

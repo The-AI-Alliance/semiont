@@ -1,5 +1,5 @@
 /**
- * The channel-attribute classification (BUS-ROUTING-DECLARED P1).
+ * The channel-attribute classification.
  *
  * Orthogonal, GENERATED attributes per channel — `recorded`, `direction`,
  * `writes`, `delivery` — replacing the gateway's local partitions
@@ -82,10 +82,11 @@ describe('channel classification (generated)', () => {
   });
 
   test('BRIDGED_CHANNELS is the replies plus audience:everyone — not every inbound channel', () => {
-    // Also restated at P1. `inbound` now covers three audiences: everyone,
-    // scoped (joined per resource) and declared (named in a client manifest).
-    // Only the first auto-subscribes, so the old biconditional would now
-    // demand that every browser subscribe the worker's channels.
+    // Restated when the registry gained its audience axis. `inbound` now
+    // covers three audiences: everyone, scoped (joined per resource) and
+    // declared (named in a client manifest). Only the first auto-subscribes,
+    // so the old biconditional would now demand that every browser subscribe
+    // the worker's channels.
     const inbound = new Set(allChannels.filter((ch) => attrs(ch).direction === 'inbound'));
     for (const ch of BRIDGED_CHANNELS) {
       expect(inbound.has(ch), `${ch} is bridged but not inbound`).toBe(true);
@@ -127,9 +128,9 @@ describe('channel classification (generated)', () => {
   test('recorded and audience are independent — pinned by the six channels that are both', () => {
     // The six persisted AND auto-subscribed channels, pinned BY NAME so a
     // later reader cannot "fix" the overlap away: recorded and delivered are
-    // two true facts about one channel, not a conflict (BUS-ROUTING-DECLARED
-    // D3). Expressed on the audience axis now that P1 removed the
-    // delivery:'broadcast' restatement of it.
+    // two true facts about one channel, not a conflict. Expressed on the
+    // audience axis, which states who receives a channel; `delivery` has no
+    // 'broadcast' value restating it.
     const everyone = new Set<string>(BRIDGED_BROADCASTS);
     const both = allChannels
       .filter((ch) => attrs(ch).recorded && everyone.has(ch))

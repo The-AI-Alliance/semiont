@@ -12,8 +12,8 @@
  *   `num_ctx`. What remains after the prompt scaffold is split
  *   input:output = 1:2 (annotation JSON echoes each span plus a fixed
  *   key/context envelope, so output needs the larger share). The 1:2 ratio
- *   is the plan's one allocation policy — doc-independent, tuned only on
- *   live evidence.
+ *   is the one allocation policy — doc-independent, tuned only on live
+ *   evidence.
  * - Separate ceilings (Anthropic): output takes its full ceiling (duration-
  *   capped below), and input follows the same 1:2 allocation — never more
  *   than half the output budget. Input does NOT get "the rest of the
@@ -41,7 +41,7 @@ import { nextChunkSize, type CallOutcome, type SizingBounds } from './chunk-size
  * ONE decider for every detection path (entity extraction and the four
  * motivations) — the classification must not diverge between them: same
  * input truncates the same way, so a retry is guaranteed waste and the
- * throw carries the deterministic class (ABANDONED-INFERENCE P3, A4).
+ * throw carries the deterministic class, which skips the retry budget.
  */
 export function assertNotTruncated(response: { stopReason: string }, label: string, at: number, totalChars: number, outputBudget: number): void {
   if (response.stopReason === 'max_tokens') {
@@ -72,49 +72,51 @@ const OVERLAP_TOKENS = Math.ceil(OVERLAP_CHARS / 4);
 export const DETECTION_TEMPERATURE = 0;
 
 /**
- * Assumed worst-case output rate for providers that publish none
- * (OLLAMA-DETECTION-TESTING P3b, from F9). Rate-silent providers (Ollama —
- * local hardware, rate unknowable a priori) previously got NO duration bound:
- * capacity-sizing handed a 262K-window model a ~174K-token output budget, and
- * a repetition loop then burned the full 10-minute guillotine as TRANSIENT —
- * retried identically. Under a duration-shaped cap the same loop dies in
- * minutes as max_tokens → deterministic → subdividable: the useful failure.
+ * Assumed worst-case output rate for providers that publish none. Rate-silent
+ * providers (Ollama — local hardware, rate unknowable a priori) previously
+ * got NO duration bound: capacity-sizing handed a 262K-window model a
+ * ~174K-token output budget, and a repetition loop then burned the full
+ * 10-minute guillotine as TRANSIENT — retried identically. Under a
+ * duration-shaped cap the same loop dies in minutes as max_tokens →
+ * deterministic → subdividable: the useful failure.
  *
- * 30 tok/s. P2 measured 36–90 tok/s across three local model families
- * (qwen3.5:9b ~36, gemma4:26b ~50, gemma4:e2b ~90), and the half-bound rule
- * in the cap below means real rates down to 15 tok/s still finish inside the
- * guillotine — anything slower is wedged, not working, which is exactly what
- * the guillotine is for. A conservative floor, deliberately NOT per-model:
- * F8 showed per-model thresholds chase noise. Owned policy constant, same
- * status as the 1:2 split and DETECTION_TEMPERATURE.
+ * 30 tok/s. A live sweep measured 36–90 tok/s across three local model
+ * families (qwen3.5:9b ~36, gemma4:26b ~50, gemma4:e2b ~90), and the
+ * half-bound rule in the cap below means real rates down to 15 tok/s still
+ * finish inside the guillotine — anything slower is wedged, not working,
+ * which is exactly what the guillotine is for. A conservative floor,
+ * deliberately NOT per-model: the same sweep found failure pockets rather
+ * than a boundary, so per-model thresholds chase noise. Owned policy
+ * constant, same status as the 1:2 split and DETECTION_TEMPERATURE.
  */
 export const ASSUMED_OUTPUT_TOKENS_PER_HOUR = 108_000;
 
 /**
- * The count-verifier band (OLLAMA-DETECTION-TESTING P3c, user-ratified
- * 2026-09-05): an extraction that found fewer than 1/BAND of the mentions a
- * cheap count call reports is flagged as silent yield collapse (F7). The band
- * is LOAD-BEARING at 2: F12 measured the same model flipping between
- * entity-like and mention-like enumeration on the same corpus, and that
- * legitimate judgment spread must fit INSIDE the band — probe evidence (n=6)
- * put every healthy ratio at 0.68–0.88 and every collapse at 0.18–0.41.
+ * The count-verifier band (user-ratified 2026-09-05): an extraction that
+ * found fewer than 1/BAND of the mentions a cheap count call reports is
+ * flagged as silent yield collapse. The band is LOAD-BEARING at 2: the same
+ * model was measured flipping between entity-like and mention-like
+ * enumeration on the same corpus, and that legitimate judgment spread must
+ * fit INSIDE the band — probe evidence (n=6) put every healthy ratio at
+ * 0.68–0.88 and every collapse at 0.18–0.41.
  */
 export const YIELD_COLLAPSE_BAND = 2;
 
 /**
- * The silent-yield-collapse verdict (F7): a schema-clean, done-reason-clean
+ * The silent-yield-collapse verdict: a schema-clean, done-reason-clean
  * extraction that found a fraction of what a cheap count call says is present.
  * Extends DeterministicJobError because the collapse is MEASURED deterministic
  * — bit-identical across retries and across budget regimes — so a retry is
  * guaranteed waste; the classification and the size-floored subdivision
  * descent both follow from the base class. It diverges from truncation at the
  * size floor: NO re-roll (a same-size re-roll provably returns the identical
- * collapse), and — ruled 2026-09-05 after P4 attempt 1, amending the original
- * fail-the-job invariant — the floor ACCEPTS the flagged piece's `salvage`
- * loudly rather than failing the unit: one hostile ~530-char stretch had
- * discarded ~20 chunks of good extraction, and at floor sizes the count's
- * evidence sits far below anything the probe validated. The warning and the
- * 'collapsed' telemetry rows are the durable record; re-detection heals.
+ * collapse), and — ruled 2026-09-05 after the first live gate run, amending
+ * the original fail-the-job invariant — the floor ACCEPTS the flagged piece's
+ * `salvage` loudly rather than failing the unit: one hostile ~530-char
+ * stretch had discarded ~20 chunks of good extraction, and at floor sizes the
+ * count's evidence sits far below anything the probe validated. The warning
+ * and the 'collapsed' telemetry rows are the durable record; re-detection
+ * heals.
  */
 /** A floor-accepted piece's evidence: what extraction found against what a
  * count call reported, over a piece of this size. Facts only — never a
@@ -190,21 +192,20 @@ export function deriveDetectionBudget(
     }
   }
 
-  // Duration floor (ABANDONED-INFERENCE P4 HD3; universalized by
-  // OLLAMA-DETECTION-TESTING P3b): cap each call's output at what the
-  // provider's worst-case rate finishes inside our own inference bound — a
-  // call projected past the 10-minute guillotine is planned-to-fail — and
-  // scale input by the same factor, so the input:output ratio (and with it
-  // the per-chunk truncation risk profile) is exactly the capacity
-  // solution's. Capacity says what CAN fit in one call; this says what
-  // SHOULD. EVERY provider gets the bound: the published rate when there is
-  // one, the conservative assumed floor when there is not — a rate-silent
-  // provider with no bound turned repetition loops into hour-long transient
-  // burns (F9; see ASSUMED_OUTPUT_TOKENS_PER_HOUR). It is a floor on chunk
-  // count, never a raise (a tighter capacity budget is left alone). Side
-  // effect worth knowing: on Anthropic this lands every detection call at
-  // or under the SDK's non-streaming threshold — off the MessageStream path
-  // the original `terminated` failure arrived on.
+  // Duration floor: cap each call's output at what the provider's worst-case
+  // rate finishes inside our own inference bound — a call projected past the
+  // 10-minute guillotine is planned-to-fail — and scale input by the same
+  // factor, so the input:output ratio (and with it the per-chunk truncation
+  // risk profile) is exactly the capacity solution's. Capacity says what CAN
+  // fit in one call; this says what SHOULD. EVERY provider gets the bound:
+  // the published rate when there is one, the conservative assumed floor
+  // when there is not — a rate-silent provider with no bound turned
+  // repetition loops into hour-long transient burns (see
+  // ASSUMED_OUTPUT_TOKENS_PER_HOUR). It is a floor on chunk count, never a
+  // raise (a tighter capacity budget is left alone). Side effect worth
+  // knowing: on Anthropic this lands every detection call at or under the
+  // SDK's non-streaming threshold — off the MessageStream path the original
+  // `terminated` failure arrived on.
   const outputTokensPerHour = limits.outputTokensPerHour ?? ASSUMED_OUTPUT_TOKENS_PER_HOUR;
   {
     // Half the bound, not all of it: at the full bound the slowest
@@ -269,9 +270,9 @@ export function deriveDetectionBudget(
 }
 
 /** One chunk handed out by `runAdaptiveChunks`, with the cursor either side of
- * it. `at`/`next` over `totalChars` is exact progress — and, once
- * CHUNK-GRAIN-RESUME lands, the checkpoint identity a variable boundary forces
- * (an ordinal cannot name a chunk whose size is decided while the job runs). */
+ * it. `at`/`next` over `totalChars` is exact progress — and the identity a
+ * resume checkpoint records, which a variable boundary forces (an ordinal
+ * cannot name a chunk whose size is decided while the job runs). */
 /**
  * The half of a `UnitCursor` the DETECTION layer can honestly report: where the
  * walk stands and how it is cutting. The tallies belong to the processor, which
@@ -309,14 +310,14 @@ export interface AdaptiveChunk {
  * a throw stops the walk where it stands rather than advancing past unprocessed
  * text.
  *
- * `resume` restarts a unit an earlier attempt left partway (CHUNK-GRAIN-RESUME
- * P3) — the checkpoint P2 made durable, spent. Both halves of it matter and they
- * are spent differently: the position is taken as given, while the size is
- * seeded and then stepped ONCE, as if the last outcome had been a failure. It
- * was: the job died. Opening at the budget instead would throw away the
- * calibration the dead attempt paid for over its earlier chunks, and seeding
- * unchanged would re-cut the identical piece — which at `DETECTION_TEMPERATURE`
- * 0 returns the identical answer, failure included (HD2, option C).
+ * `resume` restarts a unit an earlier attempt left partway — the durable
+ * per-chunk checkpoint, spent. Both halves of it matter and they are spent
+ * differently: the position is taken as given, while the size is seeded and
+ * then stepped ONCE, as if the last outcome had been a failure. It was: the
+ * job died. Opening at the budget instead would throw away the calibration
+ * the dead attempt paid for over its earlier chunks, and seeding unchanged
+ * would re-cut the identical piece — which at `DETECTION_TEMPERATURE` 0
+ * returns the identical answer, failure included.
  */
 export async function runAdaptiveChunks(
   text: string,
@@ -347,15 +348,14 @@ export const MAX_SUBDIVISION_DEPTH = 2;
 
 /** The failures a smaller chunk can plausibly fix. An unreadable response
  * that stopped naturally is model misbehavior, not size. */
-/** The F3 shape: unreadable output whose stop reason is UNKNOWN (done_reason
- * absent). Held not-subdividable through P3a for lack of evidence; the live
- * gate then reproduced it twice on real text (2026-09-03 at ~21K chars, P4
- * attempt 2 at ~4.5K, mid-descent, adjacent to max_tokens truncations that
- * healed by subdividing) and measured the retry-at-same-size alternative as a
- * deterministic 34 s burn. Size-shaped on the evidence — descends like
- * truncation, but with no floor re-roll (near-deterministic, nothing salvaged)
- * and unchanged retryable classification (a genuinely broken server still
- * deserves its budget). */
+/** Unreadable output whose stop reason is UNKNOWN (done_reason absent). First
+ * held not-subdividable for lack of evidence; the live gate then reproduced it
+ * twice on real text (2026-09-03 at ~21K chars, then at ~4.5K, mid-descent,
+ * adjacent to max_tokens truncations that healed by subdividing) and measured
+ * the retry-at-same-size alternative as a deterministic 34 s burn. Size-shaped
+ * on the evidence — descends like truncation, but with no floor re-roll
+ * (near-deterministic, nothing salvaged) and unchanged retryable
+ * classification (a genuinely broken server still deserves its budget). */
 function unknownUnreadable(error: unknown): boolean {
   return error instanceof StructuredReadError && error.stopReason === 'unknown';
 }
@@ -462,9 +462,9 @@ export async function callChunkSubdividing<T>(
   // one direction that costs a truncation to discover was wrong.
   let callsMade = 0;
   let callsMeasured = 0;
-  // One telemetry record per model call, successes AND failures
-  // (DETECTION-QUALITY-THROUGHPUT P1). This is the only place `depth` and
-  // `reroll` exist, so it is the only place a complete record can be written.
+  // One telemetry record per model call, successes AND failures. This is the
+  // only place `depth` and `reroll` exist, so it is the only place a complete
+  // record can be written.
   async function recorded(piece: string, depth: number, reroll: boolean): Promise<ChunkCallResult<T>> {
     const start = performance.now();
     try {
@@ -513,14 +513,15 @@ export async function callChunkSubdividing<T>(
       // A descent must also actually CHANGE the input: once a piece fits
       // inside the smaller chunk size, re-chunking returns it unchanged, and
       // at temperature 0 the identical call returns the identical failure —
-      // measured live (P4 attempt 1: one 572-char piece "descended" through
-      // three depths, same verdict each time). A piece that cannot shrink is
-      // AT its floor, whatever the arithmetic floor says.
+      // measured live (one 572-char piece "descended" through three depths,
+      // same verdict each time). A piece that cannot shrink is AT its floor,
+      // whatever the arithmetic floor says.
       const pieces = chunkText(piece, { chunkSize: half, overlap: chunking.overlap });
       const shrinks = pieces.length > 1 || pieces[0] !== piece;
-      // Size-shaped failures (truncation, collapse, the F3 unknown-unreadable)
-      // descend to the SIZE floor; only timeouts are depth-capped — the F3 fix
-      // must reach failures that first appear mid-descent (measured at depth 3).
+      // Size-shaped failures (truncation, collapse, the unknown-stop
+      // unreadable) descend to the SIZE floor; only timeouts are depth-capped —
+      // that descent must reach failures that first appear mid-descent
+      // (measured at depth 3).
       const canDescend = shrinks && (truncation(error) || unknownUnreadable(error)
         ? half > 2 * OVERLAP_TOKENS
         : depth < MAX_SUBDIVISION_DEPTH);

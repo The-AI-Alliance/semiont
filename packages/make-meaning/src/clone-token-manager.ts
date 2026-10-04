@@ -9,8 +9,8 @@
  * - yield:clone-resource-requested — look up a resource by clone token
  * - yield:clone-create — create a new resource from a clone token
  *
- * From COMPLETE-EVENT-PROTOCOL.md:
- * "Clone tokens produce new resources — that's yield."
+ * The channels are `yield:*` because clone tokens produce new resources —
+ * that's yield.
  */
 
 import { randomBytes } from 'crypto';
@@ -27,11 +27,11 @@ import { asBusRequestPrimitive } from './bus-request-local';
 import { ResourceOperations } from '@semiont/core';
 
 /**
- * What the clone workflow touches (EXTRACT-ARCHIVIST P1/P3): resource
- * metadata via views, and `resolveUri` for existence checks — never bytes
- * (GATEWAY.md D4a). The clone's own bytes are stored by the gateway's
- * upload path before `yield:clone-create` arrives; this actor holds NO
- * byte capability at all.
+ * What the clone workflow touches — a narrow slice of the record: resource
+ * metadata via views, and `resolveUri` for existence checks — never bytes,
+ * which travel over HTTP and not through this seam or the bus. The clone's
+ * own bytes are stored by the Archivist's upload path before
+ * `yield:clone-create` arrives; this actor holds NO byte capability at all.
  */
 export interface CloneTokenStores {
   views: Pick<ViewStorage, 'get'>;
@@ -40,9 +40,8 @@ export interface CloneTokenStores {
 
 /**
  * The command channels CloneTokenManager subscribes to — the Archivist's
- * inbound wire roster for this actor (EXTRACT-ARCHIVIST P2a). Pinned to
- * `initialize()`'s actual subscriptions by the census gate in
- * archivist-decoupling.test.ts.
+ * inbound wire roster for this actor. Pinned to `initialize()`'s actual
+ * subscriptions by the census gate in archivist-decoupling.test.ts.
  */
 export const CLONE_TOKEN_CHANNELS = [
   'yield:clone-token-requested', 'yield:clone-resource-requested', 'yield:clone-create',
@@ -100,7 +99,7 @@ export class CloneTokenManager {
         return;
       }
 
-      // Existence check only: resolve + stat, never a byte read (D4a).
+      // Existence check only: resolve + stat, never a byte read.
       try {
         await fs.access(this.stores.content.resolveUri(storageUri));
       } catch {

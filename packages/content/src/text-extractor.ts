@@ -1,13 +1,13 @@
 /**
  * TextExtractor — DERIVING text from bytes that carry none of their own.
  *
- * Scope note (READ-VS-EXTRACT P2/P3): this file used to hold a registry covering
- * both ways a resource yields text — decoding (charset-aware `Buffer → string`)
- * and deriving (parse a PDF, OCR it when there is no text layer). Those shared a
- * name and almost nothing else: microseconds vs. minutes,
- * total determinism vs. none across engine versions, no canonical artifact vs.
- * exactly one, and anyone-with-bytes vs. the Smelter alone. The registry made
- * them interchangeable at every call site.
+ * Scope note: this file used to hold a registry covering both ways a resource
+ * yields text — decoding (charset-aware `Buffer → string`) and deriving (parse
+ * a PDF, OCR it when there is no text layer). Those shared a name and almost
+ * nothing else: microseconds vs. minutes, total determinism vs. none across
+ * engine versions, no canonical artifact vs. exactly one, and anyone-with-bytes
+ * vs. the Smelter alone. The registry made them interchangeable at every call
+ * site.
  *
  * Decoding left: it is `decodeRepresentation` in `@semiont/core`, called
  * directly. What remains here is the deriving half, reached through
@@ -23,7 +23,7 @@ import type { AnchoredTextStore } from './anchored-text-store';
 import { pdfExtractor } from './pdf-extractor';
 
 export interface ExtractedText {
-  /** Discriminant — mirrors the wire member (WIRE-UNION-DISCRIMINANTS P5c/D6). */
+  /** Discriminant — mirrors `ExtractionOutcome`'s wire member. */
   kind: 'extracted';
   /** Reading-order plain text, ready for the chunker. */
   text: string;
@@ -67,10 +67,10 @@ export interface ExtractedText {
 /**
  * A named decline — an extractor that ran and decided it cannot yield text
  * says why, so the settled signal can carry the class reason (a bare null
- * could not name its class; SMELTER-MEDIA-TYPES Phase 0 log, note a).
+ * could not name its class).
  */
 export interface ExtractionDecline {
-  /** Discriminant — mirrors the wire member (WIRE-UNION-DISCRIMINANTS P5c/D6). */
+  /** Discriminant — mirrors `ExtractionOutcome`'s wire member; `declined` is its detail. */
   kind: 'declined';
   declined: 'no-text-layer' | 'encrypted' | 'corrupt' | 'too-large';
 }
@@ -83,19 +83,19 @@ export interface ExtractionDecline {
  * never from a descriptor's claim. A catalog-derived key can race a byte
  * change (bytes fetched at one moment, descriptor read at another) and file
  * or read geometry under an identity that does not describe the bytes being
- * extracted. The write path made recompute-over-claim the rule
- * (PERSIST-ANCHORS P1b); readers mirror it (P1c). One SHA-256 over bytes
- * already in memory is noise against the engine pass a hit avoids.
+ * extracted. The write path made recompute-over-claim the rule; readers
+ * mirror it. One SHA-256 over bytes already in memory is noise against the
+ * engine pass a hit avoids.
  *
- * REQUIRED, and that is the ownership rule (READ-VS-EXTRACT P2). It carries an
- * `AnchoredTextStore`, and only the Smelter holds one — so deriving is reachable
- * exactly to the process that can persist what it derived. The restriction is a
- * capability the caller must already hold, not a convention it must remember:
- * a would-be second producer cannot construct the argument, so it cannot compile.
+ * REQUIRED, and that is the ownership rule. It carries an `AnchoredTextStore`,
+ * and only the Smelter holds one — so deriving is reachable exactly to the
+ * process that can persist what it derived. The restriction is a capability the
+ * caller must already hold, not a convention it must remember: a would-be
+ * second producer cannot construct the argument, so it cannot compile.
  *
- * The seam is `extract()` itself (PERSIST-ANCHORS D1/P2b): a hit returns the
- * FINISHED outcome — classification, geometry, provenance, or a named decline —
- * so neither the native parse nor the engine runs.
+ * The seam is `extract()` itself: a hit returns the FINISHED outcome —
+ * classification, geometry, provenance, or a named decline — so neither the
+ * native parse nor the engine runs.
  */
 export interface ExtractionCache {
   key: string;
@@ -105,14 +105,14 @@ export interface ExtractionCache {
 /**
  * Deriving text from bytes that carry none of their own.
  *
- * Named `ContentExtractor` until READ-VS-EXTRACT P3: the `Content` prefix named
- * the INPUT, when what distinguishes this type is that it produces TEXT — by
- * deriving, which since P3 is the only thing "extraction" means here. WHERE a
+ * Named `ContentExtractor` until extraction came to mean deriving alone: the
+ * `Content` prefix named the INPUT, when what distinguishes this type is that it
+ * produces TEXT — by deriving, the only thing "extraction" means here. WHERE a
  * media type's text comes from at all is core's `TextSource`, which spans both
  * routes and is therefore not called extraction.
  *
  * Whether a text source yields positioned runs lives in `@semiont/core`'s
- * `yieldsGeometryOf`, NOT here (P1). It is a property of the source, and that
+ * `yieldsGeometryOf`, NOT here. It is a property of the source, and that
  * vocabulary is core's — declaring it per-implementation made it two facts that
  * could disagree, and forced consumers asking about a media type to resolve an
  * implementation to find out. `text-extractor.test.ts` gates core's answer
@@ -136,8 +136,8 @@ export interface TextExtractor {
  * deriving.
  *
  * **This replaced a `Record<TextSource, TextExtractor | null>` keyed by
- * strategy (READ-VS-EXTRACT P2), and the deletion is the point.** That map held
- * one real extractor, a `null`, and — under 'decode' — a one-line wrapper around
+ * strategy, and the deletion is the point.** That map held one real
+ * extractor, a `null`, and — under 'decode' — a one-line wrapper around
  * core's `decodeRepresentation`, which five sites in `@semiont/make-meaning`
  * already called directly. Resolving "give me an extractor for this media type"
  * therefore returned, half the time, a trivial function dressed as the same
@@ -151,8 +151,8 @@ export interface TextExtractor {
  * asking a generic question — and a caller that gets a non-null answer here still
  * cannot run it without an `AnchoredTextStore`.
  *
- * Keyed by P1's `yieldsGeometryOf`, so this and the Smelter's publish gate cannot
- * disagree about which media types have a canonical artifact.
+ * Keyed by core's `yieldsGeometryOf`, so this and the Smelter's publish gate
+ * cannot disagree about which media types have a canonical artifact.
  */
 export function derivingExtractorFor(mediaType: string): TextExtractor | null {
   return yieldsGeometryOf(mediaType) ? pdfExtractor : null;

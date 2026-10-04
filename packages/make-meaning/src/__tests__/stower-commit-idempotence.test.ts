@@ -1,12 +1,11 @@
 /**
  * `mark:commit` is at-least-once, and the event log is the system of record.
  *
- * COMMIT-ACK-FALSE-FAILURE V2. Two things were already idempotent by annotation
- * id — the resource view (`view-materializer.ts`) and the graph
- * (`weaver.ts`) — and both of them are PROJECTIONS. The log itself appends
- * whatever it is handed. So a re-committed batch leaves a green graph over a
- * doubled log, which is the failure mode hardest to notice and impossible to
- * undo.
+ * Two things were already idempotent by annotation id — the resource view
+ * (`view-materializer.ts`) and the graph (`weaver.ts`) — and both of them are
+ * PROJECTIONS. The log itself appends whatever it is handed. So a
+ * re-committed batch leaves a green graph over a doubled log, which is the
+ * failure mode hardest to notice and impossible to undo.
  *
  * Two paths re-send a batch that already landed, and neither is exotic:
  *

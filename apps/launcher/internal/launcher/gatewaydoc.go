@@ -1,13 +1,13 @@
 package launcher
 
 // gatewaydoc.go — the gateway's configuration document: GatewayConfig in
-// specs/, the Go type generated from it (packages/sdk-go). The user's ruling
-// on GATEWAY-SIMPLIFY S1, 2026-09-27: "Resolved JSON doc". The launcher
-// writes it for the gateway it starts, resolved — every ${VAR} a value, the
-// way the gateway's own loader resolved it in the container before it read a
-// document instead — so the gateway neither parses TOML nor resolves or
-// defaults anything. Secrets are never values in it: a credential is a
-// ${NAME} in the KB config, and the document names NAME.
+// specs/, the Go type generated from it (packages/sdk-go). Ruled 2026-09-27:
+// "Resolved JSON doc". The launcher writes it for the gateway it starts,
+// resolved — every ${VAR} a value, the way the gateway's own loader resolved
+// it in the container before it read a document instead — so the gateway
+// neither parses TOML nor resolves or defaults anything. Secrets are never
+// values in it: a credential is a ${NAME} in the KB config, and the document
+// names NAME.
 
 import (
 	"encoding/json"
@@ -141,8 +141,8 @@ func gatewayDocument(env *envConfig, kbName, kbDomain, rt, addr string, issuerPo
 		}
 		doc.Signal.Servers = &servers
 		if brokerRun {
-			// The broker the launcher runs has the pair it keeps
-			// (SECRET-DELIVERY P4); the gateway is handed both.
+			// The broker the launcher runs has the pair the launcher
+			// generates and keeps; the gateway is handed both.
 			user, password := "NATS_USER", daemonPasswords["messaging"].env
 			doc.Signal.UserEnv, doc.Signal.PasswordEnv = &user, &password
 		} else {
@@ -172,8 +172,8 @@ func gatewayDocument(env *envConfig, kbName, kbDomain, rt, addr string, issuerPo
 
 // externalCredential: an external daemon's credential as the config writes it,
 // resolved by the shared rule against the user's variables — where the
-// launcher itself needs the value (SECRET-DELIVERY P4, D1: "A's resolver for
-// ones it doesn't"). An unresolvable reference refuses, naming it.
+// launcher itself needs the value. An unresolvable reference refuses, naming
+// it.
 func externalCredential(field, value string, userEnv []string) (string, error) {
 	return resolveRefs(field, value, userEnvVars(userEnv))
 }

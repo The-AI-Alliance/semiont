@@ -129,11 +129,11 @@ export interface BusRequestPrimitive {
   ): Promise<number | undefined>;
   /**
    * The ENVELOPE view. `busRequest` matches a reply on `frame.correlationId`,
-   * which is why the key never needs to enter a channel's domain type
-   * (BUS-CARRIES-FRAMES P3). Required, not optional: every transport can
-   * answer it, and an optional member here would be one interface in two
-   * dialects — the compatibility layer D1a of CLIENT-SUBSCRIPTION-MANIFEST
-   * had to undo.
+   * which is why the key never needs to enter a channel's domain type.
+   * Required, not optional: every transport can answer it, and an optional
+   * member here would be one interface in two dialects — the
+   * capability-sniffing compatibility layer that a required `isSubscribed`
+   * exists to rule out.
    */
   frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>>;
   /** The payload view, DERIVED from `frames` so the two cannot disagree. */
@@ -311,11 +311,11 @@ export async function busRequest<Op extends BusOperationKey>(
   // No correlated emit before the reply path exists: the measured failure was
   // an emit accepted (202) and answered while the session's subscribe stream
   // had not attached — the reply was published to nobody. Wait, inside the
-  // SAME deadline (the timeout operator above is already ticking — D4), for
-  // the transport to report the one deliverable state. D3 (amended
-  // 2026-07-29): only `'open'` delivers; `'degraded'` is a dropped stream by
-  // definition and waits like `connecting`/`reconnecting`. `'closed'` fails
-  // fast — a request against a closed bus should not burn a timeout.
+  // SAME deadline (the timeout operator above is already ticking), for the
+  // transport to report the one deliverable state. Only `'open'` delivers;
+  // `'degraded'` is a dropped stream by definition and waits like
+  // `connecting`/`reconnecting`. `'closed'` fails fast — a request against a
+  // closed bus should not burn a timeout.
   const closedBeforeEmit = () =>
     new BusRequestError(`Bus closed before emit on ${operation}`, 'bus.closed', {
       channel: operation,
@@ -325,7 +325,7 @@ export async function busRequest<Op extends BusOperationKey>(
   // Synchronous fast path: `state$` is BehaviorSubject-backed (see the
   // interface contract), so the current state lands during subscribe. Already
   // `'open'` → fall straight through to the emit with zero added microtasks —
-  // the gate can only remove latency, never add it (D4).
+  // the gate can only remove latency, never add it.
   let currentState: ConnectionState | undefined;
   bus.state$.subscribe((s) => {
     currentState = s;
@@ -347,8 +347,8 @@ export async function busRequest<Op extends BusOperationKey>(
     const outcome = await Promise.race([
       gate,
       // Either settlement of the reply machinery means "stop waiting, never
-      // emit": its timeout rejecting `bus.timeout` at `timeoutMs` (the same
-      // moment it would fire today — D4), or its streams completing into the
+      // emit": its timeout rejecting `bus.timeout` at `timeoutMs` (one
+      // deadline, measured from the call), or its streams completing into the
       // `bus.closed` default above. The shared tail below carries it.
       resultPromise.then(
         () => 'settled' as const,
@@ -359,18 +359,18 @@ export async function busRequest<Op extends BusOperationKey>(
       throw closedBeforeEmit();
     }
     // 'open' → the one emit below. 'settled' → skip the emit; awaiting the
-    // reply at the tail rethrows its outcome. (D5 holds structurally either
-    // way: nothing subscribes to state$ past this point, so a flap after
-    // emission cannot re-emit.)
+    // reply at the tail rethrows its outcome. (Emit-exactly-once holds
+    // structurally either way: nothing subscribes to state$ past this point,
+    // so a flap after emission cannot re-emit.)
     emitAllowed = outcome === 'open';
   }
 
   // An emit rejection (e.g. /bus/emit 4xx) propagates to the caller.
   //
-  // Reply tracking (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1): register the
-  // cid BEFORE the emit — a reconnect body built while the emit is in flight
-  // must already carry it in `pendingReplies`, or a reply published in the
-  // old-connection-death → new-connection-open gap sits in the server's
+  // Reply tracking, the client side of correlated-reply retention: register
+  // the cid BEFORE the emit — a reconnect body built while the emit is in
+  // flight must already carry it in `pendingReplies`, or a reply published in
+  // the old-connection-death → new-connection-open gap sits in the server's
   // retention buffer unasked-for. Released on every settle path; the
   // never-emitted paths above (closed fast-fail, 'settled' race arm) never
   // reach this line, so they never track.

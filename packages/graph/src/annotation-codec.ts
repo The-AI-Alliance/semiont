@@ -22,7 +22,7 @@ import { getEntityTypes } from '@semiont/ontology';
 import type { Annotation, AnnotationCategory, CreateAnnotationInternal } from '@semiont/core';
 
 /**
- * A store's property bag, flattened. Producing this is the store's job (D3):
+ * A store's property bag, flattened. Producing this is the store's job:
  * neo4j unwraps `node.properties` and its native temporals, the Gremlin
  * stores unwrap `[{value}]` lists. What the values MEAN is the codec's.
  */
@@ -116,9 +116,9 @@ export function encodeSelector(selector: AnnotationSelector): Record<string, str
  * store resolved separately.
  *
  * A field the properties do not carry is omitted, never invented: a
- * source-only target (legal since RESOURCE-LEVEL-ANCHOR) comes back with no
- * `selector`, and a row missing a required field fails loudly by name rather
- * than acquiring a default.
+ * source-only target (legal: a whole resource is a first-class annotation
+ * target) comes back with no `selector`, and a row missing a required field
+ * fails loudly by name rather than acquiring a default.
  */
 export function decodeAnnotation(props: AnnotationProperties, entityTypes: string[] = []): Annotation {
   const id = props.id;
@@ -173,11 +173,11 @@ export function decodeAnnotation(props: AnnotationProperties, entityTypes: strin
 }
 
 /**
- * Rows written before RESOURCE-LEVEL-ANCHOR reached the stores hold `'{}'`
- * where a resource-level annotation has no selector at all. `{}` satisfies no
- * branch of the selector union, so it fails validation on the first round
- * trip through a validated channel — reading it back as absent is what makes
- * those rows harmless without a migration.
+ * Rows written before the stores held a source-only target verbatim hold
+ * `'{}'` where a resource-level annotation has no selector at all. `{}`
+ * satisfies no branch of the selector union, so it fails validation on the
+ * first round trip through a validated channel — reading it back as absent
+ * is what makes those rows harmless without a migration.
  */
 function decodeSelector(raw: string | undefined): AnnotationSelector | undefined {
   if (!raw) return undefined;

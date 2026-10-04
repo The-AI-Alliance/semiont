@@ -1,14 +1,14 @@
 /**
- * Type-level guard — RESOURCE-LEVEL-ANCHOR P1.
+ * Type-level guard — a create-annotation target needs no selector.
  *
  * A create-annotation target is selector-OPTIONAL: a whole resource (an edge
  * endpoint, a whole-resource note) is targeted by `{ source }` alone, no
  * selector — per the W3C Web Annotation model and `AnnotationTarget.json`.
  *
  * These assertions are enforced by `tsc --noEmit` (core's `typecheck`), not at
- * vitest runtime (esbuild strips the types). The source-only case is RED on the
- * pre-P1 generated type (`required: ["source","selector"]`) and GREEN after the
- * `$ref AnnotationTarget` swap + regen.
+ * vitest runtime (esbuild strips the types). The source-only case is RED on a
+ * generated type that requires the selector (`required: ["source","selector"]`)
+ * and GREEN after the `$ref AnnotationTarget` swap + regen.
  */
 import { describe, it, expect } from 'vitest';
 import type { components } from '../types';
@@ -16,7 +16,7 @@ import { resourceId } from '../identifiers';
 
 type CreateTarget = components['schemas']['CreateAnnotationRequest']['target'];
 
-describe('CreateAnnotationRequest target (P1: selector-optional)', () => {
+describe('CreateAnnotationRequest target (selector-optional)', () => {
   it('accepts a source-only target (no selector)', () => {
     const sourceOnly: CreateTarget = { source: resourceId('r-1') };
     expect(sourceOnly.source).toContain('r-1');

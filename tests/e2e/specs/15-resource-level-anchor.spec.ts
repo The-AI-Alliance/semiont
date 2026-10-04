@@ -5,10 +5,9 @@ import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
- * Smoke test — RESOURCE-LEVEL-ANCHOR.md Phase 5 (verify): a whole-resource
- * (source-only, *selectorless*) annotation is a first-class target — it is
- * created, served by `browse.annotations`, and its `SpecificResource` body
- * edge resolves to the linked resource.
+ * Smoke test: a whole-resource (source-only, *selectorless*) annotation is a
+ * first-class target — it is created, served by `browse.annotations`, and its
+ * `SpecificResource` body edge resolves to the linked resource.
  *
  * This is a pure **SDK round-trip** (no browser): the feature has no UI
  * affordance; its consumers are the SDK and fleet skills (e.g. the newsroom
@@ -16,9 +15,9 @@ import { signInSession } from '../fixtures/sdk-session';
  * `semiont-newsroom-kb/skills/bind-claim-to-source` — a source-only `target`
  * with a `SpecificResource` body.
  *
- * RED→GREEN: before P2 (#908), `@semiont/core`'s `assembleAnnotation` hard-threw
+ * RED→GREEN: before #908, `@semiont/core`'s `assembleAnnotation` hard-threw
  * "Either TextPositionSelector, SvgSelector, or FragmentSelector is required" on
- * a selectorless target, so the `mark.annotation` below would reject. P2 deleted
+ * a selectorless target, so the `mark.annotation` below would reject. #908 deleted
  * that throw — a successful create + serve IS the verification that whole-resource
  * targets are now first-class. (Deterministic RED lives in the `@semiont/core`
  * unit test; this is the system-level guard against the live stack.)
@@ -70,7 +69,7 @@ test.describe('resource-level anchor', () => {
 
       // Served by browse.annotations(A) — poll for SSE/cache delivery.
       await expect
-        // CACHE-CONTRACT D2: `.fresh()` is the explicit one-shot read.
+        // `.fresh()` is the explicit one-shot read: a CacheObservable is not awaitable.
         .poll(async () => (await client.browse.annotations(a).fresh()).some((x) => x.id === annotationId), {
           timeout: 30_000,
         })

@@ -1,14 +1,13 @@
 package launcher
 
-// inittemplate.go — LAUNCHER-BIRTH P4: the explicit template-copy paths.
+// inittemplate.go — `semiont init`'s explicit template-copy paths.
 // The mechanism is a shallow `git clone` (git is already a launcher
 // requirement; there is no listing API over raw fetches, and a clone is an
 // atomic ref) — or a local directory used directly, which is also the
-// hermetic test seam. Two hard rules, both from the ratified decisions:
-// identity (.semiont/config) is NEVER copied — init's own is already
-// written — and every copied semiontconfig passes the SAME derivePlan vet
-// as generated ones, with the WHOLE init refusing pre-write on the first
-// failure (no partial trees).
+// hermetic test seam. Two hard rules: identity (.semiont/config) is NEVER
+// copied — init's own is already written — and every copied semiontconfig
+// passes the SAME derivePlan vet as generated ones, with the WHOLE init
+// refusing pre-write on the first failure (no partial trees).
 
 import (
 	"fmt"

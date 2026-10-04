@@ -140,7 +140,7 @@ The read actor for the Knowledge Base. Handles deterministic, fact-based queries
 | `browse:referenced-by-requested` | Graph referenced-by lookup + resource metadata | `browse:referenced-by-result` / `browse:referenced-by-failed` |
 | `browse:entity-types-requested` | `readEntityTypesProjection()` | `browse:entity-types-result` / `browse:entity-types-failed` |
 | `browse:tag-schemas-requested` | Tag-schema projection read | `browse:tag-schemas-result` / `browse:tag-schemas-failed` |
-| `browse:agents-requested` | `deriveAgentRoster()` — the KB's declared software agents from the workers/actors inference config (COLLABORATOR-DIRECTORY) | `browse:agents-result` / `browse:agents-failed` |
+| `browse:agents-requested` | `deriveAgentRoster()` — the KB's declared software agents from the workers/actors inference config | `browse:agents-result` / `browse:agents-failed` |
 | `browse:kb-requested` | `SemiontProject` — the committed `[project] name` and `[site] domain`, and the working tree's git branch, read at each request | `browse:kb-result` / `browse:kb-failed` |
 | `browse:directory-requested` | Filesystem directory listing merged with KB metadata | `browse:directory-result` / `browse:directory-failed` |
 
@@ -154,7 +154,7 @@ Both actors can find resources by name; the question is what kind of question is
 
 The same primitive (`kb.graph.listResources({ search })`) is used by both actors today. That's fine: the difference is what each actor *does with the result*. Browse returns it ranked and paged. Match treats it as one of four candidate sources and runs it through structural + semantic scoring.
 
-The rule: **if the answer could be a single query against a single index, it's Browse. If it needs to fuse multiple sources or score against context, it's Match.** The boundary is *fusion*, not *modality*: the semantic fallback (SEMANTIC-FALLBACK — an empty lexical search answered from the vector index, labelled `matchKind: 'semantic'`) is one query against one index, fuses nothing, scores against no `GatheredContext`, and calls no LLM, so it lives in Browse and the transport surface stays `browse.resources({ search })`. What would genuinely move to the Matcher — and `match.search(...)` — is *blended* recall: fusing a lexical rank with a cosine score, or boosting either against context. That fusion is the Matcher's composite scorer's job, and it remains out of scope for Browse.
+The rule: **if the answer could be a single query against a single index, it's Browse. If it needs to fuse multiple sources or score against context, it's Match.** The boundary is *fusion*, not *modality*: the semantic fallback (an empty lexical search answered from the vector index, labelled `matchKind: 'semantic'`) is one query against one index, fuses nothing, scores against no `GatheredContext`, and calls no LLM, so it lives in Browse and the transport surface stays `browse.resources({ search })`. What would genuinely move to the Matcher — and `match.search(...)` — is *blended* recall: fusing a lexical rank with a cosine score, or boosting either against context. That fusion is the Matcher's composite scorer's job, and it remains out of scope for Browse.
 
 ### Gatherer (Context Assembly Actor)
 

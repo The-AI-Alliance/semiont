@@ -62,9 +62,9 @@ func allocatePort(ss *StackSet, repo string, base int) int {
 
 var repoSlugRe = regexp.MustCompile(`^[\w.-]+/[\w.-]+$`)
 
-// startCodespace is the whole §1 recipe as one blocking command, with
-// local-start parity as the contract: preflight, create-or-resume, forward,
-// health-gate, summary-and-exit.
+// startCodespace is the whole by-hand `gh` recipe for a codespace-hosted KB
+// as one blocking command, with local-start parity as the contract:
+// preflight, create-or-resume, forward, health-gate, summary-and-exit.
 func startCodespace(u *UI, opts startOptions) int {
 	// gh is the earliest failure of all — check it before any git or
 	// registry work, so a missing CLI never surfaces as a confusing
@@ -124,8 +124,8 @@ func startCodespace(u *UI, opts startOptions) int {
 
 	u.Log("KB repo: %s %s", u.Bold(repo), u.Dim("(codespace placement — the stack runs on a GitHub-hosted machine)"))
 
-	// Preflights, early and loud — §1's silent/late failures become
-	// first-second failures.
+	// Preflights, early and loud — the failures that are silent or late by
+	// hand become first-second failures.
 	if code := preflightGhScope(u); code != 0 {
 		return code
 	}
@@ -313,8 +313,8 @@ func startCodespace(u *UI, opts startOptions) int {
 		fmt.Printf("  Issuer             %s %s\n", fmt.Sprintf("http://keycloak.localhost:%d", n), u.Dim("(forwarded — sign-in goes here)"))
 	}
 	// The browser is NOT forwarded — only the KB is. It runs locally and
-	// views any number of KBs. ANY start ensures it (BROWSER-LIFECYCLE.md
-	// decision 2) — but only when a container runtime exists here: codespace
+	// views any number of KBs. ANY start ensures it, a codespace start
+	// included — but only when a container runtime exists here: codespace
 	// placement must not gain a hard local-runtime requirement.
 	if rts := installedRuntimes(); len(rts) > 0 {
 		version := os.Getenv("SEMIONT_VERSION")
@@ -334,8 +334,8 @@ func startCodespace(u *UI, opts startOptions) int {
 	}
 	fmt.Println()
 	fmt.Printf("  %s\n", u.Dim("Runs "+repo+" as pushed — local uncommitted changes don't travel."))
-	// The hardware burning and its auto-stop — the summary is where a fresh
-	// VM's cost begins (CODESPACE-COSTS.md P0 q1).
+	// The hardware burning and its auto-stop, here as well as in status — the
+	// summary is where a fresh VM's cost begins.
 	if f, ok := fetchCodespaceFacts()[name]; ok && f.Machine != "" {
 		line := "Machine " + f.Machine
 		if f.IdleMin > 0 {
@@ -350,7 +350,7 @@ func startCodespace(u *UI, opts startOptions) int {
 	fmt.Printf("  Check health:  %s\n", u.Bold("semiont status"))
 	fmt.Printf("  Follow logs:   %s %s\n", u.Bold("semiont logs --repo "+repo), u.Dim("(bare logs when unambiguous)"))
 	// "Halt billing" overpromised: stopping halts COMPUTE billing; storage
-	// bills until retention auto-deletes the codespace (CODESPACE-COSTS.md).
+	// bills until retention auto-deletes the codespace.
 	fmt.Printf("  Halt compute:  %s %s\n", u.Bold("semiont stop --repo "+repo), u.Dim("(storage bills until auto-delete; --delete destroys now)"))
 	fmt.Println()
 	return 0
@@ -454,8 +454,9 @@ func parseGitHubSlug(origin string) (string, bool) {
 	return s, true
 }
 
-// preflightGhScope: §1 precondition 1 — the scope gap otherwise surfaces
-// later as a misleading "must have admin rights to Repository".
+// preflightGhScope: gh must be authenticated with the `codespace` scope — the
+// scope gap otherwise surfaces later as a misleading "must have admin rights
+// to Repository".
 func preflightGhScope(u *UI) int {
 	out, err := captureBoth("gh", "auth", "status")
 	if err != nil {
@@ -471,9 +472,9 @@ func preflightGhScope(u *UI) int {
 	return 0
 }
 
-// codespacesSecretSelected: §1 precondition 2 — ANTHROPIC_API_KEY as a
-// Codespaces user secret with the repo selected. Without it the stack comes
-// up with inference dead, silently.
+// codespacesSecretSelected: ANTHROPIC_API_KEY as a Codespaces user secret
+// with the repo selected. Without it the stack comes up with inference dead,
+// silently.
 func codespacesSecretSelected(repo string) bool {
 	out, err := capture("gh", "api", "user/codespaces/secrets/ANTHROPIC_API_KEY/repositories")
 	if err != nil {
@@ -651,20 +652,20 @@ func chooseMachine(u *UI, repo, requested string) (string, int) {
 	return best.Name, 0
 }
 
-// createCodespace with the §1 503-aware backoff: GitHub-side incidents are
+// createCodespace with a 503-aware backoff: GitHub-side incidents are
 // retried (bounded), everything else fails with the CLI's own words.
 func createCodespace(u *UI, repo string, opts startOptions) (string, int) {
 	machine, code := chooseMachine(u, repo, opts.machine)
 	if code != 0 {
 		return "", code
 	}
-	// Cost levers, set EXPLICITLY at create (adjudicated 2026-07-20,
-	// CODESPACE-COSTS.md P0 q3/q4): idle-timeout 60m — looser than GitHub's
-	// 30m, headroom for long image/model pulls; retention 720h (30 days,
-	// GitHub's maximum) — explicit so a tighter account-level default cannot
-	// silently shorten a KB codespace's life. Retention is when a STOPPED
-	// codespace is auto-deleted, state and all; announced because a default
-	// that deletes user state must never be silent.
+	// Cost levers, set EXPLICITLY at create (adjudicated 2026-07-20):
+	// idle-timeout 60m — looser than GitHub's 30m, headroom for long
+	// image/model pulls; retention 720h (30 days, GitHub's maximum) — explicit
+	// so a tighter account-level default cannot silently shorten a KB
+	// codespace's life. Retention is when a STOPPED codespace is auto-deleted,
+	// state and all; announced because a default that deletes user state must
+	// never be silent.
 	idle, retention := opts.idleTimeout, opts.retention
 	if idle == "" {
 		idle = "60m"
@@ -990,9 +991,8 @@ func spawnForward(u *UI, name string, remote, local int) (int, <-chan struct{}, 
 	// Argument order is <codespacePort>:<localPort> — NOT the reverse.
 	// Getting it backwards forwards a port nothing serves onto a local port
 	// something else may already own: gh then fails to bind but the process
-	// STAYS ALIVE, so it looks healthy while forwarding nothing. The §1
-	// recipe's symmetric 4000:4000 example hides the order; live testing
-	// found it.
+	// STAYS ALIVE, so it looks healthy while forwarding nothing. A symmetric
+	// 4000:4000 forward hides the order; live testing found it.
 	args := []string{"codespace", "ports", "forward",
 		fmt.Sprintf("%d:%d", remote, local), "-c", name}
 	u.EchoCmd("gh", args...)
@@ -1498,8 +1498,8 @@ func printRemoteKBs(u *UI, cs []*StackState) int {
 			state = "not listed by GitHub"
 		}
 		// Cost facts ride the state parens: an Available codespace names the
-		// hardware burning and since when — the safety tax the concurrent-KB
-		// feature owes (CODESPACE-COSTS.md Tier 1).
+		// hardware burning and since when, never a dollar figure — the safety
+		// tax the concurrent-KB feature owes.
 		detail := state
 		if f, ok := facts[c.Codespace.Name]; ok {
 			if state == "Available" {
@@ -1686,9 +1686,9 @@ const (
 // every service healthy and no start in progress (status --root) — not whether
 // the gateway answers. The gateway is among the first services a start brings
 // up, so a gateway-only probe said "ready" while post-start was still starting
-// the rest, and the issuer move's rerun collided with it (live 2026-09-29,
-// bugs/codespace-issuer-move-races-post-start.md P2). Before post-start has
-// installed the launcher, `semiont` is not found and the answer is "wait".
+// the rest, and the issuer move's rerun collided with it (live 2026-09-29).
+// Before post-start has installed the launcher, `semiont` is not found and
+// the answer is "wait".
 func askRemoteKB(name string) remoteReadiness {
 	probe := fmt.Sprintf(
 		"cd /workspaces/* && semiont status --root . >/dev/null 2>&1 && echo %s || echo %s",
@@ -1911,14 +1911,14 @@ func remoteRefused(ghErr string) bool {
 	return strings.Contains(ghErr, "connect failed") || strings.Contains(ghErr, "Connection refused")
 }
 
-// forwardIssuer makes a codespace KB's issuer reachable from this machine
-// (CODESPACE-IDENTITY B4; ONE-BROWSER-MANY-ISSUERS D1/D2). The gateway
-// advertises http://keycloak.localhost:<N>/realms/…, and *.localhost is THIS
-// machine's loopback, so the Browser and `login` reach it only through a
-// forward of <N>:<N> — the same number on both ends, because an issuer is one
-// URL and a token's `iss` must match it. <N> is this stack's: kept while free,
-// else allocated like the KB's port; when the codespace runs Keycloak on
-// another, its own launcher restarts the stack there on <N>.
+// forwardIssuer makes a codespace KB's issuer reachable from this machine.
+// The gateway advertises http://keycloak.localhost:<N>/realms/…, and
+// *.localhost is THIS machine's loopback, so the Browser and `login` reach it
+// only through a forward of <N>:<N> — the same number on both ends, because
+// an issuer is one URL and a token's `iss` must match it. <N> is this
+// stack's: kept while free, else allocated like the KB's port; when the
+// codespace runs Keycloak on another, its own launcher restarts the stack
+// there on <N>.
 func forwardIssuer(u *UI, st *StackState) int {
 	cs := st.Codespace
 	kbBase := fmt.Sprintf("http://localhost:%d", cs.ForwardPort)

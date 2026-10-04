@@ -217,9 +217,9 @@
 }
 
 /*
- * The wizard footer (WIZARD-NAVIGATION D2). Retreat sits at the leading edge and
- * advance at the trailing one, and neither stretches — `--flex` on all three
- * buttons is what made "Cancel", "Back" and "Search" read as three peers.
+ * The wizard footer. Retreat sits at the leading edge and advance at the
+ * trailing one, and neither stretches — `--flex` on all three buttons is what
+ * made "Cancel", "Back" and "Search" read as three peers.
  * `margin-inline-end: auto` rather than `space-between` so a footer with only
  * one child still lands on the correct side.
  */
@@ -585,8 +585,8 @@
   outline-color: var(--semiont-color-primary-400);
 }
 
-/* KB identity conflict (KB-IDENTITY-CHECKED-ON-ACTIVATION P2): two facts,
-   rendered apart — the registered entry and the identity that answered. */
+/* KB identity conflict: two facts, rendered apart — the registered entry and
+   the identity that answered. */
 .semiont-kb-conflict__fact {
   display: flex;
   flex-direction: column;

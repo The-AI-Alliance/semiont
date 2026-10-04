@@ -1,16 +1,16 @@
 /**
- * Schema-semantics guard — MANDATORY-EMBEDDING P1 (D0 + D1).
+ * Schema-semantics guard — vectors and embedding are required sections.
  *
  * Semantic search is always available, so a config must NAME both a vector
  * store and an embedding provider — nothing is defaulted, and a config
  * missing either section must fail schema validation with an actionable
- * error (the explicit-opt-in decision, D1). The schema is consumed by
- * codegen and by downstream validators; this test pins its SEMANTICS with
- * ajv (already a core dependency) so the requirement exists independent of
- * any one validator's wiring.
+ * error (opt-in is explicit). The schema is consumed by codegen and by
+ * downstream validators; this test pins its SEMANTICS with ajv (already a
+ * core dependency) so the requirement exists independent of any one
+ * validator's wiring.
  *
- * RED before P1's schema change: `ServicesConfig` had no `required` array at
- * all, so a bare `{}` validated. Green after.
+ * RED before the schema required them: `ServicesConfig` had no `required`
+ * array at all, so a bare `{}` validated. Green after.
  */
 import { describe, it, expect } from 'vitest';
 import { Ajv } from 'ajv';
@@ -31,13 +31,13 @@ const EMBEDDING = { type: 'ollama', model: 'nomic-embed-text' };
 
 const IDENTITY = { type: 'keycloak', issuer: 'http://localhost:8080/realms/semiont', subjectClaim: 'sub' };
 
-describe('config schema — vectors, embedding and identity are mandatory, explicitly (D0+D1)', () => {
+describe('config schema — vectors, embedding and identity are mandatory, explicitly', () => {
   it('a services section naming both validates', () => {
     expect(validate({ vectors: VECTORS, embedding: EMBEDDING, identity: IDENTITY })).toBe(true);
   });
 
-  // VERIFIED-PROVENANCE P5: the issuer claim a person's DID is built from is
-  // declared in config, never defaulted by code.
+  // The issuer claim a person's DID is built from is declared in config,
+  // never defaulted by code.
   it('an identity section naming no subjectClaim fails validation, naming it', () => {
     const { subjectClaim: _omitted, ...withoutSubjectClaim } = IDENTITY;
     expect(validate({ vectors: VECTORS, embedding: EMBEDDING, identity: withoutSubjectClaim })).toBe(false);

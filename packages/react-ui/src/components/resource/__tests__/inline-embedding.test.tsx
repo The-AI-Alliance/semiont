@@ -1,5 +1,5 @@
 /**
- * EMBEDDABLE-VIEWER-COMPLETION Phase 1 — inline embedding.
+ * Inline embedding.
  *
  * `inline` is a display variant (default: today's pane behavior, frontend
  * untouched): the viewer renders at content height in a bare container — no
@@ -7,9 +7,9 @@
  * layout, so this spec pins the two testable seams: (1) the components emit
  * the `--inline` modifier classes; (2) the stylesheet contains the inline
  * overrides (height:auto / overflow:visible / padding drop). The visual
- * auto-height check is the plan's live smoke-test.
+ * auto-height check is a manual, live smoke-test.
  *
- * Started RED (no `inline` prop) and GREEN once Phase 1 lands.
+ * Started RED (no `inline` prop) and GREEN once the viewer takes one.
  */
 import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi } from 'vitest';
@@ -46,7 +46,7 @@ const resource: SemiontResource & { content: string } = {
   content: 'Inline content.',
 };
 
-describe('inline embedding (Phase 1)', () => {
+describe('inline embedding', () => {
   it('BrowseView: `inline` adds the modifier class; default does not', () => {
     const props = {
       content: 'x', mimeType: 'text/plain', resourceUri: resourceId('res-1'),

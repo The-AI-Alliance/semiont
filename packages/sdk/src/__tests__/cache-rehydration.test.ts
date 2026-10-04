@@ -1,5 +1,5 @@
 /**
- * B17 (LOCAL-STORAGE W3) + B18 — rehydration wired through BrowseNamespace.
+ * B17 + B18 — rehydration wired through BrowseNamespace.
  *
  * **Declared behavior change (2026-07-24).** This file used to pin
  * "protocol silence": a rehydrated key was served with NO

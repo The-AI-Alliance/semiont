@@ -1,5 +1,5 @@
 /**
- * Weaver Main — standalone entry point (WEAVER-ISOLATION P4)
+ * Weaver Main — standalone entry point
  *
  * Thin wiring for the `Weaver` pipeline: loads configuration from
  * ~/.semiontconfig (TOML) via the canonical `createTomlConfigLoader`,
@@ -11,8 +11,7 @@
  * over SSE, history reads (`browse:*`) and `weave:applied` signals ride
  * the same bus, and its single privileged attachment beyond the bus is
  * the graph database. The graph projection is part of the graph stack,
- * not of the gateway process (D4) — this entry point IS that stack
- * membership.
+ * not of the gateway process — this entry point IS that stack membership.
  *
  * Environment variables:
  *   SEMIONT_OIDC_CLIENT_ID     — this process's own account at the KB's
@@ -104,10 +103,11 @@ async function main() {
   // Supervised, but with no writable /semiont-state: `supervise.sh` keeps its
   // event log in /tmp and exports the resolved path. That is enough for the
   // LIVE count — the container does not exit when the child restarts — and
-  // only surviving container teardown would need a mount (F2, declined).
+  // only surviving container teardown would need a mount, which this service
+  // was deliberately not given.
   registerSupervisorRestartCount();
 
-  // The weaver is a Software peer (D2: the Smelter's exchange). It has no
+  // The weaver is a Software peer, authenticated as the Smelter is. It has no
   // inference (provider, model), so it authenticates under the stable
   // identity (semiont, weaver) — DID did:web:<host>:agents:semiont:weaver —
   // and the bus stamps that onto every signal it emits.
@@ -136,7 +136,7 @@ async function main() {
   });
   const fanIn = weaverFanIn(httpTransport.actor);
 
-  // Production timings (WEAVER-AXIOMS R0 — the axiom harness runs ~1 ms).
+  // Production timings (the axiom harness runs ~1 ms).
   const timing: WeaverTiming = {
     burstWindowMs: 50,
     maxBatchSize: 500,
@@ -197,18 +197,18 @@ async function main() {
   // changed while this weaver was down is brought back in sync here —
   // checkpointed replay, full replay if the checkpoint is gone.
   //
-  // NOT fatal since SIDECAR-BOOT-RESILIENCE P3. It used to be, on the argument
-  // that "a weaver that cannot catch up is projecting a graph of unknown
-  // freshness" — true, but exiting does not make the graph fresher, and the rule
-  // only ever guarded this ~30 s window: a subscription that drops silently an
-  // hour from now leaves exactly the same stale graph. What it did guarantee was
-  // that one 429 removed the weaver entirely (2026-09-07). The failed phase is
-  // recorded and logged; the live subscription keeps running.
+  // NOT fatal. It used to be, on the argument that "a weaver that cannot
+  // catch up is projecting a graph of unknown freshness" — true, but exiting
+  // does not make the graph fresher, and the rule only ever guarded this ~30 s
+  // window: a subscription that drops silently an hour from now leaves exactly
+  // the same stale graph. What it did guarantee was that one 429 removed the
+  // weaver entirely (2026-09-07). The failed phase is recorded and logged; the
+  // live subscription keeps running.
   await runBootPass('catch-up', () => weaver.catchUp(), logger, (s) => { catchUpState = s; });
 
   // Reconcile pass (#845): the state-diff backstop for divergence the
   // accounting cannot witness — out-of-band mutations, wiped/rolled-back
-  // graph volumes, historical damage. Also non-fatal (P3); heal failures were
+  // graph volumes, historical damage. Also non-fatal; heal failures were
   // already reported in the summary rather than thrown.
   await runBootPass('reconcile', () => weaver.reconcile(), logger, (s) => { reconcileState = s; });
 }

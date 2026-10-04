@@ -1,5 +1,5 @@
 /**
- * UNIFIED-STREAM Phase 8b — Cross-phase integration tests
+ * Unified events stream — integration tests
  *
  * Tests the complete event pipeline: EventStore → scoped EventBus →
  * events-stream enrichment → SSE delivery → client observable update.
@@ -33,7 +33,7 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger),
 };
 
-describe('Unified Stream Integration (Phase 8b)', () => {
+describe('Unified Stream Integration', () => {
   let testDir: string;
   let eventStore: EventStore;
   let eventBus: EventBus;

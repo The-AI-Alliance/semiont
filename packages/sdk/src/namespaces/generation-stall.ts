@@ -7,19 +7,21 @@ import {
 import type { JobErrorCode } from '@semiont/core';
 
 /**
- * The ONE stall guard for generation streams (FLOW-LIFECYCLE-CONVERGENCE D1).
+ * The ONE stall guard for generation streams: silence past the deadline
+ * cancels the job and raises a typed error, and no consumer of the stream
+ * keeps a timer of its own.
  *
  * The generation wire is exactly three frames (5 → 95 → 100), so the 5→95
  * silence spans the entire inference call. The deadline therefore derives
  * from the request's `maxTokens` — never a fixed constant — because the
  * guard CANCELS server-side, and a mis-sized fixed default would destroy
- * the longest legitimate runs (D1a). Consumers override per call with
+ * the longest legitimate runs. Consumers override per call with
  * `GenerationOptions.stallDeadlineMs`, a client-only knob that is stripped
  * before the wire.
  */
 
 /**
- * The single derivation site (D1a): a floor, and a wait that grows with the
+ * The single derivation site: a floor, and a wait that grows with the
  * length asked for. The three numbers are specs/src/client/timing.json's, so
  * every SDK waits as long.
  */

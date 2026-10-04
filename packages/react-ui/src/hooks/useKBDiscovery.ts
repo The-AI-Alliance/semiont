@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Browser ↔ launcher KB discovery — the react-ui binding (BROWSER-KB-DISCOVERY P4).
+ * Browser ↔ launcher KB discovery — the react-ui binding.
  *
  * Thin by design: the sdk's `subscribeDiscovery` owns every discovery
  * semantic (validation, version gate, absent taxonomy, diffing); this hook

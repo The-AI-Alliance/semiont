@@ -9,7 +9,7 @@ import { createTestSemiontWrapper } from '../../../test-utils';
 import type { Annotation, AnnotationId } from '@semiont/core';
 import { annotationId, resourceId } from '@semiont/core';
 
-// BrowseView takes its `session` + `sparkleAnnotationIds` as props now (step 1a) — no
+// BrowseView takes its `session` + `sparkleAnnotationIds` as props now — no
 // ResourceAnnotationsContext / SemiontProvider reach-in. `makeSession` (below)
 // wraps the fake client so browse:click / beckon:hover land on the bus the
 // trackers listen on, and session.subscribe registers beckon:* on that bus.
@@ -222,8 +222,8 @@ describe('BrowseView Component', () => {
     });
 
     it('should render the read-only annotation canvas for image mime types', () => {
-      // Was a bare ImageViewer, which silently dropped the annotations prop
-      // (bugs/image-browse-renderer-drops-annotations.md).
+      // Was a bare ImageViewer, which silently dropped the annotations prop,
+      // so image marks never painted in browse mode.
       const { container } = renderWithProviders(<BrowseView {...defaultProps} mimeType="image/png" />);
 
       expect(container.querySelector('.semiont-svg-drawing-canvas')).toBeInTheDocument();
@@ -406,7 +406,7 @@ describe('BrowseView Component', () => {
     it('should emit browse:click for every motivation', async () => {
       // browse:click is the platform's one "user clicked an annotation" signal;
       // text browse mode must emit it for whatever the click resolves, matching
-      // the image/PDF/annotate emitters (BROWSE-CLICK-ALL-MOTIVATIONS.md).
+      // the image/PDF/annotate emitters.
       const tracker = createEventTracker();
       const annotations = {
         ...defaultProps.annotations,
@@ -447,9 +447,9 @@ describe('BrowseView Component', () => {
     });
 
     it('should include the clicked span rect as anchorRect', async () => {
-      // A1 anchor thread (HEADLESS-ANNOTATION-PANELS Phase 3): the emission
-      // site owns the geometry — the clicked span's viewport rect rides the
-      // event so hosts can anchor popovers. Runtime-only; no schema pin.
+      // The emission site owns the geometry — the clicked span's viewport
+      // rect rides the event so hosts can anchor popovers. Runtime-only; no
+      // schema pin.
       const tracker = createEventTracker();
       const annotations = {
         ...defaultProps.annotations,
@@ -655,11 +655,11 @@ describe('BrowseView Component', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
-// GUIDED-TOUR P6 (D7) — the same guard BrowseView's sibling carries.
-// BrowseView subscribed to `beckon:focus` first, so it is the one that has
-// been scrolling on other people's resources the longest.
+// `beckon:focus` is guarded by resourceId — the same guard BrowseView's
+// sibling carries. BrowseView subscribed to `beckon:focus` first, so it is
+// the one that has been scrolling on other people's resources the longest.
 // ─────────────────────────────────────────────────────────────────────
-describe('BrowseView — beckon:focus is guarded by resourceId (P6/D7)', () => {
+describe('BrowseView — beckon:focus is guarded by resourceId', () => {
   it('ignores a focus aimed at a different resource, honours one that matches', () => {
     const { session, client } = createTestSemiontWrapper();
     const { container } = render(

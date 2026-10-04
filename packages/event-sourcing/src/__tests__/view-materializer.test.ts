@@ -165,11 +165,11 @@ describe('ViewMaterializer', () => {
       expect(view!.annotations.version).toBe(2);
     });
 
-    // JOB-RESTART-SAFETY P6: at-least-once is a property of the network, not a
+    // At-least-once is a property of the network, not a
     // bug to be prevented upstream. A worker that commits a unit and loses the
     // acknowledgement in transit MUST retry, and the retry re-sends facts that
     // already landed — the append succeeded before the ack was lost, so no
-    // pre-append check can stop it. P3 made annotation ids deterministic so
+    // pre-append check can stop it. Annotation ids are content-addressed so
     // that repeat is recognizable; this fold is what makes it harmless.
     //
     // It is also what the projection doctrine already required: a view is a
@@ -231,7 +231,7 @@ describe('ViewMaterializer', () => {
     // The repeat is NOT byte-identical, which is exactly what the previous
     // last-write-wins fold assumed. `created` is stamped at EMISSION
     // (`processors.ts`, `new Date().toISOString()`) and is deliberately not an
-    // identity input — P3 excluded it so a recovery re-emitting at a different
+    // identity input — it is excluded so a recovery re-emitting at a different
     // time from a different process still collides. So a retry always arrives
     // with a FRESH timestamp, and taking the newer payload silently advanced
     // `created` to the recovery time.

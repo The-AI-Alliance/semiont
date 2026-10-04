@@ -30,15 +30,16 @@ import type { VectorStore } from '@semiont/vectors';
 import type { ContentReads } from '@semiont/content';
 import type { AnchoredTextAsk } from './anchored-text-ask.js';
 
-/** The view slice the annotation reads run on (EXTRACT-ARCHIVIST P1). */
+/** The view slice the annotation reads run on, not the whole KnowledgeBase. */
 type ViewGet = { views: Pick<ViewStorage, 'get'> };
 
 /**
- * What the annotation-gather path reads (EXTRACT-LIBRARIAN P2; content
- * re-keyed by D-CONTENT b) — the graph builder's slice plus this module's
- * own reads. Pick-derived, never restated. In-process roots satisfy it with
+ * What the annotation-gather path reads — a narrow capability slice, not the
+ * whole KnowledgeBase, with content keyed by resource id so a network
+ * transport can back it: the graph builder's slice plus this module's own
+ * reads. Pick-derived, never restated. In-process roots satisfy it with
  * `workingTreeContentReads` over their `kb`; the Librarian passes
- * `HttpContentTransport`.
+ * `archivistContentReads`.
  */
 export interface AnnotationGatherReads {
   views: Pick<ViewStorage, 'get'>;
@@ -154,10 +155,10 @@ export class AnnotationContext {
     }
 
     // Build source context if requested. Text arrives through the
-    // dispatcher (bugs/gather-ships-raw-pdf-bytes P1): decode media decode,
-    // pdf-text-layer media answer from the anchored text — whose offsets
-    // are what TextPositionSelectors index — and an absent derived text
-    // skips the slice rather than killing the build.
+    // read-side dispatcher: decode media decode, pdf-text-layer media answer
+    // from the anchored text — whose offsets are what TextPositionSelectors
+    // index — and an absent derived text skips the slice rather than killing
+    // the build.
     let sourceContext;
     if (includeSourceContext) {
       if (!getStorageUri(sourceDoc)) {
@@ -232,16 +233,16 @@ export class AnnotationContext {
       }
     }
 
-    // Build the knowledge graph for the neighborhood (full — the cap is a view concern, Q2=C).
+    // Build the knowledge graph for the neighborhood (full — the cap is a view concern).
     logger?.debug('Building knowledge graph', { resourceId });
     const graph = await GraphContext.buildKnowledgeGraph(resourceId, kb, logger);
 
-    // Derive the flattened views (connections / citedBy / siblings) from the graph (Q1=A).
+    // Derive the flattened views (connections / citedBy / siblings) from the graph.
     const views = deriveViews(graph, String(resourceId), annotationId);
 
-    // Global IDF statistic — not graph-derivable, stays in metadata (D4).
-    // Eventually consistent BY DESIGN (graph-read-after-write-coverage.md,
-    // mechanism (d)): a corpus-wide frequency is semantically stale-tolerant.
+    // Global IDF statistic — not graph-derivable, stays in metadata.
+    // Eventually consistent BY DESIGN: a statistical graph read has no key to
+    // await, and a corpus-wide frequency is semantically stale-tolerant.
     const entityTypeStats = await kb.graph.getEntityTypeStats();
     const entityTypeFrequencies: Record<string, number> = {};
     for (const stat of entityTypeStats) {
@@ -280,7 +281,7 @@ Summary:`;
     }
 
     // Build semantic context via vector search — vectors and the provider
-    // are mandatory (MANDATORY-EMBEDDING D0); only a missing selection skips.
+    // are mandatory; only a missing selection skips.
     let semanticContext: GatheredContext['semanticContext'];
     if (sourceContext?.selected) {
       try {
@@ -291,7 +292,7 @@ Summary:`;
           filter: { excludeResourceId: resourceId },
         });
 
-        // Each match is named via its source's view (D9: resourceName is
+        // Each match is named via its source's view (`resourceName` is
         // required). A source the views cannot resolve is dropped, never
         // id-labeled: a passage from a vanished resource is not actionable
         // fork evidence.

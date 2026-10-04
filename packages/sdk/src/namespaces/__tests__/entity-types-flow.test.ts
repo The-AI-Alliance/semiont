@@ -114,10 +114,10 @@ interface Harness {
   eventBus: EventBus;
 }
 
-// Real client over the scriptable transport (SDK-TESTING-DOUBLE.md Phase 3):
-// this file's original hand-rolled emit-switch was one of the mock-subject
-// harnesses the double retires — the replies below ride the REAL cache, the
-// REAL busRequest, and the client's own bus.
+// Real client over the scriptable transport: this file's original
+// hand-rolled emit-switch was one of the mock-subject harnesses the double
+// retires — the replies below ride the REAL cache, the REAL busRequest, and
+// the client's own bus.
 function createHarness(): Harness {
   const { client } = createTestClient({
     transport: {

@@ -1,5 +1,5 @@
 /**
- * The one wire→copy mapping (ASSIST-PROGRESS-CONSOLIDATION P3).
+ * The one wire→copy mapping: each progress code to its localized text.
  *
  * Two things are pinned here, and the second is the interesting one.
  *
@@ -39,7 +39,7 @@ const ALL: Array<{ message: JobProgressMessage; key: string }> = [
   { message: { code: 'generating-resource' }, key: 'codeGeneratingResource' },
   { message: { code: 'creating-resource' }, key: 'codeCreatingResource' },
   { message: { code: 'complete-generated', truncated: false }, key: 'codeCompleteGenerated' },
-  // D6: a run cut off at the maxTokens ceiling completes, but never silently.
+  // A run cut off at the maxTokens ceiling completes, but never silently.
   { message: { code: 'complete-generated', truncated: true }, key: 'codeCompleteGeneratedTruncated' },
   { message: { code: 'detecting-entities', entityType: 'Person' }, key: 'codeDetectingEntities' },
   { message: { code: 'creating-annotations', count: 3 }, key: 'codeCreatingAnnotations' },

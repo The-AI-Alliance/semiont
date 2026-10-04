@@ -9,10 +9,10 @@
  * probe enforces loudly at first use).
  *
  * This is the read-side half of "the media type decides where the text comes
- * from" (SMELTER-OWNS-OCR): `decode` media decode their own bytes;
- * `pdf-text-layer` media answer from here — the Smelter's persisted artifact,
- * served by the Archivist (ANCHORED-TEXT-TO-SMELTER D5). Never from
- * `decodeRepresentation`, which now refuses them.
+ * from": `decode` media decode their own bytes; `pdf-text-layer` media answer
+ * from here — the artifact the Smelter alone writes, served by the Archivist
+ * from its read-only mount. Never from `decodeRepresentation`, which now
+ * refuses them.
  */
 
 import { busRequest, type AnchoredTextAnswer, type BusOperationKey, type BusRequestPrimitive } from '@semiont/core';

@@ -7,7 +7,7 @@
       "enum": [
         "declined"
       ],
-      "description": "Discriminant — both ExtractionOutcome members carry `kind`, single-valued (D6: category here, detail in `declined`)."
+      "description": "Discriminant — both ExtractionOutcome members carry `kind`, single-valued: the category here, the detail in `declined`."
     },
     "declined": {
       "type": "string",

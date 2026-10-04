@@ -10,11 +10,11 @@
  * while the session was null would hand every one of them a disposed client
  * — silently, since nothing would fail to compile.
  *
- * NOTE (SESSION-TYPED-FACTORIES, landed 2026-07-29): the API now enforces what
- * this gate guards — factories take a `SemiontSession` and construction goes
- * through `useSessionStateUnit`, which builds nothing without a session. These
- * layout gates remain as defense in depth and UX (loading order), not as the
- * safety mechanism.
+ * NOTE (2026-07-29): the API now enforces what this gate guards — factories
+ * take a `SemiontSession` and construction goes through
+ * `useSessionStateUnit`, which builds nothing without a session. These layout
+ * gates remain as defense in depth and UX (loading order), not as the safety
+ * mechanism.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act } from '@testing-library/react';

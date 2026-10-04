@@ -70,7 +70,7 @@ describe('textUnder', () => {
 
   it('returns empty string over blank space', () => {
     // Never an empty-string TextQuoteSelector: the caller drops the quote when
-    // this is '' (PDF-MANUAL-ANNOTATION-TEXT, To settle 3).
+    // this is ''.
     expect(textUnder(LAYER, { page: 1, x: 72, y: 400, width: 100, height: 20 }))
       .toBe('');
   });

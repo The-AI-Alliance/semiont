@@ -295,7 +295,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
   });
 });
 
-describe('worker-runtime — health vitals (WORKER-LIVENESS.md P1)', () => {
+describe('worker-runtime — health vitals', () => {
   beforeEach(() => {
     vi.mocked(startWorkerProcess).mockClear();
   });
@@ -355,7 +355,7 @@ describe('worker-runtime — health vitals (WORKER-LIVENESS.md P1)', () => {
   });
 });
 
-describe('worker-runtime — stall watchdog (WORKER-LIVENESS.md P3)', () => {
+describe('worker-runtime — stall watchdog', () => {
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -468,31 +468,31 @@ describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)'
     // The explicit pin survives the manifest change deliberately: growing a
     // worker's subscription set must stay a conscious edit to a literal list,
     // which is the OOM protection this test was written for (2026-09-03).
-    // What changed in P2 is only that the list now also names the broadcasts
-    // the worker consumes — `WORKER_CONSUMED_BROADCASTS` — which previously
-    // reached the set through `addChannels` calls at their use sites and so
-    // appeared in no list at all.
+    // What changed with the single manifest is only that the list now also
+    // names the broadcasts the worker consumes — `WORKER_CONSUMED_BROADCASTS` —
+    // which previously reached the set through `addChannels` calls at their
+    // use sites and so appeared in no list at all.
     expect([...WORKER_CHANNELS].sort()).toEqual([
-      // Canonical-geometry consult replies (SMELTER-OWNS-OCR P2) — the pair
-      // whose absence killed every PDF detection job.
+      // Canonical-geometry consult replies — the pair whose absence killed
+      // every PDF detection job.
       'browse:anchored-text-failed',
       'browse:anchored-text-result',
-      // The durability probe for a commit whose ack never routed
-      // (COMMIT-ACK-FALSE-FAILURE F1). The SINGULAR annotation read, chosen
-      // precisely so the list channel below stays out.
+      // The durability probe for a commit whose ack never routed. The
+      // SINGULAR annotation read, chosen precisely so the list channel below
+      // stays out.
       'browse:annotation-failed',
       'browse:annotation-result',
       'browse:resource-failed',
       'browse:resource-result',
       'job:claim-failed',
       'job:claimed',
-      // The durability ack (JOB-RESTART-SAFETY P6). A worker that awaits a
-      // commit but does not subscribe its replies fails fast with
-      // `bus.unsubscribed` on the first unit — which is why this pin and
-      // WORKER_AWAITED_OPERATIONS move together.
+      // The durability ack. A worker that awaits a commit but does not
+      // subscribe its replies fails fast with `bus.unsubscribed` on the first
+      // unit — which is why this pin and WORKER_AWAITED_OPERATIONS move
+      // together.
       'mark:commit-failed',
       'mark:commit-ok',
-      // Declared broadcasts (P2). Cooperative cancellation of the ACTIVE job:
+      // Declared broadcasts. Cooperative cancellation of the ACTIVE job:
       // note this is an operation REQUEST channel that the worker consumes
       // and never answers — the gateway's handler replies for PENDING jobs,
       // the worker aborts for RUNNING ones. Two consumers, one contract.

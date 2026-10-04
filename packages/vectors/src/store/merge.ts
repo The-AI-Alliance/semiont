@@ -11,7 +11,7 @@
  *
  * Three callers share this: both `searchByResource` implementations (qdrant
  * batches one query per source chunk; memory scores every candidate against
- * every source chunk) and the SEMANTIC-FALLBACK fold over raw `searchResources`
+ * every source chunk) and the semantic fallback's fold over raw `searchResources`
  * output, whose hits map one-to-one with no dedup. All three normalise to
  * `VectorSearchResult[]` first, so this fold is the only copy of the logic.
  *

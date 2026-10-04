@@ -25,7 +25,7 @@ import { getShardPath } from '@semiont/core';
 
 /** SHA-256 hex of a URI — the index's filename derivation. Lived in
  *  shard-utils until the pure sharding helpers hoisted to @semiont/core
- *  (PERSIST-ANCHORS P1a); this was its only consumer. */
+ *  for the anchored-text store to share; this was its only consumer. */
 function sha256(data: string): string {
   return createHash('sha256').update(data).digest('hex');
 }

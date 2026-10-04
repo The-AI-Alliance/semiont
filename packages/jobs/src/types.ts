@@ -39,21 +39,20 @@ export interface JobMetadata {
   retryCount: number;
   maxRetries: number;
   /**
-   * Checkpointed resume (ABANDONED-INFERENCE P2, HD1): the entity-type
-   * units whose annotations were fully emitted by earlier failed
-   * attempts. Written only by `failJob`, unioned across attempts — and
-   * because `failJob` rebuilds the retried record by spreading metadata,
-   * the checkpoint survives every subsequent rebuild for free. A retried
-   * claim skips these units, so completed work is neither redone nor
-   * duplicated.
+   * Checkpointed resume: the entity-type units whose annotations were fully
+   * emitted by earlier failed attempts. Written only by `failJob`, unioned
+   * across attempts — and because `failJob` rebuilds the retried record by
+   * spreading metadata, the checkpoint survives every subsequent rebuild
+   * for free. A retried claim skips these units, so completed work is
+   * neither redone nor duplicated.
    */
   completedUnits?: string[];
   /**
-   * The finer grain `completedUnits` cannot express (CHUNK-GRAIN-RESUME P2):
-   * how far each UNFINISHED unit got, keyed by unit. Written per committed
-   * chunk, so a job that dies mid-unit resumes there rather than at the top —
-   * which for a one-unit job (every motivation job, and the 1958 document's
-   * single `Person` type) is the difference between resuming and restarting.
+   * The finer grain `completedUnits` cannot express: how far each UNFINISHED
+   * unit got, keyed by unit. Written per committed chunk, so a job that dies
+   * mid-unit resumes there rather than at the top — which for a one-unit job
+   * (every motivation job, and the 1958 document's single `Person` type) is
+   * the difference between resuming and restarting.
    *
    * A unit here is in progress, never complete; the two sets are disjoint by
    * construction in `checkpointUnits`. Merged monotonically per unit, never

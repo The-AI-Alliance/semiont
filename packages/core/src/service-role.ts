@@ -26,7 +26,7 @@ export const SERVICE_ROLE = 'semiont-service';
 
 /**
  * The role that marks a principal permitted to CLAIM JOBS — a worker, whether
- * it is this stack's own or a foreign one (EXTRACT-JOBS P0).
+ * it is this stack's own or a foreign one.
  *
  * Distinct from `SERVICE_ROLE` on purpose. Every sidecar carries the service
  * role, so it proves service-ness and nothing finer; worker-ness is a separate

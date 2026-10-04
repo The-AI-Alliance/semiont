@@ -1,7 +1,6 @@
 package launcher
 
-// custody.go — the secrets the launcher MINTS and KEEPS
-// (LAUNCHER-SERVICE-MODEL D8).
+// custody.go — the secrets the launcher MINTS and KEEPS.
 //
 // Two mechanisms shared the word "secret", and they are opposites:
 //
@@ -14,7 +13,7 @@ package launcher
 //     config declares a POINTER; a provider answers it at start; the value
 //     lives in memory for one process and is written nowhere.
 //
-// The platform question (D8): custody's provider is the local filesystem,
+// The platform question: custody's provider is the local filesystem,
 // because the launcher only ever mints for a LOCAL stack. A codespace stack
 // mints nothing here — the codespace's own launcher mints its credentials,
 // on its own filesystem. An `aws` platform would put these in
@@ -45,7 +44,7 @@ import (
 //
 // Exporting one of these yourself is a different thing and still works: the
 // launcher's own process reads the environment first, which is how a
-// JWT_SECRET rotation ring is handed over (JWT-SECRET-ROTATION.md).
+// JWT_SECRET rotation ring is handed over (loadOrCreateJWTSecret).
 func custodyOwned(name string) bool {
 	switch name {
 	case "JWT_SECRET", "KC_BOOTSTRAP_ADMIN_PASSWORD", "SEMIONT_OIDC_CLIENT_SECRET":
@@ -54,15 +53,15 @@ func custodyOwned(name string) bool {
 	return daemonCredentialVar(name) || strings.HasPrefix(name, "SEMIONT_OIDC_CLIENT_SECRET_")
 }
 
-// daemonPasswords: the daemons the launcher runs and keeps a password for
-// (SECRET-DELIVERY P4, D1 RULED: "B for daemons the launcher runs"). Each is
-// generated once per root and kept, because a data directory keeps the
+// daemonPasswords: the daemons the launcher runs and keeps a password for —
+// such a daemon's credential comes from custody, never from the config. Each
+// is generated once per root and kept, because a data directory keeps the
 // password it was initialized with. The variable names are the launcher's,
 // machine-wide (ruled 2026-09-29: "names are fine") — `semiont settings secret`
 // registrations are machine-wide while a daemon's presence is per-KB config,
 // so no config may borrow one. The custody names are also the files under
 // roots/<key>/ where KB skills that connect to a daemon directly are told to
-// read its password (FLEET-P4-DAEMON-PASSWORDS): keep them stable.
+// read its password: keep them stable.
 var daemonPasswords = map[string]struct {
 	env, custody, display string
 	// kept: the daemon writes the password into its store at initialization,
@@ -186,9 +185,9 @@ func loadOrCreateJWTSecret(u *UI, root string) (string, bool) {
 	if s := os.Getenv("JWT_SECRET"); s != "" {
 		// The gateway reads this as an ordered RING: the first value signs,
 		// every value verifies, so `<new>,<old>` keeps outstanding tokens
-		// working across a deliberate rotation (JWT-SECRET-ROTATION.md). The
-		// launcher only carries it — splitting is the gateway's business, and
-		// re-joining a parsed ring here could only introduce a difference.
+		// working across a deliberate rotation. The launcher only carries it —
+		// splitting is the gateway's business, and re-joining a parsed ring
+		// here could only introduce a difference.
 		//
 		// Validate each MEMBER though. The gateway refuses to boot on a short
 		// one, and a whole-string length check happily passes "<valid>,short"

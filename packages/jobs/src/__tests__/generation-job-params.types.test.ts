@@ -3,9 +3,9 @@ import type { GenerationJobParams, GatheredContext } from '@semiont/core';
 import { resourceId } from '@semiont/core';
 
 /**
- * tsc-enforced contract for the generation params bag — the SHARED wire type
- * (YIELD-FROM-CONTEXT P1), generated from the spec schema and consumed by
- * both the sdk (write side) and the worker (read side).
+ * tsc-enforced contract for the generation params bag — the SHARED wire type,
+ * generated from the spec schema and consumed by both the sdk (write side)
+ * and the worker (read side).
  *
  * Supersedes the GenerationParams contract file: the all-optional era is
  * over. Requiredness is decided once, in the schema — `title`, `storageUri`,
@@ -40,8 +40,8 @@ describe('GenerationJobParams contract', () => {
   });
 
   it('the empty bag no longer compiles — requiredness is the wire\'s law', () => {
-    // @ts-expect-error — title, storageUri, and context are required (P1 ended
-    // the all-optional era this file used to pin).
+    // @ts-expect-error — title, storageUri, and context are required (the
+    // shared type ended the all-optional era this file used to pin).
     const p: GenerationJobParams = {};
     expect(p).toEqual({});
   });
@@ -60,7 +60,9 @@ describe('GenerationJobParams contract', () => {
     expect(custom.structure).toBe('a bulleted list of key facts');
   });
 
-  it('accepts cite and outputMediaType (INLINE-CITATIONS / media-type gate)', () => {
+  // `cite` asks for inline citations; `outputMediaType` is the format the
+  // worker checks against the registry's generatable media types.
+  it('accepts cite and outputMediaType', () => {
     const p: GenerationJobParams = { ...REQUIRED, cite: true, outputMediaType: 'text/plain' };
     expect(p.cite).toBe(true);
     expect(p.outputMediaType).toBe('text/plain');

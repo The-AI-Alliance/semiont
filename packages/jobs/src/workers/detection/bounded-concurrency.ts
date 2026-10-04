@@ -1,9 +1,9 @@
 /**
- * Run `worker` over `items` with at most `limit` of them in flight at once
- * (DETECTION-QUALITY-THROUGHPUT P6). Hand-rolled rather than a dependency: the
- * need is exactly one bounded map, and the BOUND is the whole point — detection
- * parallelizes independent entity types, but unbounded fan-out just trades
- * sequential waiting for provider 429 thrash, so the cap is the feature.
+ * Run `worker` over `items` with at most `limit` of them in flight at once.
+ * Hand-rolled rather than a dependency: the need is exactly one bounded map,
+ * and the BOUND is the whole point — detection parallelizes independent entity
+ * types, but unbounded fan-out just trades sequential waiting for provider 429
+ * thrash, so the cap is the feature.
  *
  * A fixed pool of `min(limit, items.length)` pumps, each pulling the next index
  * until the work is exhausted — so at most `limit` calls are ever awaiting at

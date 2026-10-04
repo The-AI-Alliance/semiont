@@ -74,9 +74,9 @@ fi
 # than silently permitted: unlike `created` it appears in no event, no core
 # type and no spec, so there is no authored value being overwritten — it is
 # bookkeeping the graph invents, which a rebuild loses outright. Whether it
-# should be derived from the resolve event or declared ephemeral is
-# GRAPH-DIVERGENCE-DEPTH's open question; when that is settled, this exclusion
-# is either deleted or given a reason that outlives the question.
+# should be derived from the resolve event or declared ephemeral is an open
+# question about the graph's content model; when that is settled, this
+# exclusion is either deleted or given a reason that outlives the question.
 if stamped=$(grep -rnE "new Date\(\)" "$IMPLEMENTATIONS" 2>/dev/null | grep -v "resolvedAt"); then
   echo ""
   echo "❌ A5: an implementation is minting a timestamp of its own."

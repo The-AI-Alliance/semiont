@@ -245,7 +245,7 @@ describe('MemoryGraphDatabase Implementation', () => {
     });
 
     it('createResource persists the representation storageUri so it round-trips through getResource', async () => {
-      // The URI's one home is the representation (STORAGE-URI-ONE-HOME).
+      // The URI's one home is the representation.
       const resource = createTestResource({
         representations: [{ mediaType: 'text/plain', storageUri: 'file://docs/overview.md' }],
       });

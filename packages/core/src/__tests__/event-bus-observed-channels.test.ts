@@ -66,14 +66,14 @@ describe('EventBus.observedChannels', () => {
   });
 
   it('reports the CHANNEL a scoped subscription observes, without a scope prefix', () => {
-    // Restated at BUS-CARRIES-FRAMES: this asserted `res-1:mark:create-ok`,
-    // because scoping used to BE a channel-key prefix and scoped subjects
-    // lived in the parent's map under that mangled name. Scope is now a field
-    // on the frame, so there is one subject per channel and no mangled key to
-    // report. The reason the gates use this accessor is unchanged — they ask
-    // WHICH CHANNELS a root observes, and check membership against a roster
-    // union (root-parity.test.ts, connect-record.test.ts); neither ever read
-    // the scope half.
+    // Restated when scope moved onto the frame: this asserted
+    // `res-1:mark:create-ok`, because scoping used to BE a channel-key prefix
+    // and scoped subjects lived in the parent's map under that mangled name.
+    // Scope is now a field on the frame, so there is one subject per channel
+    // and no mangled key to report. The reason the gates use this accessor is
+    // unchanged — they ask WHICH CHANNELS a root observes, and check
+    // membership against a roster union (root-parity.test.ts,
+    // connect-record.test.ts); neither ever read the scope half.
     eventBus.scope(resourceId('res-1')).on('mark:create-ok').subscribe(() => {});
 
     expect(eventBus.observedChannels()).toEqual(['mark:create-ok']);

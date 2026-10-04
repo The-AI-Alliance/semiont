@@ -74,7 +74,7 @@ export const RESTART_HINT =
  * Connect the shared stores both composition roots need: graph, event store,
  * vectors + embedding, and the KnowledgeBase bundle. Whether views REBUILD
  * here is the root's call — the standalone root owns its record and rebuilds;
- * the gateway root never does (D6: the Archivist owns rebuild + incremental,
+ * the gateway root never does (the Archivist owns rebuild + incremental,
  * the gateway reads the shared stateDir).
  */
 async function connectStores(
@@ -94,11 +94,11 @@ async function connectStores(
     () => getGraphDatabase(graphConfig), RESTART_HINT);
   const eventStore = createEventStoreCore(project, eventBus, logger.child({ component: 'event-store' }));
 
-  // The vector pair is mandatory and explicitly configured (MANDATORY-
-  // EMBEDDING D0+D1): construction is unconditional — the config NAMES the
-  // store and the provider, or the type (and the TOML loader before it)
-  // already refused. No fallback path exists; a `memory` choice is an
-  // informed one and announces its rebuild-on-restart cost below.
+  // The vector pair is mandatory and explicitly configured: construction
+  // is unconditional — the config NAMES the store and the provider, or the
+  // type (and the TOML loader before it) already refused. No fallback path
+  // exists; a `memory` choice is an informed one and announces its
+  // rebuild-on-restart cost below.
   const vectorsConfig = config.services.vectors;
   const embeddingConfig = config.services.embedding;
   const { createVectorStore, createEmbeddingProvider } = await import('@semiont/vectors');
@@ -172,8 +172,8 @@ async function createKnowledgeSystemFromConfig(
   await bootstrapEntityTypes(eventBus, eventStore, logger.child({ component: 'entity-types-bootstrap' }));
 
   const gatherer = new Gatherer(
-    // The content capability is ResourceId-keyed (D-CONTENT b); in-process
-    // it wraps this root's own working tree behind the transport shape.
+    // The content capability is ResourceId-keyed; in-process it wraps this
+    // root's own working tree behind the transport shape.
     {
       ...kb,
       content: workingTreeContentReads(kb.views, kb.content),
@@ -214,21 +214,20 @@ export function assertMakeMeaningConfig(config: MakeMeaningConfig): void {
     throw new Error('services.graph is required for make-meaning service');
   }
 
-  // A4 nesting (SMELTER-INDEX-SYNC): the gather's worst-case read-barrier
-  // spend — the settle bound plus the graph barrier budget — must degrade
-  // gracefully BEFORE the job-worker stall watchdog fails fast; a barrier
-  // that outlives the watchdog gets the worker killed instead of a thin
-  // context. Enforced here because both bounds are visible at this
-  // composition root; tighter EXTERNAL watchdogs (e.g. my-chat's 90s
-  // generation stall) are not importable and remain documented on the
-  // config field.
+  // Watchdog nesting: the gather's worst-case read-barrier spend — the
+  // settle bound plus the graph barrier budget — must degrade gracefully
+  // BEFORE the job-worker stall watchdog fails fast; a barrier that outlives
+  // the watchdog gets the worker killed instead of a thin context. Enforced
+  // here because both bounds are visible at this composition root; tighter
+  // EXTERNAL watchdogs (e.g. my-chat's 90s generation stall) are not
+  // importable and remain documented on the config field.
   if (!Number.isFinite(config.gather.settleTimeoutMs) || config.gather.settleTimeoutMs <= 0) {
     throw new Error(`gather.settleTimeoutMs must be a positive number of milliseconds, got ${config.gather.settleTimeoutMs}`);
   }
   if (config.gather.settleTimeoutMs + GRAPH_BARRIER_BUDGET_MS >= STALL_THRESHOLD_MS) {
     throw new Error(
       `gather.settleTimeoutMs (${config.gather.settleTimeoutMs}ms) plus the graph barrier budget (${GRAPH_BARRIER_BUDGET_MS}ms) ` +
-      `must nest inside the job-worker stall watchdog (${STALL_THRESHOLD_MS}ms) — lower settleTimeoutMs (A4)`,
+      `must nest inside the job-worker stall watchdog (${STALL_THRESHOLD_MS}ms) — lower settleTimeoutMs`,
     );
   }
 }
@@ -271,7 +270,7 @@ export async function startMakeMeaning(
   };
 }
 
-// ─── Record-maintenance composition root (JOB-QUEUE-DRIVER follow-up) ─────────
+// ─── Record-maintenance composition root ──────────────────────────────────────
 
 /**
  * The event log this root connects, plus its teardown. NOT a

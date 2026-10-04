@@ -1,11 +1,12 @@
 package launcher
 
-// EXPORT-VIA-LAUNCHER P5, in process.
+// `semiont import`, in process: an archive untarred into a new root, which is
+// then registered.
 //
-// A3 is the round trip: an archive export writes restores through import, on a
-// KB that did not create it. Everything else here guards the two ways this verb
-// can do damage — merging two KBs into one directory, and trusting a hostile
-// archive.
+// The first test is the round trip: an archive export writes restores through
+// import, on a KB that did not create it. Everything else here guards the two
+// ways this verb can do damage — merging two KBs into one directory, and
+// trusting a hostile archive.
 
 import (
 	"archive/tar"
@@ -19,7 +20,7 @@ import (
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
-// ── A3: the round trip ──────────────────────────────────────────────────
+// ── the round trip ──────────────────────────────────────────────────────
 
 func TestExportImportRoundTrips(t *testing.T) {
 	harness.Home(t)
@@ -52,7 +53,7 @@ func TestExportImportRoundTrips(t *testing.T) {
 			t.Errorf("%s restored with wrong content: %q", rel, string(b))
 		}
 	}
-	// Nothing derived rode along, and .git stayed out (D6's default).
+	// Nothing derived rode along, and .git stayed out (export's default).
 	if _, err := os.Stat(filepath.Join(dest, ".git")); err == nil {
 		t.Error(".git was restored from a default export")
 	}

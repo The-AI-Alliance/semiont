@@ -48,10 +48,10 @@ import { PERSISTED_EVENT_TYPES } from '../persisted-events';
  * snapshot and the test goes red — so no reply channel can silently drop. Edit
  * this snapshot ONLY for a deliberate, reviewed change to the bridged set.
  */
-// SHRANK 2026-09-16 (WIRE-CROSSING-MODEL P1): `job:queued` left the
-// auto-subscribe set. The P0 audit found it had no SDK or UI consumer — every
-// browser subscribed it and none read it — while the worker, its only real
-// consumer, reaches it through `audience: declared` plus its own manifest.
+// SHRANK 2026-09-16: `job:queued` left the auto-subscribe set. A per-channel
+// audit of consumers found it had no SDK or UI consumer — every browser
+// subscribed it and none read it — while the worker, its only real consumer,
+// reaches it through `audience: declared` plus its own manifest.
 // A deliberate removal, which is exactly what this snapshot exists to make
 // someone type out.
 const FROZEN_BRIDGED = [
@@ -98,30 +98,32 @@ const FROZEN_BRIDGED = [
   'yield:clone-resource-result', 'yield:clone-resource-failed',
   'yield:clone-created', 'yield:clone-create-failed',
   'frame:entity-type-added', 'frame:tag-schema-added',
-  // CORRELATED-REPLY-ROUTING P4: the resource domain events, bridged so a
-  // NON-requesting client learns that a resource appeared, changed, was
-  // cloned or was renamed. They used to reach other clients only as a side
-  // effect of `yield:*-ok` reply fan-out; once replies became owner-routed
-  // (P3), a reply could no longer double as a broadcast.
+  // The resource domain events, bridged so a NON-requesting client learns
+  // that a resource appeared, changed, was cloned or was renamed. They used
+  // to reach other clients only as a side effect of `yield:*-ok` reply
+  // fan-out; once replies became owner-routed (written only to the client
+  // that made the request), a reply could no longer double as a broadcast.
   'yield:created', 'yield:updated', 'yield:cloned', 'yield:moved',
   'frame:entity-type-add-ok', 'frame:entity-type-add-failed',
   'frame:tag-schema-add-ok', 'frame:tag-schema-add-failed',
   'beckon:focus', 'beckon:sparkle',
   'bus:resume-gap',
-  // GUIDED-TOUR P2: the tour's imperative — domain intent, bridged so a
-  // launcher emit reaches every watching Browser (nav:* stays host-local, D1).
+  // The guided tour's imperative — domain intent, bridged so a launcher emit
+  // reaches every watching Browser (nav:* is framework routing and stays
+  // host-local).
   'browse:resource-open',
-  // GUIDED-TOUR P5: the tour's REPORT — the viewer announces arrival (by cue,
-  // link, back button, or typed URL) so the guide can branch on it. Never the
-  // channel P2/P3 drive with (D6: drive and report stay separate).
+  // The guided tour's REPORT — the viewer announces arrival (by cue, link,
+  // back button, or typed URL) so the guide can branch on it. Never the
+  // imperative `browse:resource-open`: drive and report stay separate, so one
+  // viewer's click cannot drive another's page.
   'browse:resource-viewed',
-  // GUIDED-TOUR P7: presence. SSE connection lifecycle, not login (D5) — a
+  // The guided tour's presence. SSE connection lifecycle, not login — a
   // token can be minted and never used, so what a tour needs is whether
   // anyone is WATCHING. Bridged because the watcher and the watcher's guide
   // are different processes.
   'session:joined',
   'session:left',
-  // TOUR-CLICK P1: the tour's fourth drive — OPEN an annotation (panel entry
+  // The guided tour's fourth drive — OPEN an annotation (panel entry
   // selected, then relayed to beckon:focus for the scroll), where focus only
   // points at one. Bridging is fan-IN only, so the eight in-browser
   // `browse.click()` emitters stay local exactly as `browse.openResource()`
@@ -165,7 +167,8 @@ describe('bus channel-classification invariants', () => {
   it('the only globally-bridged channels that are also persisted (scoped) are the KB-global frame:* events', () => {
     // A channel in BOTH BRIDGED_CHANNELS and PERSISTED_EVENT_TYPES is delivered
     // globally (bridged) *and* is a resource-scoped persisted event — the exact
-    // double-delivery shape from BRIDGE-GAPS.md. It is legitimate only for the
+    // double-delivery shape: forwarded once on each path under two different
+    // SSE ids, which dedup cannot collapse. It is legitimate only for the
     // KB-global schema events (every client wants them; no single resource owns
     // them), which @semiont/http-transport excludes from its scoped
     // subscription (enforced by that package's bus-invariants test).
@@ -174,8 +177,9 @@ describe('bus channel-classification invariants', () => {
     // the channel is genuinely KB-global, confirm http-transport still excludes
     // it from RESOURCE_SCOPED_CHANNELS, then add it to the expected set below.
     //
-    // The `yield:*` four were added deliberately (CORRELATED-REPLY-ROUTING
-    // P4), and the three confirmations that gate this list were made:
+    // The `yield:*` four were added deliberately, so a non-requesting client
+    // learns that a resource changed, and the three confirmations that gate
+    // this list were made:
     //  1. KB-global? YES. Their consumer is the resource LIST cache, which is
     //     unscoped by construction (`resources()` never calls `withScope`) —
     //     and a CREATE cannot be scoped at all, since no client can hold a

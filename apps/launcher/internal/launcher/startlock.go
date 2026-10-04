@@ -1,7 +1,6 @@
 package launcher
 
-// startlock.go — one `semiont start` per KB root at a time
-// (bugs/codespace-issuer-move-races-post-start.md P1).
+// startlock.go — one `semiont start` per KB root at a time.
 //
 // Two starts on one root interleave destructively: each one's preflight sweeps
 // containers the other is about to use, and each recreates what the other

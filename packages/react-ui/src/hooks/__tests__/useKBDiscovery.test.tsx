@@ -1,5 +1,5 @@
 /**
- * BROWSER-KB-DISCOVERY P4 — the react-ui binding of the sdk's discovery
+ * The react-ui binding of the sdk's KB discovery
  * subscription. The hook is deliberately thin: it holds the last emitted
  * `DiscoveryState` (plus a `kbs` projection) and owns only lifecycle —
  * enabled (pause-when-closed), document visibility (pause-when-hidden,

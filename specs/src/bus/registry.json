@@ -1085,11 +1085,11 @@
         "lead": [
           "",
           "  /**",
-          "   * Persist a detection unit's annotations as ONE acknowledged batch",
-          "   * (JOB-RESTART-SAFETY P6). Answered only after every annotation is in",
-          "   * the event log, so a worker can gate unit completion on durability",
-          "   * instead of on emission — which is what makes an Archivist outage a",
-          "   * delay rather than silent data loss.",
+          "   * Persist a detection unit's annotations as ONE acknowledged batch.",
+          "   * Answered only after every annotation is in the event log, so a",
+          "   * worker can gate unit completion on durability instead of on",
+          "   * emission — which is what makes an Archivist outage a delay rather",
+          "   * than silent data loss.",
           "   */"
         ],
         "trailing": ""
@@ -1599,7 +1599,7 @@
           "  // PERSON FLOW — who a subject is. One line per NAME a person has had,",
           "  // system-level like the frame vocabulary. Never read by provenance: every",
           "  // artifact joins on the DID, and names are resolved from the projection",
-          "  // when a record is READ (PERSON-PROFILE).",
+          "  // when a record is READ.",
           "  // ========================================================================",
           "",
           "  // Domain event (branded — system of record). System-level: no resourceId."
@@ -2036,12 +2036,13 @@
         "lead": [
           "",
           "  // A resource's derived coordinate map — the text recovered from its bytes",
-          "  // plus the geometry that indexes it (ANCHORED-TEXT-CACHE Lane 5).",
+          "  // plus the geometry that indexes it — served whole for the resource.",
+          "  // Answering never runs the OCR engine.",
           "  //",
           "  // Read-only over the wire: the Smelter is the sole producer, and this is",
           "  // the ONLY way to reach the store since the checksum-addressed probe was",
-          "  // reaped (SMELTER-OWNS-OCR P3 — its last consumer was the worker's local",
-          "  // extraction, which P2 removed)."
+          "  // reaped: its last consumer was the worker's local extraction, which went",
+          "  // when detection began reading a geometry-bearing type's text from here."
         ],
         "trailing": ""
       },
@@ -2057,10 +2058,10 @@
       "docs": {
         "lead": [
           "",
-          "  // Never null: absence is NAMED, so a caller can tell \"not yet\" from",
-          "  // \"never\" (SMELTER-OWNS-OCR P1). Declared BY SCHEMA rather than as a",
-          "  // custom inline type — the inline form restated the schema and went stale",
-          "  // the moment it widened."
+          "  // Never null: absence is NAMED, so a caller can tell \"not yet\" (retry)",
+          "  // from \"never\" (terminal). Declared BY SCHEMA rather than as a custom",
+          "  // inline type — the inline form restated the schema and went stale the",
+          "  // moment it widened."
         ],
         "trailing": ""
       },
@@ -3274,7 +3275,7 @@
         "lead": [
           "",
           "  // ========================================================================",
-          "  // WEAVE FLOW — graph projection progress (GRAPH-PROJECTION-SYNC, D2 = push)",
+          "  // WEAVE FLOW — graph projection progress, pushed by the Weaver, not polled",
           "  // ========================================================================",
           "",
           "  /**",
@@ -3282,8 +3283,8 @@
           "   * for a resource to the graph. `sequenceNumber` is the resource-stream",
           "   * sequence of the last applied event. Folded by `WeaveProgress`",
           "   * (make-meaning) into the gateway-local applied map that the",
-          "   * `whenApplied` barrier awaits. In-process signal today; crosses the",
-          "   * bus gateway after WEAVER-ISOLATION.",
+          "   * `whenApplied` barrier awaits. The Weaver runs as its own process,",
+          "   * so the signal reaches the fold over the bus.",
           "   */"
         ],
         "trailing": ""
@@ -3306,14 +3307,12 @@
           "",
           "  // Signal — the vector projection's per-resource decision report: emitted",
           "  // by the Smelter after indexing a resource's content ('indexed') or after",
-          "  // deciding not to ('skipped', with a `reason` naming the decline — the",
-          "  // SMELTER-MEDIA-TYPES telemetry vocabulary: 'no-extractor' | 'empty' today,",
-          "  // the PDF decline classes when extraction lands). Keyed by the",
+          "  // deciding not to ('skipped', with a `reason` naming the decline:",
+          "  // 'no-extractor', 'empty', or one of the PDF decline classes). Keyed by the",
           "  // checksum of the bytes inspected — \"settled at C\" is read-your-writes for",
           "  // exactly that content. NEVER emitted on transient failures: an error is not",
-          "  // a decision (SMELTER-INDEX-SYNC A2). Consumed by the gateway-local",
-          "  // `SmeltProgress` fold behind the gather-side barrier. This is the",
-          "  // Smelter's single outbound signal (SMELTER-AXIOMS D3, as amended)."
+          "  // a decision. Consumed by the gateway-local `SmeltProgress` fold behind the",
+          "  // gather-side barrier. This is the Smelter's single outbound signal."
         ],
         "trailing": ""
       },
@@ -3332,9 +3331,9 @@
           "",
           "  // Command — rebuild the graph projection from the event log (full when",
           "  // resourceId is absent, one resource when present). Served by the Weaver;",
-          "  // replaces direct `rebuildAll()`/`rebuildResource()` access, which does",
-          "  // not survive the container split (WEAVER-ISOLATION D3). Correlated",
-          "  // request/reply via the BUS_OPERATIONS registry."
+          "  // replaces direct `rebuildAll()`/`rebuildResource()` access, which cannot",
+          "  // reach a Weaver running in its own container. Correlated request/reply",
+          "  // via the BUS_OPERATIONS registry."
         ],
         "trailing": ""
       },
@@ -3381,8 +3380,8 @@
           "  // Command — rebuild anchored-text artifacts by re-running extraction",
           "  // (every geometry-capable resource when resourceId is absent, one when",
           "  // present). Served by the Smelter, serialized, never destructive, and",
-          "  // with ZERO embedding calls — only the derived map is re-made",
-          "  // (PERSIST-ANCHORS P0). Correlated request/reply via BUS_OPERATIONS."
+          "  // with ZERO embedding calls — only the derived map is re-made. Correlated",
+          "  // request/reply via BUS_OPERATIONS."
         ],
         "trailing": ""
       },
@@ -3884,7 +3883,7 @@
         "lead": [
           "",
           "  // ── WEAVE ───────────────────────────────────────────────────────",
-          "  // Graph-projection rebuild, served by the Weaver (WEAVER-ISOLATION D3)"
+          "  // Graph-projection rebuild, served by the Weaver"
         ],
         "trailing": ""
       }
@@ -3897,7 +3896,7 @@
         "lead": [
           "",
           "  // ── SMELT ────────────────────────────────────────────",
-          "  // Anchored-text rebuild, served by the Smelter (PERSIST-ANCHORS P0)"
+          "  // Anchored-text rebuild, served by the Smelter"
         ],
         "trailing": ""
       }
@@ -4122,7 +4121,7 @@
     ]
   },
   "effect": {
-    "doc": "/**\n * Does emitting this channel CHANGE the knowledge base, or only ask it\n * something?\n *\n * A WRITE is an act: it appends to the event log, or it enqueues or\n * transitions durable work the log will later cite. A READ answers from\n * state that already exists and leaves nothing behind — every `browse:*`\n * request, and the three lookups that merely resolve a token or a summary.\n *\n * The domain is exactly the EMITTABLE set: an operation's request, or a\n * `kind: command`. Inbound replies, broadcast events and in-process UI\n * signals are absent because nobody emits them at the gateway, so the\n * question does not arise. Every emittable channel names one side or the\n * other and the generator refuses — there is no default.\n *\n * The gateway reads this to decide when the record learns a person's name:\n * a `_userId` stamp is NOT the test, because a read carries one too\n * (PERSON-PROFILE D3). Someone who signs in and only browses is never\n * named, and the profile publish rate is the WRITE rate rather than the\n * emit rate — orders of magnitude apart.\n */",
+    "doc": "/**\n * Does emitting this channel CHANGE the knowledge base, or only ask it\n * something?\n *\n * A WRITE is an act: it appends to the event log, or it enqueues or\n * transitions durable work the log will later cite. A READ answers from\n * state that already exists and leaves nothing behind — every `browse:*`\n * request, and the three lookups that merely resolve a token or a summary.\n *\n * The domain is exactly the EMITTABLE set: an operation's request, or a\n * `kind: command`. Inbound replies, broadcast events and in-process UI\n * signals are absent because nobody emits them at the gateway, so the\n * question does not arise. Every emittable channel names one side or the\n * other and the generator refuses — there is no default.\n *\n * The gateway reads this to decide when the record learns a person's name:\n * a `_userId` stamp is NOT the test, because a read carries one too.\n * Someone who signs in and only browses is never named, and the profile\n * publish rate is the WRITE rate rather than the emit rate — orders of\n * magnitude apart.\n */",
     "writes": [
       "bind:update-body",
       "frame:add-entity-type",

@@ -53,10 +53,10 @@ export class OllamaInferenceClient implements InferenceClient {
   readonly type = 'ollama' as const;
   // Local single model: generation throughput is hardware-bound, so concurrent
   // requests queue or split one GPU for no aggregate speedup — and each live
-  // context costs KV-cache memory. Detection runs its types sequentially here
-  // (DETECTION-QUALITY-THROUGHPUT P6).
+  // context costs KV-cache memory. Detection's per-type fan-out is bounded by
+  // this value, so it runs its types sequentially here.
   readonly maxConcurrency = 1;
-  // Where the collapse risk was MEASURED (F7) — the verifier's original home.
+  // Where silent yield collapse was MEASURED — the verifier's original home.
   readonly verifyDetectionYield = true;
   readonly modelId: string;
   private baseURL: string;
@@ -218,9 +218,9 @@ export class OllamaInferenceClient implements InferenceClient {
 
     let res: Response;
     try {
-      // True cancellation (ABANDONED-INFERENCE P1): the signal tears down the
-      // socket, so an aborted call cannot keep generating on the server's
-      // dime after its job is gone.
+      // True cancellation: the signal tears down the socket, so an aborted
+      // call cannot keep generating on the server's dime after its job is
+      // gone.
       res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

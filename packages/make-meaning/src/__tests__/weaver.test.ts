@@ -183,11 +183,12 @@ describe('Weaver', () => {
     stopServing = null;
   });
 
-  // STORAGE-URI-ONE-HOME D1/D6: the weaver builds its OWN descriptor from the
-  // event before handing it to the graph — a third construction site that P1's
-  // census missed, because `additionalProperties: true` lets a top-level
-  // storageUri typecheck and then read back undefined. The P2 live gate caught
-  // it only after a full rebuild wrote 57 nulls.
+  // A storage URI's one home is the primary representation, and the weaver
+  // builds its OWN descriptor from the event before handing it to the graph —
+  // a third construction site that the census of writers missed, because
+  // `additionalProperties: true` lets a top-level storageUri typecheck and
+  // then read back undefined. A live gate caught it only after a full rebuild
+  // wrote 57 nulls.
   describe('descriptor handed to the graph', () => {
     it('puts storageUri on the primary representation, never at the top level', async () => {
       const docId = resourceId(`storage-uri-home-${Date.now()}`);
@@ -565,7 +566,7 @@ describe('Weaver', () => {
 
     // The -added fold must be idempotent per event, mirroring the view
     // materializer's includes-guard — duplicate adds must not diverge the
-    // graph from the view (bugs/weaver-entity-tag-add-not-idempotent.md).
+    // graph from the view.
     it('entitytag.added for a tag the graph doc already has leaves a single copy', async () => {
       const docId = resourceId(`apply-entitytag-dup-${Date.now()}`);
 
@@ -860,7 +861,7 @@ describe('Weaver', () => {
     });
   });
 
-  describe('duplicate-delivery idempotency (WEAVER-ISOLATION P1)', () => {
+  describe('duplicate-delivery idempotency', () => {
     // At-least-once delivery (SSE reconnect with Last-Event-ID replay after
     // the split) means every fold must tolerate the same StoredEvent arriving
     // twice. These specs push identical events straight onto the bus — the
@@ -1044,7 +1045,7 @@ describe('Weaver', () => {
     });
   });
 
-  describe('checkpointed catch-up + weave:rebuild (WEAVER-ISOLATION P3)', () => {
+  describe('checkpointed catch-up + weave:rebuild', () => {
     // Catch-up rides EXISTING read channels: resources discovered via
     // browse:resources-requested, gap events fetched via
     // browse:events-requested (full StoredEvents), filtered client-side by
@@ -1133,7 +1134,7 @@ describe('Weaver', () => {
       await tick();
 
       // Rebuild reads history over the bus — the Weaver has no event-store
-      // attachment (P4); these responders are its only view of the log.
+      // attachment; these responders are its only view of the log.
       serveBrowseReads([rid]);
       const clearSpy = vi.spyOn(graphDb, 'clearDatabase');
       await busRequest(asBusRequestPrimitive(coreEventBus), 'weave:rebuild', {});
@@ -1167,12 +1168,12 @@ describe('Weaver', () => {
       expect((await graphDb.getResource(resourceId(rid)))?.name).toBe('Rebuilt One');
     });
 
-    // ANNOTATION-CREATED-AUTHORITY, the end-to-end proof. `rebuildResource`
-    // DELETES before it replays (neo4j: DETACH DELETE d, a), so the fold's
-    // "skip ids the graph already holds" guard finds nothing and re-creates
-    // every annotation. A store that stamps its own clock therefore collapses
-    // every annotation's authored `created` to the rebuild moment — on every
-    // reconcile heal, not just an empty-graph rebuild.
+    // An annotation's `created` is its authored moment: the end-to-end proof.
+    // `rebuildResource` DELETES before it replays (neo4j: DETACH DELETE d, a),
+    // so the fold's "skip ids the graph already holds" guard finds nothing and
+    // re-creates every annotation. A store that stamps its own clock therefore
+    // collapses every annotation's authored `created` to the rebuild moment —
+    // on every reconcile heal, not just an empty-graph rebuild.
     it('a rebuild preserves each annotation\'s AUTHORED created, rather than restamping it', async () => {
       await consumer.stop();
       graphDb = new MemoryGraphDatabase();
@@ -1374,12 +1375,12 @@ describe('Weaver', () => {
       expect((await graphDb.getResource(resourceId(rid)))?.name).toBe('Healed');
     });
 
-    // VIEW-LOG-RECONCILIATION P1. A catalogued resource whose log holds nothing
-    // is an ORPHANED VIEW — someone rewrote history and the views projection
-    // was never invalidated. Healing it replays zero events and writes nothing,
-    // so the same divergence returns on the next boot, forever. Reporting that
-    // as a heal is what let the condition run unnoticed on the template KB for
-    // an unknown number of boots (bugs/weaver-fatal-429-and-phantom-view-heal-wave).
+    // A catalogued resource whose log holds nothing is an ORPHANED VIEW —
+    // someone rewrote history and the views projection was never invalidated.
+    // Healing it replays zero events and writes nothing, so the same
+    // divergence returns on the next boot, forever. Reporting that as a heal
+    // is what let the condition run unnoticed on the template KB for an
+    // unknown number of boots.
     it('reports a catalogued resource with no events as an orphan, not a heal', async () => {
       await consumer.stop();
       graphDb = new MemoryGraphDatabase();
@@ -1405,10 +1406,10 @@ describe('Weaver', () => {
       expect(JSON.stringify(orphanWarn)).toContain('clean --store state');
     });
 
-    // GRAPH-DIVERGENCE-DEPTH P1. `divergenceOf` compared five hand-picked facts
-    // while the codec writes a dozen, so anything outside that list could go
-    // wrong unseen. The comparison is now against what the CODEC says the graph
-    // should hold — not against the view, which the graph is not a copy of.
+    // `divergenceOf` compared five hand-picked facts while the codec writes a
+    // dozen, so anything outside that list could go wrong unseen. The
+    // comparison is now against what the CODEC says the graph should hold —
+    // not against the view, which the graph is not a copy of.
     const viewAnn = (over: Record<string, unknown> = {}) => ({
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       type: 'Annotation' as const,

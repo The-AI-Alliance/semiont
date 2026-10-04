@@ -1,8 +1,8 @@
 /**
- * ARCHIVIST-STAYS-UP P4 — the process reports its own ceiling.
+ * The process reports its own ceiling.
  *
  * The Archivist died at ~1016 MB inside a 2048 MB container
- * (`bugs/absent-archivist-wedges-browse.md`) because Node was sitting under
+ * (leaving every browse request waiting) because Node was sitting under
  * its OWN default old-space ceiling, not the container's. Nothing in the
  * fleet reported either number, so "half the memory is unreachable" was a
  * discovery made after the fact rather than a value on a dashboard.

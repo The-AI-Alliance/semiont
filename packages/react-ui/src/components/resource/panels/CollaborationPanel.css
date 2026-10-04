@@ -136,7 +136,7 @@
 
 /* User List (for future use) */
 
-/* Collaborators roster — one row per software agent (INFERENCE-LIMITS-EXPOSURE P3a) */
+/* Collaborators roster — one row per software agent, with its job types and ceilings */
 .semiont-collaboration-panel__collaborator {
   display: flex;
   flex-direction: column;

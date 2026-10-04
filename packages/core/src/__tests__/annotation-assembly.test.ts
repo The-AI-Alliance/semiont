@@ -1,5 +1,5 @@
 /**
- * assembleAnnotation — RESOURCE-LEVEL-ANCHOR P2.
+ * assembleAnnotation — a target without a selector.
  *
  * The target selector is optional: a source-only target annotates the whole
  * resource (resource-level edges, whole-resource notes), per W3C. These pin the
@@ -15,7 +15,7 @@ import { resourceId } from '../identifiers';
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type Agent = components['schemas']['Agent'];
 
-describe('assembleAnnotation — selector-optional target (P2)', () => {
+describe('assembleAnnotation — selector-optional target', () => {
   it('assembles a source-only target (whole-resource / edge) without throwing', () => {
     const request: CreateAnnotationRequest = {
       motivation: 'linking',
@@ -29,7 +29,7 @@ describe('assembleAnnotation — selector-optional target (P2)', () => {
     expect(annotation).not.toHaveProperty('creator');
   });
 
-  it('carries what produced it when told, and never who asked — that is derived downstream (VERIFIED-PROVENANCE P2)', () => {
+  it('carries what produced it when told, and never who asked — that is derived downstream', () => {
     // An emitter may say WHAT produced the annotation (a software peer, with
     // its parameters). It may not say who asked: `creator` and
     // `wasAttributedTo` are derived by the Stower from the emitter's identity

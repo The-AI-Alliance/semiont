@@ -7,10 +7,9 @@
  * the lookup is strict — no fallback.
  *
  * Lives in `@semiont/core` rather than `@semiont/content` (moved
- * 2026-08-24, GENERATION-OUTPUT-FORMAT D10) because the generation form
- * proposes a default path and react-ui cannot depend on the node-flavoured
- * content package. This module imports only the registry, so it is
- * browser-safe.
+ * 2026-08-24) because the generation form proposes a default path and
+ * react-ui cannot depend on the node-flavoured content package. This module
+ * imports only the registry, so it is browser-safe.
  */
 
 import { MEDIA_TYPES, type SupportedMediaType } from './media-types';
@@ -58,12 +57,13 @@ export function folderOf(storageUri: string | undefined): string {
 
 /**
  * The Save location a form PROPOSES: beside the source resource, named for the
- * title, extended for the chosen format (GENERATION-OUTPUT-FORMAT D11).
+ * title, extended for the chosen format.
  *
  * Deriving the whole filename — extension included — has a happy consequence:
- * while untouched, switching format rewrites the extension too, so D7's
- * mismatch refusal becomes unreachable except on hand-edited paths. It guards
- * deliberate edits rather than trapping ordinary use.
+ * while untouched, switching format rewrites the extension too, so the form's
+ * refusal of an extension that disagrees with the format becomes unreachable
+ * except on hand-edited paths. It guards deliberate edits rather than trapping
+ * ordinary use.
  *
  * Returns `''` for an empty title: a bare extension (".md") reads as a hidden
  * file and is nobody's intent.

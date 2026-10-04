@@ -1,5 +1,5 @@
 /**
- * Bounded inference calls — WORKER-LIVENESS.md P2 (G1: prevention).
+ * Bounded inference calls — prevention: no model call may wait forever.
  *
  * The claim loop's only unbounded await is the model call: bus
  * operations gained transport timeouts in 0.5.6, the inference HTTP
@@ -11,15 +11,15 @@
  * gateway's retry budget — a timeout is transient-shaped, so retrying
  * is correct) and frees the claim loop.
  *
- * This is a timeout AND a cancellation (ABANDONED-INFERENCE P1): on expiry
- * the bound aborts the underlying request through the `InferenceClient`
- * signal, so the transport — and, on the Anthropic path, the SDK's internal
- * retry loop — is torn down rather than left running as a billed zombie
- * (P0 caught one completing 24–34 minutes after its job was gone). The
- * timeout stays as the last line either way, exactly as before; the abort is
- * the addition, not the replacement (D1). The eventual settlement of the
- * aborted promise is still swallowed so it cannot surface as an unhandled
- * rejection.
+ * This is a timeout AND a cancellation: on expiry the bound aborts the
+ * underlying request through the `InferenceClient` signal, so the transport
+ * — and, on the Anthropic path, the SDK's internal retry loop — is torn down
+ * rather than left running as a billed zombie (a live reproduction caught
+ * one completing 24–34 minutes after its job was gone). The timeout stays as
+ * the last line either way, exactly as before; the abort is the addition,
+ * not the replacement — a bound that cannot cancel is half a bound. The
+ * eventual settlement of the aborted promise is still swallowed so it cannot
+ * surface as an unhandled rejection.
  */
 
 import type { ElementSchema, InferenceClient, InferenceResponse, StructuredResponse } from '@semiont/inference';
@@ -28,24 +28,23 @@ import { withSpan } from '@semiont/observability';
 
 /**
  * Generous single-call bound. Slow local models on large prompts run
- * minutes, not tens of minutes; the stall watchdog (P3) sits above
- * this at 15 minutes, and the gateway's dead-worker janitor above
- * that at 30. Fixed by design — no env knob.
+ * minutes, not tens of minutes; the stall watchdog sits above this at
+ * 15 minutes, and the gateway's dead-worker janitor above that at 30.
+ * Fixed by design — no env knob.
  */
 export const INFERENCE_TIMEOUT_MS = 10 * 60_000;
 
 /**
- * The bound's own rejection, typed so classification (ABANDONED-INFERENCE
- * P3) never string-matches our own error message. A timeout says nothing
- * about the request — it classifies transient.
+ * The bound's own rejection, typed so failure classification never
+ * string-matches our own error message. A timeout says nothing about the
+ * request — it classifies transient.
  */
 export class InferenceTimeoutError extends Error {
   override readonly name = 'InferenceTimeoutError';
 }
 
 /**
- * How often an in-flight call reports that it is still alive
- * (DETECTION-HEARTBEAT D2).
+ * How often an in-flight call reports that it is still alive.
  *
  * Detection's other liveness signal — the chunk-boundary heartbeat — emits
  * `N − 1` events for `N` chunks, which is ZERO for the single-chunk case that
@@ -62,7 +61,7 @@ export const INFERENCE_HEARTBEAT_MS = 15_000;
 /**
  * Called while a provider call is still in flight. Liveness only — the
  * caller repeats its current stage rather than inventing an advancing
- * percentage (D3): nothing here knows how far a single model call has got.
+ * percentage: nothing here knows how far a single model call has got.
  */
 export type InferenceHeartbeat = () => void;
 
@@ -97,7 +96,7 @@ async function withTimeout<T>(
       // True cancellation: tear the request down at the transport so it
       // cannot keep running (and billing) against a job that no longer
       // exists — and name the abort in the log, because an invisible
-      // abandonment is what let a zombie burn 24+ minutes unrecorded (D3).
+      // abandonment is what let a zombie burn 24+ minutes unrecorded.
       logger?.warn('Aborting in-flight inference call at the timeout bound', {
         provider: meta.provider,
         model: meta.model,

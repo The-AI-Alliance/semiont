@@ -189,11 +189,10 @@ export * from './state';
 // back, which is a plain Observable.
 export { firstValueFrom, lastValueFrom } from 'rxjs';
 
-// Browser ↔ launcher KB discovery (BROWSER-KB-DISCOVERY P3): the domain
-// layer over the launcher's published export view — one validator, typed
-// absent-vs-managed state, and the poll/diff subscription. IO-abstracted:
-// httpDiscovery for the served mount, textDiscovery for any consumer-owned
-// byte source (no fs in the sdk).
+// Browser ↔ launcher KB discovery: the domain layer over the launcher's
+// published export view — one validator, typed absent-vs-managed state, and
+// the poll/diff subscription. IO-abstracted: httpDiscovery for the served
+// mount, textDiscovery for any consumer-owned byte source (no fs in the sdk).
 export {
   parseDiscoveryDocument,
   httpDiscovery,

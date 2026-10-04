@@ -1,7 +1,7 @@
 // Spike instrument: which request shapes does `claude-sonnet-5` refuse over
-// `temperature`? (SONNET-5-MIGRATION Phase 0 — the two cells production's 400
-// did not answer: the output_config shape, and whether the DEFAULT value is
-// accepted when sent explicitly.)
+// `temperature`? (It fills in the two cells production's 400 did not answer:
+// the output_config shape, and whether the DEFAULT value is accepted when
+// sent explicitly.)
 //
 // Raw fetch, same rationale as output-config-root-spike.mjs: the question is
 // what the API accepts on the wire.
@@ -69,7 +69,7 @@ await probe('B. plain,   temp 1 (default) ', 'plain', 1);
 await probe('E. struct,  temp omitted     ', 'structured', undefined);
 await probe('D. struct,  temp 0.7         ', 'structured', 0.7);
 
-// D2: does the Models API expose sampling-parameter acceptance?
+// Does the Models API expose sampling-parameter acceptance?
 const mres = await fetch(`https://api.anthropic.com/v1/models/${MODEL}`, {
   headers: { 'x-api-key': KEY, 'anthropic-version': '2023-06-01' },
   signal: AbortSignal.timeout(30_000),

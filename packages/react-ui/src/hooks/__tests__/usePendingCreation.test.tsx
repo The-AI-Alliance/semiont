@@ -1,6 +1,6 @@
 /**
- * HEADLESS-CREATION-SEAM — usePendingCreation, the consuming half of the
- * capture/policy split.
+ * usePendingCreation, the consuming half of the viewer's capture/policy
+ * split.
  *
  * The viewer captures and emits source-scoped mark:requested; this hook is the
  * exported primitive that CLAIMS them: one event, one owner

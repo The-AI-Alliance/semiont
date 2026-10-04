@@ -25,16 +25,16 @@ export interface ActorStateUnitOptions {
   reconnectMs?: number;
   /**
    * The SAME hook `HttpTransportConfig.tokenRefresher` wires into the HTTP
-   * beforeRetry path (SSE-AUTH-RESILIENCE P4, D2 — no second refresh
-   * mechanism). Consulted ONCE per outage when a connect is refused 401,
-   * before parking `unauthenticated`; a successful open re-arms it. The
-   * refresher's owner rotates the token SOURCE (sessions push the new token
-   * into `token$`); the actor then reconnects through the getter, so the
-   * token stays single-sourced. A throwing refresher is treated as `null`.
+   * beforeRetry path — there is no second refresh mechanism. Consulted
+   * ONCE per outage when a connect is refused 401, before parking
+   * `unauthenticated`; a successful open re-arms it. The refresher's owner
+   * rotates the token SOURCE (sessions push the new token into `token$`);
+   * the actor then reconnects through the getter, so the token stays
+   * single-sourced. A throwing refresher is treated as `null`.
    */
   tokenRefresher?: () => Promise<string | null>;
   /**
-   * Remove-side reconnect hysteresis (MULTI-RESOURCE-SCOPE). Scope
+   * Remove-side reconnect hysteresis. Scope
    * additions need liveness quickly (100 ms debounce), but a removal only
    * narrows delivery — extra events for a just-released scope are
    * idempotent locally — so remove-only changes wait this long before
@@ -50,7 +50,7 @@ export interface ActorStateUnitOptions {
   /** How many of the event ids delivered last are remembered. Default `SEEN_EVENT_IDS_COUNT`. */
   seenEventIdsCount?: number;
   /**
-   * B17 (LOCAL-STORAGE) — IO-abstracted persistence of the last seen
+   * CACHE-SEMANTICS B17 — IO-abstracted persistence of the last seen
    * PERSISTED event id PER SCOPE, so a reloaded client resumes each
    * scope's replay instead of gapping. `load` runs once at construction;
    * `save` fires per persisted (`p-*`) id with that frame's scope —
@@ -70,7 +70,7 @@ export interface ActorStateUnitOptions {
  */
 export interface ActorStateUnit extends StateUnit, BusRequestPrimitive {
   /**
-   * Refused connects (SSE-AUTH-RESILIENCE P2). One `APIError` per non-2xx
+   * Refused connects. One `APIError` per non-2xx
    * `/bus/subscribe` answer, carrying the HTTP status and the code it maps
    * to, as a refused request does. Network-level failures (fetch
    * rejections) have no status and do not emit here — they stay on the
@@ -103,7 +103,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   const getToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
 
   const globalChannels = new Set(initialChannels);
-  /** The subscription matrix's scoped half: scope → channels (MULTI-RESOURCE-SCOPE). */
+  /** The subscription matrix's scoped half: scope → channels. */
   const scopedSubscriptions = new Map<ResourceId, Set<string>>();
   /**
    * Per-scope resumption watermarks: the last PERSISTED (`p-*`) id seen for
@@ -113,11 +113,12 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    * in between. Ephemeral ids never touch this map.
    */
   const scopeWatermarks = new Map<ResourceId, string>(options.loadLastEventIds?.() ?? []);
-  /** Outstanding busRequest correlationIds — ride every connect body (S1). */
+  /** Outstanding busRequest correlationIds — ride every connect body, so a
+   *  reply lost in a connection drop is asked for again. */
   const pendingReplies = new Set<string>();
   /**
-   * This bus client's routing address for correlated replies
-   * (CORRELATED-REPLY-ROUTING D1). Minted once per ACTOR — deliberately not
+   * This bus client's routing address for correlated replies, which reach
+   * only the client that asked. Minted once per ACTOR — deliberately not
    * per connection: a make-before-break handover runs two connections at
    * once and a reconnect replaces one, so a per-connection id would strand
    * the reply on the dying socket. Both overlap connections present this
@@ -126,7 +127,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    *
    * Not persisted: "stable" means across transport reconnects, not across
    * page reloads. A reload builds a new actor, and its `pendingReplies`
-   * replay is what recovers in-flight replies (S1).
+   * replay is what recovers in-flight replies.
    */
   const clientId = uuidV4();
 
@@ -268,10 +269,10 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   };
 
   /**
-   * Drop-recovery scheduling (SSE-AUTH-RESILIENCE P3). One place arms
-   * `reconnectTimer`, so the gate's waiting tick and the failure retry can
-   * never disagree on cadence (the split-brain the P1 handoff warned about).
-   * Failure retries BACK OFF (D1a): equal-jitter exponential — delay ∈
+   * Drop-recovery scheduling. One place arms `reconnectTimer`, so the
+   * gate's waiting tick and the failure retry can never disagree on
+   * cadence. Failure retries BACK OFF whatever the cause, a refused
+   * credential or not: equal-jitter exponential — delay ∈
    * [cap/2, cap], cap = min(reconnectMs·2ⁿ, MAX_RECONNECT_MS) — so a downed
    * gateway sees a thinning trickle instead of 12 requests/min from every
    * client, jitter keeps N clients out of lockstep, and a transient failure
@@ -284,7 +285,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   let retryAttempt = 0;
   let refusedToken: string | null = null;
   /**
-   * One refresher consult per outage (SSE-AUTH-RESILIENCE P4). Burned on
+   * One refresher consult per outage. Burned on
    * the first 401 that consults; re-armed only by a successful open. Without
    * this, a gateway refusing every token turns refresh-then-401 into a loop
    * at connect cadence — the storm with extra steps.
@@ -308,16 +309,15 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   };
 
   const connect = async (keepPrevious = false) => {
-    // ── The credential gate (SSE-AUTH-RESILIENCE P1 + P3, shapes A + B) ─
+    // ── The credential gate: no credential, or a refused one ────────────
     //
-    // A connect with no bearer CANNOT succeed (shape A: `HttpTransport`
-    // renders an exhausted session's null `token$` as `''`). A connect
-    // re-sending a bearer the gateway just REFUSED cannot succeed either
-    // (shape B: the same credential gets the same 401). Both are
-    // guaranteed-failing requests generated on a timer, so
-    // neither is attempted.
+    // A connect with no bearer CANNOT succeed (`HttpTransport` renders an
+    // exhausted session's null `token$` as `''`). A connect re-sending a
+    // bearer the gateway just REFUSED cannot succeed either (the same
+    // credential gets the same 401). Both are guaranteed-failing requests
+    // generated on a timer, so neither is attempted.
     //
-    // This is D3 and D6a answered together: ONE `unauthenticated` state for
+    // Both park in the same place: ONE `unauthenticated` state for
     // "no credential yet" and "credential refused", because they are the
     // same operational fact — not attempting, and only a usable DIFFERENT
     // credential changes anything. The finer cause (the 401) is on
@@ -366,13 +366,13 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     // waiting in (`initial`, `reconnecting`, `degraded`, `unauthenticated`).
     if (live === null) transition('connecting');
 
-    // POST subscription matrix (MULTI-RESOURCE-SCOPE): global channels plus
+    // POST subscription matrix: global channels plus
     // one entry per scope, each carrying its own resumption watermark.
     // `satisfies` is the drift-lock (the MEDIA_TYPES idiom): the body is
     // hand-written while the schema owns the shape, so the compiler — not a
     // reviewer — is what notices a required field going missing. That is
     // what makes `clientId` required in BusSubscribeRequest worth anything
-    // on this side of the wire (CORRELATED-REPLY-ROUTING P2).
+    // on this side of the wire.
     const body = JSON.stringify({
       global: [...globalChannels],
       scoped: [...scopedSubscriptions.entries()].map(([scope, chans]) => {
@@ -444,7 +444,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       live = controller;
       transition('open');
       retryAttempt = 0; // a success resets the backoff ladder
-      refreshBurned = false; // …and re-arms the refresh-once (P4)
+      refreshBurned = false; // …and re-arms the refresh-once
       settleConnect(controller, true);
 
       const reader = response.body.getReader();
@@ -587,14 +587,14 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
-      // A refused connect carries its status out (P2). Anything else — a
+      // A refused connect carries its status out. Anything else — a
       // network failure, a dropped stream — has no status to carry and
       // stays off errors$.
       if (err instanceof APIError) {
         statedWait = err.retryAfterMs;
         errors$.next(err);
         // 401: re-sending THIS bearer is deterministic, so park instead of
-        // retrying (P3). The gate re-admits the actor the moment the getter
+        // retrying. The gate re-admits the actor the moment the getter
         // yields a different token; until then, no requests at all. Non-401
         // refusals (5xx, proxies) are transient in kind and take the
         // backoff path below.
@@ -602,8 +602,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           refusedToken = token;
           retryAttempt = 0;
           if (live === null && currentState !== 'unauthenticated') transition('unauthenticated');
-          // P4: refresh ONCE before staying parked — the same hook the HTTP
-          // beforeRetry path uses (D2). Parked state is truthful while the
+          // Refresh ONCE before staying parked — the same hook the HTTP
+          // beforeRetry path uses. Parked state is truthful while the
           // refresh call is in flight. On success the refresher's owner has
           // rotated the token source, so an immediate tick reconnects
           // through the gate's getter read; on null/throw (or an unchanged
@@ -677,7 +677,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   // thrashed. With a short debounce the whole sequence collapses into
   // one reconnect after the final channel-set is stable.
   //
-  // Two cadences (MULTI-RESOURCE-SCOPE remove-side hysteresis): additions
+  // Two cadences (remove-side hysteresis): additions
   // take the fast 100 ms path (a new scope needs liveness now); remove-only
   // changes wait `lazyRemoveMs` — removal merely narrows delivery, and the
   // consumer's hover churn would otherwise reconnect on every mouse pass.
@@ -749,7 +749,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         filter((e) => e.channel === channel),
         // The ONE surviving assertion, and the only honest one: SSE frames
         // arrive as untyped JSON, so something has to name their shape. It is
-        // keyed by the channel rather than chosen by the caller (D2).
+        // keyed by the channel rather than chosen by the caller.
         map((e) => e.payload as EventMap[K]),
       );
     },
@@ -774,17 +774,18 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         headers['traceparent'] = trace.traceparent;
         if (trace.tracestate) headers['tracestate'] = trace.tracestate;
       }
-      // Retried per request (SIDECAR-BOOT-RESILIENCE D3): a 429/503/504 or an
-      // expired deadline gets another attempt; a 400/401/403 rejects on the
-      // first, unretried. The predicate is core's, shared with the boot passes
-      // above, so "retryable" means one thing across the fleet.
+      // Retried per request, so one refusal does not re-run the requests
+      // that already succeeded: a 429/503/504 or an expired deadline gets
+      // another attempt; a 400/401/403 rejects on the first, unretried. The
+      // predicate is core's, shared with the boot passes above, so
+      // "retryable" means one thing across the fleet.
       //
       // The whole attempt — POST, status check, and the error it throws — is
       // inside the retried unit, because the refusal IS the failure being
       // classified. Retrying only the fetch would re-run the request and then
       // hand back the same unexamined response.
       const attempts = retryWithBackoff(async () => {
-        // Bounded (JOB-RESTART-SAFETY P7): an unresponsive gateway must not hang
+        // Bounded: an unresponsive gateway must not hang
         // the caller's loop forever. AbortSignal.timeout rejects with a
         // DOMException named TimeoutError — which the predicate treats as
         // retryable, since a deadline is the definition of "try again".
@@ -805,7 +806,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           } catch {
             // status alone
           }
-          // APIError, not a bare Error: the status rides as a FIELD (D1), which
+          // APIError, not a bare Error: the status rides as a FIELD, which
           // is what makes it classifiable without parsing it back out of prose.
           // The message keeps its shape, so callers matching on it are unaffected.
           throw APIError.fromStatus(

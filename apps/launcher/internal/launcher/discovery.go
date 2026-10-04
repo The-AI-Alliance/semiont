@@ -1,6 +1,6 @@
 package launcher
 
-// discovery.go — lane 1 of BROWSER-KB-DISCOVERY.md: publish the launcher's
+// discovery.go — the launcher's half of KB discovery: publish the launcher's
 // KB view where the Browser can read it.
 //
 // SCHEMA AUTHORITY: specs/src/discovery/DiscoveryDocument.json (and
@@ -42,13 +42,13 @@ func writeDiscovery(ss *StackSet) {
 		}
 		return &v
 	}
-	// AT MOST ONE ENTRY PER ADDRESS (KB-IDENTITY-VS-ADDRESS P1). An entry is a
-	// promise about what lives at a `host:port`, and only one process can bind
-	// a port — so two entries claiming one address means at most one promise
-	// is true. A consumer cannot repair that from the outside: it has an
-	// address, and an address cannot say which KB is which. Live 2026-07-24,
-	// two entries claimed localhost:4000 and the Browser rendered the user's
-	// own KB under the other repo's name.
+	// AT MOST ONE ENTRY PER ADDRESS. An entry is a promise about what lives at
+	// a `host:port`, and only one process can bind a port — so two entries
+	// claiming one address means at most one promise is true. A consumer
+	// cannot repair that from the outside: it has an address, and an address
+	// cannot say which KB is which. Live 2026-07-24, two entries claimed
+	// localhost:4000 and the Browser rendered the user's own KB under the
+	// other repo's name.
 	//
 	// The local stack is published first and wins the address: `start`
 	// verified the port was free and its containers bound it, which is the
@@ -82,8 +82,9 @@ func writeDiscovery(ss *StackSet) {
 		}
 		if c.KBDid == "" {
 			// A remote KB the launcher cannot identify. Unlike the local case
-			// there is no config here to fix, so this cannot be a refusal —
-			// see the plan's open question on codespace enforcement.
+			// there is no config here to fix, so this cannot be a refusal and
+			// the entry is dropped. Whether a start should warn about it, or
+			// refuse after all, is an open question.
 			continue
 		}
 		// A forward that no longer runs is an address nothing answers.

@@ -1,5 +1,5 @@
 /**
- * FileWeaverCheckpoint Tests (WEAVER-ISOLATION P3, D1 = checkpointed replay)
+ * FileWeaverCheckpoint Tests
  *
  * The Weaver's persisted per-resource applied-sequence map. Lives in the
  * project stateDir — wiping it degrades the next catch-up to a full replay

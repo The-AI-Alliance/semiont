@@ -51,9 +51,9 @@ export interface RequestLogEntry {
   retryKey: string;
   /**
    * The payload as emitted — envelope, options, params, `correlationId` and
-   * all. This is the surface for "assert what my orchestrator actually SENT"
-   * (SDK-TESTING-DOUBLE gap 6): without it every consumer harness re-invented
-   * a per-channel `transport.on(...)` wire recorder alongside this log.
+   * all. This is the surface for "assert what my orchestrator actually SENT":
+   * without it every consumer harness re-invented a per-channel
+   * `transport.on(...)` wire recorder alongside this log.
    *
    * SHALLOW snapshot: the top level is copied at emit time, so a caller that
    * mutates its own payload object afterwards cannot rewrite history. Nested
@@ -136,13 +136,12 @@ export class FaultyTransport implements ITransport {
 
   /**
    * Queue responses for `op`, consumed FIFO — one per request that reaches
-   * the simulated gateway — before falling back to `makeResponse`
-   * (SDK-TESTING-DOUBLE.md, gap 2). The queue scripts the GATEWAY; the fault
-   * schedule scripts the WIRE. Consequences, deliberately: `duplicate-reply`
-   * replays one entry's body twice, and a `drop-reply` still consumes its
-   * entry (the gateway answered; the wire ate it) — so "first reply lost,
-   * the retry sees the NEXT page" is expressible. `reject-emit` consumes
-   * nothing: that request never reached the gateway.
+   * the simulated gateway — before falling back to `makeResponse`. The queue
+   * scripts the GATEWAY; the fault schedule scripts the WIRE. Consequences,
+   * deliberately: `duplicate-reply` replays one entry's body twice, and a
+   * `drop-reply` still consumes its entry (the gateway answered; the wire ate
+   * it) — so "first reply lost, the retry sees the NEXT page" is expressible.
+   * `reject-emit` consumes nothing: that request never reached the gateway.
    */
   queueReply(op: BusOperationKey, ...responses: unknown[]): void {
     const q = this.replyQueues.get(op) ?? [];
@@ -195,9 +194,9 @@ export class FaultyTransport implements ITransport {
 
     // The gateway's answer is computed ONCE per request that reaches it —
     // the reply QUEUE scripts the gateway, the fault schedule scripts the
-    // wire (SDK-TESTING-DOUBLE.md Phase 2). So `duplicate-reply` replays the
-    // same body twice, and a `drop-reply` still consumes its queue entry:
-    // the gateway answered, the wire ate it.
+    // wire. So `duplicate-reply` replays the same body twice, and a
+    // `drop-reply` still consumes its queue entry: the gateway answered, the
+    // wire ate it.
     const queue = this.replyQueues.get(name);
     const response = queue && queue.length > 0 ? queue.shift() : this.makeResponse(name, record);
 
@@ -253,19 +252,19 @@ export class FaultyTransport implements ITransport {
   }
 
   subscribeToResource(_rid: ResourceId): () => void {
-    // Mirrors the real HttpTransport: distinct scopes COMPOSE
-    // (MULTI-RESOURCE-SCOPE). Delivery here is bus-direct and never
-    // scope-gated, so acquisition needs no bookkeeping and release
-    // (idempotent by construction) is a no-op.
+    // Mirrors the real HttpTransport: distinct scopes COMPOSE onto one
+    // connection. Delivery here is bus-direct and never scope-gated, so
+    // acquisition needs no bookkeeping and release (idempotent by
+    // construction) is a no-op.
     return () => {};
   }
 
   /**
-   * Correlated-reply tracking (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1),
-   * exposed for assertions: `busRequest` registers each cid here before its
-   * emit and releases on settle, so a test can pin the tracked set at any
-   * point of a request's lifecycle. Delivery in this double is bus-direct
-   * (nothing to replay), so tracking has no behavioral effect.
+   * Correlated-reply tracking, exposed for assertions: `busRequest` registers
+   * each cid here before its emit and releases on settle, so a test can pin
+   * the tracked set at any point of a request's lifecycle. Delivery in this
+   * double is bus-direct (nothing to replay), so tracking has no behavioral
+   * effect.
    */
   readonly pendingReplies = new Set<string>();
 

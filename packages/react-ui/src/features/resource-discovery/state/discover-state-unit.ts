@@ -16,10 +16,12 @@ export interface DiscoverSearchPipeline {
   query$: Observable<string>;
   /**
    * The page AND the label that describes it, as one value. `matchKind` is
-   * carried here rather than beside it because SEMANTIC-FALLBACK S10 is
-   * tier-agnostic: two separately-observable pieces of state let a render pair
-   * this query's label with the previous query's list. Undefined only before
-   * the first answer (and while a query is empty), never as a third kind.
+   * carried here rather than beside it because the rule that a label and the
+   * resources it describes arrive as one value (semantic-fallback axiom S10)
+   * is tier-agnostic: two separately-observable pieces of state let a render
+   * pair this query's label with the previous query's list. Undefined only
+   * before the first answer (and while a query is empty), never as a third
+   * kind.
    */
   state$: Observable<{
     results: ResourceDescriptor[];
@@ -70,8 +72,8 @@ export function createDiscoverStateUnit(
           archived: false,
           ...(et ? { entityType: et } : {}),
         }).pipe(
-          // This unit renders only the page; project it out of the list
-          // envelope (`matchKind` rendering is SEMANTIC-FALLBACK P3b's).
+          // This list renders only the page; project it out of the list
+          // envelope (`matchKind` travels on the search `state$` instead).
           map((st): CacheState<ResourceDescriptor[]> => (st.status === 'ready' ? { status: 'ready', value: st.value.resources } : st)),
         ),
       ),

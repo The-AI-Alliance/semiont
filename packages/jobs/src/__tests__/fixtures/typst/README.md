@@ -15,9 +15,9 @@ test time through a vitest `globalSetup`, so fixtures stay reviewable as code
 rather than opaque binaries. There are no committed binary fixtures anywhere in
 this repo, and these should not be the first.
 
-Compiling them needs the Typst binary, which arrives with the worker image in
-PDF-GENERATION P2. **Until then these files are inert** — a generation step
-alongside them is P4's work, mirroring `generate-fixtures.ts`.
+Compiling them needs the Typst binary, which is installed in the worker image
+and nowhere else. **These files are inert** — no generation step compiles them
+at test time; one alongside them would mirror `generate-fixtures.ts`.
 
 ## Compiling
 

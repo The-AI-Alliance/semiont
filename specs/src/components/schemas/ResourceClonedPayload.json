@@ -16,7 +16,7 @@
     },
     "storageUri": {
       "type": "string",
-      "description": "Where the clone's bytes are, on the resource's primary Representation \u2014 the same single home `yield:created` writes to (STORAGE-URI-ONE-HOME)."
+      "description": "Where the clone's bytes are, on the resource's primary Representation \u2014 the same single home `yield:created` writes to."
     },
     "parentResourceId": {
       "$ref": "./ResourceId.json"

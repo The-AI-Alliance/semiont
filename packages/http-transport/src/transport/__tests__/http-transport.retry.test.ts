@@ -1,11 +1,11 @@
 /**
- * What a stopped retry looks like TO THE CALLER (RETRY-CLASSIFICATION P3).
+ * What a stopped retry looks like TO THE CALLER.
  *
  * The sibling hooks suite invokes `beforeRetry` directly against a mocked
  * `ky`, which pins the classification but says nothing about what a caller
- * awaiting `.json()` actually receives. That is the contract this phase must
- * not change, so these tests use **real ky** with `fetch` stubbed and drive
- * the transport's public methods end to end.
+ * awaiting `.json()` actually receives. That is the contract the retry gate
+ * must not change, so these tests use **real ky** with `fetch` stubbed and
+ * drive the transport's public methods end to end.
  *
  * It matters because the two ways to stop a retry are not interchangeable:
  * `ky.stop` resolves the caller's promise with `undefined`, after which the

@@ -1,5 +1,6 @@
 /**
- * Lane 2 — persistence. The cache decided in ANCHORED-TEXT-CACHE.md Lane 0.
+ * The anchored-text cache's persistence. The cache exists because recognition
+ * was measured to dominate extraction time.
  *
  * The contract under test is deliberately stated as an OUTCOME — a second
  * extraction of identical content does not invoke the OCR engine — rather than
@@ -39,8 +40,8 @@ vi.mock('../ocr', async (importOriginal) => {
   };
 });
 
-// Count native-parse invocations the same way: under D1 a hit skips the
-// text-layer parse too, not just the engine (PERSIST-ANCHORS P2b).
+// Count native-parse invocations the same way: the cache seam is `extract()`,
+// so a hit skips the text-layer parse too, not just the engine.
 const parseSpy = vi.fn();
 vi.mock('../extract-pdf-text-layer', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../extract-pdf-text-layer')>();
@@ -66,8 +67,8 @@ const pdfExtractor = derivingExtractorFor('application/pdf')!;
 
 /** Entry files wherever the layout puts them — the pins that manipulate
  *  stored files find them by walking, so the layout can move without the
- *  pins' semantics moving (PERSIST-ANCHORS P1a re-anchored these from a
- *  flat `readdirSync`). */
+ *  pins' semantics moving (they were re-anchored from a flat `readdirSync`
+ *  when the store took its sharded layout). */
 const allEntryFiles = (root: string): string[] => {
   const out: string[] = [];
   const walk = (d: string) => {
@@ -168,8 +169,8 @@ describe('line-record codec', () => {
 });
 
 /**
- * Lane 4 — hit rate in the operator log, so Lane 0's decision stays auditable
- * instead of becoming folklore.
+ * Hit rate in the operator log, so the decision to build the cache stays
+ * auditable instead of becoming folklore.
  *
  * Logged by the store rather than at the call sites. Both `prepare-detection`
  * and the smelter call `extract()`, so logging at call sites would state the
@@ -282,13 +283,13 @@ describe('anchored-text cache', () => {
     expect(recognizeSpy).toHaveBeenCalledTimes(2);
   });
 
-  // DELETED by READ-VS-EXTRACT P2: 'extracts normally when given no cache at all'.
-  // Its premise — "the cache is optional: every existing caller passes nothing" —
-  // had already stopped being true (both live callers pass one), and P2 made the
-  // cache required, so the path it covered no longer exists to be tested. Its one
-  // live assertion, that a synthetic-bitmap scan declines cleanly after a full
-  // recognition pass, is covered by the cache-miss cases above, which run the same
-  // engine pass against the same fixture.
+  // DELETED when deriving came to require the store: 'extracts normally when given
+  // no cache at all'. Its premise — "the cache is optional: every existing caller
+  // passes nothing" — had already stopped being true (both live callers pass one),
+  // and the cache is now required, so the path it covered no longer exists to be
+  // tested. Its one live assertion, that a synthetic-bitmap scan declines cleanly
+  // after a full recognition pass, is covered by the cache-miss cases above, which
+  // run the same engine pass against the same fixture.
 
   // The negative is worth caching precisely because it is expensive: a scan the
   // engine cannot read costs a full recognition pass to discover, and without
@@ -308,8 +309,9 @@ describe('anchored-text cache', () => {
   });
 
   it('does not touch the engine for a document with a text layer', { timeout: 60_000 }, async () => {
-    // Class A never OCRs. It DOES store its outcome since P2b (D1) — the
-    // storage side is pinned in 'the seam is extract()' above.
+    // Class A never OCRs. It DOES store its outcome, because the record is
+    // the finished outcome of any extraction — the storage side is pinned in
+    // 'the seam is extract()' below.
     const native = fs.readFileSync(path.join(FIXTURES, 'single-line.pdf'));
     const store = createAnchoredTextStore(dir);
 
@@ -319,12 +321,13 @@ describe('anchored-text cache', () => {
   });
 });
 
-describe('the seam is extract(), not the OCR boundary (PERSIST-ANCHORS P2b)', () => {
-  // D1, ratified: on a hit the stored answer comes back WHOLE — no byte gate,
-  // no native parse, no OCR, no re-assembly. The pre-P2b seam skipped only
-  // Tesseract, on the argument that the text-layer parse "has to run either
-  // way" to classify the document — true on a miss, false on a hit, because
-  // the classification is stored with the answer.
+describe('the seam is extract(), not the OCR boundary', () => {
+  // The record is the finished outcome, so on a hit the stored answer comes
+  // back WHOLE — no byte gate, no native parse, no OCR, no re-assembly. The
+  // earlier seam, at the OCR boundary, skipped only Tesseract, on the argument
+  // that the text-layer parse "has to run either way" to classify the document
+  // — true on a miss, false on a hit, because the classification is stored
+  // with the answer.
 
   it('stores the native outcome and serves a hit without parsing or recognizing', { timeout: 60_000 }, async () => {
     const native = fs.readFileSync(path.join(FIXTURES, 'single-line.pdf'));
@@ -377,10 +380,10 @@ describe('the seam is extract(), not the OCR boundary (PERSIST-ANCHORS P2b)', ()
   });
 });
 
-describe('the key binds an entry to its bytes (PERSIST-ANCHORS P1)', () => {
+describe('the key binds an entry to its bytes', () => {
   // The specification for the rekey, written as the outcome: geometry derived
   // from one revision of the bytes must be unreachable by a reader holding a
-  // different revision. Watched RED against the pre-P1 contract, where live
+  // different revision. Watched RED against the earlier contract, where live
   // call sites keyed by resource id — a mutable handle — so the write for old
   // bytes and the read for new bytes used the SAME key and the reader received
   // stale geometry: quotes anchored to places the current document does not
@@ -434,14 +437,14 @@ describe('the key binds an entry to its bytes (PERSIST-ANCHORS P1)', () => {
   });
 });
 
-describe('the discriminant never reaches disk (WIRE-UNION-DISCRIMINANTS P5c)', () => {
+describe('the discriminant never reaches disk', () => {
   // The store persists its OWN record and rebuilds the outcome on read, so
   // `kind` is stripped on write and re-added on read. Two consequences, each
   // pinned: entries written before the discriminant existed read back as
   // discriminated outcomes (no migration, no stamp bump), and entries written
   // now contain no `kind` byte the record's own shape already implies.
 
-  it('reads a pre-P5c v2 entry back as a discriminated outcome', async () => {
+  it('reads a v2 entry from before the discriminant existed back as a discriminated outcome', async () => {
     const store = createAnchoredTextStore(dir);
     // Steal the live stamp from a real write, then plant byte-for-byte what
     // write() produced before `kind` existed — success and decline flavors.
@@ -478,7 +481,7 @@ describe('the discriminant never reaches disk (WIRE-UNION-DISCRIMINANTS P5c)', (
   });
 });
 
-describe('would-hit key listing (PERSIST-ANCHORS P0)', () => {
+describe('would-hit key listing', () => {
   // The reconcile planner treats a listed key as "artifact present" and plans
   // re-derivation for the rest, so the equivalence LISTED ⇔ read() HITS is
   // load-bearing in both directions: a listed key that read() would miss is a
@@ -520,11 +523,12 @@ describe('would-hit key listing (PERSIST-ANCHORS P0)', () => {
     expect(await virgin.list()).toEqual([]);
   });
 
-  it('sweeps the pre-P1 flat generation from the root, and only the root (PERSIST-ANCHORS P1)', async () => {
-    // A `.json` at the store root is a pre-P1 entry: flat layout, resource-id
-    // key — a dead scheme. Leaving a generation of them is how the store's
-    // size becomes unexplainable; P0's rebuild path is what makes deleting
-    // them safe. Non-entry files are not ours to reap.
+  it('sweeps the flat resource-id-keyed generation from the root, and only the root', async () => {
+    // A `.json` at the store root is an entry from before the checksum key:
+    // flat layout, resource-id key — a dead scheme. Leaving a generation of
+    // them is how the store's size becomes unexplainable; reconcile
+    // re-deriving a lost artifact is what makes deleting them safe.
+    // Non-entry files are not ours to reap.
     const store = createAnchoredTextStore(dir);
     fs.writeFileSync(path.join(dir, 'a1b2c3d4e5f60718293a4b5c6d7e8f90.json'), '{"v":1,"stamp":"old","text":"","lines":[]}');
     fs.writeFileSync(path.join(dir, 'notes.txt'), 'not even a candidate');

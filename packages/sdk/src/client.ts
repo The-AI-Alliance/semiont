@@ -122,9 +122,10 @@ export class SemiontClient {
       cachePersistence?: { storage: SessionStorage; keyPrefix: string };
       /**
        * `busRequest` timeout for the browse caches — threads through to
-       * `BrowseNamespace`'s deterministic-time knob (LIVENESS-AXIOMS P2a).
-       * Production omits it (30 s default); `@semiont/sdk/testing` passes
-       * small values so B14/B15 chains run in test time.
+       * `BrowseNamespace`'s deterministic-time knob, there so the liveness
+       * property suite can control time. Production omits it (30 s
+       * default); `@semiont/sdk/testing` passes small values so B14/B15
+       * chains run in test time.
        */
       busTimeoutMs?: number;
       /**

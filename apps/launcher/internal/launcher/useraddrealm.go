@@ -1,7 +1,7 @@
 package launcher
 
 // useraddrealm.go — `semiont useradd` against the stack on THIS machine,
-// through the launcher's own Keycloak admin client (WHO-RUNS-USERADD P3).
+// through the launcher's own Keycloak admin client.
 //
 // No container. The account lives at the issuer, the launcher already holds
 // the bootstrap admin credential for this root, and the realm's admin API is

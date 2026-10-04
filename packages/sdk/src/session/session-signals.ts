@@ -73,9 +73,9 @@ export class SessionSignals {
   readonly permissionDenied$: BehaviorSubject<PermissionDenied | null>;
   /**
    * The KB at this entry's address reported a did other than the one the
-   * entry stores — a different knowledge base is answering
-   * (KB-IDENTITY-CHECKED-ON-ACTIVATION). Carries both dids so the UI can name
-   * what was expected and what answered.
+   * entry stores — a different knowledge base is answering. Checked when
+   * the entry is activated. Carries both dids so the UI can name what was
+   * expected and what answered.
    *
    * A signal, not a decision: the local state that claimed to be about the
    * old KB is already voided by the time this fires, and re-registering under

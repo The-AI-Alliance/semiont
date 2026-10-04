@@ -76,8 +76,7 @@ export interface WorkerRuntimeOptions {
   /**
    * The resource's bytes, for detection's extraction seam. Built by the
    * entrypoint (`worker-main`) rather than here, so a worker with no
-   * Archivist configured refuses at boot instead of failing every job
-   * (SINGLE-KB-MOUNT P4).
+   * Archivist configured refuses at boot instead of failing every job.
    */
   contentReads: ContentReads;
   logger: Logger;
@@ -110,10 +109,10 @@ export interface WorkerHealthPayload {
 }
 
 /**
- * The `/health` body (WORKER-LIVENESS.md P1). Additive: existing
- * consumers (image HEALTHCHECK, compose `service_healthy`, `semiont start`)
- * keep reading `status`/`agents`; the per-agent vitals expose
- * claim-loop progress so a stalled worker is *visible*, not just alive.
+ * The `/health` body. Additive: existing consumers (image HEALTHCHECK,
+ * compose `service_healthy`, `semiont start`) keep reading
+ * `status`/`agents`; the per-agent vitals expose claim-loop progress so a
+ * stalled worker is *visible*, not just alive.
  */
 export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVitals }>): WorkerHealthPayload {
   return {
@@ -124,33 +123,32 @@ export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVital
 }
 
 /**
- * Stall watchdog (WORKER-LIVENESS.md P3) — the fail-fast line behind the
- * inference timeout. There is no poll timer to heartbeat — the worker pulls
- * when idle, and a parked idle worker is not a stall; the honest stall
- * signal is *processing without activity*: an agent holding a claimed job
- * whose `lastActivityAt` (claim / progress / finish) has stopped advancing
- * is wedged — the adapter defers every wake-up while a job is held and
- * pulls at settle, so a wedged agent never settles and never recovers on
- * its own. Silent hang → loud crash → whatever
- * restart policy the deployment chose.
+ * Stall watchdog — the fail-fast line behind the inference timeout. There
+ * is no poll timer to heartbeat — the worker pulls when idle, and a parked
+ * idle worker is not a stall; the honest stall signal is *processing
+ * without activity*: an agent holding a claimed job whose `lastActivityAt`
+ * (claim / progress / finish) has stopped advancing is wedged — the adapter
+ * defers every wake-up while a job is held and pulls at settle, so a wedged
+ * agent never settles and never recovers on its own. Silent hang → loud
+ * crash → whatever restart policy the deployment chose.
  *
  * Thresholds are fixed by design (no env knobs) and deliberately
- * layered: inference timeout (10 min, P2) fires first; this watchdog
+ * layered: inference timeout (10 min) fires first; this watchdog
  * (15 min) catches wedges where the loop still turns but activity has
  * stopped; the gateway's dead-worker janitor (30 min) re-queues the job
  * regardless.
  *
  * The layering matters because this watchdog has a hard limit: it is an
  * IN-PROCESS timer, so it cannot fire while the event loop itself is
- * blocked — the exact condition a blocked loop creates
- * (JOB-RESTART-SAFETY P7, the 2026-09-03 finalization hang: 18 min silent,
- * this watchdog never fired, an empty /health confirming the loop was
- * wedged). The unbounded emit that caused that specific hang is now bounded
- * at the transport (`EMIT_TIMEOUT_MS`), so the loop errors instead of
- * blocking; but for any future blocked-loop bug the ONLY backstop is the
- * out-of-process one — the dispatcher's sweep, which fails a running job
- * whose worker has gone silent (docs/protocol/JOBS.md). A liveness guarantee a
- * blocked loop defeats is not one; the sweep is the guarantee.
+ * blocked — the exact condition a blocked loop creates (the 2026-09-03
+ * finalization hang: 18 min silent, this watchdog never fired, an empty
+ * /health confirming the loop was wedged). The unbounded emit that caused
+ * that specific hang is now bounded at the transport (`EMIT_TIMEOUT_MS`),
+ * so the loop errors instead of blocking; but for any future blocked-loop
+ * bug the ONLY backstop is the out-of-process one — the dispatcher's sweep,
+ * which fails a running job whose worker has gone silent
+ * (docs/protocol/JOBS.md). A liveness guarantee a blocked loop defeats is
+ * not one; the sweep is the guarantee.
  */
 export const STALL_THRESHOLD_MS = 15 * 60_000;
 export const STALL_CHECK_INTERVAL_MS = 60_000;
@@ -218,20 +216,20 @@ export const WORKER_AWAITED_OPERATIONS = [
   'job:claim',
   'browse:resource-requested',
   // Canonical geometry for a geometry-bearing detection: the consult behind
-  // `ConsultAnchoredText` (SMELTER-OWNS-OCR P2). Its omission broke every
+  // `ConsultAnchoredText`, answered by the Smelter. Its omission broke every
   // PDF detection job at the transport probe;
   // the census below now fails the
   // BUILD when this list and the declared awaits drift.
   'browse:anchored-text-requested',
-  // Durability acknowledgement for a unit's annotations (JOB-RESTART-SAFETY
-  // P6). The worker AWAITS this one — a unit may not advance until its
-  // annotations are in the event log — so its replies must be in the narrow
-  // channel set or every commit fails fast with `bus.unsubscribed`.
+  // Durability acknowledgement for a unit's annotations. The worker AWAITS
+  // this one — a unit may not advance until its annotations are in the event
+  // log — so its replies must be in the narrow channel set or every commit
+  // fails fast with `bus.unsubscribed`.
   'mark:commit',
-  // The durability probe for a commit whose acknowledgement never routed
-  // (COMMIT-ACK-FALSE-FAILURE F1). SINGULAR by design: the annotation LIST
-  // channel is the multi-MB fan-out this narrowing exists to keep out, and a
-  // rare error path is no reason to let it back in.
+  // The durability probe for a commit whose acknowledgement never routed.
+  // SINGULAR by design: the annotation LIST channel is the multi-MB fan-out
+  // this narrowing exists to keep out, and a rare error path is no reason to
+  // let it back in.
   'browse:annotation-requested',
 ] as const satisfies readonly BusOperationKey[];
 
@@ -252,7 +250,7 @@ export const WORKER_AWAITED_OPERATIONS = [
 export const WORKER_CONSUMED_BROADCASTS = [
   // The queue announcement the claim adapter races for.
   'job:queued',
-  // Cooperative cancellation of the ACTIVE job (JOB-RESTART-SAFETY P4).
+  // Cooperative cancellation of the ACTIVE job: it stops at a unit boundary.
   'job:cancel-requested',
 ] as const satisfies readonly (keyof EventMap)[];
 
@@ -280,7 +278,7 @@ export const WORKER_CHANNELS: readonly (keyof EventMap)[] = [
 ];
 
 /**
- * The build-time census gate (WORKER-ANCHORED-TEXT-CHANNEL F2).
+ * The build-time census gate.
  *
  * `WORKER_AWAITED_OPERATIONS` restates a fact the code owns — which
  * operations worker paths call `busRequest` on — and one of those calls
@@ -296,9 +294,9 @@ export const WORKER_CHANNELS: readonly (keyof EventMap)[] = [
 type DeclaredWorkerAwaits =
   | JobClaimAwaits             // job-claim-adapter.ts — claiming an announced job
   | DescriptorReadAwaits       // worker-process.ts — the resource descriptor read
-  | MarkCommitAwaits           // worker-process.ts — the durability ack (JOB-RESTART-SAFETY P6)
-  | DurabilityProbeAwaits      // worker-process.ts — did the batch land? (COMMIT-ACK-FALSE-FAILURE F1)
-  | ConsultAnchoredTextAwaits; // prepare-detection.ts — canonical geometry (SMELTER-OWNS-OCR P2)
+  | MarkCommitAwaits           // worker-process.ts — the durability ack
+  | DurabilityProbeAwaits      // worker-process.ts — did the batch land?
+  | ConsultAnchoredTextAwaits; // prepare-detection.ts — canonical geometry
 
 type WorkerAwaitCensusDrift =
   | Exclude<DeclaredWorkerAwaits, (typeof WORKER_AWAITED_OPERATIONS)[number]>
@@ -465,8 +463,9 @@ export async function startAgentWorker(
     generator,
     // Byte reads for decode-path media only. A geometry-bearing type's text
     // never comes from bytes here — it is CONSULTED from the Smelter's
-    // canonical anchored text over the bus (SMELTER-OWNS-OCR P2), and this
-    // worker cannot derive even by mistake (READ-VS-EXTRACT P2).
+    // canonical anchored text over the bus, and this worker cannot derive
+    // even by mistake: deriving needs the anchored-text store, which only
+    // the Smelter holds.
     contentReads,
     logger,
   });

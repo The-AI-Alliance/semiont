@@ -77,7 +77,7 @@ interface UnifiedAnnotationsPanelProps {
   entityTypesError?: Error | null;
   referencedByError?: Error | null;
   onRetryReferencedBy?: () => void;
-  /** Annotations currently sparkling (recently created or resolved) — RESOLUTION-SPARKLE D6. */
+  /** Annotations currently sparkling (recently created or resolved); their reference entries glow. */
   sparkleAnnotationIds?: Set<string>;
 
   // Resource context — threaded to every per-motivation panel, which stamps it

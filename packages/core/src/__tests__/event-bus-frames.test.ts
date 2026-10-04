@@ -1,6 +1,5 @@
 /**
- * RED (BUS-ROUTING-DECLARED P2, D6): the bus carries FRAMES, and offers three
- * verbs rather than a Subject.
+ * The bus carries FRAMES, and offers three verbs rather than a Subject.
  *
  * `get(channel)` handed out a raw `Subject<EventMap[K]>`. Two things followed
  * from that. Routing metadata had nowhere to live except inside the domain

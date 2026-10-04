@@ -3,9 +3,9 @@ set -euo pipefail
 
 # Audit: test-env hygiene (H1) — no test file exports a SEMIONT_* env var
 # that no production code in the same PROCESS reads. A test setup that
-# fabricates deployment env keeps dead requirements alive: the
-# SINGLE-KB-MOUNT live gates found 114 auth tests green against an image
-# that could not boot, because both gateway test setups exported
+# fabricates deployment env keeps dead requirements alive: after the gateway
+# dropped its KB mount, a real start found 114 auth tests green against an
+# image that could not boot, because both gateway test setups exported
 # SEMIONT_ROOT themselves. When a requirement is removed from production,
 # this gate forces the fiction out of the tests in the same change.
 #

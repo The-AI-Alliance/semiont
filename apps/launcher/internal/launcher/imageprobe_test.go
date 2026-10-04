@@ -7,10 +7,10 @@ import (
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/images"
 )
 
-// FAKE-RUNTIME-FIDELITY P2. The launcher's health probe for one of Semiont's
-// own services is a MIRROR of that service's image, which declares the same
-// route twice — as the HEALTHCHECK the container runtime runs, and as the
-// SUPERVISE_PROBE its entrypoint watches.
+// The launcher's health probe for one of Semiont's own services is a MIRROR
+// of that service's image, which declares the same route twice — as the
+// HEALTHCHECK the container runtime runs, and as the SUPERVISE_PROBE its
+// entrypoint watches.
 //
 // Nothing checked it. Eight images, eight probes, agreeing by hand — and the
 // suite could not have noticed them disagreeing, because the fake answered

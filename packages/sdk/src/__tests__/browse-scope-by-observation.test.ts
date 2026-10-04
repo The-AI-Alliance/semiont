@@ -10,7 +10,7 @@
  * returns. Global queries (`entityTypes`, `tagSchemas`, `resources`) acquire
  * no scope either — they aren't resource-bound.
  *
- * MULTI-RESOURCE-SCOPE: the SDK calls `subscribeToResource(rId)` once per
+ * Many scopes at once: the SDK calls `subscribeToResource(rId)` once per
  * resource-scoped subscription; the transport ref-counts per resource and
  * DISTINCT resources compose — N mounted loaders on N resources each hold
  * their own scope concurrently. The old single-slot contention state (and
@@ -133,15 +133,15 @@ describe('browse live-query subscription acquires the resource scope (#847 Phase
   });
 });
 
-describe('multi-scope: distinct-rid live queries COMPOSE — all fully live (MULTI-RESOURCE-SCOPE Step 6)', () => {
+describe('multi-scope: distinct-rid live queries COMPOSE — all fully live', () => {
   // The old single-slot contract threw for a second distinct resourceId and
-  // the interim (starvation-fix P2.5) degraded that loader to unscoped
+  // the interim starvation fix degraded that loader to unscoped
   // observation. Both states are gone: N distinct-rid loaders at mount (the
   // embeddable-viewer "resource per chat message" pattern) each acquire
   // their OWN scope on the shared connection, keep it independently, and
-  // release it independently. This is the plan's acceptance shape at the
-  // namespace level; the browse-concurrent-loaders suite covers the same
-  // over faulty wires.
+  // release it independently. This is the acceptance shape for concurrent
+  // scopes at the namespace level; the browse-concurrent-loaders suite
+  // covers the same over faulty wires.
 
   const flush = () => new Promise<void>((r) => setTimeout(r, 0));
   const rid1: ResourceId = makeResourceId('res-1');

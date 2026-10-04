@@ -10,9 +10,9 @@ import (
 )
 
 // Every preference the launcher saves is a setting `semiont settings` lists,
-// or is named as the registry's own bookkeeping (LAUNCHER-SETTINGS: the
-// listing is a census). A field added to the registry without either fails
-// here, so a new preference cannot be saved where no one can see it.
+// or is named as the registry's own bookkeeping: the listing is a census. A
+// field added to the registry without either fails here, so a new preference
+// cannot be saved where no one can see it.
 func TestEverySavedPreferenceIsASetting(t *testing.T) {
 	covered := map[string]string{}
 	for _, s := range settingsTable {
@@ -38,8 +38,8 @@ func TestEverySavedPreferenceIsASetting(t *testing.T) {
 }
 
 // Nothing the launcher prints names the old verb: `secret` moved under
-// `settings` (LAUNCHER-SETTINGS D2) with no alias, so a message that still
-// says `semiont secret` sends a person to a command that does not exist.
+// `settings` with no alias, so a message that still says `semiont secret`
+// sends a person to a command that does not exist.
 func TestNoMessageNamesTheOldSecretVerb(t *testing.T) {
 	var files []string
 	for _, glob := range []string{"*.go", "../verbs/*.go", "../../main.go"} {

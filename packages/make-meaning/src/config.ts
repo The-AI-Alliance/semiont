@@ -53,33 +53,35 @@ export interface RosterConfig {
 export interface MakeMeaningConfig {
   /**
    * Resource-gather policy. `settleTimeoutMs` bounds the semanticContext
-   * read-your-writes barrier (SMELTER-INDEX-SYNC D3/D5) — REQUIRED: the TOML
-   * loader owns the one default (15s at `[environments.<env>.make-meaning.gather]`);
-   * hand-built configs (scripts, tests) state their policy explicitly. Must
-   * nest inside downstream watchdogs (A4).
+   * read-your-writes barrier, which degrades to an absent semanticContext on
+   * timeout — REQUIRED: the TOML loader owns the one default (15s at
+   * `[environments.<env>.make-meaning.gather]`); hand-built configs (scripts,
+   * tests) state their policy explicitly. Must nest inside downstream
+   * watchdogs: the gather's worst-case barrier spend stays below the
+   * job-worker and client stall watchdogs.
    */
   gather: { settleTimeoutMs: number };
   /**
    * Search policy. `semanticFloor` is the minimum cosine score a vector hit
-   * needs to appear in the semantic fallback (SEMANTIC-FALLBACK decision #1)
-   * — REQUIRED: the TOML loader owns the one default (0.6 at
-   * `[environments.<env>.make-meaning.search]`); hand-built configs
-   * (scripts, tests) state their policy explicitly.
+   * needs to appear in the semantic fallback — REQUIRED: the TOML loader owns
+   * the one default (0.6 at `[environments.<env>.make-meaning.search]`);
+   * hand-built configs (scripts, tests) state their policy explicitly.
    */
   search: { semanticFloor: number };
   services: {
     graph?: GraphServiceConfig;
-    /** REQUIRED (MANDATORY-EMBEDDING D0+D1, type-level per the 2026-08-12
-     *  ruling): the config NAMES its store — `memory` is a first-class
-     *  explicit choice, never a fallback. The TOML loader refuses configs
-     *  without it; the type makes hand-built configs state their choice. */
+    /** REQUIRED, at the type level (ruled 2026-08-12): a vector store is
+     *  mandatory and nothing is defaulted, so the config NAMES its store —
+     *  `memory` is a first-class explicit choice, never a fallback. The TOML
+     *  loader refuses configs without it; the type makes hand-built configs
+     *  state their choice. */
     vectors: VectorsServiceConfig;
     /** REQUIRED (same ruling): the embedding provider is the KB's semantic
      *  identity — always named, never detected or defaulted. */
     embedding: EmbeddingServiceConfig;
     /** Where the record is. Optional in the type because the actors that
-     *  hold a KB mount never dial it; the Librarian does, and refuses at
-     *  boot when it is absent (SINGLE-KB-MOUNT P4). */
+     *  hold a KB mount never dial it; the Librarian does, to read bytes
+     *  straight from the Archivist, and refuses at boot when it is absent. */
     archivist?: ArchivistServiceConfig;
   };
   /** Per-actor inference config */
@@ -98,16 +100,16 @@ export interface MakeMeaningConfig {
  */
 /**
  * The KB name a mountless service composes its state paths from —
- * `[kb] name`, staged by the launcher (SINGLE-KB-MOUNT D4). Refusing is the
- * point: a defaulted name composes a state path nobody writes to, and the
- * service reads an empty view store forever, silently.
+ * `[kb] name`, staged by the launcher from the KB's committed identity.
+ * Refusing is the point: a defaulted name composes a state path nobody writes
+ * to, and the service reads an empty view store forever, silently.
  */
 export function requireKBName(config: EnvironmentConfig): string {
   const name = config.kb?.name;
   if (!name) {
     throw new Error(
       '[kb] name is missing from the environment config. The launcher stages the ' +
-        "KB's committed identity into each service's config (SINGLE-KB-MOUNT D4); " +
+        "KB's committed identity into each service's config; " +
         'without it this service cannot locate the state tree.',
     );
   }
@@ -119,7 +121,7 @@ export function requireKBName(config: EnvironmentConfig): string {
  * config at its read rather than copying at construction: a service reads only
  * the sections specs/src/service-config/sections.json lists for it, so copying
  * a part it never uses (the dispatcher's graph, the Librarian's workers) would
- * be a read of a section it does not declare (SECRET-DELIVERY P5).
+ * be a read of a section it does not declare, which the loader refuses.
  */
 export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningConfig {
   const meta = () => config._metadata as (EnvironmentConfig['_metadata'] & {
@@ -131,7 +133,7 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
 
   return {
     // The TOML loader always sets _metadata.gather and .search (it owns the one
-    // default — D5). A missing value means this config bypassed the loader:
+    // default). A missing value means this config bypassed the loader:
     // fail loudly rather than default here.
     get gather() {
       const gather = meta()?.gather;
@@ -148,9 +150,9 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
       return search;
     },
     services: {
-      // vectors/embedding are required on both sides (MANDATORY-EMBEDDING P3):
-      // core's ServicesConfig requires the pair, and the loader refuses a
-      // config missing either at their read — nothing to re-check here.
+      // vectors/embedding are required on both sides: core's ServicesConfig
+      // requires the pair, and the loader refuses a config missing either at
+      // their read — nothing to re-check here.
       get graph() { return config.services.graph; },
       get vectors() { return config.services.vectors; },
       get embedding() { return config.services.embedding; },

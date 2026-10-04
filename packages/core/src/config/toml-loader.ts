@@ -4,7 +4,7 @@
  * Reads ~/.semiontconfig (TOML) and .semiont/config (TOML) and produces
  * an EnvironmentConfig for the requested environment.
  *
- * File format: see TOML-XDG-CONFIG.md
+ * File format: see docs/operator/administration/CONFIGURATION.md
  *
  * Loading sequence:
  *   1. Read .semiont/config  → environments.<env>.* (project base)
@@ -113,9 +113,9 @@ interface SemiontConfigFile {
     platform?: string;
   };
   // The KB's committed identity — `[site] domain` and `[project] name` from its
-  // .semiont/config — staged by the launcher (SINGLE-KB-MOUNT D4) for the
-  // services that do not mount the tree. Top-level, beside [defaults], where no
-  // environment section reaches it.
+  // .semiont/config — staged by the launcher for the services that do not
+  // mount the tree. Top-level, beside [defaults], where no environment section
+  // reaches it.
   kb?: {
     name?: string;
     domain?: string;
@@ -220,20 +220,21 @@ interface EnvironmentSection {
     default?: { inference?: InferenceConfig };
     /**
      * Resource-gather knobs. `settleTimeoutMs` bounds the semanticContext
-     * read-your-writes barrier (SMELTER-INDEX-SYNC D3/D5) — how long a gather
-     * waits for the vector projection to settle before degrading to an absent
-     * semanticContext. Must nest INSIDE downstream watchdogs (job-worker
-     * liveness, client stall watchdogs) — see SMELTER-INDEX-SYNC A4.
+     * read-your-writes barrier — how long a gather waits for the vector
+     * projection to settle before degrading to an absent semanticContext.
+     * Must nest INSIDE downstream watchdogs (job-worker liveness, client
+     * stall watchdogs): the gather's worst-case barrier spend has to stay
+     * below each of them.
      */
     gather?: { settleTimeoutMs?: number };
     /**
      * Search knobs. `semanticFloor` is the minimum cosine score a vector hit
-     * needs to appear in the semantic fallback (SEMANTIC-FALLBACK decision
-     * #1) — fired only when a lexical search returns nothing. The loader is
-     * the ONE home of the default: 0.6, midway between the Matcher's
-     * recall-oriented 0.4 (which feeds a composite scorer) and a
-     * precision-strict 0.8 — a guess to be tuned from the fallback's own
-     * score-distribution debug line, revisable here in one line.
+     * needs to appear in the semantic fallback — fired only when a lexical
+     * search returns nothing. The loader is the ONE home of the default: 0.6,
+     * midway between the Matcher's recall-oriented 0.4 (which feeds a
+     * composite scorer) and a precision-strict 0.8 — a guess to be tuned from
+     * the fallback's own score-distribution debug line, revisable here in one
+     * line.
      */
     search?: { semanticFloor?: number };
   };
@@ -349,10 +350,10 @@ export function loadTomlConfig(
   ) as EnvironmentSection;
 
   // 6. Each section resolves when it is read, and a service reads only the
-  //    sections specs/src/service-config/sections.json lists for it (SECRET-
-  //    DELIVERY P5). An unset ${VAR} therefore refuses at the first read of the
-  //    section that names it — never for a section this process never reads —
-  //    and the launcher can forward each service only its sections' variables.
+  //    sections specs/src/service-config/sections.json lists for it. An unset
+  //    ${VAR} therefore refuses at the first read of the section that names
+  //    it — never for a section this process never reads — and the launcher
+  //    can forward each service only its sections' variables.
   const declared: readonly string[] | undefined = service ? serviceConfigSections[service] : undefined;
   const resolvedSections = new Map<keyof EnvironmentSection, unknown>();
   function section<K extends keyof EnvironmentSection>(key: K): EnvironmentSection[K] {
@@ -517,8 +518,8 @@ export function loadTomlConfig(
 
   // Semantic search is always available, so a config must NAME both a vector
   // store and an embedding provider — nothing is defaulted, and absence
-  // refuses with a config-actionable message (MANDATORY-EMBEDDING D0+D1:
-  // explicit opt-in; `memory` is a first-class choice, not a fallback).
+  // refuses with a config-actionable message (explicit opt-in; `memory` is a
+  // first-class choice, not a fallback).
   function vectors(): EnvironmentConfig['services']['vectors'] {
     const v = section('vectors');
     if (!v?.type) {
@@ -579,9 +580,9 @@ export function loadTomlConfig(
         `[environments.${resolvedEnvironment}.identity] names no issuer — add issuer = "http://\${KEYCLOAK_HOST}:8080/realms/semiont" (the URL in a token's iss claim). A typed-but-incomplete section never falls through.`,
       );
     }
-    // VERIFIED-PROVENANCE P5. A person's DID is did:web:<site domain>:users:<the
-    // value of this claim>. Which claim is declared here — one rule per
-    // deployment, never a fallback chain, never one code infers.
+    // A person's DID is did:web:<site domain>:users:<the value of this claim>.
+    // Which claim is declared here — one rule per deployment, never a fallback
+    // chain, never one code infers.
     if (!id.subjectClaim) {
       throw new Error(
         `[environments.${resolvedEnvironment}.identity] names no subjectClaim — add subjectClaim = "sub" (the issuer claim a person's DID is built from: did:web:<site domain>:users:<its value>). The claim people are named by is declared, never defaulted.`,
@@ -612,10 +613,10 @@ export function loadTomlConfig(
     };
   }
 
-  // The Archivist's D1 read path (EXTRACT-ARCHIVIST P3). Internal host:port
-  // like vectors — never a publicURL; the Archivist is not public. Without
-  // this mapping the section parses and then VANISHES, and every resume
-  // silently degrades to a gap.
+  // The Archivist's sequence-ranged event read path, which the gateway
+  // replays SSE resumes from. Internal host:port like vectors — never a
+  // publicURL; the Archivist is not public. Without this mapping the section
+  // parses and then VANISHES, and every resume silently degrades to a gap.
   function archivist(): EnvironmentConfig['services']['archivist'] {
     const a = section('archivist');
     if (!a?.host) return undefined;
@@ -654,11 +655,11 @@ export function loadTomlConfig(
   }
 
   // No browser service is emitted. The Browser is machine-level — one Browser
-  // serves many KBs — so a KB neither knows nor affects its port or publicURL
-  // (FRONTEND-IS-THE-BROWSER D5). `[browser]` and the older `[frontend]` are
-  // inert unknown sections: tolerated, never read, never refused. `[jobs]` is
-  // the launcher's alone — it writes the dispatcher's queue settings from it —
-  // so it is inert here too.
+  // serves many KBs — so a KB neither knows nor affects its port or
+  // publicURL. `[browser]` and the older `[frontend]` are inert unknown
+  // sections: tolerated, never read, never refused. `[jobs]` is the
+  // launcher's alone — it writes the dispatcher's queue settings from it — so
+  // it is inert here too.
   const services: EnvironmentConfig['services'] = {
     get identity() { return once('identity', identity); },
     get vectors() { return once('vectors', vectors); },
@@ -687,7 +688,7 @@ export function loadTomlConfig(
       projectRoot,
       get actors() { return once('_metadata.actors', actorInference); },
       get workers() { return once('_metadata.workers', workerInference); },
-      // The loader is the ONE home of these defaults (D5). Consuming code
+      // The loader is the ONE home of these defaults. Consuming code
       // (make-meaning's gather path) receives a required value and defaults
       // nothing.
       get gather() { return once('_metadata.gather', () => ({ settleTimeoutMs: section('make-meaning')?.gather?.settleTimeoutMs ?? 15_000 })); },

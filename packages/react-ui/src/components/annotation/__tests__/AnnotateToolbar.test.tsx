@@ -1,5 +1,5 @@
 /**
- * AnnotateToolbar — purely presentational (TOOLBAR-PREFS-AS-PROPS).
+ * AnnotateToolbar — purely presentational: its preferences are controlled props.
  *
  * The bar renders the given values for the given `parts` and reports choices via
  * the on*Change callbacks. No session, no bus events, no storage — those died with

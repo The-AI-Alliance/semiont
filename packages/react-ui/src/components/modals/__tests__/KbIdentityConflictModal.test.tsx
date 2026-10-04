@@ -1,8 +1,9 @@
 /**
- * KB-IDENTITY-CHECKED-ON-ACTIVATION P2: the substitution is rendered honestly.
+ * When a different did answers at a registered KB's address, the substitution
+ * is rendered honestly.
  *
- * The signal fires after P1 has already voided the tab/last-viewed state: this
- * modal only TELLS. Honesty is KB-IDENTITY-VS-ADDRESS decision 7 — the KB the
+ * The signal fires after activation has already voided the entry's
+ * tab/last-viewed state: this modal only TELLS. Honesty means the KB the
  * entry names and the identity that answered are shown as two distinct facts,
  * both dids verbatim, and the newcomer is never presented under the registered
  * label. The route forward is the Knowledge Base panel, which owns

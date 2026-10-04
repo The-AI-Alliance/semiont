@@ -39,7 +39,7 @@ describe('useEventSubscription', () => {
       expect(handler).toHaveBeenCalledTimes(1);
     });
 
-    it('delivers browse:resource-open to a subscriber — the tour imperative (GUIDED-TOUR P2)', () => {
+    it('delivers browse:resource-open to a subscriber — the tour imperative', () => {
       // The channel is bridged (BRIDGED_BROADCASTS), so a launcher emit
       // arrives on this bus over SSE; the viewer's handler turns it into
       // routes.resourceDetail → nav:push. This pins the subscription half.

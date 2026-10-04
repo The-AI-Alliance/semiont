@@ -1,5 +1,5 @@
 /**
- * Failure classification — ABANDONED-INFERENCE P3 (A4, HD2).
+ * Failure classification: a deterministic failure is not retried.
  *
  * The taxonomy is deliberately small and one-sided: only KNOWN-deterministic
  * failures skip the retry budget; everything unrecognized stays retryable
@@ -15,7 +15,7 @@ import { classifyFailure, DeterministicJobError } from '../failure-class';
 import { YieldCollapseError } from '../workers/detection/detection-chunking';
 import { InferenceTimeoutError } from '../workers/inference-call';
 
-describe('classifyFailure (A4)', () => {
+describe('classifyFailure', () => {
   it('our own deterministic marker classifies deterministic', () => {
     expect(classifyFailure(new DeterministicJobError('response truncated'))).toBe('deterministic');
   });
@@ -55,7 +55,7 @@ describe('classifyFailure (A4)', () => {
     expect(classifyFailure(new StructuredReadError('response is not valid JSON', 'max_tokens'))).toBe('deterministic');
   });
 
-  it('a yield-collapse verdict is deterministic — retries provably return the identical under-report (P3c)', () => {
+  it('a yield-collapse verdict is deterministic — retries provably return the identical under-report', () => {
     // Inherited from DeterministicJobError on purpose: the collapse was
     // measured bit-identical across retries AND budget regimes, so spending
     // the retry budget on it is pure waste. Pinned at the seam so the
@@ -64,17 +64,17 @@ describe('classifyFailure (A4)', () => {
   });
 
   it('a depth-exhausted end_turn stays retryable — because the RETRY re-cuts it, not because sampling might', () => {
-    // RETRY-CLASSIFICATION P2, the site 3 ↔ site 5 disagreement, decided
-    // 2026-09-12. This test used to say "sampling may fix it", which was never
-    // true: `DETECTION_TEMPERATURE` is 0, so an identical call returns an
+    // Decided 2026-09-12, where this classifier and `subdividable()` disagreed
+    // about one error. This test used to say "sampling may fix it", which was
+    // never true: `DETECTION_TEMPERATURE` is 0, so an identical call returns an
     // identical answer, and that is precisely `subdividable()`'s argument for
     // the opposite verdict.
     //
-    // The real reason it stays retryable arrived with CHUNK-GRAIN-RESUME HD2
-    // (option C): a resumed unit seeds the checkpoint's size and then takes one
-    // shrink step, so the retry reads the poison text in a DIFFERENT piece. The
-    // retry is no longer the same call. And the price of being wrong fell from a
-    // whole re-paid prefix (~26 min on the 1958 document) to one chunk.
+    // The real reason it stays retryable arrived with chunk-grain resume: a
+    // resumed unit seeds the checkpoint's size and then takes one shrink step,
+    // so the retry reads the poison text in a DIFFERENT piece. The retry is no
+    // longer the same call. And the price of being wrong fell from a whole
+    // re-paid prefix (~26 min on the 1958 document) to one chunk.
     //
     // Still `undefined`, not `'transient'`: the wire vocabulary has two values
     // and this is neither — not weather, but "the next attempt reads different
@@ -82,28 +82,29 @@ describe('classifyFailure (A4)', () => {
     expect(classifyFailure(new StructuredReadError('parsed to object, not an array', 'end_turn'))).toBeUndefined();
   });
 
-  it("an 'unknown'-stop unreadable response stays retryable — the live Ollama failure's exact shape (OLLAMA-DETECTION-TESTING P1)", () => {
+  it("an 'unknown'-stop unreadable response stays retryable — the live Ollama failure's exact shape", () => {
     // gemma4:26b, 2026-09-03: done_reason ABSENT → the adapter maps 'unknown'.
     // An unknown stop is not provably-repeatable the way max_tokens is, so it
     // stays inside the retry budget.
     //
-    // Retryable STANDS after F3's live recurrence (P4 attempt 2, 2026-09-05):
-    // the new evidence flipped SUBDIVIDABILITY (see detection-chunking — the
-    // shape descends by size now), not classification. An unknown stop still
-    // is not provably-repeatable the way max_tokens is, and a genuinely broken
-    // server deserves its retry budget; the subdivision fix is what keeps the
-    // deterministic-in-practice case from burning that budget at same size.
+    // Retryable STANDS after this shape recurred live (the second full Ollama
+    // detection run, 2026-09-05): the new evidence flipped SUBDIVIDABILITY (see
+    // detection-chunking — the shape descends by size now), not classification.
+    // An unknown stop still is not provably-repeatable the way max_tokens is,
+    // and a genuinely broken server deserves its retry budget; the subdivision
+    // fix is what keeps the deterministic-in-practice case from burning that
+    // budget at same size.
     expect(classifyFailure(new StructuredReadError('response is not valid JSON', 'unknown'))).toBeUndefined();
   });
 
-  // ── the status branch is DERIVED, not restated (RETRY-CLASSIFICATION P2) ──
+  // ── the status branch is DERIVED, not restated ────────────────────────────
   describe('status classification follows RETRY_RULES.job', () => {
     it('agrees with the rule on every status, so the two cannot drift apart', () => {
-      // The census's finding was not that four sites disagreed — it was that
-      // two of them asserted a bare list nobody could see was a second opinion,
-      // and where a list and an argument disagreed the LIST won silently. This
-      // is the gate that makes that impossible here: change the rule and this
-      // file follows, change only one and this fails.
+      // A census of the sites that decide retryability found not that four of
+      // them disagreed — it was that two asserted a bare list nobody could see
+      // was a second opinion, and where a list and an argument disagreed the
+      // LIST won silently. This is the gate that makes that impossible here:
+      // change the rule and this file follows, change only one and this fails.
       for (let status = 100; status < 600; status++) {
         const viaRule = RETRY_RULES.job.retryable({ status });
         const viaClassifier = classifyFailure({ status }) === 'transient';
@@ -123,7 +124,7 @@ describe('classifyFailure (A4)', () => {
     });
   });
 
-  it('everything unrecognized is unclassified — retryable by default (HD2 gates only KNOWN-deterministic)', () => {
+  it('everything unrecognized is unclassified — retryable by default (only KNOWN-deterministic failures are gated)', () => {
     expect(classifyFailure(new Error('MessageStream terminated'))).toBeUndefined();
     expect(classifyFailure(new TypeError('fetch failed'))).toBeUndefined();
     expect(classifyFailure('a string')).toBeUndefined();

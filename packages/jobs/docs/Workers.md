@@ -75,9 +75,9 @@ process<X>Job(
 
 Two things a processor does **not** do. It never returns annotations for the caller to write —
 each chunk is committed through `onChunkComplete` as it is produced, so a retry resumes from
-the cursor rather than re-running the job (CHUNK-GRAIN-RESUME). And it never sees a user
-identity: an annotation states what produced it, and who *requested* it is derived by the
-knowledge base from the job the commit cites (VERIFIED-PROVENANCE).
+the cursor rather than re-running the job. And it never sees a user identity: an annotation
+states what produced it, and who *requested* it is derived by the knowledge base from the job
+the commit cites.
 
 `ProcessorResult<R>` is `{ result: R }`. The annotations a processor commits are W3C Web Annotation objects shaped by the `buildAnnotation` closure it is handed — `buildTextAnnotation` for text, `buildPdfAnnotation` for geometry-bearing media. The text builder enforces a write-time invariant (`content.substring(start, end) === exact`) so a mis-anchored selector throws loudly instead of corrupting the KB.
 

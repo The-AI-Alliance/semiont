@@ -1,5 +1,5 @@
 /**
- * EXTRACT-ARCHIVIST P1 — the decoupling proof.
+ * The Archivist's actors — the decoupling proof.
  *
  * Each Archivist actor (Stower, Browser, CloneTokenManager) constructs from
  * narrow capability doubles. `KnowledgeBase` appears nowhere in this file —
@@ -8,14 +8,16 @@
  * it afterwards.
  *
  * The capability shapes are the actors' honest surfaces, measured 2026-08-27:
- * - Stower: content lifecycle {register, move, remove, resolveUri} (D4a's
- *   split — no byte service) + appendEvent + project.projectionsDir.
+ * - Stower: content lifecycle {register, move, remove, resolveUri} (the
+ *   lifecycle half only — no byte service, since bytes travel over HTTP)
+ *   + appendEvent + project.projectionsDir.
  * - Browser: read-only slices — views, event-log reads + materializer,
  *   graph reads, vector search, content.retrieve, anchoredText, the smelt
  *   barrier.
  * - CloneTokenManager: views.get + {store, resolveUri}. Its old
  *   `retrieve()`-as-existence-check was a full file read to answer a
- *   boolean; the boundary replaces it with resolveUri + stat (D4a).
+ *   boolean; the boundary replaces it with resolveUri + stat, because this
+ *   actor never touches bytes.
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
@@ -63,7 +65,7 @@ function reply<Ok>(
 
 // ── Stower ────────────────────────────────────────────────────────────────────
 
-describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () => {
+describe('Stower constructs from capability doubles', () => {
   let tp: TestProject;
   let eventBus: EventBus;
   let stower: Stower;
@@ -178,7 +180,7 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
 
 // ── Browser ───────────────────────────────────────────────────────────────────
 
-describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () => {
+describe('Browser constructs from capability doubles', () => {
   const PROJECT_ROOT = '/home/user/archivist-p1';
   const config: MakeMeaningConfig = {
     services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
@@ -320,7 +322,7 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
 
 // ── CloneTokenManager ─────────────────────────────────────────────────────────
 
-describe('CloneTokenManager constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () => {
+describe('CloneTokenManager constructs from capability doubles', () => {
   let tmpFile: string;
   let eventBus: EventBus;
   let ctm: CloneTokenManager;
@@ -331,7 +333,7 @@ describe('CloneTokenManager constructs from capability doubles (EXTRACT-ARCHIVIS
     await fs.rm(tmpFile, { force: true });
   });
 
-  it('generates a clone token via resolveUri + stat — never a byte retrieve (D4a)', async () => {
+  it('generates a clone token via resolveUri + stat — never a byte retrieve', async () => {
     const rid = makeResourceId('res-clone-1');
     tmpFile = join(process.env.TMPDIR ?? '/tmp', `archivist-p1-clone-${Date.now()}.txt`);
     await fs.writeFile(tmpFile, 'clone me');
@@ -502,9 +504,10 @@ describe('channel rosters match actual subscriptions (census gate)', () => {
 //
 // `effect` says whether emitting a channel CHANGES the knowledge base, and the
 // gateway reads it to decide whether an emit was an act worth naming its author
-// for (PERSON-PROFILE D3). The registry's own validator gates COMPLETENESS —
-// every emittable channel names a side. It cannot gate CORRECTNESS: nothing
-// there knows that the Stower appends and the Browser answers.
+// for: a person is named in the log when they write, never for only reading.
+// The registry's own validator gates COMPLETENESS — every emittable channel
+// names a side. It cannot gate CORRECTNESS: nothing there knows that the Stower
+// appends and the Browser answers.
 //
 // These two actors do know, because subscribing is what makes it true, and the
 // census above already pins each roster to its real subscriptions. So a channel

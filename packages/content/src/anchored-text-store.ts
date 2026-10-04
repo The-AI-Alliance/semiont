@@ -1,23 +1,22 @@
 /**
- * Anchored-text cache — the persistent half of ANCHORED-TEXT-CACHE.md Lane 2.
+ * Anchored-text cache — the persistent store.
  *
  * OCR costs ~2.9 s per scanned page, and six passes read the same document (five
  * detection motivations plus the smelter's embed), each its own job in its own
  * process. This stores what the engine produced so only the first pass pays.
  *
  * **Derived values only.** Everything here is reproducible from the source
- * bytes, which is what makes a stamp miss safe. An authored coordinate map is
- * embedded in the PDF Semiont generated, not stored alongside one — see
- * `PDF-GENERATION.md`, which owns that decision and states the negative:
- * never this store.
+ * bytes, which is what makes a stamp miss safe. A PDF Semiont generated is no
+ * exception: no coordinate map is authored for it, and its geometry is read
+ * from its own text layer like any other PDF's.
  *
- * The seam is `extract()` (PERSIST-ANCHORS D1/P2b): the record is the FINISHED
- * extraction outcome — classification, geometry, provenance, or a named
- * decline — so a hit skips the native parse and the engine both, and every
- * geometry-yielding extraction stores an entry, native documents included.
- * That is what makes the anchored-text endpoint answer for every resource
- * whose extraction yields geometry, and what lets the reconcile planner treat
- * "no entry under the current checksum" as work (P0's third drift class).
+ * The seam is `extract()`: the record is the FINISHED extraction outcome —
+ * classification, geometry, provenance, or a named decline — so a hit skips
+ * the native parse and the engine both, and every geometry-yielding
+ * extraction stores an entry, native documents included. That is what makes
+ * the anchored-text endpoint answer for every resource whose extraction
+ * yields geometry, and what lets the reconcile planner treat "no entry under
+ * the current checksum" as work (its third drift class).
  */
 
 import fs from 'fs';
@@ -54,19 +53,19 @@ export interface CachedLine {
 }
 
 /**
- * The stored record: one extraction OUTCOME for the whole resource
- * (PERSIST-ANCHORS decision D1) — the anchored text with its provenance
- * (`method`, `pdfClass`, `ocrConfidence`, `unreadPages`), or a named decline.
+ * The stored record: one extraction OUTCOME for the whole resource, not a
+ * bare anchored text — the anchored text with its provenance (`method`,
+ * `pdfClass`, `ocrConfidence`, `unreadPages`), or a named decline.
  *
  * Whole-resource on every side, deliberately. The producer's own shape is a
  * per-page map, but that is an artifact of how `ocrPages` iterates, and letting
  * it reach storage would have forced every consumer — the transport, the
  * browser, a headless client — to reassemble pages it never asked to see.
  *
- * The `ocrConfidence` SUMMARY is stored (v2) — this repairs the regression
- * OCR-CONFIDENCE-LOST.md records, where a hit answered with no confidence at
- * all. Per-word confidences remain unstored: the summary is the record's
- * quality provenance; the word list is operator log detail.
+ * The `ocrConfidence` SUMMARY is stored (v2) — this repairs a regression
+ * where a hit answered with no confidence at all. Per-word confidences remain
+ * unstored: the summary is the record's quality provenance; the word list is
+ * operator log detail.
  *
  * v1 records (bare `{ text, lines }`, no provenance) read as misses under the
  * v2 prefix; the reconcile planner's third drift class re-derives them.
@@ -101,7 +100,7 @@ export type CachedAnchoredText =
  * and different traineddata means different recognized text, which is a
  * difference in the value itself, not merely in how fast it was produced.
  *
- * pdf.js joined at P2b, because the seam did: the record is the finished
+ * pdf.js joined when the seam moved to `extract()`: the record is the finished
  * extraction outcome, so it depends on the native parse — classification,
  * text-layer read, table/form shaping — not just the engine. A parser upgrade
  * is a change in the value, and the entry must miss.
@@ -153,13 +152,12 @@ export interface AnchoredTextStore {
     /**
      * The stored map for this key, or null for any miss. Never throws.
      *
-     * The key is the **content checksum of the bytes the map derives from**
-     * (PERSIST-ANCHORS decision A): a representation is its bytes, so the
-     * checksum is its identity, and geometry derived from one revision of the
-     * bytes is unreachable by a reader holding a different revision — by
-     * construction, not by invalidation. Callers holding some other handle
-     * (a resource id) reach the artifact through an index, not by a second
-     * key scheme here.
+     * The key is the **content checksum of the bytes the map derives from**:
+     * a representation is its bytes, so the checksum is its identity, and
+     * geometry derived from one revision of the bytes is unreachable by a
+     * reader holding a different revision — by construction, not by
+     * invalidation. Callers holding some other handle (a resource id) reach
+     * the artifact through an index, not by a second key scheme here.
      */
     read(key: string): Promise<ExtractionOutcome | null>;
     /**
@@ -180,11 +178,12 @@ export interface AnchoredTextStore {
      * Every key `read()` would currently HIT — entries under a stale stamp or
      * unreadable files are excluded, exactly as `read()` would exclude them.
      * That equivalence is load-bearing: the reconcile planner treats a listed
-     * key as "artifact present" and plans re-derivation for the rest
-     * (PERSIST-ANCHORS P0, the third drift class), so a key listed here but
-     * missed by `read()` would be a permanent loss the diff can never see —
-     * the exact shape of the post-engine-upgrade hole this filter closes.
-     * One bulk call per reconcile, never a probe per resource. Never throws.
+     * key as "artifact present" and plans re-derivation for the rest (its
+     * third drift class: indexed, checksum current, artifact absent), so a
+     * key listed here but missed by `read()` would be a permanent loss the
+     * diff can never see — the exact shape of the post-engine-upgrade hole
+     * this filter closes. One bulk call per reconcile, never a probe per
+     * resource. Never throws.
      */
     list(): Promise<string[]>;
 }
@@ -201,16 +200,15 @@ function isCached(value: unknown): value is CachedAnchoredText {
 
 /** A key that could not have come from a checksum (or a legacy hex handle) is
  *  refused outright rather than sanitized: a silently stripped key could share
- *  a file with a different entry. Rejection replaces the old strip
- *  (PERSIST-ANCHORS, *Smaller things*). */
+ *  a file with a different entry. Rejection replaces the old strip. */
 const VALID_KEY = /^[A-Za-z0-9_-]+$/;
 
 /**
  * A file-backed store under `dir` — one file per content key, sharded as
- * `{ab}/{cd}/{key}.json` via the same `getShardPath` the event log uses
- * (PERSIST-ANCHORS decision E). Same convention, separate tree: `.semiont/`
- * is the KB's committed system of record; everything here is derived,
- * reclaimable, and never a source of truth.
+ * `{ab}/{cd}/{key}.json` via the same `getShardPath` the event log uses.
+ * Same convention, separate tree: `.semiont/` is the KB's committed system
+ * of record; everything here is derived, reclaimable, and never a source of
+ * truth.
  *
  * `dir` is the caller's, out of `Project.anchoredTextDir`: this package has no idea
  * which project it is serving. Every failure path is a miss rather than an
@@ -238,7 +236,7 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
             // Logged here rather than at the call sites: `prepare-detection` and
             // the smelter both extract, so each would see only its own share of
             // the traffic and the policy would be stated twice. Hit rate is what
-            // keeps the Lane 0 decision auditable after the fact.
+            // keeps the decision to build this cache auditable after the fact.
             logger?.debug('Anchored-text cache', {
                 outcome: hit ? 'hit' : 'miss',
                 key,
@@ -247,7 +245,7 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
             if (!hit) return null;
             // `kind` is not persisted — the branch is implied by the record's
             // own shape, and re-added here so readers get the discriminated
-            // wire union (WIRE-UNION-DISCRIMINANTS P5c).
+            // wire union.
             if ('declined' in hit) return { kind: 'declined', declined: hit.declined };
             const { v: _v, stamp: _stamp, lines, text, ...provenance } = hit;
             return { kind: 'extracted', text, items: decodeLines(lines), ...provenance };
@@ -267,7 +265,7 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
                     // `kind` is deliberately destructured OUT: persisting it
                     // would store a byte the branch already implies, and a
                     // stored-shape change here would outrun the release-derived
-                    // STAMP (WIRE-UNION-DISCRIMINANTS P5c).
+                    // STAMP.
                     const { kind: _kind, text, items, ...provenance } = outcome;
                     return { v: 2, stamp: STAMP, text, lines: encodeLines(items), ...provenance };
                 })();
@@ -306,11 +304,12 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
                 return [];   // no directory yet: nothing has been written
             }
 
-            // One-generation sweep (PERSIST-ANCHORS P1): a `.json` at the root
-            // is a pre-P1 entry — flat layout, resource-id key, a dead scheme.
-            // The rebuild path (P0's third drift class) re-derives anything
-            // still needed, which is what makes this delete safe; leaving a
-            // generation behind is how the store's size becomes unexplainable.
+            // One-generation sweep: a `.json` at the root is an entry from
+            // before the checksum key — flat layout, resource-id key, a dead
+            // scheme. The rebuild path (the planner's third drift class)
+            // re-derives anything still needed, which is what makes this
+            // delete safe; leaving a generation behind is how the store's
+            // size becomes unexplainable.
             // Done here because list() is the one bulk call every reconcile
             // already makes, so the sweep runs exactly when the planner is
             // about to notice what is missing. Best-effort, never throws.
@@ -319,7 +318,7 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
                 if (!name.endsWith('.json')) continue;
                 await fs.promises.rm(path.join(dir, name), { force: true }).then(() => { swept += 1; }, () => {});
             }
-            if (swept > 0) logger?.info('Anchored-text cache: swept pre-P1 flat entries', { swept });
+            if (swept > 0) logger?.info('Anchored-text cache: swept flat resource-id entries', { swept });
 
             const keys: string[] = [];
             let sweptInterim = 0;
@@ -341,14 +340,15 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
                     }
                     for (const name of names) {
                         if (!name.endsWith('.json')) continue;
-                        // Interim-generation sweep (PERSIST-ANCHORS P1b): a
-                        // 32-hex basename is a resource-id key — writes that
-                        // landed sharded between P1a's rekey and P1b's
-                        // call-site switch. Checksums are 64-hex (SHA-256),
-                        // so the two generations are disjoint by length.
-                        // Reaped here for the same reason the flat sweep
-                        // lives here: one bulk call per reconcile, and never
-                        // a third scheme lingering silently.
+                        // Interim-generation sweep: a 32-hex basename is a
+                        // resource-id key — writes that landed sharded after
+                        // the store took its shard layout and before the
+                        // call sites switched to checksum keys. Checksums
+                        // are 64-hex (SHA-256), so the two generations are
+                        // disjoint by length. Reaped here for the same
+                        // reason the flat sweep lives here: one bulk call
+                        // per reconcile, and never a third scheme lingering
+                        // silently.
                         const base = name.slice(0, -'.json'.length);
                         if (/^[0-9a-f]{32}$/.test(base)) {
                             await fs.promises.rm(path.join(dir, ab, cd, name), { force: true }).then(() => { sweptInterim += 1; }, () => {});

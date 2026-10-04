@@ -132,8 +132,9 @@ if (require.main === module) {
   const server = http.createServer(createHandler({
     // dist/ is a sibling of this file in the published package
     distDir: path.join(__dirname, 'dist'),
-    // The launcher's read-only mount (see BROWSER-KB-DISCOVERY L1); absent
-    // outside the container, so the prefix just 404s ("absent").
+    // The launcher's read-only mount, where it writes the discovery document
+    // of the KBs it manages on every stack change; absent outside the
+    // container, so the prefix just 404s ("absent").
     discoveryDir: '/discovery',
   }));
 

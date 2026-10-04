@@ -59,8 +59,7 @@ describe('@semiont/inference - createInferenceClient', () => {
   });
 });
 
-// ── Detection-consumption capabilities (OLLAMA-DETECTION-TESTING, ruled
-// 2026-09-05) ─────────────────────────────────────────────────────────────
+// ── Detection-consumption capabilities (ruled 2026-09-05) ────────────────
 //
 // @semiont/jobs is written in terms of the InferenceClient contract and does
 // NO provider-specific switching (user architecture ruling): whatever varies

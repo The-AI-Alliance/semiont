@@ -35,7 +35,10 @@ type Agent = components['schemas']['Agent'];
 export type SpanMatch = { exact: string; start: number; end: number; prefix?: string; suffix?: string };
 
 /**
- * The span half of an annotation's identity (JOB-RESTART-SAFETY P3).
+ * The span half of an annotation's identity. Annotation ids are
+ * content-addressed — hashed from the resource, motivation, anchor and body —
+ * so re-emitting an annotation from a retry or a resumed unit is a no-op; this
+ * is the anchor.
  *
  * Shared by both builders because the span IS the same fact in both — the PDF
  * path additionally persists geometry for it, but that geometry is derived
@@ -72,13 +75,12 @@ export type BuildAnnotation = (
  * on EVERY call: the client's `progress$` replaces its value per event, so a
  * field sent once disappears on the next tick.
  *
- * `message` is a CODE plus typed params, never a prose sentence
- * (ASSIST-PROGRESS-CONSOLIDATION A6). The producer reports what happened;
- * each client renders it in the user's language — react-ui from its 29
- * locales, the Go launcher from its English map. The vocabulary is frozen
- * by the census of these call sites: adding a shape means adding a variant
- * to `JobProgressMessage.json` and copy in every client, not composing a
- * new sentence here.
+ * `message` is a CODE plus typed params, never a prose sentence. The producer
+ * reports what happened; each client renders it in the user's language —
+ * react-ui from its 29 locales, the Go launcher from its English map. The
+ * vocabulary is frozen by the census of these call sites: adding a shape
+ * means adding a variant to `JobProgressMessage.json` and copy in every
+ * client, not composing a new sentence here.
  */
 export type OnProgress = (
   percentage: number,
@@ -231,7 +233,7 @@ export function buildTextAnnotation(
   // The worker says WHAT produced this — `generator`, which carries the
   // model's parameters — and nothing about who asked. `creator` and
   // `wasAttributedTo` are derived by the Stower from the cited job's own
-  // events (VERIFIED-PROVENANCE P2); a payload carrying them is refused.
+  // events; a payload carrying them is refused.
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
     'type': 'Annotation' as const,
@@ -316,10 +318,10 @@ export function buildPdfAnnotation(
   // text does not contain exact" — which sends anyone debugging an empty cover
   // to inspect text matching that never ran. Same class deliberately: both stay
   // plain `Error`, so `classifyFailure` leaves them unrecognized and therefore
-  // retryable (ABANDONED-INFERENCE HD2 is one-sided — only KNOWN-deterministic
-  // failures skip the budget). No rects LOOKS deterministic, but the stored map
-  // is keyed by content checksum, so a retry after the bytes change reads a
-  // different map and can legitimately succeed.
+  // retryable (classification is one-sided — only KNOWN-deterministic failures
+  // skip the budget). No rects LOOKS deterministic, but the stored map is keyed
+  // by content checksum, so a retry after the bytes change reads a different
+  // map and can legitimately succeed.
   if (rects.length === 0) {
     throw new Error(
       `buildPdfAnnotation invariant: no rects located for offsets ${match.start}-${match.end} ` +
@@ -363,8 +365,9 @@ export function buildPdfAnnotation(
 }
 
 /**
- * Where one unit stands once the chunk just handed over is durable
- * (CHUNK-GRAIN-RESUME P2).
+ * Where one unit stands once the chunk just handed over is durable: the
+ * cursor a retry resumes that unit from, instead of re-running the chunks it
+ * already committed.
  *
  * The unit is named HERE rather than in the detection layer, which knows about
  * chunks and nothing about jobs: for `reference-annotation` a unit is an entity
@@ -384,9 +387,9 @@ export async function processHighlightJob(
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
-  /** Where earlier attempts left each unit (CHUNK-GRAIN-RESUME P3), keyed the
-   * same way the checkpoint is. A unit absent here starts at the top, which is
-   * every unit of a first attempt. */
+  /** Where earlier attempts left each unit, keyed the same way the checkpoint
+   * is. A unit absent here starts at the top, which is every unit of a first
+   * attempt. */
   resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobHighlightAnnotationResult>> {
   const echo = detectionEcho(params);
@@ -397,7 +400,7 @@ export async function processHighlightJob(
   const dedupe = makeSpanDeduper();
   // Seeded from what an earlier attempt already counted for this unit, so a
   // resumed job's terminal record describes the document rather than the
-  // remainder it happened to run (CHUNK-GRAIN-RESUME HD3).
+  // remainder it happened to run.
   const prior = resumeCursors?.['highlighting'];
   let found = prior?.found ?? 0;
   let created = prior?.emitted ?? 0;
@@ -459,9 +462,9 @@ export async function processCommentJob(
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
-  /** Where earlier attempts left each unit (CHUNK-GRAIN-RESUME P3), keyed the
-   * same way the checkpoint is. A unit absent here starts at the top, which is
-   * every unit of a first attempt. */
+  /** Where earlier attempts left each unit, keyed the same way the checkpoint
+   * is. A unit absent here starts at the top, which is every unit of a first
+   * attempt. */
   resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobCommentAnnotationResult>> {
   const echo = detectionEcho(params);
@@ -476,7 +479,7 @@ export async function processCommentJob(
   const dedupe = makeSpanDeduper();
   // Seeded from what an earlier attempt already counted for this unit, so a
   // resumed job's terminal record describes the document rather than the
-  // remainder it happened to run (CHUNK-GRAIN-RESUME HD3).
+  // remainder it happened to run.
   const prior = resumeCursors?.['commenting'];
   let found = prior?.found ?? 0;
   let created = prior?.emitted ?? 0;
@@ -517,9 +520,9 @@ export async function processAssessmentJob(
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
-  /** Where earlier attempts left each unit (CHUNK-GRAIN-RESUME P3), keyed the
-   * same way the checkpoint is. A unit absent here starts at the top, which is
-   * every unit of a first attempt. */
+  /** Where earlier attempts left each unit, keyed the same way the checkpoint
+   * is. A unit absent here starts at the top, which is every unit of a first
+   * attempt. */
   resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobAssessmentAnnotationResult>> {
   const echo = detectionEcho(params);
@@ -531,7 +534,7 @@ export async function processAssessmentJob(
   const dedupe = makeSpanDeduper();
   // Seeded from what an earlier attempt already counted for this unit, so a
   // resumed job's terminal record describes the document rather than the
-  // remainder it happened to run (CHUNK-GRAIN-RESUME HD3).
+  // remainder it happened to run.
   const prior = resumeCursors?.['assessing'];
   let found = prior?.found ?? 0;
   let created = prior?.emitted ?? 0;
@@ -568,13 +571,13 @@ export async function processAssessmentJob(
 }
 
 /**
- * Reference detection commits per UNIT — one entity type — through
- * `onUnitComplete` (ABANDONED-INFERENCE P2, checkpointed resume): the
- * callback receives the unit's deduped annotations, and only after it
- * resolves does the unit count as complete. Emission belongs to the
- * callback alone; the processor returns only the result — returning the
- * annotations as well would recreate the post-run batch that N2 showed
- * discards completed work wholesale.
+ * Reference detection checkpoints per UNIT — one entity type — through
+ * `onUnitComplete`: only after the callback resolves does the unit count as
+ * complete, and a retried claim skips the units recorded that way.
+ * Annotations leave per chunk through `onChunkComplete`; the processor
+ * returns only the result — returning the annotations as well would recreate
+ * the post-run batch, where one failed call discards every completed unit's
+ * work wholesale.
  */
 export async function processReferenceJob(
   content: string,
@@ -593,9 +596,9 @@ export async function processReferenceJob(
   signal?: AbortSignal,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete?: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
-  /** Where earlier attempts left each entity-type unit (CHUNK-GRAIN-RESUME P3).
-   * A unit absent here starts at the top; units already COMPLETE never reach
-   * this function at all, the caller having filtered them out. */
+  /** Where earlier attempts left each entity-type unit. A unit absent here
+   * starts at the top; units already COMPLETE never reach this function at
+   * all, the caller having filtered them out. */
   resumeCursors?: Record<string, UnitCursor>,
 ): Promise<{ result: JobReferenceAnnotationResult }> {
   const entityTypeNames = params.entityTypes.map(String);
@@ -604,8 +607,8 @@ export async function processReferenceJob(
   // Seeded with what earlier attempts already counted for the units this
   // attempt is RESUMING. Units that completed earlier carry no cursor — they
   // are filtered out before this function sees them — so their share is still
-  // missing from the job total. That is the pre-existing unit-grain gap, named
-  // in CHUNK-GRAIN-RESUME rather than silently half-fixed here.
+  // missing from the job total. That is the pre-existing unit-grain gap, a
+  // known residue left whole rather than silently half-fixed here.
   let totalFound = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.found, 0);
   let totalEmitted = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.emitted, 0);
   let errors = 0;
@@ -618,11 +621,11 @@ export async function processReferenceJob(
 
   const bodyLanguage = params.language ?? 'en';
 
-  // Entity types run BOUNDED-CONCURRENT (DETECTION-QUALITY-THROUGHPUT P6).
-  // They are independent units — own extraction, own commit, own checkpoint —
-  // and a single sequential job used a sliver of the provider's rate limit, so
-  // the old `for … await` was the 9×-sequential ≈ 2.5 h/document. The bound is
-  // the point: unbounded fan-out just trades sequential waiting for 429 thrash.
+  // Entity types run BOUNDED-CONCURRENT. They are independent units — own
+  // extraction, own commit, own checkpoint — and a single sequential job used a
+  // sliver of the provider's rate limit, so the old `for … await` was the
+  // 9×-sequential ≈ 2.5 h/document. The bound is the point: unbounded fan-out
+  // just trades sequential waiting for 429 thrash.
   //
   // Shared counters and `completedItems` are mutated SYNCHRONOUSLY between
   // awaits inside the worker — safe under the single-threaded event loop (no
@@ -647,14 +650,14 @@ export async function processReferenceJob(
   };
 
   // Concurrency is the PROVIDER's capability, not a flat constant: a hosted
-  // API parallelizes, a local single-model server does not (P6). Reading it
+  // API parallelizes, a local single-model server does not. Reading it
   // from the client is what makes the same code correct on both.
   await runBounded(entityTypeNames, inferenceClient.maxConcurrency, async (entityTypeName) => {
     if (!entityTypeName) return;
-    // Cooperative cancellation (JOB-RESTART-SAFETY P4): once aborted, a pending
-    // type is skipped when its turn comes; types already in flight finish and
-    // commit, so committed units stay checkpointed. The caller reads
-    // `signal.aborted` to move the job to cancelled/ rather than complete/.
+    // Cooperative cancellation: once aborted, a pending type is skipped when
+    // its turn comes; types already in flight finish and commit, so committed
+    // units stay checkpointed. The caller reads `signal.aborted` to move the
+    // job to cancelled/ rather than complete/.
     if (signal?.aborted) return;
 
     emitTypeProgress(entityTypeName);
@@ -682,11 +685,11 @@ export async function processReferenceJob(
     await extractEntities(
       content, [entityTypeName], inferenceClient, params.includeDescriptiveReferences ?? false, logger,
       params.sourceLanguage,
-      // Liveness heartbeat (DETECTION-HEARTBEAT): fires at chunk boundaries and
-      // every ~15 s while a call is in flight, so a long single-chunk call is
-      // not silent. It repeats the current position rather than inventing an
-      // advance — the stall watchdog, janitor and client timeout need a signal,
-      // not a monotone.
+      // Liveness heartbeat: fires at chunk boundaries and every ~15 s while a
+      // call is in flight, so a long single-chunk call is not silent. It
+      // repeats the current position rather than inventing an advance — the
+      // stall watchdog, janitor and client timeout need a signal, not a
+      // monotone.
       () => emitTypeProgress(entityTypeName),
       (verdict) => {
         underReported = {
@@ -760,10 +763,11 @@ export async function processReferenceJob(
     emitTypeProgress(entityTypeName);
   });
 
-  // The terminal frame carries the completed set, and it is the only frame
-  // that can: the per-unit entries ride the progress emitted at the START of
-  // each unit, so the LAST unit's entry — and on a single-type job, every
-  // entry — was never reported anywhere (DETECTION-QUALITY-THROUGHPUT P1).
+  // The terminal frame carries the completed set — each unit's found and
+  // persisted counts, the run's yield — and it is the only frame that can: the
+  // per-unit entries ride the progress emitted at the START of each unit, so
+  // the LAST unit's entry — and on a single-type job, every entry — was never
+  // reported anywhere.
   onProgress(100, { code: 'complete-created', count: totalEmitted, kind: 'reference' }, {
     ...(totalExpected > 0 ? { entitiesExpected: totalExpected } : {}),
     completedItems: [...completedItems],
@@ -786,9 +790,9 @@ export async function processTagJob(
   onProgress: OnProgress,
   /** This chunk's novel annotations, awaited: the durability write. */
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
-  /** Where earlier attempts left each CATEGORY (CHUNK-GRAIN-RESUME P3) — a tag
-   * job's units are its categories, not its motivation: each walks the whole
-   * document, so one shared cursor would skip text for all but one of them. */
+  /** Where earlier attempts left each CATEGORY — a tag job's units are its
+   * categories, not its motivation: each walks the whole document, so one
+   * shared cursor would skip text for all but one of them. */
   resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobTagAnnotationResult>> {
   onProgress(10, { code: 'loading' });
@@ -798,12 +802,13 @@ export async function processTagJob(
   // One deduper across every category: they share an emission stream, and
   // the key includes the body, so only true repeats collapse.
   const dedupe = makeSpanDeduper();
-  // Resumed tallies (CHUNK-GRAIN-RESUME HD3), and the two are seeded
-  // DIFFERENTLY because they accumulate differently. `found` sums each
-  // category's own running total at the end of that category, and those totals
-  // are already seeded — seeding here too would count the earlier attempt
-  // twice. `created` accumulates per chunk from this attempt only, so it must
-  // start at what earlier attempts committed.
+  // Resumed tallies — seeded from the checkpoint so the terminal record
+  // describes the whole document — and the two are seeded DIFFERENTLY because
+  // they accumulate differently. `found` sums each category's own running
+  // total at the end of that category, and those totals are already seeded —
+  // seeding here too would count the earlier attempt twice. `created`
+  // accumulates per chunk from this attempt only, so it must start at what
+  // earlier attempts committed.
   let found = 0;
   let created = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.emitted, 0);
   // byCategory counts the DEDUPED set so the per-category counts match what
@@ -814,7 +819,8 @@ export async function processTagJob(
   for (let c = 0; c < params.categories.length; c++) {
     const category = params.categories[c]!;
     // The loop always existed; it just never reported itself, so the tag flow
-    // was the one counting flow with no subject line (CLEAN-PROGRESS A5).
+    // was the one counting flow with no subject line. It reports `current` and
+    // its position like every other counting flow.
     const position = () => ({
       current: { kind: 'category' as const, value: category },
       processed: c,
@@ -887,11 +893,11 @@ export async function processTagJob(
 }
 
 /**
- * Output bound (PDF-GENERATION P5), symmetric with #1124's extraction budget
- * and deliberately the SAME threshold: an artifact larger than what extraction
- * accepts would be a resource our own Smelter declines as 'too-large'. One
- * judgment, two enforcement points. A runaway generation fails loudly
- * (job:fail); it never uploads.
+ * Output bound, symmetric with #1124's extraction budget and deliberately the
+ * SAME threshold: an artifact larger than what extraction accepts would be a
+ * resource our own Smelter declines as 'too-large'. One judgment, two
+ * enforcement points. A runaway generation fails loudly (job:fail); it never
+ * uploads.
  */
 export function assertWithinOutputBudget(byteLength: number): void {
   if (!withinByteBudget(byteLength)) {
@@ -909,8 +915,8 @@ export async function processGenerationJob(
 ): Promise<{ content: Uint8Array; title: string; format: SupportedMediaType; citations: GenerationCitation[]; truncated: boolean }> {
   // Refuse any requested media type the registry doesn't mark `generatable` —
   // loudly (the throw propagates as job:fail), never a silent markdown fallback
-  // under a mislabeled format. The gate reads the registry capability
-  // (PDF-GENERATION P1), not a local table. Validate before the LLM call.
+  // under a mislabeled format. The gate reads the registry capability, not a
+  // local table. Validate before the LLM call.
   const outputMediaType: SupportedMediaType = params.outputMediaType ?? 'text/markdown';
   if (!GENERATABLE_MEDIA_TYPES.includes(outputMediaType)) {
     throw new Error(
@@ -921,10 +927,10 @@ export async function processGenerationJob(
   const title = params.title ?? 'Untitled';
   const entityTypes = (params.entityTypes ?? []).map(String);
 
-  // PDF path (PDF-GENERATION P3): the model authors Typst; the worker's pinned
-  // binary compiles it, with the legible compile errors fed back for a bounded
-  // number of repairs. Citations on PDFs need page geometry, not text offsets —
-  // until the citation branch (P4) provides it, `cite` fails fast and loudly
+  // PDF path: the model authors Typst; the worker's pinned binary compiles it,
+  // with the legible compile errors fed back for a bounded number of repairs.
+  // Citations on PDFs need page geometry, not text offsets — the worker finds
+  // each claim in the generated PDF's own text layer and anchors it there,
   // rather than minting selectors that would render nothing.
   if (outputMediaType === 'application/pdf') {
     onProgress(5, { code: 'generating-resource' });
@@ -932,7 +938,7 @@ export async function processGenerationJob(
     // Under `cite`, [[<id>]] tokens are stripped from the SOURCE before every
     // compile — they must never render into the artifact. The citations carry
     // the claim text; the worker re-anchors it by page geometry after
-    // extraction (P4). Offsets in these citations index the Typst source and
+    // extraction. Offsets in these citations index the Typst source and
     // are NOT used for PDF anchoring.
     const validIds = params.cite === true ? collectContextResourceIds(params.context) : null;
 
@@ -955,8 +961,7 @@ export async function processGenerationJob(
       // A truncated source that fails to compile is cut off, not wrong —
       // every repair regenerates under the same ceiling and cannot restore
       // content that was never generated. Fail immediately with the actual
-      // cause instead of burning the repair budget and blaming the compiler
-      // (GENERATE-FROM-RESOURCE P3a).
+      // cause instead of burning the repair budget and blaming the compiler.
       if (generated.truncated) {
         throw new Error(
           `Generation stopped at the maxTokens ceiling (${params.maxTokens ?? DEFAULT_MAX_TOKENS} tokens) and the cut-off Typst source does not compile — repair cannot help; raise maxTokens. Compile error: ${compiled.error}`,
@@ -991,11 +996,11 @@ export async function processGenerationJob(
 
     assertWithinOutputBudget(compiled.pdf.byteLength);
     onProgress(95, { code: 'creating-resource' });
-    // The producer owns terminality (GENERATE-FROM-RESOURCE P1/D1): without
-    // this, the client's last frame is forever the 95% payload. Generic by
-    // design — the outcome (name + link) travels on job:complete (D8).
-    // `truncated` rides both surfaces (P3a/D6): truncation that lands at a
-    // syntactic boundary still compiles, and the artifact is still cut off.
+    // The producer owns terminality: without this, the client's last frame is
+    // forever the 95% payload. Generic by design — the outcome (name + link)
+    // travels on job:complete. `truncated` rides both surfaces, this event and
+    // the job's result: truncation that lands at a syntactic boundary still
+    // compiles, and the artifact is still cut off.
     onProgress(100, { code: 'complete-generated', truncated: generated.truncated });
 
     return {
@@ -1048,16 +1053,15 @@ export async function processGenerationJob(
 
   // The artifact is bytes; text is an encoding of them. One shape for every
   // output media type, so a string can never travel mislabeled as a binary
-  // format (PDF-GENERATION P1). Citation offsets index the decoded text.
+  // format. Citation offsets index the decoded text.
   const artifact = new TextEncoder().encode(content);
   assertWithinOutputBudget(artifact.byteLength);
 
-  // The producer owns terminality (GENERATE-FROM-RESOURCE P1/D1): without
-  // this, the client's last frame is forever the 95% payload. Generic by
-  // design — the outcome (name + link) travels on job:complete (D8).
-  // `truncated` rides both surfaces (P3a/D6): the event is the frame the
-  // client renders, and the worker states it in the job's result once the
-  // resource exists.
+  // The producer owns terminality: without this, the client's last frame is
+  // forever the 95% payload. Generic by design — the outcome (name + link)
+  // travels on job:complete. `truncated` rides both surfaces: the event is the
+  // frame the client renders, and the worker states it in the job's result
+  // once the resource exists.
   onProgress(100, { code: 'complete-generated', truncated: generated.truncated });
 
   return {

@@ -1,11 +1,11 @@
 /**
- * EMBEDDABLE-RESOURCE-VIEWER step 1b — AnnotateView + AnnotateToolbar provider-free.
+ * The embeddable viewer — AnnotateView + AnnotateToolbar provider-free.
  *
  * AnnotateView takes `session` + `sparkleAnnotationIds` as props; the REAL
- * AnnotateToolbar (not mocked — its decoupling is the crux of 1b) takes `session`
- * as a prop. CodeMirrorRenderer is mocked (heavy; already prop-based).
+ * AnnotateToolbar (not mocked — its provider-freedom is the crux here) reads
+ * no session provider. CodeMirrorRenderer is mocked (heavy; already prop-based).
  *
- * Started RED (tsc: no `session` prop) and GREEN once step 1b lands.
+ * Started RED (tsc: no `session` prop) and GREEN once AnnotateView takes one.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { screen } from '@testing-library/react';

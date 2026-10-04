@@ -1,6 +1,7 @@
 /**
- * GENERATE-FROM-BUTTON P2/P4 → FLOW-LIFECYCLE-CONVERGENCE P3 →
- * GATHER-AT-THE-TOP P2 — the resource-generate flow modal.
+ * The resource-generate flow modal — first a step sequence with its own gather
+ * hook, then given gather state as props, then folded into the single stack
+ * described here.
  *
  * One composite stack, no step machine: the gather controls sit at the TOP,
  * the gathered evidence appears below them once gather fires, and the
@@ -9,7 +10,7 @@
  * wizard expresses. Gather state arrives as PROPS (the page reads
  * `gather.resourceContext$` and friends off the state unit) and the gather
  * itself is an `onGather` callback — the modal mocks no hook and reaches for
- * no provider (FLC A6). Entity-type options are owner-supplied, so a failed
+ * no provider. Entity-type options are owner-supplied, so a failed
  * load cannot surface as an empty vocabulary.
  */
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
@@ -125,7 +126,7 @@ describe('ResourceGenerateModal', () => {
 
   it('Gather emits onGather; the spent controls collapse to a receipt of what fired', () => {
     // The modal no longer knows how to gather — it says WHAT to gather and the
-    // page wires the state unit (FLC D3). No resourceId in the payload: the
+    // page wires the state unit. No resourceId in the payload: the
     // owner already holds it.
     const { baseElement } = renderModal({ gatherLoading: true });
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
@@ -216,12 +217,12 @@ describe('ResourceGenerateModal', () => {
       'res-1',
       expect.objectContaining({
         title: 'Generated Doc',
-        // D8: the submitted payload names this what it IS — a full storage
+        // The submitted payload names this what it IS — a full storage
         // URI, built here by prefixing `file://`. It was called `storagePath`
         // while holding a URI, which is why the page handlers had to rename
         // it field-by-field on the way out.
         storageUri: 'file://generated/out.md',
-        // D2: the default is sent, not inherited from the worker.
+        // The default is sent, not inherited from the worker.
         outputMediaType: 'text/markdown',
         context: RESOURCE_CONTEXT,
       }),
@@ -246,7 +247,7 @@ describe('ResourceGenerateModal', () => {
 
   it('a failed gather shows its failure in place', () => {
     // The props are the state unit's slots verbatim; the modal renders them
-    // without owning them (FLC A6).
+    // without owning them.
     renderModal({ gatherLoading: true });
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
 
@@ -272,7 +273,7 @@ describe('ResourceGenerateModal', () => {
     expect(screen.getByLabelText(T.resourceTitle)).toBeInTheDocument();
   });
 
-  it('no Back anywhere — a single stack has nothing to go back to (D6)', () => {
+  it('no Back anywhere — a single stack has nothing to go back to', () => {
     renderModal({ gatherContext: RESOURCE_CONTEXT });
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
     expect(screen.queryAllByRole('button', { name: /Back/ })).toHaveLength(0);
@@ -284,7 +285,7 @@ describe('ResourceGenerateModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('opening seeds the proposed title from defaultTitle, even one that arrived after mount (GFR A4)', () => {
+  it('opening seeds the proposed title from defaultTitle, even one that arrived after mount', () => {
     // The page passes the source resource's name, which loads asynchronously —
     // a draft seeded only in the useState initializer holds whatever was there
     // at FIRST render, which for the real page was ''. Opening is the moment
@@ -309,7 +310,7 @@ describe('ResourceGenerateModal', () => {
     expect(screen.getByLabelText(T.resourceTitle)).toHaveValue('PB');
   });
 
-  it('evidence stays in view above the params — ONE scroll pane, nothing scrolls alone (A3)', () => {
+  it('evidence stays in view above the params — ONE scroll pane, nothing scrolls alone', () => {
     const { baseElement } = renderModal({ gatherContext: RESOURCE_CONTEXT });
     fireEvent.click(screen.getByRole('button', { name: /Gather/ }));
 
@@ -323,14 +324,14 @@ describe('ResourceGenerateModal', () => {
     }
   });
 
-  it('the panel carries the widened class (GEP P2, D2)', () => {
+  it('the panel carries the widened class', () => {
     const { baseElement } = renderModal();
     const panel = baseElement.querySelector('.semiont-search-modal__panel--gather');
     expect(panel).not.toBeNull();
     expect(panel!.className).toContain('semiont-search-modal__panel--wide');
   });
 
-  it('every footer is the wizard footer — no dismissal, no flex (GFR A5)', () => {
+  it('every footer is the wizard footer — no dismissal, no flex', () => {
     // The modal renders via a HeadlessUI portal, so query the whole document.
     const { baseElement } = renderModal({ gatherContext: RESOURCE_CONTEXT });
     const footerPins = () => {
@@ -348,10 +349,10 @@ describe('ResourceGenerateModal', () => {
   });
 });
 
-// GATHER-AT-THE-TOP P1: dismissal guards typed work. D5 — typed text only
-// (title beyond the seeded default, save location, instructions); checkbox,
-// depth, and exclusion state is cheap to redo and never nags.
-describe('ResourceGenerateModal — dismissal guards typed work (GATHER-AT-THE-TOP P1)', () => {
+// Dismissal guards typed work, and typed text only (title beyond the seeded
+// default, save location, instructions); checkbox, depth, and exclusion state
+// is cheap to redo and never nags.
+describe('ResourceGenerateModal — dismissal guards typed work', () => {
   beforeEach(() => {
     onClose = vi.fn();
     onGenerateSubmit = vi.fn();
@@ -406,7 +407,7 @@ describe('ResourceGenerateModal — dismissal guards typed work (GATHER-AT-THE-T
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('non-text state alone never nags — exclusions and depth are cheap to redo (D5)', () => {
+  it('non-text state alone never nags — exclusions and depth are cheap to redo', () => {
     renderModal();
     fireEvent.click(screen.getByRole('button', { name: 'Person' })); // cross off the recall
 

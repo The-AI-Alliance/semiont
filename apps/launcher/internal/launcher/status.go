@@ -274,12 +274,13 @@ func Status(args []string) int {
 // BrowserProbe answers the two questions anything that wants to reach the
 // Browser has to ask: WHERE is it, and is it up?
 //
-// Endpoint is an ORIGIN and never a path. That line is the whole of
-// BROWSER-HANDOFF D6/O1: the launcher publishes the container's host port and
-// records the endpoint, so `http://localhost:3000` is its own fact —
-// `/know/resource/<id>` is the Browser's, and mirroring it here would drift
-// silently the day the route moves. If you find yourself adding a route to a
-// Go file, that decision was reopened without saying so.
+// Endpoint is an ORIGIN and never a path. That line is a decision — the
+// launcher knows where the Browser is and none of its routes: it publishes
+// the container's host port and records the endpoint, so
+// `http://localhost:3000` is its own fact — `/know/resource/<id>` is the
+// Browser's, and mirroring it here would drift silently the day the route
+// moves. If you find yourself adding a route to a Go file, that decision was
+// reopened without saying so.
 type BrowserProbe struct {
 	Endpoint string // origin: flag override → record → http://localhost:3000
 	Running  bool   // the endpoint answers — the only test of "can a human open this"

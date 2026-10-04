@@ -1,9 +1,9 @@
 /**
  * HttpTransport — the HTTP/SSE implementation of ITransport.
  *
- * Phase 1 of TRANSPORT-ABSTRACTION. Owns everything that crosses the wire
- * in remote mode: the bus actor (SSE + POST /bus/emit), auth/admin/exchange/
- * system HTTP endpoints, and connection-state plumbing.
+ * The remote half of a transport-agnostic client. Owns everything that
+ * crosses the wire in remote mode: the bus actor (SSE + POST /bus/emit),
+ * auth/admin/exchange/system HTTP endpoints, and connection-state plumbing.
  *
  * Does NOT own the local coordination bus — that lives on `SemiontClient`.
  * `bridgeInto(bus)` wires SSE-received events into the caller-supplied bus
@@ -163,7 +163,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   private disposed = false;
 
   /**
-   * Per-resource subscription ref-counts (MULTI-RESOURCE-SCOPE). Distinct
+   * Per-resource subscription ref-counts. Distinct
    * resources COMPOSE — each key's first subscribe adds its scoped channels
    * to the actor's matrix, its last release removes them; keys are fully
    * independent. Local fan-out for scoped channels is a SINGLETON wired in
@@ -346,15 +346,14 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         ...(this.config.lingerMs !== undefined ? { lingerMs: this.config.lingerMs } : {}),
         ...(this.config.emitRetry !== undefined ? { emitRetry: this.config.emitRetry } : {}),
         ...(this.config.seenEventIdsCount !== undefined ? { seenEventIdsCount: this.config.seenEventIdsCount } : {}),
-        // The SAME hook the ky beforeRetry path uses (SSE-AUTH-RESILIENCE
-        // P4, D2) — the SSE connect path refreshes once before parking
-        // `unauthenticated`, and no second refresh mechanism exists.
+        // The SAME hook the ky beforeRetry path uses — the SSE connect path
+        // refreshes once before parking `unauthenticated`, and no second
+        // refresh mechanism exists.
         ...(this.config.tokenRefresher ? { tokenRefresher: this.config.tokenRefresher } : {}),
       });
       // Refused connects surface on the transport's contract stream too —
       // an SSE subscribe IS an HTTP request, refused as an `APIError` like
-      // any other (SSE-AUTH-RESILIENCE P4, closing P2's deferred bridge
-      // question).
+      // any other.
       this._actor.errors$.subscribe((e) => this.errorsSubject.next(e));
       // One fan-in per channel, wired once for the actor's lifetime — the
       // globally-subscribed set AND the resource-scoped set (disjoint by the
@@ -466,11 +465,12 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   }
 
   /**
-   * Correlated-reply retention, client side (BUS-RESUMPTION Phase 2 /
-   * SDK-DEBT S1): `busRequest` registers its cid here before emitting;
-   * the actor carries the tracked set as `pendingReplies` on every
-   * subscribe body, so a reply published while the connection was down
-   * replays from the server's retention buffer on reconnect.
+   * Correlated-reply retention, client side (see
+   * `docs/protocol/TRANSPORT-HTTP.md`): `busRequest` registers its cid
+   * here before emitting; the actor carries the tracked set as
+   * `pendingReplies` on every subscribe body, so a reply published while
+   * the connection was down replays from the server's retention buffer on
+   * reconnect instead of being lost.
    */
   trackReply(correlationId: string): () => void {
     return this.actor.trackReply(correlationId);

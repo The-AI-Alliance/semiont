@@ -1,10 +1,10 @@
 /**
- * RED (BUS-CARRIES-FRAMES P1): nothing blinds the compiler about the bus.
+ * Nothing blinds the compiler about the bus.
  *
- * D4 makes the compiler the migration worklist: `get()` is deleted and every
- * call site becomes a type error, which is exhaustive by construction in a way
- * grep and reading are not. That only holds while the compiler can SEE every
- * call site.
+ * The compiler is the worklist for a change to the bus's surface: `get()` is
+ * deleted and every call site becomes a type error, which is exhaustive by
+ * construction in a way grep and reading are not. That only holds while the
+ * compiler can SEE every call site.
  *
  * An `any`-typed receiver is the hole: `(eventBus as any).get('x')` compiles
  * whatever `get`'s signature is — or whether it exists at all. A site behind
@@ -20,8 +20,8 @@
  * real object obtained that way carries no type at all. That hid one
  * `bus.get(...)` in react-ui through the whole migration; it surfaced only
  * when the suite ran. A regex cannot distinguish it from any other untyped
- * value — running the suites is what catches it, which is why the plan's
- * Verify insists on suites and not typechecks.
+ * value — running the suites is what catches it, which is why a bus change
+ * is verified by running the suites and not by typechecks alone.
  *
  * NOT banned: re-typing the RESULT of a typed call as another read-only type
  * (`bus.on(ch) as unknown as Observable<T>`). The call itself is still

@@ -1,26 +1,25 @@
 /**
- * The Archivist's HTTP surface: the /health probe, the D1 sequence-ranged
- * event read path (EXTRACT-ARCHIVIST P2a), the content read path
- * (SINGLE-KB-MOUNT P3), the recording upload, and the linked-data
- * description (GATEWAY-SIMPLIFY P3).
+ * The Archivist's HTTP surface: the /health probe, the sequence-ranged
+ * event read path, the content read path, the recording upload, and the
+ * linked-data description.
  *
  * ⚠️ STANDING RULE, load-bearing: **this surface serves the KB tree and
  * each resource's linked-data description, and nothing else.** Every other
  * `browse:*`, and `match:*` and `gather:*`, stay on the bus. The rule's
- * history: exactly one customer, the gateway's SSE resume, until
- * SINGLE-KB-MOUNT D1 (2026-08-29) made the Archivist the knowledge base's
- * storage authority and this surface the way bytes and record reads reach it
- * (D2: bytes ride HTTP, never the bus); then the user's ruling of 2026-09-27
- * on GATEWAY-SIMPLIFY S2 — "(a) Archivist over HTTP" — added the description,
+ * history: exactly one customer, the gateway's SSE resume, until the
+ * Archivist became the knowledge base's storage authority (2026-08-29) and
+ * this surface the way bytes and record reads reach it (bytes ride HTTP,
+ * never the bus); then the user's ruling of 2026-09-27 — the Archivist
+ * serves each resource's description over HTTP — added the description,
  * so the gateway, which proxies bytes, proxies it too and makes no bus
  * request of its own. An endpoint that is none of these still does not
  * belong here.
  *
- * D1 (settled 2026-08-27): moving the event store out of the gateway breaks
- * `/bus/subscribe`'s `Last-Event-ID` replay, which read the log in-process
- * (now apps/gateway/src/routes/stream.rs). The answer is one narrow call —
- * the events for ONE resource from ONE sequence — which the gateway calls
- * directly:
+ * The event read path (settled 2026-08-27): moving the event store out of
+ * the gateway breaks `/bus/subscribe`'s `Last-Event-ID` replay, which read
+ * the log in-process (now apps/gateway/src/routes/stream.rs). The answer is
+ * one narrow call — the events for ONE resource from ONE sequence — which
+ * the gateway calls directly:
  *
  *   GET /events/:resourceId?fromSequence=N   (inclusive, like the filter it
  *   mirrors: `queryEvents(rId, { fromSequence })`; the caller does the +1)
@@ -32,8 +31,8 @@
  *   `Semiont-Principal` and its roles in `Semiont-Roles`: the bytes are
  *   stored `noGit` at their storageUri and the resource is recorded — by the
  *   Stower, or the CloneTokenManager for an upload carrying a clone token —
- *   and the answer is its id. The user's ruling on GATEWAY-SIMPLIFY S3,
- *   2026-09-27: "(a) Archivist records it".)
+ *   and the answer is its id. The user's ruling of 2026-09-27: the
+ *   Archivist records the upload as part of its byte write.)
  *
  *   GET /resources/:id/content                      (the bytes, streamed,
  *   with the media type the record stores; the 404 carries `reason` so the
@@ -201,7 +200,7 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
       resolveRepresentation({ views, content }, makeResourceId(rid))
         .then(async ({ stream, mediaType }) => {
           res.writeHead(200, { 'Content-Type': mediaType });
-          // Streamed, never buffered (D7): this process serves content for
+          // Streamed, never buffered: this process serves content for
           // every reader in the fleet, so its memory is bounded by the chunk.
           await pipeline(stream, res);
         })

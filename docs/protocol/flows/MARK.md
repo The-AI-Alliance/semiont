@@ -70,6 +70,8 @@ An annotation's `motivation` says why it was made, and decides its body:
 | `tagging` | `tag-annotation` | a tag schema's id, and which of its categories |
 | `linking` | `reference-annotation` | the entity types to look for, and whether to include descriptive references |
 
+Each option belongs to its own motivation: a job does not read another's. A schema and the entity types must already be in the knowledge base's vocabulary, which is [Frame](FRAME.md)'s; a job that names one that is not is refused when it is created.
+
 The whole document is read: a long one is processed in pieces sized to the model's limits, never truncated. How detection is done is the worker's: see [the job types](../../../packages/jobs/docs/JobTypes.md).
 
 ## Example

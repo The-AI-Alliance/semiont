@@ -262,9 +262,10 @@ describe('createMarkStateUnit', () => {
   });
 
   it('KEEPS a finished run on screen — no timer takes the result away', () => {
-    // CLEAN-PROGRESS D1. This used to clear itself after 5 s (and the generation
-    // flow after 2 s: one component, two endings). The result line is the one
-    // thing in the run worth reading, so it stays until the user dismisses it.
+    // A finished run is never dismissed by a timer. This used to clear itself
+    // after 5 s (and the generation flow after 2 s: one component, two
+    // endings). The result line is the one thing in the run worth reading, so
+    // it stays until the user dismisses it.
     vi.useFakeTimers();
     const progressSubject = new Subject();
     const assistFn = vi.fn(() => progressSubject.asObservable());
@@ -308,11 +309,11 @@ describe('createMarkStateUnit', () => {
   });
 
   it('HOLDS a silent assist after 180s — the job is still running, so the client must not forget it', () => {
-    // DETECTION-HEARTBEAT Phase B. Silence is not failure: the worker keeps
-    // processing after the client stops hearing (proven live 2026-08-07 — a
-    // job that "timed out" in the UI persisted 221 annotations). Dropping
-    // assistingMotivation$ told the user the assist was over while it was
-    // still running, and left nothing to resolve when it finished.
+    // Silence is not failure: the worker keeps processing after the client
+    // stops hearing (proven live 2026-08-07 — a job that "timed out" in the
+    // UI persisted 221 annotations). Dropping assistingMotivation$ told the
+    // user the assist was over while it was still running, and left nothing
+    // to resolve when it finished.
     vi.useFakeTimers();
     const assistFn = vi.fn(() => new Observable(() => {}));
     tc = withMark({ assist: assistFn });
@@ -452,7 +453,7 @@ describe('MarkStateUnit — StateUnit axioms', () => {
     });
   });
 
-  // ── Multi-mounted units (MARK-REQUESTED-RESOURCE-SCOPE) ──────
+  // ── Multi-mounted units ──────────────────────────────────────
   // N viewers on ONE session mount N units bound to N resources. The events
   // carry their source resource id and each unit handles only its own —
   // without this, one submit creates N annotations on N different resources.

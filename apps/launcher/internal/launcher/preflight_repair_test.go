@@ -74,18 +74,18 @@ func TestPreflightIdentityNamesTheRepairForThisIssuer(t *testing.T) {
 	}
 }
 
-// EXTRACT-JOBS P0: a worker whose token lacks the worker role authenticates
-// perfectly and can never claim a job. The refusal must say which client and
-// what it cannot do, and — for a realm this launcher runs — that `semiont
-// identity sync` reconciles the client's roles mapper, then `semiont start`.
-// For an issuer somebody else runs the role is theirs to grant, and sync must
-// not be named. (The role string equals the worker's client id, so the text is
-// asserted on "claim", not on the role.)
+// A job:claim is authorized by the worker role: a worker whose token lacks it
+// authenticates perfectly and can never claim a job. The refusal must say which
+// client and what it cannot do, and — for a realm this launcher runs — that
+// `semiont identity sync` reconciles the client's roles mapper, then `semiont
+// start`. For an issuer somebody else runs the role is theirs to grant, and
+// sync must not be named. (The role string equals the worker's client id, so
+// the text is asserted on "claim", not on the role.)
 func TestPreflightIdentityNamesTheRepairForARoleLessWorker(t *testing.T) {
 	srv := stubIssuer(t, func(clientID string) (int, string) {
 		roles := stampedRoles(clientID)
 		if clientID == serviceClientID("worker") {
-			roles = []string{serviceRole} // the pre-P0 mapper value
+			roles = []string{serviceRole} // the mapper value from before the worker role
 		}
 		return http.StatusOK, grantBody(map[string]any{"roles": roles, "aud": testAudience})
 	})

@@ -2,8 +2,8 @@
  * Shared SSE/fetch mocking harness for the actor-state-unit suites.
  *
  * Extracted verbatim from `actor-state-unit.test.ts` so the liveness
- * property suite (`actor-liveness.property.test.ts`, LIVENESS-AXIOMS.md P3)
- * can drive the same connection mechanics without duplicating them.
+ * property suite (`actor-liveness.property.test.ts`) can drive the same
+ * connection mechanics without duplicating them.
  *
  * Importing this module stubs the global `fetch` with `mockFetch`. vitest
  * isolates the module registry per test file, so each suite gets its own

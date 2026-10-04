@@ -1,11 +1,11 @@
 package launcher
 
-// The executable spec for LAUNCHER-CONFIG-SYNC.md P1: derivePlan(config) must
-// reproduce today's hardcoded behavior for the two real template configs
-// (field-for-field — the parity constraint), and derive the documented
-// alternatives for variant configs. Fixtures for the real configs are the
-// same files the black-box suite uses (testdata/kb — copies of the template
-// KB's own TOMLs); variants are inline.
+// The executable spec for derivePlan, the pure function from a parsed config
+// to the launcher's plan: derivePlan(config) must reproduce today's hardcoded
+// behavior for the two real template configs (field-for-field — the parity
+// constraint), and derive the documented alternatives for variant configs.
+// Fixtures for the real configs are the same files the black-box suite uses
+// (testdata/kb — copies of the template KB's own TOMLs); variants are inline.
 
 import (
 	"fmt"
@@ -298,8 +298,8 @@ func mustRefuse(t *testing.T, path string, want ...string) {
 	}
 }
 
-// Semantic search is always available (MANDATORY-EMBEDDING D0/D1), so the
-// gateway's TOML loader refuses a config naming no vector store and no
+// Semantic search is always available and nothing about it is defaulted, so
+// the gateway's TOML loader refuses a config naming no vector store and no
 // embedding provider. The launcher parses the same file with its own structs,
 // so it must refuse the same configs — otherwise `semiont start` launches
 // every container and the gateway then dies at boot on a config the launcher
@@ -324,7 +324,7 @@ baseURL = "http://${OLLAMA_HOST}:11434"
 `}), "[environments.local.embedding]", `missing required key "model"`)
 }
 
-// `memory` is a first-class store to the GATEWAY (D1) and unusable in a
+// `memory` is a first-class store to the GATEWAY and unusable in a
 // launcher-managed stack, which runs the gateway and the Smelter as separate
 // containers. Refusing it is right; refusing it as an "unknown driver" is
 // not — the operator would read the loader's own advice, follow it, and be
@@ -522,7 +522,7 @@ func TestPlanRequiresAJetStreamJobsSection(t *testing.T) {
 	}
 }
 
-// ── Broker credentials (INTER-COMPONENT-ACCESS P3) ──────────────────────────
+// ── Broker credentials ──────────────────────────────────────────────────────
 //
 // [signal] and [jobs] name ONE daemon, so their credentials reconcile the way
 // their servers already do: a disagreement is a config error, never a silent
@@ -555,9 +555,9 @@ user = "semiont"
 password = "broker-pw"
 `
 
-// The broker the launcher runs has the pair the launcher keeps
-// (SECRET-DELIVERY P4); a config naming one is a second place deciding it.
-// That the pair reaches the daemon and both clients is proven end to end
+// The broker the launcher runs has the pair the launcher generates and keeps;
+// a config naming one is a second place deciding it. That the pair reaches the
+// daemon and both clients is proven end to end
 // (TestLauncherRunBrokerIsAuthenticated).
 func TestConfigNamedPairIsRefusedForTheLauncherRunBroker(t *testing.T) {
 	_, err := planForBroker(t, brokerSignal, brokerJobs)
@@ -646,9 +646,9 @@ func TestAnExternalBrokerWithNoPairIsRefused(t *testing.T) {
 	}
 }
 
-// CODESPACE-IDENTITY B4: an issuer names its port by ${KEYCLOAK_PORT}, and the
-// plan carries the number this launch resolved — what Keycloak publishes on,
-// what the port check guards, and what the realm is reached at.
+// An issuer names its port by ${KEYCLOAK_PORT}, and the plan carries the
+// number this launch resolved — what Keycloak publishes on, what the port
+// check guards, and what the realm is reached at.
 func TestIssuerPortResolvesFromKeycloakPort(t *testing.T) {
 	p := variantConfig(t, map[string]string{"identity": `[environments.local.identity]
 type = "keycloak"

@@ -102,7 +102,7 @@ describe('createActorStateUnit', () => {
     expect(url).toBe('http://localhost:4000/bus/emit');
     expect(opts.method).toBe('POST');
     // Parsed, not string-compared: the body gained `clientId` (the routing
-    // address, CORRELATED-REPLY-ROUTING D1) and a key-order-sensitive
+    // address for correlated replies) and a key-order-sensitive
     // string match makes every future wire field a spurious failure here.
     expect(JSON.parse(opts.body)).toEqual({
       channel: 'beckon:hover',
@@ -113,7 +113,7 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('emit bounds the /bus/emit POST with a timeout signal (JOB-RESTART-SAFETY P7)', async () => {
+  it('emit bounds the /bus/emit POST with a timeout signal', async () => {
     // An unresponsive gateway must not hang the caller's loop forever — the
     // transport-level bound behind the 2026-09-03 finalization hang. Pin that
     // the POST carries an AbortSignal (the emit deadline); without it, a
@@ -133,7 +133,7 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('emit retries a timeout, then rejects (does not hang) when the budget runs out (P7)', async () => {
+  it('emit retries a timeout, then rejects (does not hang) when the budget runs out', async () => {
     // When the deadline fires, `AbortSignal.timeout` rejects the fetch with a
     // TimeoutError; the caller must receive that rejection — a job failure the
     // queue classifies transient — rather than an unsettled promise. (The
@@ -141,7 +141,7 @@ describe('createActorStateUnit', () => {
     // this pins the propagation the deadline produces, and the pin above pins
     // that the deadline is wired.)
     //
-    // SIDECAR-BOOT-RESILIENCE P2 changed WHEN that rejection arrives: a deadline
+    // Per-request retry changed WHEN that rejection arrives: a deadline
     // is the definition of "try again", so the emit now spends its budget first.
     // The no-hang guarantee is unchanged and is what this still pins — it is the
     // budget, not the first failure, that bounds the wait. `mockRejectedValue`
@@ -186,8 +186,8 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  // ── SSE-AUTH-RESILIENCE P1: don't ask without a credential ──────────
-  // Shape A: a session that exhausts refresh pushes `null` to `token$`, and
+  // ── Don't ask without a credential ──────────────────────────────────
+  // A session that exhausts refresh pushes `null` to `token$`, and
   // HttpTransport renders that as `''`. The actor used to send
   // `Authorization: Bearer ` and retry forever — a guaranteed-failing request
   // generated on a timer, which is the 401 storm. A connect with no
@@ -237,13 +237,13 @@ describe('createActorStateUnit', () => {
     vi.useRealTimers();
   });
 
-  // ── SSE-AUTH-RESILIENCE P2: stop discarding the status ──────────────
-  // Shape B: a REAL credential the gateway refuses. The P1 gate is upstream,
+  // ── Stop discarding the status ──────────────────────────────────────
+  // A REAL credential the gateway refuses. The credential gate is upstream,
   // so a 401 here is a rejected token, never an empty bearer. The status must
-  // survive as structured data — P3's backoff/terminal split reads it, and an
+  // survive as structured data — the backoff/terminal split reads it, and an
   // operator debugging a refused client needs 401-vs-503 without parsing a
   // message string. Note the non-empty tokens: an empty one would measure
-  // P1's gate instead (handoff note 6).
+  // the credential gate instead.
 
   it('a refused connect surfaces its status as structured data — 401 distinguishable from 500', async () => {
     mockFetch.mockResolvedValueOnce({ ok: false, headers: new Headers(), status: 401, body: null });
@@ -273,12 +273,12 @@ describe('createActorStateUnit', () => {
     erroring.dispose();
   });
 
-  // ── SSE-AUTH-RESILIENCE P3: bound the self-inflicted load ───────────
-  // D1a: backoff-with-jitter on ALL failure reconnects; auth is additionally
+  // ── Bound the self-inflicted load ───────────────────────────────────
+  // Backoff-with-jitter on ALL failure reconnects; auth is additionally
   // terminal-per-credential. The assertions state properties over simulated
   // time (a bound, growth, recovery) — never a schedule — so jitter lives
   // inside the tolerance, not outside it. Non-empty tokens throughout: an
-  // empty one would measure the P1 gate (handoff note 6).
+  // empty one would measure the credential gate.
 
   it('a refused credential is asked about a bounded number of times, then the actor waits — and recovers when a DIFFERENT token appears', async () => {
     vi.useFakeTimers();
@@ -315,7 +315,7 @@ describe('createActorStateUnit', () => {
     vi.useRealTimers();
   });
 
-  it('a downed gateway (503) is retried on a GROWING interval — and still recovers (D1a: backoff is not auth-specific)', async () => {
+  it('a downed gateway (503) is retried on a GROWING interval — and still recovers (backoff is not auth-specific)', async () => {
     vi.useFakeTimers();
     mockFetch.mockImplementation(async () => ({ ok: false, headers: new Headers(), status: 503, body: null }));
     const stateUnit = createActorStateUnit({
@@ -346,8 +346,8 @@ describe('createActorStateUnit', () => {
     vi.useRealTimers();
   });
 
-  // ── SSE-AUTH-RESILIENCE P4: refresh once before parking ─────────────
-  // D2: the SSE path consults the SAME `tokenRefresher` hook the HTTP
+  // ── Refresh once before parking ─────────────────────────────────────
+  // The SSE path consults the SAME `tokenRefresher` hook the HTTP
   // beforeRetry path uses — no second refresh mechanism. Contract: the
   // refresher's owner rotates the token SOURCE (sessions push into token$);
   // the actor then reconnects through the gate's getter read, so the token
@@ -392,7 +392,7 @@ describe('createActorStateUnit', () => {
   it('a failing refresher is consulted once; the actor parks instead of looping', async () => {
     vi.useFakeTimers();
     // A refresher that THROWS (network down mid-refresh) — the defensive
-    // case; P0 made session.refresh() non-throwing, but the hook is
+    // case; session.refresh() is non-throwing, but the hook is
     // caller-supplied and the actor must not inherit an unhandled rejection.
     const refresher = vi.fn(async () => { throw new Error('ECONNREFUSED'); });
     mockFetch.mockImplementation(async () => ({ ok: false, headers: new Headers(), status: 401, body: null }));
@@ -519,10 +519,10 @@ describe('createActorStateUnit', () => {
   });
 
   it('emit RETRIES a 429 and resolves — the gateway is up and asking us to wait', async () => {
-    // SIDECAR-BOOT-RESILIENCE P2. A 429 rejected on the first attempt, and the
-    // sidecars treat a failed boot emit as fatal, so one rate-limit refusal
-    // killed a projector outright (2026-09-07 weaver incident). Retry is
-    // compliance with the gateway's own instruction, not optimism.
+    // A 429 rejected on the first attempt, and the sidecars treated a
+    // failed boot emit as fatal, so one rate-limit refusal killed a
+    // projector outright (2026-09-07 weaver incident). Retry is compliance
+    // with the gateway's own instruction, not optimism.
     mockFetch.mockResolvedValueOnce({ ok: false, headers: new Headers(), status: 429, statusText: 'Too Many Requests', text: async () => 'retry when one settles' });
     mockFetch.mockResolvedValueOnce({ ok: true });
 
@@ -550,7 +550,7 @@ describe('createActorStateUnit', () => {
   });
 
   it('emit exposes the status as a FIELD, not only inside the message', async () => {
-    // D1. A predicate that recovered the status by parsing it back out of prose
+    // A predicate that recovered the status by parsing it back out of prose
     // would be a second statement of the same fact, in the fragile direction —
     // and `isRetryableRequestError` reads the field.
     mockFetch.mockResolvedValue({ ok: false, headers: new Headers(), status: 403, statusText: 'Forbidden', text: async () => 'nope' });
@@ -1038,7 +1038,7 @@ describe('createActorStateUnit', () => {
     expect(() => stateUnit.dispose()).not.toThrow();
   });
 
-  // ── BUS-RESUMPTION.md / B17 behavior ──────────────────────────────────
+  // ── Bus resumption / CACHE-SEMANTICS B17 ──────────────────────────────
   //
   // Watermark tracking, seeding, and persistence are per-scope now and
   // pinned in the 'multi-scope subscription matrix' describe at the
@@ -1078,7 +1078,7 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  // ── #847 Phase 3: make-before-break reconnect ─────────────────────────
+  // ── Make-before-break reconnect (#847) ────────────────────────────────
 
   it('retires the old connection only after the new one opens + the drain window (make-before-break + linger)', async () => {
     // Pre-#847 a scope-change reconnect aborted the live connection up front
@@ -1378,7 +1378,7 @@ describe('ActorStateUnit — StateUnit axioms', () => {
   });
 });
 
-// ── MULTI-RESOURCE-SCOPE Step 4: multi-scope subscription matrix ─────────
+// ── Multi-scope subscription matrix ──────────────────────────────────────
 
 describe('multi-scope subscription matrix', () => {
   beforeEach(() => {
@@ -1410,7 +1410,7 @@ describe('multi-scope subscription matrix', () => {
     expect(JSON.parse(opts.body!)).toEqual({
       global: ['gather:requested'],
       scoped: [],
-      // CORRELATED-REPLY-ROUTING D1: the routing address rides every
+      // The routing address for correlated replies rides every
       // subscribe. Matched loosely here — its stability is pinned below.
       clientId: expect.any(String),
     });
@@ -1568,7 +1568,9 @@ describe('multi-scope subscription matrix', () => {
     su.dispose();
   });
 
-  it('trackReply(cid) rides every connect body until released; empty set omits the field (BUS-RESUMPTION P2)', async () => {
+  // The tracked cids are what a reconnect asks the gateway's reply
+  // retention for, so a reply lost in a connection drop still arrives.
+  it('trackReply(cid) rides every connect body until released; empty set omits the field', async () => {
     mockSSEResponse();
     const su = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
@@ -1625,10 +1627,10 @@ describe('multi-scope subscription matrix', () => {
     su.dispose();
   });
 
-  // ── CORRELATED-REPLY-ROUTING P2: the routing address ────────────────────
-  // D1: minted once per ACTOR, not per connection — a make-before-break
-  // reconnect must present the same address, or the gateway's claim (P3)
-  // stops matching the connection that carries the reply.
+  // ── The routing address for correlated replies ──────────────────────────
+  // Minted once per ACTOR, not per connection — a make-before-break
+  // reconnect must present the same address, or the claim the gateway
+  // recorded at emit stops matching the connection that carries the reply.
 
   const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -1649,7 +1651,7 @@ describe('multi-scope subscription matrix', () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     // A scope addition forces a reconnect — the same path a make-before-break
-    // handover takes, so this covers the overlap case D1 argues about.
+    // handover takes, so this covers the two-connection overlap.
     su.addChannels(['beckon:focus'], resourceId('res-1'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 

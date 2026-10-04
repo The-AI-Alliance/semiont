@@ -118,7 +118,7 @@ describe('AnnotationOperations', () => {
   });
 
   describe('createAnnotation', () => {
-    it('creates a resource-level edge: source-only target + SpecificResource body (P2)', async () => {
+    it('creates a resource-level edge: source-only target + SpecificResource body', async () => {
       const result = await createAnnotationAndAwait(
         {
           motivation: 'linking',
@@ -130,7 +130,7 @@ describe('AnnotationOperations', () => {
         kb);
 
       expect(result.annotation.motivation).toBe('linking');
-      // target persisted verbatim — selector-less (RESOURCE-LEVEL-ANCHOR P2)
+      // target persisted verbatim — selector-less, a legal whole-resource target
       expect(result.annotation.target).toEqual({ source: testResourceId });
       expect(result.annotation.id.length).toBeGreaterThan(0);
     });
@@ -861,7 +861,7 @@ describe('AnnotationOperations', () => {
     it('routes an append failure to a correlated mark:update-entity-types-failed (not silently dropped)', async () => {
       // The confirmed-write guarantee: if the gateway write throws, the failure
       // must come back on the correlated reply channel so the SDK's busRequest
-      // rejects — the "failure has nowhere to go" bug BRIDGE-GAPS.md removed.
+      // rejects. A fire-and-forget write's failure has nowhere to go.
       // Isolated Stower over a KB whose eventStore.appendEvent rejects, so the
       // catch branch runs without disturbing the shared real-KB harness.
       const failBus = new EventBus();
@@ -871,8 +871,9 @@ describe('AnnotationOperations', () => {
           appendEvent: vi.fn().mockRejectedValue(new Error('disk full')),
           log: { getEvents: vi.fn().mockResolvedValue([]) },
           // `mark:commit` diffs its batch against the resource's view before
-          // appending (COMMIT-ACK-FALSE-FAILURE F3); an empty resource holds
-          // nothing, so every annotation is new and the append still runs.
+          // appending, so a re-sent batch is never appended twice; an empty
+          // resource holds nothing, so every annotation is new and the append
+          // still runs.
           viewStorage: { get: vi.fn().mockResolvedValue(null) },
         } as StowerStores['eventStore'],
       };

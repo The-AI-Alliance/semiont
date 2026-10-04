@@ -1,5 +1,6 @@
 // Generate standalone Ajv validators for every schema in the bundled OpenAPI
-// spec — GRAPH-ANNOTATION-CODEC P4, D8 = generate.
+// spec: one validator, generated at build time, serves both bus and route
+// validation.
 //
 // WHY BUILD TIME. Ajv's `addSchema` does NOT compile; compilation is deferred
 // to the first `validateSchema` call. A schema Ajv cannot compile therefore

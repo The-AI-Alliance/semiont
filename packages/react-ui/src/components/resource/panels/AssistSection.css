@@ -134,8 +134,7 @@
    The widget was `.semiont-assist-widget` > `.semiont-annotation-progress` >
    `__params` > `__message`, each with its own border, padding and tint — four
    nested boxes around one sentence of status. The outer `.semiont-assist-widget`
-   (above) already provides the card; this provides the status region inside it.
-   ASSIST-PROGRESS-CONSOLIDATION P3. */
+   (above) already provides the card; this provides the status region inside it. */
 .semiont-assist-progress {
   display: flex;
   flex-direction: column;
@@ -176,10 +175,10 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* D8: the finished run's artifact, offered as a link. */
-/* The finished run's artifact — the ended frame's primary affordance
-   (GENERATION-ARRIVAL P1, D3's fallback): a button-shaped invitation to open
-   what was made, not an underlined footnote beside the bar. */
+/* The finished run's artifact, offered as a link — the ended frame's primary
+   affordance. Completion reveals the new reference rather than navigating to
+   the new resource, so this is the way there: a button-shaped invitation to
+   open what was made, not an underlined footnote beside the bar. */
 .semiont-assist-progress__outcome {
   align-self: stretch;
   padding: 0.5rem 0.75rem;
@@ -295,8 +294,8 @@
 /*
  * The progress bar. `AssistProgress` is its only consumer in the whole
  * package, so it lives here rather than in `styles/core/` — it was defined in
- * three files while nothing else rendered it (CLEAN-PROGRESS D4). If a second
- * consumer ever appears, promoting these rules to core is a move, not a copy.
+ * three files while nothing else rendered it. If a second consumer ever
+ * appears, promoting these rules to core is a move, not a copy.
  *
  * The track is NOT `--semiont-bg-secondary`: that is exactly
  * `.semiont-assist-widget`'s own background, so the track went invisible inside

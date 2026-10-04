@@ -14,8 +14,8 @@ import { isObject, isString } from './type-guards';
  * Everything ephemeral is composed from the KB's NAME, so it needs no working
  * tree and lives on `SemiontState`. Only the durable half is composed from the
  * root. `SemiontProject extends SemiontState` — a project is its state plus a
- * working tree — which lets a consumer that has no KB root (the gateway, after
- * SINGLE-KB-MOUNT P5) take the smaller type and still be checked by the
+ * working tree — which lets a consumer that has no KB root (the gateway, which
+ * does not mount the KB) take the smaller type and still be checked by the
  * compiler rather than by a throw at first read.
  *
  * Durable paths (inside the project root, committed or repo-local) — `SemiontProject`:
@@ -49,9 +49,10 @@ import { isObject, isString } from './type-guards';
  */
 /**
  * The one composition of a project's state-tree root from its name. The
- * Librarian resolves this WITHOUT a SemiontProject — it has no KB root to
- * construct one from (SINGLE-KB-MOUNT P1) — so the join lives here, beside
- * the constructor that also uses it, rather than being restated over there.
+ * Librarian resolves this WITHOUT a SemiontProject — it mounts no part of the
+ * KB tree, so it has no KB root to construct one from — so the join lives
+ * here, beside the constructor that also uses it, rather than being restated
+ * over there.
  */
 export function stateDirFor(name: string): string {
   // No fabricated default (CLAUDE.md: absence fails loudly). Every process that
@@ -77,8 +78,8 @@ export function stateDirFor(name: string): string {
  *
  * This exists because consumers appeared that genuinely need half of
  * `SemiontProject` and cannot supply the other half: the Librarian reads
- * `resourcesDir` on the shared state mount, with no readable KB root at all
- * (SINGLE-KB-MOUNT P1/P5).
+ * `resourcesDir` on the shared state mount, with no readable KB root at all,
+ * and the gateway holds none either: only the Archivist mounts the KB.
  *
  * **Split rather than made optional, deliberately.** Relaxing
  * `SemiontProject`'s root-derived fields to optional-and-throw-on-read would
@@ -90,9 +91,9 @@ export function stateDirFor(name: string): string {
  *
  * Every field here is required, and every one is derived from `name` alone —
  * which is what makes the name the whole of this type's input. `anchoredTextDir`
- * is deliberately NOT here (SINGLE-KB-MOUNT P6): it is a supplied path rather
- * than a derived one, and its only readers hold a working tree too, so it sits
- * on `SemiontProject` where they already are.
+ * is deliberately NOT here: it is a supplied path rather than a derived one,
+ * and its only readers hold a working tree too, so it sits on `SemiontProject`
+ * where they already are.
  */
 export class SemiontState {
   readonly name: string;
@@ -154,10 +155,9 @@ export class SemiontProject extends SemiontState {
    *   from working. Passed IN, never read from the environment here — the entry
    *   point owns that read, exactly as it owns SEMIONT_ROOT.
    *
-   *   It lives on THIS type rather than `SemiontState` (SINGLE-KB-MOUNT P6)
-   *   because every reader of it holds a working tree as well, and the one
-   *   consumer that needs state paths without a tree — the gateway — does not
-   *   read it at all.
+   *   It lives on THIS type rather than `SemiontState` because every reader
+   *   of it holds a working tree as well, and the one consumer that needs
+   *   state paths without a tree — the gateway — does not read it at all.
    */
   constructor(projectRoot: string, opts: { anchoredTextDir: string; name?: string }) {
     super({ name: SemiontProject.seedAndReadName(projectRoot, opts.name) });

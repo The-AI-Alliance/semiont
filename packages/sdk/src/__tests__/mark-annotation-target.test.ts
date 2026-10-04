@@ -1,15 +1,15 @@
 /**
- * P3 (RESOURCE-LEVEL-ANCHOR) — `mark.annotation` forwards a *selector-less*
- * (whole-resource) target into `mark:create-request` unchanged.
+ * A whole resource is a legal annotation target: `mark.annotation` forwards a
+ * *selector-less* (whole-resource) target into `mark:create-request` unchanged.
  *
- * The selector-required gate was removed in the schema (P1 — `CreateAnnotationRequest`
- * now `$ref`s `AnnotationTarget`, selector optional) and in core assembly (P2 —
- * `assembleAnnotation` no longer throws when no selector is present). `mark.annotation`
+ * The selector-required gate was removed in the schema (`CreateAnnotationRequest`
+ * now `$ref`s `AnnotationTarget`, selector optional) and in core assembly
+ * (`assembleAnnotation` no longer throws when no selector is present). `mark.annotation`
  * itself has no selector logic — it only reads `target.source` for routing and forwards
  * `request` verbatim — so this is a behavioral PIN that the relaxation reaches the SDK
  * emit path: no selector injected, none required. It also pins that a *selectored*
  * target still passes through unchanged, i.e. `mark.annotation` is selector-agnostic
- * both ways. (No SDK code change in P3; the type relaxation landed in P1.)
+ * both ways. (The SDK's code did not change; the type relaxation came with the schema.)
  */
 
 import { describe, it, expect, afterEach } from 'vitest';

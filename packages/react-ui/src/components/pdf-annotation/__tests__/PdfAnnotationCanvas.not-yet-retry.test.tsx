@@ -1,5 +1,5 @@
 /**
- * ANNOTATE-DEFERS-ON-NOT-YET P4, the PULL half: a `not-yet` answer schedules a
+ * Re-asking after `not-yet`, the PULL half: a `not-yet` answer schedules a
  * bounded re-ask (5s → 15s → 45s, then held at 45s), so the deferred state
  * self-heals even before `smelt:settled` is bridged — and keeps healing after
  * a missed broadcast once it is.
@@ -8,7 +8,7 @@
  * so a retry that lands `extracted` re-resolves the open page (the epoch).
  * Without that, the gate would open onto a page still holding no map, and the
  * first annotation drawn after the flip would be permanently mute — the exact
- * annotation D2 exists to protect.
+ * annotation the deferral exists to protect.
  */
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act } from '@testing-library/react';
@@ -135,7 +135,7 @@ describe('PdfAnnotationCanvas — bounded retry on not-yet', () => {
   });
 
   /**
-   * P4, the PUSH half: `smelt:settled` is bridged (P3), and it fires at the
+   * The PUSH half: `smelt:settled` is bridged, and it fires at the
    * exact moment `not-yet` stops being true — no ladder wait when the
    * broadcast arrives. Subscribed off the session PROP, not the provider
    * hook: this canvas renders provider-free by contract.

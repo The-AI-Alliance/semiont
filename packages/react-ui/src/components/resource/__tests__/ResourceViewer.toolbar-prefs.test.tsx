@@ -1,5 +1,5 @@
 /**
- * TOOLBAR-PREFS-AS-PROPS — keystone + per-pref specs.
+ * Toolbar preferences as props — keystone + per-pref specs.
  *
  * Preferences are state, not events: each of the four toolbar prefs (mode, click
  * action, selection motivation, shape) is a controlled/uncontrolled prop pair.
@@ -9,8 +9,9 @@
  * 'linking' / 'rectangle') — NOT the legacy localStorage+bus behavior (that lives
  * in the useToolbarPrefs() policy layer).
  *
- * RED ledger: authored `it.fails` (observed: 5 expected fail), flipped to `it` at
- * Phase 1 GREEN. Provider-free; real AnnotateToolbar (its controls are the subject).
+ * RED ledger: authored `it.fails` (observed: 5 expected fail), flipped to `it` once
+ * the prop pairs existed. Provider-free; real AnnotateToolbar (its controls are the
+ * subject).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, within, waitFor } from '@testing-library/react';

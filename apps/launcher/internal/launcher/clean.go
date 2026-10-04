@@ -1,16 +1,16 @@
 package launcher
 
 // clean.go — `semiont clean`: remove one root's persistent local-stack
-// state (LAUNCHER-STATE.md). start persists postgres/qdrant/neo4j under
-// <dataDir>/roots/<key>; this command is the only way that data dies —
-// stop deliberately leaves it, and start's database image-mismatch refusal
-// names this command as the way out.
+// state. start persists postgres/qdrant/neo4j under <dataDir>/roots/<key>;
+// this command is the only way that data dies — stop deliberately leaves it,
+// and start's database image-mismatch refusal names this command as the way
+// out.
 //
 // An UNSCOPED clean also deletes every secret the launcher keeps for the root
-// (custody.go), through the store that keeps them (SECRETS-STORE P5): the
-// accounts the token-signing key's tokens name are in the postgres data going
-// away, so keeping it would preserve nothing. A --store clean targets one
-// subdir and leaves them.
+// (custody.go), through the store that keeps them: the accounts the
+// token-signing key's tokens name are in the postgres data going away, so
+// keeping it would preserve nothing. A --store clean targets one subdir and
+// leaves them.
 
 import (
 	"fmt"

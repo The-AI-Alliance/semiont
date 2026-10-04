@@ -3,9 +3,10 @@
 // The image is the thing that actually runs, so it owns these facts. Two
 // readers take them from here rather than restating them:
 //
-//   - the launcher's probe table, gated against this (FAKE-RUNTIME-FIDELITY P2);
+//   - the launcher's probe table, gated against this: a census test requires
+//     each service's health probe to equal the URL its Dockerfile declares;
 //   - the fake runtime, which serves exactly the route the image declares and
-//     404s everything else (P1).
+//     404s everything else.
 //
 // The second reader is why this package may NOT read the launcher. A fake
 // taught by the code under test agrees with it about a wrong route as

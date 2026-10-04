@@ -194,7 +194,7 @@ func Browse(args []string) int {
 	}
 	// Starting a container is a large action for a READ verb to take, so it
 	// stays explicit twice over: --launch opts in, and it is refused outside
-	// the one destination it could possibly mean (BROWSER-HANDOFF D4).
+	// the one destination it could possibly mean.
 	for _, dep := range []struct {
 		set  bool
 		flag string
@@ -301,7 +301,7 @@ type drive struct {
 // nobodySaw explains a `--browser` emit that reached zero subscribers, and
 // fails the command. Three situations reach here and they want three
 // different things said — collapsing them into one "not available" is the
-// failure mode this exists to avoid (BROWSER-HANDOFF P2):
+// failure mode this exists to avoid:
 //
 //	Browser up, nobody watching → the ORIGIN, and "open it and log in"
 //	Browser absent              → --launch, or start --service browser

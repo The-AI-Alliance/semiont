@@ -1,16 +1,15 @@
 package launcher
 
-// rootstate.go — persistent per-root local-stack state (LAUNCHER-STATE.md).
+// rootstate.go — persistent per-root local-stack state.
 // Each local semiont root gets its own directory under the launcher's data
 // home; infra containers bind-mount their store subdirs from it, so postgres
 // rows (which include users the event log does NOT record) survive restarts,
 // and the qdrant/neo4j projections skip their rebuild. The mount shapes are
-// the ones the Phase 0 spikes measured on Apple container's virtiofs:
-// chmod/chown of a mount root is refused and in-mount chown silently no-ops,
-// but host-side mode bits pass through and created-inside writes land — so
-// postgres points PGDATA at a subdir the entrypoint creates inside the
-// mount, and (P2) neo4j's dirs get host-side 0777 to satisfy its `test -w`
-// boot gate.
+// the ones spikes measured on Apple container's virtiofs: chmod/chown of a
+// mount root is refused and in-mount chown silently no-ops, but host-side
+// mode bits pass through and created-inside writes land — so postgres points
+// PGDATA at a subdir the entrypoint creates inside the mount, and neo4j's
+// dirs get host-side 0777 to satisfy its `test -w` boot gate.
 
 import (
 	"crypto/sha256"
@@ -37,12 +36,12 @@ var keyUnsafe = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 // — identity travels with the KB, so a moved clone keeps its state.
 //
 // The "path-" + hash branch below is NOT a fallback for did-less KBs any
-// more: since identity became required (KB-IDENTITY-VS-ADDRESS decision 8)
-// `start` refuses a KB that declares no [site] domain, so no new path-keyed
-// directory can be created. It survives because directories created BEFORE
-// that rule still exist on disk, and `clean` — the only way that data dies —
-// must be able to name them. Delete it once no such directory can plausibly
-// remain, not before: the alternative is bytes nothing can remove.
+// more: since identity became required `start` refuses a KB that declares no
+// [site] domain, so no new path-keyed directory can be created. It survives
+// because directories created BEFORE that rule still exist on disk, and
+// `clean` — the only way that data dies — must be able to name them. Delete
+// it once no such directory can plausibly remain, not before: the
+// alternative is bytes nothing can remove.
 //
 // meta.json keeps the unsanitized truth so status and clean can always name
 // the root.
@@ -95,11 +94,11 @@ type stateStoreSpec struct {
 // stateMount: one -v within a store. sub "" mounts the store dir itself.
 type stateMount struct{ sub, target string }
 
-// stateStores: the roles whose containers persist state, with the mount
-// shapes the Phase 0 spikes measured (LAUNCHER-STATE.md Decision).
+// stateStores: the roles whose containers persist state — host bind mounts,
+// in the shapes the spikes on Apple container measured.
 var stateStores = map[string]stateStoreSpec{
 	// The entrypoint chmods $PGDATA only — a created-inside subdir — never
-	// the mount root (which virtiofs refuses; Phase 0, 7/7).
+	// the mount root (which virtiofs refuses; measured, 7/7).
 	"database": {
 		dir:    "postgres",
 		holds:  "database",
@@ -107,7 +106,7 @@ var stateStores = map[string]stateStoreSpec{
 		env:    []string{"PGDATA=/var/lib/postgresql/data/pgdata"},
 		owner:  "database",
 	},
-	// Qdrant just writes files; a plain mount works (Phase 0, 7/7).
+	// Qdrant just writes files; a plain mount works (measured, 7/7).
 	"vectors": {
 		dir:        "qdrant",
 		holds:      "vectors",
@@ -118,7 +117,7 @@ var stateStores = map[string]stateStoreSpec{
 	// Neo4j's entrypoint gates on `test -w` of /data and /logs and insists
 	// on chowning an unwritable mount root — refused on virtiofs, and
 	// in-mount chown silently no-ops. Host-side 0777 satisfies the gate so
-	// the chown is never attempted (Phase 0, 8/8).
+	// the chown is never attempted (measured, 8/8).
 	"graph": {
 		dir:        "neo4j",
 		holds:      "graph",
@@ -154,15 +153,14 @@ var stateStores = map[string]stateStoreSpec{
 		owner:      "smelter",
 	},
 	// JetStream's data dir (streams + KV buckets, one daemon). projection:
-	// true is a DECISION, not an inheritance (JOB-QUEUE-DRIVER P2): queued
-	// work is clearable operational state — jobs survive restarts via the
-	// mount, a deliberate clear drops re-submittable work, and job state
-	// stays out of KB exports. Same classification the jobs dir had on the
-	// state store.
-	// Renamed jobs → messaging with the role (SIGNAL-PLANE D9); `dir` was
-	// already "nats", so the on-disk tree never moves and nothing is
-	// orphaned. The daemon always mounts it: the job queue and the gateway's
-	// ledger claims both live in it.
+	// true is a DECISION, not an inheritance: queued work is clearable
+	// operational state — jobs survive restarts via the mount, a deliberate
+	// clear drops re-submittable work, and job state stays out of KB exports.
+	// Same classification the jobs dir had on the state store.
+	// Renamed jobs → messaging with the role; `dir` was already "nats", so
+	// the on-disk tree never moves and nothing is orphaned. The daemon
+	// always mounts it: the job queue and the gateway's ledger claims both
+	// live in it.
 	"messaging": {
 		dir:        "nats",
 		holds:      "job queue and signals",
@@ -195,9 +193,9 @@ var stateStores = map[string]stateStoreSpec{
 // A container clears it, as root, because containers wrote it: neo4j as
 // 7474, postgres as 70, qdrant and nats as root, Semiont's images as 1001.
 // On Linux the invoker is none of those, and a host-side RemoveAll fails on
-// the first subdir a container created (CODESPACE-IDENTITY F1, reproduced
-// with the real images). macOS runtimes map ownership and hid it. Only the
-// store dir is mounted — never the root dir, which holds secrets.
+// the first subdir a container created (reproduced with the real images).
+// macOS runtimes map ownership and hid it. Only the store dir is mounted —
+// never the root dir, which holds secrets.
 func clearStoreContents(rt, sd string) error {
 	if out, err := captureBoth(rt, storeClearArgs(sd)...); err != nil {
 		return fmt.Errorf("%v: %s", err, strings.TrimSpace(out))
@@ -245,7 +243,7 @@ func stateMountArgs(role, root string) []string {
 
 // rootMeta is <stateRootDir>/meta.json: which root this state belongs to
 // and which image wrote each store — the stamp the freshness/safety split
-// reads (database mismatch refuses; projections auto-clean, P2).
+// reads (database mismatch refuses; projections auto-clean).
 type rootMeta struct {
 	KBRoot    string               `json:"kbRoot"`
 	Did       string               `json:"did,omitempty"`

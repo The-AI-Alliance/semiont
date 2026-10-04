@@ -58,10 +58,10 @@ describe('CollaborationPanel Component', () => {
     vi.useRealTimers();
   });
 
-  // INFERENCE-LIMITS-EXPOSURE P3a. The panel was props-only; it now optionally
-  // renders the collaborator roster with each software agent's discovered
-  // ceilings. Absence is meaningful and must degrade quietly (D3) — the field
-  // is absent whenever discovery could not answer *right now*.
+  // The panel was props-only; it now optionally renders the collaborator
+  // roster with each software agent's discovered ceilings. Absence is
+  // meaningful and must degrade quietly — the field is absent whenever
+  // discovery could not answer *right now*.
   describe('Collaborators roster', () => {
     const softwareEntry = (over: Record<string, unknown> = {}) => ({
       agent: {
@@ -107,7 +107,7 @@ describe('CollaborationPanel Component', () => {
       expect(row.textContent).not.toContain('in /');
     });
 
-    it('renders the row without ceilings when limits are absent (D3)', () => {
+    it('renders the row without ceilings when limits are absent', () => {
       const noLimits = softwareEntry();
       delete (noLimits as Record<string, unknown>).limits;
       render(<CollaborationPanel {...defaultProps} collaborators={[noLimits as any]} />);
@@ -206,9 +206,9 @@ describe('CollaborationPanel Component', () => {
       expect(statusText).toHaveAttribute('data-connected', 'true');
     });
 
-    // ── State-machine aware cases (post-CONNECTION-STATE) ─────────────
-    // These exercise the core reason CONNECTION-STATE exists: brief
-    // reconnect/connect cycles must NOT flash "Disconnected", or
+    // ── State-machine aware cases ─────────────────────────────────────
+    // These exercise the core reason the connection-state machine exists:
+    // brief reconnect/connect cycles must NOT flash "Disconnected", or
     // Strict-Mode mount churn makes the UI lie.
 
     it('shows Live during brief `reconnecting` (does not alarm on churn)', () => {

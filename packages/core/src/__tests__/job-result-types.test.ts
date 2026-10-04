@@ -1,6 +1,6 @@
 /**
- * Type-level guards for the job-result wire shapes —
- * WIRE-UNION-DISCRIMINANTS P1 (A1); P2's narrowing tests land here too.
+ * Type-level guards for the job-result wire shapes: axiom A1 first, then the
+ * narrowing axioms A2 and A3.
  *
  * A1: `JobGenerationResult.resourceId` is REQUIRED. The worker awaits the
  * create round-trip (`yield.resource(...)`) and holds the id before it ever
@@ -31,10 +31,10 @@ describe('JobGenerationResult — the id is always there (A1)', () => {
 type JobResult = components['schemas']['JobResult'];
 
 /**
- * A2 + A3 (WIRE-UNION-DISCRIMINANTS P2): every member of the union carries
- * the same single-valued discriminant, so a consumer narrows WITHOUT a type
- * assertion, and an unhandled member is a compile error (the `never`-default
- * idiom `assistProgressCopy` established for `JobProgressMessage.code`).
+ * A2 + A3: every member of the union carries the same single-valued
+ * discriminant, so a consumer narrows WITHOUT a type assertion, and an
+ * unhandled member is a compile error (the `never`-default idiom
+ * `assistProgressCopy` established for `JobProgressMessage.code`).
  */
 function describeResult(r: JobResult): string {
   switch (r.kind) {

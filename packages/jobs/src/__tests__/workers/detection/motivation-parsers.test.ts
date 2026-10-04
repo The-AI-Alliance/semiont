@@ -2,13 +2,12 @@
  * Motivation Parsers Tests
  *
  * Tests the MotivationParsers class, which validates and reconciles
- * ALREADY-PARSED elements from the structured inference surface
- * (STRUCTURED-INFERENCE Phase 2). "Could not read the model" throws inside
- * `generateStructured` and never reaches this layer — the former
- * unparseable-string / non-array throw tests moved upstream with the
- * behavior (see `anthropic-structured.test.ts` and `ollama.test.ts`).
- * What this layer owns: per-element structural validation (D5 — the last
- * line on the Ollama path and the schema/type drift guard) and
+ * ALREADY-PARSED elements from the structured inference surface. "Could
+ * not read the model" throws inside `generateStructured` and never reaches
+ * this layer — the former unparseable-string / non-array throw tests moved
+ * upstream with the behavior (see `anthropic-structured.test.ts` and
+ * `ollama.test.ts`). What this layer owns: per-element structural validation
+ * (the last line on the Ollama path and the schema/type drift guard) and
  * reconciliation against the full document.
  */
 
@@ -64,7 +63,7 @@ describe('MotivationParsers', () => {
       expect(result).toHaveLength(0);
     });
 
-    it('drops structurally-invalid elements (D5 — the schema/type drift guard)', () => {
+    it('drops structurally-invalid elements — the schema/type drift guard', () => {
       const result = MotivationParsers.parseComments(
         [
           null,

@@ -1,8 +1,8 @@
 /**
- * Failure classification — ABANDONED-INFERENCE P3 (A4, HD2).
+ * Failure classification: a deterministic failure is not retried.
  *
  * A retried deterministic failure always costs exactly double: the second
- * attempt of the same request cannot succeed. HD2's ruling is one-sided —
+ * attempt of the same request cannot succeed. The rule is one-sided —
  * only KNOWN-deterministic failures skip the retry budget; everything
  * unrecognized stays retryable (`undefined`), because mis-classifying a
  * transient failure as deterministic silently halves reliability, while the
@@ -38,14 +38,14 @@ export class DeterministicJobError extends Error {
  * The taxonomy, and its provider coupling — THE part that will drift:
  *
  * - `@anthropic-ai/sdk` errors carry a numeric `status`, and WHICH statuses are
- *   worth another attempt is not decided here: it is `RETRY_RULES.job`
- *   (RETRY-CLASSIFICATION P2). This file used to restate the same three
- *   conditions, which made it a second opinion on a question core already
- *   answered — and the census that found it showed that where a bare list and a
- *   reasoned rule disagree, the list wins silently. The rule carries the
- *   reasoning; this file carries the ONE thing the rule cannot know: that
- *   anything else at or above 400 is a rejected request, and re-sending it
- *   unchanged is guaranteed waste → deterministic.
+ *   worth another attempt is not decided here: it is `RETRY_RULES.job`, core's
+ *   named rule. This file used to restate the same three conditions, which made
+ *   it a second opinion on a question core already answered — and the census
+ *   that found it showed that where a bare list and a reasoned rule disagree,
+ *   the list wins silently. The rule carries the reasoning; this file carries
+ *   the ONE thing the rule cannot know: that anything else at or above 400 is a
+ *   rejected request, and re-sending it unchanged is guaranteed waste →
+ *   deterministic.
  * - Aborts (`APIUserAbortError` from the SDK, `AbortError` from fetch/mock)
  *   are our own bound or shutdown tearing the transport down — nothing was
  *   judged → transient.
@@ -64,17 +64,16 @@ export function classifyFailure(error: unknown): FailureClass | undefined {
   if (error instanceof InferenceTimeoutError) return 'transient';
   if (error instanceof StructuredReadError && error.stopReason === 'max_tokens') return 'deterministic';
   // A `StructuredReadError` with any OTHER stop reason falls through to
-  // `undefined` — retryable, and DECIDED rather than defaulted
-  // (RETRY-CLASSIFICATION P2, 2026-09-12).
+  // `undefined` — retryable, and DECIDED rather than defaulted (2026-09-12).
   //
   // It only reaches here having exhausted `MAX_SUBDIVISION_DEPTH`, so
   // `subdividable()` has already argued the opposite: at
   // `DETECTION_TEMPERATURE` 0 the identical call returns the identical failure.
   // That argument was decisive while chunk boundaries were fixed up front. It is
-  // not any more — CHUNK-GRAIN-RESUME HD2 (option C) seeds a resumed unit's size
-  // from the checkpoint and then takes one shrink step, so the retry re-cuts the
-  // poison piece at a DIFFERENT size and can genuinely come out differently. The
-  // price of being wrong fell with it: one chunk, not the whole prefix.
+  // not any more — a resumed unit seeds its chunk size from the checkpoint and
+  // then takes one shrink step, so the retry re-cuts the poison piece at a
+  // DIFFERENT size and can genuinely come out differently. The price of being
+  // wrong fell with it: one chunk, not the whole prefix.
   //
   // It stays `undefined` rather than becoming `'transient'` on purpose. The wire
   // vocabulary has two values, and this is neither: it is not weather, it is

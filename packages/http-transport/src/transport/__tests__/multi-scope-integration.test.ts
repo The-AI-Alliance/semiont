@@ -1,6 +1,6 @@
 /**
- * MULTI-RESOURCE-SCOPE Step 7 — the two-resources integration test the plan's
- * checklist names, over the REAL stack: `HttpTransport` → real
+ * The two-resources integration test: distinct resource scopes composing
+ * onto one connection, over the REAL stack: `HttpTransport` → real
  * `ActorStateUnit` → mocked wire (mock-conn). The http-paths suite mocks the
  * actor to assert ref-counting via spies; this file is the one place the
  * composed behavior is pinned end-to-end:

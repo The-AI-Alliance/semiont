@@ -15,7 +15,7 @@ import { createCache, isReady, type CacheState } from '../cache';
 
 /**
  * Collector projection for sequence assertions: pending → undefined,
- * ready → value, failed → its Error (D1: failure is an EMISSION — it shows
+ * ready → value, failed → its Error (failure is an EMISSION — it shows
  * up IN the sequence now, not on the error callback).
  */
 const st = <V,>(s: CacheState<V>): V | undefined | Error =>
@@ -113,7 +113,7 @@ describe('Cache<K, V>', () => {
       const errors: unknown[] = [];
       cache.observe('k').subscribe({ next: (s) => seen.push(st(s)), error: (e) => errors.push(e) });
       await flush();
-      // D1: failure is an EMISSION — it lands IN the sequence; the stream
+      // Failure is an EMISSION — it lands IN the sequence; the stream
       // never errors and stays alive.
       expect(errors).toEqual([]);
       expect(seen[0]).toBeUndefined();
@@ -413,7 +413,7 @@ describe('Cache<K, V>', () => {
       cache.observe('k').subscribe((s) => states.push(s.status));
       await flush();
       expect(fetchFn).toHaveBeenCalledTimes(2); // attempt + one retry, then idle
-      expect(states[states.length - 1]).toBe('failed'); // …surfaced, not silent (B15/D1)
+      expect(states[states.length - 1]).toBe('failed'); // …surfaced, not silent (B15)
       await flush();
       expect(fetchFn).toHaveBeenCalledTimes(2); // no tight loop
 
@@ -452,7 +452,7 @@ describe('Cache<K, V>', () => {
   });
 
   describe('B15 — terminal failure of a value-less key errors its observers', () => {
-    // Found by the LIVENESS-AXIOMS P2 property suite (L1/L2 falsified under
+    // Found by the liveness property suite (axioms L1/L2 falsified under
     // schedule ⟨reject-emit⟩): after B14 exhaustion a value-less key's
     // subscribers previously saw `undefined` forever — the forbidden fourth
     // state.
@@ -460,10 +460,10 @@ describe('Cache<K, V>', () => {
     const exhaust = () =>
       vi.fn().mockRejectedValueOnce(new Error('lost')).mockRejectedValueOnce(new Error('lost'));
 
-    it('a subscriber attaching AFTER exhaustion RECOVERS — marker cleared, fresh chain, no stale replay (D3)', async () => {
-      // CACHE-CONTRACT Phase 2 flipped this pin: under subscribe-time
-      // semantics, ARRIVING at a failed key is what the recovery comment
-      // always promised remounts — the marker clears and a fresh chain runs.
+    it('a subscriber attaching AFTER exhaustion RECOVERS — marker cleared, fresh chain, no stale replay', async () => {
+      // Moving the fetch decision to subscribe time flipped this pin:
+      // ARRIVING at a failed key is what the recovery comment always
+      // promised remounts — the marker clears and a fresh chain runs.
       // Subscribers present AT exhaustion still error via the hot push
       // (previous test); nobody is ever silently pending (L1).
       const fetchFn = exhaust();
@@ -661,10 +661,10 @@ describe('Cache<K, V>', () => {
   // B16 — disposal is terminal and inert. Motivated by the make-meaning CI
   // escape (2026-07-05): a B14 retry chain
   // straddling client teardown pushed a B15 `bus.closed` error into a test's
-  // handler-less subscriber. The fix is structural (finding b): disposal
+  // handler-less subscriber. The fix is structural: disposal
   // completes every per-key observable and stuns all later acts — so a
   // teardown-straddling failure has no observers to error and no retry to
-  // issue. No error-code special-casing anywhere (finding a / L1 D1 binding).
+  // issue. No error-code special-casing anywhere: L1 stays unconditional.
   describe('B16 — dispose() is terminal and inert', () => {
     it('a retry chain straddling dispose() goes quiet: no retry, no error, no breadcrumb; observers complete at dispose', async () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});

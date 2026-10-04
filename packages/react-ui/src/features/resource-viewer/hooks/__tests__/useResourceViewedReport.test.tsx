@@ -1,5 +1,5 @@
 /**
- * The viewer's arrival report — GUIDED-TOUR P5 (D6).
+ * The viewer's arrival report.
  *
  * `browse:resource-viewed` is a REPORT, deliberately distinct from the
  * imperative `browse:resource-open`: it fires when a resource has actually

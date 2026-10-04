@@ -677,13 +677,11 @@ background request per observed key.
 
 ## Revision log
 
-- 2026-04-19 — initial spec, written as part of CACHE-LIBRARY.md
-  Phase 1. Documents behavior as it exists after the
+- 2026-04-19 — initial spec. Documents behavior as it exists after the
   `invalidateResourceDetail` SWR fix (test 04).
 - 2026-07-05 — B14 added (bounded SWR retry); lifecycle consequence 3
   amended ("a permanent fetch failure does not auto-retry" → one retry
-  per act). Part of the concurrent-browse-resource-starvation fix
-  (ask 3): a lost one-shot reply must not permanently starve
+  per act), so that a lost one-shot reply does not permanently starve
   subscribers.
 - 2026-07-05 — B15 added (terminal failure of a value-less key errors
   its observers, retriable); B6 narrowed to its true scope

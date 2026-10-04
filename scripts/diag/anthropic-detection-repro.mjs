@@ -30,11 +30,11 @@
  * `--text` — it imports nothing from the workspace and is the right choice for anything
  * testing the REQUEST rather than the extractor.
  *
- * `--strict` is the second A/B, and the one STRUCTURED-INFERENCE.md Phase 3 turns on. It asks
- * the API for the guarantee we currently only hope for: `strict: true` on the tool, a real
- * element schema instead of `items: {}`, and `additionalProperties: false` throughout. The
- * documented contract is that `tool_use.input` then validates against the schema exactly — so
- * an unescaped `\V` cannot reach us as a 67 KB string under `items`.
+ * `--strict` is the second A/B, and the one that provider enforcement of the element schema
+ * turns on. It asks the API for the guarantee we currently only hope for: `strict: true` on
+ * the tool, a real element schema instead of `items: {}`, and `additionalProperties: false`
+ * throughout. The documented contract is that `tool_use.input` then validates against the
+ * schema exactly — so an unescaped `\V` cannot reach us as a 67 KB string under `items`.
  *
  * ACCEPTANCE IS NOT ENFORCEMENT — the trap this script exists to avoid.
  *
@@ -63,7 +63,7 @@
  *   --max-tokens <n> override the output budget (default 64000, production's value)
  *   --no-stream      force the non-streaming path (only valid under ~21333 max-tokens)
  *   --entity <type>  entity type to look for (default Person)
- *   --strict         request strict tool use + a real element schema (Phase 3's shape)
+ *   --strict         request strict tool use + a real element schema (the provider-enforced shape)
  *   --probe          ask the prompt for an undeclared property; report whether it survives
  *                    (the deterministic enforcement test — run with AND without --strict)
  *   --model <id>     model to call (default claude-sonnet-4-5-20250929, production's pin)
@@ -117,8 +117,9 @@ const FIXTURES = {
 
 let text;
 if (flag('capabilities')) {
-  // Metadata-only mode — no prompt, no generation. Answers STRUCTURED-INFERENCE.md D3
-  // directly: does the Models API agree with what the model demonstrably does?
+  // Metadata-only mode — no prompt, no generation. The capability gate reads a model's
+  // structured-output support from the Models API; this asks the question that gate rests
+  // on: does the Models API agree with what the model demonstrably does?
   text = '';
 } else if (arg('fixture')) {
   const name = arg('fixture');
@@ -207,7 +208,7 @@ if (flag('dump-prompt')) {
 // carries it, and the tool only asserts that the top level is an array. This is
 // what production sends today, and what let a mis-escaped element through.
 //
-// --strict: STRUCTURED-INFERENCE.md Phase 3's shape. `strict: true` is a
+// --strict: the provider-enforced shape. `strict: true` is a
 // top-level field on the tool (NOT on tool_choice); every object needs
 // `additionalProperties: false`; `items: {}` gives way to the real element
 // schema, which is the same shape entity-extractor.ts validates by hand today.
@@ -262,10 +263,10 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 if (flag('capabilities')) {
   // The exact call `AnthropicInferenceClient.discoverLimits()` already makes, printing the
-  // one extra field STRUCTURED-INFERENCE.md D3 wants to build its gate on. Measured
+  // one extra field the structured-output capability gate is built on. Measured
   // 2026-08-06: claude-sonnet-4-5-20250929 ENFORCES strict tool use (the --probe 2x2), yet
   // is absent from the documented supported-model list. If `structured_outputs.supported`
-  // reports false here, D3's gate would refuse a model that demonstrably works, and D3 needs
+  // reports false here, that gate would refuse a model that demonstrably works, and it needs
   // a different mechanism than this field.
   const info = await client.models.retrieve(MODEL).catch((err) => {
     console.error(`!! models.retrieve('${MODEL}') failed: ${err?.message}`);
@@ -305,7 +306,7 @@ try {
 } catch (err) {
   // A 4xx here is a RESULT, not a crash — under `--strict` it is how a model
   // that cannot honour the guarantee announces itself, which is exactly the
-  // loud failure Phase 3 wants in place of a silent []. Print enough to tell
+  // loud failure wanted in place of a silent []. Print enough to tell
   // "this model doesn't support strict" from "the request was malformed".
   console.error(`\n!! REQUEST FAILED after ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   console.error(`!! ${err?.constructor?.name}${err?.status ? ` (HTTP ${err.status})` : ''}: ${err?.message}`);
@@ -314,7 +315,7 @@ try {
     console.error(`!!`);
     console.error(`!! Ran with --strict against ${MODEL}. If this is a 400 naming the schema or`);
     console.error(`!! 'strict', that model does not support strict tool use — the expected`);
-    console.error(`!! outcome for claude-sonnet-4-5-*, and the premise Phase 4 exists to fix.`);
+    console.error(`!! outcome for claude-sonnet-4-5-*, and the premise a change of model pin exists to fix.`);
   }
   process.exit(2);
 }

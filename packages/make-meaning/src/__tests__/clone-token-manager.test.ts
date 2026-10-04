@@ -7,10 +7,10 @@
  * generator, never a guessable value.
  *
  * A clone opens in the compose editor, so the format gate is the registry's
- * `authorable` capability (MEDIA-TYPES.md Phase 5): authorable sources keep
- * their base media type; everything else falls back to text/plain. Pins the
- * fix for the stale ['text/plain', 'text/markdown'] allowlist that wrongly
- * coerced text/html clones to text/plain.
+ * `authorable` capability: authorable sources keep their base media type;
+ * everything else falls back to text/plain. Pins the fix for the stale
+ * ['text/plain', 'text/markdown'] allowlist that wrongly coerced text/html
+ * clones to text/plain.
  */
 
 import { asBusRequestPrimitive } from '../bus-request-local';
@@ -175,7 +175,7 @@ describe('CloneTokenManager format selection', () => {
         ),
       ).pipe(timeout(5000)),
     );
-    // The gateway's half of the P3 wire shape: bytes are stored (noGit)
+    // The gateway's half of the clone wire shape: bytes are stored (noGit)
     // BEFORE the command, which carries storage coordinates + the
     // SDK-derived clone format — never content.
     const kb = makeMeaning.knowledgeSystem.kb;

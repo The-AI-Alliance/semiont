@@ -2,13 +2,12 @@
 /**
  * `creator` / `generator` / `wasAttributedTo` are built in exactly one place.
  *
- * Provenance is DERIVED, never asserted (VERIFIED-PROVENANCE P2): the one
- * function `attribution()` in @semiont/core takes the requester and the
- * executor — identities the gateway stamped from tokens — and returns the
- * W3C/PROV triple. Every write path spreads its output. A second site that
- * assembles `wasAttributedTo` by hand is a second place deciding what
- * attribution means, and two places is how the human path and the worker
- * path came to disagree in the first place.
+ * Provenance is DERIVED, never asserted: the one function `attribution()` in
+ * @semiont/core takes the requester and the executor — identities the gateway
+ * stamped from tokens — and returns the W3C/PROV triple. Every write path
+ * spreads its output. A second site that assembles `wasAttributedTo` by hand
+ * is a second place deciding what attribution means, and two places is how
+ * the human path and the worker path came to disagree in the first place.
  *
  * What counts as a construction:
  *
@@ -29,13 +28,12 @@
  * pass on the function being deleted.
  *
  * The SECOND rule, same shape, different fact: a Person's `name` is assigned
- * in exactly one place too (PERSON-PROFILE P4). `didToAgent` deliberately
- * leaves a Person unnamed — the subject is an opaque identifier, and printing
- * it was how every artifact came to read "By 59523dd4-…" — and the name is
- * filled in when a record is READ, by the Browser's resolver, from the
- * knowledge base's own projection. A second place that names a Person is a
- * second answer to "what is this person called", and the one that wins would
- * be whichever ran last.
+ * in exactly one place too. `didToAgent` deliberately leaves a Person unnamed
+ * — the subject is an opaque identifier, and printing it was how every
+ * artifact came to read "By 59523dd4-…" — and the name is filled in when a
+ * record is READ, by the Browser's resolver, from the knowledge base's own
+ * projection. A second place that names a Person is a second answer to "what
+ * is this person called", and the one that wins would be whichever ran last.
  */
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative } from 'path';

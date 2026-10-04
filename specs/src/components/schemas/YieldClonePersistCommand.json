@@ -11,7 +11,7 @@
     },
     "storageUri": {
       "type": "string",
-      "description": "The caller's instruction for WHERE the bytes are — the uploader wrote them before emitting this. The stored location lives on the clone's primary Representation (STORAGE-URI-ONE-HOME)."
+      "description": "The caller's instruction for WHERE the bytes are — the uploader wrote them before emitting this. The stored location lives on the clone's primary Representation, the one home of a storage URI."
     },
     "contentChecksum": {
       "type": "string"
@@ -38,7 +38,7 @@
     },
     "noGit": {
       "type": "boolean",
-      "description": "The bytes were already written by the uploader; the Stower's register does the one `git add` on apply (GATEWAY.md D4b)."
+      "description": "The bytes were already written by the uploader; the Stower's register does the one `git add` on apply, so git has a single writer."
     }
   },
   "required": [

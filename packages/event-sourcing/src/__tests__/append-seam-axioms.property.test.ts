@@ -23,7 +23,7 @@
  * | **V1** | **Materialize-before-publish.** At the instant an appended event is delivered on a bus channel, the view for its resource already reflects it — `lastSequence >= sequenceNumber`, and for `mark:added` the annotation is already in `view.annotations`. |
  * | **V2** | **Post-append read-your-writes.** Once `appendEvent` resolves, a fresh read through `ViewStorage` — the interface the Browser's annotations path uses — reflects the event. |
  *
- * **Teeth before trust** (LIVENESS-AXIOMS D3): the properties run first
+ * **Teeth before trust**: the properties run first
  * against `PublishFirstEventStore`, a reconstructed double doing the
  * plausible latency refactor (publish early, let the view catch up), and
  * must FAIL. A property that has never been seen to fail is not evidence.

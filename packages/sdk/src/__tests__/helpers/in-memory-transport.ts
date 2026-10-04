@@ -9,8 +9,8 @@
  * removing it from ONE of them surfaced a bare `string` where the contract
  * wants the branded `BaseUrl`, an `emit` returning `Promise<void>` where the
  * contract returns the SUBSCRIBER COUNT, and `Observable<unknown>` where the
- * contract is `Observable<EventMap[K]>` — the per-channel typing
- * WORKER-BUS-TYPED-BY-CHANNEL exists to establish.
+ * contract is `Observable<EventMap[K]>` — the per-channel typing that
+ * derives a payload's type from its channel name.
  *
  * The cost of that came due on 2026-09-16: `isSubscribed` became a required
  * member, all 25 doubles still compiled, and 139 tests here failed at RUNTIME

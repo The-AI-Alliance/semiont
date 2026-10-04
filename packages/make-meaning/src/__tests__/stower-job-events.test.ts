@@ -26,11 +26,11 @@ const USER = 'did:web:test:users:test';
  * The write seam these handlers use, typed as `StowerStores` rather than cast.
  *
  * It was `as never`, and that cast cost three green tests: when `mark:commit`
- * grew its at-least-once guard (COMMIT-ACK-FALSE-FAILURE F3) and the seam grew
- * `viewStorage`, `tsc` had nothing to check and the stub went on satisfying a
- * shape that no longer existed — the failure surfaced only at runtime, as
- * "Cannot read properties of undefined". Typed, the next widening fails the
- * BUILD here, naming the missing member.
+ * grew its at-least-once guard and the seam grew `viewStorage`, `tsc` had
+ * nothing to check and the stub went on satisfying a shape that no longer
+ * existed — the failure surfaced only at runtime, as "Cannot read properties
+ * of undefined". Typed, the next widening fails the BUILD here, naming the
+ * missing member.
  */
 function stubStores() {
   const appendEvent = vi.fn().mockResolvedValue(undefined);
@@ -192,7 +192,7 @@ describe('Stower job:* handlers', () => {
     expect(appendEvent).not.toHaveBeenCalled();
   });
 
-  // ── mark:commit — the durability acknowledgement (JOB-RESTART-SAFETY P6) ───
+  // ── mark:commit — the durability acknowledgement ───────────────────────────
   //
   // The whole point of this channel is the REPLY. `mark:create` resolves when
   // the bus accepts it, which says nothing about the event log; a worker that
@@ -201,7 +201,7 @@ describe('Stower job:* handlers', () => {
   // unit's completion on.
   describe('mark:commit', () => {
     // No `creator`: it is derived by the Stower from the emitter and the cited
-    // job, and a payload carrying one is refused (VERIFIED-PROVENANCE P2).
+    // job, and a payload carrying one is refused.
     const ann = (id: string) => ({
       '@context': 'http://www.w3.org/ns/anno.jsonld',
       type: 'Annotation', id, motivation: 'linking',
@@ -245,7 +245,7 @@ describe('Stower job:* handlers', () => {
 
     it('reports failure — never partial success — when an append throws', async () => {
       // The batch is the unit. Half a unit acknowledged as done is exactly the
-      // silent-loss shape this phase exists to remove, so a failed batch is
+      // silent-loss shape this channel exists to remove, so a failed batch is
       // reported whole and the worker retries it whole.
       appendEvent.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('log unwritable'));
 

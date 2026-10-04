@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// LAUNCHER-SERVICE-MODEL P3. "codespace" used to be one of the values of
+// Platform is its own type. "codespace" used to be one of the values of
 // `Runtime`, beside container, docker and podman — so every reader of that
 // field had to know that one of the runtimes was not a runtime, and the
 // launcher refused each local-only flag by hand against that string.

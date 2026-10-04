@@ -5,11 +5,10 @@ import { signInSession } from '../fixtures/sdk-session';
 
 /**
  * Smoke test: the Frame flow's tag-schema runtime registry surface
- * end-to-end. Exercises the architecture put in place by the
- * TAG-SCHEMAS-GAP work — schemas are now per-KB runtime-registered
- * (no build-time `TAG_SCHEMAS` constant); the `mark.assist` dispatcher
- * resolves `schemaId` against the projection at job-creation time and
- * embeds the full `TagSchema` in the worker's params.
+ * end-to-end. The architecture it exercises: schemas are per-KB
+ * runtime-registered (no build-time `TAG_SCHEMAS` constant); the
+ * `mark.assist` dispatcher resolves `schemaId` against the projection at
+ * job-creation time and embeds the full `TagSchema` in the worker's params.
  *
  * Four things are exercised end-to-end:
  *
@@ -140,8 +139,8 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       // The schema must appear in browse.tagSchemas(). The cache
       // backing this method invalidates on `frame:tag-schema-added`,
       // so the await will refetch.
-      // CACHE-CONTRACT D2: cache reads are no longer awaitable — `.fresh()` is
-      // the explicit one-shot network read (rejects on failure). Awaiting the
+      // Cache reads are no longer awaitable — `.fresh()` is the explicit
+      // one-shot network read (rejects on failure). Awaiting the
       // CacheObservable itself silently yields the observable, not the value.
       const schemas = await client.browse.tagSchemas().fresh();
       const found = schemas.find((s) => s.id === E2E_TAG_SCHEMA.id);

@@ -27,12 +27,11 @@ import { resourceWithViewGrace } from './graph-read-grace';
 type AnnotationFocus = Extract<GatheredContext['focus'], { kind: 'annotation' }>;
 
 /**
- * The Matcher's capability slice (EXTRACT-LIBRARIAN P1) — Pick-derived,
- * never restated. `graph.getResource` + `views.get` are
- * `resourceWithViewGrace`'s two halves: the view fallback is a
- * filesystem-backed projection read, served to the standalone service by
- * the shared stateDir mount (D6), and to in-process callers by the same
- * `kb` object, which satisfies this slice structurally.
+ * The Matcher's capability slice — Pick-derived, never restated.
+ * `graph.getResource` + `views.get` are `resourceWithViewGrace`'s two
+ * halves: the view fallback is a filesystem-backed projection read, served
+ * to the standalone service by the shared stateDir mount, and to in-process
+ * callers by the same `kb` object, which satisfies this slice structurally.
  */
 export interface MatcherStores {
   graph: Pick<GraphDatabase, 'listResources' | 'getResource'>;
@@ -89,8 +88,8 @@ export class Matcher {
         throw new Error(`Matcher expected annotation focus, received '${context.focus.kind}'`);
       }
       const focus = context.focus;
-      // The graph's main node was built (P3) from the focal resource id; the match event
-      // carries that same id. Join on it — not on a descriptor — per the plan's P4 mapping.
+      // The graph's main node was built from the focal resource id; the match event
+      // carries that same id. Join on it — not on a descriptor.
       const mainResourceId = String(event.resourceId);
       const selectedText = focus.selected?.text ?? '';
       const userHint = focus.userHint ?? '';
@@ -154,10 +153,10 @@ export class Matcher {
 
     // 1. Multi-source candidate retrieval (parallel).
     // The set-shaped sources (name search, entity-type listing) are
-    // eventually consistent BY DESIGN (graph-read-after-write-coverage.md,
-    // mechanism (d)): there is no key to await for "all resources matching
-    // this search", and multi-source retrieval absorbs a just-created
-    // resource missing from one source for the Weaver's ~tens-of-ms lag.
+    // eventually consistent BY DESIGN: there is no key to await for "all
+    // resources matching this search", and multi-source retrieval absorbs a
+    // just-created resource missing from one source for the Weaver's
+    // ~tens-of-ms lag.
     const [nameMatches, entityTypeMatches, semanticMatches] = await Promise.all([
       this.stores.graph.listResources({ search: searchTerm, limit: 20 }).then(r => r.resources),
       annotationEntityTypes.length > 0
@@ -169,9 +168,9 @@ export class Matcher {
     ]);
 
     // 3. Graph neighborhood candidates — id-keyed hydration: graph-first
-    // with view fallback (mechanism (b′)). A just-created endpoint must not
-    // be dropped while the Weaver lags; retrying here would multiply across
-    // the candidate loop, and the view already holds the descriptor.
+    // with view fallback. A just-created endpoint must not be dropped while
+    // the Weaver lags; retrying here would multiply across the candidate
+    // loop, and the view already holds the descriptor.
     const neighborResolved = await Promise.all(
       connections.map(conn => resourceWithViewGrace(this.stores, resourceId(conn.resourceId))),
     );
@@ -205,8 +204,8 @@ export class Matcher {
     }
 
     // Semantic matches resolve to full resources — same id-keyed hydration
-    // with view fallback (mechanism (b′)): a vector hit can precede the
-    // Weaver's apply, and dropping it would silently shrink recall.
+    // with view fallback: a vector hit can precede the Weaver's apply, and
+    // dropping it would silently shrink recall.
     const semanticScores = new Map<string, number>();
     let laggedSemantic = 0;
     for (const sm of semanticMatches) {

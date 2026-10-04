@@ -1,6 +1,6 @@
 /**
- * RED (CLIENT-SUBSCRIPTION-MANIFEST P2, D2/D3): the worker declares ONE
- * manifest, and it covers every channel worker code consumes.
+ * The worker declares ONE manifest, and it covers every channel worker code
+ * consumes.
  *
  * `WORKER_CHANNELS` was the AWAITED-reply derivation only; the broadcasts a
  * worker consumes lived as `addChannels` calls scattered at their use sites —

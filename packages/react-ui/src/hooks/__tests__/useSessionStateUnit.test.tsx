@@ -9,8 +9,8 @@
  * of inside `!`-asserted factories (the auth/welcome production crash).
  *
  * Sessions here are REAL `SemiontSession`s over the scriptable transport
- * (`@semiont/sdk/testing` — no hand-rolled session mock; SDK-TESTING-DOUBLE
- * gap 5 exists for exactly this file's benefit).
+ * (`@semiont/sdk/testing` — no hand-rolled session mock; its session entry
+ * point exists for exactly this file's benefit).
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';

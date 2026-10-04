@@ -11,7 +11,7 @@
  *
  * Why this exists: twice in one week a wrong belief about the SDK shipped
  * inside green tests, because hand-rolled mocks encoded the author's model
- * of the contract instead of the contract (SDK-DEBT M1); PR #1113 then
+ * of the contract instead of the contract; PR #1113 then
  * found ~20 fixtures whose `state$` satisfied the TYPE but not the contract.
  * Tests whose subject is consumer behavior should start here; bespoke
  * fixtures are for testing the transport contract itself.
@@ -133,8 +133,8 @@ export interface TestClientOptions {
   gateway?: IGatewayOperations;
   /**
    * `busRequest` timeout for the browse caches — the deterministic-time
-   * knob (LIVENESS-AXIOMS P2a). Pass something small (e.g. 40) when a test
-   * drives B14/B15 through timeouts; irrelevant for `reject-emit` faults.
+   * knob. Pass something small (e.g. 40) when a test drives B14/B15
+   * through timeouts; irrelevant for `reject-emit` faults.
    */
   busTimeoutMs?: number;
   /** Replace the in-memory content transport (e.g. to pre-seed bytes). */

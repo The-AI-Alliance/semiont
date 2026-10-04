@@ -228,9 +228,9 @@ describe('reconcileSelector — no-overlap invariant on output', () => {
 
 describe('reconcileSelector — LLM prefix/suffix never leak into output', () => {
   it('overlapping LLM prefix is replaced with a source-extracted prefix', () => {
-    // The motivating bug from the design plan: LLM emits a prefix that
-    // overlaps the start of `exact`. Output must extract prefix from
-    // source at the corrected start, so the overlap disappears.
+    // The motivating bug: LLM emits a prefix that overlaps the start of
+    // `exact`. Output must extract prefix from source at the corrected
+    // start, so the overlap disappears.
     const exact = 'The question for decision';
     const content = `Kenison, C.J.\n${exact} by this appeal.`;
     const result = reconcileSelector(content, {
@@ -293,15 +293,16 @@ describe('reconcileSelector — charset handling', () => {
   });
 });
 
-describe('reconcileSelector — empty hint ≡ absent hint (the STRUCTURED-INFERENCE / LLM-OFFSET-HINTS bridge pin)', () => {
+describe('reconcileSelector — empty hint ≡ absent hint', () => {
   // Structured generation can deliver `prefix: ""` where the old free-text
   // path omitted the key (measured 2026-08-06: with hint properties in
   // `required`, models emit empty strings — and even as optionals a model
   // may volunteer them). The multi-occurrence logic treats a falsy hint as
   // "no hint" at both decision points (`if (llmPrefix || llmSuffix)` and
-  // `!llmPrefix || …`); this pin keeps that equivalence load-bearing for
-  // both plans. If LLM-OFFSET-HINTS step 1 rewrites the disambiguation, it
-  // inherits this contract: '' must never be treated as a real, failing hint.
+  // `!llmPrefix || …`); this pin keeps that equivalence load-bearing.
+  // Structured generation relies on it, and any rewrite of the
+  // disambiguation (a nearest-to-offset-hint choice, say) inherits this
+  // contract: '' must never be treated as a real, failing hint.
   it('multi-occurrence: empty-string hints fall back to first-of-many, exactly like absent hints', () => {
     const content = 'X foo Y foo Z foo W';
 

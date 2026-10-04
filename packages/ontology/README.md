@@ -6,15 +6,16 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/ontology.svg)](https://www.npmjs.com/package/@semiont/ontology)
 [![License](https://img.shields.io/npm/l/@semiont/ontology.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-Entity types and annotation-body extraction utilities for the Semiont annotation system.
+Entity types, and the readers of entity types and tags on an annotation.
 
 ## Overview
 
-This package owns:
-- **Entity types**: Semantic categories for tagging resources and annotations (Person, Organization, Location, etc.) — `DEFAULT_ENTITY_TYPES` plus the extraction helper `getEntityTypes`.
-- **Tag extraction helpers**: Pure body-readers (`getTagCategory`, `getTagSchemaId`) that pull schema provenance off an annotation's body. They don't depend on the schema registry.
+This package holds:
+- **Entity types**: the kinds of thing a reference can be about and a resource can be classified as (Person, Organization, Location and so on). `DEFAULT_ENTITY_TYPES` is the starting set, and `getEntityTypes` reads them from an annotation.
+- **Tag readers**: `getTagCategory` and `getTagSchemaId`, which read a tag's category and its schema's id from an annotation's body. They need no schema registry.
+- **Tag collections**: the interfaces a graph driver implements to keep the vocabulary.
 
-**Tag schemas are not stored in this package.** Schemas are runtime-registered per knowledge base via `frame.addTagSchema(...)` from the SDK; the `TagSchema` and `TagCategory` *types* are exported from `@semiont/core`. The schema *data* lives with the KB that owns it (typically a `src/tag-schemas.ts` module in the KB repo).
+**Tag schemas are not in this package.** A knowledge base registers its own with `frame.addTagSchema(...)`; the `TagSchema` and `TagCategory` types are `@semiont/core`'s, and a schema's data lives with the knowledge base that owns it.
 
 ## Installation
 
@@ -24,9 +25,9 @@ npm install @semiont/ontology
 
 ## Usage
 
-### Entity Types
+### Entity types
 
-Default entity types used throughout the system:
+The entity types a new knowledge base starts with:
 
 ```typescript
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
@@ -36,125 +37,80 @@ console.log(DEFAULT_ENTITY_TYPES);
 //  'Product', 'Technology', 'Date', 'Author']
 ```
 
-### Tag Schemas
+A knowledge base adds its own with `frame.addEntityTypes(...)` and reads the whole vocabulary with `browse.entityTypes()`.
 
-Tag schemas are runtime-registered per KB (see [`docs/builder/skills/semiont-tag/SKILL.md`](../../docs/builder/skills/semiont-tag/SKILL.md)). The `TagSchema` and `TagCategory` *types* live in `@semiont/core`; schema *data* lives with the KB that owns it. Use `frame.addTagSchema(schema)` to register and `browse.tagSchemas()` to enumerate registered schemas.
+### Tag schemas
+
+Tag schemas are registered per knowledge base, at runtime (see the [`semiont-tag` skill](../../docs/builder/skills/semiont-tag/SKILL.md)). The `TagSchema` and `TagCategory` types are `@semiont/core`'s, and a schema's data lives with the knowledge base that owns it.
 
 ```typescript
-import { SemiontSession, type TagSchema } from '@semiont/sdk';
+import type { TagSchema } from '@semiont/sdk';
 
-const session = await SemiontSession.signInDevice({ /* kb, storage, onCode */ });
-const semiont = session.client;
+const SCHEMA: TagSchema = {
+  id: 'my-schema',
+  name: 'My Schema',
+  description: 'What this schema classifies',
+  domain: 'general',
+  tags: [{ name: 'Claim', description: 'An assertion the text makes', examples: ['What is being claimed?'] }],
+};
 
-// Register a schema (idempotent — same content re-registered is silent)
-const SCHEMA: TagSchema = { id: 'my-schema', name: '...', /* ... */ };
+// Registering identical content again changes nothing.
 await semiont.frame.addTagSchema(SCHEMA);
 
-// Enumerate registered schemas
-const all = await semiont.browse.tagSchemas();
+// The schemas a knowledge base has registered
+const all = await semiont.browse.tagSchemas().fresh();
 ```
 
-### Entity Extraction
+### Reading entity types from an annotation
 
-Extract entity types from annotation bodies:
+A reference names its entity types in `TextualBody` items whose `purpose` is `tagging`. `getEntityTypes` collects their values, from a body that is a list. A body that is a single item, or absent, gives an empty list.
 
 ```typescript
 import { getEntityTypes } from '@semiont/ontology';
-import type { Annotation } from '@semiont/core';
 
-const annotation: Annotation = {
-  motivation: 'linking',
-  body: [
-    { type: 'TextualBody', purpose: 'tagging', value: 'Person' },
-    { type: 'TextualBody', purpose: 'tagging', value: 'Organization' },
-    { type: 'SpecificResource', source: 'resource://abc123' }
-  ],
-  target: 'resource://xyz789'
-};
-
-const entityTypes = getEntityTypes(annotation);
-// Returns: ['Person', 'Organization']
+const annotations = await semiont.browse.annotations(rId).fresh();
+for (const annotation of annotations) {
+  console.log(annotation.id, getEntityTypes(annotation));   // e.g. ['Person', 'Organization']
+}
 ```
 
-From [src/entity-extraction.ts](src/entity-extraction.ts): Extracts values from `TextualBody` items where `purpose === 'tagging'`.
+See [src/entity-extraction.ts](src/entity-extraction.ts).
 
-### Tag Extraction
+### Reading a tag's category and schema
 
-Extract tag categories and schema IDs from tag annotations:
+A tag has two body items: one whose `purpose` is `tagging`, holding the category, and one whose `purpose` is `classifying`, holding the schema's id. Both readers return `undefined` for an annotation that is not a tag.
 
 ```typescript
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
 
-const tagAnnotation = {
-  motivation: 'tagging',
-  body: [
-    { type: 'TextualBody', purpose: 'tagging', value: 'Issue' },
-    { type: 'TextualBody', purpose: 'classifying', value: 'legal-irac' }
-  ],
-  target: { source: 'resource://doc123', selector: { /* ... */ } }
-};
-
-const category = getTagCategory(tagAnnotation);
-// Returns: 'Issue'
-
-const schemaId = getTagSchemaId(tagAnnotation);
-// Returns: 'legal-irac'
+const annotations = await semiont.browse.annotations(rId).fresh();
+for (const annotation of annotations) {
+  const category = getTagCategory(annotation);   // e.g. 'Issue'
+  const schemaId = getTagSchemaId(annotation);   // e.g. 'legal-irac'
+  if (category) console.log(`${schemaId}: ${category}`);
+}
 ```
 
-From [src/tag-extraction.ts](src/tag-extraction.ts): Tag annotations use dual-body structure with `purpose: 'tagging'` for category and `purpose: 'classifying'` for schema ID.
+See [src/tag-extraction.ts](src/tag-extraction.ts).
 
-## Tag Collections
+## Tag collections
 
-Type definitions for graph database tag collection operations:
+The interfaces a graph driver implements to keep the entity-type vocabulary:
 
 ```typescript
 import type { TagCollection, TagCollectionOperations } from '@semiont/ontology';
-
-// TagCollection interface for stored collections
-interface TagCollection {
-  id: string;
-  collectionType: 'entity-types';
-  tags: string[];
-  created: Date;
-  updatedAt: Date;
-}
-
-// TagCollectionOperations interface for graph database implementations
-interface TagCollectionOperations {
-  getEntityTypes(): Promise<string[]>;
-  addEntityType(tag: string): Promise<void>;
-  addEntityTypes(tags: string[]): Promise<void>;
-  hasEntityTypesCollection(): Promise<boolean>;
-  initializeCollections(): Promise<void>;
-}
 ```
 
-From [src/tag-collections.ts](src/tag-collections.ts): Interfaces for managing entity type collections in graph databases.
+`TagCollection` is a stored collection (`id`, `collectionType: 'entity-types'`, `tags`, `created`, `updatedAt`). `TagCollectionOperations` is `getEntityTypes`, `addEntityType`, `addEntityTypes`, `hasEntityTypesCollection` and `initializeCollections`. See [src/tag-collections.ts](src/tag-collections.ts).
 
 ## Dependencies
 
-- `@semiont/core`: For the `Annotation` type
-
-## Package Structure
-
-```
-packages/ontology/
-├── src/
-│   ├── index.ts                # Public API exports
-│   ├── entity-types.ts         # DEFAULT_ENTITY_TYPES
-│   ├── tag-collections.ts      # TagCollection interfaces
-│   ├── entity-extraction.ts    # getEntityTypes utility
-│   └── tag-extraction.ts       # getTagCategory, getTagSchemaId
-├── package.json
-├── tsconfig.json
-├── tsup.config.ts
-└── README.md
-```
+- `@semiont/core`, for the `Annotation` type.
 
 ## Notes
 
-- **Bootstrap service**: The entity types bootstrap logic lives in `packages/make-meaning/src/bootstrap/entity-types.ts` — it needs `EventBus`/`EventStore`, which don't belong in this package.
-- **Annotation type guards**: Type guards like `isHighlight()`, `isReference()`, etc. live in `@semiont/core` (`src/web-annotation-utils.ts`).
+- **Seeding a knowledge base's entity types** is in `packages/make-meaning/src/bootstrap/entity-types.ts`. It needs an event bus and an event store, which do not belong in this package.
+- **The readers of the rest of an annotation** (its target, its quoted text, the resource it links to, `isHighlight()`, `isReference()` and the like) are `@semiont/core`'s, in `src/web-annotation-utils.ts`.
 
 ## License
 

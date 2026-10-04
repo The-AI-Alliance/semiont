@@ -5,11 +5,11 @@ import { openConfigureStep, runGeneration } from '../fixtures/generate';
 /**
  * The Format dropdown decides what the worker writes — and where.
  *
- * GENERATION-OUTPUT-FORMAT added `#wizard-outputFormat` to both Generate
- * flows. Specs 09 and 16 exercise the flows themselves, but always at the
- * default (`text/markdown`), so nothing in the suite proves that choosing a
- * different row changes the artifact. This file covers the two rows that were
- * added and the refusal that guards them.
+ * Both Generate flows have a `#wizard-outputFormat` select. Specs 09 and 16
+ * exercise the flows themselves, but always at the default (`text/markdown`),
+ * so nothing in the suite proves that choosing a different row changes the
+ * artifact. This file covers the two rows that were added and the refusal
+ * that guards them.
  *
  * Three seams, none reachable from unit tests:
  *
@@ -18,7 +18,7 @@ import { openConfigureStep, runGeneration } from '../fixtures/generate';
  *      plain text still reads fine, so only the descriptor catches it.
  *   2. **application/pdf** — the worker's Typst compile-and-repair loop runs
  *      for real. This is the only place in the suite that exercises it.
- *   3. **the mismatch refusal (D7)** — a `.md` path with PDF selected must
+ *   3. **the mismatch refusal** — a `.md` path with PDF selected must
  *      disable the primary action and say why, INLINE beside Save location.
  *      Asserted on the same open modal as (1) rather than in its own test:
  *      the configure step only mounts after a gather round-trip, so a
@@ -31,7 +31,7 @@ import { openConfigureStep, runGeneration } from '../fixtures/generate';
  *
  * PDF is in the DEFAULT tier by explicit choice (user, 2026-08-24), not
  * `@slow`. A two-page compile finished well inside the generation budget
- * during the P3 live gate. If it ever starts crowding the budget, the fix is
+ * during a live-stack run. If it ever starts crowding the budget, the fix is
  * to tag it `@slow` — not to widen the timeout.
  */
 
@@ -49,12 +49,12 @@ test.describe('generate output format', () => {
     const formatSelect = modal.locator('#wizard-outputFormat');
     const generateBtn = modal.getByRole('button', { name: /generate/i }).last();
 
-    // ── D7: PDF selected, `.md` typed → refused inline, action disabled ────
+    // ── PDF selected, `.md` typed → refused inline, action disabled ────────
     // The message is i18n'd, so assert the element (`#wizard-format-mismatch`,
     // role=alert) and the aria wiring rather than its words.
     //
-    // ORDER IS LOAD-BEARING. Since P4/D11 an untouched Save location is
-    // PROPOSED from the title + format, and a proposal always matches — the
+    // ORDER IS LOAD-BEARING. An untouched Save location is PROPOSED
+    // from the title + format, and a proposal always matches — the
     // refusal is reachable only on a hand-edited path. Filling the path FIRST
     // is what makes it hand-edited; select PDF first and the proposal would
     // rewrite the extension to .pdf, no mismatch would exist, and every

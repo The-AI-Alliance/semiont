@@ -1,5 +1,5 @@
 /**
- * A bus method's types come from the channel name (WORKER-BUS-TYPED-BY-CHANNEL P1).
+ * A bus method's types come from the channel name.
  *
  * `on$<T = Record<string, unknown>>(channel: string)` let every caller name
  * its own payload type, checked against nothing — and the default made
@@ -20,7 +20,7 @@ import type { EventMap, BusRequestPrimitive } from '../index';
 /**
  * Equality, not assignability: `Observable<Record<string, unknown>>` satisfies
  * an `extends` check against several channel payloads, so the loose signature
- * this phase replaces could pass a weaker test.
+ * described above could pass a weaker test.
  */
 type Equals<A, B> =
   (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;

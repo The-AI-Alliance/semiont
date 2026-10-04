@@ -128,8 +128,9 @@ export class ResourceOperations {
   /**
    * Create a resource from a clone token via EventBus → CloneTokenManager.
    * The bytes are already stored (the gateway's upload path, `noGit` — the
-   * Archivist's register does the one `git add`, D4b); the command carries
-   * storage coordinates only (EXTRACT-ARCHIVIST P3, D4a).
+   * Archivist's register does the one `git add`, so git has a single writer);
+   * the command carries storage coordinates only, because bytes never ride
+   * the bus.
    */
   static async createFromCloneToken(
     input: {

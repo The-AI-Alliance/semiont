@@ -1,7 +1,7 @@
 package verbs
 
 // boundary_test.go — the census gate on this package's reach into the
-// launcher (LAUNCHER-PACKAGE-BOUNDARIES P1).
+// launcher.
 //
 // The compiler already enforces the direction that matters most: `launcher`
 // imports nothing from here, so the launch flow can never come to depend on a

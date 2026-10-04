@@ -2,7 +2,7 @@
  * Acceptance for `@semiont/sdk/testing`.
  *
  * The acceptance spec is a deliberate replay of the week's first green-test
- * lie (SDK-DEBT M1): consumers testing against hand-rolled mocks shipped a
+ * lie: consumers testing against hand-rolled mocks shipped a
  * two-state model of a three-outcome contract. Here the same scenario runs
  * on the REAL cache and REAL busRequest over the scriptable transport —
  * no hand-rolled mock anywhere in this file. The cache's own breadcrumbs
@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe('createTestClient', () => {
-  it('L1 acceptance: entityTypes() through B14 exhaustion surfaces the B15 terminal error on the real cache', async () => {
+  it('acceptance: entityTypes() through B14 exhaustion surfaces the B15 terminal error on the real cache', async () => {
     // Every reply dropped; the small busTimeoutMs (threaded client → browse)
     // keeps B14's chain in test time. First fetch times out → [cache RETRY]
     // → retry times out → [cache IDLE] + B15 errors the observers.
@@ -45,7 +45,7 @@ describe('createTestClient', () => {
       { timeout: 2_000 },
     );
 
-    // Three-outcome contract, third outcome: failed is an EMISSION (D1) —
+    // Three-outcome contract, third outcome: failed is an EMISSION —
     // typed, in-stream, and the subscription stays alive.
     expect(states.some((s) => s.status === 'ready')).toBe(false);
     expect(

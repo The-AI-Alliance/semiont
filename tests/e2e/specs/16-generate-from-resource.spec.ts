@@ -2,13 +2,13 @@ import { test, expect } from '../fixtures/auth';
 import { expectGeneratedAt } from '../fixtures/generated';
 
 /**
- * Smoke test — GENERATE-FROM-BUTTON.md Phase 5 (the REQUIRED e2e coverage):
- * the resource-generate flow this plan adds, end-to-end through the real bus.
+ * Smoke test: the required end-to-end coverage of the resource-generate flow
+ * (the Generate button on the Resource Info panel), through the real bus.
  *
  * Flow (ResourceViewerPage → ResourceInfoPanel → ResourceGenerateModal):
  *   Resource Info panel → **Generate** button (above Clone)
- *     → modal opens as one composite stack (GATHER-AT-THE-TOP #1211)
- *     → [P4] exclude an entity type from recall
+ *     → modal opens as one composite stack (#1211)
+ *     → exclude an entity type from recall
  *     → Gather → real `gather:resource-requested`→`-complete` round-trip
  *     → evidence unfolds below; generation params mount under it
  *     → Generate → `yield.fromContext` (resource focus) runs the `generation` job → new derived resource.
@@ -24,7 +24,7 @@ import { expectGeneratedAt } from '../fixtures/generated';
  * (i18n-independent). The few accessible-name selectors use the `ResourceGenerate`
  * / `ResourceInfoPanel` en.json labels — now only **Generate** and **Gather**.
  *
- * Requires: the seeded KB has the default entity types (for the P4 exclusion).
+ * Requires: the seeded KB has the default entity types (for the entity-type exclusion).
  */
 test.describe('generate from resource', () => {
   test('Generate button → gather round-trips → generation yields a derived resource', async ({ signedInPage: page, bus }) => {
@@ -62,7 +62,7 @@ test.describe('generate from resource', () => {
     await expect(modal).toBeVisible({ timeout: 10_000 });
     await expect(modal.locator('.semiont-wizard__step-scroll')).toBeVisible();
 
-    // ── [P4] Exclude an entity type from recall (threaded as excludeEntityTypes) ──
+    // ── Exclude an entity type from recall (threaded as excludeEntityTypes) ──
     // Inverted UI: every type is IN recall until crossed off, so clicking
     // EXCLUDES it — data-included flips true → false.
     const recallChips = modal.locator('.semiont-form__recall-chip');
@@ -96,7 +96,7 @@ test.describe('generate from resource', () => {
     if (!receiptBox || !paramsBox) throw new Error('receipt/params has no bounding box');
     expect(receiptBox.y, 'gather receipt sits above the generation params').toBeLessThan(paramsBox.y);
 
-    // No Back in a single stack (D6).
+    // No Back in a single stack.
     await expect(modal.getByRole('button', { name: /^back$/i })).toHaveCount(0);
 
     // ConfigureGenerationStep is an HTML `<form>` with two `required` fields —
@@ -128,10 +128,10 @@ test.describe('generate from resource', () => {
     ]);
     expect(outcome.kind, 'generation produced job:complete (a new derived resource), not job:fail').toBe('complete');
 
-    // ── D6: the artifact landed where the form said ────────────────────────
-    // `job:complete` only proves the worker finished. Until GENERATION-OUTPUT-
-    // FORMAT P0, the worker read the title and DISCARDED storageUri — a
-    // regression this test would have passed straight through.
+    // ── The artifact landed where the form said ────────────────────────────
+    // `job:complete` only proves the worker finished. The worker once read the
+    // title and DISCARDED storageUri — a regression this test would have
+    // passed straight through.
     await expectGeneratedAt(title, storagePath, 'text/markdown');
   });
 });

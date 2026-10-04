@@ -4,9 +4,10 @@
  * TypeScript loader (`resolveEnvVars`) and the Go launcher (`resolveRefs`),
  * both bound to specs/src/config-placeholders/cases.json. A third reader is how
  * the rule forks: `evaluateEnvPlaceholders` ran a second pass over values the
- * loader had already resolved, and threw on a password containing `${…}`
- * (SECRET-DELIVERY F4). It had itself been hoisted from a private copy, so a
- * reader outside the table had appeared twice.
+ * loader had already resolved, and threw on a password containing `${…}`,
+ * which after the one resolution pass is simply the value. It had itself been
+ * hoisted from a private copy, so a reader outside the table had appeared
+ * twice.
  *
  * This census finds every place source code spells the syntax — a regex
  * escape `\$\{`, a class `[$]`, or the literal string `"${"` — and fails on any

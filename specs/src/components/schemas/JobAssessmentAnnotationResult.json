@@ -7,7 +7,7 @@
       "enum": [
         "assessment-annotation"
       ],
-      "description": "Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1)."
+      "description": "Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is."
     },
     "assessmentsFound": {
       "type": "integer"

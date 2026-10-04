@@ -62,7 +62,8 @@ const DEFAULT_MAX_WAIT_MS = 2_000;
  * git's index is single-writer, and this module serializes per INSTANCE. Two
  * instances on one repo — the content store and the event log each built their
  * own — each believed it was the only writer and raced the other into
- * `index.lock`, killing the Archivist (ARCHIVIST-GIT-STAGER-CRASH).
+ * `index.lock`, and the lost race killed the Archivist as an unhandled
+ * rejection.
  *
  * The FIRST caller's options win. A later caller cannot silently re-tune a
  * shared stager's debounce out from under the first.

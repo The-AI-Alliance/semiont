@@ -1,6 +1,6 @@
 #!/bin/sh
 # supervise.sh — the in-container supervisor for every long-running Semiont
-# service (ARCHIVIST-STAYS-UP P1, generalized by GATEWAY-SUPERVISION F1).
+# service (first the Archivist's, now shared by every service image).
 #
 # Exists because no runtime mechanism can: Apple container has no --restart
 # flag, and plain docker cannot restart-on-unhealthy. One loop gives all
@@ -10,8 +10,8 @@
 #
 # ONE COPY, parameterized by environment — a second copy would be two places
 # deciding one policy. Invoked by boot.sh with the image CMD as arguments —
-# the command to supervise arrives as "$@", stated once, in CMD
-# (ORCHESTRATOR-NATIVE-IMAGES D4). Required environment:
+# the command to supervise arrives as "$@", stated once, in CMD, so there is
+# no entry-path variable. Required environment:
 #
 #   SUPERVISE_NAME    service name, used in every event line and the state dir
 #   SUPERVISE_PROBE   health URL polled once armed

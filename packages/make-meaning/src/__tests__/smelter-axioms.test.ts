@@ -8,12 +8,13 @@
  * the behavior correct, `it.fails` errors ("expected to fail but passed") and
  * MUST be promoted to `it(...)` in the same diff.
  *
- * Current ledger: all GREEN. (S9b flipped by R2; S1 and S2 flipped by R3 —
- * reconcile became a planner whose work items flow through the mailbox;
- * S12 flipped by R5 — checksum-stamped vectors + staleness diff; S13 flipped
- * by R6 — payload-only tag restamps, live and via the reconcile tag diff;
- * S15 landed green with PERSIST-ANCHORS P0 — the third drift class re-derives
- * lost anchored-text artifacts, zero embedding calls.)
+ * Current ledger: all GREEN. (S9b flipped when reconcile accounting was
+ * separated from `eventsProcessed`; S1 and S2 flipped when reconcile became
+ * a planner whose work items flow through the mailbox; S12 flipped with
+ * checksum-stamped vectors + the staleness diff; S13 flipped with
+ * payload-only tag restamps, live and via the reconcile tag diff; S15 landed
+ * green with reconcile's third drift class, which re-derives lost
+ * anchored-text artifacts with zero embedding calls.)
  */
 
 import { describe, it, expect } from 'vitest';
@@ -78,7 +79,7 @@ async function pump(s: fc.Scheduler, done: () => boolean, maxMs = 4000): Promise
   throw new Error('pump: did not settle');
 }
 
-// ── Generators (see SMELTER-AXIOMS.md "Vocabulary") ─────────────────────────
+// ── Generators (the sorts the axioms range over) ────────────────────────────
 
 const ridArb = fc.nat(9999).map((n) => `res-${n}`);
 const textArb = fc.string({ minLength: 1, maxLength: 60 }).filter((s) => s.trim().length > 0);
@@ -87,13 +88,13 @@ const textArb = fc.string({ minLength: 1, maxLength: 60 }).filter((s) => s.trim(
 // "PDFs" carry text bytes — class-G corrupt, declined at extraction — so
 // application/pdf entries never embed here even though the strategy is
 // eligible (P0b): eligibility is an extractor existing, not extraction
-// succeeding (SMELTER-MEDIA-TYPES Phase 1).
+// succeeding.
 const embeds = (mediaType: string) => textSourceOf(mediaType) === 'decode';
 
 /** Eligibility: the type has SOME way to read text (P0b). Wider than `embeds` —
  *  a PDF is eligible and still declines on garbage bytes.
  *
- *  Asked of core since READ-VS-EXTRACT P2. It used to be
+ *  Asked of core, which owns the text-source strategy. It used to be
  *  `EXTRACTORS[strategy] !== null`, which was true but was a second statement of
  *  `strategy !== 'none'`, answered by resolving an implementation to learn a fact
  *  about a media type. */
@@ -172,7 +173,7 @@ const catalogWithSeqArb: fc.Arbitrary<[CatalogEntry[], SmelterEvent[]]> = catalo
   .filter((c) => c.length > 0)
   .chain((catalog) => fc.tuple(fc.constant(catalog), fc.array(eventArbFor(catalog), { maxLength: 12 })));
 
-// ── Reference model (see SMELTER-AXIOMS.md: model(σ)) ───────────────────────
+// ── Reference model: model(σ), the fold the store must equal ────────────────
 
 interface ModelIds {
   resources: string[];
@@ -407,10 +408,10 @@ describe('P0 — pure laws', () => {
 
   // P0b (FOPL): ∀ m ∈ M: eligible(m) ⇔ extraction(m) ≠ 'none',
   // with ∀ s: extraction("text/" ⧺ s) = decode — the registry gate never
-  // narrows the old text/* prefix gate (MEDIA-TYPES.md decision 7), and at
-  // Phase 1 (SMELTER-MEDIA-TYPES #744) the pdf tier joins ELIGIBILITY: an
-  // extractor exists. Eligibility is not success — a scanned/corrupt PDF is
-  // eligible and still declines at extraction (never mojibake).
+  // narrows the old text/* prefix gate (an unregistered text/* type falls
+  // back to decode), and the pdf tier joins ELIGIBILITY: an extractor
+  // exists. Eligibility is not success — a scanned/corrupt PDF is eligible
+  // and still declines at extraction (never mojibake).
   it('P0b: eligibility is exactly "an extractor exists for the strategy"', () => {
     fc.assert(
       fc.property(fc.string({ maxLength: 20 }).map((s) => `text/${s}`), (mt) => {
@@ -423,7 +424,7 @@ describe('P0 — pure laws', () => {
     expect(eligible('text/x-foo')).toBe(true);              // registry-miss text/* (RFC 2046 fallback)
     expect(eligible('application/zip')).toBe(false);        // binary stays out — no extractor
     expect(eligible('application/octet-stream')).toBe(false);
-    expect(eligible('application/pdf')).toBe(true);         // Phase 1: the pdf-text-layer slot is filled
+    expect(eligible('application/pdf')).toBe(true);         // the pdf-text-layer slot is filled
     expect(textSourceOf('application/pdf')).toBe('pdf-text-layer');
   });
 });
@@ -477,8 +478,9 @@ describe('Smelter axioms', () => {
           // The content moves on and a live update arrives.
           h.setText(rid, v2);
           h.events$.next(yieldUpdated(rid));
-          // Soft wait: pre-R3 both reads are pending simultaneously; post-R3
-          // the lane serializes them and the count never reaches 2.
+          // Soft wait: were reconcile to mutate beside the pipeline lane, both
+          // reads would be pending simultaneously; the lane serializes them
+          // and the count never reaches 2.
           await waitUntil(() => s.count() >= 2, 200);
           if (s.count() > 0) await s.waitAll(); // fc resolves pending reads in generated order
           await pump(s, () => recSettled);
@@ -526,8 +528,8 @@ describe('Smelter axioms', () => {
 
   // S6 (FOPL): ∀ executions (live or reconcile), ∀ r: vec(final, r) ≠ ∅ →
   //   extraction(media(r)) yielded text — vectors exist only where an
-  //   extractor exists AND succeeded (Phase 1 widened the gate to the
-  //   registry; the harness's pdf entries are eligible but decline).
+  //   extractor exists AND succeeded (the gate is the registry's; the
+  //   harness's pdf entries are eligible but decline).
   it('S6: only resources whose extractor yields text ever have vectors, on every path', async () => {
     await fc.assert(
       fc.asyncProperty(catalogArb.filter((c) => c.length > 0), async (catalog) => {
@@ -554,8 +556,8 @@ describe('Smelter axioms', () => {
     );
   }, 30_000);
 
-  // Phase 3b acceptance (MEDIA-TYPES.md): the widened gate, end to end —
-  // structured text embeds, binary does not, registry-miss text/* embeds.
+  // The registry-read gate, end to end — structured text embeds, binary
+  // does not, registry-miss text/* embeds.
   it('gate: application/json embeds, application/zip does not, registry-miss text/x-foo embeds', async () => {
     const catalog: CatalogEntry[] = [
       { rid: 'r-json', mediaType: 'application/json', text: '{"makes":"meaning"}', annotations: [] },
@@ -814,8 +816,8 @@ describe('Smelter axioms', () => {
   //   ∃! latest settled(r, checksum(r,K), outcome) ∧
   //   outcome = indexed ⇔ extraction(media(r)) yields non-empty text, else skipped;
   //   ∀ unreachable r (transient read failure): ∄ settled(r, ·) — an error
-  //   is not a decision (SMELTER-INDEX-SYNC A2). The projection always
-  //   states its decision; absence means only "not yet" or "failed".
+  //   is not a decision. The projection always states its decision; absence
+  //   means only "not yet" or "failed".
   it('S14: every decision is announced — settled(indexed|skipped) per (rid, checksum); never on failures', async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -855,12 +857,12 @@ describe('Smelter axioms', () => {
   //   artifact(r) exists
   // — and the re-anchor path never invokes the embedding provider (re-anchor
   // ≠ re-embed; extraction is its only cost). S12 closed content staleness,
-  // S13 its metadata sibling; S15 closes the DERIVED-ARTIFACT sibling
-  // (PERSIST-ANCHORS problem 1): the artifact store is transient while the
-  // vector stamps persist, so after a restart the checksum diff sees nothing
-  // to do and a lost map stayed lost, permanently.
+  // S13 its metadata sibling; S15 closes the DERIVED-ARTIFACT sibling: the
+  // artifact store is transient while the vector stamps persist, so after a
+  // restart the checksum diff sees nothing to do and a lost map stayed lost,
+  // permanently.
   it('S15: reconcile re-derives lost anchored-text artifacts without re-embedding', async () => {
-    // Artifacts are checksum-keyed (P1b), and content addressing dedupes:
+    // Artifacts are checksum-keyed, and content addressing dedupes:
     // identical bytes under two resources are ONE artifact. Per-resource loss
     // patterns therefore need per-resource distinct bytes — four one-line
     // PDFs, built once, reused across runs.

@@ -531,7 +531,7 @@ describe('AnnotationContext', () => {
       (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
-      // Siblings now come from the graph projection (getResourceAnnotations), not the view (Q1=A / (c)).
+      // Siblings now come from the graph projection (getResourceAnnotations), not the view.
       (mockGraphDb.getResourceAnnotations as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
         {
           '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -697,7 +697,7 @@ describe('AnnotationContext', () => {
     });
   });
 
-  // ── The resource-id content re-key (EXTRACT-LIBRARIAN P2 / D-CONTENT b) ────
+  // ── The resource-id content re-key ─────────────────────────────────────────
   //
   // The fetch moved from `content.retrieve(storageUri)` to
   // `content.getBinary(resourceId)`, so the Librarian can serve it over HTTP

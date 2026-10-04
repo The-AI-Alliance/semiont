@@ -6,16 +6,16 @@ import (
 	"testing"
 )
 
-// LAUNCHER-SERVICE-MODEL P1. Six enumerations used to restate the same facts
-// in a mixed vocabulary — `roles` keyed by role and valued by technology,
-// two sweep lists spelling container names out by hand, a status roster, a
-// usage string, and the realm's client list. They are now predicates over
-// ONE descriptor set, keyed by (role, driver).
+// Six enumerations used to restate the same facts in a mixed vocabulary —
+// `roles` keyed by role and valued by technology, two sweep lists spelling
+// container names out by hand, a status roster, a usage string, and the
+// realm's client list. They are now predicates over ONE descriptor set,
+// keyed by (role, driver).
 //
-// The literals below are the pre-P1 lists, frozen. They are not a second
-// home for the facts: they are the evidence that the derivation reproduces
-// what shipped, name for name and position for position. Delete a literal
-// only together with the behaviour it pins.
+// The literals below are the hand-written lists, frozen. They are not a
+// second home for the facts: they are the evidence that the derivation
+// reproduces what shipped, name for name and position for position. Delete
+// a literal only together with the behaviour it pins.
 
 // The deliberate difference between the two sweeps, asserted as a PREDICATE
 // rather than left to a reader diffing two lists: the stop sweep is the
@@ -48,7 +48,7 @@ func TestStopSweepIsPreflightPlusOllama(t *testing.T) {
 // semiont-keycloak reached the preflight and never reached stop.
 func TestBothSweepsCoverEveryContainerDescriptor(t *testing.T) {
 	noPreflight := map[string]string{
-		"browser":   "not a stack member — the preflight must not sweep a viewer kept open across stacks (BROWSER-LIFECYCLE)",
+		"browser":   "not a stack member — the preflight must not sweep a viewer kept open across stacks",
 		"inference": "handled in the Ollama section, where a host instance may make the container unnecessary",
 	}
 	noStop := map[string]string{
@@ -76,8 +76,8 @@ func TestBothSweepsCoverEveryContainerDescriptor(t *testing.T) {
 }
 
 // The `--service` vocabulary, derived from the start walk: a reader meets
-// the roles in the order they come up. P2 moved it off the old reading order
-// — one list of roles now, not two.
+// the roles in the order they come up. Declaring the start order moved it
+// off the old reading order — one list of roles now, not two.
 func TestRoleListDerivesTheStartWalk(t *testing.T) {
 	want := "traces, metrics, collector, database, messaging, identity, gateway, graph, vectors, inference, embedding, archivist, librarian, dispatcher, worker, smelter, weaver, or browser"
 	if roleList != want {
@@ -118,9 +118,10 @@ func TestServiceClientsDeriveTodaysAccountList(t *testing.T) {
 		[]string{"archivist", "dispatcher", "gateway", "librarian", "smelter", "weaver", "worker"})
 }
 
-// The cut P1 is FOR: a row asserting a container for a role is now a row
-// about a (role, driver) pair, so the identity role cannot claim Keycloak's
-// container while the config selects an external issuer.
+// What keeping role and driver apart is FOR: a row asserting a container
+// for a role is now a row about a (role, driver) pair, so the identity role
+// cannot claim Keycloak's container while the config selects an external
+// issuer.
 func TestExternalDriversCarryNoContainer(t *testing.T) {
 	for _, pair := range [][2]string{{"identity", "oidc"}, {"inference", "anthropic"}, {"embedding", "voyage"}, {"embedding", "ollama"}} {
 		d, ok := lookupDescriptor(pair[0], pair[1])

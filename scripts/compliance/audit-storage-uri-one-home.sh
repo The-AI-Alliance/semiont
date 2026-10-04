@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Audit: storageUri has ONE home — Representation, never ResourceDescriptor
-# (STORAGE-URI-ONE-HOME P1).
+# Audit: storageUri has ONE home — Representation, never ResourceDescriptor.
 #
 # Why the compiler cannot be this census: the generated raw ResourceDescriptor
 # ends in `& {[key: string]: unknown}` (additionalProperties: true), so a
@@ -16,23 +15,23 @@ set -euo pipefail
 # makes every other regression read undefined.
 # Check 2 (heuristic): no descriptor-shaped receiver dereferences .storageUri.
 # Check 3 (heuristic): no descriptor LITERAL assigns storageUri as a sibling of
-# `representations:`. Checks 1-2 caught reads and the schema, but the P2 live
-# gate found a third shape they both miss — weaver.ts BUILDING a descriptor
+# `representations:`. Checks 1-2 caught reads and the schema, but a live-stack
+# run found a third shape they both miss — weaver.ts BUILDING a descriptor
 # with the URI at the top level. It typechecked, and rebuilt the whole graph
 # projection with 57 nulls.
-# The receiver names cover every shape the P1 sweep found; a novel alias can
-# evade grep, but with check 1 holding it reads undefined and its own tests
-# catch it.
+# The receiver names cover every shape the rehoming sweep found; a novel alias
+# can evade grep, but with check 1 holding it reads undefined and its own
+# tests catch it.
 #
 # Descriptor-holding code reads the URI via getStorageUri() (@semiont/core),
 # which reads the primary representation.
 #
 # Scope: all TS/TSX source in packages/, apps/ AND tests/ — the e2e tree was
-# outside the original scope, and P1's rehome left three live descriptor reads
-# there (the D6 assertion in fixtures/generated.ts, spec 27's source lookup, and
-# seed.ts's already-present dedup) that typecheck could not see and this gate
-# could not reach. Unit fixtures included too (fixtures
-# pinning the dead shape were exactly where P1 found stragglers).
+# outside the original scope, and the rehome left three live descriptor reads
+# there (the Save-location assertion in fixtures/generated.ts, spec 27's
+# source lookup, and seed.ts's already-present dedup) that typecheck could not
+# see and this gate could not reach. Unit fixtures included too (fixtures
+# pinning the dead shape were exactly where the rehome found stragglers).
 # Allowlist: SortableResourceTab.tsx — its `resource` is the browser's local
 # open-resource entry (client state fed via addOpenResource), not a
 # ResourceDescriptor.
@@ -44,7 +43,7 @@ cd "$REPO_ROOT"
 FAIL=0
 
 if grep -q '"storageUri"' specs/src/components/schemas/ResourceDescriptor.json; then
-  echo "❌ ONE-HOME: storageUri is back in ResourceDescriptor.json — its one home is Representation.json (STORAGE-URI-ONE-HOME D1)"
+  echo "❌ ONE-HOME: storageUri is back in ResourceDescriptor.json — its one home is Representation.json"
   FAIL=1
 fi
 
@@ -150,7 +149,7 @@ PY
 ) || true
 
 if [ -n "$CONSTRUCTIONS" ]; then
-  echo "❌ ONE-HOME: a descriptor literal assigns storageUri beside representations: — the URI belongs INSIDE the representation (STORAGE-URI-ONE-HOME D1):"
+  echo "❌ ONE-HOME: a descriptor literal assigns storageUri beside representations: — the URI belongs INSIDE the representation:"
   echo ""
   echo "$CONSTRUCTIONS"
   echo ""

@@ -30,7 +30,7 @@ export function DiscoverEmptyState() {
   const semiont = useSemiont();
   const knowledgeBases = useObservable(semiont.kbs$) ?? [];
   // Launcher discovery: with zero registered KBs, say what's running on this
-  // machine instead of only linking docs (BROWSER-KB-DISCOVERY follow-up).
+  // machine instead of only linking docs.
   const { kbs: discoveredKbs } = useKBDiscovery();
   const activeKnowledgeBase = useObservable(semiont.activeSession$)?.kb ?? null;
   const status = activeKnowledgeBase

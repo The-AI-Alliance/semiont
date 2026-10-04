@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// descriptors.go — the service descriptor set (LAUNCHER-SERVICE-MODEL D1/D2).
+// descriptors.go — the service descriptor set.
 //
 // A stack is described by two axes that used to be one. The ROLE is what the
 // stack needs — graph, database, identity, gateway — abstract, independent of
@@ -34,8 +34,8 @@ type dependency struct {
 	role string
 	// because, when set, makes the edge a REQUIREMENT: the config must
 	// declare that role's section, and derivePlan refuses naming this reason
-	// when it does not (O1 — drivers require roles, configs declare them,
-	// and the conditionality lives in plan derivation so the graph stays
+	// when it does not (drivers require roles, configs declare them, and
+	// the conditionality lives in plan derivation so the graph stays
 	// static). Empty means the edge only ORDERS the walk: the role is
 	// brought up first when the config has it, and its absence is no error.
 	because string
@@ -54,8 +54,8 @@ type dependency struct {
 //
 // Full ownership is NOT a value here: a service the launcher runs is ours
 // entirely, which mayConfigure derives from presence rather than restating
-// per row (O2 — carry the lines the code already draws, subdivide only when
-// something concrete demands it).
+// per row (authority keeps the lines the code already draws, and is
+// subdivided only when something concrete demands it).
 type authority int
 
 const (
@@ -220,22 +220,23 @@ var serviceDescriptors = []serviceDescriptor{
 
 	// NATS keeps its product port (tier 2). 512M ceiling: measured 26 MiB
 	// idle with JetStream on (2026-09-15); the headroom is for stream replay
-	// after restart. Every stack has one: [jobs] is the dispatcher's JetStream queue,
-	// and [signal] may select nats too (SIGNAL-PLANE D9): ONE daemon, ONE
+	// after restart. Every stack has one: [jobs] is the dispatcher's
+	// JetStream queue, and [signal] may select nats too: ONE daemon, ONE
 	// shape — JetStream on, with the stamped /data store — because both use
-	// that store: the job queue's stream, and the signal driver's KV tables, where
-	// the gateway's ledger keeps its claims (LEDGER-STATE-TO-THE-BROKER P0).
+	// that store: the job queue's stream, and the signal driver's KV tables,
+	// where the gateway's ledger keeps its claims.
 	{role: "messaging", driver: "jetstream", container: "semiont-nats", image: "nats:2.14.0-alpine", mem: "512M",
 		ports: []portNeed{{4222, "NATS"}}, display: "NATS", defaultPort: 4222, portLabel: "NATS",
 		cmd: []string{"-js", "-sd", "/data"}, health: healthProbe{tcp: true}},
 
-	// EXTERNAL-IDENTITY D5: the OIDC issuer the gateway trusts. "keycloak" is
-	// an upstream pin like postgres — the dev-mode server, importing the
-	// realm the launcher stages, on its own database of the [database]
-	// PostgreSQL (D6). A JVM like graph, but its image caps the heap at 70%
-	// of the container ceiling, so 1G leaves ~700M of heap — ample for one
-	// KB's realm. "oidc" is an issuer somebody else runs: the launcher
-	// verifies it and launches nothing, which is why it carries no container.
+	// The OIDC issuer the gateway trusts, stated in config and never
+	// inferred. "keycloak" is an upstream pin like postgres — the dev-mode
+	// server, importing the realm the launcher stages, on its own database
+	// of the [database] PostgreSQL. A JVM like graph, but its image caps the
+	// heap at 70% of the container ceiling, so 1G leaves ~700M of heap —
+	// ample for one KB's realm. "oidc" is an issuer somebody else runs: the
+	// launcher verifies it and launches nothing, which is why it carries no
+	// container.
 	{role: "identity", driver: "keycloak", container: "semiont-keycloak", image: "quay.io/keycloak/keycloak:26.7.4", mem: "1G",
 		ports: []portNeed{{8080, "Keycloak"}}, display: "Keycloak", defaultPort: 8080, portLabel: "Keycloak",
 		cmd:   []string{"start-dev", "--import-realm"},
@@ -299,8 +300,8 @@ var descriptorIndex = func() map[string]map[string]serviceDescriptor {
 }()
 
 // startOrder is the ONE order in the launcher: the sequence a full start
-// brings the roles up in. Teardown is this walk reversed (D4 — a stop order
-// is never written down), and both sweeps derive from that, so there is no
+// brings the roles up in. Teardown is this walk reversed — a stop order is
+// never written down — and both sweeps derive from that, so there is no
 // second or third list to drift from this one.
 //
 // It is a chosen total order, not a computed one: the `needs` edges admit
@@ -310,7 +311,7 @@ var descriptorIndex = func() map[string]map[string]serviceDescriptor {
 // to fail. TestStartOrderRespectsEveryDependency proves the choice is legal;
 // TestDryRunLaunchOrderFollowsTheDeclaredStartOrder proves the flow walks it.
 //
-// The Browser is last and belongs to no stack (BROWSER-LIFECYCLE.md): it is
+// The Browser is last and, being machine-level, belongs to no stack: it is
 // in this order only so `--service browser` and the role census can find it.
 var startOrder = []string{
 	"traces", "metrics", "collector",
@@ -372,7 +373,7 @@ func dependenciesOf(role string) []dependency {
 }
 
 // unmetRequirement: the first role this driver cannot run WITHOUT that the
-// config never declares (O1). Ordering-only edges are not requirements —
+// config never declares. Ordering-only edges are not requirements —
 // their absence is a stack without that role, not a broken config.
 func unmetRequirement(declared func(role string) bool, role, driver string) (dependency, bool) {
 	for _, dep := range descriptorFor(role, driver).needs {
@@ -599,9 +600,9 @@ func probeDriver(role string) string {
 // stackServices: Semiont's own services, in start order, minus the Browser.
 //
 // ONE list for three jobs that coincide on it, and coincide for one reason —
-// the Browser is machine-level, not a stack member (BROWSER-LIFECYCLE): the
-// images a start pulls, the configs it stages and mounts, and the realm
-// accounts those services present. They were three hand-written lists, and
+// the Browser is machine-level, not a stack member: the images a start
+// pulls, the configs it stages and mounts, and the realm accounts those
+// services present. They were three hand-written lists, and
 // one of them had six entries where the others had seven, so
 // `start --service dispatcher` staged no config and passed empty hosts.
 var stackServices = func() []string {

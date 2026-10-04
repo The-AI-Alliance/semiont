@@ -11,7 +11,7 @@
  * - WeaveProgress (weave:applied fold — the graph-projection barrier; the
  *   Weaver itself runs standalone via @semiont/make-meaning/weaver-main)
  * - SmeltProgress (smelt:settled fold — the vector-projection barrier;
- *   SMELTER-INDEX-SYNC, same standalone-actor arrangement as the Weaver)
+ *   same standalone-actor arrangement as the Weaver)
  * - Vectors (semantic search) — via VectorStore (optional, read-only)
  *
  * The Smelter (event-to-vector projection) runs as an external actor
@@ -44,15 +44,15 @@ export interface KnowledgeBase {
 }
 
 /**
- * Capability slices of the record (EXTRACT-ARCHIVIST P1).
+ * Capability slices of the record.
  *
  * An Archivist actor takes the slice it actually uses, never the whole
  * KnowledgeBase. Every slice is DERIVED from the owning type with Pick;
  * a hand-restated shape here would be a mirror of a fact someone else owns.
  */
 
-/** The lifecycle half of the working tree (GATEWAY.md D4a): the Archivist
- *  accessions, moves, removes and resolves — it never serves bytes. */
+/** The lifecycle half of the working tree: this seam accessions, moves,
+ *  removes and resolves — bytes travel over HTTP, never through it. */
 export type ContentLifecycle = Pick<WorkingTreeStore, 'register' | 'move' | 'remove' | 'resolveUri'>;
 
 /**
@@ -61,20 +61,20 @@ export type ContentLifecycle = Pick<WorkingTreeStore, 'register' | 'move' | 'rem
  * construction. A second caller is a design smell, not a wiring chore.
  *
  * It carries a read — `viewStorage.get`, narrowed to `get` — because one write
- * path is at-least-once and must not duplicate the log
- * (COMMIT-ACK-FALSE-FAILURE F3): `mark:commit` diffs its batch against what the
- * resource already holds. This does NOT reverse JOB-RESTART-SAFETY HD1, which
- * rejected read-before-write for a WORKER reading a REMOTE store mid-recovery
- * — "the thing it would read is exactly what is down". This read is inside the
- * Archivist, against the store it is about to write, and cannot be down
- * relative to itself.
+ * path is at-least-once and must not duplicate the log: `mark:commit` diffs
+ * its batch against what the resource already holds and appends only what is
+ * missing. This does NOT reverse the choice of content-addressed annotation
+ * ids over read-before-write, which rejected the read for a WORKER reading a
+ * REMOTE store mid-recovery — "the thing it would read is exactly what is
+ * down". This read is inside the Archivist, against the store it is about to
+ * write, and cannot be down relative to itself.
  */
 export type EventAppends = Pick<EventStore, 'appendEvent'> & {
   readonly viewStorage: Pick<ViewStorage, 'get'>;
   /**
    * The raw log, for the one read a write needs before it appends: a cited
    * job's `job:assigned` on this resource, to check the holder and derive the
-   * requester (VERIFIED-PROVENANCE P2). Scoped by resource, as the log is.
+   * requester. Scoped by resource, as the log is.
    */
   readonly log: Pick<EventLog, 'getEvents'>;
 };
@@ -89,8 +89,9 @@ export interface EventStoreReads {
 /**
  * In-process `ContentReads`: the BUFFERING face of `resolveRepresentation` —
  * the same stored bytes the HTTP face serves verbatim, collected because the
- * transport contract hands back an ArrayBuffer. The resolution itself lives
- * in `representation.ts` and is not restated here (SINGLE-KB-MOUNT P3).
+ * transport contract hands back an ArrayBuffer. The resolution itself — the
+ * one every reader shares — lives in `representation.ts` and is not restated
+ * here.
  */
 export function workingTreeContentReads(
   views: Pick<ViewStorage, 'get'>,
@@ -110,9 +111,9 @@ export function workingTreeContentReads(
 }
 
 export interface CreateKnowledgeBaseOptions {
-  /** Required (MANDATORY-EMBEDDING D0): a KB without vector search is not a
-   *  configuration we support; `MemoryVectorStore` is the explicit named
-   *  choice for stores that may rebuild on restart. */
+  /** Required: a KB without vector search is not a configuration we
+   *  support; `MemoryVectorStore` is the explicit named choice for stores
+   *  that may rebuild on restart. */
   vectorStore: VectorStore;
   skipRebuild?: boolean;
 }
@@ -130,33 +131,33 @@ export async function createKnowledgeBase(
     project,
     logger.child({ component: 'working-tree-store' }),
   );
-  // Derived coordinate maps, beside the content they describe. The
-  // KnowledgeSystem owns this for the same reason it owns `content`: every
-  // other process reaches it through `IContentTransport`, so there is exactly
-  // one storage authority and no shared volume between service images
-  // (ANCHORED-TEXT-CACHE Lane 5).
+  // Derived coordinate maps, beside the content they describe. This root
+  // holds the store so its Browser can answer
+  // `browse:anchored-text-requested` from it: every reader reaches derived
+  // text over that bus read.
   const anchoredText = createAnchoredTextStore(
     project.anchoredTextDir,
     logger.child({ component: 'anchored-text-store' }),
   );
   // Fold of `weave:applied` signals. The Weaver itself is NOT constructed
-  // here (WEAVER-ISOLATION D4, refined): the graph projection is part of
-  // the graph stack, not the embedding process — `weaver-main` runs it as
-  // a standalone actor, and its signals arrive over the bus. This fold is
-  // the gateway-side half, wherever the Weaver runs.
+  // here: the graph projection is part of the graph stack, not the
+  // embedding process — `weaver-main` runs it as a standalone actor, and
+  // its signals arrive over the bus. This fold is the gateway-side half,
+  // wherever the Weaver runs.
   const weaveProgress = createWeaveProgress(eventBus);
   // Its vector-projection sibling: fold of `smelt:settled` decision signals
   // from the standalone Smelter, backing the gather-side read-your-writes
-  // barrier (SMELTER-INDEX-SYNC D1 = push).
+  // barrier — the Smelter pushes each decision and the gather awaits this
+  // fold instead of polling.
   const smeltProgress = createSmeltProgress(eventBus);
 
   if (!options?.skipRebuild) {
     // Rebuild materialized views from the event log first. The Browser actor
     // reads from these views, so they must be populated before any request is
     // served. The graph projection no longer full-rebuilds here — the Weaver
-    // catches up incrementally via its checkpoint (WEAVER-ISOLATION P3),
-    // called from startMakeMeaning once the Browser is serving the
-    // `browse:*` reads catch-up rides on.
+    // catches up incrementally via its checkpoint, called from
+    // startMakeMeaning once the Browser is serving the `browse:*` reads
+    // catch-up rides on.
     await eventStore.views.rebuildAll(eventStore.log);
   }
 

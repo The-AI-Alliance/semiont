@@ -1,7 +1,7 @@
 /**
  * OCR engine — vendoring and startup.
  *
- * OCR is core (SMELTER-MEDIA-TYPES decision 8), so the engine must run from
+ * OCR is core, not a configurable option, so the engine must run from
  * language data shipped inside the image, never fetched from a CDN at
  * runtime. These tests guard that: the data is on disk as an ordinary
  * dependency, and the worker starts from it. They exercise the real engine —

@@ -209,7 +209,7 @@
   font-size: var(--semiont-text-xs);
 }
 
-/* Editing affordances (RESOURCE-TAGS-INLINE-EDITING) */
+/* Editing affordances: a remove control on each tag, and the add picker */
 .semiont-resource-tag__remove {
   display: inline-flex;
   align-items: center;

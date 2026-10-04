@@ -2,8 +2,8 @@
  * The staging queue still reports what git costs.
  *
  * INHERITED from `event-sourcing`'s `git-telemetry.test.ts`, deleted when
- * GIT-OFF-THE-EVENT-LOOP moved staging here: that suite pinned ARCHIVIST-STAYS-UP
- * P7's guarantee — every git invocation is measured — against a per-package
+ * staging moved here, off the event loop: that suite pinned the write path's
+ * guarantee — every git invocation is measured — against a per-package
  * wrapper that no longer exists. The guarantee outlives the wrapper, so it is
  * re-asserted at the one place git now runs.
  *

@@ -3,9 +3,9 @@
  * CLI Tool: Rebuild the Graph from Events
  *
  * Emits `weave:rebuild` to the RUNNING stack's bus — the standalone Weaver
- * (WEAVER-ISOLATION D3/D4) clears and replays the graph projection from the
- * event log. Proves that events are the source of truth and the graph is a
- * projection. Requires the gateway and weaver to be running.
+ * clears and replays the graph projection from the event log. Proves that
+ * events are the source of truth and the graph is a projection. Requires the
+ * gateway and weaver to be running.
  *
  * Lives beside the record's owner (the Archivist): a checkout-run operator
  * tool, never an image binary. It is a pure network peer — bus in, bus out.

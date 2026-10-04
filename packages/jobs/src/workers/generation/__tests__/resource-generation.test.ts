@@ -1,17 +1,17 @@
 /**
  * Resource Generation — prompt-builder tests.
  *
- * The sole test home for `generateResourceFromTopic` (CONTEXT-UNIFICATION P5
- * consolidated the former make-meaning `generation/resource-generation.test.ts`
- * and the jobs `resource-generation.prompt.test.ts` into this one co-located
- * file). Calls the real builder against a `MockInferenceClient` and inspects the
- * prompt captured at the inference boundary.
+ * The sole test home for `generateResourceFromTopic` (it consolidates the
+ * former make-meaning `generation/resource-generation.test.ts` and the jobs
+ * `resource-generation.prompt.test.ts` into this one co-located file). Calls
+ * the real builder against a `MockInferenceClient` and inspects the prompt
+ * captured at the inference boundary.
  *
  * Fixtures use the unified `GatheredContext` (discriminated `focus` + shared
  * `graph`). The graph-derived prompt sections (connections, citedBy, siblings)
  * are exercised by building a `KnowledgeGraph` via `buildGraph` so the builder's
  * `deriveViews(graph, mainId, focalAnnotationId)` reproduces them — mirroring the
- * P4 matcher.test.ts pattern.
+ * matcher.test.ts pattern.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -52,7 +52,7 @@ const testSourceResource: AnnotationFocus['sourceResource'] = {
  * reproduces the flattened signals the prompt builder reads:
  * - `connections`: main→peer `related` edges (peer resource nodes), carrying `bidirectional`.
  * - `citedBy`/`citedByCount`: inbound `citation` edges. `citedByMissing` = an edge with no node
- *   (a missing-view citer — still counted, per P3/P4 (ii)=A).
+ *   (a missing-view citer — still counted: the views report the graph as it is).
  * - `siblingEntityTypes`: annotation nodes attached to the resource (focal excluded by deriveViews).
  */
 function buildGraph(opts: {
@@ -68,7 +68,7 @@ function buildGraph(opts: {
     nodes.push({ id: resourceId(c.resourceId), type: 'resource', label: c.resourceName, entityTypes: c.entityTypes });
     edges.push({ source: MAIN_ID, target: c.resourceId, type: 'related', bidirectional: c.bidirectional ?? false });
   }
-  // D12: a citation is its linking annotation — an embedded annotation node
+  // A citation is its linking annotation — an embedded annotation node
   // anchored by annotation-of → citing resource and cites → main.
   const w3c = (id: string, source: string, motivation: 'linking' | 'commenting') => ({
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -178,9 +178,9 @@ describe('generateResourceFromTopic', () => {
     expect(result.content).toContain('Quantum computing');
   });
 
-  // ── Truncation surfacing (GENERATE-FROM-RESOURCE P3a) ─────────────────────
+  // ── Truncation surfacing ──────────────────────────────────────────────────
   // The provider's stopReason collapses to one protocol-owned bit at the
-  // producer (D6): 'max_tokens' → truncated, everything else → not.
+  // producer: 'max_tokens' → truncated, everything else → not.
 
   it('derives truncated: true when the model stops on max_tokens', async () => {
     client.setResponses(['Cut off mid-'], ['max_tokens']);
@@ -422,7 +422,7 @@ describe('generateResourceFromTopic', () => {
       expect(prompt).not.toContain('cited by 1 other resources');
     });
 
-    it('should count a missing-view citer (P3 (ii)=A)', async () => {
+    it('should count a missing-view citer', async () => {
       client.setResponses(['# Test\n\nContent.']);
 
       await generateResourceFromTopic(
@@ -583,9 +583,9 @@ describe('generateResourceFromTopic', () => {
     });
   });
 
-  // ── Inline citations (INLINE-CITATIONS P1) — the cite instruction asks the
-  // model to emit [[<id>]] transport tokens next to each claim, citing only ids
-  // shown in the embedded context. Signature tail: (..., task, structure, cite).
+  // ── Inline citations — the cite instruction asks the model to emit [[<id>]]
+  // transport tokens next to each claim, citing only ids shown in the embedded
+  // context. Signature tail: (..., task, structure, cite).
 
   describe('cite instruction', () => {
     it('cite=true instructs the model to emit [[id]] citation markers', async () => {
@@ -612,9 +612,9 @@ describe('generateResourceFromTopic', () => {
     });
   });
 
-  // ── Context identifiers (CONTEXT-IDENTIFIERS P1) — every excerpt carries a
-  // stable, model-visible [<resourceId>] handle; annotation-derived semantic
-  // matches add /<annotationId>. Same bracket convention as related-content blocks.
+  // ── Context identifiers — every excerpt carries a stable, model-visible
+  // [<resourceId>] handle; annotation-derived semantic matches add
+  // /<annotationId>. Same bracket convention as related-content blocks.
 
   describe('context identifiers', () => {
     it('semantic passages carry their source resourceId', async () => {
@@ -693,7 +693,7 @@ describe('generateResourceFromTopic', () => {
     });
   });
 
-  // ── Resource focus (P5: focus.kind switch; full grounding is YIELD-FROM-RESOURCE) ─
+  // ── Resource focus (focus.kind switch; grounding in the gathered resource) ────────
 
   describe('resource focus', () => {
     it('renders the shared base and omits the annotation-only sections', async () => {
@@ -778,7 +778,7 @@ describe('generateResourceFromTopic', () => {
     });
   });
 
-  // ── task / structure — explicit output-shape control (YIELD-STRUCTURE P1) ────
+  // ── task / structure — explicit output-shape control ─────────────────────────
   // Positional signature tail: (..., sourceLanguage, outputMediaType, task, structure).
 
   describe('task framing and structure control', () => {
@@ -800,7 +800,7 @@ describe('generateResourceFromTopic', () => {
       const prompt = promptArg();
       expect(prompt).toMatch(/^Answer/);
       expect(prompt).not.toContain('informative resource about');
-      // D2: structure unset ⇒ no structure directive, no forced heading
+      // structure unset ⇒ no structure directive, no forced heading
       expect(prompt).not.toContain('# Title');
       expect(prompt).not.toContain('## Section');
     });
@@ -847,8 +847,8 @@ describe('generateResourceFromTopic', () => {
     });
 
     it('defaults (task and structure unset) keep the resource framing but impose NO structure directive', async () => {
-      // Declared behavior change (D2): today's template always forces # Title +
-      // a structure-guidance clause; unset now means neither is emitted.
+      // A deliberate behavior change: the template used to force # Title + a
+      // structure-guidance clause always; unset now means neither is emitted.
       client.setResponses(['# X\n\nbody']);
 
       await generateResourceFromTopic('Topic', [], client, LOGGER);
@@ -916,7 +916,7 @@ describe('generateResourceFromTopic', () => {
       expect(promptArg()).toMatch(/markdown/i);
     });
 
-    it('application/pdf instructs Typst markup, not markdown (PDF-GENERATION P3)', async () => {
+    it('application/pdf instructs Typst markup, not markdown', async () => {
       client.setResponses(['= X\nbody']);
 
       await generateResourceFromTopic(
@@ -930,7 +930,7 @@ describe('generateResourceFromTopic', () => {
       expect(prompt).not.toContain('Write the response as markdown');
     });
 
-    it('strips a ```typst code fence from the response (PDF-GENERATION P3)', async () => {
+    it('strips a ```typst code fence from the response', async () => {
       client.setResponses(['```typst\n= T\nbody\n```']);
 
       const result = await generateResourceFromTopic(
@@ -941,7 +941,7 @@ describe('generateResourceFromTopic', () => {
       expect(result.content).toBe('= T\nbody');
     });
 
-    it('a compile-repair context reaches the prompt with the failed source and error (PDF-GENERATION P3)', async () => {
+    it('a compile-repair context reaches the prompt with the failed source and error', async () => {
       client.setResponses(['= Fixed\nbody']);
 
       await generateResourceFromTopic(

@@ -1,5 +1,5 @@
 /**
- * B17 (LOCAL-STORAGE W2) — the SessionStorage-backed persister adapter.
+ * B17 — the SessionStorage-backed persister adapter.
  *
  * Contract under test: round-trip through a storage adapter; version
  * mismatch and parse garbage read as "nothing stored" (never throw);

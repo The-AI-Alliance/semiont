@@ -218,7 +218,7 @@ describe('BrowseNamespace', () => {
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
-    // ── SEMANTIC-FALLBACK P3a: S9/S10 ─────────────────────────────────────
+    // ── Semantic fallback — axioms S9, S10 ────────────────────────────────
     // RED was observed with `it.fails` + isObject probes (arrays excluded)
     // before `resources()` carried the envelope; flipped to typed reads when
     // the cache was widened to `ResourceList`.
@@ -248,10 +248,9 @@ describe('BrowseNamespace', () => {
 
   // ── Entity types ──────────────────────────────────────────────────────
 
-  // ── ANCHORED-TEXT-TO-SMELTER P3 ───────────────────────────────────────
-  // Both anchored-text reads are bus operations answered by the Archivist.
-  // The gateway's HTTP faces still exist (P4 deletes them) but nothing in
-  // the SDK reaches for them any more.
+  // ── Anchored text over the bus ────────────────────────────────────────
+  // The anchored-text read is a bus operation answered by the Archivist;
+  // the gateway has no anchored-text route for the SDK to reach for.
 
   it('resourceAnchoredText emits the bus operation, NOT the content transport route', async () => {
     const OUTCOME = { kind: 'extracted', text: 'hello', method: 'pdf-text-layer', items: [] };
@@ -452,12 +451,13 @@ describe('BrowseNamespace', () => {
       expect(emitSpy).toHaveBeenCalledWith('browse:resource-requested', expect.objectContaining({ resourceId: RID }), expect.objectContaining({ correlationId: expect.any(String) }));
     });
 
-    // ── CORRELATED-REPLY-ROUTING P4 ───────────────────────────────────
-    // After P3, `yield:*-ok` reaches ONLY the client that made the request,
-    // so a reply can no longer double as a cross-client invalidation signal.
-    // The persisted domain events carry that job instead — the
-    // `frame:entity-type-added` precedent. These four cases are written from
-    // the NON-requester's seat: nothing here emits a request.
+    // ── Resource events reach non-requesting clients ──────────────────
+    // The gateway writes a correlated reply only to the client that made the
+    // request, so `yield:*-ok` reaches ONLY that client and a reply cannot
+    // double as a cross-client invalidation signal. The persisted domain
+    // events carry that job instead — the `frame:entity-type-added`
+    // precedent. These four cases are written from the NON-requester's seat:
+    // nothing here emits a request.
 
     it('yield:created → a non-requesting client invalidates its list and detail', async () => {
       await firstDefined(browse.resource(RID));

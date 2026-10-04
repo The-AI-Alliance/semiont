@@ -42,12 +42,11 @@ targets a codespace stack, --runtime targets the local one.
 // order — the start walk reversed, so nothing spends teardown alive with its
 // upstream already gone.
 //
-// `browser` is the one exemption: the Browser is not a stack member
-// (BROWSER-LIFECYCLE.md), so a bare stop leaves the viewer running
-// (announced) and `stop --service browser` is its explicit off-switch. That
-// exemption, and the one name this sweep has beyond the start preflight
-// (semiont-ollama, which start handles in its own section), are gated by
-// descriptor_census_test.go.
+// `browser` is the one exemption: the Browser is not a stack member, so a
+// bare stop leaves the viewer running (announced) and `stop --service
+// browser` is its explicit off-switch. That exemption, and the one name this
+// sweep has beyond the start preflight (semiont-ollama, which start handles
+// in its own section), are gated by descriptor_census_test.go.
 var stopNames = sweepNames("browser")
 
 // Stop implements `semiont stop` — the port of the fleet's stop.sh.

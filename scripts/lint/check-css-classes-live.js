@@ -13,7 +13,7 @@
  * alongside it.
  *
  * BOTH ARE ENFORCED AGAINST A BASELINE, not against zero. The first run found
- * debt this plan did not create: 36 classes with a bare rule in two files, and
+ * debt that predates the gate: 36 classes with a bare rule in two files, and
  * ~400 styled classes with no literal render site (the utility layers, the
  * motion overrides, the panel patterns). Some of that is genuinely dead, some is
  * host-facing — `styles/base/utilities.css` exists for consuming apps — and
@@ -30,7 +30,7 @@
  * in TSX. Neither question is visible from inside a single stylesheet, which is
  * how `.semiont-panel-progress` came to be styled in two files while no
  * component had rendered it for months, and how `.semiont-progress-bar` ended
- * up defined in three (CLEAN-PROGRESS C4).
+ * up defined in three.
  *
  * WHY IT MATTERS. A duplicate definition means every change has to be made N
  * times, and whichever copy you miss silently wins or loses on import order.

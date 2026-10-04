@@ -5,22 +5,21 @@ import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
- * Smoke test — COLLABORATOR-DIRECTORY.md Phase 5 (verify): the KB's software
- * collaborator directory, `browse.agents()`, against a live stack — plus the
- * attribution loop (the directory and work-stamped `generator` DIDs describe
- * the same population).
+ * Smoke test: the KB's software collaborator directory, `browse.agents()`,
+ * against a live stack — plus the attribution loop (the directory and
+ * work-stamped `generator` DIDs describe the same population).
  *
  * Pure **SDK round-trip** (no browser), per the spec-15 pattern: the consumer
  * is chat's delegation chooser, an SDK caller.
  *
- * What P5 pins (software half only — P4 Persons is DEFERRED; extend here when
- * it lands):
+ * What it pins (software half only — Persons in the directory are DEFERRED;
+ * extend here when they land):
  *
  * 1. **Stack freshness gate.** `browse.agents()` must answer AT ALL. A stack
- *    predating P1–P3 rejects the emit with "Unknown channel:
- *    browse:agents-requested" — an environment verdict, not a feature verdict;
- *    the distinctive error below says "rebuild the stack", not "the feature is
- *    broken".
+ *    predating the `browse:agents-*` channels rejects the emit with "Unknown
+ *    channel: browse:agents-requested" — an environment verdict, not a feature
+ *    verdict; the distinctive error below says "rebuild the stack", not "the
+ *    feature is broken".
  * 2. **Roster shape.** Every entry is a Software agent with structured
  *    `provider`/`model` and a DID minted as
  *    `did:web:<host>:agents:<provider>:<model>` (URI-encoded components,
@@ -30,21 +29,20 @@ import { signInSession } from '../fixtures/sdk-session';
  *    JobTypes appears in EXACTLY one entry's `servesJobTypes`
  *    (`resolveWorkerInference` maps each job type to one `(provider, model)`;
  *    the roster dedups by that pair) — and the literal `'default'` never
- *    appears (it expands, per D3/P2). Entries without `servesJobTypes`
- *    (actors-only agents) are legal.
+ *    appears (it expands to the job types it covers). Entries without
+ *    `servesJobTypes` (actors-only agents) are legal.
  * 4. **No secret material.** The reply carries no `apiKey`/endpoint config.
- * 5. **The attribution loop (D3's feature).** After a real assist pass, the
- *    `generator` DID stamped on the created annotations is an element of the
- *    directory — declared roster ⊇ actual workers. A generator absent from
- *    the directory is the declared-vs-actual discrepancy this check exists to
- *    surface.
+ * 5. **The attribution loop.** After a real assist pass, the `generator` DID
+ *    stamped on the created annotations is an element of the directory —
+ *    declared roster ⊇ actual workers. A generator absent from the directory
+ *    is the declared-vs-actual discrepancy this check exists to surface.
  *
  * Auth note: the e2e harness's only user is the seeded admin. The load-bearing
  * property is that the channel needs no ADMIN gate (the Browser's bus handlers
  * consult no roles — nothing admin-shaped exists on this path), so the admin
  * session exercises exactly what a non-admin one would. A true non-admin
- * session becomes worth wiring when P4 adds Persons (whose assertion is
- * "minimal subset, no admin-only fields").
+ * session becomes worth wiring when the directory adds Persons (whose
+ * assertion is "minimal subset, no admin-only fields").
  *
  * Self-seeding: creates its own resource for the assist pass. Slow: the
  * attribution leg waits on a real LLM highlight pass (spec-06/11 class).
@@ -78,15 +76,14 @@ test.describe('collaborator directory (browse.agents)', () => {
       // ── 1. Freshness gate: the channel must exist on the running stack ──
       let entries: CollaboratorEntry[];
       try {
-        // CACHE-CONTRACT D2: `.fresh()` is the explicit one-shot read.
+        // `.fresh()` is the explicit one-shot read: a CacheObservable is not awaitable.
         entries = await client.browse.agents().fresh();
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         throw new Error(
           `STACK FRESHNESS GATE: browse.agents() did not answer (${msg}). ` +
             `If this is "Unknown channel: browse:agents-requested", the running stack ` +
-            `predates the P1–P3 series — rebuild/redeploy before judging P5. ` +
-            `(COLLABORATOR-DIRECTORY.md P5 gate.)`,
+            `predates the browse:agents-* channels — rebuild/redeploy before judging the directory.`,
         );
       }
 
@@ -97,7 +94,7 @@ test.describe('collaborator directory (browse.agents)', () => {
       const didSet = new Set<string>();
       for (const entry of entries) {
         const agent = entry.agent;
-        expect(agent['@type'], 'v1 roster is software-only (P4 Persons deferred)').toBe('Software');
+        expect(agent['@type'], 'v1 roster is software-only (Persons deferred)').toBe('Software');
         expect(agent.provider, 'structured provider').toBeTruthy();
         expect(agent.model, 'structured model').toBeTruthy();
 
@@ -177,7 +174,7 @@ test.describe('collaborator directory (browse.agents)', () => {
           expect(
             didSet.has(gen['@id']!),
             `generator ${gen['@id']} is a member of browse.agents() — a miss is a ` +
-              `declared-vs-actual roster discrepancy (COLLABORATOR-DIRECTORY.md D3/P5)`,
+              `declared-vs-actual roster discrepancy`,
           ).toBe(true);
         }
       }

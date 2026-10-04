@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// `semiont identity sync` — the repair half of IDENTITY-PREFLIGHT P3.
+// `semiont identity sync` — the repair the identity preflight's refusals name.
 //
 // The preflight can already say "this realm has no semiont-weaver client".
 // Nothing could add it, so every realm-shape change shipped with a
@@ -326,8 +326,8 @@ func allServiceClientReps() []map[string]any {
 // included, each with the id the admin API addresses it by. DERIVED from the
 // client the realm document renders, so a stub can never carry a mapper shape
 // the import would not; only `rolesValue`, what the roles mapper currently
-// stamps, is the stub's to choose — a realm imported before EXTRACT-JOBS P0
-// stamps just the service role on the worker too.
+// stamps, is the stub's to choose — a realm imported before the worker role
+// existed stamps just the service role on the worker too.
 func serviceClientRep(svc, rolesValue string) map[string]any {
 	mappers := []map[string]any{}
 	for _, m := range serviceAccountClient(svc, "unused", "unused")["protocolMappers"].([]map[string]any) {
@@ -348,13 +348,14 @@ func serviceClientRep(svc, rolesValue string) map[string]any {
 	return map[string]any{"clientId": serviceClientID(svc), "protocolMappers": mappers}
 }
 
-// EXTRACT-JOBS P0 gave the worker a second role in its hardcoded roles mapper.
-// A realm imported before it holds that mapper with the OLD value; the
-// preflight refuses such a realm (TestPreflightRefusesAWorkerThatCannotClaim),
-// and this is the remedy that refusal names. The mapper is a sub-resource with
-// its own endpoint — a client-level PUT does not reach it.
+// The worker carries a second role in its hardcoded roles mapper: the worker
+// role, the one a job:claim is authorized by. A realm imported before that
+// role existed holds the mapper with the OLD value; the preflight refuses such
+// a realm (TestPreflightRefusesAWorkerThatCannotClaim), and this is the remedy
+// that refusal names. The mapper is a sub-resource with its own endpoint — a
+// client-level PUT does not reach it.
 func TestIdentitySyncReconcilesTheWorkersRolesMapper(t *testing.T) {
-	stale, _ := json.Marshal([]string{serviceRole}) // what every client stamped before P0
+	stale, _ := json.Marshal([]string{serviceRole}) // what every client stamped before the worker role
 	reps := []map[string]any{}
 	for _, svc := range serviceClients {
 		value := serviceRolesClaim(svc)
@@ -427,8 +428,9 @@ func TestIdentitySyncAddsMissingLoopbackRedirects(t *testing.T) {
 	}
 }
 
-// The implicit flow hands the token back in a redirect fragment. P4 refuses the
-// start over it; this is the fix that refusal should be able to name.
+// The implicit flow hands the token back in a redirect fragment. The preflight
+// refuses the start over it; this is the fix that refusal should be able to
+// name.
 func TestIdentitySyncDisablesTheImplicitFlow(t *testing.T) {
 	reps := append(allServiceClientReps(),
 		map[string]any{"clientId": BrowserClientID, "implicitFlowEnabled": true,
@@ -545,11 +547,12 @@ func TestIdentityVerbRejectsAnUnknownFlag(t *testing.T) {
 	}
 }
 
-// BROWSER-SIGNIN-ORIGIN P3. A realm imported before P1 carries
-// `webOrigins: ["+"]`, so Keycloak derives its CORS origins from the PORTLESS
-// loopback redirects and the Browser's real origin is in no set at all. The
-// realm imports once, so sync is the only way an existing knowledge base gets
-// the repair — and the preflight's finding names this command by name.
+// Sync adds the browser client's missing loopback web origins. A realm
+// imported before those origins were explicit carries `webOrigins: ["+"]`, so
+// Keycloak derives its CORS origins from the PORTLESS loopback redirects and
+// the Browser's real origin is in no set at all. The realm imports once, so
+// sync is the only way an existing knowledge base gets the repair — and the
+// preflight's finding names this command by name.
 func TestIdentitySyncAddsMissingBrowserWebOrigins(t *testing.T) {
 	reps := append(allServiceClientReps(),
 		map[string]any{"clientId": BrowserClientID, "webOrigins": []any{"+"}},
@@ -581,7 +584,7 @@ func TestIdentitySyncAddsMissingBrowserWebOrigins(t *testing.T) {
 }
 
 // `--port` moves the Browser, so sync writes the origin for the port it is
-// told about — that is what makes D3's "move then sync" actually work.
+// told about — that is what makes "move the Browser, then sync" actually work.
 func TestIdentitySyncWritesTheBrowsersActualPort(t *testing.T) {
 	reps := append(allServiceClientReps(),
 		map[string]any{"clientId": BrowserClientID, "webOrigins": []any{"+"}},

@@ -1,5 +1,5 @@
 /**
- * ANNOTATE-DEFERS-ON-NOT-YET P1: the viewer keeps the wire's three-way absence.
+ * The viewer keeps the wire's three-way absence.
  *
  * `AnchoredTextAnswer` names retryability in the kind itself — `not-yet` means
  * the Smelter has not settled this content generation and the caller should
@@ -99,7 +99,7 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
   });
 
   /**
-   * P2/D2: Annotate defers on `not-yet` — and ONLY on `not-yet`. An annotation
+   * Annotate defers on `not-yet` — and ONLY on `not-yet`. An annotation
    * drawn before the map lands is permanently mute (its quote is captured at
    * creation), so waiting buys strictly better annotations. For the terminal
    * absences geometry-only IS the feature, and nothing is deferred.
@@ -176,7 +176,7 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
       await waitFor(() => expect(vi.mocked(renderPdfPageToDataUrl)).toHaveBeenCalledTimes(1));
       await waitFor(() => expect(root()).toHaveAttribute('data-annotate-deferred', 'true'));
 
-      // P1 made `not-yet` re-askable; the next page load gets the map.
+      // `not-yet` is re-askable; the next page load gets the map.
       await user.click(screen.getByRole('button', { name: /next/i }));
       await waitFor(() => expect(root()).toHaveAttribute('data-annotate-deferred', 'false'));
       expect(hint()).not.toBeInTheDocument();

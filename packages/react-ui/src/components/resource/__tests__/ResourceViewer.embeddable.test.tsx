@@ -1,17 +1,18 @@
 /**
- * EMBEDDABLE-RESOURCE-VIEWER — keystone acceptance spec.
+ * The embeddable resource viewer — keystone acceptance spec.
  *
  * The consumer's (my-chat) actual requirement: render + interact with a resource
  * fed ONLY a `SemiontSession`, with NO SemiontProvider / cache context mounted.
  * Translations are the one thing the host mounts, because react-ui assumes no
  * language: a `TranslationProvider` with its locale or its own manager. This
  * is the definition of done for provider-free
- * rendering — the "an external host can import the pieces" half of the plan's
- * dual acceptance test.
+ * rendering — the "an external host can import the pieces" half of the
+ * acceptance test, the other half being that Semiont's own frontend still works.
  *
- * GREEN as of step 1c: the browse-mode subtree (ResourceViewer → BrowseView →
- * AnnotateToolbar) renders provider-free from a bare session. The annotate-mode
- * subtree is covered by AnnotateView.embeddable.test.tsx.
+ * GREEN since `ResourceViewer` threads its `session` down: the browse-mode
+ * subtree (ResourceViewer → BrowseView → AnnotateToolbar) renders provider-free
+ * from a bare session. The annotate-mode subtree is covered by
+ * AnnotateView.embeddable.test.tsx.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { screen, act, waitFor } from '@testing-library/react';
@@ -50,11 +51,12 @@ const resource: SemiontResource & { content: string } = {
 const annotations = { highlights: [], references: [], assessments: [], comments: [], tags: [] };
 
 /**
- * A highlight the viewer has actually loaded. Required since TOUR-CLICK D2: the
- * click handler resolves the annotation by id and derives the motivation from
- * it, so a click for an id absent from this collection is a no-op. Before that,
- * the wire carried the motivation and the viewer never looked — which is why
- * the anchorRect test below used to pass against an empty collection.
+ * A highlight the viewer has actually loaded. Required because a click carries
+ * only the annotation id: the click handler resolves the annotation by id and
+ * derives the motivation from it, so a click for an id absent from this
+ * collection is a no-op. Before that, the wire carried the motivation and the
+ * viewer never looked — which is why the anchorRect test below used to pass
+ * against an empty collection.
  */
 const loadedHighlight: Annotation = {
   '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -83,7 +85,7 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no session prov
     expect(screen.getByText('Embeddable content.')).toBeInTheDocument();
   });
 
-  // A1 anchor thread: the viewer is a pass-through for view geometry — an
+  // The viewer is a pass-through for view geometry — an
   // anchorRect arriving on browse:click reaches the host's onOpenPanel
   // untouched (detail routing, the default click action).
   it('forwards the browse:click anchorRect into onOpenPanel', async () => {
@@ -125,7 +127,7 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no session prov
   it('ignores a browse:click naming an annotation this viewer has not loaded', async () => {
     // A remote drive can arrive while the participant is looking at something
     // else. Resolving the annotation FIRST makes that a no-op by construction,
-    // which is why the channel carries no resourceId guard (TOUR-CLICK D3).
+    // which is why the channel carries no resourceId guard.
     const { session, eventBus } = createTestSemiontWrapper();
     const onOpenPanel = vi.fn();
 

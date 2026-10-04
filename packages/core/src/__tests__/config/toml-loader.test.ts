@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { loadTomlConfig, resolveEnvVars, createTomlConfigLoader } from '../../config/toml-loader';
 
 // Every environment must NAME a vector store and an embedding provider —
-// nothing is defaulted, and the loader refuses without them
-// (MANDATORY-EMBEDDING D0+D1). Appended to every fixture that loads.
+// nothing is defaulted, and the loader refuses without them. Appended to
+// every fixture that loads.
 const SERVICES_LOCAL = `
 [environments.local.vectors]
 type = "memory"
@@ -18,8 +18,8 @@ const MINIMAL_NO_IDENTITY = `
 platform = "posix"
 port = 3001
 publicURL = "http://localhost:3001"
-# Deliberately left after FRONTEND-IS-THE-BROWSER P6: frontendURL was declared
-# on the gateway section and read by nothing, so it was deleted rather than
+# Deliberately left in: frontendURL was declared on the gateway section and
+# read by nothing, so the key was deleted from the config model rather than
 # renamed. Keeping it here means every test below also pins that an unknown KEY
 # inside a known section stays inert, the way the [browser] and [frontend]
 # tests pin it for a whole section.
@@ -137,9 +137,8 @@ describe('loadTomlConfig', () => {
     expect(workers?.generation?.maxTokens).toBe(16384);
   });
 
-  // The gather settle bound (SMELTER-INDEX-SYNC D5): the loader is the ONE
-  // home of the default — consuming code receives a required value and
-  // defaults nothing.
+  // The gather settle bound: the loader is the ONE home of the default —
+  // consuming code receives a required value and defaults nothing.
   it('always sets _metadata.gather.settleTimeoutMs, defaulting to 15000 when absent', () => {
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
 
@@ -156,11 +155,11 @@ settleTimeoutMs = 45000
     expect((config._metadata as any)?.gather).toEqual({ settleTimeoutMs: 45_000 });
   });
 
-  // FRONTEND-IS-THE-BROWSER P5 (D5): `[browser]` left the config model. The
-  // Browser is machine-level — one Browser serves many KBs — so a KB has no
-  // knowledge of, and no effect on, its port or publicURL. The launcher never
-  // mounts a KB's config into the Browser container, which made the loader's
-  // `port ?? 3000` a lie by omission: `port = 3100` got no error and no effect.
+  // `[browser]` left the config model. The Browser is machine-level — one
+  // Browser serves many KBs — so a KB has no knowledge of, and no effect on,
+  // its port or publicURL. The launcher never mounts a KB's config into the
+  // Browser container, which made the loader's `port ?? 3000` a lie by
+  // omission: `port = 3100` got no error and no effect.
   //
   // Both spellings stay INERT rather than refused. The fleet's committed
   // configs carry them, and a section that configures nothing cannot be
@@ -193,9 +192,9 @@ port = 3000
   });
 
   it('always sets _metadata.search.semanticFloor, defaulting to 0.6 when absent', () => {
-    // SEMANTIC-FALLBACK decision #1: the loader is the ONE home of the
-    // default — guess-now (0.6), tune-from-evidence-later; any KB overrides
-    // per-TOML without code.
+    // The minimum score a vector hit needs to appear in the semantic
+    // fallback: the loader is the ONE home of the default — guess-now (0.6),
+    // tune-from-evidence-later; any KB overrides per-TOML without code.
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
 
     expect((config._metadata as any)?.search).toEqual({ semanticFloor: 0.6 });
@@ -219,7 +218,7 @@ semanticFloor = 0.75
   });
 
   // The reference sits in the gatherer's inference, so the refusal fires where
-  // that section is read (SECRET-DELIVERY P5), not at load.
+  // that section is read, not at load.
   it('throws when ${VAR} references a missing env var', () => {
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_ENV_VAR_TOML_COMPLETE), {});
     expect(() => config._metadata?.actors).toThrow('Environment variable MY_API_KEY is not set');
@@ -299,8 +298,8 @@ subjectClaim = "sub"
     expect(config.services?.gateway?.port).toBe(5005);
   });
 
-  // EXTRACT-ARCHIVIST P3: the gateway replays SSE resumes from the Archivist
-  // at services.archivist.{host,port}. The mapping was the missing middle —
+  // The gateway replays SSE resumes from the Archivist at
+  // services.archivist.{host,port}. The mapping was the missing middle —
   // the cutover added the schema and the consumer, and a section that parses
   // but never reaches services means every resume silently degrades to a gap.
   it('maps [archivist] to services.archivist with the 24103 default', () => {
@@ -335,11 +334,11 @@ servers = "\${NATS_HOST}:4222"
     expect(Object.keys(config.services)).not.toContain('jobs');
   });
 
-  // EXTERNAL-IDENTITY P3: the gateway reads services.identity for the issuer
-  // it trusts. Same missing-middle shape as [archivist], and every key
-  // the verifier needs is required — typed-but-incomplete refuses, naming the
-  // key. There is no `audience` key: the audience is the KB's own resource
-  // identifier, derived from its committed did:web domain.
+  // The gateway reads services.identity for the issuer it trusts. Same
+  // missing-middle shape as [archivist], and every key the verifier needs is
+  // required — typed-but-incomplete refuses, naming the key. There is no
+  // `audience` key: the audience is the KB's own resource identifier, derived
+  // from its committed did:web domain.
   it('maps [identity] to services.identity — type, issuer and subjectClaim pass through', () => {
     const toml = `
 [environments.local.identity]
@@ -413,10 +412,10 @@ ${MINIMAL_NO_IDENTITY}`;
       .toThrow(/\[environments\.local\.identity\].*issuer/);
   });
 
-  // VERIFIED-PROVENANCE P5. A person's DID is `did:web:<site domain>:users:<the
-  // value of this claim>`, and which claim is DECLARED — one rule per
-  // deployment, never a fallback chain, never an implied one. An operator who
-  // wants email-named people writes subjectClaim = "email" and has said so.
+  // A person's DID is `did:web:<site domain>:users:<the value of this claim>`,
+  // and which claim is DECLARED — one rule per deployment, never a fallback
+  // chain, never an implied one. An operator who wants email-named people
+  // writes subjectClaim = "email" and has said so.
   it('refuses [identity] with no subjectClaim — the claim people are named by is declared, never defaulted', () => {
     const toml = `
 [environments.local.identity]
@@ -461,9 +460,9 @@ ${MINIMAL_NO_IDENTITY}`;
   });
 
   it('carries the staged [kb] identity, so a gateway with no [site] still knows which KB it serves', () => {
-    // SINGLE-KB-MOUNT: the gateway stopped mounting the tree that holds
-    // `.semiont/config`, so the launcher stages the committed identity under
-    // [kb]. Without it a well-formed KB could not start.
+    // Only the Archivist mounts the KB: the gateway stopped mounting the tree
+    // that holds `.semiont/config`, so the launcher stages the committed
+    // identity under [kb]. Without it a well-formed KB could not start.
     const toml = `
 [kb]
 name = "example-kb"
@@ -509,8 +508,8 @@ ${MINIMAL_TOML}`;
     expect(cfg.kb).toBeUndefined();
   });
 
-  // The Librarian loads config with NO project root at all — no /kb mount
-  // (SINGLE-KB-MOUNT P1). Everything it needs rides the staged global config.
+  // The Librarian loads config with NO project root at all — no /kb mount.
+  // Everything it needs rides the staged global config.
   it('loads with a null project root when the global config carries the environment', () => {
     const toml = `
 [kb]
@@ -528,14 +527,14 @@ ${MINIMAL_TOML}`;
     expect(config.services?.gateway?.port).toBe(3001);
   });
 
-  it('refuses a config naming no vector store, config-actionably (MANDATORY-EMBEDDING D1)', () => {
+  it('refuses a config naming no vector store, config-actionably', () => {
     const noVectors = MINIMAL_TOML.replace(/\[environments\.local\.vectors\][^[]*/, '');
     expect(() =>
       loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(noVectors), {}).services.vectors
     ).toThrow(/names no vector store/);
   });
 
-  it('refuses a config naming no embedding provider, config-actionably (MANDATORY-EMBEDDING D1)', () => {
+  it('refuses a config naming no embedding provider, config-actionably', () => {
     // Anchored to the NEXT table rather than end-of-string: the fixture no
     // longer ends with [embedding] now that identity follows it.
     const noEmbedding = MINIMAL_TOML.replace(/\[environments\.local\.embedding\][\s\S]*?(?=\n\[|$)/, '');
@@ -622,11 +621,10 @@ ${SERVICES_LOCAL}`;
   });
 });
 
-// SECRET-DELIVERY P5, as ruled: a section's ${VAR}s resolve when a service
-// reads that section ("Loader resolves lazily"), and a service reads only the
-// sections specs/src/service-config/sections.json lists for it ("Spec file,
-// enforced lazily"). That is what lets the launcher forward each service only
-// the variables its own sections reference.
+// A section's ${VAR}s resolve lazily, when a service reads that section, and
+// a service reads only the sections specs/src/service-config/sections.json
+// lists for it, also enforced at the read. That is what lets the launcher
+// forward each service only the variables its own sections reference.
 describe('sections resolve when read, and a service reads only what it declares', () => {
   const UNREAD_SECRET = `
 [environments.local.inference.anthropic]
@@ -716,7 +714,7 @@ model = "m-matcher"
 });
 
 // What each part of the config maps to, read part by part. These paths are
-// the loader's own, built at each part's first read (SECRET-DELIVERY P5).
+// the loader's own, built at each part's first read.
 describe('each part maps its section', () => {
   const load = (toml: string, env: Record<string, string> = {}) =>
     loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), env);

@@ -197,7 +197,7 @@ describe('HttpTransport ky hooks', () => {
   });
 });
 
-// ── RETRY-CLASSIFICATION P3: shouldRetry is the retry gate ──────────────
+// ── shouldRetry is the retry gate ───────────────────────────────────────
 // ky's `methods`/`statusCodes` are ANDed independently — there is no
 // per-status method list, so "the widened methods apply to 401 only" cannot
 // be said with them. `shouldRetry` says it instead, deriving from
@@ -245,7 +245,7 @@ describe('HttpTransport shouldRetry — the transport retry rule', () => {
 
   test('a POST that got a 502 is NOT retried — the upload case that bites', () => {
     // `POST /resources` mints a fresh UUID in the Stower, so a duplicate
-    // writes a second resource the caller never learns about (P0 row 8).
+    // writes a second resource the caller never learns about.
     expect(verdict('POST', 502)).toBe(false);
   });
 
@@ -347,7 +347,7 @@ describe('HttpTransport beforeRetry — refresh only, once a retry is confirmed'
   });
 });
 
-// ── SSE-AUTH-RESILIENCE P4: the actor→transport errors$ bridge ──────────
+// ── The actor→transport errors$ bridge ──────────────────────────────────
 // A refused SSE connect is an HTTP failure like any other, so it belongs on
 // the transport's contract `errors$` stream — not only on the actor's. This
 // pin drives a REAL actor connect (global fetch is stubbed by the mock-conn

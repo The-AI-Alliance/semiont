@@ -13,9 +13,9 @@
  *                   selectors vs spatial geometry (PDFs are spatial)
  * - `textSource`  — WHERE a type's text comes from: decoded from its own bytes,
  *                   or derived by reading them ('none' → skip embedding, never
- *                   mojibake). Named `extractText` until READ-VS-EXTRACT P3,
- *                   which called decoding an extraction — the conflation that
- *                   let a worker OCR PDFs for four months (#739)
+ *                   mojibake). Formerly named `extractText`, which called
+ *                   decoding an extraction — the conflation that let a
+ *                   worker OCR PDFs for four months (#739)
  * - `authorable`  — offered in the compose editor's format dropdown
  * - `uploadable`  — big tent: true for every registry member
  * - `generatable` — the generation worker can produce it as a yield artifact
@@ -101,11 +101,11 @@ export function capabilitiesOf(format: string): MediaTypeCapabilities | undefine
 }
 
 /**
- * The clone-format gate (MEDIA-TYPES.md Phase 5, moved here for
- * EXTRACT-ARCHIVIST's clone wire-shape change): a clone opens in the
- * compose editor, so authorable sources keep their base media type and
- * everything else falls back to text/plain. Lives beside the registry it
- * reads; the SDK applies it when deriving a clone upload's format and the
+ * The clone-format gate: a clone opens in the compose editor, so authorable
+ * sources keep their base media type and everything else falls back to
+ * text/plain. It moved here when the clone command came to carry storage
+ * coordinates instead of bytes. Lives beside the registry it reads; the SDK
+ * applies it when deriving a clone upload's format and the
  * CloneTokenManager's tests pin it.
  */
 export function cloneFormat(sourceMediaType: string | undefined): SupportedMediaType {
@@ -153,8 +153,8 @@ export function mediaTypeForExtension(ext: string): SupportedMediaType | undefin
  * pure charset-aware `Buffer → string` anyone holding bytes may run;
  * `pdf-text-layer` parses and, failing that, OCRs — expensive, not deterministic
  * across engine versions, and runnable only by the process that persists its
- * output. Calling both "extraction" is what this accessor was named for until
- * READ-VS-EXTRACT P3.
+ * output. Calling both "extraction" is the conflation this accessor's former
+ * name made.
  */
 export function textSourceOf(format: string): TextSource {
   const caps = capabilitiesOf(format);
@@ -179,15 +179,15 @@ const GEOMETRY_BY_STRATEGY: Record<TextSource, boolean> = {
 /**
  * WHETHER a type's extracted text carries geometry — page-positioned runs
  * rather than a bare string. Answers "should an anchored-text artifact exist
- * for this resource?" (PERSIST-ANCHORS P0, the third drift class) and "does
- * this type anchor spatially or by character offset?".
+ * for this resource?" (reconcile's check for a lost artifact) and "does this
+ * type anchor spatially or by character offset?".
  *
- * Derived from `textSource`, not stored: until READ-VS-EXTRACT P1 this was a
- * `yieldsGeometry` boolean declared on each `TextExtractor` in
- * `@semiont/content` — a property of the STRATEGY, declared per-implementation,
- * in a different package from the strategy vocabulary. Two facts that must
- * agree, gated by nothing, and consumers asking about a media type had to
- * resolve an implementation to get an answer.
+ * Derived from `textSource`, not stored: it used to be a `yieldsGeometry`
+ * boolean declared on each `TextExtractor` in `@semiont/content` — a property
+ * of the STRATEGY, declared per-implementation, in a different package from
+ * the strategy vocabulary. Two facts that must agree, gated by nothing, and
+ * consumers asking about a media type had to resolve an implementation to get
+ * an answer.
  *
  * Lenient like `textSourceOf`, not strict like `isAnnotatable`. An
  * unregistered `text/*` type decodes, and decoding yields no geometry — so
@@ -202,7 +202,7 @@ export function yieldsGeometryOf(format: string): boolean {
 /**
  * Whether a text source's output is DERIVED — produced by the Smelter and
  * persisted as an anchored-text artifact — rather than read by decoding the
- * bytes. "Decoding is not deriving" (READ-VS-EXTRACT).
+ * bytes. Decoding is not deriving.
  *
  * Exhaustive over `TextSource` on purpose, like its geometry sibling: a new
  * strategy fails to compile here until someone declares its category.
@@ -216,10 +216,9 @@ const DERIVED_TEXT_BY_STRATEGY: Record<TextSource, boolean> = {
 
 /**
  * WHETHER a type's text is the Smelter's derived artifact instead of its own
- * decoded bytes — the read-side dispatch a text READER needs
- * (bugs/gather-ships-raw-pdf-bytes P1): derived text is answered by the
- * anchored-text read; decoded text by `decodeRepresentation`, which refuses
- * everything else.
+ * decoded bytes — the read-side dispatch a text READER needs: derived text is
+ * answered by the anchored-text read; decoded text by `decodeRepresentation`,
+ * which refuses everything else.
  *
  * Deliberately a DISTINCT question from `yieldsGeometryOf`, though the
  * answers coincide today: a future transcription strategy would derive text

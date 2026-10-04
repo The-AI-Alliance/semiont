@@ -1,6 +1,6 @@
 /**
- * ANNOTATE-RENDERER-REGISTRY — the annotate path's overridable media registry,
- * symmetric to EMBEDDABLE-RESOURCE-VIEWER step 3's browse registry.
+ * The annotate path's overridable media registry, symmetric to the browse
+ * path's.
  *
  * A host that brings its own PDF stack can already replace the read-only
  * renderer via `BrowseView`'s `renderers` prop; without the same seam here it

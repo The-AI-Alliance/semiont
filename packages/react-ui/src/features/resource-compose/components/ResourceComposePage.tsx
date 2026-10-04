@@ -3,7 +3,7 @@
  *
  * Pure React component for creating and editing resources.
  * Supports two modes: new resource and clone. (Reference completion moved
- * into the resolve wizard — COMPOSE-IN-MODAL.)
+ * into the resolve wizard, as its in-modal compose step.)
  * All dependencies passed as props - no Next.js hooks!
  */
 

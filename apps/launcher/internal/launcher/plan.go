@@ -1,13 +1,13 @@
 package launcher
 
 // plan.go — derivePlan: the pure function from a parsed semiontconfig
-// environment to the launcher's work (LAUNCHER-CONFIG-SYNC.md's derivation
-// model). Per dependency role the config decides the OBLIGATION and owns
-// address/port/credentials; the driver catalog owns what the config doesn't
+// environment to the launcher's work. Per dependency role the config decides
+// the OBLIGATION and owns address and port, and the credentials of a daemon
+// the launcher does not run; the driver catalog owns what the config doesn't
 // declare (image, aux ports). Validation is strict for keys the launcher
-// consumes (P0 q4): missing required keys fail naming file, section, and
-// key; keys with documented defaults (vectors.platform, database.type,
-// ports) don't trip it.
+// consumes: missing required keys fail naming file, section, and key; keys
+// with documented defaults (vectors.platform, database.type, ports) don't
+// trip it.
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ import (
 )
 
 // presence: whether a role is part of this stack, and WHO runs it — one of
-// the three questions `obligation` used to answer at once (D6). The other
+// the three questions `obligation` used to answer at once. The other
 // two have left: what the launcher may change inside a service is
 // `authority`, declared on the descriptor, and the memory preflight reads
 // presence because "do we run it" is genuinely its question.
@@ -55,8 +55,7 @@ type rolePlan struct {
 	// user half).
 	User string
 	// ExternalDBPassword: identity on an EXTERNAL PostgreSQL — the config's
-	// [database] password as written, resolved at launch by the shared rule
-	// (SECRET-DELIVERY P4, "A's resolver for ones it doesn't").
+	// [database] password as written, resolved at launch by the shared rule.
 	ExternalDBPassword string
 	// APIKey: inference on a remote provider — its [inference] apiKey as
 	// written, resolved by the shared rule for the remote-model check.
@@ -91,7 +90,7 @@ type launchPlan struct {
 	// happened to be printed under.
 	OllamaModels []modelNeed
 	// ServiceVars: the user variables each stack service is handed — only
-	// those its own config sections reference (SECRET-DELIVERY P5).
+	// those its own config sections reference.
 	ServiceVars map[string][]string
 }
 
@@ -378,7 +377,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		return fmt.Errorf("%s: [environments.%s.%s] %s", path, envName, section, fmt.Sprintf(format, a...))
 	}
 	// launcherOwnedErr: a config names the credential of a daemon the
-	// launcher runs, which the launcher generates and keeps (SECRET-DELIVERY P4).
+	// launcher runs, which the launcher generates and keeps.
 	launcherOwnedErr := func(section, key, daemon string) error {
 		return secErr(section, "names a %s, but the launcher generates and keeps the credentials of the %s it runs — delete the key (to rotate: delete its file in this root's state dir, then semiont clean --store)", key, daemon)
 	}
@@ -562,14 +561,13 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		plan.Roles["database"] = rp
 	}
 
-	// messaging — the shared NATS daemon (SIGNAL-PLANE D9). The dispatcher's
-	// queue is JetStream, so [jobs] is required and always starts it; [signal]
-	// type = "nats" rides the same daemon. One role is one daemon: when
-	// [signal] names the broker, its servers and credentials must agree with
-	// [jobs] — a config error, never silently reconciled. The daemon has ONE
-	// shape, -js with the stamped store, because both use that store: the job
-	// queue's stream, and the signal driver's KV tables, where the gateway's
-	// ledger keeps its claims.
+	// messaging — the shared NATS daemon. The dispatcher's queue is JetStream,
+	// so [jobs] is required and always starts it; [signal] type = "nats" rides
+	// the same daemon. One role is one daemon: when [signal] names the broker,
+	// its servers and credentials must agree with [jobs] — a config error,
+	// never silently reconciled. The daemon has ONE shape, -js with the stamped
+	// store, because both use that store: the job queue's stream, and the
+	// signal driver's KV tables, where the gateway's ledger keeps its claims.
 	j := env.Jobs
 	sig := env.Signal
 	if j == nil || j.Type != "jetstream" {
@@ -627,8 +625,8 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	}
 	if !brokerExternal {
 		// The broker the launcher runs is always authenticated, with a pair
-		// the launcher keeps (SECRET-DELIVERY P4): a config naming one is a
-		// second place deciding it.
+		// the launcher keeps: a config naming one is a second place deciding
+		// it.
 		if user != "" || pass != "" {
 			return nil, launcherOwnedErr(credSection, "user/password", "the broker")
 		}
@@ -651,15 +649,14 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	}
 	plan.Roles["messaging"] = messaging
 
-	// identity — the OIDC issuer the gateway trusts (EXTERNAL-IDENTITY D5).
-	// One shape for both types: the issuer is stated, never inferred. The
-	// AUDIENCE is not configured at all — it is the KB's own resource
-	// identifier, derived from the committed did:web domain, so it cannot
-	// disagree with the identity the KB already publishes. A keycloak whose
-	// issuer the config leaves to the launcher is provided — launched with the
-	// staged realm, its database on the PostgreSQL the [database] section
-	// names (D6). An issuer the config states, and every oidc issuer, is
-	// external: verified, never launched.
+	// identity — the OIDC issuer the gateway trusts. One shape for both types:
+	// the issuer is stated, never inferred. The AUDIENCE is not configured at
+	// all — it is the KB's own resource identifier, derived from the committed
+	// did:web domain, so it cannot disagree with the identity the KB already
+	// publishes. A keycloak whose issuer the config leaves to the launcher is
+	// provided — launched with the staged realm, its database on the PostgreSQL
+	// the [database] section names. An issuer the config states, and every oidc
+	// issuer, is external: verified, never launched.
 	// MANDATORY (user, 2026-09-21). Absence used to mean "no identity role",
 	// which produced a stack nobody could sign in to and whose gateway could
 	// not reach its own record — a shape only a test harness ever wanted.
@@ -723,7 +720,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			if keycloakRealm(path) == "" {
 				return nil, secErr("identity", "issuer %q must end in /realms/<realm> for type \"keycloak\"", id.Issuer)
 			}
-			// O1: the driver REQUIRES the role, the config DECLARES it, and
+			// The driver REQUIRES the role, the config DECLARES it, and
 			// the refusal is rendered from the edge — so the requirement has
 			// one home and this branch cannot disagree with the descriptor.
 			if dep, unmet := unmetRequirement(env.declaresRole, "identity", id.Type); unmet {

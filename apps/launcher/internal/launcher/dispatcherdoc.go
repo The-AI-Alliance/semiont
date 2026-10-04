@@ -94,8 +94,8 @@ func dispatcherDocument(env *envConfig, rt, addr string, issuerPort int, userEnv
 		return nil, err
 	}
 	if brokerRun {
-		// The broker the launcher runs has the pair it keeps
-		// (SECRET-DELIVERY P4); the dispatcher is handed both.
+		// The broker the launcher runs has the pair the launcher generates
+		// and keeps; the dispatcher is handed both.
 		user, password := "NATS_USER", daemonPasswords["messaging"].env
 		doc.Queue.UserEnv, doc.Queue.PasswordEnv = &user, &password
 	} else {

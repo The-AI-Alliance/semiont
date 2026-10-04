@@ -174,7 +174,7 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
       loopDelay.reset();
     });
 
-  // Heap (ARCHIVIST-STAYS-UP P4), on the SAME registration as lag rather than
+  // Heap, on the SAME registration as lag rather than
   // a second mechanism — they are read together when diagnosing a process
   // that stopped answering, and splitting them would mean two things to wire.
   //
@@ -244,8 +244,8 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
 }
 
 /**
- * Report the supervisor's restart count for this service
- * (GATEWAY-SUPERVISION F3). Call once, after `initObservabilityNode`.
+ * Report the supervisor's restart count for this service. Call once,
+ * after `initObservabilityNode`.
  *
  * `scripts/container/supervise.sh` is POSIX shell and cannot emit OTel, but it
  * writes one `starting <name>` line per life to a durable event log and

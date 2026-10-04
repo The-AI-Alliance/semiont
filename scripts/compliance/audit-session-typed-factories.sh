@@ -4,12 +4,12 @@ set -euo pipefail
 # Audit: session-bound state units are constructed via `useSessionStateUnit`,
 # never via `useStateUnit` with a non-null-asserted client.
 #
-# SESSION-TYPED-FACTORIES.md (D1, settled 2026-07-29): a state-unit factory's
-# parameter is the lifetime it must not outlive — a `SemiontSession`. The
-# `useSessionStateUnit` hook constructs only under a live session and rebuilds
-# (dispose-first) on session swap, so `!` assertions on clients/sessions inside
-# factory closures are the tell that a call site regressed to the pattern that
-# crashed auth/welcome in production.
+# Decision D1 (settled 2026-07-29): a state-unit factory's parameter is the
+# lifetime it must not outlive — a `SemiontSession`. The `useSessionStateUnit`
+# hook constructs only under a live session and rebuilds (dispose-first) on
+# session swap, so `!` assertions on clients/sessions inside factory closures
+# are the tell that a call site regressed to the pattern that crashed
+# auth/welcome in production.
 #
 # Rule 1: no `!`-asserted identifier inside a `useStateUnit`/`useSessionStateUnit`
 #         call line (catches `createX(semiont!, …)` reintroductions).

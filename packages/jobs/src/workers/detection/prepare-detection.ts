@@ -12,8 +12,8 @@ type Agent = components['schemas']['Agent'];
  * The decline mirrors extraction's named-decline idiom — a reason, never a
  * `null` that cannot say what went wrong. This union is worker-internal
  * (its decline enum is wider than the wire's), so it narrows by `declined`
- * presence; the wire outcome it wraps discriminates by `kind`
- * (WIRE-UNION-DISCRIMINANTS P5c).
+ * presence; the wire outcome it wraps discriminates by `kind`, as every
+ * wire union does.
  */
 export type DetectionSource =
   | { text: string; buildAnnotation: BuildAnnotation }
@@ -28,9 +28,9 @@ export type DetectionSource =
  */
 export type DetectionDecline = {
   declined: ExtractionDecline['declined'] | 'no-extractor' | 'empty'
-    // The three the CONSULT can report for a geometry-bearing type
-    // (SMELTER-OWNS-OCR P2). `not-yet` is transient — the Smelter has not
-    // settled this generation yet, and the retry finds the store warm.
+    // The three the CONSULT can report for a geometry-bearing type, whose
+    // text is the Smelter's to derive. `not-yet` is transient — the Smelter
+    // has not settled this generation yet, and the retry finds the store warm.
     // `no-map` and `unknown` are terminal: the first is drift between
     // `yieldsGeometryOf` and the Smelter's skip decision (a geometry type it
     // declined to map), the second is a resource with no content identity.
@@ -60,9 +60,9 @@ export type ConsultAnchoredTextAwaits = 'browse:anchored-text-requested';
  * Both routes are core's, keyed by the media type's `TextSource` strategy,
  * so detection and embedding always read a resource identically. A
  * geometry-bearing type (PDF) is CONSULTED for the Smelter's canonical text
- * rather than derived here — the Smelter owns OCR (SMELTER-OWNS-OCR) — and
- * since READ-VS-EXTRACT P2 this worker cannot derive even by mistake: deriving
- * needs the anchored-text store, which it does not have.
+ * rather than derived here — the Smelter owns OCR — and this worker cannot
+ * derive even by mistake: deriving needs the anchored-text store, which it
+ * does not have.
  *
  * Bytes come from the injected `ContentReads` for NON-geometry types only;
  * geometry types take the injected `consult` seam instead. Both are narrow
@@ -83,7 +83,7 @@ export async function prepareDetection(
 ): Promise<DetectionSource> {
   if (textSourceOf(mediaType) === 'none') return { declined: 'no-extractor' };
 
-  // The media type decides where the text comes from (SMELTER-OWNS-OCR).
+  // The media type decides where the text comes from.
   //
   // GEOMETRY-BEARING types (PDF, every class) get their text from the
   // Smelter's canonical anchored text, CONSULTED by resourceId — the Smelter
@@ -92,7 +92,7 @@ export async function prepareDetection(
   // fetches no bytes and runs no OCR: the consult carries the text and its
   // geometry. `yieldsGeometryOf` is core's, derived from the same media-type
   // strategy the Smelter reads to decide whether to publish, so the two cannot
-  // drift about which resources have canonical text (READ-VS-EXTRACT P1).
+  // drift about which resources have canonical text.
   if (yieldsGeometryOf(mediaType)) {
     const answer = await consult(resourceId);
     switch (answer.kind) {

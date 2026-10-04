@@ -155,9 +155,8 @@ func TestAnthropicInitNeedsNoKeyToWriteAConfig(t *testing.T) {
 	}
 }
 
-// SECRET-DELIVERY P4 (with STAGED-SECRETS P3): a born KB names no password for
-// a daemon the launcher runs — the launcher generates and keeps those, and
-// refuses a config that names one.
+// A born KB names no password for a daemon the launcher runs — the launcher
+// generates and keeps those, and refuses a config that names one.
 func TestInitWritesNoDaemonPassword(t *testing.T) {
 	for _, inference := range []string{"anthropic", "ollama"} {
 		cfg := generateSemiontconfig(genParams{Inference: inference})

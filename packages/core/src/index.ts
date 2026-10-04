@@ -444,7 +444,7 @@ export type {
   ServicePlatformConfig
 } from './config/config.types';
 
-// Knowledge-graph view derivation (CONTEXT-UNIFICATION P3) — pure fn over the KnowledgeGraph type,
+// Knowledge-graph view derivation — pure fn over the KnowledgeGraph type,
 // shared by @semiont/make-meaning (matcher) and @semiont/jobs (generation).
 export { deriveViews } from './knowledge-graph-views';
 export type { GraphViews } from './knowledge-graph-views';
@@ -457,5 +457,5 @@ export type { HttpStatusError, RetryPolicy, RetryAttemptInfo } from './retry';
 export { getShardPath, jumpConsistentHash } from './shard-utils';
 
 // Browser ↔ launcher KB discovery — the canonical served URL of the
-// launcher's discovery document (BROWSER-KB-DISCOVERY).
+// launcher's discovery document.
 export { DISCOVERY_URL_PATH } from './discovery';

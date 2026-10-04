@@ -1,18 +1,18 @@
 /**
  * `@semiont/vectors/testing` is a published subpath, not an accident.
  *
- * MANDATORY-EMBEDDING P3 makes a provider mandatory at every KnowledgeBase /
+ * An embedding provider is mandatory at every KnowledgeBase /
  * Gatherer / Matcher construction site, so every consumer's test suite needs a
  * double. `MockEmbeddingProvider` used to live in `src/__tests__/`, which
  * `tsconfig.build.json` excludes — invisible outside this package. This exports
- * it the way `@semiont/core/testing` does (MANDATORY-EMBEDDING D3).
+ * it the way `@semiont/core/testing` does.
  *
  * The assertions are deliberately STATIC — they read the manifests rather than
  * importing `@semiont/vectors/testing` and seeing if it resolves. A resolving
  * import would reach through the workspace symlink into `dist/`, which does not
  * exist when `npm run build` runs `typecheck` as its first step: the test would
  * make the package unbuildable from clean. The real end-to-end proof is the
- * first cross-package import, which lands in P3.
+ * first cross-package import.
  *
  * A subpath needs FOUR things in agreement, and shipping three of them is a
  * silent failure — the export map resolves to a file the build never emitted.

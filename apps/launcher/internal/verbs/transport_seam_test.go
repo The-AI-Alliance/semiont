@@ -14,7 +14,7 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
 )
 
-// SDK-GO-TRANSPORT P1: a verb's wire behaviour, tested IN PROCESS.
+// The transport seam: a verb's wire behaviour, tested IN PROCESS.
 //
 // Every other bus-verb test in this repo builds the launcher binary, spawns it,
 // and points it at `fakert`'s HTTP server — because `bus.Client` is concrete and
@@ -87,7 +87,8 @@ func TestBeckonDrivesTheInjectedTransport(t *testing.T) {
 }
 
 // The count the transport reports must reach the user's line, or the seam has
-// widened the gap GUIDED-TOUR P1 closed.
+// reopened the gap the count closed: a signal that reached an empty room and
+// said nothing.
 func TestBeckonReportsTheTransportsSubscriberCount(t *testing.T) {
 	for _, c := range []struct {
 		subscribers int

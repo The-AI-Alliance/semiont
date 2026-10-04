@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Bus command to create a cloned resource from a clone token. Bytes are stored gateway-side BEFORE this command is emitted (GATEWAY.md D4a: the Archivist serves no bytes) — the command carries the storage coordinates, never content.",
+  "description": "Bus command to create a cloned resource from a clone token. Bytes are stored by the upload path BEFORE this command is emitted, because bytes travel over HTTP and never over the bus — the command carries the storage coordinates, never content.",
   "properties": {
     "_userId": {
       "$ref": "./UserId.json",

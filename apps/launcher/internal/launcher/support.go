@@ -205,9 +205,9 @@ var publicEnv = map[string]bool{
 // onCommandLine: whether a variable's value may ride a container's command
 // line. Default deny: anything not known to be public — every custody value,
 // every user-forwarded value, every daemon credential — crosses through the
-// runtime's own environment instead (SECRET-DELIVERY P6). Derived from
-// injectedVars rather than restating it: a hand-kept copy missed
-// KEYCLOAK_PORT and hid the one number a moved issuer is about.
+// runtime's own environment instead. Derived from injectedVars rather than
+// restating it: a hand-kept copy missed KEYCLOAK_PORT and hid the one number
+// a moved issuer is about.
 func onCommandLine(name string) bool {
 	return publicEnv[name] || (injectedVars[name] && !injectedCredentials[name])
 }

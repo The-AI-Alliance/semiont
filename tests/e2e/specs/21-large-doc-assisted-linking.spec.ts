@@ -46,7 +46,7 @@ import { signInSession } from '../fixtures/sdk-session';
  *     test still asserts outcome only, because on Ollama it does not.
  *
  *   ollama (gemma4:26b): context_length 262,144 (read live from POST
- *     /api/show — NOT the ~8K the plan's worked example assumes), shared
+ *     /api/show — NOT an assumed ~8K), shared
  *     window, so the 1:2 split gives ≈ 87K tokens input ≈ ~340 KB per chunk.
  *     PROVES: the chunk loop, the per-chunk heartbeat, and overlap dedupe —
  *     but only above ~340 KB. At 170 KB this path ALSO runs as one chunk.
@@ -84,7 +84,7 @@ const TARGET_BYTES = 170_000;
  *    entity OCCURRENCES (every occurrence is its own span, so dedupe does not
  *    reduce them) ≈ 100K+ output tokens. That overflows even the DERIVED 64K
  *    budget: post-fix it still failed, with `truncated … on chunk 1/1 despite
- *    the derived output budget of 64000 tokens`. That is the plan's
+ *    the derived output budget of 64000 tokens`. That is the
  *    pathological tail failing honestly by design — correct behavior, useless
  *    as a regression guard.
  *
@@ -248,8 +248,9 @@ test.describe('large-document assisted linking', () => {
   /**
    * Forces the CHUNK LOOP — the half the 170 KB case cannot reach.
    *
-   * Per-chunk input bounds under the DURATION bound (ABANDONED-INFERENCE P4;
-   * repointed from the pre-P4 capacity-only sizing, which needed ~750 KB):
+   * Per-chunk input bounds under the DURATION bound, which caps a call's
+   * output by the provider's published output rate (repointed from the
+   * earlier capacity-only sizing, which needed ~750 KB):
    *   - ollama `gemma4:26b`: unchanged — no published rate, capacity governs:
    *     context 262,144 (`/api/show`), shared window, 1:2 split →
    *     ~87K tokens of input per chunk ≈ ~340 KB of text.
@@ -262,7 +263,7 @@ test.describe('large-document assisted linking', () => {
    * ~400 KB exceeds BOTH, so chunking is forced regardless of which provider
    * serves `reference-annotation` — on Anthropic via the DURATION bound (the
    * bound that actually fires in production), on Ollama via capacity. That is
-   * what makes the assertion below legitimate: the plan says never to assert
+   * what makes the assertion below legitimate: the rule is never to assert
    * chunk counts *because* chunking is provider-dependent at e2e-realistic
    * sizes — true at 170 KB, where this spec's first test correctly asserts
    * outcome only. Sized deliberately past both bounds, "chunking occurred"
@@ -277,7 +278,7 @@ test.describe('large-document assisted linking', () => {
    * detection model or provider changes (Ollama's ~340 KB capacity bound is
    * the binding one now).
    *
-   * The signal: Phase 3's `onChunk` emits N−1 boundary events, surfaced as
+   * The signal: the chunk loop's `onChunk` emits N−1 boundary events, surfaced as
    * interpolated progress strictly between the 20% and 100% milestones. A
    * single-chunk run emits none (measured on both providers at 170 KB), so
    * ≥1 such event means the loop genuinely ran.
@@ -327,7 +328,7 @@ test.describe('large-document assisted linking', () => {
       expect(
         midBandEvents.length,
         'a document past both providers\' per-chunk input bound must produce chunk-boundary ' +
-          'progress events (Phase 3 onChunk: N chunks → N−1 events); zero means it ran as one ' +
+          'progress events (onChunk: N chunks → N−1 events); zero means it ran as one ' +
           'chunk and the loop was never exercised',
       ).toBeGreaterThan(0);
 
@@ -342,13 +343,13 @@ test.describe('large-document assisted linking', () => {
   });
 
   /**
-   * Live-stack gate item 4, second half — the #738 input clip is really gone.
+   * Live-stack gate — the #738 input clip is really gone.
    *
    * `motivation-prompts.ts` used to hard-code `content.substring(0, 8000)` at
    * six sites, silently capping the input for **highlight / comment /
    * assessment** (reference/linking and tagging always passed full content —
    * which is why the other tests in this file, all `linking`, prove NOTHING
-   * about this). Phase 3b deleted all six.
+   * about this). All six are deleted.
    *
    * The fixture is built so a surviving clip produces ZERO annotations rather
    * than merely fewer: the first ~10 KB is deliberately low-salience

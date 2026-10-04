@@ -1,12 +1,12 @@
 /**
- * TOOLBAR-PREFS-AS-PROPS Phase 3 — the POLICY layer.
+ * Toolbar preferences — the POLICY layer.
  *
  * useToolbarPrefs() owns one shared prefs state, persists it to the historical
  * localStorage keys, and feeds the same values/callbacks to every viewer it
  * composes — today's Semiont Browser UX (global toolbar, persisted), relocated
  * from inside the components to a visible page-layer hook.
  *
- * Started RED (the hook does not exist) and GREEN once Phase 3 lands.
+ * Started RED (the hook does not exist) and GREEN once it does.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, within, waitFor } from '@testing-library/react';

@@ -52,11 +52,10 @@ func declaredEnv(t *testing.T, parts ...string) map[string]string {
 func TestContainerPathsMatchTheImage(t *testing.T) {
 	// Each row: an image, the ENV it uses to find something, and the container
 	// path the launcher mounts onto for it. The row belongs to whichever image
-	// MOUNTS the store — anchored-text moved from the gateway to the Smelter
-	// with the mount and the stamp (ANCHORED-TEXT-TO-SMELTER P4/P5), and the
-	// Smelter was declaring no such ENV while `smelter-main` refused to boot
-	// without it. Add a row whenever a mount gains an ENV; move one whenever a
-	// mount moves.
+	// MOUNTS the store — anchored-text moved from the gateway to the Smelter,
+	// the store's writer, with the mount and the stamp, and the Smelter was
+	// declaring no such ENV while `smelter-main` refused to boot without it.
+	// Add a row whenever a mount gains an ENV; move one whenever a mount moves.
 	for _, c := range []struct {
 		label  string
 		file   []string
@@ -64,8 +63,8 @@ func TestContainerPathsMatchTheImage(t *testing.T) {
 		mounts string
 	}{
 		// The KB tree's row moved from the gateway to the ARCHIVIST with the
-		// mount itself (SINGLE-KB-MOUNT P6): the gateway declares neither of
-		// these env vars now, because it mounts nothing they could name.
+		// mount itself: the gateway declares neither of these env vars now,
+		// because it mounts nothing they could name.
 		{"archivist", []string{"..", "..", "..", "archivist", "Dockerfile"},
 			"SEMIONT_ROOT", kbMountTarget},
 		{"smelter", []string{"..", "..", "..", "smelter", "Dockerfile"},
@@ -124,8 +123,8 @@ func TestConfigDocumentsAreWhereTheImagesLook(t *testing.T) {
 	}
 }
 
-// THE WHOLE PLAN'S GATE (SINGLE-KB-MOUNT): exactly one container bind-mounts
-// the knowledge base tree.
+// THE GATE ON THE SINGLE KB MOUNT: exactly one container, the Archivist,
+// bind-mounts the knowledge base tree.
 //
 // Asserted on the run arguments the launcher BUILDS, not observed on a running
 // stack — an observation passes for whatever happens to be up, while this fails
@@ -163,14 +162,13 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 	}
 }
 
-// ARCHIVIST-STAYS-UP P1: the archivist restarts on crash and on hang — the
-// only mechanism that can be true on all three runtimes (Apple container has
-// no --restart at all; probed 2026-09-04). Supervision is a per-run opt-in
-// now (ORCHESTRATOR-NATIVE-IMAGES D3: the launcher passes SEMIONT_SUPERVISE
-// and boot.sh wraps the CMD), so this asserts the image half — the shared
-// supervisor on board, parameterized for the archivist — against the files,
-// never by running anything. The launcher half is
-// TestStartOptsEveryServiceIntoSupervision.
+// An in-container supervisor restarts the archivist on crash and on hang —
+// the only mechanism that can be true on all three runtimes (Apple container
+// has no --restart at all; probed 2026-09-04). Supervision is a per-run
+// opt-in now (the launcher passes SEMIONT_SUPERVISE and boot.sh wraps the
+// CMD), so this asserts the image half — the shared supervisor on board,
+// parameterized for the archivist — against the files, never by running
+// anything. The launcher half is TestStartOptsEveryServiceIntoSupervision.
 func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
 	df, err := os.ReadFile(filepath.Join("..", "..", "..", "archivist", "Dockerfile"))
 	if err != nil {

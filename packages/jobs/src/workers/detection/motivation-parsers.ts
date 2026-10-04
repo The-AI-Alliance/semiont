@@ -18,17 +18,16 @@ import { noteAnchor } from './anchor-audit';
 // "could not read the model" never reaches this layer and there is no string
 // to parse here (the former strict `parseJsonArray` moved into that contract,
 // as the earlier tolerant walker moved into it before). What remains here is
-// per-element structural validation (STRUCTURED-INFERENCE D5 — the last line
-// on the Ollama path and the schema/type drift guard) plus reconciliation
-// against the full document.
+// per-element structural validation (the last line on the Ollama path and the
+// schema/type drift guard) plus reconciliation against the full document.
 //
 // Each element schema is declared ADJACENT to the Match interface it mirrors:
 // the schema constrains the wire, the interface is what the code consumes,
 // and nothing verifies they agree — adjacency is the drift guard.
 // `prefix`/`suffix` stay OUT of `required` deliberately: requiring them turns
 // "sometimes absent" into "always present, sometimes empty" (measured
-// 2026-08-06), an anchoring-path change Phase 3 examines before anyone
-// relies on it.
+// 2026-08-06), an anchoring-path change avoided at the source here;
+// `reconcileSelector` also treats an empty hint as an absent one.
 
 /**
  * Represents a detected comment with validated position

@@ -8,12 +8,13 @@ import (
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
-// SHARED-STORE-CLEAR-PREFLIGHT: resolution must RESTAMP the moment it
-// resolves. The P5 live gate caught the alternative (2026-09-08): preflight
-// cleared but left the old stamp, so the stamp owner's own prep saw
-// mismatch + non-empty again — non-empty because the gateway had already
-// written its jobs tree into the shared store — and cleared a second time,
-// mid-boot, deleting what a sharer had just written.
+// A store's stamp mismatch is resolved in preflight, and resolution must
+// RESTAMP the moment it resolves. A live boot of a full stack with a
+// hand-edited stamp caught the alternative (2026-09-08): preflight cleared
+// but left the old stamp, so the stamp owner's own prep saw mismatch +
+// non-empty again — non-empty because the gateway had already written its
+// jobs tree into the shared store — and cleared a second time, mid-boot,
+// deleting what a sharer had just written.
 func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 	harness.Home(t)
 	root := t.TempDir()

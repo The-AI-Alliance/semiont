@@ -14,12 +14,12 @@ import { signInSession } from '../fixtures/sdk-session';
  * once via `?channel=` (global, `scope=undefined`, ephemeral id) and once via
  * `?scoped=` (`scope=<rId>`, persisted id). Two different SSE ids defeated the
  * client's `seenEventIds` dedup, so **both** copies were delivered onto the
- * client bus. Fix #2 removed every bridged channel from
+ * client bus. The fix removed every bridged channel from
  * `RESOURCE_SCOPED_CHANNELS`, leaving the single global delivery.
  *
- * Why this is the *deterministic* half of the BRIDGE-GAPS repro: unlike the
- * reconnect-overlap bug (Fix #1), this double-delivery needs no make-before-
- * break race — it happens on any steady-state resource-subscribed connection.
+ * Why this is the *deterministic* half of the duplicate-delivery repro: unlike
+ * the reconnect-overlap bug, this double-delivery needs no make-before-break
+ * race — it happens on any steady-state resource-subscribed connection.
  * (The reconnect-overlap half stays guarded at the unit level: the
  * `e-<channel>:<cid>` deterministic-id test in `apps/gateway/.../bus.test.ts`.)
  *

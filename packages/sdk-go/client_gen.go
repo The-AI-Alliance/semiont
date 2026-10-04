@@ -1841,7 +1841,7 @@ type AgentPerson struct {
 	EmailSha1 *string `json:"email_sha1,omitempty"`
 	Homepage  *string `json:"homepage,omitempty"`
 
-	// Name Display name. ABSENT until resolved: a Person is identified by `@id` and nothing else, and what they are called is recorded once per change on the knowledge base's own log and filled in when a record is read (PERSON-PROFILE). An artifact therefore never freezes a name, which is what lets a correction reach every artifact its subject ever wrote. Absent also means genuinely unknown — a DID this knowledge base has no profile for.
+	// Name Display name. ABSENT until resolved: a Person is identified by `@id` and nothing else, and what they are called is recorded once per change on the knowledge base's own log and filled in when a record is read. An artifact therefore never freezes a name, which is what lets a correction reach every artifact its subject ever wrote. Absent also means genuinely unknown — a DID this knowledge base has no profile for.
 	Name                 *string                `json:"name,omitempty"`
 	Nickname             *string                `json:"nickname,omitempty"`
 	AdditionalProperties map[string]interface{} `json:"-"`
@@ -1894,13 +1894,13 @@ type AnchoredText struct {
 	Text string `json:"text"`
 }
 
-// AnchoredTextAbsent There is no coordinate map to serve, and WHY — the distinction a bare null could not carry (SMELTER-OWNS-OCR P1).
+// AnchoredTextAbsent There is no coordinate map to serve, and WHY — the distinction a bare null could not carry.
 //
 // One member covers all three absences because none carries a payload; `kind` alone is the fact. Retryability is legible from the name, deliberately: a caller must not need a lookup table to decide whether to come back.
 type AnchoredTextAbsent struct {
-	// Kind Discriminant, sharing the `kind` field with the ExtractedText/ExtractionDeclined members so the whole answer is one flat union (D6).
+	// Kind Discriminant, sharing the `kind` field with the ExtractedText/ExtractionDeclined members so the whole answer is one flat union.
 	//
-	// `not-yet` — the Smelter has not settled this content generation: the settle barrier expired, the progress fold was disposed, or it settled indexed and the artifact is missing (the reconcile planner's third drift class, which heals). RETRY.
+	// `not-yet` — the Smelter has not settled this content generation: the settle barrier expired, the progress fold was disposed, or it settled indexed and the artifact is missing (a loss the Smelter's reconcile pass re-derives). RETRY.
 	//
 	// `no-map` — the Smelter settled this resource as skipped: its media type derives no geometry, so a map will never exist. TERMINAL.
 	//
@@ -1908,9 +1908,9 @@ type AnchoredTextAbsent struct {
 	Kind AnchoredTextAbsentKind `json:"kind"`
 }
 
-// AnchoredTextAbsentKind Discriminant, sharing the `kind` field with the ExtractedText/ExtractionDeclined members so the whole answer is one flat union (D6).
+// AnchoredTextAbsentKind Discriminant, sharing the `kind` field with the ExtractedText/ExtractionDeclined members so the whole answer is one flat union.
 //
-// `not-yet` — the Smelter has not settled this content generation: the settle barrier expired, the progress fold was disposed, or it settled indexed and the artifact is missing (the reconcile planner's third drift class, which heals). RETRY.
+// `not-yet` — the Smelter has not settled this content generation: the settle barrier expired, the progress fold was disposed, or it settled indexed and the artifact is missing (a loss the Smelter's reconcile pass re-derives). RETRY.
 //
 // `no-map` — the Smelter settled this resource as skipped: its media type derives no geometry, so a map will never exist. TERMINAL.
 //
@@ -2212,7 +2212,7 @@ type BrowseAnchoredTextRequest struct {
 	ResourceId ResourceId `json:"resourceId"`
 }
 
-// BrowseAnchoredTextResult A resource's coordinate map, a stored decline, or a named reason there is none (SMELTER-OWNS-OCR P1). Never null: absence used to be a bare null covering four different facts — barrier expired, settled-skipped, no content identity, fold disposed — two of which a caller should retry and two of which it should not.
+// BrowseAnchoredTextResult A resource's coordinate map, a stored decline, or a named reason there is none. Never null: absence used to be a bare null covering four different facts — barrier expired, settled-skipped, no content identity, fold disposed — two of which a caller should retry and two of which it should not.
 type BrowseAnchoredTextResult struct {
 	// Response What a reader gets when it asks for a resource's coordinate map: the map, a stored decline, or a named absence.
 	//
@@ -2407,7 +2407,7 @@ type BrowseResourceCloseEvent struct {
 	ResourceId ResourceId `json:"resourceId"`
 }
 
-// BrowseResourceOpenEvent Domain intent to open a resource in the viewer (GUIDED-TOUR D1/D2): emitted locally by in-app link handlers and remotely by the launcher's tour verbs; the viewer translates it to host routing (nav:push). Deliberately not named 'navigate' — that word and the nav:* prefix belong to the host-local framework layer.
+// BrowseResourceOpenEvent Domain intent to open a resource in the viewer: emitted locally by in-app link handlers and remotely by the launcher's tour verbs; the viewer translates it to host routing (nav:push), which never crosses the wire. Deliberately not named 'navigate' — that word and the nav:* prefix belong to the host-local framework layer.
 type BrowseResourceOpenEvent struct {
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
@@ -2430,7 +2430,7 @@ type BrowseResourceResult struct {
 	Response GetResourceResponse `json:"response"`
 }
 
-// BrowseResourceViewedEvent REPORT that a resource has loaded in a viewer — emitted on arrival by ANY means: a followed cue, an in-app link, the back button, a typed URL (GUIDED-TOUR D6). Deliberately distinct from the imperative browse:resource-open: drive and report never share a channel, or the driver hears its own commands and one viewer's arrival steers another's page.
+// BrowseResourceViewedEvent REPORT that a resource has loaded in a viewer — emitted on arrival by ANY means: a followed cue, an in-app link, the back button, a typed URL. Deliberately distinct from the imperative browse:resource-open: drive and report never share a channel, or the driver hears its own commands and one viewer's arrival steers another's page.
 type BrowseResourceViewedEvent struct {
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
@@ -2839,7 +2839,7 @@ type ExtractedText struct {
 	// Items Positioned runs indexing `text`, roughly one per word.
 	Items []PdfTextItem `json:"items"`
 
-	// Kind Discriminant — both ExtractionOutcome members carry `kind`, single-valued (D6: category here, detail in `method`).
+	// Kind Discriminant — both ExtractionOutcome members carry `kind`, single-valued: the category here, the detail in `method`.
 	Kind ExtractedTextKind `json:"kind"`
 
 	// Method How the text was extracted.
@@ -2865,7 +2865,7 @@ type ExtractedText struct {
 	UnreadPages *[]int `json:"unreadPages,omitempty"`
 }
 
-// ExtractedTextKind Discriminant — both ExtractionOutcome members carry `kind`, single-valued (D6: category here, detail in `method`).
+// ExtractedTextKind Discriminant — both ExtractionOutcome members carry `kind`, single-valued: the category here, the detail in `method`.
 type ExtractedTextKind string
 
 // ExtractedTextMethod How the text was extracted.
@@ -2879,17 +2879,17 @@ type ExtractionDeclined struct {
 	// Declined Why extraction yielded nothing, by class.
 	Declined ExtractionDeclinedDeclined `json:"declined"`
 
-	// Kind Discriminant — both ExtractionOutcome members carry `kind`, single-valued (D6: category here, detail in `declined`).
+	// Kind Discriminant — both ExtractionOutcome members carry `kind`, single-valued: the category here, the detail in `declined`.
 	Kind ExtractionDeclinedKind `json:"kind"`
 }
 
 // ExtractionDeclinedDeclined Why extraction yielded nothing, by class.
 type ExtractionDeclinedDeclined string
 
-// ExtractionDeclinedKind Discriminant — both ExtractionOutcome members carry `kind`, single-valued (D6: category here, detail in `declined`).
+// ExtractionDeclinedKind Discriminant — both ExtractionOutcome members carry `kind`, single-valued: the category here, the detail in `declined`.
 type ExtractionDeclinedKind string
 
-// ExtractionOutcome The full outcome of text extraction for one representation — the record the anchored-text store holds and the wire serves (PERSIST-ANCHORS decision D1). Discriminated on `kind` (WIRE-UNION-DISCRIMINANTS P5c/D6): 'extracted' — the anchored text with its provenance; 'declined' — a named decline. ocrConfidence is extraction quality for operators, deliberately not anchor confidence.
+// ExtractionOutcome The full outcome of text extraction for one representation — the record the anchored-text store holds and the wire serves. Discriminated on `kind`: 'extracted' — the anchored text with its provenance; 'declined' — a named decline. ocrConfidence is extraction quality for operators, deliberately not anchor confidence.
 type ExtractionOutcome struct {
 	union json.RawMessage
 }
@@ -3188,7 +3188,7 @@ type GatheredContextFocus0 struct {
 	// SourceResource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
 	SourceResource ResourceDescriptor `json:"sourceResource"`
 
-	// TargetContext Context about the annotation's link target. Dormant — see LINK-TARGET-CONTEXT.md.
+	// TargetContext Context about the annotation's link target. Dormant — produced/exposed but not yet consumed.
 	TargetContext *struct {
 		Content string  `json:"content"`
 		Summary *string `json:"summary,omitempty"`
@@ -3256,7 +3256,7 @@ type GenerationJobParams struct {
 	// SourceLanguage Source-resource locale — language of the resource being referenced, used in the prompt so the LLM understands embedded source-context snippets when source ≠ target language. BCP-47.
 	SourceLanguage *string `json:"sourceLanguage,omitempty"`
 
-	// StorageUri Storage URI for the generated resource's content — AUTHORITATIVE: the worker writes exactly here and never derives a location from the title. Non-empty, and there is no fallback; the dispatcher and worker both reject an empty value via isGenerationJobParams. NOTE minLength is documentation here — JobCreateCommand.params is additionalProperties:true, so /bus/emit's generated validator never sees this field (GENERATION-OUTPUT-FORMAT D6/D9).
+	// StorageUri Storage URI for the generated resource's content — AUTHORITATIVE: the worker writes exactly here and never derives a location from the title. Non-empty, and there is no fallback; the dispatcher and worker both reject an empty value via isGenerationJobParams. NOTE minLength is documentation here — JobCreateCommand.params is additionalProperties:true, so /bus/emit's generated validator never sees this field.
 	StorageUri string `json:"storageUri"`
 
 	// Structure How the output is internally segmented — shape for text-bearing media, subordinate to `outputMediaType` (never its peer). Canonical values: 'prose' (flowing paragraphs), 'sections' (titled sections + title), 'chat' (speaker-labeled turns); any other string becomes a freeform "organize as: …" directive (loud degrade). Unset ⇒ NO structure directive at all — the task framing and the model determine shape.
@@ -3268,7 +3268,7 @@ type GenerationJobParams struct {
 	// Temperature Sampling temperature forwarded to the model.
 	Temperature *float32 `json:"temperature,omitempty"`
 
-	// Title Title of the generated resource. Non-empty: the dispatcher and worker both reject an empty title via isGenerationJobParams. NOTE minLength is documentation here — JobCreateCommand.params is additionalProperties:true, so /bus/emit's generated validator never sees this field (GENERATION-OUTPUT-FORMAT D9b).
+	// Title Title of the generated resource. Non-empty: the dispatcher and worker both reject an empty title via isGenerationJobParams. NOTE minLength is documentation here — JobCreateCommand.params is additionalProperties:true, so /bus/emit's generated validator never sees this field.
 	Title string `json:"title"`
 }
 
@@ -3449,11 +3449,11 @@ type JobAssessmentAnnotationResult struct {
 	AssessmentsCreated int `json:"assessmentsCreated"`
 	AssessmentsFound   int `json:"assessmentsFound"`
 
-	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
 	Kind JobAssessmentAnnotationResultKind `json:"kind"`
 }
 
-// JobAssessmentAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+// JobAssessmentAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
 type JobAssessmentAnnotationResultKind string
 
 // JobAssignCommand Bus command the dispatcher emits, under its own service identity, immediately after it accepts a job:claim — the correlated job:claimed reply is unchanged. The Stower persists it as job:assigned. It is the one fact only the dispatcher can vouch for: which holder took which job, and who requested it. A later write citing `jobId` is checked against the holder and its `creator` derived from the requester by reading the resource's own log, with nothing outside the record.
@@ -3495,7 +3495,7 @@ type JobAssignedPayload struct {
 	ResourceId ResourceId `json:"resourceId"`
 }
 
-// JobCancelCommand A worker's confirmation that it has cooperatively stopped a running job at a unit boundary (JOB-RESTART-SAFETY P4) — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).
+// JobCancelCommand A worker's confirmation that it has cooperatively stopped a running job at a unit boundary — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).
 type JobCancelCommand struct {
 	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
@@ -3519,7 +3519,7 @@ type JobCancelCommand struct {
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 }
 
-// JobCancelRequest Request to cancel a job. Target one running or pending job by `jobId` (JOB-RESTART-SAFETY P4), or a whole category of pending jobs by `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.
+// JobCancelRequest Request to cancel a job. Target one running or pending job by `jobId`, or a whole category of pending jobs by `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.
 type JobCancelRequest struct {
 	// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	JobId *JobId `json:"jobId,omitempty"`
@@ -3556,7 +3556,7 @@ type JobCancelled struct {
 // JobCancelledStatus defines model for JobCancelled.Status.
 type JobCancelledStatus string
 
-// JobCheckpointCommand Command to persist a running job's completed-unit checkpoint AT unit completion (JOB-RESTART-SAFETY P2). Distinct from JobFailCommand's checkpoint, which lands only on a clean failure: a worker that dies (crash/OOM/kill) never emits job:fail, so this durable, unthrottled write is what lets the janitor's stale-running recovery resume a dead worker's job rather than redo its finished units.
+// JobCheckpointCommand Command to persist a running job's completed-unit checkpoint AT unit completion. Distinct from JobFailCommand's checkpoint, which lands only on a clean failure: a worker that dies (crash/OOM/kill) never emits job:fail, so this durable, unthrottled write is what lets the janitor's stale-running recovery resume a dead worker's job rather than redo its finished units.
 type JobCheckpointCommand struct {
 	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
@@ -3571,9 +3571,9 @@ type JobCheckpointCommand struct {
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 }
 
-// JobClaimCommand Claim the NEXT pending job matching one of the requested types (atomic: pending → running). Claim-by-type replaced claim-by-jobId (JOB-QUEUE-DRIVER P2, landed while every worker is first-party): a job:queued announcement is a WAKE-UP, not a reservation — the claimed job may differ from the announced one, and two workers claiming after one announcement both succeed on different jobs instead of racing for one. An empty `types` accepts any type. The reply channels are unchanged: job:claimed carries the claimed job; job:claim-failed reports nothing-available exactly as it reported already-claimed.
+// JobClaimCommand Claim the NEXT pending job matching one of the requested types (atomic: pending → running). Claim-by-type replaced claim-by-jobId: a job:queued announcement is a WAKE-UP, not a reservation — the claimed job may differ from the announced one, and two workers claiming after one announcement both succeed on different jobs instead of racing for one. An empty `types` accepts any type. The reply channels are unchanged: job:claimed carries the claimed job; job:claim-failed reports nothing-available exactly as it reported already-claimed.
 type JobClaimCommand struct {
-	// UnderscoreRoles The claimant's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. The dispatcher authorizes the claim by capability — it admits the claim only when this carries the worker role — so a claimant that is not a worker for this knowledge base is refused before the queue is consulted (EXTRACT-JOBS P0).
+	// UnderscoreRoles The claimant's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. The dispatcher authorizes the claim by capability — it admits the claim only when this carries the worker role — so a claimant that is not a worker for this knowledge base is refused before the queue is consulted.
 	UnderscoreRoles *[]string `json:"_roles,omitempty"`
 
 	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
@@ -3592,11 +3592,11 @@ type JobCommentAnnotationResult struct {
 	CommentsCreated int `json:"commentsCreated"`
 	CommentsFound   int `json:"commentsFound"`
 
-	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
 	Kind JobCommentAnnotationResultKind `json:"kind"`
 }
 
-// JobCommentAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+// JobCommentAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
 type JobCommentAnnotationResultKind string
 
 // JobComplete A job its worker completed.
@@ -3644,7 +3644,7 @@ type JobCompleteCommand struct {
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
 
-	// Result Discriminated union of all job result types — every member carries a single-valued `kind` (WIRE-UNION-DISCRIMINANTS D1/D2). Consumers switch on `kind`; generated clients get typed variants.
+	// Result Discriminated union of all job result types — every member carries a single-valued `kind`. Consumers switch on `kind`; generated clients get typed variants.
 	Result *JobResult `json:"result,omitempty"`
 }
 
@@ -3705,20 +3705,20 @@ type JobDeclinedResult struct {
 	// Declined Discriminant. Always true — a job that did its work reports one of the other result shapes.
 	Declined JobDeclinedResultDeclined `json:"declined"`
 
-	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
 	Kind JobDeclinedResultKind `json:"kind"`
 
-	// Reason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed gateway-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5).
+	// Reason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed gateway-side and was therefore English everywhere.
 	Reason JobDeclinedResultReason `json:"reason"`
 }
 
 // JobDeclinedResultDeclined Discriminant. Always true — a job that did its work reports one of the other result shapes.
 type JobDeclinedResultDeclined bool
 
-// JobDeclinedResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+// JobDeclinedResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
 type JobDeclinedResultKind string
 
-// JobDeclinedResultReason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed gateway-side and was therefore English everywhere (ASSIST-PROGRESS-CONSOLIDATION P5).
+// JobDeclinedResultReason Why the resource could not be read. A CODE, not a sentence: the client owns the wording, so a browser renders it in the user's language and the CLI renders English terminal copy from the same value. The prose `message` this schema used to carry was composed gateway-side and was therefore English everywhere.
 type JobDeclinedResultReason string
 
 // JobFailCommand Command to mark a job as failed
@@ -3754,7 +3754,7 @@ type JobFailCommand struct {
 	// UnitCursors How far each in-progress unit got, keyed by unit — the grain `completedUnits` cannot express. A unit appearing here is NOT complete; a unit in `completedUnits` is skipped whole whatever cursor it last carried. Merged monotonically per unit: a stale snapshot must never move a cursor backward.
 	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
 
-	// WillRetry Whether the queue will re-queue this job for another attempt. Computed by the worker from the SAME predicate the queue applies at failJob (one decision site, `willRetryAfter` in @semiont/jobs) using the retry budget carried on the claimed record. FALSE (or absent) means this failure is TERMINAL: a client's job-watch stream ends here. TRUE means the work continues on a fresh attempt — the failure is an event, not the end, and a stream that terminated on it would report a recovering run as a failed one (JOB-RESTART-SAFETY P5).
+	// WillRetry Whether the queue will re-queue this job for another attempt. Computed by the worker from the SAME predicate the queue applies at failJob (one decision site, `willRetryAfter` in @semiont/jobs) using the retry budget carried on the claimed record. FALSE (or absent) means this failure is TERMINAL: a client's job-watch stream ends here. TRUE means the work continues on a fresh attempt — the failure is an event, not the end, and a stream that terminated on it would report a recovering run as a failed one.
 	WillRetry *bool `json:"willRetry,omitempty"`
 }
 
@@ -3807,7 +3807,7 @@ type JobFailedPayload struct {
 
 // JobGenerationResult Result of a completed generation job. The worker creates the resource first (the yield:create round-trip returns the id), then emits job:complete carrying it — so resourceId is always present on the wire.
 type JobGenerationResult struct {
-	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
 	Kind JobGenerationResultKind `json:"kind"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
@@ -3816,11 +3816,11 @@ type JobGenerationResult struct {
 	// ResourceName Name of the generated resource
 	ResourceName string `json:"resourceName"`
 
-	// Truncated True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete. Derived at the producer from the provider's stopReason ('max_tokens' → true); required because the worker always knows (GENERATE-FROM-RESOURCE D6/P3a).
+	// Truncated True when the model stopped at the maxTokens ceiling — the artifact is cut off, not complete. Derived at the producer from the provider's stopReason ('max_tokens' → true); required because the worker always knows.
 	Truncated bool `json:"truncated"`
 }
 
-// JobGenerationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+// JobGenerationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
 type JobGenerationResultKind string
 
 // JobHighlightAnnotationResult Result of a completed highlight-annotation job.
@@ -3828,11 +3828,11 @@ type JobHighlightAnnotationResult struct {
 	HighlightsCreated int `json:"highlightsCreated"`
 	HighlightsFound   int `json:"highlightsFound"`
 
-	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
 	Kind JobHighlightAnnotationResultKind `json:"kind"`
 }
 
-// JobHighlightAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+// JobHighlightAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
 type JobHighlightAnnotationResultKind string
 
 // JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
@@ -3883,7 +3883,7 @@ type JobPending struct {
 // JobPendingStatus defines model for JobPending.Status.
 type JobPendingStatus string
 
-// JobProgress Progress report from a running job. The required field is `percentage`; `message` carries the coded phase and the rest are optional job-shape fields. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Terminality is signalled on `job:complete` / `job:fail`, not here. The per-flow progress vocabularies (`processedEntityTypes`/`totalEntityTypes` for references, `processedCategories`/`totalCategories`/`currentCategory` for tags) were replaced by one `current`/`processed`/`total` triple (CLEAN-PROGRESS D2): both flows iterate a user-chosen list, so they report the same shape and the client stops guessing which flow it is drawing.
+// JobProgress Progress report from a running job. The required field is `percentage`; `message` carries the coded phase and the rest are optional job-shape fields. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED: both were redundant denormalization of `message`. Terminality is signalled on `job:complete` / `job:fail`, not here. The per-flow progress vocabularies (`processedEntityTypes`/`totalEntityTypes` for references, `processedCategories`/`totalCategories`/`currentCategory` for tags) were replaced by one `current`/`processed`/`total` triple: both flows iterate a user-chosen list, so they report the same shape and the client stops guessing which flow it is drawing.
 type JobProgress struct {
 	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
@@ -3930,7 +3930,7 @@ type JobProgress struct {
 	// EntitiesFound Entities found so far (reference-annotation)
 	EntitiesFound *int `json:"entitiesFound,omitempty"`
 
-	// Message What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). One named schema per code, discriminated on `code` (WIRE-UNION-DISCRIMINANTS P5b), so generated clients get typed variants and copy-map completeness is statically checkable. The vocabulary is the census of every onProgress call site in @semiont/jobs; extending it means adding a named variant here and copy in every client, gated by the locale-completeness check.
+	// Message What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). One named schema per code, discriminated on `code`, so generated clients get typed variants and copy-map completeness is statically checkable. The vocabulary is the census of every onProgress call site in @semiont/jobs; extending it means adding a named variant here and copy in every client, gated by the locale-completeness check.
 	Message *JobProgressMessage `json:"message,omitempty"`
 
 	// Percentage Completion percentage (0-100)
@@ -3991,7 +3991,7 @@ type JobProgressCompleteCreatedCode string
 // JobProgressCompleteCreatedKind What kind of annotation was created; clients pluralize/translate
 type JobProgressCompleteCreatedKind string
 
-// JobProgressCompleteGenerated Generation's terminal success. Deliberately generic — the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress (GENERATE-FROM-RESOURCE D7/D8). `truncated` qualifies the completion (D6): the same bit `JobGenerationResult.truncated` carries, so the two surfaces cannot drift.
+// JobProgressCompleteGenerated Generation's terminal success. Deliberately generic — the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress. `truncated` qualifies the completion: the same bit `JobGenerationResult.truncated` carries, so the two surfaces cannot drift.
 type JobProgressCompleteGenerated struct {
 	Code JobProgressCompleteGeneratedCode `json:"code"`
 
@@ -4059,7 +4059,7 @@ type JobProgressLoading struct {
 // JobProgressLoadingCode defines model for JobProgressLoading.Code.
 type JobProgressLoadingCode string
 
-// JobProgressMessage What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). One named schema per code, discriminated on `code` (WIRE-UNION-DISCRIMINANTS P5b), so generated clients get typed variants and copy-map completeness is statically checkable. The vocabulary is the census of every onProgress call site in @semiont/jobs; extending it means adding a named variant here and copy in every client, gated by the locale-completeness check.
+// JobProgressMessage What a running job is doing right now, as a code plus typed params — never a prose sentence. The producer reports what happened; each client renders it in the user's language (react-ui from its translations, the Go launcher from its English map). One named schema per code, discriminated on `code`, so generated clients get typed variants and copy-map completeness is statically checkable. The vocabulary is the census of every onProgress call site in @semiont/jobs; extending it means adding a named variant here and copy in every client, gated by the locale-completeness check.
 type JobProgressMessage struct {
 	union json.RawMessage
 }
@@ -4091,7 +4091,7 @@ type JobReferenceAnnotationResult struct {
 	// Errors Number of errors encountered
 	Errors int `json:"errors"`
 
-	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
 	Kind JobReferenceAnnotationResultKind `json:"kind"`
 
 	// TotalEmitted Total annotations emitted
@@ -4104,7 +4104,7 @@ type JobReferenceAnnotationResult struct {
 	UnderReportedPieces *int `json:"underReportedPieces,omitempty"`
 }
 
-// JobReferenceAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+// JobReferenceAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
 type JobReferenceAnnotationResultKind string
 
 // JobReportProgressCommand Command to report progress on a job
@@ -4125,14 +4125,14 @@ type JobReportProgressCommand struct {
 	JobType    JobType `json:"jobType"`
 	Percentage float32 `json:"percentage"`
 
-	// Progress Progress report from a running job. The required field is `percentage`; `message` carries the coded phase and the rest are optional job-shape fields. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Terminality is signalled on `job:complete` / `job:fail`, not here. The per-flow progress vocabularies (`processedEntityTypes`/`totalEntityTypes` for references, `processedCategories`/`totalCategories`/`currentCategory` for tags) were replaced by one `current`/`processed`/`total` triple (CLEAN-PROGRESS D2): both flows iterate a user-chosen list, so they report the same shape and the client stops guessing which flow it is drawing.
+	// Progress Progress report from a running job. The required field is `percentage`; `message` carries the coded phase and the rest are optional job-shape fields. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED: both were redundant denormalization of `message`. Terminality is signalled on `job:complete` / `job:fail`, not here. The per-flow progress vocabularies (`processedEntityTypes`/`totalEntityTypes` for references, `processedCategories`/`totalCategories`/`currentCategory` for tags) were replaced by one `current`/`processed`/`total` triple: both flows iterate a user-chosen list, so they report the same shape and the client stops guessing which flow it is drawing.
 	Progress *JobProgress `json:"progress,omitempty"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
 }
 
-// JobResult Discriminated union of all job result types — every member carries a single-valued `kind` (WIRE-UNION-DISCRIMINANTS D1/D2). Consumers switch on `kind`; generated clients get typed variants.
+// JobResult Discriminated union of all job result types — every member carries a single-valued `kind`. Consumers switch on `kind`; generated clients get typed variants.
 type JobResult struct {
 	union json.RawMessage
 }
@@ -4249,13 +4249,13 @@ type JobTagAnnotationResult struct {
 	// ByCategory Count of tags created per category
 	ByCategory map[string]int `json:"byCategory"`
 
-	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+	// Kind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
 	Kind        JobTagAnnotationResultKind `json:"kind"`
 	TagsCreated int                        `json:"tagsCreated"`
 	TagsFound   int                        `json:"tagsFound"`
 }
 
-// JobTagAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
+// JobTagAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is.
 type JobTagAnnotationResultKind string
 
 // JobType Type of background job
@@ -4313,14 +4313,14 @@ type LimitRefusalCode string
 type ListResourcesResponse struct {
 	Limit float32 `json:"limit"`
 
-	// MatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index (SEMANTIC-FALLBACK). Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
+	// MatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index. Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
 	MatchKind ListResourcesResponseMatchKind `json:"matchKind"`
 	Offset    float32                        `json:"offset"`
 	Resources []ResourceDescriptor           `json:"resources"`
 	Total     float32                        `json:"total"`
 }
 
-// ListResourcesResponseMatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index (SEMANTIC-FALLBACK). Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
+// ListResourcesResponseMatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index. Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
 type ListResourcesResponseMatchKind string
 
 // LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
@@ -4371,7 +4371,7 @@ type MarkAssistTimeoutEvent struct {
 	ResourceId ResourceId `json:"resourceId"`
 }
 
-// MarkCommitCommand Bus command to persist a detection unit's annotations as one acknowledged batch (JOB-RESTART-SAFETY P6). Unlike mark:create, which is fire-and-forget and resolves when the bus accepts it, this command is answered only after every annotation is in the event log — so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic (P3).
+// MarkCommitCommand Bus command to persist a detection unit's annotations as one acknowledged batch. Unlike mark:create, which is fire-and-forget and resolves when the bus accepts it, this command is answered only after every annotation is in the event log — so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic: content-addressed, so re-emitting one is a no-op.
 type MarkCommitCommand struct {
 	// UnderscoreRoles The emitter's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. An emitter carrying the worker role must cite the job this batch fulfils in `jobId`; the Stower refuses the batch otherwise.
 	UnderscoreRoles *[]string `json:"_roles,omitempty"`
@@ -4743,7 +4743,7 @@ type ResourceClonedPayload struct {
 	// ParentResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ParentResourceId ResourceId `json:"parentResourceId"`
 
-	// StorageUri Where the clone's bytes are, on the resource's primary Representation — the same single home `yield:created` writes to (STORAGE-URI-ONE-HOME).
+	// StorageUri Where the clone's bytes are, on the resource's primary Representation — the same single home `yield:created` writes to.
 	StorageUri *string `json:"storageUri,omitempty"`
 
 	// WasAttributedTo PROV-O wasAttributedTo, derived at write time: the cloner alone. The value the resource view carries.
@@ -5494,7 +5494,7 @@ type TextualBody struct {
 // TextualBodyType defines model for TextualBody.Type.
 type TextualBodyType string
 
-// UnitCursor How far a single unit got, for a resume that starts mid-unit rather than redoing it (CHUNK-GRAIN-RESUME P2). A unit is an entity type for reference-annotation, and the job's own motivation for the other annotation types — which is why a unit-grain checkpoint alone was too coarse: those jobs have exactly one unit, so nothing could be recorded until the whole document was done.
+// UnitCursor How far a single unit got, for a resume that starts mid-unit rather than redoing it. A unit is an entity type for reference-annotation, and the job's own motivation for the other annotation types — which is why a unit-grain checkpoint alone was too coarse: those jobs have exactly one unit, so nothing could be recorded until the whole document was done.
 //
 // MERGE IS MONOTONE PER UNIT, not a union. `completedUnits` is a set and converges under concurrent snapshots because a set only grows; a cursor converges only if a stale snapshot can never move it backward.
 //
@@ -5509,7 +5509,7 @@ type UnitCursor struct {
 	// Next Characters consumed once the last COMMITTED chunk completed — the resume position. Deliberately the chunk's `next`, never its `at`: the checkpoint must not lead the log, so it records where a chunk that is already durable ended, not where the in-flight one began. Recording `at` would make a resume re-run the chunk it already paid for.
 	Next int `json:"next"`
 
-	// Size The token size that last committed chunk was cut at — the calibration the attempt paid for over the chunks before it. A resume seeds from this and then takes ONE adaptive step, as if the last outcome were a failure, which it was: the job died. Seeding alone would re-cut the failing piece identically; opening at the default would discard the calibration. (CHUNK-GRAIN-RESUME HD2, option C.)
+	// Size The token size that last committed chunk was cut at — the calibration the attempt paid for over the chunks before it. A resume seeds from this and then takes ONE adaptive step, as if the last outcome were a failure, which it was: the job died. Seeding alone would re-cut the failing piece identically; opening at the default would discard the calibration.
 	Size int `json:"size"`
 }
 
@@ -5564,7 +5564,7 @@ type WeaveRebuildCommand struct {
 	ResourceId *ResourceId `json:"resourceId,omitempty"`
 }
 
-// YieldCloneCreateCommand Bus command to create a cloned resource from a clone token. Bytes are stored gateway-side BEFORE this command is emitted (GATEWAY.md D4a: the Archivist serves no bytes) — the command carries the storage coordinates, never content.
+// YieldCloneCreateCommand Bus command to create a cloned resource from a clone token. Bytes are stored by the upload path BEFORE this command is emitted, because bytes travel over HTTP and never over the bus — the command carries the storage coordinates, never content.
 type YieldCloneCreateCommand struct {
 	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
@@ -5610,13 +5610,13 @@ type YieldClonePersistCommand struct {
 	Language *string       `json:"language,omitempty"`
 	Name     string        `json:"name"`
 
-	// NoGit The bytes were already written by the uploader; the Stower's register does the one `git add` on apply (GATEWAY.md D4b).
+	// NoGit The bytes were already written by the uploader; the Stower's register does the one `git add` on apply, so git has a single writer.
 	NoGit *bool `json:"noGit,omitempty"`
 
 	// ParentResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ParentResourceId ResourceId `json:"parentResourceId"`
 
-	// StorageUri The caller's instruction for WHERE the bytes are — the uploader wrote them before emitting this. The stored location lives on the clone's primary Representation (STORAGE-URI-ONE-HOME).
+	// StorageUri The caller's instruction for WHERE the bytes are — the uploader wrote them before emitting this. The stored location lives on the clone's primary Representation, the one home of a storage URI.
 	StorageUri string `json:"storageUri"`
 }
 

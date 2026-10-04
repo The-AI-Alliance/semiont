@@ -43,7 +43,7 @@ describe('@semiont/graph - factory', () => {
     afterEach(() => closeGraphDatabase());
 
     // The config loader resolved every ${VAR} before this config existed. A
-    // value that still contains `${…}` is the value (SECRET-DELIVERY F4), and
+    // value that still contains `${…}` is the value, taken as given, and
     // a second pass over it would throw on a password like this one.
     it('hands a neo4j config to the driver exactly as given', async () => {
       await getGraphDatabase({

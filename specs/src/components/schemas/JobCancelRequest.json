@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Request to cancel a job. Target one running or pending job by `jobId` (JOB-RESTART-SAFETY P4), or a whole category of pending jobs by `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.",
+  "description": "Request to cancel a job. Target one running or pending job by `jobId`, or a whole category of pending jobs by `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.",
   "properties": {
     "jobId": {
       "$ref": "./JobId.json",

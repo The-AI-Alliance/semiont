@@ -127,7 +127,8 @@ describe('archivistEndpoint', () => {
 });
 
 // The node entry point hands the service to the loader, which then refuses a
-// read of a section that service does not declare (SECRET-DELIVERY P5).
+// read of a section that service does not declare: a service is delivered
+// only the variables its own sections reference.
 describe('loadEnvironmentConfig', () => {
   it('passes the environment and the service to the loader', () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-home-'));

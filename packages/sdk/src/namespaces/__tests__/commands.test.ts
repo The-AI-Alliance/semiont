@@ -266,9 +266,9 @@ describe('MarkNamespace', () => {
     vi.useRealTimers();
   });
 
-  // ── JOB-RESTART-SAFETY P5: cancelling ONE job ───────────────────────
+  // ── Cancelling ONE job ──────────────────────────────────────────────
   // `cancelByType` is category-wide; a UI cancelling one running detection
-  // needs to say WHICH. The gateway already targets by jobId (P4) — this is
+  // needs to say WHICH. The gateway already targets by jobId — this is
   // the missing client verb. Awaited, like its category sibling: the caller
   // learns whether anything was cancelled.
 
@@ -292,7 +292,7 @@ describe('MarkNamespace', () => {
     bus.destroy();
   });
 
-  // ── JOB-RESTART-SAFETY P5: a retryable failure is not the end ────────
+  // ── A retryable failure is not the end ───────────────────────────────
   // The queue re-queues a transient failure while the budget has room, and
   // the work continues on a fresh worker. A stream that ended on `job:fail`
   // reported a RECOVERING run as a failed one — and the consumer never saw
@@ -743,9 +743,9 @@ describe('YieldNamespace', () => {
       const call = emitSpy.mock.calls.find((c: unknown[]) => c[0] === 'job:create');
       const payload = call![1] as Record<string, unknown>;
       expect(payload.jobType).toBe('generation');
-      // The server derives both ids from params.context.focus (GENERATION-
-      // WIRE-CONTEXT D1); a caller-supplied id is REJECTED there, so the sdk
-      // must not send either.
+      // The server derives both ids from params.context.focus; a
+      // caller-supplied id is REJECTED there, so the sdk must not send
+      // either.
       expect('resourceId' in payload).toBe(false);
       const params = payload.params as Record<string, unknown>;
       expect('referenceId' in params).toBe(false);
@@ -795,9 +795,9 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromContext({ task, structure }) [resource focus] carries both into job:create params (YIELD-STRUCTURE P2)', () => {
-    // The Q&A recipe the plan exists for: task frames the ask, structure
-    // forces the shape. The worker's template branches on both (P1).
+  it('fromContext({ task, structure }) [resource focus] carries both into job:create params', () => {
+    // The Q&A recipe these options exist for: task frames the ask, structure
+    // forces the shape. The worker's template branches on both.
     yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x', task: 'answer', structure: 'prose' }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
@@ -807,7 +807,7 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromContext({ task, structure }) [annotation focus] carries both — including an open-union custom string (D1)', () => {
+  it('fromContext({ task, structure }) [annotation focus] carries both — including an open-union custom string', () => {
     // structure 'chat' is the third canonical; task exercises the
     // (string & {}) escape hatch — the SDK must pass it through verbatim.
     yld.fromContext(CTX_ANN, { title: 'T', storageUri: 'file://x', task: 'translate to French', structure: 'chat' }).subscribe(() => {});
@@ -819,8 +819,8 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('unset task/structure reach job:create as undefined — the SDK invents no defaults (D2 pin)', () => {
-    // D2: unset structure ⇒ the worker emits NO structure directive. That
+  it('unset task/structure reach job:create as undefined — the SDK invents no defaults', () => {
+    // Unset structure ⇒ the worker emits NO structure directive. That
     // only holds if the SDK leaves the fields untouched (undefined keys
     // vanish at JSON serialization on the wire).
     yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x' }).subscribe(() => {});
@@ -833,7 +833,7 @@ describe('YieldNamespace', () => {
     }, 20));
   });
 
-  it('fromContext({ cite: true }) [resource focus] carries cite into job:create params (INLINE-CITATIONS P2)', () => {
+  it('fromContext({ cite: true }) [resource focus] carries cite into job:create params', () => {
     yld.fromContext(CTX_RES, { title: 'T', storageUri: 'file://x', cite: true }).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({

@@ -12,7 +12,7 @@
  * - cloneTokenManager: token actor — manages resource clone tokens
  *
  * These are the five access actors. Two projection-pipeline actors complete
- * the seven, and BOTH run standalone (D4: the projections are part of their
+ * the seven, and BOTH run standalone (the projections are part of their
  * stores' stacks, not of the embedding process): the Weaver (weaver-main →
  * graph) and the Smelter (smelter-main → vectors). The gateway keeps only
  * the Weaver's `weave:applied` fold (kb.weaveProgress).
@@ -38,12 +38,12 @@ export interface KnowledgeSystem {
 }
 
 /**
- * The gateway's view of the system after EXTRACT-ARCHIVIST P3 and
- * EXTRACT-LIBRARIAN P3: the Archivist service owns
+ * The gateway's view of the system: the Archivist service owns
  * Stower/Browser/CloneTokenManager and the Librarian owns Matcher and
  * Gatherer, out-of-process. The gateway hosts NO actors — `kb` here is a
  * READ bundle over the shared stateDir for the handler subset and the
- * gateway's routes; the one writer is the Archivist (D4b/D6).
+ * gateway's routes; the one writer, of git and of the views, is the
+ * Archivist.
  */
 export interface GatewayKnowledgeSystem {
   kb:   KnowledgeBase;

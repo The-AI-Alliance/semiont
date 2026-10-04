@@ -15,9 +15,8 @@ import (
 // write and location of a custody value goes through it
 // (TestCustodyValuesGoThroughTheStore), and every operation is shown on the
 // terminal before it runs: the operation and the secret's name, never its
-// value (SECRETS-STORE, ruled 2026-09-29). The lines are printed here, not by
-// the callers or the backends, so no caller can skip one and no backend can
-// differ.
+// value (ruled 2026-09-29). The lines are printed here, not by the callers or
+// the backends, so no caller can skip one and no backend can differ.
 type custodyStore struct{ b custodyBackend }
 
 // custodyBackend: where one root's values are kept.
@@ -87,9 +86,9 @@ func configuredCustody(u *UI, key string) (custodyStore, bool) {
 }
 
 // adoptDefaultStore: the machine's default store, for a root with no setting
-// that keeps nothing in files — a new knowledge base (LAUNCHER-SETTINGS D4:
-// new KBs only). It is recorded as the root's own setting, so a later change
-// to the default moves nothing. A root that keeps files stays on them.
+// that keeps nothing in files — a new knowledge base, the only kind the
+// default applies to. It is recorded as the root's own setting, so a later
+// change to the default moves nothing. A root that keeps files stays on them.
 func adoptDefaultStore(u *UI, key string) (secretRef, bool, bool) {
 	def, set, err := defaultStoreSetting()
 	if err != nil {

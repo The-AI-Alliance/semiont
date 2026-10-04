@@ -55,8 +55,8 @@ async function readAnnotationFromView(
 /**
  * Wire annotation enrichment onto an event store's append path. Enrichment
  * rides appendEvent (step 3 of its pipeline), so it belongs wherever appends
- * happen — the standalone root and the Archivist service, never the gateway
- * (EXTRACT-ARCHIVIST P3).
+ * happen — the standalone root and the Archivist service, never the gateway,
+ * which owns no record.
  */
 export function wireEnrichment(eventStore: EventStore, kb: { views: Pick<ViewStorage, 'get'> }): void {
   eventStore.setEnrichEvent(async (event, resourceId) => {

@@ -9,11 +9,11 @@ import { LOCALES, GENERATABLE_MEDIA_TYPES, capabilitiesOf, proposeStoragePath } 
 /**
  * Bounds for the max-length control when no ceiling is known. These are the
  * values this control has always shipped — the fallback is today's behaviour,
- * not an unbounded field (INFERENCE-LIMITS-EXPOSURE D6, as corrected in review).
+ * not an unbounded field.
  */
 const MIN_MAX_TOKENS = 100;
 const DEFAULT_MAX_TOKENS_CEILING = 4000;
-/** The step's form values, owned by the wizard so Back cannot discard them (D3). */
+/** The step's form values, owned by the wizard so Back cannot discard them. */
 export interface GenerationDraft {
   title: string;
   /**
@@ -68,9 +68,9 @@ type FormFilled =
  */
 export type GenerationConfig =
   & Required<Pick<GenerationOptions, FormFilled>>
-  // `temperature` left Required with SONNET-5-MIGRATION D3: a model that
-  // rejects the parameter gets neither the slider nor the field, so the
-  // submission carries it only when the serving model accepts it.
+  // `temperature` is deliberately not Required: a model that rejects the
+  // parameter gets neither the slider nor the field, so the submission
+  // carries it only when the serving model accepts it.
   & Pick<GenerationOptions, 'prompt' | 'temperature'>
   & { context: GatheredContext };
 
@@ -97,12 +97,12 @@ export const freshGenerationDraft = (title: string, locale: string): GenerationD
 
 export interface ConfigureGenerationStepProps {
   context: GatheredContext;
-  /** Echo of the gather step's hint — the thing being steered stays visible (GEP D8). */
+  /** Echo of the gather step's hint — the thing being steered stays visible. */
   hintEcho?: { label: string; value: string };
-  /** Owned by the wizard so Back is lossless (WIZARD-NAVIGATION D3). */
+  /** Owned by the wizard so Back is lossless. */
   config: GenerationDraft;
   onConfigChange: (config: GenerationDraft) => void;
-  /** Absent in a single-stack host (GATHER-AT-THE-TOP D6) — the footer then renders no retreat. */
+  /** Absent in a single-stack host, which has no Back — the footer then renders no retreat. */
   onBack?: () => void;
   onGenerate: (config: GenerationConfig) => void;
   /**
@@ -147,7 +147,7 @@ export interface ConfigureGenerationStepProps {
    * `limits` are known the max-length control is hard-bounded by the model's
    * output ceiling; absent — or present without `limits`, which is normal when
    * discovery could not answer right now — the control keeps its default
-   * bounds and generation still submits (D3).
+   * bounds and generation still submits.
    */
   generationAgent?: Collaborator;
 }
@@ -163,11 +163,11 @@ export function ConfigureGenerationStep({
   translations: t,
   generationAgent,
 }: ConfigureGenerationStepProps) {
-  // CONTROLLED (WIZARD-NAVIGATION D3): these were six local `useState`s, so Back
-  // unmounted the step and threw away every typed instruction, the save path and
-  // both sliders. `maxTokensText` stays TEXT rather than a number so the field can
-  // be cleared mid-edit — `parseInt` on an empty field yields NaN, which React
-  // warns about and which used to travel into the job config.
+  // CONTROLLED: these were six local `useState`s, so Back unmounted the step and
+  // threw away every typed instruction, the save path and both sliders.
+  // `maxTokensText` stays TEXT rather than a number so the field can be cleared
+  // mid-edit — `parseInt` on an empty field yields NaN, which React warns about
+  // and which used to travel into the job config.
   const { title, storagePath, prompt, language, temperature, maxTokensText, outputMediaType } = config;
   const set = (patch: Partial<GenerationDraft>) => onConfigChange({ ...config, ...patch });
 
@@ -192,11 +192,12 @@ export function ConfigureGenerationStep({
 
   const ceiling = generationAgent?.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS_CEILING;
 
-  // D3 shape 1 (SONNET-5-MIGRATION, measured 2026-09-25): claude-sonnet-5
-  // refuses EVERY non-default temperature — the untouched 0.7 default
-  // included — so a rejecting model gets neither the control nor the field.
-  // Only an explicit false hides it: absent discovery means no claim, and
-  // the inference client suppresses as the second line of defense either way.
+  // Measured 2026-09-25: claude-sonnet-5 refuses EVERY non-default
+  // temperature — the untouched 0.7 default included — so a rejecting model
+  // gets neither the control nor the field, and no control silently does
+  // nothing. Only an explicit false hides it: absent discovery means no claim,
+  // and the inference client suppresses as the second line of defense either
+  // way.
   const temperatureAccepted = generationAgent?.limits?.acceptsTemperature !== false;
 
   /**
@@ -388,8 +389,8 @@ export function ConfigureGenerationStep({
               const n = parseInt(raw, 10);
               if (!Number.isFinite(n)) return;
               // `max` alone does not stop a larger value being typed — it only
-              // marks the field invalid. D6 says it cannot be entered, so the
-              // clamp lives here.
+              // marks the field invalid. A value above the ceiling must not be
+              // enterable at all, so the clamp lives here.
               set({ maxTokensText: String(Math.min(n, ceiling)) });
             }}
             className="semiont-input"

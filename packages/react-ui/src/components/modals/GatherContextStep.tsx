@@ -12,7 +12,7 @@ import { ANNOTATORS, annotatorKeyForMotivation } from '../../lib/annotation-regi
  * The annotation-wizard resolution controls, as ONE optional group: a caller
  * either serves the whole surface (hint + Bind/Generate/Compose, with their
  * labels) or none of it. This is what keeps a display-only caller from having
- * to pass `''` for keys it will never render (GENERATE-FROM-RESOURCE D2).
+ * to pass `''` for keys it will never render.
  */
 export interface GatherContextStepAnnotate {
   userHint: string;
@@ -26,7 +26,7 @@ export interface GatherContextStepAnnotate {
     compose: string;
     resolutionStrategyLabel: string;
     userHintLabel: string;
-    /** The label states its effect — "steers Search and Generate" (GEP D5). */
+    /** The label states its effect — "steers Search and Generate". */
     userHintEffect: string;
     userHintPlaceholder: string;
   };
@@ -73,7 +73,7 @@ export function GatherContextStep({
   const contextReady = !contextLoading && !contextError && !!context;
   const focus = context?.focus.kind === 'annotation' ? context.focus : null;
   const resourceFocus = context?.focus.kind === 'resource' ? context.focus : null;
-  // GEP D6: the focal span WEARS its motivation — the viewer's own registry
+  // The focal span WEARS its motivation — the viewer's own registry
   // class (the same one the document applies), never a copy or a chip.
   const focalKey = focus?.annotation.motivation
     ? annotatorKeyForMotivation(focus.annotation.motivation)
@@ -216,12 +216,12 @@ export function GatherContextStep({
       {context && (
         <>
           {/* Full-width source context strip — annotation focus.
-              GEP P1 (D6/D7): the quotation is contiguous prose — anchor
-              metadata never interrupts it. Entity chips are tokens and live on
-              the label row; the motivation is never labeled, the focal span
-              WEARS it via the viewer's own registry class (same class the
-              document applies, themes included). Only annotations the context
-              can PLACE render here — today exactly `focus.annotation`. */}
+              The quotation is contiguous prose — anchor metadata never
+              interrupts it. Entity chips are tokens and live on the label row;
+              the motivation is never labeled, the focal span WEARS it via the
+              viewer's own registry class (same class the document applies,
+              themes included). Only annotations the context can PLACE render
+              here — today exactly `focus.annotation`. */}
           {focus?.selected && (
             <div className="semiont-gather__source-strip">
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.375rem' }}>
@@ -295,7 +295,7 @@ export function GatherContextStep({
                 </div>
               )}
               {resourceFocus.suggestedReferences && resourceFocus.suggestedReferences.length > 0 && (
-                // Prose, not chips (D3): the live values are full research
+                // Prose, not chips: the live values are full research
                 // prompts — sentences. The chip vocabulary stays for tokens.
                 <ul className="semiont-gather__suggested">
                   {resourceFocus.suggestedReferences.map(ref => (
@@ -318,9 +318,9 @@ export function GatherContextStep({
             </div>
           </div>
 
-          {/* Hint: full width, input-then-act adjacency above the footer
-              (GEP D5). The label states its effect. Typing does NOT re-run
-              recall — the panes are the at-gather evidence. */}
+          {/* Hint: full width, input-then-act adjacency above the footer. The
+              label states its effect. Typing does NOT re-run recall — the
+              panes are the at-gather evidence. */}
           {focus && hintRow}
 
           {/* Full-width footer: resolution strategy (annotation-wizard callers only).

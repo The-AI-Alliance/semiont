@@ -64,8 +64,8 @@ export interface ArchivistAddressConfig {
  * bundle and the process died at load on a CJS `require`.
  *
  * Absence fails loudly. A missing host or credential is a misconfiguration,
- * never a reason to fall back to reading a tree locally: the point of
- * SINGLE-KB-MOUNT is that exactly one process touches it.
+ * never a reason to fall back to reading a tree locally: the point is that
+ * exactly one process, the Archivist, touches it.
  *
  * Split in two on purpose. `archivistAddress` validates the configuration
  * SYNCHRONOUSLY, so a process with no Archivist address or no credential dies

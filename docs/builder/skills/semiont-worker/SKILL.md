@@ -74,7 +74,7 @@ An agent token lives an hour and has no refresh token. The session renews it by 
 
 ## Claiming jobs
 
-`createJobClaimAdapter` from `@semiont/jobs` runs the claim protocol on the session's connection. It pulls: it claims when the connection opens, again each time a job settles, on a matching `job:queued` while idle, and on every reconnect, and it parks when the dispatcher answers that nothing is pending. `job:queued` is a wake-up, not a reservation.
+`createJobClaimAdapter` from `@semiont/jobs` runs the claim protocol on the session's connection: give it `session.client.transport` as its `bus`. It pulls: it claims when the connection opens, again each time a job settles, on a matching `job:queued` while idle, and on every reconnect, and it parks when the dispatcher answers that nothing is pending. `job:queued` is a wake-up, not a reservation.
 
 - `adapter.activeJob$` emits each claimed job, and `null` between jobs.
 - `adapter.refused$` emits a claim the dispatcher refused for a reason other than an empty queue. `bus.unauthorized` means this credential can never claim: exit, so the operator sees it.
@@ -141,7 +141,7 @@ async function commit(bus: BusRequestPrimitive, job: ActiveJob, annotations: Ann
 }
 ```
 
-Give each annotation a deterministic id, so that committing a batch again after a retry changes nothing. `buildTextAnnotation` in [`packages/jobs/src/processors.ts`](../../../../packages/jobs/src/processors.ts) is how Semiont's worker builds one.
+Pass `session.client.transport` as `bus`. Give each annotation a deterministic id, so that committing a batch again after a retry changes nothing. `buildTextAnnotation` in [`packages/jobs/src/processors.ts`](../../../../packages/jobs/src/processors.ts) is how Semiont's worker builds one.
 
 `@semiont/jobs` also exports the processors Semiont's worker runs: `processHighlightJob`, `processCommentJob`, `processAssessmentJob`, `processReferenceJob`, `processTagJob` and `processGenerationJob`. Each takes the text, an inference client, the job's params and callbacks for progress and for committing each chunk, and returns the job's result. Use them to serve a job type with a different model and the same logic. Their signatures are in [the jobs API reference](../../../../packages/jobs/docs/API.md#processors).
 
@@ -149,8 +149,7 @@ Give each annotation a deterministic id, so that committing a batch again after 
 
 ```typescript
 import {
-  SemiontSession, InMemorySessionStorage, HttpTransport, discoverIssuer,
-  type HttpEndpoint,
+  SemiontSession, InMemorySessionStorage, discoverIssuer, type HttpEndpoint,
 } from '@semiont/sdk';
 import { serviceAccountToken, isObject, isString } from '@semiont/core';
 import { createJobClaimAdapter, type ActiveJob } from '@semiont/jobs';
@@ -208,14 +207,9 @@ async function main(): Promise<void> {
   });
   await session.ready;
 
-  // The claim protocol runs on the HTTP transport's own connection.
+  // The claim protocol runs on the session's own connection.
   const { transport } = session.client;
-  if (!(transport instanceof HttpTransport)) throw new Error('A worker needs the HTTP transport');
-
-  const adapter = createJobClaimAdapter({
-    bus: transport.actor,
-    jobTypes: ['highlight-annotation'],
-  });
+  const adapter = createJobClaimAdapter({ bus: transport, jobTypes: ['highlight-annotation'] });
 
   adapter.refused$.subscribe((refusal) => {
     console.error(`claim refused (${refusal.code}): ${refusal.message}`);
@@ -266,17 +260,12 @@ Let a job in hand finish before shutting down, or fail it deliberately with `job
 
 Set `SEMIONT_BUS_LOG=1` in the worker's environment. Every emit, reply and stream frame is then logged as one line, and the claim protocol can be read off the log:
 
-- **No `job:claim` at all**: `adapter.start()` was never called, or the connection never opened. Watch the connection with `transport.state$`.
+- **No `job:claim` at all**: `adapter.start()` was never called, or the connection never opened. Watch the connection with `session.streamState$`.
 - **Every claim answered `job:claim-failed`, saying the caller is not a worker**: the service account lacks the `semiont-worker` role, so the agent token carries no worker capability. `refused$` reports it as `bus.unauthorized`. On a launcher stack, `semiont identity sync` repairs the roles of the stack's own clients.
 - **Claims answered with nothing pending**: the worker is healthy and the queue has no job of its types.
 
 ```typescript
-import { HttpTransport } from '@semiont/sdk';
-
-const { transport } = session.client;
-if (transport instanceof HttpTransport) {
-  transport.state$.subscribe((state) => console.log(`connection: ${state}`));
-}
+session.streamState$.subscribe((state) => console.log(`connection: ${state}`));
 ```
 
 `degraded` means the stream has been reconnecting for more than three seconds, which is the state worth reporting from a health endpoint.

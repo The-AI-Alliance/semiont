@@ -150,7 +150,7 @@ describe('CacheObservable', () => {
 });
 
 describe('StreamObservable.run', () => {
-  it('subscribes the producer exactly ONCE — progress via callback, terminal via the promise (A2 fix)', async () => {
+  it('subscribes the producer exactly ONCE — progress via callback, terminal via the promise', async () => {
     let subscribeCount = 0;
     const stream = new StreamObservable<string>((subscriber) => {
       subscribeCount += 1;
@@ -180,10 +180,10 @@ describe('StreamObservable.run', () => {
     await expect(stream.run(() => {})).rejects.toThrow();
   });
 
-  it('characterizes the A2 footgun: subscribe + await fires a COLD producer TWICE', async () => {
-    // The trap `run()` exists to avoid. Pinned so the MULTICAST-JOB-TRIGGERS
-    // redesign (which would make this 1) is a deliberate, tested flip — not a
-    // silent behavior change.
+  it('characterizes the cold-stream footgun: subscribe + await fires a COLD producer TWICE', async () => {
+    // The trap `run()` exists to avoid. Pinned so a multicast redesign of the
+    // job-triggering observables (which would make this 1) is a deliberate,
+    // tested flip — not a silent behavior change.
     let subscribeCount = 0;
     const stream = new StreamObservable<number>((subscriber) => {
       subscribeCount += 1;

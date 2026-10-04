@@ -39,12 +39,12 @@ interface Props {
   onGenerate?: () => void;
   /**
    * Generation lifecycle, page-held (`yield.isGenerating$` / `yield.progress$`
-   * / `yield.outcome$`): this panel is generation's progress surface
-   * (GENERATE-FROM-RESOURCE D7) — the run reports where it was started.
+   * / `yield.outcome$`): this panel is generation's progress surface — the
+   * run reports where it was started.
    */
   isGenerating?: boolean;
   generationProgress?: JobProgress | null;
-  /** The finished run's result; the ended frame links it by name (D8). */
+  /** The finished run's result; the ended frame links it by name. */
   generationOutcome?: YieldOutcome | null;
   /** Clear the finished display — wires `yield.dismissProgress()`. */
   onDismissProgress?: () => void;
@@ -80,10 +80,10 @@ export function ResourceInfoPanel({
   const t = useTranslations('ResourceInfoPanel');
   const ta = useTranslations('AssistProgress');
 
-  // The text layer's standing — the user-facing face of `smelt:settled`
-  // (ANNOTATE-DEFERS-ON-NOT-YET). The row renders the wire's own vocabulary,
-  // translated; `unknown` and not-yet-asked render NO row: no claim, no
-  // invented state. The bridged settle for THIS resource refreshes in place.
+  // The text layer's standing — the user-facing face of `smelt:settled`. The
+  // row renders the wire's own vocabulary, translated; `unknown` and
+  // not-yet-asked render NO row: no claim, no invented state. The bridged
+  // settle for THIS resource refreshes in place.
   const [textLayerKind, setTextLayerKind] = useState<'extracted' | 'declined' | 'not-yet' | 'no-map' | 'unknown' | null>(null);
   const refreshTextLayer = useCallback(() => {
     if (!session) return;
@@ -234,9 +234,9 @@ export function ResourceInfoPanel({
         </div>
       )}
 
-      {/* Generate — the run reports where it was started (GENERATE-FROM-RESOURCE
-          D7): the same AssistShell every assist uses, its form the Generate
-          control, the progress frame in its place while a generation runs. */}
+      {/* Generate — the run reports where it was started: the same AssistShell
+          every assist uses, its form the Generate control, the progress frame
+          in its place while a generation runs. */}
       {onGenerate && (
         <AssistShell
           assistType="generation"
@@ -253,8 +253,7 @@ export function ResourceInfoPanel({
               },
               // The terminal sentence derives from the OUTCOME, not the final
               // progress frame — whose fire-and-forget emit can lose the race
-              // with job:complete and leave "creating…" beside a ✅
-              // (GENERATION-ARRIVAL D4/D5).
+              // with job:complete and leave "creating…" beside a ✅.
               endedMessage: generationOutcome.truncated
                 ? ta('codeCompleteGeneratedTruncated')
                 : ta('codeCompleteGenerated'),

@@ -5,7 +5,7 @@ package launcher
 // This verb is unlike every other one here: it does NOT dial the SDK. It reads
 // the working tree, because that is where a KB actually lives.
 //
-// THERE IS NO ARCHIVE FORMAT, and that is the design (EXPORT-VIA-LAUNCHER D4).
+// THERE IS NO ARCHIVE FORMAT, and that is the design.
 // The content is already files at their natural paths; the event log is already
 // JSONL. So the archive is the KB directory, unmodified — `tar -xzf` yields a
 // working KB and `cat` reads the history. No manifest, no format version, no
@@ -15,9 +15,9 @@ package launcher
 //
 // tar.gz specifically, and NOT a git bundle, even though the event log is
 // git-committed today. Git is how a KB happens to be stored; a format that
-// required it would mean "your data is yours, if you have git" (D4). The
-// payoff is not only principle: tar is on every machine, which is why the
-// codespace path below is one streamed command rather than a remote toolchain.
+// required it would mean "your data is yours, if you have git". The payoff
+// is not only principle: tar is on every machine, which is why the codespace
+// path below is one streamed command rather than a remote toolchain.
 
 import (
 	"archive/tar"
@@ -60,9 +60,9 @@ Needs no running stack: both directions are file operations.
 // found on a drive years later can say what it is.
 //
 // ADVISORY ONLY. Nothing reads it back for correctness — the moment a restore
-// depends on it, it is a format contract by the back door, which is what D4
-// exists to avoid. It rides inside .semiont/ rather than at the archive root so
-// it cannot collide with a KB's own content.
+// depends on it, it is a format contract by the back door, the very thing
+// having no archive format rules out. It rides inside .semiont/ rather than
+// at the archive root so it cannot collide with a KB's own content.
 type exportMarker struct {
 	KB         string `json:"kb,omitempty"`
 	Did        string `json:"did,omitempty"`
@@ -185,7 +185,7 @@ func exportLocal(u *UI, rootFlag, output string, force, withGit bool) int {
 // exportRemote streams a codespace-hosted KB back over ssh. `gh codespace ssh`
 // is already how this launcher reads a remote KB's identity, and tar is present
 // on the remote by default — the two facts that make this a single command
-// rather than a remote toolchain (D4).
+// rather than a remote toolchain.
 func exportRemote(u *UI, repo, output string, force, withGit bool) int {
 	if !requireGh(u, "semiont export --repo") {
 		return 1
@@ -300,8 +300,8 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, to
 		// can RESTORE and one you can also ATTEST.
 		//
 		// It is NOT a portability question: a tar carrying .git is still a
-		// tar, readable without git. D4 is about the archive's format and
-		// holds either way.
+		// tar, readable without git. That the archive needs no git is about
+		// its format, and holds either way.
 		if !withGit && (rel == ".git" || strings.HasPrefix(rel, ".git"+string(filepath.Separator))) {
 			if fi.IsDir() {
 				return filepath.SkipDir

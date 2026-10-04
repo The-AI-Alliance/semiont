@@ -6,7 +6,7 @@ import { createHash } from 'crypto';
 import { annotationId, type AnnotationId } from '@semiont/core';
 
 /** The identity of an annotation — everything that makes it that annotation
- *  and nothing else (JOB-RESTART-SAFETY P3, HD1). */
+ *  and nothing else: the inputs its content-addressed id is hashed from. */
 export interface AnnotationIdentity {
   /** The resource the annotation is about. */
   resourceId: string;
@@ -24,12 +24,13 @@ export interface AnnotationIdentity {
    * The annotation's body, when it has one.
    *
    * Included for EVERY motivation that carries one, which — measured
-   * 2026-09-03 — is every motivation except `highlighting`. HD1 anticipated
-   * this only for `commenting`, but the same collision exists for `assessing`
-   * and `tagging` (two assessments of one span differ solely by their text),
-   * and for `linking`: a detected reference carries its entity type as an
-   * unresolved TextualBody, which is exactly the "type" HD1's input set names.
-   * So the per-motivation table HD1 asked for collapses to one rule — hash the
+   * 2026-09-03 — is every motivation except `highlighting`. The body was
+   * expected to matter only for `commenting`, but the same collision exists
+   * for `assessing` and `tagging` (two assessments of one span differ solely
+   * by their text), and for `linking`: a detected reference carries its entity
+   * type as an unresolved TextualBody, which is exactly the "type" in the
+   * identity a detected annotation needs (resource, span, type, motivation).
+   * So a per-motivation table of hash inputs collapses to one rule — hash the
    * body whenever there is one — and that is better than a table, because a
    * sixth motivation inherits the right behavior instead of an omission.
    */
@@ -53,11 +54,11 @@ function canonical(value: unknown): string {
 /**
  * The annotation's id, derived from what the annotation IS.
  *
- * This is what makes every recovery path in JOB-RESTART-SAFETY idempotent: a
+ * This is what makes every job-recovery path idempotent: a
  * re-queued job, a resumed unit and a retried failure all re-emit the same
  * annotation, and re-emitting it is now a no-op *with no read* — which is the
  * property a read-before-write could not provide, because the thing it would
- * read is exactly what is down when recovery is happening (HD1).
+ * read is exactly what is down when recovery is happening.
  *
  * Note what is NOT an input: `created`, the emitting worker, the job id, any
  * counter. A recovery re-emits at a different time from a different process

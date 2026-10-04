@@ -1,12 +1,13 @@
 package verbs
 
-// The English progress map's completeness census — WIRE-UNION-DISCRIMINANTS
-// P5b. `progressText` has a `default: ""` that degrades SILENTLY on an
-// unknown code, so nothing but this census notices when a new code lands in
-// `JobProgressMessage` without copy. The list below is deliberately frozen:
-// adding a variant to the schema means adding copy to `progressText` AND a
-// row here — the same acknowledgment-gate idiom as the TS side's
-// exhaustive `never` switch in assist-progress-copy.
+// The English progress map's completeness census. `JobProgressMessage` is a
+// union discriminated on a single-valued `code`, which is what lets a map be
+// checked against it. `progressText` has a `default: ""` that degrades
+// SILENTLY on an unknown code, so nothing but this census notices when a new
+// code lands in `JobProgressMessage` without copy. The list below is
+// deliberately frozen: adding a variant to the schema means adding copy to
+// `progressText` AND a row here — the same acknowledgment-gate idiom as the
+// TS side's exhaustive `never` switch in assist-progress-copy.
 
 import (
 	"encoding/json"

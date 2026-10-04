@@ -13,11 +13,11 @@ import { kbGatewayUrl } from './storage';
 
 /**
  * Thrown when the sign-in succeeded but the KB's identity cannot be
- * established. A registered KB REQUIRES a did (KB-IDENTITY-VS-ADDRESS
- * decision 8), and there is nothing legitimate to fall back to: inventing
- * one from the address is the category error that document exists to end.
- * The two reasons stay apart deliberately — one message for both once hid a
- * live auth bug from the UI.
+ * established. A registered KB REQUIRES a did, and there is nothing
+ * legitimate to fall back to: an address says which running copy answers,
+ * not which knowledge base it is, so inventing a did from one is a category
+ * error. The two reasons stay apart deliberately — one message for both
+ * once hid a live auth bug from the UI.
  */
 export class IdentityUnverifiableError extends Error {
   constructor(readonly reason: IdentityUnverifiableReason, detail: string) {

@@ -1,12 +1,13 @@
 /**
  * The fact pump: every persisted event the Archivist appends is republished
- * onto the gateway bus so projectors see it live (EXTRACT-ARCHIVIST D5).
+ * onto the gateway bus, once global and once resource-scoped, so projectors
+ * and scoped clients see it live.
  *
- * Extracted from `archivist-main`'s composition root by ARCHIVIST-STAYS-UP P5.
- * It was three inline statements there, which meant the one component whose
- * backlog is the leading suspect for load-correlated heap growth
- * (`bugs/absent-archivist-wedges-browse.md`) could not be tested or measured
- * at all.
+ * Extracted from `archivist-main`'s composition root. It was three inline
+ * statements there, which meant the one component whose backlog is the
+ * leading suspect for load-correlated heap growth (the growth that killed the
+ * Archivist at Node's default heap ceiling and left every browse request
+ * waiting with no reply) could not be tested or measured at all.
  *
  * **Ordering is load-bearing and preserved.** Events drain one at a time, in
  * arrival order, because a projector applying `mark:added` before the
@@ -19,9 +20,10 @@
  * choosing what to discard on overflow, and a discarded fact leaves that
  * projector stale until its NEXT RESTART — catch-up is a startup pass in both
  * `smelter-main` (`reconcile()`) and `weaver-main`, not a continuous repair.
- * A projection silently days out of date is the same class of defect as the
- * silent 202 this plan exists to remove. So: measure first. `depth()` is what
- * makes that possible; the policy follows the number, not the other way round.
+ * A projection silently days out of date is the same class of defect as a
+ * silent 202 for a request nobody will answer. So: measure first. `depth()` is
+ * what makes that possible; the policy follows the number, not the other way
+ * round.
  */
 
 import { from, concatMap, tap, type Observable, type Subscription } from 'rxjs';

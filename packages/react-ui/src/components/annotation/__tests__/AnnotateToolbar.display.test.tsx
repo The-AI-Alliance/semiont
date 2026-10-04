@@ -1,5 +1,5 @@
 /**
- * EMBEDDABLE-VIEWER-COMPLETION Phase 3 — Annotate Bar display forms.
+ * Annotate Bar display forms.
  *
  * Behavior is mostly fixed (the bar IS the annotation capability); the host
  * gets freedom over its display form. `compact` is a display-only variant:
@@ -8,7 +8,7 @@
  * (semiont-* classes + CSS vars) and labels (i18n) already exist — no new API
  * for those.
  *
- * Started RED (no `compact` prop) and GREEN once Phase 3 lands.
+ * Started RED (no `compact` prop) and GREEN once the bar takes one.
  */
 import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi } from 'vitest';
@@ -42,7 +42,7 @@ const toolbarProps = {
   session: null,
 };
 
-describe('Annotate Bar display forms (Phase 3)', () => {
+describe('Annotate Bar display forms', () => {
   it('`compact` adds the display modifier; default does not', () => {
     const { container: normal } = renderInEnglish(<AnnotateToolbar {...toolbarProps} />);
     expect(normal.querySelector('.semiont-annotate-toolbar')).not.toHaveClass('semiont-annotate-toolbar--compact');

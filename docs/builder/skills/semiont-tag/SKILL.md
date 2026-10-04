@@ -88,7 +88,7 @@ Each tag's body has two items:
 
 ## Classifying with entity types
 
-For a flat list that is not a schema, declare it as entity types and detect references to them. Detection runs once for each type.
+For a flat list that is not a schema, declare it as entity types and detect references to them. Declare first: a job that names an undeclared type is refused. Detection runs once for each type.
 
 ```typescript
 import { entityType } from '@semiont/sdk';

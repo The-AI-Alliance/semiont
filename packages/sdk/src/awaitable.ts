@@ -97,7 +97,7 @@ export class CacheObservable<T> extends Observable<CacheState<T>> {
   private fetchFresh?: () => Promise<T>;
 
   /**
-   * Explicit one-shot read (CACHE-CONTRACT D2, settled 2026-07-29): a FRESH
+   * Explicit one-shot read (settled 2026-07-29): a FRESH
    * network fetch that updates the store (subscribers see it too), resolves
    * with the value, and REJECTS on failure — the caller owns retry policy
    * (B14 boundary 1). This replaces the deleted `PromiseLike` surface:

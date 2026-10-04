@@ -1,5 +1,6 @@
 /**
- * Anchor auditing (DETECTION-QUALITY-THROUGHPUT P5).
+ * Anchor auditing: the method that anchored each annotation is counted, so
+ * the degraded-anchor rate is a measured number.
  *
  * The mechanical selector-vs-source check is already a write-time invariant in
  * both annotation builders, so it cannot fail and auditing it would measure a

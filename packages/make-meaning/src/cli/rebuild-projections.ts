@@ -48,8 +48,7 @@ async function rebuildProjections(rId?: string, environment?: string) {
 
   // Connect the record for read + re-materialize. This tool dispatches no
   // jobs, so it uses the queue-free record root — never opening a broker
-  // consumer that would split the live gateway's deliveries (JOB-QUEUE-DRIVER
-  // ruling M).
+  // consumer that would split the running stack's job deliveries.
   const record = await connectRecord(new SemiontProject(projectRoot, { anchoredTextDir }), makeMeaningConfigFrom(config), eventBus, logger);
   const { eventStore } = record;
   const query = new EventQuery(eventStore.log.storage);

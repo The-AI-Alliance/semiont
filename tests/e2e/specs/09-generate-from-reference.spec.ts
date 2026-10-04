@@ -237,11 +237,11 @@ test.describe('generate from unresolved reference', () => {
       console.warn('[spec 09] job:complete arrived but mark:body-updated did not — possible Stower projection bug');
     }
 
-    // ── D6: the artifact landed where the form said ────────────────────────
+    // ── The artifact landed where the form said ────────────────────────────
     // Not a soft assertion. `wizard-storagePath` is filled above only because
     // the form refuses to submit without it — which means a worker that
-    // ignored the value (as it did before GENERATION-OUTPUT-FORMAT P0) would
-    // pass every other assertion in this file.
+    // ignored the value (as it did when it derived the path from the title)
+    // would pass every other assertion in this file.
     await expectGeneratedAt(title, storagePath, 'text/markdown');
   });
 });

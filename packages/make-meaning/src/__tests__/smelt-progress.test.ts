@@ -1,5 +1,5 @@
 /**
- * SmeltProgress Tests (SMELTER-INDEX-SYNC P1, D1 = push barrier)
+ * SmeltProgress Tests
  *
  * The gateway-local fold of `smelt:settled` signals. `whenSettled` is the
  * read-your-writes barrier: it resolves with the Smelter's decision

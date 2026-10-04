@@ -1,5 +1,6 @@
 /**
- * The fact pump carries typed events (DOMAIN-EVENT-PATH-TYPED P2).
+ * The fact pump carries typed events, `EventMap[PersistedEventType]`, and no
+ * casts.
  *
  * `archivist-main` hands the pump a correctly-typed merge of every persisted
  * channel. The pump used to widen it back to `StoredEvent` at its own
@@ -15,7 +16,7 @@ import { createFactPump } from '../fact-pump';
 /**
  * Equality, not assignability: a typed stream is already assignable to an
  * erased one, so `extends` would have passed against the very code this
- * phase replaces.
+ * typing replaces.
  */
 type Equals<A, B> =
   (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;

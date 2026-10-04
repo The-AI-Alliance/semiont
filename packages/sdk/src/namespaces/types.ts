@@ -115,11 +115,11 @@ export interface GenerationOptions {
   temperature?: number;
   maxTokens?: number;
   /**
-   * Per-call override for the generation stall guard's deadline
-   * (FLOW-LIFECYCLE-CONVERGENCE D1a). CLIENT-only: stripped before the wire.
-   * When unset, the deadline derives from `maxTokens` — see
-   * `deriveStallDeadlineMs`. On firing, the SDK cancels the job
-   * (`job:cancel-requested`) and errors with `GenerationStallError`.
+   * Per-call override for the generation stall guard's deadline.
+   * CLIENT-only: stripped before the wire. When unset, the deadline derives
+   * from `maxTokens` — see `deriveStallDeadlineMs`. On firing, the SDK
+   * cancels the job (`job:cancel-requested`) and errors with
+   * `GenerationStallError`.
    */
   stallDeadlineMs?: number;
   /**
@@ -221,7 +221,7 @@ export type MarkAssistProgress = JobProgress;
 export type MarkAssistEvent =
   | { kind: 'progress'; data: MarkAssistProgress }
   /**
-   * A failure the queue will retry (JOB-RESTART-SAFETY P5). The run is NOT
+   * A failure the queue will retry. The run is NOT
    * over: a fresh attempt follows and this stream stays open until a terminal
    * arrives. A TERMINAL failure is not this event — it errors the stream, as
    * it always has. Render it as a setback, not an ending.
@@ -258,7 +258,7 @@ export type YieldGenerationEvent =
  * `'lexical'` (title/metadata matching) or `'semantic'` (the empty-lexical
  * vector fallback) — and it arrives WITH the resources it describes as one
  * value, so a consumer can never pair the label with a different query's
- * list (SEMANTIC-FALLBACK S10).
+ * list (semantic fallback axiom S10).
  */
 export type ResourceList = Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {
   resources: ResourceDescriptor[];
@@ -288,10 +288,8 @@ export interface BrowseNamespace {
   resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse>;
   /** The resource's coordinate map, or null when none has been derived. */
   /** Never null — absence is named, so a caller can tell "not yet" from
-   *  "never" (SMELTER-OWNS-OCR P1). */
+   *  "never". */
   resourceAnchoredText(resourceId: ResourceId): Promise<AnchoredTextAnswer>;
-  /** Checksum-addressed consult of the same store — barrier-free, read-only
-   *  (ANCHORED-TEXT-TO-SMELTER D2). `null` means "extract it yourself". */
   resourceRepresentation(resourceId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }>;
   resourceRepresentationStream(resourceId: ResourceId): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;
   resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]>;

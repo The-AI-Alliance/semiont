@@ -8,12 +8,11 @@
  * the behavior correct, `it.fails` errors ("expected to fail but passed") and
  * MUST be promoted to `it(...)` in the same diff.
  *
- * Vocabulary and generators: WEAVER-AXIOMS.md "Vocabulary". σ ranges over
- * well-formed histories (created precedes other ops per resource,
- * per-resource ascending sequence numbers); `foldModel(σ)` is the
- * independent oracle (identity + facets — archived flag, tag set,
- * annotation-id set, entity-type registry; annotation BODIES are outside
- * the v1 model, see W9-deep).
+ * Vocabulary and generators: σ ranges over well-formed histories (created
+ * precedes other ops per resource, per-resource ascending sequence
+ * numbers); `foldModel(σ)` is the independent oracle (identity + facets —
+ * archived flag, tag set, annotation-id set, entity-type registry;
+ * annotation BODIES are outside the v1 model, see W9-deep).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -43,7 +42,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // settle after resource marks reach parity, before dumping.
 const SETTLE_MS = 25;
 
-// ── Generators (see WEAVER-AXIOMS.md "Vocabulary") ──────────────────────────
+// ── Generators (the sorts the axioms range over) ────────────────────────────
 
 interface Catalog { rids: string[]; tags: string[] }
 
@@ -495,7 +494,7 @@ describe('W9 — reconcile detects and heals out-of-band divergence', () => {
                 break;
               case 'corrupt-annotation-content': {
                 // A stored property OUTSIDE the id set and the body — exactly
-                // what the old five-fact check could not see (GRAPH-DIVERGENCE-DEPTH).
+                // what the old five-fact check could not see.
                 const anns = model.resources.get(rid)?.annotations ?? new Set<string>();
                 const [first] = anns;
                 if (!first) { mutated = false; break; }

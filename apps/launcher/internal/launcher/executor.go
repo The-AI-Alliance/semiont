@@ -77,7 +77,7 @@ type keeper interface {
 	jwtSecret(root string) (string, bool)                // gateway token-signing key: env, else persisted per-root, else generated
 	identityAdminPassword(root string) (string, bool)    // Keycloak's bootstrap admin password: same three sources
 	serviceClientSecret(root, svc string) (string, bool) // one service's account credential, per root
-	daemonPassword(root, role string) (string, bool)     // a launcher-run daemon's password, per root (SECRET-DELIVERY P4)
+	daemonPassword(root, role string) (string, bool)     // a launcher-run daemon's password, generated and kept per root
 }
 
 // admitter: proves the issuer will admit the services, and the people, BEFORE anything holds a
@@ -93,7 +93,7 @@ type admitter interface {
 type storer interface {
 	stateMounts(role, image, root string) ([]string, bool) // persistent-state run args; !ok = refuse (data written by another image)
 	stateMountsShared(role, root string) ([]string, bool)  // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
-	resolveStoreStamps(fc flowCtx) bool                    // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
+	resolveStoreStamps(fc flowCtx) bool                    // preflight: every store's mismatch refuse/clear, before the first container run
 	createDatabase(user, name string) bool                 // a database on the launcher-run PostgreSQL, if absent
 	ollamaVolume(opts startOptions) string                 // model-cache choice (prompt is live-only)
 }
@@ -354,16 +354,17 @@ func (x *liveExec) stageDir() (string, bool) {
 
 // archivistDialers: the services that resolve the Archivist's address from
 // their staged config copy, and so must be handed it. The Smelter, the
-// Librarian and the Worker read bytes from it directly (SINGLE-KB-MOUNT P4);
-// all three refuse to boot without it. The gateway is absent because its
-// configuration document carries the address (gatewaydoc.go); the Archivist,
-// because it IS the record, and holds the mount.
+// Librarian and the Worker read bytes from it directly, over HTTP and not
+// through the gateway; all three refuse to boot without it. The gateway is
+// absent because its configuration document carries the address
+// (gatewaydoc.go); the Archivist, because it IS the record, and holds the
+// mount.
 var archivistDialers = map[string]bool{"smelter": true, "librarian": true, "worker": true}
 
 // kbIdentityStaged: the services that describe a KB tree they do not mount,
-// and so must be handed its committed identity rather than reading it
-// (SINGLE-KB-MOUNT P5/P6). The gateway's document carries it; the Archivist
-// HOLDS the tree; the Smelter and Worker never name the KB.
+// and so must be handed its committed identity rather than reading it. The
+// gateway's document carries it; the Archivist HOLDS the tree; the Smelter
+// and Worker never name the KB.
 var kbIdentityStaged = map[string]bool{"librarian": true}
 
 // gatewayDocumentFile: the gateway is configured by a document, not a copy
@@ -867,8 +868,8 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 		fmt.Fprintln(os.Stderr, "  A realm is imported on its FIRST boot and never again, so a realm created")
 		fmt.Fprintln(os.Stderr, "  before these clients existed does not have them.")
 		fmt.Fprintln(os.Stderr, "")
-		// The repair, named rather than described (IDENTITY-PREFLIGHT P3) —
-		// but named as the COMMANDS TO RUN, in order, with the follow-up.
+		// The repair, named rather than described — but named as the
+		// COMMANDS TO RUN, in order, with the follow-up.
 		// `semiont identity sync` already ends by telling the operator to
 		// start again; the half that DETECTS the problem used to stop at
 		// naming a verb and leave the sequence to be inferred.
@@ -1051,8 +1052,8 @@ func (x *liveExec) resolveStoreStamp(role, image, root string) bool {
 	// Restamp NOW, not at the owner's prep: the old image's output is gone,
 	// and a resolution that leaves the old stamp re-fires at the owner's own
 	// stateMounts — clearing whatever an earlier-booting sharer wrote into
-	// the store in between (the P5 live gate caught exactly this: the
-	// gateway's fresh jobs tree, cleared at archivist prep).
+	// the store in between (a live boot on a hand-edited stamp caught exactly
+	// this: the gateway's fresh jobs tree, cleared at archivist prep).
 	meta.Stores[role] = storeMeta{Image: image}
 	saveRootMeta(dir, meta)
 	return true
@@ -1061,7 +1062,7 @@ func (x *liveExec) resolveStoreStamp(role, image, root string) bool {
 // resolveStoreStamps runs every store's stamp resolution in PREFLIGHT. The
 // state store is shared — the gateway and librarian attach what the
 // archivist stamps — so a clear at the owner's own prep lands mid-boot,
-// after sharers attached (SHARED-STORE-CLEAR-PREFLIGHT).
+// after sharers attached.
 func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
 	for _, role := range slices.Sorted(maps.Keys(stateStores)) {
 		spec := stateStores[role]
@@ -1082,9 +1083,9 @@ func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
 }
 
 // stateMounts prepares a role's persistent state dir and returns the run
-// args that mount it (LAUNCHER-STATE.md). The image-mismatch split lives
-// in resolveStoreStamp: database data is user rows — refuse, fix-it names
-// the clean command; projections (vectors/graph) auto-clean and rebuild.
+// args that mount it. The image-mismatch split lives in resolveStoreStamp:
+// database data is user rows — refuse, fix-it names the clean command;
+// projections (vectors/graph) auto-clean and rebuild.
 func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 	args := stateMountArgs(role, root)
 	if len(args) == 0 {
@@ -1120,12 +1121,13 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 //
 // The stamp follows the WRITER, which is what makes an image-change clear
 // correct: the stamp names the code whose output the store holds. It moved
-// from the gateway to the Smelter in ANCHORED-TEXT-TO-SMELTER P5, once P4
-// had removed the gateway's anchored-text faces.
+// from the gateway to the Smelter once the gateway's anchored-text routes
+// were gone.
 //
 // Two earlier versions of this comment predicted the wrong trigger — first
-// "the Archivist cutover", then EXTRACT-LIBRARIAN's. Neither happened; that
-// plan retired the flip entirely (the Gatherer reads no anchored text).
+// "the Archivist cutover", then the Librarian's extraction from the gateway.
+// Neither happened; extracting the Librarian retired that flip entirely (the
+// Gatherer reads no anchored text).
 func (x *liveExec) stateMountsShared(role, root string) ([]string, bool) {
 	args := stateMountArgs(role, root)
 	if len(args) == 0 {

@@ -44,8 +44,8 @@ describe('deriveDetectionBudget', () => {
     // truncation for minutes or collapsed to []. Capacity-sized input plans
     // calls whose honest answers cannot fit.
     // Rate high enough that the duration cap is a no-op — this test pins the
-    // ALLOCATION shape alone. (Since P3b, OMITTING the rate no longer means
-    // uncapped: it means the assumed floor.)
+    // ALLOCATION shape alone. (OMITTING the rate does not mean uncapped: it
+    // means the assumed floor.)
     const { chunking, outputBudget } = deriveDetectionBudget(
       { contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 3_600_000_000 },
       500,
@@ -88,19 +88,20 @@ describe('deriveDetectionBudget', () => {
   });
 });
 
-// ── Duration bound (ABANDONED-INFERENCE P4, A5 — HD3) ─────────────────
+// ── Duration bound ────────────────────────────────────────────────────
 // Capacity says what CAN fit in one call; duration says what SHOULD. On
 // separate-ceilings providers the capacity budget allows ~935K-token
-// chunks — calls that stream for 20+ minutes, the UX HD3 rejects. The
-// bound DERIVES end to end: the provider SDK's own worst-case rate model
-// (128K output tokens/hour — the calculateNonstreamingTimeout constant,
-// surfaced through limits()) times our own 10-minute call bound. No
-// hand-tuned cap; #1121's principle extends to a second bound.
+// chunks — calls that stream for 20+ minutes, which is why chunking also
+// follows expected call duration. The bound DERIVES end to end: the
+// provider SDK's own worst-case rate model (128K output tokens/hour — the
+// calculateNonstreamingTimeout constant, surfaced through limits()) times
+// our own 10-minute call bound. No hand-tuned cap; #1121's principle
+// extends to a second bound.
 
-describe('deriveDetectionBudget — duration bound (A5)', () => {
+describe('deriveDetectionBudget — duration bound', () => {
   const anthropic1M = { contextTokens: 1_000_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 };
-  // The uncapped BASELINE needs an explicitly-huge published rate: since P3b,
-  // omitting the rate no longer means uncapped — it means the assumed floor.
+  // The uncapped BASELINE needs an explicitly-huge published rate: omitting
+  // the rate does not mean uncapped — it means the assumed floor.
   const anthropic1MUncapped = { contextTokens: 1_000_000, maxOutputTokens: 64_000, outputTokensPerHour: 3_600_000_000 };
 
   it('caps per-call output at the provider rate × the inference bound', () => {
@@ -109,13 +110,13 @@ describe('deriveDetectionBudget — duration bound (A5)', () => {
     expect(budget.outputBudget).toBe(Math.floor(128_000 * (INFERENCE_TIMEOUT_MS / 2) / 3_600_000));
   });
 
-  it('scales input by the same factor — ratio preserved, so a capacity-sized document now splits (A5)', () => {
+  it('scales input by the same factor — ratio preserved, so a capacity-sized document now splits', () => {
     const uncapped = deriveDetectionBudget(anthropic1MUncapped, 1_000, 1);
     const capped = deriveDetectionBudget(anthropic1M, 1_000, 1);
 
     const factor = capped.outputBudget / uncapped.outputBudget;
     expect(capped.chunking.chunkSize).toBe(Math.floor(uncapped.chunking.chunkSize * factor));
-    // The A5 clause itself: a document sized to the old single-call budget
+    // The point of the bound: a document sized to the old single-call budget
     // no longer fits one call.
     expect(uncapped.chunking.chunkSize).toBeGreaterThan(capped.chunking.chunkSize);
   });
@@ -127,9 +128,9 @@ describe('deriveDetectionBudget — duration bound (A5)', () => {
       .toEqual(deriveDetectionBudget(tinyOutput, 1_000, 1));
   });
 
-  it('a rate-silent provider is duration-capped at the ASSUMED floor rate — the F9 fix (OLLAMA-DETECTION-TESTING P3b)', () => {
-    // DELIBERATE FLIP of the old "Ollama stays capacity-governed" pin, on
-    // P2's data: capacity-sizing handed a 262K-window model a 174K-token
+  it('a rate-silent provider is duration-capped at the ASSUMED floor rate', () => {
+    // DELIBERATE FLIP of the old "Ollama stays capacity-governed" pin, on a
+    // live sweep's data: capacity-sizing handed a 262K-window model a 174K-token
     // output budget, and a repetition loop then burned the full 10-minute
     // guillotine as TRANSIENT — retried identically, three times over. The
     // same loop under a duration-shaped cap dies in minutes as max_tokens →
@@ -140,8 +141,7 @@ describe('deriveDetectionBudget — duration bound (A5)', () => {
 
     const budget = deriveDetectionBudget(shared, 500, 1);
     // 108,000 tokens/hour × half the 10-minute bound = 9,000 output tokens;
-    // the 1:2 clamp then puts input at 4,500 (~18K chars per chunk) — the
-    // worked numbers from the P3 dispatch.
+    // the 1:2 clamp then puts input at 4,500 (~18K chars per chunk).
     expect(budget.outputBudget).toBe(Math.floor(ASSUMED_OUTPUT_TOKENS_PER_HOUR * (INFERENCE_TIMEOUT_MS / 2) / 3_600_000));
     expect(budget.outputBudget).toBe(9_000);
     // Input scales by the same factor (ratio preserved), floored: 87,214 ×
@@ -150,7 +150,7 @@ describe('deriveDetectionBudget — duration bound (A5)', () => {
     expect(budget.chunking.chunkSize).toBe(4_499);
   });
 
-  it('a published rate still wins over the assumed floor — Anthropic is untouched by P3b', () => {
+  it('a published rate still wins over the assumed floor — Anthropic is untouched', () => {
     const anthropic = { contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 };
     const budget = deriveDetectionBudget(anthropic, 500, 1);
     expect(budget.outputBudget).toBe(Math.floor(128_000 * (INFERENCE_TIMEOUT_MS / 2) / 3_600_000));
@@ -269,15 +269,15 @@ describe('callChunkSubdividing', () => {
     }
   });
 
-  it("an 'unknown'-stop unreadable response DESCENDS BY SIZE — the F3 fix (P4 attempt 2, ruled 2026-09-05)", async () => {
-    // DELIBERATE FLIP of P3a's hold, on exactly the evidence its pin demanded:
-    // the F3 shape recurred live (Location, 1996 Review — 6,424 unparseable
-    // chars, done_reason absent, on a 4,460-char piece MID-DESCENT at depth 3,
-    // adjacent to max_tokens truncations that healed by subdividing), and the
-    // retryable-at-same-size alternative was measured as a deterministic 34 s
-    // burn. Size-floored like truncation — NOT depth-capped like timeouts:
-    // the live failure sat at depth 3, where a depth cap would refuse to
-    // descend and change nothing.
+  it("an 'unknown'-stop unreadable response DESCENDS BY SIZE (ruled 2026-09-05)", async () => {
+    // DELIBERATE FLIP of the earlier hold (retryable, never subdivided), on
+    // exactly the evidence its pin demanded: this shape recurred live
+    // (Location, 1996 Review — 6,424 unparseable chars, done_reason absent, on
+    // a 4,460-char piece MID-DESCENT at depth 3, adjacent to max_tokens
+    // truncations that healed by subdividing), and the retryable-at-same-size
+    // alternative was measured as a deterministic 34 s burn. Size-floored like
+    // truncation — NOT depth-capped like timeouts: the live failure sat at
+    // depth 3, where a depth cap would refuse to descend and change nothing.
     const calls: string[] = [];
     let first = true;
     const { items: result } = await callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
@@ -290,7 +290,7 @@ describe('callChunkSubdividing', () => {
   });
 
   it("an 'unknown'-stop unreadable at the floor propagates after ONE call — no re-roll, nothing to salvage", async () => {
-    // Truncation's floor re-roll is for sampling accidents; the F3 garbage is
+    // Truncation's floor re-roll is for sampling accidents; this garbage is
     // measured near-deterministic at temp 0, and unlike a collapse there is no
     // parsed salvage to accept. One call, then the original error to the
     // job-level machinery (still classified retryable there — a genuinely
@@ -325,7 +325,7 @@ describe('callChunkSubdividing', () => {
     }
   });
 
-  it('a collapse verdict descends by SIZE, like truncation (P3c)', async () => {
+  it('a collapse verdict descends by SIZE, like truncation', async () => {
     // A YieldCollapseError on the full chunk must subdivide — retry provably
     // returns the identical collapse, so changing the input is the one lever.
     const calls: string[] = [];
@@ -392,7 +392,7 @@ describe('callChunkSubdividing', () => {
     });
   });
 
-  // ── The verdict reaches the caller (DETECTION-END-STATES P1) ────────────
+  // ── The verdict reaches the caller ──────────────────────────────────────
   //
   // The floor acceptance is the one place an under-report becomes RESULT
   // rather than failure, and until now nothing above the subdivider could see
@@ -507,7 +507,7 @@ describe('callChunkSubdividing', () => {
     });
   });
 
-  it('never re-runs a piece that cannot shrink — a no-op descent is the floor (P4 attempt 1)', async () => {
+  it('never re-runs a piece that cannot shrink — a no-op descent is the floor', async () => {
     // Measured live: a 572-char piece "descended" through three depths — each
     // re-chunk returned the identical piece, and at temperature 0 the
     // identical call returned the identical verdict. Once a piece fits inside
@@ -538,12 +538,12 @@ describe('callChunkSubdividing', () => {
   });
 
   it('at the size floor a collapse verdict ACCEPTS the salvage loudly — the unit survives (ruled 2026-09-05)', async () => {
-    // DELIBERATE FLIP of the original "fail the job" invariant, on the user's
-    // P4 attempt-1 ruling: one hostile ~530-char stretch had discarded ~20
-    // chunks of good extraction, and at floor sizes the count's evidence is
-    // far below anything the probe validated. The flagged piece's SALVAGE —
-    // what extraction did find, every span write-time-verified — flows
-    // through with a loud warning instead of nuking the unit. No re-roll
+    // DELIBERATE FLIP of the original "fail the job" invariant, on a ruling
+    // after the first full Ollama run: one hostile ~530-char stretch had
+    // discarded ~20 chunks of good extraction, and at floor sizes the count's
+    // evidence is far below anything the probe validated. The flagged piece's
+    // SALVAGE — what extraction did find, every span write-time-verified —
+    // flows through with a loud warning instead of nuking the unit. No re-roll
     // either way: the collapse is deterministic.
     const boom = new YieldCollapseError('found 1 of 4 counted mentions', ['salvaged-entity'], { found: 1, counted: 4, pieceChars: 400 });
     const small = 'a'.repeat(400);
@@ -626,9 +626,9 @@ describe('callChunkSubdividing', () => {
   });
 });
 
-// ── P1: yield telemetry (DETECTION-QUALITY-THROUGHPUT) ──────────────────
+// ── Yield telemetry ─────────────────────────────────────────────────────
 //
-// Every optimization phase after this one is judged by measurement, and the
+// Every optimization of detection is judged by measurement, and the
 // facts that judge it are per-CALL, not per-job: how big the piece was, how
 // long it took, how many items came back, and — the two the adapters cannot
 // know — how deep subdivision had descended and whether this was the floor
@@ -666,7 +666,8 @@ describe('callChunkSubdividing telemetry', () => {
   it('records the FAILED attempt and each smaller retry — the descent is the data', async () => {
     // A truncation at full size, then success on the sub-pieces. Without a
     // record for the failure, the cost of a descent is invisible: the calls
-    // that were paid for and thrown away are exactly what P2 must avoid.
+    // that were paid for and thrown away are exactly what adaptive sizing
+    // must avoid.
     await callChunkSubdividing<string>('reference', CHUNK, CHUNKING, async (piece) => {
       if (piece.length === CHUNK.length) throw new DeterministicJobError('truncated (max_tokens)');
       return { items: ['x'] };
@@ -695,9 +696,9 @@ describe('callChunkSubdividing telemetry', () => {
     expect(records[1]).toMatchObject({ reroll: true, outcome: 'success' });
   });
 
-  it("records a collapse verdict as its own outcome — F7 finally has an in-band signal", async () => {
-    // The bug report's core complaint was "no signal, nothing downstream can
-    // detect it". The verifier creates the signal; the telemetry must not
+  it("records a collapse verdict as its own outcome — silent yield collapse finally has an in-band signal", async () => {
+    // The core complaint about the collapse was "no signal, nothing downstream
+    // can detect it". The verifier creates the signal; the telemetry must not
     // collapse it into 'truncated' (which the DeterministicJobError
     // inheritance would otherwise do) — the two are different facts.
     // The floor ACCEPTS the flagged piece now (ruled 2026-09-05), so the run

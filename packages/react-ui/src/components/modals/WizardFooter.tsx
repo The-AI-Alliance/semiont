@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * The one wizard footer (WIZARD-NAVIGATION D7).
+ * The one wizard footer: the only place the Back-and-primary markup exists.
  *
  * Four steps used to hand-build this markup, which is how four different footers
  * happened: three carried a `✕ Cancel` that duplicated the corner control, one had no
  * footer at all, and every button stretched to equal width so "leave" read as a peer of
  * "do the thing".
  *
- * The grammar, settled in D1/D2:
+ * The grammar:
  *   • Dismissal is NOT here. The corner ✕, Esc and the backdrop are the way out, and
  *     they are the same on every step including the one with no footer.
  *   • Retreat is chrome: quiet, left, no emoji.

@@ -1,7 +1,6 @@
 package launcher
 
-// executor_roles_test.go — the census gate on the executor's surface
-// (LAUNCHER-PACKAGE-BOUNDARIES P4).
+// executor_roles_test.go — the census gate on the executor's surface.
 //
 // `executor` is the seam that lets flows.go be written once and walked twice,
 // live and as a plan. That is worth keeping. What it had stopped being is a

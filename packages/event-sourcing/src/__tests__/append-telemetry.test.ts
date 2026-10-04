@@ -1,12 +1,12 @@
 /**
- * ARCHIVIST-STAYS-UP P7 — the append path reports what it spends.
+ * The append path reports what it spends.
  *
  * `appendEvent` is the Archivist's core operation and the one thing only it
  * can do, and until this it emitted no span and no metric. Reads were covered
  * (`recordHandlerDuration` via `withActorSpan`) and the bus was covered; the
  * WRITE path was dark, which is why "reads serialize behind the detection
- * job's annotation writes" is a symptom recorded in
- * `bugs/absent-archivist-wedges-browse.md` with no mechanism attached.
+ * job's annotation writes" went on record as a cause of browse timeouts
+ * with no mechanism attached.
  *
  * Four stages, timed separately, because the useful question is not "was the
  * append slow" but WHICH PART was slow — persisting the record, materializing

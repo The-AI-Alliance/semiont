@@ -1,7 +1,8 @@
 /**
- * JOB-RESTART-SAFETY P3's own RED, at the level the plan states it:
- * "run the same unit twice against one resource; annotation count is
- * unchanged the second time."
+ * Annotation ids are content-addressed — hashed from the resource,
+ * motivation, anchor and body — so re-emitting an annotation is a no-op. This
+ * pins that at the level a recovery sees it: run the same unit twice against
+ * one resource; the annotation count is unchanged the second time.
  *
  * The core test pins the id FUNCTION. This one pins the thing that actually
  * failed: the builders. Between them sits the wiring — which fields each
@@ -69,7 +70,8 @@ describe('re-running a unit does not mint duplicate annotations', () => {
   // ── the wiring the core test cannot see ───────────────────────────────
 
   it('two DIFFERENT comments on one span stay two annotations', () => {
-    // HD1's named collision. Fails if the builder omits `body` from the hash.
+    // The collision a comment's id must avoid: two annotations on one span that
+    // differ only by body. Fails if the builder omits `body` from the hash.
     const a = build(match(0, 12), 'commenting', comment('an author'));
     const b = build(match(0, 12), 'commenting', comment('a mathematician'));
     expect(b.id).not.toBe(a.id);

@@ -1061,7 +1061,7 @@ describe('ViewMaterializer', () => {
     });
   });
 
-  describe('wasAttributedTo is copied from the event, never re-derived (VERIFIED-PROVENANCE P2)', () => {
+  describe('wasAttributedTo is copied from the event, never re-derived', () => {
     // The Stower derives attribution at write time and carries it on the event.
     // The event's emitter here is the WORKER, while the carried attribution
     // names the requester too — a projection that re-derived from `userId`
@@ -1145,7 +1145,7 @@ describe('ViewMaterializer', () => {
     });
   });
 
-  describe('storageUri lives on the representation (STORAGE-URI-ONE-HOME P1)', () => {
+  describe('storageUri lives on the representation', () => {
     // A storage URI names where bytes live, and bytes are a fact about a
     // rendition. The descriptor-level field is gone; the materializer writes
     // the URI into the representation it builds, and yield:moved relocates it

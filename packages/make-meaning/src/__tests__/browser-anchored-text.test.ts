@@ -1,5 +1,6 @@
 /**
- * `browse:anchored-text-requested` — the read side of ANCHORED-TEXT-CACHE Lane 5.
+ * `browse:anchored-text-requested` — the read side of the anchored-text store:
+ * a resource's derived coordinate map, served whole over the bus.
  *
  * What is worth pinning here is not "the store is read" but the three answers
  * a caller can get, because each drives different behaviour in a viewer:
@@ -101,8 +102,8 @@ describe('browse:anchored-text-requested', () => {
   it("answers NO-MAP when the Smelter settled 'skipped'", async () => {
     // A decision, not a delay: this media type derives no geometry, so no
     // amount of waiting produces a map and re-reading the store is pointless.
-    // Named rather than null (SMELTER-OWNS-OCR P1) — a reader that blocks on
-    // this must stop retrying here, and must NOT stop for a timeout.
+    // Named rather than null — a reader that blocks on this must stop retrying
+    // here, and must NOT stop for a timeout.
     const read = vi.fn(async () => null);
     const { eventBus, browser } = browserOver({
       anchoredText: { read, write: async () => {} },

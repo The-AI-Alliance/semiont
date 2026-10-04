@@ -51,11 +51,11 @@ function mockClient(overrides: {
   return { client, resourceCalls };
 }
 
-describe('createDiscoverStateUnit — search match kind (SEMANTIC-FALLBACK P3b)', () => {
-  // S10 is tier-agnostic: the label and the resources it describes must arrive
-  // as ONE value. Exposing `matchKind$` as a second observable beside
-  // `state$.results` would satisfy the component and still let a render pair
-  // this query's label with the previous query's list.
+describe('createDiscoverStateUnit — search match kind', () => {
+  // Semantic-fallback axiom S10 is tier-agnostic: the label and the resources
+  // it describes must arrive as ONE value. Exposing `matchKind$` as a second
+  // observable beside `state$.results` would satisfy the component and still
+  // let a render pair this query's label with the previous query's list.
   it('emits matchKind in the SAME value as the results it labels', async () => {
     vi.useFakeTimers();
     try {

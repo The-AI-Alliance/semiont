@@ -1,7 +1,7 @@
 /**
  * The Resource Info panel says where the text layer stands — the user-facing
- * face of `smelt:settled` (ANNOTATE-DEFERS-ON-NOT-YET; user request 2026-09-13:
- * "indicate the status, though probably not those literal words").
+ * face of `smelt:settled` (user request 2026-09-13: "indicate the status,
+ * though probably not those literal words").
  *
  * The row renders the wire's own vocabulary, translated: extracted → Ready,
  * not-yet → Preparing, declined → None, no-map → Not applicable. `unknown`

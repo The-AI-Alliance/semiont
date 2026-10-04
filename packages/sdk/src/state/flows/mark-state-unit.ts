@@ -38,7 +38,7 @@ export function createMarkStateUnit(
   const assistingMotivation$ = new BehaviorSubject<Motivation | null>(null);
   const progress$ = new BehaviorSubject<JobProgress | null>(null);
 
-  // A finished run STAYS on screen (CLEAN-PROGRESS D1). There is no dismissal
+  // A finished run STAYS on screen. There is no dismissal
   // timer: the result line — "Created 7 references" — is the one thing in the
   // whole run worth reading, and a timer that eats it is why the generation
   // flow felt like it vanished mid-sentence. The ended display carries an
@@ -111,7 +111,7 @@ export function createMarkStateUnit(
     assistingMotivation$.next(event.motivation);
     progress$.next(null);
 
-    // Silence detector, NOT a timeout (DETECTION-HEARTBEAT D6). The job
+    // Silence detector, NOT a timeout. The job
     // outlives the client's attention: a run the UI gave up on still
     // persisted 221 annotations (2026-08-07). So going quiet must degrade
     // the display — never tear the subscription down, which would leave the

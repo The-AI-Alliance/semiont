@@ -1,14 +1,14 @@
 /**
- * Citation-token resolver (INLINE-CITATIONS P1).
+ * Citation-token resolver.
  *
  * Under `cite`, the generation prompt asks the model to emit `[[<resourceId>]]` /
  * `[[<resourceId>/<annotationId>]]` transport tokens after each claim, citing ids
- * the context embedding put in front of it (CONTEXT-IDENTIFIERS). Tokens are
- * TRANSPORT, not content: this resolver parses them, validates each id against the
- * ids actually present in the embedded context (the hallucination guard — an
- * unknown id is dropped loudly, never silently linked), STRIPS them from the
- * content before upload, and returns claim-span citations the worker mints as W3C
- * linking annotations on the derived resource.
+ * the context embedding put in front of it: every embedded excerpt carries a
+ * `[<resourceId>]` handle. Tokens are TRANSPORT, not content: this resolver parses
+ * them, validates each id against the ids actually present in the embedded context
+ * (the hallucination guard — an unknown id is dropped loudly, never silently
+ * linked), STRIPS them from the content before upload, and returns claim-span
+ * citations the worker mints as W3C linking annotations on the derived resource.
  */
 import { isResourceId, type GatheredContext, type Logger, type ResourceId } from '@semiont/core';
 

@@ -1,6 +1,6 @@
 /**
- * An `Annotation` on the wire is exactly the W3C annotation its author wrote
- * (ANNOTATIONS-STAY-W3C D1).
+ * An `Annotation` on the wire is exactly the W3C annotation its author wrote:
+ * no producer adds a derived field to it.
  *
  * The server used to staple `_resolvedDocumentName` and
  * `_resolvedDocumentMediaType` onto linking annotations on the way out — a

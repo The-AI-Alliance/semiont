@@ -181,12 +181,12 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
     timer = setTimeout(() => {
       refresh().catch((error) => {
         const detail = { error: error instanceof Error ? error.message : String(error) };
-        // The issuer's answer is the verdict; its absence never is
-        // (REFRESH-FAILURE-TRANSIENT-VS-TERMINAL). A refused credential cannot
-        // become valid again, so re-arming against it is an infinite loop that
-        // outlives the revocation it should have respected — measured at 47
-        // attempts in ten minutes before this. An outage is the other case: the
-        // token in hand may still be good, and the loop is how it recovers.
+        // The issuer's answer is the verdict; its absence never is. A refused
+        // credential cannot become valid again, so re-arming against it is an
+        // infinite loop that outlives the revocation it should have respected —
+        // measured at 47 attempts in ten minutes before this. An outage is the
+        // other case: the token in hand may still be good, and the loop is how
+        // it recovers.
         if (!RETRY_RULES.refresh.retryable(error instanceof AuthRefused ? { status: error.status } : {})) {
           logger.error('Re-authentication refused; not retrying', detail);
           return;

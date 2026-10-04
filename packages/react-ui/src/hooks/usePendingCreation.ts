@@ -12,14 +12,14 @@ import { useSessionEventSubscriptions } from './useSessionEventSubscriptions';
 export type PendingCreation = EventMap['mark:requested'];
 
 /**
- * The consuming half of the viewer's capture/policy split (HEADLESS-CREATION-SEAM).
+ * The consuming half of the viewer's capture/policy split.
  *
  * The viewer captures gestures and emits source-scoped `mark:requested`; this
  * hook claims them for ONE viewer: an event is claimed iff
  * `enabled && event.source === resourceId` — N mounted hooks on one session each
- * claim only their own (the multi-mount contract MARK-REQUESTED-RESOURCE-SCOPE
- * created). A new request for the same resource REPLACES an unresolved pending
- * (the user reselected; the stale pending is abandoned).
+ * claim only their own (the multi-mount contract: every `mark:requested`
+ * carries its source resource id). A new request for the same resource REPLACES
+ * an unresolved pending (the user reselected; the stale pending is abandoned).
  *
  * Headless by contract: no creation call, no UI, no toast in here — resolution
  * (chooser flows, body forms, `mark.annotation`) is host policy. Session-first

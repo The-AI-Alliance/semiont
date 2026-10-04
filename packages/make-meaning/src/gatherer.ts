@@ -35,18 +35,18 @@ import { AnnotationContext, type AnnotationGatherReads } from './annotation-cont
 import { LLMContext, type ResourceGatherReads } from './llm-context';
 
 /**
- * The Gatherer's capability slice (EXTRACT-LIBRARIAN P2) — DERIVED as the
- * intersection of the two gather paths' reads, never restated. A full
- * `KnowledgeBase` satisfies it structurally; the standalone Librarian (P3)
- * builds it from the shared stateDir (views), the network clients
- * (graph/vectors), bus-fed progress folds, and D-CONTENT's answer (content).
+ * The Gatherer's capability slice — DERIVED as the intersection of the two
+ * gather paths' reads, never restated. A full `KnowledgeBase` satisfies it
+ * structurally; the standalone Librarian builds it from the shared stateDir
+ * (views), the network clients (graph/vectors), bus-fed progress folds, and
+ * a resource-id-keyed network read (content).
  */
 export type GathererStores = AnnotationGatherReads & ResourceGatherReads;
 
 /**
  * The request channels Gatherer subscribes to — the Librarian's inbound wire
- * roster for this actor (P3). Pinned to `initialize()`'s actual subscriptions
- * by the census gate in gatherer-decoupling.test.ts.
+ * roster for this actor. Pinned to `initialize()`'s actual subscriptions by
+ * the census gate in gatherer-decoupling.test.ts.
  */
 export const GATHERER_CHANNELS = [
   'gather:requested',
@@ -62,7 +62,7 @@ export class Gatherer {
     private stores: GathererStores,
     private eventBus: EventBus,
     private inferenceClient: InferenceClient,
-    /** Settle bound for the resource-gather barrier — operator-owned config (D5), threaded from `MakeMeaningConfig.gather`. */
+    /** Settle bound for the resource-gather barrier — operator-owned config, threaded from `MakeMeaningConfig.gather`. */
     private settleTimeoutMs: number,
     logger: Logger,
     private embeddingProvider: EmbeddingProvider,

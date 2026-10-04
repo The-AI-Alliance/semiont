@@ -65,11 +65,11 @@ describe('wireEnrichment — what the EventStore publishes on the annotation cha
     expect((await published).annotation?.id).toBe('ann-enrich');
   });
 
-  // The enricher is the OTHER publication path for an annotation
-  // (ANNOTATIONS-STAY-W3C P2). The annotation-list reply has its own gate in
-  // annotation-stays-w3c.test.ts; this holds the bus to the same rule, because
-  // both read through `getAllAnnotations` and a decoration re-added there would
-  // reach subscribers as readily as readers.
+  // The enricher is the OTHER publication path for an annotation, and the
+  // server adds no derived field on either. The annotation-list reply has its
+  // own gate in annotation-stays-w3c.test.ts; this holds the bus to the same
+  // rule, because both read through `getAllAnnotations` and a decoration
+  // re-added there would reach subscribers as readily as readers.
   //
   // A LINKING annotation specifically: the server only ever decorated a
   // resolved reference, so a commenting fixture would pass while the defect sat

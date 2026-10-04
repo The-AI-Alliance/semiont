@@ -1,5 +1,5 @@
 /**
- * MULTI-RESOURCE-SCOPE Step 5 — the multi-mount invalidation contract.
+ * The multi-mount invalidation contract.
  *
  * With N viewers mounted on one session (the embeddable "resource per chat
  * message" pattern — 40–60 concurrent in the surveyed consumer), a mark

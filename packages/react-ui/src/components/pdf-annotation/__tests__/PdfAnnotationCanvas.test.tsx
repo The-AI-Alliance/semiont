@@ -309,7 +309,7 @@ describe('PdfAnnotationCanvas', () => {
     });
   });
 
-  test('passes the annotation rect as browse.click second argument (A1 anchor)', async () => {
+  test('passes the annotation rect as browse.click second argument', async () => {
     const click = vi.fn();
     const session = {
       client: { browse: { click }, beckon: { hover: vi.fn() } },
@@ -368,7 +368,7 @@ describe('PdfAnnotationCanvas', () => {
   });
 
   test('drawing-path hit-test emits browse.click with the annotation viewport rect', async () => {
-    // A1 anchor: in drawing mode, a sub-10px click on an existing annotation
+    // In drawing mode, a sub-10px click on an existing annotation
     // goes through the mouse-up hit-test, which owns the PDF→display
     // coordinate transform. Expected rect computed with the same lib
     // functions the component uses (scale is 1: display 612×792 == page).
@@ -583,7 +583,7 @@ describe('PdfAnnotationCanvas', () => {
     ]);
   });
 
-  // PERSIST-ANCHORS P4. The server map is WHOLE-RESOURCE — one artifact
+  // The server map is WHOLE-RESOURCE — one artifact
   // covering every page — so fetching it from inside the per-page load
   // effect refetched and re-decoded the entire document's geometry on every
   // page turn. On a 400-page scan that is the difference between one decode
@@ -640,7 +640,7 @@ describe('PdfAnnotationCanvas', () => {
 
   test('a scanned page with no server map carries geometry only', async () => {
     // Class B: pdf.js returns no runs, so the browser cannot do the job and
-    // the annotation stays geometry-only pending async enrichment (Phase 2).
+    // the annotation stays geometry-only pending async enrichment.
     vi.mocked(loadPdfDocument).mockResolvedValueOnce({
       numPages: 3,
       getPage: vi.fn().mockResolvedValue(mockPage([])),
@@ -695,10 +695,10 @@ describe('PdfAnnotationCanvas', () => {
     }
   });
 
-  // PDF-CONTINUOUS-SCROLL S1. Browse mode scrolls: every page has a slot so
+  // Browse mode scrolls: every page has a slot so
   // the scrollbar is honest about the document's length, but only a window of
   // pages is MOUNTED — unmounting is what releases a page's raster, so the
-  // window IS the memory budget (D2).
+  // window IS the memory budget.
   describe('scroll layout (browse mode)', () => {
     const scannedDoc = () =>
       vi.mocked(loadPdfDocument).mockResolvedValueOnce({
@@ -785,9 +785,9 @@ describe('PdfAnnotationCanvas', () => {
       expect(io.observeCalls()).toBe(registrations);
     });
 
-    test('still fetches the whole-resource map once, across many mounted pages (P4)', async () => {
-      // P4's invariant has to survive the move from one shared page-load
-      // effect into N independent page views.
+    test('still fetches the whole-resource map once, across many mounted pages', async () => {
+      // The fetch-once invariant has to survive the move from one shared
+      // page-load effect into N independent page views.
       const io = stubIntersectionObserver();
       scannedDoc();
 
@@ -821,7 +821,7 @@ describe('PdfAnnotationCanvas', () => {
     });
 
     test('a slot keeps its reserved height when its page mounts', async () => {
-      // S1b. Releasing the reservation on mount is what made the column's
+      // Releasing the reservation on mount is what made the column's
       // total height change on every scroll — the scrollbar jumped and
       // resized under the cursor. The reservation must survive mounting so
       // the column's geometry never depends on which pages are mounted.
@@ -858,7 +858,7 @@ describe('PdfAnnotationCanvas', () => {
     });
 
     test('a rectangle drawn on a scrolled page carries THAT page number', async () => {
-      // S2. The drag lives in the page view, so page identity comes from the
+      // The drag lives in the page view, so page identity comes from the
       // component that owns the pixels rather than from a shared `pageNumber`
       // — the invariant that makes a column safe to draw on at all.
       const io = stubIntersectionObserver();
@@ -925,12 +925,12 @@ describe('PdfAnnotationCanvas', () => {
         .toHaveAttribute('data-drawing-mode', 'rectangle');
     });
 
-    // S4. A strip of proportional rectangles — one per page, current
+    // A strip of proportional rectangles — one per page, current
     // highlighted, click to jump. Deliberately NOT thumbnails: it needs no
-    // rasterization, only the page count and the aspect ratio S1b already
-    // measures, so it costs nothing next to the document itself. It answers
-    // "where am I in this document", which neither the pager nor the
-    // scrollbar does.
+    // rasterization, only the page count and the aspect ratio the slot
+    // reservation already uses, so it costs nothing next to the document
+    // itself. It answers "where am I in this document", which neither the
+    // pager nor the scrollbar does.
     test('renders one strip rectangle per page, marking the current one', async () => {
       const io = stubIntersectionObserver();
       scannedDoc();
@@ -1016,7 +1016,7 @@ describe('PdfAnnotationCanvas', () => {
       expect(scrollIntoView).toHaveBeenCalled();
     });
 
-    // S1a. Arrow keys step pages. The guards are the substance: a viewer that
+    // Arrow keys step pages. The guards are the substance: a viewer that
     // steals arrow keys from a text field is worse than one with no shortcut.
     test('PageUp/PageDown step pages; Up/Down are left to scroll', async () => {
       // The convention every mainstream viewer follows (Preview, Chrome's PDF
@@ -1420,7 +1420,7 @@ describe('PdfAnnotationCanvas', () => {
     });
   });
 
-  // PDF-CONTINUOUS-SCROLL S3. The viewer chrome was the last hardcoded-English
+  // The viewer chrome was the last hardcoded-English
   // surface in this component: Previous/Next, the page indicator, and both
   // failure lines. The mock translation manager echoes "<namespace>.<key>",
   // so asserting the echo proves the string came from translations rather

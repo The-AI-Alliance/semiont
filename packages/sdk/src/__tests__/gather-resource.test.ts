@@ -5,8 +5,8 @@
  *
  * The gateway route (`gatherer.ts` handleResourceGather) and the wire contract
  * (GatherResourceRequest/Complete, carrying a unified GatheredContext) already exist;
- * this exercises the SDK method that was previously a throwing stub. See the
- * my-chat SDK-FRICTION-LOG B1.
+ * this exercises the SDK method that was previously a throwing stub, a gap
+ * an external consumer (my-chat) reported.
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
@@ -72,7 +72,7 @@ describe('gather.resource', () => {
     expect(typeof cid).toBe('string');
 
     // gather:resource-complete now carries a unified GatheredContext (focus.kind:'resource'),
-    // not the old per-kind response wrapper (CONTEXT-UNIFICATION P1).
+    // not the old per-kind response wrapper.
     const response = resourceContextFor(rid);
     push('gather:resource-complete', { resourceId: rid, response }, cid);
 

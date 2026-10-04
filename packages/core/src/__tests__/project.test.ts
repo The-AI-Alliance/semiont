@@ -22,10 +22,10 @@ async function makeTempDir(): Promise<string> {
 }
 
 describe('SemiontState — the half that needs no KB root', () => {
-  // SINGLE-KB-MOUNT P5 leaves the gateway with no readable KB root while it
-  // still legitimately needs the state paths. That is not a project with
-  // fields missing, it is a smaller thing: a KB's state tree, addressed by
-  // name. Split rather than made optional, so "needs a working tree" stays a
+  // The gateway has no readable KB root — only the Archivist mounts the KB —
+  // while it still legitimately needs the state paths. That is not a project
+  // with fields missing, it is a smaller thing: a KB's state tree, addressed
+  // by name. Split rather than made optional, so "needs a working tree" stays a
   // COMPILE-time fact — passing a SemiontState where a SemiontProject is
   // required is a type error, not a throw inside some later read.
   const state = new SemiontState({ name: 'kb-under-test' });
@@ -51,11 +51,11 @@ describe('SemiontState — the half that needs no KB root', () => {
   });
 
   it('takes NOTHING but the name — every path here derives from it', () => {
-    // SINGLE-KB-MOUNT P6 moved `anchoredTextDir` to SemiontProject: it is a
-    // SUPPLIED path rather than a derived one, and the gateway — the reason
-    // this type exists — neither mounts the store nor reads it. Requiring it
-    // here would have made the one consumer that cannot supply it supply it
-    // anyway, which is the shape this split exists to avoid.
+    // `anchoredTextDir` belongs to SemiontProject: it is a SUPPLIED path
+    // rather than a derived one, and the gateway — the reason this type
+    // exists — neither mounts the store nor reads it. Requiring it here would
+    // have made the one consumer that cannot supply it supply it anyway,
+    // which is the shape this split exists to avoid.
     expect(Object.keys(state)).not.toContain('anchoredTextDir');
   });
 
@@ -189,11 +189,11 @@ describe('SemiontProject', () => {
   /**
    * `[site] domain` is the KB's PERMANENT identity literal — the string the
    * launcher turns into `did:web:<domain>` and calls "the permanent identity
-   * in the committed event log" (KB-IDENTITY-VS-ADDRESS.md). It is read from
-   * the committed `.semiont/config` and from nowhere else: the environment
-   * config's `site` section can override it in `EnvironmentConfig`, which
-   * would make the gateway report an identity the launcher never minted.
-   * Identity must be declared, never defaulted.
+   * in the committed event log". It is read from the committed
+   * `.semiont/config` and from nowhere else: the environment config's `site`
+   * section can override it in `EnvironmentConfig`, which would make the
+   * gateway report an identity the launcher never minted. Identity must be
+   * declared, never defaulted.
    */
   describe('siteDomain()', () => {
     it('returns the declared [site] domain, colon-path form preserved verbatim', async () => {

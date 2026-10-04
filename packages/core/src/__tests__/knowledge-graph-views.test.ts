@@ -1,5 +1,5 @@
 /**
- * deriveViews — flattened neighborhood views from a KnowledgeGraph (CONTEXT-UNIFICATION P3, Q1=A).
+ * deriveViews — flattened neighborhood views derived from a KnowledgeGraph.
  * Moved here from make-meaning so jobs can share it (the function is pure over the core type).
  */
 import { describe, it, expect } from 'vitest';
@@ -18,7 +18,7 @@ describe('deriveViews', () => {
       ],
       // relationshipType is a free string a stored connection can name anything —
       // even 'cites'. Derivation is structural (endpoints), so this stays a
-      // connection and never leaks into citedBy (D12).
+      // connection and never leaks into citedBy (a citation is an annotation node).
       edges: [{ source: 'res-main', target: 'res-peer', type: 'cites', bidirectional: true }],
     };
 
@@ -29,7 +29,7 @@ describe('deriveViews', () => {
     ]);
   });
 
-  it('derives citedBy from citing linking annotations (cites + annotation-of), deduped per citing resource, KEEPING missing-view citers (D12, Option A)', () => {
+  it('derives citedBy from citing linking annotations (cites + annotation-of), deduped per citing resource, KEEPING missing-view citers', () => {
     const ann = (id: string, source: string) => ({
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       type: 'Annotation' as const,
@@ -67,7 +67,7 @@ describe('deriveViews', () => {
     ]);
   });
 
-  it('derives siblingEntityTypes from annotations ON the focal resource, excluding the focal annotation AND citing annotations (D12)', () => {
+  it('derives siblingEntityTypes from annotations ON the focal resource, excluding the focal annotation AND citing annotations', () => {
     const ann = (id: string, source: string) => ({
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       type: 'Annotation' as const,

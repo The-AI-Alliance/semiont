@@ -39,7 +39,7 @@ interface MockBus extends BusRequestPrimitive {
 
 // `initialState` defaults to 'open' so the pre-gate tests above keep their
 // exact emit timing: an already-deliverable state takes the synchronous fast
-// path (BUS-ATTACH-GATE.md D4) and the gate is invisible.
+// path and the gate is invisible.
 function makeBus(
   resultChannel: string,
   failureChannel: string,
@@ -202,11 +202,11 @@ describe('busRequest', () => {
   });
 
   it("promotes 'not-found' — the verdict a caller may act destructively on", async () => {
-    // The archivist answers a missing resource with `code: 'not-found'`
-    // (TABS-REVALIDATE-ON-RESTORE P1). It must arrive distinguishable from a
-    // refusal: the SDK's tab validator DELETES a restored tab on this and keeps
-    // it on everything else, so collapsing it to 'bus.rejected' here would make
-    // the two decisions the same one.
+    // The archivist answers a request for a resource its event log holds no
+    // events for with `code: 'not-found'`. It must arrive distinguishable from
+    // a refusal: the SDK's tab validator DELETES a restored tab on this and
+    // keeps it on everything else, so collapsing it to 'bus.rejected' here
+    // would make the two decisions the same one.
     const bus = makeBus(RESULT, FAILURE);
     const captured = busRequest(bus, EMIT, {}).catch((e) => e);
     await Promise.resolve();
@@ -378,11 +378,11 @@ describe('busRequest', () => {
   });
 
   it('does not leak an unhandled rejection when the bus is disposed while a fire-and-forget request is in flight', async () => {
-    // The reported crash (busrequest-emptyerror-on-dispose): a busRequest whose
-    // `emit` is still pending — so its internal `firstValueFrom` promise has no
-    // awaiter yet — and whose returned promise nobody awaits. When the bus
-    // completes (dispose), pre-fix `firstValueFrom` rejects `EmptyError` with no
-    // handler → unhandledRejection → process crash.
+    // The reported crash: a busRequest whose `emit` is still pending — so its
+    // internal `firstValueFrom` promise has no awaiter yet — and whose returned
+    // promise nobody awaits. When the bus completes (dispose), pre-fix
+    // `firstValueFrom` rejects `EmptyError` with no handler →
+    // unhandledRejection → process crash.
     const unhandled: unknown[] = [];
     const onUnhandled = (reason: unknown) => unhandled.push(reason);
     process.on('unhandledRejection', onUnhandled);
@@ -423,9 +423,9 @@ describe('busRequest', () => {
 
 describe('busRequest attach gate', () => {
   // No correlated emit before the reply path exists: busRequest waits — inside
-  // its existing timeout budget (D4) — for `state$` to report the one
-  // deliverable state, `'open'` (D3 as amended 2026-07-29: `degraded` is a
-  // dropped stream by definition and waits like the rest).
+  // its existing timeout budget — for `state$` to report the one deliverable
+  // state, `'open'` (`degraded` is a dropped stream by definition and waits
+  // like the rest).
   const EMIT = 'gather:resource-requested';
   const RESULT = 'gather:resource-complete';
   const FAILURE = 'gather:resource-failed';
@@ -446,7 +446,7 @@ describe('busRequest attach gate', () => {
     expect(await promise).toEqual({ value: 7 });
   });
 
-  it('degraded waits (D3 as amended) — recovery via connecting → open releases the gate', async () => {
+  it('degraded waits — recovery via connecting → open releases the gate', async () => {
     const bus = makeBus(RESULT, FAILURE, 'degraded');
     const promise = busRequest(bus, EMIT, {});
 
@@ -534,7 +534,7 @@ describe('busRequest attach gate', () => {
     expect(bus.emit).not.toHaveBeenCalled();
   });
 
-  it('one deadline from the call (D4): a primitive that never attaches rejects bus.timeout at timeoutMs, emit never called', async () => {
+  it('one deadline from the call: a primitive that never attaches rejects bus.timeout at timeoutMs, emit never called', async () => {
     const bus = makeBus(RESULT, FAILURE, 'connecting');
     const started = Date.now();
 
@@ -549,7 +549,7 @@ describe('busRequest attach gate', () => {
     expect(bus.emit).not.toHaveBeenCalled();
   });
 
-  it('a state flap after emission does not re-emit (D5)', async () => {
+  it('a state flap after emission does not re-emit', async () => {
     const bus = makeBus(RESULT, FAILURE, 'open');
     const promise = busRequest(bus, EMIT, {});
 
@@ -602,7 +602,7 @@ describe('relayedFailureCode', () => {
   });
 });
 
-// ── BUS-RESUMPTION.md Phase 2 (SDK-DEBT S1): reply tracking ───────────────
+// ── Reply tracking: a reply lost in a connection drop is asked for again ──
 
 describe('busRequest reply tracking (correlated-reply retention, client side)', () => {
   const EMIT = 'gather:resource-requested';
@@ -641,7 +641,7 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
 
     const cid = bus.emitEnvelope!.correlationId as string;
     // Track-before-emit is load-bearing: a reconnect body built during the
-    // emit's in-flight window must already carry the cid (see the plan).
+    // emit's in-flight window must already carry the cid in `pendingReplies`.
     expect(order).toEqual(['track', 'emit']);
     expect(tracked).toEqual([cid]);
     expect(released).toEqual([]);

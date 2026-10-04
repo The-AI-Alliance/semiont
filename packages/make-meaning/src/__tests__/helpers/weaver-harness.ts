@@ -1,5 +1,5 @@
 /**
- * Weaver axiom harness (WEAVER-AXIOMS R0).
+ * Weaver axiom harness.
  *
  * Pure in-memory rig for the property suite: no EventStore, no filesystem,
  * no tmp dirs. Histories σ are generated arrays of StoredEvents; the
@@ -25,7 +25,11 @@ export const noopLogger: Logger = {
   child: () => noopLogger,
 };
 
-/** Generator-speed timings (SMELTER-AXIOMS D4 precedent). */
+/**
+ * Generator-speed timings: the Weaver takes all its timings as required
+ * constructor config, as the Smelter does, so this harness runs at about 1 ms
+ * while production passes real values.
+ */
 export const TIMING_FAST: WeaverTiming = {
   burstWindowMs: 1,
   maxBatchSize: 500,
@@ -52,8 +56,8 @@ let eventCounter = 0;
  * Build a stored event for the axiom histories.
  *
  * The payload is typed against the persisted-event catalog, per event type.
- * It used to be `unknown`, and that hole cost real time: when
- * ANNOTATION-CREATED-AUTHORITY made `created` required, ten axioms failed at
+ * It used to be `unknown`, and that hole cost real time: when an
+ * annotation's `created` became required, ten axioms failed at
  * RUNTIME with a clean workspace typecheck, because nothing here checked an
  * annotation payload against the schema it claimed to be. A required field is
  * only as strong as the weakest constructor of the thing that carries it.
@@ -89,9 +93,9 @@ export const makeAnnotationPayload = (aid: string, rid: string): Annotation => (
   motivation: 'commenting',
   target: { source: makeResourceId(rid) },
   body: [],
-  // The AUTHORED moment — the stores no longer mint one of their own
-  // (ANNOTATION-CREATED-AUTHORITY), so an event without `created` decodes as a
-  // missing required field rather than silently acquiring the write moment.
+  // The AUTHORED moment — the stores no longer mint one of their own, so an
+  // event without `created` decodes as a missing required field rather than
+  // silently acquiring the write moment.
   // Deliberately fixed, not `new Date()`: these
   // axioms compare a replayed projection against a reference fold, and a
   // clock-derived value would differ between the two.
@@ -167,7 +171,7 @@ export function foldModel(events: StoredEvent[]): ModelState {
         if (payload.entityType) entityTypes.add(String(payload.entityType));
         break;
       // mark:body-updated: body contents are outside the v1 model scope
-      // (identity + facets) — a deliberate boundary, see WEAVER-AXIOMS W9.
+      // (identity + facets) — a deliberate boundary, see weaver axiom W9.
     }
   }
 

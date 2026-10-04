@@ -8,7 +8,7 @@
  * mark.dismissProgress). Feature blocks are data-presence-driven so each call
  * site keeps its current visuals by passing what it always had.
  *
- * i18n contract (ASSIST-SURFACE-WARTS Lane A): every string this component
+ * i18n contract: every string this component
  * renders comes from `translations`. There are NO English fallbacks — a
  * missing key must be a type error at the call site, not a silent English
  * leak in a Japanese UI. Tests use key-echo strings ('tr.complete') so an
@@ -24,16 +24,17 @@ import { AssistProgress, type AssistProgressTranslations } from '../AssistProgre
 type JobProgress = components['schemas']['JobProgress'];
 
 describe('AssistProgress', () => {
-  // Trimmed by P3 (2026-08-12). Five tests were DELETED rather than adapted
-  // because they pinned surfaces this phase removes, and each has a successor
-  // in the P3 block below:
-  //   • paramsTitle copy          → H1 (the label is gone; the line is conditional)
+  // Trimmed 2026-08-12, when the widget became one component with one status
+  // region, one control and a data-driven bar. Five tests were DELETED rather
+  // than adapted because they pinned surfaces that consolidation removes, and
+  // each has a successor in the consolidation block below:
+  //   • paramsTitle copy          → the params-line pin (label gone; line conditional)
   //   • "title header only when given one" → A2 (the section header is the title)
   //   • "cancel in the header / hidden once complete" → A3 ×2 (one control)
-  //   • "stage branching"          → A8 + A3-ended (D7: no producer emits a
+  //   • "stage branching"          → A8 + A3-ended (no producer emits a
   //                                  terminal stage; terminality is a prop)
   //   • "percentage bar only when opted in" → A4 (a bar follows the data, not a flag)
-  // What survives here is what P3 does NOT change.
+  // What survives here is what the consolidation does NOT change.
 
   it('renders provider-free — no session, no context, no providers', () => {
     // The embeddable contract: this must render standalone. If it ever reaches
@@ -105,11 +106,12 @@ describe('AssistProgress', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ASSIST-PROGRESS-CONSOLIDATION P3 — the RED wave (A1-A5, A8).
+// The consolidated widget — one status region, one control, a data-driven bar.
+// The titles below state its axioms (A1–A5, A8).
 //
-// These assert STRUCTURE, never copy: H3 set the wording ("Marking…", subject
-// beneath) and it will be revised from use. A test pinned to a sentence rots on
-// the first edit and teaches the next reader to weaken it.
+// These assert STRUCTURE, never copy: the wording ("Marking…", subject
+// beneath) was chosen by hand and it will be revised from use. A test pinned to
+// a sentence rots on the first edit and teaches the next reader to weaken it.
 // ─────────────────────────────────────────────────────────────────────────────
 const STATUS = 'semiont-assist-status';
 const SUBJECT = 'semiont-assist-subject';
@@ -117,7 +119,7 @@ const CONTROL = 'semiont-assist-control';
 const BAR = 'semiont-assist-bar';
 const PARAMS = 'semiont-assist-params';
 
-/** Post-P3 translations: one function for the coded copy, plus structure keys. */
+/** The widget's translations: one function for the coded copy, plus structure keys. */
 const T3 = (over: Partial<AssistProgressTranslations> = {}): AssistProgressTranslations =>
   ({
     cancel: 'tr.cancel',
@@ -143,12 +145,13 @@ const detecting = (over: Partial<JobProgress> = {}): JobProgress =>
     ...over,
   }) as JobProgress;
 
-describe('AssistProgress — P3 consolidation', () => {
+describe('AssistProgress — the consolidated widget', () => {
   it('A1: renders the subject exactly once for one progress event', () => {
-    // Defect 1: the status line and the detail line both called
-    // `currentLabel(currentEntityType)`. Post-P1 they produce the IDENTICAL
-    // string, which is why two tests here had to use getAllByText. Singular
-    // `getByText` throws on multiple matches — that IS the assertion.
+    // The defect: the status line and the detail line both called
+    // `currentLabel(currentEntityType)`. Once the wire carried a code instead
+    // of prose they produced the IDENTICAL string, which is why two tests here
+    // had to use getAllByText. Singular `getByText` throws on multiple
+    // matches — that IS the assertion.
     render(<AssistProgress progress={detecting()} dataType="reference" ended={false} translations={T3()} />);
 
     expect(screen.getByText(/tr\.subject\(entity-type:Person/)).toBeInTheDocument();
@@ -182,7 +185,7 @@ describe('AssistProgress — P3 consolidation', () => {
   });
 
   it('A3: the same single control means dismiss once the run has ENDED', async () => {
-    // D7: terminality is the owner's fact, arriving as a prop. The component
+    // Terminality is the owner's fact, arriving as a prop. The component
     // never reads `progress.stage` — no producer emits a terminal stage.
     const onCancel = vi.fn();
     const onDismiss = vi.fn();
@@ -254,9 +257,10 @@ describe('AssistProgress — P3 consolidation', () => {
   });
 
   it('A8: renders no failure UI of its own — job:fail owns that surface', () => {
-    // Revised by D7. `stage: 'error'` has no producer anywhere in the repo;
-    // failure reaches the user through useOutcomeToasts' job:fail handler.
-    // The widget must not resurrect a branch for a state it never sees.
+    // The widget reads nothing from the payload's stage: `stage: 'error'` has
+    // no producer anywhere in the repo; failure reaches the user through
+    // useOutcomeToasts' job:fail handler. The widget must not resurrect a
+    // branch for a state it never sees.
     render(
       <AssistProgress ended={false}
         progress={detecting({ stage: 'error' } as Partial<JobProgress>)}
@@ -267,10 +271,10 @@ describe('AssistProgress — P3 consolidation', () => {
     expect(screen.getByTestId(STATUS).textContent).toContain('tr.code(detecting-entities)');
   });
 
-  it('the outcome link renders only in the ended frame (GENERATE-FROM-RESOURCE P2, D8)', async () => {
-    // The label is the resource's name — user content, deliberately NOT a
-    // translation. While the run is live there is no outcome to offer, even if
-    // a caller wires the prop early.
+  it('the outcome link renders only in the ended frame', async () => {
+    // The link opens the generated resource. Its label is the resource's name —
+    // user content, deliberately NOT a translation. While the run is live there
+    // is no outcome to offer, even if a caller wires the prop early.
     const onOpen = vi.fn();
     const outcome = { label: 'Summary of PB', onOpen };
     const { rerender } = render(
@@ -287,7 +291,7 @@ describe('AssistProgress — P3 consolidation', () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
-  it('H1: the params line appears only when it adds information', () => {
+  it('the params line appears only when it adds information', () => {
     // The discriminator is the COUNT, not the copy — splitting a localized
     // string on commas to decide whether to show it would be its own defect.
     const oneType = detecting({
@@ -310,14 +314,14 @@ describe('AssistProgress — P3 consolidation', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GENERATION-ARRIVAL P1 — the honest ended frame. The producer's terminal
-// 100% frame races job:complete and can lose (its emit is a fire-and-forget
-// heartbeat); terminality is the OWNER's fact (D7), so the ended rendering
-// stops trusting the last payload: full bar, and the owner's terminal
-// sentence when it supplies one.
+// The honest ended frame. The producer's terminal 100% frame races
+// job:complete and can lose (its emit is a fire-and-forget heartbeat);
+// terminality is the OWNER's fact, so the ended rendering stops trusting the
+// last payload: full bar, and the owner's terminal sentence when it supplies
+// one.
 // ─────────────────────────────────────────────────────────────────────────────
-describe('AssistProgress — the honest ended frame (GENERATION-ARRIVAL P1)', () => {
-  it('A1: an ended frame renders a FULL bar whatever the last payload said', () => {
+describe('AssistProgress — the honest ended frame', () => {
+  it('an ended frame renders a FULL bar whatever the last payload said', () => {
     const { container } = render(
       <AssistProgress ended progress={detecting({ percentage: 95 })} dataType="generation" translations={T3()} />,
     );

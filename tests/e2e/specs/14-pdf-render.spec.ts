@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test';
 
 import { openResourceByName } from '../fixtures/discover';
 /**
- * Smoke test: the PDFJS-6-UNIFY browser acceptance gate.
+ * Smoke test: the pdf.js browser acceptance gate.
  *
  * Proves the npm/Vite pdf.js path (post-#885 on `main`) actually renders
  * a PDF in a real browser and that a manually-drawn rectangle annotation

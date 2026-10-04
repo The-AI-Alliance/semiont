@@ -1,10 +1,9 @@
 /**
- * GENERATION-OUTPUT-FORMAT D8 — the submitted config becomes generation
- * options in ONE place, by spread.
+ * The submitted config becomes generation options in ONE place, by spread.
  *
  * Both page handlers used to build the options object field-by-field, so any
  * field not explicitly listed was silently dropped. That is precisely what
- * stranded `outputMediaType` in the SDK one layer down (P1), relocated one
+ * stranded `outputMediaType` in the SDK one layer down, relocated one
  * layer up. These pins state the PROPERTY — everything the config carries is
  * forwarded — rather than enumerating today's fields, so a knob added later
  * cannot regress the mode back into existence.

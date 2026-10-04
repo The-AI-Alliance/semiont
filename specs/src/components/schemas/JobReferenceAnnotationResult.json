@@ -7,7 +7,7 @@
       "enum": [
         "reference-annotation"
       ],
-      "description": "Discriminant \u2014 every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1)."
+      "description": "Discriminant \u2014 every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is."
     },
     "totalFound": {
       "type": "integer",

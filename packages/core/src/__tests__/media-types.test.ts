@@ -50,8 +50,8 @@ describe('media-types registry', () => {
       }
     });
 
-    // The capability implications (MEDIA-CAPABILITY-DISPATCH D4). All three
-    // hold today — they are regression pins on a row edit, not discoveries.
+    // The capability implications, held as invariants. All three hold
+    // today — they are regression pins on a row edit, not discoveries.
     // Deliberately absent: the converse, `render !== 'none' → annotatable`.
     // It holds today too, and pinning it would make AnnotateView's
     // gate-on-renderability accidentally correct BY RULE; leaving it open
@@ -123,15 +123,14 @@ describe('media-types registry', () => {
     });
   });
 
-  describe('generatable capability (PDF-GENERATION P1)', () => {
+  describe('generatable capability', () => {
     // The generation worker's gate reads the registry, not a local table —
-    // closing the second-media-type-table violation the MEDIA-TYPES grep
-    // gate exists to prevent.
+    // a second media-type table is what the one registry exists to prevent.
     it('derives GENERATABLE_MEDIA_TYPES from the registry', () => {
       expect(GENERATABLE_MEDIA_TYPES).toEqual(['text/markdown', 'text/plain', 'application/pdf']);
     });
 
-    it('application/pdf is generatable — the Typst renderer exists (P3)', () => {
+    it('application/pdf is generatable — the Typst renderer exists', () => {
       expect(MEDIA_TYPES['application/pdf'].generatable).toBe(true);
     });
   });
@@ -155,10 +154,10 @@ describe('media-types registry', () => {
     });
   });
 
-  describe('annotatable capability (MEDIA-CAPABILITY-DISPATCH P1)', () => {
+  describe('annotatable capability', () => {
     // WHETHER a type can carry annotations. `anchoring` stays the authority on
     // HOW — derived, never a row field, because two facts that can disagree
-    // have nothing to adjudicate them (D1).
+    // have nothing to adjudicate them.
     it('admits exactly the seven anchoring-bearing rows', () => {
       expect(Object.keys(MEDIA_TYPES).filter(isAnnotatable)).toEqual([
         'text/markdown',
@@ -183,7 +182,7 @@ describe('media-types registry', () => {
       expect(isAnnotatable('IMAGE/PNG')).toBe(true);
     });
 
-    it('answers false on a registry miss — strict where extraction is lenient (D2)', () => {
+    it('answers false on a registry miss — strict where extraction is lenient', () => {
       expect(isAnnotatable('application/x-proprietary')).toBe(false);
       expect(isAnnotatable('')).toBe(false);
 
@@ -197,11 +196,11 @@ describe('media-types registry', () => {
     });
   });
 
-  describe('derivesTextOf (bugs/gather-ships-raw-pdf-bytes vocabulary refinement)', () => {
-    // "Decoding is not deriving" (READ-VS-EXTRACT): a reader asking "where
-    // does this media's text COME FROM?" needs the category, not the
-    // mechanism — the mechanism literal ('pdf-text-layer') stays confined to
-    // the extraction side, which genuinely dispatches on it.
+  describe('derivesTextOf', () => {
+    // Decoding is not deriving: a reader asking "where does this media's
+    // text COME FROM?" needs the category, not the mechanism — the mechanism
+    // literal ('pdf-text-layer') stays confined to the extraction side, which
+    // genuinely dispatches on it.
     it('is true where text is the Smelter\'s derived artifact', () => {
       expect(derivesTextOf('application/pdf')).toBe(true);
     });
@@ -226,8 +225,8 @@ describe('media-types registry', () => {
     });
   });
 
-  describe('yieldsGeometryOf (READ-VS-EXTRACT P1)', () => {
-    // The question is about a MEDIA TYPE, so core answers it. Before P1 it was a
+  describe('yieldsGeometryOf', () => {
+    // The question is about a MEDIA TYPE, so core answers it. It used to be a
     // boolean declared on each extractor in @semiont/content — a property of the
     // strategy, stored beside the implementations, in another package. Two homes
     // for one fact, gated by nothing.
@@ -248,7 +247,8 @@ describe('media-types registry', () => {
     });
 
     it('answers without resolving an extractor — the reconcile planner\'s need', () => {
-      // PERSIST-ANCHORS P0, the third drift class: the planner asks "should an
+      // Reconcile's lost-artifact check (an indexed resource, current
+      // checksum, no artifact under it): the planner asks "should an
       // anchored-text artifact exist for this resource?" over a whole catalog,
       // and must not construct or run an extractor to find out. That this file
       // can answer at all, with no dependency on @semiont/content, IS the test.

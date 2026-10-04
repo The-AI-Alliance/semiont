@@ -25,11 +25,11 @@ func configFreeService(svc string) bool {
 // sweep is a teardown, so it runs in teardown order — dependents first.
 //
 // `inference` is exempt: flowOllama removes semiont-ollama itself, ahead of
-// its host probe, for both walks (--service inference has no preflight). `browser` is exempt because the
-// Browser is not a stack member (BROWSER-LIFECYCLE.md) — its keep-or-refresh
-// lifecycle lives in flowBrowser, and the preflight must not sweep a viewer
-// the user keeps open across stacks. Both exemptions are gated by
-// descriptor_census_test.go.
+// its host probe, for both walks (--service inference has no preflight).
+// `browser` is exempt because the Browser is not a stack member — its
+// keep-or-refresh lifecycle lives in flowBrowser, and the preflight must not
+// sweep a viewer the user keeps open across stacks. Both exemptions are gated
+// by descriptor_census_test.go.
 var preflightNames = sweepNames("browser", "inference")
 
 type startOptions struct {
@@ -39,7 +39,7 @@ type startOptions struct {
 	cleanOllama bool
 	// platform is where the stack lives; runtime is how a container is run
 	// on it, and only `local` has one. `--runtime codespace` sets the first,
-	// every other value the second (D5).
+	// every other value the second.
 	platform     platform
 	runtime      string
 	observe      bool
@@ -256,8 +256,8 @@ func Start(args []string) int {
 		}
 		// The /kb-mount invariant: services that mount the clone require a
 		// real git clone. The Archivist most of all — it is the git
-		// single-writer (D4b), so handing it a non-clone would fail at the
-		// first `git add` rather than here, with a worse message.
+		// single-writer, so handing it a non-clone would fail at the first
+		// `git add` rather than here, with a worse message.
 		if opts.service == "" || opts.service == "gateway" || opts.service == "archivist" {
 			if !requireGitClone(u, root) {
 				return 1
@@ -596,11 +596,11 @@ func image(svc, version string) string {
 }
 
 // collectorConfig: the OTel Collector's config — launcher-owned, not the
-// KB's (LOCAL-METRICS D4). `traces` says whether Jaeger is running: without
-// it the traces pipeline ends in `nop`, so services export identically and
-// the collector accepts and discards. Every component here is in the CORE
-// collector image (`components` on 0.137.0); contrib is not needed.
-// prometheusConfig: launcher-owned, like the collector's (LOCAL-METRICS D4).
+// KB's. `traces` says whether Jaeger is running: without it the traces
+// pipeline ends in `nop`, so services export identically and the collector
+// accepts and discards. Every component here is in the CORE collector image
+// (`components` on 0.137.0); contrib is not needed.
+// prometheusConfig: launcher-owned, like the collector's.
 // One live value: the collector's readout, which Prometheus scrapes — the
 // pull model is why adding this backend changes no service and no collector.
 func prometheusConfig(addr string) string {
@@ -677,13 +677,14 @@ func tracesArgs() []string {
 // jwt is the token-signing key — gateway-only, deliberately not in sidecarArgs:
 // the sidecars present agent tokens the gateway minted and never sign anything.
 // kbMountTarget is where the KB clone lands inside the ARCHIVIST container —
-// the only container that mounts it (SINGLE-KB-MOUNT, the whole plan's point).
-// The value is HALF of an agreement: the archivist image declares
+// the only container that mounts it: every other service reaches the KB's
+// bytes and identity through the Archivist or from staged config. The value
+// is HALF of an agreement: the archivist image declares
 // `ENV SEMIONT_ROOT=/kb`, and nothing at compile time makes the two match.
 // TestContainerPathsMatchTheImage is what makes them match.
 const kbMountTarget = "/kb"
 
-// gatewayArgs: the gateway mounts NO piece of the knowledge base (P6). It
+// gatewayArgs: the gateway mounts NO piece of the knowledge base. It
 // reaches bytes and the record over HTTP through the Archivist, and is
 // configured by one document the launcher writes resolved (gatewaydoc.go) —
 // the KB's committed identity, the addresses, the issuer — mounted where its
@@ -728,12 +729,12 @@ func gatewayHostEnv(addr string) []string {
 	return []string{"--env", "GATEWAY_HOST=" + addr, "--env", "BACKEND_HOST=" + addr}
 }
 
-// superviseEnv is the per-run supervision opt-in (ORCHESTRATOR-NATIVE-IMAGES
-// D3): boot.sh wraps the image CMD in the shared supervisor only when this is
-// set. Local placement is the one place with no orchestrator restart policy,
-// so every service builder passes it; user manifests never do — their
-// platform restarts. Defined once because five call sites spelling the
-// same pair is five chances to update four of them.
+// superviseEnv is the per-run supervision opt-in: boot.sh wraps the image
+// CMD in the shared supervisor only when this is set. Local placement is the
+// one place with no orchestrator restart policy, so every service builder
+// passes it; user manifests never do — their platform restarts. Defined once
+// because five call sites spelling the same pair is five chances to update
+// four of them.
 func superviseEnv() []string {
 	return []string{"--env", "SEMIONT_SUPERVISE=1"}
 }
@@ -765,11 +766,11 @@ func sidecarArgs(svc string, port int, stage, rt, addr string, clientSecret, ver
 // may move — it's absent from the config and nothing in the stack dials it.
 // archivistArgs: the Archivist owns the file-backed record, so its mount
 // shape is the GATEWAY's minus the database — the KB root read-write (it is
-// the git single-writer, D4b), the anchored-text store, and a staged config
+// the git single-writer), the anchored-text store, and a staged config
 // copy. Its staged config states every address it dials, so its environment
 // carries none. Deliberately NO JWT_SECRET: it signs nothing. It
 // authenticates as its own service account at the issuer, and admits callers by
-// verifying theirs (the same fact D1's read path relies on).
+// verifying theirs (the same fact the gateway's event read from it relies on).
 func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("archivist").mem, "--publish", "24103:24103",
@@ -790,11 +791,11 @@ func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version string,
 
 // librarianArgs: the Librarian (Matcher — search and match) reads everything
 // and writes nothing durable, and its mounts say so: NO piece of the KB tree
-// (SINGLE-KB-MOUNT P1 — it locates the Archivist's views from the staged
-// [kb] name, see stagedServiceConfig), just the shared state tree (D6 reader) and
-// its staged config, which states every address it dials as a literal — the
-// Archivist's among them (it reads bytes from the record directly,
-// SINGLE-KB-MOUNT P4). NO JWT_SECRET, and nothing dials this service; it dials
+// (it locates the Archivist's views from the staged [kb] name, see
+// stagedServiceConfig), just the shared state tree (as a reader of what the
+// Archivist writes) and its staged config, which states every address it
+// dials as a literal — the Archivist's among them (it reads bytes from the
+// record directly). NO JWT_SECRET, and nothing dials this service; it dials
 // the gateway for the bus and the Archivist for bytes.
 func librarianArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
@@ -813,13 +814,13 @@ func librarianArgs(stage, rt, addr string, clientSecret, version string, userEnv
 	return append(a, image("librarian", version))
 }
 
-// dispatcherArgs: the Dispatcher is a CONTROL PLANE (EXTRACT-JOBS D5) — it owns
-// the job queue and answers job:* lifecycle commands, and content bytes and
-// annotations never flow through it. No KB tree, no state mount, no graph. It
-// reads a resolved configuration document (dispatcherdoc.go) at the path its
-// image passes to `--config`, so it is handed no *_HOST variables: the
-// document carries every address already. It keeps the issuer's host entry,
-// because it signs in at the issuer by name.
+// dispatcherArgs: the Dispatcher is a CONTROL PLANE — it owns the job queue
+// and answers job:* lifecycle commands, and content bytes and annotations
+// never flow through it. No KB tree, no state mount, no graph. It reads a
+// resolved configuration document (dispatcherdoc.go) at the path its image
+// passes to `--config`, so it is handed no *_HOST variables: the document
+// carries every address already. It keeps the issuer's host entry, because it
+// signs in at the issuer by name.
 func dispatcherArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--name", "semiont-dispatcher", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("dispatcher").mem, "--publish", "24105:24105",
@@ -837,10 +838,9 @@ func dispatcherArgs(stage, rt, addr string, clientSecret, version string, userEn
 func browserArgs(version string, port int) []string {
 	a := []string{"run", "-d", "--name", "semiont-browser", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("browser").mem, "--publish", fmt.Sprintf("%d:3000", port)}
-	// The Browser's KB-discovery view (BROWSER-KB-DISCOVERY.md lane 1): a
-	// read-only DIRECTORY mount (Apple container cannot single-file mount).
-	// Inert until the Browser image serves /discovery — a dormant feature
-	// whose activation record is the plan.
+	// The Browser's KB-discovery view: a read-only DIRECTORY mount (Apple
+	// container cannot single-file mount), which the Browser image's server
+	// serves under /discovery.
 	if dir := StateDir(); dir != "" {
 		a = append(a, "-v", filepath.Join(dir, "discovery")+":/discovery:ro")
 	}
@@ -923,8 +923,8 @@ func runStart(u *UI, rt, version, root, configFile string, opts startOptions, us
 	fmt.Println("  Semiont KB         http://localhost:4000")
 	neo4jLogin := ""
 	if g := plan.Roles["graph"]; g.Presence == presenceLauncher {
-		// The password is the launcher's (SECRET-DELIVERY P4): say where it is
-		// kept, never print it.
+		// The password is the launcher's: say where it is kept, never print
+		// it.
 		store, _ := custodyFor(u, root)
 		neo4jLogin = u.Dim("(user " + g.User + "; password kept at " + store.where(daemonPasswords["graph"].custody) + ")")
 	}
@@ -1123,8 +1123,8 @@ func describeProcs(pids []string) string {
 	return strings.Join(procs, ", ")
 }
 
-// refuseDaemonCredentialNames: the daemon-credential names are the launcher's
-// (SECRET-DELIVERY P4). A config may not reference one where it is read — `semiont settings secret`
+// refuseDaemonCredentialNames: the daemon-credential names are the launcher's.
+// A config may not reference one where it is read — `semiont settings secret`
 // registrations are machine-wide, so a name cannot be the launcher's in one KB
 // and the user's in another — and an exported one is refused, not honoured,
 // for a daemon the launcher runs (ruled 2026-09-29: "refuse exported daemon

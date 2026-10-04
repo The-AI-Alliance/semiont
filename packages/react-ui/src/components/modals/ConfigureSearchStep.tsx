@@ -10,13 +10,13 @@ export interface SearchConfig {
 
 export interface ConfigureSearchStepProps {
   /**
-   * CONTROLLED (WIZARD-NAVIGATION D3). This used to be local `useState`, so stepping
-   * Back unmounted the component and silently discarded what the user had chosen —
-   * a Back button that costs you work is worse than no Back button, because it
-   * invites the press. The wizard owns it for the modal's lifetime instead.
+   * CONTROLLED. This used to be local `useState`, so stepping Back unmounted the
+   * component and silently discarded what the user had chosen — a Back button
+   * that costs you work is worse than no Back button, because it invites the
+   * press. The wizard owns it for the modal's lifetime instead.
    */
   config: SearchConfig;
-  /** Echo of the gather step's hint — the thing being steered stays visible (GEP D8). */
+  /** Echo of the gather step's hint — the thing being steered stays visible. */
   hintEcho?: { label: string; value: string };
   onConfigChange: (config: SearchConfig) => void;
   isSearching?: boolean;

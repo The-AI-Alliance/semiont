@@ -150,11 +150,11 @@ export type EventMap = {
   'mark:create-failed': components['schemas']['CommandError'];
 
   /**
-   * Persist a detection unit's annotations as ONE acknowledged batch
-   * (JOB-RESTART-SAFETY P6). Answered only after every annotation is in
-   * the event log, so a worker can gate unit completion on durability
-   * instead of on emission — which is what makes an Archivist outage a
-   * delay rather than silent data loss.
+   * Persist a detection unit's annotations as ONE acknowledged batch.
+   * Answered only after every annotation is in the event log, so a
+   * worker can gate unit completion on durability instead of on
+   * emission — which is what makes an Archivist outage a delay rather
+   * than silent data loss.
    */
   'mark:commit': components['schemas']['MarkCommitCommand'];
   'mark:commit-ok': components['schemas']['MarkCommitOk'];
@@ -230,7 +230,7 @@ export type EventMap = {
   // PERSON FLOW — who a subject is. One line per NAME a person has had,
   // system-level like the frame vocabulary. Never read by provenance: every
   // artifact joins on the DID, and names are resolved from the projection
-  // when a record is READ (PERSON-PROFILE).
+  // when a record is READ.
   // ========================================================================
 
   // Domain event (branded — system of record). System-level: no resourceId.
@@ -300,18 +300,19 @@ export type EventMap = {
   'browse:resource-failed': components['schemas']['CommandError'];
 
   // A resource's derived coordinate map — the text recovered from its bytes
-  // plus the geometry that indexes it (ANCHORED-TEXT-CACHE Lane 5).
+  // plus the geometry that indexes it — served whole for the resource.
+  // Answering never runs the OCR engine.
   //
   // Read-only over the wire: the Smelter is the sole producer, and this is
   // the ONLY way to reach the store since the checksum-addressed probe was
-  // reaped (SMELTER-OWNS-OCR P3 — its last consumer was the worker's local
-  // extraction, which P2 removed).
+  // reaped: its last consumer was the worker's local extraction, which went
+  // when detection began reading a geometry-bearing type's text from here.
   'browse:anchored-text-requested': components['schemas']['BrowseAnchoredTextRequest'];
 
-  // Never null: absence is NAMED, so a caller can tell "not yet" from
-  // "never" (SMELTER-OWNS-OCR P1). Declared BY SCHEMA rather than as a
-  // custom inline type — the inline form restated the schema and went stale
-  // the moment it widened.
+  // Never null: absence is NAMED, so a caller can tell "not yet" (retry)
+  // from "never" (terminal). Declared BY SCHEMA rather than as a custom
+  // inline type — the inline form restated the schema and went stale the
+  // moment it widened.
   'browse:anchored-text-result': components['schemas']['BrowseAnchoredTextResult'];
   'browse:anchored-text-failed': components['schemas']['CommandError'];
 
@@ -448,7 +449,7 @@ export type EventMap = {
   'job:cancel-failed': components['schemas']['CommandError'];
 
   // ========================================================================
-  // WEAVE FLOW — graph projection progress (GRAPH-PROJECTION-SYNC, D2 = push)
+  // WEAVE FLOW — graph projection progress, pushed by the Weaver, not polled
   // ========================================================================
 
   /**
@@ -456,28 +457,26 @@ export type EventMap = {
    * for a resource to the graph. `sequenceNumber` is the resource-stream
    * sequence of the last applied event. Folded by `WeaveProgress`
    * (make-meaning) into the gateway-local applied map that the
-   * `whenApplied` barrier awaits. In-process signal today; crosses the
-   * bus gateway after WEAVER-ISOLATION.
+   * `whenApplied` barrier awaits. The Weaver runs as its own process,
+   * so the signal reaches the fold over the bus.
    */
   'weave:applied': components['schemas']['WeaveApplied'];
 
   // Signal — the vector projection's per-resource decision report: emitted
   // by the Smelter after indexing a resource's content ('indexed') or after
-  // deciding not to ('skipped', with a `reason` naming the decline — the
-  // SMELTER-MEDIA-TYPES telemetry vocabulary: 'no-extractor' | 'empty' today,
-  // the PDF decline classes when extraction lands). Keyed by the
+  // deciding not to ('skipped', with a `reason` naming the decline:
+  // 'no-extractor', 'empty', or one of the PDF decline classes). Keyed by the
   // checksum of the bytes inspected — "settled at C" is read-your-writes for
   // exactly that content. NEVER emitted on transient failures: an error is not
-  // a decision (SMELTER-INDEX-SYNC A2). Consumed by the gateway-local
-  // `SmeltProgress` fold behind the gather-side barrier. This is the
-  // Smelter's single outbound signal (SMELTER-AXIOMS D3, as amended).
+  // a decision. Consumed by the gateway-local `SmeltProgress` fold behind the
+  // gather-side barrier. This is the Smelter's single outbound signal.
   'smelt:settled': components['schemas']['SmeltSettled'];
 
   // Command — rebuild the graph projection from the event log (full when
   // resourceId is absent, one resource when present). Served by the Weaver;
-  // replaces direct `rebuildAll()`/`rebuildResource()` access, which does
-  // not survive the container split (WEAVER-ISOLATION D3). Correlated
-  // request/reply via the BUS_OPERATIONS registry.
+  // replaces direct `rebuildAll()`/`rebuildResource()` access, which cannot
+  // reach a Weaver running in its own container. Correlated request/reply
+  // via the BUS_OPERATIONS registry.
   'weave:rebuild': components['schemas']['WeaveRebuildCommand'];
   'weave:rebuild-ok': Record<string, never>;
   'weave:rebuild-failed': components['schemas']['CommandError'];
@@ -485,8 +484,8 @@ export type EventMap = {
   // Command — rebuild anchored-text artifacts by re-running extraction
   // (every geometry-capable resource when resourceId is absent, one when
   // present). Served by the Smelter, serialized, never destructive, and
-  // with ZERO embedding calls — only the derived map is re-made
-  // (PERSIST-ANCHORS P0). Correlated request/reply via BUS_OPERATIONS.
+  // with ZERO embedding calls — only the derived map is re-made. Correlated
+  // request/reply via BUS_OPERATIONS.
   'smelt:rebuild-anchors': components['schemas']['SmeltRebuildAnchorsCommand'];
   'smelt:rebuild-anchors-ok': Record<string, never>;
   'smelt:rebuild-anchors-failed': components['schemas']['CommandError'];

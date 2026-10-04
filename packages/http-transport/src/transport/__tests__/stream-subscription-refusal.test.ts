@@ -1,6 +1,5 @@
 /**
- * RED (CLIENT-SUBSCRIPTION-MANIFEST P1, D1): a stream outside the
- * subscription set throws at the call, not never.
+ * A stream outside the subscription set throws at the call, not never.
  *
  * `busRequest` already refuses an unsubscribed REPLY channel
  * (`bus.unsubscribed`, core `bus-request.ts`), because a timed-out reply was
@@ -90,9 +89,10 @@ describe('stream() refuses a channel outside the subscription set', () => {
     expect(() => actor.stream('job:queued')).toThrow();
     actor.addChannels(['job:queued']);
     // The refusal reads the CURRENT set. Asserting this pins the check
-    // against the live set rather than a constructor-time copy — P2 deletes
-    // the widening call sites, and a frozen-at-build check would pass that
-    // refactor while breaking anything still widening.
+    // against the live set rather than a constructor-time copy — each
+    // client declares its whole channel set at construction, and a
+    // frozen-at-build check would pass that arrangement while breaking
+    // anything still widening.
     expect(() => actor.stream('job:queued')).not.toThrow();
 
     actor.dispose();

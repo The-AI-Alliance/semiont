@@ -164,7 +164,8 @@ export function createFakeBus() {
     // This double delivers whatever a test pushes at it — subjects are created
     // on demand — so `true` is the truth about it. It does not model a
     // NARROWED set; that behavior is proven against the real ActorStateUnit,
-    // and against the real worker manifest by this plan's P3.
+    // and against the real worker manifest in the gateway's two-instance
+    // harness.
     isSubscribed: () => true,
     trackReply: () => () => {},
     state$: new BehaviorSubject<ConnectionState>('open'),
@@ -251,8 +252,7 @@ export function createMockContentTransport(
  */
 /**
  * An in-memory `AnchoredTextStore` — the Smelter's own store, which it now
- * holds directly rather than reaching through the content transport
- * (ANCHORED-TEXT-TO-SMELTER P1).
+ * holds directly rather than reaching through the content transport.
  *
  * `write` REJECTS rather than swallowing, matching the real store's contract
  * (a write that returns has written). Tests that want the best-effort seam's
@@ -371,8 +371,9 @@ export function createFakeKsBus(
 
 /**
  * Serve the embedding provider's dimension-discovery probe — startMakeMeaning's
- * only embedding network call (MANDATORY-EMBEDDING P3) — so service startup is
- * hermetic. A plain function, not a vi.fn(): clearAllMocks must not strip it.
+ * only embedding network call, made because startup builds the vector store at
+ * the provider's discovered dimensions — so service startup is hermetic. A
+ * plain function, not a vi.fn(): clearAllMocks must not strip it.
  */
 export function stubEmbeddingProbeFetch(): void {
   vi.stubGlobal('fetch', async () => new Response(

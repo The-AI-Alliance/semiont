@@ -126,8 +126,8 @@ export const LIBRARIAN_OUTBOUND_CHANNELS: readonly (keyof EventMap)[] =
 
 /**
  * The operations the Librarian awaits replies to: the anchored-text ask
- * behind gather's text dispatcher (bugs/gather-ships-raw-pdf-bytes P1 —
- * derived text for `pdf-text-layer` media, answered by the Archivist).
+ * behind gather's text dispatcher (derived text for `pdf-text-layer` media,
+ * answered by the Archivist).
  */
 export const LIBRARIAN_AWAITED_OPERATIONS = [
   'browse:anchored-text-requested',
@@ -152,8 +152,8 @@ export const librarianAwaitCensus: [LibrarianAwaitCensusDrift] extends [never]
  * Everything the actors subscribe to (each roster pinned by a census gate),
  * plus the smelt barrier's fold input, plus `mark:create-request` —
  * annotation-assembly registers beside the Stower whose `mark:added` facts
- * it consumes (EXTRACT-ARCHIVIST P3, D2 i). The Archivist awaits no wire
- * replies, so this inbound set IS its transport's whole global subscription.
+ * it consumes. The Archivist awaits no wire replies, so this inbound set IS
+ * its transport's whole global subscription.
  */
 export const ARCHIVIST_INBOUND_CHANNELS = [
   ...STOWER_CHANNELS,
@@ -161,12 +161,12 @@ export const ARCHIVIST_INBOUND_CHANNELS = [
   ...CLONE_TOKEN_CHANNELS,
   'mark:create-request',
   'smelt:settled',
-  // The annotation-context read moved here with the bytes (SINGLE-KB-MOUNT D5).
+  // The annotation-context read moved here with the bytes it reads.
   'browse:annotation-context-requested',
-  // The bind re-emit followed the Stower it drives (EXTRACT-JOBS D2). Its
-  // replies are DERIVED from here — `bind:update-body` is a registered
-  // operation, so `replyChannelsFor` picks up bind:body-updated /
-  // bind:body-update-failed without a hand-written entry.
+  // The bind re-emit followed the Stower it drives. Its replies are
+  // DERIVED from here — `bind:update-body` is a registered operation, so
+  // `replyChannelsFor` picks up bind:body-updated / bind:body-update-failed
+  // without a hand-written entry.
   'bind:update-body',
 ] as const satisfies readonly (keyof EventMap)[];
 
@@ -180,7 +180,7 @@ export const ARCHIVIST_OUTBOUND_STRAYS = [
   // `mark:body-update-failed` stood here while the bind handler lived in the
   // gateway: the Stower raises it, and its only consumer was off-process, so it
   // had to be pumped out by hand (no operation is keyed `mark:update-body`, so
-  // the derivation cannot see it). EXTRACT-JOBS D2 moved that consumer here, so
+  // the derivation cannot see it). That consumer moved here beside the Stower, so
   // the whole mark:update-body exchange is now local and the frame never leaves.
   // The list is shorter because traffic became local, not because the
   // derivation grew — `mark:body-updated` still reaches clients, via the fact

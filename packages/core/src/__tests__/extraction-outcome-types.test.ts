@@ -1,7 +1,8 @@
 /**
- * Type-level guard — PERSIST-ANCHORS P2a (D1's wire half).
+ * Type-level guard — the anchored-text record is the extraction outcome, as
+ * the wire carries it.
  *
- * SMELTER-OWNS-OCR P1 amended the reply half: `BrowseAnchoredTextResult.response`
+ * The reply half was amended since: `BrowseAnchoredTextResult.response`
  * is `AnchoredTextAnswer`, which widens this union with named absences and is
  * never null. The STORED record is untouched and is still what this file pins.
  *
@@ -15,26 +16,27 @@
  * or `declined` must not typecheck).
  *
  * `ocrConfidence` is carried in the record deliberately (stored ≠ wire for
- * any *other* consumer surface — OCR-CONFIDENCE-LOST's open question stays
- * open). Enforced by `tsc --noEmit`; red before the spec + regen land, green
- * after.
+ * any *other* consumer surface — whether a viewer should tell a reader how
+ * well a scan was read stays an open question). Enforced by `tsc --noEmit`;
+ * red before the spec + regen land, green after.
  */
 import { describe, it, expect } from 'vitest';
 import type { components } from '../types';
 
-// The HTTP faces are gone (ANCHORED-TEXT-TO-SMELTER P4): the store is reached
-// over the bus, so the wire shapes this pins are the CHANNEL payloads. The
-// union itself is unchanged — only the surfaces carrying it shrank.
+// The HTTP faces are gone: the store is reached only over the bus, so the
+// wire shapes this pins are the CHANNEL payloads. The union itself is
+// unchanged — only the surfaces carrying it shrank.
 type Outcome = components['schemas']['ExtractionOutcome'];
 type BrowseReply = components['schemas']['BrowseAnchoredTextResult']['response'];
 
 /**
- * A2/A3's shape for THIS union — WIRE-UNION-DISCRIMINANTS P5c (D6: Option A).
- * Both members carry a single-valued `kind`; a consumer narrows without a
- * type assertion, and an unhandled member is a compile error. Before this,
+ * Axioms A2 and A3 of job-result-types.test.ts, for THIS union. Both members
+ * carry a single-valued `kind` — a two-member discriminant, with the decline's
+ * reason enum kept as its detail; a consumer narrows without a type
+ * assertion, and an unhandled member is a compile error. Before this,
  * success carried `method` and the decline carried `declined` with NO shared
- * property — Defect 2's shape, which forced the `Exclude`/`Extract` probes
- * this phase deletes from the store.
+ * property — a union with nothing in band to switch on, which forced
+ * `Exclude`/`Extract` probes on the store.
  */
 function describeOutcome(o: Outcome): string {
   switch (o.kind) {
@@ -49,14 +51,14 @@ function describeOutcome(o: Outcome): string {
   }
 }
 
-describe('ExtractionOutcome — the union discriminates (P5c)', () => {
+describe('ExtractionOutcome — the union discriminates', () => {
   it('narrows both members by kind, castless', () => {
     expect(describeOutcome({ kind: 'extracted', text: 'abc', items: [], method: 'ocr' })).toBe('ocr: 3 chars');
     expect(describeOutcome({ kind: 'declined', declined: 'encrypted' })).toBe('encrypted');
   });
 });
 
-describe('anchored-text record — extraction outcome guard (P2a)', () => {
+describe('anchored-text record — extraction outcome guard', () => {
   it('a success outcome carries geometry plus provenance', () => {
     const success: Outcome = {
       kind: 'extracted',
@@ -81,7 +83,7 @@ describe('anchored-text record — extraction outcome guard (P2a)', () => {
     expect(browse).toBeDefined();
   });
 
-  it('the bus reply is NEVER null — absence is named (SMELTER-OWNS-OCR P1)', () => {
+  it('the bus reply is NEVER null — absence is named', () => {
     // This case previously asserted `const browseNull: BrowseReply = null`.
     // That contract is gone: one `null` covered four facts — barrier expired,
     // settled-skipped, no content identity, fold disposed — two of which a

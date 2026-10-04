@@ -42,7 +42,7 @@ const semiont = session.client;
 
 ## Step 1: declare the entity types
 
-Declare every entity type any skill in the knowledge base will use, not only the kinds of document this ingest uploads. Detection skills name entity types on the references they create, and aggregating skills stamp them on the resources they compose. `browse.entityTypes()` is where the Browser and other skills read the vocabulary, and it lists only what was declared.
+Declare every entity type any skill in the knowledge base will use, not only the kinds of document this ingest uploads. Detection skills name entity types on the references they create, and aggregating skills stamp them on the resources they compose. A detection or generation job that names a type nobody declared is refused, and `browse.entityTypes()`, where the Browser and other skills read the vocabulary, lists only what was declared.
 
 ```typescript
 const KB_ENTITY_TYPES = [

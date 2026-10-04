@@ -25,13 +25,13 @@ export interface ExtractedEntity {
  * constrains the wire and the interface is what the code consumes, and
  * nothing verifies they agree — adjacency is the drift guard. The
  * per-element `isObject`/`isString` checks below stay as the structural
- * backstop (STRUCTURED-INFERENCE D5).
+ * backstop — the last line on the Ollama path.
  *
  * `prefix`/`suffix` are deliberately NOT in `required`: with all four
  * required, models return `"prefix": ""` instead of omitting the key
  * (measured 2026-08-06), turning "sometimes absent" into "always present,
- * sometimes empty" — an anchoring-path change Phase 3 re-examines before
- * anyone relies on it.
+ * sometimes empty" — an anchoring-path change avoided at the source here;
+ * `reconcileSelector` also treats an empty hint as an absent one.
  */
 const ENTITY_ELEMENT_SCHEMA: ElementSchema = {
   type: 'object',
@@ -70,8 +70,7 @@ const ENTITY_ELEMENT_SCHEMA: ElementSchema = {
  *   since boundary-seeking already made chunks unequal. The caller MUST forward
  *   this to its progress channel: progress is the worker's liveness
  *   heartbeat for the stall watchdog, and the client's timeout is an
- *   INTER-EMISSION one, so a silent single-chunk run kills a healthy job
- *   (DETECTION-HEARTBEAT).
+ *   INTER-EMISSION one, so a silent single-chunk run kills a healthy job.
  * @returns Array of extracted entities with their character offsets
  */
 /** Output cap for the count call: the answer is one number (≤7 digits), and a
@@ -88,22 +87,23 @@ function parseCount(text: string): number | undefined {
 }
 
 /**
- * The count-verifier (OLLAMA-DETECTION-TESTING P3c): guard a SUCCESSFUL
- * extraction against silent yield collapse (F7) — a schema-clean response
- * carrying a fraction of the mentions present, measured deterministic and
- * classification-invisible, so nothing else can catch it.
+ * The count-verifier: guard a SUCCESSFUL extraction against silent yield
+ * collapse — a schema-clean response carrying a fraction of the mentions
+ * present, measured deterministic and classification-invisible, so nothing
+ * else can catch it.
  *
  * A cheap count call ("respond with only the number") sets the expectation
  * FROM THE SAME TEXT — corpus-free, per the no-input-assumptions principle.
  * An extraction under 1/BAND of the count throws the collapse verdict, which
  * subdivision treats like truncation (descend by size) except at the floor,
- * where it fails the job loudly (user-ratified).
+ * where the flagged piece's salvage is accepted loudly rather than failing
+ * the unit.
  *
  * The verifier's own failure — count call errors, or answers with no number —
  * disables it for the chunk (warn, pass through): a safety net's outage must
- * not take down a healthy extraction. Known limit, documented in the bug
- * report: the count saturates past ~8K chars, so margins are cleanest at
- * post-descent sizes; it still flagged every measured collapse at 16K/32K.
+ * not take down a healthy extraction. Known limit: the count saturates past
+ * ~8K chars, so margins are cleanest at post-descent sizes; it still flagged
+ * every measured collapse at 16K/32K.
  */
 async function assertYieldNotCollapsed(
   client: InferenceClient,
@@ -139,7 +139,7 @@ ${piece}
     // better), the floor accepts it (better than nothing, and every span is
     // write-time-verified).
     throw new YieldCollapseError(
-      `Extraction found ${items.length} entities where a count call reports ~${counted} mentions (band ×${YIELD_COLLAPSE_BAND}) on a ${piece.length}-char chunk — silent yield collapse (F7): deterministic — a same-size retry returns the identical under-report.`,
+      `Extraction found ${items.length} entities where a count call reports ~${counted} mentions (band ×${YIELD_COLLAPSE_BAND}) on a ${piece.length}-char chunk — silent yield collapse: deterministic — a same-size retry returns the identical under-report.`,
       [...items],
       { found: items.length, counted, pieceChars: piece.length },
     );
@@ -159,9 +159,9 @@ export async function extractEntities(
   onUnderReport?: (verdict: UnderReportedPiece) => void,
   /** Each accepted piece's count-verifier expectation — the denominator. */
   onCounted?: (counted: number) => void,
-  /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3). Absent on
-   * a first attempt, and then the run opens at the top exactly as before.
-   * Deliberately BEFORE the callback below, which stays last. */
+  /** Where an earlier attempt left this unit. Absent on a first attempt, and
+   * then the run opens at the top exactly as before. Deliberately BEFORE the
+   * callback below, which stays last. */
   resume?: UnitCursor,
   /**
    * This chunk's entities, awaited before the loop continues: the caller
@@ -172,10 +172,10 @@ export async function extractEntities(
    * appended after it silently starves them of results.
    *
    * `cursor` is where the run stands ONCE THIS CHUNK IS COMMITTED — the pair
-   * CHUNK-GRAIN-RESUME checkpoints. It is handed over with the results rather
-   * than reported separately so the two cannot drift: a caller that records the
-   * position without durably committing the annotations would checkpoint ahead
-   * of the log.
+   * a resume checkpoint records, next offset and chunk size. It is handed over
+   * with the results rather than reported separately so the two cannot drift:
+   * a caller that records the position without durably committing the
+   * annotations would checkpoint ahead of the log.
    */
   onChunkResults?: (items: ExtractedEntity[], cursor: ChunkCursor) => Promise<void>,
 ): Promise<ExtractedEntity[]> {
@@ -305,7 +305,7 @@ Example output:
         // consuming: a truncated structured response can still carry a valid
         // partial array, so the items themselves cannot signal the loss.
         assertNotTruncated(response, 'Entity extraction', at, totalChars, outputBudget);
-        // And a CLEAN response can still be a silent under-report (F7) — the
+        // And a CLEAN response can still be a silent under-report — the
         // count-verifier is the only signal for that, and a flag throws the
         // collapse verdict so subdivision changes the input.
         const counted = verifyYield

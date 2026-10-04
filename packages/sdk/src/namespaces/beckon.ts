@@ -46,8 +46,8 @@ export class BeckonNamespace implements IBeckonNamespace {
    * Sparkle an annotation on every participant's viewer (wire:
    * `beckon:sparkle`). The `All` marker exists because `sparkle()` — the
    * unmarked sibling — is this viewer's own local affordance and must stay
-   * local (GUIDED-TOUR D6: a wire emit here would broadcast one viewer's
-   * own UI moment to the room).
+   * local (a wire emit here would broadcast one viewer's own UI moment to
+   * the room).
    */
   sparkleAll(annotationId: AnnotationId): Promise<number | undefined> {
     return this.transport.emit('beckon:sparkle', { annotationId });

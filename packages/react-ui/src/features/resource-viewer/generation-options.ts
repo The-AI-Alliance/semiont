@@ -3,14 +3,14 @@ import type { GenerationConfig } from '../../components/modals/ConfigureGenerati
 
 /**
  * The submitted form config becomes generation options — in ONE place, by
- * spread (GENERATION-OUTPUT-FORMAT D8).
+ * spread.
  *
  * Both page handlers previously built this object field-by-field, so a knob
  * the list didn't mention was silently dropped on the way to the wire. That
- * is exactly how `outputMediaType` came to be unreachable one layer down
- * (P1's finding), and copying the pattern here would have re-created it for
- * every future knob. Spreading means the default is "forwarded"; only the two
- * genuine transformations are spelled out:
+ * is exactly how `outputMediaType` came to be unreachable one layer down, in
+ * the generate state unit's options, and copying the pattern here would have
+ * re-created it for every future knob. Spreading means the default is
+ * "forwarded"; only the two genuine transformations are spelled out:
  *
  * - `context` leaves the bag — it is `fromContext`'s positional argument.
  * - `sourceLanguage` joins it — the language of the resource being VIEWED,

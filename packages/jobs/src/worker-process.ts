@@ -49,12 +49,12 @@ import {
 } from './processors';
 
 /**
- * The ONE derivation for a job's associated reference/annotation id
- * (GENERATION-WIRE-CONTEXT D3). Generation params no longer carry
- * `referenceId` on the wire — the context's focus is authoritative — so for
- * generation jobs the id comes from `focus.annotation.id` (annotation focus)
- * or is undefined (resource focus). Non-generation jobTypes (detection
- * echoes) keep their own `params.referenceId` passthrough.
+ * The ONE derivation for a job's associated reference/annotation id.
+ * Generation params no longer carry `referenceId` on the wire — the context's
+ * focus is authoritative — so for generation jobs the id comes from
+ * `focus.annotation.id` (annotation focus) or is undefined (resource focus).
+ * Non-generation jobTypes (detection echoes) keep their own
+ * `params.referenceId` passthrough.
  */
 export function referenceIdOf(job: { type: string; params: Record<string, unknown> }): AnnotationId | undefined {
   if (job.type === 'generation') {
@@ -107,9 +107,9 @@ export interface WorkerProcessConfig {
   generator: Agent;
   /**
    * The resource's bytes, for the detection extraction seam. Dials the
-   * Archivist rather than the gateway (SINGLE-KB-MOUNT P4) — which is why it
-   * rides the config instead of coming off the session: the session's
-   * transport is pointed at the gateway, and this read should not be.
+   * Archivist rather than the gateway — which is why it rides the config
+   * instead of coming off the session: the session's transport is pointed at
+   * the gateway, and this read should not be.
    */
   contentReads: ContentReads;
   logger: Logger;
@@ -130,7 +130,9 @@ export interface WorkerProcessConfig {
 export type MarkCommitAwaits = 'mark:commit';
 export type DescriptorReadAwaits = 'browse:resource-requested';
 /**
- * The durability probe (COMMIT-ACK-FALSE-FAILURE F1).
+ * The durability probe: when a `mark:commit` acknowledgement times out, the
+ * worker asks whether the batch's last annotation is on the resource before
+ * declaring an outcome.
  *
  * Deliberately the SINGULAR read, not `browse:annotations-requested`. Reply
  * channels are global fan-out, and the annotation LIST channel is the one
@@ -151,15 +153,16 @@ export type DurabilityProbeAwaits = 'browse:annotation-requested';
 const MARK_COMMIT_TIMEOUT_MS = 60_000;
 
 /**
- * Persist a batch of annotations and WAIT for the event log to confirm it
- * (JOB-RESTART-SAFETY P6).
+ * Persist a batch of annotations and WAIT for the event log to confirm it:
+ * `mark:commit` replies only once the batch is in the log, and nothing counts
+ * as complete before that.
  *
  * Every worker path that mints annotations goes through here. `mark:create` is
  * fire-and-forget: its emit resolves when the gateway accepts the frame, which
  * says nothing about the Stower having appended anything — so a down Archivist
- * discarded a job's whole output while the job reported success. P7's
- * `EMIT_TIMEOUT_MS` stopped those paths HANGING; only the acknowledgement stops
- * them LOSING.
+ * discarded a job's whole output while the job reported success. The emit
+ * timeout (`EMIT_TIMEOUT_MS`) stopped those paths HANGING; only the
+ * acknowledgement stops them LOSING.
  *
  * Empty is a no-op, not a round trip: a job that found nothing has nothing to
  * make durable, and the caller still proceeds.
@@ -211,7 +214,7 @@ export class CommitDurabilityError extends Error {
 }
 
 /**
- * Did the batch land? (COMMIT-ACK-FALSE-FAILURE F1.)
+ * Did the batch land?
  *
  * A lost `mark:commit-ok` says nothing about the event log. Measured
  * 2026-09-08: a 51-minute Person detection appended all 1,673 of its
@@ -229,11 +232,12 @@ export class CommitDurabilityError extends Error {
  * `DurabilityProbeAwaits`).
  *
  * Every non-answer resolves to `false` — retry — and that asymmetry is
- * deliberate. Since F3 the log refuses a duplicate, so a needless retry costs
- * one re-run of the unit; a wrong `true` loses the whole unit silently, which
- * is the false-success the acknowledgement was introduced to kill. When the
- * probe is unreachable the truthful answer is neither, and forcing it into
- * failure here is the INDETERMINATE state this plan's F2 exists to name.
+ * deliberate. `mark:commit` appends only the annotations the log does not
+ * already hold, so a needless retry costs one re-run of the unit; a wrong
+ * `true` loses the whole unit silently, which is the false-success the
+ * acknowledgement was introduced to kill. When the probe is unreachable the
+ * truthful answer is neither: it is a third, INDETERMINATE state, and it is
+ * forced into failure here.
  */
 async function probeDurability(
   session: SemiontSession,
@@ -306,27 +310,26 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
     logger.warn('Claim declined; parked until the next wake-up', { code, message });
   });
 
-  // Checkpointed resume (ABANDONED-INFERENCE P2): units a reference run
-  // completes are accumulated here so the failure path can carry them on
-  // job:fail — the queue records them and a retry skips them. Shared
-  // between handleJob (which fills it) and the catch below (which reads
-  // it); cleared on every terminal outcome.
+  // Checkpointed resume: units a reference run completes are accumulated
+  // here so the failure path can carry them on job:fail — the queue records
+  // them and a retry skips them. Shared between handleJob (which fills it)
+  // and the catch below (which reads it); cleared on every terminal outcome.
   const completedUnitsByJob = new Map<string, string[]>();
 
-  // The mid-unit half of the same checkpoint (CHUNK-GRAIN-RESUME P2). Kept
-  // beside `completedUnitsByJob` and for the same reason: `job:fail` is the
-  // clean-failure path, and without this a job that dies partway through its
-  // only unit reports a checkpoint that says nothing happened.
+  // The mid-unit half of the same checkpoint: the cursor each unfinished unit
+  // reached. Kept beside `completedUnitsByJob` and for the same reason:
+  // `job:fail` is the clean-failure path, and without this a job that dies
+  // partway through its only unit reports a checkpoint that says nothing
+  // happened.
   const unitCursorsByJob = new Map<string, Record<string, UnitCursor>>();
 
-  // Cooperative cancellation (JOB-RESTART-SAFETY P4): a job:cancel-requested
-  // targeting the ACTIVE job aborts its signal; the reference loop stops at
-  // its next unit boundary and the job moves to cancelled/ carrying its
-  // checkpoint — no worker kill. The worker processes one job at a time (the
-  // adapter's isProcessing gate), so a single controller keyed by jobId is
-  // enough. A pending job's cancel is handled gateway-side; a running
-  // job's must be cooperative, or it would be yanked out from under a live
-  // worker (the roach-motel race).
+  // Cooperative cancellation: a job:cancel-requested targeting the ACTIVE job
+  // aborts its signal; the reference loop stops at its next unit boundary and
+  // the job moves to cancelled/ carrying its checkpoint — no worker kill. The
+  // worker processes one job at a time (the adapter's isProcessing gate), so a
+  // single controller keyed by jobId is enough. A pending job's cancel is
+  // handled gateway-side; a running job's must be cooperative, or it would be
+  // yanked out from under a live worker (the roach-motel race).
   let activeCancel: { jobId: string; controller: AbortController } | null = null;
   // `job:cancel-requested` rides the worker manifest
   // (`WORKER_CONSUMED_BROADCASTS`), declared once at construction rather than
@@ -352,7 +355,7 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error);
         // Classify HERE, while the error is still typed — on the wire it is
-        // only a string (ABANDONED-INFERENCE P3; taxonomy in failure-class.ts).
+        // only a string (taxonomy in failure-class.ts).
         const failureClass = classifyFailure(error);
         logger.error('Job failed', { jobId: job.jobId, error: message, failureClass, stack: error instanceof Error ? error.stack : undefined });
         const completedUnits = completedUnitsByJob.get(job.jobId);
@@ -377,10 +380,9 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
           // the question never arose, never that durability was ruled out.
           ...(error instanceof CommitDurabilityError ? { durability: error.durability } : {}),
           // Whether this failure is the END, answered by the same predicate
-          // the queue applies at failJob (JOB-RESTART-SAFETY P5). Without
-          // it a client cannot tell a recovering run from a dead one: it
-          // sees job:fail either way and would end its stream on a job the
-          // queue is about to re-run.
+          // the queue applies at failJob. Without it a client cannot tell a
+          // recovering run from a dead one: it sees job:fail either way and
+          // would end its stream on a job the queue is about to re-run.
           willRetry: willRetryAfter(job, failureClass),
         }).catch(() => {});
         adapter.failJob(job.jobId, message);
@@ -406,10 +408,10 @@ export async function handleJob(
   // (checkpointed resume); standalone callers may omit it — a fresh map
   // changes no behavior, only discards the checkpoint on return.
   completedUnitsByJob: Map<string, string[]> = new Map(),
-  // Cancellation signal (JOB-RESTART-SAFETY P4): aborted when a
-  // job:cancel-requested targets this job; the reference loop stops at its
-  // next unit boundary and the job moves to cancelled/. Standalone callers
-  // omit it — an undefined signal never aborts.
+  // Cancellation signal: aborted when a job:cancel-requested targets this
+  // job; the reference loop stops at its next unit boundary and the job moves
+  // to cancelled/. Standalone callers omit it — an undefined signal never
+  // aborts.
   signal?: AbortSignal,
   // The mid-unit half of the checkpoint, same sharing rule as
   // `completedUnitsByJob`: filled here, read by the failure path.
@@ -449,7 +451,7 @@ async function handleJobInner(
   const { session, inferenceClient, generator } = config;
   // Who asked for the job is not among what the worker holds: it cites the
   // job, and the Stower derives the requester from the dispatcher's record of
-  // it (VERIFIED-PROVENANCE P2).
+  // it — provenance is derived, never asserted.
   const { jobId, type: jobType, resourceId } = job;
 
   // Annotation-scoped jobs (today: generation, triggered from a
@@ -538,16 +540,16 @@ async function handleJobInner(
 
     if ('declined' in source) {
       if (source.declined === 'not-yet') {
-        // The Smelter has not finished deriving this resource's anchored text
-        // (SMELTER-OWNS-OCR D3). Not an error — the work is not ready. Throw a
-        // TRANSIENT failure (classifyFailure leaves it unrecognized → transient)
-        // so the job retries and the retry finds the store warm. NEVER OCR here:
-        // the Smelter is the sole producer.
+        // The Smelter has not finished deriving this resource's anchored text.
+        // Not an error — the work is not ready. Throw a TRANSIENT failure
+        // (classifyFailure leaves it unrecognized → transient) so the job
+        // retries and the retry finds the store warm. NEVER OCR here: the
+        // Smelter is the sole producer.
         throw new Error(`Anchored text not yet derived for resource ${resourceId} — Smelter has not settled; retrying`);
       }
       if (source.declined === 'no-extractor') {
         // A media type with nothing to extract is a user error, not weather —
-        // retrying cannot change it (ABANDONED-INFERENCE P3, A4).
+        // retrying cannot change it, so it skips the retry budget.
         throw new DeterministicJobError(`Cannot run ${jobType} on resource ${resourceId}: media type '${mediaType ?? 'unknown'}' has no extractable text to analyze`);
       }
       if (source.declined === 'no-map' || source.declined === 'unknown') {
@@ -582,9 +584,9 @@ async function handleJobInner(
     //
     // `message` is a code plus typed params, forwarded verbatim — the
     // producer says WHAT happened and every client renders it in its own
-    // language (ASSIST-PROGRESS-CONSOLIDATION A6). No sentence is composed
-    // anywhere on this path. (P1 dropped the prose arg here as an interim;
-    // P2 gave the processors codes worth forwarding.)
+    // language. No sentence is composed anywhere on this path. (The prose
+    // arg was dropped here first, as an interim; the processors then gained
+    // codes worth forwarding.)
     adapter.touchActivity();
     emitEvent(session, 'job:report-progress', {
       ...terminalBase(),
@@ -598,10 +600,10 @@ async function handleJobInner(
   };
 
   /**
-   * Per-unit resume positions for THIS attempt (CHUNK-GRAIN-RESUME P2),
-   * reported on every checkpoint and carried onto a terminal failure.
-   * In-memory only: the durable copy is the queue's, merged monotonically,
-   * because two checkpoints can be in flight and the older can land last.
+   * Per-unit resume positions for THIS attempt, reported on every checkpoint
+   * and carried onto a terminal failure. In-memory only: the durable copy is
+   * the queue's, merged monotonically, because two checkpoints can be in
+   * flight and the older can land last.
    */
   const unitCursors = new Map<string, UnitCursor>();
 
@@ -633,8 +635,9 @@ async function handleJobInner(
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
-      // …and the other direction: where an earlier attempt left each unit
-      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      // …and the other direction: where an earlier attempt left each unit, so
+      // a partway unit resumes at its offset instead of the top. Empty on a
+      // first attempt.
       job.unitCursors,
     );
     await emitEvent(session, 'job:complete', {
@@ -649,8 +652,8 @@ async function handleJobInner(
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
-      // …and the other direction: where an earlier attempt left each unit
-      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      // …and the other direction: where an earlier attempt left each unit.
+      // Empty on a first attempt.
       job.unitCursors,
     );
     await emitEvent(session, 'job:complete', {
@@ -665,8 +668,8 @@ async function handleJobInner(
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
-      // …and the other direction: where an earlier attempt left each unit
-      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      // …and the other direction: where an earlier attempt left each unit.
+      // Empty on a first attempt.
       job.unitCursors,
     );
     await emitEvent(session, 'job:complete', {
@@ -676,12 +679,12 @@ async function handleJobInner(
     adapter.completeJob();
 
   } else if (jobType === 'reference-annotation') {
-    // Checkpointed resume (ABANDONED-INFERENCE P2). A retried claim skips
-    // the units earlier attempts completed; every remaining unit commits
-    // through the callback the moment it finishes — the awaited emissions
-    // ARE the acceptance that lets the unit count as complete, and the
-    // accumulator feeds the job:fail payload if a later unit dies. The
-    // post-run batch this replaces was N2's discard-everything mechanism.
+    // Checkpointed resume. A retried claim skips the units earlier attempts
+    // completed; every remaining unit commits through the callback the moment
+    // it finishes — the awaited emissions ARE the acceptance that lets the
+    // unit count as complete, and the accumulator feeds the job:fail payload
+    // if a later unit dies. The post-run batch this replaces discarded every
+    // completed unit when any later call failed.
     const params = asJobParams<DetectionParams>(job.params);
     const skip = new Set(job.completedUnits);
     const remaining = {
@@ -717,16 +720,16 @@ async function handleJobInner(
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
-      // …and the other direction: where an earlier attempt left each unit
-      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      // …and the other direction: where an earlier attempt left each unit.
+      // Empty on a first attempt.
       job.unitCursors,
     );
-    // Cooperative cancellation (JOB-RESTART-SAFETY P4): the loop stopped
-    // because a cancel was requested for this job. Announce it so the queue
-    // moves the (still-running) job to cancelled/ — never yanked out from
-    // under this worker — carrying the units it did finish (already
-    // checkpointed above). completeJob releases the claim; a cancel is a
-    // clean terminal, not a failure.
+    // Cooperative cancellation: the loop stopped because a cancel was
+    // requested for this job. Announce it so the queue moves the
+    // (still-running) job to cancelled/ — never yanked out from under this
+    // worker — carrying the units it did finish (already checkpointed above).
+    // completeJob releases the claim; a cancel is a clean terminal, not a
+    // failure.
     if (signal?.aborted) {
       await emitEvent(session, 'job:cancel', {
         ...terminalBase(),
@@ -747,8 +750,8 @@ async function handleJobInner(
       // The durability write, per chunk, awaited; folds into the terminal
       // durability evidence like every commit, and carries the unit's cursor.
       commitChunk,
-      // …and the other direction: where an earlier attempt left each unit
-      // (CHUNK-GRAIN-RESUME P3). Empty on a first attempt.
+      // …and the other direction: where an earlier attempt left each unit.
+      // Empty on a first attempt.
       job.unitCursors,
     );
     await emitEvent(session, 'job:complete', {
@@ -786,14 +789,13 @@ async function handleJobInner(
     const genReferenceId = referenceIdOf(job);
 
     // The Save location the user typed is AUTHORITATIVE and there is no
-    // fallback (GENERATION-OUTPUT-FORMAT D6/D9). Deriving unconditionally
-    // meant the artifact landed at file://<title-slug><ext> and renaming the
-    // title MOVED THE FILE; a `||` fallback would now only hide a caller that
-    // forgot. The guard above rejects an absent OR empty uri, so by here it
-    // is a real location.
+    // fallback. Deriving unconditionally meant the artifact landed at
+    // file://<title-slug><ext> and renaming the title MOVED THE FILE; a `||`
+    // fallback would now only hide a caller that forgot. The guard above
+    // rejects an absent OR empty uri, so by here it is a real location.
     const storageUri = job.params.storageUri;
 
-    // Faithful and incurious (D7): the worker writes the requested bytes to
+    // Faithful and incurious: the worker writes the requested bytes to
     // the requested URI and does NOT police the pair — a mismatch is a
     // user-intent question the form answers earlier and better, so refusing
     // here would turn a typo into a job failure discovered minutes later.
@@ -823,10 +825,10 @@ async function handleJobInner(
     });
 
     // Resource-focus generation has no triggering reference — mint a navigable
-    // source→derived reference annotation (YIELD-FROM-RESOURCE Fork 2b) so the
-    // derivation is a first-class edge, targeting the whole source resource
-    // (resource-level, no selector). Annotation-focus generation instead auto-binds
-    // the triggering reference via `sourceAnnotationId` on the upload above.
+    // source→derived reference annotation so the derivation is a first-class
+    // edge, targeting the whole source resource (resource-level, no selector).
+    // Annotation-focus generation instead auto-binds the triggering reference
+    // via `sourceAnnotationId` on the upload above.
     if (!genReferenceId) {
       const { annotation: provenanceRef } = assembleAnnotation(
         {
@@ -845,12 +847,12 @@ async function handleJobInner(
     //
     // Anchoring branches on the artifact's anchoring model. Text formats
     // anchor by character offset into the DECODED text — consumers apply
-    // selectors to the decoded string, not raw bytes (INLINE-CITATIONS P1).
-    // A PDF anchors by PAGE GEOMETRY (PDF-GENERATION P4): the citation's
-    // offsets index the Typst SOURCE and would render nothing, so each claim
-    // is re-found in the artifact's own text layer (two-stage search — strict,
-    // then break-aware for hyphenation) and located to rects. A claim the
-    // search cannot find is dropped LOUDLY, never minted wrong.
+    // selectors to the decoded string, not raw bytes. A PDF anchors by PAGE
+    // GEOMETRY: the citation's offsets index the Typst SOURCE and would
+    // render nothing, so each claim is re-found in the artifact's own text
+    // layer (two-stage search — strict, then break-aware for hyphenation) and
+    // located to rects. A claim the search cannot find is dropped LOUDLY,
+    // never minted wrong.
     // Collected, then committed once: the citations all land on the DERIVED
     // resource, so they are one batch keyed by `newResourceId` — a different
     // resource from the provenance edge above, which is why they cannot share

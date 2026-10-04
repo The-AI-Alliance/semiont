@@ -1,6 +1,5 @@
 /**
- * GIT-OFF-THE-EVENT-LOOP — staging stops running on the event loop, and stops
- * running once per change.
+ * Staging stops running on the event loop, and stops running once per change.
  *
  * The index is there for a **human**: the Archivist stages, operators commit
  * and branch by hand. That makes the requirement "current within seconds
@@ -115,8 +114,8 @@ describe('git staging queue', () => {
 });
 
 /**
- * ARCHIVIST-GIT-STAGER-CRASH — a lost `index.lock` race must not be fatal, must
- * not lose work, and must not happen to ourselves.
+ * A lost `index.lock` race must not be fatal, must not lose work, and must not
+ * happen to ourselves.
  *
  * Measured 2026-09-08: two `createStager` calls on one repo (content +
  * event log) raced, `git add` failed, the rejection was unhandled on the

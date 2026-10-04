@@ -1,6 +1,6 @@
 /**
- * RED (WIRE-CROSSING-MODEL P1): the registry declares HOW a channel crosses,
- * on two axes, and refuses to generate when it does not.
+ * The registry declares HOW a channel crosses, on two axes, and refuses to
+ * generate when it does not.
  *
  * The classes being replaced were honest individually and dishonest as a set:
  * `bridgedBroadcasts` conflated "crosses as fan-out" with "every default
@@ -113,7 +113,7 @@ describe('registry axes — a channel declares HOW it crosses, or refuses to gen
   });
 
   test('refuses kind=command with audience=everyone', () => {
-    // The P0 audit found no member wanting this pairing. Leaving it
+    // A per-channel audit found no member wanting this pairing. Leaving it
     // expressible would leave it untested: a directive for one handler,
     // broadcast to every browser.
     const reg = baseRegistry();

@@ -5,7 +5,7 @@
  * they were untested: the wire-shape suite mocks `ky` (which the actor does
  * not use) and the actor suites drive `createActorStateUnit` directly, so
  * nothing exercised the transport's own methods. That mattered once
- * WORKER-BUS-TYPED-BY-CHANNEL removed the casts they used to carry —
+ * typing the bus by channel removed the casts they used to carry —
  * `on$<EventMap[K]>(channel as string)` on both readers, and
  * `payload as unknown as Record<string, unknown>` on `emit` — because a
  * delegation that compiles is not evidence that it delegates.
@@ -61,10 +61,10 @@ describe('HttpTransport ITransport delegation', () => {
   // `beckon:focus`, not `beckon:hover`: these two tests assert SSE DELIVERY,
   // and the registry declares `beckon:hover` `inProcess` — it never crosses
   // the wire, so no gateway would ever send the frame this fixture pushed and
-  // no default client subscribes it. The stream refusal (2026-09-16,
-  // CLIENT-SUBSCRIPTION-MANIFEST P1) surfaced it: the fixture was proving
-  // fan-out over a channel that cannot arrive. `beckon:focus` is a
-  // bridgedBroadcast and proves the same filtering honestly.
+  // no default client subscribes it. The stream refusal (2026-09-16)
+  // surfaced it: the fixture was proving fan-out over a channel that
+  // cannot arrive. `beckon:focus` is a bridgedBroadcast and proves the
+  // same filtering honestly.
   it('on delivers its own channel only, and the returned disposer stops delivery', async () => {
     const sse = mockSSEResponse();
     // A credential is required to connect at all (the SSE connect gate), so a

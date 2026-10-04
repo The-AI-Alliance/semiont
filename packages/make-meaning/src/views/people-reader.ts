@@ -5,7 +5,7 @@
  * ViewMaterializer in response to `person:profiled` events, which the gateway
  * produces when a person ACTS, from the name it verified on their token.
  *
- * This is the read side of PERSON-PROFILE: provenance joins on the DID alone
+ * This is the read side of person profiles: provenance joins on the DID alone
  * and no artifact carries a name, so a reader resolves one here. That is what
  * makes a rename correct every artifact its subject ever wrote, instead of
  * leaving the old name frozen in each of them.

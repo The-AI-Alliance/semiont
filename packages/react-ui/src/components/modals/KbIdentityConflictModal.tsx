@@ -6,15 +6,14 @@ import { useObservable } from '../../hooks/useObservable';
 import { useTranslations } from '../../contexts/TranslationContext';
 
 /**
- * A registered KB's address answered with a DIFFERENT did at activation
- * (KB-IDENTITY-CHECKED-ON-ACTIVATION P2). By the time this renders, the SDK
- * has already voided the tab list and last-viewed state that claimed to be
- * about the old KB — this modal only TELLS, honestly: the entry the user
- * registered and the identity that answered are two distinct facts, both dids
- * verbatim, and the newcomer is never presented under the registered label
- * (KB-IDENTITY-VS-ADDRESS decision 7). The forward route is the Knowledge
- * Base panel, which owns re-registration; the registry entry itself is left
- * exactly as the user wrote it — it is the evidence.
+ * A registered KB's address answered with a DIFFERENT did at activation. By
+ * the time this renders, the SDK has already voided the tab list and
+ * last-viewed state that claimed to be about the old KB — this modal only
+ * TELLS, honestly: the entry the user registered and the identity that
+ * answered are two distinct facts, both dids verbatim, and the newcomer is
+ * never presented under the registered label. The forward route is the
+ * Knowledge Base panel, which owns re-registration; the registry entry itself
+ * is left exactly as the user wrote it — it is the evidence.
  *
  * Third member of the signals-modal family (SessionEndedModal,
  * PermissionDeniedModal): reads the active `SessionSignals`, dismiss

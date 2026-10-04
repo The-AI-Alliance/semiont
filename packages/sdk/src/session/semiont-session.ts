@@ -312,7 +312,7 @@ export class SemiontSession {
    */
   /**
    * Call the configured refresh callback, converting a THROW into the same
-   * "no token" answer a null return gives (SSE-AUTH-RESILIENCE P0).
+   * "no token" answer a null return gives.
    *
    * The callback makes an HTTP call, so it can reject as easily as it can
    * resolve null — a network blip, DNS failure, or gateway 5xx — and both

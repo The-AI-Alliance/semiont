@@ -27,10 +27,10 @@ type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
 
 /**
- * Refuse a write whose target cannot carry a coordinate (MEDIA-CAPABILITY-DISPATCH
- * D6/D8). Exported so the `mark:create-request` handler and this class share ONE
- * implementation rather than each deciding it — the registry stays the single
- * fact, and this is the single refusal built on it.
+ * Refuse a write whose target cannot carry a coordinate. Exported so the
+ * `mark:create-request` handler and this class share ONE implementation rather
+ * than each deciding it — the registry stays the single fact, and this is the
+ * single refusal built on it.
  *
  * Two populations land here: a registry row that declines (storage tier) and a
  * type the registry has never seen (import leniency keeps those in the KB, and
@@ -39,7 +39,7 @@ type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRe
  * vocabulary claim the registry is not entitled to make about a miss.
  *
  * NOT applied to import or replay: those emit `mark:create` directly and never
- * reach either caller. That topology is D6's leniency — no flag, no bypass.
+ * reach either caller. That topology is the leniency — no flag, no bypass.
  */
 export async function assertAnnotatableTarget(kb: { views: Pick<ViewStorage, 'get'> }, target: ResourceId): Promise<void> {
   const view = await kb.views.get(target);
@@ -68,11 +68,11 @@ export class AnnotationOperations {
     kb: { views: Pick<ViewStorage, 'get'> },
   ): Promise<CreateAnnotationResult> {
     // This facade reaches `mark:create` directly, so without this it would be a
-    // published way around the handler's gate (MEDIA-CAPABILITY-DISPATCH D6).
+    // published way around the handler's gate.
     await assertAnnotatableTarget(kb, request.target.source);
 
     // No creator is passed: the Stower derives who asked from `_userId` when
-    // it stows, and refuses a payload that names one (VERIFIED-PROVENANCE P2).
+    // it stows, and refuses a payload that names one.
     const { annotation } = assembleAnnotation(request);
     const resId = request.target.source;
 

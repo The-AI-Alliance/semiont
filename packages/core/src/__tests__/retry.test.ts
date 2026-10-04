@@ -82,11 +82,11 @@ describe('retryWithBackoff', () => {
         (info) => seen.push(info),
       ),
     ).rejects.toThrow();
-    // Equal jitter (SIDECAR-BOOT-RESILIENCE P2): each wait is in [cap/2, cap),
-    // so the exact sequence is no longer assertable — but the SCHEDULE is: the
-    // ceilings still double and still cap, and the reported delay is the actual
-    // wait rather than the ceiling. Asserting per-attempt bounds keeps both the
-    // doubling and the cap under test without pinning the random draw.
+    // Equal jitter: each wait is in [cap/2, cap), so the exact sequence is no
+    // longer assertable — but the SCHEDULE is: the ceilings still double and
+    // still cap, and the reported delay is the actual wait rather than the
+    // ceiling. Asserting per-attempt bounds keeps both the doubling and the
+    // cap under test without pinning the random draw.
     const caps = [8, 16, 32, 32];
     expect(seen).toHaveLength(caps.length);
     seen.forEach((info, i) => {
@@ -146,7 +146,7 @@ describe('isTransientFetchError', () => {
   });
 });
 
-describe('isRetryableRequestError (SIDECAR-BOOT-RESILIENCE P1)', () => {
+describe('isRetryableRequestError', () => {
   /** What a status-carrying transport error looks like to this predicate. The
    *  real one is http-transport's `APIError`, which already carries `status`. */
   const withStatus = (status: number): HttpStatusError =>
@@ -295,7 +295,7 @@ describe('STARTUP_FETCH_RETRY', () => {
   });
 });
 
-describe('a wait the server states (GATEWAY-LIMITS P5)', () => {
+describe('a wait the server states', () => {
   it('reads Retry-After in seconds, the form the gateway sends, and nothing else', () => {
     expect(retryAfterMs('3')).toBe(3_000);
     expect(retryAfterMs(' 12 ')).toBe(12_000);

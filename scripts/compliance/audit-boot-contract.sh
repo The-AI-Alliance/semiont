@@ -3,8 +3,9 @@ set -euo pipefail
 
 # Audit: boot-contract census (B1–B3). The static complement of a container
 # boot smoke: catches the class where unit tests stay green (their setups
-# fabricate env) while the image cannot boot — the three defects the
-# SINGLE-KB-MOUNT live gates found shipped, each hidden behind the last.
+# fabricate env) while the image cannot boot — the three defects a real start
+# found shipped after the gateway dropped its KB mount, each hidden behind
+# the last.
 #
 # B1  env census, per service: every literal `process.env.X` read in a
 #     service's runtime files is provided by its Dockerfile ENV, its

@@ -1,5 +1,5 @@
 /**
- * Bounded inference calls (WORKER-LIVENESS.md P2).
+ * Bounded inference calls.
  *
  * The claim loop's only unbounded await was the model call: one HTTP
  * request that never settles used to wedge the worker forever (the
@@ -67,7 +67,7 @@ describe('bounded inference calls', () => {
     ).resolves.toEqual({ items: [], stopReason: 'end_turn' });
 
     // The trailing AbortSignal is part of the pass-through now: every call
-    // carries one so the bound can cancel it (ABANDONED-INFERENCE P1).
+    // carries one so the bound can cancel it.
     expect(client.generateTextWithMetadata).toHaveBeenCalledWith('p', 100, 0.1, expect.any(AbortSignal));
     expect(client.generateStructured).toHaveBeenCalledWith('p', 100, 0.1, ELEMENT, expect.any(AbortSignal));
   });
@@ -92,12 +92,12 @@ describe('bounded inference calls', () => {
     await expect(boundedGenerateWithMetadata(client, 'p', 100, 0.1)).rejects.toThrow('model exploded');
   });
 
-  // DETECTION-HEARTBEAT Phase A: liveness must come from ELAPSED TIME, not
-  // from chunk geometry. A single-chunk document (the normal case — the
-  // derived input budget is ~935 K tokens) crosses no chunk boundary, so the
-  // boundary heartbeat emits nothing for the entire run; the client's
-  // inter-emission timeout (180 s) then kills a healthy job. The in-flight
-  // call is the only window that knows the truth.
+  // Liveness must come from ELAPSED TIME, not from chunk geometry. A
+  // single-chunk document (the normal case — the derived input budget is
+  // ~935 K tokens) crosses no chunk boundary, so the boundary heartbeat emits
+  // nothing for the entire run; the client's 180 s silence window then
+  // expires on a healthy job. The in-flight call is the only window that
+  // knows the truth.
   describe('in-flight heartbeat', () => {
     it('fires repeatedly DURING one long inference call', async () => {
       vi.useFakeTimers();
@@ -226,12 +226,13 @@ describe('bounded inference calls', () => {
     });
   });
 
-  // ABANDONED-INFERENCE P1: a bound that cannot cancel is half a bound. The
+  // True cancellation: a bound that cannot cancel is half a bound. The
   // 10-minute guillotine used to free only the claim loop — the request it
   // abandoned kept running (and billing) as a zombie, one of which was caught
-  // completing 24–34 minutes after abandonment (P0, 2026-08-24).
-  describe('true cancellation (A1/A2)', () => {
-    it('A1: the bound aborts the underlying request on expiry — not merely abandons it', async () => {
+  // completing 24–34 minutes after abandonment (a live reproduction,
+  // 2026-08-24).
+  describe('true cancellation', () => {
+    it('the bound aborts the underlying request on expiry — not merely abandons it', async () => {
       vi.useFakeTimers();
       let captured: AbortSignal | undefined;
       const client = clientWith({
@@ -252,7 +253,7 @@ describe('bounded inference calls', () => {
       expect(captured!.aborted).toBe(true);
     });
 
-    it('A1: the structured path threads and fires the signal too', async () => {
+    it('the structured path threads and fires the signal too', async () => {
       vi.useFakeTimers();
       let captured: AbortSignal | undefined;
       const client = clientWith({
@@ -271,7 +272,7 @@ describe('bounded inference calls', () => {
       expect(captured!.aborted).toBe(true);
     });
 
-    it('A1: a call that answers in time gets a signal that never fires', async () => {
+    it('a call that answers in time gets a signal that never fires', async () => {
       let captured: AbortSignal | undefined;
       const client = clientWith({
         generateTextWithMetadata: vi.fn(async (_p: string, _m: number, _t: number, signal?: AbortSignal) => {
@@ -285,7 +286,7 @@ describe('bounded inference calls', () => {
       expect(captured!.aborted).toBe(false);
     });
 
-    it('A2: aborting is logged, naming what was aborted and its bound (D3: cost belongs in the log)', async () => {
+    it('aborting is logged, naming what was aborted and its bound (cost belongs in the log)', async () => {
       vi.useFakeTimers();
       const warn = vi.fn();
       const logger = { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), child: vi.fn() };
@@ -309,7 +310,7 @@ describe('bounded inference calls', () => {
       });
     });
 
-    it('A2: nothing is logged for a call that completes inside the bound', async () => {
+    it('nothing is logged for a call that completes inside the bound', async () => {
       const warn = vi.fn();
       const logger = { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), child: vi.fn() };
       const client = clientWith({});
@@ -329,19 +330,19 @@ describe('bounded inference calls', () => {
 
     const pending = AnnotationDetection.detectHighlights('some content', client);
     const assertion = expect(pending).rejects.toThrow(/timed out/);
-    // Content this small cannot SHRINK, and since the no-shrink floor (P4
-    // attempt 1) an unshrinkable piece never "descends" into identical
-    // re-runs — the first timeout is already at the floor and propagates. One
-    // bound, one call, prompt rejection: the worker is never wedged, which is
-    // this test's whole claim. (Ladder arithmetic on genuinely shrinkable
-    // chunks is pinned in detection-chunking.test.ts.)
+    // Content this small cannot SHRINK, and under the no-shrink floor an
+    // unshrinkable piece never "descends" into identical re-runs — the first
+    // timeout is already at the floor and propagates. One bound, one call,
+    // prompt rejection: the worker is never wedged, which is this test's
+    // whole claim. (Ladder arithmetic on genuinely shrinkable chunks is
+    // pinned in detection-chunking.test.ts.)
     await vi.advanceTimersByTimeAsync(INFERENCE_TIMEOUT_MS + 1);
     await assertion;
     expect(generateStructured).toHaveBeenCalledTimes(1);
   });
 });
 
-describe('typed timeout (ABANDONED-INFERENCE P3)', () => {
+describe('typed timeout', () => {
   it('the bound rejects with InferenceTimeoutError so classification never string-matches our own error', async () => {
     vi.useFakeTimers();
     const client = clientWith({ generateTextWithMetadata: vi.fn(never) });

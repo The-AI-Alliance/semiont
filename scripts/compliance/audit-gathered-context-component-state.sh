@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# FLOW-LIFECYCLE-CONVERGENCE A5: gathered context is SDK state, never
-# component state.
+# Invariant A5: gathered context is SDK state, never component state.
 #
 # 1. `useResourceGather` was a public react-ui export that held a
 #    GatheredContext in component-local useState — deleted (public-surface
@@ -19,7 +18,7 @@ violations=0
 if grep -rn "useResourceGather" \
     "$REPO_ROOT/packages/react-ui/src" "$REPO_ROOT/apps/browser/src" \
     --include='*.ts' --include='*.tsx' 2>/dev/null; then
-  echo "❌ useResourceGather reappeared (deleted in FLOW-LIFECYCLE-CONVERGENCE P3)"
+  echo "❌ useResourceGather reappeared (deleted: components receive gather state as props)"
   violations=1
 fi
 

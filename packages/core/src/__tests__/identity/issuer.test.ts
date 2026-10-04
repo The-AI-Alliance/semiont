@@ -1,8 +1,8 @@
 /**
- * JWKS consumption (EXTERNAL-IDENTITY P2): a foreign issuer's token verifies by
- * the keys that issuer publishes — found through OIDC discovery, selected by
- * `kid`, cached, and refreshed without a restart. Real signatures against an
- * in-process issuer; nothing here names a vendor.
+ * JWKS consumption: a foreign issuer's token verifies by the keys that issuer
+ * publishes — found through OIDC discovery, selected by `kid`, cached, and
+ * refreshed without a restart. Real signatures against an in-process issuer;
+ * nothing here names a vendor.
  *
  * These live in CORE because `IssuerVerifier` is core's. They ran under the
  * gateway until 2026-09-20, which meant `npm test --workspace=@semiont/core`

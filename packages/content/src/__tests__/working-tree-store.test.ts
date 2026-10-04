@@ -103,10 +103,10 @@ describe('WorkingTreeStore', () => {
   });
 
   /**
-   * SINGLE-KB-MOUNT P2: the Archivist's write endpoint hands `store` the
-   * request stream itself, so the store must be memory-bounded (never the
-   * whole body in one Buffer) and atomic (a failed or mismatched write leaves
-   * the target — including a previous version being overwritten — untouched).
+   * The Archivist's write endpoint hands `store` the request stream itself,
+   * so the store must be memory-bounded (never the whole body in one Buffer)
+   * and atomic (a failed or mismatched write leaves the target — including a
+   * previous version being overwritten — untouched).
    */
   describe('store from a stream', () => {
     it('streams a Readable to disk and returns the same metadata a Buffer would', async () => {
@@ -219,11 +219,11 @@ describe('WorkingTreeStore', () => {
   });
 
   /**
-   * SINGLE-KB-MOUNT: `register` runs on the event-apply path, in the SAME
-   * process that streamed the upload in. A whole-file read here would
-   * re-materialize the bytes the write path was careful to keep
-   * chunk-bounded (D7) — the memory win would last exactly until the event
-   * applied. It verifies by streaming instead.
+   * `register` runs on the event-apply path, in the SAME process that
+   * streamed the upload in: the Archivist, the only one that mounts the KB
+   * tree. A whole-file read here would re-materialize the bytes the write
+   * path was careful to keep chunk-bounded — the memory win would last
+   * exactly until the event applied. It verifies by streaming instead.
    */
   describe('register verifies without materializing', () => {
     it('hashes a large file without reading it whole', async () => {
@@ -480,7 +480,7 @@ describe('WorkingTreeStore with gitSync', () => {
   it('should stage stored files in the git index — after a flush', async () => {
     await store.store(Buffer.from('staged'), 'file://docs/staged.md');
 
-    // Staging is DEFERRED (GIT-OFF-THE-EVENT-LOOP): the index is for a human
+    // Staging is DEFERRED, off the event loop: the index is for a human
     // who commits by hand, so it must be current within seconds, not
     // synchronously per write. `git-staging.test.ts` pins the other half of
     // this contract — that it is NOT staged before the flush.

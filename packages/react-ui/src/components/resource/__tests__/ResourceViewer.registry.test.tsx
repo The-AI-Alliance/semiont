@@ -2,12 +2,12 @@
  * The media-renderer registries must be reachable through `ResourceViewer` —
  * the documented consumer entry point.
  *
- * `BrowseView` has taken a `renderers` override since EMBEDDABLE-RESOURCE-VIEWER
- * step 3, and `AnnotateView` since 3b, but `ResourceViewer` forwarded neither.
- * A host importing it (what docs/ANNOTATIONS.md tells consumers to do, and what
- * the embeddable-surface packaging gate checks) therefore had no way to reach
- * the extension point: it would have to drop to `BrowseView` directly and
- * reimplement the browse/annotate switching `ResourceViewer` exists to provide.
+ * `BrowseView` and `AnnotateView` each take a `renderers` override, but
+ * `ResourceViewer` forwarded neither. A host importing it (what
+ * docs/ANNOTATIONS.md tells consumers to do, and what the embeddable-surface
+ * packaging gate checks) therefore had no way to reach the extension point: it
+ * would have to drop to `BrowseView` directly and reimplement the
+ * browse/annotate switching `ResourceViewer` exists to provide.
  *
  * Started RED (tsc: no `browseRenderers` / `annotateRenderers` props).
  */
