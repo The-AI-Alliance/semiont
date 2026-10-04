@@ -83,10 +83,20 @@ export class World {
     return this.gateway.origin;
   }
 
-  /** A second gateway on this world's issuer, Archivist and broker, configured as the first — another replica. */
-  async replica(): Promise<GatewayProcess> {
+  /**
+   * A second gateway on this world's issuer, Archivist and broker, configured
+   * as the first — another replica. It reaches the broker at `servers` when
+   * that is given: through a proxy a case put in front of it.
+   */
+  async replica(servers?: string): Promise<GatewayProcess> {
     const port = await freePort();
-    const settings = { ...this.gateway.settings, port, publicUrl: `http://127.0.0.1:${port}` };
+    const { signal } = this.gateway.settings;
+    const settings = {
+      ...this.gateway.settings,
+      port,
+      publicUrl: `http://127.0.0.1:${port}`,
+      ...(servers !== undefined && signal.type === 'nats' ? { signal: { ...signal, servers } } : {}),
+    };
     const replica = await startGateway({ settings, env: this.env });
     this.extraGateways.push(replica);
     return replica;

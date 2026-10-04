@@ -234,6 +234,9 @@ impl SignalPlane for NatsPlane {
                         .boxed(),
                 );
             }
+            // The broker reads this connection's writes in order: once it has
+            // answered the flush, it holds every subscription above.
+            self.flush().await?;
             let on_frame = subscription.on_frame;
             let pump = tokio::spawn(async move {
                 let mut merged = futures::stream::select_all(streams);

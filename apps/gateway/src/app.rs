@@ -157,15 +157,9 @@ async fn run(
     };
     logging::info("Signal Plane driver selected", json!({ "driver": driver }));
     let bus = within(
-        "Ledger claims table",
-        "The broker did not open the claims table; it must run with JetStream enabled.",
+        "Signal Plane composition",
+        "The broker did not open the gateway's tables and confirm its subscription; it must be reachable, with JetStream enabled.",
         compose(plane.clone()),
-    )
-    .await?;
-    within(
-        "Signal Plane readiness flush",
-        "The broker is unreachable; the gateway will not serve until it answers.",
-        plane.flush(),
     )
     .await?;
     logging::info("Signal Plane ready", json!({ "driver": driver }));
