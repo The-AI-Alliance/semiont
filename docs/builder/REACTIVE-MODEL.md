@@ -1,20 +1,46 @@
 # Reactive Model
 
-`@semiont/sdk` is the SDK for collaborative **knowledge work** — humans and AI agents working as peers on a shared corpus across one or many machines. That collaboration shapes the SDK's design: live queries, progress streams, and cross-participant attention signals are all first-class, not data-API afterthoughts.
+The Semiont SDKs are for collaborative **knowledge work** — humans and AI agents working as peers on a shared corpus across one or many machines. That collaboration shapes their design: live queries, progress streams, and cross-participant attention signals are all first-class, not data-API afterthoughts.
 
-The SDK uses RxJS as its substrate (because the collaboration model needs reactive primitives) but exposes a Promise-shaped surface for the cases that don't need the reactive view (because the consumer who just wants a value shouldn't have to learn RxJS first). This doc explains how that works, why it works, and where RxJS is still visible by design.
+So a client's methods do not all return the same kind of thing. Some are asked once and answered once. Others have values over time. Every SDK sorts its methods into the same seven shapes, and differs only in how its language says "later": Promises and RxJS Observables in TypeScript; futures, streams and `watch` receivers in Rust. This doc states the shapes first, then each language's form of them.
 
-If you only want to *use* the SDK, [Usage.md](./Usage.md) is the per-namespace tour. Read this if you're curious about the design, deciding between `await` and `.subscribe(...)` for a given call site, picking a return shape for a new namespace method, or trying to figure out which path to the bus is right for your use case.
+If you only want to *use* the SDK, [Usage.md](./Usage.md) is the per-namespace tour. Read this if you're curious about the design, deciding whether to await a call or watch it, picking a return shape for a new namespace method, or trying to figure out which path to the bus is right for your use case.
 
 ## The shape of values over time
 
-Most SDK calls have a "current value" to return. Some genuinely have *values over time* — the progress of a long-running job, a live query that re-emits when the underlying resource changes, a hover signal another participant just emitted across the bus. Promise can express the first; Observable can express the others.
+Most SDK calls have a "current value" to return. Some genuinely have *values over time* — the progress of a long-running job, a live query that re-emits when the underlying resource changes, a hover signal another participant just emitted across the bus. A one-shot answer can express the first. The others need something a caller can keep reading.
+
+Each SDK makes the same choice: the form that can be read over time is the primitive, and a caller who only wants the final answer can await it and move on.
+
+## The seven shapes
+
+Every namespace method returns exactly one of these. Which one is the method's row in [`specs/src/client/surface.json`](../../specs/src/client/surface.json), the table every SDK is held to: `lint:client-surface` fails a method whose signature is not its row's.
+
+| Shape | What it is | TypeScript | Rust |
+|---|---|---|---|
+| `promise` | Asked once, answered once: the value, or a failure with a code. | `Promise<T>` | `async fn … -> Result<T, SemiontError>` |
+| `stream` | A long-running operation: what it reports as it goes, then its final value. | `StreamObservable<T>` | `Running<T>` |
+| `upload` | An upload in flight: its progress, then the id of the resource created. | `UploadObservable` | `Upload` |
+| `cache` | A live query. Building it touches nothing; its one-shot read asks the service now. | `CacheObservable<T>` | `Cached<T>` |
+| `signal` | Fire-and-forget. Nothing is returned and nothing is awaited. | a method returning `void` | a plain `fn` |
+| `count` | A drive at the other participants: how many the gateway reached, or no count when it kept none. | `Promise<number \| undefined>` | `async fn … -> Result<Option<u64>, SemiontError>` |
+| `events` | The events of one channel of the client's own bus, from now on. | a property named `<method>$` | `Typed<C, BusFrames>` |
+
+Three rules hold in every SDK:
+
+1. **A live query is never read by accident.** Building one touches nothing. Watching it gives its state: pending, ready or failed. A one-shot read is asked for by name, with `.fresh()`, so a cache read never silently becomes a round trip.
+2. **A long-running operation runs once.** Awaiting it gives the final value, reading it gives each report, and `.run()` gives both from one run. Rust enforces this, since the operation is consumed by value. TypeScript does not: awaiting and subscribing to the same instance starts it twice.
+3. **A signal is not a request, and a drive is not a signal.** A signal returns nothing. A drive says how many participants it reached, which is information and not an acknowledgement.
+
+## In TypeScript
+
+The SDK uses RxJS as its substrate (because the collaboration model needs reactive primitives) but exposes a Promise-shaped surface for the cases that don't need the reactive view (because the consumer who just wants a value shouldn't have to learn RxJS first). This doc explains how that works, why it works, and where RxJS is still visible by design.
 
 The choice for `@semiont/sdk` was to use Observable as the primitive — multicast, pipeable, native to live queries and cross-actor coordination — and to layer Promise-shaped sugar on top so callers who only want the final answer can `await` and move on.
 
 The result: a script that just wants to read a resource never imports anything from `rxjs`. A browser app rendering a loading state subscribes to the same call. An AI agent observing what its human partner just hovered uses `.subscribe(...)` on the same shape. A data pipeline that needs to filter and map composes with operators. Four idiomatic shapes on the same return values.
 
-## The substrate: RxJS
+### The substrate: RxJS
 
 Everything reactive in the SDK is an RxJS Observable:
 
@@ -26,7 +52,7 @@ Everything reactive in the SDK is an RxJS Observable:
 
 Observable is the right primitive for all of these. Promise has no "second value." The cache primitive behind Browse — multicast, per-key dedup, stale-while-revalidate — composes cleanly only because the substrate supports the operators that make it possible. Forcing Promise here would require parallel `observe()` / `get()` methods on every namespace and would lose the collaboration story entirely.
 
-## The sugar: PromiseLike on top — and where it was deliberately removed
+### The sugar: PromiseLike on top — and where it was deliberately removed
 
 A consumer that doesn't care about progress shouldn't have to learn RxJS to use the SDK.
 
@@ -72,7 +98,7 @@ The subclass name documents which semantics apply. `.subscribe(...)` works on bo
 
 A third subclass — `UploadObservable` — is shaped specifically for `yield.resource`. Subscribers see the full upload-progress lifecycle (`started` → optional `progress` → `finished`); awaiting resolves to `{ resourceId }` extracted from the `'finished'` event, preserving the awaited shape from before progress events existed.
 
-## Return-shape discipline
+### Return-shape discipline
 
 Namespace methods return one of exactly five shapes:
 
@@ -104,7 +130,7 @@ The discipline is enforceable. A namespace method's return type must be one of:
 
 Plain `Observable<T>` does not appear on the public verb-namespace surface. (It still appears on lifecycle / escape-hatch surfaces — `client.transport.state$`, `client.transport.errors$`, `client.bus.on(channel)` — see "Plain Observables" below.) The rule is enforced: every namespace method is a row of [`specs/src/client/surface.json`](../../specs/src/client/surface.json) with the shape of what it returns, `lint:client-surface` fails a method whose signature is not its row's, and every SDK is held to the same table. The table names two more shapes than this list, because it covers every namespace: `job`'s four lifecycle streams are `events`, and `yield.resource`'s `UploadObservable` is its own row.
 
-## What this looks like at the call site
+### What this looks like at the call site
 
 ```ts
 import { SemiontSession, InMemorySessionStorage, httpKb, isReady, readyValue } from '@semiont/sdk';
@@ -146,7 +172,7 @@ const names = await firstValueFrom(
 
 Four idiomatic shapes. The script-author who's never heard of RxJS uses the first; the React component uses the second; the live-progress UI uses the third; the data-pipeline author uses the fourth.
 
-### One consumption per instance — or use `.run()`
+#### One consumption per instance — or use `.run()`
 
 `StreamObservable` and `UploadObservable` are **cold**: every `await` *and* every `.subscribe(...)` re-runs the producer. For a job-triggering stream that means doing **both** on the same instance fires the underlying job (generation, upload, assist) **twice**. Pick one per instance — `await` for just the result, `.subscribe(...)` for just progress.
 
@@ -160,7 +186,7 @@ const done = await semiont.mark.assist(rId, 'linking', {}).run((event) => {
 
 (`CacheObservable` is exempt — `.fresh()` is a fresh fetch, not a re-subscription, so `.fresh()` + `.subscribe(...)` on a live query is fine.)
 
-## Method-by-method assignment
+### Method-by-method assignment
 
 **`StreamObservable<T>`** (bounded; `then` resolves on completion):
 
@@ -217,11 +243,11 @@ These are the guided-tour moves: they drive *other* participants' viewers, and t
 
 These stay reactive without a thenable for two reasons. First, `BehaviorSubject` has `.value` for synchronous snapshots; `firstValueFrom` is the explicit wait when you want one. Awaiting a BehaviorSubject directly is ambiguous — current value? next emit? next non-undefined emit? — and rarely what consumers want. Second, lifecycle observables and bus subscriptions are *meant* to be observed continuously; the consumer of `state$` or `mark:added` always wants the stream, never one snapshot.
 
-## Three paths to the bus
+### Three paths to the bus
 
 The bus is the SDK's substrate for cross-participant coordination. Three legitimate paths reach it; each serves a distinct case. Picking the right one keeps the call site honest.
 
-### 1. Typed namespace method — preferred
+#### 1. Typed namespace method — preferred
 
 ```ts
 client.beckon.hover(annotationId);
@@ -233,7 +259,7 @@ The verb namespace knows the channel name, the payload schema, and (where applic
 
 This is the right path **when a namespace method exists** for what you want. It covers all the canonical operations — every flow's commands, every CRUD operation, every collaboration signal that's been canonicalized as part of the protocol.
 
-### 2. `session.subscribe(channel, handler)` — channel-by-name observation
+#### 2. `session.subscribe(channel, handler)` — channel-by-name observation
 
 ```ts
 const unsub = session.subscribe('mark:added', (event) => {
@@ -250,7 +276,7 @@ The escape hatch for **observing a channel that doesn't have a typed namespace g
 
 This path is sanctioned. It's typed against `EventMap` from `@semiont/core`, so the channel name and payload type stay aligned. The disposer cleans up on call.
 
-### 3. Direct `client.bus.on(channel)` / `client.transport.emit(channel, ...)` — advanced
+#### 3. Direct `client.bus.on(channel)` / `client.transport.emit(channel, ...)` — advanced
 
 ```ts
 client.bus.on('mark:added').subscribe((event) => log(event.payload.annotation));
@@ -273,7 +299,7 @@ Both are read-only observables, and publishing goes through `emit`, whose third 
 
 If you find yourself reaching for `transport.emit` from application code repeatedly, the right move is usually to add a namespace method. The bus exposure is *not* `@internal` — it's a real surface for advanced use — but the typed namespaces are the canonical entry point for everything else.
 
-## Bridging back to RxJS
+### Bridging back to RxJS
 
 `@semiont/sdk` re-exports `firstValueFrom` and `lastValueFrom` from RxJS. They're not load-bearing for the typical call site — streams are directly awaitable and live queries have `.fresh()` — but they save an import line for the operator-composition case:
 
@@ -289,7 +315,7 @@ const result = await lastValueFrom(
 
 `.pipe(...)` returns plain `Observable<T>` — losing the thenable is correct, because pipe is composition, and the result no longer has the well-defined "final value" or "first defined emission" semantics that the subclasses encoded.
 
-## Subscribing from a UI that mounts twice
+### Subscribing from a UI that mounts twice
 
 React Strict Mode runs an effect, cleans it up, and runs it again. Anything
 that observes the bus from an effect has to survive that:
@@ -301,7 +327,7 @@ that observes the bus from an effect has to survive that:
   (`<Inner key={rId} />`), so the factory runs again when they change.
   `useStateUnit` does not re-run its factory across renders.
 
-## Why this design
+### Why this design
 
 1. **Live queries are genuinely reactive.** Browse reads represent "the current value of this resource, which changes when bus events fire." Promise can't express that. Observable can.
 2. **The `Cache<K,V>` primitive is a real architectural building block.** Multicast, per-key dedup, stale-while-revalidate. The subclass approach lets us keep it without leaking it through the public surface. See [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) for the cache's behavioral contract.
@@ -313,12 +339,25 @@ that observes the bus from an effect has to survive that:
 
 The integrator writing a simple script doesn't know `@semiont/sdk` uses RxJS until they reach for `.subscribe(...)` to render progress, and even then they don't have to import from `rxjs/operators` until they reach for `.pipe(...)`. The reactive primitive is preserved as a load-bearing architectural choice; the user-facing surface looks Promise-shaped.
 
+## In Rust
+
+The Rust client has the same seven shapes, with no reactive library under them.
+
+- **A long-running operation** is a `Running<T>`: `.await` it for the final value, `.next()` for each report, `.run(f)` for both. It is consumed by value, so it cannot be started twice.
+- **A live query** is a `Cached<T>`: `.watch()` for its state as it changes, `.fresh().await?` for one read. It is not awaited itself.
+- **State** that TypeScript reads from a `BehaviorSubject` comes through a `tokio::sync::watch` receiver: the value now, and each value after it.
+- **Events** come as a `Stream`. A reader that falls behind is told how far (`Lagged`) and reads on.
+- **Composition** uses `futures::StreamExt` or `tokio-stream`. The crate brings no operator library.
+
+The Rust README has [the table that maps each TypeScript shape to its Rust form](../../packages/sdk-rust/README.md#from-the-typescript-sdk), and [how each shape is used](../../packages/sdk-rust/README.md#what-is-in-the-crate).
+
 ## See also
 
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples
-- [STATE-UNITS.md](./STATE-UNITS.md) — the foundational stateful-unit pattern (factory closure, RxJS-shaped surface, dispose lifecycle); the substrate behind every flow state machine, worker adapter, and view-shaped state machine in the codebase
+- [STATE-UNITS.md](./STATE-UNITS.md) — the foundational stateful-unit pattern (a surface consumers read but cannot write, and a dispose lifecycle); the substrate behind every flow state machine, worker adapter, and view-shaped state machine in the codebase
 - [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive's behavioral contract behind `CacheObservable`
 - [`packages/sdk/src/awaitable.ts`](../../packages/sdk/src/awaitable.ts) — the awaitable Observable subclasses' implementation
 - [docs/protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md) — channel naming, scoping, correlation; the protocol layer the SDK wraps
 - [docs/protocol/CHANNELS.md](../protocol/CHANNELS.md) — channel inventory: persisted events, ephemeral signals, correlation responses, resource broadcasts
 - [docs/protocol/TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md) — the `ITransport` behavioral guarantees underlying every namespace method, including `errors$`
+- [The Rust SDK's README](../../packages/sdk-rust/README.md) — the Rust form of each shape

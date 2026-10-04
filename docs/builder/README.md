@@ -6,6 +6,19 @@ has the same namespaces, methods and behaviour, and its
 [README](../../packages/sdk-rust/README.md) maps each TypeScript shape here to
 its Rust form.
 
+TypeScript:
+
+```bash
+npm install @semiont/sdk
+```
+
+Rust:
+
+```bash
+cargo add semiont
+cargo add semiont-http-transport --features sign-in    # the transport over a gateway
+```
+
 Other readers have other homes: building Semiont itself is
 [docs/development](../development/README.md), running it is
 [docs/system](../system/README.md), and the wire and the contracts every SDK
