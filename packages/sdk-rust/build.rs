@@ -97,7 +97,9 @@ fn api_bodies(document: &Value) -> Vec<String> {
 fn main() {
     let crate_dir =
         PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"));
-    let specs = crate_dir.join("../../specs/src");
+    // A link to specs/src in the repository, and the files themselves in the
+    // published crate: cargo follows it when it packages.
+    let specs = crate_dir.join("specs");
     let out = PathBuf::from(std::env::var("OUT_DIR").expect("cargo sets OUT_DIR"));
     println!("cargo:rerun-if-changed={}", specs.display());
 

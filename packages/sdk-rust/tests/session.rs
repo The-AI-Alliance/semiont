@@ -358,7 +358,7 @@ async fn a_token_that_could_not_be_asked_about_is_kept_and_the_failure_is_said()
 /// session ends.
 #[tokio::test(start_paused = true)]
 async fn a_session_starts_as_each_case_of_the_shared_table_states() {
-    let table: Value = serde_json::from_str(include_str!("../../../specs/src/session/cases.json"))
+    let table: Value = serde_json::from_str(include_str!("../specs/session/cases.json"))
         .expect("the table is JSON");
     let cases = table["startup"].as_array().expect("startup cases");
     assert!(!cases.is_empty(), "the table has no startup case");
@@ -459,7 +459,7 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
 /// specs/src/session/cases.json states it for every SDK (`refusal`).
 #[tokio::test(start_paused = true)]
 async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_states() {
-    let table: Value = serde_json::from_str(include_str!("../../../specs/src/session/cases.json"))
+    let table: Value = serde_json::from_str(include_str!("../specs/session/cases.json"))
         .expect("the table is JSON");
     let cases = table["refusal"].as_array().expect("refusal cases");
     assert!(!cases.is_empty(), "the table has no refusal case");

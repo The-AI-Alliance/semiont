@@ -80,10 +80,17 @@ const COMPUTED = /\benv::var(?:_os)?\(\s*(?!")/g;
 const WHOLE = /\benv::vars(?:_os)?\s*\(/g;
 const IMPLICIT = /\bfrom_default_env\b/g;
 
-/** The workspace's crates by package name: their directories (Cargo.toml at the root). */
+/**
+ * The workspace's crates by package name: their directories (Cargo.toml at the
+ * root). A published crate's entry names its version beside its path.
+ */
 const WORKSPACE = new Map(
-  [...read('Cargo.toml').matchAll(/^([a-z][a-z0-9-]*) = \{ path = "([^"]+)" \}$/gm)].map(([, name, path]) => [name, path]),
+  [...read('Cargo.toml').matchAll(/^([a-z][a-z0-9-]*) = \{ path = "([^"]+)"(?:, version = "[^"]+")? \}$/gm)].map(([, name, path]) => [name, path]),
 );
+// An entry written any other way would be a crate whose source is never read,
+// and a variable read there would look like one nothing reads.
+const BY_PATH = read('Cargo.toml').split('\n').filter((line) => line.includes('path = "')).length;
+if (WORKSPACE.size !== BY_PATH) fail(`Cargo.toml names ${BY_PATH} crates by path, and ${WORKSPACE.size} of them were read: an entry is written in a shape this lint does not know`);
 
 /**
  * The source a service's binary is built from: its crate's, and each workspace

@@ -1,8 +1,9 @@
 [package]
 name = "semiont-http-transport"
+version.workspace = true
 edition = "2024"
-publish = false
 license = "Apache-2.0"
+repository.workspace = true
 description = "Semiont's HTTP transport, in Rust: a knowledge base's bus over its gateway, as semiont's Transport, and the sign-in that reaches it."
 
 [features]
@@ -15,11 +16,10 @@ sign-in = ["dep:base64", "dep:ring", "tokio/net", "tokio/io-util"]
 base64 = { workspace = true, optional = true }
 bytes.workspace = true
 futures.workspace = true
-opentelemetry = { workspace = true, features = ["trace"] }
 reqwest = { workspace = true, features = ["json", "stream"] }
 ring = { workspace = true, optional = true }
 semiont.workspace = true
-semiont-observability.workspace = true
+semiont-telemetry.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["sync", "time", "rt", "macros"] }
@@ -28,6 +28,9 @@ uuid = { workspace = true, features = ["v4"] }
 [dev-dependencies]
 axum = { workspace = true, features = ["http1", "tokio", "json"] }
 http-body-util.workspace = true
+# The telemetry tests install an OpenTelemetry of their own, as an application does.
+opentelemetry = { workspace = true, features = ["trace", "metrics"] }
+opentelemetry_sdk = { workspace = true, features = ["trace", "metrics", "testing"] }
 proptest.workspace = true
 # As an application builds its client: TLS on, and the provider its own choice.
 reqwest = { workspace = true, features = ["rustls-no-provider"] }
@@ -35,6 +38,6 @@ rustls = { workspace = true, features = ["ring", "std"] }
 # The liveness harness and the bus log's capture.
 semiont = { workspace = true, features = ["testing"] }
 # This crate's own tests sign people in.
-semiont-http-transport = { workspace = true, features = ["sign-in"] }
+semiont-http-transport = { path = ".", features = ["sign-in"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net"] }
 tokio-stream = { workspace = true, features = ["sync"] }

@@ -32,7 +32,6 @@ use semiont::timing::{DEGRADED_THRESHOLD, MAX_RECONNECT, RECONNECT_DEBOUNCE};
 use semiont::transport::{ConnectionState, Envelope, Frame, TraceCarrier};
 use semiont::types::ResourceId;
 use semiont::types::{BusSubscribeRequest, BusSubscribeRequestScopedItem};
-use semiont_observability::telemetry;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -375,7 +374,7 @@ impl Actor {
             bus_note("LINGER", &channel, "delivered on superseded connection");
         }
         let frame = Frame {
-            trace: telemetry::received(&channel, scope.as_deref(), trace),
+            trace: semiont_telemetry::bus_recv(&channel, scope.as_deref(), trace),
             channel,
             payload,
             correlation_id,

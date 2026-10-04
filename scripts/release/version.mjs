@@ -15,6 +15,7 @@
  *   npm run version:set <pkg> <v>  - Set version for specific package
  */
 
+import { execFileSync } from 'child_process';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -151,6 +152,9 @@ function syncVersions() {
       }
     }
   }
+
+  // The crates published to crates.io carry the same version.
+  execFileSync(resolve(rootDir, 'scripts/release/cargo-version.sh'), [globalVersion], { stdio: 'inherit' });
 
   console.log('\n✅ All packages synced!\n');
 }

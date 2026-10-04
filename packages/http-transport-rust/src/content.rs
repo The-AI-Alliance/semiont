@@ -12,8 +12,6 @@
 use crate::transport::{HttpTransport, Shared};
 use bytes::Bytes;
 use futures::StreamExt;
-use opentelemetry::KeyValue;
-use opentelemetry::trace::SpanKind;
 use semiont::bus_log::bus_log;
 use semiont::errors::{TransportError, TransportErrorCode};
 use semiont::transport::{
@@ -22,7 +20,6 @@ use semiont::transport::{
 use semiont::types::GetResourceResponse;
 use semiont::types::ResourceId;
 use semiont::types::{AnnotationId, JobId};
-use semiont_observability::telemetry;
 use serde_json::json;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -180,14 +177,9 @@ impl ContentTransport for HttpContentTransport {
                 None,
             );
             let form = Form::of(&request);
-            telemetry::in_span(
-                "content.put".to_owned(),
-                SpanKind::Client,
-                vec![
-                    KeyValue::new("content.format", request.format.clone()),
-                    KeyValue::new("content.size_bytes", size as i64),
-                ],
-                opentelemetry::Context::current(),
+            semiont_telemetry::content_put(
+                &request.format,
+                size as u64,
                 shared.answer_at_length(reqwest::Method::POST, "/resources", true, |builder| {
                     builder
                         .header(
@@ -215,24 +207,18 @@ impl ContentTransport for HttpContentTransport {
                 None,
                 None,
             );
-            telemetry::in_span(
-                "content.get".to_owned(),
-                SpanKind::Client,
-                vec![KeyValue::new("resource.id", resource_id.to_string())],
-                opentelemetry::Context::current(),
-                async {
-                    let response = self.read(resource_id).await?;
-                    let content_type = content_type(&response);
-                    let bytes = response
-                        .bytes()
-                        .await
-                        .map_err(|error| self.shared.failed(interrupted(resource_id, &error)))?;
-                    Ok(Content {
-                        bytes,
-                        content_type,
-                    })
-                },
-            )
+            semiont_telemetry::content_get(resource_id, false, async {
+                let response = self.read(resource_id).await?;
+                let content_type = content_type(&response);
+                let bytes = response
+                    .bytes()
+                    .await
+                    .map_err(|error| self.shared.failed(interrupted(resource_id, &error)))?;
+                Ok(Content {
+                    bytes,
+                    content_type,
+                })
+            })
             .await
         })
     }
@@ -249,28 +235,19 @@ impl ContentTransport for HttpContentTransport {
                 None,
                 None,
             );
-            telemetry::in_span(
-                "content.get".to_owned(),
-                SpanKind::Client,
-                vec![
-                    KeyValue::new("resource.id", resource_id.to_string()),
-                    KeyValue::new("content.stream", true),
-                ],
-                opentelemetry::Context::current(),
-                async {
-                    let response = self.read(resource_id).await?;
-                    let content_type = content_type(&response);
-                    let resource = resource_id.clone();
-                    let shared = self.shared.clone();
-                    let bytes = response.bytes_stream().map(move |read| {
-                        read.map_err(|error| shared.failed(interrupted(&resource, &error)))
-                    });
-                    Ok(ContentStream {
-                        bytes: Box::pin(bytes),
-                        content_type,
-                    })
-                },
-            )
+            semiont_telemetry::content_get(resource_id, true, async {
+                let response = self.read(resource_id).await?;
+                let content_type = content_type(&response);
+                let resource = resource_id.clone();
+                let shared = self.shared.clone();
+                let bytes = response.bytes_stream().map(move |read| {
+                    read.map_err(|error| shared.failed(interrupted(&resource, &error)))
+                });
+                Ok(ContentStream {
+                    bytes: Box::pin(bytes),
+                    content_type,
+                })
+            })
             .await
         })
     }
@@ -287,11 +264,8 @@ impl ContentTransport for HttpContentTransport {
                 None,
                 None,
             );
-            telemetry::in_span(
-                "content.get_graph".to_owned(),
-                SpanKind::Client,
-                vec![KeyValue::new("resource.id", resource_id.to_string())],
-                opentelemetry::Context::current(),
+            semiont_telemetry::content_get_graph(
+                resource_id,
                 self.shared.answer(
                     reqwest::Method::GET,
                     &format!("{}/jsonld", path_of(resource_id)),

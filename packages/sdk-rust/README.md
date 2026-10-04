@@ -311,8 +311,9 @@ flight ends by being told and not by the runtime stopping.
   schedule in `session` is, to the shared case tables in `specs/src`
   (`tests/`).
 - `bus_log` — `SEMIONT_BUS_LOG`: one grep-able line per frame a process sends
-  or receives. Its trace field is read from whatever telemetry the process
-  installed (`semiont-observability`).
+  or receives. Its trace field is the active span's trace, read by the
+  function the process gave it (`set_trace_id_provider`):
+  [`semiont-telemetry`](../telemetry-rust/README.md)'s `active_trace_id`.
 - `identity` and `roles` — how a knowledge base names its principals, and the
   realm's roles, held to the shared case tables too.
 - `testing`, behind the `testing` feature — what a consumer's tests are
@@ -355,7 +356,7 @@ flight ends by being told and not by the runtime stopping.
 
 A stream of events says when it fell behind (`Lagged`) instead of dropping
 frames silently. No HTTP and no telemetry library: those are its transport's
-and the process's, and CI fails if the crate links either. Not yet published.
+and the process's, and CI fails if the crate links either.
 Its consumers are the Rust services, which is also what proves it: the
 dispatcher conformance suite runs against a dispatcher built on it. The SDK
 conformance suite ([tests/conformance/sdk](../../tests/conformance/sdk/README.md))

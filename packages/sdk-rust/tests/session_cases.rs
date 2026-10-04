@@ -9,8 +9,7 @@ use serde_json::Value;
 use std::time::{Duration, UNIX_EPOCH};
 
 fn table() -> Value {
-    serde_json::from_str(include_str!("../../../specs/src/session/cases.json"))
-        .expect("the table is JSON")
+    serde_json::from_str(include_str!("../specs/session/cases.json")).expect("the table is JSON")
 }
 
 /// A JWT carrying `claims`. Unsigned: nothing here verifies one.

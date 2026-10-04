@@ -111,7 +111,7 @@ NEXT=$(bump_version "$CURRENT" "$BUMP_TYPE")
 echo ""
 echo "This will:"
 echo "  1. Bump version from ${CURRENT} to ${NEXT} (${BUMP_TYPE})"
-echo "  2. Update all package.json files"
+echo "  2. Update all package.json files, and the published crates (Cargo.toml, Cargo.lock)"
 echo "  3. Regenerate package-lock.json (npm, in ${RUNTIME})"
 echo "  4. Commit and push to $(git rev-parse --abbrev-ref HEAD)"
 echo ""
@@ -149,6 +149,10 @@ done
 
 # Update root package.json
 update_package_json package.json "$NEXT"
+
+# The crates published to crates.io move with every package.json.
+./scripts/release/cargo-version.sh "$NEXT"
+FILES+=(Cargo.toml Cargo.lock)
 
 # Phase 2: Verify
 echo ""
@@ -188,6 +192,7 @@ This commit bumps the version after releasing ${CURRENT} as stable.
 
 Version bump type: ${BUMP_TYPE}
 - All package.json files updated to ${NEXT}
+- The published crates updated to ${NEXT} (Cargo.toml, Cargo.lock)
 - package-lock.json regenerated to match
 - Publish manually via GitHub Actions workflow dispatch"
 

@@ -26,7 +26,7 @@ use std::time::Duration;
 const SDK: &str = "rust";
 
 fn table() -> Value {
-    serde_json::from_str(include_str!("../../../specs/src/client/surface.json"))
+    serde_json::from_str(include_str!("../specs/client/surface.json"))
         .expect("the surface table is JSON")
 }
 

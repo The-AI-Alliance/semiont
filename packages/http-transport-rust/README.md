@@ -59,6 +59,12 @@ person in:
   any port.
 - `discovery` — a launcher's discovery document over HTTP.
 
+Its spans and its count are the rows of the SDK telemetry table, made by
+[`semiont-telemetry`](../telemetry-rust/README.md) and reported to whatever
+OpenTelemetry the application installed: that README says how. With none
+installed, nothing is recorded and no `traceparent` is sent. The crate links
+no exporter and names no OpenTelemetry of its own, which CI holds.
+
 ## Three ways to use it
 
 These are the SDK's [three ways](../sdk-rust/README.md#three-ways-to-use-it),
@@ -204,6 +210,7 @@ and the stream's handoffs against a stand-in gateway that misbehaves on cue,
 and [tests/sign_in.rs](tests/sign_in.rs) the grants, the sessions and a
 registry's sign-in against a stand-in gateway and issuer. The examples above
 are regions of that file, run there: a block here that is not one of them
-fails a test.
-
-Not yet published.
+fails a test. [tests/telemetry_on.rs](tests/telemetry_on.rs) and
+[tests/telemetry_off.rs](tests/telemetry_off.rs) hold the trace an emit
+carries and a frame hands on, in a process that installed an OpenTelemetry
+of its own after the client opened, and in one that installed none.
