@@ -1,6 +1,6 @@
-# Database Management Guide
+# The database
 
-How Semiont's PostgreSQL is provisioned and operated.
+How the PostgreSQL in a Semiont stack is provisioned and operated.
 
 **Semiont itself stores nothing in it.** The gateway holds no database: it reads every caller's
 identity off their token and keeps no row. Resource and annotation data lives in the event log
@@ -74,8 +74,9 @@ Keycloak could not reach PostgreSQL or could not find its database. The reason i
 semiont logs --service identity
 ```
 
-Usual causes: PostgreSQL not up yet, wrong credentials in `[database]`, or an external PostgreSQL
-where the `keycloak` database was never created.
+Usual causes: PostgreSQL is not up yet; its data was initialized with a password the launcher no
+longer has ([Secrets](../services/SECRETS.md#values-the-launcher-keeps)); or it is a PostgreSQL
+somebody else runs, where the `keycloak` database was never created.
 
 ### Connection refused or timeouts
 
@@ -94,8 +95,8 @@ report itself healthy whatever state the database is in. Start at
 
 - The database is not published outside the stack network except for the port the launcher maps for
   local development.
-- Credentials come from configuration, never from the image; see
-  [CONFIGURATION.md](CONFIGURATION.md) and [SECRETS.md](../services/SECRETS.md).
+- The launcher generates PostgreSQL's password and keeps it; a config names none. See
+  [Secrets](../services/SECRETS.md).
 - The passwords in here are Keycloak's to hash and hold. Semiont never sees a credential, and the
   gateway has no connection through which it could.
 

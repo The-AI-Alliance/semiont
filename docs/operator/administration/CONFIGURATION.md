@@ -1,53 +1,26 @@
-# Semiont Configuration Guide
+# Configuration
 
-Semiont uses a two-layer TOML configuration model, and **both layers live in the knowledge-base repo**: `.semiont/config` is the KB's committed identity, and `.semiont/semiontconfig/<name>.toml` holds the environment wiring. A KB may ship several named configs (e.g. `anthropic.toml`, `ollama-gemma.toml`); `semiont start --config <name>` selects one.
+A knowledge base carries its own configuration, in two files, both committed to its repository:
 
-> **Consumers of this schema.** Besides the Semiont services themselves (which
-> select drivers by each role's `type`), the **`semiont` launcher** derives its
-> launch plan from a KB's `.semiont/semiontconfig/*.toml`: per dependency role
-> (`graph`, `vectors`, `database`, `inference`/`embedding`) it reads `type`,
-> the address/port, and credentials to decide whether to launch a container,
-> verify an external endpoint, or reuse a host process — plus an optional
-> `image` key per role section to override its default container image. The
-> launcher reads only
-> those keys and ignores the rest; this document remains the schema's source of
-> truth. See `apps/launcher/README.md`.
+| File | What it holds |
+|---|---|
+| `.semiont/config` | The knowledge base's identity: its name and its permanent `did:web` domain |
+| `.semiont/semiontconfig/<name>.toml` | What the knowledge base needs to run: which inference provider and models, which graph and vector store, which issuer |
 
-## Configuration Layers
+Secrets are in neither. They reach services as environment variables: see [Secrets](../services/SECRETS.md).
 
-| Scope | Path | Committed? | Content |
-|---|---|---|---|
-| Environment | `.semiont/semiontconfig/<name>.toml` | Yes | All environment config: services, ports, URLs, driver choices, inference |
-| Project | `.semiont/config` | Yes | Project identity: name, git sync, site identity (did:web) |
-| Secrets | environment variables | No | `JWT_SECRET`, the per-service `SEMIONT_OIDC_CLIENT_SECRET`, inference API keys |
+**A config says what a knowledge base needs, not where things are.** Where each daemon listens is decided by whatever starts the stack, so the same file works on every machine. The one exception is a daemon somebody else runs, which the config says with `platform = "external"`.
 
-> **Where `~/.semiontconfig` fits.** Nothing on your host reads that path. The
-> launcher stages a per-service copy of the selected config and bind-mounts it
-> **inside each container** at `/home/semiont/.semiontconfig`, which is where
-> the service process reads it from. If you see that path in service code or
-> logs, it is the container's view of the file you edited in the KB repo.
->
-> The gateway is the exception: what it finds there is not a copy but its
-> configuration document — a JSON `GatewayConfig`
-> ([schema](../../../specs/src/components/schemas/GatewayConfig.json)) the
-> launcher writes from the selected environment and the KB's committed identity,
-> with every `${VAR}` already resolved. It names a broker credential by the
-> variable holding it (an external broker's `user = "${BROKER_USER}"` in
-> `[signal]` becomes `"userEnv": "BROKER_USER"`), so a literal credential there
-> is refused. See the
-> [gateway README](../../../apps/gateway/README.md#configuration).
+## `.semiont/config`
 
-### `.semiont/config` (project-local, committed)
-
-Created by `semiont init`. The project's committed identity card:
+Written by `semiont init`:
 
 ```toml
 [project]
 name = "My Knowledge Base"
-version = "0.1.0"
 
 [git]
-sync = true                # gateway stages event-log writes with git
+sync = true                # the archivist stages event-log writes with git
 
 [site]
 # Permanent did:web identity for everything this KB mints (stamped into the
@@ -57,195 +30,55 @@ domain = "example.github.io:my-kb"    # ⇔ did:web:example.github.io:my-kb
 siteName = "My Knowledge Base"
 ```
 
-`[site] domain` is identity, not addressing: it names the repository in
-did:web's colon-path form and must stay stable across deployments (the same
-invariant that keeps the gateway-host vars off the gateway container — `publicURL`
-derivation). The `semiont` launcher parses this file for display and its
-roots registry (`roots.json` records each root's did:web and siteName);
-environment wiring stays in the KB's `.semiont/semiontconfig/` variants.
+`[site] domain` is identity, not an address. It names the knowledge base in `did:web`'s colon-path form and never changes, wherever the stack runs. Every service derives from it the knowledge base's DID, the audience its tokens must carry, and the authority its people and agents are named under. It is declared here and nowhere else: `semiont start` and every service refuse an `[environments.<name>.site]` section.
 
-`[site]` is declared here and nowhere else. Every service derives the KB's
-identity from it — its did, the audience its tokens carry, the authority its
-people and agents are named under — so no environment can override it:
-`semiont start` and every service refuse an `[environments.<name>.site]`
-section, naming the file.
+## `.semiont/semiontconfig/<name>.toml`
 
-### `.semiont/semiontconfig/<name>.toml` (per-KB, committed)
+A knowledge base can have several, usually one per inference provider. `semiont start --list-configs` lists them, `--config <name>` picks one for a start, and `semiont settings config <name>` sets the knowledge base's default.
 
-All environment-specific configuration. `semiont init` writes one; a KB may
-ship several (`semiont start --list-configs` lists them) and
-`semiont start --config <name>` picks which to run. Each file supports
-multiple named environments:
+This is what `semiont init --inference anthropic --embedding ollama:nomic-embed-text` writes, with the model it bound:
 
 ```toml
 [user]
-name = "Adam Pingel"
-email = "adam@example.com"
+name = ""
+email = ""
 
 [defaults]
 environment = "local"
-platform = "posix"
-
-# ── ENVIRONMENT: local ───────────────────────────────────────────────────────
 
 [environments.local.gateway]
-port = 4000
-publicURL = "http://localhost:4000"
-
-[environments.local.identity]
-type = "keycloak"
-issuer = "http://localhost:8080/realms/semiont"
-subjectClaim = "sub"
-
-# The launcher runs PostgreSQL at ${POSTGRES_HOST} and keeps its password.
-[environments.local.database]
-host = "${POSTGRES_HOST}"
-port = 5432
-name = "semiont_local"
-user = "postgres"
-
-[environments.local.make-meaning.graph]
-type = "memory"   # or: neo4j
-
-[environments.local.make-meaning.actors.gatherer.inference]
-type = "anthropic"
-model = "claude-haiku-4-5-20251001"
-maxTokens = 4096
-apiKey = "${ANTHROPIC_API_KEY}"
-
-[environments.local.make-meaning.actors.matcher.inference]
-type = "anthropic"
-model = "claude-haiku-4-5-20251001"
-maxTokens = 2048
-apiKey = "${ANTHROPIC_API_KEY}"
-
-# One default for all workers; override per-worker as needed
-[environments.local.workers.default.inference]
-type = "anthropic"
-model = "claude-haiku-4-5-20251001"
-maxTokens = 4096
-apiKey = "${ANTHROPIC_API_KEY}"
-
-# Override for workers that need more capability
-[environments.local.workers.reference-annotation.inference]
-model = "claude-sonnet-4-6"
-maxTokens = 8192
-
-[environments.local.workers.generation.inference]
-model = "claude-sonnet-4-6"
-maxTokens = 16384
-```
-
-### `[gateway]` and `[backend]` are one section
-
-Both spellings load, and `semiont init` writes `[environments.<env>.gateway]`.
-
-Declaring **both** in one environment is an error, not a precedence rule:
-
-```
-environment "local" declares both [environments.local.gateway] and
-[environments.local.backend]; they are one section under two spellings —
-keep gateway and delete backend
-```
-
-A file with both is half-migrated, and silently choosing one would leave the next reader unable
-to tell which section is live. Delete the `[backend]` section and keep `[gateway]`.
-
-The same applies to the host variable the generated `publicURL` interpolates: the launcher sets
-**both** `${GATEWAY_HOST}` and `${BACKEND_HOST}`, so either resolves.
-
-### Secrets
-
-Secrets are **not** part of the config file. The gateway reads them from its environment:
-
-| Variable | Used for |
-|---|---|
-| `JWT_SECRET` | signing and verifying agent and media tokens (min. 32 characters) |
-| `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | this service's own account at the knowledge base's issuer |
-| inference API keys (e.g. `ANTHROPIC_API_KEY`) | provider calls |
-
-See [Secrets](../services/SECRETS.md) and `semiont settings secret` for registering where values come
-from.
-
-## Environment Selection
-
-Two independent choices:
-
-1. **Which config file** — `semiont start --config <name>` selects
-   `.semiont/semiontconfig/<name>.toml`. `--list-configs` shows what a KB ships.
-2. **Which environment block inside it** — `[defaults] environment` in that
-   file. This is **required**: a config with no `[defaults] environment`, or one
-   naming a block it doesn't define, is a startup error rather than a silent
-   fallback.
-
-```bash
-semiont start --list-configs        # what this KB ships
-semiont start --config anthropic    # run .semiont/semiontconfig/anthropic.toml
-```
-
-To run a different environment, edit `[defaults] environment` in the config, or
-ship a second config file that selects it.
-
-## Project Discovery
-
-Semiont walks up from the current directory looking for `.semiont/`, exactly as `git` finds `.git/`. `SEMIONT_ROOT` may be set explicitly to override discovery — useful in CI and scripting.
-
-```bash
-# Auto-detect (recommended)
-cd /anywhere/in/project
-semiont start
-
-# Explicit override
-export SEMIONT_ROOT=/path/to/project
-semiont start
-```
-
-## Inference Configuration
-
-Semiont supports **Anthropic** (cloud) and **Ollama** (local) inference providers. Each actor and worker can be independently configured, and providers can be mixed within a single environment.
-
-Inference config merges from most-specific to least-specific:
-
-```
-worker.<name>.inference  →  workers.default.inference  →  (error if missing)
-actor.<name>.inference   →  (no inference if absent — Stower has none)
-```
-
-### Anthropic
-
-```toml
-[environments.local.workers.default.inference]
-type = "anthropic"
-model = "claude-haiku-4-5-20251001"
-maxTokens = 4096
-apiKey = "${ANTHROPIC_API_KEY}"
-```
-
-### Ollama (local)
-
-Ollama configuration has two parts: the server declaration (where the server runs) and per-worker inference routing.
-
-```toml
-# Ollama server location
-[environments.local.inference.ollama]
 platform = "posix"
-baseURL = "http://localhost:11434"
+port = 4000
+publicURL = "http://${GATEWAY_HOST:-localhost}:4000"
 
-# Route all workers to Ollama by default
-[environments.local.workers.default.inference]
+[environments.local.jobs]
+type = "jetstream"
+
+[environments.local.signal]
+type = "nats"
+
+[environments.local.graph]
+platform = "container"
+type = "neo4j"
+name = "neo4j"
+username = "neo4j"
+database = "neo4j"
+
+[environments.local.vectors]
+type = "qdrant"
+
+[environments.local.embedding]
 type = "ollama"
-model = "gemma3:4b"
-```
+model = "nomic-embed-text"
 
-### Mixed Providers
+[environments.local.embedding.chunking]
+chunkSize = 512
+overlap = 64
 
-Workers can use different providers independently. A typical setup uses a capable cloud model for reasoning-heavy workers and a fast local model for simpler detection:
-
-```toml
-# Anthropic for most workers
-[environments.local.workers.default.inference]
-type = "anthropic"
-model = "claude-sonnet-4-5-20250929"
+[environments.local.inference.anthropic]
+platform = "external"
+endpoint = "https://api.anthropic.com"
+apiKey = "${ANTHROPIC_API_KEY}"
 
 [environments.local.actors.gatherer.inference]
 type = "anthropic"
@@ -255,24 +88,70 @@ model = "claude-sonnet-4-5-20250929"
 type = "anthropic"
 model = "claude-sonnet-4-5-20250929"
 
-# Ollama for highlight detection (fast, lower stakes)
-[environments.local.workers.highlight-annotation.inference]
-type = "ollama"
-model = "gemma3:4b"
-
-# Haiku for lightweight comment/tag workers
-[environments.local.workers.comment-annotation.inference]
+[environments.local.workers.default.inference]
 type = "anthropic"
-model = "claude-haiku-4-5-20251001"
+model = "claude-sonnet-4-5-20250929"
 
-[environments.local.workers.tag-annotation.inference]
-type = "anthropic"
-model = "claude-haiku-4-5-20251001"
+[environments.local.database]
+platform = "container"
+name = "semiont"
+user = "postgres"
+
+[environments.local.identity]
+type = "keycloak"
+subjectClaim = "sub"
 ```
 
-Both providers must be declared when used together:
+No section names a host, and none names a password. The launcher places each daemon it runs, generates each daemon's password and keeps it, and writes the addresses into the copy of the config it gives each service.
+
+### Environments
+
+A file holds one or more named environments under `[environments.<name>]`, and `[defaults] environment` says which one runs. It is required: a config without it, or one naming an environment the file does not define, is refused. To run a different environment, edit that line or add a second file.
+
+### Who runs each daemon
+
+For the graph, the vector store, the database, the broker, the issuer and Ollama, a section's `platform` says who runs the daemon:
+
+- **`platform = "external"`**: somebody else runs it. The section states where it is, and the launcher checks that it answers and starts nothing.
+- **Anything else, or no `platform`**: the launcher runs it and places it. The section states no address, and the launcher refuses one that does, because that would be a second answer to who runs the daemon.
 
 ```toml
+# A Neo4j the launcher runs: no address, no password
+[environments.local.graph]
+type = "neo4j"
+username = "neo4j"
+database = "neo4j"
+
+# A Neo4j somebody else runs: where it is, and a password from your own variable
+[environments.local.graph]
+type = "neo4j"
+platform = "external"
+uri = "bolt://neo4j.example.com:7687"
+username = "neo4j"
+password = "${MY_NEO4J_PASSWORD}"
+database = "neo4j"
+```
+
+An external address must be one the containers can reach. `localhost` inside a container is the container itself.
+
+A section for a daemon the launcher runs may name `image`, to run a different image of the same product.
+
+### Gateway
+
+```toml
+[environments.local.gateway]
+port = 4000
+publicURL = "http://${GATEWAY_HOST:-localhost}:4000"
+```
+
+`publicURL` is the address clients reach the gateway at. The launcher sets `${GATEWAY_HOST}` itself. A section spelled `[environments.<env>.backend]` is read as this one; a file with both is refused.
+
+### Inference
+
+Inference has two parts: a provider section holding credentials, and bindings that give each consumer a provider and a model.
+
+```toml
+# Providers
 [environments.local.inference.anthropic]
 platform = "external"
 endpoint = "https://api.anthropic.com"
@@ -280,273 +159,169 @@ apiKey = "${ANTHROPIC_API_KEY}"
 
 [environments.local.inference.ollama]
 platform = "posix"
-baseURL = "http://localhost:11434"
+
+# Bindings
+[environments.local.actors.gatherer.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.actors.matcher.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+[environments.local.workers.default.inference]
+type = "anthropic"
+model = "claude-sonnet-4-5-20250929"
+
+# One worker on a local model
+[environments.local.workers.highlight-annotation.inference]
+type = "ollama"
+model = "gemma3:4b"
 ```
 
-## Graph Configuration
+The two actors that call a model are the `gatherer` and the `matcher`. The workers are `reference-annotation`, `highlight-annotation`, `assessment-annotation`, `comment-annotation`, `tag-annotation` and `generation`. A worker with no binding of its own uses `workers.default`, and a worker with neither does not start. A binding may also set `maxTokens`.
+
+Providers can be mixed: a stronger model for the workers that reason, a lighter or local one for the high-volume ones. Every provider a binding names needs its provider section.
+
+With any binding on Ollama, the launcher uses an Ollama installed on the machine when there is one, runs one in a container when there is not, and pulls the models the bindings name.
+
+### Embedding
+
+Required. Semantic search is always available, so a config with no embedding provider is refused.
 
 ```toml
-# In-memory (development, no persistence)
-[environments.local.make-meaning.graph]
-type = "memory"
-
-# Neo4j the launcher runs: it generates and keeps the password, so the
-# section names none (see Secrets)
-[environments.local.graph]
-type = "neo4j"
-uri = "bolt://${NEO4J_HOST}:7687"
-username = "neo4j"
-database = "neo4j"
-
-# Neo4j somebody else runs: an address the containers can reach, and a
-# password from your own variable
-[environments.local.graph]
-type = "neo4j"
-uri = "bolt://neo4j.example.com:7687"
-username = "neo4j"
-password = "${MY_NEO4J_PASSWORD}"
-database = "neo4j"
-```
-
-`${NEO4J_HOST}` is the address the launcher gives its own Neo4j, so a URI on it is the
-launcher-run form. `bolt://localhost` reaches nothing from inside a container: each service's
-`localhost` is its own.
-
-## Vectors Configuration
-
-The vector store holds pre-computed embedding vectors for semantic similarity search. Configure it separately from the embedding provider.
-
-```toml
-[environments.local.vectors]
-type = "qdrant"
-host = "localhost"
-port = 6333
-```
-
-### In-memory vector store (testing)
-
-For development without Qdrant:
-
-```toml
-[environments.local.vectors]
-type = "memory"
-```
-
-The in-memory store loses all vectors on restart.
-
-## Embedding Configuration
-
-The embedding service computes vector embeddings for resources and annotations. It runs independently of the inference providers used for text generation.
-
-### Ollama (local, default)
-
-No API key required. Ollama runs locally or in a container.
-
-```toml
+# Ollama, local: no key
 [environments.local.embedding]
-platform = "external"
 type = "ollama"
 model = "nomic-embed-text"
-baseURL = "http://localhost:11434"
 
-[environments.local.embedding.chunking]
-chunkSize = 512
-overlap = 64
-```
-
-Available Ollama models: `nomic-embed-text` (768 dims), `all-minilm` (384), `mxbai-embed-large` (1024), `snowflake-arctic-embed` (1024).
-
-### Voyage AI (cloud)
-
-Requires a Voyage AI API key (separate from Anthropic).
-
-```toml
+# Voyage, a remote API: the key from a variable you name
 [environments.local.embedding]
-platform = "external"
 type = "voyage"
 model = "voyage-3"
-apiKey = "<your-voyage-api-key>"
+apiKey = "${MY_VOYAGE_KEY}"
 
 [environments.local.embedding.chunking]
 chunkSize = 512
 overlap = 64
 ```
 
-Available Voyage models: `voyage-3` (1024 dims), `voyage-3-lite` (512), `voyage-code-3`, `voyage-finance-2`, `voyage-law-2`.
+An Ollama embedding is served by the same Ollama that serves inference. On a config whose inference is all remote, Ollama runs for the embeddings alone.
 
-## Job Queue Configuration
+### Graph and vectors
 
-The dispatcher's job queue is NATS JetStream, and the section is required: `semiont start`
-refuses a config without it, or with any other `type`.
+```toml
+[environments.local.graph]
+type = "neo4j"
+username = "neo4j"
+database = "neo4j"
+
+[environments.local.vectors]
+type = "qdrant"
+```
+
+A vector store is required: a config without `[vectors]` is refused. In a launcher-run stack the graph is Neo4j and the vector store is Qdrant. The packages have other drivers behind the same interfaces, for a stack you deploy yourself: see [Adapting a stack](DEPLOYMENT.md#adapting-a-stack). The in-memory vector store keeps its index inside one process, so no stack with separate services can use it, and the launcher refuses it.
+
+### Job queue and signal plane
 
 ```toml
 [environments.local.jobs]
 type = "jetstream"
-servers = "${NATS_HOST}:4222"
-```
 
-`servers` may reference environment via `${VAR}` placeholders — the config names the
-variable. A section that names `type = "jetstream"` without `servers` refuses at load.
-
-A broker on `${NATS_HOST}` is the one the launcher runs, with a username and password it
-generates and keeps. A broker anywhere else needs `user` and `password` in the section, and
-`semiont start` refuses one without them: Semiont's clients authenticate by username and
-password only, and an unauthenticated broker lets anyone who reaches it read and write the job
-queue and the signal plane.
-
-## Signal Plane Configuration
-
-The gateway's real-time hub (SSE fan-out, correlated replies, handler dispatch) selects its
-driver the same way. An absent section means `in-process` — the permanent local default.
-
-```toml
-# In-process (default): the RxJS relay inside the gateway
-[environments.local.signal]
-type = "in-process"
-
-# Core NATS subjects — required for gateway replicas
 [environments.local.signal]
 type = "nats"
-servers = "${NATS_HOST}:4222"
 ```
 
-Signal frames ride core NATS subjects only and are never captured — signals are never a
-record; the event log is. The gateway's correlation ledger keeps its claims, and the replies
-it retains for reconnect recovery, in JetStream KV buckets on the same server, so the server
-must run JetStream; the gateway refuses to start until those tables open. When both this and the `jetstream` jobs driver are selected, they
-share one NATS server (the launcher runs it as the `messaging` service): JetStream streams for
-jobs, KV buckets for the ledger, core subjects for signals — disjoint subject spaces. Both sections must then name the same
-`servers` — the launcher refuses a split. Running gateway replicas requires both broker-backed
-drivers: see [DEPLOYMENT.md](./DEPLOYMENT.md) § Multiple gateway replicas.
+`[jobs]` is required, and `jetstream` is its only driver: the dispatcher's queue is NATS JetStream.
 
-## Identity Configuration
+`[signal]` selects how the gateway fans frames out to subscribers. `nats` carries them on the same broker, which also holds the gateway's record of pending replies, so that record survives a restart and is shared by every gateway replica. `in-process`, which is also what an absent section means, keeps both inside one gateway.
 
-Every knowledge base trusts one OIDC issuer for people's tokens, and names the claim its
-people are identified by:
+One NATS daemon serves both sections. The launcher runs it, with a user and password it generates and keeps. For a broker somebody else runs, both sections say `platform = "external"`, state the same `servers`, and name a `user` and `password`: the launcher refuses an external broker without credentials, because an unauthenticated one lets anyone who reaches it read and write the job queue.
+
+### Identity
 
 ```toml
+# The Keycloak the launcher runs
 [environments.local.identity]
-type = "keycloak"                                       # "keycloak": the launcher runs it; "oidc": an issuer you run
-issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"  # exactly the token's `iss`
-subjectClaim = "sub"                                    # the issuer claim a person's DID is built from
+type = "keycloak"
+subjectClaim = "sub"
+
+# An issuer you run
+[environments.local.identity]
+type = "oidc"
+issuer = "https://id.example.com/realms/analysts"   # exactly the token's `iss`
+subjectClaim = "sub"
 ```
 
-`${KEYCLOAK_HOST}` is the launcher's to inject, and it has to name one host that the laptop's
-Browser and every container reach alike: a token's `iss` is the URL it was requested from, and
-the gateway verifies it. Under Apple `container` that is the host's bridge address. Under Docker
-and Podman the host address (`host.docker.internal`, `host.containers.internal`) resolves only
-inside containers, so the issuer is named `keycloak.localhost` instead: the laptop resolves every
-`*.localhost` to itself, where Keycloak's port is published, and each container that dials the
-issuer gets a host entry sending that name to the host.
+`type` and `subjectClaim` are required, and `oidc` requires `issuer`. Nothing is defaulted.
 
-All three keys are required — the gateway, every sidecar and `semiont start` refuse a config
-missing any of them, naming the key. There is no `audience` key: the audience is the knowledge
-base's own resource identifier, derived from its committed `did:web` domain.
+- **`subjectClaim`** names the issuer claim a person's DID is built from: `did:web:<site domain>:users:<that claim's value>`. With `"sub"`, people are named by the issuer's stable identifier, so a changed email changes nothing about who authored what. With `"email"`, the address is the identity.
+- **There is no `audience` key.** The audience a token must carry is the knowledge base's own resource identifier, derived from its `[site] domain`.
+- **`type = "keycloak"`** needs a `[database]` section, because Keycloak keeps its realm in PostgreSQL. It may also set `accessTokenLifespan`, in seconds, and `image`. `semiont settings keycloak-port` moves the port Keycloak is published on.
 
-`subjectClaim` decides who a person *is*. Their DID is `did:web:<site domain>:users:<that
-claim's value>`, under the same `[site] domain` the deployment's software agents are minted
-beneath, so people and agents are peers under one authority. `"sub"` names people by the
-issuer's stable identifier — a changed email changes nothing about who authored what;
-`"email"` names them by address, and the operator has said so. Nothing is defaulted.
-`accessTokenLifespan` (seconds) and `image` apply to `type = "keycloak"` only and are read by
-the launcher alone. See [Authentication](./AUTHENTICATION.md).
+What an issuer of your own must provide is in [Authentication](AUTHENTICATION.md#at-the-issuer).
 
-## Environment Variables
+### Database
 
-Only a small number of environment variables are used:
-
-| Variable | Purpose | Required? |
-|---|---|---|
-| `SEMIONT_ROOT` | Override project root discovery | No (auto-detected) |
-| `SEMIONT_VERSION` | Image tag to run (`local` uses locally built images) | No (defaults to `latest`) |
-| `ANTHROPIC_API_KEY` | Resolved from `${ANTHROPIC_API_KEY}` in config | If using Anthropic (not needed for Ollama-only) |
-| `POSTGRES_PASSWORD` | Resolved from `${POSTGRES_PASSWORD}` in config | If using variable refs |
-| `NATS_HOST` | Resolved from `${NATS_HOST}` in the `[jobs]`/`[signal]` sections; the launcher stages it for its `messaging` container | If a broker-backed driver uses the placeholder |
-| `SEMIONT_SUPERVISE` | Runs the service under an in-container supervisor that restarts a crashed process and kills a hung one. Any non-empty value enables it. | No — **set by the launcher on every stack it starts; do not set it yourself** |
-
-`SEMIONT_SUPERVISE` exists because a laptop has no scheduler: `semiont start` brings the stack up and
-exits, so nothing outside a container would restart a service that died. Every other way of running
-these images already has something that does that job — a Kubernetes `restartPolicy` and liveness
-probe, an ECS or Nomad task policy — and a container that restarts itself defeats them, because it
-never exits and a crash-looping process reads as healthy. So the images run one process and exit
-by default, and only the launcher opts in: on a laptop and inside a codespace alike, since a
-codespace's stack is launched the same way. See [DEPLOYMENT.md](./DEPLOYMENT.md) for restart
-ownership.
-
-Variable references in the config use `${VAR_NAME}` syntax (`${VAR_NAME:-default}` supplies a default). The launcher leaves them verbatim when it stages a service's copy; interpolation happens inside the container, when the service first reads the section that names the variable, so the values never pass through your shell history or the launcher's logs. The gateway's document is the exception: the launcher resolves its references when it writes it, by the same rule ([specs/src/config-placeholders/cases.json](../../../specs/src/config-placeholders/cases.json) is the rule's case table, run by both resolvers and by the launcher's reading of which variables a config names), and credentials stay named rather than resolved. Those two resolvers are the only code that reads the syntax, and `lint:placeholder-readers` fails on any other.
-
-`semiont start` refuses when a `${VAR}` that something reads is set neither in your environment nor by a registered source (`semiont settings secret set`). Something reads it when it sits in a section a service reads, or in one the launcher resolves itself: the gateway's document (`[gateway]`, `[identity]`, `[archivist]`, `[signal]`), Keycloak's password on an external PostgreSQL (`[database]`), and the key the start checks its remote models with (`[inference]`). A reference anywhere else, such as another environment or a section nothing reads, is not asked for. A `${VAR:-default}` is optional: it reaches the containers when you set it, even to the empty string, or register a source for it, and otherwise the default applies. Each service is handed only the variables in the sections it reads, as listed in [specs/src/service-config/sections.json](../../../specs/src/service-config/sections.json), so the Anthropic key in `[inference]` reaches the Librarian and the Worker and no other service. Those two are the only services that call a model, so they report each model's limits (context window, output ceiling) over the bus, and clients join the reports to the collaborator directory the Archivist lists. A service that reads a section its list does not name refuses, naming the section.
-
-## Quick Start
-
-### First-time setup
-
-```bash
-# 1. Install the launcher (single static binary — no npm, no Node.js)
-brew install the-ai-alliance/semiont/semiont
-
-# 2. Create a knowledge base (writes .semiont/config, registers the KB)
-semiont init
-
-# 3. Point it at an inference config, then bring the stack up
-semiont start --list-configs
-semiont start --config anthropic
-semiont status
+```toml
+[environments.local.database]
+name = "semiont"
+user = "postgres"
 ```
 
-`semiont init` creates:
-- `.semiont/config` — the project anchor: KB name and permanent `did:web` site identity, committed
-  to version control
+The PostgreSQL in a stack is Keycloak's, and Semiont stores nothing in it ([Database](DATABASE.md)). With `type = "oidc"` the section is not needed.
 
-- `.semiont/semiontconfig/<name>.toml` — the environment TOML this document describes: service
-  endpoints, database settings, and the graph / vectors / inference driver choices. A KB may ship
-  several (`semiont start --list-configs`); `--config <name>` selects one.
+## Variables in a config
 
-Secrets never live in the config. `JWT_SECRET`, the per-service `SEMIONT_OIDC_CLIENT_SECRET`, and any inference API keys
-reach services as environment variables — see [Secrets](../services/SECRETS.md) and
-`semiont settings secret` for registering where they come from.
+A value may reference an environment variable as `${NAME}`, or `${NAME:-default}` to supply a default. Use them for secrets and for nothing the launcher places.
 
-## Runtime File Locations
+- **`semiont start` refuses** when a `${NAME}` that something reads is set neither in your environment nor by a source registered with `semiont settings secret set`. A reference in another environment, or in a section no service reads, is not asked for.
+- **A service is handed only the variables in the sections it reads**, as [`sections.json`](../../../specs/src/service-config/sections.json) lists them. The Anthropic key reaches the librarian and the worker and no other service.
+- **The launcher's own names cannot be referenced**: `NEO4J_PASSWORD`, `POSTGRES_PASSWORD`, `NATS_USER` and `NATS_PASSWORD` belong to the daemons it runs.
 
-Services run as containers and log to stdout (`semiont logs`); persistent data lives in the
-container volumes the launcher manages (`semiont clean` removes them). Launcher state — recorded
-stacks, per-stack session tokens — follows XDG conventions under `$XDG_STATE_HOME/semiont/`.
+The rule every resolver follows is specified in [`config-placeholders/cases.json`](../../../specs/src/config-placeholders/cases.json).
 
-The KB's own durable state is the repo itself: `.semiont/config` (project anchor) and
-`.semiont/events/` (the event log — the system of record, committed).
+## Environment variables
 
-## Troubleshooting
+The launcher reads a few of its own:
 
-### Config not found
+| Variable | Purpose |
+|---|---|
+| `SEMIONT_ROOT` | The knowledge base to act on, instead of the one found by walking up from the current directory |
+| `SEMIONT_VERSION` | The image tag to run. `latest` when unset; `local` runs images built from a checkout and pulls nothing |
 
-```bash
-# Check project anchor
-ls .semiont/config
+What a service reads from its environment is in [Secrets](../services/SECRETS.md), and for the gateway and the dispatcher in [`variables.json`](../../../specs/src/service-environment/variables.json).
 
-# Check the environment configs this KB ships
-ls .semiont/semiontconfig/
-semiont start --list-configs
+## What each service is given
 
-# Check SEMIONT_ROOT if set
-echo $SEMIONT_ROOT
-```
+No service reads the files in the repository directly:
 
-### Wrong environment
+- **The five Node services** each read a TOML file at `/home/semiont/.semiontconfig`. The launcher writes one per service from the selected config, with every address filled in.
+- **The gateway and the dispatcher** each read a JSON document, at `/etc/semiont/gateway.json` and `/etc/semiont/dispatcher.json`, that the launcher writes from the config and from `.semiont/config`. Their schemas are [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json) and [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json). A document names a credential by the variable that holds it, never by value.
 
-```bash
-# Which block will be used, in the config you're running
-grep -A2 '\[defaults\]' .semiont/semiontconfig/<name>.toml
-```
+On your own platform, these files are what you deliver ([Deployment](DEPLOYMENT.md#what-your-platform-provides)).
 
-Edit `[defaults] environment` to change it — there is no per-command override.
+## Finding the knowledge base
 
-### Missing inference config
+The launcher walks up from the current directory looking for `.semiont/`, as `git` finds `.git/`. `SEMIONT_ROOT` overrides that, and so does `--root` on the commands that take it.
 
-If you see `No inference config found for actor 'gatherer'` or similar, add the required section to the config file you're running. See [Inference Configuration](#inference-configuration) above.
+## When a config is refused
 
-## Related Documentation
+`semiont start` checks the config before it starts anything, each service checks the sections it reads when it starts, and a refusal names the section, the key and the fix. The common ones:
 
-- [Architecture](../README.md) — System architecture overview
-- [Authentication](./AUTHENTICATION.md) — the trusted issuer, bearer verification, and what an issuer must provide
-- [Services Overview](../services/OVERVIEW.md) — Service catalog
-- [Launcher README](../../../apps/launcher/README.md) — `semiont` command reference
+| It says | Do this |
+|---|---|
+| A section states an address, and the launcher places every daemon it runs | Delete the address, or add `platform = "external"` if somebody else runs the daemon |
+| A section says `platform = "external"` and states no address | Add the address |
+| A section names a password for a daemon the launcher runs | Delete it. The launcher generates and keeps that password |
+| `[defaults] environment` is missing, or names an environment the file lacks | Set it to an environment the file defines |
+| A service finds no inference config for a worker or an actor | Add the binding; `[environments.<env>.workers.default.inference]` covers every worker |
+| A `${NAME}` is not set | Export it, or register its source with `semiont settings secret set NAME` |
+
+## Related
+
+- [Secrets](../services/SECRETS.md): which secrets exist and how they reach services
+- [Authentication](AUTHENTICATION.md): the issuer, and what `[identity]` selects
+- [The service catalog](../services/OVERVIEW.md): the roles a config chooses drivers for
+- [Project Layout](../PROJECT-LAYOUT.md): where these files sit in a knowledge base
+- [The launcher's README](../../../apps/launcher/README.md): `semiont init`, `settings`, and every flag

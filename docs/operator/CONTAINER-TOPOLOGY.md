@@ -1,16 +1,19 @@
 # Container Topology
 
-How a Semiont deployment splits into containers, how those containers communicate, and which deployment platforms host them.
+How a Semiont stack splits into containers, and how those containers communicate. Two diagrams of one stack: who talks to whom, and what attaches to what.
 
-> **Containers are one adapter, not the architecture.** Semiont aspires to a [hexagonal architecture](https://alistair.cockburn.us/hexagonal-architecture/): the substance is the npm packages — `@semiont/make-meaning`, `@semiont/sdk`, `@semiont/jobs`, `@semiont/event-sourcing`, etc. — that define the **actors, flows, and ports**. A "container" here is a deployment adapter — a Node process running a particular bundle of those packages, talking to the rest of the system through the same ports (the bus contract `/bus/emit` + `/bus/subscribe`, the `ITransport` and `IContentTransport` interfaces, the `SessionStorage` adapter, and the injectable `EventStore` / `GraphDatabase` / `WorkingTreeStore` / `InferenceClient` interfaces) that any other adapter would use. Nothing in the architecture requires Docker — the same packages run as bare Node processes on a developer's machine, as ECS Fargate tasks on AWS, as AWS Lambda functions for short-lived per-request flows, as Kubernetes pods, or as long-running services on any compute substrate that hosts Node.js. The diagrams on this page show the *typical* container-per-service partition (each service container hosting its actors) because that's what local-dev and AWS-Fargate use today; other partitions are valid and require no domain changes.
->
-> See [PACKAGE-ARCHITECTURE.md](../architecture/PACKAGE-ARCHITECTURE.md) for the package layering that defines what each container actually contains.
-
-For the actor responsibilities running inside the archivist / librarian / worker / smelter / weaver containers, see [KNOWLEDGE-SYSTEM.md](../architecture/KNOWLEDGE-SYSTEM.md). For the Semiont Browser SPA (served by the Browser container, executed in the user's web browser), see [HUMAN-UI.md](../architecture/HUMAN-UI.md).
+For what each container needs (its port, configuration, mounts and health check), see [the service catalog](services/OVERVIEW.md). For what the actors inside the containers do, see [Knowledge System](../architecture/KNOWLEDGE-SYSTEM.md); for the Browser, [Human UI](../architecture/HUMAN-UI.md).
 
 ## Multi-container layout
 
-A local deployment runs seven containers of Semiont code, eight with the Browser, thirteen with the infrastructure dependencies (the OTel collector is always among them; a NATS `messaging` daemon joins when a broker-backed driver is selected — the config the launcher template ships, drawn in the second diagram), and fifteen with the observability pair — Jaeger for traces and Prometheus for metrics — which local stacks run **by default**: all seven service containers export OTLP to the collector, which forwards traces to Jaeger and serves a readout Prometheus scrapes. `--no-observe` skips only the pair; the collector still runs and discards traces. All eight Semiont containers are **published, attested images** (`ghcr.io/the-ai-alliance/semiont-*`) that knowledge-base stacks pull — selecting the version via `SEMIONT_VERSION` — and configure by bind-mounting per-KB TOML at runtime; KBs do not build images (see [Container Images](administration/IMAGES.md)). Two views of one stack follow: who talks to whom, and what attaches to what.
+A stack the launcher runs, on the config `semiont init` writes, is:
+
+- **seven service containers**: the gateway, the dispatcher, the archivist, the librarian, the worker, the smelter and the weaver;
+- **the Browser**, which serves every knowledge base on the machine;
+- **six infrastructure containers**: Keycloak and its PostgreSQL, NATS, Neo4j, Qdrant and Ollama (none for Ollama when one is installed on the machine);
+- **three for telemetry**: the OpenTelemetry Collector, Jaeger and Prometheus. `--no-observe` leaves out the last two; the collector still runs.
+
+Semiont's eight are published images that a stack pulls and configures at run time. Nothing about a knowledge base is built into them ([Container Images](administration/IMAGES.md)).
 
 ### Who talks to whom
 
@@ -73,14 +76,21 @@ graph TB
     style SERVICES fill:none,stroke:#888,stroke-width:1.5px,stroke-dasharray:6 4
 ```
 
-The dotted edges are identity, and they come first: nobody reaches the gateway without visiting the issuer. People and SDK clients sign in there; every service obtains its own service-account token there with client credentials and exchanges it at `POST /api/tokens/agent` for the agent identity its work is attributed to; the gateway verifies each bearer against the issuer's published keys and keeps no account of its own. The bidirectional edges are the bus (`POST /bus/emit`, `POST /bus/subscribe` as SSE) — connective fabric, not a box, and the gateway hosts **no actors**: every service subscribes over those two endpoints like any other participant, with each rectangle enumerating what runs inside it. The blue rectangles are the bus's clients, and every one of them speaks `@semiont/sdk` — the SPA in the user's browser, and the same client shape without a UI for content ingestion, content curation, and agentic workflows (scripts and agents driving the KB; the CLI and MCP server are instances of it). The archivist-pointing edges are the byte plane: the gateway proxies content for external clients; the smelter, librarian, and workers dial the archivist directly. The dispatcher is the one service with no edge to the archivist: a control plane through which job ids, types, params and status flow and content never does — a worker claims there, then pulls bytes from and writes annotations to the archivist itself. The SPA *executes in the user's web browser* — `semiont-browser` only serves its static assets, which is why it needs no config and no gateway connection of its own.
+Reading the diagram:
 
-Two mechanisms behind the gateway hub are selected by config, not drawn as edges:
+- **Dotted edges are identity, and they come first.** Nobody reaches the gateway without visiting the issuer. People and SDK clients sign in there. Every service obtains its own service-account token there, then exchanges it at `POST /api/tokens/agent` for the agent identity its work is attributed to. The gateway verifies each bearer against the issuer's published keys and keeps no account of its own.
+- **Bidirectional edges are the bus**: `POST /bus/emit`, and `POST /bus/subscribe` as Server-Sent Events. The gateway hosts no actors. Every service subscribes over those two endpoints like any other participant, and each rectangle names what runs inside it.
+- **The blue rectangles are the bus's clients**, and each speaks an SDK: the Browser in a person's web browser, and the same client without a UI for ingestion, curation and agentic workflows. The `semiont` launcher's verbs and the MCP server are two of them.
+- **Edges pointing at the archivist are plain HTTP.** The gateway proxies content for outside clients, and reads from the archivist the events a reconnecting stream missed. The smelter, the librarian and the workers dial the archivist directly for bytes.
+- **The dispatcher has no edge to the archivist.** Job ids, types, parameters and status flow through it, and content never does. A worker claims a job there, then reads bytes from the archivist and writes annotations to it.
+- **`semiont-browser` only serves static files.** The app runs in the person's web browser and connects to gateways from there, so the container needs no config and no connection of its own.
 
-- **The Signal Plane** is the fan-out behind those two bus endpoints — a driver seam. By default (`[signal] type = "in-process"`) it is the gateway's own process; `[signal] type = "nats"` moves fan-out onto core NATS subjects so the gateway can run as multiple replicas. The bus contract above is identical either way; clients never see the choice.
-- **The job queue** the dispatcher owns is likewise driver-backed (`[jobs] type`): `jetstream` (NATS JetStream — what the launcher template ships, and the only driver the mountless dispatcher can run) or `fs` (a filesystem queue kept as the reference implementation; it needs a writable state tree). Jobs are created at the dispatcher, announced on `job:queued`, and claimed by exactly one worker over the bus — a claim the dispatcher admits only from a token carrying the worker role.
+Two mechanisms behind the gateway hub are not drawn as edges:
 
-The second diagram draws the NATS `messaging` daemon the two share (`[jobs] = "jetstream"`, `[signal] = "nats"` — what the launcher template ships). Select neither and it is absent: the in-process bus and one gateway — though an `fs` queue then needs a state tree the launcher's dispatcher does not mount, so a launcher-run stack selects `jetstream`.
+- **The signal plane** is the fan-out behind the two bus endpoints, and it is a driver. `[signal] type = "nats"`, which `semiont init` writes, carries it on core NATS subjects, so the gateway can run as several replicas. `in-process` keeps it inside one gateway. The bus contract is the same either way, and no client sees the choice.
+- **The job queue** is the dispatcher's, held in NATS JetStream. Jobs are created at the dispatcher, announced on `job:queued`, and claimed by exactly one worker over the bus. The dispatcher admits a claim only from a token carrying the worker role.
+
+One NATS daemon, the `messaging` role, serves both. The second diagram draws it.
 
 ### What attaches to what
 
@@ -191,13 +201,24 @@ graph TB
     style G5 fill:none,stroke:#888,stroke-width:1.5px,stroke-dasharray:6 4
 ```
 
-Cylinders are file state on the host; their edges are mounts and the direction of use — `rw`/`ro` marked where it matters, and the working tree has exactly one writer. The deep-blue cylinder is the KB working tree — the git-tracked system of record; every purple cylinder is derived state, rebuildable from it. The amber cylinder is neither: the job queue is the dispatcher's own operational state, held in JetStream — a KV bucket of jobs (the authoritative record of each job, every transition a compare-and-set, which is what makes a claim atomic) and a work-queue stream whose deliveries are the leases. Pending jobs live only there — the event log keeps a job's started, completed and failed facts, never its creation — so the queue is durable, travels with the broker's `/data` volume, and has exactly one writer, the way the tree has the Archivist. Rectangle-to-rectangle edges are each service's infrastructure attachments; dotted edges are telemetry — OTLP into the collector, traces forwarded to Jaeger, metrics scraped by Prometheus off the collector's readout (a pull, drawn in the direction the data flows). The dashed frames group by concern — control plane, identity, knowledge system, observability, and the worker — not by component; the edges alone carry the attachment facts. The gateway attaches to exactly two things: the broker, for the signal plane when `[signal] type = "nats"`, and the issuer, whose published keys it verifies tokens against. It holds no database — the PostgreSQL in a stack is Keycloak's — and no queue: the dispatcher owns the queue and dials JetStream on the same broker. The worker's frame is the deployment boundary: it holds no mount and no broker credential, and everything it dials — the gateway's bus, the Archivist's byte surface, an inference provider — is a network address, so it can run on a host the rest of the stack never shares. A worker that is not the deployment's own joins the same way, its client granted the worker role at the issuer; the dispatcher admits its claims by that role. The Ollama edges show the fully-local default: with the anthropic config, LLM inference for the workers, Gatherer, and Matcher goes to the Anthropic API instead, while embeddings stay on Ollama either way.
+Reading the diagram:
 
-Every service-to-gateway bus edge in the first diagram authenticates via `POST /api/tokens/agent`. Each sidecar first authenticates at the knowledge base's issuer as its own service account (client credentials, `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`), then presents that issuer token as a bearer here along with a `(provider, model)` identity, and receives a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`; the dispatcher `(semiont, dispatcher)`); the existing auth middleware validates that JWT exactly as it would a person's. Two identities, deliberately: the service account is the process, the agent DID is the work. One nuance the drawing flattens: besides content bytes, the archivist's event read path also rides plain HTTP, by design. The split itself is why the partition exists — the record, retrieval, LLM, embedding, and graph-projection work run in separate V8 isolates, and the gateway stays responsive to human users.
+- **Cylinders are files on the host**, and their edges are mounts. `rw` and `ro` are marked where it matters.
+- **The deep-blue cylinder is the knowledge base's working tree**: the git-tracked system of record, with exactly one writer, the archivist.
+- **Purple cylinders are derived state**, rebuildable from the record.
+- **The amber cylinder is neither.** The job queue is the dispatcher's own operational state, held in JetStream: a key-value bucket of jobs, where every transition is a compare-and-set, and a work-queue stream whose deliveries are the leases. Pending jobs live only there. The event log records that a job started, completed or failed, never that it was created. So the queue is durable, travels with the broker's `/data`, and has one writer.
+- **Rectangle-to-rectangle edges** are each service's infrastructure. Dotted edges are telemetry: OTLP into the collector, traces forwarded to Jaeger, metrics scraped by Prometheus.
+- **The gateway attaches to two things**: the broker, for the signal plane, and the issuer, whose keys it verifies tokens against. It holds no database and no queue.
+- **The worker's frame is a deployment boundary.** A worker holds no mount and no broker credential. Everything it dials (the gateway's bus, the archivist's bytes, an inference provider) is a network address, so it can run on a machine the rest of the stack never shares. A worker that is not the deployment's own joins the same way: its client is granted the worker role at the issuer, and the dispatcher admits its claims by that role.
+- **The Ollama edges show the fully local case.** On a config that names a remote API such as Anthropic's, inference for the workers and the librarian goes there instead. Embeddings stay on Ollama unless the config names Voyage.
+
+Every service authenticates in two steps. It signs in at the knowledge base's issuer as its own service account (client credentials, `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`). It then presents that token at `POST /api/tokens/agent` with a `(provider, model)` identity and receives a token carrying a software-agent DID. The smelter presents its embedding config, the weaver `(semiont, weaver)`, the dispatcher `(semiont, dispatcher)`. The gateway verifies that token as it would a person's. The two identities are deliberate: the service account is the process, and the agent DID is the work.
+
+The partition is why the gateway stays responsive: keeping the record, retrieval, model calls, embedding and graph projection each run in their own process.
 
 ### Who mounts what
 
-The second diagram draws the mounts; this table adds the discipline. Exactly one container mounts the KB tree — pinned by a launcher test; every other byte crosses HTTP or the bus. Shared stores have exactly one stamp holder, whose image change clears and rebuilds them.
+The second diagram draws the mounts; this table states the rule. Exactly one container mounts the knowledge base's tree, which a launcher test holds, and every other byte crosses HTTP or the bus. A store that two services share has one owner, the stamp holder: when the owner's image changes, the launcher clears the store and the owner rebuilds it.
 
 | Container | `/kb` (git tree) | anchored-text | state (views) |
 |---|---|---|---|
@@ -208,52 +229,30 @@ The second diagram draws the mounts; this table adds the discipline. Exactly one
 | smelter | — | **stamp holder** — writes | — |
 | worker · weaver · browser | — | — | — |
 
-Every service also mounts its launcher-staged config read-only — the services' TOML, the collector's and Prometheus's YAML; the infrastructure containers own their private data dirs.
+Every service also mounts its own staged configuration, read-only. Each infrastructure container has a data directory of its own.
 
-## Unified bus and SemiontSession
+## One bus, one kind of participant
 
-Every actor that runs Semiont code — the Semiont Browser SPA, CLI, MCP, worker pool, smelter, weaver, archivist, librarian, and dispatcher — is a bus participant using the same primitives in `@semiont/sdk`. The gateway exposes exactly two runtime endpoints that carry domain traffic: `POST /bus/emit` and `POST /bus/subscribe` (an SSE stream with dynamic channel subscriptions and Last-Event-ID replay on reconnect). Every other HTTP route exists for auth, admin, exchange, binary content, or infrastructure — not for domain commands. Commands and domain events flow through the bus.
+The gateway exposes two endpoints that carry the work: `POST /bus/emit` and `POST /bus/subscribe`. Every other route is for sign-in metadata, tokens, content bytes or health. Every participant uses those two endpoints through an SDK, whether it is the Browser, a script, an agent, or one of Semiont's own services. A new kind of participant joins the same way, with no change to the gateway.
 
-The common abstraction for "I am a Semiont actor" is `SemiontSession`, which lives in `@semiont/sdk` and carries per-KB authentication, token refresh, bus access, and cross-process state synchronization. A session is constructed against a storage adapter (`SessionStorage`): `WebBrowserStorage` in the browser, filesystem storage for CLI and MCP, in-memory storage in workers and tests. `SemiontClient` exposes namespace methods (e.g. `client.browse.resource(...)`, `client.mark.annotation(...)`) over the bus; raw `emit`/`on`/`stream` are internal to the SDK and not part of the consumer surface.
+The wire protocol is [EVENT-BUS.md](../protocol/EVENT-BUS.md). The actors, and why people and agents are the same kind of participant, are in [the actor model](../architecture/ACTOR-MODEL.md).
 
-A new kind of actor slots in the same way in every environment: construct a session with the right storage adapter, authenticate, subscribe to the channels it cares about, emit the commands it produces. The worker, smelter, weaver, archivist, librarian, and dispatcher containers are the clearest demonstration — same session, same bus primitives, same authentication pattern as the Browser; just different storage and different channels. (The weaver was the proof by induction — added as a standalone actor after the pattern existed, with no new plumbing — and the archivist and librarian extractions repeated it.)
+## In a codespace
 
-For the wire-level event protocol, see **[../protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md)**.
+A codespace stack has the same topology, and the launcher runs at two layers:
 
-## Deployment platforms
+- **On your machine**, `semiont start --runtime codespace` handles the outside: it creates or resumes the codespace, waits for the stack to be healthy, and forwards the knowledge base and its issuer to `localhost`.
+- **Inside the codespace**, the codespace's own launcher brings the stack up with Docker, from the knowledge base's post-start hook, exactly as on a laptop.
 
-Services run on different platforms, configured per environment in the KB's `.semiont/semiontconfig/<name>.toml`. Each platform is a different adapter for hosting the same npm packages — the container-per-service partition is a deployment choice (which adapter you pick), not an architectural one.
+The outer launcher never reaches into the containers. When something must happen inside, such as creating a user, it asks the inner launcher over `gh codespace ssh`.
 
-### How stacks are run
+## Inside each container
 
-Every Semiont service runs as a **container** — Docker, Podman, or Apple Container. The diagrams above show the layout. A KB stack is brought up by the host-installed `semiont` launcher, with any of the three runtimes, locally or in a GitHub Codespace. See [platforms/README.md](platforms/README.md) and [LOCAL-SEMIONT.md](LOCAL-SEMIONT.md).
+Each image runs `tini` as its first process, which runs the one service: a Rust binary for the gateway and the dispatcher, a Node entry point for the rest. When the launcher starts a stack it also sets `SEMIONT_SUPERVISE`, which has the container restart a crashed service and kill a hung one, because a laptop has no scheduler to do that. On a platform that has one, leave it unset ([Deployment](administration/DEPLOYMENT.md#what-your-platform-provides)).
 
-**There is no platform abstraction, and no cloud platform.** A retired CLI once carried a per-platform handler matrix (`posix`, `container`, `aws`, `external`, `mock`) plus `publish`/`update` for AWS; all of it has been deleted, the CLI included. The published images can of course be scheduled by a cloud container platform such as ECS Fargate, but that is your own integration — see [Running Semiont on AWS](platforms/AWS.md).
+## Related
 
-Other deployment shapes are valid and require no architectural changes — they just don't have first-class CLI tooling yet:
-
-- **Kubernetes** — pods running the published Semiont images, with the same `/bus/emit` + `/bus/subscribe` contract between them.
-- **Cloud-native serverless** — short-lived flows (e.g. a Generator-Agent yield) could run as AWS Lambda, Cloud Run, or Cloud Functions invocations against a hosted gateway; the SDK works the same against an HTTP transport regardless of where the caller lives.
-- **Bare Node** — long-running services on any VM. The CLI's POSIX platform is essentially this, just with process supervision wired in.
-
-The constraint is the **port contracts** — the bus (`/bus/emit`, `/bus/subscribe`), the OpenAPI HTTP surface, and the in-process interfaces (`ITransport`, `SessionStorage`, the storage abstractions) — not which adapter implements them. Any compute substrate that can run Node and speak those ports can host a Semiont actor.
-
-### Environments
-
-| Environment | Compute | Storage | Graph | Users DB |
-|-------------|---------|---------|-------|----------|
-| **Local (KB stack)** | Containers (Apple `container` / Docker / Podman) | Filesystem (KB git repo, bind-mounted) | Neo4j (container) | PostgreSQL (container) |
-| **Your own integration** | Any container platform (see [DEPLOYMENT.md](administration/DEPLOYMENT.md)) | Volumes you provision; the KB tree reaches the Archivist | Neo4j | PostgreSQL (managed works) |
-
-### Service management
-
-Two layers, easy to conflate:
-
-- **Operator entry points.** A KB stack is driven by the host-installed [`semiont` launcher](../../apps/launcher/README.md) — `semiont start` / `logs` / `status` / `stop` (runtime-portable, `--runtime` to force one).
-  In **Codespaces the launcher runs at two layers**. On your machine, `semiont start --runtime codespace` drives the outside: create or resume the VM, wait for health, forward the KB and its issuer, stop or delete. *Inside* the codespace, the codespace's own launcher brings the stack up with `semiont start --runtime docker` from the KB's post-start hook, exactly as on a laptop. The outer launcher never reaches into the containers; when something must happen inside — a user created, the issuer moved to another port — it asks the inner launcher over `gh codespace ssh`.
-- **No CLI inside the containers.** Each published image runs `tini` as PID 1, exec'ing its own service — directly by default, or under the shared in-container supervisor when the launcher sets `SEMIONT_SUPERVISE`, as it does for every stack it starts. The gateway image hands straight off to `node dist/index.js` — it derives no database URL and runs no migration step, because it holds no database; the Browser image runs `node node_modules/@semiont/browser/server.js`. Nothing in an image shells out to a Semiont CLI.
-
-See **[the launcher](../../apps/launcher/README.md)** and **[administration/CONFIGURATION.md](administration/CONFIGURATION.md)** for full configuration details.
-
-For the per-service catalog (storage, AI, infrastructure), see **[services/OVERVIEW.md](services/OVERVIEW.md)**.
-For how stacks are deployed, and what running them elsewhere would require of you, see **[administration/DEPLOYMENT.md](administration/DEPLOYMENT.md)**; for how the images are built and published, **[administration/IMAGES.md](administration/IMAGES.md)**.
+- [The service catalog](services/OVERVIEW.md): each container's port, configuration, mounts and health check
+- [Deploying Semiont](administration/DEPLOYMENT.md): the three ways to run a stack
+- [Container Images](administration/IMAGES.md): what is published, and verifying it
+- [Where a knowledge base lives on disk](../architecture/FILESYSTEM.md): the stores in the second diagram

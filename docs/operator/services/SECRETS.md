@@ -1,4 +1,4 @@
-# Secrets Management
+# Secrets
 
 Two kinds of secret reach a running stack, and the launcher treats them in opposite ways:
 
@@ -141,7 +141,7 @@ its authorization prompt works.
 
 ```bash
 semiont settings secret set ANTHROPIC_API_KEY    # interactive
-semiont settings secret set ANTHROPIC_API_KEY op://OSS/Anthropic/credential
+semiont settings secret set ANTHROPIC_API_KEY op://YourVaultName/Anthropic/credential
 semiont settings secret                          # pointers, never values
 semiont settings secret rm ANTHROPIC_API_KEY
 ```
@@ -191,5 +191,5 @@ rather than holding them.
 ## Related Documentation
 
 - [Configuration Guide](../administration/CONFIGURATION.md) — Full configuration reference
-- [Authentication](../administration/AUTHENTICATION.md) — JWT and OAuth flow
-- [Running Semiont on AWS](../platforms/AWS.md) — unsupported; secrets are your integration
+- [Authentication](../administration/AUTHENTICATION.md) — what each credential is for
+- [Deploying Semiont](../administration/DEPLOYMENT.md#what-your-platform-provides) — delivering secrets on your own platform

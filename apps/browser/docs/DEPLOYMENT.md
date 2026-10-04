@@ -34,8 +34,8 @@ For iterating on the Browser itself, run it from source rather than the image â€
 
 ## Running it elsewhere
 
-Any container platform can schedule the image (ECS Fargate, Kubernetes, a VM with Docker). Nothing
-here does it for you. Browser-specific considerations:
+Any container platform can schedule the image: Kubernetes, OpenShift, a cloud's container service, or a
+machine with Docker. Nothing here does it for you. Browser-specific considerations:
 
 - **It needs to reach the gateway.** The browser app discovers KBs by host/port; the gateway must be
   reachable from the *user's browser*, not merely from inside the cluster.
@@ -43,7 +43,7 @@ here does it for you. Browser-specific considerations:
 - **No server-side session state** â€” the Browser is a static SPA served by a small Node server;
   auth is bearer-token, held in the browser. It scales horizontally without sticky sessions.
 
-Fuller checklist: [platforms/AWS.md](../../../docs/operator/platforms/AWS.md).
+The full list of what a platform provides: [Deploying Semiont](../../../docs/operator/administration/DEPLOYMENT.md#your-own-platform).
 
 ## Related Documentation
 

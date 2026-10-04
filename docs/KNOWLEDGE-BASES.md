@@ -65,9 +65,8 @@ Prerequisites (the `gh` CLI and an `ANTHROPIC_API_KEY` Codespaces user secret)
 are in each KB's README; the raw `gh` recipe is kept there too as the
 no-launcher path.
 
-See [Local Semiont](operator/LOCAL-SEMIONT.md) for the full local-run guide
-(inference configs, running from source with `SEMIONT_VERSION=local`, ports,
-troubleshooting pointers).
+See [Running a local stack](operator/LOCAL-SEMIONT.md) for the full local guide:
+choosing a config, the ports, and where things are kept.
 
 ## Starting from scratch
 

@@ -3,8 +3,8 @@
  * outage carries on without reconnecting — the gateway reconnects on its own
  * — and an emit made while it is down is refused, never accepted and lost (docs/protocol/
  * TRANSPORT-HTTP.md § POST /bus/emit; docs/operator/administration/
- * TROUBLESHOOTING.md § Commands hang, or real-time updates stop, on a NATS
- * stack). A broker that comes back refusing the gateway's credentials is not
+ * TROUBLESHOOTING.md § Commands fail, or real-time updates stop). A broker
+ * that comes back refusing the gateway's credentials is not
  * recovered from, and every emit after it is refused. NATS only.
  */
 import { randomUUID } from 'node:crypto';

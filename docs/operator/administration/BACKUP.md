@@ -12,15 +12,14 @@ The archive is the KB directory itself, as a plain `.tar.gz`. No manifest, no fo
 schema — nothing is transformed, so there is nothing to specify:
 
 ```bash
-tar -xzf kb.tar.gz            # a working KB directory
-cat .semiont/events/*.jsonl   # the history, one JSON object per line
+tar -xzf kb.tar.gz                         # a working KB directory
+find .semiont/events -name '*.jsonl'       # the history, one JSON object per line
 ```
 
-That is the design, not an omission (EXPORT-VIA-LAUNCHER D4). The content is already files at
-their natural paths and the event log is already JSONL; inventing a representation for data that
-has a good one on disk is what the retired exchange format did. tar.gz rather than a git bundle
-for the same reason — a format needing git would mean "your data is yours, if you have git", and
-tar is on every machine.
+That is the design, not an omission. The content is already files at their natural paths and the
+event log is already JSON lines, so there is nothing to convert. It is a `tar.gz` rather than a git
+bundle for the same reason: a format that needs git would mean "your data is yours, if you have
+git", and tar is on every machine.
 
 A restore is `tar -xzf` plus registering the root. Any tool that reads tar can read your KB.
 
@@ -30,9 +29,9 @@ A restore is `tar -xzf` plus registering the root. Any tool that reads tar can r
 semiont export
 ```
 
-Writes the KB's **durable** state: content files and the event log. Nothing derived — projections,
-jobs, anchored text and the databases all rebuild from the log, and they live outside the KB root
-anyway.
+Writes the knowledge base's record: the content files and the event log. Nothing derived is
+included. The views, the graph, the vectors and the anchored text all rebuild from the log, and they
+live outside the knowledge base's directory anyway.
 
 | Option | Effect |
 |---|---|
@@ -73,8 +72,12 @@ Guards, all of which refuse rather than repair:
 
 ## What is not backed up
 
-PostgreSQL holds user accounts only. Backing it up is not backing up the knowledge base, and
-backing up the knowledge base does not preserve accounts. See [DATABASE.md](./DATABASE.md).
+- **Accounts.** PostgreSQL holds the issuer's accounts and nothing of the knowledge base. Backing it
+  up is not backing up the knowledge base, and backing up the knowledge base does not preserve
+  accounts. See [Database](./DATABASE.md).
+- **Jobs that were waiting.** The job queue is the broker's. A restored knowledge base starts with an
+  empty queue.
+- **Secrets.** The launcher generates new ones for a restored knowledge base on its first start.
 
 ## Where export runs
 

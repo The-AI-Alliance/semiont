@@ -1,4 +1,4 @@
-# Semiont Scaling Guide
+# Scaling
 
 What scales in a Semiont stack, what deliberately does not, and which signals tell you it is
 time. Semiont ships container images and selects behavior from config
@@ -17,7 +17,7 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 | Service | Replicas | How, and why |
 |---|---|---|
 | browser | N | Serves the UI; no server-side state. |
-| gateway | N | Behind a load balancer, once the signal plane is broker-backed (`[signal] type = "nats"`). No session affinity: reply ownership is shared across replicas, reconnect recovery answers from any of them, and replay reads the Archivist. Full requirements: [DEPLOYMENT.md](./DEPLOYMENT.md) § Multiple gateway replicas. |
+| gateway | N | Behind a load balancer, once the signal plane is broker-backed (`[signal] type = "nats"`). No session affinity: reply ownership is shared across replicas, reconnect recovery answers from any of them, and replay reads the Archivist. Full requirements: [More than one gateway](./DEPLOYMENT.md#more-than-one-gateway). |
 | worker | N | Workers claim jobs from the dispatcher over the bus; a claim is granted once — atomic in the queue, held as stream leases on `jetstream` — so each job executes exactly once however many workers compete, and only a token carrying the worker role may claim. The worker is the one service built to run off-host: no mount, no broker credential, only network addresses — the gateway's bus, the Archivist's byte surface, an inference provider — so a pool can live on a GPU box the rest of the stack never shares, and a worker that is not yours joins by having its client granted the worker role at the issuer. |
 | archivist | 1 | The single writer of the git-backed record, which is the system of record. This is a design invariant, not a capacity limit. |
 | weaver | 1 | Owns the graph projection: checkpointed catch-up from the record at boot, then live tailing. Derived state — rebuildable, never authoritative. |

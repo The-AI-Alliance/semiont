@@ -7,7 +7,7 @@ be a person or an AI agent: nothing here is written for one and not the other.
 |---|---|---|
 | An **analyst** | Work in a knowledge base: read, annotate, link, and review what agents propose | [analyst/](analyst/README.md) |
 | A **builder** | Build an application, a script, a daemon or an agent on the SDK | [builder/](builder/README.md) |
-| An **operator** | Run a knowledge base: install, configure, deploy, secure, observe, back up | [operator/](operator/README.md#operations) |
+| An **operator** | Run a knowledge base: install, configure, deploy, secure, observe, back up | [operator/](operator/README.md) |
 | A **contributor** | Change Semiont itself | [contributor/](contributor/README.md) |
 
 Three things are for every reader:
@@ -42,10 +42,11 @@ You write code against a knowledge base, in TypeScript or Rust.
 You run a knowledge base, on your own machine or for others.
 
 - [Quick Start](../README.md#quick-start): install the launcher, create a knowledge base, start it
-- [The launcher's manual](../apps/launcher/README.md): every command and setting
+- [Running a local stack](operator/LOCAL-SEMIONT.md), and [the launcher's manual](../apps/launcher/README.md) for every command and setting
+- [Deploying Semiont](operator/administration/DEPLOYMENT.md): on your machine, on a hosted machine, or on a platform of your own
+- [The service catalog](operator/services/OVERVIEW.md) and [container topology](operator/CONTAINER-TOPOLOGY.md): what a stack is made of
 - [Administration](operator/administration/): configuration, authentication, security, observability, backup, scaling, troubleshooting
-- [Platforms](operator/platforms/README.md) and [services](operator/services/OVERVIEW.md): where a stack runs and what it is made of
-- [A knowledge base's layout on disk](operator/PROJECT-LAYOUT.md)
+- [What is in a knowledge base](operator/PROJECT-LAYOUT.md)
 
 ## Contributor
 

@@ -8,12 +8,13 @@ Thank you for your interest in contributing to Semiont! This document provides g
 
 - **Locally**, against Apple Container, Docker or Podman, on macOS, Linux and Windows
 - **In GitHub Codespaces**, where the codespace's own launcher runs the stack
-- **On any container platform** you schedule the images on yourself, such as ECS Fargate, Kubernetes or Nomad
+- **On a platform of your own**, where you schedule the images yourself: Kubernetes, OpenShift, a cloud's container service, or machines on your own premises
 
 **High-value contributions here:**
 
 - **The launcher** (Go, `apps/launcher/`): how stacks are started, configured and inspected
-- **A guide for another platform**, written the way [Running Semiont on AWS](docs/operator/platforms/AWS.md) is: what to schedule, and what to wire up
+- **A worked deployment for a platform**: manifests, a chart or a playbook that satisfies [what the platform must provide](docs/operator/administration/DEPLOYMENT.md#your-own-platform)
+- **A driver** for a graph, a vector store, an inference provider or an embedding provider the code does not have yet, written against [its interface](docs/operator/administration/DEPLOYMENT.md#adapting-a-stack)
 
 There is no per-platform plug-in to write. See [Deployment Targets](#-deployment-targets).
 
@@ -207,15 +208,14 @@ Then create a Pull Request from your fork to `The-AI-Alliance/semiont:main` on G
 ## 🌍 Deployment Targets
 
 Semiont ships as container images (listed once, in
-[Deployment § What gets deployed](docs/operator/administration/DEPLOYMENT.md)) plus the
-infrastructure containers a stack needs. There is no
-per-platform plugin system: the old `(platform × serviceType × command)` handler matrix has been
-removed.
+[the service catalog](docs/operator/services/OVERVIEW.md)) plus the
+infrastructure a stack needs. There is no per-platform plugin system.
 
-Stacks are brought up by the host-installed [`semiont` launcher](apps/launcher/README.md). Running the images on another
-container platform (ECS Fargate, Kubernetes, Nomad) needs no code here — see
-[Running Semiont on AWS](docs/operator/platforms/AWS.md) for the integration checklist and
-[Deployment](docs/operator/administration/DEPLOYMENT.md) for the supported path.
+Stacks are brought up by the host-installed [`semiont` launcher](apps/launcher/README.md), on a laptop or in a
+GitHub Codespace. Running the images on a platform of your own (Kubernetes, OpenShift, a cloud's
+container service, machines on your own premises) needs no code here: see
+[Deploying Semiont](docs/operator/administration/DEPLOYMENT.md) for the three ways to run a stack and
+what a platform must provide.
 
 If you want to improve how stacks are launched, the launcher (Go, `apps/launcher/`) is the place.
 

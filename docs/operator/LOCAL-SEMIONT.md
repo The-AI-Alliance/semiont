@@ -1,120 +1,101 @@
-# Local Semiont
+# Running a local stack
 
-Run Semiont locally. (Don't want the stack on your own machine? The same
-launcher can place it in a GitHub Codespace instead — see
-[Knowledge Bases](../KNOWLEDGE-BASES.md).)
+The [`semiont` launcher](../../apps/launcher/README.md) runs a stack on your own machine, for the knowledge base in the directory you run it from. If this is your first time, follow the [Quick Start](../../README.md#quick-start): it goes from install to a first annotation. This page covers what the Quick Start leaves out.
 
-There are two ways to start:
+To put the stack on a hosted machine instead, see [Knowledge Bases](../KNOWLEDGE-BASES.md). To deploy it on your own platform, see [Deploying Semiont](administration/DEPLOYMENT.md).
 
-First, install the [`semiont` launcher](../../apps/launcher/README.md) — a
-single static binary that drives your container runtime:
+## What you need
 
-```bash
-brew install the-ai-alliance/semiont/semiont
-```
+- The launcher: `brew install the-ai-alliance/semiont/semiont` on macOS and Linux. On Windows, see [Semiont on Windows](platforms/WINDOWS.md).
+- A container runtime: Apple `container`, Docker or Podman. The launcher uses the one it finds; `--runtime` names one, and `semiont settings runtime` makes that choice stick.
+- `git`.
 
-**Use an existing knowledge base** — clone a KB repository that already has documents and configuration (full catalog: [Knowledge Bases](../KNOWLEDGE-BASES.md)):
+The launcher is a single static binary. Nothing else is installed on your machine, and nothing is built: every Semiont image is pulled from `ghcr.io/the-ai-alliance`, and a knowledge base's repository carries no Dockerfile and no scripts.
+
+## Start a stack
+
+From a knowledge base you already have, such as a clone of one of the [demo knowledge bases](../KNOWLEDGE-BASES.md):
 
 ```bash
 git clone https://github.com/The-AI-Alliance/gutenberg-kb.git
 cd gutenberg-kb
 semiont start
-echo password | semiont useradd --email admin@example.com
+semiont useradd --email you@example.com
 ```
 
-One command starts the whole stack — the eight published Semiont images
-(gateway, worker, smelter, weaver, archivist, librarian, dispatcher, browser) pulled from
-`ghcr.io/the-ai-alliance/*` plus the infrastructure containers — with the
-KB's config bind-mounted at runtime. No npm required, and nothing is built
-locally: KB repos carry no Dockerfiles and no scripts. `semiont logs`
-follows the services, `semiont status` health-checks them, `semiont stop`
-tears the stack down (the browser survives — it's machine-level, not a
-stack member; `semiont stop --service browser` closes it), and
-`semiont start --dry-run` prints the exact runtime commands a real run
-would execute. See the
-[KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for
-prerequisites and details; the image inventory is in
-[Container Images](./administration/IMAGES.md).
+For a new one, `semiont init` creates a knowledge base in the current directory first ([Quick Start](../../README.md#quick-start)).
 
-**Create a new knowledge base** — start from the template:
+`semiont start` pulls the images, starts the infrastructure and then the services in [order](services/OVERVIEW.md#start-order), waits for each to be healthy, and exits. The stack keeps running. A new stack has no accounts: `semiont useradd` creates the first one, and every one after it, and prompts for the password.
+
+## Choose a config
+
+A knowledge base can ship several configs under `.semiont/semiontconfig/`, usually one per inference provider:
 
 ```bash
-git clone https://github.com/The-AI-Alliance/semiont-template-kb.git my-kb
-cd my-kb
+semiont start --list-configs        # the configs this knowledge base has
+semiont start --config anthropic    # start on one of them
+semiont settings config anthropic   # make it this knowledge base's default
 ```
 
-Start the stack with Ollama for fully local inference (no API key needed):
+- **With local models (Ollama)**, no key is needed. The first start downloads the models the config names, which can take several minutes and several gigabytes. The launcher uses an Ollama already installed on your machine when there is one, and runs one in a container when there is not.
+- **With Anthropic**, the config references `${ANTHROPIC_API_KEY}`. Tell the launcher where the key lives with `semiont settings secret set ANTHROPIC_API_KEY`, or export the variable. See [Secrets](services/SECRETS.md).
+
+What a config can say is in [Configuration](administration/CONFIGURATION.md).
+
+## Day to day
 
 ```bash
-semiont start
-echo password | semiont useradd --email admin@example.com
+semiont status                      # each service's state and health
+semiont logs                        # follow the Semiont services
+semiont logs --service gateway      # follow one, infrastructure included
+semiont start --service gateway     # restart one service
+semiont stop                        # take the stack down; its data stays
+semiont clean                       # delete the stack's data; the knowledge base is untouched
+semiont start --dry-run             # print what a start would run, and run nothing
 ```
 
-On first run, the gateway container pulls the inference and embedding models from Ollama. This is a one-time download (~2-4 GB depending on the model) and may take several minutes.
+`--service` takes one of [the launcher's names](services/OVERVIEW.md#the-launchers-names). `semiont stop` keeps every store, so the next start picks up where this one left off; `semiont clean` is the only command that deletes them, and it never touches the knowledge base's own directory.
 
-To use Anthropic cloud inference instead:
+## The Browser
 
-```bash
-export ANTHROPIC_API_KEY=<your-api-key>
-semiont start --config anthropic
-```
+Any start also makes sure the Browser is running, at `http://localhost:3000`. It is not part of the stack: one Browser serves every knowledge base on the machine, local or forwarded from a codespace, and lists them under **Found on this machine**. So `semiont stop` leaves it running, and `semiont stop --service browser` closes it. `semiont start --service browser --port <n>` moves it to another port.
 
-To see all available configs:
+To use the Browser without running a stack, see [Get the Browser](../analyst/README.md#get-the-browser).
 
-```bash
-semiont start --list-configs
-```
+## Ports
 
-The stack includes the Semiont browser (the Browser container on port
-3000) — no second terminal needed. To run just a browser against an
-already-running KB, the published image works standalone:
+A local stack publishes these on `localhost`:
 
-```bash
-container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-browser:latest
-```
+| Port | What |
+|---|---|
+| 3000 | The Browser |
+| 4000 | The gateway: the knowledge base's address |
+| 8080 | Keycloak, where people sign in |
+| 16686, 9090 | Jaeger and Prometheus ([Observability](administration/OBSERVABILITY.md)) |
 
-Want to verify image provenance before running? See [Supply-chain verification](./administration/IMAGES.md#supply-chain-verification).
-
-**Running from source instead of published images:** build all eight images
-from a monorepo working tree with
-[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) (they get the
-local-only `:local` tag, never pushed, and are loaded into every container
-engine on the machine — any `--runtime` can run them), then start the KB stack
-with `SEMIONT_VERSION=local semiont start …` — the `local` version skips the
-registry pull.
-
-Open **http://localhost:3000** and enter **http://localhost:4000** as the knowledge base URL.
+The services' own ports and the infrastructure's are in [the service catalog](services/OVERVIEW.md). `semiont start` checks that every port it needs is free before it starts anything.
 
 ## Local network access
 
-The browser container must be allowed to talk to the gateway running on your host. Each platform handles this differently:
+A stack's containers reach each other through your machine's own address, so the container runtime must be allowed to use the local network:
 
-- **macOS + Apple `container`:** the first run prompts for permission. If you dismiss it, enable it under **System Settings → Privacy & Security → Local Network** and tick `container-runtime-linux`.
-- **macOS + Docker Desktop / Podman:** the same prompt appears, granted to `com.docker.gateway` or `podman-mac-helper` in the same panel.
-- **Linux:** no prompt; containers share the host network namespace by default.
-- **Windows:** Docker Desktop / Podman handle this via WSL2; no extra step.
+- **macOS with Apple `container`:** the first start prompts for permission. If you dismissed it, enable it under **System Settings → Privacy & Security → Local Network** for `container-runtime-linux`.
+- **macOS with Docker Desktop or Podman:** the same prompt, granted to `com.docker.gateway` or `podman-mac-helper` in the same panel.
+- **Linux and Windows:** no prompt.
 
-## Desktop app
+## Where things are kept
 
-As an alternative to the container image, Semiont ships a native desktop app for macOS and Linux — no container runtime to install and no local network permission to grant. See [apps/desktop/README.md](../../apps/desktop/README.md) for download links, per-platform install notes, and the macOS Gatekeeper workaround.
+- **The knowledge base** is its own directory: content, `.semiont/config`, the configs, and the event log. See [Project Layout](PROJECT-LAYOUT.md).
+- **Everything a stack derives or needs to run** is outside it, in a directory the launcher keeps per knowledge base: the databases, the graph, the vectors, the job queue, the views, and the secrets the launcher generated. [Where the launcher keeps its files](../../apps/launcher/README.md#where-the-launcher-keeps-its-files) says where on each system, and `semiont status --verbose` prints the paths and what each store takes on disk.
+- **Logs** go to each container's output. `semiont logs` reads them; there are no log files to find.
 
-## Detailed Setup
+## Images built from source
 
-- **[Gateway](./LOCAL-GATEWAY.md)** — PostgreSQL, inference, Neo4j, service management
-- **[Browser](../analyst/README.md#get-the-browser)** — as a container or a desktop app, and connecting to a knowledge base
+To run images built from a checkout of this repository instead of the published ones, build them with [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) and start with `SEMIONT_VERSION=local semiont start`. See [Local Development](../contributor/LOCAL-DEVELOPMENT.md).
 
-## Service Ports
+## Related
 
-| Service | Port | URL |
-|---------|------|-----|
-| Gateway | 4000 | http://localhost:4000 |
-| Browser | 3000 | http://localhost:3000 |
-| PostgreSQL | 5432 | postgresql://localhost:5432 |
-
-## Related Documentation
-
-- [Project Layout](./PROJECT-LAYOUT.md) — Directory structure, XDG paths, and git integration
-- [Configuration Guide](./administration/CONFIGURATION.md) — Full configuration reference
-- [Services Overview](./services/OVERVIEW.md) — Service catalog and runtime layout
-- [Knowledge Bases](../KNOWLEDGE-BASES.md) — KB repos, and running a stack in a GitHub Codespace instead of locally
-- [`semiont` launcher](../../apps/launcher/README.md) — every flag, the stack record, secret sources, codespace placement
+- [The launcher's README](../../apps/launcher/README.md): every verb and flag
+- [The service catalog](services/OVERVIEW.md): what is running, and on which ports
+- [Troubleshooting](administration/TROUBLESHOOTING.md): when a start fails or a service is unhealthy
+- [Maintenance](administration/MAINTENANCE.md): upgrades, disk, and protecting the event log

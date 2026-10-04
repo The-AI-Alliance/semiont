@@ -1,19 +1,15 @@
-# Authentication Architecture
+# Authentication
 
 Semiont uses **bearer-only** authentication: every request authenticates with an `Authorization: Bearer` JWT (or, for media, a short-lived `?token=`). There are **no session cookies** — the gateway carries no ambient credentials, which is what lets CORS be fully open (`*`) and a KB be hosted on the public internet.
 
-**Related Documentation:**
-- [Architecture Overview](../README.md) - Overall application architecture
-- [Security](./SECURITY.md) - CORS posture, secret management, hardening checklist
-- [Secrets](../services/SECRETS.md) - how secrets reach services
-- [Configuration Guide](./CONFIGURATION.md) - Environment and secret management
+See also [Security](./SECURITY.md) for what Semiont enforces and what it leaves to the issuer and the platform, [Secrets](../services/SECRETS.md) for how secrets reach services, and [Configuration](./CONFIGURATION.md#identity) for the `[identity]` section.
 
 ## Overview
 
 Three pieces make up the auth system:
 
 1. **Sign-in happens elsewhere.** People authenticate at the knowledge base's trusted issuer and receive a token from it. The gateway mints no human credential and holds no password; it is a resource server, not an auth server.
-2. **Bearer validation** — the gateway validates the token on every protected request (router-level `authMiddleware`), verifying an issuer token against the issuer's published keys and building the caller's principal from the claims it carries. There is no directory to consult: the identity is the token.
+2. **Bearer validation** — the gateway validates the token on every protected request, verifying an issuer token against the issuer's published keys and building the caller's principal from the claims it carries. There is no directory to consult: the identity is the token.
 3. **Revocation belongs to the issuer.** Disabling an account there stops new tokens at once. A token already issued stays valid until it expires, and that lifetime is the revocation window.
 
 ## Authentication Flow Diagram
@@ -31,7 +27,7 @@ graph TB
 
     subgraph "Gateway API"
         TokenGen[Agent and media token mint]
-        MW[authMiddleware<br/>Bearer + ?token= validator]
+        MW[Token verification<br/>Bearer, or ?token= for media]
         Principal[Principal<br/>DID, email, name, domain]
         API[Protected APIs]
     end
@@ -55,7 +51,7 @@ token, not a table; the PostgreSQL in a stack is Keycloak's — see
 ### Core principles
 
 - **Bearer-only**: authentication is an `Authorization: Bearer <jwt>` header. JS attaches it explicitly — it is **not** an ambient credential, so the API works with CORS `origin: '*'` and no `Access-Control-Allow-Credentials` (see [Security](./SECURITY.md)).
-- **Router-level protection**: each router applies `authMiddleware` to its protected routes; protection is explicit.
+- **Protection is per route**: each route's handler names the credential it needs, and nothing is protected by default.
 - **Stateless, with no per-request lookup**: the principal is derived from the token's claims on every request. A display-name change at the issuer reaches the gateway when the holder's next token is minted, not before — there is no row to update and nothing cached to invalidate. The gateway records that name on the knowledge base's log the next time its holder **acts**, so the record can say who a DID belongs to; someone who signs in and only reads is never named there.
 - **One admission decision, held by the issuer**: the gateway admits every subject whose token verifies. It keeps no allowlist and no per-user enable flag, because a second answer to "may this person sign in" can only disagree with the first — and only the issuer's answer can stop a token being minted.
 
@@ -85,7 +81,7 @@ That delay is the whole of the trade, and it is deliberate: one system answers w
 
 Disabling also stops the refresh grant, so the person cannot mint a replacement when the one they hold expires.
 
-**Signing out in a client is a client-side act.** The token lives in memory and the client drops it. The gateway is not told, and nothing server-side changes.
+**Signing out is between the client and the issuer.** The client revokes its refresh token at the issuer (RFC 7009) and drops the access token it holds. The gateway is not told and keeps nothing to change; an access token already issued works until it expires.
 
 **Agent tokens are the exception with no issuer behind them.** An agent identity is synthetic — derived from a (provider, model) pair rather than registered anywhere — so there is no account to disable. Its lifetime is the whole of its revocation window. Disabling at the issuer the *service account* that asked for it stops further mints, but cannot touch a token already handed out.
 
@@ -98,7 +94,6 @@ Disabling also stops the refresh grant, so the person cannot mint a replacement 
 ```toml
 [environments.local.identity]
 type = "keycloak"
-issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
 subjectClaim = "sub"     # the issuer's stable identifier; "email" names people by address
 ```
 
@@ -106,7 +101,7 @@ It is required — the gateway, every sidecar and `semiont start` refuse a confi
 
 ### The trust boundary
 
-The gateway, the services behind it (Archivist, Stower, dispatcher, the sidecars), and the administrator who runs them and commits the event log are **one party**. The gateway verifies every bearer token and stamps the verified DID onto every event as `_userId`; nothing behind it re-verifies, because there is nothing to gain — from outside, this knowledge base vouched for its log either way. What the record holds is therefore the knowledge base's word: every provenance fact on an artifact is either the verified emitter of an event or derived by joining events whose emitters were verified, and nothing an emitter asserts about identity in a payload is honoured. Verification of that log by a reader *outside* the knowledge base — a signature under a key the emitter controls — is not a property a single deployment has; it belongs to federation between knowledge bases, where each signs what it vouches for.
+The gateway, the services behind it, and the administrator who runs them and commits the event log are **one party**. The gateway verifies every bearer token and stamps the verified DID onto every event as `_userId`; nothing behind it re-verifies, because there is nothing to gain — from outside, this knowledge base vouched for its log either way. What the record holds is therefore the knowledge base's word: every provenance fact on an artifact is either the verified emitter of an event or derived by joining events whose emitters were verified, and nothing an emitter asserts about identity in a payload is honoured. Verification of that log by a reader *outside* the knowledge base — a signature under a key the emitter controls — is not a property a single deployment has; it belongs to federation between knowledge bases, where each signs what it vouches for.
 
 ## Endpoint Protection
 
@@ -126,13 +121,13 @@ There is no password endpoint, no provider endpoint and no refresh endpoint. Peo
 
 Two identities, deliberately: the service account is the **process**, the agent DID is the **work**. One worker holds several agent identities at once when a deployment configures different models for different job types, so the caller's credential cannot be the agent's identity.
 
-### Protected endpoints (`authMiddleware`)
+### Protected endpoints
 
 Require a valid `Authorization: Bearer` access token. Examples: `GET /api/users/me`, `GET /api/status`, `POST /api/tokens/media`, the bus endpoints, and all of `/api/resources/*`.
 
 ```http
 GET /api/users/me HTTP/1.1
-Host: api.semiont.com
+Host: kb.example.com
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
@@ -156,7 +151,7 @@ A raw browser navigation to a protected resource (e.g. pasting a `/resources/:id
 }
 ```
 
-The IRI is meant for SDK / `Bearer` dereference; the `hint` keeps a forgotten header from being misdiagnosed as the old CORS mystery.
+The IRI is meant for SDK / `Bearer` dereference; the `hint` keeps a forgotten header from being misread as a CORS failure.
 
 ## JWT Security
 
@@ -177,7 +172,7 @@ The gateway dispatches on the token's `iss` claim, and the two paths verify diff
 **A token the gateway itself signed** (software agents only):
 
 1. **Signature** — HMAC-SHA256 against the `JWT_SECRET` key ring.
-2. **Payload structure** — runtime Zod validation against `JWTPayloadSchema`; a token whose claims do not parse is rejected, not coerced.
+2. **Payload structure** — the claims must have the agent shape (`agent_claims` in `apps/gateway/src/tokens.rs`); a token whose claims do not parse is rejected, not coerced.
 3. **Expiration** — enforced at verification.
 
 The claims are trusted on this path precisely because the gateway signed them: it is both the minter and the verifier, so a valid signature means this process asserted these facts itself.
@@ -209,28 +204,26 @@ A protected route takes the `Authenticated` extractor, which runs before its bod
 
 Every route is one row of the route table, and its handler names the credential it needs: `Authenticated`, `MediaOrBearer`, or — for `POST /api/tokens/agent` — the issuer token carrying `semiont-service` it checks itself. A request on `/bus/*`, `/resources/*`, `/api/resources/*` or `/api/status` that matches no declared operation is authenticated before it is answered 404.
 
-## Environment Configuration
+## The gateway's own credentials
 
-### Required environment variables (gateway)
+The gateway reads two credentials from its environment:
 
-```bash
-JWT_SECRET=your-jwt-secret                 # signs agent and media tokens only
-```
+| Variable | What it is |
+|---|---|
+| `JWT_SECRET` | The key ring that signs agent and media tokens, and nothing else |
+| `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` | The gateway's own service account at the issuer, which it uses to reach the archivist |
 
-There are **no** OAuth client credentials here and no `NEXTAUTH_*` variables. The gateway never speaks to an identity provider on a person's behalf, so it holds no client secret; it only verifies tokens against the issuer's published keys. The issuer this deployment trusts is named in the knowledge base's `[identity]` configuration.
+It holds no credential on a person's behalf: it never signs anyone in, and verifies people's tokens against the issuer's published keys. The issuer a deployment trusts is named in the knowledge base's `[identity]` configuration.
 
-### Secret management
+Nothing generates the signing key at request time, and the gateway refuses to start without one. Who supplies it depends on where the stack runs:
 
-Store `JWT_SECRET` in secure secret storage (e.g. AWS Secrets Manager); never commit it; use a different secret per environment; rotate regularly. See [Configuration Guide](./CONFIGURATION.md). The sidecars' service-account credentials are the issuer's to hold and are rotated there.
-
-Nothing generates the signing key at request time, and the gateway **refuses to boot** without one rather than surfacing the problem at first sign-in. Who supplies it depends on where the stack runs:
-
-| Placement | Supplied by | Where it lives |
+| Where the stack runs | Supplied by | Where it is kept |
 |---|---|---|
-| local | `semiont start` | `jwt-secret` in the knowledge base's secrets store: its 1Password item, or a file in its state dir (mode `0600`; not secure, for development only), one per KB root (see [Secrets](../services/SECRETS.md)) |
-| codespace | `.devcontainer/post-create.sh` | `.devcontainer/.env` inside the codespace |
+| Your machine | `semiont start` | `jwt-secret` in the knowledge base's secrets store: its 1Password item, or a file in its state directory (not secure; for development only) |
+| A codespace | The launcher inside the codespace | The file store, on the codespace's filesystem |
+| Your own platform | You | Your platform's secret store, mapped to the variable |
 
-Both announce which key they used — `Token-signing key: generated and kept` / `reused` / `from JWT_SECRET in the environment` — after the secrets store's own line naming where the key is kept (`secrets: read jwt-secret (…)`). Neither ever prints the key. If tokens start failing, those lines tell you whether the key changed.
+The launcher says which key it used (`Token-signing key: generated and kept`, `reused`, or `from JWT_SECRET in the environment`) and never prints it. If tokens start failing, that line tells you whether the key changed. See [Secrets](../services/SECRETS.md).
 
 ### Rotating `JWT_SECRET` without cutting off the sidecars
 
@@ -291,7 +284,7 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 
 **A worker's token also needs `semiont-worker`** in that same array. The gateway stamps it onto the agent token a worker mints, and the dispatcher admits a `job:claim` only from a token carrying it — `semiont-service` is what every sidecar has, so it cannot be what distinguishes a worker. A worker that is not yours is admitted by granting its client this role; nothing else changes.
 
-**For people and the CLI to sign in at all**, the issuer needs a device-grant-capable public client (`semiont login`) and an authorization endpoint that enforces PKCE with redirect URIs covering the Browser.
+**For people to sign in at all**, the issuer needs a public client that supports the device grant (for `semiont login`) and an authorization endpoint that enforces PKCE with redirect URIs covering the Browser.
 
 **Each Semiont service needs its own client**, not one shared between them: the archivist, dispatcher, gateway, librarian, smelter, weaver and worker each authenticate as themselves, and a shared credential would let any one of them mint any other's identity. Under `[identity] type = "keycloak"` the launcher creates all seven. Under `type = "oidc"` you create them at your own issuer and supply each secret as `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>` — see [Maintenance](./MAINTENANCE.md) for rotation.
 
@@ -299,9 +292,9 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 
 ### API
 
-1. Every route requires a bearer token unless the spec declares it public (`security: []`). 2. What one principal may take — the streams it holds, the emits it makes — is limited alike for people and agents, by a baseline and a coefficient per role ([TRANSPORT-HTTP.md § Limits](../../protocol/TRANSPORT-HTTP.md#limits)); limits per address, before a token is read, are an ingress's. 3. Every JSON body is validated against its schema in `specs/`. 4. Log auth events; the startup log records the bearer-only / open-CORS posture.
-
-> **MCP programmatic access** — MCP `login` is not available. The gateway serves no MCP token route; a per-KB grant handshake is a deferred decision.
+- Every route requires a bearer token unless the spec declares it public (`security: []`).
+- What one principal may take (the streams it holds, the emits it makes) is limited alike for people and agents, by a baseline and a coefficient per role: see [Limits](../../protocol/TRANSPORT-HTTP.md#limits). Limits per address, before a token is read, are an ingress's to apply.
+- Every JSON body is validated against its schema in `specs/`.
 
 ## Troubleshooting
 
@@ -319,13 +312,8 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 
 ## Related Documentation
 
-- [Architecture Overview](../README.md) - Application architecture and service communication
-- [Security](./SECURITY.md) - CORS posture, secrets, hardening
-- [Running Semiont on AWS](../platforms/AWS.md) - what you must wire up yourself
-- [Database Management](./DATABASE.md) - the PostgreSQL Keycloak uses; Semiont keeps no schema
-- [Configuration](./CONFIGURATION.md) - the `[identity]` section
-
----
-
-**Authentication**: bearer-only. People's tokens are minted by the trusted issuer and verified here against its published keys; the gateway signs only agent and media tokens. A person is named by the configured subject claim under the knowledge base's own domain. Revocation is disabling the account at the issuer, bounded by the access token lifetime. Open CORS.
-**Last Updated**: 2026-09-22
+- [Security](./SECURITY.md): what Semiont enforces, and what it does not
+- [Secrets](../services/SECRETS.md): where the signing key and the service accounts' secrets are kept
+- [Deploying Semiont](./DEPLOYMENT.md): bringing an issuer of your own
+- [Database](./DATABASE.md): the PostgreSQL Keycloak uses
+- [Configuration](./CONFIGURATION.md#identity): the `[identity]` section

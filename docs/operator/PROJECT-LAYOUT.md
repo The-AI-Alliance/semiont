@@ -1,19 +1,21 @@
-# Semiont Project Layout
+# What is in a knowledge base
 
-A Semiont project is a directory managed by both `git` and Semiont. Your resource files live directly in the project root alongside `.semiont/`, which holds Semiont-internal state. Everything is designed to be committed to git.
+A knowledge base is a directory managed by both `git` and Semiont. Your resource files live directly in its root, beside `.semiont/`, which holds the knowledge base's identity, its configs and its event log. All of it is meant to be committed.
+
+This page is what an operator needs to recognize and commit. How Semiont reads and writes these files, and where everything derived from them is kept, is in [where a knowledge base lives on disk](../architecture/FILESYSTEM.md).
 
 ## Directory Structure
 
 ```
-my-project/
+my-kb/
 ├── .semiont/
-│   ├── config                        # Project name and settings (commit)
+│   ├── config                        # Name and permanent identity (commit)
 │   ├── events/                       # Event log (commit)
 │   │   ├── __system__/               # System-scoped events (entity types, etc.)
 │   │   │   └── events-000001.jsonl
 │   │   └── {ab}/{cd}/{resourceId}/   # Per-resource streams, sharded
 │   │       └── events-000001.jsonl
-│   └── semiontconfig/                # Inference/embedding configs (TOML)
+│   └── semiontconfig/                # What the knowledge base needs to run (commit)
 │       ├── anthropic.toml
 │       └── ollama-gemma.toml
 ├── README.md                         # Optional, but recommended
@@ -22,7 +24,7 @@ my-project/
 
 ### `.semiont/config`
 
-A TOML file containing the project name and local settings. Commit this to git — it identifies the project to collaborators.
+A TOML file holding the knowledge base's name and its permanent `did:web` domain, which is stamped into every event. Commit it: it is who the knowledge base is. See [Configuration](./administration/CONFIGURATION.md#semiontconfig).
 
 ### `.semiont/events/`
 
@@ -31,30 +33,11 @@ The event log: an append-only record of everything that has happened to every re
 Two kinds of streams live under `events/`:
 
 - **Per-resource streams**, at `events/{ab}/{cd}/{resourceId}/events-NNNNNN.jsonl`. The two 2-character shard directories come from a Jump Consistent Hash of the resource id, keeping any single shard directory from exceeding a few thousand entries at scale.
-- **The `events/__system__/` stream**, for events that have no resource — currently `frame:entity-type-added` (registering a new global entity type) and similar project-wide facts.
+- **The `events/__system__/` stream**, for events that have no resource, such as `frame:entity-type-added`, which registers an entity type for the whole knowledge base.
 
-### `.semiont/semiontconfig/` (optional)
+### `.semiont/semiontconfig/`
 
-The inference-provider presets the launcher starts from — convenience infrastructure so others can run the project. The authoritative versions live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository, and most KBs stay in sync with it.
-
-The stack itself is run by the host-installed
-[`semiont` launcher](../../apps/launcher/README.md)
-(`brew install the-ai-alliance/semiont/semiont`) — a single static binary,
-not a file in the KB repo. From inside the project: `semiont start` brings up
-the infrastructure (Neo4j, Qdrant, Ollama if not already running, PostgreSQL)
-and the seven Semiont services, all in containers, pulling the published
-images and bind-mounting the `.semiont/semiontconfig/{name}.toml` config of
-your choice (`--config`); `semiont logs` follows all services, `[svc]`-prefixed;
-`semiont status` health-checks them; `semiont stop` removes the stack (the
-browser survives as the machine-level viewer — `semiont stop --service
-browser` closes it).
-
-KB repos build no images: the Semiont services run from the published, attested
-`ghcr.io/the-ai-alliance/semiont-{gateway,archivist,librarian,worker,smelter,weaver,browser}` images
-(version selected via `SEMIONT_VERSION`, default `latest`), with the KB's config
-bind-mounted at runtime.
-
-- **`semiontconfig/*.toml`** — inference-provider presets the user selects at start time (e.g., `--config ollama-gemma` vs `--config anthropic`). Each file names the chat model, embedding model, and any provider-specific parameters.
+One TOML file per way of running the knowledge base, usually one per inference provider (`anthropic.toml`, `ollama-gemma.toml`). Each names the models, the embedding provider, the graph, the vector store and the issuer. `semiont init` writes the first; `semiont start --config <name>` picks one. A config states no machine address and no secret, so it is safe to commit and works on any machine. See [Configuration](./administration/CONFIGURATION.md).
 
 ### Resource files
 
@@ -67,7 +50,7 @@ Real KBs organise their content however suits the domain. Two examples:
   authors/Aeschylus/Four_Plays_by_Aeschylus/sections/Prologos.txt
   authors/Aeschylus/Four_Plays_by_Aeschylus/places/Scythian_steppe.md
   ```
-- **synthetic-family** — a fictional family dataset split by content type:
+- A fictional family dataset, split by content type:
   ```
   bios/
   generated/
@@ -80,14 +63,13 @@ The event log is append-only, so the creating event's path never changes — but
 the projection serves is **maintained across moves**: a later `yield:moved` relocates it,
 and reads through `getStorageUri(resource)` follow.
 
-## What lives outside the project
+## What lives outside it
 
-Machine-specific and secret state is kept outside the project and never committed: in XDG directories on Linux, and in each other system's own equivalent. See [the launcher's manual — Where the launcher keeps its files](../../apps/launcher/README.md#where-the-launcher-keeps-its-files) for the full table.
+Everything derived from the record, and every secret, is kept outside the knowledge base and never committed: in XDG directories on Linux, and in each other system's own equivalent. See [the launcher's manual — Where the launcher keeps its files](../../apps/launcher/README.md#where-the-launcher-keeps-its-files) for the full table.
 
 ## Example
 
-A snapshot of a real KB after two resources have been added and the template
-scaffolding is in place:
+A knowledge base after two resources have been added:
 
 ```
 % ls -A
@@ -103,22 +85,23 @@ scaffolding is in place:
 
 % git log --oneline
 9f12ab3 Add Aeschylus resources + initial annotations
-4d82e1a Sync template scripts
 8c001a7 semiont init
 ```
 
 Note the `__system__` stream alongside the two per-resource shard directories — that's where global events (like new entity-type registrations) live, and it's committed the same as everything else.
 
-## Initializing a project
+## Creating one
 
 ```bash
-mkdir my-project && cd my-project
+mkdir my-kb && cd my-kb
 semiont init
 ```
 
-`semiont init` runs `git init` automatically if the directory is not already a git repository, and stages `.semiont/config` for you.
+`semiont init` runs `git init` if the directory is not already a git repository, and stages what it wrote.
 
 ## Related
 
-- [Local Semiont](./LOCAL-SEMIONT.md) — Installing and running Semiont locally
-- [Configuration Guide](./administration/CONFIGURATION.md) — Full configuration reference
+- [Running a local stack](./LOCAL-SEMIONT.md): starting a stack for a knowledge base
+- [Configuration](./administration/CONFIGURATION.md): what the two config files hold
+- [Where a knowledge base lives on disk](../architecture/FILESYSTEM.md): the event log, the views, and what rebuilds what
+- [Knowledge Bases](../KNOWLEDGE-BASES.md): the demo knowledge bases, and starting one of your own

@@ -1,22 +1,12 @@
 # Observability
 
-Semiont ships three layers of observability, each independently
-toggleable:
+A stack can be observed three ways, each switched on separately:
 
-1. **`busLog` grep timeline** — opt-in via `SEMIONT_BUS_LOG=1`. One
-   line per cross-process bus event, in a grep-friendly format.
-   Developer-terminal target. See
-   [Bus logging](../../../tests/e2e/docs/bus-logging.md) for the format,
-   capture API, and e2e fixture integration.
-2. **OpenTelemetry traces** (this doc) — distributed tracing from
-   every process (gateway, worker, smelter, SPA). Off by default; set
-   `OTEL_EXPORTER_OTLP_ENDPOINT` to enable.
-3. **OpenTelemetry metrics + log correlation** (this doc) — counters,
-   histograms, and gauges across the same OTLP endpoint, plus
-   `trace_id` / `span_id` auto-tagged on every structured log line.
+1. **Traces.** Every service and the Browser can export OpenTelemetry spans. A service exports nothing until it is given an OTLP endpoint; the launcher gives every service one.
+2. **Metrics and log correlation.** Counters, histograms and gauges go to the same endpoint, and every structured log line carries the `trace_id` and `span_id` of the span it was written in.
+3. **The `busLog` timeline.** With `SEMIONT_BUS_LOG=1`, a process writes one line per bus event, in a format made for `grep`. It is a developer's tool: see [Bus logging](../../../tests/e2e/docs/bus-logging.md).
 
-All three correlate by W3C `trace_id` (the `cid` printed by `busLog`
-is its first-8-hex prefix).
+All three share the W3C `trace_id`: the `cid` that `busLog` prints is its first eight hex digits.
 
 ## What gets traced
 
@@ -45,12 +35,7 @@ SDK, so it exports the bus rows of that table beside its own. Each service's
 conformance suite holds it to its rows in both directions, and the SDK suite
 holds each SDK to the SDK table.
 
-The `archivist.*` spans are the third hop. `content.{put,get}` and the
-gateway's `content.{put,get}.server` are a client/server pair that once covered
-the whole byte path, because the gateway was the content store;
-SINGLE-KB-MOUNT moved the tree to the Archivist and put a network call *inside*
-`content.put.server`. Without its own span that call is invisible, and a slow
-Archivist reads as a slow gateway.
+The `archivist.*` spans are the third hop on the byte path. The gateway's `content.{put,get}.server` span makes a network call to the archivist, and without a span of its own, a slow archivist would read as a slow gateway.
 
 A typical "open resource" trace, parented by the SPA's transport call:
 
@@ -74,11 +59,9 @@ job:reference-annotation                        [worker handleJob]
 
 ## Configuring an exporter
 
-### Gateway / worker / smelter
+### The services
 
-Standard OTel env vars. Set them on the process — for local dev,
-inherit from your shell; for containers, add them to the container's environment (an ECS task
-definition, a Kubernetes pod spec).
+The standard OpenTelemetry variables, set in each service's environment. The launcher sets the endpoint for every service it starts; on your own platform, set it in each container's environment.
 The Rust services — the gateway and the dispatcher — read the ones their
 environment table lists ([`variables.json`](../../../specs/src/service-environment/variables.json))
 and configure their SDK from them; the table below is the sidecars'.
@@ -87,7 +70,7 @@ and configure their SDK from them; the table below is the sidecars'.
 |-----------------------------------|----------------------------------------|------------------------------------|
 | `OTEL_EXPORTER_OTLP_ENDPOINT`     | (none — SDK does not initialize)       | OTLP HTTP collector URL            |
 | `OTEL_EXPORTER_OTLP_HEADERS`      | (none)                                 | Auth headers for SaaS APMs         |
-| `OTEL_SERVICE_NAME`               | `semiont-gateway` / `-worker` / `-smelter` | Service identity                |
+| `OTEL_SERVICE_NAME`               | `semiont-<service>`, such as `semiont-gateway` | Service identity            |
 | `OTEL_TRACES_SAMPLER`             | `parentbased_always_on`                | Sampler                            |
 | `OTEL_TRACES_SAMPLER_ARG`         | (n/a)                                  | Ratio for traceidratio samplers    |
 | `OTEL_CONSOLE_EXPORTER`           | `false`                                | Set `true` for stderr exporter (dev only) |
@@ -96,12 +79,9 @@ and configure their SDK from them; the table below is the sidecars'.
 **Off-by-default invariant**: with neither
 `OTEL_EXPORTER_OTLP_ENDPOINT` nor `OTEL_CONSOLE_EXPORTER=true` set,
 the SDK does not initialize — the `@opentelemetry/api` no-op tracer
-takes over and `withSpan` becomes a free pass-through. This prevents
-accidental stderr / CloudWatch flooding when an operator deploys
-without configuring a collector.
+takes over and `withSpan` becomes a free pass-through. This keeps a deployment with no collector from flooding its own logs.
 
-For local dev without a collector, set `OTEL_CONSOLE_EXPORTER=true`
-to print spans + metrics to stderr.
+Without a collector, `OTEL_CONSOLE_EXPORTER=true` prints spans and metrics to the service's output.
 
 ### A Rust client
 
@@ -124,23 +104,23 @@ SDK — no spans emitted, no overhead.
 
 ## Recommended targets
 
-Semiont does not store traces; the operator picks a backend. Locally the launcher picks for you — an OTel collector fans in all telemetry, Jaeger stores traces, Prometheus stores metrics.
+Semiont stores no telemetry; you choose where it goes. The launcher chooses for a stack it runs: an OpenTelemetry Collector takes in everything, Jaeger stores the traces and Prometheus the metrics.
 
 | Deployment              | Recommended target                                                                              |
 |-------------------------|-------------------------------------------------------------------------------------------------|
-| Local dev (default)     | The launcher's trio: OTel collector (always on, OTLP `:4318`) → Jaeger for traces (UI `:16686`), Prometheus for metrics (UI `:9090`). |
-| Local dev (custom)      | Point `OTEL_EXPORTER_OTLP_ENDPOINT` at any OTLP intake; or `OTEL_CONSOLE_EXPORTER=true` for stderr output. |
-| Self-hosted prod        | Jaeger (Cassandra/ES-backed) or Grafana Tempo (S3-backed, pairs with Loki).                      |
-| AWS prod                | AWS X-Ray via the AWS Distro for OpenTelemetry collector sidecar (translates OTLP → X-Ray).      |
+| A stack the launcher runs | The launcher's trio: OTel collector (always on, OTLP `:4318`) → Jaeger for traces (UI `:16686`), Prometheus for metrics (UI `:9090`). |
+| A collector of your own | Point `OTEL_EXPORTER_OTLP_ENDPOINT` at any OTLP intake; or `OTEL_CONSOLE_EXPORTER=true` for stderr output. |
+| Self-hosted             | Jaeger (Cassandra/ES-backed) or Grafana Tempo (S3-backed, pairs with Loki).                      |
+| A cloud's own tracing   | Through that cloud's OpenTelemetry Collector distribution, which translates OTLP to its format.  |
 | SaaS APM                | Honeycomb / Datadog / New Relic / Lightstep all accept OTLP — set endpoint + auth header.        |
-| Multi-backend / scrubbing | Run the standard `otelcol` between Semiont and downstream backends. Pure operator config.      |
+| Several backends, or scrubbing | Run the standard `otelcol` between Semiont and the backends.                              |
 
-## Local quickstart
+## With the launcher
 
-The [`semiont` launcher](../../../apps/launcher/README.md) does the whole thing by default:
+The [`semiont` launcher](../../../apps/launcher/README.md) sets all of it up by default:
 
 ```bash
-ANTHROPIC_API_KEY=<key> semiont start --config anthropic
+semiont start
 # traces:  http://localhost:16686   (Jaeger)
 # metrics: http://localhost:9090    (Prometheus)
 ```
@@ -150,8 +130,8 @@ The OTel collector **always** runs (OTLP on `:4318`, its own readout on `:24110`
 skips only Jaeger and Prometheus — the collector then discards traces, and the metrics
 readout is still served for anything that wants to scrape it. Jaeger's own OTLP ingest
 sits on `:14318` (the collector owns `:4318` and forwards). A single service started with
-`--service` exports iff the stack's collector is already running — don't stand up a
-hand-run Jaeger on `:4318`; that port is the collector's.
+`--service` exports only when the stack's collector is already running. Do not run a
+Jaeger of your own on `:4318`: that port is the collector's.
 
 ### Verifying spans are flowing
 
@@ -214,7 +194,7 @@ implicitly) — see `packages/observability/src/node.ts`.
 - **OTel spans + metrics** (this doc) — distributed tracing and
   metrics over OTLP. Targets a collector + APM gateway.
 
-## Metrics (Tier 3)
+## Metrics
 
 Alongside traces, every Node process exports a small set of metrics
 through the same OTLP endpoint. No extra config required — the
@@ -255,7 +235,7 @@ Metrics follow the same on/off invariant as traces — neither exports
 unless an exporter is configured. With `OTEL_CONSOLE_EXPORTER=true`,
 metric snapshots also print to stderr at each export interval.
 
-## Log correlation (Tier 3)
+## Log correlation
 
 Every structured log line the gateway writes (in the `json` format its
 configuration document selects) and the worker/smelter Winston loggers
@@ -272,24 +252,9 @@ When no SDK is initialized (or no span is active), the helper returns
 
 ## Limitations
 
-- **Outbound services not auto-instrumented for tracing.** Anthropic /
-  OpenAI / Ollama / Postgres / Qdrant calls are not auto-traced
-  (Anthropic + Ollama *are* metered for token / call / duration via
-  the `semiont.inference.*` family). Operators who want full
-  outbound HTTP / DB tracing can add
-  `@opentelemetry/instrumentation-pg`,
-  `@opentelemetry/instrumentation-http`, etc. to their own startup
-  shim — Semiont's observability package deliberately doesn't bundle
-  them so the dependency surface stays small.
-- **No vector-index-size metric yet.** Adding it requires a new
-  `count()` method on the `VectorStore` interface implemented across
-  all gateways (Qdrant, in-memory). Not urgent; deferred until
-  capacity-planning needs surface.
-- **Browser uses `XMLHttpRequest` / `fetch` directly** for the
-  transport's underlying calls. Auto-instrumenting these is
-  intentionally not enabled — the transport-call spans we emit name
-  the operation semantically (`bus.emit:mark:create`) instead of by
-  URL.
+- **Calls out to models and stores are not traced.** A call to Anthropic, Ollama, Neo4j or Qdrant has no span of its own. Inference is metered, by call, token and duration, in the `semiont.inference.*` metrics.
+- **There is no metric for the size of the vector index.**
+- **The Browser's spans name the operation, not the URL.** Its transport calls are traced as `bus.emit:mark:create` and the like; the underlying `fetch` is not instrumented separately.
 
 ## Related documentation
 

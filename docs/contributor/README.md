@@ -74,4 +74,5 @@ The layered architecture, dependency graph, and per-package summaries live in **
 - **[MEDIA-TYPES.md](MEDIA-TYPES.md)** — how a media type's declared capabilities change the yield → smelt → weave → annotate flow, walked end to end with PDF.
 - **[TESTING.md](TESTING.md)** — testing conventions and infrastructure.
 - **[RELEASE.md](RELEASE.md)** — versioning and release process.
+- **[REPOSITORY-MAINTENANCE.md](REPOSITORY-MAINTENANCE.md)** — dependency updates, the image publish gates, the rule for adding a gateway route, and the workspace checks CI runs.
 - **[packages/README.md](../../packages/README.md)** — full package inventory with dependency graph.

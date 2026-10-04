@@ -1,256 +1,80 @@
-# Semiont Security
+# Security
 
-This document describes the current security implementation in Semiont and provides guidance for secure deployment and operation.
+What Semiont enforces, what it leaves to the issuer and to your platform, and what it does not do. To report a vulnerability, see [Reporting security issues](#reporting-security-issues).
 
-## Current Security Features
+## What Semiont enforces
 
-### Authentication
+**Every request is authenticated.** Authentication is bearer-only: an `Authorization: Bearer` token on every request, and no session cookies. Semiont is a resource server, not an authorization server. It runs no sign-in flow and holds no password. People and services obtain tokens from the knowledge base's trusted issuer, and the gateway verifies each one against that issuer's published keys. Four operations are public: `GET /`, `GET /api/health`, `GET /api/openapi.json` and `GET /.well-known/oauth-protected-resource`. [Authentication](./AUTHENTICATION.md) has the whole model.
 
-For gateway implementation details, see the [Gateway Authentication Guide](../../../apps/gateway/docs/AUTHENTICATION.md).
+**There is one authorization decision: authenticated, or 401.** No gateway route returns 403, and none reads a human role. Every authenticated caller can read and write all content in the knowledge base. Two roles exist, and both mark services, not people: `semiont-service` admits a service account to `POST /api/tokens/agent` and to the archivist, and `semiont-worker` admits a worker's claim on a job. See [RBAC.md](../../protocol/RBAC.md).
 
-Semiont implements **bearer-only** authentication — an `Authorization: Bearer` JWT on every request, no session cookies (see [Authentication](./AUTHENTICATION.md)).
+**Every body is validated.** Each JSON body is checked against its schema in `specs/` and bounded by its operation's size limit.
 
-**Semiont is a resource server, not an auth server.** It runs no sign-in flow, mints no human credential, and holds no password. People and sidecars obtain tokens from the knowledge base's trusted issuer; the gateway verifies them against that issuer's published keys (JWKS, RS256).
+**Every principal is limited.** The streams one principal holds and the emits it makes are bounded, for people and agents alike, and so are the bytes and connections one gateway process holds. A refusal is a 429 or a 503 with `Retry-After`: see [Limits](../../protocol/TRANSPORT-HTTP.md#limits).
 
-- **Sign-in happens at the issuer**: authorization code + PKCE for a browser, the device authorization grant for a script or the CLI, client credentials for a sidecar's service account. Which providers the issuer federates — Google, GitHub, an enterprise SAML IdP — is the issuer's configuration, not Semiont's.
-- **Bearer JWTs**: short-lived access tokens minted by the issuer (TTLs in [Authentication](./AUTHENTICATION.md)). The gateway signs only agent and media tokens, with HMAC-SHA256 against its own key ring.
-- **Revocation is the issuer's**: disabling an account stops new tokens at once and stops the refresh grant. Signing out revokes the refresh token at the issuer (RFC 7009); the access token already in hand stays valid until it expires, and that lifetime is the window. There is no token-version epoch and no gateway logout route.
+**Errors carry no internals.** No error body carries a stack trace, a source path or a secret's name. The cause goes to the log.
 
-### Authorization
+**CORS is open and carries no credentials.** Because authentication is a header a client attaches on purpose, and never an ambient cookie, the gateway answers any origin. Do not put a cookie-based or credentialed layer in front of it.
 
-The gateway makes exactly one authorization decision: **authenticated, or 401**.
+**The gateway has no development mode.** It reads no setting that relaxes any of the above, and behaves the same wherever it runs.
 
-- **Router-Level Authentication**: each gateway router applies `authMiddleware` to its protected routes
-- **JWT Validation**: issuer tokens verified against published JWKS; gateway-signed agent and media tokens verified against the HMAC key ring
-- **Caller Identification**: each request carries a `Principal` — DID, email, name, domain — built from the token's own claims, with no database read behind it
-- **One service role**: `semiont-service`, carried in a flat `roles` claim, gates `POST /api/tokens/agent` and the Archivist read path. It marks a sidecar process, not a person
-- **OpenAPI Security Spec**: the spec is the single source of truth for which routes are public
+The [gateway conformance suite](../../../tests/conformance/gateway/README.md) holds a built gateway to this on every pull request: every protected operation answers 401 without a credential and to a token it cannot verify, public operations answer without challenging, undeclared paths answer 404, and every response carries the security headers. A gateway whose routes are not exactly the spec's operations refuses to start.
 
-**Access Levels**:
-- **Public**: `GET /`, `GET /api/health`, `GET /.well-known/oauth-protected-resource`, and the documentation meta-routes
-- **Authenticated**: everything else — resources, annotations, entity types, search, the bus
-- **Service account**: `POST /api/tokens/agent` and the Archivist read path also require the `semiont-service` role
+## What is the issuer's
 
-**No gateway route returns 403, and no gateway route reads a human role.** The `isAdmin` and `isModerator` flags were removed along with the user table; they are not deprecated, they do not exist. Every authenticated caller has full read/write access to all content — there is no per-resource, per-annotation, or per-user access control. Content-level access control is planned for future releases. See [RBAC.md](../../protocol/RBAC.md) for details.
+Who may sign in is decided at the issuer, and nowhere else. The gateway admits every subject whose token verifies.
 
-### Security Testing
+- **Admission**: who may register, and from which domains.
+- **Multi-factor authentication**, and federation with another provider.
+- **Token lifetime**, which is also the revocation window. Disabling an account stops new tokens at once; a token already issued works until it expires.
+- **The accounts themselves.** Semiont keeps no user table.
 
-The [gateway conformance suite](../../../tests/conformance/gateway/README.md) runs
-a built gateway against the spec on every pull request:
+## What is your platform's
 
-- Every protected operation the spec declares answers 401 without a credential,
-  and 401 `invalid_token` to one it cannot verify — invalid, malformed, expired,
-  forged, or from another issuer or audience
-- Public operations answer without challenging; undeclared methods and paths
-  answer 404, and a gateway whose routes are not exactly the spec's operations
-  refuses to start
-- Every response carries the security headers, open credential-less CORS and a
-  request id; no error body carries a stack trace, a source path or a secret's
-  name
-- Every JSON body is validated against the spec, and every reply checked against
-  its declaration
+- **TLS.** The gateway serves HTTP and sends `Strict-Transport-Security`, which a browser honours only over HTTPS. Terminate TLS in front of it.
+- **Network placement.** Only the gateway and the Browser need to be reachable by clients. Everything else can sit on a private network.
+- **Limits per address**, and allow or block lists. The gateway limits per principal, after a token is read.
+- **Secrets.** Where they are stored and how they reach each container: see [Secrets](../services/SECRETS.md).
+- **File permissions** on the knowledge base's working tree and the stores beside it.
+- **Backups** of the working tree and of the issuer's database: see [Backup](./BACKUP.md).
 
-### Data Security
+## Where data is, and what is recorded
 
-#### Current Protections
+- **Content and the event log are plain files** in the knowledge base's working tree. Semiont does not encrypt them; encryption at rest is the storage's.
+- **Every event carries the DID of whoever caused it**, so the event log is the audit trail.
+- **A person's name is recorded** once per name they have had, so a reader can resolve a DID to a person from the log alone. **Their email is never recorded.**
+- **The graph, the vectors and the views** are derived from those files and hold nothing that is not in them.
 
-- **Environment Variables**: Sensitive configuration stored in environment variables
-- **HTTPS in Production**: TLS encryption for all production traffic (when deployed behind a reverse proxy)
-- **Input Validation**: every JSON body is validated against its schema in `specs/`, and bounded by its operation's `maxBodyBytes`
-- **Limits**: the streams and emits one principal may take — people and agents alike, a role changing the coefficient — and the queued bytes and connections one gateway process holds; a refusal is a 429 or 503 with `Retry-After` ([TRANSPORT-HTTP.md § Limits](../../protocol/TRANSPORT-HTTP.md#limits))
-- **SQL Injection Prevention**: not applicable — the gateway issues no SQL and holds no database
+## Secrets
 
-#### Storage
+The secrets a stack has, who generates each and which service receives it are in [Secrets](../services/SECRETS.md). Rotating them is in [Maintenance](./MAINTENANCE.md#secret-rotation) and, for the signing key, in [Authentication](./AUTHENTICATION.md#rotating-jwt_secret-without-cutting-off-the-sidecars).
 
-- **Event Store**: Append-only event log with filesystem or database backend
-- **View Storage**: Projection data in configurable directory (`SEMIONT_ROOT`)
-- **Graph Database**: Support for multiple graph databases (Neo4j, JanusGraph, AWS Neptune, InMemory)
-  - Connection strings should be kept secure
-  - Use environment variables for database credentials
+## Supply chain
 
-## Deployment Security Recommendations
+Every published image is scanned for `HIGH` and `CRITICAL` vulnerabilities before it is pushed, and a finding with a fix fails the publish. Each image carries a signed build provenance and a bill of materials, and the service images also pass a licence policy. The gateway's and the dispatcher's binaries record the crates they link, which is what the scan reads, and those crates are checked against the RustSec advisory database daily.
 
-### Environment Configuration
+Verify an image before running it where it matters: [Supply-chain verification](./IMAGES.md#supply-chain-verification).
 
-```bash
-# Required environment variable (keep secure)
-export JWT_SECRET="<strong-random-string-32-chars-minimum>"   # signs agent and media tokens only
-```
+## What to watch
 
-That is the whole list. There are **no** OAuth client credentials here: the gateway never speaks to an identity provider on a person's behalf, so it holds no client secret. The issuer a deployment trusts is named in the knowledge base's `[identity]` configuration, and the per-service-account credentials the sidecars use are generated and persisted per root by `semiont start`.
+- **401 responses.** It is the only refusal the gateway issues for identity. A 403 in your logs came from something in front of it.
+- **429 and 503 responses**, which mean a principal or the process reached a limit.
+- **Sign-in failures**, which are in the issuer's logs. The gateway is never contacted for a sign-in that fails.
 
-### Production Deployment
+Structured logs carry `trace_id` and `span_id`, so a failing request's log line leads to its trace: see [Observability](./OBSERVABILITY.md).
 
-1. **Use HTTPS**: Always deploy behind a reverse proxy with TLS termination. The gateway sends `Strict-Transport-Security` on every response; a browser honours it only over HTTPS
-2. **Secure Secrets**: Use a secrets management system for sensitive configuration
-3. **Network Security**: Deploy gateway services in private networks when possible
-4. **Regular Updates**: Keep dependencies updated with security patches
-5. **Admission**: Restrict who may authenticate at the trusted issuer. The gateway admits every subject the issuer vouches for.
+## What Semiont does not do
 
-### One gateway, everywhere
+- **Access control within a knowledge base.** There is no per-resource, per-annotation or per-user permission. Whoever can sign in can read and write everything in it. Separate what must be kept separate into different knowledge bases, and control at the issuer who is issued a token for each.
+- **Encryption at rest.**
+- **Limits per address, or address allow and block lists.** These belong to an ingress.
+- **Revoking someone else's session at once.** Disable the account at the issuer, and the access token they hold expires within its lifetime.
+- **A query interface over the audit trail.** The trail is the event log; reading it is reading the files.
 
-The gateway has no development mode: it reads no variable that selects one, and behaves the same wherever it runs.
+## Reporting security issues
 
-- **Authentication** is always required, against the trusted issuer.
-- **Error bodies** never carry internals — a stack frame, a source path or a secret's name — anywhere; the conformance suite checks every one. The cause goes to the log.
-- **Log level** is the configuration document's `logLevel` (the launcher writes `info` unless the KB's config says otherwise).
-- **CORS** is open (`*`) and credential-less, because authentication is bearer-only.
-- **HTTPS** is the deployment's: the gateway serves HTTP and sends `Strict-Transport-Security`, which a browser honours only over HTTPS.
+Do not open a public issue. Report privately through GitHub Security Advisories at <https://github.com/The-AI-Alliance/semiont/security/advisories/new>, with a description, steps to reproduce, the affected versions and the impact. The repository's [SECURITY.md](../../../SECURITY.md) is the policy.
 
-## Security Best Practices for Operators
+## Your responsibilities
 
-### Access Control
-
-1. **Issuer Configuration**: Configure the trusted issuer's own registration and domain admission rules
-2. **Admission is the issuer's job**: the gateway performs no domain or allowlist check of its own
-3. **Token Expiration**: access tokens are short-lived and the access-token lifetime is the revocation window — disabling an account at the issuer prevents a replacement rather than cancelling the one in hand (TTLs and revocation in [Authentication](./AUTHENTICATION.md))
-4. **Secret Rotation**: rotate `JWT_SECRET` and the service-account credentials regularly
-5. **Treat every authenticated user as full-access**: no gateway route consults a human role
-
-### Monitoring
-
-- Monitor authentication failures (401 responses) — this is the only refusal the gateway issues, so a 403 in your logs came from a proxy, not from Semiont
-- Monitor API usage patterns for anomalies
-- Review error logs for security-related issues
-- Set up alerts for suspicious activities
-- Monitor for brute force attempts on authentication endpoints
-
-See [Observability](./OBSERVABILITY.md) for the trace and metric
-surfaces that back these checks: structured logs are auto-tagged with
-`trace_id` and `span_id` so a failing-auth log entry links to its
-full request trace, and the `bus.dispatch:*` server spans on
-`/bus/emit` carry user identity for anomaly queries.
-
-### Data Protection
-
-1. **Backups**: Implement regular backup procedures for event store and projections
-2. **File Permissions**: Ensure proper file system permissions on `SEMIONT_ROOT`
-3. **Database Security**: Follow database-specific security guidelines
-4. **Audit Trails**: Retain logs for security analysis (every event carries the actor's DID)
-5. **Secret Rotation**: Regularly rotate `JWT_SECRET` — see [Authentication](./AUTHENTICATION.md#rotating-jwt_secret-without-cutting-off-the-sidecars) for rotating it without an outage
-
-### Supply-Chain Integrity
-
-Every published Semiont container image — `semiont-browser` and the service
-images alike — is Trivy-scanned for HIGH/CRITICAL CVEs before push and signed
-with Sigstore-backed build-provenance + SBOM attestations stored as OCI
-artifacts in GHCR. The service images additionally pass a license-policy gate
-over the same SBOM. These gates fail the publish, not just the report. The
-gateway's binary carries the list of crates it links (`cargo auditable`), which
-is what the scan reads, and those crates are also checked against RustSec's
-advisory database daily and on every change to them.
-Operators pulling an image should verify the attestations before running it in
-production. See
-[Supply-chain verification](./IMAGES.md#supply-chain-verification)
-for the verify command and what it confirms.
-
-## Known Limitations
-
-The following security features are **not yet implemented** and are planned for future releases:
-
-- **Content-level access control** (per-resource, per-annotation, per-user visibility/permissions)
-- Dependency vulnerability scanning on pull requests (container images are scanned at publish; npm dependencies are not gated in PR CI)
-- End-to-end encryption for stored documents
-- Comprehensive audit logging UI
-- Data loss prevention (DLP) policies
-- Rate limiting per IP address before a token is read (an ingress's; the gateway limits per principal)
-- IP allowlisting/blocklisting
-- An operator-facing API to revoke another caller's session. A person can revoke
-  their own refresh token by signing out; cutting off someone else means
-  disabling their account at the issuer and waiting out the access-token TTL
-
-Multi-factor authentication is **not** on this list: it is the issuer's to
-enforce, and enabling it there applies to every Semiont deployment trusting that
-realm without any change here.
-
-## Roadmap
-
-### Short-term
-- Enhanced audit logging with queryable interface
-
-### Medium-term
-- Dependency scanning gated on pull requests
-- Data encryption at rest
-- Advanced threat detection
-
-### Long-term
-- Enterprise compliance features (SOC2, GDPR)
-- Advanced security analytics dashboard
-- Zero-trust architecture
-
-## Reporting Security Issues
-
-If you discover a security vulnerability in Semiont:
-
-1. **Do not** create a public GitHub issue
-2. Report it privately through GitHub Security Advisories at
-   <https://github.com/The-AI-Alliance/semiont/security/advisories/new>
-3. Include:
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Affected version(s)
-   - Suggested fixes (if any)
-4. Allow reasonable time for response before public disclosure
-
-See the repository's [SECURITY.md](../../../SECURITY.md) for the canonical
-reporting policy and supported versions.
-
-## Development Security
-
-### For Contributors
-
-- Never commit secrets or credentials
-- Use environment variables for configuration
-- Follow secure coding practices
-- Validate all user inputs with Zod schemas
-- Handle errors securely (don't leak sensitive info)
-- Keep dependencies updated
-- Run security tests before submitting PRs
-
-### Security Testing
-
-Before deploying:
-```bash
-# Run security test suite
-npm run test:security
-
-# Check for known vulnerabilities
-npm audit
-
-# Update dependencies
-npm update
-
-# Run all tests including security
-npm test
-```
-
-### Code Review Checklist
-
-When reviewing PRs involving authentication/authorization:
-
-- [ ] New routes apply appropriate authentication middleware
-- [ ] Public routes are documented in OpenAPI spec (no `security` field)
-- [ ] Protected routes documented with `security: [{ bearerAuth: [] }]`
-- [ ] A route needing a service account checks the `semiont-service` role; no route reads a human role
-- [ ] No hardcoded secrets or credentials
-- [ ] Input validation uses Zod schemas
-- [ ] Error messages don't leak sensitive information
-- [ ] Security tests updated if adding/modifying routes
-- [ ] `npm run test:security` passes
-
-## Compliance Note
-
-Semiont is an open-source project and is provided "as-is". Organizations deploying Semiont are responsible for:
-- Implementing appropriate security controls for their use case
-- Ensuring compliance with relevant regulations (GDPR, HIPAA, SOC2, etc.)
-- Performing security assessments
-- Maintaining secure configurations
-- Regular security audits
-- Incident response planning
-
----
-
-Last Updated: September 2026
-
-For the latest security updates and patches, see the [GitHub repository](https://github.com/The-AI-Alliance/semiont).
+Semiont is open-source software, provided as is. Whoever deploys it is responsible for the controls their use needs, for compliance with the regulations that apply to them, and for assessing and maintaining their own deployment.

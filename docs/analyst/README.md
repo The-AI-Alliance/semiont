@@ -35,7 +35,7 @@ The panel shows each knowledge base's status: **Connected**, **Session expired**
 
 ## If something is in the way
 
-- **The Browser container cannot reach a knowledge base on your machine.** The container runtime needs local network access: see [Local network access](../operator/LOCAL-SEMIONT.md#local-network-access).
+- **A stack on your own Mac will not come up.** The container runtime needs local network access: see [Local network access](../operator/LOCAL-SEMIONT.md#local-network-access).
 - **You want to verify the image before running it.** See [Supply-chain verification](../operator/administration/IMAGES.md#supply-chain-verification).
 - **You need the Browser's logs.** `semiont logs --service browser` from the knowledge base's directory, or your container engine's `logs` command for a Browser you started yourself.
 

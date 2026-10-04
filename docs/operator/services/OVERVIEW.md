@@ -1,283 +1,112 @@
-# Services Overview
+# The services in a stack
 
-A deployment-focused overview of Semiont's services. For API documentation, see the individual package docs.
+A Semiont stack is eight of Semiont's own container images and the infrastructure they need. This page is the one place their facts are stated: what each is, where it listens, what it reads, what it mounts and what it reaches. Other pages link here.
 
-## Service catalog
+For how the containers connect, see [Container Topology](../CONTAINER-TOPOLOGY.md). For what the actors inside them do, see [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md).
 
-Eight services run Semiont code. Each is a published container image; see [Container Images](../administration/IMAGES.md) and [Container Topology](../CONTAINER-TOPOLOGY.md).
+## Semiont's own images
 
-| Service | Port | What runs | Bundled package | Docs |
+All eight are published to `ghcr.io/the-ai-alliance/`, for `linux/amd64` and `linux/arm64`. See [Container Images](../administration/IMAGES.md) for tags and for verifying one.
+
+| Service | Image | Port | Built from | What it does |
 |---|---|---|---|---|
-| **browser** | 3000 | Static server for the Semiont Browser SPA | `semiont-browser` | [README](../../../apps/browser/README.md) |
-| **gateway** | 4000 | Auth, the bus hub, and the content proxy. **Hosts no actors**. Rust | compiled from `apps/gateway` | [README](../../../apps/gateway/README.md) |
-| **archivist** | 24103 | Keeps the system of record — Stower, Browser, CloneTokenManager | `@semiont/make-meaning` | [README](../../../apps/archivist/README.md) |
-| **librarian** | 24104 | Searches it — Gatherer, Matcher | `@semiont/make-meaning` | [README](../../../apps/librarian/README.md) |
-| **worker** | 24100 | Annotation/generation worker pool | `@semiont/jobs` | [README](../../../apps/worker/README.md) |
-| **smelter** | 24101 | Embedding/vector pipeline; owns anchored-text extraction | `@semiont/make-meaning` | [README](../../../apps/smelter/README.md) |
-| **weaver** | 24102 | Graph-projection pipeline | `@semiont/make-meaning` | [README](../../../apps/weaver/README.md) |
-| **dispatcher** | 24105 | Owns the job queue and answers the `job:*` lifecycle — a control plane; no content flows through it | `@semiont/make-meaning` | [README](../../../apps/dispatcher/README.md) |
+| [gateway](../../../apps/gateway/README.md) | `semiont-gateway` | 4000 | Rust, `apps/gateway` | Verifies every caller's token, relays the bus, and proxies content bytes to the Archivist. It hosts no actors and holds no datastore |
+| [dispatcher](../../../apps/dispatcher/README.md) | `semiont-dispatcher` | 24105 | Rust, `apps/dispatcher` | Owns the job queue and answers the `job:*` lifecycle. No content flows through it |
+| [archivist](../../../apps/archivist/README.md) | `semiont-archivist` | 24103 | `@semiont/make-meaning` | Keeps the record. The only service that mounts the knowledge base's working tree: it appends the event log, writes content, and keeps the views |
+| [librarian](../../../apps/librarian/README.md) | `semiont-librarian` | 24104 | `@semiont/make-meaning` | Searches the knowledge base: gathers context and matches candidates |
+| [worker](../../../apps/worker/README.md) | `semiont-worker` | 24100 | `@semiont/jobs` | The worker pool: claims annotation and generation jobs and runs them against a model |
+| [smelter](../../../apps/smelter/README.md) | `semiont-smelter` | 24101 | `@semiont/make-meaning` | Computes embeddings, keeps the vector index, and extracts anchored text |
+| [weaver](../../../apps/weaver/README.md) | `semiont-weaver` | 24102 | `@semiont/make-meaning` | Keeps the graph projection of the event log |
+| [browser](../../../apps/browser/README.md) | `semiont-browser` | 3000 | `apps/browser` | Serves the Semiont Browser's static files. The app itself runs in the user's web browser and connects to gateways from there |
 
-**The gateway holds no part of the knowledge base.** It authenticates callers, relays the
-bus, and proxies content bytes to the Archivist; it holds no datastore at all — identity is
-verified against the issuer, and the job queue is the dispatcher's. The five
-meaning-tier actors live in the Archivist and the Librarian. That split is enforced by a test,
-not by convention — `TestExactlyOneContainerMountsTheKB` pins it in the launcher's golden run
-arguments: exactly one container mounts the KB, and it is the Archivist.
+## What each service needs
 
-**The bus is a driver seam** (SIGNAL-PLANE). "Relays the bus" is the in-process default — one
-RxJS fabric inside the gateway process, the permanent local default. Selecting
-`[signal] type = "nats"` moves fan-out onto core NATS subjects on the shared `messaging`
-daemon instead, which is what lets the gateway run as multiple replicas; the driver is chosen
-in config and invisible to every bus client. See [Configuration](../administration/CONFIGURATION.md)
-and, for replicas, [Deployment](../administration/DEPLOYMENT.md).
+This is the contract a deployment satisfies, whoever does the deploying. The launcher satisfies it on a laptop and in a codespace; on your own platform it is yours ([Deployment](../administration/DEPLOYMENT.md)).
 
-For what the actors inside those containers are responsible for, see [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md).
+| Service | Configuration | Mounts | Reaches | Instances |
+|---|---|---|---|---|
+| gateway | `/etc/semiont/gateway.json`, a [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json) document | none | The issuer's published keys; the Archivist; the broker, when the signal plane is `nats` | any number, once the signal plane is `nats` |
+| dispatcher | `/etc/semiont/dispatcher.json`, a [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json) document | none | The gateway's bus; the broker's JetStream | one |
+| archivist | `~/.semiontconfig` (TOML) | The working tree at `/kb`, read-write; the state directory, where it writes views; the anchored-text store, read-only | The gateway's bus; graph; vectors; embedding | one |
+| librarian | `~/.semiontconfig` | The state directory, to read views | The gateway's bus; graph; vectors; embedding; inference; the Archivist | one |
+| worker | `~/.semiontconfig` | none | The gateway's bus; the Archivist, for bytes; inference | any number |
+| smelter | `~/.semiontconfig` | The anchored-text store, read-write | The gateway's bus; vectors; embedding; the Archivist, for bytes | one |
+| weaver | `~/.semiontconfig` | none | The gateway's bus; graph | one |
+| browser | none; `PORT` only | none | nothing | any number |
 
-### Infrastructure dependencies
+Every service but the Browser has its own service account at the knowledge base's issuer, which it receives as `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`. It signs in with that account, then exchanges the issuer's token at the gateway (`POST /api/tokens/agent`) for the agent identity its work is attributed to.
 
-| Role | Product | Port | Purpose |
+Two specs hold the rest:
+
+- [`service-config/sections.json`](../../../specs/src/service-config/sections.json) lists the config sections each Node service reads. A service resolves a `${VAR}` reference only in a section it reads.
+- [`service-environment/variables.json`](../../../specs/src/service-environment/variables.json) lists every environment variable the gateway and the dispatcher read.
+
+Why each service has one instance or many is in [Scaling](../administration/SCALING.md). Which secrets reach which service is in [Secrets](SECRETS.md).
+
+## The infrastructure beside them
+
+Each row is a role a stack needs, and the technology the launcher runs for it. A knowledge base's config names the driver for each role ([Configuration](../administration/CONFIGURATION.md)).
+
+| Role | What the launcher runs | Port | Who uses it |
 |---|---|---|---|
-| **database** | PostgreSQL | 5432 | Keycloak's realm; Semiont stores nothing in it — see [Database Guide](../administration/DATABASE.md) |
-| **graph** | Neo4j | 7474, 7687 | Graph projection of the event log |
-| **vectors** | Qdrant | 6333 | Embeddings and semantic search |
-| **inference** | Ollama | 11434 | Local LLM + embeddings (or Anthropic instead, for LLM) |
-| **traces** | Jaeger | 16686, 4318 | OTLP traces + metrics; on by default, `--no-observe` skips it |
-| **messaging** | NATS | 4222 | The broker, present only when `[jobs] type = "jetstream"` or `[signal] type = "nats"` is selected — JetStream streams back the job queue, core subjects the signal plane. Runs lean (no JetStream, no store) when only signals select it. See [Configuration](../administration/CONFIGURATION.md) |
+| `identity` | Keycloak | 8080 | People and services sign in there; the gateway verifies every token against its keys |
+| `database` | PostgreSQL | 5432 | Keycloak, and nothing else. Semiont stores nothing in it ([Database](../administration/DATABASE.md)) |
+| `messaging` | NATS, with JetStream | 4222 | The dispatcher's job queue; the gateway's signal plane, when it is `nats` |
+| `graph` | Neo4j | 7687 (Bolt), 7474 (HTTP) | Archivist, librarian, weaver |
+| `vectors` | Qdrant | 6333 | Archivist, librarian, smelter |
+| `inference` | Ollama, or nothing when a remote API such as Anthropic does the inference | 11434 | Librarian, worker |
+| `embedding` | The same Ollama, or nothing when Voyage does the embedding | 11434 | Archivist, librarian, smelter |
+| `collector` | OpenTelemetry Collector | 4318 (OTLP), 24110 (its own metrics) | Every service exports traces and metrics to it |
+| `traces` | Jaeger | 16686 (UI), 14318 (OTLP) | The collector forwards traces to it |
+| `metrics` | Prometheus | 9090 | Scrapes the collector |
 
-`embedding` is a role with no container of its own: in practice it is either the Ollama that `inference` already provides, or a remote service. `messaging` is the inverse — a container with no fixed role: it runs only when a broker-backed driver is chosen, and what it carries depends on which one(s).
+`embedding` never has a container of its own: an Ollama embedding is served by the Ollama that `inference` runs, and Voyage is a remote API. `semiont start --no-observe` leaves out `traces` and `metrics`; the collector still runs.
 
-### Storage substrate
+None of these is fixed. Each role sits behind a driver interface, so a stack can use a daemon you already run, or a different technology: see [Adapting a stack](../administration/DEPLOYMENT.md#adapting-a-stack).
 
-| Store | Package | Where it lives |
-|---|---|---|
-| **Event log** | `@semiont/event-sourcing` | `.semiont/events/` in the KB git repo — the system of record ([Storage Layout](../../../packages/event-sourcing/docs/STORAGE-LAYOUT.md)) |
-| **Content store** | `@semiont/content` | The git working tree — files where they live, addressed by a `file://` storage URI on the resource's primary representation ([API](../../../packages/content/docs/API.md)) |
-| **Graph** | `@semiont/graph` | Neo4j or in-memory ([API](../../../packages/graph/docs/API.md), [Architecture](../../../packages/graph/docs/ARCHITECTURE.md)) |
-| **Vectors** | `@semiont/vectors` | Qdrant or in-memory ([Package](../../../packages/vectors/)) |
-| **Users** | none | Accounts live at the trusted issuer; Semiont stores no user record |
+## Start order
 
-The event log is the system of record; the graph, the vector store, and the materialized views are projections of it. A disagreement between a projection and the log is a bug in the projection.
+`semiont start` brings a stack up in this order:
 
-## Service management
+1. `traces`, `metrics`, `collector`
+2. `database`, `messaging`, `identity`
+3. `gateway`
+4. `graph`, `vectors`, `inference`, `embedding`
+5. `archivist`, `librarian`, `dispatcher`
+6. `worker`, `smelter`, `weaver`
+7. `browser`
 
-The stack is managed by the `semiont` launcher — a single static binary, installed with Homebrew, that drives your container runtime:
+`semiont stop` takes it down in reverse. A scheduler need not reproduce the order exactly, because each service waits for what it depends on within a deadline: see [Retry and deadlines](../../architecture/RETRY-AND-DEADLINES.md).
 
-```bash
-brew install the-ai-alliance/semiont/semiont
-```
+## Health
 
-Run these from a knowledge-base directory:
-
-```bash
-semiont start                      # Whole stack
-semiont start --list-configs       # Which inference configs this KB ships
-semiont start --config anthropic   # Bring it up on a named config
-
-semiont status                     # Container state + per-service health
-semiont logs                       # Follow every service
-semiont logs --service gateway     # One service
-
-semiont start --service gateway    # Restart just one service, leaving the rest up
-semiont stop                       # Tear the stack down
-semiont stop --service worker      # Stop one service
-semiont clean                      # Remove persistent state (PostgreSQL, Qdrant, Neo4j)
-```
-
-`--service` takes one of `gateway`, `worker`, `smelter`, `weaver`, `archivist`, `librarian`, `dispatcher`, `browser`, `database`, `graph`, `vectors`, `inference`, `embedding`, `traces`, or `messaging` (present only when a broker-backed driver is selected). Omitting it means the whole stack — there is no `--service all`. `semiont stop` deliberately leaves persistent state behind so the next `start` reuses it; `semiont clean` is the only thing that removes it.
-
-Run `semiont <command> --help` for a command's options and `semiont --help` for the full verb list.
-
-Services log to stdout, so `semiont logs` is the way to read them — there are no per-service log files.
-
-The launcher has no `exec` verb. To get a shell in a running service, use your container engine; containers are named `semiont-<service>`:
-
-```bash
-container exec -it semiont-gateway sh    # or: docker exec -it semiont-gateway sh
-```
-
-### Configuration
-
-Services are configured per environment in the KB's `.semiont/semiontconfig/<name>.toml`. `semiont init` generates one and `semiont start --config <name>` selects it; the shape is:
-
-The launcher **appends** `[environments.<env>.archivist]` (host + port) to each staged
-per-service config — that stanza records where this stack's Archivist listens, so it is
-launcher-staged topology, not something a KB author writes by hand.
-
-```toml
-[defaults]
-environment = "local"
-
-[environments.local.gateway]
-platform = "posix"
-port = 4000
-publicURL = "http://${GATEWAY_HOST:-localhost}:4000"
-
-[environments.local.graph]
-platform = "external"
-type = "neo4j"
-uri = "bolt://${NEO4J_HOST}:7687"
-username = "neo4j"
-database = "neo4j"
-
-[environments.local.vectors]
-type = "qdrant"          # or: memory
-host = "${QDRANT_HOST}"
-port = 6333
-
-[environments.local.embedding]
-platform = "external"
-type = "ollama"
-model = "nomic-embed-text"
-baseURL = "http://${OLLAMA_HOST}:11434"
-
-[environments.local.embedding.chunking]
-chunkSize = 512
-overlap = 64
-
-# Provider credentials
-[environments.local.inference.anthropic]
-platform = "external"
-apiKey = "${ANTHROPIC_API_KEY}"
-
-# Bindings: which provider and model each consumer uses
-[environments.local.actors.gatherer.inference]
-type = "anthropic"
-model = "claude-haiku-4-5-20251001"
-
-[environments.local.workers.default.inference]
-type = "anthropic"
-model = "claude-haiku-4-5-20251001"
-
-[environments.local.database]
-platform = "external"
-host = "${POSTGRES_HOST}"
-port = 5432
-name = "semiont"
-user = "postgres"
-```
-
-The config names no password for the Neo4j and PostgreSQL the launcher runs: it generates one for each, keeps it per knowledge base, and refuses a config that names one. A daemon you run yourself takes its password from a `${VAR}` reference, which you export or register with `semiont settings secret set`.
-
-Note the split: `[environments.local.inference.<provider>]` carries a provider's credentials, while `[environments.local.{actors.<actor>,workers.<pool>}.inference]` binds one consumer to a `(type, model)` pair. That is what lets a lighter model serve high-volume annotation workers while the Gatherer uses a stronger one.
-
-See the [Configuration Guide](../administration/CONFIGURATION.md) for the full schema.
-
-## Service dependencies
-
-### Startup order
-
-```mermaid
-graph LR
-    DB[PostgreSQL] --> KC[Keycloak]
-    KC --> GW[Gateway]
-    NATS[NATS] --> GW
-    GW --> AR[Archivist]
-    GW --> LB[Librarian]
-    GW --> DP[Dispatcher]
-    NATS --> DP
-    GW --> W[Worker]
-    GW --> SM[Smelter]
-    GW --> WV[Weaver]
-    GW --> BR[Browser]
-    GRAPH[Neo4j] --> AR
-    GRAPH --> LB
-    GRAPH --> WV
-    VECTORS[Qdrant] --> LB
-    VECTORS --> SM
-```
-
-`semiont start` handles this ordering: the infrastructure containers come up first, then the
-gateway, then everything that talks to the gateway's bus. Note that the datastores attach to
-the **meaning-tier** services now, not to the gateway.
-
-### Runtime dependencies
-
-- **Browser** → nothing. It serves static assets; the SPA in the user's browser talks to the gateway directly.
-- **Gateway** → the issuer (token verification), NATS when the signal plane is broker-backed, and the Archivist (it proxies content bytes there and reads replay from it). No database, no graph, no vectors, no inference
-- **Archivist** → gateway bus, the KB working tree and state (**the only service that mounts them**), Neo4j for one query, an embedding provider
-- **Librarian** → gateway bus, Neo4j, Qdrant, inference + embeddings
-- **Worker** → gateway bus, inference, the Archivist's HTTP surface for bytes
-- **Smelter** → gateway bus, Qdrant, embeddings, the Archivist's HTTP surface for bytes
-- **Weaver** → gateway bus, Neo4j
-- **Dispatcher** → gateway bus, the NATS broker for the JetStream queue, and the Archivist over the bus for entity-type and tag-schema validation. No mount, no bytes
-- **MCP server** → gateway bus
-
-## Service communication
-
-Every actor that runs Semiont code is a bus participant. The gateway exposes exactly two runtime endpoints carrying domain traffic — `POST /bus/emit` and `POST /bus/subscribe` (SSE; the subscription matrix is a request body, which is why it is a POST, with per-scope Last-Event-ID replay). Every other HTTP route serves auth, admin, binary content, or infrastructure.
-
-The sidecar services authenticate via `POST /api/tokens/agent`: each holds its own service account at the knowledge base's issuer (`SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`), presents the resulting issuer token as a bearer, and exchanges it plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID.
-
-**Replay is served by the Archivist, not the gateway.** The gateway serves `/bus/subscribe` but holds no event log, so a `Last-Event-ID` resume fetches from the Archivist over `host:port`, presenting the gateway's own service-account token. If that fetch fails, the subscription degrades to a scoped `bus:resume-gap` rather than silently serving nothing.
-
-See [Container Topology](../CONTAINER-TOPOLOGY.md) for the full picture.
-
-## Health checks
-
-`semiont status` probes each role at a fixed endpoint and reports the result alongside container state. The probes it uses:
+Every service answers a health request on its own port. `semiont status` probes each role and reports the result beside the container's state:
 
 | Role | Probe |
 |---|---|
-| gateway | `http://localhost:4000/api/health` |
-| worker | `http://localhost:24100/health` |
-| smelter | `http://localhost:24101/health` |
-| weaver | `http://localhost:24102/health` |
-| archivist | `http://localhost:24103/health` |
-| librarian | `http://localhost:24104/health` |
-| dispatcher | `http://localhost:24105/health` |
-| database | TCP connect on 5432 |
-| graph | `http://localhost:7474` |
-| vectors | `http://localhost:6333/readyz` |
-| inference / embedding | `http://localhost:11434/api/version` |
-| traces | `http://localhost:16686` |
+| gateway | `GET /api/health` on 4000 |
+| worker, smelter, weaver, archivist, librarian, dispatcher | `GET /health` on the service's port |
+| `identity` | the realm's own URL |
+| `database`, `messaging` | a TCP connect |
+| `graph` | `GET /` on 7474 |
+| `vectors` | `GET /readyz` on 6333 |
+| `inference`, `embedding` | `GET /api/version` on 11434 |
+| `collector` | `GET /metrics` on 24110 |
+| `traces` | `GET /` on 16686 |
+| `metrics` | `GET /-/healthy` on 9090 |
 
-Every role but `traces` counts toward the exit status, so `semiont status` is usable as a gate in a script. The Browser has no probe — it is a static file server with nothing to be unhealthy about.
+These answer liveness: the process is up and serving. The gateway's `/api/health` checks nothing behind it, so it stays healthy while the broker or the issuer is down ([Troubleshooting](../administration/TROUBLESHOOTING.md)).
 
-The gateway's `/api/health` reports database reachability and the environment name; the rest are liveness.
+## The launcher's names
 
-## Observability
+`--service <name>` on `semiont start`, `stop`, `logs` and `status` takes a role name from the tables above: `gateway`, `dispatcher`, `archivist`, `librarian`, `worker`, `smelter`, `weaver`, `browser`, `identity`, `database`, `messaging`, `graph`, `vectors`, `inference`, `embedding`, `collector`, `traces` or `metrics`. It takes exactly one. Omitting it means the whole stack.
 
-Local stacks run Jaeger by default (`--no-observe` skips it). Every Semiont service — gateway, archivist, librarian, worker, smelter, weaver, dispatcher — exports OTLP traces and metrics to it; the UI is at http://localhost:16686. Application logs go to stdout as structured JSON — read them with `semiont logs`.
-
-## Platform support
-
-The launcher runs the stack in containers on **Apple Container, Docker, or Podman** (`--runtime`), locally or on a GitHub-hosted machine (`--runtime codespace`).
-
-Nothing in the architecture requires containers: the packages are plain Node, so the same code can run as bare processes, as ECS Fargate tasks, or as Kubernetes pods. What the launcher supports today is the container path; running the published images anywhere else is not supported by this repo. See [Deployment](../administration/DEPLOYMENT.md) and [Platforms](../platforms/README.md).
-
-## Troubleshooting
-
-**A service won't start**
-
-```bash
-semiont status                     # Which service is unhealthy
-semiont logs --service gateway     # Why
-```
-
-Containers are started without `--rm`, so a crashed container stays inspectable and its logs survive.
-
-**Database connection failed**
-
-```bash
-semiont status
-container exec semiont-postgres pg_isready -U postgres
-semiont logs --service database
-```
-
-See the [Database Guide](../administration/DATABASE.md).
-
-**Graph or vectors unavailable**
-
-Both degrade rather than fail — core features work without them. See [Graph Architecture](../../../packages/graph/docs/ARCHITECTURE.md#graceful-degradation).
-
-More at [TROUBLESHOOTING.md](../administration/TROUBLESHOOTING.md).
+Containers are named `semiont-<service>` for Semiont's own, and after the product for the rest: `semiont-keycloak`, `semiont-postgres`, `semiont-nats`, `semiont-neo4j`, `semiont-qdrant`, `semiont-ollama`, `semiont-otel-collector`, `semiont-jaeger`, `semiont-prometheus`.
 
 ## Related
 
-- [Container Topology](../CONTAINER-TOPOLOGY.md) — how the containers are partitioned and how they talk
-- [Container Images](../administration/IMAGES.md) — what is published, and its supply-chain attestations
-- [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md) — the actors and how knowledge flows
-- [Configuration Guide](../administration/CONFIGURATION.md) — the full config schema
-- [Database Guide](../administration/DATABASE.md) — the PostgreSQL Keycloak uses
-- [Filesystem Patterns](../../architecture/FILESYSTEM.md) — storage layout on disk
-- [launcher README](../../../apps/launcher/README.md) — every verb, in detail
+- [Container Topology](../CONTAINER-TOPOLOGY.md): how the containers connect, in two diagrams
+- [Deployment](../administration/DEPLOYMENT.md): the three ways to run a stack
+- [Configuration](../administration/CONFIGURATION.md): choosing a driver for each role
+- [Secrets](SECRETS.md): which secrets exist and which service receives each
+- [The launcher's README](../../../apps/launcher/README.md): every verb and flag

@@ -53,7 +53,7 @@ Either way the Browser opens from Windows at `http://localhost:3000`.
 5. **Sign in a terminal** with `semiont login`. It prints an address and a code; open the address
    in your Windows browser.
 
-Everything else is as [Local Semiont](../LOCAL-SEMIONT.md) describes it: `semiont status`,
+Everything else is as [Running a local stack](../LOCAL-SEMIONT.md) describes it: `semiont status`,
 `semiont logs`, `semiont stop`. The launcher's own files are where Linux keeps them, inside WSL:
 `~/.local/state/semiont` and `~/.local/share/semiont`.
 

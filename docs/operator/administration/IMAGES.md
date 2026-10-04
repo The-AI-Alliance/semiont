@@ -1,37 +1,14 @@
 # Container Images
 
-This document is an inventory of the container images published from
-this repository.
+The container images this repository publishes, how they are tagged, and how to verify one before you run it. What each service does and needs is in [the service catalog](../services/OVERVIEW.md).
 
 ## Overview
 
-This repo publishes **8 container images** to GitHub Container Registry
-(ghcr.io):
+Eight images are published to GitHub Container Registry, as `ghcr.io/the-ai-alliance/<image>`, for `linux/amd64` and `linux/arm64`:
 
-- **semiont-browser** — Vite + React SPA (the Semiont Browser), served as a
-  static container.
-- **semiont-gateway** — the API server + unified bus gateway.
-- **semiont-archivist** — the KB record actor: the working tree's single
-  writer and byte authority.
-- **semiont-librarian** — the search/match actor (Gatherer + Matcher).
-- **semiont-worker** — the annotation/generation worker pool.
-- **semiont-smelter** — the embedding/vector pipeline actor.
-- **semiont-weaver** — the graph-projection actor.
-- **semiont-dispatcher** — the job dispatcher: owns the queue and answers the `job:*` lifecycle.
+`semiont-gateway`, `semiont-dispatcher`, `semiont-archivist`, `semiont-librarian`, `semiont-worker`, `semiont-smelter`, `semiont-weaver` and `semiont-browser`.
 
-Knowledge-base repositories **pull these images — they do not build their
-own**. The launcher runs `ghcr.io/the-ai-alliance/semiont-<svc>:<version>`
-(`latest` unless `SEMIONT_VERSION` names another) and bind-mounts each
-service's staged copy of the KB's TOML config at runtime; nothing KB-specific
-is baked into any image. The consuming entry point is the host-installed
-[`semiont` launcher](../../../apps/launcher/README.md)
-(`brew install the-ai-alliance/semiont/semiont`): `semiont start` pulls all
-eight and starts them alongside the infrastructure containers. See
-[semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)
-for the canonical KB shape.
-
-All images support `linux/amd64` and `linux/arm64` and follow the
-unified versioning scheme managed through [`version.json`](../../../version.json).
+**Configuration is given at run time, never built in.** No image contains anything about a knowledge base, so one verified image serves every knowledge base, and a knowledge base's repository builds no image of its own. The launcher pulls `ghcr.io/the-ai-alliance/semiont-<service>:<version>`, with `latest` unless `SEMIONT_VERSION` names another, and mounts each service's configuration into it.
 
 ---
 
@@ -39,19 +16,16 @@ unified versioning scheme managed through [`version.json`](../../../version.json
 
 [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-browser)
 
-**Description:** Vite + React single-page app (the Semiont Browser),
-served from a Node static-file server. Multi-platform: `linux/amd64`,
-`linux/arm64`.
+The Semiont Browser: a single-page app served by a small static-file server.
 
 **Pull image:**
 ```bash
 docker pull ghcr.io/the-ai-alliance/semiont-browser:latest
 ```
 
-**Environment variables:** `PORT` only (default `3000`). The container is a
-static-file server with no gateway config and no config mount — the SPA
-connects to knowledge bases from the *browser* at runtime (the multi-KB
-session model; see [HUMAN-UI.md](../../architecture/HUMAN-UI.md)).
+**Environment variables:** `PORT` only (default `3000`). The container holds
+no knowledge-base configuration and mounts none: the app connects to knowledge
+bases from the person's web browser (see [HUMAN-UI.md](../../architecture/HUMAN-UI.md)).
 
 **Documentation:** [apps/browser/README.md](../../../apps/browser/README.md)
 
@@ -67,104 +41,35 @@ session model; see [HUMAN-UI.md](../../architecture/HUMAN-UI.md)).
 
 [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/orgs/The-AI-Alliance/packages?repo_name=semiont)
 
-The seven service images are published as runtime images. The five sidecars
-**bundle the published `@semiont/*` npm packages** at the requested version —
-the publish workflow refuses to build them until every published `@semiont/*`
-package at that version is installable — its tarball fetchable, not merely
-listed in the registry metadata — so an image version always equals the npm
-version it carries. The four that bundle `@semiont/make-meaning` run `node:24-alpine`,
-held there by the qdrant client they carry; the worker and the Browser carry no
-qdrant client and run `node:26-alpine`.
-The gateway and the dispatcher are Rust: each image compiles the workspace from
-the commit the workflow runs on, with the toolchain `rust-toolchain.toml` pins,
-and ships its binary on `alpine` — no source, no toolchain, and nothing built
-or fetched when it starts. The two Dockerfiles share one builder stage, which
-builds both binaries, so the second image built on a machine reuses it rather
-than compiling again; `lint:rust-images` keeps the stages the same.
+Five are Node. Each installs the published `@semiont/*` npm packages at the image's own version, so an image's version is always the npm version it carries. The four that carry `@semiont/make-meaning` run on `node:24-alpine`; the worker and the Browser run on `node:26-alpine`.
 
-| Image | What runs | Bundled packages | Port | Dockerfile |
-|---|---|---|---|---|
-| `semiont-gateway` | API server + bus gateway | none — compiled from `apps/gateway` | 4000 | [apps/gateway/Dockerfile](../../../apps/gateway/Dockerfile) |
-| `semiont-archivist` | KB record actor (tree single-writer, byte authority) | `@semiont/make-meaning` | 24103 | [apps/archivist/Dockerfile](../../../apps/archivist/Dockerfile) |
-| `semiont-librarian` | search/match actor (Gatherer + Matcher) | `@semiont/make-meaning` | 24104 | [apps/librarian/Dockerfile](../../../apps/librarian/Dockerfile) |
-| `semiont-worker` | annotation/generation worker pool | `@semiont/jobs` | 24100 | [apps/worker/Dockerfile](../../../apps/worker/Dockerfile) |
-| `semiont-smelter` | embedding/vector pipeline actor | `@semiont/make-meaning` | 24101 | [apps/smelter/Dockerfile](../../../apps/smelter/Dockerfile) |
-| `semiont-weaver` | graph-projection actor | `@semiont/make-meaning` | 24102 | [apps/weaver/Dockerfile](../../../apps/weaver/Dockerfile) |
-| `semiont-dispatcher` | job dispatcher (owns the queue, answers `job:*`) | none — compiled from `apps/dispatcher` | 24105 | [apps/dispatcher/Dockerfile](../../../apps/dispatcher/Dockerfile) |
+Two are Rust: the gateway and the dispatcher. Each image compiles its binary from the commit it is published from and ships it on `alpine`, with no source and no toolchain, and builds or fetches nothing when it starts.
 
-**Configuration is runtime, not build-time.** The images contain no KB
-config; consuming stacks bind-mount their per-service TOML at run time.
-This is what lets one attested image serve every knowledge base — KB repos
-carry no Dockerfiles and no image builds of their own.
+| Image | Built from | Dockerfile |
+|---|---|---|
+| `semiont-gateway` | Rust, `apps/gateway` | [apps/gateway/Dockerfile](../../../apps/gateway/Dockerfile) |
+| `semiont-dispatcher` | Rust, `apps/dispatcher` | [apps/dispatcher/Dockerfile](../../../apps/dispatcher/Dockerfile) |
+| `semiont-archivist` | `@semiont/make-meaning` | [apps/archivist/Dockerfile](../../../apps/archivist/Dockerfile) |
+| `semiont-librarian` | `@semiont/make-meaning` | [apps/librarian/Dockerfile](../../../apps/librarian/Dockerfile) |
+| `semiont-smelter` | `@semiont/make-meaning` | [apps/smelter/Dockerfile](../../../apps/smelter/Dockerfile) |
+| `semiont-weaver` | `@semiont/make-meaning` | [apps/weaver/Dockerfile](../../../apps/weaver/Dockerfile) |
+| `semiont-worker` | `@semiont/jobs` | [apps/worker/Dockerfile](../../../apps/worker/Dockerfile) |
 
-**Workflow:** [.github/workflows/publish-service-images.yml](../../../.github/workflows/publish-service-images.yml)
-(a matrix over the seven services).
+Each one's port, configuration and dependencies are in [the service catalog](../services/OVERVIEW.md).
 
-**Local dev loop:** [scripts/ci/local-build.sh](../../../scripts/ci/local-build.sh)
-builds all eight images from the working tree as
-`ghcr.io/the-ai-alliance/semiont-<svc>:local` (via a throwaway local
-verdaccio; never pushed), fanning each built image out to every other
-container engine on the machine so any `--runtime` finds them. A KB stack
-consumes them with `SEMIONT_VERSION=local`, which also skips the pull.
+The Browser has its own workflow, [publish-browser.yml](../../../.github/workflows/publish-browser.yml); the seven services share [publish-service-images.yml](../../../.github/workflows/publish-service-images.yml). How a release is published is in the contributor's [Release Process](../../contributor/RELEASE.md), and building all eight from a checkout is in [Local Development](../../contributor/LOCAL-DEVELOPMENT.md).
 
 ---
 
 ## Versioning
 
-All images follow the unified versioning system managed through
-[`version.json`](../../../version.json). Every published image gets one
-or more of the following tags:
+Every image carries the same version, the one in [`version.json`](../../../version.json), and gets these tags:
 
-- **Version tag** — the `version` input to the workflow, e.g. `0.4.22`
-  for stable releases or `0.4.22-build.42` for dev builds.
-- **Commit tag** — `sha-{COMMIT}`, where `{COMMIT}` is the short SHA
-  of the commit that triggered the workflow.
-- **Latest tag** — `latest`, applied only when the workflow is run
-  with `tag_latest=true`. Operators pinning to `:latest` get whatever
-  the most recent stable promotion was.
+- **The version**, such as `<version>` for a release or `<version>-build.<n>` for a development build.
+- **The commit**: `sha-<commit>`, the short SHA the image was built from.
+- **`latest`**, moved to a release when it is promoted. It is what the launcher runs unless `SEMIONT_VERSION` names a version.
 
-### Publishing Process
-
-Two workflows publish the images, both triggered manually with the desired
-version: [`publish-browser.yml`](../../../.github/workflows/publish-browser.yml)
-(the Browser) and
-[`publish-service-images.yml`](../../../.github/workflows/publish-service-images.yml)
-(a matrix over the seven services). Each run, per image:
-
-1. For an image that bundles npm packages, verifies the matching
-   `@semiont/*` version(s) exist — it bundles published packages, never the
-   working tree. The gateway image compiles the checkout instead, so it is
-   published from the release tag.
-2. Builds the multi-platform image from the service's Dockerfile. Five npm
-   images build both platforms on one amd64 runner, arm64 under emulation.
-   The gateway and the dispatcher compile Rust, which emulation makes take over
-   an hour, so each of their platforms builds on a runner of its own
-   architecture, passes every check below there, and is pushed by digest; a
-   final job (`manifest`) joins the two under the tags and attests the result.
-   For the gateway, checks the built image carries no source, serves
-   `/api/health` within its start bound, and passes its own HEALTHCHECK
-   (`scripts/container/check-gateway-image.sh`). For the dispatcher, checks it
-   carries no source and no Node, and refuses promptly and by name without its
-   document (`scripts/container/check-dispatcher-image.sh`).
-3. Trivy-scans the build for the runner's platform for `HIGH`/`CRITICAL` CVEs (and, for
-   the service images, license-policy violations) and fails the run
-   on any unfixed finding. The gateway's and the dispatcher's binaries record the
-   crates they link (`cargo auditable`), so the scan sees them; their licences are held to the
-   same policy before the image exists (`scripts/lint/check-image-crates.mjs`).
-4. Pushes the image to GHCR with three tags: the version, a
-   `sha-{COMMIT}` tag, and (optionally) `latest`.
-5. Generates an SPDX SBOM and publishes both build-provenance and
-   SBOM attestations as OCI artifacts alongside the image.
-
-### Manual publishing
-
-```bash
-gh workflow run publish-browser.yml --field version=0.5.13
-gh workflow run publish-service-images.yml --field version=0.5.13
-# common flags for either workflow:
-gh workflow run publish-service-images.yml --field version=0.5.13 --field dry_run=true
-gh workflow run publish-service-images.yml --field version=0.5.13 --field tag_latest=true
-```
+A tag can be moved; a digest cannot. To pin exactly what you verified, reference the image by digest.
 
 ---
 
@@ -182,10 +87,10 @@ artifacts alongside the image:
   OS packages and language libraries in the image, generated by
   Trivy at build time and signed the same way.
 
-The image itself is also Trivy-scanned for `HIGH`/`CRITICAL`
-vulnerabilities before push; an image with unfixed HIGH/CRITICAL
-findings will fail the publish workflow rather than reach the
-registry.
+Each image is also scanned by Trivy for `HIGH` and `CRITICAL`
+vulnerabilities before it is pushed. A finding that has a fix available
+fails the publish, so such an image never reaches the registry. The
+service images pass a licence policy as well.
 
 ### Verify the image you pulled
 
