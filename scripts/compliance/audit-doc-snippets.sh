@@ -5,8 +5,8 @@ set -euo pipefail
 # type-checks against the BUILT packages, resolved through the exports map the
 # way that doc's reader resolves them (SAFE-DOCS). Doc rot fails CI instead of
 # waiting for a reader to paste a dead snippet. Two suites:
-#   - sdk: packages/sdk/docs plus the repo-root and packages/sdk READMEs.
-#   - ui:  packages/react-ui/docs and apps/browser/docs plus their READMEs.
+#   - sdk: docs/builder and docs/protocol/CACHE-SEMANTICS.md plus the repo-root and packages/sdk READMEs.
+#   - ui:  docs/builder/react-ui, packages/react-ui/docs and apps/browser/docs plus their READMEs.
 #
 # What green does NOT claim (do not oversell it):
 #   - Shape, not meaning: a method whose semantics changed under a stable
@@ -18,10 +18,10 @@ set -euo pipefail
 #     shapes); the run prints the exemption census — hold it flat or shrink it.
 #
 # POST-BUILD gate: requires dist for core/http-transport/sdk/react-ui/make-meaning and an
-# installed workspace tree (the fixture at packages/sdk/docs/__snippets__).
+# installed workspace tree (the fixture at tests/doc-snippets).
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-FIXTURE="$REPO_ROOT/packages/sdk/docs/__snippets__"
+FIXTURE="$REPO_ROOT/tests/doc-snippets"
 
 for pkg in core http-transport sdk react-ui make-meaning; do
   if [ ! -f "$REPO_ROOT/packages/$pkg/dist/index.d.ts" ]; then

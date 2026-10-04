@@ -1,6 +1,6 @@
 /**
  * Executable enforcement of the StateUnit pattern — the runtime twin of
- * `packages/sdk/docs/STATE-UNITS.md` and the ledger in
+ * `docs/builder/STATE-UNITS.md` and the ledger in
  * `.plans/STATE-UNIT-AXIOMS.md`. The `StateUnit` interface's own comment notes
  * the pattern is convention; this file makes it executable.
  *

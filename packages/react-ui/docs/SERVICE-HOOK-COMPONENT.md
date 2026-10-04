@@ -68,7 +68,7 @@ channel in the local EventBus. Application code never calls
 **Rules**:
 - ✅ Reads state-unit observables with `useObservable` (and subscribes to bus events with `useEventSubscriptions`)
 - ✅ Returns data/state objects
-- ❌ NO direct `eventBus.get().subscribe()` calls (use `useObservable` / `useEventSubscriptions`)
+- ❌ NO direct `eventBus.on(...).subscribe()` calls (use `useObservable` / `useEventSubscriptions`)
 - ❌ NO JSX rendering
 - ❌ NO manual event forwarding
 
@@ -135,7 +135,7 @@ export function useAssistToasts(resourceId: ResourceId) {
 - ✅ Reads state from hooks / state-unit observables
 - ✅ Triggers operations via `session.client.*` (e.g. `mark.requestAssist(...)`)
 - ✅ Renders JSX
-- ❌ NO direct `eventBus.get(...).subscribe()` (use hooks)
+- ❌ NO direct `eventBus.on(...).subscribe()` (use hooks)
 - ❌ NO SSE stream creation (use the SDK)
 - ❌ NO SSE parsing
 
@@ -453,7 +453,7 @@ event library.
 
 ## Related Documentation
 
-- [EVENTS.md](EVENTS.md) - Event bus usage and event types
+- [EVENTS.md](../../../docs/builder/react-ui/EVENTS.md) - Event bus usage and event types
 - [ARCHITECTURE.md](ARCHITECTURE.md) - Overall architecture principles
 - [TESTING.md](TESTING.md) - Testing strategies
 

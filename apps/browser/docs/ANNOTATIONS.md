@@ -367,7 +367,7 @@ The modular architecture ensures maintainability and extensibility, while the pr
 ## Related Documentation
 
 ### React UI Library
-- [`@semiont/react-ui/docs/ANNOTATIONS.md`](../../../packages/react-ui/docs/ANNOTATIONS.md) - Complete annotation system documentation with Provider Pattern architecture
+- [`docs/builder/react-ui/ANNOTATIONS.md`](../../../docs/builder/react-ui/ANNOTATIONS.md) - Complete annotation system documentation with Provider Pattern architecture
 - [`@semiont/react-ui/docs/ANNOTATION-CLICK.md`](../../../packages/react-ui/docs/ANNOTATION-CLICK.md) - Click and hover coordination
 - [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/react-ui/src/lib/annotation-registry.ts) - Source code for the Annotation Registry
 

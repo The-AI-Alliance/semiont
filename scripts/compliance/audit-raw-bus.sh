@@ -5,11 +5,11 @@ set -euo pipefail
 #
 # Flags two forms of direct bus access outside the allowlist:
 #
-# 1. `.client.emit(`, `.client.on(`, `.client.stream(` — the original
-#    raw transport primitives.
-# 2. `.bus.get(<channel>).next(` and `.bus.get(<channel>).subscribe(` —
-#    the post-SDK-split equivalent that goes through the bridged
-#    `client.bus` directly.
+# 1. `.transport.emit(`, `.transport.on(`, `.transport.stream(` — the raw
+#    transport primitives (`ITransport`), reached as `client.transport`.
+# 2. Any call through a `.bus.` receiver — `.bus.emit(`, `.bus.on(`,
+#    `.bus.frames(`, `.bus.scope(` — which goes through the bridged
+#    `client.bus` (`EventBus`) directly.
 #
 # The typed namespace methods (session.client.mark.assist etc.) are the
 # only public API surface. Direct bus access is reserved for the SDK
@@ -31,8 +31,16 @@ set -euo pipefail
 #                                          subscribe to job:* bus events)
 #   - packages/make-meaning/src/local-transport.ts
 #                                       — LocalTransport implements ITransport
-#                                          on top of EventBus (bus.get is the
-#                                          natural backing primitive there)
+#                                          on top of EventBus (the bus's own verbs
+#                                          are the natural backing primitive there)
+#   - packages/make-meaning/src/weaver.ts
+#   - packages/make-meaning/src/smelter.ts
+#                                       — actors whose `bus` field is a
+#                                          `BusRequestPrimitive` — the port they
+#                                          announce and request on, in-process or
+#                                          through the gateway — not `client.bus`;
+#                                          an actor has no namespace method to
+#                                          call instead
 #   - packages/core/src/faulty-transport.ts
 #                                       — FaultyTransport (liveness-axioms
 #                                          simulator, @semiont/core/testing)
@@ -51,9 +59,10 @@ set -euo pipefail
 #   - **/test-utils.tsx                 — test helpers
 #   - **/.generated/**                  — build output, not source. The SAFE-DOCS gate
 #                                          extracts every doc code fence into
-#                                          packages/sdk/docs/__snippets__/.generated/*.ts
+#                                          tests/doc-snippets/.generated/*.ts
 #                                          to type-check it; REACTIVE-MODEL.md documents
-#                                          `client.bus.get(...)` as the *sanctioned*
+#                                          `client.bus.on(...)` and
+#                                          `client.transport.emit(...)` as the *sanctioned*
 #                                          advanced surface (client.bus is public API,
 #                                          explicitly "not @internal"), so auditing those
 #                                          extracts flags the documentation of a legal
@@ -76,6 +85,8 @@ filter_allowlist() {
     | grep -v "^packages/http-transport/src/" \
     | grep -v "^packages/jobs/src/" \
     | grep -v "^packages/make-meaning/src/local-transport\.ts:" \
+    | grep -v "^packages/make-meaning/src/weaver\.ts:" \
+    | grep -v "^packages/make-meaning/src/smelter\.ts:" \
     | grep -v "^packages/core/src/faulty-transport\.ts:" \
     | grep -v "^packages/react-ui/src/state/" \
     | grep -v "^packages/react-ui/src/features/[^/]*/state/" \
@@ -84,19 +95,24 @@ filter_allowlist() {
 
 cd "$REPO_ROOT"
 
-# Pattern 1: client.emit/.on/.stream
-EMIT_VIOLATIONS=$(grep -rn "client\.\(emit\|on\|stream\)(" \
+# Pattern 1: transport.emit( / .on( / .stream(
+# Matches `<anything>.transport.emit(...)`, `.on(...)` and `.stream(...)`.
+# `ITransport` also carries lifecycle members that are not bus access, so its
+# three bus primitives are named.
+TRANSPORT_VIOLATIONS=$(grep -rnE "\.transport\.(emit|on|stream)\(" \
   packages apps \
   --include='*.ts' --include='*.tsx' \
   2>/dev/null \
   | filter_allowlist \
   || true)
 
-# Pattern 2: bus.get(channel).next( or .subscribe(
-# Matches `<anything>.bus.get('channel').next(...)` and `.subscribe(...)`.
-# The channel argument may be any expression; we only key off the .next /
-# .subscribe call that follows the .bus.get(...).
-BUS_GET_VIOLATIONS=$(grep -rnE "\.bus\.get\([^)]*\)\.(next|subscribe)\(" \
+# Pattern 2: any call through a `.bus.` receiver
+# Matches `<anything>.bus.emit(...)`, `.bus.on(...)`, `.bus.frames(...)` and
+# `.bus.scope(...)`. Every `EventBus` method is bus access, so the verb is
+# not enumerated: a pattern naming one goes dead, silently, when the bus's
+# API changes. Nothing is required to follow the call either — an Observable
+# from `.on(...)` is raw access whether it is subscribed, piped or passed on.
+BUS_VIOLATIONS=$(grep -rnE "\.bus\.[A-Za-z_][A-Za-z0-9_]*\(" \
   packages apps \
   --include='*.ts' --include='*.tsx' \
   2>/dev/null \
@@ -104,11 +120,11 @@ BUS_GET_VIOLATIONS=$(grep -rnE "\.bus\.get\([^)]*\)\.(next|subscribe)\(" \
   || true)
 
 VIOLATIONS=""
-if [ -n "$EMIT_VIOLATIONS" ]; then
-  VIOLATIONS+="${EMIT_VIOLATIONS}"$'\n'
+if [ -n "$TRANSPORT_VIOLATIONS" ]; then
+  VIOLATIONS+="${TRANSPORT_VIOLATIONS}"$'\n'
 fi
-if [ -n "$BUS_GET_VIOLATIONS" ]; then
-  VIOLATIONS+="${BUS_GET_VIOLATIONS}"$'\n'
+if [ -n "$BUS_VIOLATIONS" ]; then
+  VIOLATIONS+="${BUS_VIOLATIONS}"$'\n'
 fi
 
 if [ -n "$VIOLATIONS" ]; then
@@ -116,8 +132,8 @@ if [ -n "$VIOLATIONS" ]; then
   echo ""
   echo "$VIOLATIONS"
   echo "Use typed namespace methods (e.g. session.client.mark.delete(rid, aid))"
-  echo "instead of session.client.emit('mark:delete', ...) or"
-  echo "session.client.bus.get('mark:delete').next(...)."
+  echo "instead of session.client.transport.emit('mark:delete', ...) or"
+  echo "session.client.bus.emit('mark:delete', ...)."
   exit 1
 fi
 

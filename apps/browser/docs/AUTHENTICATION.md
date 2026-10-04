@@ -13,7 +13,7 @@ single `SemiontBrowser` singleton that lives in `@semiont/sdk` and is exposed to
 React via the `SemiontProvider` + `useSemiont()` pair in `@semiont/react-ui`.
 
 For the class-level story (observables, lifetimes, invariants), see
-[SESSION.md in `@semiont/react-ui`](../../../packages/react-ui/docs/SESSION.md).
+[SESSION.md in `@semiont/react-ui`](../../../docs/builder/react-ui/SESSION.md).
 This doc covers the **Browser-app** concerns: where providers mount,
 how route protection is expressed, how sign-in / sign-out flow, and
 how out-of-tree code signals the provider.
@@ -236,8 +236,8 @@ callback.
 
 ## Related
 
-- [SESSION.md (`@semiont/react-ui`)](../../../packages/react-ui/docs/SESSION.md)
+- [SESSION.md (`@semiont/react-ui`)](../../../docs/builder/react-ui/SESSION.md)
   — class model, observables, invariants.
-- [EVENTS.md (`@semiont/react-ui`)](../../../packages/react-ui/docs/EVENTS.md)
+- [EVENTS.md (`@semiont/react-ui`)](../../../docs/builder/react-ui/EVENTS.md)
   — bus architecture, channel routing.
 - [AUTHORIZATION.md](./AUTHORIZATION.md) — permission model.

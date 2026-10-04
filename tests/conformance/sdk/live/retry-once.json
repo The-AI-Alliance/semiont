@@ -1,6 +1,6 @@
 {
   "about": "a request that fails is made once more, and no more; the observer waits through both and sees the value the second is answered with (B14)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B14",
+  "source": "docs/protocol/CACHE-SEMANTICS.md B14",
   "tier": "fleet",
   "steps": [
     {"let": {"one": {"@context": "https://schema.org/", "@id": "one", "name": "one", "representations": []}}},

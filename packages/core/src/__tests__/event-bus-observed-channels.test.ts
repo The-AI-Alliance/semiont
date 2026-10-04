@@ -4,7 +4,7 @@
  *
  * That gate asserts the in-process root subscribes every channel the extracted
  * services do. Its whole value rests on one property of this accessor: mere
- * ACCESS must not count. `get()` creates subjects lazily, so if a lazily-made
+ * ACCESS must not count. `on()` creates subjects lazily, so if a lazily-made
  * subject with no subscriber were reported as observed, the gate would pass
  * for a root that touched every channel and listened to none — precisely the
  * regression it exists to catch.
@@ -36,7 +36,7 @@ describe('EventBus.observedChannels', () => {
   });
 
   it('does NOT report a channel that was only accessed', () => {
-    // The load-bearing case. `get()` creates the subject, so the map has an
+    // The load-bearing case. `on()` creates the subject, so the map has an
     // entry — but nobody is listening, and the parity gate must be able to
     // tell those apart.
     eventBus.on('mark:create-ok');

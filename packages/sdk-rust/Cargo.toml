@@ -5,6 +5,9 @@ edition = "2024"
 license = "Apache-2.0"
 repository.workspace = true
 description = "Semiont's Rust SDK: the protocol's types, the transport contract and a client of the bus over it, and what a client needs to name its principals and hold its roles, as specs/ states it."
+documentation = "https://docs.rs/semiont"
+keywords = ["semiont", "knowledge-base", "annotation", "agents", "sdk"]
+categories = ["api-bindings", "asynchronous"]
 
 [features]
 # The doubles and the axiom harnesses a consumer's tests use.

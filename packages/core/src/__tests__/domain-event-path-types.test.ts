@@ -24,12 +24,12 @@ describe('the domain-event path needs no casts', () => {
 
   it('has no getDomainEvent to funnel casts through', () => {
     const bus = new EventBus();
-    // @ts-expect-error — deleted; `get` is already channel-typed
+    // @ts-expect-error — deleted; `on` is already channel-typed
     expect(typeof bus.getDomainEvent).toBe('undefined');
   });
 
-  it('get() on a persisted type yields that channel, not an erased one', () => {
-    // What replaces it: `get` carries the channel's own type through, so a
+  it('on() on a persisted type yields that channel, not an erased one', () => {
+    // What replaces it: `on` carries the channel's own type through, so a
     // subscriber sees `EventMap[K]` rather than a widened `StoredEvent`.
     const bus = new EventBus();
     const seen: EventMap['mark:added'][] = [];

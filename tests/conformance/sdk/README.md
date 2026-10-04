@@ -14,7 +14,7 @@ drivers is started.
 | Layer | Holds an SDK to | Cases | Entry |
 |---|---|---|---|
 | wire | the transport: the stream, emits, requests, content, the gateway's own operations | [wire/](wire/) | [wire.test.ts](wire.test.ts) |
-| live | the client's live queries and their cache: what an observer is given, and what each observation costs on the wire ([CACHE-SEMANTICS](../../../packages/sdk/docs/CACHE-SEMANTICS.md)) | [live/](live/) | [live.test.ts](live.test.ts) |
+| live | the client's live queries and their cache: what an observer is given, and what each observation costs on the wire ([CACHE-SEMANTICS](../../../docs/protocol/CACHE-SEMANTICS.md)) | [live/](live/) | [live.test.ts](live.test.ts) |
 
 An SDK has a driver per layer it implements. The live layer has two tiers,
 and an SDK's line says which it is held to: `fleet`, the cases every SDK with

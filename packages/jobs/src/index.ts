@@ -58,7 +58,7 @@ export { AnnotationDetection } from './workers/annotation-detection';
 export { generateResourceFromTopic } from './workers/generation/resource-generation';
 
 // The job-claim protocol runtime: what a worker built outside this package
-// claims jobs with (docs/protocol/skills/semiont-worker).
+// claims jobs with (docs/builder/skills/semiont-worker).
 export {
   createJobClaimAdapter,
   type JobClaimAdapter,

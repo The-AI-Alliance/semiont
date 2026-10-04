@@ -143,7 +143,7 @@ When building or reviewing a UI component:
 
 ### Automated
 
-Component-level [`jest-axe`](https://github.com/nickcolley/jest-axe) assertions live with the components, in `@semiont/react-ui`'s `*.a11y.test.tsx` files — see [react-ui ACCESSIBILITY.md § Testing](../../../packages/react-ui/docs/ACCESSIBILITY.md#testing) for the pattern. The Browser has no `jest-axe` dependency of its own.
+Component-level [`jest-axe`](https://github.com/nickcolley/jest-axe) assertions live with the components, in `@semiont/react-ui`'s `*.a11y.test.tsx` files — see [react-ui ACCESSIBILITY.md § Testing](../../../docs/builder/react-ui/ACCESSIBILITY.md#testing) for the pattern. The Browser has no `jest-axe` dependency of its own.
 
 The CI pipeline runs accessibility tests on every PR via `.github/workflows/accessibility-tests.yml` — react-ui's axe tests, the Browser's test suite, and a Lighthouse accessibility audit with a score threshold of 90. See [docs/development/TESTING.md](../../../docs/development/TESTING.md) for the testing-overview.
 

@@ -196,7 +196,7 @@ function generateReport(violations: Violation[]): string {
   lines.push('stream.onProgress((p) => { ... });');
   lines.push('');
   lines.push('// ✅ CORRECT');
-  lines.push('eventBus.get("detection:progress").subscribe((p) => { ... });');
+  lines.push('eventBus.on("job:report-progress").subscribe((p) => { ... });');
   lines.push('```');
   lines.push('');
 

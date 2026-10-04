@@ -49,7 +49,7 @@ The SPA is internally a literal Model–View–StateUnit split:
 - **StateUnit** — one factory per verb (`createBrowseStateUnit`, `createMarkStateUnit`, `createBindStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`) plus page-level composite state units; pure RxJS, framework-agnostic, unit-testable without a renderer.
 - **View** — React components in `@semiont/react-ui` and `apps/browser`, reduced to two adapters (`useStateUnit`, `useObservable`) plus JSX. No component-owned fetching, caching, or subscription management.
 
-The state unit layer is what makes the same SDK that drives the browser also drive the CLI, MCP server, and worker pool — none of those have a renderer, but they all consume the same Model + StateUnit layer. See **[../../packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md)** for the SDK surface.
+The state unit layer is what makes the same SDK that drives the browser also drive the CLI, MCP server, and worker pool — none of those have a renderer, but they all consume the same Model + StateUnit layer. See **[../../docs/builder/Usage.md](../builder/Usage.md)** for the SDK surface.
 
 ## Multi-KB sessions
 
@@ -61,4 +61,4 @@ Storage adapters thread the same `SemiontSession` through every host environment
 - **Filesystem storage** — for CLI and MCP processes that need session state across invocations.
 - **In-memory storage** — for workers, the smelter, and tests.
 
-`SemiontClient` exposes namespace methods (e.g. `client.browse.resource(...)`, `client.mark.annotation(...)`) over the bus; raw `emit`/`on`/`stream` are internal to the SDK and not part of the consumer surface. The full session lifecycle — sign-in, refresh, expiry, cross-tab sync — is documented in [SemiontSession's source](../../packages/sdk/src/session/semiont-session.ts) and the [long-running session skill](../protocol/skills/semiont-session/SKILL.md).
+`SemiontClient` exposes namespace methods (e.g. `client.browse.resource(...)`, `client.mark.annotation(...)`) over the bus; raw `emit`/`on`/`stream` are internal to the SDK and not part of the consumer surface. The full session lifecycle — sign-in, refresh, expiry, cross-tab sync — is documented in [SemiontSession's source](../../packages/sdk/src/session/semiont-session.ts) and the [long-running session skill](../builder/skills/semiont-session/SKILL.md).

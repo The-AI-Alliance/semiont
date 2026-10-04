@@ -128,10 +128,11 @@ User selects text in AnnotateView
 → mouseup handler
 → CodeMirror posAtDOM() for accurate source positions
 → extractContext() for prefix/suffix
-→ eventBus.get('mark:requested').next({
-    selector: [TextPositionSelector, TextQuoteSelector],
+→ session.client.mark.request(
+    resourceId,
+    [TextPositionSelector, TextQuoteSelector],
     motivation
-  })
+  )
 ```
 
 ### Bi-directional Focusing
@@ -183,7 +184,7 @@ CodeMirror normalizes all line endings to LF. `convertSegmentPositions()` adjust
 ## Related Documentation
 
 - [W3C-WEB-ANNOTATION.md](../../../docs/protocol/W3C-WEB-ANNOTATION.md) - W3C Web Annotation implementation
-- [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
+- [ANNOTATIONS.md](../../../docs/builder/react-ui/ANNOTATIONS.md) - Annotation UI/UX and workflows
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering implementation
 - [CODEMIRROR-WIDGETS.md](./CODEMIRROR-WIDGETS.md) - Inline widget system
 - [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties

@@ -46,7 +46,7 @@ adapter.refused$.subscribe((refusal) => { /* a claim refused for a reason other 
 adapter.start();
 ```
 
-The caller emits the lifecycle events and reports each outcome with `adapter.completeJob()` or `adapter.failJob(jobId, message)`, which pulls the next job. The [`semiont-worker` skill](../../../docs/protocol/skills/semiont-worker/SKILL.md) walks through a complete worker.
+The caller emits the lifecycle events and reports each outcome with `adapter.completeJob()` or `adapter.failJob(jobId, message)`, which pulls the next job. The [`semiont-worker` skill](../../../docs/builder/skills/semiont-worker/SKILL.md) walks through a complete worker.
 
 ### Processors
 

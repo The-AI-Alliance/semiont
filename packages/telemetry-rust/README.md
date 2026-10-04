@@ -1,11 +1,18 @@
 # semiont-telemetry (Rust)
 
+[![crates.io](https://img.shields.io/crates/v/semiont-telemetry.svg)](https://crates.io/crates/semiont-telemetry)
+[![docs.rs](https://img.shields.io/docsrs/semiont-telemetry)](https://docs.rs/semiont-telemetry)
+[![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
+[![License](https://img.shields.io/crates/l/semiont-telemetry.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
+
 The telemetry every Semiont transport and service shares: the spans and the
 count of the SDK telemetry table
 ([sdk-telemetry/telemetry.json](../../specs/src/sdk-telemetry/telemetry.json)),
 and the trace context they travel in. It exports nothing. It reports to
 whatever OpenTelemetry the process installed, and with none installed it
 records nothing and no trace context leaves the process.
+
+The reference for every item is on [docs.rs](https://docs.rs/semiont-telemetry).
 
 ## What a transport calls
 
@@ -80,3 +87,7 @@ the table does not list. The examples above are regions of that file, run
 there. [tests/off.rs](tests/off.rs) is the process that installed none. The
 SDK conformance suite holds what a transport exports to the same table from
 outside ([tests/conformance/sdk](../../tests/conformance/sdk/README.md)).
+
+## License
+
+Apache-2.0. See [LICENSE](../../LICENSE).

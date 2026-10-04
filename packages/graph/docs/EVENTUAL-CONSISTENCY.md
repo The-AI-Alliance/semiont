@@ -19,14 +19,15 @@ The graph database is an **eventually consistent read-only projection** of the E
 After appending to the log, the event store publishes each event to the Core EventBus (`packages/event-sourcing/src/event-store.ts`):
 
 ```typescript
-this.coreEventBus.get(publishEvent.type).next(publishEvent);
+const envelope = { correlationId: options?.correlationId };
+this.coreEventBus.emit(publishEvent.type, publishEvent, envelope);
 
-if (resourceId !== '__system__') {
-  this.coreEventBus.scope(resourceId).get(publishEvent.type).next(publishEvent);
+if (resourceId !== SYSTEM_SCOPE) {
+  this.coreEventBus.scope(resourceId).emit(publishEvent.type, publishEvent, envelope);
 }
 ```
 
-The bus is an RxJS subject per event type — publication is fire-and-forget from the store's perspective. `get` carries the channel's own event type, so subscribers see `EventMap[K]` rather than a widened `StoredEvent`. This means:
+The bus is an RxJS subject per event type — publication is fire-and-forget from the store's perspective. `emit` is typed by its channel, so subscribers see `EventMap[K]` rather than a widened `StoredEvent`. This means:
 - Event processing is **non-blocking** for the writer
 - Multiple events can process **in parallel**
 - There is **no guarantee of cross-resource ordering**

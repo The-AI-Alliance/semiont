@@ -6,15 +6,15 @@ import { openResourceByName } from '../fixtures/discover';
  * and BeckonStateUnit reacts by firing `beckon:sparkle`.
  *
  * Regression target (VMs-from-Session Stage D): `createBeckonStateUnit` was
- * migrated from `(eventBus)` to `(client)` and internally rewired from
- * `eventBus.get('beckon:hover').subscribe(...)` to
- * `client.stream('beckon:hover').subscribe(...)` and from
- * `eventBus.get(...).next(...)` to `client.emit(...)`. If the factory's
+ * migrated from `(eventBus)` to `(client)`, and its internal wiring moved with
+ * it — today it observes through `client.bus.on('beckon:hover').subscribe(...)`
+ * and reacts with `client.bus.emit('beckon:sparkle', ...)`. If the factory's
  * internal bus wiring regressed, the hover would still fire `beckon:hover`
- * (because the component uses `session.client.emit` directly) but the
- * state unit would never see it and the `beckon:sparkle` reaction would be
- * silent. Observing both events on the bus confirms the factory is
- * subscribing on the same bus the component is emitting to.
+ * (because the component emits it itself, through
+ * `session.client.beckon.hover`) but the state unit would never see it and
+ * the `beckon:sparkle` reaction would be silent. Observing both events on the
+ * bus confirms the factory is subscribing on the same bus the component is
+ * emitting to.
  *
  * Self-setup: this spec creates its own annotation if the chosen
  * resource has none. Previously it depended on specs 04/05 having run

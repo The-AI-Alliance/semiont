@@ -1,6 +1,6 @@
 {
   "about": "events arriving together refresh an observed key at once for the first, and once more, when the window closes, for all that came inside it (B19)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B19; specs/src/client/timing.json invalidationWindowMs",
+  "source": "docs/protocol/CACHE-SEMANTICS.md B19; specs/src/client/timing.json invalidationWindowMs",
   "tier": "parity",
   "steps": [
     {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},

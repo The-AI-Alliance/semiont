@@ -59,7 +59,7 @@ export function createComposePageStateUnit(
   const disposer = createDisposer();
   // `browse` (ShellStateUnit) is a *passed-in* dependency owned by the caller
   // (`useShellStateUnit`), not this unit — do NOT add it to the disposer (it's the
-  // shared, app-scoped shell). See packages/sdk/docs/STATE-UNITS.md (composition rule).
+  // shared, app-scoped shell). See docs/builder/STATE-UNITS.md (composition rule).
 
   const isCloneMode = params.mode === 'clone' && Boolean(params.token);
   const pageMode: ComposeMode = isCloneMode ? 'clone' : 'new';

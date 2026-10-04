@@ -1,0 +1,18 @@
+{
+  "name": "@semiont/doc-snippets",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "SAFE-DOCS fixture: compile-checks the code fences of the builder docs and the cache contract and of the react-ui and Browser docs, with their READMEs, against dist through the exports map, the way each doc's reader resolves them",
+  "scripts": {
+    "check": "node check.mjs"
+  },
+  "devDependencies": {
+    "@semiont/make-meaning": "*",
+    "@semiont/react-ui": "*",
+    "@semiont/sdk": "*",
+    "@types/react": "^19.3.0",
+    "rxjs": "^7.8.1",
+    "typescript": "^6.0.2"
+  }
+}

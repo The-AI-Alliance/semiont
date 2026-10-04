@@ -1,6 +1,6 @@
 // State units in `@semiont/sdk` — RxJS-shaped state machines that any
 // consumer (web, terminal, mobile, daemon, AI agent) can subscribe to.
-// None presume a UI. See packages/sdk/docs/STATE-UNITS.md for the pattern.
+// None presume a UI. See docs/builder/STATE-UNITS.md for the pattern.
 //
 //   flows/   — wrap the long-running content flows in stateful machines
 //              (loading/error/pending observables, awaitable + reactive).

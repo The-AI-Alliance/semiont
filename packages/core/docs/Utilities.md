@@ -308,7 +308,7 @@ Image annotations must be stored using **native image coordinates**, not display
 
 Structural-analysis frameworks for document classification. A `TagSchema` defines categories that passages can be classified into based on their structural role (e.g. IRAC for legal reasoning, IMRAD for scientific papers, Toulmin for argumentation).
 
-Tag schemas are **runtime-registered per knowledge base** via `frame.addTagSchema(...)` from the SDK. The `TagSchema` and `TagCategory` *types* are exported from `@semiont/core`; the schema *data* lives with the KB that uses it (typically a `src/tag-schemas.ts` module in the KB repo). See [`docs/protocol/skills/semiont-tag/SKILL.md`](../../../docs/protocol/skills/semiont-tag/SKILL.md) for the full protocol-level story.
+Tag schemas are **runtime-registered per knowledge base** via `frame.addTagSchema(...)` from the SDK. The `TagSchema` and `TagCategory` *types* are exported from `@semiont/core`; the schema *data* lives with the KB that uses it (typically a `src/tag-schemas.ts` module in the KB repo). See [`docs/builder/skills/semiont-tag/SKILL.md`](../../../docs/builder/skills/semiont-tag/SKILL.md) for the full protocol-level story.
 
 ### Type Shape
 

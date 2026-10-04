@@ -1,6 +1,6 @@
 {
   "about": "a one-shot read always asks: it costs a request though the key has a value, gives its observers the new value too, shares one request with a read made alongside it, and when it fails says so, once, to its caller alone",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md § Two consumption paths, B14 boundary 1",
+  "source": "docs/protocol/CACHE-SEMANTICS.md § Two consumption paths, B14 boundary 1",
   "tier": "parity",
   "steps": [
     {"let": {"one": {"@context": "https://schema.org/", "@id": "one", "name": "one", "representations": []}, "two": {"@context": "https://schema.org/", "@id": "two", "name": "two", "representations": []}}},

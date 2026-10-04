@@ -2,7 +2,7 @@
  * Cache-semantics contract tests.
  *
  * Enumerates behaviors B1–B16, B19 and B20 from
- * `packages/sdk/docs/CACHE-SEMANTICS.md` against `BrowseNamespace`.
+ * `docs/protocol/CACHE-SEMANTICS.md` against `BrowseNamespace`.
  *
  * Each `describe` block is tagged with the behavior number it verifies.
  * Adding a behavior to the spec must add a test here; changing one must

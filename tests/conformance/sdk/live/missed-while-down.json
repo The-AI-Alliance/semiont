@@ -1,6 +1,6 @@
 {
   "about": "what every client hears is lost while the stream is down, so a client whose stream reopens after a drop asks again for what those events feed and it holds: its lists of resources, the resources themselves, the entity types and the tag schemas. What a scope's own events feed it does not ask for, and a stream handed over for a changed subscription costs no request at all (B13)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B13; specs/src/client/refresh.json reopened",
+  "source": "docs/protocol/CACHE-SEMANTICS.md B13; specs/src/client/refresh.json reopened",
   "tier": "parity",
   "steps": [
     {"let": {"one": {"@context": "https://schema.org/", "@id": "one", "name": "one", "representations": []}, "two": {"@context": "https://schema.org/", "@id": "two", "name": "two", "representations": []}}},

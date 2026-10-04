@@ -8,7 +8,7 @@ section that touches one says what happens and links there.
 
 The client side of the two jobs Semiont's own verbs create is in the flow documents:
 [Yield](flows/YIELD.md) (generation) and [Mark](flows/MARK.md) (AI-assisted annotation). How a
-worker is built is in the [`semiont-worker` skill](skills/semiont-worker/SKILL.md). Channel payloads
+worker is built is in the [`semiont-worker` skill](../builder/skills/semiont-worker/SKILL.md). Channel payloads
 are named in [the registry](../../specs/src/bus/registry.json); the bus conventions this document
 relies on (`_userId`, `correlationId`, audiences) are in [EVENT-BUS.md](EVENT-BUS.md). The
 [dispatcher conformance suite](../../tests/conformance/dispatcher/README.md) checks a running
@@ -431,7 +431,7 @@ deleted at the first sweep.
 ## Checkpoints
 
 A checkpoint is how much of a job is already done, recorded on the job so a later attempt skips it.
-It has two parts, merged differently ([`checkpoint-merge.ts`](../../packages/jobs/src/checkpoint-merge.ts)):
+It has two parts, merged differently ([`checkpoint.rs`](../../apps/dispatcher/handlers/src/checkpoint.rs)):
 
 - **`completedUnits` is a set, merged by union.** A unit is an entity type for
   `reference-annotation` and the job's single motivation for the other annotation types. A unit

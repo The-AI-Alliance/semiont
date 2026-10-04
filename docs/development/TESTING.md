@@ -74,7 +74,7 @@ No Vitest suite takes configuration from the shell. A test that exercises code w
 Workspace suites run with nothing listening. CI's package matrix starts no database, vector store or model server, and the `graph`, `vectors` and `inference` suites pass without Neo4j, Qdrant or Ollama.
 
 - **The SDK.** `@semiont/sdk/testing` provides a real `SemiontClient` (`createTestClient`) or `SemiontSession` (`createTestSession`) over `FaultyTransport`, the scriptable in-memory transport from `@semiont/core/testing`. An operation the test did not script throws `No response scripted for bus operation "<op>"` rather than answering with a fabricated reply. `stubGateway()` supplies gateway operations that each reject with their own name; `inMemoryContent()` stores content and throws on an unknown id.
-- **React.** `@semiont/react-ui/test-utils` assembles those doubles into providers: `renderWithProviders` renders inside a real `SemiontBrowser` whose active session runs on them. The Browser's [`src/test-utils.tsx`](../../apps/browser/src/test-utils.tsx) builds on it.
+- **React.** `@semiont/react-ui/test-utils` assembles those doubles into providers: `renderWithProviders` renders inside a real `SemiontBrowser` whose active session runs on them. The Browser's tests import it directly.
 - **Property axioms.** `@semiont/core/testing/axioms` holds the StateUnit and liveness axiom harnesses. It needs `fast-check` in the importing package's devDependencies.
 - **An identity provider.** `@semiont/core/testing/issuer` is an in-process OIDC issuer: signing keys, signed tokens, and the discovery and JWKS documents. It serves nothing; the consumer answers the two URLs.
 - **A real broker where a mock would prove nothing.** `@semiont/jobs`' JetStream tests and the conformance suite's NATS plane spawn `nats-server` from `PATH`. A missing binary fails the run with instructions; it never skips.
@@ -176,7 +176,7 @@ transport.queueReply('browse:resources-requested', { resources: [], total: 0, of
 // "No response scripted for bus operation ..." instead of answering.
 ```
 
-`queueReply` scripts what the gateway answers; the transport's `schedule` scripts the wire (`deliver`, `drop-reply`, `delay`, `duplicate-reply`, `reject-emit`). For components, `renderWithProviders` from `@semiont/react-ui/test-utils` renders inside a `SemiontBrowser` on the same doubles, or inside one the test passes as `browser`. The patterns are in [react-ui's testing guide](../../packages/react-ui/docs/TESTING.md).
+`queueReply` scripts what the gateway answers; the transport's `schedule` scripts the wire (`deliver`, `drop-reply`, `delay`, `duplicate-reply`, `reject-emit`). For components, `renderWithProviders` from `@semiont/react-ui/test-utils` renders inside a `SemiontBrowser` on the same doubles, or inside one the test passes as `browser`. The patterns are in [react-ui's testing guide](../builder/react-ui/TESTING.md).
 
 ## Best Practices
 
@@ -492,7 +492,7 @@ Tests run through each workspace's npm scripts. There is no `semiont test` comma
 
 ### From the repository root
 
-`npm test` fans out to every workspace that defines a `test` script (`--workspaces --if-present` over `apps/*`, `packages/*` and `packages/sdk/docs/__snippets__`), and `npm run typecheck` does the same for `typecheck`. `tests/conformance` and `tests/e2e` are not root workspaces — each has its own `package.json` and lockfile and runs from its own directory — and the Go modules run under `go test`.
+`npm test` fans out to every workspace that defines a `test` script (`--workspaces --if-present` over `apps/*`, `packages/*` and `tests/doc-snippets`), and `npm run typecheck` does the same for `typecheck`. `tests/conformance` and `tests/e2e` are not root workspaces — each has its own `package.json` and lockfile and runs from its own directory — and the Go modules run under `go test`.
 
 To target one workspace from the root, use `--workspace`:
 

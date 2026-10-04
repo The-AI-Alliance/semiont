@@ -2,7 +2,7 @@
 //! and the reopening of a dropped stream, asks again for; what an event
 //! writes and what it ends; the windows refetches fold into; the scopes
 //! watching holds; and what a returning client is shown
-//! (packages/sdk/docs/CACHE-SEMANTICS.md B12–B13b, B16–B20). The same
+//! (docs/protocol/CACHE-SEMANTICS.md B12–B13b, B16–B20). The same
 //! behaviour, against a real gateway, is the live layer of
 //! tests/conformance/sdk.
 

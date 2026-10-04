@@ -1,6 +1,6 @@
 {
   "about": "observers that arrive before the stream has first opened wait for it, and cost one request each when it does: the first open is not a reopening, and nothing is asked for twice (B13)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B13; specs/src/client/refresh.json reopened",
+  "source": "docs/protocol/CACHE-SEMANTICS.md B13; specs/src/client/refresh.json reopened",
   "tier": "parity",
   "steps": [
     {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:resources-requested", "browse:entity-types-requested"]}},

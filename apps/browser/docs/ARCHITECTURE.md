@@ -212,7 +212,7 @@ High-churn entity data and browser-persistent application state are managed as o
 | Browse | `semiont.browse.annotations(id)` | Annotation lists per resource, updated in-place by enriched SSE events |
 | Browse | `semiont.browse.entityTypes()` | Entity types, updated via `frame:entity-type-added` bus channel |
 
-These update automatically when gateway domain events arrive through the bus gateway (`mark:added`, `yield:updated`, etc.) — no manual cache-invalidation calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/sdk` Usage.md](../../../packages/sdk/docs/Usage.md) for the full verb namespace API.
+These update automatically when gateway domain events arrive through the bus gateway (`mark:added`, `yield:updated`, etc.) — no manual cache-invalidation calls needed. Components subscribe via `useObservable(semiont.browse.annotations(resourceId))`. See [`@semiont/sdk` Usage.md](../../../docs/builder/Usage.md) for the full verb namespace API.
 
 **Application state** lives on the `SemiontBrowser` singleton (`@semiont/sdk`) and in `@semiont/react-ui` hooks:
 
@@ -265,7 +265,7 @@ These providers are framework-independent and can work with Next.js, Vite, or an
 **App-Specific Contexts:**
 - `KeyboardShortcutsProvider` - Keyboard shortcut registration and handling
 
-See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for complete Provider Pattern documentation.
+See [`docs/builder/react-ui/SESSION.md`](../../../docs/builder/react-ui/SESSION.md) for complete Provider Pattern documentation.
 
 ## API Integration
 
@@ -294,13 +294,13 @@ semiont.yield.fromContext(context, { title: 'Summary', storageUri: 'file://summa
 semiont.frame.addEntityType('Person');       // Promise<void>
 ```
 
-`StreamObservable<T>` extends RxJS `Observable<T>` and is also `PromiseLike<T>`, so both `.subscribe()` and `await` work without any wrapper. `CacheObservable<T>` extends `Observable<CacheState<T>>` — subscribe (or `useObservable`) for the live pending/ready/failed view, or call `.fresh()` for a one-shot `Promise<T>`. See [`@semiont/sdk` Usage.md](../../../packages/sdk/docs/Usage.md) for the full namespace API.
+`StreamObservable<T>` extends RxJS `Observable<T>` and is also `PromiseLike<T>`, so both `.subscribe()` and `await` work without any wrapper. `CacheObservable<T>` extends `Observable<CacheState<T>>` — subscribe (or `useObservable`) for the live pending/ready/failed view, or call `.fresh()` for a one-shot `Promise<T>`. See [`@semiont/sdk` Usage.md](../../../docs/builder/Usage.md) for the full namespace API.
 
 ### Caching and Invalidation
 
 There are no query keys to manage. Each live `browse.*` query is backed by an internal `Cache` primitive keyed by its resource id. Caches refresh themselves in response to gateway **domain events** delivered over the bus gateway — call sites never invalidate anything by hand. `mark:added`, for example, refetches the resource's annotation list and history, and `frame:entity-type-added` refetches the entity types.
 
-The table of what each event does to which cache is `specs/src/client/refresh.json` (generated into `packages/core/src/generated/cache-refresh.ts`); [CACHE-SEMANTICS.md](../../../packages/sdk/docs/CACHE-SEMANTICS.md) states the contract. A stream reopened after a drop, and a detected event gap (`bus:resume-gap`), have rows of their own, so no update is silently missed.
+The table of what each event does to which cache is `specs/src/client/refresh.json` (generated into `packages/core/src/generated/cache-refresh.ts`); [CACHE-SEMANTICS.md](../../../docs/protocol/CACHE-SEMANTICS.md) states the contract. A stream reopened after a drop, and a detected event gap (`bus:resume-gap`), have rows of their own, so no update is silently missed.
 
 ### Error Handling
 
@@ -443,7 +443,7 @@ keeps the shell mounted rather than tearing it down and rebuilding it.
 - **Protected routes** sit under `AuthShell`, which surfaces the auth-failure modals from the active session's signals (`activeSignals$`). A 401 that can't be refreshed ends the session and `SessionEndedModal` surfaces, saying why.
 - **Switching KBs swaps `activeSession$`** to the new KB's session (with its own `SemiontClient` pointing at that KB's gateway) — the `SemiontBrowser` singleton handles it, with no per-layout provider or external bridge.
 
-See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for details on the Provider Pattern architecture.
+See [`docs/builder/react-ui/SESSION.md`](../../../docs/builder/react-ui/SESSION.md) for details on the Provider Pattern architecture.
 
 ## Directory Structure
 
@@ -549,7 +549,7 @@ function I18nRoot({ children }: { children: React.ReactNode }) {
 - ✅ Easy to test with mock implementations (`createMockTranslationManager` in `@semiont/react-ui/test-utils`)
 - ✅ Clear separation of concerns
 
-See [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) for complete documentation.
+See [`docs/builder/react-ui/SESSION.md`](../../../docs/builder/react-ui/SESSION.md) for complete documentation.
 
 ### 2. No Default Values
 
@@ -684,8 +684,8 @@ Panels keep their entries' DOM nodes through React ref callbacks, not through an
 ## Related Documentation
 
 ### React UI Library
-- [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) - Provider Pattern architecture
-- [`@semiont/react-ui/docs/ANNOTATIONS.md`](../../../packages/react-ui/docs/ANNOTATIONS.md) - Annotation system documentation
+- [`docs/builder/react-ui/SESSION.md`](../../../docs/builder/react-ui/SESSION.md) - Provider Pattern architecture
+- [`docs/builder/react-ui/ANNOTATIONS.md`](../../../docs/builder/react-ui/ANNOTATIONS.md) - Annotation system documentation
 - [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) - Complete library documentation
 
 ### Browser Documentation

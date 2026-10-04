@@ -1,6 +1,6 @@
 {
   "about": "one key failing leaves another untouched: each has its own requests, its own retry and its own state (B10)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B10",
+  "source": "docs/protocol/CACHE-SEMANTICS.md B10",
   "tier": "parity",
   "steps": [
     {"let": {"two": {"@context": "https://schema.org/", "@id": "two", "name": "two", "representations": []}}},

@@ -12,7 +12,7 @@
  * Lives in `@semiont/core` (not sdk) so every layer can share one definition
  * without dependency cycles — `http-transport`'s `ActorStateUnit` sits below
  * sdk and would otherwise have to re-declare it. See
- * `packages/sdk/docs/STATE-UNITS.md` for the full pattern and rationale, and
+ * `docs/builder/STATE-UNITS.md` for the full pattern and rationale, and
  * `.plans/STATE-UNIT-AXIOMS.md` for the axiom ledger.
  */
 export interface StateUnit {

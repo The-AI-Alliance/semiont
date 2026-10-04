@@ -107,7 +107,7 @@ No `userId` in the payloads: the lifecycle commands declare only `_userId`, inje
 Workers are launched by the worker pool, [worker-main.ts](../../jobs/src/worker-main.ts), which groups job types by `(inferenceProvider, model)` and calls [`startAgentWorker`](../../jobs/src/worker-runtime.ts) for each group. That function:
 
 1. Authenticates as a **software agent** (`authenticateAgent(...)` → agent DID + token, with refresh)
-2. Opens a [`SemiontSession`](../../sdk/docs/STATE-UNITS.md) on that identity (`await session.ready`)
+2. Opens a [`SemiontSession`](../../../docs/builder/STATE-UNITS.md) on that identity (`await session.ready`)
 3. Builds the `generator` descriptor from the minted DID (`didToAgent(did)` — the `Software` agent the knowledge base checks its writes against)
 4. Calls `startWorkerProcess(...)`:
 
