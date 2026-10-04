@@ -436,7 +436,6 @@ export type {
   OllamaProviderConfig,
   AnthropicProviderConfig,
   InferenceProvidersConfig,
-  McpServiceConfig,
   ArchivistServiceConfig,
   ServicesConfig,
   VectorsServiceConfig,

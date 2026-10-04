@@ -1148,13 +1148,13 @@ func (x *liveExec) openStoreDirs(spec stateStoreSpec, root string) bool {
 	for _, m := range spec.mounts {
 		mp := filepath.Join(sd, m.sub)
 		if err := os.MkdirAll(mp, 0o755); err != nil {
-			x.u.Fail("cannot create state dir %s: %v", mp, err)
+			x.u.Fail("cannot create store directory %s: %v", mp, err)
 			return false
 		}
 		if spec.mode != 0 {
 			// MkdirAll perms pass through the umask; stamp the literal mode.
 			if err := os.Chmod(mp, spec.mode); err != nil {
-				x.u.Fail("cannot chmod state dir %s: %v", mp, err)
+				x.u.Fail("cannot chmod store directory %s: %v", mp, err)
 				return false
 			}
 		}
@@ -1164,7 +1164,7 @@ func (x *liveExec) openStoreDirs(spec stateStoreSpec, root string) bool {
 	// here keeps other local users from traversing to any store.
 	dir := stateRootDir(root)
 	if err := ownerOnlyDir(dir); err != nil {
-		x.u.Fail("cannot keep state dir %s to its owner: %v", dir, err)
+		x.u.Fail("cannot keep this knowledge base's stores directory %s to its owner: %v", dir, err)
 		return false
 	}
 	return true

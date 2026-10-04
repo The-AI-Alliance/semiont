@@ -51,7 +51,7 @@ func acquireStartLock(u *UI, root string) bool {
 		return true // no data home: no persistent state to protect
 	}
 	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
-		u.Fail("cannot create state dir %s: %v", filepath.Dir(p), err)
+		u.Fail("cannot create this knowledge base's stores directory %s: %v", filepath.Dir(p), err)
 		return false
 	}
 	f, err := os.OpenFile(p, os.O_RDONLY|os.O_CREATE, 0o600)
