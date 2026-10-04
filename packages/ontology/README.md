@@ -38,7 +38,7 @@ console.log(DEFAULT_ENTITY_TYPES);
 
 ### Tag Schemas
 
-Tag schemas are runtime-registered per KB (see [`docs/protocol/skills/semiont-tag/SKILL.md`](../../docs/protocol/skills/semiont-tag/SKILL.md)). The `TagSchema` and `TagCategory` *types* live in `@semiont/core`; schema *data* lives with the KB that owns it. Use `frame.addTagSchema(schema)` to register and `browse.tagSchemas()` to enumerate registered schemas.
+Tag schemas are runtime-registered per KB (see [`docs/builder/skills/semiont-tag/SKILL.md`](../../docs/builder/skills/semiont-tag/SKILL.md)). The `TagSchema` and `TagCategory` *types* live in `@semiont/core`; schema *data* lives with the KB that owns it. Use `frame.addTagSchema(schema)` to register and `browse.tagSchemas()` to enumerate registered schemas.
 
 ```typescript
 import { SemiontSession, type TagSchema } from '@semiont/sdk';

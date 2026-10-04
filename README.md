@@ -128,7 +128,7 @@ cargo add semiont
 cargo add semiont-http-transport --features sign-in    # the transport over a gateway
 ```
 
-Built on the SDK: **[@semiont/react-ui](packages/react-ui/README.md)** embeds the resource viewer and annotation UI in your own app, and **[Agent Skills](docs/protocol/skills/)** are ready-made definitions for agentic coding assistants. The contract both SDKs speak is specified independently of either in **[docs/protocol/](docs/protocol/README.md)**.
+Built on the SDK: **[@semiont/react-ui](packages/react-ui/README.md)** embeds the resource viewer and annotation UI in your own app, and **[Agent Skills](docs/builder/skills/)** are ready-made definitions for agentic coding assistants. The contract both SDKs speak is specified independently of either in **[docs/protocol/](docs/protocol/README.md)**.
 
 ## Demo and Community KBs
 

@@ -227,5 +227,5 @@ token lifecycle to own; the SDK path is the same wire with a programmable driver
 
 - [`semiont-local`](../semiont-local/SKILL.md) — get a KB and a Browser running first.
 - [`semiont-session`](../semiont-session/SKILL.md) — long-running SDK scripts, token refresh.
-- [Beckon flow](../../flows/BECKON.md) — attention coordination, including the in-browser half.
-- [Browse flow](../../flows/BROWSE.md) — navigation intent vs framework routing.
+- [Beckon flow](../../../protocol/flows/BECKON.md) — attention coordination, including the in-browser half.
+- [Browse flow](../../../protocol/flows/BROWSE.md) — navigation intent vs framework routing.

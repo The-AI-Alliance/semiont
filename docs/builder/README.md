@@ -25,6 +25,9 @@ tells you what belongs in it — and what to reject in review.
 | [STATE-UNITS.md](./STATE-UNITS.md) | **Explanation + conventions** | The state-unit pattern (factory closure, RxJS surface, dispose lifecycle, session-typed factories) and the enforced axioms behind it. |
 | [CACHE-SEMANTICS.md](../../packages/sdk/docs/CACHE-SEMANTICS.md) | **Contract** | The live-query cache's numbered behavioral contract: `CacheState` emissions, SWR, bounded retry, failure-as-emission, disposal, persistence. Tests cite these numbers. |
 
+[`skills/`](./skills/) holds the agent skill packs: one ready-made definition per
+task, for agentic coding assistants.
+
 Rules of placement:
 
 - **Concepts a newcomer needs before any code** go in INTRODUCTION — and
@@ -77,7 +80,7 @@ sessions and signing in. CACHE-SEMANTICS and STATE-UNITS are contracts of both
 SDKs: the Rust tests cite the same clause numbers.
 
 **"I'm an AI agent, or building one"** — the
-[skill packs](../protocol/skills/) are ready-made definitions for agentic
+[skill packs](skills/) are ready-made definitions for agentic
 coding assistants, one per task, and each cites the reference here. Read
 INTRODUCTION for the model first; its § "Could your coding agent just build
 this?" is addressed to you. A human and an agent use the same client and the

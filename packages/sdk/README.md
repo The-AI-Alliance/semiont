@@ -26,7 +26,7 @@ on crates.io) is its full peer: the same namespaces, methods and behaviour, held
 > explanation plus the exact SDK lines. **This README is the map.** For protocol-level
 > framing (the eight flows, the core tenets), see
 > [`docs/protocol/README.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/README.md);
-> daemon authors also want the [skill packs](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/skills).
+> daemon authors also want the [skill packs](https://github.com/The-AI-Alliance/semiont/tree/main/docs/builder/skills).
 
 ## Four ideas that hold the surface together
 
