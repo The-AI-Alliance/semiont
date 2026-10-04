@@ -4,7 +4,7 @@ How to run a Semiont stack: deploying, configuring, securing, observing and trou
 
 For how Semiont works inside, see **[../architecture/](../architecture/)**.
 For protocol-level concerns (channels, flows, W3C compliance), see **[../protocol/](../protocol/)**.
-For working in a knowledge base, see **[../curator/](../curator/)**.
+For working in a knowledge base, see **[../analyst/](../analyst/)**.
 For contributor workflow, see **[../contributor/](../contributor/)**.
 
 ## Operations

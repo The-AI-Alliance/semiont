@@ -5,7 +5,7 @@ be a person or an AI agent: nothing here is written for one and not the other.
 
 | You are | You want to | Start here |
 |---|---|---|
-| A **curator** | Work in a knowledge base: read, annotate, link, and review what agents propose | [curator/](curator/README.md) |
+| An **analyst** | Work in a knowledge base: read, annotate, link, and review what agents propose | [analyst/](analyst/README.md) |
 | A **builder** | Build an application, a script, a daemon or an agent on the SDK | [builder/](builder/README.md) |
 | An **operator** | Run a knowledge base: install, configure, deploy, secure, observe, back up | [operator/](operator/README.md#operations) |
 | A **contributor** | Change Semiont itself | [contributor/](contributor/README.md) |
@@ -20,13 +20,13 @@ Three things are for every reader:
 - **[KNOWLEDGE-BASES.md](KNOWLEDGE-BASES.md)** is the catalog of demo and
   community knowledge bases.
 
-## Curator
+## Analyst
 
 You work in a knowledge base through the Semiont Browser.
 
-- [What the Browser does](curator/FEATURES.md), from documents and annotations to search and AI assistance
-- [Getting the Browser running](curator/README.md), as a container or the desktop app
-- [Keyboard shortcuts](curator/KEYBOARD-NAV.md) and [accessibility](curator/ACCESSIBILITY.md)
+- [What the Browser does](analyst/FEATURES.md), from documents and annotations to search and AI assistance
+- [Getting the Browser running](analyst/README.md), as a container or the desktop app
+- [Keyboard shortcuts](analyst/KEYBOARD-NAV.md) and [accessibility](analyst/ACCESSIBILITY.md)
 - [A knowledge base to try](KNOWLEDGE-BASES.md)
 
 ## Builder

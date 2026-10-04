@@ -6,7 +6,7 @@
 - [Browser Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - UI patterns and component architecture
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Document view and overlay rendering
 - [React UI Events](../../builder/react-ui/EVENTS.md) - Event bus architecture
-- [Keyboard Navigation](../../curator/KEYBOARD-NAV.md) - Keyboard-driven attention
+- [Keyboard Navigation](../../analyst/KEYBOARD-NAV.md) - Keyboard-driven attention
 
 ## Overview
 

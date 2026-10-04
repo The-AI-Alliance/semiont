@@ -1,6 +1,6 @@
-# Curating a knowledge base
+# Working in a knowledge base
 
-A curator works in a knowledge base: reads, annotates, links, and reviews what agents propose. A curator may be a person or an AI agent. People do this work in the Semiont Browser, which these pages cover.
+An analyst works in a knowledge base: reads, annotates, links, and reviews what agents propose. An analyst may be a person or an AI agent. People do this work in the Semiont Browser, which these pages cover.
 
 ## The Browser
 

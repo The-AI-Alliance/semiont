@@ -2,7 +2,7 @@
 
 How the Semiont Browser implements [WCAG 2.1 Level AA](https://www.w3.org/WAI/WCAG21/quickref/) — patterns, primitives, and how to keep new code conformant.
 
-For the user-facing capability claim (what users see, how to verify it), see **[../../../docs/curator/ACCESSIBILITY.md](../../../docs/curator/ACCESSIBILITY.md)**. For the keyboard navigation architecture, see **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)**.
+For the user-facing capability claim (what users see, how to verify it), see **[../../../docs/analyst/ACCESSIBILITY.md](../../../docs/analyst/ACCESSIBILITY.md)**. For the keyboard navigation architecture, see **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)**.
 
 ## Compliance baseline
 
@@ -161,7 +161,7 @@ The CI pipeline runs accessibility tests on every PR via `.github/workflows/acce
 
 ## See also
 
-- **[../../../docs/curator/ACCESSIBILITY.md](../../../docs/curator/ACCESSIBILITY.md)** — user-facing capability claim.
+- **[../../../docs/analyst/ACCESSIBILITY.md](../../../docs/analyst/ACCESSIBILITY.md)** — user-facing capability claim.
 - **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)** — keyboard navigation architecture, custom hooks, and shortcut implementation.
 - [WCAG 2.1 Quick Reference](https://www.w3.org/WAI/WCAG21/quickref/)
 - [ARIA Authoring Practices](https://www.w3.org/WAI/ARIA/apg/)

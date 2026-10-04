@@ -1,6 +1,6 @@
 # Keyboard Navigation — Implementation
 
-How keyboard navigation is implemented in the Semiont Browser. The end-user-facing shortcut reference lives at **[../../../docs/curator/KEYBOARD-NAV.md](../../../docs/curator/KEYBOARD-NAV.md)**; this page covers the patterns and primitives a contributor needs.
+How keyboard navigation is implemented in the Semiont Browser. The end-user-facing shortcut reference lives at **[../../../docs/analyst/KEYBOARD-NAV.md](../../../docs/analyst/KEYBOARD-NAV.md)**; this page covers the patterns and primitives a contributor needs.
 
 For the broader accessibility implementation guide, see **[ACCESSIBILITY.md](ACCESSIBILITY.md)**.
 
@@ -192,7 +192,7 @@ Common issues:
 
 ## See also
 
-- **[../../../docs/curator/KEYBOARD-NAV.md](../../../docs/curator/KEYBOARD-NAV.md)** — user-facing shortcut reference.
+- **[../../../docs/analyst/KEYBOARD-NAV.md](../../../docs/analyst/KEYBOARD-NAV.md)** — user-facing shortcut reference.
 - **[ACCESSIBILITY.md](ACCESSIBILITY.md)** — broader WCAG 2.1 AA implementation patterns.
 - [WCAG 2.1 Quick Reference](https://www.w3.org/WAI/WCAG21/quickref/)
 - [ARIA Authoring Practices](https://www.w3.org/WAI/ARIA/apg/)
