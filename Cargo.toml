@@ -23,20 +23,20 @@ exclude = ["apps/desktop/src-tauri"]
 # below that name it, and in Cargo.lock, and CI fails a crate that carries
 # another.
 [workspace.package]
-version = "0.6.9"
+version = "0.6.10"
 repository = "https://github.com/The-AI-Alliance/semiont"
 
 # Every crate a member uses, by version, once: a member names the ones it uses
 # with `.workspace = true` and adds the features it needs.
 [workspace.dependencies]
-semiont = { path = "packages/sdk-rust", version = "0.6.9" }
-semiont-codegen = { path = "packages/codegen-rust", version = "0.6.9" }
+semiont = { path = "packages/sdk-rust", version = "0.6.10" }
+semiont-codegen = { path = "packages/codegen-rust", version = "0.6.10" }
 semiont-dispatcher-handlers = { path = "apps/dispatcher/handlers" }
 semiont-dispatcher-jetstream = { path = "apps/dispatcher/jetstream" }
 semiont-core = { path = "packages/core-rust" }
 semiont-http-transport = { path = "packages/http-transport-rust" }
 semiont-observability = { path = "packages/observability-rust" }
-semiont-telemetry = { path = "packages/telemetry-rust", version = "0.6.9" }
+semiont-telemetry = { path = "packages/telemetry-rust", version = "0.6.10" }
 async-nats = { version = "0.50.0", default-features = false }
 axum = { version = "0.8.9", default-features = false }
 base64 = "0.23.1"
