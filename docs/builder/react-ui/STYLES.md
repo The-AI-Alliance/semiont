@@ -14,8 +14,7 @@ Dark mode is `data-theme="dark"` on a parent element. The semantic tokens
 the palette tokens (`--semiont-color-*`) are one fixed hue in both themes.
 
 How the styles are written, named and linted inside the package is in its
-[STYLES.md](../../../packages/react-ui/docs/STYLES.md). For debugging the
-bundled CSS, see [CSS-SOURCE-MAPS.md](./CSS-SOURCE-MAPS.md).
+[STYLES.md](../../../packages/react-ui/docs/STYLES.md).
 
 ## Using the Styles in Your App
 
@@ -40,14 +39,25 @@ Your build system must support:
 2. PostCSS processes all nested `@import` statements (including component CSS)
 3. All CSS is bundled into a single optimized file
 
-### No Configuration Needed
+The package exports **source CSS files**, not built CSS, so your framework's build system processes them. Vite does it with no configuration: the Semiont Browser's own stylesheet starts with this import.
 
-- ✅ Next.js: Works out of the box
-- ✅ Vite: Works out of the box
-- ✅ Create React App: Works out of the box
-- ✅ Remix: Works out of the box
+### Debugging
 
-The package exports **source CSS files**, not built CSS, so your framework's build system processes them.
+Because your bundler processes the source files, its CSS source maps lead to them: a rule in the browser's developer tools opens at its file under `node_modules/@semiont/react-ui/src/styles/`. In Vite, `css: { devSourcemap: true }` turns them on for development.
+
+```
+src/styles/
+├── index.css       # the entry point, which imports the rest
+├── variables.css   # design tokens
+├── base/           # reset and base utilities
+├── core/           # buttons, forms, badges, indicators
+├── motivations/    # one stylesheet per annotation motivation
+├── panels/         # the panels
+├── patterns/       # cards and what panels share
+├── features/       # feature-specific styles
+├── layout/         # layout
+└── utilities/      # accessibility utilities
+```
 
 ## CSS Variables
 

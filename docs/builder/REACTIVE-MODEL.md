@@ -188,6 +188,8 @@ const done = await semiont.mark.assist(rId, 'linking', {}).run((event) => {
 
 ### Method-by-method assignment
 
+The authority for this list is [`specs/src/client/surface.json`](../../specs/src/client/surface.json), which names every method's shape and which every SDK is held to.
+
 **`StreamObservable<T>`** (bounded; `then` resolves on completion):
 
 - `mark.assist`
@@ -199,7 +201,7 @@ const done = await semiont.mark.assist(rId, 'linking', {}).run((event) => {
 
 - `yield.resource`
 
-**`CacheObservable<T>`** (multicast SWR cache emitting `CacheState<T>` for `.subscribe`; `.fresh()` fetches fresh and rejects on failure — #847):
+**`CacheObservable<T>`** (multicast SWR cache emitting `CacheState<T>` for `.subscribe`; `.fresh()` fetches fresh and rejects on failure):
 
 - `browse.resource`
 - `browse.resources`
@@ -211,22 +213,21 @@ const done = await semiont.mark.assist(rId, 'linking', {}).run((event) => {
 - `browse.tagSchemas`
 - `browse.agents`
 
-**Collaboration signals** (return `void`; emit on the bus, fan out to other participants):
+**Signals** (return `void`; fire-and-forget, published on the client's own bus):
 
-- `mark.request`, `mark.requestAssist`, `mark.submit`, `mark.cancelPending`, `mark.dismissProgress`
-- `mark.changeSelection`, `mark.changeClick`, `mark.changeShape`, `mark.toggleMode`
-- `bind.initiate`
-- `browse.click` (local fan-out only), `browse.openResource`, `browse.resourceViewed`
+- `mark.request`, `mark.requestAssist`, `mark.submit`, `mark.cancelPending`, `mark.dismissProgress`, `mark.reportDeleteError`
+- `bind.initiate`, `bind.reportBodyError`
+- `browse.click`, `browse.openResource`
 - `match.requestSearch`
 - `yield.clone`
-- `beckon.hover`, `beckon.sparkle` (both local fan-out only)
+- `beckon.hover`, `beckon.sparkle`
 - `job.cancelRequest`
 
-These produce no return value at the call site — observation happens on the bus side via `session.subscribe(channel, handler)` or `client.bus.on(channel)`. A Browser state unit emits `mark.changeShape('rectangle')`; a different participant subscribed to `mark:shape-changed` reacts.
+These coordinate one client's own interface: nothing is awaited, and nothing reaches another participant. One signal does cross the wire: `browse.resourceViewed` tells the knowledge base's other clients that this viewer arrived at a resource. To drive *other* participants' viewers, use the wire drives below.
 
 **Wire drives** (return `Promise<number | undefined>`; emit over the transport at every other participant):
 
-- `beckon.attention`, `beckon.openResource`, `beckon.sparkleAll`
+- `beckon.attention`, `beckon.click`, `beckon.openResource`, `beckon.sparkleAll`
 
 These are the guided-tour moves: they drive *other* participants' viewers, and they resolve with the `/bus/emit` subscriber count, or with `undefined` when there is none (a gateway on a broker signal plane, which cannot count, or an in-process transport; never conflated with a genuine zero). Neither fire-and-forget nor an ack: the count is *information* — a tour script can tell an empty room from a full one before its next move. The count is **exact for a broadcast and an upper bound for a correlated channel**: a reply is delivered only to the client that issued the request, so on those channels the number says how many subscribers were eligible to be considered, not how many were written to.
 

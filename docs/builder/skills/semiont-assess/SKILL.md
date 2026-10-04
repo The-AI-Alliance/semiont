@@ -6,24 +6,24 @@ user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
 ---
 
-You are helping a user add assessment annotations to a Semiont resource. Assessments are evaluative annotations that flag passages for attention — risks, dangers, inaccuracies, logical gaps, questionable assumptions, or anything warranting critical scrutiny.
+You are helping a user add assessment annotations to a Semiont resource. An assessment evaluates a passage: a risk, a danger, an inaccuracy, a logical gap, a questionable assumption, or anything that deserves scrutiny.
 
-This skill builds **Layer #2 (Annotations)** of the layered data model — `assessing`-motivation annotations are first-class queryable spans that downstream aggregator skills (e.g. *Compose aggregates* — see [`semiont-aggregate`](../semiont-aggregate/SKILL.md)) can roll up into checklists, risk reports, or due-diligence summaries.
+This skill works in the annotation layer of [the layered data model](../README.md#the-layers). An `assessing` annotation is a span anyone can query, so an aggregating skill such as [`semiont-aggregate`](../semiont-aggregate/SKILL.md) can roll assessments up into a checklist, a risk report or a due-diligence summary.
 
 ## Two modes
 
-**Delegate (AI-assisted)** — `mark.assist` with motivation `assessing` runs the evaluative pass autonomously across the document. Use this for systematic review.
+**Delegate.** `mark.assist` with motivation `assessing` has the worker read the whole resource and assess it. Use it for a systematic review.
 
-**Manual** — explicit `mark.annotation` with an `assessing` body item. Use this for a known issue on a specific passage.
+**Manual.** `mark.annotation` writes one assessment on a passage you name. Use it for a known issue.
 
-## Client setup
+## Sign in
 
-`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password ever passes through the script. It then owns the token lifecycle — the realm pins an access token to **five minutes**, so a session (not a bare client) is what keeps a script working past that. Construct once at the top and reuse `session.client` for every verb call; `await session.dispose()` when done.
+`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. The session then keeps the token fresh. An access token is short-lived (five minutes from the Keycloak a launcher stack runs), so a session, not a bare client, is what keeps a script working past that. Sign in once, use `session.client` for every call, and `await session.dispose()` when done.
 
-Already hold an access token (cached from a prior auth, or supplied by an embedding host)? `SemiontClient.fromHttp({ baseUrl, token })` skips the auth round-trip — but you then own refresh yourself.
+A script that already holds an access token can use `SemiontClient.fromHttp({ baseUrl, token })` and skip the sign-in, but then nothing renews the token.
 
 ```typescript
-import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
 const session = await SemiontSession.signInDevice({
@@ -41,37 +41,52 @@ const session = await SemiontSession.signInDevice({
 const semiont = session.client;
 ```
 
-## Delegate (AI-assisted)
+## Delegate
 
-`semiont.mark.assist(...)` returns a `StreamObservable<MarkAssistProgress>` — an Observable that's also awaitable. `await` resolves with the final progress payload once the job completes.
+`semiont.mark.assist(...)` creates a job for the stack's worker and follows it to its end. It returns a `StreamObservable<MarkAssistEvent>`, and each event has a `kind`:
+
+- `progress`: the worker's report, with a `percentage`.
+- `failed`: one attempt failed and the queue is running the job again.
+- `complete`: the job's end, with its `result`.
+
+Awaiting the call resolves to the last event, which is the `complete` one.
 
 ```typescript
+import { resourceId } from '@semiont/sdk';
+
 const rId = resourceId('doc-123');
 
-const progress = await semiont.mark.assist(rId, 'assessing', {
+const done = await semiont.mark.assist(rId, 'assessing', {
   tone: 'critical',
   instructions: 'Flag scheduling risks, resource conflicts, and unverified safety assumptions',
   density: 4,
 });
 
-console.log(`Created ${progress.progress?.createdCount ?? 0} assessments`);
+const result = done.kind === 'complete' ? done.data.result : undefined;
+if (result?.kind === 'assessment-annotation') {
+  console.log(`Created ${result.assessmentsCreated} of ${result.assessmentsFound} assessments`);
+} else if (result?.kind === 'declined') {
+  console.log(`The resource's text could not be read: ${result.reason}`);
+}
 
 await session.dispose();
 ```
 
-The namespace method handles SSE streaming, timeout (180 s without progress), and polling fallback internally.
-
-To observe intermediate progress, subscribe directly instead of awaiting:
+To watch progress as well, call `.run(onEvent)`. It subscribes once and resolves to the same last event:
 
 ```typescript
-semiont.mark.assist(rId, 'assessing', { density: 4, tone: 'critical' }).subscribe({
-  next: (p) => console.log(`progress ${p.progress?.percentage ?? 0}%`),
-  complete: () => console.log('done'),
-  error: (e) => console.error(e),
+const done = await semiont.mark.assist(rId, 'assessing', { density: 4, tone: 'critical' }).run((event) => {
+  if (event.kind === 'progress') console.log(`${event.data.percentage}%`);
 });
 ```
 
+Consume one call one way. The stream is cold, so awaiting a call and also subscribing to it creates the job twice.
+
+The call has no deadline of its own. If the job says nothing for ten seconds, the SDK asks for the job's status and keeps asking until the job ends, so a dropped connection does not lose the result. A job that fails for good rejects with `JobFailedError`, and a cancelled one with `JobCancelledError`.
+
 ## Manual
+
+The assessment's text is a body whose purpose is `assessing`.
 
 ```typescript
 await semiont.mark.annotation({
@@ -87,13 +102,13 @@ await semiont.mark.annotation({
   motivation: 'assessing',
   body: [{
     type: 'TextualBody',
-    value: 'This assumption is unverified — the timeline assumes Q3 availability but procurement lead time is typically 16 weeks.',
-    purpose: 'describing',
+    value: 'This assumption is unverified: the timeline assumes Q3 availability, but procurement lead time is typically 16 weeks.',
+    purpose: 'assessing',
   }],
 });
 ```
 
-## Complete script skeleton
+## Complete script
 
 ```typescript
 import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
@@ -113,17 +128,23 @@ async function assess(resourceIdStr: string): Promise<void> {
     },
   });
   const semiont = session.client;
-  const rId = resourceId(resourceIdStr);
 
-  const progress = await semiont.mark.assist(rId, 'assessing', {
-    tone: process.env.ASSESS_TONE ?? 'balanced',
-    instructions: process.env.ASSESS_INSTRUCTIONS ??
-      'Flag risks, gaps, and unverified assumptions in this document',
-    density: Number(process.env.ASSESS_DENSITY ?? 4),
-  });
+  try {
+    const done = await semiont.mark.assist(resourceId(resourceIdStr), 'assessing', {
+      tone: process.env.ASSESS_TONE ?? 'balanced',
+      instructions: process.env.ASSESS_INSTRUCTIONS ?? 'Flag risks, gaps, and unverified assumptions in this document',
+      density: Number(process.env.ASSESS_DENSITY ?? 4),
+    });
 
-  console.log(`Created ${progress.progress?.createdCount ?? 0} assessments`);
-  await session.dispose();
+    const result = done.kind === 'complete' ? done.data.result : undefined;
+    if (result?.kind === 'assessment-annotation') {
+      console.log(`Created ${result.assessmentsCreated} of ${result.assessmentsFound} assessments`);
+    } else if (result?.kind === 'declined') {
+      console.log(`The resource's text could not be read: ${result.reason}`);
+    }
+  } finally {
+    await session.dispose();
+  }
 }
 
 const target = process.argv[2];
@@ -139,17 +160,17 @@ assess(target).catch((e) => {
 
 ## Guidance for the AI assistant
 
-- **Ask what kind of concerns to surface.** Assessment is broad — scheduling risks, safety hazards, logical errors, factual inaccuracies, missing evidence, legal exposure, compliance gaps. The `instructions` parameter is critical here; without it the model defaults to generic risk-flagging.
-- **Tone selection matters** (default: `balanced`):
-  - `analytical` — systematic, detached analysis
-  - `critical` — adversarial, probes weaknesses (use for finding holes before reviewers do)
-  - `balanced` — notes both strengths and concerns
-  - `constructive` — flags problems with improvement suggestions
-- **Density is lower for assessments** (1-10 vs. 1-15 for highlights). Start at 3-5 for a focused review. Only go higher for dense technical or legal documents where nearly every claim warrants scrutiny.
-- **Only `text/plain` and `text/markdown` resources are supported** for `mark.assist`. PDFs and images are not yet supported.
-- **Manual mode is for known issues.** If the user has already identified a problem and wants to attach it to the document, use manual mode. Delegate is for discovery.
-- **Distinguish from comments and tags.** Assessments flag objective concerns warranting attention. Comments are for dialogue and editorial improvement. Tags classify against a controlled vocabulary. Reach for `assessing` when the goal is to flag a problem; for `commenting` when the goal is to help the author revise; for `tagging` when the goal is controlled-vocabulary classification.
-- **Assessments feed aggregators.** When you want every flagged risk in a matter rolled up into a single Checklist or due-diligence report, write an aggregate skill on top — see [`semiont-aggregate`](../semiont-aggregate/SKILL.md). Tag-first / assess-first / comment-first, then aggregate.
-- **Check results** with `semiont.browse.annotations(rId)` — filter for `motivation === 'assessing'`.
-- **Launcher shortcut.** The `semiont` launcher (see [apps/launcher](../../../../apps/launcher/README.md)) exposes these operations as verbs for one-off invocations. The SDK is primary; the launcher is a convenience for ad-hoc work.
-- **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated, with codes like `bus.timeout`). See [Error Handling in Usage.md](../../Usage.md#error-handling).
+- **Ask what kind of concern to surface.** Assessment is broad: scheduling risks, safety hazards, logical errors, factual inaccuracies, missing evidence, legal exposure, compliance gaps. Without `instructions` the model flags generic risks.
+- **Choose a tone.** The four written for assessment:
+  - `analytical`: systematic and detached
+  - `critical`: adversarial, probing for weaknesses before a reviewer finds them
+  - `balanced`: notes strengths and concerns
+  - `constructive`: flags a problem and suggests an improvement
+- **Density** is the number of assessments to aim for in each 2,000 words; the Browser offers 1 to 10. Start at 3 to 5 for a focused review, and go higher only for dense technical or legal text where nearly every claim deserves scrutiny.
+- **Assessment, comment or tag.** An assessment flags a problem. A comment helps the author revise or a reader understand. A tag classifies against a controlled vocabulary.
+- **Assessments feed aggregates.** To roll every flagged risk in a matter into one checklist or report, assess first and then run [`semiont-aggregate`](../semiont-aggregate/SKILL.md).
+- **What `mark.assist` can read.** A resource with text: Markdown, plain text, HTML, JSON, or a PDF. A resource with no text at all, such as an image, fails the job. A document whose text could not be read (an encrypted or damaged PDF, or one that yields no text) completes with a `declined` result and a reason code.
+- **Check results** with `await semiont.browse.annotations(rId).fresh()`, filtered for `motivation === 'assessing'`.
+- **Manual mode is for known issues.** Delegate discovers; manual records what the user already found.
+- **From the command line.** `semiont mark --delegate <resourceId> --motivation assessing` runs the same job from the [launcher](../../../../apps/launcher/README.md#delegating-to-the-stack), with `--instructions`, `--density` and `--tone`. Use it for a one-off; write a script when the work repeats.
+- **Errors.** Every SDK throw extends `SemiontError`: catch it and route on its `code`. `BusRequestError` (a bus request, with a code such as `bus.timeout`) and `JobFailedError` narrow it. See [Error Handling](../../Usage.md#error-handling).

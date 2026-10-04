@@ -63,7 +63,7 @@ your app            (product logic, routing, composition)
    │
 framework binding   @semiont/react-ui — React components + hooks
    │
-language SDK        @semiont/sdk (TypeScript) · semiont (Rust) · sdk-go · more planned
+language SDK        @semiont/sdk (TypeScript) · semiont (Rust)
    │
 the contract        bus protocol, annotation model, job lifecycle
    │
@@ -84,14 +84,13 @@ believe them at first:
    [`semiont-http-transport`](../../packages/http-transport-rust/README.md)) has the
    same client, cache, state units and sessions, and is held to the same
    shared case tables and conformance suite; its README maps each shape in
-   this book to its Rust form. A Go SDK (`sdk-go`) exists today; Python,
-   Java, and Swift SDKs are planned. The concepts in these docs transfer
+   this book to its Rust form. The concepts in these docs transfer
    across SDKs; the syntax doesn't. If you're reading this from another
    language, treat the TypeScript as pseudocode with a working
    implementation.
 
 3. **Framework bindings sit above the SDK, not inside it.**
-   [`@semiont/react-ui`](../../packages/react-ui/) is the one supported binding today.
+   [`@semiont/react-ui`](../../packages/react-ui/) is the one binding.
    But the SDK is deliberately framework-free — plain classes and observables,
    no React anywhere — so a Vue or Svelte binding is a seam awaiting an author,
    not a rearchitecture.
@@ -103,19 +102,19 @@ it.
 
 The SDK's own shape, in one sentence: you open a **session** (sign-in and token
 refresh handled for you) and get a **client** whose namespaces are **the eight
-verbs of the protocol** — one per flow, listed here in the canonical order used
-throughout [`docs/protocol/flows/`](../protocol/flows/):
+verbs of the protocol** — four that write, three that read, and one that directs
+attention, as in [`docs/protocol/flows/`](../protocol/flows/README.md):
 
-| Verb | What it does |
-|---|---|
-| `browse` | read and navigate — documents, annotations, who else is here |
-| `bind` | resolve an ambiguous reference to a specific document |
-| `yield` | create documents — uploaded, or generated from gathered context |
-| `mark` | annotate — highlight, comment, link, or run an AI pass that does |
-| `frame` | define the schema vocabulary (entity types, tag schemas) |
-| `gather` | assemble the context that grounds generation and search |
-| `match` | search the corpus for candidate documents |
-| `beckon` | coordinate attention across participants |
+| | Verb | What it does |
+|---|---|---|
+| writes | `yield` | create documents — uploaded, or generated from gathered context |
+| writes | `mark` | annotate — highlight, comment, link, or run an AI pass that does |
+| writes | `bind` | resolve an ambiguous reference to a specific document |
+| writes | `frame` | define the schema vocabulary (entity types, tag schemas) |
+| reads | `browse` | read and navigate — documents, annotations, who else is here |
+| reads | `match` | search the corpus for candidate documents |
+| reads | `gather` | assemble the context that grounds generation and search |
+| directs attention | `beckon` | point other participants at a passage or a document |
 
 Plus `job` for tracking long-running work, and `auth` / `system` when the client
 is built against an HTTP gateway. Learn all eight once and the surface stays
@@ -242,9 +241,9 @@ DEVELOPER-GUIDE's testing section.
 A fair question to ask before adopting anything in 2026. What a coding agent
 can produce quickly is a demo that *gestures* at the shape — a documents
 table, a comments field, a websocket. Semiont's actual shape is another
-matter. The protocol registry alone defines more than 170 bus channels and
-over thirty correlated request/reply operations; the wire carries nearly two
-hundred schemas; around them sit a launcher that runs the fleet in containers
+matter. The protocol registry alone defines some two hundred bus channels and
+more than forty correlated request/reply operations; the wire carries more than
+two hundred and fifty schemas; around them sit a launcher that runs the fleet in containers
 and codespaces, a browser app full of painstaking interface decisions, and a
 deliberate split between the framework-free SDK and the react-ui binding
 above it. Any one app exercises a fraction of that surface — but *which*
@@ -300,7 +299,7 @@ vibe-code your app on Semiont; don't vibe-code your own Semiont.
 
 ## What you need, and where to go next
 
-You need Node and a running Semiont gateway to point at.
+You need a running knowledge base to point at (the [Quick Start](../../README.md#quick-start) gets you one), and Node for the TypeScript in these docs.
 
 Where to go by goal:
 

@@ -4,14 +4,17 @@
 
 - [Orientation](#orientation)
 - [Setup](#setup)
-- [Browse — Reading Resources and Annotations](#browse)
-- [Bind — Reference Linking](#bind)
-- [Yield — Resource Creation and Generation](#yield)
-- [Mark — Annotation CRUD and AI Assist](#mark)
-- [Frame — Schema Vocabulary](#frame)
-- [Gather — LLM Context Assembly](#gather)
-- [Match — Semantic Search](#match)
-- [Beckon — Attention Coordination](#beckon)
+- Writing
+  - [Yield — Resource Creation and Generation](#yield)
+  - [Mark — Annotation CRUD and AI Assist](#mark)
+  - [Bind — Reference Linking](#bind)
+  - [Frame — Schema Vocabulary](#frame)
+- Reading
+  - [Browse — Reading Resources and Annotations](#browse)
+  - [Match — Semantic Search](#match)
+  - [Gather — LLM Context Assembly](#gather)
+- Directing attention
+  - [Beckon — Attention Coordination](#beckon)
 - [Auth — Authentication](#auth)
 - [System — health and status](#system)
 - [Job — Worker Lifecycle](#job)
@@ -25,7 +28,7 @@
 
 Three framings hold the SDK's surface together. Skim them once and the per-namespace details below become predictable.
 
-**Eight verbs.** Every operation belongs to one of eight flows — *browse, bind, yield, mark, frame, gather, match, beckon* — that describe what a participant *does* with a shared corpus. Seven of them act on content (resources, annotations, references, attention); Frame acts on the schema layer (the conceptual vocabulary the others operate within). Each flow is a namespace on `SemiontClient`. The verb is the unit of mental model; methods belong to flows, not to nouns. The protocol-level definitions live in [`docs/protocol/flows`](../protocol/flows); the per-namespace examples in this guide track the same vocabulary.
+**Eight verbs.** Every operation belongs to one of eight flows that describe what a participant *does* with a shared corpus: four that write (*yield, mark, bind, frame*), three that read (*browse, match, gather*), and one that directs attention (*beckon*). Frame writes the vocabulary the other writing verbs draw on. Each flow is a namespace on `SemiontClient`. The verb is the unit of mental model; methods belong to flows, not to nouns. The protocol-level definitions live in [`docs/protocol/flows`](../protocol/flows); the per-namespace examples in this guide track the same vocabulary.
 
 **Five return shapes.** Method return types follow a predictable convention:
 
@@ -34,12 +37,12 @@ Three framings hold the SDK's surface together. Skim them once and the per-names
 | `Promise<T>` | past-tense or short noun (`mark.annotation`, `auth.me`) | atomic gateway ops — one round-trip, one value |
 | `StreamObservable<T>` | plain verb (`mark.assist`, `gather.annotation`) | long-running progress streams — `await` for the final value, `.subscribe(...)` for every emit |
 | `CacheObservable<T>` | plain noun (`browse.resource`, `browse.annotations`) | live queries — `.subscribe(...)` for `CacheState` emissions (`pending`/`ready`/`failed`, kept live), `.fresh()` for an explicit one-shot fetch |
-| `void` | imperative or progressive verb (`beckon.hover`, `mark.changeShape`) | collaboration signals — fire-and-forget onto the bus, observed by other participants |
+| `void` | imperative verb (`beckon.hover`, `mark.request`) | local signals — fire-and-forget onto the client's own bus, coordinating one viewer's interface |
 | `Promise<number \| undefined>` | imperative verb aimed at other participants (`beckon.openResource`, `beckon.sparkleAll`) | wire drives — beckon every other participant's viewer; resolves with the `/bus/emit` subscriber count, or `undefined` when the gateway cannot count, so a driver can tell an empty room from a full one |
 
 Streams and uploads are thenable, so `await` works without learning RxJS. Live queries are deliberately NOT thenable — the one-shot network read is always spelled `.fresh()`, and subscribing yields typed states rather than `T | undefined`. Full design in [REACTIVE-MODEL.md](./REACTIVE-MODEL.md).
 
-**Collaboration primitives.** The fourth row above — `void`-returning collaboration signals (`beckon.hover`, `mark.changeShape`, `bind.initiate`, `browse.click`) — is the SDK's distinctive contribution to multi-participant coordination. They look fire-and-forget at the call site; on the bus they fan out across every participant. A human hovers; an AI agent reacts. An agent emits a sparkle; a human's UI lights up. This is *protocol-level* coordination on the same typed namespace surface as data operations. Observers reach the same signals via `session.subscribe(channel, handler)` or `client.bus.on(channel)` — see [`REACTIVE-MODEL.md` § Three paths to the bus](./REACTIVE-MODEL.md#three-paths-to-the-bus).
+**Collaboration primitives.** The last row above, the wire drives (`beckon.attention`, `beckon.click`, `beckon.openResource`, `beckon.sparkleAll`), is the SDK's contribution to multi-participant coordination: each reaches every other participant's viewer. The `void` signals in the fourth row (`beckon.hover`, `bind.initiate`, `browse.click`) stay on the client's own bus. A human hovers; an AI agent reacts. An agent emits a sparkle; a human's UI lights up. This is *protocol-level* coordination on the same typed namespace surface as data operations. Observers reach the same signals via `session.subscribe(channel, handler)` or `client.bus.on(channel)` — see [`REACTIVE-MODEL.md` § Three paths to the bus](./REACTIVE-MODEL.md#three-paths-to-the-bus).
 
 ## Setup
 
@@ -47,7 +50,7 @@ There are three idiomatic construction shapes, by audience:
 
 ### Scripts: `SemiontSession.signInDevice(...)`
 
-A script signs in at the knowledge base's identity provider with the device grant: the factory discovers the issuer from the gateway (RFC 9728), asks it for a code, hands the verification URL to `onCode`, and resolves once the person has approved in any browser. `SemiontClient` has no signIn factory: a bare token has a **ten-minute** life and nothing to renew it, so any script outliving that window would start failing in ways nothing surfaced. The session machinery is what makes tokens safe to hold: proactive refresh at the issuer, validation, storage persistence, lifecycle observables.
+A script signs in at the knowledge base's identity provider with the device grant: the factory discovers the issuer from the gateway (RFC 9728), asks it for a code, hands the verification URL to `onCode`, and resolves once the person has approved in any browser. `SemiontClient` has no signIn factory: a bare token lives for minutes, as long as the issuer says, with nothing to renew it, so any script outliving that window would start failing in ways nothing surfaced. The session machinery is what makes tokens safe to hold: proactive refresh at the issuer, validation, storage persistence, lifecycle observables.
 
 `kb` is required. Its `id` is the storage key for this session — distinct scripts sharing the same `SessionStorage` instance must use distinct `id`s to avoid trampling each other's tokens. The factory does not synthesize a default; the consumer makes the choice.
 
@@ -74,7 +77,7 @@ const session = await SemiontSession.signInDevice({
 
 `KnowledgeBase` is a uniform shape regardless of transport kind. The transport-specific connection details live in the nested `endpoint` discriminated union (`{ kind: 'http', host, port, protocol }` for HTTP gateways, `{ kind: 'local', kbId }` for in-process). Code that doesn't construct transports never inspects `endpoint`.
 
-The session refreshes at the issuer with the refresh token the grant returned. Override `refresh` only for non-standard flows (worker-pool shared secret, interactive re-prompt).
+The session refreshes at the issuer with the refresh token the grant returned. Override `refresh` only for non-standard flows (a service account's client-credentials grant, an interactive re-prompt).
 
 A browser app signs in with the authorization code grant instead: `SemiontBrowser.beginSignIn` sends the person to the issuer and `completeSignIn` finishes on the callback page. Already hold an access and refresh pair from either grant? `SemiontSession.fromIssuedSession(...)`.
 
@@ -110,7 +113,7 @@ The session factory owns the load-bearing "same `BehaviorSubject` instance flows
 
 ### Manual construction (advanced)
 
-When you need direct control of `token$`, an alternate transport (`LocalTransport` from `@semiont/make-meaning`, a future `GrpcTransport`, etc.), or to inject a `tokenRefresher` callback at the transport level, construct each piece by hand:
+When you need direct control of `token$`, an alternate transport (`LocalTransport` from `@semiont/make-meaning`), or to inject a `tokenRefresher` callback at the transport level, construct each piece by hand:
 
 ```typescript
 import { SemiontClient, HttpTransport, HttpContentTransport } from '@semiont/sdk';
@@ -147,74 +150,6 @@ function opened(href: string) {
 ### Public bus access
 
 The client does **not** expose `emit / on / stream` methods. All bus traffic flows through typed namespace methods (`semiont.mark.archive(...)`, `semiont.browse.resource(...)`, etc.). The single sanctioned escape hatch for arbitrary-channel subscription is `session.subscribe(channel, handler)`, available when you go through `SemiontSession`.
-
-## Browse
-
-Browse methods read from materialized views. Live queries return `CacheObservable<T>`: `.subscribe(...)` yields `CacheState<T>` emissions (`pending` → `ready`, with `failed` as an in-stream state — the subscription never dies), kept live by bus-event invalidation; `.fresh()` is the explicit one-shot fetch.
-
-### Streams vs live queries
-
-Streaming methods (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`) return `StreamObservable<T>` — thenable, so `await` resolves the final value. Live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.referencedBy`, `browse.events`, `browse.entityTypes`, `browse.tagSchemas`, `browse.agents`) return `CacheObservable<T>` — NOT thenable; subscribe for the live view or call `.fresh()` for a fresh value. `.pipe(...)` composes with RxJS operators on either (and loses the stream thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
-
-### Live Queries (subscribe)
-
-```typescript
-import { isReady, readyValue } from '@semiont/sdk';
-import { filter } from 'rxjs/operators';
-
-// Subscribe to a resource — re-emits on yield:updated, mark:archived, etc.
-semiont.browse.resource(resourceId).subscribe((st) => {
-  if (st.status === 'ready') console.log('Resource:', st.value.name);
-  else if (st.status === 'failed') console.error('Load failed:', st.error);
-  // 'pending' — render a skeleton
-});
-
-// Subscribe to annotations — re-emits on mark:added, mark:removed, mark:body-updated
-semiont.browse.annotations(resourceId).subscribe((st) => {
-  console.log('Annotations:', readyValue(st)?.length);   // readyValue: value | undefined
-});
-
-// Subscribe to entity types — re-emits on frame:entity-type-added (global stream)
-semiont.browse.entityTypes().pipe(filter(isReady)).subscribe((st) => {
-  console.log('Entity types:', st.value);
-});
-
-// One-shot read — the network round trip is always spelled .fresh().
-const resource = await semiont.browse.resource(resourceId).fresh();   // ResourceDescriptor; rejects on failure
-```
-
-### One-Shot Reads (Promise)
-
-```typescript
-// Text content
-const content = await semiont.browse.resourceContent(resourceId);
-
-// Binary representation — verbatim stored bytes; the stored media type comes back as `contentType`
-const { data, contentType } = await semiont.browse.resourceRepresentation(resourceId);
-
-// Event history
-const events = await semiont.browse.resourceEvents(resourceId);
-
-// Annotation history
-const history = await semiont.browse.annotationHistory(resourceId, annotationId);
-
-// File browser
-const files = await semiont.browse.files('/docs', 'mtime');
-
-// What the knowledge base says of itself: { name, domain, gitBranch? }.
-// Asked on every call and never cached — a branch changes with no event.
-const { name, domain, gitBranch } = await semiont.browse.kb();
-```
-
-## Bind
-
-One method. The result arrives on `semiont.browse.annotations()` via the enriched `mark:body-updated` event.
-
-```typescript
-await semiont.bind.body(resourceId, annotationId, [
-  { op: 'add', item: { type: 'SpecificResource', source: targetResourceId, purpose: 'linking' } },
-]);
-```
 
 ## Yield
 
@@ -310,9 +245,9 @@ await semiont.yield.createFromToken({ token, name: 'Clone', content });
 
 ## Mark
 
-Commands return Promises that resolve on gateway acceptance. Results appear on browse Observables via the bus gateway. `mark.annotation` takes the W3C-shaped annotation directly — `target.source` is the resource the annotation is anchored on, and the resulting `annotationId` is already branded so you can pass it to other namespace methods (`bind.body`, `gather.annotation`, etc.) without a manual cast.
+Commands return Promises that resolve when the knowledge base has recorded them. Results appear on the `browse` live queries. `mark.annotation` takes the W3C-shaped annotation directly — `target.source` is the resource the annotation is anchored on, and the resulting `annotationId` is already branded so you can pass it to other namespace methods (`bind.body`, `gather.annotation`, etc.) without a manual cast.
 
-For entity-type vocabulary writes, see [Frame](#frame) — those moved off Mark when Frame was promoted to flow status.
+Adding to the entity-type vocabulary is [Frame](#frame). Mark classifies a resource with types the vocabulary has.
 
 ```typescript
 // Create an annotation. The wire layer derives `resourceId` from
@@ -338,8 +273,8 @@ await semiont.mark.archive(resourceId);
 await semiont.mark.unarchive(resourceId);
 
 // Replace a resource's own entity-type classification — replace/diff:
-// pass the current types and the desired full set; the gateway diffs
-// them into mark:entity-tag-added / -removed events, so the change
+// pass the current types and the desired full set; the difference is
+// recorded as mark:entity-tag-added / -removed events, so the change
 // surfaces in browse.resources({ entityType }). (Stamps the resource
 // with types from the Frame vocabulary — defining the vocabulary
 // itself is frame.addEntityTypes.)
@@ -354,6 +289,16 @@ semiont.mark.assist(resourceId, 'linking', {
   error: (err) => console.error('Failed:', err.message),
   complete: () => console.log('Done'),
 });
+```
+
+## Bind
+
+One method. The result arrives on `semiont.browse.annotations()` via the enriched `mark:body-updated` event.
+
+```typescript
+await semiont.bind.body(resourceId, annotationId, [
+  { op: 'add', item: { type: 'SpecificResource', source: targetResourceId, purpose: 'linking' } },
+]);
 ```
 
 ## Frame
@@ -375,7 +320,7 @@ semiont.browse.entityTypes().subscribe((types) => {
 });
 ```
 
-Adding the same entity type twice is idempotent — the gateway dedupes; the second `frame:add-entity-type` for an existing tag is a no-op.
+Adding the same entity type twice is idempotent: the second `frame:add-entity-type` for an existing type is a no-op.
 
 ### Tag schemas
 
@@ -419,12 +364,83 @@ semiont.browse.tagSchemas().subscribe((st) => {
 
 For the full per-flow contract — including the `__system__`-stream event-sourcing layer, projection materialization, and "most-recent wins + log warning" conflict semantics — see [`docs/protocol/flows/FRAME.md`](../protocol/flows/FRAME.md). Schema-evolution operations (rename / remove / version / migrate) are deferred, not yet scheduled.
 
+## Browse
+
+Browse methods read from materialized views. Live queries return `CacheObservable<T>`: `.subscribe(...)` yields `CacheState<T>` emissions (`pending` → `ready`, with `failed` as an in-stream state — the subscription never dies), kept live by bus-event invalidation; `.fresh()` is the explicit one-shot fetch.
+
+### Streams vs live queries
+
+Streaming methods (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`) return `StreamObservable<T>` — thenable, so `await` resolves the final value. Live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.referencedBy`, `browse.events`, `browse.entityTypes`, `browse.tagSchemas`, `browse.agents`) return `CacheObservable<T>` — NOT thenable; subscribe for the live view or call `.fresh()` for a fresh value. `.pipe(...)` composes with RxJS operators on either (and loses the stream thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
+
+### Live Queries (subscribe)
+
+```typescript
+import { isReady, readyValue } from '@semiont/sdk';
+import { filter } from 'rxjs/operators';
+
+// Subscribe to a resource — re-emits on yield:updated, mark:archived, etc.
+semiont.browse.resource(resourceId).subscribe((st) => {
+  if (st.status === 'ready') console.log('Resource:', st.value.name);
+  else if (st.status === 'failed') console.error('Load failed:', st.error);
+  // 'pending' — render a skeleton
+});
+
+// Subscribe to annotations — re-emits on mark:added, mark:removed, mark:body-updated
+semiont.browse.annotations(resourceId).subscribe((st) => {
+  console.log('Annotations:', readyValue(st)?.length);   // readyValue: value | undefined
+});
+
+// Subscribe to entity types — re-emits on frame:entity-type-added (global stream)
+semiont.browse.entityTypes().pipe(filter(isReady)).subscribe((st) => {
+  console.log('Entity types:', st.value);
+});
+
+// One-shot read — the network round trip is always spelled .fresh().
+const resource = await semiont.browse.resource(resourceId).fresh();   // ResourceDescriptor; rejects on failure
+```
+
+### One-Shot Reads (Promise)
+
+```typescript
+// Text content
+const content = await semiont.browse.resourceContent(resourceId);
+
+// Binary representation — verbatim stored bytes; the stored media type comes back as `contentType`
+const { data, contentType } = await semiont.browse.resourceRepresentation(resourceId);
+
+// Event history
+const events = await semiont.browse.resourceEvents(resourceId);
+
+// Annotation history
+const history = await semiont.browse.annotationHistory(resourceId, annotationId);
+
+// File browser
+const files = await semiont.browse.files('/docs', 'mtime');
+
+// What the knowledge base says of itself: { name, domain, gitBranch? }.
+// Asked on every call and never cached — a branch changes with no event.
+const { name, domain, gitBranch } = await semiont.browse.kb();
+```
+
+## Match
+
+Long-running. Returns a `StreamObservable` of scored results — `await` for the final emission, or `subscribe` for streaming progress. `referenceId` is typed as `AnnotationId` (the annotation containing the reference body to search candidates for).
+
+```typescript
+semiont.match.search(resourceId, referenceId, gatheredContext, {
+  limit: 10,
+  useSemanticScoring: true,
+}).subscribe({
+  next: (result) => {
+    console.log('Results:', result.response);
+  },
+});
+```
+
 ## Gather
 
 `gather.annotation` is long-running, and emits exactly one value: the completion, which
-carries the `GatheredContext` directly on `.response`. It is a `StreamObservable` rather than
-a `Promise` because the shape once included progress frames; that channel was removed after
-it turned out nothing had ever emitted one.
+carries the `GatheredContext` directly on `.response`.
 
 ```typescript
 semiont.gather.annotation(resourceId, annotationId, { contextWindow: 2000 }).subscribe({
@@ -441,21 +457,6 @@ const context = await semiont.gather.resource(resourceId, {
   depth: 2,
   maxResources: 10,
   excludeEntityTypes: ['Draft'],   // omit these entity types from the semantic recall
-});
-```
-
-## Match
-
-Long-running. Returns a `StreamObservable` of scored results — `await` for the final emission, or `subscribe` for streaming progress. `referenceId` is typed as `AnnotationId` (the annotation containing the reference body to search candidates for).
-
-```typescript
-semiont.match.search(resourceId, referenceId, gatheredContext, {
-  limit: 10,
-  useSemanticScoring: true,
-}).subscribe({
-  next: (result) => {
-    console.log('Results:', result.response);
-  },
 });
 ```
 
@@ -554,7 +555,7 @@ RxJS `Observable` (a poll loop has no terminal value): subscribe/unsubscribe, no
 For HTTP transports, the client lazily opens a single SSE connection to `/bus/subscribe`. Result channels, global domain events, and resource-scoped fan-out all flow through it. For in-process transports, the bus is the in-memory `EventBus` from `@semiont/core`. Either way, the namespace methods hide the wire.
 
 To receive live updates for a specific resource, subscribe to its
-`browse.*` live queries — **freshness follows observation** (#847).
+`browse.*` live queries — **freshness follows observation**.
 Subscribing acquires the resource's scope (resource-scoped events like
 `mark:added` flow in and invalidate the cache, so the Observable
 re-emits); the last unsubscribe releases it. There's no separate call to make.
@@ -574,7 +575,7 @@ sub.unsubscribe();
 A one-shot read needs no subscription and acquires no scope —
 `semiont.browse.annotations(resourceId).fresh()` fetches a fresh value and returns.
 
-Scopes COMPOSE (multi-resource scope, 2026-07-29): one connection holds every observed
+Scopes compose: one connection holds every observed
 resource's scope simultaneously — N mounted viewers on N resources are all
 fully live, each ref-counted and released independently.
 
@@ -609,13 +610,13 @@ const adapter = createJobClaimAdapter({
 adapter.start();
 ```
 
-The cast names the seam: today only HTTP workers exist. The adapter itself is transport-neutral — an in-process worker would pass its own `BusRequestPrimitive`, and the cast goes away.
+The cast names the seam: the workers that exist are HTTP workers. The adapter itself is transport-neutral — an in-process worker would pass its own `BusRequestPrimitive`, and the cast goes away.
 
 ## Debugging the bus
 
-When something on the bus is silently not happening — a job-claim worker that isn't claiming, an SSE connection that dropped, a `mark:create` emit that didn't reach the gateway — there are two complementary tools.
+When something on the bus is silently not happening — a job-claim worker that isn't claiming, an SSE connection that dropped, a `mark:create-request` emit that didn't reach the gateway — there are two complementary tools.
 
-**Wire-level event logging (Tier 1 of the observability stack).** Every event that crosses a transport boundary is logged as a single grep-friendly line on stdout / `console.debug`:
+**Wire-level event logging.** Every event that crosses a transport boundary is logged as a single grep-friendly line on stdout / `console.debug`:
 
 ```
 [bus EMIT] mark:create [scope=res-abc] [cid=a89a670a] {annotation: ..., userId: ...}
@@ -631,7 +632,7 @@ window.__SEMIONT_BUS_LOG__ = true;   # Browser (DevTools or e2e init)
 
 Cost when disabled: a single truthy check, zero allocations. Five op codes — `EMIT`, `RECV`, `SSE`, `PUT`, `GET` — cover every transport-level write and read. Failure modes are diagnosable from a missing line: gateway `EMIT` missing → request never reached the server; gateway `SSE` missing → handler emitted no result; Browser `RECV` missing → server wrote but bytes never parsed client-side. The full guide with the timeline format and e2e capture API is at [`tests/e2e/docs/bus-logging.md`](../../tests/e2e/docs/bus-logging.md).
 
-When OpenTelemetry is initialized (Tier 2), every bus-log line gets a `trace=<8hex>` suffix that correlates the grep timeline with the trace UI.
+When OpenTelemetry is initialized, every bus-log line gets a `trace=<8hex>` suffix that correlates the grep timeline with the trace UI.
 
 **Runtime SSE health.** For a long-running worker or daemon, subscribe to the transport's connection-state observable to surface health in your status endpoint:
 
@@ -655,7 +656,7 @@ httpTransport.state$.subscribe((state: ConnectionState) => {
 
 Every error thrown through the SDK extends `SemiontError`, the unified base from `@semiont/core` (re-exported from `@semiont/sdk`). It carries a discriminated `code` field plus `details`. Each error class tightens `code` to a specific literal union.
 
-Transport-level errors (HTTP `APIError`, future gRPC `GrpcError`, etc.) all map their native failure codes to a transport-neutral vocabulary `TransportErrorCode` so a routing layer doesn't have to know which transport produced the error:
+A transport's errors (HTTP's `APIError`) map their native failure codes to a transport-neutral vocabulary, `TransportErrorCode`, so a routing layer doesn't have to know which transport produced the error:
 
 | `code` | Meaning | Typical HTTP status |
 |---|---|---|
@@ -704,8 +705,6 @@ expired. A gateway that cannot be asked refuses nothing: the session keeps its t
 
 This matters for what your handler should do: neither code is a prompt to retry. By the time you
 see one, retrying already happened. Signing in again is what is left.
-
-`bus.bad-payload` and `bus.forbidden` were removed from the bus vocabulary: nothing constructed them and nothing branched on them, so they promised a distinction the system never made.
 
 Catch broadly on `SemiontError` and route on `code`; reach for `APIError` (imported from `@semiont/http-transport`) only when a handler genuinely needs HTTP-specific fields like `status`.
 
@@ -768,4 +767,4 @@ const transport = new HttpTransport({
 const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 ```
 
-The factory shorthands (`fromHttp`, `SemiontSession.signInDevice`) don't currently expose a `logger` parameter; use manual construction when you need transport-level logging.
+The factory shorthands (`fromHttp`, `SemiontSession.signInDevice`) take no `logger`; use manual construction when you need transport-level logging.

@@ -6,24 +6,24 @@ user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
 ---
 
-You are helping a user add highlighting annotations to a Semiont resource. Highlights mark passages worth a reader's attention — key claims, important evidence, surprising findings, or anything the user wants to surface.
+You are helping a user add highlighting annotations to a Semiont resource. Highlights mark passages worth a reader's attention: key claims, important evidence, surprising findings, or anything the user wants to surface.
 
-This skill builds **Layer #2 (Annotations)** of the layered data model — `highlighting`-motivation annotations are first-class queryable spans that a downstream skill or UI can use to surface attention-worthy content.
+This skill works in the annotation layer of [the layered data model](../README.md#the-layers). A `highlighting` annotation is a span anyone can query, so a later skill or the Browser can surface what was marked.
 
 ## Two modes
 
-**Delegate (AI-assisted)** — `mark.assist` with motivation `highlighting` runs the highlight pass autonomously across the document. Use this for bulk highlighting.
+**Delegate.** `mark.assist` with motivation `highlighting` has the worker read the whole resource and highlight it. Use it for bulk highlighting.
 
-**Manual** — explicit `mark.annotation` with a `highlighting` body item. Use this for one-off corrections or additions.
+**Manual.** `mark.annotation` writes one highlight on a passage you name. Use it for a correction or an addition.
 
-## Client setup
+## Sign in
 
-`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password ever passes through the script. It then owns the token lifecycle — the realm pins an access token to **five minutes**, so a session (not a bare client) is what keeps a script working past that. Construct once at the top and reuse `session.client` for every verb call; `await session.dispose()` when done.
+`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. The session then keeps the token fresh. An access token is short-lived (five minutes from the Keycloak a launcher stack runs), so a session, not a bare client, is what keeps a script working past that. Sign in once, use `session.client` for every call, and `await session.dispose()` when done.
 
-Already hold an access token (cached from a prior auth, or supplied by an embedding host)? `SemiontClient.fromHttp({ baseUrl, token })` skips the auth round-trip — but you then own refresh yourself.
+A script that already holds an access token can use `SemiontClient.fromHttp({ baseUrl, token })` and skip the sign-in, but then nothing renews the token.
 
 ```typescript
-import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
 const session = await SemiontSession.signInDevice({
@@ -41,36 +41,51 @@ const session = await SemiontSession.signInDevice({
 const semiont = session.client;
 ```
 
-## Delegate (AI-assisted)
+## Delegate
 
-`semiont.mark.assist(...)` returns a `StreamObservable<MarkAssistProgress>` — an Observable that's also awaitable. `await` resolves with the final progress payload (carrying the created count) when the job completes.
+`semiont.mark.assist(...)` creates a job for the stack's worker and follows it to its end. It returns a `StreamObservable<MarkAssistEvent>`, and each event has a `kind`:
+
+- `progress`: the worker's report, with a `percentage`.
+- `failed`: one attempt failed and the queue is running the job again.
+- `complete`: the job's end, with its `result`.
+
+Awaiting the call resolves to the last event, which is the `complete` one.
 
 ```typescript
+import { resourceId } from '@semiont/sdk';
+
 const rId = resourceId('doc-123');
 
-const progress = await semiont.mark.assist(rId, 'highlighting', {
+const done = await semiont.mark.assist(rId, 'highlighting', {
   instructions: 'Focus on key claims and supporting evidence',
   density: 5,
 });
 
-console.log(`Created ${progress.progress?.createdCount ?? 0} highlights`);
+const result = done.kind === 'complete' ? done.data.result : undefined;
+if (result?.kind === 'highlight-annotation') {
+  console.log(`Created ${result.highlightsCreated} of ${result.highlightsFound} highlights`);
+} else if (result?.kind === 'declined') {
+  console.log(`The resource's text could not be read: ${result.reason}`);
+}
 
 await session.dispose();
 ```
 
-To observe intermediate progress (e.g. for a progress bar), subscribe directly instead of awaiting:
+To watch progress as well, call `.run(onEvent)`. It subscribes once and resolves to the same last event:
 
 ```typescript
-semiont.mark.assist(rId, 'highlighting', { density: 5 }).subscribe({
-  next: (p) => console.log(`progress ${p.progress?.percentage ?? 0}%`),
-  complete: () => console.log('done'),
-  error: (e) => console.error(e),
+const done = await semiont.mark.assist(rId, 'highlighting', { density: 5 }).run((event) => {
+  if (event.kind === 'progress') console.log(`${event.data.percentage}%`);
 });
 ```
 
-The namespace method handles SSE streaming, timeout (180 s without progress), and polling fallback internally. No separate state-unit construction or bus-emit is needed.
+Consume one call one way. The stream is cold, so awaiting a call and also subscribing to it creates the job twice.
+
+The call has no deadline of its own. If the job says nothing for ten seconds, the SDK asks for the job's status and keeps asking until the job ends, so a dropped connection does not lose the result. A job that fails for good rejects with `JobFailedError`, and a cancelled one with `JobCancelledError`.
 
 ## Manual
+
+A highlight has no body: the motivation on a target is the whole annotation.
 
 ```typescript
 await semiont.mark.annotation({
@@ -84,15 +99,10 @@ await semiont.mark.annotation({
     },
   },
   motivation: 'highlighting',
-  body: [{
-    type: 'TextualBody',
-    value: 'Optional note about why this is highlighted',
-    purpose: 'describing',
-  }],
 });
 ```
 
-## Complete script skeleton
+## Complete script
 
 ```typescript
 import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
@@ -112,16 +122,22 @@ async function highlight(resourceIdStr: string): Promise<void> {
     },
   });
   const semiont = session.client;
-  const rId = resourceId(resourceIdStr);
 
-  const progress = await semiont.mark.assist(rId, 'highlighting', {
-    instructions: process.env.HIGHLIGHT_INSTRUCTIONS ??
-      'Focus on key claims and supporting evidence',
-    density: Number(process.env.HIGHLIGHT_DENSITY ?? 5),
-  });
+  try {
+    const done = await semiont.mark.assist(resourceId(resourceIdStr), 'highlighting', {
+      instructions: process.env.HIGHLIGHT_INSTRUCTIONS ?? 'Focus on key claims and supporting evidence',
+      density: Number(process.env.HIGHLIGHT_DENSITY ?? 5),
+    });
 
-  console.log(`Created ${progress.progress?.createdCount ?? 0} highlights`);
-  await session.dispose();
+    const result = done.kind === 'complete' ? done.data.result : undefined;
+    if (result?.kind === 'highlight-annotation') {
+      console.log(`Created ${result.highlightsCreated} of ${result.highlightsFound} highlights`);
+    } else if (result?.kind === 'declined') {
+      console.log(`The resource's text could not be read: ${result.reason}`);
+    }
+  } finally {
+    await session.dispose();
+  }
 }
 
 const target = process.argv[2];
@@ -137,11 +153,10 @@ highlight(target).catch((e) => {
 
 ## Guidance for the AI assistant
 
-- **Ask what to highlight** if the user hasn't said — key claims? risks? supporting evidence? quotes? The `instructions` parameter focuses the AI on what matters.
-- **Density is the main tuning knob** (1-15, default mid-range). Start around 5 for selective highlighting. Go up to 10-15 for dense annotation of dense technical material. Go down to 1-3 for a light editorial pass.
-- **Only `text/plain` and `text/markdown` resources are supported** for `mark.assist`. PDFs and images are not yet supported.
-- **Check results** with `semiont.browse.annotations(rId)` — filter for `motivation === 'highlighting'`.
-- **Manual mode is for corrections.** If the AI missed a specific passage, add it manually. Don't re-run delegate just to capture one passage.
-- **Progress tracking** is available by subscribing to the Observable returned from `mark.assist`; each emission is a progress snapshot with `percentage` and `createdCount`.
-- **CLI shortcut.** The `semiont` launcher (see [apps/launcher](../../../../apps/launcher/README.md)) exposes these operations as verbs for one-off invocations. The SDK is primary; the launcher is a convenience for ad-hoc work.
-- **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated, with codes like `bus.timeout`). See [Error Handling in Usage.md](../../Usage.md#error-handling).
+- **Ask what to highlight** if the user has not said: key claims, risks, supporting evidence, quotes. `instructions` is how the model learns what matters.
+- **Density is the main dial.** It is the number of highlights to aim for in each 2,000 words; the Browser offers 1 to 15. Start near 5 for a selective pass, go to 10 or more for dense technical material, and to 1 to 3 for a light editorial pass.
+- **What `mark.assist` can read.** A resource with text: Markdown, plain text, HTML, JSON, or a PDF. A resource with no text at all, such as an image, fails the job. A document whose text could not be read (an encrypted or damaged PDF, or one that yields no text) completes with a `declined` result and a reason code.
+- **Check results** with `await semiont.browse.annotations(rId).fresh()`, filtered for `motivation === 'highlighting'`.
+- **Manual mode is for corrections.** If the model missed one passage, add it by hand instead of running the job again.
+- **From the command line.** `semiont mark --delegate <resourceId> --motivation highlighting` runs the same job from the [launcher](../../../../apps/launcher/README.md#delegating-to-the-stack), with `--instructions`, `--density`. Use it for a one-off; write a script when the work repeats.
+- **Errors.** Every SDK throw extends `SemiontError`: catch it and route on its `code`. `BusRequestError` (a bus request, with a code such as `bus.timeout`) and `JobFailedError` narrow it. See [Error Handling](../../Usage.md#error-handling).

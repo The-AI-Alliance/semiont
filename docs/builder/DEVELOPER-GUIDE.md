@@ -6,7 +6,7 @@ lines of TypeScript that exercise it.
 
 This is the **how-to** doc. For the exhaustive per-namespace surface see
 [Usage.md](./Usage.md) (reference); for *why* the surface is shaped the way it is —
-RxJS substrate, the four return shapes, the three paths to the bus — see
+the return shapes, and the three paths to the bus — see
 [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) (explanation). Recipes here link into both rather
 than repeat them.
 
@@ -90,7 +90,7 @@ const done = await session.client.mark.assist(rId, 'linking', { entityTypes })
   .run((ev) => { if (ev.kind === 'progress') showProgress(ev.data); }); // progress + result, ONE run
 ```
 
-→ [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the four-shape design and consumption per method.
+→ [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design of the shapes and consumption per method.
 
 ## 3. Read resources and annotations
 
@@ -178,7 +178,7 @@ await session.client.mark.assist(resourceId, 'tagging', { schemaId: 'legal-irac'
 The resource's **own** classification — the `entityTypes` stamped at creation (§5) — can
 also be changed after the fact. `mark.updateEntityTypes` is a **replace/diff** call: pass
 the resource's *current* set and the desired *full* set (not just the additions); the
-gateway folds the difference into `resource.entityTypes`, so the change surfaces in
+knowledge base records the difference in `resource.entityTypes`, so the change surfaces in
 `browse.resources({ entityType })` filters and resource metadata. Awaitable and rejects on
 failure, like `mark.delete`:
 
@@ -195,7 +195,7 @@ can name the agent that will serve it: `browse.agents()` returns the KB's declar
 `CollaboratorEntry[]` — each entry a W3C `Agent` plus, for software agents, the
 `servesJobTypes` it's configured to serve (both types importable from `@semiont/core`). It's
 a KB-wide live query like `entityTypes()`: cached for the client's lifetime and refreshed
-after a connection gap (a roster change means a gateway restart, which always presents as
+after a connection gap (a roster change means restarting the stack, which always presents as
 one). Match a job type to its serving agent and you have the assignee *before* the work runs
 — and the same DID arrives back as `generator` on every annotation that work creates, so
 your dispatch-time attribution and the stored provenance agree by construction:
@@ -250,12 +250,11 @@ resource to the reference), and the job's ids are derived from the focus. `outpu
 or any custom string — used verbatim, with a worker-side warn) and `structure` the shape
 (`'prose' | 'sections' | 'chat'`, or any custom string; **unset ⇒ no structure directive** —
 the task framing and the model decide, and `maxTokens` is length only). `prompt` is a
-refining instruction that composes with `task` (task = what, prompt = how) — don't carry
-the role in `prompt` anymore. On completion the worker mints a source→derived reference
+refining instruction that composes with `task` (task = what, prompt = how): the role
+belongs in `task`, not in `prompt`. On completion the worker mints a source→derived reference
 annotation, so provenance is automatic. The generated resource id arrives on the terminal
 `complete` event. The context excerpts embedded in the generation prompt are id-labelled
-(`[<resourceId>]` / `[<resourceId>/<annotationId>]` — see the prompt walkthrough in
-[YIELD.md](../protocol/flows/YIELD.md)), and `cite: true` turns that into
+(`[<resourceId>]` / `[<resourceId>/<annotationId>]`), and `cite: true` turns that into
 inline citations: the model's `[[<id>]]` tokens are stripped before storage and minted as
 W3C linking annotations on the generated resource (claim span → cited source) — citations
 arrive as ordinary navigable references, not links in the text.
@@ -357,26 +356,25 @@ const status = await session.client.job.status(jobId);
 const final  = await session.client.job.pollUntilComplete(jobId, { onProgress: (s) => log(s.status) });
 ```
 
-**Defend against silence.** A job can fail by *never starting* — e.g. the gateway restarts
-with a new signing secret and rejects the emit, so no job is created, nothing streams, and
-`run()` awaits a terminal that will never come. Errors you can catch (§13); silence you have
-to time out. The pattern: race the terminal against a stall timer that **re-arms on every
-streamed event** — a long job that keeps reporting progress is never cut off, only true
-silence trips it — and on a trip, cancel the phantom job's status polling and surface an
-actionable error:
+**Silence is handled for you.** A job's progress and its end can be lost when a stream
+drops, and nothing sends them again. So a call that follows a job (`mark.assist`,
+`yield.fromContext`) asks for the job's status once it has heard nothing for a while, and
+goes on asking until the job says something. A job that failed for good rejects as
+`JobFailedError`, and one that was cancelled as `JobCancelledError`.
+
+A generation also has a stall deadline, sized from the length it was asked for. When it
+passes, the SDK asks for the job to be cancelled and the call rejects as
+`GenerationStallError`. Set `stallDeadlineMs` in the options to choose your own:
 
 ```typescript
-const gen = session.client.yield.fromContext(context, options);
-let armStall!: () => void;
-const stalled = new Promise<never>((_, reject) => {
-  let t: ReturnType<typeof setTimeout>;
-  armStall = () => { clearTimeout(t); t = setTimeout(() => {
-    session.client.job.cancelRequest('generation');       // stop the never-completing poll
-    reject(new Error('The KB went silent — reconnect and retry.'));
-  }, 90_000); };
-});
-armStall();
-const done = await Promise.race([gen.run(() => armStall()), stalled]);
+import { GenerationStallError } from '@semiont/sdk';
+
+try {
+  await session.client.yield.fromContext(context, { ...options, stallDeadlineMs: 90_000 });
+} catch (err) {
+  if (err instanceof GenerationStallError) log('The generation went quiet and was cancelled.');
+  else throw err;
+}
 ```
 
 ## 13. Handle errors
@@ -524,9 +522,7 @@ What persists, per KB:
 - The last **persisted** SSE event id PER SCOPE (a record under
   `semiont.lastEventId.<kbId>`), written only alongside cache-document flushes
   so the bookmark can never claim more than the caches contain. Ephemeral
-  (`e-*`) ids are never saved — they carry no replay meaning, and letting one
-  displace a scope's watermark was a silent replay-loss hole the per-scope
-  design closes.
+  (`e-*`) ids are never saved: they carry no replay meaning.
 
 How reconciliation works — there is no reconcile code path, only the existing
 contract: rehydrated entries serve immediately (plus one background
@@ -578,11 +574,10 @@ For state-unit factories — which take a `SemiontSession` — `createTestSessio
 returns a real session over the same transport (`{ session, client, transport,
 storage, token$ }`).
 
-The content side is `inMemoryContent()` — the same in-memory `IContentTransport`
-that backs `createTestClient` (reads throw unless seeded), exported for tests
-that drive content directly: `putBinary` records each resource's SHA-256, so a
-producer-path `putAnchoredText(checksum, …)` reads back through
-`getAnchoredText(resourceId)` the same way the gateway's view index resolves it.
+The content side is `inMemoryContent()`: the same in-memory `IContentTransport`
+that backs `createTestClient`, exported for tests that drive content directly.
+It stores what `putBinary` receives, and a read of something never stored throws,
+as a real transport answers 404.
 
 **Asserting what you sent.** `transport.requestLog` is the arrival-ordered record
 of every request the wire saw — including the payload, so you never need a
@@ -601,13 +596,11 @@ what the fault schedule did to that emit (so a dropped or rejected request is st
 logged — the ATTEMPT is visible), and `retryKey` is stable across re-issues of the
 same logical request, which is how you assert retry budgets.
 
-**The anti-pattern this replaces:** hand-mocked transports encode the author's model
-of the contract, not the contract. Twice in one week (2026-07) a wrong belief shipped
-inside green mock-subject tests, and PR #1113 later found ~20 fixtures whose `state$`
-satisfied the type but not the contract (`'connected' as never`, inert
-`new Subject()`) — invisible to the compiler *because* of the casts. If your test's
-subject is consumer behavior, start from `createTestClient`; bespoke fixtures are for
-testing the transport contract itself.
+**The anti-pattern this replaces:** a hand-mocked transport encodes its author's model
+of the contract, not the contract. A fixture can satisfy the type and still not behave as
+a transport does, and a cast (`'connected' as never`, an inert `new Subject()`) hides the
+difference from the compiler. If your test's subject is consumer behavior, start from
+`createTestClient`; bespoke fixtures are for testing the transport contract itself.
 
 Deterministic time: pass `busTimeoutMs` (e.g. `40`) when a test drives the cache's
 retry/exhaustion path through timeouts. The cache's own breadcrumbs
@@ -627,4 +620,4 @@ after that.
 - **[STATE-UNITS.md](./STATE-UNITS.md)** — the state-unit pattern for reactive UIs.
 - **[@semiont/react-ui](../../packages/react-ui/README.md)** — React components for browser UIs, including the embeddable `ResourceViewer` shown above.
 - **[CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md)** — the read-through cache contract behind `browse.*`.
-- **`docs/protocol/`** — the protocol-level framing (the eight flows, the programmable surfaces).
+- **[`docs/protocol/`](../protocol/README.md)** — the contract: the eight verbs, the bus, and what every SDK is held to.

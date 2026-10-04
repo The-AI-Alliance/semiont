@@ -295,8 +295,6 @@ It carries display names and a formatter for the request parameters:
 ```typescript
 const { detection } = ANNOTATORS.highlight;
 
-detection.sseMethod;            // 'detectHighlights'
-detection.countField;           // 'createdCount'
 detection.displayNamePlural;    // 'highlights'
 detection.displayNameSingular;  // 'highlight'
 detection.formatRequestParams(['Focus on definitions', undefined, 3]);

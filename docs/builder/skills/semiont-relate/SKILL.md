@@ -1,49 +1,48 @@
 ---
 name: semiont-relate
-description: Extract relationships between canonical nodes — run a second mark.assist linking pass after the node set exists, with relationship-vocabulary instructions, so the resulting annotations link two nodes apiece
+description: Record relationships between canonical nodes — read a passage and the nodes it mentions, decide how they relate, and write each relationship as a Relationship resource the passage is bound to
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
 ---
 
-You are helping a user wire edges into a Semiont knowledge base. After [`semiont-wiki`](../semiont-wiki/SKILL.md) (or another canonicalize-mentions pass) has produced the **node set** — Character resources, Party resources, Place resources, Case resources — the next step is to discover the **edges**: who is whose mother, which party is the counterparty under a contract, where a character was exiled to, which judge wrote which opinion. This skill runs that second pass.
+You are helping a user record how the entities in a Semiont knowledge base relate. After [`semiont-wiki`](../semiont-wiki/SKILL.md) has given each entity a resource of its own (a character, a party, a place, a case), the next step is the relationships between them: who is whose parent, which party is the counterparty under a contract, where a character was exiled to, which judge wrote which opinion.
 
-This skill builds **Layer #4 (Edges)** of the layered data model. An edge in Semiont is not a separate kind of artifact — it is an *annotation* that physically lives on a primary-material span (the passage where the relationship is established in the text), but whose body items reference two Layer-#3 canonical nodes. The "edge layer" is the *role* such annotations play. Examples:
+This skill builds the edge layer of [the layered data model](../README.md#the-layers).
 
-- A kinship link between two Person nodes anchored on the biography passage that establishes it.
-- A counterparty link between two Party nodes anchored on the contract clause that names them.
-- A character–place link anchored on the literary passage that places the character at the place.
-- A judge–court link anchored on the opinion's signature line.
+## What an edge is
 
-## Prerequisite: declare the relationship vocabulary via `frame.addEntityTypes`
+A reference in Semiont leads to one resource: an annotation on a passage, bound to the resource the passage mentions. A relationship has two ends, so it is recorded as a resource of its own:
 
-If you want the relationship type to be a queryable entity-type tag (e.g., so `browse.entityTypes()` surfaces `kinship`, `counterparty`, `mentorship` as part of the published vocabulary), declare those tag values via `semiont.frame.addEntityTypes([...])` before running this skill. This is normally done once, at corpus ingest, by [`semiont-ingest`](../semiont-ingest/SKILL.md) — its `KB_ENTITY_TYPES` constant should already enumerate the relationship types. If it doesn't, declare them explicitly:
+- A **Relationship resource** for each related pair, with entity types `['Relationship', '<type>']`. Its text names the two nodes, and a reference on each name is bound to that node.
+- A **reference on the passage** that establishes the relationship, bound to the Relationship resource and tagged with the relationship's type.
+
+The graph then reads passage → relationship → the two nodes. `browse.referencedBy(node)` lists the relationships a node is in, `browse.referencedBy(relationship)` lists every passage that establishes one, and `browse.resources({ entityType: 'kinship' })` lists every relationship of a type.
+
+## Who decides
+
+The stack's worker detects mentions of entity types. It has no job that extracts relationships, and a `linking` job does not read `instructions`. Deciding that a passage relates two nodes is the judgment this skill supplies: yours, reading the passage as the assistant, or the user's. The script reads what you need to decide and records what you decided.
+
+## Before you start: declare the relationship types
+
+Each relationship type is an entity type: it is stamped on the Relationship resources and names the references that lead to them. Declare the ones the corpus uses. [`semiont-ingest`](../semiont-ingest/SKILL.md) is the usual place.
 
 ```typescript
 await semiont.frame.addEntityTypes([
-  'kinship', 'patronage', 'antagonism', 'alliance',           // mythological / dramatic
-  'counterparty', 'employer-employee', 'lessor-lessee',       // legal / commercial
-  'judge-of-court', 'attorney-for-client',                    // judicial
-  'born-in', 'exiled-to', 'imprisoned-at',                    // character ↔ place
+  'Relationship',
+  'kinship', 'patronage', 'antagonism', 'alliance',      // people
+  'counterparty', 'employer-employee', 'lessor-lessee',  // legal and commercial
+  'judge-of-court', 'attorney-for-client',               // judicial
+  'born-in', 'exiled-to', 'imprisoned-at',               // a person and a place
 ]);
 ```
 
-Skipping this declaration "works" if you only encode relationships as inline tag-body values — but the schema layer doesn't know the vocabulary exists, and `browse.entityTypes()` returns an accumulated drift instead of a coherent published set.
+## Sign in
 
-## Two shapes for edges
-
-A relationship can be encoded as one annotation in two ways. Both are valid; the choice depends on whether downstream skills want to query relationships individually or aggregate over them.
-
-**Shape A — Inline tagging body.** One linking annotation on the source passage; the body has two `SpecificResource` items (one per related node) and one `TextualBody` with `purpose: 'tagging'` carrying the relationship-type tag value (`kinship`, `counterparty`, `born-in`, etc.). This is the lighter shape; the relationship lives entirely on the annotation.
-
-**Shape B — Synthesized Relationship resource.** One linking annotation on the source passage with `SpecificResource` items pointing at *both* the two related nodes *and* a synthesized **Relationship resource** (entity types `[Relationship, '<RelationType>']`). The Relationship resource is itself a small canonical node that aggregates all the source spans for one specific relationship pair (e.g., "Prometheus → kinship → Iapetus" gets one Relationship resource that gathers every passage establishing it). This is heavier but more queryable.
-
-Shape A is right for sparse relationships where the per-passage mention is the artifact you want. Shape B is right when the same pair recurs across many passages and the user wants a single navigable resource for "the relationship between X and Y."
-
-## Client setup
+`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. The session then keeps the token fresh. An access token is short-lived (five minutes from the Keycloak a launcher stack runs), so a session, not a bare client, is what keeps a script working past that. Sign in once, use `session.client` for every call, and `await session.dispose()` when done.
 
 ```typescript
-import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
 const session = await SemiontSession.signInDevice({
@@ -61,129 +60,151 @@ const session = await SemiontSession.signInDevice({
 const semiont = session.client;
 ```
 
-## Step 1 — Run the relationship-extraction pass
+## Step 1: read a passage and the nodes it mentions
 
-Use `mark.assist` with motivation `linking` and an instruction string that names the relationship vocabulary explicitly. The model walks the corpus and tags spans where two named entities (already canonicalized as Layer-#3 nodes by an earlier pass) appear in a relationship.
-
-```typescript
-const RELATIONSHIP_INSTRUCTIONS = `
-For pairs of named parties that already appear as canonical resources in this KB,
-identify any explicit relationship and tag the span where the relationship is established.
-Use one tag value per relationship from the controlled vocabulary:
-  - kinship          (parent / child / sibling / spouse)
-  - patronage        (god ↔ mortal, mentor ↔ protege, master ↔ servant)
-  - antagonism       (adversaries, opponents, captor ↔ captive)
-  - alliance         (allies, partners)
-  - counterparty     (the two formal parties to a contract or agreement)
-  - employer-employee
-  - born-in          (character / person ↔ place)
-  - exiled-to        (character ↔ place)
-  - imprisoned-at    (character ↔ place)
-The body of each annotation should reference the two canonical resources by id.
-`.trim();
-
-const rId = resourceId('passage-or-document-id');
-
-const progress = await semiont.mark.assist(rId, 'linking', {
-  instructions: RELATIONSHIP_INSTRUCTIONS,
-});
-
-console.log(`Created ${progress.progress?.createdCount ?? 0} relationship annotations`);
-```
-
-The relationship annotations land on Layer #2 with bodies that reach up to Layer #3.
-
-## Step 2 (optional, Shape B only) — Synthesize Relationship resources
-
-When the same relationship pair recurs across many passages and you want a single navigable resource per pair, walk the relationship annotations, group by `(node-A, node-B, relationship-type)` triples, and yield one Relationship resource per distinct triple.
+A reference that has been bound has a `SpecificResource` body naming its node. Print the passage and its bound references, and read them.
 
 ```typescript
-import { type AnnotationId, type ResourceId } from '@semiont/sdk';
+const text = await semiont.browse.resourceContent(rId);
+const annotations = await semiont.browse.annotations(rId).fresh();
 
-interface RelationshipHit {
-  rId: ResourceId;
-  annId: AnnotationId;
-  nodeA: string;
-  nodeB: string;
-  type: string;
-  spanText: string;
-}
-
-// Walk relationship annotations across the corpus
-const allDocs = await semiont.browse.resources({ limit: 1000 });
-const hits: RelationshipHit[] = [];
-
-for (const doc of allDocs) {
-  const docId = resourceId(doc['@id']);
-  const annotations = await semiont.browse.annotations(docId);
-  for (const ann of annotations) {
-    if (ann.motivation !== 'linking') continue;
-    const tags = (ann.body ?? [])
-      .filter((b: any) => b.type === 'TextualBody' && b.purpose === 'tagging')
-      .flatMap((b: any) => (Array.isArray(b.value) ? b.value : [b.value]));
-    const refs = (ann.body ?? [])
-      .filter((b: any) => b.type === 'SpecificResource' && b.purpose === 'linking')
-      .map((b: any) => b.source as string);
-    if (refs.length !== 2 || tags.length === 0) continue;
-
-    const [nodeA, nodeB] = refs.sort(); // canonicalize pair-order
-    for (const type of tags) {
-      hits.push({
-        rId: docId,
-        annId: ann.id,
-        nodeA,
-        nodeB,
-        type,
-        spanText: ann.target?.selector?.exact ?? '',
-      });
-    }
+console.log(text);
+for (const ann of annotations) {
+  if (ann.motivation !== 'linking') continue;
+  const bodies = ann.body === undefined ? [] : Array.isArray(ann.body) ? ann.body : [ann.body];
+  for (const body of bodies) {
+    if (body.type === 'SpecificResource') console.log(`mentions ${body.source}`);
   }
 }
+```
 
-// Group by (nodeA, nodeB, type) triple
-const byTriple = new Map<string, RelationshipHit[]>();
-for (const hit of hits) {
-  const key = `${hit.nodeA}|${hit.nodeB}|${hit.type}`;
-  if (!byTriple.has(key)) byTriple.set(key, []);
-  byTriple.get(key)!.push(hit);
-}
+A passage with fewer than two bound references has no pair to relate. Run [`semiont-wiki`](../semiont-wiki/SKILL.md) on it first.
 
-// Yield one Relationship resource per distinct triple
-for (const [key, members] of byTriple) {
-  const [nodeA, nodeB, type] = key.split('|');
-  const body =
-    `# Relationship: ${type}\n\n` +
-    `Between [${nodeA}](${nodeA}) and [${nodeB}](${nodeB}).\n\n` +
-    `Established in ${members.length} passage(s):\n\n` +
-    members.map((m) => `- "${m.spanText}"`).join('\n') +
-    '\n';
+## Step 2: decide
 
-  await semiont.yield.resource({
-    name: `${type}: ${nodeA} ↔ ${nodeB}`,
-    file: Buffer.from(body, 'utf-8'),
+For each relationship the passage states, write down the passage, the exact text that establishes it, the type, and the two nodes. Record only what the text says: two names in one paragraph are not a relationship.
+
+```json
+[
+  {
+    "passage": "res-prometheus-bound-1",
+    "exact": "Prometheus, son of Iapetus",
+    "type": "kinship",
+    "a": "res-prometheus",
+    "b": "res-iapetus"
+  }
+]
+```
+
+Order matters for a directed type: for `born-in`, `a` is the person and `b` the place.
+
+## Step 3: find or create the Relationship resource
+
+One resource for each pair and type, however many passages establish it. Its name is how the script finds it again.
+
+```typescript
+import type { ResourceDescriptor, ResourceId } from '@semiont/sdk';
+
+async function relationshipResource(
+  type: string, a: ResourceDescriptor, b: ResourceDescriptor,
+): Promise<ResourceId> {
+  const name = `${type}: ${a.name} and ${b.name}`;
+
+  const listed = await semiont.browse.resources({ entityType: type, search: name, limit: 100 }).fresh();
+  const existing = listed.resources.find((r) => r.name === name);
+  if (existing) return existing['@id'];
+
+  const text = `# ${name}\n\n- From: ${a.name}\n- To: ${b.name}\n`;
+  const { resourceId: relationshipId } = await semiont.yield.resource({
+    name,
+    file: Buffer.from(text, 'utf-8'),
     format: 'text/markdown',
     entityTypes: ['Relationship', type],
-    storageUri: `file://generated/relationship-${type}-${Date.now()}.md`,
+    storageUri: `file://generated/relationships/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.md`,
+  });
+
+  // The relationship refers to each of its two nodes.
+  const refer = (node: ResourceDescriptor, prefix: string) => semiont.mark.annotation({
+    motivation: 'linking',
+    target: { source: relationshipId, selector: { type: 'TextQuoteSelector', exact: node.name, prefix } },
+    body: [{ type: 'SpecificResource', source: node['@id'], purpose: 'linking' }],
+  });
+  await refer(a, 'From: ');
+  await refer(b, 'To: ');
+  return relationshipId;
+}
+```
+
+## Step 4: bind the passage to it
+
+The reference covers the text that establishes the relationship. Its `tagging` body names the relationship's type, as a detected reference's names its entity type.
+
+```typescript
+import type { ResourceId } from '@semiont/sdk';
+
+async function recordEdge(passage: ResourceId, exact: string, type: string, relationship: ResourceId) {
+  await semiont.mark.annotation({
+    motivation: 'linking',
+    target: { source: passage, selector: { type: 'TextQuoteSelector', exact } },
+    body: [
+      { type: 'TextualBody', value: type, purpose: 'tagging' },
+      { type: 'SpecificResource', source: relationship, purpose: 'linking' },
+    ],
   });
 }
 ```
 
-The synthesized Relationship resources are themselves small canonical nodes (Layer #3 by shape, even though they describe edges); other annotations could in principle bind to them, though in practice they are usually terminal. They give downstream skills a single resource to walk per pair, instead of re-grouping annotations every time.
+## Complete script
 
-## Complete script skeleton (Shape A — inline tagging only)
+It reads the decisions from a JSON file shaped like step 2's and records each one.
 
 ```typescript
-import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
+import { readFileSync } from 'node:fs';
 
-const RELATIONSHIP_INSTRUCTIONS = process.env.RELATIONSHIP_INSTRUCTIONS ?? `
-For pairs of named entities that already exist as canonical resources in this KB,
-identify any explicit relationship and tag the span where it is established. Use one tag
-value per relationship from your KB's relationship vocabulary (e.g., kinship, counterparty,
-employer-employee, born-in, exiled-to). The annotation body should reference the two
-canonical resources by id.
-`.trim();
+import {
+  SemiontSession, InMemorySessionStorage, httpKb, resourceId,
+  type ResourceDescriptor, type ResourceId, type SemiontClient,
+} from '@semiont/sdk';
 
-async function wireEdges(resourceIdStr: string): Promise<void> {
+interface Statement {
+  passage: string;
+  exact: string;
+  type: string;
+  a: string;
+  b: string;
+}
+
+async function relationshipResource(
+  semiont: SemiontClient, type: string, a: ResourceDescriptor, b: ResourceDescriptor,
+): Promise<ResourceId> {
+  const name = `${type}: ${a.name} and ${b.name}`;
+
+  const listed = await semiont.browse.resources({ entityType: type, search: name, limit: 100 }).fresh();
+  const existing = listed.resources.find((r) => r.name === name);
+  if (existing) return existing['@id'];
+
+  const text = `# ${name}\n\n- From: ${a.name}\n- To: ${b.name}\n`;
+  const { resourceId: relationshipId } = await semiont.yield.resource({
+    name,
+    file: Buffer.from(text, 'utf-8'),
+    format: 'text/markdown',
+    entityTypes: ['Relationship', type],
+    storageUri: `file://generated/relationships/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.md`,
+  });
+
+  const refer = (node: ResourceDescriptor, prefix: string) => semiont.mark.annotation({
+    motivation: 'linking',
+    target: { source: relationshipId, selector: { type: 'TextQuoteSelector', exact: node.name, prefix } },
+    body: [{ type: 'SpecificResource', source: node['@id'], purpose: 'linking' }],
+  });
+  await refer(a, 'From: ');
+  await refer(b, 'To: ');
+  return relationshipId;
+}
+
+async function relate(statementsPath: string): Promise<void> {
+  const statements: Statement[] = JSON.parse(readFileSync(statementsPath, 'utf-8'));
+
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
   const session = await SemiontSession.signInDevice({
     kb: httpKb({
@@ -198,22 +219,34 @@ async function wireEdges(resourceIdStr: string): Promise<void> {
     },
   });
   const semiont = session.client;
-  const rId = resourceId(resourceIdStr);
 
-  const progress = await semiont.mark.assist(rId, 'linking', {
-    instructions: RELATIONSHIP_INSTRUCTIONS,
-  });
+  try {
+    for (const s of statements) {
+      const a = await semiont.browse.resource(resourceId(s.a)).fresh();
+      const b = await semiont.browse.resource(resourceId(s.b)).fresh();
+      const relationship = await relationshipResource(semiont, s.type, a, b);
 
-  console.log(`Created ${progress.progress?.createdCount ?? 0} relationship annotations`);
-  await session.dispose();
+      await semiont.mark.annotation({
+        motivation: 'linking',
+        target: { source: resourceId(s.passage), selector: { type: 'TextQuoteSelector', exact: s.exact } },
+        body: [
+          { type: 'TextualBody', value: s.type, purpose: 'tagging' },
+          { type: 'SpecificResource', source: relationship, purpose: 'linking' },
+        ],
+      });
+      console.log(`${s.type}: ${a.name} and ${b.name}, established in ${s.passage}`);
+    }
+  } finally {
+    await session.dispose();
+  }
 }
 
-const target = process.argv[2];
-if (!target) {
-  console.error('Usage: tsx relate.ts <resourceId>');
+const file = process.argv[2];
+if (!file) {
+  console.error('Usage: tsx relate.ts <statements.json>');
   process.exit(1);
 }
-wireEdges(target).catch((e) => {
+relate(file).catch((e) => {
   console.error(e);
   process.exit(1);
 });
@@ -221,11 +254,11 @@ wireEdges(target).catch((e) => {
 
 ## Guidance for the AI assistant
 
-- **Run after the node set exists.** This skill assumes Layer #3 is populated. Run [`semiont-wiki`](../semiont-wiki/SKILL.md) (or whatever canonicalize-mentions skill the KB uses) first, so the model has named canonical resources to point relationships at. Running this pass against a corpus with no canonical nodes produces relationship annotations whose body items have nothing to reference.
-- **The relationship vocabulary is corpus-defined.** Common patterns: kinship + patronage + antagonism (literary / mythological); counterparty + lessor-lessee + employer-employee (legal / commercial); judge-of-court + attorney-for-client (judicial); born-in + exiled-to + imprisoned-at (character ↔ place). Pick a vocabulary that matches the corpus; declare it via `frame.addEntityTypes` so it's a queryable published set.
-- **Shape A vs. Shape B.** Default to Shape A (inline tagging body, no Relationship resource). Move to Shape B when the same pair recurs across many passages and you want a single resource that aggregates every establishment. Shape B's Relationship resources are entity-typed `[Relationship, <type>]` so they're queryable as a class.
-- **Edges are sparse, not dense.** In practice this skill produces fewer annotations than the underlying detection passes — a 100-passage corpus might yield 20-50 relationship annotations, not hundreds. If you're getting suspiciously dense edges, the model is probably tagging same-document co-occurrence (any two characters appearing in one paragraph) rather than explicit relationships. Tighten the instructions.
-- **Edges feed `semiont-aggregate`.** When you want a graph-shaped view (a PrecedentGraph for caselaw, a kinship-tree for biographical work), an aggregate skill walks the edge annotations and composes the graph view. See [`semiont-aggregate`](../semiont-aggregate/SKILL.md) for the aggregate-composition pattern.
-- **Only `text/plain` and `text/markdown` resources are supported** for `mark.assist`. PDFs and images are not yet supported.
-- **Check results** with `semiont.browse.annotations(rId)` — filter for `motivation === 'linking'` and inspect each annotation's body items to see which pairs of nodes the model linked.
-- **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated). See [Error Handling in Usage.md](../../Usage.md#error-handling).
+- **Run after the nodes exist.** A relationship joins two resources. Run [`semiont-wiki`](../semiont-wiki/SKILL.md) first, so the passage's mentions are bound to them.
+- **You are the extractor.** Read the passage and the nodes it mentions, and write the statements. No job does it for you, and a `linking` job given relationship instructions only detects mentions again.
+- **The vocabulary belongs to the corpus.** Kinship, patronage and antagonism suit literature and myth. Counterparty, lessor-lessee and employer-employee suit contracts. Judge-of-court and attorney-for-client suit case law. Declare the types with `frame.addEntityTypes`.
+- **Relationships are sparse.** A hundred passages might state twenty to fifty. If you are writing one for every pair of names in a paragraph, you are recording co-occurrence. Record what the text states.
+- **One Relationship resource for each pair and type.** Every passage that establishes it is bound to the same one, so the resource collects its own evidence.
+- **Edges feed aggregates.** [`semiont-aggregate`](../semiont-aggregate/SKILL.md) composes a family tree, a precedent graph or a party chart by walking them.
+- **Check results** with `await semiont.browse.referencedBy(relationshipId).fresh()` for the passages that establish a relationship, and `await semiont.browse.resources({ entityType: 'kinship' }).fresh()` for every relationship of a type.
+- **Errors.** Every SDK throw extends `SemiontError`: catch it and route on its `code`. See [Error Handling](../../Usage.md#error-handling).
