@@ -330,7 +330,7 @@ Automatically detect annotations in documents using AI (highlights, assessments,
 - Displays entities found count
 - Cancellable during processing
 
-**See**: [API Integration Guide](../../apps/browser/docs/API-INTEGRATION.md#entity-detection-with-sse) for implementation details.
+**See**: [API Integration Guide](../../apps/browser/docs/API-INTEGRATION.md#synchronous-vs-asynchronous-operations) for implementation details.
 
 ### Document Generation
 
@@ -348,7 +348,7 @@ Generate new documents from annotations using AI.
 - Shows generation stages (fetching, generating, creating, linking)
 - Percentage complete
 
-**See**: [API Integration Guide](../../apps/browser/docs/API-INTEGRATION.md#document-generation-with-sse) for implementation details.
+**See**: [API Integration Guide](../../apps/browser/docs/API-INTEGRATION.md#synchronous-vs-asynchronous-operations) for implementation details.
 
 ## Roadmap
 

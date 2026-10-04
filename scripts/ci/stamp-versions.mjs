@@ -6,7 +6,7 @@
  *
  * Internal `@semiont/*` / `semiont-*` deps are declared `"*"` in source and
  * rewritten to the exact version here via the shared stampInternalDeps — the
- * single publish-time pin normalization (see docs/development/RELEASE.md).
+ * single publish-time pin normalization (see docs/contributor/RELEASE.md).
  *
  * Usage: node scripts/ci/stamp-versions.mjs <version>
  */

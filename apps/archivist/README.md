@@ -123,4 +123,4 @@ that ordering enforceable.
 - [`@semiont/make-meaning`](../../packages/make-meaning/) — the actors and this entry point
 - [Librarian](../librarian/) — the deliberate pair: the Archivist holds the record and answers
   *"what is there?"*; the Librarian searches it and answers *"what is relevant?"*
-- [Knowledge System](../../docs/system/KNOWLEDGE-SYSTEM.md) — the event-store architecture
+- [Knowledge System](../../docs/architecture/KNOWLEDGE-SYSTEM.md) — the event-store architecture

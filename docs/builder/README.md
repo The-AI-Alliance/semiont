@@ -20,8 +20,8 @@ cargo add semiont-http-transport --features sign-in    # the transport over a ga
 ```
 
 Other readers have other homes: building Semiont itself is
-[docs/development](../development/README.md), running it is
-[docs/system](../system/README.md), and the wire and the contracts every SDK
+[docs/contributor](../contributor/README.md), running it is
+[docs/operator](../operator/README.md), and the wire and the contracts every SDK
 is held to are [docs/protocol](../protocol/README.md).
 
 Five documents here, each with ONE job, and one contract in

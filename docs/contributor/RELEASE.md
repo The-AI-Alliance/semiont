@@ -27,7 +27,7 @@ Semiont publishes a release in these steps:
    gh workflow run publish-service-images.yml --field version=<version> --field tag_latest=true
    ```
    KB stacks consume these images directly — see
-   [Container Images](../system/administration/IMAGES.md).
+   [Container Images](../operator/administration/IMAGES.md).
 4. **Launcher Release** — a separate action
    ([`launcher-release.yml`](../../.github/workflows/launcher-release.yml))
    that publishes the `semiont` launcher (the host binary that runs KB

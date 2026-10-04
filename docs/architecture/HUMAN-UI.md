@@ -2,7 +2,7 @@
 
 How human actors connect to the event bus. This page covers the Semiont Browser SPA, the state-unit split that organizes its code, and the multi-KB session model.
 
-For the actor categories that drive the UI (Reader, Analyst, Author), see [ACTOR-MODEL.md](ACTOR-MODEL.md). For the cross-process bus contract that the SPA uses (and that workers + smelter share), see [CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md). For the reactive KB actors the SPA's events drive, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md).
+For the actor categories that drive the UI (Reader, Analyst, Author), see [ACTOR-MODEL.md](ACTOR-MODEL.md). For the cross-process bus contract that the SPA uses (and that workers + smelter share), see [CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md). For the reactive KB actors the SPA's events drive, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md).
 
 ## SPA Architecture
 
@@ -39,7 +39,7 @@ graph TB
 
 Human actors interact through the **Semiont Browser** — the `apps/browser` single-page app (Vite + React), packaged as the `ghcr.io/the-ai-alliance/semiont-browser` container image. A user connects to one or more Knowledge Bases (each a separate gateway); DOM interactions become bus commands through the same `/bus/emit` + `/bus/subscribe` endpoints every other Semiont actor uses. Because it's a static SPA, it can equivalently be served from any file server or CDN — the container is the deployment-ready packaging for the "download and run" path.
 
-For end-user-facing browser docs (running it locally, accessibility, keyboard shortcuts), see **[../browser/](../browser/)**.
+For end-user-facing browser docs (running it locally, accessibility, keyboard shortcuts), see **[../curator/](../curator/)**.
 
 ## State-unit split
 

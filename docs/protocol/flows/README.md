@@ -40,4 +40,4 @@ Actors fall into three categories:
 
 Human and AI actors are peers: they perform the same flows, produce the same events, and create the same W3C annotations. The system does not privilege one over the other.
 
-See [Actor Model](../../system/ACTOR-MODEL.md) for the actor topology and [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) for the five reactive KB actors, or [EVENT-BUS.md](../EVENT-BUS.md) for the wire-level channel/payload conventions every flow uses.
+See [Actor Model](../../architecture/ACTOR-MODEL.md) for the actor topology and [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md) for the five reactive KB actors, or [EVENT-BUS.md](../EVENT-BUS.md) for the wire-level channel/payload conventions every flow uses.

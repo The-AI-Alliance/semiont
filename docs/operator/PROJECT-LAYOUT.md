@@ -82,7 +82,7 @@ and reads through `getStorageUri(resource)` follow.
 
 ## What lives outside the project
 
-Machine-specific and secret state is kept in standard XDG directories, never committed. See [Local Semiont — Paths Outside the Project](./LOCAL-SEMIONT.md#paths-outside-the-project) for the full table.
+Machine-specific and secret state is kept outside the project and never committed: in XDG directories on Linux, and in each other system's own equivalent. See [the launcher's manual — Where the launcher keeps its files](../../apps/launcher/README.md#where-the-launcher-keeps-its-files) for the full table.
 
 ## Example
 

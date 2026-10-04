@@ -9,7 +9,7 @@ Where the code lives, how it builds, and how to start working on Semiont itself.
 [![Continuous Integration](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![Security Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml?query=branch%3Amain)
 [![Accessibility Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml?query=branch%3Amain)
-[![WCAG 2.1 AA](https://img.shields.io/badge/WCAG-2.1%20AA-blue.svg)](../browser/ACCESSIBILITY.md)
+[![WCAG 2.1 AA](https://img.shields.io/badge/WCAG-2.1%20AA-blue.svg)](../curator/ACCESSIBILITY.md)
 [![License](https://img.shields.io/github/license/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/tree/main?tab=Apache-2.0-1-ov-file#readme)
 [![Issues](https://img.shields.io/github/issues/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/issues)
 
@@ -69,7 +69,7 @@ The layered architecture, dependency graph, and per-package summaries live in **
 ## Where to read next
 
 - **[CONTRIBUTING.md](../../CONTRIBUTING.md)** — branch/PR workflow, commit conventions, platform-contribution playbook.
-- **[System Documentation](../system/README.md)** — index for all system-architecture docs (actor model, knowledge system, container topology, package architecture).
+- **[Architecture](../architecture/README.md)** — index for all system-architecture docs (actor model, knowledge system, container topology, package architecture).
 - **[LOCAL-DEVELOPMENT.md](LOCAL-DEVELOPMENT.md)** — running locally; Path B for contributors building from source.
 - **[MEDIA-TYPES.md](MEDIA-TYPES.md)** — how a media type's declared capabilities change the yield → smelt → weave → annotate flow, walked end to end with PDF.
 - **[TESTING.md](TESTING.md)** — testing conventions and infrastructure.

@@ -102,7 +102,7 @@ export SEMIONT_ACCESS_TOKEN=$(python3 -c \
 holds a `SemiontClient` over a fixed token for the life of the process, so a
 long-running session stops working when the token expires and the process must
 be restarted with a fresh one. For the current access-token TTL, see
-[Authentication](../../docs/system/administration/AUTHENTICATION.md). For anything long-running, prefer a
+[Authentication](../../docs/operator/administration/AUTHENTICATION.md). For anything long-running, prefer a
 `SemiontSession` (`@semiont/sdk`), which refreshes; see
 [the SDK README](../sdk/README.md).
 

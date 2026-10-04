@@ -53,7 +53,7 @@ Older logs may contain the legacy nested format (`{"event":{...},"metadata":{...
 
 ### Sharding
 
-Resource directories are distributed across 65,536 shards, laid out as two-level 4-hex paths (`ab/cd/`), by hashing the resource ID. The current hash is a simple modulo — see the TODO in [`src/storage/shard-utils.ts`](../src/storage/shard-utils.ts) for the planned jump-consistent-hash replacement. Resource views and the storage-uri index use the same scheme.
+Resource directories are distributed across 65,536 shards, laid out as two-level 4-hex paths (`ab/cd/`), by hashing the resource ID. The current hash is a simple modulo — see the TODO in [`packages/core/src/shard-utils.ts`](../../core/src/shard-utils.ts) for the planned jump-consistent-hash replacement. Resource views and the storage-uri index use the same scheme.
 
 ### System events
 

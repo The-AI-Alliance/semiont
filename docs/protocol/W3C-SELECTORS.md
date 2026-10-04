@@ -8,10 +8,10 @@ offers character offsets; a PDF offers page geometry. The media-type registry
 records that as `AnchoringModel` — `'text-selector'` or `'spatial'` — and every
 producer follows it. **How** the geometry for a spatial anchor is obtained, and
 how a scanned page gets one at all, is
-[ANCHORING.md](../system/ANCHORING.md).
+[ANCHORING.md](../architecture/ANCHORING.md).
 
 **Related Documentation:**
-- [Anchoring](../system/ANCHORING.md) - How a coordinate map is derived, stored and turned into a selector
+- [Anchoring](../architecture/ANCHORING.md) - How a coordinate map is derived, stored and turned into a selector
 - [W3C Web Annotation Implementation](./W3C-WEB-ANNOTATION.md) - Complete annotation architecture
 - [Semiont Protocol](./README.md) - The eight verbs and the bus these annotations travel on
 - [OpenAPI Specification](../../specs/openapi.json) - Machine-readable API spec

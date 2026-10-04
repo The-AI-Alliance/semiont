@@ -6,7 +6,7 @@ Framework-agnostic utilities for working with W3C annotations, events, and resou
 
 - [Text Encoding](#text-encoding)
 - [Text Context Extraction](#text-context-extraction)
-- [Fuzzy Anchoring](#fuzzy-anchoring)
+- [Render-Time Anchoring](#render-time-anchoring)
 - [SVG Utilities](#svg-utilities)
 - [Tag Schemas](#tag-schemas)
 - [Annotation Utilities](#annotation-utilities)

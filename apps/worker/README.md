@@ -79,7 +79,7 @@ items, provider-reported tokens, subdivision depth, and outcome (`success` / `tr
 `collapsed` / `timeout` / `error`) — alongside every anchoring outcome
 (`semiont.detection.anchors`, by method), so a run's cost, yield, and precision are
 queryable rather than log archaeology. See
-[Observability](../../docs/system/administration/OBSERVABILITY.md) for the full inventory
+[Observability](../../docs/operator/administration/OBSERVABILITY.md) for the full inventory
 and where the metrics flow.
 
 ## Related

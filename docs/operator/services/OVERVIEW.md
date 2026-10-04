@@ -31,7 +31,7 @@ daemon instead, which is what lets the gateway run as multiple replicas; the dri
 in config and invisible to every bus client. See [Configuration](../administration/CONFIGURATION.md)
 and, for replicas, [Deployment](../administration/DEPLOYMENT.md).
 
-For what the actors inside those containers are responsible for, see [Knowledge System](../KNOWLEDGE-SYSTEM.md).
+For what the actors inside those containers are responsible for, see [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md).
 
 ### Infrastructure dependencies
 
@@ -276,8 +276,8 @@ More at [TROUBLESHOOTING.md](../administration/TROUBLESHOOTING.md).
 
 - [Container Topology](../CONTAINER-TOPOLOGY.md) — how the containers are partitioned and how they talk
 - [Container Images](../administration/IMAGES.md) — what is published, and its supply-chain attestations
-- [Knowledge System](../KNOWLEDGE-SYSTEM.md) — the actors and how knowledge flows
+- [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md) — the actors and how knowledge flows
 - [Configuration Guide](../administration/CONFIGURATION.md) — the full config schema
 - [Database Guide](../administration/DATABASE.md) — the PostgreSQL Keycloak uses
-- [Filesystem Patterns](../FILESYSTEM.md) — storage layout on disk
+- [Filesystem Patterns](../../architecture/FILESYSTEM.md) — storage layout on disk
 - [launcher README](../../../apps/launcher/README.md) — every verb, in detail

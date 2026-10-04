@@ -1,4 +1,8 @@
-# Browser
+# Curating a knowledge base
+
+A curator works in a knowledge base: reads, annotates, links, and reviews what agents propose. A curator may be a person or an AI agent. People do this work in the Semiont Browser, which these pages cover.
+
+## The Browser
 
 The Semiont browser is a Vite + React SPA that connects to a running knowledge-base gateway. The fastest way to get one is the published container image; this section covers what to do once it's running, the alternatives, and how to verify the image you pulled.
 
@@ -11,7 +15,7 @@ The browser container needs to reach a KB gateway on your machine. The container
 - **Linux:** containers can reach the host via the default bridge IP (typically `172.17.0.1`) or `--network host`.
 - **Windows:** Docker Desktop / Podman handle this via WSL2; no extra step.
 
-Full per-platform notes live in [Local network access](../system/LOCAL-SEMIONT.md#local-network-access).
+Full per-platform notes live in [Local network access](../operator/LOCAL-SEMIONT.md#local-network-access).
 
 ## Supply-chain verification
 
@@ -23,7 +27,7 @@ cosign verify ghcr.io/the-ai-alliance/semiont-browser:latest \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-Step-by-step provenance + SBOM verification, and how to check tags / digests against a release, is in [Supply-chain verification](../system/administration/IMAGES.md#supply-chain-verification).
+Step-by-step provenance + SBOM verification, and how to check tags / digests against a release, is in [Supply-chain verification](../operator/administration/IMAGES.md#supply-chain-verification).
 
 ## Desktop app
 

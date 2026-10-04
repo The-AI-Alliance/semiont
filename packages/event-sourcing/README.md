@@ -147,7 +147,7 @@ The `__system__` projections (`entitytypes.json`, `tagschemas.json`) are written
 
 The shell methods on `ViewMaterializer` (`materializeEntityTypes`, `materializeTagSchemas`) read the projection file, call the reducer, then write the result. The semantics are the reducer's; the disk I/O is the shell's.
 
-This split keeps projection-update tests pure (single-digit milliseconds, no filesystem) and gives load-bearing invariants — sortedness, uniqueness, idempotence, most-recent-wins — a property-based-test home using fast-check. The full architectural narrative, the axiom catalog, and guidance for adding new projections lives in [`docs/system/PROJECTION-PATTERN.md`](../../docs/system/PROJECTION-PATTERN.md).
+This split keeps projection-update tests pure (single-digit milliseconds, no filesystem) and gives load-bearing invariants — sortedness, uniqueness, idempotence, most-recent-wins — a property-based-test home using fast-check. The full architectural narrative, the axiom catalog, and guidance for adding new projections lives in [`docs/architecture/PROJECTION-PATTERN.md`](../../docs/architecture/PROJECTION-PATTERN.md).
 
 #### Why startup rebuild exists
 

@@ -2,7 +2,7 @@
 
 Semiont's architecture is organized around **actors** communicating through a central **event bus**. This page explains who the actors are, how they relate, and why this shape was chosen.
 
-For the SPA-side wiring, see [HUMAN-UI.md](HUMAN-UI.md). For the read/write actors that mediate the knowledge base, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md). For the deployment layout that hosts these actors, see [CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md).
+For the SPA-side wiring, see [HUMAN-UI.md](HUMAN-UI.md). For the read/write actors that mediate the knowledge base, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md). For the deployment layout that hosts these actors, see [CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md).
 
 ## Topology
 

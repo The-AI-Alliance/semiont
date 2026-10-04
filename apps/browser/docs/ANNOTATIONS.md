@@ -380,5 +380,5 @@ The modular architecture ensures maintainability and extensibility, while the pr
 - [RENDERING-ARCHITECTURE.md](../../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
 
 ### System Documentation
-- [System Documentation](../../../docs/system/README.md) - Overall system architecture
+- [Architecture](../../../docs/architecture/README.md) - Overall system architecture
 - [Graph Package](../../../packages/graph/) - Graph database implementations (Neo4j, Neptune, JanusGraph)

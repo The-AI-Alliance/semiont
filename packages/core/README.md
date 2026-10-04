@@ -271,7 +271,7 @@ canvas pixels happens in the browser. `textUnder` counts a word as covered at
 with ~2pt of headroom between lines, a hand-drawn box that overshoots by less
 than the height of a comma would otherwise pull in its neighbours.
 
-See **[ANCHORING.md](../../docs/system/ANCHORING.md)** for how a map is derived,
+See **[ANCHORING.md](../../docs/architecture/ANCHORING.md)** for how a map is derived,
 stored, served, and turned into a selector.
 
 ### DID Utilities

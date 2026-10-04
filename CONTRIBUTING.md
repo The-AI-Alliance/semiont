@@ -4,43 +4,41 @@ Thank you for your interest in contributing to Semiont! This document provides g
 
 ## 🎯 Most Valuable Contributions
 
-**We especially welcome contributions that expand platform support!** Semiont currently supports:
+**We especially welcome contributions that make Semiont run well in more places.** A stack is a set of container images, brought up by the [`semiont` launcher](apps/launcher/README.md):
 
-- **AWS** - Production deployment on Amazon Web Services
-- **POSIX** - Local development on Linux/macOS
-- **Container** - Apple Container/Docker/Podman containerized environments
-- **External** - Integration with external services
-- **Mock** - Testing platform
+- **Locally**, against Apple Container, Docker or Podman, on macOS, Linux and Windows
+- **In GitHub Codespaces**, where the codespace's own launcher runs the stack
+- **On any container platform** you schedule the images on yourself, such as ECS Fargate, Kubernetes or Nomad
 
-**High-value platform contributions:**
+**High-value contributions here:**
 
-- Your favorite platform
+- **The launcher** (Go, `apps/launcher/`): how stacks are started, configured and inspected
+- **A guide for another platform**, written the way [Running Semiont on AWS](docs/operator/platforms/AWS.md) is: what to schedule, and what to wire up
 
-See [Platform Development Guide](#adding-new-platform-support) for implementation details.
+There is no per-platform plug-in to write. See [Deployment Targets](#-deployment-targets).
 
 **Alternative Browser implementations:**
 
-We also welcome contributions that bring Semiont to new user interfaces and integration points:
+We also welcome contributions that bring Semiont to new user interfaces and integration points. The web [Browser](apps/browser/README.md) and its [desktop build](apps/desktop/README.md) ship today. Still open:
 
 - **Mobile apps** (iOS, Android, React Native)
 - **Browser extensions** (Chrome, Firefox, Safari)
-- **Desktop applications** (Electron, Tauri)
 - **IDE integrations** (VS Code, IntelliJ)
 
-See [apps/browser/docs/FUTURE.md](apps/browser/docs/FUTURE.md) for architectural guidance on building alternative Browsers that share the core API client and authentication infrastructure.
+Each is a client of a knowledge base, built on the SDK. Start at [docs/builder](docs/builder/README.md), which covers the TypeScript and Rust SDKs and the embeddable React components.
 
 ## 📋 Table of Contents
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [How to Contribute](#how-to-contribute)
-- [Development Workflow](#development-workflow)
-- [Adding New Platform Support](#adding-new-platform-support)
-- [Pull Request Process](#pull-request-process)
-- [Commit Guidelines](#commit-guidelines)
-- [Testing Requirements](#testing-requirements)
-- [Documentation](#documentation)
-- [Community](#community)
+- [Code of Conduct](#-code-of-conduct)
+- [Getting Started](#-getting-started)
+- [How to Contribute](#-how-to-contribute)
+- [Development Workflow](#-development-workflow)
+- [Deployment Targets](#-deployment-targets)
+- [Pull Request Process](#-pull-request-process)
+- [Commit Guidelines](#-commit-guidelines)
+- [Testing Requirements](#-testing-requirements)
+- [Documentation](#-documentation)
+- [Community](#-community)
 
 ## 📜 Code of Conduct
 
@@ -80,7 +78,7 @@ This project is part of [The AI Alliance](https://thealliance.ai/) and follows t
    npm test
    ```
 
-See [docs/development/LOCAL-DEVELOPMENT.md](docs/development/LOCAL-DEVELOPMENT.md) for complete setup instructions.
+See [docs/contributor/LOCAL-DEVELOPMENT.md](docs/contributor/LOCAL-DEVELOPMENT.md) for complete setup instructions.
 
 ## 🤝 How to Contribute
 
@@ -209,15 +207,15 @@ Then create a Pull Request from your fork to `The-AI-Alliance/semiont:main` on G
 ## 🌍 Deployment Targets
 
 Semiont ships as container images (listed once, in
-[Deployment § What gets deployed](docs/system/administration/DEPLOYMENT.md)) plus the
+[Deployment § What gets deployed](docs/operator/administration/DEPLOYMENT.md)) plus the
 infrastructure containers a stack needs. There is no
 per-platform plugin system: the old `(platform × serviceType × command)` handler matrix has been
 removed.
 
 Stacks are brought up by the host-installed [`semiont` launcher](apps/launcher/README.md). Running the images on another
 container platform (ECS Fargate, Kubernetes, Nomad) needs no code here — see
-[Running Semiont on AWS](docs/system/platforms/AWS.md) for the integration checklist and
-[Deployment](docs/system/administration/DEPLOYMENT.md) for the supported path.
+[Running Semiont on AWS](docs/operator/platforms/AWS.md) for the integration checklist and
+[Deployment](docs/operator/administration/DEPLOYMENT.md) for the supported path.
 
 If you want to improve how stacks are launched, the launcher (Go, `apps/launcher/`) is the place.
 
@@ -314,7 +312,7 @@ All contributions should include appropriate tests. We have comprehensive testin
 
 ### Testing Documentation
 
-- **[System Testing Guide](docs/development/TESTING.md)** - How every suite is configured and run, the SDK's test doubles, end-to-end, CI
+- **[System Testing Guide](docs/contributor/TESTING.md)** - How every suite is configured and run, the SDK's test doubles, end-to-end, CI
 - **[Gateway Testing Guide](apps/gateway/docs/TESTING.md)** - The black-box conformance suite and what each check covers
 
 ### Quick Start
@@ -360,7 +358,7 @@ Update docs when you:
 - **Gateway**: `apps/gateway/docs/` - Gateway-specific guides
 - **Browser**: `apps/browser/docs/` - Browser-specific guides
 - **Launcher**: `apps/launcher/README.md` - The host-installed `semiont` command
-- **Platforms**: `docs/system/platforms/` - Platform-specific deployment
+- **Platforms**: `docs/operator/platforms/` - Platform-specific deployment
 
 ### Documentation Style
 

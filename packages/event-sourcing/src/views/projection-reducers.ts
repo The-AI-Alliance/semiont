@@ -23,7 +23,7 @@
  * Load-bearing properties (sortedness, uniqueness, idempotence,
  * most-recent-wins, no-mutation) are pinned by axiom-style fast-check
  * tests in `__tests__/views/projection-reducers.test.ts`. See
- * `docs/system/PROJECTION-PATTERN.md` for the full axiom catalog and
+ * `docs/architecture/PROJECTION-PATTERN.md` for the full axiom catalog and
  * the architectural narrative.
  */
 

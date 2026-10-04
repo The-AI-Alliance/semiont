@@ -14,7 +14,7 @@
 #     published;
 #   - a published tag, when a run names one (`images`): the release's question,
 #     whether the images people will pull boot with this launcher, asked before
-#     `latest` moves to them (docs/development/RELEASE.md).
+#     `latest` moves to them (docs/contributor/RELEASE.md).
 name: Stack Smoke
 
 on:

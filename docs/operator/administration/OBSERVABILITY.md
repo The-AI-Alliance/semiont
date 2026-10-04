@@ -295,7 +295,7 @@ When no SDK is initialized (or no span is active), the helper returns
 
 - [Bus logging](../../../tests/e2e/docs/bus-logging.md) — `busLog` format,
   enable flags, e2e capture API.
-- [Architecture](../ACTOR-MODEL.md) — actor topology and event-bus
+- [Architecture](../../architecture/ACTOR-MODEL.md) — actor topology and event-bus
   design that the trace and metric attributes describe.
 - [Troubleshooting](./TROUBLESHOOTING.md) — incident workflows that
   reference traces and structured logs.

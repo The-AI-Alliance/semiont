@@ -94,7 +94,7 @@ else is the issuer's business, not Semiont's.
 
 Access tokens are short-lived and minted by the issuer; the gateway validates
 them against the issuer's published keys on every protected request. TTLs are in
-[Authentication](../system/administration/AUTHENTICATION.md).
+[Authentication](../operator/administration/AUTHENTICATION.md).
 
 - **Refresh** happens at the **issuer's** token endpoint, not here. The SDK wires
   it automatically for sessions it created (`refreshAtIssuer` in

@@ -2,7 +2,7 @@
 
 How the Semiont Browser implements [WCAG 2.1 Level AA](https://www.w3.org/WAI/WCAG21/quickref/) — patterns, primitives, and how to keep new code conformant.
 
-For the user-facing capability claim (what users see, how to verify it), see **[../../../docs/browser/ACCESSIBILITY.md](../../../docs/browser/ACCESSIBILITY.md)**. For the keyboard navigation architecture, see **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)**.
+For the user-facing capability claim (what users see, how to verify it), see **[../../../docs/curator/ACCESSIBILITY.md](../../../docs/curator/ACCESSIBILITY.md)**. For the keyboard navigation architecture, see **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)**.
 
 ## Compliance baseline
 
@@ -145,7 +145,7 @@ When building or reviewing a UI component:
 
 Component-level [`jest-axe`](https://github.com/nickcolley/jest-axe) assertions live with the components, in `@semiont/react-ui`'s `*.a11y.test.tsx` files — see [react-ui ACCESSIBILITY.md § Testing](../../../docs/builder/react-ui/ACCESSIBILITY.md#testing) for the pattern. The Browser has no `jest-axe` dependency of its own.
 
-The CI pipeline runs accessibility tests on every PR via `.github/workflows/accessibility-tests.yml` — react-ui's axe tests, the Browser's test suite, and a Lighthouse accessibility audit with a score threshold of 90. See [docs/development/TESTING.md](../../../docs/development/TESTING.md) for the testing-overview.
+The CI pipeline runs accessibility tests on every PR via `.github/workflows/accessibility-tests.yml` — react-ui's axe tests, the Browser's test suite, and a Lighthouse accessibility audit with a score threshold of 90. See [docs/contributor/TESTING.md](../../../docs/contributor/TESTING.md) for the testing-overview.
 
 ### Manual
 
@@ -161,7 +161,7 @@ The CI pipeline runs accessibility tests on every PR via `.github/workflows/acce
 
 ## See also
 
-- **[../../../docs/browser/ACCESSIBILITY.md](../../../docs/browser/ACCESSIBILITY.md)** — user-facing capability claim.
+- **[../../../docs/curator/ACCESSIBILITY.md](../../../docs/curator/ACCESSIBILITY.md)** — user-facing capability claim.
 - **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)** — keyboard navigation architecture, custom hooks, and shortcut implementation.
 - [WCAG 2.1 Quick Reference](https://www.w3.org/WAI/WCAG21/quickref/)
 - [ARIA Authoring Practices](https://www.w3.org/WAI/ARIA/apg/)

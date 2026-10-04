@@ -431,7 +431,7 @@ each axis knowingly:
 
 ## Related
 
-- **[../system/ANCHORING.md](../system/ANCHORING.md)** — the anchoring pipeline in depth.
+- **[../architecture/ANCHORING.md](../architecture/ANCHORING.md)** — the anchoring pipeline in depth.
 - **[../protocol/W3C-SELECTORS.md](../protocol/W3C-SELECTORS.md)** — the selector types, and which apply to which anchoring model.
-- **[../system/PROJECTION-PATTERN.md](../system/PROJECTION-PATTERN.md)** — the read-your-writes barrier step 8 relies on.
+- **[../architecture/PROJECTION-PATTERN.md](../architecture/PROJECTION-PATTERN.md)** — the read-your-writes barrier step 8 relies on.
 - **[../protocol/TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md)** — where the artifact crosses a process boundary.

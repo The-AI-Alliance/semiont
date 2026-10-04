@@ -104,5 +104,5 @@ is the one policy in core, because five boot paths genuinely share the question 
 
 ## See also
 
-- [CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md) — which peer runs where, and what depends on what.
+- [CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md) — which peer runs where, and what depends on what.
 - [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md) — the actors behind these channels.

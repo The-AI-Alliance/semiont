@@ -79,20 +79,20 @@ The gateway holds no database. It reads every caller's identity off their token 
 so there is no schema to migrate and no client to generate.
 
 The PostgreSQL in the table above belongs to **Keycloak**, which manages its own schema on first
-boot. See [Database Management](../system/administration/DATABASE.md).
+boot. See [Database Management](../operator/administration/DATABASE.md).
 
 ## Additional Documentation
 
 - **[scripts/ci/README.md](../../scripts/ci/README.md)** — `local-build.sh` in full
 - **[TESTING.md](./TESTING.md)** — running tests, test commands
-- **[CONTAINER-TOPOLOGY.md](../system/CONTAINER-TOPOLOGY.md)** — what runs where, and which layer runs it
-- **[AUTHENTICATION.md](../system/administration/AUTHENTICATION.md)** — authentication setup, OAuth, admin users
-- **[CONFIGURATION.md](../system/administration/CONFIGURATION.md)** — the `.semiont/semiontconfig/*.toml` schema
-- **[TROUBLESHOOTING.md](../system/administration/TROUBLESHOOTING.md)** — common issues, port conflicts, database problems
-- **[System Documentation](../system/README.md)** — architecture, component overview
+- **[CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md)** — what runs where, and which layer runs it
+- **[AUTHENTICATION.md](../operator/administration/AUTHENTICATION.md)** — authentication setup, OAuth, admin users
+- **[CONFIGURATION.md](../operator/administration/CONFIGURATION.md)** — the `.semiont/semiontconfig/*.toml` schema
+- **[TROUBLESHOOTING.md](../operator/administration/TROUBLESHOOTING.md)** — common issues, port conflicts, database problems
+- **[Architecture](../architecture/README.md)** — architecture, component overview
 
 ## Getting Help
 
-1. Check [TROUBLESHOOTING.md](../system/administration/TROUBLESHOOTING.md)
+1. Check [TROUBLESHOOTING.md](../operator/administration/TROUBLESHOOTING.md)
 2. Search [GitHub Issues](https://github.com/The-AI-Alliance/semiont/issues)
 3. Create a new issue with reproduction steps and error messages

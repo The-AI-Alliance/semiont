@@ -5,7 +5,7 @@
 **Related Documentation**:
 - [Mark Flow](./MARK.md) - Annotation CRUD operates within the entity-type vocabulary Frame defines, and `mark.assist(rid, 'tagging', ...)` resolves `schemaId` against the per-KB tag-schema registry Frame writes to
 - [Browse Flow](./BROWSE.md) - `browse.entityTypes()` and `browse.tagSchemas()` are the live reads of the two vocabularies Frame writes to
-- [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store and the `frame:*` channels
+- [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md) - Event store and the `frame:*` channels
 
 ## Overview
 

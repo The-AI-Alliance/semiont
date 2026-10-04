@@ -150,7 +150,7 @@ this package, the engine and its traineddata. A stamp mismatch, a corrupt file
 and an absent one are all the same answer: a miss. The store may make things
 faster, never make them fail.
 
-See **[ANCHORING.md](../../docs/system/ANCHORING.md)** for the pipeline this
+See **[ANCHORING.md](../../docs/architecture/ANCHORING.md)** for the pipeline this
 sits in.
 
 ## Utilities

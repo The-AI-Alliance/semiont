@@ -61,7 +61,7 @@ In production the store is instantiated once by [@semiont/make-meaning](../../ma
 The second half of the package extracts positioned text from native PDFs so annotations can be anchored to both character offsets and page geometry.
 
 - [src/extract-pdf-text-layer.ts](../src/extract-pdf-text-layer.ts) walks every page with pdfjs-dist's `getTextContent()`, concatenating runs into a single reading-order `text` string and recording each run's `[start, end)` character range plus its PDF-point geometry. Scanned/image-only PDFs (no text items) return `null`.
-- [src/locate.ts](../src/locate.ts) answers the reverse question: given a character span of `text`, which rectangles on which pages does it cover? Overlapping runs are grouped by page, then into lines (runs whose baselines are within 2pt), producing one bounding rectangle per line.
+- `locate`, in `@semiont/core`'s [pdf-anchoring.ts](../../core/src/pdf-anchoring.ts), answers the reverse question: given a character span of `text`, which rectangles on which pages does it cover? Overlapping runs are grouped by page, then into lines (runs whose baselines are within 2pt), producing one bounding rectangle per line.
 
 Server and browser split the coordinate work: everything here is in PDF point space with a bottom-left origin (the server has no canvas); the browser performs the Y-flip and scaling when rendering highlights. The shared `PdfCoordinate` type and the viewrect FragmentSelector codec live in `@semiont/core`.
 

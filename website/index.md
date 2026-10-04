@@ -23,7 +23,7 @@ No npm, no Node.js — the `semiont` launcher is a single static binary. You'll 
 brew install the-ai-alliance/semiont/semiont
 ```
 
-Homebrew serves macOS and Linux. On Windows, the [GitHub Release](https://github.com/The-AI-Alliance/semiont/releases) carries a zip holding `semiont.exe` — see [Semiont on Windows](https://github.com/The-AI-Alliance/semiont/blob/main/docs/system/platforms/WINDOWS.md).
+Homebrew serves macOS and Linux. On Windows, the [GitHub Release](https://github.com/The-AI-Alliance/semiont/releases) carries a zip holding `semiont.exe` — see [Semiont on Windows](https://github.com/The-AI-Alliance/semiont/blob/main/docs/operator/platforms/WINDOWS.md).
 
 Configure settings. `semiont settings` lists everything the launcher keeps; the first you are likely to need is an external inference secret — unless you run a small model on your own machine with [Ollama](https://ollama.com/), which needs none. Register an [Anthropic](https://www.anthropic.com/) key once, as a pointer into your vault; only the pointer is stored, read fresh on every start and written nowhere:
 

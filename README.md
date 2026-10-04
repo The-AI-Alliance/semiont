@@ -16,7 +16,7 @@ The `semiont` launcher is a single static binary — no npm, no Node.js:
 brew install the-ai-alliance/semiont/semiont
 ```
 
-Homebrew serves macOS and Linux. On Windows, the [GitHub Release](https://github.com/The-AI-Alliance/semiont/releases) carries a zip holding `semiont.exe` — see [Semiont on Windows](docs/system/platforms/WINDOWS.md).
+Homebrew serves macOS and Linux. On Windows, the [GitHub Release](https://github.com/The-AI-Alliance/semiont/releases) carries a zip holding `semiont.exe` — see [Semiont on Windows](docs/operator/platforms/WINDOWS.md).
 
 ### 2. Configure Settings
 
@@ -81,7 +81,7 @@ semiont login          # approve in a browser; only tokens come back
 
 No password reaches the launcher, and the session renews itself; `semiont logout` ends it. It is the CLI's own session — an SDK app signs in separately.
 
-For local-network access notes, supply-chain verification, and the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, see **[docs/browser/](docs/browser/README.md)**.
+For local-network access notes, supply-chain verification, and the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, see **[docs/curator/](docs/curator/README.md)**.
 
 ### 7. Ingest content
 
@@ -154,8 +154,8 @@ knowledge bases and the empty [template](https://github.com/The-AI-Alliance/semi
 
 New here? The SDK's **[INTRODUCTION](docs/builder/INTRODUCTION.md)** is the orientation chapter — read it first, then the **[Developer Guide](docs/builder/DEVELOPER-GUIDE.md)** to build, with **[Usage](docs/builder/Usage.md)** open as the reference.
 
-- **[Development docs](docs/development/README.md)** — codebase layout, build status badges, Codespaces shortcut, where to read next.
-- **[System architecture](docs/system/README.md)** — actor model, knowledge system, container topology, package architecture.
+- **[Development docs](docs/contributor/README.md)** — codebase layout, build status badges, Codespaces shortcut, where to read next.
+- **[System architecture](docs/architecture/README.md)** — actor model, knowledge system, container topology, package architecture.
 - **[Browser development](apps/browser/docs/DEVELOPMENT.md)** — running the Browser from source against a stack.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — branch/PR workflow, commit conventions, platform-contribution playbook.
 

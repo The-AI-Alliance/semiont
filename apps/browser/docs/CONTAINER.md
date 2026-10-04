@@ -296,8 +296,8 @@ knowledge bases as the user has added.
 
 - [Deployment Guide](./DEPLOYMENT.md) - Deployment workflows and strategies
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
-- [Container Topology](../../../docs/system/CONTAINER-TOPOLOGY.md) - Multi-container deployment architecture
-- [Container Images](../../../docs/system/administration/IMAGES.md) - All published images and the gateway npm-distribution model
+- [Container Topology](../../../docs/operator/CONTAINER-TOPOLOGY.md) - Multi-container deployment architecture
+- [Container Images](../../../docs/operator/administration/IMAGES.md) - All published images and the gateway npm-distribution model
 
 ## Support
 

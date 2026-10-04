@@ -18,7 +18,7 @@ The third derived read model — the materialized views — is deliberately **no
 
 "Undeclared" is not an option — both existing seams paid for its absence (a graph race shipped as a product bug; a vector race was caught only in review). Unit-level axioms cannot own this property: every one of them holds *while* the race happens, so ordering across an actor boundary belongs to the seam. Views are exempt (synchronous by construction); any future projection inherits this rule on day one.
 
-For the broader actor model that frames these seven, see [ACTOR-MODEL.md](ACTOR-MODEL.md). For the deployment layout (which actors live in which container), see [CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md).
+For the broader actor model that frames these seven, see [ACTOR-MODEL.md](ACTOR-MODEL.md). For the deployment layout (which actors live in which container), see [CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md).
 
 ## Topology
 
@@ -81,7 +81,7 @@ graph TB
     style G2 fill:none,stroke:#888,stroke-width:1.5px,stroke-dasharray:6 4
 ```
 
-This is the knowledge-system cut of [CONTAINER-TOPOLOGY.md](CONTAINER-TOPOLOGY.md)'s state view, same grammar throughout: the librarian reads in from above, the dashed frame is the record's world — its actors, its projections, its stores — and Ollama serves embeddings and inference below. The deep-blue cylinder is the working tree — the git-tracked system of record; every purple store is derived from it. Actor placement rides the labels (Stower, Browser, and CloneTokenManager in the archivist; Gatherer and Matcher in the librarian); the bus flows that drive these actors are the sections below.
+This is the knowledge-system cut of [CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md)'s state view, same grammar throughout: the librarian reads in from above, the dashed frame is the record's world — its actors, its projections, its stores — and Ollama serves embeddings and inference below. The deep-blue cylinder is the working tree — the git-tracked system of record; every purple store is derived from it. Actor placement rides the labels (Stower, Browser, and CloneTokenManager in the archivist; Gatherer and Matcher in the librarian); the bus flows that drive these actors are the sections below.
 
 ## Storage layout
 

@@ -57,7 +57,7 @@ The copy's description carries `wasDerivedFrom`, the source's `ResourceId`. The 
 panel shows it as a link back to the source.
 
 The token carries its own `expiresAt`. Tokens are issued and checked by the Archivist's
-`CloneTokenManager` (see [KNOWLEDGE-SYSTEM.md](../../../docs/system/KNOWLEDGE-SYSTEM.md)).
+`CloneTokenManager` (see [KNOWLEDGE-SYSTEM.md](../../../docs/architecture/KNOWLEDGE-SYSTEM.md)).
 
 ## Related
 

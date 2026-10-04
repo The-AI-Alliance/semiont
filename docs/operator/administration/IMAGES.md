@@ -51,7 +51,7 @@ docker pull ghcr.io/the-ai-alliance/semiont-browser:latest
 **Environment variables:** `PORT` only (default `3000`). The container is a
 static-file server with no gateway config and no config mount — the SPA
 connects to knowledge bases from the *browser* at runtime (the multi-KB
-session model; see [HUMAN-UI.md](../HUMAN-UI.md)).
+session model; see [HUMAN-UI.md](../../architecture/HUMAN-UI.md)).
 
 **Documentation:** [apps/browser/README.md](../../../apps/browser/README.md)
 

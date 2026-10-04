@@ -4,7 +4,7 @@
 
 **Related Documentation**:
 - [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Reference annotation structure
-- [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store architecture
+- [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md) - Event store architecture
 - [Event-Bus Protocol](../EVENT-BUS.md) - Channel naming, SSE streaming, event flow
 - [Mark Flow](./MARK.md) - Annotation detection and creation
 - [@semiont/make-meaning](../../../packages/make-meaning/README.md) - Generation worker and detection API
@@ -712,6 +712,6 @@ See [EVENT-BUS.md](../EVENT-BUS.md) for the bus protocol.
 
 - [@semiont/make-meaning](../../../packages/make-meaning/README.md) - Package overview
 - [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Annotation structure
-- [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store flow
+- [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md) - Event store flow
 - [Event-Bus Protocol](../EVENT-BUS.md) - Bus model, channels, enrichment, gap detection
 - [Mark Flow](./MARK.md) - Reference detection

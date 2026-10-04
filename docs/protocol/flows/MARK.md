@@ -5,7 +5,7 @@
 **Related Documentation**:
 - [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Complete W3C specification implementation
 - [W3C Selectors](../W3C-SELECTORS.md) - TextPositionSelector and TextQuoteSelector details
-- [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store, view storage, graph database flow
+- [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md) - Event store, view storage, graph database flow
 - [Browser Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - UI patterns and component architecture
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Position accuracy and CRLF handling
 - [@semiont/make-meaning](../../../packages/make-meaning/README.md) - Detection API and job workers
@@ -563,7 +563,7 @@ for the bus protocol and channel inventory.
 
 ### Data Flow Through Gateway Layers
 
-**Event Store → View Storage → Graph Database** ([Knowledge System](../../system/KNOWLEDGE-SYSTEM.md)):
+**Event Store → View Storage → Graph Database** ([Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md)):
 
 ```
 Worker emits mark:create on EventBus
@@ -785,6 +785,6 @@ Detection has no dedicated REST endpoints. `mark.assist(...)` emits a `job:creat
 ### Documentation
 - [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Complete W3C implementation
 - [W3C Selectors](../W3C-SELECTORS.md) - Dual selector strategy
-- [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store architecture
+- [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md) - Event store architecture
 - [Browser Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - UI patterns and components
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - CRLF position handling

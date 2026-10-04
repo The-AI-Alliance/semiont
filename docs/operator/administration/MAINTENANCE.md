@@ -61,7 +61,7 @@ semiont logs --service gateway
 semiont status
 ```
 
-If `start` refuses because persisted database state was written by a different image version, read the refusal before working around it — it is protecting a store from corruption. The way out is [`semiont clean`](DATABASE.md#resetting), which discards that state.
+If `start` refuses because persisted database state was written by a different image version, read the refusal before working around it — it is protecting a store from corruption. The way out is [`semiont clean`](TROUBLESHOOTING.md#an-image-version-mismatch-on-start), which discards that state.
 
 ## The event log is the thing to protect
 

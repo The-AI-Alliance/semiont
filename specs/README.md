@@ -241,7 +241,7 @@ Generated from `npm run openapi:stats`:
 ## Related Documentation
 
 - [Root README](../README.md) - Project overview
-- [System Documentation](../docs/system/README.md) - System architecture index
+- [Architecture](../docs/architecture/README.md) - System architecture index
 - [Gateway README](../apps/gateway/README.md) - Gateway implementation
 - [@semiont/http-transport](../packages/http-transport/README.md) - HTTP + SSE wire adapters
 - [@semiont/sdk](../packages/sdk/README.md) - The TypeScript client built over them

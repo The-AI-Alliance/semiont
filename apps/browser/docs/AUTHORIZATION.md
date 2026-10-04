@@ -313,7 +313,7 @@ const permissions = {
 
 - [Authentication Architecture](./AUTHENTICATION.md) - 401 handling and session management
 - [@semiont/http-transport Reference](../../../packages/http-transport/docs/API-Reference.md#apierror) - `APIError` shape and HTTP error handling
-- [Gateway RBAC](../../../docs/system/administration/SECURITY.md) - Server-side permission system
+- [Gateway RBAC](../../../docs/operator/administration/SECURITY.md) - Server-side permission system
 
 ## Contributing
 

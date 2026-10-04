@@ -11,7 +11,7 @@ host-installed [`semiont` launcher](https://github.com/The-AI-Alliance/semiont/t
 (a single static binary), which *pulls* the published, attested
 `ghcr.io/the-ai-alliance/semiont-*` images and bind-mounts the KB's config at
 runtime — KB repos build no images of their own (see
-[Container Images](system/administration/IMAGES.md)). One command starts the
+[Container Images](operator/administration/IMAGES.md)). One command starts the
 whole stack, including the Semiont browser at http://localhost:3000:
 
 ```bash
@@ -65,7 +65,7 @@ Prerequisites (the `gh` CLI and an `ANTHROPIC_API_KEY` Codespaces user secret)
 are in each KB's README; the raw `gh` recipe is kept there too as the
 no-launcher path.
 
-See [Local Semiont](system/LOCAL-SEMIONT.md) for the full local-run guide
+See [Local Semiont](operator/LOCAL-SEMIONT.md) for the full local-run guide
 (inference configs, running from source with `SEMIONT_VERSION=local`, ports,
 troubleshooting pointers).
 

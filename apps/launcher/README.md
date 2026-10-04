@@ -17,7 +17,7 @@ it is not a dependency of the service images.
 The published images are standalone artifacts. They run against whatever
 PostgreSQL, Neo4j, Qdrant and inference you already have, under Kubernetes, ECS
 or Nomad, with no launcher involved — see
-[DEPLOYMENT.md](../../docs/system/administration/DEPLOYMENT.md) for the
+[DEPLOYMENT.md](../../docs/operator/administration/DEPLOYMENT.md) for the
 supported paths and the contract each one must satisfy.
 
 What the launcher adds on top of `run` is the part those platforms leave to
@@ -38,7 +38,7 @@ brew install the-ai-alliance/semiont/semiont
 macOS, Linux and Windows, arm64 and amd64. Homebrew serves macOS and Linux;
 the [GitHub Release](https://github.com/The-AI-Alliance/semiont/releases)
 carries an archive for each system, for Windows a zip holding `semiont.exe` —
-see [Semiont on Windows](../../docs/system/platforms/WINDOWS.md), which also
+see [Semiont on Windows](../../docs/operator/platforms/WINDOWS.md), which also
 covers running the Linux build inside WSL2. The binary is static: no language
 runtime bleeds onto your host. Besides the launcher you need only `git` and
 one container runtime (`container`, `docker`, or `podman`) on PATH.
@@ -357,7 +357,7 @@ semiont stop
   command.
 - **The launcher derives its work from the KB's semiontconfig TOML** — the
   same file the Semiont containers read (see
-  `docs/system/administration/CONFIGURATION.md`). Per dependency role
+  `docs/operator/administration/CONFIGURATION.md`). Per dependency role
   (graph, vectors, database, inference, embedding) the config decides the
   obligation — the launcher's name for the npm CLI's `platform`:
   `platform = "external"` → somebody else runs the daemon: the section states

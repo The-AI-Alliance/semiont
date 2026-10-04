@@ -146,7 +146,7 @@ In-process transports (e.g. `LocalTransport` from `@semiont/make-meaning`) emit 
 
 ## Correlation: request/response over a fan-out bus
 
-> **Where the bus lives (SIGNAL-PLANE).** Inside the gateway the bus is a *driver seam*, below the wire this document describes: the in-process driver (one RxJS fabric in the gateway process) is the default, and `[signal] type = "nats"` swaps in a NATS driver that fans out over core subjects across replicas. Neither the wire nor anything below changes — the gateway injects identity, applies entitlement, and mints correlation the same way under both, so this protocol and every SDK client are unaffected by the choice. See [Signal Plane configuration](../system/administration/CONFIGURATION.md).
+> **Where the bus lives (SIGNAL-PLANE).** Inside the gateway the bus is a *driver seam*, below the wire this document describes: the in-process driver (one RxJS fabric in the gateway process) is the default, and `[signal] type = "nats"` swaps in a NATS driver that fans out over core subjects across replicas. Neither the wire nor anything below changes — the gateway injects identity, applies entitlement, and mints correlation the same way under both, so this protocol and every SDK client are unaffected by the choice. See [Signal Plane configuration](../operator/administration/CONFIGURATION.md).
 
 The bus is fan-out: every subscriber to a channel sees every event on it. Request/response semantics are layered on top via a `correlationId`:
 
@@ -193,7 +193,7 @@ The HTTP gateway picks up the `traceparent` request header instead — the SSE e
 
 The field is **internal plumbing**: subscribers see it stripped before delivery, and most consumer code never needs to touch it. If you're writing a new transport, mirror the pattern — inject before emit, extract before subscriber dispatch.
 
-For details on how `_trace` correlates with the grep-friendly `busLog` timeline and the OpenTelemetry span tree, see **[../system/administration/OBSERVABILITY.md](../system/administration/OBSERVABILITY.md)**.
+For details on how `_trace` correlates with the grep-friendly `busLog` timeline and the OpenTelemetry span tree, see **[../operator/administration/OBSERVABILITY.md](../operator/administration/OBSERVABILITY.md)**.
 
 ## Resource scoping
 
@@ -467,5 +467,5 @@ Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` cl
 - **[`packages/core/src/event-bus.ts`](../../packages/core/src/event-bus.ts)** — the in-process `EventBus` and `ScopedEventBus` implementation.
 - **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)** — the bus log format and capture API.
 - **[../../docs/builder/Usage.md](../builder/Usage.md)** — the namespace tour with worked examples per verb.
-- **[../system/administration/OBSERVABILITY.md](../system/administration/OBSERVABILITY.md)** — how `_trace` correlates with OpenTelemetry spans and the `busLog` grep timeline.
+- **[../operator/administration/OBSERVABILITY.md](../operator/administration/OBSERVABILITY.md)** — how `_trace` correlates with OpenTelemetry spans and the `busLog` grep timeline.
 - **[flows/README.md](flows/README.md)** — the eight flows that organize the channel namespace.

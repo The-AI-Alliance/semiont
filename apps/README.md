@@ -10,7 +10,7 @@ Deployable applications for the Semiont platform.
 
 The Browser also ships as a published, attested container image
 (`ghcr.io/the-ai-alliance/semiont-browser`) that bundles its package — see
-[Container Images](../docs/system/administration/IMAGES.md).
+[Container Images](../docs/operator/administration/IMAGES.md).
 
 ## Container images only
 

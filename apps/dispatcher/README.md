@@ -110,6 +110,6 @@ agent token from the gateway; `SEMIONT_BUS_LOG`; and the telemetry variables.
 - [`@semiont/jobs`](../../packages/jobs/) — the worker's side
 - [Worker](../worker/) — the executor, and a client of this service
 - [Archivist](../archivist/) — serves the bytes and records the annotations, directly to workers
-- [Container Topology](../../docs/system/CONTAINER-TOPOLOGY.md) — where it sits in the fleet
-- [Authentication](../../docs/system/administration/AUTHENTICATION.md) — the service-account
+- [Container Topology](../../docs/operator/CONTAINER-TOPOLOGY.md) — where it sits in the fleet
+- [Authentication](../../docs/operator/administration/AUTHENTICATION.md) — the service-account
   and worker-role requirements an issuer must meet

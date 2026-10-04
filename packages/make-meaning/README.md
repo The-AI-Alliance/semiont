@@ -8,7 +8,7 @@
 
 **Making meaning from resources through actors, context assembly, and relationship reasoning.**
 
-This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/ACTOR-MODEL.md). It owns the **Knowledge Base** and the seven actors that serve it.
+This package implements the actor model from [ACTOR-MODEL.md](../../docs/architecture/ACTOR-MODEL.md). It owns the **Knowledge Base** and the seven actors that serve it.
 
 **The actors no longer run in one process.** Each container entry point in this package starts the subset it owns, and the gateway constructs **none** of them — it keeps the HTTP surface and the bus door. The job queue is the dispatcher's ([apps/dispatcher](../../apps/dispatcher/README.md)).
 
@@ -204,7 +204,7 @@ The EventBus is created by the gateway (or script) and passed into `startMakeMea
 
 Entity types are a controlled vocabulary: the Stower refuses a `mark:update-entity-types` that adds one not registered. The rule is a pure function in [`src/views/projection-validators.ts`](src/views/projection-validators.ts): `validateEntityTypes(registered, requested)` → `{ ok: true } | { ok: false; unknown }`, a set membership check that lists the offending tags in caller order. The Stower is the I/O shell: it reads the projection (via the readers in `src/views/`), passes it to the validator, and refuses the whole request before its first append. Validator unit tests run in single-digit milliseconds with no filesystem and no event bus; `__tests__/stower-entity-types.test.ts` covers the wiring.
 
-This pattern (functional core, imperative shell) is shared with `@semiont/event-sourcing`'s projection reducers; see [`docs/system/PROJECTION-PATTERN.md`](../../docs/system/PROJECTION-PATTERN.md) for the architectural narrative, the full axiom catalog, and guidance for adding new validators.
+This pattern (functional core, imperative shell) is shared with `@semiont/event-sourcing`'s projection reducers; see [`docs/architecture/PROJECTION-PATTERN.md`](../../docs/architecture/PROJECTION-PATTERN.md) for the architectural narrative, the full axiom catalog, and guidance for adding new validators.
 
 ## Documentation
 

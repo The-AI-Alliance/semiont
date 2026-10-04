@@ -190,4 +190,4 @@ no source in it, and `/api/health` served within its start bound.
 - [AUTHENTICATION.md](docs/AUTHENTICATION.md) — tokens, agents, sign-in
 - [TESTING.md](docs/TESTING.md) — the conformance suite and what each check covers
 - [LOGGING.md](docs/LOGGING.md) — log shape and levels
-- [Services overview](../../docs/system/services/OVERVIEW.md) — where the gateway sits among the services
+- [Services overview](../../docs/operator/services/OVERVIEW.md) — where the gateway sits among the services

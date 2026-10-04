@@ -4,7 +4,7 @@
 
 **Related Documentation**:
 - [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Reference annotation and SpecificResource body structure
-- [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store and annotation body updates
+- [Knowledge System](../../architecture/KNOWLEDGE-SYSTEM.md) - Event store and annotation body updates
 - [Mark Flow](./MARK.md) - How reference annotations are created
 - [Gather Flow](./GATHER.md) - Context assembly (used by Bind before search)
 - [Yield Flow](./YIELD.md) - AI-powered resource generation (alternative to manual resolution)

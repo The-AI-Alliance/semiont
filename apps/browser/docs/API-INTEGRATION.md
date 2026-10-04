@@ -128,7 +128,7 @@ A user is always authenticated against a specific Knowledge Base; there is
 Switching KBs swaps `activeSession$` atomically. Each `SemiontSession` owns its
 own `SemiontClient` and the per-KB **bearer token in JS memory** — a short-lived
 access token re-minted from a long-lived refresh token
-([TTLs](../../../docs/system/administration/AUTHENTICATION.md)). Bearer-only: no
+([TTLs](../../../docs/operator/administration/AUTHENTICATION.md)). Bearer-only: no
 cookie, no ambient credential.
 
 - **Sign in** — `browser.beginSignIn({ … })` discovers the KB's issuer from its

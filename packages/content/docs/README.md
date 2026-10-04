@@ -32,8 +32,8 @@ Documentation for the working-tree content package.
 
 From [../src/working-tree-store.ts](../src/working-tree-store.ts): Working tree storage.
 From [../src/extract-pdf-text-layer.ts](../src/extract-pdf-text-layer.ts): PDF text-layer extraction.
-From [../src/locate.ts](../src/locate.ts): Span-to-rectangle geometry.
-From [../src/storage-uri.ts](../src/storage-uri.ts): Storage URI derivation.
+From `@semiont/core`'s [pdf-anchoring.ts](../../core/src/pdf-anchoring.ts): Span-to-rectangle geometry.
+From `@semiont/core`'s [storage-uri.ts](../../core/src/storage-uri.ts): Storage URI derivation.
 From [../src/checksum.ts](../src/checksum.ts): SHA-256 utilities.
 
 ## External References

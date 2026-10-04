@@ -598,7 +598,7 @@ For detailed styling guidelines, see the [Style Guide](./style-guide.md).
 - [Accessibility](./ACCESSIBILITY.md) - WCAG 2.1 AA implementation patterns
 
 ### System Documentation
-- [System Documentation](../../../docs/system/README.md) - Overall platform
+- [Architecture](../../../docs/architecture/README.md) - Overall platform
 - [Gateway README](../../gateway/README.md) - Gateway API
 - [Launcher README](../../launcher/README.md) - `semiont` launcher usage
 
