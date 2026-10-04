@@ -304,7 +304,7 @@ that observes the bus from an effect has to survive that:
 ## Why this design
 
 1. **Live queries are genuinely reactive.** Browse reads represent "the current value of this resource, which changes when bus events fire." Promise can't express that. Observable can.
-2. **The `Cache<K,V>` primitive is a real architectural building block.** Multicast, per-key dedup, stale-while-revalidate. The subclass approach lets us keep it without leaking it through the public surface. See [CACHE-SEMANTICS.md](../../packages/sdk/docs/CACHE-SEMANTICS.md) for the cache's behavioral contract.
+2. **The `Cache<K,V>` primitive is a real architectural building block.** Multicast, per-key dedup, stale-while-revalidate. The subclass approach lets us keep it without leaking it through the public surface. See [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) for the cache's behavioral contract.
 3. **Lifecycle state is BehaviorSubject-shaped.** `token$`, `user$`, `state$` are state over time with synchronous snapshots. Native primitive.
 4. **Sugar costs ~50 lines.** Three small subclasses; `then` (streams/uploads) per the JS thenable spec, `.fresh()` (live queries) as an explicit method. No alternative shape (Promise-only API, dual-API per method, AsyncIterable conversion) is cheaper or cleaner.
 5. **No information loss.** A Promise-typed return would force a choice between progress and final value for streaming methods. The subclass surface lets the consumer pick — `await`/`.fresh()` for a value, `subscribe` for progress or live state, both can compose.
@@ -317,7 +317,7 @@ The integrator writing a simple script doesn't know `@semiont/sdk` uses RxJS unt
 
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples
 - [STATE-UNITS.md](./STATE-UNITS.md) — the foundational stateful-unit pattern (factory closure, RxJS-shaped surface, dispose lifecycle); the substrate behind every flow state machine, worker adapter, and view-shaped state machine in the codebase
-- [CACHE-SEMANTICS.md](../../packages/sdk/docs/CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive's behavioral contract behind `CacheObservable`
+- [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive's behavioral contract behind `CacheObservable`
 - [`packages/sdk/src/awaitable.ts`](../../packages/sdk/src/awaitable.ts) — the awaitable Observable subclasses' implementation
 - [docs/protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md) — channel naming, scoping, correlation; the protocol layer the SDK wraps
 - [docs/protocol/CHANNELS.md](../protocol/CHANNELS.md) — channel inventory: persisted events, ephemeral signals, correlation responses, resource broadcasts

@@ -20,9 +20,9 @@ The shape is:
 - **Events** are observed with `useEventSubscription` / `useEventSubscriptions`.
 
 The cache's freshness and invalidation contract lives in the SDK, not here —
-see [`packages/sdk/docs/CACHE-SEMANTICS.md`](../../sdk/docs/CACHE-SEMANTICS.md).
+see [`docs/protocol/CACHE-SEMANTICS.md`](../../protocol/CACHE-SEMANTICS.md).
 For the layered Service → Hook → Component pattern these pieces compose into,
-see [SERVICE-HOOK-COMPONENT.md](SERVICE-HOOK-COMPONENT.md). This guide stays
+see [SERVICE-HOOK-COMPONENT.md](../../../packages/react-ui/docs/SERVICE-HOOK-COMPONENT.md). This guide stays
 focused on how a component reaches the client and reads/writes through it.
 
 ## Getting the client
@@ -295,9 +295,9 @@ it('renders resources', async () => {
 
 ## See Also
 
-- [SERVICE-HOOK-COMPONENT.md](SERVICE-HOOK-COMPONENT.md) — the three-layer Service → Hook → Component pattern
-- [`packages/sdk/docs/CACHE-SEMANTICS.md`](../../sdk/docs/CACHE-SEMANTICS.md) — read-through cache freshness and invalidation contract
+- [SERVICE-HOOK-COMPONENT.md](../../../packages/react-ui/docs/SERVICE-HOOK-COMPONENT.md) — the three-layer Service → Hook → Component pattern
+- [`docs/protocol/CACHE-SEMANTICS.md`](../../protocol/CACHE-SEMANTICS.md) — read-through cache freshness and invalidation contract
 - [EVENTS.md](EVENTS.md) — event-driven architecture and channels
 - [SESSION.md](SESSION.md) — `SemiontProvider` / session lifecycle
 - [TESTING.md](TESTING.md) — testing components that read and write through the client
-- [@semiont/sdk](../../sdk) — `SemiontBrowser`, `SemiontClient`, the read-through cache, and `BrowseNamespace`
+- [@semiont/sdk](../../../packages/sdk) — `SemiontBrowser`, `SemiontClient`, the read-through cache, and `BrowseNamespace`

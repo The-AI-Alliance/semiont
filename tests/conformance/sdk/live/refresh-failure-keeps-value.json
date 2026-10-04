@@ -1,6 +1,6 @@
 {
   "about": "a refresh that fails, and fails again on its one retry, leaves the observer holding the value it had: a key with a value is never failed (B6, B14)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B6, B14",
+  "source": "docs/protocol/CACHE-SEMANTICS.md B6, B14",
   "tier": "parity",
   "steps": [
     {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},

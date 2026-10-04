@@ -117,7 +117,7 @@ one bounded retry) — a lost or failing load surfaces in-band, never as `pendin
 and the stream itself never errors or terminates. Recovery is built in: a NEW subscription
 to the failed key (e.g. a component remount) clears the marker and starts a fresh attempt
 chain. A query that already holds a value never fails — stale-beats-error, the prior value
-stays visible through a failed refetch. → [CACHE-SEMANTICS.md](../../packages/sdk/docs/CACHE-SEMANTICS.md) (B14–B15).
+stays visible through a failed refetch. → [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) (B14–B15).
 
 Live subscriptions are how you get real-time updates: **freshness follows observation** —
 subscribing to `browse.*(rId)` acquires that resource's event scope while observed and
@@ -549,7 +549,7 @@ const client = new SemiontClient(raw, new HttpContentTransport(raw), raw, {
 });
 ```
 
-Full behavioral contract: [CACHE-SEMANTICS.md](../../packages/sdk/docs/CACHE-SEMANTICS.md) **B17**.
+Full behavioral contract: [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) **B17**.
 
 ---
 
@@ -626,5 +626,5 @@ after that.
 - **[REACTIVE-MODEL.md](./REACTIVE-MODEL.md)** — return shapes, await-vs-subscribe, the bus.
 - **[STATE-UNITS.md](./STATE-UNITS.md)** — the state-unit pattern for reactive UIs.
 - **[@semiont/react-ui](../../packages/react-ui/README.md)** — React components for browser UIs, including the embeddable `ResourceViewer` shown above.
-- **[CACHE-SEMANTICS.md](../../packages/sdk/docs/CACHE-SEMANTICS.md)** — the read-through cache contract behind `browse.*`.
+- **[CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md)** — the read-through cache contract behind `browse.*`.
 - **`docs/protocol/`** — the protocol-level framing (the eight flows, the programmable surfaces).

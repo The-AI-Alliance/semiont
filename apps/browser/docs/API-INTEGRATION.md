@@ -110,7 +110,7 @@ Hooks that need a client — `useMediaToken`, `useResourceContent` — take it a
 an argument rather than reading context, so a host can bring its own session.
 
 **Reference**: see
-[`packages/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md)
+[`docs/builder/react-ui/SESSION.md`](../../../docs/builder/react-ui/SESSION.md)
 for the session/provider API and
 [`docs/builder/Usage.md`](../../../docs/builder/Usage.md)
 for the client and bus subscription.
@@ -351,9 +351,9 @@ like `browse:resources-failed`), raised from the promise returned by
 
 ### React UI library
 
-- [`@semiont/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md) — provider reference
+- [`docs/builder/react-ui/SESSION.md`](../../../docs/builder/react-ui/SESSION.md) — provider reference
 - [`@semiont/react-ui/docs/ARCHITECTURE.md`](../../../packages/react-ui/docs/ARCHITECTURE.md) — architectural overview
-- [`@semiont/react-ui/docs/ANNOTATIONS.md`](../../../packages/react-ui/docs/ANNOTATIONS.md) — annotation UI components
+- [`docs/builder/react-ui/ANNOTATIONS.md`](../../../docs/builder/react-ui/ANNOTATIONS.md) — annotation UI components
 
 ### API client
 

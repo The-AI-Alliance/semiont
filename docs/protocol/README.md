@@ -103,5 +103,6 @@ For product framing and getting a knowledge base running, see the **[project REA
 - **[JOBS.md](JOBS.md)** — the job protocol: the job record and its states, the nine `job:*` channels the dispatcher answers, claims, checkpoints, retries, cancellation, and the dispatcher's periodic work and health
 - **[TRANSPORT-CONTRACT.md](TRANSPORT-CONTRACT.md)** — abstract `ITransport` guarantees every transport must honor
 - **[TRANSPORT-HTTP.md](TRANSPORT-HTTP.md)** — HTTP+SSE wire format
+- **[CACHE-SEMANTICS.md](CACHE-SEMANTICS.md)** — the numbered behaviours every SDK's live-query cache is held to
 - **[RBAC.md](RBAC.md)** — roles and permissions
 - **[W3C-WEB-ANNOTATION.md](W3C-WEB-ANNOTATION.md)** + **[W3C-SELECTORS.md](W3C-SELECTORS.md)** — standards compliance

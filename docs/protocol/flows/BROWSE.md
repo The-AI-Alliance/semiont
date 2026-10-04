@@ -7,7 +7,7 @@
 - [Bind Flow](./BIND.md) - Reference resolution triggers navigation to linked resources
 - [Event-Bus Protocol](../EVENT-BUS.md) - Channel naming, bridging, SSE streaming
 - [Browser Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - Annotation click and panel interaction
-- [React UI Events](../../../packages/react-ui/docs/EVENTS.md) - Event bus architecture
+- [React UI Events](../../builder/react-ui/EVENTS.md) - Event bus architecture
 - [Launcher README](../../../apps/launcher/README.md) - `semiont browse`, including `--browser`
 
 ## Overview
@@ -152,6 +152,6 @@ Panel types:
 - **Sidebar navigation**: [packages/react-ui/src/components/navigation/CollapsibleResourceNavigation.tsx](../../../packages/react-ui/src/components/navigation/CollapsibleResourceNavigation.tsx)
 - **Observable router / external navigation**: [packages/react-ui/src/hooks/useObservableBrowse.tsx](../../../packages/react-ui/src/hooks/useObservableBrowse.tsx)
 - **Navigation handler (subscriber)**: [apps/browser/src/components/knowledge/NavigationHandler.tsx](../../../apps/browser/src/components/knowledge/NavigationHandler.tsx)
-- **Launcher verb**: [apps/launcher/internal/launcher/browse.go](../../../apps/launcher/internal/launcher/browse.go) — `semiont browse`, including `--browser`
+- **Launcher verb**: [apps/launcher/internal/verbs/browse.go](../../../apps/launcher/internal/verbs/browse.go) — `semiont browse`, including `--browser`
 - **Bridged set**: [packages/core/src/bridged-channels.ts](../../../packages/core/src/bridged-channels.ts) — `BRIDGED_BROADCASTS` (hand-listed) plus the derived operation replies
 - **Event definitions** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `BROWSE FLOW` section

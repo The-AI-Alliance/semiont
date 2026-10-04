@@ -160,7 +160,7 @@ function CustomApp() {
 
 ## Favicon Assets
 
-The package includes Semiont-branded favicons in multiple formats (SVG, PNG, ICO) and a React component for inline usage. See [docs/FAVICON.md](docs/FAVICON.md) for complete usage instructions.
+The package includes Semiont-branded favicons in multiple formats (SVG, PNG, ICO) and a React component for inline usage. See [FAVICON.md](../../docs/builder/react-ui/FAVICON.md) for complete usage instructions.
 
 ## Architecture
 
@@ -206,7 +206,7 @@ Key directories:
 - `styles/panels/` - Panel layouts and containers
 - `styles/features/` - Feature-specific styling
 
-See [docs/STYLES.md](docs/STYLES.md) for detailed CSS documentation.
+See [STYLES.md](../../docs/builder/react-ui/STYLES.md) for detailed CSS documentation.
 
 ## Core Concepts
 
@@ -218,7 +218,7 @@ Cross-cutting concerns use the Provider Pattern:
 - **TranslationProvider** - Internationalization
 - **Routing** - Not a provider: components that link take the host's `Link` and `routes` as props (`LinkComponentProps`, `RouteBuilder`)
 
-See [docs/SESSION.md](docs/SESSION.md) for details.
+See [SESSION.md](../../docs/builder/react-ui/SESSION.md) for details.
 
 ### Page state machines
 
@@ -230,7 +230,7 @@ See [docs/SESSION.md](docs/SESSION.md) for details.
 
 Adjacent to the state units: `useKBDiscovery` binds the sdk's
 launcher-KB discovery subscription (`subscribeDiscovery`) to React state —
-see [SESSION.md](docs/SESSION.md#usekbdiscovery--launcher-published-kbs).
+see [SESSION.md](../../docs/builder/react-ui/SESSION.md#usekbdiscovery--launcher-published-kbs).
 
 Each lives in `src/features/<feature>/state/` (or `src/state/` for cross-feature ones) next to the components that consume it. The `useStateUnit` hook wires them into React lifecycles.
 
@@ -261,7 +261,7 @@ function Example() {
 }
 ```
 
-See [docs/API-INTEGRATION.md](docs/API-INTEGRATION.md) for details.
+See [API-INTEGRATION.md](../../docs/builder/react-ui/API-INTEGRATION.md) for details.
 
 ### Testing
 
@@ -276,23 +276,23 @@ it('should render component', () => {
 });
 ```
 
-See [docs/TESTING.md](docs/TESTING.md) for details.
+See [TESTING.md](../../docs/builder/react-ui/TESTING.md) for details.
 
 ## Documentation
 
-- [SESSION.md](docs/SESSION.md) - Provider Pattern and manager interfaces
-- [INTERNATIONALIZATION.md](docs/INTERNATIONALIZATION.md) - Translation approach
-- [TESTING.md](docs/TESTING.md) - Testing utilities and patterns
-- [API-INTEGRATION.md](docs/API-INTEGRATION.md) - Working with the Semiont API
-- [COMPONENTS.md](docs/COMPONENTS.md) - Component library reference
-- [navigation-components.md](docs/navigation-components.md) - Navigation components (CollapsibleResourceNavigation, SimpleNavigation, NavigationMenu, ObservableLink)
-- [modal-components.md](docs/modal-components.md) - Modal components (SearchModal)
-- [ROUTING.md](docs/ROUTING.md) - Framework-agnostic routing
+- [SESSION.md](../../docs/builder/react-ui/SESSION.md) - Provider Pattern and manager interfaces
+- [INTERNATIONALIZATION.md](../../docs/builder/react-ui/INTERNATIONALIZATION.md) - Translation approach
+- [TESTING.md](../../docs/builder/react-ui/TESTING.md) - Testing utilities and patterns
+- [API-INTEGRATION.md](../../docs/builder/react-ui/API-INTEGRATION.md) - Working with the Semiont API
+- [COMPONENTS.md](../../docs/builder/react-ui/COMPONENTS.md) - Component library reference
+- [navigation-components.md](../../docs/builder/react-ui/navigation-components.md) - Navigation components (CollapsibleResourceNavigation, SimpleNavigation, NavigationMenu, ObservableLink)
+- [modal-components.md](../../docs/builder/react-ui/modal-components.md) - Modal components (SearchModal)
+- [ROUTING.md](../../docs/builder/react-ui/ROUTING.md) - Framework-agnostic routing
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Design principles and decisions
-- [STYLES.md](docs/STYLES.md) - CSS architecture and styling guide
-- [FAVICON.md](docs/FAVICON.md) - Favicon assets and usage
-- [ANNOTATIONS.md](docs/ANNOTATIONS.md) - Annotation system (coming soon)
-- [ACCESSIBILITY.md](docs/ACCESSIBILITY.md) - Accessibility architecture and WCAG compliance
+- [STYLES.md](../../docs/builder/react-ui/STYLES.md) - Using the styles, design tokens and classes
+- [FAVICON.md](../../docs/builder/react-ui/FAVICON.md) - Favicon assets and usage
+- [ANNOTATIONS.md](../../docs/builder/react-ui/ANNOTATIONS.md) - Annotation system (coming soon)
+- [ACCESSIBILITY.md](../../docs/builder/react-ui/ACCESSIBILITY.md) - Accessibility architecture and WCAG compliance
 
 ## Examples
 

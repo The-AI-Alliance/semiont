@@ -5,12 +5,13 @@
 // waiting for a reader to paste a dead snippet.
 //
 // Two suites, each one TypeScript program with its own preludes:
-//   - sdk: the builder docs (docs/builder) and what stays beside the sdk
-//     (packages/sdk/docs), plus the repo-root and packages/sdk READMEs, which
+//   - sdk: the builder docs (docs/builder) and the cache contract
+//     (docs/protocol/CACHE-SEMANTICS.md), plus the repo-root and packages/sdk READMEs, which
 //     carry the first sdk code most readers see and are the least likely to
 //     be revisited when a signature moves. Resolved like an external node
 //     consumer (nodenext).
-//   - ui: the react-ui and Browser docs and READMEs. Resolved like the Browser
+//   - ui: the react-ui docs (docs/builder/react-ui and packages/react-ui/docs)
+//     and the Browser docs, with their READMEs. Resolved like the Browser
 //     (bundler resolution, as Vite does), with the Browser's `@/` alias, since
 //     the Browser docs teach its own modules. Only diagnostics inside the doc
 //     fences and the prelude count: an error in Browser source is the Browser
@@ -60,7 +61,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 
-const REPO_ROOT = resolve(__dirname, '../../../..');
+const REPO_ROOT = resolve(__dirname, '../..');
 
 const markdownIn = (dir) => readdirSync(join(REPO_ROOT, dir))
   .filter((f) => f.endsWith('.md'))
@@ -71,7 +72,7 @@ const SUITES = {
   sdk: {
     docs: [
       ...markdownIn('docs/builder'),
-      ...markdownIn('packages/sdk/docs'),
+      'docs/protocol/CACHE-SEMANTICS.md',
       'README.md',
       'packages/sdk/README.md',
     ],
@@ -82,6 +83,7 @@ const SUITES = {
   },
   ui: {
     docs: [
+      ...markdownIn('docs/builder/react-ui'),
       ...markdownIn('packages/react-ui/docs'),
       ...markdownIn('apps/browser/docs'),
       'packages/react-ui/README.md',
@@ -92,8 +94,8 @@ const SUITES = {
     preludes: [
       'prelude-ui.ts',
       'prelude-ui-assets.ts',
-      '../../../react-ui/src/types/jest-axe.d.ts',
-      '../../../react-ui/src/types/vitest-matchers.d.ts',
+      '../../packages/react-ui/src/types/jest-axe.d.ts',
+      '../../packages/react-ui/src/types/vitest-matchers.d.ts',
     ],
     options: {
       module: ts.ModuleKind.ESNext,

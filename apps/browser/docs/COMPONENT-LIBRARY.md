@@ -145,7 +145,7 @@ function ProtectedLayout() {
 The library owns provider implementations; the Browser owns the
 decision about where to mount them. For the provider/session API reference
 (props, hooks, behavior), see
-[`packages/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md).
+[`docs/builder/react-ui/SESSION.md`](../../../docs/builder/react-ui/SESSION.md).
 
 ## Using Library Components
 
@@ -308,7 +308,7 @@ npm run build --workspace=@semiont/core --workspace=@semiont/http-transport
 ## Related Documentation
 
 - [`@semiont/react-ui` README](../../../packages/react-ui/README.md)
-- [`@semiont/react-ui` providers](../../../packages/react-ui/docs/SESSION.md)
+- [`@semiont/react-ui` providers](../../../docs/builder/react-ui/SESSION.md)
 - [`@semiont/react-ui` architecture](../../../packages/react-ui/docs/ARCHITECTURE.md)
 - [API Integration](./API-INTEGRATION.md)
 - [Browser Architecture](./ARCHITECTURE.md)

@@ -10,7 +10,7 @@
 //! module states only what each event names: its resource, its annotation,
 //! the value it carries. An event acts only on a key the cache holds, and
 //! the refetches one key is asked for inside a window are one refetch
-//! (packages/sdk/docs/CACHE-SEMANTICS.md B12–B13b, B19, B20).
+//! (docs/protocol/CACHE-SEMANTICS.md B12–B13b, B19, B20).
 
 use crate::bus::{LIMITS_OPERATIONS, Operation, StreamError, operation};
 use crate::cache::{

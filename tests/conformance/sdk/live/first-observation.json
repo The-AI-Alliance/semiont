@@ -1,6 +1,6 @@
 {
   "about": "the first observer of a key sees it pending, costs exactly one request, and sees the value that request is answered with (B1)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B1",
+  "source": "docs/protocol/CACHE-SEMANTICS.md B1",
   "tier": "fleet",
   "steps": [
     {"let": {"one": {"@context": "https://schema.org/", "@id": "one", "name": "one", "representations": []}}},

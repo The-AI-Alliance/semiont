@@ -1,6 +1,6 @@
 {
   "about": "a one-shot read of a closed client fails as a request of a closed bus does, with no request made (B16)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B16; specs/src/errors/codes.json bus.closed",
+  "source": "docs/protocol/CACHE-SEMANTICS.md B16; specs/src/errors/codes.json bus.closed",
   "tier": "parity",
   "steps": [
     {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},

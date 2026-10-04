@@ -248,7 +248,7 @@ flight ends by being told and not by the runtime stopping.
   either way.
 - `running` and `cached` — those two shapes.
 - `cache` — what the queries answer from
-  ([CACHE-SEMANTICS](../sdk/docs/CACHE-SEMANTICS.md)): one state per key, the
+  ([CACHE-SEMANTICS](../../docs/protocol/CACHE-SEMANTICS.md)): one state per key, the
   same for every observer; a value shown while a newer one is fetched; one
   retry of a failed fetch; `set` and `remove` for what an event already
   says. `CachePersister` keeps a cache's values for a later one, and

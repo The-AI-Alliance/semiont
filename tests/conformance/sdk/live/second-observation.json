@@ -1,6 +1,6 @@
 {
   "about": "an observer arriving at a key that has its value is given it at once, and costs no request (B2)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B2",
+  "source": "docs/protocol/CACHE-SEMANTICS.md B2",
   "tier": "parity",
   "steps": [
     {"let": {"one": {"@context": "https://schema.org/", "@id": "one", "name": "one", "representations": []}}},

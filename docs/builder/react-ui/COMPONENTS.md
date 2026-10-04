@@ -77,7 +77,7 @@ follow the same rule, with `isAnnotationId` / `annotationId` and `isJobId` / `jo
 - Browse / annotate modes (annotate mode persisted in `localStorage`), CodeMirror syntax highlighting, the annotation overlay, responsive layout.
 - Speaks the SDK bus — an annotation edit made elsewhere updates the open document with no refetch.
 
-> **Full end-to-end integration** — loading the resource, fetching text vs. binary content, and media tokens — is walked through in the SDK developer guide's *Render a resource in the browser — the embeddable viewer* recipe: [DEVELOPER-GUIDE.md](../../../docs/builder/DEVELOPER-GUIDE.md). For the batteries-included, provider-based page, see `ResourceViewerPage`.
+> **Full end-to-end integration** — loading the resource, fetching text vs. binary content, and media tokens — is walked through in the SDK developer guide's *Render a resource in the browser — the embeddable viewer* recipe: [DEVELOPER-GUIDE.md](../DEVELOPER-GUIDE.md). For the batteries-included, provider-based page, see `ResourceViewerPage`.
 
 ### BrowseView
 

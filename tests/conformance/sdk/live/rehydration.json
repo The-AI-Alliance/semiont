@@ -1,6 +1,6 @@
 {
   "about": "a client that persists its cache gives a returning observer the value it had at once, never pending, and asks once more to make sure of it (B17, B18)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B17, B18",
+  "source": "docs/protocol/CACHE-SEMANTICS.md B17, B18",
   "tier": "parity",
   "steps": [
     {"let": {"one": {"@context": "https://schema.org/", "@id": "one", "name": "one", "representations": []}, "two": {"@context": "https://schema.org/", "@id": "two", "name": "two", "representations": []}}},

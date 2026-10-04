@@ -1,6 +1,6 @@
 {
   "about": "two observers that arrive at a key before it has a value cost one request between them, and see the same value (B3)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B3",
+  "source": "docs/protocol/CACHE-SEMANTICS.md B3",
   "tier": "fleet",
   "steps": [
     {"let": {"one": {"@context": "https://schema.org/", "@id": "one", "name": "one", "representations": []}}},

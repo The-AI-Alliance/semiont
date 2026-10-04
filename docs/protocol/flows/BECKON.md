@@ -5,7 +5,7 @@
 **Related Documentation**:
 - [Browser Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - UI patterns and component architecture
 - [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Document view and overlay rendering
-- [React UI Events](../../../packages/react-ui/docs/EVENTS.md) - Event bus architecture
+- [React UI Events](../../builder/react-ui/EVENTS.md) - Event bus architecture
 - [Keyboard Navigation](../../browser/KEYBOARD-NAV.md) - Keyboard-driven attention
 
 ## Overview
@@ -155,5 +155,5 @@ system can be built on.
 - **Namespace**: [packages/sdk/src/namespaces/beckon.ts](../../../packages/sdk/src/namespaces/beckon.ts)
 - **Event definitions** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `BECKON FLOW` section
 - **Bus bridge (client)**: [packages/sdk/src/client.ts](../../../packages/sdk/src/client.ts) — `ACTOR_TO_LOCAL_BRIDGES`
-- **Launcher command**: [apps/launcher/internal/launcher/beckon.go](../../../apps/launcher/internal/launcher/beckon.go) — `semiont beckon`
+- **Launcher command**: [apps/launcher/internal/verbs/beckon.go](../../../apps/launcher/internal/verbs/beckon.go) — `semiont beckon`
 - **Bus gateway**: [apps/gateway/src/routes/bus.rs](../../../apps/gateway/src/routes/bus.rs) and [stream.rs](../../../apps/gateway/src/routes/stream.rs)

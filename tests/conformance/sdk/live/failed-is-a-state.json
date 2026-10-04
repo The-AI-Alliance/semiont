@@ -1,6 +1,6 @@
 {
   "about": "when the retry fails too, a key with no value is failed: a state its observers are given, on a stream that lives on; an observer arriving starts over, and every observer of the key is pending again, then ready (B15)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B15",
+  "source": "docs/protocol/CACHE-SEMANTICS.md B15",
   "tier": "fleet",
   "steps": [
     {"let": {"one": {"@context": "https://schema.org/", "@id": "one", "name": "one", "representations": []}}},

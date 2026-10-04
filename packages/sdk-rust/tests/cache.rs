@@ -1,4 +1,4 @@
-//! The cache against packages/sdk/docs/CACHE-SEMANTICS.md, behaviour by
+//! The cache against docs/protocol/CACHE-SEMANTICS.md, behaviour by
 //! behaviour: each test names the clause it holds. The service is a script,
 //! so a test decides what each fetch is answered and when.
 //!

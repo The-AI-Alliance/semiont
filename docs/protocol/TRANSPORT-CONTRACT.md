@@ -166,7 +166,7 @@ repairs a drop by asking:
 - **The cache** asks again, when its stream reopens after a drop, for what
   passing events feed and it holds, and asks for nothing after a handover or
   at the first open
-  ([CACHE-SEMANTICS B13](../../packages/sdk/docs/CACHE-SEMANTICS.md), from
+  ([CACHE-SEMANTICS B13](CACHE-SEMANTICS.md), from
   the `reopened` row of [`specs/src/client/refresh.json`](../../specs/src/client/refresh.json)).
   *Held by `sdk/live/missed-while-down`, `sdk/live/refresh-reopened`, `sdk/live/reconnect`, `sdk/live/first-open`.*
 - **A job's follower** asks for the job's status when the job has been
@@ -383,7 +383,7 @@ collapse: every frame is delivered once.
 
 ## What sits above
 
-The cache ([CACHE-SEMANTICS](../../packages/sdk/docs/CACHE-SEMANTICS.md))
+The cache ([CACHE-SEMANTICS](CACHE-SEMANTICS.md))
 takes four things from the transport, and nothing else:
 
 1. **Scope follows observation.** Observing something of a resource holds

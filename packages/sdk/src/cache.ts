@@ -1,7 +1,7 @@
 /**
  * RxJS-native read-through cache primitive.
  *
- * Behavioral contract: packages/sdk/docs/CACHE-SEMANTICS.md (B1–B20).
+ * Behavioral contract: docs/protocol/CACHE-SEMANTICS.md (B1–B20).
  *
  * Framework-agnostic: no React, no dependency on any namespace; of the bus it
  * knows one thing, the code a closed one fails with (B16). Used by

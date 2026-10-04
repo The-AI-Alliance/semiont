@@ -1,6 +1,6 @@
 {
   "about": "an invalidation the caller asks for, of a key nothing holds, fetches it: an observer arriving afterwards is given the value and costs nothing (B8)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B8",
+  "source": "docs/protocol/CACHE-SEMANTICS.md B8",
   "tier": "parity",
   "steps": [
     {"let": {"one": {"@context": "https://schema.org/", "@id": "one", "name": "one", "representations": []}}},

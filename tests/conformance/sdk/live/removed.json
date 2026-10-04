@@ -1,6 +1,6 @@
 {
   "about": "an event saying an annotation is gone ends it: its observer is told it is not found, with no request made; an observer arriving later asks, and the service tells every observer the same (B13a)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B13a; specs/src/client/refresh.json mark:removed",
+  "source": "docs/protocol/CACHE-SEMANTICS.md B13a; specs/src/client/refresh.json mark:removed",
   "tier": "parity",
   "steps": [
     {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},

@@ -57,7 +57,7 @@ Known cases that motivated this:
   which in turn unmounted components whose effects held the very
   subscriptions whose reconnect triggered the invalidation. A 124×
   refetch storm per navigation, surfaced as test 04 in
-  [tests/e2e/](../../../tests/e2e/).
+  [tests/e2e/](../../tests/e2e/).
 - `fetching*` guards that were never cleared after a connection-lost
   refetch, leaving the cache empty forever ("Loading resource…" that
   never resolves). Fixed in commit 845c6b24.
@@ -289,7 +289,7 @@ Liveness: B14's one-retry budget is pinned by liveness axioms **L1/L2**
 (`assertLivenessAxioms` from `@semiont/core/testing/axioms`) — L2's settlement bound on the swallowed
 paths is `timeoutMs × (1 + this retry)`, enforced against the real
 `BrowseNamespace` + cache + `busRequest` composition by the property
-suite ([browse-liveness.property.test.ts](../src/__tests__/browse-liveness.property.test.ts)).
+suite ([browse-liveness.property.test.ts](../../packages/sdk/src/__tests__/browse-liveness.property.test.ts)).
 Changing the retry count is a policy change that must edit L2's budget
 visibly, not drift past it.
 
@@ -319,7 +319,7 @@ holds it.** No observer sees `failed` while another sees `pending`.
    unchanged.
 
 Rationale: liveness axiom L1 — found by the property suite
-([browse-liveness.property.test.ts](../src/__tests__/browse-liveness.property.test.ts))
+([browse-liveness.property.test.ts](../../packages/sdk/src/__tests__/browse-liveness.property.test.ts))
 as the valueless-key starvation bug (2026-07-05).
 B14 converted "reply lost" into one slow load when the retry succeeds;
 B15 covers the remaining corner — retry ALSO fails — where "idle" was
@@ -511,7 +511,7 @@ what is shown.
 
 ## What refreshes what
 
-[`specs/src/client/refresh.json`](../../../specs/src/client/refresh.json)
+[`specs/src/client/refresh.json`](../../specs/src/client/refresh.json)
 is the authority: a row per trigger, saying which live queries it acts on.
 A trigger is a channel of the bus, or `reopened`, the stream open again
 after a drop (B13). `BrowseNamespace` applies the table generated from it
@@ -529,7 +529,7 @@ key the cache holds. Every act is on a key the cache holds (B20); each
 refetch goes through its key's window (B19); writes and removes do neither.
 
 The SDK conformance suite builds a live case from every row
-([`tests/conformance/sdk`](../../../tests/conformance/sdk/README.md)), so a
+([`tests/conformance/sdk`](../../tests/conformance/sdk/README.md)), so a
 row is a statement every SDK is held to.
 
 Two things the table's shape follows from:

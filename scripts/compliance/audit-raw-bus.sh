@@ -59,7 +59,7 @@ set -euo pipefail
 #   - **/test-utils.tsx                 — test helpers
 #   - **/.generated/**                  — build output, not source. The SAFE-DOCS gate
 #                                          extracts every doc code fence into
-#                                          packages/sdk/docs/__snippets__/.generated/*.ts
+#                                          tests/doc-snippets/.generated/*.ts
 #                                          to type-check it; REACTIVE-MODEL.md documents
 #                                          `client.bus.on(...)` and
 #                                          `client.transport.emit(...)` as the *sanctioned*

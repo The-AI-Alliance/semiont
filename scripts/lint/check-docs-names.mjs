@@ -11,7 +11,7 @@
  * `package.json`, and tests pointing at files deleted months before. A reader
  * copying any of them got an error, and nothing said the document was wrong.
  *
- * Checked in `packages/react-ui/docs`, `packages/react-ui/README.md`,
+ * Checked in `docs/builder/react-ui`, `packages/react-ui/docs`, `packages/react-ui/README.md`,
  * `apps/browser/docs` and `apps/browser/README.md`:
  *
  *   - imports from `@semiont/*`: each name is exported by that package (a
@@ -170,6 +170,7 @@ for (const pj of [join(ROOT, 'package.json'),
 // ── What each document says ───────────────────────────────────────────────────
 
 const DOCS = [
+  ...readdirSync(join(ROOT, 'docs/builder/react-ui')).filter((f) => f.endsWith('.md')).map((f) => `docs/builder/react-ui/${f}`),
   ...readdirSync(join(ROOT, 'packages/react-ui/docs')).filter((f) => f.endsWith('.md')).map((f) => `packages/react-ui/docs/${f}`),
   'packages/react-ui/README.md',
   ...readdirSync(join(ROOT, 'apps/browser/docs')).filter((f) => f.endsWith('.md')).map((f) => `apps/browser/docs/${f}`),

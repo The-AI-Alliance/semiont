@@ -170,7 +170,7 @@ without any separate event-bus provider.
 
 **📖 Complete Documentation:**
 - **[SERVICE-HOOK-COMPONENT.md](SERVICE-HOOK-COMPONENT.md)** - Three-layer architecture guide
-- **[EVENTS.md](EVENTS.md)** - Event bus usage and patterns
+- **[EVENTS.md](../../../docs/builder/react-ui/EVENTS.md)** - Event bus usage and patterns
 
 ---
 
@@ -273,7 +273,7 @@ const manager: TranslationManager = {
 </TranslationProvider>;
 ```
 
-See [SESSION.md](SESSION.md) for details.
+See [SESSION.md](../../../docs/builder/react-ui/SESSION.md) for details.
 
 ---
 
@@ -503,7 +503,7 @@ See [TESTING.md](TESTING.md) for details.
 - Invalidation is implicit — bus events drive cache refreshes, so there are no
   manual invalidation calls in component code
 
-See [CACHE-SEMANTICS.md](../../sdk/docs/CACHE-SEMANTICS.md) for the full cache contract.
+See [CACHE-SEMANTICS.md](../../../docs/protocol/CACHE-SEMANTICS.md) for the full cache contract.
 
 ### Code Splitting
 
@@ -758,9 +758,9 @@ See [STYLES.md](STYLES.md) for comprehensive CSS architecture and conventions.
 
 ## See Also
 
-- [EVENTS.md](EVENTS.md) - Event-driven architecture and event bus usage
-- [SESSION.md](SESSION.md) - Provider Pattern implementation
-- [API-INTEGRATION.md](API-INTEGRATION.md) - API architecture
+- [EVENTS.md](../../../docs/builder/react-ui/EVENTS.md) - Event-driven architecture and event bus usage
+- [SESSION.md](../../../docs/builder/react-ui/SESSION.md) - Provider Pattern implementation
+- [API-INTEGRATION.md](../../../docs/builder/react-ui/API-INTEGRATION.md) - API architecture
 - [TESTING.md](TESTING.md) - Testing architecture
 - [STYLES.md](STYLES.md) - CSS architecture and conventions
 - [CONTRIBUTING.md](../../../CONTRIBUTING.md) - Project-wide code standards

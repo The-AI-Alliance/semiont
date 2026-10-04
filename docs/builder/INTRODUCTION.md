@@ -154,7 +154,7 @@ The one escape hatch is `.fresh()`: an explicit one-shot fetch for "I want the
 latest, right now." The division of labor is deliberate — a cache read and a
 gateway request are different types, so "which one am I doing?" is impossible
 to get wrong. The full behavioral contract, numbered and test-cited, is
-[CACHE-SEMANTICS](../../packages/sdk/docs/CACHE-SEMANTICS.md); the design rationale is
+[CACHE-SEMANTICS](../protocol/CACHE-SEMANTICS.md); the design rationale is
 [REACTIVE-MODEL](./REACTIVE-MODEL.md).
 
 ## A chat turn in one page
@@ -309,7 +309,7 @@ Where to go by goal:
 - **Understand why the API is shaped this way** —
   [REACTIVE-MODEL](./REACTIVE-MODEL.md), then
   [STATE-UNITS](./STATE-UNITS.md).
-- **Depend on exact behavior** — [CACHE-SEMANTICS](../../packages/sdk/docs/CACHE-SEMANTICS.md) and
+- **Depend on exact behavior** — [CACHE-SEMANTICS](../protocol/CACHE-SEMANTICS.md) and
   the wire-level contracts in [`docs/protocol/`](../protocol/).
 - **Not a React shop? Not a TypeScript shop?** The concepts here and in the
   explanation docs are yours as-is; treat the binding- and language-specific

@@ -123,7 +123,7 @@ The design point: Frame's namespace home gives these features a place to grow th
 ## Implementation
 
 - **Namespace**: [packages/sdk/src/namespaces/frame.ts](../../../packages/sdk/src/namespaces/frame.ts)
-- **Launcher command**: [apps/launcher/internal/launcher/frame.go](../../../apps/launcher/internal/launcher/frame.go) — `semiont frame` (entity types only; tag-schema registration is SDK-side today)
+- **Launcher command**: [apps/launcher/internal/verbs/frame.go](../../../apps/launcher/internal/verbs/frame.go) — `semiont frame` (entity types only; tag-schema registration is SDK-side today)
 - **Interface**: [packages/sdk/src/namespaces/types.ts](../../../packages/sdk/src/namespaces/types.ts) — `FrameNamespace`
 - **Tests**: [packages/sdk/src/namespaces/__tests__/frame.test.ts](../../../packages/sdk/src/namespaces/__tests__/frame.test.ts), [tests/conformance/dispatcher/create.test.ts](../../../tests/conformance/dispatcher/create.test.ts) (dispatcher schema resolution), [packages/make-meaning/src/__tests__/views/tag-schemas-reader.test.ts](../../../packages/make-meaning/src/__tests__/views/tag-schemas-reader.test.ts), [tests/e2e/specs/11-frame-tag-schemas.spec.ts](../../../tests/e2e/specs/11-frame-tag-schemas.spec.ts) (end-to-end registration + tagging round-trip)
 - **Event channels** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `frame:add-entity-type`, `frame:entity-type-added`, `frame:add-tag-schema`, `frame:tag-schema-added`

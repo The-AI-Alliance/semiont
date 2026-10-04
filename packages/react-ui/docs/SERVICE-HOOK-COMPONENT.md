@@ -453,7 +453,7 @@ event library.
 
 ## Related Documentation
 
-- [EVENTS.md](EVENTS.md) - Event bus usage and event types
+- [EVENTS.md](../../../docs/builder/react-ui/EVENTS.md) - Event bus usage and event types
 - [ARCHITECTURE.md](ARCHITECTURE.md) - Overall architecture principles
 - [TESTING.md](TESTING.md) - Testing strategies
 

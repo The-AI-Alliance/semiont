@@ -110,4 +110,4 @@ All widget styles are inline — no external CSS dependencies:
 
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - CodeMirror integration and event delegation
 - [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Dual rendering architecture
-- [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
+- [ANNOTATIONS.md](../../../docs/builder/react-ui/ANNOTATIONS.md) - Annotation UI/UX and workflows
