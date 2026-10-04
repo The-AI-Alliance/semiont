@@ -3,10 +3,11 @@
 ```
 scripts/
 ├── ci/           Build and publish (GitHub Actions + local containers)
-├── release/      Version management (runs on host — jq + git only)
-├── dev/        Dev-time build helpers (requires npm)
-├── lint/         Stylelint plugins and CSS checks
+├── release/      The release scripts: preflight, verify, announce, version bump
+├── dev/          Dev-time build helpers (requires npm)
+├── lint/         The `lint:*` gates
 ├── compliance/   Architecture compliance audits
+├── spec/         Checks over `specs/`
 └── container/    Container image management
 ```
 

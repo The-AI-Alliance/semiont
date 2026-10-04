@@ -25,7 +25,7 @@ Modular packages for the Semiont platform. For the layered design, dependency gr
 
 ## Getting Started
 
-See [Package Development Guide](./docs/DEVELOPMENT.md) for detailed development instructions, guidelines, and philosophy.
+To work on these packages, start at the contributor's [orientation](../docs/contributor/README.md): building and running a change, testing it, and [adding a package](../docs/contributor/README.md#adding-a-package).
 
 ## License
 

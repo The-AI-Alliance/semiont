@@ -1,98 +1,95 @@
-# Local Development Guide
+# Local development
 
-Local development is built around **[`./scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh)**:
-it builds your working tree into the real service images, and the launcher runs those. What you test
-is what ships.
+Local development is built around **[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh)**. It builds your working tree into the real service images, and the launcher runs those. What you test is what ships.
 
-## Prerequisites
+## What you need
 
-- **Node.js 24+** — [nodejs.org](https://nodejs.org/)
-- **A container engine** — [Apple Container](https://github.com/apple/container), Docker, or Podman
-- **The `semiont` launcher** — `brew install the-ai-alliance/semiont/semiont`
-- **A knowledge-base repo** to run against — see [KNOWLEDGE-BASES.md](../KNOWLEDGE-BASES.md)
-  (`semiont-template-kb` is the canonical starting point)
+- **A container runtime**: Apple `container`, Docker or Podman. Nothing else: the script runs npm, cargo and Go inside containers.
+- **A knowledge base to run against.** Clone [`semiont-template-kb`](https://github.com/The-AI-Alliance/semiont-template-kb), or see [Knowledge Bases](../KNOWLEDGE-BASES.md) for others.
 
 ## The loop
 
-`local-build.sh` builds every package, publishes them to a throwaway local Verdaccio registry, and
-builds all seven service images tagged `:local` (never pushed). Images are loaded into every
-responsive container engine on the machine, so the KB's `--runtime` choice is independent of which
-engine built them.
-
 ```bash
-# 1. From the monorepo — build packages and the seven :local images
+# 1. In the repository: build the packages, all eight images, and the launcher
 ./scripts/ci/local-build.sh
 
-# 2. From your KB — run the stack against them
+# 2. In the knowledge base: run the stack on what you built
 cd /path/to/your-kb
-SEMIONT_VERSION=local semiont start
+SEMIONT_VERSION=local /path/to/semiont/apps/launcher/dist/semiont start
+/path/to/semiont/apps/launcher/dist/semiont useradd --email you@example.com
 
-# 3. Iterate — rebuild only what changed
-./scripts/ci/local-build.sh --package gateway --image gateway
+# 3. Change code, then rebuild only what changed (below) and start again
 
-# 4. Done for the day
-semiont stop
-container rm -f semiont-verdaccio
+# 4. When you are done
+/path/to/semiont/apps/launcher/dist/semiont stop
+container stop semiont-verdaccio
 ```
 
-`SEMIONT_VERSION=local` is what makes the launcher skip the registry pull and use your images.
-Without it you get the published ones.
+What a full run does:
 
-Full flag reference — `--package`, `--image`, `CONTAINER_RUNTIME`, what the Verdaccio step does — is
-in **[scripts/ci/README.md](../../scripts/ci/README.md)**.
+1. Builds every npm package, in the order [`version.json`](../../version.json) lists them.
+2. Publishes them to a throwaway local registry (Verdaccio), which it leaves running.
+3. Builds the eight images from the same Dockerfiles the publish workflows use, tagged `ghcr.io/the-ai-alliance/semiont-<service>:local`. They are never pushed.
+4. Loads the images into every container runtime on the machine, so the stack can run under any of them.
+5. Builds the launcher from the working tree, as `apps/launcher/dist/semiont`.
+
+Two things make the stack use your build:
+
+- **`SEMIONT_VERSION=local`** has the launcher run the `:local` images and pull nothing. Without it you get the published ones, and your change is not in them.
+- **The launcher you just built**, not one installed with Homebrew. The launcher and the images are released together, so a launcher from an earlier release may not match images built from your tree.
+
+### Rebuilding one thing
+
+```bash
+./scripts/ci/local-build.sh --package make-meaning --image archivist   # one package, then one image
+./scripts/ci/local-build.sh --images-only --image worker               # one image, from what is already published locally
+./scripts/ci/local-build.sh --help                                     # every option
+```
+
+- A Node image installs its packages from the local registry, so a change to package source reaches an image only after that package is rebuilt and republished. `--images-only` skips that step: use it when the package has not changed.
+- The gateway and dispatcher images compile the Rust workspace from the working tree every time, so `--images-only --image gateway` picks up a Rust change.
+- `--package` takes a package's directory name (`core`, `make-meaning`), as `version.json` lists them. An unknown name is refused with the list.
+
+The script's own README, [scripts/ci/README.md](../../scripts/ci/README.md), covers the rest.
 
 ## Working on one package, without a stack
 
-Most changes don't need a running stack:
+Most changes do not need a running stack. With Node on your machine:
 
 ```bash
 npm ci --include=optional
-npm run build:packages                  # all libraries, dependency-ordered
-npm run typecheck                       # tsc --noEmit across workspaces
-npm test --workspace=@semiont/sdk       # one workspace
+npm run build:packages                  # every library, in dependency order
+npm run typecheck                       # tsc --noEmit across the workspaces
+npm test --workspace=@semiont/sdk       # one workspace's suite
 ```
 
-See [TESTING.md](./TESTING.md) for per-workspace commands and the vitest watch-mode traps.
-
-## Stack operations
-
-Launcher verbs, run from the KB directory — see [apps/launcher](../../apps/launcher/README.md):
+Without it, run the same commands in a container:
 
 ```bash
-semiont status                    # container state + per-service health
-semiont logs                      # follow service logs
-semiont stop --service browser   # stop one service
+container run --rm -v "$PWD":/work -w /work node:24-alpine \
+  sh -c 'npm ci --include=optional && npm run build:packages'
 ```
 
-## Service ports
+For the Rust workspace, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace` are what CI runs. For the launcher, `go vet ./...` and `go test ./...` in `apps/launcher`; its suite takes minutes.
 
-| Service | Port | URL |
-|---------|------|-----|
-| Browser | 3000 | http://localhost:3000 |
-| Gateway | 4000 | http://localhost:4000 |
-| PostgreSQL | 5432 | postgresql://localhost:5432 |
-| Worker / Smelter / Weaver | 24100 / 24101 / 24102 | health endpoints |
+[Testing](TESTING.md) has every suite, what each needs, and how to run it in a container.
 
-## Database operations
+## Looking at a running stack
 
-The gateway holds no database. It reads every caller's identity off their token and stores no row,
-so there is no schema to migrate and no client to generate.
+The launcher's verbs work the same on a stack built from source:
 
-The PostgreSQL in the table above belongs to **Keycloak**, which manages its own schema on first
-boot. See [Database Management](../operator/administration/DATABASE.md).
+```bash
+semiont status                     # each service's state and health
+semiont logs --service worker      # follow one service
+semiont start --service worker     # restart one after rebuilding its image
+```
 
-## Additional Documentation
+In the Browser's console, `window.__SEMIONT_BUS_LOG__ = true` logs one line for every bus event that page sends and receives, which is often the fastest way to see what a change did: see [Bus logging](../../tests/e2e/docs/bus-logging.md). Every service's traces are at `http://localhost:16686` ([Observability](../operator/administration/OBSERVABILITY.md)).
 
-- **[scripts/ci/README.md](../../scripts/ci/README.md)** — `local-build.sh` in full
-- **[TESTING.md](./TESTING.md)** — running tests, test commands
-- **[CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md)** — what runs where, and which layer runs it
-- **[AUTHENTICATION.md](../operator/administration/AUTHENTICATION.md)** — authentication setup, OAuth, admin users
-- **[CONFIGURATION.md](../operator/administration/CONFIGURATION.md)** — the `.semiont/semiontconfig/*.toml` schema
-- **[TROUBLESHOOTING.md](../operator/administration/TROUBLESHOOTING.md)** — common issues, port conflicts, database problems
-- **[Architecture](../architecture/README.md)** — architecture, component overview
+## Related
 
-## Getting Help
-
-1. Check [TROUBLESHOOTING.md](../operator/administration/TROUBLESHOOTING.md)
-2. Search [GitHub Issues](https://github.com/The-AI-Alliance/semiont/issues)
-3. Create a new issue with reproduction steps and error messages
+- [scripts/ci/README.md](../../scripts/ci/README.md): `local-build.sh` and the build and publish scripts
+- [Testing](TESTING.md): the suites and how to run them
+- [The service catalog](../operator/services/OVERVIEW.md): what is running, and on which ports
+- [Running a local stack](../operator/LOCAL-SEMIONT.md): the launcher from an operator's side
+- [Troubleshooting](../operator/administration/TROUBLESHOOTING.md): when a start fails or a service is unhealthy

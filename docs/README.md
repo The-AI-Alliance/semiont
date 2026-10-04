@@ -53,6 +53,6 @@ You run a knowledge base, on your own machine or for others.
 You change Semiont itself.
 
 - [CONTRIBUTING.md](../CONTRIBUTING.md): the branch and pull-request workflow
-- [Monorepo orientation](contributor/README.md), then [local development](contributor/LOCAL-DEVELOPMENT.md), [testing](contributor/TESTING.md) and [releasing](contributor/RELEASE.md)
-- [How Semiont works inside](architecture/README.md): the actor model, the knowledge system, anchoring, the package layers
+- [Orientation](contributor/README.md): where the code lives. Then [local development](contributor/LOCAL-DEVELOPMENT.md), [testing](contributor/TESTING.md), [dependencies](contributor/DEPENDENCIES.md) and [releasing](contributor/RELEASE.md)
+- [How Semiont works inside](architecture/README.md): the actor model, the knowledge system, anchoring, media types, the package layers
 - [The packages](../packages/README.md): each package's internals are documented in its own directory

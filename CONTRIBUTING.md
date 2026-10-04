@@ -20,7 +20,7 @@ There is no per-platform plug-in to write. See [Deployment Targets](#-deployment
 
 **Alternative Browser implementations:**
 
-We also welcome contributions that bring Semiont to new user interfaces and integration points. The web [Browser](apps/browser/README.md) and its [desktop build](apps/desktop/README.md) ship today. Still open:
+We also welcome contributions that bring Semiont to new user interfaces and integration points. The web [Browser](apps/browser/README.md) and its [desktop build](apps/desktop/README.md) are shipped. Open to contribution:
 
 - **Mobile apps** (iOS, Android, React Native)
 - **Browser extensions** (Chrome, Firefox, Safari)
@@ -51,10 +51,10 @@ This project is part of [The AI Alliance](https://thealliance.ai/) and follows t
 
 ### Prerequisites
 
-- Node.js 18+ with npm
 - Git
-- Apple Container, Docker, or Podman (for container development)
-- TypeScript knowledge
+- A container runtime: Apple Container, Docker or Podman
+
+That is enough: [`scripts/ci/local-build.sh`](scripts/ci/local-build.sh) builds every package, every image and the launcher inside containers. To run the tools directly on your machine you also need Node.js 24, and for the Rust and Go parts the toolchains that [`rust-toolchain.toml`](rust-toolchain.toml) and each `go.mod` name.
 
 ### Initial Setup
 
@@ -64,28 +64,30 @@ This project is part of [The AI Alliance](https://thealliance.ai/) and follows t
    git clone https://github.com/YOUR_USERNAME/semiont.git
    cd semiont
    ```
-3. **Install dependencies**:
+3. **Get a knowledge base to develop against**, in a separate directory:
    ```bash
-   npm install
+   git clone https://github.com/The-AI-Alliance/semiont-template-kb.git
    ```
-4. **Set up a knowledge base to develop against** (in a separate directory):
+4. **Build your tree and run a stack on it**:
    ```bash
-   brew install the-ai-alliance/semiont/semiont
-   semiont init --name "dev-project"
-   semiont start
+   ./scripts/ci/local-build.sh
+   cd ../semiont-template-kb
+   SEMIONT_VERSION=local ../semiont/apps/launcher/dist/semiont start
    ```
-5. **Run tests** to verify setup:
+5. **Run the tests** for the part you are changing:
    ```bash
-   npm test
+   npm ci --include=optional
+   npm run build:packages
+   npm test --workspace=@semiont/sdk
    ```
 
-See [docs/contributor/LOCAL-DEVELOPMENT.md](docs/contributor/LOCAL-DEVELOPMENT.md) for complete setup instructions.
+[docs/contributor](docs/contributor/README.md) has the orientation: where the code lives, [local development](docs/contributor/LOCAL-DEVELOPMENT.md), [testing](docs/contributor/TESTING.md), [dependencies](docs/contributor/DEPENDENCIES.md) and [releasing](docs/contributor/RELEASE.md).
 
 ## 🤝 How to Contribute
 
 ### Ways to Contribute
 
-1. **Add platform support** (highest priority - see below)
+1. **Make Semiont run well in more places** (see [Most Valuable Contributions](#-most-valuable-contributions))
 2. **Fix bugs** - Check [Issues](https://github.com/The-AI-Alliance/semiont/issues)
 3. **Improve documentation** - Clarify, expand, or fix docs
 4. **Write tests** - Increase coverage
@@ -127,9 +129,9 @@ git remote add upstream https://github.com/The-AI-Alliance/semiont.git
 Create a feature branch in your fork:
 
 ```bash
-git checkout -b feature/gcp-platform
+git checkout -b feature/openshift-manifests
 # or
-git checkout -b fix/database-migration-bug
+git checkout -b fix/stream-reconnect
 # or
 git checkout -b docs/improve-api-reference
 ```
@@ -140,7 +142,6 @@ git checkout -b docs/improve-api-reference
 - `docs/` - Documentation changes
 - `test/` - Test improvements
 - `refactor/` - Code refactoring
-- `platform/` - New platform implementations
 
 ### 3. Make Changes
 
@@ -162,27 +163,26 @@ npm test -w semiont-browser
 cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && cargo build --release -p semiont-gateway
 (cd tests/conformance && npm run test:gateway)
 
-# The dispatcher, black-box, behind that gateway (needs npm run build:packages)
+# The dispatcher, black-box, behind that gateway (needs cargo build --release -p semiont-dispatcher)
 (cd tests/conformance && npm run test:dispatcher)
 
-# The SDKs, black-box, as clients of that gateway (needs npm run build:packages)
+# The SDKs, black-box, as clients of that gateway (needs cargo build --release -p semiont-conformance-drivers and npm run build:packages)
 (cd tests/conformance && npm run test:sdk)
 
 # Type check
 npm run typecheck
-
-# Lint
-npm run lint
 ```
+
+CI also runs the `lint:*` gates and the compliance audits; [Testing](docs/contributor/TESTING.md#continuous-integration) lists every job.
 
 ### 5. Commit Changes
 
 Write clear, descriptive commit messages:
 
 ```bash
-git commit -m "Add GCP deployment support"
-git commit -m "Fix database connection timeout in gateway"
-git commit -m "Clarify authentication flow in API docs"
+git commit -m "Add OpenShift manifests for the service images"
+git commit -m "Fix stream reconnect after a gateway restart"
+git commit -m "Clarify the sign-in flow in the SDK guide"
 ```
 
 ### 6. Sync with Upstream
@@ -198,7 +198,7 @@ git rebase upstream/main
 
 ```bash
 # Push to your fork
-git push origin feature/gcp-platform
+git push origin feature/openshift-manifests
 ```
 
 Then create a Pull Request from your fork to `The-AI-Alliance/semiont:main` on GitHub.
@@ -234,7 +234,6 @@ If you want to improve how stacks are launched, the launcher (Go, `apps/launcher
    ```bash
    npm test
    npm run typecheck
-   npm run lint
    npm run build
    ```
 
@@ -247,37 +246,12 @@ If you want to improve how stacks are launched, the launcher (Go, `apps/launcher
 - ✅ All tests pass
 - ✅ TypeScript compiles without errors
 - ✅ Code follows existing style
-- ✅ Commits follow Conventional Commits format
 - ✅ PR description clearly explains changes
 - ✅ References related issues (e.g., "Fixes #123")
 
 ### PR Template
 
-When creating a PR, include:
-
-```markdown
-## Description
-Brief description of changes
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Platform support
-- [ ] Documentation
-- [ ] Refactoring
-
-## Related Issues
-Fixes #123
-
-## Testing
-- [ ] Added tests for new functionality
-- [ ] All tests pass locally
-- [ ] Tested on [platform/environment]
-
-## Documentation
-- [ ] Updated relevant documentation
-- [ ] Added code comments where needed
-```
+GitHub fills a new pull request with [the template](.github/pull_request_template.md). Complete the parts that apply to your change.
 
 ### Review Process
 
@@ -293,11 +267,11 @@ Write clear, descriptive commit messages that explain what changed and why:
 **Good commit messages:**
 
 ```bash
-Add GCP Cloud Run platform support
-Fix database connection timeout on slow networks
-Update API documentation with authentication examples
-Add JWT validation tests for expired tokens
-Extract common deployment logic to reduce duplication
+Add OpenShift manifests for the service images
+Fix stream reconnect after a gateway restart
+Update the SDK guide with sign-in examples
+Add conformance cases for expired tokens
+Extract the shared retry rule into one function
 ```
 
 **Tips:**
@@ -326,8 +300,8 @@ npm test
 ```bash
 cd apps/browser && npm test                 # Browser suite
 cd tests/conformance && npm run test:gateway    # The gateway, black-box (needs `cargo build --release -p semiont-gateway` at the repository root, and nats-server)
-cd tests/conformance && npm run test:dispatcher # The dispatcher, black-box (needs the gateway built, npm run build:packages, and nats-server)
-cd tests/conformance && npm run test:sdk        # Every SDK, black-box, as a client of the gateway (needs the gateway built, npm run build:packages, and nats-server)
+cd tests/conformance && npm run test:dispatcher # The dispatcher, black-box (needs the gateway and the dispatcher built, and nats-server)
+cd tests/conformance && npm run test:sdk        # Every SDK, black-box, as a client of the gateway (needs the gateway and the Rust drivers built, npm run build:packages, and nats-server)
 ```
 
 ### Test Requirements for PRs
@@ -354,11 +328,17 @@ Update docs when you:
 
 ### Documentation Locations
 
-- **System-wide**: `docs/` - Architecture, deployment, testing
-- **Gateway**: `apps/gateway/docs/` - Gateway-specific guides
-- **Browser**: `apps/browser/docs/` - Browser-specific guides
-- **Launcher**: `apps/launcher/README.md` - The host-installed `semiont` command
-- **Platforms**: `docs/operator/platforms/` - Platform-specific deployment
+`docs/` is organized by reader ([docs/README.md](docs/README.md)):
+
+- **`docs/analyst/`**: working in a knowledge base, in the Browser
+- **`docs/builder/`**: building on the SDKs
+- **`docs/operator/`**: running a stack
+- **`docs/contributor/`**: changing Semiont itself
+- **`docs/architecture/`** and **`docs/protocol/`**: how Semiont works, and what its parts agree on
+
+How one app or package is built inside stays with it: `apps/<app>/docs/`, `packages/<package>/docs/`, and each one's README. The launcher's manual is `apps/launcher/README.md`.
+
+Code in the docs is typechecked by CI, so an example has to compile ([`tests/doc-snippets`](tests/doc-snippets/)).
 
 ### Documentation Style
 
@@ -394,7 +374,6 @@ Update docs when you:
 Contributors are recognized in:
 
 - Release notes
-- CONTRIBUTORS.md file (when we create one)
 - GitHub contributor graphs
 
 ## 📄 License

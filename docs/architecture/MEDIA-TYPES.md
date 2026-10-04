@@ -5,7 +5,7 @@ annotate**. What differs between a Markdown note and a scanned PDF is not the
 path but what each stage is *able to do* — and that is declared in one place, as
 data, not scattered through the code that consumes it.
 
-This guide explains the declaration, what each part of it changes downstream, and
+This page explains the declaration, what each part of it changes downstream, and
 then walks one media type end to end. PDF is the running example because it is
 the only type that exercises every axis at its hardest setting.
 
@@ -34,8 +34,7 @@ interface MediaTypeCapabilities {
 The generator refuses a registry and a `SupportedMediaType` enum that disagree,
 and the TypeScript table is `satisfies Record<SupportedMediaType, …>`, so adding
 a type to the spec enum without a capabilities row — or the reverse — fails the
-build. That drift-lock is the reason this guide can describe behavior by reading
-one table.
+build. That is why behavior can be described by reading one table.
 
 The rules read from the table that more than one SDK applies (the format a
 clone takes, the name content is stored under) are stated as cases in
@@ -105,9 +104,8 @@ textual — and everything else is `none`.
   glyphs, rasterize and OCR it. Roughly **2.9 seconds per scanned page**.
 - **`none`** — no text to be had. No embedding, no vector search, no AI detection.
 
-**The two values are not two settings of one operation** (READ-VS-EXTRACT). They
-name genuinely different work, and the field was called `extractText` until that
-was noticed:
+**The two values are not two settings of one operation.** They name different
+work:
 
 | | `decode` | `pdf-text-layer` |
 |---|---|---|
@@ -116,9 +114,8 @@ was noticed:
 | artifact | none to persist | exactly one, canonical |
 | who may do it | anyone holding bytes | the Smelter alone — it needs the store |
 
-Calling both "extraction" made them interchangeable at every call site, and that
-is what let a worker OCR PDFs for four months. They are now separate surfaces:
-decoding is `decodeRepresentation` in this package; deriving is
+So they are separate surfaces, and a call site cannot mistake one for the other:
+decoding is `decodeRepresentation` in `@semiont/core`; deriving is
 `derivingExtractorFor(mediaType)` in `@semiont/content`, callable only with the
 store that persists its output.
 
@@ -157,10 +154,7 @@ layer carries the geometry.
 
 What differs is epistemic rather than mechanical: **for an authored PDF the
 system chose the coordinates rather than recovering them.** Nothing was scanned,
-so there is no OCR, no confidence score, and no unread page. In the vocabulary
-`PDF-MODEL` proposes, that is `textSource: 'text-layer'` with no treatments —
-the A–G `pdfClass` taxonomy has no honest letter for a document we wrote
-ourselves.
+so there is no OCR, no confidence score, and no unread page.
 
 Two consequences for citations, both load-bearing:
 
@@ -190,8 +184,8 @@ exists because of one of those three declarations.
 
 ### Ingest
 
-1. **`yield.resource`** with the bytes. The gateway appends to the event log —
-   the system of record — and emits **`yield:created`**.
+1. **`yield.resource`** with the bytes. The archivist appends to the event log,
+   the system of record, and emits **`yield:created`**.
 2. **Three consumers take that event independently**, none waiting on the others:
    - **ViewMaterializer** builds the view projection. This makes the resource
      openable, and it is also the `resourceId → checksum` index that later
@@ -214,9 +208,10 @@ exists because of one of those three declarations.
    `method`, `pdfClass`, `ocrConfidence`, `unreadPages`, *or* a named decline.
    Declines are cached too: "we recognized this and found nothing" costs one
    recognition pass for the lifetime of those bytes.
-6. **It lands at `stateDir/anchored-text/{ab}/{cd}/{checksum}.json`**, sharded
-   with the same helper the event log uses and bind-mounted per root, so it
-   survives a restart and `semiont clean --store anchored-text` can reclaim it.
+6. **It lands in the anchored-text store, at `{ab}/{cd}/{checksum}.json`**,
+   sharded with the same helper the event log uses. The store is a directory the
+   deployment supplies, kept per knowledge base, so it survives a restart and
+   `semiont clean --store anchored-text` can reclaim it.
 7. **Smelter chunks, embeds, and writes vectors.**
 8. **It emits `smelt:settled { resourceId, contentChecksum, outcome }`** —
    `indexed` or `skipped`. The vector stamp is written *before* this fires, so
@@ -256,7 +251,7 @@ A `spatial` type has three readiness moments, deliberately decoupled:
   persists — whether or not anything knows what is under it.
 - **Born-digital PDF, with quotes: immediately, with no server involvement.** The
   canvas calls `getTextContent()`, gets runs from pdf.js in the browser, and
-  builds the map locally with `anchorRuns`. It never asks the gateway.
+  builds the map locally with `anchorRuns`. It asks no service.
 - **Scanned PDF, with quotes: once smelt settles.** No runs, so the canvas calls
   `browse.resourceAnchoredText(resourceId)`. Server-side: resolve the view → take
   the primary representation's checksum → read the store → on a miss wait on
@@ -278,13 +273,13 @@ before any text recovery existed, so the failure mode is "no improvement", never
     12pt line pitch, so a few points of overshoot pulls in fragments of the lines
     above and below.
 11. **The canvas emits `mark:create-request`** with a `FragmentSelector`, plus a
-    `TextQuoteSelector` when `textUnder` found anything. The gateway replies
-    `mark:create-ok` and appends **`mark:added`**.
+    `TextQuoteSelector` when `textUnder` found anything. The archivist appends
+    **`mark:added`** and replies `mark:create-ok`.
 12. **Or AI detection.** `job:create` → a worker runs `prepareDetection`, which
-    calls the same cached `extract()` — so on an already-smelted document it does
-    no OCR. The model returns a verbatim quote; `locate()` turns that span into
-    one `FragmentSelector` per line; `buildPdfAnnotation` assembles the
-    annotation.
+    reads the stored artifact through `browse.resourceAnchoredText`, behind the
+    same settle barrier the canvas waits on. A worker never extracts. The model
+    returns a verbatim quote; `locate()` turns that span into one
+    `FragmentSelector` per line; `buildPdfAnnotation` assembles the annotation.
 
 ### How annotation events feed back
 
@@ -324,13 +319,13 @@ always geometry-only — there is no map, so no quote, ever. The "three readines
 moments" collapse to one.
 
 **Stored types** (`none`, `none`) are catalogued, named and downloadable.
-`storedText` additionally decodes, so it is embedded and searchable while never
-being rendered or annotated — a deliberate combination, not an oversight.
+Stored text types additionally decode, so they are embedded and searchable while
+never being rendered or annotated: a deliberate combination, not an oversight.
 
 ## Time-based media: what the model must absorb
 
-`audio/*` and `video/*` are stored binaries today — catalogued, downloadable,
-neither rendered nor annotated. Transcripts change that, and they are a harder
+`audio/*` and `video/*` are stored binaries: catalogued, downloadable, neither
+rendered nor annotated. Transcripts would change that, and they are a harder
 case than PDF, not an easier one. This section says which parts of the model
 carry over unchanged and which parts are genuinely load-bearing decisions, so
 that the first person to implement it does not discover them one at a time.
@@ -395,11 +390,9 @@ answer.
 4. **Time is continuous where offsets are discrete.** A word occupies a
    real-valued interval, silence maps to no text, and music maps to no text. A
    coverage rule for "is this word inside the selection" needs a temporal
-   analogue of `RUN_COVERAGE_THRESHOLD` — and that constant's history is the
-   warning worth heeding: it was set wrong twice, both times from a sweep that
-   looked conclusive on the corpus it had. Measure across genuinely different
-   material (fast speech, overlapping speakers, long pauses) before fixing a
-   value.
+   analogue of `RUN_COVERAGE_THRESHOLD`, measured across genuinely different
+   material (fast speech, overlapping speakers, long pauses) before a value is
+   fixed.
 
 5. **The whole-resource record comes under real size pressure.** A ten-page
    scan's map is small enough that decoding all of it to answer a question about
@@ -410,8 +403,8 @@ answer.
 
 ## Adding a media type
 
-Add the row; the drift-lock will tell you what else is required. Then decide
-each axis knowingly:
+Add the row to the registry; the build will tell you what else is required. Then
+decide each axis knowingly:
 
 - **`anchoring` is the irreversible one.** Every annotation created against the
   type inherits it, and selectors are fixed at birth. Choosing `spatial` commits
@@ -431,7 +424,7 @@ each axis knowingly:
 
 ## Related
 
-- **[../architecture/ANCHORING.md](../architecture/ANCHORING.md)** — the anchoring pipeline in depth.
+- **[ANCHORING.md](ANCHORING.md)** — the anchoring pipeline in depth.
 - **[../protocol/W3C-SELECTORS.md](../protocol/W3C-SELECTORS.md)** — the selector types, and which apply to which anchoring model.
-- **[../architecture/PROJECTION-PATTERN.md](../architecture/PROJECTION-PATTERN.md)** — the read-your-writes barrier step 8 relies on.
+- **[PROJECTION-PATTERN.md](PROJECTION-PATTERN.md)** — the read-your-writes barrier step 8 relies on.
 - **[../protocol/TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md)** — where the artifact crosses a process boundary.

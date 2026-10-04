@@ -62,7 +62,8 @@ The counting wrapper the heap gauge used cost nothing measurable; musl's malloc 
 ## Adding to the protocol
 
 Change the spec first — a gateway whose routes are not the spec's operations
-refuses to start. A new route is probed by the spec-derived cases as soon as the
+refuses to start. A handler is unauthenticated until it takes a credential
+(`Authenticated` or `MediaOrBearer`), and nothing protects a route by default. A new route is probed by the spec-derived cases as soon as the
 spec declares it — unauthenticated, with a bad credential, with a body that does
 not validate — and every reply it gives is checked against its declaration.
 Then write the cases no schema can state, each citing the text it checks, and

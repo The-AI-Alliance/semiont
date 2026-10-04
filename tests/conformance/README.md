@@ -22,11 +22,12 @@ and a proxy that stands between a client and the gateway.
 
 ## Running them
 
-All need a built gateway and `nats-server` (2.10 or later) on `PATH`; the
-dispatcher and SDK suites also need the packages built:
+All need a built gateway and `nats-server` (2.10 or later) on `PATH`. The
+dispatcher suite also needs a built dispatcher, and the SDK suite the Rust
+drivers and the packages built:
 
 ```bash
-cargo build --release -p semiont-gateway
+cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-conformance-drivers
 npm run build:packages
 cd tests/conformance
 npm ci
