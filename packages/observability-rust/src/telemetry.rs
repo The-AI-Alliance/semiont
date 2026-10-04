@@ -5,20 +5,18 @@
 //! an empty resource and an explicit endpoint, so no standard variable changes
 //! what a service's telemetry table promises. With neither an endpoint nor the
 //! console exporter, or with the SDK disabled, nothing is exported and no
-//! trace context travels. A service's own instruments are made on `meter()`.
+//! trace context travels. What it builds it registers as the process's
+//! (`opentelemetry::global`), which is what `semiont-telemetry`'s spans and
+//! the transport's count report to. A service's own instruments are made on
+//! `meter()`.
 
+use opentelemetry::KeyValue;
 use opentelemetry::metrics::{Counter, Meter, MeterProvider as _};
-use opentelemetry::propagation::TextMapPropagator;
-use opentelemetry::trace::{SpanKind, TraceContextExt, Tracer, TracerProvider as _};
-use opentelemetry::{Context, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::metrics::{PeriodicReader, SdkMeterProvider};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
-use opentelemetry_sdk::trace::{BatchSpanProcessor, SdkTracer, SdkTracerProvider};
-use semiont::transport::TraceCarrier;
-use std::collections::HashMap;
-use std::future::Future;
+use opentelemetry_sdk::trace::{BatchSpanProcessor, SdkTracerProvider};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -28,22 +26,15 @@ const DEFAULT_METRIC_EXPORT_INTERVAL: Duration = Duration::from_millis(30_000);
 struct Telemetry {
     tracer_provider: SdkTracerProvider,
     meter_provider: SdkMeterProvider,
-    tracer: SdkTracer,
     meter: Meter,
     abnormal_exits: Counter<u64>,
     emits: Counter<u64>,
-    sent: Counter<u64>,
 }
 
 static TELEMETRY: OnceLock<Option<Telemetry>> = OnceLock::new();
-static PROPAGATOR: OnceLock<TraceContextPropagator> = OnceLock::new();
 
 fn telemetry() -> Option<&'static Telemetry> {
     TELEMETRY.get().and_then(Option::as_ref)
-}
-
-fn propagator() -> &'static TraceContextPropagator {
-    PROPAGATOR.get_or_init(TraceContextPropagator::new)
 }
 
 /// Start exporting, as the environment says, as `service_name` (unless
@@ -54,7 +45,7 @@ pub fn initialize(service_name: &str, version: &str) -> Result<(), String> {
     if TELEMETRY.set(configured).is_err() {
         panic!("telemetry is initialized once");
     }
-    semiont::bus_log::set_trace_id_provider(active_trace_id);
+    semiont::bus_log::set_trace_id_provider(semiont_telemetry::active_trace_id);
     install_fatal_hook();
     if let Some(t) = telemetry() {
         // The process's telemetry is what any library in it reports to.
@@ -139,7 +130,6 @@ fn configure(default_service_name: &str, version: &str) -> Result<Option<Telemet
     }
     .build();
 
-    let tracer = tracer_provider.tracer("semiont");
     let meter = meter_provider.meter("semiont");
     Ok(Some(Telemetry {
         abnormal_exits: meter
@@ -150,11 +140,6 @@ fn configure(default_service_name: &str, version: &str) -> Result<Option<Telemet
             .u64_counter("semiont.bus.emit")
             .with_description("Emits accepted")
             .build(),
-        sent: meter
-            .u64_counter("semiont.bus.sent")
-            .with_description("Emits sent")
-            .build(),
-        tracer,
         meter,
         tracer_provider,
         meter_provider,
@@ -175,170 +160,13 @@ pub fn shutdown(within: Duration) {
     let _ = finished.recv_timeout(within);
 }
 
-// ── Trace context ────────────────────────────────────────────────────────
-
-/// The W3C trace context a caller sent (`traceparent`, `tracestate`), as the
-/// parent of what the gateway does for it; the current context when there is
-/// none, or when nothing is exported.
-pub fn continued(traceparent: Option<&str>, tracestate: Option<&str>) -> Context {
-    let Some(traceparent) = traceparent.filter(|_| telemetry().is_some()) else {
-        return Context::current();
-    };
-    let mut carrier = HashMap::from([("traceparent".to_owned(), traceparent.to_owned())]);
-    if let Some(state) = tracestate {
-        carrier.insert("tracestate".to_owned(), state.to_owned());
-    }
-    propagator().extract_with_context(&Context::current(), &carrier)
-}
-
-/// The active span's trace id, when a span is active: the bus log's `trace=`.
-fn active_trace_id() -> Option<String> {
-    let context = Context::current();
-    let span = context.span();
-    let span_context = span.span_context();
-    span_context
-        .is_valid()
-        .then(|| span_context.trace_id().to_string())
-}
-
-/// The active span's W3C trace context, when a span is active.
-pub fn active_trace() -> Option<(String, Option<String>)> {
-    telemetry()?;
-    let context = Context::current();
-    if !context.span().span_context().is_valid() {
-        return None;
-    }
-    let mut carrier: HashMap<String, String> = HashMap::new();
-    propagator().inject_context(&context, &mut carrier);
-    let traceparent = carrier.remove("traceparent")?;
-    Some((
-        traceparent,
-        carrier.remove("tracestate").filter(|s| !s.is_empty()),
-    ))
-}
-
-fn started(
-    name: String,
-    kind: SpanKind,
-    attributes: Vec<KeyValue>,
-    parent: &Context,
-) -> Option<Context> {
-    let t = telemetry()?;
-    let span = t
-        .tracer
-        .span_builder(name)
-        .with_kind(kind)
-        .with_attributes(attributes)
-        .start_with_context(&t.tracer, parent);
-    Some(parent.with_span(span))
-}
-
-/// Run `work` in a span, a child of `parent`.
-pub async fn in_span<T>(
-    name: String,
-    kind: SpanKind,
-    attributes: Vec<KeyValue>,
-    parent: Context,
-    work: impl Future<Output = T>,
-) -> T {
-    use opentelemetry::context::FutureExt;
-    match started(name, kind, attributes, &parent) {
-        None => work.with_context(parent).await,
-        Some(context) => {
-            let out = work.with_context(context.clone()).await;
-            context.span().end();
-            out
-        }
-    }
-}
-
-/// The same, for work that does not wait.
-pub fn in_span_now<T>(
-    name: String,
-    kind: SpanKind,
-    attributes: Vec<KeyValue>,
-    parent: &Context,
-    work: impl FnOnce() -> T,
-) -> T {
-    match started(name, kind, attributes, parent) {
-        None => {
-            let _attached = parent.clone().attach();
-            work()
-        }
-        Some(context) => {
-            let out = {
-                let _attached = context.clone().attach();
-                work()
-            };
-            context.span().end();
-            out
-        }
-    }
-}
-
-/// A frame's arrival: a `bus.recv` span continuing the trace the frame was
-/// sent under. Answers the trace that what is done for the frame continues:
-/// the span's own, or, when nothing is exported, the one the frame came with.
-pub fn received(
-    channel: &str,
-    scope: Option<&str>,
-    trace: Option<TraceCarrier>,
-) -> Option<TraceCarrier> {
-    let parent = continued(
-        trace.as_ref().map(|t| t.traceparent.as_str()),
-        trace.as_ref().and_then(|t| t.tracestate.as_deref()),
-    );
-    let span = in_span_now(
-        format!("bus.recv:{channel}"),
-        SpanKind::Consumer,
-        on_the_bus(channel, scope),
-        &parent,
-        active_trace,
-    );
-    match span {
-        Some((traceparent, tracestate)) => Some(TraceCarrier {
-            traceparent,
-            tracestate,
-        }),
-        None => trace,
-    }
-}
-
-/// Run `work` in the trace a frame arrived in: what is done for it, and what
-/// is sent in answer, belongs to the sender's trace.
-pub async fn continuing<T>(trace: Option<&TraceCarrier>, work: impl Future<Output = T>) -> T {
-    use opentelemetry::context::FutureExt;
-    let context = continued(
-        trace.map(|t| t.traceparent.as_str()),
-        trace.and_then(|t| t.tracestate.as_deref()),
-    );
-    work.with_context(context).await
-}
-
 // ── Metrics ──────────────────────────────────────────────────────────────
-
-/// A count's attributes: the channel, and the scope when there is one.
-fn on_the_bus(channel: &str, scope: Option<&str>) -> Vec<KeyValue> {
-    let mut attributes = vec![KeyValue::new("bus.channel", channel.to_owned())];
-    if let Some(scope) = scope {
-        attributes.push(KeyValue::new("bus.scope", scope.to_owned()));
-    }
-    attributes
-}
 
 /// `semiont.bus.emit`: an emit a gateway accepted.
 pub fn record_bus_emit(channel: &str, scope: Option<&str>) {
     let Some(t) = telemetry() else { return };
-    t.emits.add(1, &on_the_bus(channel, scope));
-}
-
-/// `semiont.bus.sent`: an emit a client sent. Its own name, apart from the
-/// gateway's count of what it accepted: one name for both counted every emit
-/// twice in a sum over services, and hid the emits that were sent and never
-/// accepted, which is the difference worth seeing.
-pub fn record_bus_sent(channel: &str, scope: Option<&str>) {
-    let Some(t) = telemetry() else { return };
-    t.sent.add(1, &on_the_bus(channel, scope));
+    t.emits
+        .add(1, &semiont_telemetry::on_the_bus(channel, scope));
 }
 
 /// The meter a service makes its own instruments on, when it exports.

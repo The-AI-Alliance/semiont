@@ -32,6 +32,7 @@ semiont.workspace = true
 semiont-core = { workspace = true, features = ["nats"] }
 semiont-http-transport.workspace = true
 semiont-observability.workspace = true
+semiont-telemetry.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["preserve_order"] }
 socket2.workspace = true

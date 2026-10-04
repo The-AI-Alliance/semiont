@@ -2169,6 +2169,7 @@ dependencies = [
  "semiont-dispatcher-jetstream",
  "semiont-http-transport",
  "semiont-observability",
+ "semiont-telemetry",
  "serde",
  "serde_json",
  "tikv-jemallocator",
@@ -2226,6 +2227,7 @@ dependencies = [
  "semiont-core",
  "semiont-http-transport",
  "semiont-observability",
+ "semiont-telemetry",
  "serde",
  "serde_json",
  "socket2",
@@ -2252,7 +2254,7 @@ dependencies = [
  "rustls",
  "semiont",
  "semiont-http-transport",
- "semiont-observability",
+ "semiont-telemetry",
  "serde",
  "serde_json",
  "tokio",
@@ -2270,8 +2272,20 @@ dependencies = [
  "opentelemetry-stdout",
  "opentelemetry_sdk",
  "semiont",
+ "semiont-telemetry",
  "serde_json",
  "tikv-jemalloc-ctl",
+ "tokio",
+]
+
+[[package]]
+name = "semiont-telemetry"
+version = "0.0.0"
+dependencies = [
+ "opentelemetry",
+ "opentelemetry_sdk",
+ "semiont",
+ "serde_json",
  "tokio",
 ]
 

@@ -14,18 +14,9 @@ name: Gateway Crate Advisories
 on:
   pull_request:
     paths:
-      - Cargo.toml
+      - '**/Cargo.toml'
       - Cargo.lock
       - deny.toml
-      - apps/gateway/Cargo.toml
-      - apps/dispatcher/Cargo.toml
-      - apps/dispatcher/handlers/Cargo.toml
-      - apps/dispatcher/jetstream/Cargo.toml
-      - packages/core-rust/Cargo.toml
-      - packages/http-transport-rust/Cargo.toml
-      - packages/http-transport-rust/conformance/Cargo.toml
-      - packages/observability-rust/Cargo.toml
-      - packages/sdk-rust/Cargo.toml
       - .github/workflows/gateway-advisories.yml
   schedule:
     - cron: '0 6 * * *'

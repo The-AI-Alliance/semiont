@@ -12,8 +12,6 @@
 //! `bus.recv` span in the trace it was sent under.
 
 use crate::actor::{self, Command};
-use opentelemetry::KeyValue;
-use opentelemetry::trace::SpanKind;
 use semiont::bus_log::bus_log;
 use semiont::channels::{BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS};
 use semiont::errors::{BusRequestError, TransportError, TransportErrorCode};
@@ -22,14 +20,13 @@ use semiont::retry::{self, RetryFacts, RetryPolicy, retry_after, retry_with_back
 use semiont::timing;
 use semiont::transport::{
     BoxFuture, ConnectionState, Envelope, Events, Failures, FrameHub, Frames, GatewayOperations,
-    PendingReply, ReplyRouter, ResourceHold, STREAM_BACKLOG, Transport, unsubscribed,
+    PendingReply, ReplyRouter, ResourceHold, STREAM_BACKLOG, TraceCarrier, Transport, unsubscribed,
 };
 use semiont::types::ResourceId;
 use semiont::types::{
     BusEmitAccepted, BusEmitRequest, HealthResponse, MediaTokenRequest, MediaTokenResponse,
     ProtectedResourceMetadata, StatusResponse, UserResponse,
 };
-use semiont_observability::telemetry;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -249,7 +246,11 @@ impl Shared {
             if authenticated && let Some(token) = &token {
                 request = request.bearer_auth(token);
             }
-            if let Some((traceparent, tracestate)) = telemetry::active_trace() {
+            if let Some(TraceCarrier {
+                traceparent,
+                tracestate,
+            }) = semiont_telemetry::active_trace()
+            {
                 request = request.header("traceparent", traceparent);
                 if let Some(tracestate) = tracestate {
                     request = request.header("tracestate", tracestate);
@@ -388,7 +389,7 @@ impl Shared {
     /// refusal's `Retry-After`. Any other refusal is final.
     async fn emit(&self, body: &BusEmitRequest) -> Result<Option<u64>, TransportError> {
         let url = format!("{}/bus/emit", self.base_url);
-        let trace = telemetry::active_trace();
+        let trace = semiont_telemetry::active_trace();
         let attempt = || async {
             let mut request = self
                 .http
@@ -396,7 +397,11 @@ impl Shared {
                 .bearer_auth(self.current_token().unwrap_or_default())
                 .timeout(timing::EMIT_TIMEOUT)
                 .json(body);
-            if let Some((traceparent, tracestate)) = &trace {
+            if let Some(TraceCarrier {
+                traceparent,
+                tracestate,
+            }) = &trace
+            {
                 request = request.header("traceparent", traceparent);
                 if let Some(tracestate) = tracestate {
                     request = request.header("tracestate", tracestate);
@@ -522,11 +527,6 @@ impl Transport for HttpTransport {
                 scope.as_deref(),
                 envelope.correlation_id.as_deref(),
             );
-            telemetry::record_bus_sent(channel, scope.as_deref());
-            let mut attributes = vec![KeyValue::new("bus.channel", channel.to_owned())];
-            if let Some(scope) = &scope {
-                attributes.push(KeyValue::new("bus.scope", scope.to_string()));
-            }
             let body = BusEmitRequest {
                 channel: channel.to_owned(),
                 payload,
@@ -534,14 +534,7 @@ impl Transport for HttpTransport {
                 client_id: Some(shared.client_id.clone()),
                 correlation_id: envelope.correlation_id,
             };
-            telemetry::in_span(
-                format!("bus.emit:{channel}"),
-                SpanKind::Producer,
-                attributes,
-                opentelemetry::Context::current(),
-                shared.emit(&body),
-            )
-            .await
+            semiont_telemetry::bus_emit(channel, body.scope.as_deref(), shared.emit(&body)).await
         })
     }
 

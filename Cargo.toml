@@ -14,6 +14,7 @@ members = [
     "packages/http-transport-rust/conformance",
     "packages/observability-rust",
     "packages/sdk-rust",
+    "packages/telemetry-rust",
 ]
 exclude = ["apps/desktop/src-tauri"]
 
@@ -27,6 +28,7 @@ semiont-dispatcher-jetstream = { path = "apps/dispatcher/jetstream" }
 semiont-core = { path = "packages/core-rust" }
 semiont-http-transport = { path = "packages/http-transport-rust" }
 semiont-observability = { path = "packages/observability-rust" }
+semiont-telemetry = { path = "packages/telemetry-rust" }
 async-nats = { version = "0.50.0", default-features = false }
 axum = { version = "0.8.9", default-features = false }
 base64 = "0.23.1"

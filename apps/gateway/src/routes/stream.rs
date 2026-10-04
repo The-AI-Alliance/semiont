@@ -26,10 +26,10 @@ use bytes::Bytes;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::bus_log::bus_log;
+use semiont::transport::TraceCarrier;
 use semiont::types::{BusSubscribeRequest, LimitRefusalCode};
 use semiont_core::spec::spec;
 use semiont_observability::logging;
-use semiont_observability::telemetry;
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::pin::Pin;
@@ -365,14 +365,19 @@ impl Connection {
         };
         let parent = match &trace {
             Some((traceparent, tracestate)) => {
-                telemetry::continued(Some(traceparent), tracestate.as_deref())
+                semiont_telemetry::continued(Some(traceparent), tracestate.as_deref())
             }
             None => opentelemetry::Context::current(),
         };
         let write = || {
             let mut payload = (*payload).clone();
-            if let (Value::Object(fields), Some((traceparent, tracestate))) =
-                (&mut payload, telemetry::active_trace())
+            if let (
+                Value::Object(fields),
+                Some(TraceCarrier {
+                    traceparent,
+                    tracestate,
+                }),
+            ) = (&mut payload, semiont_telemetry::active_trace())
             {
                 let mut carrier = Map::new();
                 carrier.insert("traceparent".to_owned(), json!(traceparent));
@@ -408,7 +413,7 @@ impl Connection {
                 if let Some(scope) = &scope {
                     attributes.push(KeyValue::new("bus.scope", scope.clone()));
                 }
-                telemetry::in_span_now(
+                semiont_telemetry::in_span_now(
                     format!("sse.deliver:{channel}"),
                     SpanKind::Producer,
                     attributes,

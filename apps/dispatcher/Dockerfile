@@ -44,6 +44,8 @@ COPY packages/observability-rust/Cargo.toml packages/observability-rust/
 COPY packages/observability-rust/src packages/observability-rust/src
 COPY packages/sdk-rust/Cargo.toml packages/sdk-rust/build.rs packages/sdk-rust/
 COPY packages/sdk-rust/src packages/sdk-rust/src
+COPY packages/telemetry-rust/Cargo.toml packages/telemetry-rust/
+COPY packages/telemetry-rust/src packages/telemetry-rust/src
 # The builder stage is the same in each Rust service's Dockerfile
 # (lint:rust-images): it builds every service's binary, so an image built
 # after, or beside, another reuses its stage instead of compiling the

@@ -12,10 +12,10 @@ use axum::body::Body;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
-use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::bus_log::bus_log;
 use semiont::identity;
+use semiont::transport::TraceCarrier;
 use semiont::types::{BusEmitAccepted, BusEmitRequest, LimitRefusalCode};
 use semiont_core::spec::spec;
 use semiont_observability::logging;
@@ -39,7 +39,11 @@ fn bus(fields: Value) -> Value {
 /// trace the publishing runs in, so every plane delivers both alike.
 pub fn envelope(correlation_id: Option<&str>) -> Option<Meta> {
     let mut meta = Meta::new();
-    if let Some((traceparent, tracestate)) = telemetry::active_trace() {
+    if let Some(TraceCarrier {
+        traceparent,
+        tracestate,
+    }) = semiont_telemetry::active_trace()
+    {
         meta.insert("traceparent".to_owned(), traceparent);
         if let Some(state) = tracestate {
             meta.insert("tracestate".to_owned(), state);
@@ -172,12 +176,9 @@ pub async fn emit(
     }
 
     let get = |name: &str| headers.get(name).and_then(|v| v.to_str().ok());
-    let parent = telemetry::continued(get("traceparent"), get("tracestate"));
-    let mut attributes = vec![KeyValue::new("bus.channel", channel.clone())];
-    if let Some(scope) = &scope {
-        attributes.push(KeyValue::new("bus.scope", scope.to_string()));
-    }
-    let dispatched = telemetry::in_span(format!("bus.dispatch:{channel}"), SpanKind::Server, attributes, parent, async {
+    let parent = semiont_telemetry::continued(get("traceparent"), get("tracestate"));
+    let attributes = semiont_telemetry::on_the_bus(&channel, scope.as_deref());
+    let dispatched = semiont_telemetry::in_span(format!("bus.dispatch:{channel}"), SpanKind::Server, attributes, parent, async {
         let payload = Value::Object(payload);
         let echo = payload.clone();
         bus_log("EMIT", &channel, &payload, scope.as_deref(), correlation_id.as_deref());

@@ -214,7 +214,7 @@ async fn serve(
             // In the trace the frame arrived in, so the replies are too.
             tokio::spawn(async move {
                 let trace = frame.trace.clone();
-                telemetry::continuing(trace.as_ref(), async {
+                semiont_telemetry::continuing(trace.as_ref(), async {
                     let command = BusFrame {
                         channel: frame.channel,
                         correlation_id: frame.correlation_id,

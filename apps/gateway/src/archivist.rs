@@ -15,7 +15,6 @@ use semiont::types::ResourceId;
 use semiont_core::spec::{Spec, spec};
 use semiont_http_transport::service_account::{Credential, ServiceToken};
 use semiont_observability::logging;
-use semiont_observability::telemetry;
 use serde_json::{Value, json};
 
 /// The Archivist operations the gateway calls. The embedded Archivist
@@ -67,7 +66,7 @@ fn path(template: &str, value: &str) -> String {
 }
 
 async fn in_client_span<T>(operation: &str, work: impl std::future::Future<Output = T>) -> T {
-    telemetry::in_span(
+    semiont_telemetry::in_span(
         format!("archivist.{operation}"),
         SpanKind::Client,
         vec![KeyValue::new("peer.service", "archivist")],

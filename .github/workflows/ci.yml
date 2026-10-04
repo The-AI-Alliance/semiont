@@ -86,11 +86,12 @@ jobs:
           cargo test --workspace --locked
 
       # The broker is reached only by a crate that asks for semiont-core's
-      # `nats` feature: the SDK, its HTTP transport, observability,
-      # semiont-core itself and the dispatcher's handlers carry no NATS client.
+      # `nats` feature: the SDK, its telemetry, its HTTP transport,
+      # observability, semiont-core itself and the dispatcher's handlers carry
+      # no NATS client.
       - name: Check which crates can reach the broker
         run: |
-          for crate in semiont semiont-http-transport semiont-observability semiont-core semiont-dispatcher-handlers; do
+          for crate in semiont semiont-telemetry semiont-http-transport semiont-observability semiont-core semiont-dispatcher-handlers; do
             if cargo tree --locked -p "$crate" -e normal | grep -q '^.*async-nats '; then
               echo "✗ $crate reaches async-nats; only a crate that enables semiont-core's nats feature may"
               exit 1
@@ -102,18 +103,25 @@ jobs:
       - name: Check the SDK links no HTTP client and no telemetry
         run: |
           if cargo tree --locked -p semiont -e normal | grep -E '(^|[^a-z-])(reqwest|hyper|opentelemetry[a-z_-]*) v'; then
-            echo "✗ semiont links an HTTP client or OpenTelemetry; those belong to semiont-http-transport and semiont-observability"
+            echo "✗ semiont links an HTTP client or OpenTelemetry; those belong to semiont-http-transport and semiont-telemetry"
             exit 1
           fi
 
       # A transport reports through semiont-telemetry's functions, and what
       # exports is the application's to link: no exporter, no OpenTelemetry
-      # SDK and no allocator reading reaches a client through its transport,
-      # and the transport names no OpenTelemetry of its own.
+      # SDK and no allocator reading reaches a client through its transport
+      # or through semiont-telemetry, which is no transport either. The
+      # transport names no OpenTelemetry of its own.
       - name: Check the HTTP transport links no exporter and names no OpenTelemetry
         run: |
-          if cargo tree --locked -p semiont-http-transport -e normal --prefix none | grep -E '^(semiont-observability|opentelemetry_sdk|opentelemetry-otlp|opentelemetry-stdout|tikv-jemalloc[a-z-]*) v'; then
-            echo "✗ semiont-http-transport links an exporter, the OpenTelemetry SDK or jemalloc; those are a service's, in semiont-observability"
+          for crate in semiont-http-transport semiont-telemetry; do
+            if cargo tree --locked -p "$crate" -e normal --prefix none | grep -E '^(semiont-observability|opentelemetry_sdk|opentelemetry-otlp|opentelemetry-stdout|tikv-jemalloc[a-z-]*) v'; then
+              echo "✗ $crate links an exporter, the OpenTelemetry SDK or jemalloc; those are a service's, in semiont-observability"
+              exit 1
+            fi
+          done
+          if cargo tree --locked -p semiont-telemetry -e normal --prefix none | grep -E '^(reqwest|hyper) v'; then
+            echo "✗ semiont-telemetry links an HTTP client; it is every transport's, and is none"
             exit 1
           fi
           if cargo tree --locked -p semiont-http-transport -e normal --depth 1 --prefix none | grep -E '^opentelemetry[a-z_-]* v'; then
