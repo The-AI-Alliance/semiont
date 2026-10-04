@@ -8,7 +8,7 @@ Frame is the schema-layer flow — it operates on the conceptual vocabulary the 
 |------|-------------|-------------|
 | **[Browse](BROWSE.md)** | Reader, Analyst, Marker Agent | Route attention to panels, annotations, resources |
 | **[Bind](BIND.md)** | Analyst, Linker Agent, Matcher | Resolve references to concrete resources |
-| **[Yield](YIELD.md)** | Author, Generator Agent | Produce new resources in the knowledge base |
+| **[Yield](YIELD.md)** | Author, Generator Agent, Feeder | Produce new resources in the knowledge base |
 | **[Mark](MARK.md)** | Analyst, Author, Marker Agent | Create W3C annotations on resources |
 | **[Frame](FRAME.md)** | Curator, Schema Agent, Admin | Define and evolve the KB's schema vocabulary |
 | **[Gather](GATHER.md)** | Generator Agent, Linker Agent, Gatherer | Assemble surrounding context for downstream use |

@@ -12,7 +12,7 @@ Start with the actor model, then the knowledge system. The rest can be read in a
 
 | Doc | What it covers |
 |---|---|
-| **[ACTOR-MODEL.md](ACTOR-MODEL.md)** | The actor topology: the six intelligent actors (Reader, Analyst, Author, Marker, Generator, Linker), the knowledge base they act on, how content enters, and why human ↔ AI peer collaboration falls out of the design. *Diagram: actor topology.* |
+| **[ACTOR-MODEL.md](ACTOR-MODEL.md)** | The actor topology: the actors (Reader, Analyst, Author, Marker, Generator, Linker, Feeder), the knowledge base they act on, how content enters, and why human ↔ AI peer collaboration falls out of the design. *Diagram: actor topology.* |
 | **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** | The seven reactive KB actors — five access actors (Stower, Browser, Gatherer, Matcher, CloneTokenManager) and two projection pipelines (Weaver, Smelter) — that mediate every read and write to the knowledge base, plus the stores (event log, materialized views, content, graph, vectors, anchored text). *Diagram: knowledge system.* |
 | **[HUMAN-UI.md](HUMAN-UI.md)** | The Semiont Browser SPA — Vite + React, the state-unit split, the SDK client, the multi-KB session model. How human actors connect to the bus. *Diagram: SPA architecture.* |
 | **[FILESYSTEM.md](FILESYSTEM.md)** | Where a knowledge base lives on disk: the working tree, the event log under `.semiont/events/`, what is derived from them and kept outside the tree, and which service rebuilds each derived store. |

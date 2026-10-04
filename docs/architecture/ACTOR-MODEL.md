@@ -14,6 +14,7 @@ graph TD
     MARKER["AI Marker"] -->|"mark, browse, beckon"| BUS
     GENERATOR["AI Generator"] -->|"yield, gather"| BUS
     LINKER["AI Linker"] -->|"bind, gather"| BUS
+    FEEDER["Feeder"] -->|"frame, yield"| BUS
 
     BUS["E V E N T &ensp; B U S"]
 
@@ -50,7 +51,7 @@ graph TD
     classDef worker fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
     class READER,ANALYST,AUTHOR human
-    class MARKER,GENERATOR,LINKER ai
+    class MARKER,GENERATOR,LINKER,FEEDER ai
     class BUS bus
     class KB kb
     class STOWER,GATHERER,MATCHER,BROWSER,CTM,WEAVER,SMELTER worker
@@ -73,6 +74,7 @@ The event bus is the only coupling between actors. An actor does not know who el
 | 🤖 | **Marker Agent** | mark, browse, beckon | Scans documents and proposes annotations — highlights, assessments, comments, tags, and entity references. Produces the same W3C annotations that human analysts do. |
 | 🤖 | **Generator Agent** | yield, gather | Assembles context around a reference annotation (gather), then synthesizes a new resource from it (yield). Creates content that the knowledge base records. |
 | 🤖 | **Linker Agent** | bind, gather | Resolves unresolved references by searching for matching resources and linking them. Performs entity resolution and coreference — the binding of a mention to its referent. |
+| 🤖 | **Feeder** | frame, yield | Finds content outside the knowledge base and ingests it: declares the vocabulary it needs, then yields one resource per source. A process built on the SDK, such as a script over a corpus or a job that follows a feed. |
 
 AI actors connect to the event bus over the same `/bus/emit` + `/bus/subscribe` endpoints human actors use. Each signs in at the knowledge base's identity provider: a person through a browser, a script by the device grant, a service with its own account. The knowledge base describes a human's act and an AI's act the same way: every event carries the verified DID of its emitter, and an annotation's `creator`, `generator` and `wasAttributedTo` are derived from that by the knowledge base — never asserted by whoever wrote it.
 
@@ -83,7 +85,7 @@ In a running stack the AI actors are jobs: the dispatcher queues them and the wo
 A new resource enters as a **yield**, emitted by an actor like any other event, and the Stower records it. There is no separate intake path:
 
 - **A person** uploads a file, or writes one, on the Browser's compose page.
-- **A script or the launcher** uploads one through the SDK (`semiont yield --upload`).
+- **A Feeder** finds content elsewhere and uploads it through the SDK. It is a client like any other, with no path of its own. The launcher's `semiont yield --upload` is the smallest one; the [ingest skill](../builder/skills/semiont-ingest/SKILL.md) and the Developer Guide's [ingest recipe](../builder/DEVELOPER-GUIDE.md#5-ingest-a-document) show how to write one.
 - **A Generator Agent** writes one from gathered context.
 
 ## Flows
