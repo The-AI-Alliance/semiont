@@ -103,6 +103,14 @@ without configuring a collector.
 For local dev without a collector, set `OTEL_CONSOLE_EXPORTER=true`
 to print spans + metrics to stderr.
 
+### A Rust client
+
+An application built on the Rust SDK installs its own OpenTelemetry (a tracer
+provider, a meter provider and the W3C propagator, registered as the
+process's) and the transport reports to it:
+[`semiont-telemetry`](../../../packages/telemetry-rust/README.md) says how.
+With none installed, nothing is recorded and no trace context is sent.
+
 ### Browser (SPA)
 
 Build-time env, read by Vite. Set when building the SPA:

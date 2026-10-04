@@ -1,16 +1,18 @@
 # semiont-observability (Rust)
 
-What a Semiont process writes about itself.
+What a Semiont service writes about itself, and what exports it.
 
 - `telemetry` — spans and metrics over OTLP/HTTP, configured from the
-  environment the process reads itself; the two counts of the bus, the emits a
-  gateway accepted (`semiont.bus.emit`) and the emits a client sent
-  (`semiont.bus.sent`); a frame's `bus.recv` span, continuing the trace it was
-  sent under, and the work done on a frame run under that span's trace; and the readings it takes of itself — start time, restarts under
-  a supervisor, runtime lag, memory — and of a fatal panic. It reads the
-  active trace for the bus log (`semiont::bus_log`).
+  environment the process reads itself, and registered as the process's
+  OpenTelemetry: what [`semiont-telemetry`](../telemetry-rust/README.md)'s
+  spans, the transport's among them, report to. With it, the count of the
+  emits a gateway accepted (`semiont.bus.emit`); the meter a service makes
+  its own instruments on; the readings a process takes of itself — start
+  time, restarts under a supervisor, runtime lag, memory — and of a fatal
+  panic. It gives the bus log its trace (`semiont::bus_log`).
 - `logging` — log lines on stdout, at the level and in the format a
   configuration document names.
 - `alloc` — the allocator's own count of memory in use.
 
-Not yet published.
+A service's: no client links it, which CI holds of the transport, and it is
+not published.

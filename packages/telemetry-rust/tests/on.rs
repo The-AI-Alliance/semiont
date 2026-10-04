@@ -11,6 +11,7 @@ use opentelemetry_sdk::metrics::data::{AggregatedMetrics, MetricData};
 use opentelemetry_sdk::metrics::{InMemoryMetricExporter, SdkMeterProvider};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::{InMemorySpanExporter, SdkTracerProvider, SpanData};
+use semiont::testing::examples::assert_readme_shows;
 use semiont::transport::TraceCarrier;
 use semiont_telemetry::{
     active_trace, active_trace_id, bus_emit, bus_recv, content_get, content_get_graph, content_put,
@@ -79,13 +80,18 @@ async fn every_row_of_the_sdk_telemetry_table_is_what_a_function_here_records() 
     let meter_provider = SdkMeterProvider::builder()
         .with_periodic_exporter(metrics.clone())
         .build();
+    let tracer_provider = SdkTracerProvider::builder()
+        .with_simple_exporter(spans.clone())
+        .build();
+    // <readme:install>
+    // A tracer provider, a meter provider and the W3C propagator, as the
+    // process's: what this crate, and so the transport, reports to.
     global::set_text_map_propagator(TraceContextPropagator::new());
-    global::set_tracer_provider(
-        SdkTracerProvider::builder()
-            .with_simple_exporter(spans.clone())
-            .build(),
-    );
+    global::set_tracer_provider(tracer_provider);
     global::set_meter_provider(meter_provider.clone());
+    // The bus log's `trace=` field is the active span's trace.
+    semiont::bus_log::set_trace_id_provider(semiont_telemetry::active_trace_id);
+    // </readme:install>
 
     // Each function, with and without what its row lists as conditional.
     let leaving = bus_emit("beckon:sparkle", None, async { active_trace() })
@@ -102,7 +108,12 @@ async fn every_row_of_the_sdk_telemetry_table_is_what_a_function_here_records() 
     )
     .expect("a frame's trace is handed on");
     bus_recv("mark:added", Some(SCOPE), None);
-    content_put("image/png", 256, async {}).await;
+    let upload = async { "res-2" };
+    // <readme:row>
+    // The span's name, its kind and its attributes are the table's.
+    let created = content_put("image/png", 256, upload).await;
+    // </readme:row>
+    assert_eq!(created, "res-2");
     content_get(SCOPE, false, async {}).await;
     content_get(SCOPE, true, async {}).await;
     content_get_graph(SCOPE, async {}).await;
@@ -223,4 +234,10 @@ async fn every_row_of_the_sdk_telemetry_table_is_what_a_function_here_records() 
         active_trace_id,
     );
     assert_eq!(within, Some(SENDERS_TRACE.to_owned()));
+}
+
+#[test]
+fn the_readmes_examples_are_this_files() {
+    assert_readme_shows(include_str!("../README.md"), &[include_str!("on.rs")])
+        .expect("the README shows what runs here");
 }
