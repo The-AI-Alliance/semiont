@@ -1,10 +1,17 @@
 # semiont-http-transport (Rust)
 
+[![crates.io](https://img.shields.io/crates/v/semiont-http-transport.svg)](https://crates.io/crates/semiont-http-transport)
+[![docs.rs](https://img.shields.io/docsrs/semiont-http-transport)](https://docs.rs/semiont-http-transport)
+[![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
+[![License](https://img.shields.io/crates/l/semiont-http-transport.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
+
 A knowledge base over its gateway's HTTP surface
 ([TRANSPORT-HTTP.md](../../docs/protocol/TRANSPORT-HTTP.md)), as the SDK's
 `Transport`, `ContentTransport` and `GatewayOperations`
 (`semiont::transport`), to the contract every SDK's transport is held to
 ([TRANSPORT-CONTRACT.md](../../docs/protocol/TRANSPORT-CONTRACT.md)).
+
+The reference for every item is on [docs.rs](https://docs.rs/semiont-http-transport).
 
 - `transport` — `HttpTransport`: `POST /bus/emit` for what it sends, and the
   gateway's plain operations. A request that is neither the stream nor an
@@ -214,3 +221,7 @@ fails a test. [tests/telemetry_on.rs](tests/telemetry_on.rs) and
 [tests/telemetry_off.rs](tests/telemetry_off.rs) hold the trace an emit
 carries and a frame hands on, in a process that installed an OpenTelemetry
 of its own after the client opened, and in one that installed none.
+
+## License
+
+Apache-2.0. See [LICENSE](../../LICENSE).

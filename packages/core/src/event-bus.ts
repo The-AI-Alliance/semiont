@@ -1,7 +1,8 @@
 /**
  * RxJS-based Event Bus
  *
- * Framework-agnostic event bus providing direct access to typed RxJS Subjects.
+ * Framework-agnostic typed event bus: a channel is written with `emit` and
+ * read as an RxJS Observable through `on` (payloads) or `frames` (envelopes).
  *
  * Can be used in Node.js, browser, workers, CLI - anywhere RxJS runs.
  */
@@ -87,29 +88,6 @@ export class EventBus {
   }
 
   /**
-   * Get the RxJS Subject for an event
-   *
-   * Returns a typed Subject that can be used with all RxJS operators.
-   * Subjects are created lazily on first access.
-   *
-   * @param eventName - The event name
-   * @returns The RxJS Subject for this event
-   *
-   * @example
-   * ```typescript
-   * // Emit
-   * eventBus.emit('beckon:hover', { annotationId: 'ann-1' });
-   *
-   * // Subscribe
-   * const sub = eventBus.on('beckon:hover').subscribe(handleHover);
-   *
-   * // With operators
-   * eventBus.on('beckon:hover')
-   *   .pipe(debounceTime(100), distinctUntilChanged())
-   *   .subscribe(handleHover);
-   * ```
-   */
-  /**
    * The one write path. An envelope is optional per FIELD, never per frame:
    * an announcement simply carries no correlationId.
    */
@@ -192,9 +170,10 @@ export class EventBus {
 
   /**
    * Channel names with at least one live observer right now. Introspection
-   * for composition-parity gates: `get()` creates subjects lazily, so mere
-   * access does not count — only real subscriptions do. Scoped channels
-   * appear under their namespaced key (`<scope>:<channel>`).
+   * for composition-parity gates: `on()` and `frames()` create a channel's
+   * subject lazily, so mere access does not count — only real subscriptions
+   * do. A scoped subscription reports its channel's bare name: scope is a
+   * field on the frame, not part of a key.
    */
   observedChannels(): string[] {
     const out: string[] = [];
@@ -234,7 +213,7 @@ export class EventBus {
    * Create a resource-scoped event bus
    *
    * Events emitted or subscribed through the scoped bus are isolated to that resource.
-   * Internally, events are namespaced but the API remains identical to the parent bus.
+   * The scope rides each frame's envelope; the three verbs are the parent bus's.
    *
    * @param resourceId - Resource identifier to scope events to
    * @returns A scoped event bus for this resource
@@ -246,7 +225,8 @@ export class EventBus {
    * const resource2 = eventBus.scope(resourceId('resource-2'));
    *
    * // These are isolated - only resource1 subscribers will fire
-   * resource1.get('detection:progress').next({ status: 'started' });
+   * resource2.on('beckon:hover').subscribe(handleHover); // never fires
+   * resource1.emit('beckon:hover', { annotationId: 'ann-1' });
    * ```
    */
   scope(resourceId: ResourceId): ScopedEventBus {
@@ -258,7 +238,8 @@ export class EventBus {
  * Resource-scoped event bus
  *
  * Provides isolated event streams per resource while maintaining the same API
- * as the parent EventBus. Events are internally namespaced by resourceId.
+ * as the parent EventBus. Every frame it emits carries the resourceId as its
+ * `scope`, and it reads only the frames that do.
  */
 export class ScopedEventBus {
   constructor(
@@ -266,15 +247,6 @@ export class ScopedEventBus {
     private resourceId: ResourceId
   ) {}
 
-  /**
-   * Get the RxJS Subject for a scoped event
-   *
-   * Returns the same type as the parent bus, but events are isolated to this scope.
-   * Internally uses namespaced keys but preserves type safety.
-   *
-   * @param event - The event name
-   * @returns The RxJS Subject for this scoped event
-   */
   /** Emit into this scope. The scope is a FIELD on the frame, not a prefix
    *  on the channel name — one channel, one stream, and a reader can see the
    *  scope rather than having to parse it out of a key. */

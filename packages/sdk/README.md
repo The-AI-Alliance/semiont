@@ -12,6 +12,10 @@ AI agent that gathers context and generates grounded answers, a daemon that inge
 one-shot query script: all reach the same verb namespaces, the same collaboration primitives,
 the same lifecycle observables. Humans and AI agents are peers — the SDK does not distinguish.
 
+The [Rust SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-rust) ([`semiont`](https://crates.io/crates/semiont)
+on crates.io) is its full peer: the same namespaces, methods and behaviour, held to the same
+[conformance suite](https://github.com/The-AI-Alliance/semiont/tree/main/tests/conformance/sdk).
+
 > ## 📖 New here? Start with the [Introduction](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/INTRODUCTION.md)
 >
 > The orientation chapter: what Semiont is, the domain vocabulary, and the three ideas the
@@ -118,7 +122,7 @@ the device grant: it prints a URL, the person approves in any browser, and the s
 back live. `SemiontSession` owns the token lifecycle (proactive refresh at the issuer, storage,
 disposal); `kb.id` is the storage key, so distinct scripts use distinct ids. There is no
 client-level signIn: the issuer decides how long an access token lives and it is short — minutes,
-not hours — so a construction without refresh was a trap rather than a shortcut.
+not hours — so anything that outlives one token needs a session to renew it.
 
 ```ts
 import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
@@ -133,9 +137,10 @@ const { resources } = await session.client.browse.resources({ limit: 10 }).fresh
 await session.dispose();
 ```
 
-Already hold tokens? `SemiontSession.fromIssuedSession(...)` takes the access and refresh pair;
-`SemiontClient.fromHttp({ baseUrl, token })` / `SemiontSession.fromHttp(...)` take a bare access
-token. In-process (CLI, tests, embedded) —
+Already hold tokens? `SemiontSession.fromIssuedSession(...)` takes the access and refresh pair.
+`SemiontSession.fromHttp(...)` takes a bare access token and the `refresh` that renews it.
+`SemiontClient.fromHttp({ baseUrl, token })` takes a bare token and never renews it, which suits
+a one-shot script that finishes inside one token's life. In-process (CLI, tests, embedded) —
 same surface, no network:
 
 ```ts
@@ -161,7 +166,7 @@ The full map — every doc's role, and a reading order by audience — is
 - [`docs/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/Usage.md) — per-namespace API tour with concrete examples, plus SSE and error handling.
 - [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md) — the Promise-shape-over-Observable design.
 - [`docs/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/STATE-UNITS.md) — the state-unit pattern and its enforced axioms.
-- [`docs/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/CACHE-SEMANTICS.md) — the cache primitive's behavioral contract (B1–B16).
+- [`docs/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/CACHE-SEMANTICS.md) — the cache primitive's numbered behavioral contract.
 - [`docs/protocol/TRANSPORT-CONTRACT.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-CONTRACT.md) — what every `ITransport` must honor; HTTP specifics in [TRANSPORT-HTTP.md](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-HTTP.md). New transports implement the `@semiont/core` interfaces directly — no inheritance from `HttpTransport`.
 
 ## License
@@ -170,6 +175,7 @@ Apache-2.0 — see [LICENSE](https://github.com/The-AI-Alliance/semiont/blob/mai
 
 ## Related packages
 
+- [`semiont`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-rust) — the Rust SDK, a full peer of this one, on [crates.io](https://crates.io/crates/semiont)
 - [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core) — domain types, `ITransport` contract, `busRequest`, OpenAPI-derived schemas
 - [`@semiont/http-transport`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/http-transport) — HTTP transport (`HttpTransport`, `HttpContentTransport`)
 - [`@semiont/make-meaning`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/make-meaning) — in-process transport (`LocalTransport`) and the actor model behind it

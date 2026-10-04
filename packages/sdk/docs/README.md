@@ -11,7 +11,7 @@ a doc's quadrant tells you what belongs in it — and what to reject in review.
 | [Usage.md](./Usage.md) | **Reference** | The per-namespace surface: every method family, options, return shapes, error vocabulary, bus debugging. |
 | [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) | **Explanation** | Why the surface is shaped this way: RxJS substrate, the four return shapes, thenable streams vs `.fresh()` live queries, the three paths to the bus. |
 | [STATE-UNITS.md](./STATE-UNITS.md) | **Explanation + conventions** | The state-unit pattern (factory closure, RxJS surface, dispose lifecycle, session-typed factories) and the enforced axioms behind it. |
-| [CACHE-SEMANTICS.md](./CACHE-SEMANTICS.md) | **Contract** | The live-query cache's numbered behavioral contract (B1–B18): `CacheState` emissions, SWR, bounded retry, failure-as-emission, disposal, persistence. Tests cite these numbers. |
+| [CACHE-SEMANTICS.md](./CACHE-SEMANTICS.md) | **Contract** | The live-query cache's numbered behavioral contract: `CacheState` emissions, SWR, bounded retry, failure-as-emission, disposal, persistence. Tests cite these numbers. |
 
 Rules of placement:
 

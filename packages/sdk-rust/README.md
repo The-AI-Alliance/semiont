@@ -1,9 +1,77 @@
 # semiont (Rust)
 
-Semiont's Rust SDK: a client of a knowledge base, as
-[`specs/`](../../specs/src/openapi.json) states it, over any transport. Over
-a gateway, the transport, the sessions and signing in are
-[`semiont-http-transport`](../http-transport-rust/README.md)'s.
+[![crates.io](https://img.shields.io/crates/v/semiont.svg)](https://crates.io/crates/semiont)
+[![docs.rs](https://img.shields.io/docsrs/semiont)](https://docs.rs/semiont)
+[![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
+[![License](https://img.shields.io/crates/l/semiont.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
+
+The Rust SDK for [Semiont](../../README.md), an open platform for building
+trusted AI knowledge bases: a shared workspace where humans and AI agents
+annotate, connect and govern a corpus of documents. This crate is a client
+of one knowledge base, as [`specs/`](../../specs/src/openapi.json) states
+it, over any transport. A person's application and an agent reach it the
+same way: the SDK does not tell them apart.
+
+It is a full peer of the [TypeScript SDK](../sdk/README.md): the same
+namespaces, methods and behaviour, held to the same
+[conformance suite](../../tests/conformance/sdk/README.md). New to Semiont?
+The [Introduction](../sdk/docs/INTRODUCTION.md) explains the domain and the
+ideas the API falls out of. Its code is TypeScript, and the ideas are this
+crate's too.
+
+## Install
+
+```bash
+cargo add semiont
+cargo add semiont-http-transport --features sign-in
+```
+
+`semiont` is the client. It links no HTTP, and it is built inside a Tokio
+runtime. [`semiont-http-transport`](../http-transport-rust/README.md) is the
+transport over a gateway, with the sessions and signing in. Its `sign-in`
+feature signs a person in, and a service leaves it off. The reference for
+every item is on [docs.rs](https://docs.rs/semiont).
+
+## Connect
+
+A client comes from signing in. A person signs in at the identity provider
+the knowledge base trusts, never at the gateway, and their password never
+passes through the process. How depends on what is signing in, and each way
+is the transport crate's:
+
+| Who | Signs in with | |
+|---|---|---|
+| A script, after `semiont login` | `session_from_stored` | The launcher's sign-in, reused. |
+| A script on its own | `sign_in_device` | The person approves a code in any browser. |
+| An application | `begin_sign_in`, `complete_sign_in` | The person is sent to the issuer and back to this machine. |
+| A daemon | `AgentToken::sign_in` | A service account. It needs no `sign-in` feature. |
+
+Each is shown, compiled and run, in
+[the transport's README](../http-transport-rust/README.md#three-ways-to-use-it).
+A person's sign-in gives a `SemiontSession`, and `session.client()` is the
+`SemiontClient` the examples below start from. A daemon builds its client
+directly, with `client(config, options)`.
+
+## Eight verbs
+
+Every operation belongs to one of eight flows: verbs for what a participant
+does with a shared corpus. Each is a namespace of the client.
+
+| Verb | What it does | Among its methods |
+|---|---|---|
+| `browse` | Navigate, read and observe, including who is here | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
+| `bind` | Resolve an ambiguous reference to a specific resource | `bind.body`, `bind.initiate` |
+| `yield_` | Introduce a resource, uploaded or generated from gathered context | `yield_.resource`, `yield_.from_context` |
+| `mark` | Annotate a resource | `mark.annotation`, `mark.assist`, `mark.update_entity_types`, `mark.archive` |
+| `frame` | Define and grow the schema vocabulary | `frame.add_entity_types`, `frame.add_tag_schema` |
+| `gather` | Assemble grounding context around a resource or an annotation | `gather.resource`, `gather.annotation` |
+| `match_` | Search the corpus for candidate resources | `match_.search` |
+| `beckon` | Direct attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.open_resource` |
+
+`yield` and `match` are Rust's own words, so those two namespaces take a
+trailing underscore. Beside the eight are `job`, and `auth` and `system`
+when the client has a gateway. What each flow means is in
+[docs/protocol/flows](../../docs/protocol/flows/README.md).
 
 ## Three ways to use it
 
@@ -366,3 +434,7 @@ and [tests/queries.rs](tests/queries.rs) hold the cache clause by clause,
 [tests/state.rs](tests/state.rs) each state unit behaviour by behaviour, and
 [tests/session.rs](tests/session.rs) and [tests/browser.rs](tests/browser.rs)
 a session and the registry.
+
+## License
+
+Apache-2.0. See [LICENSE](../../LICENSE).

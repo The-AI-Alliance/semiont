@@ -5,6 +5,9 @@ edition = "2024"
 license = "Apache-2.0"
 repository.workspace = true
 description = "Semiont's HTTP transport, in Rust: a knowledge base's bus over its gateway, as semiont's Transport, and the sign-in that reaches it."
+documentation = "https://docs.rs/semiont-http-transport"
+keywords = ["semiont", "knowledge-base", "http", "sse", "oauth"]
+categories = ["api-bindings", "web-programming::http-client", "authentication"]
 
 [features]
 # Signing a person in, and sessions over a gateway: the issuer's grants with

@@ -119,8 +119,8 @@ Consequences:
 
 ## Two consumption paths
 
-The cache has two read paths with different freshness semantics, and B1–B16
-below describe the **`observe` / subscribe** path (the stale-while-revalidate
+The cache has two read paths with different freshness semantics, and the
+numbered behaviors below describe the **`observe` / subscribe** path (the stale-while-revalidate
 live view). The second path:
 
 - **`fetch(key)` — one-shot, always fresh.** Forces a fetch (bypassing the

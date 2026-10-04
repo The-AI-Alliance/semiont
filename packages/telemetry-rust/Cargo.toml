@@ -5,6 +5,9 @@ edition = "2024"
 license = "Apache-2.0"
 repository.workspace = true
 description = "The telemetry a Semiont transport and a Semiont service share: the spans and the count of the SDK telemetry table, and the trace context they travel in, reported to whatever OpenTelemetry the process installed."
+documentation = "https://docs.rs/semiont-telemetry"
+keywords = ["semiont", "opentelemetry", "tracing", "telemetry"]
+categories = ["development-tools::debugging", "development-tools::profiling"]
 
 [dependencies]
 opentelemetry = { workspace = true, features = ["trace", "metrics"] }

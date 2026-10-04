@@ -5,6 +5,9 @@ edition = "2024"
 license = "Apache-2.0"
 repository.workspace = true
 description = "Build-time generation from specs/: the bundled spec documents and the Rust types of their component schemas. A build dependency of semiont and semiont-core; no binary links it."
+documentation = "https://docs.rs/semiont-codegen"
+keywords = ["semiont", "codegen", "openapi", "json-schema"]
+categories = ["development-tools::build-utils"]
 
 [dependencies]
 serde_json = { workspace = true, features = ["preserve_order"] }
