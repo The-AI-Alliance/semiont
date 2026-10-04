@@ -9,13 +9,13 @@ The Semiont Browser meets [WCAG 2.1 Level AA](https://www.w3.org/WAI/WCAG21/quic
 - **Visible focus indicators.** Every interactive element shows a clear focus ring when reached via keyboard.
 - **Skip links.** Tab once on page load to jump past navigation directly to main content.
 - **Reduced motion.** The browser respects the OS-level `prefers-reduced-motion` setting; transitions and animations are disabled when you've asked the system to reduce them.
-- **High contrast.** Light, dark, and high-contrast color schemes; WCAG AA contrast ratios (4.5:1 text, 3:1 UI) verified across all schemes.
+- **Contrast.** Light and dark themes, with WCAG AA contrast ratios (4.5:1 text, 3:1 UI). When your system asks for more contrast, the Browser follows it.
 - **Zoom to 200%.** No content cut off, no horizontal scroll, no functional loss at 200% browser zoom.
 - **Form errors that work for everyone.** Validation messages are announced via `aria-live` and visually associated with their inputs.
 
 ## Browser support
 
-Chrome 90+, Firefox 88+, Safari 14+, Edge 90+ — all with full WCAG 2.1 AA support and screen-reader pass-through.
+Chrome, Firefox, Safari and Edge, in their current releases.
 
 ## Verifying it yourself
 
@@ -25,7 +25,7 @@ If you want to confirm any of these claims independently:
 - **Screen reader:** turn on VoiceOver / NVDA / Orca and navigate the same flow. The screen reader should announce each interactive element with its role, label, and state.
 - **Zoom test:** set browser zoom to 200%. The interface should remain usable.
 - **Reduced motion:** enable "Reduce motion" in your OS settings. Transitions should disappear.
-- **High contrast:** enable your OS's high-contrast mode (or pick the high-contrast theme in Semiont's settings panel). Text and UI elements should remain readable with WCAG AA contrast ratios.
+- **High contrast:** enable your OS's increased-contrast setting. Text and UI elements should remain readable with WCAG AA contrast ratios.
 
 ## Reporting an accessibility issue
 

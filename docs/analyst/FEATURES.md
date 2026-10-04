@@ -1,392 +1,113 @@
-# Browser Features
+# Working in the Browser
 
-A tour of what the Semiont Browser does, from a user's perspective: document management, annotations, search, and AI-assisted detection.
+What an analyst does in the Semiont Browser, in the order the work usually goes: find or add a resource, read it, annotate it, link it, and generate from it. Names in **bold** are the labels on screen.
 
-## Table of Contents
+A **resource** is anything a knowledge base holds: a document, an image, a PDF, any file. To get the Browser and sign in, see [README.md](README.md).
 
-- [Overview](#overview)
-- [Supported Formats](#supported-formats)
-- [Document Operations](#document-operations)
-- [Selection System](#selection-system)
-- [Format-Specific Features](#format-specific-features)
-- [User Interface Components](#user-interface-components)
-- [Asynchronous AI Features](#asynchronous-ai-features)
-- [Roadmap](#roadmap)
-- [Related Documentation](#related-documentation)
+## Find a resource
 
-## Overview
+- **Discover** lists the knowledge base's resources. Search by name or content. When no title matches, it shows related documents instead. Filter by entity type. Archived resources are marked.
+- **Global search** opens from anywhere with `Cmd/Ctrl + K` or `/`, and searches resources and entities.
+- Resources you open stay as tabs in the sidebar. Drag a tab to reorder it.
 
-The Semiont Browser provides a rich document management and annotation experience built on W3C Web Annotation standards. Users can:
+## Add a resource
 
-- Create and manage documents in multiple formats (text, markdown, images, PDFs)
-- Annotate content with highlights, references, and entity tags
-- Build a semantic knowledge graph through annotations
-- Search and discover related documents
-- Export annotations as JSON-LD
+**Compose** creates one. Give it a name, optional entity type tags and a language, then either:
 
-## Supported Formats
+- **Upload File**: drop a file or click to choose one. The media type is detected from the file.
+- **Write Content**: type or paste text, and pick its format.
 
-Semiont supports multiple document formats, each with format-appropriate annotation capabilities:
+Any file type can be uploaded. What you can do with it afterwards depends on the type:
 
-### Text Formats
-- **Plain Text** (`text/plain`) - Raw text documents with text-based annotations
-- **Markdown** (`text/markdown`) - Formatted documents with GitHub Flavored Markdown support
+| Type | In the Browser |
+|---|---|
+| Markdown, plain text, HTML, JSON | Read it, and annotate passages of text |
+| PNG, JPEG | View it, and annotate regions |
+| PDF | Read it page by page, and annotate regions. Its text is analyzed once its text layer is ready |
+| Anything else | Catalogued for download |
 
-### Image Formats
-- **PNG** (`image/png`) - Raster images with spatial coordinate annotations
-- **JPEG** (`image/jpeg`) - Compressed images with spatial coordinate annotations
+A PDF's **Resource Info** shows its **Text layer**: Ready, Preparing, or None when it has no extractable text.
 
-### Document Formats
-- **PDF** (`application/pdf`) - Portable documents with spatial coordinate annotations
+## Read and annotate
 
-### Annotation Support by Format
+The toolbar's **Mode** switches between **Browse** and **Annotate**. Annotate is where the work happens:
 
-| Format            | View | Annotate | Annotation Detection |
-|-------------------|------|----------|----------------------|
-| Text/Markdown     | ✅   | ✅       | ✅                   |
-| Images (PNG/JPEG) | ✅   | ✅       | ⚠️ Future            |
-| PDF               | ✅   | ✅       | ⚠️ Future            |
+1. Pick a **Motivation**.
+2. Select text. On an image or a PDF, draw a **Shape** instead: **Rectangle**, **Circle** or **Polygon**.
+3. The **Annotations** panel opens on that motivation. A highlight is created at once; the others ask for what they need first.
 
-**Note**: Text-based formats use `TextPositionSelector` and `TextQuoteSelector` for precise character-based annotations. Image and PDF formats use `FragmentSelector` (RFC 3778) for spatial coordinate-based annotations.
+| Motivation | What it records |
+|---|---|
+| **Highlight** | This passage matters |
+| **Comment** | A note on the passage |
+| **Assess** | A judgement of the passage |
+| **Tag** | A category from one of the knowledge base's tag schemas |
+| **Reference** | The passage refers to something. Entity types are optional |
 
-## Document Operations
+The toolbar's **Click** setting decides what clicking an existing annotation does:
 
-### Search
-- Full-text search for documents by name
-- Real-time results as you type
-- Content preview in search results
-- Filter by document type or metadata
-
-### Create
-- Create new markdown documents with initial content
-- Auto-save drafts
-- Template support for common document types
-- Wiki-style linking during creation
-
-### View
-- Render markdown with syntax highlighting
-- Wiki-style links (`[[page name]]`) navigate internally
-- Split-view layout (content + sidebar)
-- Real-time display of annotations
+- **Detail** opens it in the Annotations panel.
+- **Follow** goes to the resource a resolved reference points at.
+- **JSON-LD** shows the annotation as W3C Web Annotation JSON-LD.
+- **Delete** removes it, after asking. It is offered in Annotate mode only.
 
-### Navigate
-- Click wiki links to navigate between documents
-- Breadcrumb navigation
-- Document backlinks (documents that reference this one)
-- Related documents suggestions
+## Let an agent annotate, then review
 
-### Edit
-- Markdown editor with live preview
-- Syntax highlighting for code blocks
-- Auto-complete for wiki links
-- Keyboard shortcuts for common formatting
+Each motivation's panel can hand a pass over the whole resource to the knowledge base's AI: **Annotate Highlights**, **Annotate Comments**, **Annotate Assessments**, **Annotate Tags**, **Annotate References**.
 
-### Archive & Clone
-- Archive documents without deletion
-- Clone documents with or without annotations
-- Restore archived documents
+| Pass | What you can set |
+|---|---|
+| Highlights | **Instructions** and **Density** (annotations per 2,000 words) |
+| Comments | Instructions, Density and **Tone**: Scholarly, Explanatory, Conversational, Technical |
+| Assessments | Instructions, Density and Tone: Analytical, Critical, Balanced, Constructive |
+| Tags | A **Framework** (a tag schema) and its categories. The knowledge base needs at least one schema registered |
+| References | The entity types to look for, and **Include descriptive references** to also catch phrases such as "the CEO" |
 
-See [ARCHIVE-CLONE.md](../../apps/browser/docs/ARCHIVE-CLONE.md) for complete archiving and cloning documentation.
+Progress shows while the pass runs, and it can be cancelled. What it creates are ordinary annotations, the same as yours: read them in the panel, and delete the ones you do not want.
 
-## Selection System
+## References
 
-Users can select any text within a document to create three types of annotations:
+A reference starts as a **stub**: the passage is marked, but nothing is linked. **Resolve Reference** opens the reference wizard, which gathers context around the passage and shows it: the surrounding text, the annotations beside it, what cites the resource, its **Neighborhood** in the graph, and **Similar passages** elsewhere. A **Hint** from you steers the next step. Then choose how to resolve it:
 
-### 1. Highlights
+- **Search** for an existing resource and **Link** it. **Semantic Scoring** has the AI rank the results by relevance.
+- **Generate** a new resource from the gathered context: set its title, instructions, language, creativity, length, format and save location.
+- **Compose** it yourself, then **Create & Link**.
 
-Mark important text passages for later reference.
+A resolved reference can be opened, unlinked, converted to a highlight, or deleted. The **References** panel lists a resource's **Outgoing References** and its **Incoming References**, which are the passages elsewhere that point at it.
 
-**Features**:
-- Visual indication with yellow background
-- Saved highlights appear in document sidebar
-- Persistent across sessions
-- Quick create from text selection
-- Delete highlights individually
-
-**Use Cases**:
-- Mark key points while reading
-- Highlight quotes for later reference
-- Note interesting passages
-
-**W3C Compliance**: Highlights are W3C Web Annotations with `purpose: "highlighting"`.
+## Generate a resource from this one
 
-### 2. Document References
-
-Link selected text to other documents in the system.
-
-**Reference Types**:
-- **Citation**: Reference to source material
-- **Definition**: Link to defining document
-- **Elaboration**: Extended explanation or expansion
-- **Example**: Illustrative example of a concept
-- **Related**: Related concept or topic
-
-**Features**:
-- Search for existing documents to link
-- Create new documents on the fly
-- Referenced documents accessible via sidebar
-- Backlinks show incoming references
+**Resource Info** has **Generate**, which writes a new resource from this one's context:
 
-**Use Cases**:
-- Build knowledge graph through document linking
-- Create citation networks
-- Link definitions to usage examples
-- Connect related concepts
-
-**W3C Compliance**: References are W3C Web Annotations with `SpecificResource` body and `purpose: "linking"`.
-
-### 3. Entity References
-
-Mark text as referring to specific entities in your knowledge graph.
-
-**Pre-defined Entity Types**:
-- **Person**: Individuals and characters
-- **Organization**: Companies, institutions, groups
-- **Location**: Places, regions, addresses
-- **Event**: Historical events, meetings, conferences
-- **Concept**: Abstract ideas, theories, principles
-- **Product**: Products, tools, software
-- **Technology**: Technologies, frameworks, protocols
-- **Date**: Specific dates and time periods
-- **Custom**: User-defined entity types via "Other" option
-
-**Features**:
-- Entity type selection grid
-- Auto-detection via AI (see [Asynchronous AI Features](#asynchronous-ai-features))
-- Entity co-occurrence discovery
-- Entity-document relationships
-- Export as semantic triples
-
-**Use Cases**:
-- Build entity-centric knowledge graphs
-- Track people, organizations, and concepts
-- Create semantic search indexes
-- Generate entity relationship diagrams
+1. Choose what to gather: the resource's content, its summary, how many links deep to follow, and how many resources to take.
+2. **Gather**, and read what came back. Deselect an entity type to leave it out.
+3. Set the new resource's title, instructions, language, creativity, length, format and save location, then **Generate**.
 
-**W3C Compliance**: Entity tags are W3C Web Annotations with `TextualBody` body and `purpose: "tagging"`.
-
-### Multi-Body Annotations
+The new resource records that it was derived from this one.
 
-Semiont supports **multi-body annotations** combining entity tags and document links:
-
-**Example**:
-Select "Albert Einstein" and create:
-- Entity tag: Person
-- Document reference: Link to Einstein biography
-- Result: One annotation with two bodies (one `TextualBody`, one `SpecificResource`)
-
-See [API Integration Guide](../../apps/browser/docs/API-INTEGRATION.md#w3c-web-annotation-model) for technical details.
-
-## Format-Specific Features
+## The panels
 
-### Text and Markdown
+The toolbar opens one panel at a time:
 
-Full markdown rendering with extended features:
+- **Annotations**: one tab per motivation, and **Statistics** with the counts, stub and resolved references, and entity types.
+- **History**: every event on the resource, who did it and when.
+- **Resource Info**: locale, entity type tags, media type, size, storage, provenance, and the **Clone**, **Generate** and **Archive** actions.
+- **Collaboration**: whether the live connection is up, and recent activity.
+- **User Account**: who you are signed in as, when the session expires, and **Sign Out**.
+- **Settings**: theme (Light, Dark or System), line numbers, language, hover delay, and the keyboard shortcuts.
+- **Knowledge Base**: the knowledge bases you are connected to.
 
-#### GitHub Flavored Markdown
-- **Tables**: Pipe-delimited tables with alignment
-- **Task Lists**: `- [ ]` checkbox lists
-- **Strikethrough**: `~~deleted text~~`
-- **Autolinks**: Automatic URL linking
-
-#### Wiki-Style Links
-- **Syntax**: `[[page name]]`
-- **Navigation**: Click to navigate internally
-- **Auto-complete**: Suggestions while typing
-- **Stub Detection**: Highlight broken links
-
-#### Syntax Highlighting
-- Code blocks with language-specific highlighting
-- Inline code formatting
-- Line numbers (optional)
-- Copy-to-clipboard buttons
-
-#### Interactive Elements
-- External links open in new tabs
-- Wiki links navigate internally
-
-### Images (PNG/JPEG)
-
-Image viewing with spatial annotation support:
-
-#### Viewing Features
-- Native image rendering with zoom controls
-- Responsive scaling to fit viewport
-- Pan and zoom for detailed inspection
-- High-resolution image support
+## Archive and clone
 
-#### Annotation Features
-- **Rectangular regions**: Draw boxes on images to annotate specific areas
-- **Spatial coordinates**: Annotations use SVG coordinate system
-- **Visual indicators**: Highlighted regions with hover states
-- **Multiple annotations**: Support for overlapping regions
+**Archive** moves a resource out of the active list without deleting it, and **Unarchive** restores it. **Clone** makes a shareable link from which someone can create their own copy. Both are described in [ARCHIVE-CLONE.md](../../apps/browser/docs/ARCHIVE-CLONE.md).
 
-### PDF Documents
+## Moderation
 
-PDF viewing and annotation with page-by-page navigation:
+The **Moderation** section has three pages: **Recent Resources**, **Entity Tags** for adding the tags resources are classified by, and **Tag Schemas** for viewing the frameworks the Tag pass uses.
 
-#### Viewing Features
-- Multi-page PDF rendering
-- Page navigation (next/previous controls)
-- Zoom and scale controls
-- Text layer rendering for searchability
+## See also
 
-#### Annotation Features
-- **Rectangular regions**: Draw boxes on PDF pages to annotate specific areas
-- **RFC 3778 compliance**: FragmentSelector with `page=N&viewrect=left,top,width,height`
-- **Page-specific annotations**: Annotations tied to specific PDF pages
-- **Visual indicators**: Highlighted regions with hover states
-- **Coordinate transformation**: Automatic conversion between PDF and canvas coordinates
-
-## User Interface Components
-
-### AuthenticatedHome
-
-Landing page for authenticated users.
-
-**Components**:
-- Document search bar with live results
-- Create new document button with modal
-- Recent documents list
-- Personalized welcome message
-- Quick stats (document count, annotation count)
-
-**User Flow**:
-1. User logs in
-2. Sees welcome message and quick stats
-3. Searches for document or creates new one
-4. Navigates to document viewer
-
-### Document Viewer
-
-Split-view layout for reading and annotating documents.
-
-**Layout**:
-- **Content Area**: Rendered markdown with annotations highlighted
-- **Sidebar**: Highlights, references, entity tags, backlinks
-- **Header**: Document title, metadata, edit button
-
-**Interactions**:
-- Text selection triggers annotation popup
-- Click annotation to view details
-- Hover over annotation for preview
-- Keyboard navigation (see [KEYBOARD-NAV.md](./KEYBOARD-NAV.md))
-
-**Features**:
-- Real-time annotation updates
-
-### Selection Popup
-
-Multi-tab interface for creating annotations from selected text.
-
-**Tabs**:
-1. **Highlight**: Save selection as highlight
-2. **Reference**: Link to existing or new document
-3. **Entity**: Tag with entity type
-
-**Components**:
-- Inline document search with live results
-- Entity type selection grid with icons
-- Reference type dropdown
-- "Create new document" quick action
-- Preview pane showing selected text
-
-**User Flow**:
-1. User selects text
-2. Popup appears with tabs
-3. User chooses annotation type
-4. Fills in details (entity type, reference document, etc.)
-5. Clicks save
-6. Annotation appears in sidebar
-
-### Search Interface
-
-Global search for documents.
-
-**Features**:
-- Full-text search across all documents
-- Filter by entity type, author, date
-- Sort by relevance, date, title
-- Pagination for large result sets
-
-## Asynchronous AI Features
-
-Some features use background AI processing with real-time progress tracking.
-
-### Annotation Detection
-
-Automatically detect annotations in documents using AI (highlights, assessments, comments, tags, entity references).
-
-**How It Works**:
-1. User clicks "Detect Entities" button
-2. Selects entity types to detect (Person, Organization, etc.)
-3. Job starts, UI shows progress bar
-4. Entities detected and added as annotations
-5. User reviews and edits detected entities
-
-**Progress Tracking**:
-- Real-time progress via Server-Sent Events (SSE)
-- Shows current entity type being processed
-- Displays entities found count
-- Cancellable during processing
-
-**See**: [API Integration Guide](../../apps/browser/docs/API-INTEGRATION.md#synchronous-vs-asynchronous-operations) for implementation details.
-
-### Document Generation
-
-Generate new documents from annotations using AI.
-
-**How It Works**:
-1. User selects annotation
-2. Clicks "Generate Document" action
-3. AI generates document based on annotation context
-4. New document created and linked
-5. User can edit generated content
-
-**Progress Tracking**:
-- Real-time progress via SSE
-- Shows generation stages (fetching, generating, creating, linking)
-- Percentage complete
-
-**See**: [API Integration Guide](../../apps/browser/docs/API-INTEGRATION.md#synchronous-vs-asynchronous-operations) for implementation details.
-
-## Roadmap
-
-These are tracked but not yet implemented:
-
-- Version history for documents
-- Undo/redo for annotations
-- Collaborative editing
-- Resolve stub references
-- Entity Browser — list, detail pages, relationship-graph visualization, co-occurrence matrix
-- Markdown table-of-contents auto-generation and collapsible sections
-- Search-result export
-- Preview pane while generating documents
-- AI-powered annotation detection for images (object recognition, OCR)
-- AI-powered annotation detection for PDFs (text extraction, entity recognition, layout analysis)
-
-## Related Documentation
-
-### User Guides
-- [Annotations](../../apps/browser/docs/ANNOTATIONS.md) - Complete annotation system documentation
-- [Keyboard Navigation](./KEYBOARD-NAV.md) - WCAG-compliant keyboard shortcuts
-- [Archive & Clone](../../apps/browser/docs/ARCHIVE-CLONE.md) - Document archiving and cloning
-
-### Technical Documentation
-- [API Integration](../../apps/browser/docs/API-INTEGRATION.md) - API usage, async operations, W3C annotations
-- [Browser Architecture](../../apps/browser/docs/ARCHITECTURE.md) - High-level system design
-- [Rendering Architecture](../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
-
-### Development Guides
-- [Development Guide](../../apps/browser/docs/DEVELOPMENT.md) - Local development workflows
-- [Style Guide](../../apps/browser/docs/style-guide.md) - UI/UX patterns and component guidelines
-- [CodeMirror Integration](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Editor implementation
-
-### External Resources
-- [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/) - Official specification
-- [GitHub Flavored Markdown](https://github.github.com/gfm/) - Markdown specification
-- [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/) - Accessibility guidelines
-
----
-
-**For feature requests**: file an issue, or see [CONTRIBUTING.md](../../CONTRIBUTING.md).
+- [KEYBOARD-NAV.md](KEYBOARD-NAV.md): the keyboard shortcuts
+- [ACCESSIBILITY.md](ACCESSIBILITY.md): what the Browser provides for assistive technology
+- [docs/builder](../builder/README.md): doing the same work from code, or from the `semiont` launcher
+- [apps/browser/docs](../../apps/browser/docs/): how the Browser is built

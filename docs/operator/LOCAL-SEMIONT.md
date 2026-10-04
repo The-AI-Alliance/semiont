@@ -101,7 +101,7 @@ As an alternative to the container image, Semiont ships a native desktop app for
 ## Detailed Setup
 
 - **[Gateway](./LOCAL-GATEWAY.md)** — PostgreSQL, inference, Neo4j, service management
-- **[Browser](../analyst/LOCAL.md)** — SPA, desktop app, connecting to a gateway
+- **[Browser](../analyst/README.md#get-the-browser)** — as a container or a desktop app, and connecting to a knowledge base
 
 ## Service Ports
 

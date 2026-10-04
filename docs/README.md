@@ -24,8 +24,8 @@ Three things are for every reader:
 
 You work in a knowledge base through the Semiont Browser.
 
-- [What the Browser does](analyst/FEATURES.md), from documents and annotations to search and AI assistance
-- [Getting the Browser running](analyst/README.md), as a container or the desktop app
+- [Working in the Browser](analyst/FEATURES.md): finding and adding resources, annotating, references, generation
+- [Getting the Browser and signing in](analyst/README.md#get-the-browser), as a container or the desktop app
 - [Keyboard shortcuts](analyst/KEYBOARD-NAV.md) and [accessibility](analyst/ACCESSIBILITY.md)
 - [A knowledge base to try](KNOWLEDGE-BASES.md)
 

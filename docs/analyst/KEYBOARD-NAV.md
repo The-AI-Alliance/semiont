@@ -14,15 +14,30 @@ Press **`?`** at any time to bring up an in-app shortcut help modal.
 | `?` | Show keyboard-shortcut help |
 | `Esc Esc` | Close all open modals and overlays |
 
-## Document interaction
+## Sidebar tabs
 
 | Shortcut | Action |
 |---|---|
-| `H` | Create highlight from selected text |
-| `R` | Create reference from selected text |
-| `Tab` | Move focus to next annotation |
-| `Shift + Tab` | Move focus to previous annotation |
-| `Delete` | Remove the selected annotation |
+| `Space` | Pick up the focused resource tab, and drop it again |
+| `↑` / `↓` | Move the tab you picked up |
+| `Alt + ↑` / `Alt + ↓` | Move the focused tab without picking it up |
+| `Esc` | Cancel the move |
+
+## Lists and grids
+
+| Shortcut | Action |
+|---|---|
+| `←` / `→` | Move between entity type filters |
+| Arrow keys | Move around the resource grid |
+| `Home` / `End` | Jump to the first or last item |
+
+## Search
+
+| Shortcut | Action |
+|---|---|
+| `↑` / `↓` | Move between results |
+| `Enter` | Open the selected result |
+| `Esc` | Close search |
 
 ## Modals and popups
 
@@ -36,7 +51,7 @@ Press **`?`** at any time to bring up an in-app shortcut help modal.
 ## Discovery and conventions
 
 - **Platform-aware modifiers.** Use `Cmd` on macOS; `Ctrl` on Windows and Linux. The browser detects the platform and adjusts.
-- **Context awareness.** Single-letter shortcuts (`H`, `R`, `/`) only fire when focus is *outside* a text input, so they don't fight with normal typing.
+- **Context awareness.** The single-key shortcuts (`/`, `?`) only fire when focus is *outside* a text input, so they don't fight with normal typing.
 - **No mouse required.** Every interaction documented elsewhere in the browser docs has a keyboard path. If you find one that doesn't, please file an accessibility issue.
 
 ## See also

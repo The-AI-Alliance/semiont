@@ -2,58 +2,41 @@
 
 An analyst works in a knowledge base: reads, annotates, links, and reviews what agents propose. An analyst may be a person or an AI agent. People do this work in the Semiont Browser, which these pages cover.
 
-## The Browser
+- **[FEATURES.md](FEATURES.md)**: working in the Browser, from finding a resource to annotating, linking and generating
+- **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)**: the keyboard shortcuts
+- **[ACCESSIBILITY.md](ACCESSIBILITY.md)**: what the Browser provides for assistive technology
 
-The Semiont browser is a Vite + React SPA that connects to a running knowledge-base gateway. The fastest way to get one is the published container image; this section covers what to do once it's running, the alternatives, and how to verify the image you pulled.
+## Get the Browser
 
-## Container runtime — local network access
+There are three ways to have it.
 
-The browser container needs to reach a KB gateway on your machine. The container runtime must have local network permission to do that.
+**With a knowledge base you run.** `semiont start` starts the Browser with the rest of the stack, at `http://localhost:3000`. The [Quick Start](../../README.md#quick-start) covers this.
 
-- **macOS (Apple Container):** automatic on macOS 26+; no action required.
-- **macOS (Docker Desktop / Podman Desktop):** containers reach the host via `host.docker.internal`. The Semiont browser auto-detects and uses it.
-- **Linux:** containers can reach the host via the default bridge IP (typically `172.17.0.1`) or `--network host`.
-- **Windows:** Docker Desktop / Podman handle this via WSL2; no extra step.
-
-Full per-platform notes live in [Local network access](../operator/LOCAL-SEMIONT.md#local-network-access).
-
-## Supply-chain verification
-
-The published image is signed with [Cosign](https://docs.sigstore.dev/cosign/overview/) build-provenance and SBOM attestations. To verify before running:
+**On its own, as a container.** To work in a knowledge base someone else runs, start only the Browser (substitute `docker` or `podman` for `container` as needed):
 
 ```bash
-cosign verify ghcr.io/the-ai-alliance/semiont-browser:latest \
-  --certificate-identity-regexp 'https://github.com/The-AI-Alliance/semiont/.*' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-browser:latest
 ```
 
-Step-by-step provenance + SBOM verification, and how to check tags / digests against a release, is in [Supply-chain verification](../operator/administration/IMAGES.md#supply-chain-verification).
+The image serves static files and holds no knowledge-base configuration. You connect to knowledge bases from the page.
 
-## Desktop app
+**As a desktop app.** Semiont ships a native app for macOS and Linux, with no container runtime to install. Download it from the [GitHub releases](https://github.com/The-AI-Alliance/semiont/releases); install notes, including the macOS Gatekeeper step, are in [apps/desktop/README.md](../../apps/desktop/README.md).
 
-If you'd rather not install a container runtime at all, Semiont ships a native desktop app for macOS and Linux. No container, no local-network permission to grant.
+## Connect and sign in
 
-- **Download:** [GitHub releases](https://github.com/The-AI-Alliance/semiont/releases)
-- **macOS Gatekeeper workaround** and per-platform install notes: [apps/desktop/README.md](../../apps/desktop/README.md)
+Open `http://localhost:3000`, or the desktop app, and open the **Knowledge Bases** panel.
 
-## Connecting the browser to a knowledge base
+1. **Choose a knowledge base.** Those the launcher runs on this machine are listed under **Found on this machine**. For any other, choose **Add knowledge base** and enter its protocol, host and port. A gateway's default port is `4000`.
+2. **Sign in.** Signing in happens at the knowledge base's identity provider, not in the Browser: you are handed to its page and back. It asks for your name the first time.
 
-Once the browser is up at `http://localhost:3000`, open the **Knowledge Bases** panel and enter:
+Whoever runs the knowledge base creates your account, with `semiont useradd`.
 
-- **Host:** `localhost`
-- **Port:** `4000` (the default gateway port)
-- **Email** and **password** as configured when starting the gateway
+The panel shows each knowledge base's status: **Connected**, **Session expired**, **Signed out** or **Unreachable**. You can register several and switch between them.
 
-If you don't have a gateway running yet, clone one of the [knowledge base repos](https://github.com/The-AI-Alliance/semiont-template-kb) listed in the top-level README and follow its setup script.
+## If something is in the way
 
-## Running locally — both install paths
+- **The Browser container cannot reach a knowledge base on your machine.** The container runtime needs local network access: see [Local network access](../operator/LOCAL-SEMIONT.md#local-network-access).
+- **You want to verify the image before running it.** See [Supply-chain verification](../operator/administration/IMAGES.md#supply-chain-verification).
+- **You need the Browser's logs.** `semiont logs --service browser` from the knowledge base's directory, or your container engine's `logs` command for a Browser you started yourself.
 
-The container-image flow at the top of this page is the fastest path. **[LOCAL.md](LOCAL.md)** covers both install options end-to-end: container (no npm required) and the npm-based source build for contributors who want a hot-reload dev server.
-
-## Other browser-persona docs
-
-- **[FEATURES.md](FEATURES.md)** — user-facing feature tour: document management, annotations, search, AI-assisted detection.
-- **[ACCESSIBILITY.md](ACCESSIBILITY.md)** — WCAG 2.1 Level AA capability claim, screen reader support, accessibility testing.
-- **[KEYBOARD-NAV.md](KEYBOARD-NAV.md)** — keyboard shortcuts and the navigation model.
-
-For Browser implementation details (architecture, component library, integration patterns) see **[apps/browser/docs/](../../apps/browser/docs/)** — that folder is contributor-facing.
+How the Browser is built is in [apps/browser/docs](../../apps/browser/docs/).
