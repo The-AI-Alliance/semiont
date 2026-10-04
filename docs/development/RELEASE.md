@@ -252,7 +252,7 @@ advisory — patched versions routinely draw later CVEs of their own.
 
 ```bash
 npm run version:show    # Display current version across all packages
-npm run version:sync    # Sync version.json to all package.json files
+npm run version:sync    # Sync version.json to all package.json files and the published crates
 npm run version:bump    # Bump version (patch/minor/major)
 npm run version:set     # Set a specific version
 ```
@@ -292,6 +292,37 @@ The **Browser** publishes from a staging directory: `apps/browser/package.publis
 declares **no** runtime dependencies and nothing derives them, because the
 published Browser is a pre-built Vite bundle — its deps are compiled into
 `dist/`, not resolved by npm at install time.
+
+## The Rust crates
+
+Four crates of the Rust workspace are published to crates.io: `semiont` (the
+SDK), `semiont-codegen` (its build dependency), `semiont-telemetry` and
+`semiont-http-transport`. Every other member is `publish = false`, and CI
+fails the workspace if the published set is any other.
+
+They carry version.json's version. `scripts/release/cargo-version.sh` writes
+it to `Cargo.toml` (`[workspace.package]`, and beside each path of
+`[workspace.dependencies]` that names a published crate) and to `Cargo.lock`;
+`version-bump.sh` and `npm run version:sync` both run it, and CI fails a
+published crate at any other version.
+
+They are published by hand, from a clean checkout of the release's commit, in
+dependency order. A version of a crate is permanent: it can be yanked, never
+replaced.
+
+```bash
+cargo publish -p semiont-codegen
+cargo publish -p semiont
+cargo publish -p semiont-telemetry
+cargo publish -p semiont-http-transport
+```
+
+`cargo publish --dry-run --workspace` packages and builds all four against
+each other without publishing any.
+
+The SDK's build script reads the spec through `packages/sdk-rust/specs`, a
+link to `specs/src` that cargo follows when it packages, so the published
+crate carries the spec files it is generated from.
 
 ## Package manifest: `version.json`
 

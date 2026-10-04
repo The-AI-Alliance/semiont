@@ -1,8 +1,9 @@
 [package]
 name = "semiont"
+version.workspace = true
 edition = "2024"
-publish = false
 license = "Apache-2.0"
+repository.workspace = true
 description = "Semiont's Rust SDK: the protocol's types, the transport contract and a client of the bus over it, and what a client needs to name its principals and hold its roles, as specs/ states it."
 
 [features]
@@ -29,7 +30,7 @@ uuid = { workspace = true, features = ["v4"] }
 [dev-dependencies]
 base64.workspace = true
 # This crate's own tests use its testing surface, and read text in every charset.
-semiont = { workspace = true, features = ["testing", "charsets"] }
+semiont = { path = ".", features = ["testing", "charsets"] }
 # The multi-threaded runtime is for the tests that hold a unit to the order it hears things in.
 tokio = { workspace = true, features = ["test-util", "rt-multi-thread"] }
 

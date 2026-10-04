@@ -1,8 +1,9 @@
 [package]
 name = "semiont-telemetry"
+version.workspace = true
 edition = "2024"
-publish = false
 license = "Apache-2.0"
+repository.workspace = true
 description = "The telemetry a Semiont transport and a Semiont service share: the spans and the count of the SDK telemetry table, and the trace context they travel in, reported to whatever OpenTelemetry the process installed."
 
 [dependencies]

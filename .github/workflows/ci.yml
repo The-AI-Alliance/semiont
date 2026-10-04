@@ -129,6 +129,21 @@ jobs:
             exit 1
           fi
 
+      # The crates published to crates.io are these four and no other, so a
+      # crate that loses `publish = false` unmeant fails here; and each carries
+      # version.json's version, as every published package does
+      # (scripts/release/cargo-version.sh keeps it so).
+      - name: Check which crates are published, and at what version
+        run: |
+          released=$(jq -r .version version.json)
+          expected=$(printf '%s\n' semiont semiont-codegen semiont-http-transport semiont-telemetry | sed "s/$/ $released/" | sort)
+          published=$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[] | select(.publish == null) | "\(.name) \(.version)"' | sort)
+          if [ "$published" != "$expected" ]; then
+            echo "✗ the workspace publishes:"; echo "$published"
+            echo "  where these were expected, at version.json's version:"; echo "$expected"
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:

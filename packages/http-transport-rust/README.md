@@ -214,5 +214,3 @@ fails a test. [tests/telemetry_on.rs](tests/telemetry_on.rs) and
 [tests/telemetry_off.rs](tests/telemetry_off.rs) hold the trace an emit
 carries and a frame hands on, in a process that installed an OpenTelemetry
 of its own after the client opened, and in one that installed none.
-
-Not yet published.

@@ -10,9 +10,8 @@ use semiont::types::{ResourceDescriptor, SupportedMediaType};
 use serde_json::{Value, json};
 
 fn cases(of: &str) -> Vec<Value> {
-    let table: Value =
-        serde_json::from_str(include_str!("../../../specs/src/media-types/cases.json"))
-            .expect("the cases are JSON");
+    let table: Value = serde_json::from_str(include_str!("../specs/media-types/cases.json"))
+        .expect("the cases are JSON");
     let cases = table[of].as_array().expect("cases").clone();
     assert!(!cases.is_empty(), "{of} has no case");
     cases
@@ -51,9 +50,8 @@ fn content_is_stored_under_the_name_each_case_states() {
 
 #[test]
 fn the_rows_are_the_registrys_in_its_order() {
-    let registry: Value =
-        serde_json::from_str(include_str!("../../../specs/src/media-types/registry.json"))
-            .expect("the registry is JSON");
+    let registry: Value = serde_json::from_str(include_str!("../specs/media-types/registry.json"))
+        .expect("the registry is JSON");
     let stated = registry["mediaTypes"].as_array().expect("rows");
     let held: Vec<Value> = MEDIA_TYPES
         .iter()
@@ -77,7 +75,7 @@ fn every_row_is_a_type_the_api_admits_and_every_such_type_has_a_row() {
         });
     }
     let admitted: Value = serde_json::from_str(include_str!(
-        "../../../specs/src/components/schemas/SupportedMediaType.json"
+        "../specs/components/schemas/SupportedMediaType.json"
     ))
     .expect("the schema is JSON");
     for media_type in admitted["enum"].as_array().expect("an enum") {

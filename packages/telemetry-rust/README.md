@@ -80,5 +80,3 @@ the table does not list. The examples above are regions of that file, run
 there. [tests/off.rs](tests/off.rs) is the process that installed none. The
 SDK conformance suite holds what a transport exports to the same table from
 outside ([tests/conformance/sdk](../../tests/conformance/sdk/README.md)).
-
-Not yet published.

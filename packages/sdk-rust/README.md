@@ -356,7 +356,7 @@ flight ends by being told and not by the runtime stopping.
 
 A stream of events says when it fell behind (`Lagged`) instead of dropping
 frames silently. No HTTP and no telemetry library: those are its transport's
-and the process's, and CI fails if the crate links either. Not yet published.
+and the process's, and CI fails if the crate links either.
 Its consumers are the Rust services, which is also what proves it: the
 dispatcher conformance suite runs against a dispatcher built on it. The SDK
 conformance suite ([tests/conformance/sdk](../../tests/conformance/sdk/README.md))

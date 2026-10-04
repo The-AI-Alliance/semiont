@@ -6,8 +6,7 @@ use semiont::retry::{RETRY_RULES, RetryFacts, retry_after};
 use serde_json::Value;
 
 fn table() -> Value {
-    serde_json::from_str(include_str!("../../../specs/src/retry/cases.json"))
-        .expect("the table is JSON")
+    serde_json::from_str(include_str!("../specs/retry/cases.json")).expect("the table is JSON")
 }
 
 #[test]

@@ -1,8 +1,9 @@
 [package]
 name = "semiont-http-transport"
+version.workspace = true
 edition = "2024"
-publish = false
 license = "Apache-2.0"
+repository.workspace = true
 description = "Semiont's HTTP transport, in Rust: a knowledge base's bus over its gateway, as semiont's Transport, and the sign-in that reaches it."
 
 [features]
@@ -37,6 +38,6 @@ rustls = { workspace = true, features = ["ring", "std"] }
 # The liveness harness and the bus log's capture.
 semiont = { workspace = true, features = ["testing"] }
 # This crate's own tests sign people in.
-semiont-http-transport = { workspace = true, features = ["sign-in"] }
+semiont-http-transport = { path = ".", features = ["sign-in"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net"] }
 tokio-stream = { workspace = true, features = ["sync"] }

@@ -16,9 +16,8 @@ use std::sync::{Arc, Mutex};
 
 #[test]
 fn the_state_home_is_where_the_shared_cases_say() {
-    let table: Value =
-        serde_json::from_str(include_str!("../../../specs/src/sign-in-store/cases.json"))
-            .expect("the table is JSON");
+    let table: Value = serde_json::from_str(include_str!("../specs/sign-in-store/cases.json"))
+        .expect("the table is JSON");
     let cases = table["cases"].as_array().expect("the table has cases");
     assert!(!cases.is_empty());
     for case in cases {

@@ -44,6 +44,9 @@ COPY packages/observability-rust/Cargo.toml packages/observability-rust/
 COPY packages/observability-rust/src packages/observability-rust/src
 COPY packages/sdk-rust/Cargo.toml packages/sdk-rust/build.rs packages/sdk-rust/
 COPY packages/sdk-rust/src packages/sdk-rust/src
+# The SDK's build script reads the spec through its own `specs`, a link in the
+# repository: made here, where only what is named is copied.
+RUN ln -s ../../specs/src packages/sdk-rust/specs
 COPY packages/telemetry-rust/Cargo.toml packages/telemetry-rust/
 COPY packages/telemetry-rust/src packages/telemetry-rust/src
 # The builder stage is the same in each Rust service's Dockerfile

@@ -18,7 +18,7 @@ fn text(case: &Value, key: &str) -> String {
 
 #[test]
 fn kb_identity_cases() {
-    let cases = table(include_str!("../../../specs/src/kb-identity/cases.json"));
+    let cases = table(include_str!("../specs/kb-identity/cases.json"));
     let mut checked = 0;
     for case in cases["cases"]
         .as_array()
@@ -49,7 +49,7 @@ fn kb_identity_cases() {
 
 #[test]
 fn principal_cases() {
-    let cases = table(include_str!("../../../specs/src/principals/cases.json"));
+    let cases = table(include_str!("../specs/principals/cases.json"));
     let people = cases["people"]
         .as_array()
         .expect("principals/cases.json has people");

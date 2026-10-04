@@ -49,12 +49,11 @@ where
 
 #[test]
 fn each_kind_of_id_is_held_to_the_cases_every_sdk_runs() {
-    let table: Value =
-        serde_json::from_str(include_str!("../../../specs/src/identifiers/kinds.json"))
-            .expect("kinds.json is JSON");
+    let table: Value = serde_json::from_str(include_str!("../specs/identifiers/kinds.json"))
+        .expect("kinds.json is JSON");
     let pattern = |kind: &str| -> String {
         let schema = std::fs::read_to_string(format!(
-            "{}/../../specs/src/components/schemas/{kind}.json",
+            "{}/specs/components/schemas/{kind}.json",
             env!("CARGO_MANIFEST_DIR")
         ))
         .expect("the kind's schema");

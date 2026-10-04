@@ -25,10 +25,8 @@ const SENDERS_SPAN: &str = "b7ad6b7169203331";
 const SCOPE: &str = "res-1";
 
 fn table() -> Value {
-    serde_json::from_str(include_str!(
-        "../../../specs/src/sdk-telemetry/telemetry.json"
-    ))
-    .expect("the SDK telemetry table is JSON")
+    serde_json::from_str(include_str!("../specs/telemetry.json"))
+        .expect("the SDK telemetry table is JSON")
 }
 
 fn rows<'a>(table: &'a Value, of: &str) -> &'a Vec<Value> {
