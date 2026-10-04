@@ -28,7 +28,7 @@ peers that answer differently.
 | `EMBEDDING_PROVIDER_RETRY` | archivist, librarian, smelter | the **embedding provider** to serve a model | 12 × 1s→15s ≈ 120s |
 
 Budgets above are the delays alone. Each attempt is separately bounded — by
-`EMBED_TIMEOUT_MS` (15s) for the provider, `EMIT_TIMEOUT_MS` (30s) for an emit, `busRequest`'s
+`EMBED_ROUND_TRIP_TIMEOUT_MS` (15s) for the provider, `EMIT_TIMEOUT_MS` (30s) for an emit, `busRequest`'s
 30s for a bus request — so a wall-clock ceiling is delays plus attempts × that bound, and the
 embedding provider's worst case is ~300s. Without a per-attempt bound an attempt count means
 nothing: a `fetch` with no signal can sit in TCP retransmit for minutes.
@@ -56,6 +56,10 @@ a bus refusal both answer no for different reasons.
 | `isRetryableRequestError` | HTTP 429 / 503 / 504, or a `TimeoutError` | core |
 | `isPeerUnavailable` | `bus.peer-unavailable` — the channel has no subscriber | core |
 | `notReady` | the model is not pulled, **or** the provider is not listening | `@semiont/vectors` |
+
+What counts as worth another attempt is the same in every language: the rules are
+[`specs/src/retry/cases.json`](../../specs/src/retry/cases.json), and each implementation runs
+them.
 
 `notReady` is the one composition, and it is deliberate: at boot both failures are the same
 wait with the same consequence — a flapping archivist strands the worker either way.
@@ -86,8 +90,9 @@ exit. A repair pass that fails leaves a store behind; it does not leave the proj
 
 ## What deliberately does not retry
 
-**Graph and vector store connects** take a deadline instead — `withDeadline(what, 60s, …)` in
-all four mains. These are one-shot connects with no transient class worth naming, and an
+**Graph, vector store and embedding provider connects** take a deadline instead —
+`withDeadline(what, STARTUP_CONNECT_TIMEOUT_MS, …)`, 60s, in the archivist, librarian and smelter
+mains. These are one-shot connects with no transient class worth naming, and an
 unbounded await leaves a container hung where a restart-on-exit policy can only rescue a process
 that exits.
 
@@ -100,7 +105,10 @@ subscription must always come back; every other site is a request with a caller 
 the package that owns the question, and that placement is load-bearing: an embedding path that
 borrowed `STARTUP_FETCH_RETRY` — sized for *until the gateway starts listening* — expired
 waiting for a model download and killed three services on every first boot. `STARTUP_FETCH_RETRY`
-is the one policy in core, because five boot paths genuinely share the question it answers.
+is the one hand-written policy in core, because five boot paths genuinely share the question it
+answers. `EMIT_RETRY` is in core too, generated from
+[`specs/src/client/timing.json`](../../specs/src/client/timing.json): it is client timing every
+SDK keeps.
 
 ## See also
 

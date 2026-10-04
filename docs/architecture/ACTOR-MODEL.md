@@ -17,7 +17,7 @@ graph TD
 
     BUS["E V E N T &ensp; B U S"]
 
-    subgraph ks ["Knowledge System (per project)"]
+    subgraph ks ["Knowledge System (per knowledge base)"]
         STOWER["Stower"]
         GATHERER["Gatherer"]
         MATCHER["Matcher"]
@@ -43,29 +43,23 @@ graph TD
     BUS -->|"domain events"| WEAVER
     BUS -->|"domain events"| SMELTER
 
-    SOURCES["Content Sources"] --> FEEDER["Feeder"]
-    FEEDER -->|"yield"| BUS
-
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold,font-size:14px
     classDef human fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
     classDef ai fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
     classDef kb fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
-    classDef stream fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
     classDef worker fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
     class READER,ANALYST,AUTHOR human
     class MARKER,GENERATOR,LINKER ai
     class BUS bus
     class KB kb
-    class SOURCES stream
-    class FEEDER,STOWER,GATHERER,MATCHER,BROWSER,CTM,WEAVER,SMELTER worker
+    class STOWER,GATHERER,MATCHER,BROWSER,CTM,WEAVER,SMELTER worker
 ```
 
-Three categories of actor:
+Two kinds of actor:
 
-1. **Intelligent actors** — humans or AI agents that read, interpret, and annotate content. They produce events that carry semantic intent (mark, browse, yield, match, bind, gather, beckon).
+1. **Intelligent actors** — humans or AI agents that read, interpret, and annotate content. They produce events that carry semantic intent (browse, bind, yield, mark, frame, gather, match, beckon).
 2. **The knowledge base** — a passive actor that listens to events and materializes durable state. It has no intelligence; it simply records what the intelligent actors decide. Seven reactive sub-actors serve it: five access actors that mediate every read and write (Stower, Browser, Gatherer, Matcher, CloneTokenManager) and two projection pipelines that follow the event log (Weaver → graph, Smelter → vectors). See [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md).
-3. **Content streams** — external sources that yield new resources into the system (uploads, web fetches, API ingestion). Mediated by the **Feeder** actor.
 
 The event bus is the only coupling between actors. An actor does not know who else is listening.
 
@@ -80,21 +74,21 @@ The event bus is the only coupling between actors. An actor does not know who el
 | 🤖 | **Generator Agent** | yield, gather | Assembles context around a reference annotation (gather), then synthesizes a new resource from it (yield). Creates content that the knowledge base records. |
 | 🤖 | **Linker Agent** | bind, gather | Resolves unresolved references by searching for matching resources and linking them. Performs entity resolution and coreference — the binding of a mention to its referent. |
 
-AI actors connect to the event bus over the same `/bus/emit` + `/bus/subscribe` endpoints human actors use, authenticated via REST + JWT or MCP. The knowledge base describes a human's act and an AI's act the same way: every event carries the verified DID of its emitter, and an annotation's `creator`, `generator` and `wasAttributedTo` are derived from that by the knowledge base — never asserted by whoever wrote it.
+AI actors connect to the event bus over the same `/bus/emit` + `/bus/subscribe` endpoints human actors use. Each signs in at the knowledge base's identity provider: a person through a browser, a script by the device grant, a service with its own account. The knowledge base describes a human's act and an AI's act the same way: every event carries the verified DID of its emitter, and an annotation's `creator`, `generator` and `wasAttributedTo` are derived from that by the knowledge base — never asserted by whoever wrote it.
 
-## Content streams
+In a running stack the AI actors are jobs: the dispatcher queues them and the worker runs them. An agent built on the SDK is one in the same sense, from outside the stack.
 
-External sources of new resources: file uploads, API ingestion, web fetches. The **Feeder** actor sits between content streams and the event bus. It accepts raw content from a source, emits `yield:create` on the bus, and the Stower handles persistence. The Feeder normalizes the intake — regardless of how content arrives, it enters the system as a yield event.
+## How content enters
 
-Content sources:
+A new resource enters as a **yield**, emitted by an actor like any other event, and the Stower records it. There is no separate intake path:
 
-- **Upload** — a human drags a file into the browser
-- **API Ingestion** — an external system pushes content via REST
-- **Web Fetch** — the system retrieves content from a URL
+- **A person** uploads a file, or writes one, on the Browser's compose page.
+- **A script or the launcher** uploads one through the SDK (`semiont yield --upload`).
+- **A Generator Agent** writes one from gathered context.
 
 ## Flows
 
-Eight composable flows define how actors interact with the knowledge base: **Frame**, **Yield**, **Mark**, **Match**, **Bind**, **Gather**, **Browse**, and **Beckon**. See **[../protocol/flows/README.md](../protocol/flows/README.md)** for the full table, relationships, and individual flow documentation.
+Eight composable flows define how actors interact with the knowledge base: **Browse**, **Bind**, **Yield**, **Mark**, **Frame**, **Gather**, **Match**, and **Beckon**. See **[../protocol/flows/README.md](../protocol/flows/README.md)** for the full table, relationships, and individual flow documentation.
 
 For the wire-level definition (channel naming, `correlationId` / `_userId` conventions, `_trace` carrier), see **[../protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md)**.
 

@@ -1,56 +1,55 @@
 # Package Architecture
 
-Semiont is a monorepo. Workspace packages are organized in layers from low-level primitives to high-level application logic; the Browser (`apps/browser`) sits on top. The gateway (`apps/gateway`) is a Rust binary and depends on none of them: it is built against [`specs/`](../../specs/src/openapi.json), the protocol they implement from the other side. The other service images (archivist, librarian, worker, smelter, weaver) run entry points that live inside the packages themselves — `@semiont/make-meaning`'s `*-main` modules and `@semiont/jobs`' worker; their `apps/<svc>/` directories hold only the Dockerfile.
+Semiont is a monorepo with two workspaces: the npm packages, and the Rust crates. Neither depends on the other. Both are built against [`specs/`](../../specs/src/openapi.json), the protocol each implements from its side.
 
 For the per-package descriptions and npm metadata, see **[../../packages/README.md](../../packages/README.md)** — alphabetized table with one-line descriptions of every published `@semiont/*` package.
 
-## Layered dependency graph
+## The npm packages
+
+Workspace packages are organized in layers from low-level primitives to application logic; the Browser (`apps/browser`) sits on top.
 
 ```mermaid
 graph BT
-    %% Layer 5: Application Consumers
-    gateway["apps/gateway<br/><i>Rust; built against specs/</i>"]
+    %% Layer 5: Application
     browser["apps/browser<br/><i>Vite + React SPA</i>"]
 
-    %% Layer 4: Application Logic
-    meaning["@semiont/make-meaning<br/><b>startMakeMeaning()</b><br/><i>Infrastructure orchestrator</i><br/>EventStore, GraphDB, RepStore,<br/>InferenceClient, JobQueue, Workers"]
+    %% Layer 4: Application logic
+    meaning["@semiont/make-meaning<br/><i>The knowledge-system actors and<br/>four services' entry points</i>"]
     react["@semiont/react-ui<br/><i>React components & hooks</i>"]
     mcp["@semiont/mcp-server<br/><i>Model Context Protocol server</i>"]
 
-    %% Layer 3: AI + Workers
-    inference["@semiont/inference<br/><i>LLM abstraction</i>"]
+    %% Layer 3: Workers
     jobs["@semiont/jobs<br/><i>Job worker + its entry point</i>"]
 
-    %% Layer 2: SDK + Domain Storage
-    sdk["@semiont/sdk<br/><i>SemiontClient + namespaces + session<br/>state units, bus-request, cache</i>"]
+    %% Layer 2: SDK + domain storage
+    sdk["@semiont/sdk<br/><i>SemiontClient + namespaces + session<br/>state units, cache</i>"]
     graph_pkg["@semiont/graph<br/><i>Graph DB abstraction</i>"]
     event["@semiont/event-sourcing<br/><i>Event store & materialized views</i>"]
 
-    %% Layer 1: Wire + Storage Primitives
+    %% Layer 1: Wire + primitives
     api["@semiont/http-transport<br/><i>HttpTransport, HttpContentTransport</i>"]
-    content["@semiont/content<br/><i>Content-addressed storage</i>"]
+    content["@semiont/content<br/><i>Working-tree storage, text extraction</i>"]
     vectors["@semiont/vectors<br/><i>Vector store & embeddings</i>"]
     ontology["@semiont/ontology<br/><i>Entity schemas & W3C vocab</i>"]
+    inference["@semiont/inference<br/><i>LLM abstraction</i>"]
 
     %% Layer 0: Foundation
-    core["@semiont/core<br/><i>OpenAPI types, branded IDs,<br/>event protocol, config loaders</i>"]
-    obs["@semiont/observability<br/><i>OTel helpers (withSpan,<br/>traceparent, Node/Web init)</i>"]
+    core["@semiont/core<br/><i>OpenAPI types, typed ids,<br/>bus protocol, config loaders</i>"]
+    obs["@semiont/observability<br/><i>OTel helpers, logging</i>"]
 
-    %% Application dependencies
-    Browser --> react
-    Browser --> sdk
-    Browser --> api
-    Browser --> obs
+    browser --> react
+    browser --> sdk
+    browser --> api
 
-    %% Application logic dependencies
-    meaning --> event
-    meaning --> graph_pkg
-    meaning --> content
-    meaning --> ontology
-    meaning --> inference
-    meaning --> vectors
     meaning --> jobs
     meaning --> sdk
+    meaning --> event
+    meaning --> graph_pkg
+    meaning --> api
+    meaning --> content
+    meaning --> vectors
+    meaning --> ontology
+    meaning --> inference
     meaning --> obs
     meaning --> core
     react --> sdk
@@ -59,39 +58,35 @@ graph BT
     mcp --> sdk
     mcp --> api
 
-    %% AI + Workers dependencies
-    inference --> api
-    inference --> core
-    inference --> obs
     jobs --> sdk
-    jobs --> api
-    jobs --> inference
-    jobs --> content
     jobs --> event
-    jobs --> vectors
+    jobs --> api
+    jobs --> content
+    jobs --> inference
     jobs --> obs
     jobs --> core
 
-    %% SDK + Domain Storage dependencies
     sdk --> api
     sdk --> core
     graph_pkg --> api
     graph_pkg --> ontology
     graph_pkg --> core
     event --> api
+    event --> content
+    event --> obs
     event --> core
 
-    %% Wire + Primitives dependencies
     api --> obs
     api --> core
+    content --> obs
     content --> core
     vectors --> core
-    %% ontology has no @semiont/* deps
+    ontology --> core
+    inference --> obs
+    inference --> core
 
-    %% Foundation
     obs --> core
 
-    %% Styling by layer
     classDef layer0 fill:#e1f5fe,stroke:#01579b,stroke-width:3px
     classDef layer1 fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
     classDef layer2 fill:#fff3e0,stroke:#e65100,stroke-width:2px
@@ -100,29 +95,89 @@ graph BT
     classDef layer5 fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px
 
     class core,obs layer0
-    class api,content,vectors,ontology layer1
+    class api,content,vectors,ontology,inference layer1
     class sdk,event,graph_pkg layer2
-    class inference,jobs layer3
+    class jobs layer3
     class meaning,react,mcp layer4
-    class gateway,Browser layer5
+    class browser layer5
 ```
 
-Edges in the graph reflect the actual `package.json` `dependencies` field for each workspace package.
+Each edge is an entry in that package's `package.json` `dependencies`.
+
+## The Rust crates
+
+```mermaid
+graph BT
+    gateway["apps/gateway<br/><i>semiont-gateway</i>"]
+    dispatcher["apps/dispatcher<br/><i>semiont-dispatcher</i>"]
+
+    rcore["semiont-core<br/><i>What the Rust services share</i>"]
+    robs["semiont-observability<br/><i>Telemetry export, log lines</i>"]
+    rhttp["semiont-http-transport<br/><i>The transport over a gateway, sign-in</i>"]
+    rtel["semiont-telemetry<br/><i>Spans and counts, no exporter</i>"]
+    rsdk["semiont<br/><i>The Rust SDK</i>"]
+    codegen["semiont-codegen<br/><i>Build-time generation from specs/</i>"]
+
+    gateway --> rcore
+    gateway --> robs
+    gateway --> rhttp
+    gateway --> rtel
+    gateway --> rsdk
+    dispatcher --> rcore
+    dispatcher --> robs
+    dispatcher --> rhttp
+    dispatcher --> rtel
+    dispatcher --> rsdk
+
+    rcore --> robs
+    rcore --> rsdk
+    robs --> rtel
+    robs --> rsdk
+    rhttp --> rtel
+    rhttp --> rsdk
+    rtel --> rsdk
+
+    rsdk -.->|build| codegen
+    rcore -.->|build| codegen
+
+    classDef app fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px
+    classDef internal fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef published fill:#e1f5fe,stroke:#01579b,stroke-width:3px
+
+    class gateway,dispatcher app
+    class rcore,robs internal
+    class rhttp,rtel,rsdk,codegen published
+```
+
+Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `semiont-telemetry` and `semiont-codegen`. `semiont-core` and `semiont-observability` are the services' own. The dispatcher also has two crates of its own beside its binary, for its handlers and its JetStream queue.
+
+## What each service image runs
+
+| Image | Runs | From |
+|---|---|---|
+| `semiont-archivist` | `archivist-main` | `@semiont/make-meaning` |
+| `semiont-librarian` | `librarian-main` | `@semiont/make-meaning` |
+| `semiont-smelter` | `smelter-main` | `@semiont/make-meaning` |
+| `semiont-weaver` | `weaver-main` | `@semiont/make-meaning` |
+| `semiont-worker` | `worker-main` | `@semiont/jobs` |
+| `semiont-browser` | the built SPA | `apps/browser` |
+| `semiont-gateway` | a Rust binary | `apps/gateway` |
+| `semiont-dispatcher` | a Rust binary | `apps/dispatcher` |
 
 ## Architectural principles
 
-1. **Single Orchestration Point.** `@semiont/make-meaning`'s `startMakeMeaning()` is the **infrastructure owner** — it initializes and manages the lifecycle of every subsystem (EventStore, GraphDB, RepStore, InferenceClient, JobQueue, Workers, GraphConsumer).
+1. **One composition root per process.** Each service's entry point builds what that process needs and nothing else. `startMakeMeaning()` is one more root, for in-process use: every access actor on one caller-owned bus, for `LocalTransport` consumers such as the SDK's tests. It runs no jobs; the job queue is the dispatcher's.
 
-2. **Strict API Boundary.** `apps/browser` never imports gateway packages directly. Its only `@semiont/*` imports are `@semiont/sdk`, `@semiont/http-transport`, `@semiont/react-ui`, and `@semiont/observability` — every interaction with the gateway goes through the SDK over `HttpTransport`.
+2. **Strict API boundary.** `apps/browser` never imports a service's package. Its only `@semiont/*` imports are `@semiont/sdk`, `@semiont/http-transport` and `@semiont/react-ui` — every interaction with a knowledge base goes through the SDK over `HttpTransport`.
 
-3. **Layered Dependencies.** Packages can only depend on packages in lower layers. No circular dependencies.
+3. **Layered dependencies.** A package depends only on packages in lower layers. No circular dependencies.
 
-4. **Single-Owner Initialization.** Infrastructure components are created once by `startMakeMeaning()` and passed to consumers as function arguments — never re-created or re-instantiated by callers.
+4. **The spec is the boundary between languages.** No crate depends on an npm package, and no npm package on a crate. What they agree on is in `specs/`, and each side generates its types from it.
 
-5. **Platform Independence.** Foundation and domain packages work in both browser and Node.js. Infrastructure packages (event-sourcing, graph, inference, jobs, make-meaning) are Node-only.
+5. **Platform independence.** Foundation packages work in both browser and Node.js. Infrastructure packages (content, event-sourcing, graph, inference, jobs, make-meaning) are Node-only.
 
 ## See also
 
 - **[../../packages/README.md](../../packages/README.md)** — alphabetized package catalog with one-line descriptions and npm links.
-- **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** — what runs *inside* `@semiont/make-meaning` (the five KB actors).
-- **[CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md)** — how these packages get assembled into the seven Semiont-code containers.
+- **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** — what runs *inside* `@semiont/make-meaning` (the seven KB actors).
+- **[CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md)** — how the service images fit together in a running stack.

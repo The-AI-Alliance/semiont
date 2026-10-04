@@ -108,7 +108,7 @@ The read actor for deterministic single-index queries — resources, annotations
 
 ### CloneTokenManager (archivist)
 
-The clone-token lifecycle in the yield flow: issue a 15-minute in-memory token, validate it, create the clone through the normal write path. Tokens never touch durable storage — losing them on restart is harmless. That expiry is written down here and nowhere else; it is minted at [`packages/make-meaning/src/clone-token-manager.ts:96`](../../packages/make-meaning/src/clone-token-manager.ts#L96) — check this paragraph against that literal, not against another document.
+The clone-token lifecycle in the yield flow: issue a 15-minute in-memory token, validate it, create the clone through the normal write path. Tokens never touch durable storage — losing them on restart is harmless. That expiry is written down here and nowhere else; it is the `expiresAt` literal in [`clone-token-manager.ts`](../../packages/make-meaning/src/clone-token-manager.ts) — check this paragraph against that literal, not against another document.
 
 ### Gatherer (librarian)
 

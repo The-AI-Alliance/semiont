@@ -119,6 +119,24 @@ The Ollama model cache is separate, and can be large:
 semiont start --clean-ollama         # Remove the model cache volume and exit
 ```
 
+### Rebuilding derived state
+
+Views, the graph and the vectors are derived from the event log, and each recovers on its own when its service starts: see [where a knowledge base lives on disk](../../architecture/FILESYSTEM.md#rebuilding-what-is-derived). The Archivist rebuilds every view at startup, so restarting it is the rebuild:
+
+```bash
+semiont start --service archivist
+```
+
+To rebuild deliberately without a restart, `@semiont/make-meaning` ships two scripts. They run from a checkout of this repository, not from an image:
+
+```bash
+cd packages/make-meaning
+npm run rebuild-projections    # materialized views, from the event log
+npm run rebuild-graph          # graph projection: asks the running Weaver to rebuild
+```
+
+**After a change to what a projection stores, both must be re-run — and the graph does not restamp itself.** Views rematerialize on every Archivist start, so a restart is enough for them. The graph only rebuilds on the `weave:rebuild` command the second script sends, so a stack that restarts but skips it serves the OLD shape from the graph while views serve the new one — and a flat copy the graph denormalizes for query (`d.storageUri`, which path search substring-matches) silently keeps stale or empty values until the command runs. Re-run both, in that order, and verify the projection actually carries what you expect rather than assuming the command's success line means the shape is right.
+
 ## Log review
 
 Services log structured JSON to stdout. There is no aggregation layer and no retention policy to manage — the container engine holds the logs, and containers run without `--rm` so a crashed service's logs survive.

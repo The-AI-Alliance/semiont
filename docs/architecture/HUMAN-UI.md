@@ -39,17 +39,17 @@ graph TB
 
 Human actors interact through the **Semiont Browser** — the `apps/browser` single-page app (Vite + React), packaged as the `ghcr.io/the-ai-alliance/semiont-browser` container image. A user connects to one or more Knowledge Bases (each a separate gateway); DOM interactions become bus commands through the same `/bus/emit` + `/bus/subscribe` endpoints every other Semiont actor uses. Because it's a static SPA, it can equivalently be served from any file server or CDN — the container is the deployment-ready packaging for the "download and run" path.
 
-For end-user-facing browser docs (running it locally, accessibility, keyboard shortcuts), see **[../analyst/](../analyst/)**.
+For working in the Browser (getting it, signing in, annotating, shortcuts, accessibility), see **[../analyst/](../analyst/)**.
 
 ## State-unit split
 
 The SPA is internally a literal Model–View–StateUnit split:
 
 - **Model** — `@semiont/sdk` namespaces (frame, browse, mark, bind, gather, match, yield, beckon), typed RxJS Observables, per-key caches, and bus-driven invalidation.
-- **StateUnit** — one factory per verb (`createBrowseStateUnit`, `createMarkStateUnit`, `createBindStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`) plus page-level composite state units; pure RxJS, framework-agnostic, unit-testable without a renderer.
-- **View** — React components in `@semiont/react-ui` and `apps/browser`, reduced to two adapters (`useStateUnit`, `useObservable`) plus JSX. No component-owned fetching, caching, or subscription management.
+- **StateUnit** — one factory per flow that holds state (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`) plus page-level composite state units; pure RxJS, framework-agnostic, unit-testable without a renderer.
+- **View** — React components in `@semiont/react-ui` and `apps/browser`, reduced to three adapters (`useSessionStateUnit`, `useStateUnit`, `useObservable`) plus JSX. No component-owned fetching, caching, or subscription management.
 
-The state unit layer is what makes the same SDK that drives the browser also drive the CLI, MCP server, and worker pool — none of those have a renderer, but they all consume the same Model + StateUnit layer. See **[../../docs/builder/Usage.md](../builder/Usage.md)** for the SDK surface.
+The state unit layer is what makes the same SDK that drives the browser also drive the MCP server and the job worker — neither has a renderer, but both consume the same Model + StateUnit layer. See **[../../docs/builder/Usage.md](../builder/Usage.md)** for the SDK surface.
 
 ## Multi-KB sessions
 
@@ -57,8 +57,7 @@ A Semiont Browser instance registers multiple knowledge bases — each a separat
 
 Storage adapters thread the same `SemiontSession` through every host environment:
 
-- **`WebBrowserStorage`** — localStorage in the SPA.
-- **Filesystem storage** — for CLI and MCP processes that need session state across invocations.
-- **In-memory storage** — for workers, the smelter, and tests.
+- **`WebBrowserStorage`** (`@semiont/react-ui`) — localStorage in the SPA, with cross-tab sync.
+- **`InMemorySessionStorage`** (`@semiont/sdk`) — for workers, the smelter, scripts and tests.
 
-`SemiontClient` exposes namespace methods (e.g. `client.browse.resource(...)`, `client.mark.annotation(...)`) over the bus; raw `emit`/`on`/`stream` are internal to the SDK and not part of the consumer surface. The full session lifecycle — sign-in, refresh, expiry, cross-tab sync — is documented in [SemiontSession's source](../../packages/sdk/src/session/semiont-session.ts) and the [long-running session skill](../builder/skills/semiont-session/SKILL.md).
+`SemiontClient` exposes namespace methods (e.g. `client.browse.resource(...)`, `client.mark.annotation(...)`) over the bus; the namespaces are the consumer surface, and `client.bus` and `client.transport` are the advanced one beneath it ([REACTIVE-MODEL § Three paths to the bus](../builder/REACTIVE-MODEL.md#three-paths-to-the-bus)). The full session lifecycle — sign-in, refresh, expiry, cross-tab sync — is documented in [SemiontSession's source](../../packages/sdk/src/session/semiont-session.ts) and the [long-running session skill](../builder/skills/semiont-session/SKILL.md).

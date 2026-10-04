@@ -27,12 +27,13 @@ the Stower catches the refusal and answers it on the bus."
 
 Lives in [`packages/event-sourcing/src/views/projection-reducers.ts`](../../packages/event-sourcing/src/views/projection-reducers.ts).
 
-Two reducers today:
+Three reducers:
 
 | Reducer | Input | Output | Owns |
 |---------|-------|--------|------|
 | `applyEntityTypeAdded(view, tag)` | `string[]`, `string` | `string[]` | dedup (`Set`) + locale-aware sort |
 | `applyTagSchemaAdded(view, schema)` | `TagSchema[]`, `TagSchema` | `{ next: TagSchema[]; warning?: { schemaId, message } }` | dedup-by-id + locale-aware sort + most-recent-wins + overwrite-with-different-content warning |
+| `applyPersonProfiled(view, did, name, since)` | `PeopleView`, the person's DID, a name, a timestamp | `PeopleView` | last-wins per DID; replaying the same event is a no-op |
 
 The shapes are deliberate. `applyEntityTypeAdded` returns a plain
 array because entity types are opaque strings — there's no warning
@@ -44,7 +45,7 @@ caller has to mock in tests.
 The shell — `ViewMaterializer.materializeEntityTypes` /
 `materializeTagSchemas` in
 [`view-materializer.ts`](../../packages/event-sourcing/src/views/view-materializer.ts) —
-is now a thin reader/writer wrapping the reducer:
+is a thin reader/writer wrapping the reducer:
 
 ```ts
 async materializeTagSchemas(schema: TagSchema): Promise<void> {
@@ -68,7 +69,7 @@ The reducer is the contract; the shell is the wiring.
 
 Lives in [`packages/make-meaning/src/views/projection-validators.ts`](../../packages/make-meaning/src/views/projection-validators.ts).
 
-One validator today:
+One validator:
 
 | Validator | Input | Output | Owns |
 |-----------|-------|--------|------|
@@ -109,17 +110,13 @@ imperative shell*, sometimes *hexagonal architecture*, sometimes just
    missing tag is reported" are exactly the shape fast-check excels
    at, and they only make sense against a pure function.
 
-3. **Schema evolution has a natural home.** The deferred
-   schema-evolution work —
-   migrating a category rename, version-bumping a schema id, soft-
-   deprecating a category — slots into the reducer module as
-   additional pure functions on the same view shapes. No new I/O
-   surface; no new actor.
+3. **New rules have a natural home.** A rule about a projection is
+   one more pure function on the same view shape. No new I/O surface;
+   no new actor.
 
 4. **Re-use beyond the actor.** The validators don't depend on the
-   bus or the event store. A future CLI that wants to dry-run a `KB
-   lint` over the projection can call `validateEntityTypes` directly
-   without spinning up the full kernel.
+   bus or the event store, so anything that holds a projection can
+   call `validateEntityTypes` directly.
 
 ## Axioms
 
@@ -191,8 +188,7 @@ violation into a small counterexample.
 
 ## Where to extend
 
-When adding a new `__system__` projection (e.g. relation types from
-the future Frame work):
+When adding a new `__system__` projection:
 
 1. Add a pure reducer to `projection-reducers.ts` (`applyXAdded(view, payload)`).
 2. Cover it with example-based tests + at least the universal axioms (sortedness, uniqueness, idempotence on the relevant equivalence relation, set semantics, no mutation).
@@ -200,7 +196,7 @@ the future Frame work):
 4. Wire the materializer arm to `ViewManager.materializeSystem` (the dispatch on the event's `type`) **and to `rebuildAll`'s pass 1**, so a rebuilt projection agrees with an incrementally-built one. `materializeSystem` takes the whole event: `people.json` is keyed by the event's `userId` (the verified subject) and stamped with its timestamp, neither of which is in a payload.
 5. If the new projection is queried during command validation, add a pure validator in `projection-validators.ts` and call it from the command's handler.
 
-### The system projections today
+### The system projections
 
 | File | Built from | Read by |
 |---|---|---|

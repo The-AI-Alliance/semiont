@@ -133,9 +133,8 @@ a rectangle and the quote can be computed before the annotation is created —
 exactly as the born-digital path always worked.
 
 So: no new stored event, no mutable targets, and annotations created before this
-existed simply keep no quote. That is the same principle `PDF-DETECTION.md`
-states as a non-goal — annotations are events over an immutable resource, not
-edits to it.
+existed simply keep no quote. Annotations are events over an immutable
+resource, not edits to it.
 
 ## Authored maps are not stored here
 
