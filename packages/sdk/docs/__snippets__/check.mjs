@@ -5,7 +5,8 @@
 // waiting for a reader to paste a dead snippet.
 //
 // Two suites, each one TypeScript program with its own preludes:
-//   - sdk: the sdk docs, plus the repo-root and packages/sdk READMEs, which
+//   - sdk: the builder docs (docs/builder) and what stays beside the sdk
+//     (packages/sdk/docs), plus the repo-root and packages/sdk READMEs, which
 //     carry the first sdk code most readers see and are the least likely to
 //     be revisited when a signature moves. Resolved like an external node
 //     consumer (nodenext).
@@ -68,7 +69,12 @@ const markdownIn = (dir) => readdirSync(join(REPO_ROOT, dir))
 
 const SUITES = {
   sdk: {
-    docs: [...markdownIn('packages/sdk/docs'), 'README.md', 'packages/sdk/README.md'],
+    docs: [
+      ...markdownIn('docs/builder'),
+      ...markdownIn('packages/sdk/docs'),
+      'README.md',
+      'packages/sdk/README.md',
+    ],
     preludes: ['prelude.ts'],
     options: {},
     ambientModules: [],

@@ -170,8 +170,8 @@ export class EventBus {
 
   /**
    * Channel names with at least one live observer right now. Introspection
-   * for composition-parity gates: `on()` and `frames()` create a channel's
-   * subject lazily, so mere access does not count — only real subscriptions
+   * for composition-parity gates: a channel's subject is created lazily on
+   * first access, so mere access does not count — only real subscriptions
    * do. A scoped subscription reports its channel's bare name: scope is a
    * field on the frame, not part of a key.
    */
@@ -225,7 +225,6 @@ export class EventBus {
    * const resource2 = eventBus.scope(resourceId('resource-2'));
    *
    * // These are isolated - only resource1 subscribers will fire
-   * resource2.on('beckon:hover').subscribe(handleHover); // never fires
    * resource1.emit('beckon:hover', { annotationId: 'ann-1' });
    * ```
    */

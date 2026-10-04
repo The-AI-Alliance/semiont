@@ -2,7 +2,7 @@
 
 This document describes the wire-level event protocol that every actor in Semiont speaks: channel naming, payload conventions, the gateway's identity injection, the trace-context carrier, and resource scoping. It is the contract that the transport layer (HTTP+SSE, in-process, future gRPC) implements and that the SDK hides behind typed namespace methods.
 
-If you only want to *use* the protocol from a script, you don't need this doc — read **[../../packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md)**, the SDK already wraps every channel pattern. Read this if you're:
+If you only want to *use* the protocol from a script, you don't need this doc — read **[../../docs/builder/Usage.md](../builder/Usage.md)**, the SDK already wraps every channel pattern. Read this if you're:
 
 - Building a new transport (e.g. `LocalTransport` for in-process, a hypothetical `GrpcTransport`)
 - Adding a new actor or worker that subscribes to channels directly via `eventBus.on(channel)`
@@ -169,7 +169,7 @@ Two declarations make this work, and together they retire a whole bug class (a r
 - **The reply-shape standard.** Every reply carries the request's `correlationId` on its envelope, and its payload is one of three shapes:
   - `{ response: T }` — success with data → resolves to `T`.
   - `{}` — success, no data → resolves to `void`.
-  - `CommandError` — failure → rejects with `BusRequestError` whose `code` is the failure's own `CommandError.code` promoted to the client vocabulary (`bus.not-found`, `bus.peer-unavailable`, `bus.unauthorized`, `bus.none-pending`), or `bus.rejected` when the failure carries none, per the [SDK error model](../../packages/sdk/docs/Usage.md#error-handling).
+  - `CommandError` — failure → rejects with `BusRequestError` whose `code` is the failure's own `CommandError.code` promoted to the client vocabulary (`bus.not-found`, `bus.peer-unavailable`, `bus.unauthorized`, `bus.none-pending`), or `bus.rejected` when the failure carries none, per the [SDK error model](../builder/Usage.md#error-handling).
 
   `busRequest` reads `e.response`, so **every reply handler must carry the request's `correlationId` onto its reply's envelope and put its data under `response`** — a reply without the id hangs the caller until `bus.timeout`. The uniformity is exactly what lets the return type be derived from the registry instead of hand-annotated.
 
@@ -316,7 +316,7 @@ Three legitimate paths to the bus, each suited to a distinct case:
 - **`session.subscribe(channel, handler)`** — channel-by-name observation. The sanctioned escape hatch when the channel name is dynamic (`useEventSubscription` in React, an agent watching `mark:added` for collaborator activity) or no namespace exposes a typed listener for the channel you care about.
 - **Direct `client.bus.on(channel)` / `client.transport.emit(channel, ...)`** — the lowest-level path, for workers and actors that *are* the handlers (Stower, Gatherer, Matcher, Smelter inside `@semiont/make-meaning` use this), for RxJS operator composition on a channel stream, or for prototyping new operations not yet wrapped by a namespace.
 
-The three paths are documented end-to-end (with code shapes and call-site examples) in [`packages/sdk/docs/REACTIVE-MODEL.md`](../../packages/sdk/docs/REACTIVE-MODEL.md#three-paths-to-the-bus). The bus surface is *not* `@internal` — it's a real surface for advanced and worker use — but the typed namespaces are the canonical entry point for everything else. If you find yourself writing `transport.emit(channel, ...)` from application code, the right move is usually to reach for the namespace, or — if no namespace covers your case — to add one.
+The three paths are documented end-to-end (with code shapes and call-site examples) in [`docs/builder/REACTIVE-MODEL.md`](../builder/REACTIVE-MODEL.md#three-paths-to-the-bus). The bus surface is *not* `@internal` — it's a real surface for advanced and worker use — but the typed namespaces are the canonical entry point for everything else. If you find yourself writing `transport.emit(channel, ...)` from application code, the right move is usually to reach for the namespace, or — if no namespace covers your case — to add one.
 
 ## The registry is the authority; both languages are generated
 
@@ -451,7 +451,7 @@ Then for the OpenAPI schema:
 And for the SDK:
 
 7. Add a namespace method that wraps `transport.emit(channel, ...)` or `busRequest(...)` for the new operation.
-8. Update [packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md) under the right verb.
+8. Update [docs/builder/Usage.md](../builder/Usage.md) under the right verb.
 
 Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` clause and `validate-registry.mjs` make incomplete additions fail loud and clear.
 
@@ -466,6 +466,6 @@ Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` cl
 - **`packages/sdk-go/bus/`** — GENERATED Go channel constants and operation registry.
 - **[`packages/core/src/event-bus.ts`](../../packages/core/src/event-bus.ts)** — the in-process `EventBus` and `ScopedEventBus` implementation.
 - **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)** — the bus log format and capture API.
-- **[../../packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md)** — the namespace tour with worked examples per verb.
+- **[../../docs/builder/Usage.md](../builder/Usage.md)** — the namespace tour with worked examples per verb.
 - **[../system/administration/OBSERVABILITY.md](../system/administration/OBSERVABILITY.md)** — how `_trace` correlates with OpenTelemetry spans and the `busLog` grep timeline.
 - **[flows/README.md](flows/README.md)** — the eight flows that organize the channel namespace.

@@ -5,7 +5,7 @@ set -euo pipefail
 # type-checks against the BUILT packages, resolved through the exports map the
 # way that doc's reader resolves them (SAFE-DOCS). Doc rot fails CI instead of
 # waiting for a reader to paste a dead snippet. Two suites:
-#   - sdk: packages/sdk/docs plus the repo-root and packages/sdk READMEs.
+#   - sdk: docs/builder and packages/sdk/docs plus the repo-root and packages/sdk READMEs.
 #   - ui:  packages/react-ui/docs and apps/browser/docs plus their READMEs.
 #
 # What green does NOT claim (do not oversell it):

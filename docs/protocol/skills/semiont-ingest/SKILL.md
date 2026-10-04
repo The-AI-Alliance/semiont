@@ -225,4 +225,4 @@ ingest().catch((e) => {
   value is maintained across moves (`yield:moved` relocates it) — so reusing the same URI
   across re-runs is what lets other skills trace a resource back to its origin. It lands on
   the resource's primary representation; read it back with `getStorageUri(resource)`.
-- **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated). See [Error Handling in Usage.md](../../../../packages/sdk/docs/Usage.md#error-handling).
+- **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated). See [Error Handling in Usage.md](../../../builder/Usage.md#error-handling).

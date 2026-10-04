@@ -361,7 +361,7 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md) in the repository root for full gui
 
 ## Related Packages
 
-- [@semiont/sdk](../sdk) - `SemiontBrowser`, `SemiontClient`, the read-through cache, and the state machinery. Its [**Developer Guide**](../sdk/docs/DEVELOPER-GUIDE.md) covers end-to-end use, including embedding this package's `ResourceViewer`.
+- [@semiont/sdk](../sdk) - `SemiontBrowser`, `SemiontClient`, the read-through cache, and the state machinery. Its [**Developer Guide**](../../docs/builder/DEVELOPER-GUIDE.md) covers end-to-end use, including embedding this package's `ResourceViewer`.
 - [@semiont/core](../core) - Shared API types (`components`) generated from the OpenAPI spec
 - [@semiont/http-transport](../http-transport) - HTTP transport (`HttpTransport`, `HttpContentTransport`, `APIError`)
 - [semiont-browser](../../apps/browser) - Reference implementation (Vite + React Router)

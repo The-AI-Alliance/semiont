@@ -9,8 +9,8 @@
  * ```ts
  * // bus-only state unit
  * const { bus, client } = makeTestClient();
- * const stateUnit = createShellStateUnit(client);
- * client.bus.get('panel:toggle').next({ panel: 'annotations' });
+ * const stateUnit = createBeckonStateUnit(client);
+ * client.bus.emit('beckon:hover', { annotationId: 'ann-1' });
  * bus.destroy(); // in afterEach
  *
  * // state unit that also calls HTTP namespaces

@@ -79,7 +79,7 @@ export function createResourceViewerPageStateUnit(
   // `browse` (ShellStateUnit) is a *passed-in* dependency — owned by `useShellStateUnit`,
   // not this page unit. Do NOT add it to the disposer: it's app-scoped and shared, so
   // disposing it on page teardown would tear down (or double-dispose) the shared shell.
-  // See packages/sdk/docs/STATE-UNITS.md (composition: only dispose children you construct).
+  // See docs/builder/STATE-UNITS.md (composition: only dispose children you construct).
   disposer.add(mark);
   disposer.add(gather);
   disposer.add(matchStateUnit);

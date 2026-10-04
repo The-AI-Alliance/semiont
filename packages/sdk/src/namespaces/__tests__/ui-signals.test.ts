@@ -1,6 +1,6 @@
 /**
  * Tests for the UI-signal wrapper methods (CLIENT-CLEANUP).
- * Each wrapper is a one-line typed sugar over `bus.get(channel).next(payload)`
+ * Each wrapper is a one-line typed sugar over `bus.emit(channel, payload)`
  * (local-bus emit). The tests lock in the wrapper→channel mapping so future
  * refactors can't silently change which channel a method routes to, nor
  * accidentally swap local emit for transport.emit (wire).
@@ -277,7 +277,7 @@ describe('UI signal wrappers', () => {
     it('emits bind:body-error with the given payload (local bus)', () => {
       // The client-local UI notification for a bind failure caught by a caller
       // with no toast surface (ReferenceEntry's unlink) — components must go
-      // through this wrapper, never raw bus.get (audit-raw-bus.sh).
+      // through this wrapper, never raw `client.bus.emit` (audit-raw-bus.sh).
       const bus = new EventBus();
       const spy = busSpy(bus, 'bind:body-error');
       const bind = new BindNamespace(makeMockTransport(), bus);

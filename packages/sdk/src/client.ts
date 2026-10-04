@@ -190,7 +190,7 @@ export class SemiontClient {
     // client.bus). Without this, the bus outlived the client and every
     // subscriber stayed attached forever, silently receiving nothing — one
     // leaked bus per session cycle under a reconnect loop. Post-dispose
-    // `bus.get()` — any bus-emitting namespace method — now throws
+    // bus access — any bus-emitting namespace method — now throws
     // `destroyed bus` instead of no-op'ing into the leak: calling a
     // disposed client is a bug, and it says so.
     this.bus.destroy();

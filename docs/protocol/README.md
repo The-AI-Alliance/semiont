@@ -88,7 +88,7 @@ await semiont.bind.body(resourceId, annId, [{ op: 'add', item: { type: 'Specific
 
 Three surfaces speak these verbs:
 
-- **[Semiont SDK](../../packages/sdk/README.md)** — the type-safe TypeScript client everything else is built on. RxJS-native, but every return value implements `PromiseLike<T>`, so `await` works without learning RxJS. See **[Usage.md](../../packages/sdk/docs/Usage.md)** for the per-namespace tour.
+- **[Semiont SDK](../../packages/sdk/README.md)** — the type-safe TypeScript client everything else is built on. RxJS-native, but every return value implements `PromiseLike<T>`, so `await` works without learning RxJS. See **[Usage.md](../builder/Usage.md)** for the per-namespace tour.
 - **[Agent Skills](skills/)** — ready-made skill definitions that agentic coding assistants like Claude Code use to drive the pipeline without writing integration code.
 - **[Semiont launcher](../../apps/launcher/README.md)** — the host-installed `semiont` binary exposes the flows as terminal verbs against a running stack; `semiont <verb> --help` for each verb's flags.
 

@@ -25,7 +25,7 @@
 
 Three framings hold the SDK's surface together. Skim them once and the per-namespace details below become predictable.
 
-**Eight verbs.** Every operation belongs to one of eight flows — *browse, bind, yield, mark, frame, gather, match, beckon* — that describe what a participant *does* with a shared corpus. Seven of them act on content (resources, annotations, references, attention); Frame acts on the schema layer (the conceptual vocabulary the others operate within). Each flow is a namespace on `SemiontClient`. The verb is the unit of mental model; methods belong to flows, not to nouns. The protocol-level definitions live in [`docs/protocol/flows`](../../../docs/protocol/flows); the per-namespace examples in this guide track the same vocabulary.
+**Eight verbs.** Every operation belongs to one of eight flows — *browse, bind, yield, mark, frame, gather, match, beckon* — that describe what a participant *does* with a shared corpus. Seven of them act on content (resources, annotations, references, attention); Frame acts on the schema layer (the conceptual vocabulary the others operate within). Each flow is a namespace on `SemiontClient`. The verb is the unit of mental model; methods belong to flows, not to nouns. The protocol-level definitions live in [`docs/protocol/flows`](../protocol/flows); the per-namespace examples in this guide track the same vocabulary.
 
 **Five return shapes.** Method return types follow a predictable convention:
 
@@ -131,7 +131,7 @@ token$.next(accessToken(newToken));
 
 `@semiont/sdk` re-exports the common branded types and the functions that make them from `@semiont/core`, for one-import convenience.
 
-The four kinds of id are made by their constructors: `resourceId`, `annotationId`, `jobId`, `userId`. Each holds text to its kind's rule, which is the spec's ([`specs/src/identifiers/kinds.json`](../../../specs/src/identifiers/kinds.json)), and throws a `TypeError` for text the rule refuses: a resource's, an annotation's and a job's id is a name of 1 to 128 letters, digits, `_` and `-`, never a URI or a path, and whoever did something is named by a DID. One kind is not assignable to another, and what the knowledge base answers is typed already, so a constructor stands only where text enters: a URL, a form, a script's argument.
+The four kinds of id are made by their constructors: `resourceId`, `annotationId`, `jobId`, `userId`. Each holds text to its kind's rule, which is the spec's ([`specs/src/identifiers/kinds.json`](../../specs/src/identifiers/kinds.json)), and throws a `TypeError` for text the rule refuses: a resource's, an annotation's and a job's id is a name of 1 to 128 letters, digits, `_` and `-`, never a URI or a path, and whoever did something is named by a DID. One kind is not assignable to another, and what the knowledge base answers is typed already, so a constructor stands only where text enters: a URL, a form, a script's argument.
 
 ```ts
 import { resourceId as makeResourceId } from '@semiont/sdk';
@@ -417,7 +417,7 @@ semiont.browse.tagSchemas().subscribe((st) => {
 });
 ```
 
-For the full per-flow contract — including the `__system__`-stream event-sourcing layer, projection materialization, and "most-recent wins + log warning" conflict semantics — see [`docs/protocol/flows/FRAME.md`](../../../docs/protocol/flows/FRAME.md). Schema-evolution operations (rename / remove / version / migrate) are deferred, not yet scheduled.
+For the full per-flow contract — including the `__system__`-stream event-sourcing layer, projection materialization, and "most-recent wins + log warning" conflict semantics — see [`docs/protocol/flows/FRAME.md`](../protocol/flows/FRAME.md). Schema-evolution operations (rename / remove / version / migrate) are deferred, not yet scheduled.
 
 ## Gather
 
@@ -588,7 +588,7 @@ again), outstanding `busRequest` replies are re-requested from the server's
 retention buffer (`pendingReplies`), and the caches fed by events with no
 watermark — lists of resources, resources, entity types, tag schemas, the
 collaborator directory — are asked for again. See
-[TRANSPORT-HTTP.md](../../../docs/protocol/TRANSPORT-HTTP.md) for the wire
+[TRANSPORT-HTTP.md](../protocol/TRANSPORT-HTTP.md) for the wire
 contract.
 
 ### Worker / actor adapters
@@ -629,7 +629,7 @@ SEMIONT_BUS_LOG=1 <command>          # Node (gateway, workers, smelter, CLI, MCP
 window.__SEMIONT_BUS_LOG__ = true;   # Browser (DevTools or e2e init)
 ```
 
-Cost when disabled: a single truthy check, zero allocations. Five op codes — `EMIT`, `RECV`, `SSE`, `PUT`, `GET` — cover every transport-level write and read. Failure modes are diagnosable from a missing line: gateway `EMIT` missing → request never reached the server; gateway `SSE` missing → handler emitted no result; Browser `RECV` missing → server wrote but bytes never parsed client-side. The full guide with the timeline format and e2e capture API is at [`tests/e2e/docs/bus-logging.md`](../../../tests/e2e/docs/bus-logging.md).
+Cost when disabled: a single truthy check, zero allocations. Five op codes — `EMIT`, `RECV`, `SSE`, `PUT`, `GET` — cover every transport-level write and read. Failure modes are diagnosable from a missing line: gateway `EMIT` missing → request never reached the server; gateway `SSE` missing → handler emitted no result; Browser `RECV` missing → server wrote but bytes never parsed client-side. The full guide with the timeline format and e2e capture API is at [`tests/e2e/docs/bus-logging.md`](../../tests/e2e/docs/bus-logging.md).
 
 When OpenTelemetry is initialized (Tier 2), every bus-log line gets a `trace=<8hex>` suffix that correlates the grep timeline with the trace UI.
 

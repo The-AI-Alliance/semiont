@@ -117,7 +117,7 @@ one bounded retry) — a lost or failing load surfaces in-band, never as `pendin
 and the stream itself never errors or terminates. Recovery is built in: a NEW subscription
 to the failed key (e.g. a component remount) clears the marker and starts a fresh attempt
 chain. A query that already holds a value never fails — stale-beats-error, the prior value
-stays visible through a failed refetch. → [CACHE-SEMANTICS.md](./CACHE-SEMANTICS.md) (B14–B15).
+stays visible through a failed refetch. → [CACHE-SEMANTICS.md](../../packages/sdk/docs/CACHE-SEMANTICS.md) (B14–B15).
 
 Live subscriptions are how you get real-time updates: **freshness follows observation** —
 subscribing to `browse.*(rId)` acquires that resource's event scope while observed and
@@ -255,7 +255,7 @@ the role in `prompt` anymore. On completion the worker mints a source→derived 
 annotation, so provenance is automatic. The generated resource id arrives on the terminal
 `complete` event. The context excerpts embedded in the generation prompt are id-labelled
 (`[<resourceId>]` / `[<resourceId>/<annotationId>]` — see the prompt walkthrough in
-[YIELD.md](../../../docs/protocol/flows/YIELD.md)), and `cite: true` turns that into
+[YIELD.md](../protocol/flows/YIELD.md)), and `cite: true` turns that into
 inline citations: the model's `[[<id>]]` tokens are stripped before storage and minted as
 W3C linking annotations on the generated resource (claim span → cited source) — citations
 arrive as ordinary navigable references, not links in the text.
@@ -549,7 +549,7 @@ const client = new SemiontClient(raw, new HttpContentTransport(raw), raw, {
 });
 ```
 
-Full behavioral contract: [CACHE-SEMANTICS.md](CACHE-SEMANTICS.md) **B17**.
+Full behavioral contract: [CACHE-SEMANTICS.md](../../packages/sdk/docs/CACHE-SEMANTICS.md) **B17**.
 
 ---
 
@@ -625,6 +625,6 @@ after that.
 - **[Usage.md](./Usage.md)** — the per-namespace reference: every method, every option.
 - **[REACTIVE-MODEL.md](./REACTIVE-MODEL.md)** — return shapes, await-vs-subscribe, the bus.
 - **[STATE-UNITS.md](./STATE-UNITS.md)** — the state-unit pattern for reactive UIs.
-- **[@semiont/react-ui](../../react-ui/README.md)** — React components for browser UIs, including the embeddable `ResourceViewer` shown above.
-- **[CACHE-SEMANTICS.md](./CACHE-SEMANTICS.md)** — the read-through cache contract behind `browse.*`.
+- **[@semiont/react-ui](../../packages/react-ui/README.md)** — React components for browser UIs, including the embeddable `ResourceViewer` shown above.
+- **[CACHE-SEMANTICS.md](../../packages/sdk/docs/CACHE-SEMANTICS.md)** — the read-through cache contract behind `browse.*`.
 - **`docs/protocol/`** — the protocol-level framing (the eight flows, the programmable surfaces).

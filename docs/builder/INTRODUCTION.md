@@ -75,13 +75,13 @@ believe them at first:
 
 1. **The contract is the product.** The bus protocol, the annotation model, and
    the job lifecycle are specified independently of any language (see
-   [`docs/protocol/`](../../../docs/protocol/)). Everything above that line is
+   [`docs/protocol/`](../protocol/)). Everything above that line is
    a projection of the contract.
 
 2. **Language SDKs are peers.** This book uses `@semiont/sdk` — the
    TypeScript/npm SDK — as its vehicle. The Rust SDK
-   ([`semiont`](../../sdk-rust/README.md), with
-   [`semiont-http-transport`](../../http-transport-rust/README.md)) has the
+   ([`semiont`](../../packages/sdk-rust/README.md), with
+   [`semiont-http-transport`](../../packages/http-transport-rust/README.md)) has the
    same client, cache, state units and sessions, and is held to the same
    shared case tables and conformance suite; its README maps each shape in
    this book to its Rust form. A Go SDK (`sdk-go`) exists today; Python,
@@ -91,7 +91,7 @@ believe them at first:
    implementation.
 
 3. **Framework bindings sit above the SDK, not inside it.**
-   [`@semiont/react-ui`](../../react-ui/) is the one supported binding today.
+   [`@semiont/react-ui`](../../packages/react-ui/) is the one supported binding today.
    But the SDK is deliberately framework-free — plain classes and observables,
    no React anywhere — so a Vue or Svelte binding is a seam awaiting an author,
    not a rearchitecture.
@@ -104,7 +104,7 @@ it.
 The SDK's own shape, in one sentence: you open a **session** (sign-in and token
 refresh handled for you) and get a **client** whose namespaces are **the eight
 verbs of the protocol** — one per flow, listed here in the canonical order used
-throughout [`docs/protocol/flows/`](../../../docs/protocol/flows/):
+throughout [`docs/protocol/flows/`](../protocol/flows/):
 
 | Verb | What it does |
 |---|---|
@@ -154,7 +154,7 @@ The one escape hatch is `.fresh()`: an explicit one-shot fetch for "I want the
 latest, right now." The division of labor is deliberate — a cache read and a
 gateway request are different types, so "which one am I doing?" is impossible
 to get wrong. The full behavioral contract, numbered and test-cited, is
-[CACHE-SEMANTICS](./CACHE-SEMANTICS.md); the design rationale is
+[CACHE-SEMANTICS](../../packages/sdk/docs/CACHE-SEMANTICS.md); the design rationale is
 [REACTIVE-MODEL](./REACTIVE-MODEL.md).
 
 ## A chat turn in one page
@@ -309,8 +309,8 @@ Where to go by goal:
 - **Understand why the API is shaped this way** —
   [REACTIVE-MODEL](./REACTIVE-MODEL.md), then
   [STATE-UNITS](./STATE-UNITS.md).
-- **Depend on exact behavior** — [CACHE-SEMANTICS](./CACHE-SEMANTICS.md) and
-  the wire-level contracts in [`docs/protocol/`](../../../docs/protocol/).
+- **Depend on exact behavior** — [CACHE-SEMANTICS](../../packages/sdk/docs/CACHE-SEMANTICS.md) and
+  the wire-level contracts in [`docs/protocol/`](../protocol/).
 - **Not a React shop? Not a TypeScript shop?** The concepts here and in the
   explanation docs are yours as-is; treat the binding- and language-specific
   material as a worked example of a pattern your stack will repeat.

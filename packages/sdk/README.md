@@ -16,11 +16,11 @@ The [Rust SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk
 on crates.io) is its full peer: the same namespaces, methods and behaviour, held to the same
 [conformance suite](https://github.com/The-AI-Alliance/semiont/tree/main/tests/conformance/sdk).
 
-> ## 📖 New here? Start with the [Introduction](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/INTRODUCTION.md)
+> ## 📖 New here? Start with the [Introduction](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/INTRODUCTION.md)
 >
 > The orientation chapter: what Semiont is, the domain vocabulary, and the three ideas the
 > API falls out of — written for people who build web apps, assuming nothing about AI apps.
-> Then the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/DEVELOPER-GUIDE.md)
+> Then the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md)
 > is the road: task-ordered recipes — connect → ingest → enrich → gather → generate
 > (grounded Q&A with inline citations) → annotate → react live → tear down — each a short
 > explanation plus the exact SDK lines. **This README is the map.** For protocol-level
@@ -69,7 +69,7 @@ Methods return one of: `Promise<T>` (atomic gateway ops), `StreamObservable` /
 `.fresh()` for the explicit network read; deliberately NOT thenable, so a cache read can
 never silently become a round trip), or `void` (collaboration signals — below). The
 per-method table and the `.run()` rule for progress-plus-result live in
-[`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md).
+[`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/REACTIVE-MODEL.md).
 
 ### 3. Collaboration primitives
 
@@ -94,7 +94,7 @@ HTTP adapter is re-exported here for convenience; the in-process transport is
   helper for endpoint shapes.
 - **Flow state machines** — closure-based factories (`createMarkStateUnit`, `…Gather…`,
   `…Match…`, `…Yield…`, `…Beckon…`) wrapping each long-running flow with `loading$`/`error$`/
-  progress observables; UI-shape-agnostic ([`docs/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/STATE-UNITS.md)).
+  progress observables; UI-shape-agnostic ([`docs/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/STATE-UNITS.md)).
 - **KB discovery** — the consumer side of the launcher's published KB view:
   `httpDiscovery` (polls the Browser origin's `DISCOVERY_URL_PATH` with ETag/304),
   `textDiscovery` (bring-your-own IO — the sdk never imports `fs`), and
@@ -154,18 +154,18 @@ const client = new SemiontClient(
 );
 ```
 
-From here, the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/DEVELOPER-GUIDE.md)
+From here, the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md)
 takes over — every recipe assumes exactly this setup.
 
 ## Documentation
 
 The full map — every doc's role, and a reading order by audience — is
-[`docs/README.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/README.md).
+[`docs/README.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/README.md).
 
-- **[`docs/DEVELOPER-GUIDE.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/DEVELOPER-GUIDE.md) — start here to build.** Task-ordered recipes, connect through teardown.
-- [`docs/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/Usage.md) — per-namespace API tour with concrete examples, plus SSE and error handling.
-- [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/REACTIVE-MODEL.md) — the Promise-shape-over-Observable design.
-- [`docs/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/STATE-UNITS.md) — the state-unit pattern and its enforced axioms.
+- **[`docs/DEVELOPER-GUIDE.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md) — start here to build.** Task-ordered recipes, connect through teardown.
+- [`docs/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/Usage.md) — per-namespace API tour with concrete examples, plus SSE and error handling.
+- [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/REACTIVE-MODEL.md) — the Promise-shape-over-Observable design.
+- [`docs/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/STATE-UNITS.md) — the state-unit pattern and its enforced axioms.
 - [`docs/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/CACHE-SEMANTICS.md) — the cache primitive's numbered behavioral contract.
 - [`docs/protocol/TRANSPORT-CONTRACT.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-CONTRACT.md) — what every `ITransport` must honor; HTTP specifics in [TRANSPORT-HTTP.md](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-HTTP.md). New transports implement the `@semiont/core` interfaces directly — no inheritance from `HttpTransport`.
 
@@ -180,4 +180,4 @@ Apache-2.0 — see [LICENSE](https://github.com/The-AI-Alliance/semiont/blob/mai
 - [`@semiont/http-transport`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/http-transport) — HTTP transport (`HttpTransport`, `HttpContentTransport`)
 - [`@semiont/make-meaning`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/make-meaning) — in-process transport (`LocalTransport`) and the actor model behind it
 - [`@semiont/observability`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/observability) — OpenTelemetry tracing the SDK propagates across the bus
-- [`@semiont/react-ui`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/react-ui) — the embeddable `ResourceViewer` (bring-your-own-session) plus React hooks (`useResourceLoader`, `useMediaToken`, `useObservable`) and the web `SessionStorage`; its docs cross-link the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/DEVELOPER-GUIDE.md)
+- [`@semiont/react-ui`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/react-ui) — the embeddable `ResourceViewer` (bring-your-own-session) plus React hooks (`useResourceLoader`, `useMediaToken`, `useObservable`) and the web `SessionStorage`; its docs cross-link the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md)

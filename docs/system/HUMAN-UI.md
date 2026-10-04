@@ -49,7 +49,7 @@ The SPA is internally a literal Model–View–StateUnit split:
 - **StateUnit** — one factory per verb (`createBrowseStateUnit`, `createMarkStateUnit`, `createBindStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`) plus page-level composite state units; pure RxJS, framework-agnostic, unit-testable without a renderer.
 - **View** — React components in `@semiont/react-ui` and `apps/browser`, reduced to two adapters (`useStateUnit`, `useObservable`) plus JSX. No component-owned fetching, caching, or subscription management.
 
-The state unit layer is what makes the same SDK that drives the browser also drive the CLI, MCP server, and worker pool — none of those have a renderer, but they all consume the same Model + StateUnit layer. See **[../../packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md)** for the SDK surface.
+The state unit layer is what makes the same SDK that drives the browser also drive the CLI, MCP server, and worker pool — none of those have a renderer, but they all consume the same Model + StateUnit layer. See **[../../docs/builder/Usage.md](../builder/Usage.md)** for the SDK surface.
 
 ## Multi-KB sessions
 

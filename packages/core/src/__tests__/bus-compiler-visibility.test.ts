@@ -23,10 +23,10 @@
  * value — running the suites is what catches it, which is why the plan's
  * Verify insists on suites and not typechecks.
  *
- * NOT banned: re-typing the RESULT of a typed call
- * (`bus.get(ch) as unknown as Observable<T>`). The call itself is still
- * checked, so the worklist still sees it. The ban is precisely on making the
- * BUS untyped.
+ * NOT banned: re-typing the RESULT of a typed call as another read-only type
+ * (`bus.on(ch) as unknown as Observable<T>`). The call itself is still
+ * checked, so the worklist still sees it. The ban is on making the BUS
+ * untyped, and on re-typing a read view WRITABLE (the second shape below).
  */
 import { describe, test, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'fs';

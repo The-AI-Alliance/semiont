@@ -112,7 +112,7 @@ an argument rather than reading context, so a host can bring its own session.
 **Reference**: see
 [`packages/react-ui/docs/SESSION.md`](../../../packages/react-ui/docs/SESSION.md)
 for the session/provider API and
-[`packages/sdk/docs/Usage.md`](../../../packages/sdk/docs/Usage.md)
+[`docs/builder/Usage.md`](../../../docs/builder/Usage.md)
 for the client and bus subscription.
 
 ## Authentication Flow
@@ -200,7 +200,7 @@ SSE connection to `/bus/subscribe` + HTTP POST to `/bus/emit`:
 See [`docs/protocol/EVENT-BUS.md`](../../../docs/protocol/EVENT-BUS.md) and
 [`docs/protocol/CHANNELS.md`](../../../docs/protocol/CHANNELS.md) for
 the bus protocol; see
-[`packages/sdk/docs/Usage.md`](../../../packages/sdk/docs/Usage.md)
+[`docs/builder/Usage.md`](../../../docs/builder/Usage.md)
 for the client side.
 
 ## W3C Web Annotation Model
@@ -358,7 +358,7 @@ like `browse:resources-failed`), raised from the promise returned by
 ### API client
 
 - [`@semiont/http-transport/README.md`](../../../packages/http-transport/README.md) — API overview
-- [`@semiont/sdk/docs/Usage.md`](../../../packages/sdk/docs/Usage.md) — setup, bus subscription, namespace reference
+- [`docs/builder/Usage.md`](../../../docs/builder/Usage.md) — setup, bus subscription, namespace reference
 - [`@semiont/http-transport/docs/API-Reference.md`](../../../packages/http-transport/docs/API-Reference.md) — HTTP transport reference (`HttpTransport`, `TokenRefresher`, `APIError`)
 
 ### Gateway

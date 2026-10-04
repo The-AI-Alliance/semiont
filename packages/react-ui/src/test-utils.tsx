@@ -126,9 +126,9 @@ export interface TestProvidersOptions {
 /**
  * Test access to the client's local bus. Production code uses typed
  * namespace methods or `session.subscribe(channel, handler)` — never
- * direct bus access. Tests need raw subjects to drive `bus.get(channel).next(...)`
- * / `subscribe(...)` against the live client wiring; `client.bus` is
- * read-only public for that.
+ * direct bus access. Tests need the bus itself to drive
+ * `bus.emit(channel, payload)` / `bus.on(channel).subscribe(...)` against the
+ * live client wiring; `client.bus` is read-only public for that.
  */
 function busOf(client: SemiontClient): EventBus {
   return client.bus;
@@ -199,8 +199,8 @@ export function renderWithProviders(
 /**
  * Build a minimal `<SemiontProvider>` wrapper for tests that roll their
  * own render wrapper (instead of `renderWithProviders`). The returned
- * `eventBus` is the bus backing the session's client — same
- * reference production code pokes via `session.client.emit(...)`.
+ * `eventBus` is the bus backing the session's client — the same
+ * instance the client's namespace methods emit on.
  */
 export function createTestSemiontWrapper(): {
   SemiontWrapper: React.ComponentType<{ children: React.ReactNode }>;

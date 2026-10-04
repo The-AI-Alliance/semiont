@@ -42,7 +42,8 @@ function makeFakeTransport() {
   // The result channel is NAMED, not derived by replacing '-requested' with
   // '-result' in the request's name. String surgery on channel names cannot
   // be checked against the registry, and the typed bus is what forced the
-  // issue: `bus.get(<computed string>)` has no payload type to check against.
+  // issue: `bus.emit(<computed string>, reply)` has no payload type to check
+  // the reply against.
   const respond = <Req extends keyof EventMap, Res extends keyof EventMap>(
     channel: string,
     requestChannel: Req,

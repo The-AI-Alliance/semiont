@@ -152,7 +152,7 @@ knowledge bases and the empty [template](https://github.com/The-AI-Alliance/semi
 [![License](https://img.shields.io/github/license/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/tree/main?tab=Apache-2.0-1-ov-file#readme)
 [![Issues](https://img.shields.io/github/issues/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/issues)
 
-New here? The SDK's **[INTRODUCTION](packages/sdk/docs/INTRODUCTION.md)** is the orientation chapter — read it first, then the **[Developer Guide](packages/sdk/docs/DEVELOPER-GUIDE.md)** to build, with **[Usage](packages/sdk/docs/Usage.md)** open as the reference.
+New here? The SDK's **[INTRODUCTION](docs/builder/INTRODUCTION.md)** is the orientation chapter — read it first, then the **[Developer Guide](docs/builder/DEVELOPER-GUIDE.md)** to build, with **[Usage](docs/builder/Usage.md)** open as the reference.
 
 - **[Development docs](docs/development/README.md)** — codebase layout, build status badges, Codespaces shortcut, where to read next.
 - **[System architecture](docs/system/README.md)** — actor model, knowledge system, container topology, package architecture.
