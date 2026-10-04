@@ -431,7 +431,7 @@ deleted at the first sweep.
 ## Checkpoints
 
 A checkpoint is how much of a job is already done, recorded on the job so a later attempt skips it.
-It has two parts, merged differently ([`checkpoint-merge.ts`](../../packages/jobs/src/checkpoint-merge.ts)):
+It has two parts, merged differently ([`checkpoint.rs`](../../apps/dispatcher/handlers/src/checkpoint.rs)):
 
 - **`completedUnits` is a set, merged by union.** A unit is an entity type for
   `reference-annotation` and the job's single motivation for the other annotation types. A unit
