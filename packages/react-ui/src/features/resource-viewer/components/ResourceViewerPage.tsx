@@ -118,7 +118,7 @@ export interface ResourceViewerPageProps {
   /**
    * Media-renderer overrides, forwarded to `ResourceViewer`. Present at this
    * tier too so a host embedding the whole page — not just the viewer — can
-   * still swap a renderer. See .plans/ANNOTATE-RENDERER-REGISTRY.md (D5)
+   * still swap a renderer.
    */
   browseRenderers?: BrowseMediaRenderers;
   annotateRenderers?: AnnotateMediaRenderers;
@@ -252,7 +252,7 @@ export function ResourceViewerPage({
   const entityTypesError = useObservable(stateUnit?.entityTypes.error$) ?? null;
   // Three states, not two: a terminally failed list has no value EITHER, so
   // deriving "loading" from `undefined` leaves a dead request spinning for
-  // ever. See .plans/PANEL-FAILURE-STATES.md
+  // ever.
   const referencedBy = useObservable(stateUnit?.referencedBy.value$) ?? [];
   const referencedByLoading = useObservable(stateUnit?.referencedBy.loading$) ?? true;
   const referencedByError = useObservable(stateUnit?.referencedBy.error$) ?? null;
@@ -527,7 +527,7 @@ export function ResourceViewerPage({
   // a focusable, screen-reader-announced control wired to a no-op.
   // `beckon:focus` is the existing "scroll to and highlight" contract rather
   // than a new prop chain — BrowseView already subscribed to it, AnnotateView
-  // now does too. See .plans/ASSIST-SURFACE-WARTS.md Lane D.
+  // now does too.
   const handleEventClick = useCallback((id: AnnotationId | null) => {
     if (id) {
       stateUnit?.beckon.focus(id);

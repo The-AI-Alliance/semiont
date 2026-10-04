@@ -482,7 +482,7 @@ describe('PdfAnnotationCanvas', () => {
     return request;
   }
 
-  // The manual-annotation capture gap (.plans/PDF-MANUAL-ANNOTATION-TEXT.md):
+  // The manual-annotation capture gap:
   // a hand-drawn rectangle stored geometry and nothing else, so every panel
   // that quotes an annotation showed it blank.
   test('a drawn rectangle carries the text it was drawn around', async () => {
@@ -525,7 +525,7 @@ describe('PdfAnnotationCanvas', () => {
     expect(selector[0].type).toBe('FragmentSelector');
   });
 
-  // Phase 2 of .plans/PDF-MANUAL-ANNOTATION-TEXT.md. A scanned page has no text
+  // A scanned page has no text
   // in the browser, but the server derived one at ingest and serves it through
   // `browse.resourceAnchoredText`. Same `AnchoredText` shape either way, so
   // `textUnder` and the drag handler do not branch — only the source does.

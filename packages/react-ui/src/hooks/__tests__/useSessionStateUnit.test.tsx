@@ -1,6 +1,5 @@
 /**
- * useSessionStateUnit — the session gate as API shape
- * (.plans/SESSION-TYPED-FACTORIES.md, Phase 1).
+ * useSessionStateUnit — the session gate as API shape.
  *
  * The unit's lifetime is keyed on SESSION identity: one construction per
  * live session, disposal strictly before the successor's factory runs (the

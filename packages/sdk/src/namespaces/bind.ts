@@ -14,7 +14,7 @@ export class BindNamespace implements IBindNamespace {
     // persisted outcome by correlationId, and replies on bind:body-updated /
     // bind:body-update-failed (the handler is already built for this). busRequest
     // awaits that real outcome and REJECTS on failure — not the old optimistic
-    // fire-and-forget ack (.plans/bugs/BRIDGE-GAPS.md). busRequest mints the
+    // fire-and-forget ack. busRequest mints the
     // correlationId, so we no longer set one by hand.
     await busRequest(
       this.transport,

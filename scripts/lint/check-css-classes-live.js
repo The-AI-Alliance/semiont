@@ -17,8 +17,7 @@
  * ~400 styled classes with no literal render site (the utility layers, the
  * motion overrides, the panel patterns). Some of that is genuinely dead, some is
  * host-facing — `styles/base/utilities.css` exists for consuming apps — and
- * telling them apart is a sweep of its own, recorded in
- * `.plans/CLEAN-PROGRESS.md`.
+ * telling them apart is a sweep of its own.
  *
  * So the baseline freezes what exists and the gate fails on anything NEW, plus
  * on anything that got fixed without being removed from the baseline (so the
@@ -59,7 +58,7 @@ const ALLOWLIST = new Map([
  * Debt this gate found on its first run, recorded so it can fail on REGRESSIONS
  * today instead of waiting for a sweep that would have to land all at once.
  * Nothing may be added to this file: a new duplicate or a new dead class fails
- * the build. Entries come OUT as the sweep proceeds (.plans/CLEAN-PROGRESS.md).
+ * the build. Entries come OUT as the sweep proceeds.
  */
 const BASELINE_PATH = path.join(__dirname, 'css-classes-baseline.json');
 const baseline = fs.existsSync(BASELINE_PATH)
@@ -302,7 +301,6 @@ console.log(
 if (duplicated.length || unrendered.length || unstyled.length) {
   console.log(
     `   carrying ${duplicated.length} duplicated + ${unrendered.length} unrendered + ` +
-    `${unstyled.length} unstyled from the baseline — run with --debt to list, ` +
-    'see .plans/CLEAN-PROGRESS.md',
+    `${unstyled.length} unstyled from the baseline — run with --debt to list`,
   );
 }

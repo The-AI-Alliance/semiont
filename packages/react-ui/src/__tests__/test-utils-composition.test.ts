@@ -8,8 +8,6 @@
  * but *functional* — a `browse.*` live query reaches the in-memory transport
  * and settles. A double that silently answers nothing would pass a
  * no-network check and still make every component test a liar.
- *
- * .plans/TEST-UTILS-IN-MEMORY-TRANSPORT.md
  */
 
 import { describe, it, expect } from 'vitest';

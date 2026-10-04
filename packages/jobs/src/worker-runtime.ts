@@ -10,7 +10,7 @@
  * extracted): a worker's stamped identity is the DID the
  * `/api/tokens/agent` exchange MINTED for it, carried verbatim — never
  * re-derived from the URL the worker happens to dial. One logical agent
- * previously got two DIDs that way (.plans/bugs/agent-did-host-skew.md).
+ * previously got two DIDs that way.
  */
 
 import type { EventMap } from '@semiont/core';
@@ -219,8 +219,8 @@ export const WORKER_AWAITED_OPERATIONS = [
   'browse:resource-requested',
   // Canonical geometry for a geometry-bearing detection: the consult behind
   // `ConsultAnchoredText` (SMELTER-OWNS-OCR P2). Its omission broke every
-  // PDF detection job at the transport probe
-  // (.plans/WORKER-ANCHORED-TEXT-CHANNEL.md); the census below now fails the
+  // PDF detection job at the transport probe;
+  // the census below now fails the
   // BUILD when this list and the declared awaits drift.
   'browse:anchored-text-requested',
   // Durability acknowledgement for a unit's annotations (JOB-RESTART-SAFETY
@@ -394,8 +394,7 @@ export async function startAgentWorker(
   // The exchange minted this worker's canonical DID (under the KB's own
   // domain) and we carry it VERBATIM — never re-derive identity from
   // the URL we happen to dial (`host` is connection topology only). One
-  // logical agent previously got two DIDs this way:
-  // .plans/bugs/agent-did-host-skew.md.
+  // logical agent previously got two DIDs this way.
   const generator: Agent = didToAgent(did);
 
   const kbId = `agent-${inference.type}-${inference.model}-${hostname()}`;

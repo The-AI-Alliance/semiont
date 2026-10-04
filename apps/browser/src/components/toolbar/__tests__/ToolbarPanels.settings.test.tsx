@@ -8,8 +8,6 @@
  * handler lives HERE, in the component that is mounted wherever the panel
  * renders. This pins the hoist: the panel being mounted and the panel
  * working are the same condition.
- *
- * See .plans/bugs/settings-theme-and-line-numbers-inert-when-signed-out.md
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';

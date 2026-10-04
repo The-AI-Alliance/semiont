@@ -15,7 +15,7 @@ import { uuidV4 } from './id-generation';
  * result channel's payload, or `void` for a result channel that carries no
  * `response` (a confirmed-write ack with no data). Inferred from the registry,
  * so callers never annotate `busRequest`'s return type. Relies on the reply-shape
- * standard — see .plans/REPLY-SHAPE-STANDARD.md.
+ * standard.
  */
 export type BusReply<Op extends BusOperationKey> =
   EventMap[(typeof BUS_OPERATIONS)[Op]['result'] & EventName] extends { response: infer R }
@@ -140,7 +140,7 @@ export interface BusRequestPrimitive {
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
   /**
    * Connection state of the stream that carries replies. Required, not
-   * optional (.plans/BUS-ATTACH-GATE.md D2): `busRequest` gates its emit on
+   * optional: `busRequest` gates its emit on
    * this — no correlated emit before the reply path exists. Implementers back
    * it with a `BehaviorSubject`, so the current state arrives synchronously
    * on subscribe; a transport that cannot lose replies (in-process) reports
@@ -148,8 +148,7 @@ export interface BusRequestPrimitive {
    */
   state$: Observable<ConnectionState>;
   /**
-   * Correlated-reply retention, client side (.plans/BUS-RESUMPTION.md
-   * Phase 2 / SDK-DEBT S1). `busRequest` registers its correlationId here
+   * Correlated-reply retention, client side. `busRequest` registers its correlationId here
    * BEFORE emitting and calls the returned disposer on every settle path;
    * a wire transport includes the currently-tracked ids as
    * `pendingReplies` in each subscribe body, so a reply published while
@@ -203,14 +202,13 @@ function abandonment(signal: AbortSignal): Observable<never> {
  * up from the registry, so a caller cannot pass a mismatched or unbridged reply
  * pair — the recurring unbridged-reply bug class is unrepresentable. Every
  * registry reply derives into `BRIDGED_CHANNELS` (see bridged-channels.ts), so
- * the transport always subscribes to it (cf.
- * .plans/bugs/gather-resource-complete-not-bridged.md, where the `gather:resource-*`
- * pair shipped unbridged with no compile/runtime signal).
+ * the transport always subscribes to it (an unbridged reply pair gives no
+ * compile/runtime signal).
  *
  * The return type is INFERRED from the registry (`BusReply<Op>` = the result
  * channel's `response` type, or `void`) — callers never annotate it. Every reply
- * is `{ correlationId, response: T }` (data) or `{ correlationId }` (void); see
- * .plans/REPLY-SHAPE-STANDARD.md. `busRequest` reads `e.response`.
+ * is `{ correlationId, response: T }` (data) or `{ correlationId }` (void).
+ * `busRequest` reads `e.response`.
  *
  * `signal` lets the caller ABANDON the request. Abandoned, it rejects with the
  * signal's reason, as an abortable API does, and that is all it does: what
@@ -288,7 +286,6 @@ export async function busRequest<Op extends BusOperationKey>(
     // throw rxjs `EmptyError`. An awaited caller then gets a clean
     // BusRequestError; an in-flight promise nobody is awaiting simply resolves,
     // so it can't surface as an unhandled rejection on dispose.
-    // See .plans/bugs/busrequest-emptyerror-on-dispose.md.
     defaultIfEmpty({
       ok: false as const,
       error: new BusRequestError(
@@ -306,11 +303,11 @@ export async function busRequest<Op extends BusOperationKey>(
   // awaited, at the tail. Every path that leaves before then — a closed bus, a
   // refused emit — leaves it rejected with nobody holding it, which a Node
   // process treats as fatal (found by the liveness harness's reject-emit
-  // schedules, .plans/LIVENESS-AXIOMS.md P1). Marked handled once, here; the
+  // schedules). Marked handled once, here; the
   // await at the tail still throws what it rejected with.
   resultPromise.catch(() => {});
 
-  // ── Attach gate (.plans/BUS-ATTACH-GATE.md) ─────────────────────────────
+  // ── Attach gate ───────────────────────────────────────────────────────────
   // No correlated emit before the reply path exists: the measured failure was
   // an emit accepted (202) and answered while the session's subscribe stream
   // had not attached — the reply was published to nobody. Wait, inside the

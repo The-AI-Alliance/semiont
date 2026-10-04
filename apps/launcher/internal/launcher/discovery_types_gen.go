@@ -117,8 +117,7 @@ func (j *DiscoveredKB) UnmarshalJSON(value []byte) error {
 // at /discovery. NOT an API endpoint: a static document fetched same-origin by
 // browsers (via the Browser's static server) or read from disk by local Node
 // consumers. An empty kbs list is meaningful ("the launcher manages nothing right
-// now") and distinct from an absent file. Design record:
-// .plans/BROWSER-KB-DISCOVERY.md.
+// now") and distinct from an absent file.
 type DiscoveryDocument struct {
 	// Every KB the launcher currently manages, local and forwarded
 	Kbs []DiscoveredKB `json:"kbs"`

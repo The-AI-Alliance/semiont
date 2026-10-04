@@ -24,7 +24,7 @@ interface Props {
  * annotations + inbound entity references — read-only. This is exactly what
  * an external linked-data client gets when dereferencing the resource's
  * `describedby` URI, so the panel doubles as a living end-to-end test of the
- * LD face. See `.plans/SIMPLER-JSON-LD.md` §5.
+ * LD face.
  */
 export function JsonLdPanel({ resourceId }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);

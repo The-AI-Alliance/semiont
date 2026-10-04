@@ -175,7 +175,6 @@ export class YieldNamespace implements IYieldNamespace {
       // `transport.subscribeToResource(resourceId)`: mutating the SSE channel
       // set forces a reconnect on every generation, which dropped in-flight
       // `browse.*` results in the reconnect gap. Symmetric with `mark.assist`.
-      // See Link 1 in .plans/SEMIONT-BUG-browse-annotations.md.
 
       const poll = new JobStatusPoll(
         this.transport,

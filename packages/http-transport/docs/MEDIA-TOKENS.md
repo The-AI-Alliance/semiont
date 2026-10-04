@@ -12,16 +12,15 @@ A media token is a short-lived JWT with:
 |---|---|
 | `purpose` | `'media'` |
 | `sub` | `resourceId` (scoped to exactly one resource) |
-| `exp` | 5 minutes from issuance |
-| `userId` | for audit |
+| `iat`, `exp` | issuance, and 5 minutes after it |
 
-Signed with the same `JWT_SECRET` as session tokens. No gateway state — validation is pure crypto.
+Signed with the first key of the gateway's `JWT_SECRET` ring, as agent tokens are; a person's access token is the issuer's and is not. No gateway state — validation is pure crypto.
 
 The token is appended as a query parameter: `?token=<media-token>`. The gateway validates it on resource endpoints and accepts it in place of a Bearer token (for elements that can't send a header).
 
 ### Threat model
 
-Query-string credentials end up in proxy logs, browser history, and `Referer` headers — putting a full-session access token there would be dangerous (a leak grants the attacker the entire session for hours). A media token is acceptable in those places because its blast radius is tiny: 5 minutes × one specific resource. The `sub: resourceId` claim is the load-bearing safety property — a leaked token is cryptographically useless against any other resource, even one the same user could access with their session token.
+Query-string credentials end up in proxy logs, browser history, and `Referer` headers — putting a full-session access token there would be dangerous (a leak grants the attacker everything the person can do until it expires). A media token is acceptable in those places because its blast radius is tiny: 5 minutes × one specific resource. The `sub: resourceId` claim is the load-bearing safety property — a leaked token is cryptographically useless against any other resource, even one the same user could access with their session token.
 
 ## Client API
 

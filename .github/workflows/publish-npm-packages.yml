@@ -54,8 +54,7 @@ jobs:
         # resolve cleanly under `tsc --moduleResolution NodeNext` from
         # an external consumer's perspective. Catches the asymmetric-
         # dist regression class (bundled .js with per-file .d.ts
-        # shards) before it ships to npm. See `.plans/CLEANUP-SDK.md`
-        # item 1 for the failure mode that motivated this gate.
+        # shards) before it ships to npm.
         run: ./scripts/ci/verify-nodenext-resolution.sh
 
       - name: Determine version

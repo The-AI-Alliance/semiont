@@ -411,7 +411,7 @@ The stream is plain `text/event-stream`. Each frame is written as:
 ```
 event: bus-event
 id: <its id>
-data: <JSON {channel, correlationId?, payload, scope?}>
+data: <the frame, as JSON: {channel, correlationId?, payload, scope?}>
 <blank line>
 ```
 

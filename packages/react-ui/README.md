@@ -344,6 +344,19 @@ npm run test:coverage
 npm run typecheck
 ```
 
+### Regenerating the favicons
+
+The files in `public/favicons/` are generated from the source SVG:
+
+```bash
+cd packages/react-ui
+python scripts/generate-favicons.py
+```
+
+The script needs Python with `cairosvg` (SVG to PNG) and `Pillow` (the ICO).
+
+The mark is the capital S of "SEMIONT" in Orbitron bold, in a cyan to blue gradient (`#00FFFF` to `#0080FF`) on a dark background (`#1a1a1a`).
+
 ## Contributing
 
 This library follows strict quality standards:

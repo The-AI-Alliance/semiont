@@ -302,9 +302,8 @@ for (const ch of requestSet) {
 
 // Direction is DECLARED, never defaulted. The old fallthrough ("not a
 // request, no delivery → in-process") manufactured a value nothing had
-// decided — `job:queued` shipped as in-process and starved every worker
-// (.plans/bugs/job-queued-classified-in-process-starves-workers.md). Every
-// channel now names its class or the generator refuses.
+// decided — `job:queued` shipped as in-process and starved every worker.
+// Every channel now names its class or the generator refuses.
 const commandSet = new Set(reg.kind.command);
 const declaredSet = new Set(reg.audience.declared);
 const inProcessSet = new Set(reg.inProcess.channels);

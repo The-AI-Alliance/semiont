@@ -122,7 +122,7 @@ export class Browser {
         ).pipe(
           // Isolate per-event failures: a single handler throw must NOT tear down the
           // channel subscription for every future request — that's the browse:entity-types
-          // wedge (.plans/bugs/browse-entity-types-never-responds.md). Handlers emit their
+          // wedge. Handlers emit their
           // own *-failed reply; this is the structural backstop for any throw that escapes a
           // handler's try/catch — the channel survives, the offending request is logged.
           // (A per-channel *-failed can't be emitted from this generic helper without the

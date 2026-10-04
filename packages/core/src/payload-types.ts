@@ -54,7 +54,7 @@ export type JobType = components['schemas']['JobType'];
  * One entry of the collaborator directory (`browse:agents-result`): a typed
  * `Agent` plus, for software agents drawn from the KB's worker config, the
  * job types it serves. Persons and actor-role-only agents omit
- * `servesJobTypes`. See .plans/COLLABORATOR-DIRECTORY.md.
+ * `servesJobTypes`.
  */
 export type CollaboratorEntry = components['schemas']['CollaboratorEntry'];
 

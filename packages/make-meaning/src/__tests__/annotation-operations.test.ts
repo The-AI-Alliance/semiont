@@ -824,7 +824,7 @@ describe('AnnotationOperations', () => {
       // The SDK's `mark.updateEntityTypes` is a confirmed busRequest write: it
       // awaits this correlation-keyed reply. Before the reply was wired, the
       // handler appended the mark:entity-tag-* events but never acked, so the
-      // request would hang to timeout (.plans/bugs/BRIDGE-GAPS.md shape).
+      // request would hang to timeout.
       // Passing a non-empty `current` that differs from `updated` exercises both
       // diff branches: 'Person' is added, 'Legacy' is removed.
       // The vocabulary gate requires ADDS to be registered (removals are never

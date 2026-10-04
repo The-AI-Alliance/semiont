@@ -24,7 +24,7 @@ const NONSTREAMING_MAX_OUTPUT_TOKENS = Math.floor(OUTPUT_TOKENS_PER_HOUR / 6);
 // Structured generation rides `output_config.format` — response-level
 // structured output: the response TEXT is the schema-conforming JSON, with a
 // top-level ARRAY root (accepted on both live-config models — spike
-// 2026-08-06, `.plans/spikes/output-config-array-root.md`). This replaced
+// 2026-08-06). This replaced
 // the pre-structured-outputs scaffolding: a forced `emit_json_array` tool
 // whose object-only input required an `items` wrapper and an unwrap — and
 // the unwrap was the exact line that silently coerced an unreadable payload
@@ -167,8 +167,8 @@ export class AnthropicInferenceClient implements InferenceClient {
 
   /**
    * One tiny request carrying a non-default `temperature` answers whether
-   * this model accepts the parameter at all (spike 2026-09-25,
-   * `.plans/spikes/sonnet-5-temperature.md`: sonnet-5 refuses every
+   * this model accepts the parameter at all (spike 2026-09-25:
+   * sonnet-5 refuses every
    * non-default value on both request shapes — including the generation
    * wizard's own 0.7 default — while the Models API says nothing). Runs once
    * per model per process, cached on the same discovery record as limits.

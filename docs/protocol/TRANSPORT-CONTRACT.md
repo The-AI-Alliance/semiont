@@ -45,41 +45,48 @@ whether it is an event of the record; and whether emitting it writes.
 The TypeScript rendering, in `@semiont/core`, is the reference. Another
 language's SDK offers the same operations in its own idiom.
 
+**`ITransport`: the bus**
+
+| Operation | What it is |
+|---|---|
+| `emit(channel, payload, envelope?)` | Sends a frame. The envelope carries a scope and a correlation id, when the frame has them. Resolves with the number of clients the gateway reached, or with no count |
+| `stream(channel)` | The payloads arriving on a channel |
+| `frames(channel)` | The frames arriving on a channel: each payload with its correlation id and scope |
+| `on(channel, handler)` | Calls a handler for each payload on a channel, and returns what removes it |
+| `isSubscribed(channel)` | Whether the transport receives that channel |
+
+**`ITransport`: the connection**
+
+| Operation | What it is |
+|---|---|
+| `baseUrl` | Where the transport is connected to |
+| `state$` | The connection's state, as it changes |
+| `errors$` | The errors the transport raises that belong to no one request |
+| `subscribeToResource(resourceId)` | Joins a resource's scope, and returns what leaves it |
+| `trackReply(correlationId)` | Says a reply to this correlation id is awaited, and returns what stops the wait |
+| `bridgeInto(bus)` | Delivers what the transport receives onto a client's bus |
+| `dispose()` | Ends the transport |
+
+`busRequest(transport, operation, payload, timeoutMs?, signal?)` is a request and its reply, over any transport.
+
+**`IContentTransport`**: `putBinary`, `getBinary`, `getBinaryStream`, `getResourceGraph` and `dispose`.
+
+**`IGatewayOperations`**: `getCurrentUser`, `getMediaToken`, `getProtectedResourceMetadata`, `healthCheck` and `getStatus`.
+
+The lists above are held to the interfaces. This compiles only while each list names exactly its interface's members:
+
 ```ts
-interface ITransport {
-  readonly baseUrl: BaseUrl;
+import type { ITransport, IContentTransport, IGatewayOperations } from '@semiont/core';
 
-  // The bus
-  emit(channel, payload, envelope?: { scope?, correlationId? }): Promise<number | undefined>;
-  stream(channel): Observable<payload>;
-  frames(channel): Observable<{ payload, correlationId?, scope? }>;
-  on(channel, handler): () => void;
-  isSubscribed(channel): boolean;
+type Exactly<T, K extends keyof T> = Exclude<keyof T, K> extends never ? true : never;
 
-  // The connection
-  readonly state$: Observable<ConnectionState>;
-  readonly errors$: Observable<SemiontError>;
-  subscribeToResource(resourceId): () => void;
-  trackReply(correlationId): () => void;
-  bridgeInto(bus: EventBus): void;
-  dispose(): void;
-}
-
-// A request and its reply, over any transport
-busRequest(transport, operation, payload, timeoutMs?, signal?): Promise<response>;
-
-interface IContentTransport {
-  putBinary(request, options?): Promise<{ resourceId }>;
-  getBinary(resourceId): Promise<{ data, contentType }>;
-  getBinaryStream(resourceId): Promise<{ stream, contentType }>;
-  getResourceGraph(resourceId): Promise<GetResourceResponse>;
-  dispose(): void;
-}
-
-interface IGatewayOperations {
-  getCurrentUser(); getMediaToken(resourceId); getProtectedResourceMetadata();
-  healthCheck(); getStatus();
-}
+export const transport: Exactly<ITransport,
+  | 'emit' | 'stream' | 'frames' | 'on' | 'isSubscribed'
+  | 'baseUrl' | 'state$' | 'errors$' | 'subscribeToResource' | 'trackReply' | 'bridgeInto' | 'dispose'> = true;
+export const content: Exactly<IContentTransport,
+  'putBinary' | 'getBinary' | 'getBinaryStream' | 'getResourceGraph' | 'dispose'> = true;
+export const gateway: Exactly<IGatewayOperations,
+  'getCurrentUser' | 'getMediaToken' | 'getProtectedResourceMetadata' | 'healthCheck' | 'getStatus'> = true;
 ```
 
 `ITransport` is the bus. `IContentTransport` carries bytes, which never

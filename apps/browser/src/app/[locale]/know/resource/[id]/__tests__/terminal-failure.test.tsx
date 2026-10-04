@@ -11,8 +11,6 @@
  * This test uses the REAL loader state unit and the REAL `useObservable` —
  * only the client and the viewer are stubbed — so it fails if either layer
  * goes back to swallowing.
- *
- * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md (D4)
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';

@@ -9,8 +9,8 @@
  * read by nothing. The field readers DO use — the representation's — was
  * written on create and then never again.
  *
- * The consequence was live, not theoretical
- * (.plans/bugs/anchored-text-stale-primary-checksum.md): the anchored-text
+ * The consequence was live, not theoretical:
+ * the anchored-text
  * read keys off `getPrimaryRepresentation(...).checksum`, while the Smelter
  * files geometry under the checksum of the bytes it actually read. From the
  * first update onward the two disagreed, so the read either served

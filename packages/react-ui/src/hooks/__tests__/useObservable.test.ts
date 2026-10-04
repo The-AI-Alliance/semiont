@@ -86,7 +86,6 @@ describe('useObservable', () => {
     // rethrows it asynchronously — the `Uncaught BusRequestError` seen in
     // the field whenever a cache key exhausted its B14 retry with nothing
     // stored (B15 errors that key's observable).
-    // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md (D4)
 
     it('handles the error instead of letting RxJS rethrow it', () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});

@@ -52,7 +52,6 @@ interface UnifiedAnnotationsPanelProps {
    * The annotations load failed terminally (B15). Every tab here derives from
    * the one `annotations` array, so without this the panel presents an empty
    * array as fact — "no highlights" for a resource that may be full of them.
-   * See .plans/PANEL-FAILURE-STATES.md
    */
   annotationsError?: Error | null;
   onRetryAnnotations?: () => void;

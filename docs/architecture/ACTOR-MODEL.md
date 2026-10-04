@@ -9,12 +9,12 @@ For the SPA-side wiring, see [HUMAN-UI.md](HUMAN-UI.md). For the read/write acto
 ```mermaid
 graph TD
     READER["Human Reader"] -->|"browse, beckon"| BUS
-    ANALYST["Human Analyst"] -->|"mark, browse, bind"| BUS
+    ANALYST["Human Analyst"] -->|"mark, bind, browse"| BUS
     AUTHOR["Human Author"] -->|"yield, mark"| BUS
     MARKER["AI Marker"] -->|"mark, browse, beckon"| BUS
     GENERATOR["AI Generator"] -->|"yield, gather"| BUS
     LINKER["AI Linker"] -->|"bind, gather"| BUS
-    FEEDER["Feeder"] -->|"frame, yield"| BUS
+    FEEDER["Feeder"] -->|"yield, frame"| BUS
 
     BUS["E V E N T &ensp; B U S"]
 
@@ -59,7 +59,7 @@ graph TD
 
 Two kinds of actor:
 
-1. **Intelligent actors** — humans or AI agents that read, interpret, and annotate content. They produce events that carry semantic intent (browse, bind, yield, mark, frame, gather, match, beckon).
+1. **Intelligent actors** — humans or AI agents that read, interpret, and annotate content. They produce events that carry semantic intent: writing (yield, mark, bind, frame), reading (browse, match, gather) and directing attention (beckon).
 2. **The knowledge base** — a passive actor that listens to events and materializes durable state. It has no intelligence; it simply records what the intelligent actors decide. Seven reactive sub-actors serve it: five access actors that mediate every read and write (Stower, Browser, Gatherer, Matcher, CloneTokenManager) and two projection pipelines that follow the event log (Weaver → graph, Smelter → vectors). See [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md).
 
 The event bus is the only coupling between actors. An actor does not know who else is listening.
@@ -69,12 +69,12 @@ The event bus is the only coupling between actors. An actor does not know who el
 | | Actor | Flows | What they do |
 |-|-------|-------|-------------|
 | 🧠 | **Reader** | browse, beckon | Navigates resources and annotations. Clicks, hovers, scrolls. Consumes the knowledge base without modifying it. |
-| 🧠 | **Analyst** | mark, browse, beckon, bind | Reads content, creates annotations (highlights, comments, assessments, tags), and resolves references to existing resources. The primary human intelligence in the system. |
+| 🧠 | **Analyst** | mark, bind, browse, beckon | Reads content, creates annotations (highlights, comments, assessments, tags), and resolves references to existing resources. The primary human intelligence in the system. |
 | 🧠 | **Author** | yield, mark | Composes new resources manually (via the compose page) and annotates them. Produces content that the knowledge base records. |
 | 🤖 | **Marker Agent** | mark, browse, beckon | Scans documents and proposes annotations — highlights, assessments, comments, tags, and entity references. Produces the same W3C annotations that human analysts do. |
 | 🤖 | **Generator Agent** | yield, gather | Assembles context around a reference annotation (gather), then synthesizes a new resource from it (yield). Creates content that the knowledge base records. |
 | 🤖 | **Linker Agent** | bind, gather | Resolves unresolved references by searching for matching resources and linking them. Performs entity resolution and coreference — the binding of a mention to its referent. |
-| 🤖 | **Feeder** | frame, yield | Finds content outside the knowledge base and ingests it: declares the vocabulary it needs, then yields one resource per source. A process built on the SDK, such as a script over a corpus or a job that follows a feed. |
+| 🤖 | **Feeder** | yield, frame | Finds content outside the knowledge base and ingests it: declares the vocabulary it needs, then yields one resource per source. A process built on the SDK, such as a script over a corpus or a job that follows a feed. |
 
 AI actors connect to the event bus over the same `/bus/emit` + `/bus/subscribe` endpoints human actors use. Each signs in at the knowledge base's identity provider: a person through a browser, a script by the device grant, a service with its own account. The knowledge base describes a human's act and an AI's act the same way: every event carries the verified DID of its emitter, and an annotation's `creator`, `generator` and `wasAttributedTo` are derived from that by the knowledge base — never asserted by whoever wrote it.
 
@@ -90,7 +90,7 @@ A new resource enters as a **yield**, emitted by an actor like any other event, 
 
 ## Flows
 
-Eight composable flows define how actors interact with the knowledge base: **Browse**, **Bind**, **Yield**, **Mark**, **Frame**, **Gather**, **Match**, and **Beckon**. See **[../protocol/flows/README.md](../protocol/flows/README.md)** for the full table, relationships, and individual flow documentation.
+Eight composable flows define how actors interact with the knowledge base. Four write: **Yield**, **Mark**, **Bind** and **Frame**. Three read: **Browse**, **Match** and **Gather**. One directs attention: **Beckon**. See **[../protocol/flows/README.md](../protocol/flows/README.md)** for the full table, relationships, and individual flow documentation.
 
 For the wire-level definition (channel naming, `correlationId` / `_userId` conventions, `_trace` carrier), see **[../protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md)**.
 

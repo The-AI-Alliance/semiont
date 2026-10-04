@@ -15,7 +15,6 @@ interface LineNumbersContextValue {
 // and the toggle flipped nothing anywhere (e2e 13:77/:134/:189).
 // localStorage is persistence only — the initial read and the write on
 // toggle — never the sharing mechanism.
-// See .plans/bugs/line-numbers-toggle-desynced-by-hoist.md
 const LineNumbersContext = createContext<LineNumbersContextValue | null>(null);
 
 export function LineNumbersProvider({ children }: { children: ReactNode }) {

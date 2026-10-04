@@ -8,7 +8,7 @@
  * ids actually present in the embedded context (the hallucination guard — an
  * unknown id is dropped loudly, never silently linked), STRIPS them from the
  * content before upload, and returns claim-span citations the worker mints as W3C
- * linking annotations on the derived resource. See .plans/INLINE-CITATIONS.md.
+ * linking annotations on the derived resource.
  */
 import { isResourceId, type GatheredContext, type Logger, type ResourceId } from '@semiont/core';
 

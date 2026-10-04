@@ -1,7 +1,7 @@
 /**
  * Weaver Axioms — fast-check property suite.
  *
- * Spec and ledger: `.plans/WEAVER-AXIOMS.md`. Every axiom carries its FOPL
+ * Every axiom carries its FOPL
  * statement as a comment directly above the property so spec and test cannot
  * drift. Axioms the current code falsifies are `it.fails(...)`: the property
  * runs, is expected to fail, and the suite stays green. When a refactor makes

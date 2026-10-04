@@ -8,7 +8,7 @@
  *   [bus RECV] <channel> [scope=X] [cid=<first8>] <payload>
  *   [bus SSE]  <channel> [scope=X] [cid=<first8>] <payload>
  *
- * Tier 1 of `.plans/OBSERVABILITY.md`. Forward-compatible with Tier 2:
+ * Tier 1 of the observability design. Forward-compatible with Tier 2:
  * the `cid` printed here is exactly the prefix of the W3C trace-id we
  * adopt later.
  *
@@ -84,7 +84,7 @@ export function busLog(
  *
  * Always-on (no env flag) by design: the failure it catches is rare and
  * high-signal, and the whole point is that it fires with zero setup — the
- * incident that motivated it (.plans/bugs/gather-resource-complete-not-bridged.md)
+ * incident that motivated it
  * ran with bus-logging off, so a flag-gated check would have stayed silent.
  */
 export function warnUnobservedRepliesEnabled(): boolean {
@@ -104,12 +104,12 @@ const unobservedReplyWarned = new Set<string>();
  * in-process consumer — so the awaiting client never receives it and times
  * out 30 s later with no error logged anywhere. That is exactly how
  * `gather:resource-complete` failed when it was missing from
- * `BRIDGED_CHANNELS` (.plans/bugs/gather-resource-complete-not-bridged.md).
+ * `BRIDGED_CHANNELS`.
  *
  * Emits one WARN per channel naming the likely fix. Ignored (no warning):
  * non-reply emits (no `correlationId`), emits with observers, and — crucially —
  * channels already in `BRIDGED_CHANNELS`: a 0-observer emit there is a redundant
- * copy, not a gap (see .plans/bugs/BRIDGE-GAPS.md). So the detector fires only
+ * copy, not a gap. So the detector fires only
  * for a genuine missing forwarder, and its remediation text is always correct.
  */
 export function warnIfUnobservedReply(
@@ -125,7 +125,7 @@ export function warnIfUnobservedReply(
   // subscriber. Only a NOT-bridged channel is a genuine drop. (`busRequest` now
   // types its reply channels `BridgedChannel`, so an unbridged reply is a
   // compile error; this runtime check covers non-`busRequest` correlation
-  // emits.) See .plans/bugs/BRIDGE-GAPS.md.
+  // emits.)
   if ((BRIDGED_CHANNELS as readonly string[]).includes(channel)) return;
   if (unobservedReplyWarned.has(channel)) return;
   unobservedReplyWarned.add(channel);

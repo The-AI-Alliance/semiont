@@ -7,7 +7,6 @@
  * ends up running two PDF engines depending on which mode the user is in.
  *
  * Started RED (tsc: no `renderers` prop on AnnotateView).
- * See .plans/ANNOTATE-RENDERER-REGISTRY.md
  */
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';

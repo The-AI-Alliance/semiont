@@ -42,7 +42,7 @@ export class MarkNamespace implements IMarkNamespace {
   async delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void> {
     // Confirmed write (matches `annotation()` above): await the gateway's
     // correlation-keyed reply and REJECT on failure, rather than fire-and-forget
-    // an emit whose mark:delete-failed nobody awaited (.plans/bugs/BRIDGE-GAPS.md).
+    // an emit whose mark:delete-failed nobody awaited.
     await busRequest(
       this.transport,
       'mark:delete',
@@ -52,8 +52,7 @@ export class MarkNamespace implements IMarkNamespace {
 
   async archive(resourceId: ResourceId): Promise<void> {
     // Confirmed write: await the gateway's correlation-keyed reply and REJECT on
-    // failure, rather than fire-and-forget an emit whose failure had nowhere to go
-    // (.plans/bugs/BRIDGE-GAPS.md).
+    // failure, rather than fire-and-forget an emit whose failure had nowhere to go.
     await busRequest(
       this.transport,
       'mark:archive',
@@ -79,7 +78,7 @@ export class MarkNamespace implements IMarkNamespace {
    *
    * Confirmed write (like `delete`/`archive`): awaits the gateway's
    * correlation-keyed reply and REJECTS on failure rather than fire-and-forget an
-   * emit whose failure had nowhere to go (.plans/bugs/BRIDGE-GAPS.md).
+   * emit whose failure had nowhere to go.
    */
   async updateEntityTypes(resourceId: ResourceId, current: string[], updated: string[]): Promise<void> {
     await busRequest(
@@ -101,8 +100,7 @@ export class MarkNamespace implements IMarkNamespace {
       // `transport.subscribeToResource(resourceId)` here: that mutates the
       // SSE channel set, which can only change by tearing down and
       // re-opening the connection, so it forced a reconnect on every assist
-      // and dropped in-flight `browse.*` results in the reconnect gap. See
-      // Link 1 in .plans/SEMIONT-BUG-browse-annotations.md.
+      // and dropped in-flight `browse.*` results in the reconnect gap.
 
       const poll = new JobStatusPoll(
         this.transport,

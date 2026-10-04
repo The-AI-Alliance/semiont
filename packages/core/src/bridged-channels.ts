@@ -28,7 +28,7 @@ import { BUS_OPERATIONS } from './bus-operations';
  * forgotten here — that was the recurring unbridged-reply bug class. The only
  * hand-maintained part is `BRIDGED_BROADCASTS`: the genuine non-request/reply
  * minority (lifecycle events and UI/infra signals that no single requester
- * owns). See .plans/BUS-OPERATIONS-REGISTRY.md.
+ * owns).
  *
  * Resource-scoped channels (joined/left via `subscribeToResource`) are tracked
  * separately by transports that care about scope (HTTP).

@@ -1,7 +1,7 @@
 /**
  * textUnder — the inverse of locate(): given a rectangle, what text is under it.
  *
- * Drives the manual-annotation capture gap (.plans/PDF-MANUAL-ANNOTATION-TEXT.md):
+ * Drives the manual-annotation capture gap:
  * a hand-drawn PDF rectangle currently stores geometry with no quoted text, so
  * every panel that quotes an annotation shows a blank entry.
  *

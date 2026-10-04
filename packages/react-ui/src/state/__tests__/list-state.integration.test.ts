@@ -9,8 +9,6 @@
  * on list caches). This file pins trackList against `createCache`'s actual
  * emission and failure semantics — B3 dedup, B14 bounded retry, B15
  * terminal failure, and the observe()-time re-arm that `retry()` relies on.
- *
- * See .plans/PANEL-FAILURE-STATES.md
  */
 import { describe, it, expect } from 'vitest';
 import { BehaviorSubject, switchMap } from 'rxjs';

@@ -93,7 +93,7 @@ export type {
   IContentTransport,
   ITransport,
   // The state-unit contract — the pattern every layer's factories implement
-  // (docs/STATE-UNITS.md); it lives in core so layers below the sdk share it.
+  // (docs/builder/STATE-UNITS.md); it lives in core so layers below the sdk share it.
   StateUnit,
   // Transport-neutral error-code vocabulary (route on `error.code`).
   TransportErrorCode,

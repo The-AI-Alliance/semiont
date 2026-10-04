@@ -13,7 +13,7 @@ import "testing"
 
 // A duplicate in the bridged set makes the gateway SSE forwarder subscribe
 // twice — it maps `?channel=` entries 1:1 with no dedup — so every event on
-// that channel arrives twice (.plans/bugs/BRIDGE-GAPS.md).
+// that channel arrives twice.
 func TestBridgedChannelsHasNoDuplicates(t *testing.T) {
 	seen := map[Channel]bool{}
 	for _, c := range BridgedChannels {

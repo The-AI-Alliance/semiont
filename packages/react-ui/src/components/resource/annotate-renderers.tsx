@@ -33,7 +33,6 @@ const PdfAnnotationCanvas = lazy(() =>
  * image / PDF renderers. `annotations` is the FLAT list — a renderer derives
  * whatever shape it needs (the text one segments it), so a custom renderer is
  * never handed a projection only one implementation can use.
- * See .plans/ANNOTATE-RENDERER-REGISTRY.md (D1)
  */
 export interface AnnotateMediaRendererProps {
   content: string;

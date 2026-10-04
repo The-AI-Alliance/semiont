@@ -4,12 +4,15 @@
 // the way that suite's reader resolves them. Doc rot fails here instead of
 // waiting for a reader to paste a dead snippet.
 //
-// Two suites, each one TypeScript program with its own preludes:
-//   - sdk: the builder docs (docs/builder) and the cache contract
-//     (docs/protocol/CACHE-SEMANTICS.md), plus the repo-root and packages/sdk READMEs, which
+// Three suites, each one TypeScript program with its own preludes:
+//   - sdk: the builder docs (docs/builder) and the protocol docs
+//     (docs/protocol and its flows), plus the repo-root and packages/sdk READMEs, which
 //     carry the first sdk code most readers see and are the least likely to
 //     be revisited when a signature moves. Resolved like an external node
 //     consumer (nodenext).
+//   - skills: the agent skills (docs/builder/skills/*/SKILL.md, and their
+//     README). They teach Node scripts, so Node's types are on; resolved like
+//     the sdk suite.
 //   - ui: the react-ui docs (docs/builder/react-ui and packages/react-ui/docs)
 //     and the Browser docs, with their READMEs. Resolved like the Browser
 //     (bundler resolution, as Vite does), with the Browser's `@/` alias, since
@@ -72,13 +75,29 @@ const SUITES = {
   sdk: {
     docs: [
       ...markdownIn('docs/builder'),
-      'docs/protocol/CACHE-SEMANTICS.md',
+      ...markdownIn('docs/protocol'),
+      ...markdownIn('docs/protocol/flows'),
       'README.md',
       'packages/sdk/README.md',
     ],
     preludes: ['prelude.ts'],
     options: {},
     ambientModules: [],
+    onlyDocDiagnostics: false,
+  },
+  // The agent skills: Node scripts, taught fence by fence. Node's types are on,
+  // and a name a fence uses that @semiont/sdk exports is imported for it.
+  skills: {
+    docs: [
+      ...markdownIn('docs/builder/skills'),
+      ...readdirSync(join(REPO_ROOT, 'docs/builder/skills'), { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => join('docs/builder/skills', entry.name, 'SKILL.md'))
+        .sort(),
+    ],
+    preludes: ['prelude-skills.ts'],
+    options: { types: ['node'] },
+    ambientModules: ['@semiont/sdk'],
     onlyDocDiagnostics: false,
   },
   ui: {

@@ -66,4 +66,4 @@ scales with corpus.
 - [`@semiont/make-meaning`](../../packages/make-meaning/) — the actors and this entry point
 - [Archivist](../archivist/) — the other half of the pair: it holds the record and answers
   *"what is there?"*; the Librarian searches it and answers *"what is relevant?"*
-- [Gather flow](../../docs/protocol/flows/GATHER.md) · [Match flow](../../docs/protocol/flows/MATCHER.md)
+- [Gather flow](../../docs/protocol/flows/GATHER.md) · [Match flow](../../docs/protocol/flows/MATCH.md)

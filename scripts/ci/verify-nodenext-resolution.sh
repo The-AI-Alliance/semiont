@@ -7,7 +7,7 @@ set -euo pipefail
 # with per-file .d.ts shards (or any other dist incoherence) — *before*
 # the tarballs reach a downstream NodeNext consumer.
 #
-# Background: see `.plans/CLEANUP-SDK.md` item 1. tsup emits bundled
+# Background: tsup emits bundled
 # `dist/index.js`; tsc with `emitDeclarationOnly` used to emit sharded
 # `dist/*.d.ts` next to it. Under NodeNext, `dist/index.d.ts`'s internal
 # re-exports (`export * from './client'`) failed because the matching

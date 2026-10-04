@@ -28,7 +28,7 @@ export class FrameNamespace implements IFrameNamespace {
   // Writes are confirmed: each awaits the gateway's correlation-keyed
   // `*-add-ok`/`*-add-failed` reply (bridged) via busRequest and REJECTS on
   // failure — a remote add-failure is surfaced to the caller, never silently
-  // dropped (.plans/bugs/BRIDGE-GAPS.md).
+  // dropped.
   async addEntityType(type: string): Promise<void> {
     await busRequest(
       this.transport,

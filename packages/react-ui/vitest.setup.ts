@@ -91,11 +91,10 @@ afterEach(() => {
 // against a server that is not there.
 //
 // It replaced a never-settling stub that silently absorbed every request: the
-// interim tier-1 fix from
-// `.plans/bugs/panels-tests-b14-tail-races-vitest-teardown.md`, whose own
+// interim tier-1 fix, whose own
 // acceptance criterion was its deletion once test-utils stopped composing a
-// real HttpTransport. That happened 2026-09-23
-// (.plans/TEST-UTILS-IN-MEMORY-TRANSPORT.md); throwing is safe now only
+// real HttpTransport. That happened 2026-09-23;
+// throwing is safe now only
 // because the suite makes no requests at all — a rejecting stub would
 // otherwise re-trigger the B14 fail→log→retry→log chain that races vitest's
 // worker teardown.

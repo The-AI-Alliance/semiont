@@ -190,7 +190,6 @@ export function KnowledgeBasePanel() {
     // session, so the page is unmounted the moment `activeSession$` goes null
     // and remounts fresh against the new KB — from its own point of view no
     // switch ever happened.
-    // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
     if (pathname.startsWith('/know/resource/')) {
       semiont.emit('nav:push', { path: '/know', reason: 'kb-switch' });
     }

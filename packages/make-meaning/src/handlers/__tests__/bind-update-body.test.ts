@@ -1,12 +1,11 @@
 /**
  * `registerBindUpdateBodyHandler` — the Bind flow's relay, which had NO test.
  *
- * That absence is most of why
- * `.plans/bugs/bind-body-update-failed-never-crosses.md` survived the
- * Archivist extraction: the relay's failure leg never ran anywhere, and the
- * suites that exercise binding at all drive only the success path. The bug
- * file asks specifically for "a test that drives a FAILING body update
- * end-to-end"; these are that, plus the legs around it.
+ * That absence is most of why the crossing bug (a failed body update whose
+ * signal never reached this handler) survived the Archivist extraction: the
+ * relay's failure leg never ran anywhere, and the suites that exercise binding
+ * at all drive only the success path. These tests drive a FAILING body update
+ * end-to-end, plus the legs around it.
  *
  * What this file CANNOT prove, and what does the other half: whether the
  * Archivist's failure signal reaches this handler when the two are different

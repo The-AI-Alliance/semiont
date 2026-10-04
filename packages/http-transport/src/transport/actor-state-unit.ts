@@ -314,8 +314,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     // renders an exhausted session's null `token$` as `''`). A connect
     // re-sending a bearer the gateway just REFUSED cannot succeed either
     // (shape B: the same credential gets the same 401). Both are
-    // guaranteed-failing requests generated on a timer — the storm in
-    // .plans/bugs/stale-sse-actor-401-loops-after-token-expiry.md — so
+    // guaranteed-failing requests generated on a timer, so
     // neither is attempted.
     //
     // This is D3 and D6a answered together: ONE `unauthenticated` state for
@@ -424,8 +423,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // so mark the previous connection(s) superseded and LINGER them — keep
       // them draining for LINGER_MS before the abort. Aborting immediately
       // here discarded replies already written to the old socket but not yet
-      // read (the buffered-bytes loss in
-      // .plans/bugs/concurrent-browse-resource-starvation.md); an event
+      // read (the buffered-bytes loss); an event
       // delivered by both connections during the overlap is deduped by id in
       // the read loop below (persisted ids are stable; correlated-reply ids
       // are deterministic per routes/bus.ts). Had the fetch failed, we'd have
@@ -516,8 +514,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
               busLog('RECV', parsed.channel, parsed.payload, parsed.scope, parsed.correlationId);
               // Drain-window forensics: an event delivered by a SUPERSEDED
               // (lingering) connection is one that an immediate handover abort
-              // would have discarded — the loss mode of
-              // .plans/bugs/concurrent-browse-resource-starvation.md. Gated
+              // would have discarded. Gated
               // (per-event, bursty during overlap); flip bus logging on to
               // see how real the window is.
               if (busLogEnabled() && superseded.has(controller)) {
@@ -539,7 +536,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
               // so during a make-before-break overlap the sibling connection
               // can read the same stable-id frame, find the set still missing
               // it, and deliver it a second time — defeating the overlap dedup
-              // (#847) that .plans/bugs/BRIDGE-GAPS.md exists to protect.
+              // (#847).
               // Rolled back if the apply throws, so a redelivery after a
               // dropped read loop is re-processed rather than silently
               // swallowed by its own claim.
@@ -567,8 +564,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
               // The pre-fix order (stash first, then an AWAITED apply) opened a
               // gap where a bystander cache's debounced save could fire
               // mid-await, find every cache quiet, and flush a bookmark whose
-              // event nothing had absorbed — the fast-path reload loss
-              // (.plans/bugs/annotation-lost-on-immediate-reload-after-create.md).
+              // event nothing had absorbed — the fast-path reload loss.
               // Both stay on the LAGGING side, which is safe: a reconnect or
               // crash mid-apply resumes from the previous id and redelivers,
               // and re-invalidation is idempotent.

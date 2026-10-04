@@ -85,7 +85,6 @@ describe('createResourceLoaderStateUnit — terminal failure (B15)', () => {
   // nothing cached has no value EITHER, so a two-state model reports a dead
   // request as an eternal spinner and drops the reason on the floor. The
   // failure must be a state of its own.
-  // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md (D4)
 
   it('surfaces a terminal failure on error$ instead of leaving it undelivered', async () => {
     const h = failingClient();

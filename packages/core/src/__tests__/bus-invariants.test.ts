@@ -14,10 +14,8 @@
  *
  * The bugs that motivated these guards were all *cross-list* inconsistencies,
  * not within-list ones:
- *   - a reply channel missing from BRIDGED_CHANNELS → silent 30 s timeout
- *     (.plans/bugs/gather-resource-complete-not-bridged.md);
- *   - a channel in *both* BRIDGED and the scoped set → double delivery
- *     (.plans/bugs/BRIDGE-GAPS.md).
+ *   - a reply channel missing from BRIDGED_CHANNELS → silent 30 s timeout;
+ *   - a channel in *both* BRIDGED and the scoped set → double delivery.
  *
  * Each list is now guarded at compile time by an `as const satisfies
  * readonly EventName[]` clause (BRIDGED_CHANNELS, PERSISTED_EVENT_TYPES,
@@ -43,8 +41,8 @@ import { PERSISTED_EVENT_TYPES } from '../persisted-events';
 
 /**
  * The Tier-1 migration safety net. `BRIDGED_CHANNELS` is now DERIVED from
- * `BUS_OPERATIONS` (every op's result/failure/progress) plus `BRIDGED_BROADCASTS`
- * — see .plans/BUS-OPERATIONS-REGISTRY.md. This frozen snapshot is the exact set
+ * `BUS_OPERATIONS` (every op's result/failure/progress) plus `BRIDGED_BROADCASTS`.
+ * This frozen snapshot is the exact set
  * the old hand-list carried (minus the reaped dead `gather:annotation-finished`).
  * If an operation is ever missed or mistyped, the derived set diverges from this
  * snapshot and the test goes red — so no reply channel can silently drop. Edit
@@ -136,8 +134,8 @@ describe('bus channel-classification invariants', () => {
     // A resource's own entity-type classification is a confirmed gateway write —
     // registered like its sibling metadata mutations (mark:delete/archive) so the
     // SDK's busRequest awaits the correlation-keyed reply and rejects on failure,
-    // NOT a fire-and-forget local emit whose failure has nowhere to go
-    // (.plans/bugs/BRIDGE-GAPS.md). Widened to a plain Record so this reads as a
+    // NOT a fire-and-forget local emit whose failure has nowhere to go.
+    // Widened to a plain Record so this reads as a
     // runtime registry assertion (RED before the operation is registered) rather
     // than a compile error on a missing `as const` key.
     const ops = BUS_OPERATIONS as Record<string, { result: string; failure: string }>;
@@ -159,7 +157,7 @@ describe('bus channel-classification invariants', () => {
     // twice — it maps `?channel=` entries 1:1 to subscriptions with no dedup —
     // so every event on it is delivered twice. The `BridgedChannel` *type*
     // can't catch this: a tuple with a repeated literal collapses in the
-    // `[number]` union. See .plans/bugs/BRIDGE-GAPS.md.
+    // `[number]` union.
     const dups = BRIDGED_CHANNELS.filter((c, i) => BRIDGED_CHANNELS.indexOf(c) !== i);
     expect(dups).toEqual([]);
   });

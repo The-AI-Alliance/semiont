@@ -6,8 +6,8 @@
  * `RESOURCE_SCOPED_CHANNELS` (derived in @semiont/core) is the per-resource set this transport
  * subscribes to *on top of* the global `BRIDGED_CHANNELS`. The two MUST be
  * disjoint: a channel in both is forwarded twice — once globally, once scoped —
- * with different SSE ids, defeating the client's event-id dedup
- * (.plans/bugs/BRIDGE-GAPS.md, Fix #2). This is a runtime relation between two
+ * with different SSE ids, defeating the client's event-id dedup.
+ * This is a runtime relation between two
  * arrays, so the type system can't express it; the derivation
  * (`PERSISTED_EVENT_TYPES.filter(t => !BRIDGED_CHANNELS.includes(t))`) is meant
  * to guarantee it, and this test pins that the guarantee actually holds.

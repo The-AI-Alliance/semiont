@@ -22,7 +22,6 @@ import type { CacheState } from '@semiont/sdk';
  * turns a routine filter switch into a full-page spinner — and if the fetch
  * is lost, into a spinner that never resolves. The failure path stays B14 →
  * B15 → `error$`, which views check before either signal.
- * See .plans/PANEL-FAILURE-STATES.md
  */
 export interface ListState<T> {
   value$: Observable<T>;

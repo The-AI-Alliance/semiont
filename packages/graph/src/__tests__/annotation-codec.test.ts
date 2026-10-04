@@ -6,7 +6,7 @@
  * that disagreed in four places — a missing selector threw in neo4j, became
  * `{}` in janusgraph and neptune; a missing motivation threw in neo4j and
  * silently became `'linking'` in the other two. One event log, three
- * different annotations. See .plans/GRAPH-ANNOTATION-CODEC.md.
+ * different annotations.
  *
  * The codec is pure, so every case here runs with no live store.
  */

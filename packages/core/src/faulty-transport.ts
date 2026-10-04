@@ -1,6 +1,6 @@
 /**
  * FaultyTransport — a seeded, scriptable `ITransport` simulator for the
- * liveness axioms (`.plans/LIVENESS-AXIOMS.md`). fast-check draws a fault
+ * liveness axioms. fast-check draws a fault
  * schedule; the transport applies one `FaultAction` per request-channel emit
  * and synthesizes replies from the `BUS_OPERATIONS` registry, so real
  * compositions (`busRequest`, SWR caches, live queries) run unmodified against

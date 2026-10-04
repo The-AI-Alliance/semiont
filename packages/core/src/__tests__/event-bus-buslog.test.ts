@@ -69,13 +69,12 @@ describe('EventBus busLog integration', () => {
 });
 
 /**
- * Dropped-reply detector — the silent-failure guard from
- * .plans/bugs/gather-resource-complete-not-bridged.md. A correlation-bearing
+ * Dropped-reply detector — the silent-failure guard. A correlation-bearing
  * reply emitted with zero observers is unreachable (no forwarder, no consumer),
  * so the awaiting client times out 30 s later with no error. On Node this WARNs
  * once per channel at emit time — but ONLY for channels not in `BRIDGED_CHANNELS`
- * (a 0-observer emit on a bridged channel is a redundant copy, not a gap; see
- * .plans/bugs/BRIDGE-GAPS.md). Each warning test uses a DISTINCT channel because
+ * (a 0-observer emit on a bridged channel is a redundant copy, not a gap).
+ * Each warning test uses a DISTINCT channel because
  * the once-per-channel dedup is process-global.
  */
 describe('EventBus dropped-reply detection', () => {
@@ -104,7 +103,7 @@ describe('EventBus dropped-reply detection', () => {
     const bus = new EventBus();
     // gather:resource-complete IS bridged — a 0-observer emit here is a duplicate
     // the awaiting take(1) already consumed, not a drop. Regression guard for the
-    // false-positive [bus DROP] flood (.plans/bugs/BRIDGE-GAPS.md).
+    // false-positive [bus DROP] flood.
     bus.emit('gather:resource-complete', { response: {} } as never, { correlationId: 'deadbeef-5' });
 
     expect(warnSpy).not.toHaveBeenCalled();

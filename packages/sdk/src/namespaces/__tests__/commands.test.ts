@@ -867,7 +867,7 @@ describe('YieldNamespace', () => {
   });
 
   it('fromContext({ entityTypes }) carries entityTypes through into job:create params', () => {
-    // Regression — see .plans/ENTITY-TYPES-GAP.md. Before the fix the
+    // Regression. Before the fix the
     // SDK silently dropped entityTypes between the GenerationOptions
     // boundary and the bus payload, leaving synthesized resources
     // un-stamped at schema-layer queries.

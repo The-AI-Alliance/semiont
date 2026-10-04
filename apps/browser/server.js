@@ -3,8 +3,7 @@
  * Minimal static file server for the Semiont frontend SPA.
  * Serves the Vite-built dist/ directory with SPA fallback (all routes → index.html),
  * plus the launcher's KB discovery document under /discovery/* — served or 404,
- * NEVER the SPA fallback (a 200 index.html would be indistinguishable from data;
- * see .plans/BROWSER-KB-DISCOVERY.md L2a).
+ * NEVER the SPA fallback (a 200 index.html would be indistinguishable from data).
  *
  * Environment variables:
  *   PORT - port to listen on (default: 3000)

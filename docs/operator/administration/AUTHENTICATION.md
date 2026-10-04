@@ -17,7 +17,7 @@ Three pieces make up the auth system:
 ```mermaid
 graph TB
     subgraph "Client (SPA / SDK / CLI)"
-        App[App holds token in memory]
+        App[App holds its tokens]
     end
 
     subgraph "Trusted Issuer"
@@ -259,8 +259,8 @@ Details worth knowing:
 
 ### Token handling
 
-1. **Bearer tokens live in JS memory**, not cookies — the SDK holds them and attaches them explicitly. There is no httpOnly cookie, and the gateway holds no long-lived credential of its own for a person.
-2. **The access token lifetime is the containment window.** A leaked token works until it expires, and disabling the account at the issuer prevents a replacement rather than cancelling the one in hand. Keep the realm's lifetime short for that reason.
+1. **A client holds its own tokens, and never as a cookie.** The SDK attaches the access token to each request explicitly, and keeps the access and refresh pair wherever its storage adapter puts it. The Browser's is `localStorage`, one entry per knowledge base, so a session survives a reload and a script running in the Browser's origin can read it. `semiont login` keeps them in the launcher's sign-in store, a file only its owner can read. A script chooses its own. The gateway holds no credential on a person's behalf.
+2. **The access token lifetime is the containment window.** A leaked access token works until it expires, and disabling the account at the issuer prevents a replacement rather than cancelling the one in hand. Keep the realm's lifetime short for that reason. A leaked refresh token obtains new access tokens until the person signs out, which revokes it, or the account is disabled.
 3. **Always use HTTPS in production.**
 4. **Open CORS is intentional and safe here** because no credentials are carried (see [Security](./SECURITY.md)). Never re-introduce credentialed CORS or origin-reflection.
 

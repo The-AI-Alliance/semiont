@@ -88,7 +88,6 @@ describe('AnnotationHistory', () => {
     // The panel used to derive `loading` from `eventsData === undefined` and
     // hard-code `const error = false`, so a failed load sat on "Loading..."
     // for ever and the error branch below it was unreachable.
-    // See .plans/PANEL-FAILURE-STATES.md
 
     it('reports the failure instead of staying on the loading text', () => {
       renderWithProviders(

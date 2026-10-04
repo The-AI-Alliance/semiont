@@ -494,8 +494,7 @@ describe('createActorStateUnit', () => {
 
   it('emit REJECTS on a non-2xx response — a refused emit must not read as success', async () => {
     // The gateway 400s an emit that fails request validation (e.g. a
-    // MatchSearchRequest whose embedded annotations are malformed —
-    // .plans/bugs/match-search-hangs-on-neo4j-datetime-annotations.md).
+    // MatchSearchRequest whose embedded annotations are malformed).
     // Resolving "no count" here swallows the refusal: the busRequest caller keeps
     // waiting for a reply that can never come. bus-request.ts's contract
     // ("An emit rejection (e.g. /bus/emit 4xx) propagates to the caller")
@@ -608,7 +607,7 @@ describe('createActorStateUnit', () => {
 
   it('never reports `open` while the subscribe fetch is pending — open means the response is streaming', async () => {
     // The negative direction of the pin above, and the attach signal the
-    // busRequest gate trusts (.plans/BUS-ATTACH-GATE.md, Phase 0): if the
+    // busRequest gate trusts: if the
     // actor ever claimed `open` before the subscribe response's reader
     // started, the gate would emit into a stream nobody is reading — the
     // exact loss it exists to prevent.
@@ -1046,8 +1045,7 @@ describe('createActorStateUnit', () => {
   // bottom. What stays here is the apply/stash ORDERING invariant.
 
   it('stashes an id only AFTER the event has been applied to on$ subscribers (the receive→apply gap)', async () => {
-    // .plans/bugs/annotation-lost-on-immediate-reload-after-create.md: the
-    // pre-fix loop ran saveLastEventId BEFORE the awaited apply fan-out.
+    // The pre-fix loop ran saveLastEventId BEFORE the awaited apply fan-out.
     // Inside that await, a bystander cache's debounced save could fire,
     // find every cache quiet (nothing invalidated yet), and flush the
     // just-stashed bookmark — persisting an id whose event no cache had
@@ -1186,7 +1184,6 @@ describe('createActorStateUnit', () => {
   });
 
   // ── Linger-drain: replies in flight on the old connection at handover ──
-  // (.plans/bugs/concurrent-browse-resource-starvation.md — ask 1)
 
   it('delivers a reply still in flight on the old connection after the new one opens (linger-drain)', async () => {
     // The starvation repro: N browse requests issued on the unscoped
@@ -1336,7 +1333,7 @@ describe('createActorStateUnit', () => {
     // fan-out await at once. If the dedup claim were recorded after that await
     // (the shape the fast-path reload fix introduced), both would find the set
     // empty and deliver — the overlap dedup defeated. See
-    // .plans/bugs/BRIDGE-GAPS.md and PR #1077's review.
+    // PR #1077's review.
     const c1 = mockConn();
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',

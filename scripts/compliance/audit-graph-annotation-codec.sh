@@ -21,10 +21,7 @@ set -euo pipefail
 #      frame up: all four stores minted `new Date().toISOString()` and passed
 #      it in, so the codec faithfully stored a manufactured value. Because
 #      `rebuildResource` deletes before it replays, that restamped every
-#      annotation on every reconcile heal. See
-#      .plans/ANNOTATION-CREATED-AUTHORITY.md.
-#
-# See .plans/GRAPH-ANNOTATION-CODEC.md.
+#      annotation on every reconcile heal.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 IMPLEMENTATIONS="$REPO_ROOT/packages/graph/src/implementations"
@@ -96,5 +93,5 @@ if [ "$violations" -eq 0 ]; then
 fi
 
 echo ""
-echo "Found $violations violation(s). See .plans/GRAPH-ANNOTATION-CODEC.md."
+echo "Found $violations violation(s)."
 exit 1

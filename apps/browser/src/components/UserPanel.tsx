@@ -110,7 +110,6 @@ export function UserPanel() {
  * Rendered only where a session is guaranteed. `UserPanel` itself renders
  * inside `ToolbarPanels`, which the unauthenticated knowledge layout also
  * mounts — there `activeSession$` is null and there is nothing to sign out of.
- * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
  *
  * Signing out is one call: the browser forgets the stored session and revokes
  * the refresh token at the issuer. The gateway has no part in it — it never

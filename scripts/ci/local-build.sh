@@ -690,7 +690,7 @@ BUILD_REGISTRY="http://$HOST_ADDR:4873"
 
 banner "CONTAINER IMAGES"
 
-# --- Image fan-out targets (see .plans/LOCAL-BUILD-IMAGE-FANOUT.md) ---
+# --- Image fan-out targets ---
 #
 # The :local images land in $RT's image store, invisible to every other
 # engine — a KB started with a different --runtime then fails with

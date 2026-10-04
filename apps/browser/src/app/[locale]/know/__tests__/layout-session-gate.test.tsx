@@ -12,8 +12,7 @@
  *
  * It is NOT sufficient on its own: the page remounts against the new
  * session while the URL still names the previous KB's resource, which is
- * the actual defect fixed in
- * .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+ * the actual defect.
  *
  * NOTE (SESSION-TYPED-FACTORIES, landed 2026-07-29): the API now enforces what
  * this gate guards — factories take a `SemiontSession` and construction goes

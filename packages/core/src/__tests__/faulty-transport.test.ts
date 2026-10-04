@@ -1,5 +1,5 @@
 /**
- * FaultyTransport sequenced replies (.plans/SDK-TESTING-DOUBLE.md, Phase 2).
+ * FaultyTransport sequenced replies.
  *
  * The division of labor the queue introduces: the fault SCHEDULE scripts the
  * WIRE (deliver / drop / delay / duplicate / reject-emit), the reply QUEUE

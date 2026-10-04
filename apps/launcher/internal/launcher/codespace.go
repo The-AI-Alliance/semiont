@@ -15,8 +15,7 @@ import (
 	"time"
 )
 
-// codespace.go — the `codespace` PLATFORM (.plans/CODESPACE-KB-LAUNCH.md §2,
-// LAUNCHER-SERVICE-MODEL D5): a substrate the launcher must provision before
+// codespace.go — the `codespace` PLATFORM: a substrate the launcher must provision before
 // any service can exist on it, which is what makes it unlike local. The REPO is the user-facing identity;
 // the codespace NAME is a PID (shown by status, input only via the
 // --codespace disambiguation corner). The launcher keeps at most ONE

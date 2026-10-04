@@ -15,8 +15,7 @@
  * sibling invariant in the SDK's `cache-persister.ts` header — the persisted
  * bookmark "may therefore LAG the caches … but can never lead them" — is
  * asserted with exactly the same confidence in exactly the same register,
- * and is FALSE as implemented; that is the measured bug in
- * `.plans/bugs/pdf-annotations-vanish-after-reload-stale-persisted-cache.md`.
+ * and is FALSE as implemented; that is a measured bug.
  * Prose cannot tell the two apart. These properties make this one executable.
  *
  * | Id | Axiom |

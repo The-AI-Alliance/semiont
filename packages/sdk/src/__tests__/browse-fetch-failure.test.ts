@@ -2,7 +2,7 @@
  * Regression: a one-shot `await` of a Browse live-query must REJECT when the
  * underlying bus request fails — it must not hang forever.
  *
- * Root cause (see .plans/SEMIONT-BUG-browse-annotations.md, "Link 3"): the
+ * Root cause: the
  * cache primitive's `doFetch` swallows fetch failures (CACHE-SEMANTICS B6 —
  * "fetch failure leaves the previous state intact") so that live-query
  * *subscribers* keep their stale value / stay in the loading state. That is
@@ -19,8 +19,7 @@
  *      cached value, the subscriber is ERRORED (B15) rather than left on
  *      `undefined` forever. (Pre-B15 this file pinned "never errored"; the
  *      liveness axioms showed that to be L1's forbidden fourth state for
- *      value-less keys — see
- *      .plans/bugs/valueless-key-terminal-failure-starves-observers.md.
+ *      value-less keys.
  *      Keys WITH a stale value keep B6 stale-beats-error: never errored.)
  *
  * No gateway: a fake transport drives `busRequest` to a deterministic

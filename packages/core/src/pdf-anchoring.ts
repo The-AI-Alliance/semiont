@@ -200,8 +200,7 @@ export function locate(
  * The inverse of `locate`: given a rectangle, returns the text under it.
  *
  * A hand-drawn PDF rectangle otherwise carries no quoted text at all, so every
- * panel that quotes an annotation shows it blank
- * (.plans/PDF-MANUAL-ANNOTATION-TEXT.md).
+ * panel that quotes an annotation shows it blank.
  *
  * `rect` is in the same PDF-point, bottom-left-origin space as `PdfTextItem`,
  * so a canvas drag rectangle passes straight in. A run counts as covered when

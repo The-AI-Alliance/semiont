@@ -15,18 +15,13 @@
 import type { components } from '@semiont/core';
 import { isHighlight, isComment, isReference, isTag } from '@semiont/core';
 import type { Annotation } from '@semiont/core';
-type Motivation = components['schemas']['Motivation']; // Already defined in @semiont/core with all 13 W3C motivations!
+type Motivation = components['schemas']['Motivation'];
 
 /**
- * Detection configuration for SSE-based annotation detection
+ * Display metadata for AI-assisted annotation of this type: the names used in
+ * messages, and a formatter that renders an assist request's parameters.
  */
 export interface DetectionConfig {
-  // SSE method name (e.g., 'detectReferences', 'detectHighlights')
-  sseMethod: 'detectReferences' | 'detectHighlights' | 'detectAssessments' | 'detectComments' | 'detectTags';
-
-  // How to extract count from completion result
-  countField: 'foundCount' | 'createdCount' | 'tagsCreated';
-
   // Plural display name for messages (e.g., 'entity references', 'highlights')
   displayNamePlural: string;
 
@@ -106,8 +101,6 @@ export const ANNOTATORS = {
       refetchAfter: false
     },
     detection: {
-      sseMethod: 'detectHighlights',
-      countField: 'createdCount',
       displayNamePlural: 'highlights',
       displayNameSingular: 'highlight',
       formatRequestParams: (args: unknown[]) => {
@@ -135,8 +128,6 @@ export const ANNOTATORS = {
       refetchAfter: false
     },
     detection: {
-      sseMethod: 'detectComments',
-      countField: 'createdCount',
       displayNamePlural: 'comments',
       displayNameSingular: 'comment',
       formatRequestParams: (args: unknown[]) => {
@@ -165,8 +156,6 @@ export const ANNOTATORS = {
       refetchAfter: false
     },
     detection: {
-      sseMethod: 'detectAssessments',
-      countField: 'createdCount',
       displayNamePlural: 'assessments',
       displayNameSingular: 'assessment',
       formatRequestParams: (args: unknown[]) => {
@@ -195,8 +184,6 @@ export const ANNOTATORS = {
       refetchAfter: true
     },
     detection: {
-      sseMethod: 'detectReferences',
-      countField: 'foundCount',
       displayNamePlural: 'entity references',
       displayNameSingular: 'entity reference',
       formatRequestParams: (args: unknown[]) => {
@@ -230,8 +217,6 @@ export const ANNOTATORS = {
       successMessage: 'Tag "{value}" created'
     },
     detection: {
-      sseMethod: 'detectTags',
-      countField: 'tagsCreated',
       displayNamePlural: 'tags',
       displayNameSingular: 'tag',
       formatRequestParams: (args: unknown[]) => {

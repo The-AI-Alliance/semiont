@@ -25,7 +25,6 @@ export type DrawingMode = 'rectangle' | 'circle' | 'polygon' | null;
  * distinguish the modes — AnnotateView passes `drawingMode={null}` whenever no
  * motivation is selected, so keying layout on it would flip a reader between
  * scrolling and paged views as they picked up and put down a tool.
- * See .plans/PDF-CONTINUOUS-SCROLL.md D3.
  */
 export type PageLayout = 'paged' | 'scroll';
 
@@ -114,7 +113,6 @@ export function PdfAnnotationCanvas({
    * renders under `max-width: 100%; height: auto`, so its displayed height
    * depends on the column's width, and reserving raster pixels made the
    * column's height lurch on every mount (S1b).
-   * See .plans/PDF-CONTINUOUS-SCROLL.md D4 + S1b.
    */
   const [pageShape, setPageShape] = useState<{ aspect: number; rasterWidth: number } | null>(null);
   /** Measured inner width of the column — the other half of the reservation. */

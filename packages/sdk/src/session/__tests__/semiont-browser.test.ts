@@ -176,8 +176,8 @@ describe('SemiontBrowser — KB list', () => {
   });
 
   it("round-trips a KB's did through registration and storage (identity survives a reload)", async () => {
-    // The did is what a client joins discovered KBs to connected ones on
-    // (.plans/KB-IDENTITY-VS-ADDRESS.md). It is captured once at auth time
+    // The did is what a client joins discovered KBs to connected ones on.
+    // It is captured once at auth time
     // from the KB's own /api/status, so if registration or the storage
     // round-trip dropped it the join would silently never match — the
     // failure mode this whole plan exists to end. Pinned here because
@@ -975,7 +975,6 @@ describe('SemiontBrowser — last viewed resource (KB-scoped)', () => {
   // "Which resource was I last looking at" is per-KB state, exactly like the
   // tabs it sits beside. Held globally it sends the /know landing redirect
   // into the PREVIOUS KB's resource after a switch — a guaranteed 404.
-  // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
 
   async function makeConnectedBrowser() {
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');

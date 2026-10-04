@@ -23,7 +23,6 @@ export interface ResourceDiscoveryPageProps {
   /**
    * The recent-resources load failed terminally (B15). Without it, "loading"
    * derived from an absent value never resolves and this route freezes.
-   * See .plans/PANEL-FAILURE-STATES.md
    */
   recentError?: Error | null;
   onRetryRecent?: () => void;

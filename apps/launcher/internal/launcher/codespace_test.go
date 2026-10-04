@@ -50,8 +50,7 @@ func TestSplitCRLines(t *testing.T) {
 
 // SHARED classifier for "what state is this codespace in", extracted because
 // three call sites decided it independently and only status got it right
-// (#1058 fixed status alone; ensure/wait/stop kept the old confusion —
-// .plans/bugs/codespace-record-outlives-github-retention.md). Absence from a
+// (#1058 fixed status alone; ensure/wait/stop kept the old confusion). Absence from a
 // SUCCESSFUL list is a state ("deleted"); only a failed or impossible query
 // is "unqueryable". The distinction is the whole point: one justifies
 // forgetting a record, the other never does.

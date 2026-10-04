@@ -13,7 +13,6 @@
  *   session under an unchanged `kb.id`) left the loader holding a DISPOSED
  *   client, whose cache is inert by B16: no fetch, no emission, and the page
  *   sits on "Loading resource..." forever.
- *   See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
  *
  * Fix: a thin outer wrapper reads the `:id` param and the session, gates
  * render on the session, and keys the inner component on `${session.id}:${rId}`

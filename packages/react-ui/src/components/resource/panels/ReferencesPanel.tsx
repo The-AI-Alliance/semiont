@@ -64,7 +64,6 @@ interface Props {
    * The entity-type list failed to load. Without it the picker's empty branch
    * asserts "no entity types available" — a claim about the knowledge base
    * that a failed load cannot support.
-   * See .plans/PANEL-FAILURE-STATES.md
    */
   entityTypesError?: Error | null;
   generatingReferenceId?: string | null;
@@ -74,7 +73,6 @@ interface Props {
    * The incoming-references load failed terminally (B15). Distinct from
    * `referencedByLoading` — without it a dead request is indistinguishable
    * from one still in flight, and the panel says "Loading..." forever.
-   * See .plans/PANEL-FAILURE-STATES.md
    */
   referencedByError?: Error | null;
   /** Retry the failed incoming-references load. */

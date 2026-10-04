@@ -33,22 +33,22 @@ on crates.io) is its full peer: the same namespaces, methods and behaviour, held
 ### 1. Eight verbs
 
 Every operation belongs to one of eight *flows* — verbs describing what a participant does
-with a shared corpus. Learn them once and the surface stays small.
+with a shared corpus. Four write (yield, mark, bind, frame), three read (browse, match,
+gather), and one directs attention (beckon). Learn them once and the surface stays small.
 
 | Verb | What it does | Example methods |
 |---|---|---|
-| **browse** | Navigate, read, observe — including who's here to collaborate | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
-| **bind** | Resolve ambiguous references to specific resources | `bind.body`, `bind.initiate` |
 | **yield** | Introduce new resources — uploaded or generated from gathered context | `yield.resource`, `yield.fromContext` |
-| **mark** | Add structured metadata to resources | `mark.annotation`, `mark.assist`, `mark.updateEntityTypes`, `mark.archive` |
+| **mark** | Annotate resources | `mark.annotation`, `mark.assist`, `mark.updateEntityTypes`, `mark.archive` |
+| **bind** | Resolve ambiguous references to specific resources | `bind.body`, `bind.initiate` |
 | **frame** | Define and evolve the schema vocabulary (entity types, tag schemas) | `frame.addEntityTypes`, `frame.addTagSchema` |
-| **gather** | Assemble grounding context around a resource or an annotation | `gather.resource`, `gather.annotation` |
+| **browse** | Navigate, read, observe — including who's here to collaborate | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
 | **match** | Search the corpus for candidate resources | `match.search` |
-| **beckon** | Coordinate attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.openResource` |
+| **gather** | Assemble grounding context around a resource or an annotation | `gather.resource`, `gather.annotation` |
+| **beckon** | Direct attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.openResource` |
 
 Each flow is a namespace on `SemiontClient` (`client.mark.X(...)`); the verb is the unit of
-mental model. Frame is the schema-layer flow — the others operate within the vocabulary it
-manages. Per-flow contracts: [`docs/protocol/flows`](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows).
+mental model. Per-flow contracts: [`docs/protocol/flows`](https://github.com/The-AI-Alliance/semiont/tree/main/docs/protocol/flows).
 
 ### 2. One call, two ways to consume
 
@@ -67,16 +67,19 @@ Methods return one of: `Promise<T>` (atomic gateway ops), `StreamObservable` /
 `UploadObservable` (bounded progress — thenable, `await` resolves the final value),
 `CacheObservable` (live queries — `.subscribe(...)` for `CacheState` emissions,
 `.fresh()` for the explicit network read; deliberately NOT thenable, so a cache read can
-never silently become a round trip), or `void` (collaboration signals — below). The
+never silently become a round trip), a count (wire drives — below), or `void` (local signals). The
 per-method table and the `.run()` rule for progress-plus-result live in
-[`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/REACTIVE-MODEL.md).
+[`docs/builder/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/REACTIVE-MODEL.md).
 
 ### 3. Collaboration primitives
 
-The `void`-returning signals are protocol-level coordination, not browser-app fluff: a human
-hovers an annotation (`beckon.hover(id)`) and an AI agent across the bus reacts; an agent
-sparkles an annotation and the human's UI lights up. Observers reach the same signals via
-`session.subscribe(channel, handler)` or `client.bus.on(channel)`.
+Directing attention is protocol-level coordination, not browser-app fluff. An agent calls
+`beckon.attention(resourceId, annotationId)` and every connected person's viewer scrolls to
+the passage; `beckon.sparkleAll` lights it up; `beckon.openResource` opens a resource on
+their screens. Each of these wire drives resolves with how many clients it reached.
+
+The `void` signals (`beckon.hover`, `bind.initiate`, `mark.request`) are different: they stay
+on one client's own bus, where its interface coordinates itself.
 
 ### 4. Transport agnosticism
 
@@ -94,7 +97,7 @@ HTTP adapter is re-exported here for convenience; the in-process transport is
   helper for endpoint shapes.
 - **Flow state machines** — closure-based factories (`createMarkStateUnit`, `…Gather…`,
   `…Match…`, `…Yield…`, `…Beckon…`) wrapping each long-running flow with `loading$`/`error$`/
-  progress observables; UI-shape-agnostic ([`docs/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/STATE-UNITS.md)).
+  progress observables; UI-shape-agnostic ([`docs/builder/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/STATE-UNITS.md)).
 - **KB discovery** — the consumer side of the launcher's published KB view:
   `httpDiscovery` (polls the Browser origin's `DISCOVERY_URL_PATH` with ETag/304),
   `textDiscovery` (bring-your-own IO — the sdk never imports `fs`), and
@@ -102,7 +105,7 @@ HTTP adapter is re-exported here for convenience; the in-process transport is
   Descriptors only; auth stays per-KB. Types (`DiscoveredKB`, `DiscoveryDocument`) come
   from `@semiont/core`'s generated schema.
 - **Helpers & types** — the cache primitive behind live queries
-  ([`docs/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/CACHE-SEMANTICS.md)),
+  ([`docs/protocol/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/CACHE-SEMANTICS.md)),
   `createSearchPipeline`, branded ids, and the unified error hierarchy (`SemiontError`,
   `BusRequestError`) re-exported so you catch every SDK error from one package. (The
   request/reply primitive itself, `busRequest`, lives in `@semiont/core`.)
@@ -160,13 +163,13 @@ takes over — every recipe assumes exactly this setup.
 ## Documentation
 
 The full map — every doc's role, and a reading order by audience — is
-[`docs/README.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/README.md).
+[`docs/builder/README.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/README.md).
 
-- **[`docs/DEVELOPER-GUIDE.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md) — start here to build.** Task-ordered recipes, connect through teardown.
-- [`docs/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/Usage.md) — per-namespace API tour with concrete examples, plus SSE and error handling.
-- [`docs/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/REACTIVE-MODEL.md) — the Promise-shape-over-Observable design.
-- [`docs/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/STATE-UNITS.md) — the state-unit pattern and its enforced axioms.
-- [`docs/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/CACHE-SEMANTICS.md) — the cache primitive's numbered behavioral contract.
+- **[`docs/builder/DEVELOPER-GUIDE.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md) — start here to build.** Task-ordered recipes, connect through teardown.
+- [`docs/builder/Usage.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/Usage.md) — per-namespace API tour with concrete examples, plus SSE and error handling.
+- [`docs/builder/REACTIVE-MODEL.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/REACTIVE-MODEL.md) — the Promise-shape-over-Observable design.
+- [`docs/builder/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/STATE-UNITS.md) — the state-unit pattern and its enforced axioms.
+- [`docs/protocol/CACHE-SEMANTICS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/CACHE-SEMANTICS.md) — the cache primitive's numbered behavioral contract.
 - [`docs/protocol/TRANSPORT-CONTRACT.md`](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-CONTRACT.md) — what every `ITransport` must honor; HTTP specifics in [TRANSPORT-HTTP.md](https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-HTTP.md). New transports implement the `@semiont/core` interfaces directly — no inheritance from `HttpTransport`.
 
 ## License

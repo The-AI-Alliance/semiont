@@ -8,8 +8,6 @@
  * differential axioms (deliberately sharing no code with any projection
  * under test), and the fault-injecting graph wrapper supplies the
  * schedules φ for the soundness axioms.
- *
- * Spec and ledger: `.plans/WEAVER-AXIOMS.md`.
  */
 
 import { Subject } from 'rxjs';

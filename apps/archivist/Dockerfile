@@ -13,8 +13,8 @@
 # The Archivist is a separate image from the shared @semiont/make-meaning
 # package, like smelter and weaver — separate because their dependency
 # footprints differ. The Archivist's Browser serves `browse:referenced-by`
-# from the graph (one call site, browser.ts — a settled decision, see
-# .plans/EXTRACT-ARCHIVIST.md), so neo4j-driver is bundled here like the
+# from the graph (one call site, browser.ts — a settled decision), so
+# neo4j-driver is bundled here like the
 # weaver's. It never dials Qdrant directly beyond the vector SEARCH the
 # qdrant client in @semiont/make-meaning already carries — no extra install.
 #
@@ -95,8 +95,7 @@ ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
 # ~1016 MB while the container was allotted 2048 MB — it never came close to
 # the container's limit. V8 derives its own default old-space ceiling from
 # visible memory and lands well under the cgroup allocation, so roughly half
-# the memory the fleet pays for was unreachable. See
-# .plans/bugs/absent-archivist-wedges-browse.md.
+# the memory the fleet pays for was unreachable.
 #
 # 1536 leaves ~512 MB under the container's 2G for everything OUTSIDE the JS
 # heap: RSS overhead, Buffers, the git subprocesses this image shells out to,

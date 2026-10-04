@@ -196,7 +196,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   /**
    * Timeout passed to every `busRequest` this namespace issues. `undefined`
    * means `busRequest`'s default (30 s). Injectable so the liveness
-   * properties (`.plans/LIVENESS-AXIOMS.md`) can run the real composition on
+   * properties can run the real composition on
    * deterministic virtual time — the same knob `HttpTransportConfig.timeout`
    * provides at the HTTP layer.
    */
@@ -261,7 +261,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.busTimeoutMs = options?.busTimeoutMs;
     this.invalidationWindows = new InvalidationWindows(options?.invalidationWindowMs ?? INVALIDATION_WINDOW_MS);
 
-    // The opt-in table (see .plans/LOCAL-STORAGE.md): small, first-paint
+    // The opt-in table: small, first-paint
     // caches persist; lists, event histories, and the collaborator
     // directory stay in-memory.
     const persistence = options?.cachePersistence;
@@ -525,7 +525,7 @@ export class BrowseNamespace implements IBrowseNamespace {
    * Fetch the resource's JSON-LD metadata graph (descriptor + annotations +
    * inbound entity references). One-shot, uncached, dereferenced via the
    * transport's HTTP `/jsonld` face (bus-free) — the LD view an external
-   * linked-data client gets. See `.plans/SIMPLER-JSON-LD.md` §5.
+   * linked-data client gets.
    */
   /**
    * A resource's coordinate map — its recovered text plus the runs that index
@@ -692,8 +692,7 @@ export class BrowseNamespace implements IBrowseNamespace {
    * B17-Q (C1) — true when every persisted cache is quiet: no fetch in
    * flight, no debounced save pending. The session factory wires this as the
    * resumption-bookmark flush gate, making the persisted bookmark unable to
-   * lead the persisted content — the invariant spec 14 caught being violated
-   * (.plans/bugs/pdf-annotations-vanish-after-reload-stale-persisted-cache.md).
+   * lead the persisted content — the invariant spec 14 caught being violated.
    */
   persistenceSettled(): boolean {
     return this.persistedCaches.every((cache) => !cache.persistencePending());

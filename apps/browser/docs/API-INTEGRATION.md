@@ -59,7 +59,7 @@ All API interactions feature:
 
 - **Type-safety** — TypeScript types generated from the OpenAPI spec
 - **Framework-agnostic react-ui** — plugs into any React framework via providers
-- **In-memory bearer auth** — the per-KB `SemiontSession` holds the access token in JS memory and feeds the client's `token$`; no cookies, no ambient credentials
+- **Bearer auth** — the per-KB `SemiontSession` feeds the client's `token$` and keeps the access and refresh pair in `localStorage`; no cookies, no ambient credentials
 - **One bus connection** — `SemiontClient` maintains a single SSE subscription to `/bus/subscribe`
 - **Structured errors** — consistent error shape from the gateway, surfaced through `APIError`
 
@@ -126,10 +126,10 @@ A user is always authenticated against a specific Knowledge Base; there is
 - `activeSignals$` — that session's session-expired / permission-denied signals
 
 Switching KBs swaps `activeSession$` atomically. Each `SemiontSession` owns its
-own `SemiontClient` and the per-KB **bearer token in JS memory** — a short-lived
-access token re-minted from a long-lived refresh token
-([TTLs](../../../docs/operator/administration/AUTHENTICATION.md)). Bearer-only: no
-cookie, no ambient credential.
+own `SemiontClient` and the per-KB **bearer token** — a short-lived access token
+([lifetimes](../../../docs/operator/administration/AUTHENTICATION.md#token-lifecycle)),
+renewed at the issuer from a refresh token, the pair kept in `localStorage`.
+Bearer-only: no cookie, no ambient credential.
 
 - **Sign in** — `browser.beginSignIn({ … })` discovers the KB's issuer from its
   gateway (RFC 9728) and sends the person there; the callback page's
@@ -184,7 +184,7 @@ function UserBadge() {
 **Key points:**
 
 - **Per-KB sessions** — there is no global session; switching KBs switches sessions atomically.
-- **No manual token management** — the `SemiontSession` mints and refreshes the bearer token in memory; the client reads it observably.
+- **No manual token management** — the `SemiontSession` renews the access token at the issuer and stores it; the client reads it observably.
 - **Type-safe** — types flow from the OpenAPI spec through the transport to components.
 
 ## Bus Gateway Transport

@@ -293,8 +293,7 @@ describe('@semiont/core - did-utils', () => {
    * The KB's own identity — not a person's, not an agent's. The launcher
    * mints the identical string in Go (`kbconfig.go` didWeb():
    * `"did:web:" + Domain`), and the two must agree byte-for-byte or the
-   * Browser's identity join silently never matches
-   * (.plans/KB-IDENTITY-VS-ADDRESS.md).
+   * Browser's identity join silently never matches.
    */
   describe('kbDid', () => {
     it('is did:web: + the declared domain, VERBATIM — colon-path form untouched', () => {

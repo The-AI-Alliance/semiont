@@ -148,7 +148,7 @@ export function ResourceGenerateModal({
   // Supplied by the owner, which already tracks the list with its failure
   // state. Fetching it here could only model (value | not-yet), so a failed
   // load would render an empty exclusion picker as though the KB had no
-  // entity types. See .plans/PANEL-FAILURE-STATES.md
+  // entity types.
   const [excludeEntityTypes, setExcludeEntityTypes] = useState<string[]>([]);
 
   // Reset to the first step ON OPENING — and re-seed the draft, because

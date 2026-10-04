@@ -747,7 +747,7 @@ describe('ViewMaterializer', () => {
     //  - keep the file sorted by id for stable output
     //
     // These tests pin each of those — the conflict semantics are the
-    // load-bearing decision from .plans/TAG-SCHEMAS-GAP.md (Q2).
+    // load-bearing decision.
     const schemaA = (override: Record<string, unknown> = {}) => ({
       id: 'schema-a',
       name: 'Schema A',

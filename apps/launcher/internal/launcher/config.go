@@ -4,7 +4,7 @@ package launcher
 // (owned by packages/core; documented in docs/operator/administration/
 // CONFIGURATION.md). Only the keys the launcher consumes are modeled;
 // everything else is deliberately ignored — the launcher is a consumer of
-// the schema, never a fork of it. See .plans/LAUNCHER-CONFIG-SYNC.md.
+// the schema, never a fork of it.
 
 import (
 	"fmt"

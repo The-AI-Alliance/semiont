@@ -46,7 +46,7 @@
  *   - Terminal failure of a VALUE-LESS key is its state (B15): when the B14
  *     retry also fails and there is no cached value to serve, the key is
  *     `failed`, for every observer of it, instead of `pending` forever —
- *     L1's forbidden fourth state (.plans/LIVENESS-AXIOMS.md; found by the
+ *     L1's forbidden fourth state (found by the
  *     P2 property suite). Retriable: the next subscribe, invalidate() or
  *     set() clears it. Keys WITH a value keep B6 stale-beats-error.
  */
@@ -182,7 +182,6 @@ export function createCache<K, V>(
    * seconds before a reload invisible — the persisted document predated it,
    * `observe()` saw a populated store and issued no request, and no replay
    * could help (at failure time no resumption bookmark exists at all).
-   * See .plans/bugs/annotation-lost-on-immediate-reload-after-create.md.
    */
   const rehydrated = new Set<K>(initialEntries.keys());
   /** In-flight fetch promise per key — dedups concurrent fetches (B3). */
@@ -319,8 +318,8 @@ export function createCache<K, V>(
    * once on failure (B14), then go idle.
    *
    * The motivating failure is a lost one-shot reply — the busRequest timed
-   * out because its SSE result raced a connection swap
-   * (.plans/bugs/concurrent-browse-resource-starvation.md). Without a retry,
+   * out because its SSE result raced a connection swap.
+   * Without a retry,
    * every subscriber of a never-loaded key starves silently until some future
    * observe()/invalidate() happens to act. Failures stay invisible to
    * subscribers (B6); the retry joins any fetch another caller started in the
@@ -334,8 +333,8 @@ export function createCache<K, V>(
       // B16: teardown straddled the attempt — no retry, no breadcrumb noise.
       if (disposed) return;
       // Always-on breadcrumb: the pre-B14 version of this path swallowed the
-      // failure with zero trace, which is how lost replies starved silently
-      // (.plans/bugs/concurrent-browse-resource-starvation.md). Not deduped —
+      // failure with zero trace, which is how lost replies starved silently.
+      // Not deduped —
       // a spamming retry line means fetches are failing repeatedly, which is
       // itself the signal.
       // eslint-disable-next-line no-console

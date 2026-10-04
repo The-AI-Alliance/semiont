@@ -5,7 +5,7 @@
  * loader).
  *
  * History: this file began as the starvation repro
- * (.plans/bugs/concurrent-browse-resource-starvation.md — pre-fix, loaders
+ * (pre-fix, loaders
  * 2..N hit the single-slot `subscribeToResource` throw and starved forever;
  * the interim P2.5 degraded them to unscoped observation). Both states are
  * gone: distinct resources COMPOSE, so the contract pinned here is stronger —

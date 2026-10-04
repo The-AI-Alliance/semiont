@@ -128,17 +128,7 @@ if let Some(roles) = principal.roles.as_ref().filter(|r| !r.is_empty()) {
 
 `_roles` is the token's capabilities (a worker's `WORKER_ROLE`): a **transient** authorization fact the dispatcher reads to authorize a `job:claim`. It is never persisted as provenance.
 
-In the schema, `_userId` is **optional** with the canonical description "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this." Handlers reading the channel can rely on `_userId` being present for any payload that came through the gateway — and treat its absence as a malformed event:
-
-```ts
-private async handleYieldCreate(event: EventMap['yield:create']): Promise<void> {
-  if (!event._userId) {
-    throw new Error('yield:create missing _userId (gateway injection)');
-  }
-  const uid = makeUserId(event._userId);
-  // ...
-}
-```
+In the schema, `_userId` is **optional** with the canonical description "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this." Handlers reading the channel can rely on `_userId` being present for any payload that came through the gateway — and treat its absence as a malformed event: the Stower refuses a `yield:create` that carries none.
 
 The underscore prefix is the convention's marker — anything starting with `_` on a payload is gateway plumbing, not consumer-supplied data. This applies uniformly across every command schema that needs auth context: `MarkCreateCommand`, `MarkArchiveCommand`, `YieldCreateCommand`, `YieldCloneCreateCommand`, `JobCompleteCommand`, etc.
 
@@ -157,9 +147,11 @@ The bus is fan-out: every subscriber to a channel sees every event on it. Reques
 `busRequest` ([packages/core/src/bus-request.ts](../../packages/core/src/bus-request.ts)) implements this pattern uniformly. It lives in `@semiont/core`, next to the bus protocol, so the SDK *and* in-process workers share one helper. You call it with the **operation** — the request channel — and a payload; it mints the `correlationId`, looks the reply channels up from the registry, emits, and resolves the awaited reply:
 
 ```ts
-const { annotationId } = await busRequest(bus, 'mark:create-request', { resourceId, request });
-//                                              └ operation key       result/failure looked up from BUS_OPERATIONS;
-//                                                                    return type inferred — no <TResult> annotation
+import { busRequest } from '@semiont/core';
+
+// The operation is named by its request channel. The result and failure
+// channels are looked up from BUS_OPERATIONS, and the return type is inferred.
+const resource = await busRequest(semiont.transport, 'browse:resource-requested', { resourceId });
 ```
 
 Two declarations make this work, and together they retire a whole bug class (a reply channel that's forgotten from the bridged set, which fails as a silent 30 s timeout):
@@ -202,18 +194,11 @@ A channel reaches clients in one of two **disjoint** delivery disciplines:
 - **Global fan-out** — forwarded to every connected client, which filters by `correlationId` (correlation replies like `match:search-results`) or just reacts (KB-global events like `frame:entity-type-added`). This is the *bridged* set (see [Fan-in](#fan-in-sse-bridging)).
 - **Resource-scoped** — delivered only to clients that have *joined* a resource's scope via `subscribeToResource(id)`. Publishers emit on a scoped bus (`eventBus.scope(resourceId)`); the HTTP transport carries each subscription as a `{scope, channels, lastEventId?}` entry in the `POST /bus/subscribe` matrix, and scoped SSE frames are tagged with their originating scope. One connection holds many resource scopes at once (multi-resource scope, 2026-07-29) — distinct resources compose. On the client, subscribing to a resource's `browse.*` live queries attaches a ref-counted scope that auto-detaches on the last unsubscribe (#847) — *freshness follows observation*.
 
-The resource-scoped set is the **persisted domain events** (`mark:added`, `yield:created`, … on resource X → viewers of X), *minus any that are globally bridged*. The KB-global persisted events (`frame:entity-type-added`, `frame:tag-schema-added`) are bridged, so they're excluded from scoped delivery. The transport derives the set (`@semiont/http-transport`):
+Which discipline a channel has is declared, not computed: the registry gives each such channel an `audience` of `everyone` or `scoped`, and the two generated lists (`BRIDGED_BROADCASTS` and `RESOURCE_SCOPED_CHANNELS`, in [bridged-channels.ts](../../packages/core/src/bridged-channels.ts)) are those declarations. The scoped channels are the events of the record that concern one resource: annotations, a resource's own facts, its renditions, and its jobs. The events of the record that concern the whole knowledge base (`frame:entity-type-added`, `yield:created` and their siblings) go to everyone.
 
-```ts
-RESOURCE_SCOPED_CHANNELS = [
-  ...PERSISTED_EVENT_TYPES.filter(t => !BRIDGED_CHANNELS.includes(t)),
-  ...RESOURCE_BROADCAST_TYPES,
-];
-```
+**A channel has one audience.** A channel delivered on both the global subscription and a scoped one would arrive twice, with different ids, and be duplicated on the client's bus. One declaration per channel makes that unrepresentable, and an invariant test (`BRIDGED_CHANNELS ∩ RESOURCE_SCOPED_CHANNELS === ∅`) backstops it.
 
-`RESOURCE_BROADCAST_TYPES` (registry data: the `resourceBroadcasts.channels` list, generated into `bus-protocol.ts`) is the extension point for *non-persisted* events that still want resource-scoped fan-out. **It is empty, and the reason is the rule rather than an accident**: `job:complete` / `job:fail` are global, `jobId`-keyed broadcasts (`audience: everyone`), emitted with no scope — the dispatcher applies them to its queue by `jobId`, the caller that created the job filters by `jobId`, and viewers filter the same global stream by `resourceId`, so there is no scoped copy and a client that is both receives each once. A worker that emitted them resource-scoped would reach neither the dispatcher nor the Stower, which subscribe globally. See [JOBS.md](JOBS.md).
-
-**Bridged and resource-scoped must stay disjoint.** A channel delivered on *both* the global subscription and a scoped one arrives twice (with different SSE ids) → a duplicate on the client bus. The `filter(t => !BRIDGED_CHANNELS.includes(t))` above guarantees disjointness for the persisted-derived part; an invariant test (`BRIDGED_CHANNELS ∩ RESOURCE_SCOPED_CHANNELS === ∅`) backstops the unfiltered `RESOURCE_BROADCAST_TYPES` extension point.
+`job:complete` and `job:fail` are delivered to everyone and carry no scope. The caller that dispatched a job filters by its `jobId`, and a viewer filters the same stream by `resourceId`, so a client that is both receives each once.
 
 Per-caller progress and search results are *not* scoped — they're correlation-shaped replies that publish globally and the caller filters by `correlationId`. Resource scoping is for genuine multi-participant fan-out: events that *every* viewer of a resource should see.
 
@@ -252,23 +237,7 @@ Three layers, deliberately, because each catches what the others structurally ca
 
 The Go tests overlap the TypeScript ones on purpose. Both languages generate from one registry, so today they are a second opinion rather than the only guard; that redundancy is the point, because an artifact checked only against the thing that generated it can agree with a mistake indefinitely.
 
-```ts
-// HttpTransport, wired once for the actor's lifetime. `relayFrames` owns the
-// hop: each frame crosses with its envelope (the correlation id carried, the
-// scope not), and the sink fans it out to every bridged bus. `this.bridges`
-// is read per frame, because `bridgeInto` appends to it after this is wired.
-const globalChannels = this.config.channels ?? BRIDGED_CHANNELS;
-relayFrames(
-  this._actor,
-  {
-    emit: (channel, payload, envelope) => {
-      for (const bus of this.bridges) bus.emit(channel, payload, envelope);
-    },
-  },
-  [...globalChannels, ...RESOURCE_SCOPED_CHANNELS],
-  (channel, error) => this.logger?.error('Bridge relay failed', { channel, error }),
-);
-```
+The HTTP transport wires this once, for the life of its stream: each frame it receives on a bridged or a resource-scoped channel crosses to the client's bus with its envelope, the correlation id carried. See [`http-transport.ts`](../../packages/http-transport/src/transport/http-transport.ts).
 
 This is the *fan-in* set — what the transport pushes onto the client's bus. The set the client emits is open-ended and uses `transport.emit(channel, payload)` directly.
 

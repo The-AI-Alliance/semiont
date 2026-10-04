@@ -122,7 +122,6 @@ describe('createEntityTagsStateUnit — terminal load failure', () => {
   // moderate/entity-tags/page.tsx returns a full-page loading screen off it,
   // so a failed load froze the route. The existing `error$` is the ADD-tag
   // error and is deliberately left alone.
-  // See .plans/PANEL-FAILURE-STATES.md
 
   it('stops loading and surfaces the load failure, distinct from the add-tag error', async () => {
     const entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);

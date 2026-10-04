@@ -330,7 +330,7 @@ describe('createDiscoverStateUnit — terminal load failure', () => {
   // `isLoadingRecent$` was `recent$.pipe(map(r => r === undefined))`, so a
   // terminally failed list (B15) — which has no value either — left
   // /know/discover spinning for ever. Same defect as the References and
-  // History panels. See .plans/PANEL-FAILURE-STATES.md
+  // History panels.
 
   it('recent: stops loading and surfaces the reason instead of spinning for ever', async () => {
     const resources$ = new BehaviorSubject<unknown[] | undefined>(undefined);

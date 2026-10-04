@@ -31,7 +31,7 @@ VIOLATIONS=$(grep -rEn "$PATTERN" \
   || true)
 
 if [ -n "$VIOLATIONS" ]; then
-  echo "❌ Toolbar-pref storage outside the policy layer (see .plans/TOOLBAR-PREFS-AS-PROPS.md):"
+  echo "❌ Toolbar-pref storage outside the policy layer:"
   echo ""
   echo "$VIOLATIONS"
   echo ""

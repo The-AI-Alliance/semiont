@@ -1,6 +1,6 @@
 /**
  * A6 (type half): a progress event carries a code and typed params, never a
- * prose sentence (.plans/ASSIST-PROGRESS-CONSOLIDATION.md). The wire schema is
+ * prose sentence. The wire schema is
  * the contract; this pin fails to compile if `JobProgress.message` regresses
  * to a free string, and if the code vocabulary loses a census-derived member.
  */

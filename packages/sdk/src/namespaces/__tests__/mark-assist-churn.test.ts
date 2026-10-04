@@ -1,7 +1,7 @@
 /**
  * Regression: `mark.assist` must not churn the SSE connection.
  *
- * Root cause (see .plans/SEMIONT-BUG-browse-annotations.md, "Link 1"): a
+ * Root cause: a
  * headless `mark.assist` called `transport.subscribeToResource(rId)` to
  * receive the resource-scoped `job:complete`/`job:fail`. That mutates the
  * SSE channel set, which can only be changed by tearing down and re-opening

@@ -14,7 +14,7 @@
  * SAME value `/api/tokens/agent` mints worker DIDs from. One value, one owner:
  * the roster consumes it verbatim and derives nothing from topology
  * (deriving from `publicURL`/connection URLs produced one logical agent
- * with two DIDs — .plans/bugs/agent-did-host-skew.md; the P5 attribution
+ * with two DIDs; the P5 attribution
  * cross-check arbitrates the equality).
  */
 

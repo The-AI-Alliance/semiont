@@ -44,8 +44,7 @@ describe('cache persistence (B17)', () => {
   it('rehydrates on construction: value visible synchronously, then revalidated once (B18)', async () => {
     // Declared behavior change 2026-07-24: this used to pin "NO fetch
     // issued". Trusting a disk value indefinitely is what made a
-    // just-created annotation invisible after an immediate reload
-    // (.plans/bugs/annotation-lost-on-immediate-reload-after-create.md).
+    // just-created annotation invisible after an immediate reload.
     // B18 keeps the instant paint and adds the revalidation.
     const fetchFn = vi.fn(async () => 'fetched');
     const { persister } = spyPersister<string, string>(new Map([['k1', 'rehydrated']]));

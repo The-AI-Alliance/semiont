@@ -1,6 +1,5 @@
 /**
- * CACHE-CONTRACT Phases 2–3 — the target contract (.plans/CACHE-CONTRACT.md,
- * D2/D3 settled 2026-07-29).
+ * CACHE-CONTRACT Phases 2–3 — the target contract (D2/D3 settled 2026-07-29).
  *
  * D3 (Phase 2): accessors are LAZY (fetch on first subscribe, never at call
  * time — safe to call from render) and uniformly memoized (per-key identity

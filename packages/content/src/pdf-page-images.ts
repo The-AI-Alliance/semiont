@@ -5,8 +5,7 @@
  * so reading it means getting that image out. We do NOT rasterize: pdf.js
  * decodes the embedded image in its worker (pure JS — JPEG, CCITT and JBIG2
  * decoders all live there) and hands back raw pixel planes, which means no
- * canvas gateway and no native dependency. Measured, not assumed — see
- * `.plans/SMELTER-MEDIA-TYPES.md` Resolved decision 10.
+ * canvas gateway and no native dependency. Measured, not assumed.
  *
  * Two consequences of extracting rather than rendering: we get the scan's own
  * resolution rather than choosing a render DPI (for a real scan that IS the

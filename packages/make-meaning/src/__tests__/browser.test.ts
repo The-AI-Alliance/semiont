@@ -511,7 +511,7 @@ describe('Browser actor', () => {
   describe('agents directory', () => {
     // The KB's canonical identity — the value /api/tokens/agent mints worker
     // DIDs from. The directory must mint the identical DIDs (one value, one
-    // owner; .plans/bugs/agent-did-host-skew.md).
+    // owner).
     const SITE_DOMAIN = 'kb.example';
 
     const did = (provider: string, model: string) =>

@@ -197,8 +197,7 @@ export class CloneTokenManager {
       // `persistClone`, not `createResource`: a clone is recorded as
       // `yield:cloned` carrying its `parentResourceId`. Routing it through
       // create appended `yield:created` and dropped the parent entirely,
-      // leaving a clone indistinguishable from a fresh upload in the record
-      // (.plans/bugs/anchored-text-stale-primary-checksum.md, Loose thread).
+      // leaving a clone indistinguishable from a fresh upload in the record.
       const newResourceId = await ResourceOperations.persistClone(
         {
           name: event.name,

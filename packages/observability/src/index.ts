@@ -5,7 +5,7 @@
  * import from `@semiont/observability/node` or `/web` at the process entry
  * point. Everything else uses this module.
  *
- * Tier 2 of `.plans/OBSERVABILITY.md`. The public surface:
+ * Tier 2 of the observability design. The public surface:
  *
  *   - `withSpan(name, fn, options?)` — wrap an async block in a span;
  *     `options` carries `kind` and `attrs`.
@@ -210,7 +210,7 @@ export async function withActorSpan<T>(
 
 /**
  * Read the active span's `trace_id` / `span_id` for log-line correlation.
- * Tier 3 of `.plans/OBSERVABILITY.md`. Each structured log line gets
+ * Tier 3 of the observability design. Each structured log line gets
  * tagged with these so a log query in CloudWatch / Loki / Datadog can
  * jump to the trace in Tempo / Jaeger / X-Ray.
  *

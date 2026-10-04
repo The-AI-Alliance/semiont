@@ -31,8 +31,7 @@
  *
  * The pipeline holds a set of axioms verified as fast-check properties in
  * `__tests__/weaver-axioms.test.ts` and pinned structurally by
- * `scripts/compliance/audit-weaver-invariants.sh` — see
- * `.plans/WEAVER-AXIOMS.md`. Load-bearing among them:
+ * `scripts/compliance/audit-weaver-invariants.sh`. Load-bearing among them:
  *   - graph ≡ reference fold over arbitrary histories (W4), and rebuild ≡
  *     replay (W5);
  *   - redelivery is inert (W3) — the **sequence gate** in the pipeline drops
@@ -58,8 +57,7 @@ import type { WeaverCheckpoint } from './weaver-checkpoint.js';
  * Pipeline, drain, and flush timings. Required — `weaver-main` passes
  * production values (50/500/200 burst; 30s/25ms/40 drain; 5s flush); the
  * axiom harness passes ~1ms values so property suites run at generator
- * speed. See `.plans/WEAVER-AXIOMS.md` (R0), mirroring SmelterTiming
- * (SMELTER-AXIOMS D4).
+ * speed, mirroring SmelterTiming.
  */
 export interface WeaverTiming {
   burstWindowMs: number;

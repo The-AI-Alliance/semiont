@@ -53,6 +53,6 @@ version before assuming a regression.
 
 ## Where the reasoning lives
 
-Findings, the two-stage search design these fixtures test, and the untracked
-spike harness that produced them are in `.plans/PDF-GENERATION.md`. That
-document is not in the repo; these fixtures are self-describing on purpose.
+The findings, the two-stage search design these fixtures test, and the spike
+harness that produced them are not in the repo; these fixtures are
+self-describing on purpose.

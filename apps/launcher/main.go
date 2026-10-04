@@ -1,8 +1,7 @@
 // semiont — host-installed launcher for a local Semiont stack.
 //
 // Drives the container runtime CLI (Apple `container`, docker, or podman)
-// directly via subprocesses; see .plans/GO-LAUNCHER.md in the monorepo for
-// the design and the fleet forensics this port preserves.
+// directly via subprocesses.
 package main
 
 import (

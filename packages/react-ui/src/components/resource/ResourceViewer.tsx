@@ -92,7 +92,7 @@ interface Props {
    * that imports `ResourceViewer` — the documented entry point. Before this,
    * reaching `BrowseView`'s `renderers` meant dropping to `BrowseView`
    * directly and reimplementing the browse/annotate switching this component
-   * exists to provide. See .plans/ANNOTATE-RENDERER-REGISTRY.md (D5)
+   * exists to provide.
    */
   browseRenderers?: BrowseMediaRenderers;
   annotateRenderers?: AnnotateMediaRenderers;

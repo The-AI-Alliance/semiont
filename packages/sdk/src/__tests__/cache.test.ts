@@ -392,7 +392,6 @@ describe('Cache<K, V>', () => {
     // connection swap) times out and rejects; without a bounded retry, every
     // subscriber of a never-loaded key starves silently until some future
     // observe()/invalidate() happens to act.
-    // See .plans/bugs/concurrent-browse-resource-starvation.md (ask 3).
 
     it('observe path: a failed first fetch is re-issued once and subscribers recover', async () => {
       const fetchFn = vi
@@ -456,7 +455,7 @@ describe('Cache<K, V>', () => {
     // Found by the LIVENESS-AXIOMS P2 property suite (L1/L2 falsified under
     // schedule ⟨reject-emit⟩): after B14 exhaustion a value-less key's
     // subscribers previously saw `undefined` forever — the forbidden fourth
-    // state. See .plans/bugs/valueless-key-terminal-failure-starves-observers.md.
+    // state.
 
     const exhaust = () =>
       vi.fn().mockRejectedValueOnce(new Error('lost')).mockRejectedValueOnce(new Error('lost'));
@@ -660,7 +659,7 @@ describe('Cache<K, V>', () => {
   });
 
   // B16 — disposal is terminal and inert. Motivated by the make-meaning CI
-  // escape (.plans/LIVENESS-AXIOMS.md, 2026-07-05 entry): a B14 retry chain
+  // escape (2026-07-05): a B14 retry chain
   // straddling client teardown pushed a B15 `bus.closed` error into a test's
   // handler-less subscriber. The fix is structural (finding b): disposal
   // completes every per-key observable and stuns all later acts — so a

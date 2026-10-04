@@ -50,7 +50,7 @@ async function browseResources(semiont: SemiontClient, args: any) {
 
 **Key Benefits:**
 - **Type-Safe**: Full TypeScript types from OpenAPI specification
-- **Common Client**: Same client used by demo scripts and other external consumers
+- **Common Client**: The same `SemiontClient` every other SDK consumer uses
 - **No Duplication**: Reuses authentication, retry logic, and error handling
 - **Maintainable**: Changes to the API client benefit all consumers
 

@@ -3,8 +3,7 @@
  * only in SECURE contexts (https, localhost, 127.0.0.1). A page served over
  * plain http from any other host (the launcher's host-gateway IP, a LAN
  * address) has `crypto.getRandomValues` but NOT `crypto.randomUUID`, and the
- * frontend died on its first correlationId there
- * (.plans/bugs/crypto-randomuuid-insecure-context.md).
+ * frontend died on its first correlationId there.
  *
  * These tests run every helper under exactly that environment: a `crypto`
  * global with `getRandomValues` and nothing else.

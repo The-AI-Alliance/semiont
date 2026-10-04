@@ -15,8 +15,6 @@ set -euo pipefail
 #      generated from `specs/openapi.json` into `@semiont/core/openapi` by
 #      scripts/spec/generate-validators.mjs, which is the only place that may
 #      construct an Ajv instance over spec schemas.
-#
-# See .plans/GRAPH-ANNOTATION-CODEC.md (P4, D8 = generate).
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GENERATOR="scripts/spec/generate-validators.mjs"

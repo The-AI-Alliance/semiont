@@ -49,8 +49,7 @@ export type ConsultAnchoredText = (resourceId: ResourceId) => Promise<AnchoredTe
  * worker's subscription census (`WORKER_AWAITED_OPERATIONS`,
  * worker-runtime.ts) must carry this operation, and fails to COMPILE with
  * this operation named in the error when it does not — every PDF detection
- * job died on exactly that omission
- * (.plans/WORKER-ANCHORED-TEXT-CHANNEL.md).
+ * job died on exactly that omission.
  */
 export type ConsultAnchoredTextAwaits = 'browse:anchored-text-requested';
 

@@ -141,7 +141,7 @@ export interface ITransport {
    * SDK-internal: this is the scope primitive the SDK's resource-scoped
    * `browse.*` live queries drive on subscribe/teardown (freshness follows
    * observation; #847) — it is not part of the application-facing surface.
-   * Distinct resources COMPOSE (`.plans/MULTI-RESOURCE-SCOPE.md`): each
+   * Distinct resources COMPOSE: each
    * resource's subscriptions are ref-counted independently, and one client
    * may hold many resource scopes at once on its single connection.
    */
@@ -165,7 +165,7 @@ export interface ITransport {
    * from construction onward (no connection to lose).
    *
    * Load-bearing beyond UI: `busRequest` gates its emit on this
-   * (`BusRequestPrimitive.state$`, .plans/BUS-ATTACH-GATE.md) — no
+   * (`BusRequestPrimitive.state$`) — no
    * correlated emit before the reply path exists. Implementers back it
    * with a `BehaviorSubject` so the current state arrives synchronously
    * on subscribe.
@@ -316,7 +316,6 @@ export interface IContentTransport {
    * inbound entity references). The HTTP transport dereferences
    * `GET /resources/:id/jsonld` (the LD face an external linked-data client
    * sees); in-process transports assemble it from their `KnowledgeSystem`.
-   * See `.plans/SIMPLER-JSON-LD.md` §5 / decision 7.
    */
   getResourceGraph(
     resourceId: ResourceId,

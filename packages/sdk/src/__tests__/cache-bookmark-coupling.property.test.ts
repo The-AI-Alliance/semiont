@@ -1,6 +1,5 @@
 /**
  * C1 — the persisted bookmark never leads the persisted content.
- * (.plans/bugs/pdf-annotations-vanish-after-reload-stale-persisted-cache.md)
  *
  * For any interleaving of event delivery, refetch completion, debounce
  * advance, bystander-document writes, and reload: if the persisted bookmark

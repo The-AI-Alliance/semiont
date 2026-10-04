@@ -34,7 +34,7 @@ import type { KbDescription } from '@semiont/core';
  * honestly construct up front — a session's whole input, and what `httpKb`
  * returns.
  *
- * This split is .plans/KB-IDENTITY-VS-ADDRESS.md's thesis in the type
+ * This split states one thesis in the type
  * system: an address is not an identity. Collapsing the two forced the
  * question "what do I put here?" on callers who cannot answer it, and the
  * only available answers were fabrications.

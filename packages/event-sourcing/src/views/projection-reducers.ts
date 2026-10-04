@@ -16,7 +16,7 @@
  * `local-transport.test.ts` (real client → bus → cache invalidation).
  *
  * The reducers also become the natural home for the deferred schema-
- * evolution work in `.plans/EVOLVE-TAG-SCHEMA.md` — migration
+ * evolution work — migration
  * commands (rename/remove a category, version-bump a schema id) are
  * additional pure functions on the same view shapes.
  *

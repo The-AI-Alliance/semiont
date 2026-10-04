@@ -1,6 +1,5 @@
 /**
  * A1/A4 — reload fidelity across event arrival.
- * (.plans/bugs/annotation-lost-on-immediate-reload-after-create.md)
  *
  * HISTORY — this file found the fast-path reload loss. Its original model
  * split the C1 suite's atomic `deliver` into `receive` (bookmark stashed)

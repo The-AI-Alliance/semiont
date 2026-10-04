@@ -136,7 +136,7 @@ test.describe('pdf render + spatial highlight', () => {
   });
 
   /**
-   * The capture-gap regression guard (.plans/PDF-MANUAL-ANNOTATION-TEXT.md).
+   * The capture-gap regression guard.
    *
    * The test above proves a hand-drawn rectangle persists, but never that it
    * remembers what it was drawn around — which is exactly how a PDF annotation

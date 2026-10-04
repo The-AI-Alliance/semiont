@@ -6,7 +6,6 @@ import { signInSession } from '../fixtures/sdk-session';
 /**
  * Regression guard — `frame:tag-schema-added` must reach a resource-subscribed
  * page EXACTLY ONCE (the `BRIDGED ∩ RESOURCE_SCOPED` double-delivery bug).
- * See `.plans/bugs/BRIDGE-GAPS.md` → "To automate this (Playwright e2e)".
  *
  * The bug: `frame:tag-schema-added` was in **both** `BRIDGED_CHANNELS` (the
  * global fan-in every client subscribes to) **and** `RESOURCE_SCOPED_CHANNELS`

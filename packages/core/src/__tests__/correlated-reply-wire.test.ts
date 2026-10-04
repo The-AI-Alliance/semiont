@@ -57,5 +57,5 @@ describe('CORRELATED-REPLY-ROUTING P1 — the wire carries identity', () => {
   // had a schema and no longer declared `correlationId`, and a vacuity guard
   // asserting at least one operation declared progress. The guard fired when
   // the last one was removed on 2026-09-17 — working exactly as written. The
-  // registry did move, deliberately: see .plans/RESTORE-STREAMING-PROGRESS.md.
+  // registry did move, deliberately.
 });

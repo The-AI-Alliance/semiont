@@ -95,7 +95,6 @@ export function ToolbarPanels({
   // Line Numbers were visibly dead when signed out while Language (handled
   // here) worked. Living here makes "the panel is mounted" and "the panel
   // works" the same condition; the route copies are deleted, not added to.
-  // See .plans/bugs/settings-theme-and-line-numbers-inert-when-signed-out.md
   const { setTheme } = useTheme();
   const { toggleLineNumbers } = useLineNumbers();
   const handleThemeChanged = useCallback(

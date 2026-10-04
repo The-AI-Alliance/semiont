@@ -13,8 +13,7 @@
  * doing both on the same `StreamObservable`/`UploadObservable` fires the
  * underlying job/upload *twice* (`.then` calls `lastValueFrom`, which
  * subscribes again). To get progress *and* the terminal result from a single
- * execution, use `.run(onNext)`. A hot/multicast redesign that removes the
- * footgun is proposed in `.plans/MULTICAST-JOB-TRIGGERS.md`.
+ * execution, use `.run(onNext)`.
  *
  * `.pipe(...)` returns a plain `Observable<T>` (RxJS doesn't propagate
  * subclasses through `pipe`). Once you compose, you've explicitly entered

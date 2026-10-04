@@ -1,15 +1,13 @@
 /**
  * `@semiont/sdk/testing` — the SDK's contract double, exported where
- * consumers already look (.plans/SDK-TESTING-DOUBLE.md, drawing down
- * SDK-DEBT M1).
+ * consumers already look.
  *
  * One scriptable, REAL-pathway test client: `createTestClient` wires a real
  * `SemiontClient` — real `createCache`, real `busRequest`, real namespaces —
  * over a `FaultyTransport` (re-exported below; its home stays
  * `@semiont/core/testing`). Script the transport, observe through the
  * client. `createTestSession` wraps the same stack in a real
- * `SemiontSession` for state-unit factories, which take a session
- * (.plans/SESSION-TYPED-FACTORIES.md D1).
+ * `SemiontSession` for state-unit factories, which take a session.
  *
  * Why this exists: twice in one week a wrong belief about the SDK shipped
  * inside green tests, because hand-rolled mocks encoded the author's model
@@ -193,8 +191,8 @@ export interface TestSessionOptions extends TestClientOptions {
 
 /**
  * A real `SemiontSession` over the same scriptable stack — for testing
- * state-unit factories, which take a session
- * (.plans/SESSION-TYPED-FACTORIES.md D1). No token is seeded and no
+ * state-unit factories, which take a session.
+ * No token is seeded and no
  * `validate`/`refresh` callbacks are wired, so `session.ready` settles
  * immediately; tests that need an authenticated shape push into `token$`.
  */

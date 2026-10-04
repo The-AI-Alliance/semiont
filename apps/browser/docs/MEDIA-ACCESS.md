@@ -59,7 +59,7 @@ this doc covers how the SPA uses it.
 
 A *session* token in a URL would be — query strings leak into proxy logs,
 browser history, and `Referer` headers, and a leaked session token grants the
-attacker hours of full access. A **media token's blast radius is tiny**:
+attacker full access until it expires. A **media token's blast radius is tiny**:
 5 minutes × one specific resource. The `sub: resourceId` claim is the
 load-bearing safety property — a leaked media token is cryptographically useless
 against any *other* resource, even one the same user could open with their

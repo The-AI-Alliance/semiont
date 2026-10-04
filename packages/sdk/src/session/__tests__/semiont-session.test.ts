@@ -489,7 +489,6 @@ describe('SemiontSession — instance identity', () => {
   // keyed on it) need the second: `signIn` on an already-active KB disposes
   // and reconstructs the session under an unchanged `kb.id`, and anything
   // keyed on `kb.id` alone would keep pointing at the disposed client.
-  // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
 
   it('gives every session a distinct id, including successive sessions for the SAME kb', async () => {
     const first = newSession();

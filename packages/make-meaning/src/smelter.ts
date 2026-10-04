@@ -31,8 +31,7 @@
  * (via the checksum stamped onto every resource upsert), and tag-stamp
  * freshness (payload-only restamps; tag edits change no bytes) — and
  * enqueues `smelt:*` work items through the same mailbox as live events, so
- * per-resource ordering holds across the two paths (axioms S1/S2/S11/S12/S13
- * in `.plans/SMELTER-AXIOMS.md`).
+ * per-resource ordering holds across the two paths (axioms S1/S2/S11/S12/S13).
  */
 
 import { Observable, Subject, Subscription, from } from 'rxjs';
@@ -58,15 +57,14 @@ import type { SmelterEvent } from './smelter-fan-in';
  * the operations this module awaits over the wire. The `satisfies` at each
  * call site keeps a declaration and its operation from drifting; the census
  * beside the list fails COMPILATION naming the operation when the list and
- * these declarations disagree (the worker-runtime pattern —
- * .plans/WORKER-ANCHORED-TEXT-CHANNEL.md P3).
+ * these declarations disagree (the worker-runtime pattern).
  */
 export type SmelterResourceReadAwaits = 'browse:resource-requested';
 export type SmelterAnnotationsReadAwaits = 'browse:annotations-requested';
 export type SmelterCatalogPageAwaits = typeof RESOURCES_CHANNEL;
 
 // Media dispatch is core's, keyed by the media type's `TextSource`
-// strategy (`.plans/SMELTER-MEDIA-TYPES.md`, narrowed by READ-VS-EXTRACT P2).
+// strategy.
 // 'none' declines — settle skipped, reason 'no-extractor' — so binary types
 // never decode to mojibake. 'decode' is core's charset-aware
 // `decodeRepresentation` (RFC 2046 text/* fallback included), called directly;
@@ -111,7 +109,7 @@ export type ReconcileState =
 /**
  * Burst-buffer timings for the event pipeline. Required — `smelter-main`
  * passes production values (50/100/200); test harnesses pass ~1ms values so
- * property suites run at generator speed. See `.plans/SMELTER-AXIOMS.md` (D4).
+ * property suites run at generator speed.
  */
 export interface SmelterTiming {
   burstWindowMs: number;
@@ -121,8 +119,8 @@ export interface SmelterTiming {
 
 /**
  * Reconcile-planner work items — enqueued through the same mailbox as wire
- * events. Distinct `smelt:*` types make forged domain events unrepresentable
- * (`.plans/SMELTER-AXIOMS.md`, D1). The two annotation items carry the body
+ * events. Distinct `smelt:*` types make forged domain events unrepresentable.
+ * The two annotation items carry the body
  * TYPE of the domain event they stand in for, so one handler reading
  * `event.payload.annotation` or `.annotationId` is correct for the live event
  * and the planned item alike — the two cannot diverge in shape.

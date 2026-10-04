@@ -1,6 +1,5 @@
 /**
- * Liveness axioms P2 — L1/L2 over the REAL sdk composition
- * (`.plans/LIVENESS-AXIOMS.md`, sdk lane).
+ * Liveness axioms P2 — L1/L2 over the REAL sdk composition.
  *
  * `BrowseNamespace` + `createCache` + `busRequest` run unmodified on
  * `FaultyTransport` while fast-check draws fault schedules (drop / delay /

@@ -117,7 +117,7 @@ function reopen(state$: BehaviorSubject<ConnectionState>): void {
 }
 
 /**
- * The Browser's P2 reply, verbatim shape (.plans/COLLABORATOR-DIRECTORY.md):
+ * The Browser's P2 reply, verbatim shape:
  * `{ agents: CollaboratorEntry[] }` where an entry is
  * `{ agent, servesJobTypes?, limits? }` — `limits` joined the entry with
  * INFERENCE-LIMITS-EXPOSURE P2, and the deep-equal passthrough pin below
@@ -417,8 +417,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
     it('value-less key: first-fetch exhaustion errors the observer (B15); guard + marker released', async () => {
       // Two rejections exhaust the observe attempt + its B14 retry. Post-B15
       // the value-less terminal failure is an error notification to this
-      // key's observers — not `undefined` forever (LIVENESS-AXIOMS L1; see
-      // .plans/bugs/valueless-key-terminal-failure-starves-observers.md).
+      // key's observers — not `undefined` forever (LIVENESS-AXIOMS L1).
       const { browse, emitSpy, state } = createHarness({ rejectNext: 2 });
       const states: string[] = [];
       browse.resource(RID).subscribe((s) => states.push(s.status));
@@ -990,7 +989,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
   });
 
   // B16 — disposal is terminal and inert at the namespace level. The
-  // make-meaning CI escape (.plans/LIVENESS-AXIOMS.md, 2026-07-05): a B14
+  // make-meaning CI escape (2026-07-05): a B14
   // retry straddled client teardown, busRequest resolved `bus.closed`, and
   // the B15 push errored a handler-less subscriber — an unhandled rejection
   // racing worker teardown. Structural fix (finding b): BrowseNamespace owns
@@ -1047,7 +1046,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
     });
   });
 
-  // P3 of .plans/COLLABORATOR-DIRECTORY.md — the collaborator directory.
+  // The collaborator directory.
   // `agents()` is the third KB-wide singleton (tagSchemas pattern): unscoped,
   // sentinel-keyed, entries passed through UNRESHAPED (`servesJobTypes` is the
   // field the P1 wrapper exists for — a flattening implementation must fail here).

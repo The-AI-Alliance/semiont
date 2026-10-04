@@ -526,7 +526,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
   });
 
   it('a search failure over the bus settles the spinner and surfaces the error — no eternal "Searching…"', async () => {
-    // The measured hang (.plans/bugs/match-search-hangs-on-neo4j-datetime-annotations.md):
+    // The measured hang:
     // /bus/emit 400s the request, the match machinery publishes
     // match:search-failed — and the wizard listened only for results, so the
     // failure fired into an empty room while the button spun forever.

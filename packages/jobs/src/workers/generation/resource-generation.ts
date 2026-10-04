@@ -208,7 +208,6 @@ ${after ? `${after}...` : ''}
   // Capped and truncated to bound prompt cost (see the named caps above); the
   // gather step pre-filters to ≤10 matches above a 0.5 cosine threshold. Each
   // passage carries its source id so the model can attribute what it uses.
-  // See .plans/SEMANTIC-CONTEXT-RAG.md + .plans/CONTEXT-IDENTIFIERS.md.
   let semanticContextSection = '';
   const similar = context?.semanticContext?.similar ?? [];
   if (similar.length > 0) {

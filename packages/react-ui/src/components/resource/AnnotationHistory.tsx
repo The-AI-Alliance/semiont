@@ -15,7 +15,6 @@ interface Props {
    * here: a self-fetching panel can only model (value | not-yet), so a
    * terminal failure (B15) is indistinguishable from a request still in
    * flight and the panel says "Loading..." for ever.
-   * See .plans/PANEL-FAILURE-STATES.md
    */
   events: StoredEventLike[];
   eventsLoading?: boolean;

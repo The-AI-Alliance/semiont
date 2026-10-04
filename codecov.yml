@@ -130,9 +130,8 @@ ignore:
   # Generated files
   - "**/generated/**"
 
-  # Examples and demos
+  # Examples
   - "**/examples/**"
-  - "**/demo/**"
 
   # Scripts
   - "scripts/**"

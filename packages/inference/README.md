@@ -146,7 +146,7 @@ const { items } = await client.generateStructured<Entity>(prompt, 1000, 0, {
 
 Each implementation honors the contract with its provider's mechanism:
 - **Ollama**: grammar-constrained sampling — the request's `format` field carries the caller's element schema wrapped in an array schema.
-- **Anthropic**: response-level structured output — `output_config.format` carries the caller's element schema under an **array root** (accepted on both live-config models; `.plans/spikes/output-config-array-root.md`), so the response text IS the schema-conforming JSON. No tools, no wrapper, no unwrap.
+- **Anthropic**: response-level structured output — `output_config.format` carries the caller's element schema under an **array root** (accepted on both live-config models), so the response text IS the schema-conforming JSON. No tools, no wrapper, no unwrap.
 
 A response that cannot be read as an array — unparseable output, a missing array, an unhonoured grammar, or an **empty response** (which throws with the stop reason that produced it, so thinking-exhaustion classifies as the truncation it is) — **throws a typed `StructuredReadError`** carrying the provider's `stopReason`, because the cause classifies differently downstream: `max_tokens` is truncation (an identical retry truncates identically, so detection subdivides), `'unknown'` (no stop reason at all) is measured size-correlated on real documents (detection subdivides that too, while keeping it retryable), and everything else is model misbehavior a retry may fix. It is never coerced to `[]`: an empty extraction is a legitimate, distinct outcome, and conflating the two silently discards real data.
 

@@ -38,7 +38,7 @@ type Agent = components['schemas']['Agent'];
  * mints the identical string in Go (`kbconfig.go` `didWeb()`), and the two
  * MUST agree byte-for-byte: the Browser joins discovered KBs to connected
  * ones on this value, and a mismatch fails silently — looking implemented
- * while never matching (.plans/KB-IDENTITY-VS-ADDRESS.md).
+ * while never matching.
  *
  * A KB has no did when it declares no domain; identity is declared, never
  * defaulted or inferred from an address.

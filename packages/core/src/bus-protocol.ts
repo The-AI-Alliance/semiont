@@ -22,7 +22,7 @@
  * what this buys us is that command handlers don't have to re-brand
  * at every seam. Brand once at the entry boundary (HTTP route handler,
  * DOM attribute read, URL param parse), not at every bus hop in
- * between. See `.plans/BRAND-UPSTREAM.md` for the rationale.
+ * between.
  *
  * Organized by flow (verb), then by category within each flow.
  */
@@ -163,14 +163,14 @@ export type EventMap = {
   'mark:delete-failed': components['schemas']['CommandError'];
   // archive/unarchive confirmed-write replies (bridged) — correlation-keyed
   // acks the SDK's busRequest awaits. Failure routes the real outcome back
-  // instead of the old fire-and-forget silence (.plans/bugs/BRIDGE-GAPS.md).
+  // instead of the old fire-and-forget silence.
   'mark:archive-ok': Record<string, never>;
   'mark:archive-failed': components['schemas']['CommandError'];
   'mark:unarchive-ok': Record<string, never>;
   'mark:unarchive-failed': components['schemas']['CommandError'];
   // update-entity-types confirmed-write reply (bridged) — correlation-keyed ack
   // the SDK's busRequest awaits; failure routes the real outcome back rather than
-  // the old fire-and-forget silence (.plans/bugs/BRIDGE-GAPS.md).
+  // the old fire-and-forget silence.
   'mark:update-entity-types-ok': Record<string, never>;
   'mark:update-entity-types-failed': components['schemas']['CommandError'];
   'mark:body-update-failed': components['schemas']['CommandError'];
@@ -288,7 +288,7 @@ export type EventMap = {
   // `ResourceDescriptor` (annotation-types.ts / graph.ts) rather than the raw
   // OpenAPI flavors — consumers must never need to re-brand (`as Annotation[]`)
   // what the protocol already guarantees. Field overrides via Omit +
-  // intersection; envelope shape per .plans/REPLY-SHAPE-STANDARD.md.
+  // intersection; envelope shape per the reply-shape standard.
   'browse:resource-requested': components['schemas']['BrowseResourceRequest'];
   'browse:resource-result': Refines<components['schemas']['BrowseResourceResult'], {
     response: Omit<components['schemas']['GetResourceResponse'], 'resource' | 'annotations' | 'entityReferences'> & {
@@ -443,7 +443,7 @@ export type EventMap = {
   'job:claim-failed': components['schemas']['CommandError'];
   // cancel-by-type confirmed-write reply: the count of *pending* jobs cancelled
   // (running jobs finish — there's no worker-kill channel). Failure surfaces a
-  // queue error instead of the old silent swallow (.plans/bugs/BRIDGE-GAPS.md).
+  // queue error instead of the old silent swallow.
   'job:cancel-ok': { response: components['schemas']['JobCancelResult'] };
   'job:cancel-failed': components['schemas']['CommandError'];
 
@@ -530,8 +530,7 @@ export type { AnchorRect } from './bus-ui-types';
  * Request/reply (`busRequest`) emits on an `EmittableChannel` and subscribes on
  * `BridgedChannel` replies. A reply channel that is a valid `EventName` but NOT
  * in `BRIDGED_CHANNELS` is never delivered → the request times out with no
- * compile or runtime error (see
- * `.plans/bugs/gather-resource-complete-not-bridged.md`). `busRequest` now types
+ * compile or runtime error. `busRequest` now types
  * its reply params `BridgedChannel` so that omission is a compile error.
  */
 export type EventName = keyof EventMap;

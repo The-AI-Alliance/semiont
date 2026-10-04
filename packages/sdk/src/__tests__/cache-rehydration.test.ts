@@ -3,8 +3,7 @@
  *
  * **Declared behavior change (2026-07-24).** This file used to pin
  * "protocol silence": a rehydrated key was served with NO
- * `browse:*-requested` at all. That contract WAS the defect behind
- * .plans/bugs/annotation-lost-on-immediate-reload-after-create.md — an
+ * `browse:*-requested` at all. That contract WAS the defect: an
  * annotation created seconds before a reload is absent from the persisted
  * document, and silence meant nothing ever corrected it (measured: no
  * resumption bookmark exists at failure time, so replay cannot cover it

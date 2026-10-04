@@ -655,7 +655,6 @@ describe('KnowledgeBasePanel', () => {
     // retry-then-fail chain. The panel is where the switch is initiated, so it
     // is the only place that knows a switch is happening BEFORE the layout
     // tears the resource page down.
-    // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
 
     beforeEach(() => {
       pathHolder.current = '/know/resource/res-from-kb-1';

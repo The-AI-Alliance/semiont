@@ -5,7 +5,7 @@
  * expose `randomUUID` only in secure contexts (https, `http://localhost`,
  * `http://127.0.0.1`), so a page served over plain http from any other host
  * has no `randomUUID` and calling it throws — which broke the frontend from
- * the host-gateway IP (.plans/bugs/crypto-randomuuid-insecure-context.md).
+ * the host-gateway IP.
  * `getRandomValues` is cryptographically sound and available in ALL contexts,
  * Node and browser, secure or not.
  */

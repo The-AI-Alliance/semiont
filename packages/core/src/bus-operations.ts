@@ -23,7 +23,7 @@ import type { EventName, EmittableChannel } from './bus-protocol';
  * (bridged-channels.ts): every reply lands in the bridged fan-in set by
  * construction, so "a reply channel forgotten from BRIDGED_CHANNELS" — the
  * recurring bug class (gather:resource-complete, frame:*-add-failed) — is no
- * longer representable. See .plans/BUS-OPERATIONS-REGISTRY.md.
+ * longer representable.
  *
  * `Partial<Record<EmittableChannel, …>>` enforces that every key is a real
  * emittable request. `result`/`failure` stay `EventName` rather than

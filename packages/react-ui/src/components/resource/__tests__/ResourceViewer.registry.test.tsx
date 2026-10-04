@@ -10,7 +10,6 @@
  * reimplement the browse/annotate switching `ResourceViewer` exists to provide.
  *
  * Started RED (tsc: no `browseRenderers` / `annotateRenderers` props).
- * See .plans/ANNOTATE-RENDERER-REGISTRY.md (D5)
  */
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';

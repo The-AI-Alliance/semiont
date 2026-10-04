@@ -1,7 +1,6 @@
 package launcher
 
-// executor.go — the two walking modes for launch flows (see
-// .plans/LAUNCHER-ROLE-EXECUTOR.md). Flows (flows.go) touch the world only
+// executor.go — the two walking modes for launch flows. Flows (flows.go) touch the world only
 // through this interface; liveExec runs the stack, planExec renders
 // --dry-run. EFFECT methods are the drift-proof boundary: argv, ports, URLs,
 // tries, and record contents exist once, in the flow. DECORATION methods are

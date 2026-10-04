@@ -1,6 +1,5 @@
 /**
- * Executable enforcement of the liveness axioms — the runtime twin of
- * `.plans/LIVENESS-AXIOMS.md`, and the composition-level sibling of
+ * Executable enforcement of the liveness axioms, and the composition-level sibling of
  * `assertStateUnitAxioms` (state-unit-axioms.ts). Where the StateUnit axioms
  * make *per-unit* wrongness mechanically detectable, these make *silence*
  * detectable: every existing enforcement tier is safety (nothing wrong is

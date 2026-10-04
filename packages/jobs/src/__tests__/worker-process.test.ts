@@ -649,7 +649,7 @@ describe('handleJob orchestration', () => {
     });
 
     it('forwards entityTypes from job params to the resource upload', async () => {
-      // Regression — see .plans/ENTITY-TYPES-GAP.md. The worker is the
+      // Regression. The worker is the
       // last stop in the entityTypes pipeline; without this forwarding
       // step `browse.resources({ entityType: 'Character' })` would never
       // surface synthesized resources.

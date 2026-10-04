@@ -159,8 +159,10 @@ false) is how the layout knows to render the unauth view with a
        └── Kicks off setActiveKb(id), sessionActivating$ → true
            └── SemiontSession constructs, validates token via /api/users/me
                ├── 200 → activeSession$.next(session), sessionActivating$ → false
-               └── 401 → session disposes itself, activeSession$ stays null,
-                         onAuthFailed raises notifySessionEnded (see below)
+               └── 401 → the token is renewed once at the issuer and asked about once more;
+                         a session that cannot be renewed, or whose renewed token is
+                         refused too, clears its stored tokens and its token$, and
+                         onAuthFailed raises notifySessionEnded with why (see below)
 
 3. Out-of-band 401/403 from any HTTP / bus call
    └── transport stamps unauthorized/forbidden → session.errors$ → SemiontBrowser

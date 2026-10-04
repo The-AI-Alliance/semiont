@@ -29,7 +29,6 @@ export interface ResourceLoaderStateUnit extends StateUnit {
  * and drops the reason entirely. This unit catches the notification here so
  * that (a) consumers can render the failure and retry it, and (b) it never
  * escapes to RxJS as an unhandled rethrow.
- * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md (D4)
  */
 export function createResourceLoaderStateUnit(
   session: SemiontSession,

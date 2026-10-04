@@ -7,8 +7,6 @@
  * "no highlights" for a resource full of them. That is the same
  * apparent-data-loss shape as the PDF-annotations bug, arrived at from a
  * different direction.
- *
- * See .plans/PANEL-FAILURE-STATES.md
  */
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';

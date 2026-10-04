@@ -52,11 +52,13 @@ Every text annotation includes both selector types:
 Specifies character positions from the start of the document:
 
 ```typescript
-{
-  type: "TextPositionSelector",
-  start: number,  // Character offset from beginning
-  end: number     // Character offset from beginning (NOT length)
-}
+import type { TextPositionSelector } from '@semiont/core';
+
+const position: TextPositionSelector = {
+  type: 'TextPositionSelector',
+  start: 100,   // character offset from the beginning
+  end: 120,     // character offset from the beginning, not a length
+};
 ```
 
 **W3C Specification:** [§4.2.1 TextPositionSelector](https://www.w3.org/TR/annotation-model/#text-position-selector)
@@ -66,12 +68,14 @@ Specifies character positions from the start of the document:
 Specifies the exact text with optional context:
 
 ```typescript
-{
-  type: "TextQuoteSelector",
-  exact: string,    // The selected text
-  prefix?: string,  // Text immediately before (optional)
-  suffix?: string   // Text immediately after (optional)
-}
+import type { TextQuoteSelector } from '@semiont/core';
+
+const quote: TextQuoteSelector = {
+  type: 'TextQuoteSelector',
+  exact: 'selected text goes here',   // the selected text
+  prefix: 'the ',                      // text immediately before, optional
+  suffix: ' is',                       // text immediately after, optional
+};
 ```
 
 **W3C Specification:** [§4.2.4 TextQuoteSelector](https://www.w3.org/TR/annotation-model/#text-quote-selector)

@@ -22,8 +22,7 @@ is a browser notion. Only browser-reachable code is constrained here.)
 
 If a "crypto.randomUUID is not a function" error ever appears in a test
 run, someone added a direct call to browser-reachable code; route it
-through the core helpers instead of re-adding a shim
-(`.plans/bugs/crypto-randomuuid-insecure-context.md`).
+through the core helpers instead of re-adding a shim.
 
 ## LoginForm's host field resets the protocol
 

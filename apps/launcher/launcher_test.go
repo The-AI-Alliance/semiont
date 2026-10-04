@@ -6868,7 +6868,7 @@ func TestStartServiceRejections(t *testing.T) {
  * The property it protected — a restart must not silently substitute a
  * credential that breaks auth — is NOT fully re-covered. It now fails a
  * different way: deleting a per-root secret file makes the launcher generate
- * one the realm has never seen. Detecting that is `.plans/IDENTITY-PREFLIGHT.md`.
+ * one the realm has never seen.
  */
 
 // --- stop --service ---

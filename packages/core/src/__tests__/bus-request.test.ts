@@ -421,7 +421,7 @@ describe('busRequest', () => {
   });
 });
 
-describe('busRequest attach gate (.plans/BUS-ATTACH-GATE.md)', () => {
+describe('busRequest attach gate', () => {
   // No correlated emit before the reply path exists: busRequest waits — inside
   // its existing timeout budget (D4) — for `state$` to report the one
   // deliverable state, `'open'` (D3 as amended 2026-07-29: `degraded` is a

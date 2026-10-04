@@ -221,7 +221,6 @@ export function AnnotateView({
   // Previously a three-way `switch` that repeated this wrapper, the toolbar
   // block and the content div verbatim in each branch — any toolbar prop
   // change had to be made three times and stayed correct only by vigilance.
-  // See .plans/ANNOTATE-RENDERER-REGISTRY.md
   const mediaRenderers: AnnotateMediaRenderers = { ...defaultAnnotateRenderers, ...renderers };
   const Renderer = mediaRenderers[render];
 

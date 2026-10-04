@@ -5,8 +5,7 @@
  * driver hands the projection a neo4j DateTime OBJECT — and `node` is `any`
  * here, so only a test can see one leak into `Annotation.created: string`.
  * That leak shipped: every D11-embedded graph annotation violated the schema,
- * and the first validated round-trip (`match:search-requested`) 400'd — see
- * .plans/bugs/match-search-hangs-on-neo4j-datetime-annotations.md.
+ * and the first validated round-trip (`match:search-requested`) 400'd.
  */
 import { describe, it, expect } from 'vitest';
 import { parseAnnotationNode } from '../implementations/neo4j';
@@ -80,7 +79,7 @@ describe('parseAnnotationNode — the rest of the projection contract', () => {
   // `type` and `selector` are deliberately absent from this list: the stored
   // `type` never reaches the wire annotation, and a source-only target has no
   // selector at all. Requiring either one is what made the store manufacture
-  // a `'{}'` to satisfy itself. See .plans/GRAPH-ANNOTATION-CODEC.md.
+  // a `'{}'` to satisfy itself.
   it.each([
     ['id', 'Annotation missing required field: id'],
     ['resourceId', 'missing required field: resourceId'],

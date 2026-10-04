@@ -3,7 +3,7 @@
  *
  * Thin wiring for the `Smelter` pipeline: loads configuration from
  * ~/.semiontconfig (TOML) via the canonical `createTomlConfigLoader`,
- * authenticates with the KS via shared secret, constructs the embedding
+ * holds an agent token for its service account (`./agent-session`), constructs the embedding
  * provider, vector store, content transport, and HTTP transport, then
  * hands the fan-in's event streams to the Smelter and runs
  * a startup reconcile. All event processing lives in `./smelter`.

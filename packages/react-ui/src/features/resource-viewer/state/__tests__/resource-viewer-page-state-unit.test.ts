@@ -188,7 +188,6 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
   // Two panels do exactly that today: ReferencesPanel via
   // `referencedByLoading = raw === undefined`, and AnnotationHistory via
   // `loading = eventsData === undefined`.
-  // See .plans/PANEL-FAILURE-STATES.md
 
   /**
    * One case per cache-backed list. Each builds its OWN correctly-typed

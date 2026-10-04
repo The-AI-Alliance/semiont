@@ -85,7 +85,6 @@ describe('SettingsPanel', () => {
       // a DIFFERENT component, so the switch can only flip if all
       // useLineNumbers consumers share one value. A prop-fed switch over a
       // per-caller useState is how e2e 13:77/:134/:189 went red.
-      // See .plans/bugs/line-numbers-toggle-desynced-by-hoist.md
       function OtherConsumer() {
         const { toggleLineNumbers } = useLineNumbers();
         return <button data-testid="other-consumer" onClick={toggleLineNumbers} />;

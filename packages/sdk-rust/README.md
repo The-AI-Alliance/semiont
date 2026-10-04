@@ -55,17 +55,19 @@ directly, with `client(config, options)`.
 ## Eight verbs
 
 Every operation belongs to one of eight flows: verbs for what a participant
-does with a shared corpus. Each is a namespace of the client.
+does with a shared corpus. Four write (yield, mark, bind, frame), three read
+(browse, match, gather), and one directs attention (beckon). Each is a
+namespace of the client.
 
 | Verb | What it does | Among its methods |
 |---|---|---|
-| `browse` | Navigate, read and observe, including who is here | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
-| `bind` | Resolve an ambiguous reference to a specific resource | `bind.body`, `bind.initiate` |
 | `yield_` | Introduce a resource, uploaded or generated from gathered context | `yield_.resource`, `yield_.from_context` |
 | `mark` | Annotate a resource | `mark.annotation`, `mark.assist`, `mark.update_entity_types`, `mark.archive` |
+| `bind` | Resolve an ambiguous reference to a specific resource | `bind.body`, `bind.initiate` |
 | `frame` | Define and grow the schema vocabulary | `frame.add_entity_types`, `frame.add_tag_schema` |
-| `gather` | Assemble grounding context around a resource or an annotation | `gather.resource`, `gather.annotation` |
+| `browse` | Navigate, read and observe, including who is here | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
 | `match_` | Search the corpus for candidate resources | `match_.search` |
+| `gather` | Assemble grounding context around a resource or an annotation | `gather.resource`, `gather.annotation` |
 | `beckon` | Direct attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.open_resource` |
 
 `yield` and `match` are Rust's own words, so those two namespaces take a

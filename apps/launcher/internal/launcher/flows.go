@@ -1,7 +1,7 @@
 package launcher
 
 // flows.go — each launch sequence written ONCE, walked by an executor in
-// live or plan mode (.plans/LAUNCHER-ROLE-EXECUTOR.md). Effects (argv,
+// live or plan mode. Effects (argv,
 // ports, URLs, gate tries, record contents) exist only here: start cannot
 // change what it does without --dry-run showing the same change. Decoration
 // (say vs note) is deliberately one-sided per mode.

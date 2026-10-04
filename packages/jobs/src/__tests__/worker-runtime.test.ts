@@ -1,7 +1,7 @@
 /**
  * The worker's stamped identity is the DID the `/api/tokens/agent` exchange
  * MINTED, carried verbatim — never re-derived from the URL the worker dials.
- * Pins Lane A of .plans/bugs/agent-did-host-skew.md at the unit level: the
+ * Pinned at the unit level: the
  * fixture dials 192.168.64.1 while the exchange mints did:web:kb.example —
  * pre-fix code stamped the dial host (one logical agent, two DIDs).
  *
@@ -474,8 +474,7 @@ describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)'
     // appeared in no list at all.
     expect([...WORKER_CHANNELS].sort()).toEqual([
       // Canonical-geometry consult replies (SMELTER-OWNS-OCR P2) — the pair
-      // whose absence killed every PDF detection job
-      // (.plans/WORKER-ANCHORED-TEXT-CHANNEL.md).
+      // whose absence killed every PDF detection job.
       'browse:anchored-text-failed',
       'browse:anchored-text-result',
       // The durability probe for a commit whose ack never routed

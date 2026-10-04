@@ -3,7 +3,7 @@
  *
  * Thin wiring for the `Weaver` pipeline: loads configuration from
  * ~/.semiontconfig (TOML) via the canonical `createTomlConfigLoader`,
- * authenticates with the KS via shared secret, connects the graph
+ * holds an agent token for its service account (`./agent-session`), connects the graph
  * database, hands the fan-in's streams to the Weaver, and
  * runs a startup catch-up. All event processing lives in `./weaver`.
  *

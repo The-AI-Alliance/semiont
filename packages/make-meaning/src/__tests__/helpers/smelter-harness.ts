@@ -2,8 +2,7 @@
  * Shared Smelter test harness.
  *
  * Used by `smelter.test.ts` (example-based behaviors) and
- * `smelter-axioms.test.ts` (fast-check properties — see
- * `.plans/SMELTER-AXIOMS.md`). Provides:
+ * `smelter-axioms.test.ts` (fast-check properties). Provides:
  *   - a deterministic mock EmbeddingProvider (embedding is a pure function
  *     of text, so reference models stay trivial)
  *   - W3C annotation / SmelterEvent / ResourceDescriptor builders

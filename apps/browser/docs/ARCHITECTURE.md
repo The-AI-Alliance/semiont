@@ -21,7 +21,7 @@ The Semiont Browser is a Vite + React Router SPA. The architecture emphasizes:
 
 - **Type Safety**: TypeScript throughout with strict mode enabled
 - **Server State Management**: RxJS observable caches on the SDK's verb-namespace client, invalidated automatically by gateway domain events
-- **Authentication**: bearer-only — the SDK session holds the JWT in memory and sends `Authorization: Bearer`; no cookie, no Browser-side auth server
+- **Authentication**: bearer-only — the SDK session sends its access token as `Authorization: Bearer` and keeps the access and refresh pair in `localStorage`, per knowledge base; no cookie, no Browser-side auth server
 - **No Global Mutable State**: All state is managed through React hooks and contexts
 - **Fail-Fast Philosophy**: No default values - explicit configuration required
 
@@ -149,7 +149,7 @@ The SDK calls the gateway (/bus/*, /api/*)
 **Key Architecture Points:**
 - No Browser-side Node.js server process at runtime
 - The knowledge base's issuer signs the user in and issues the tokens; the Browser completes the exchange on its callback route and stores the session per KB
-- Each KB has its own JWT in `localStorage` keyed by KB id; the Browser includes the active KB's token on outgoing API calls
+- Each KB has its own session (an access token and a refresh token) in `localStorage`, keyed by KB id; the Browser sends the active KB's access token on outgoing API calls
 
 ## Authentication Architecture
 

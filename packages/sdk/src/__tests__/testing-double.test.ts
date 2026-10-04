@@ -1,5 +1,5 @@
 /**
- * Acceptance for `@semiont/sdk/testing` (.plans/SDK-TESTING-DOUBLE.md, Phase 1).
+ * Acceptance for `@semiont/sdk/testing`.
  *
  * The acceptance spec is a deliberate replay of the week's first green-test
  * lie (SDK-DEBT M1): consumers testing against hand-rolled mocks shipped a

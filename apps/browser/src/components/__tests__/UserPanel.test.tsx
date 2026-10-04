@@ -294,7 +294,6 @@ describe('UserPanel Component', () => {
       // here. Sign Out then has no client to call and no KB to sign out of;
       // the state unit built from `session?.client` would capture `undefined`
       // and the handler would TypeError on `client.auth`.
-      // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
       activeSession$.next(null);
 
       expect(() => render(<UserPanel />)).not.toThrow();

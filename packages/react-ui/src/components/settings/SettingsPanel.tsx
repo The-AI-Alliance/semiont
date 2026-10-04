@@ -48,7 +48,6 @@ export function SettingsPanel({
   // The switch renders the SHARED line-numbers state, not a prop snapshot:
   // its toggle is applied by a bus subscriber in ToolbarPanels, so a prop
   // fed from any per-route source is a second copy that never updates.
-  // See .plans/bugs/line-numbers-toggle-desynced-by-hoist.md
   const { showLineNumbers } = useLineNumbers();
   const { announceLanguageChanging, announceLanguageChanged } = useLanguageChangeAnnouncements();
 

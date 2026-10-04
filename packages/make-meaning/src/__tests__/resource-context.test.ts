@@ -442,8 +442,7 @@ describe('ResourceContext', () => {
 
   });
   // ── SEMANTIC-FALLBACK P2 — axioms S1–S6, S8 ──────────────────────────────
-  // The ledger in .plans/SEMANTIC-FALLBACK.md is the source of truth. These
-  // landed as test.fails (all seven observed red — `matchKind` did not exist
+  // These landed as test.fails (all seven observed red — `matchKind` did not exist
   // on ResourceContext's result) and flipped to test() with the fallback in
   // the same change. Every case asserts `matchKind` because S1/S8's
   // embed-absence halves would pass vacuously on their own — the plan's own

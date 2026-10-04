@@ -108,9 +108,9 @@ semiont mark --delegate <resourceId> --motivation linking --entity-type Concept
 ## Automate
 
 Everything the Semiont browser does travels over one event bus, spoken as
-**[eight verbs](docs/protocol/flows/README.md)**: browse, bind, yield, mark,
-frame, gather, match, beckon. You have been speaking them already — `semiont yield`
-was one. The launcher speaks all eight (`semiont browse --help`, and so on), and so does
+**[eight verbs](docs/protocol/flows/README.md)**: four that write (yield, mark,
+bind, frame), three that read (browse, match, gather), and one that directs
+attention (beckon). You have been speaking them already — `semiont yield` was one. The launcher speaks all eight (`semiont browse --help`, and so on), and so does
 your code.
 
 The Semiont SDK is how your code speaks the same bus — a type-safe client whose namespaces are those eight verbs. It comes in **[TypeScript](packages/sdk/README.md)** (`@semiont/sdk`) and **[Rust](packages/sdk-rust/README.md)** ([`semiont`](https://crates.io/crates/semiont)), full peers held to the same [conformance suite](tests/conformance/sdk/README.md). Your app never calls the gateway's HTTP API directly; the SDK is the boundary.

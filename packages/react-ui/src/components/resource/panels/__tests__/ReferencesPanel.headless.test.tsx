@@ -87,7 +87,6 @@ describe('ReferencesPanel — headless (session prop, no session provider)', () 
   describe('incoming references — terminal load failure', () => {
     // `referencedByLoading` alone cannot distinguish "still in flight" from
     // "dead" (B15), so the panel used to render "Loading..." for ever.
-    // See .plans/PANEL-FAILURE-STATES.md
 
     type PanelProps = React.ComponentProps<typeof ReferencesPanel>;
     const base = (): PanelProps => {
@@ -150,7 +149,7 @@ describe('ReferencesPanel — headless (session prop, no session provider)', () 
   describe('entity types — terminal load failure', () => {
     // The picker's empty branch says "no entity types", which is a claim about
     // the knowledge base. On a failed load it is false — the KB may have
-    // plenty. See .plans/PANEL-FAILURE-STATES.md
+    // plenty.
 
     it('does not present a failed entity-type load as "none exist"', () => {
       const { session } = fakeSession();

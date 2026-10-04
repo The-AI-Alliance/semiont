@@ -4,8 +4,7 @@ import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
- * Phase 4 of `.plans/bugs/entity-extraction-truncates-large-docs.md` — the
- * system-level guard for the Evidence table.
+ * The system-level guard against entity extraction truncating a large document.
  *
  * The bug: detection sent the WHOLE document in ONE call with a hardcoded
  * 4000-token output cap, so any document yielding more entities than that cap

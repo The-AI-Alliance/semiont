@@ -1,6 +1,5 @@
 /**
- * L3 — delivery across lifecycle transitions — over the REAL actor
- * (.plans/LIVENESS-AXIOMS.md, Phase 3).
+ * L3 — delivery across lifecycle transitions — over the REAL actor.
  *
  * Property: every event written to a live connection's stream reaches `on$`
  * subscribers exactly once, wherever a scope-change handover lands relative
@@ -9,7 +8,7 @@
  *
  * Teeth before trust: the property is first proven to FAIL against a
  * test-local double reconstructing the pre-fix behavior — defect 2 of the
- * starvation bug (.plans/bugs/concurrent-browse-resource-starvation.md):
+ * starvation bug:
  * a transition that errors the old stream immediately, so queued-but-unread
  * frames are discarded by `ReadableStreamDefaultController.error()` — the
  * exact byte-loss mechanism, reproduced at the stream level rather than

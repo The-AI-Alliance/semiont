@@ -1,9 +1,9 @@
 /**
- * Teeth for the liveness axioms (.plans/LIVENESS-AXIOMS.md, P1) — the same
+ * Teeth for the liveness axioms — the same
  * discipline as state-unit-axioms.test.ts: before the harness is trusted
  * GREEN against real compositions (P2/P3), it must FAIL against
  * deliberately-broken doubles reconstructing the pre-fix behaviors from the
- * starvation incident (.plans/bugs/concurrent-browse-resource-starvation.md):
+ * starvation incident:
  *
  *   (a)  a no-retry cache double that swallows the rejection   → L2 (swallow)
  *   (a2) an unbounded-retry variant                            → L2 (budget)

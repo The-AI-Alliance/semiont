@@ -42,7 +42,7 @@ export function asBusRequestPrimitive(eventBus: EventBus): BusRequestPrimitive {
     // outage, so there is none to ask for again.
     trackReply: () => () => {},
     // In-process delivery is synchronous — no attach window, so `'open'` is
-    // the true state (.plans/BUS-ATTACH-GATE.md). A destroyed bus throws at
+    // the true state. A destroyed bus throws at
     // `eventBus.on()` before the gate could matter. Published read-only
     // (X1): the subject's mutators must not leak to consumers.
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),

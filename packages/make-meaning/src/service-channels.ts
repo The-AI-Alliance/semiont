@@ -28,9 +28,8 @@
  * census beside each list: every awaiting site declares its operation next to
  * the call (a `*Awaits` alias, `satisfies`-tied to the literal), and a drift
  * between a list and its declarations fails COMPILATION with the operation
- * named (the worker-runtime pattern — .plans/WORKER-ANCHORED-TEXT-CHANNEL.md,
- * whose subject was exactly such an omission killing every PDF detection
- * job). `busRequest`'s `isSubscribed` probe remains the runtime backstop for
+ * named (the worker-runtime pattern: exactly such an omission killed every PDF
+ * detection job). `busRequest`'s `isSubscribed` probe remains the runtime backstop for
  * an await nobody declared.
  */
 

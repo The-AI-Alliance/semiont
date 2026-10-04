@@ -269,7 +269,7 @@ Coverage is measured per workspace and reported to Codecov. [`codecov.yml`](../.
 
 Each package and the Browser has a flag (with carryforward) and a component. `package-tests.yml` uploads each package's `lcov.info` under its flag; `security-tests.yml` uploads the Browser's. `npm run lint:coverage-roster` fails when the workspaces declaring `test:coverage`, the package matrix, and codecov's flags and components disagree. No vitest config sets a threshold, so a coverage run never fails a suite.
 
-Excluded from coverage: what the shared config excludes (see [One shared Vitest config](#one-shared-vitest-config)), plus codecov's `ignore` list — test files and directories, build output, config files, generated files, examples and demos, and `scripts/`.
+Excluded from coverage: what the shared config excludes (see [One shared Vitest config](#one-shared-vitest-config)), plus codecov's `ignore` list — test files and directories, build output, config files, generated files, examples, and `scripts/`.
 
 `npm run test:coverage` writes a workspace's `coverage/` directory: `lcov.info`, `coverage-summary.json`, `cobertura-coverage.xml`, and an HTML report at `coverage/index.html`.
 

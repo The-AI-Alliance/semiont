@@ -28,7 +28,6 @@ import type { Observable } from 'rxjs';
  *   error is not left unhandled, which RxJS rethrows asynchronously — the
  *   `Uncaught BusRequestError` seen in the field whenever a cache key
  *   exhausted its B14 retry with nothing stored (B15).
- *   See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
  */
 export function useObservable<T>(obs$: Observable<T> | null | undefined): T | undefined {
   const [value, setValue] = useState<T | undefined>(() => {

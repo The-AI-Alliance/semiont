@@ -3,7 +3,7 @@
  * `[site] domain`, the SAME value `/api/tokens/agent` mints worker DIDs from —
  * never from service topology (`publicURL`) or any connection vantage.
  *
- * Pins Lane B of .plans/bugs/agent-did-host-skew.md (Option 1): three
+ * The defect it pins: three
  * processes derived "the KB's domain" from three vantage points, and spec
  * 18's attribution loop caught the roster and the worker-stamped `generator`
  * disagreeing on the host of one logical agent. One value, one owner: the

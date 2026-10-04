@@ -81,8 +81,7 @@ export class GraphContext {
     logger?: Logger,
   ): Promise<KnowledgeGraph> {
     // Read-your-writes grace for the graph projection: the view materializer
-    // applies on the append path, the Weaver lags behind it (see
-    // .plans/bugs/gather-resource-races-graph-projection.md). "Present in the
+    // applies on the append path, the Weaver lags behind it. "Present in the
     // view, absent in the graph" precisely identifies projection lag; a
     // resource the view doesn't know is genuinely unknown and throws on the
     // first read.

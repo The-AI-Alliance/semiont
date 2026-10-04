@@ -2,9 +2,9 @@ package launcher
 
 // tokens.go — the sign-in store: each stack's session from `semiont login`, in
 // the launcher's state home (specs/src/sign-in-store). TOKENS, never
-// passwords: the password crosses stdin once and dies with the process. 0600
-// throughout — these are bearer credentials. Keyed like stack.json ("local",
-// "codespace:<repo>").
+// passwords: the sign-in is approved at the issuer, and no password reaches
+// this process. 0600 throughout — these are bearer credentials. Keyed like
+// stack.json ("local", "codespace:<repo>").
 //
 // Two programs write the file: this launcher, and an application on the Rust
 // SDK. So every change is one read, one change and one write under the

@@ -115,8 +115,7 @@ describe('browse-renderers — annotation + session forwarding (dispatch contrac
     expect(props.pageLayout).toBe('scroll');
   });
 
-  // S2. Annotate is the mode people actually work in
-  // (.plans/PDF-CONTINUOUS-SCROLL.md D3, second correction), so it gets the
+  // S2. Annotate is the mode people actually work in, so it gets the
   // column too — leaving it on Previous/Next made the feature invisible to
   // its primary audience.
   it('the annotate registry asks for the column as well, with the live tool', async () => {

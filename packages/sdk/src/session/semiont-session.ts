@@ -13,8 +13,8 @@
  *
  *   - `refresh()` — invoked on 401 / proactive re-auth. Returns the
  *     new access token, or null on failure. The frontend passes a
- *     closure that runs the refresh-token flow; the worker passes
- *     one that exchanges the shared secret.
+ *     closure that runs the refresh grant at the issuer; the worker
+ *     passes one that mints a new agent token as its service account.
  *
  *   - `validate(token)` — optional. If provided, the session asks it
  *     who a token is: at startup, of the stored token, to populate
@@ -113,7 +113,7 @@ export interface SemiontSessionConfig {
  * id is an in-memory discriminator, never persisted and never sent over the
  * wire, so it needs no entropy — and a counter has no secure-context
  * dependency (`crypto.randomUUID` is undefined over plain HTTP from a
- * non-localhost host; see .plans/bugs/crypto-randomuuid-insecure-context.md).
+ * non-localhost host).
  */
 let sessionSeq = 0;
 
@@ -126,7 +126,6 @@ export class SemiontSession {
    * already-active KB disposes the session and constructs a fresh one under
    * an unchanged `kb.id`, so anything keyed on `kb.id` alone silently keeps
    * pointing at the disposed client and its inert (B16) caches.
-   * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
    */
   readonly id: string;
   readonly kb: KbTarget;
@@ -237,8 +236,8 @@ export class SemiontSession {
     // once and asked about once more. A token the issuer has JUST issued and
     // the gateway refuses is final: renewing again cannot change the answer.
     // Asking again for as long as the issuer went on issuing was a loop with
-    // no end — one browser tab sent a gateway 300 requests a second
-    // (.plans/bugs/stale-sse-actor-401-loops-after-token-expiry.md). So the
+    // no end — one browser tab sent a gateway 300 requests a second.
+    // So the
     // gateway is asked at most twice and the issuer at most once
     // (specs/src/session/cases.json, `startup`).
     const validate = this.doValidate;
