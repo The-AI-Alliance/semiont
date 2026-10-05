@@ -1,10 +1,17 @@
 # Building with the Semiont SDK
 
+> ⚠️ **Alpha.** API and package surface are not yet stable; breaking changes between 0.x releases are expected.
+
 For people, and AI agents, building on Semiont with the SDK: a script, a
-daemon, an application, an agent. The examples are TypeScript. The Rust SDK
-has the same namespaces, methods and behaviour, and its
-[README](../../packages/sdk-rust/README.md) maps each TypeScript shape here to
-its Rust form.
+daemon, an application, an agent.
+
+The SDK is a typed client whose namespaces are the
+[eight verbs](../protocol/flows/README.md) everything in Semiont speaks. It comes in
+[TypeScript](../../packages/sdk/README.md) (`@semiont/sdk`) and
+[Rust](../../packages/sdk-rust/README.md) (the [`semiont`](https://crates.io/crates/semiont)
+crate), full peers held to one [conformance suite](../../tests/conformance/sdk/README.md).
+The examples here are TypeScript. The Rust SDK has the same namespaces, methods
+and behaviour, and its README maps each TypeScript shape here to its Rust form.
 
 TypeScript:
 
@@ -18,6 +25,10 @@ Rust:
 cargo add semiont
 cargo add semiont-http-transport --features sign-in    # the transport over a gateway
 ```
+
+From a shell, the [`semiont` launcher](../../apps/launcher/README.md#login-and-upload)
+speaks the same eight verbs: `semiont yield`, `semiont browse` and the rest,
+each with `--help`.
 
 Other readers have other homes: building Semiont itself is
 [docs/contributor](../contributor/README.md), running it is

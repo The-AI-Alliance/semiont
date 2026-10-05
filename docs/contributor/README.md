@@ -1,5 +1,7 @@
 # Contributing to Semiont: orientation
 
+[![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
+
 A contributor changes Semiont itself: fixes a bug, adds a feature, writes a driver, improves a doc. These pages say where the code lives, how to build and run a change, how it is tested, and how it is released.
 
 The process around a change (forks, branches, pull requests, review) is in **[CONTRIBUTING.md](../../CONTRIBUTING.md)**. How Semiont works inside is in **[../architecture/](../architecture/README.md)**, and what its parts agree on is in **[../protocol/](../protocol/README.md)**. Read those before changing behavior.
@@ -90,6 +92,7 @@ Each app and package has a README, and most have a `docs/` directory about how t
 
 - [CONTRIBUTING.md](../../CONTRIBUTING.md): the pull-request process
 - [Architecture](../architecture/README.md): the actors, the stores, and why the pieces are shaped as they are
+- [Browser development](../../apps/browser/docs/DEVELOPMENT.md): running the Browser from source against a stack
 - [Adding a media type](../architecture/MEDIA-TYPES.md#adding-a-media-type): what a media type declares, and what each declaration costs
 - [Protocol](../protocol/README.md): the flows, the bus, the transport contract
 - [Builder docs](../builder/README.md): the SDKs, as someone building on them sees them

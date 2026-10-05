@@ -1,6 +1,21 @@
 # Semiont
 
+[![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
+
 **Semiont is an open, source-grounded semantic knowledge platform for building and maintaining trusted AI knowledge bases and context layers. It gives humans and AI agents a shared workspace and architecture to annotate, connect, enrich, and govern domain knowledge for accurate applications, agents, and workflows.**
+
+## Documentation
+
+The [docs](docs/README.md) are organized by who is reading:
+
+| You want to | Start here |
+|---|---|
+| Build an application, a script or an agent, in TypeScript or Rust | [Builder docs](docs/builder/README.md): the SDK, the [React components](docs/builder/README.md#react-embedding-semiontreact-ui), the [agent skills](docs/builder/skills/README.md) |
+| Run a knowledge base, for yourself or for others | [Operator docs](docs/operator/README.md) |
+| Start from a knowledge base that already has content | [Demo and community knowledge bases](docs/KNOWLEDGE-BASES.md) |
+| Work in a knowledge base: read, annotate, link, review what agents propose | [Analyst docs](docs/analyst/README.md) |
+| Change Semiont itself | [Contributor docs](docs/contributor/README.md), [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Understand how it works | [Architecture](docs/architecture/README.md), [protocol](docs/protocol/README.md) |
 
 ## Quick Start
 
@@ -48,6 +63,8 @@ semiont init --yes --domain example.com:my-kb --inference anthropic
 **Change `--domain`** — it is the KB's permanent identity, stamped into the committed event log, and has no default. Use `--inference ollama` instead if you chose the local model above.
 
 Every step below runs from inside the knowledge base — not from this repo.
+
+To start from a knowledge base that already has content instead, clone one of the [demo knowledge bases](docs/KNOWLEDGE-BASES.md) and go on to step 4.
 
 ### 4. Start it
 
@@ -104,60 +121,6 @@ The CLI asks for the same work. This has the stack detect references to concepts
 ```bash
 semiont mark --delegate <resourceId> --motivation linking --entity-type Concept
 ```
-
-## Automate
-
-Everything the Semiont browser does travels over one event bus, spoken as
-**[eight verbs](docs/protocol/flows/README.md)**: four that write (yield, mark,
-bind, frame), three that read (browse, match, gather), and one that directs
-attention (beckon). You have been speaking them already — `semiont yield` was one. The launcher speaks all eight (`semiont browse --help`, and so on), and so does
-your code.
-
-The Semiont SDK is how your code speaks the same bus — a type-safe client whose namespaces are those eight verbs. It comes in **[TypeScript](packages/sdk/README.md)** (`@semiont/sdk`) and **[Rust](packages/sdk-rust/README.md)** ([`semiont`](https://crates.io/crates/semiont)), full peers held to the same [conformance suite](tests/conformance/sdk/README.md). Your app never calls the gateway's HTTP API directly; the SDK is the boundary.
-
-TypeScript:
-
-```bash
-npm install @semiont/sdk
-```
-
-Rust:
-
-```bash
-cargo add semiont
-cargo add semiont-http-transport --features sign-in    # the transport over a gateway
-```
-
-Built on the SDK: **[@semiont/react-ui](packages/react-ui/README.md)** embeds the resource viewer and annotation UI in your own app, and **[Agent Skills](docs/builder/skills/)** are ready-made definitions for agentic coding assistants. The contract both SDKs speak is specified independently of either in **[docs/protocol/](docs/protocol/README.md)**.
-
-## Demo and Community KBs
-
-Rather than starting empty, clone a knowledge base that already carries content. [semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb) holds public-domain literature from Project Gutenberg:
-
-```bash
-git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
-cd semiont-gutenberg-kb
-```
-
-It arrives with its identity and configs already set, so skip step 3. A plain `semiont start` runs its local Ollama config; `semiont start --config anthropic` runs on the key from step 2 instead. It ships with content, so step 7 is optional.
-
-The full catalog — seven demo KBs across different domains, plus community
-knowledge bases and the empty [template](https://github.com/The-AI-Alliance/semiont-template-kb) — is in **[docs/KNOWLEDGE-BASES.md](docs/KNOWLEDGE-BASES.md)**.
-
-## Contributing
-
-> ⚠️ **Alpha.** API and package surface are not yet stable; breaking changes between 0.x releases are expected.
-
-[![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
-[![License](https://img.shields.io/github/license/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/tree/main?tab=Apache-2.0-1-ov-file#readme)
-[![Issues](https://img.shields.io/github/issues/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/issues)
-
-New here? The SDK's **[INTRODUCTION](docs/builder/INTRODUCTION.md)** is the orientation chapter — read it first, then the **[Developer Guide](docs/builder/DEVELOPER-GUIDE.md)** to build, with **[Usage](docs/builder/Usage.md)** open as the reference.
-
-- **[Development docs](docs/contributor/README.md)** — codebase layout, build status badges, Codespaces shortcut, where to read next.
-- **[System architecture](docs/architecture/README.md)** — actor model, knowledge system, container topology, package architecture.
-- **[Browser development](apps/browser/docs/DEVELOPMENT.md)** — running the Browser from source against a stack.
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — branch/PR workflow, commit conventions, platform-contribution playbook.
 
 ## 📜 License
 
