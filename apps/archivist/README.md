@@ -44,8 +44,10 @@ tree; every other writer passes `noGit: true`.
 
 **It is the only container that mounts the knowledge base** — pinned by
 `TestExactlyOneContainerMountsTheKB` in the launcher, not merely intended. `/kb` is the working
-tree (`SEMIONT_ROOT`), and it owns the XDG state tree holding the event log and materialized
-views. Anchored text (`/anchored-text`) it mounts **read-only** — the Smelter writes that.
+tree (`SEMIONT_ROOT`): the resources, and the event log under `.semiont/events/`. The views it
+derives from the log go to the state directory (`XDG_STATE_HOME`), which the Librarian mounts to
+read them. Anchored text (`/anchored-text`) it mounts **read-only** — the Smelter writes that.
+[Where a knowledge base lives on disk](../../docs/architecture/FILESYSTEM.md) has the layout.
 
 ## How requests reach it
 
@@ -114,13 +116,20 @@ heap error for an uncatchable cgroup kill. `semiont.runtime.heap{heap.stat="limi
 ceiling actually in force, so a cap that was set but did not apply is visible rather than
 assumed. Rationale in full lives in the Dockerfile beside the `ENV`.
 
-Start it **after the gateway** (it mints an agent token there) and **before the sidecars** (they
-dial it). Its `/health` answers only once the actors and bus pumps are up, which is what makes
-that ordering enforceable.
+Start it **after the gateway** (it mints an agent token there) and **before the worker and the
+Smelter**, which read bytes from it. Its `/health` answers only once the actors and bus pumps are
+up, which is what makes that ordering enforceable.
+
+Its configuration is `~/.semiontconfig`, of which it reads the `gateway`, `graph`, `vectors`,
+`embedding`, `identity`, `make-meaning`, `actors` and `workers` sections. The
+[service catalog](../../docs/operator/services/OVERVIEW.md) states what it mounts and reaches
+beside the other services.
 
 ## Related
 
 - [`@semiont/make-meaning`](../../packages/make-meaning/) — the actors and this entry point
 - [Librarian](../librarian/) — the deliberate pair: the Archivist holds the record and answers
   *"what is there?"*; the Librarian searches it and answers *"what is relevant?"*
-- [Knowledge System](../../docs/architecture/KNOWLEDGE-SYSTEM.md) — the event-store architecture
+- [Knowledge System](../../docs/architecture/KNOWLEDGE-SYSTEM.md) — the actors and the stores
+- [Where a knowledge base lives on disk](../../docs/architecture/FILESYSTEM.md) — the working
+  tree, the event log, and what is derived from them

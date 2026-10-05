@@ -24,7 +24,8 @@ Change the CMD only against that file.
 ## What it does
 
 Subscribes to domain events over SSE, reads the bytes, chunks text, embeds via
-`@semiont/vectors`, and indexes into Qdrant. Everything it emits goes back over the bus.
+`@semiont/vectors`, and indexes into the vector store (Qdrant, in a stack the launcher runs).
+Everything it emits goes back over the bus.
 
 It also **owns anchored-text extraction** — the coordinate map that lets an annotation anchor
 to a position in a PDF or a scan — and holds that store outright, as its sole writer, on its
@@ -38,28 +39,38 @@ transformation in transit would break change detection.
 
 ## Configuration
 
-Reads `~/.semiontconfig` (TOML), section chosen by `[defaults] environment`. Required:
+Reads `~/.semiontconfig` (TOML), section chosen by `[defaults] environment`. Of it, the
+Smelter reads the `gateway`, `vectors`, `embedding`, `identity` and `archivist` sections, and
+refuses to start without these:
 
 | Key | |
 | --- | --- |
 | `services.gateway.publicURL` | the bus it subscribes to and emits on |
-| `services.embedding.{type,model}` | the embedding provider |
+| `services.embedding.{type,model}`, and its address | the embedding provider |
+| `services.vectors.host` | the vector store it indexes into |
+| `services.identity.issuer` | where it signs in |
+| the Archivist's address | where it reads bytes |
 
-Three environment variables:
+A launcher stack's staged config states every address. The
+[service catalog](../../docs/operator/services/OVERVIEW.md) has the rest.
+
+Its environment:
 
 - **`SEMIONT_OIDC_CLIENT_ID`** / **`SEMIONT_OIDC_CLIENT_SECRET`** — this process's own service
   account at the knowledge base's issuer. It exchanges them for an issuer token, which buys an
   agent token from the gateway and is the bearer it shows the Archivist.
-- **`SEMIONT_ANCHORED_TEXT_DIR`** — where the anchored-text store lives. No default, and it
-  refuses to boot without one. A default would write a full OCR pass per representation into
-  a directory nobody mounted, lose it on the next stop, and re-derive forever.
+- **`SEMIONT_ANCHORED_TEXT_DIR`** — where the anchored-text store lives. The image sets it to
+  `/anchored-text`, and a deployment mounts the store there. The Smelter has no default of its
+  own and refuses to boot without the variable: a default would write a full OCR pass per
+  representation into a directory nobody mounted, lose it on the next stop, and re-derive
+  forever.
 
 ## Startup reconcile
 
-On boot it reconciles Qdrant against the knowledge system's catalog — re-embedding what is
-missing or stale, deleting orphans. That is what makes recovery boring: a wiped Qdrant
-volume, or events missed while the service was down, heal by restarting it. No replay
-command, no manual step.
+On boot it reconciles the vector store against the knowledge system's catalog — re-embedding
+what is missing or stale, deleting orphans. That is what makes recovery boring: a wiped vector
+store, or events missed while the service was down, heal by restarting it. No replay command,
+no manual step.
 
 ## Related
 

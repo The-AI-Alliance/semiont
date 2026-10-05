@@ -49,7 +49,8 @@ Layered time bounds, each with one owner: an inference call gets **10 minutes**,
 bound it is **aborted at the socket** (measured: milliseconds to rejection — no zombie
 requests billing against dead jobs) with an in-flight heartbeat every 15 s while it runs; a
 worker whose activity goes quiet for **15 minutes** crashes loudly (stall watchdog) rather
-than wedging; a running job untouched for **30 minutes** is recovered by the queue's janitor.
+than wedging; a running job untouched for **30 minutes** is recovered by the dispatcher's
+sweep ([JOBS.md](../../docs/protocol/JOBS.md#periodic-work)).
 
 Detection budgets derive from the provider's limits — chunk sizes follow the 1:2
 input:output allocation, and **every** provider gets a duration cap at half the call bound
@@ -82,8 +83,20 @@ queryable rather than log archaeology. See
 [Observability](../../docs/operator/administration/OBSERVABILITY.md) for the full inventory
 and where the metrics flow.
 
+## Configuration
+
+`~/.semiontconfig` (TOML), of which it reads the `gateway`, `identity`, `archivist`, `workers`
+and `inference` sections. `workers` binds each job type to a provider and a model, and that
+binding decides how many processes and identities the host runs. Its environment is
+`SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, its own service account at the
+knowledge base's issuer, and whatever its sections reference as `${VAR}`, such as
+`ANTHROPIC_API_KEY`. It mounts nothing. The
+[service catalog](../../docs/operator/services/OVERVIEW.md) states this beside the other
+services.
+
 ## Related
 
 - [`@semiont/jobs`](../../packages/jobs/) — the processors and this entry point
+- [JOBS.md](../../docs/protocol/JOBS.md) — the job protocol, and the dispatcher's side of it
 - [Job Types](../../packages/jobs/docs/JobTypes.md) — params, progress and result per type
 - [`semiont-worker` skill](../../docs/builder/skills/semiont-worker/SKILL.md) — building your own job-claim daemon

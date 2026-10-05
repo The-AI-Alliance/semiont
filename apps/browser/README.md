@@ -14,7 +14,7 @@ on port 3000.
 ## What this app owns
 
 The shell, and little else — routes, locale, providers, page assembly, and the few components
-that make sense nowhere else (navigation, toolbar wiring, cookie preferences).
+that make sense nowhere else (the Knowledge Bases panel, navigation, toolbar wiring).
 
 | | |
 |---|---|
@@ -26,8 +26,12 @@ The boundary is real, not aspirational: this app is a fraction the size of `reac
 contains **no `fetch` calls at all**. The browser never reaches an API directly; it goes
 through the SDK.
 
-Route surfaces are `know/` (browse, annotate, compose, generate), `admin/`, `moderate/`,
-`auth/`, and the static `about`, `privacy` and `terms` pages.
+Route surfaces, each under a locale prefix: `know/` (discover, compose, and a resource's page,
+where it is browsed and annotated), `moderate/` (recent resources, entity tags, tag schemas),
+and `auth/` (connect, the issuer's callback, and the sign-in error page).
+
+How the app fits the rest of Semiont is [Human UI](../../docs/architecture/HUMAN-UI.md).
+Working in it is [the analyst's guide](../../docs/analyst/README.md).
 
 ## Knowledge bases are a runtime choice
 
@@ -69,8 +73,7 @@ Almost none, deliberately.
 ## Development
 
 ```bash
-npm run dev          # Vite dev server (expects a gateway)
-npm run dev:mock     # ...against a mock API instead
+npm run dev          # Vite dev server; connect it to a running stack's gateway in the app
 npm run build        # typecheck, then vite build
 npm run typecheck    # tsc --noEmit
 npm test             # vitest

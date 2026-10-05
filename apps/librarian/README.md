@@ -25,9 +25,8 @@ The two LLM-bound actors:
 - **Matcher** — context-driven candidate search for the bind flow: multi-source retrieval,
   composite structural scoring, and optional LLM semantic scoring.
 
-Plus the gather-summary handler, which registers here beside the actor it calls rather than
-in the gateway — the same fact-consumers-follow-the-actor rule the Archivist's
-annotation-assembly handler follows.
+Plus the gather-summary handler, which registers here, beside the actor it calls: the same
+rule the Archivist's annotation-assembly handler follows.
 
 ## What it talks to
 
@@ -49,17 +48,23 @@ they do in-process.
 Nothing. It appends no events, serves no bytes, and never mounts the KB tree. Its one
 filesystem read is the materialized views the Archivist maintains, through the shared state
 mount — read-only, never rebuilt here — located by the `[kb] name` in the staged config.
-The whole environment contract is three variables: `SEMIONT_OIDC_CLIENT_ID` and
-`SEMIONT_OIDC_CLIENT_SECRET` (its own service account at the KB's issuer, which buys the agent
-token it shows the gateway) and `XDG_STATE_HOME` (the shared state mount).
+Its environment is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` (its own service
+account at the KB's issuer, which buys the agent token it shows the gateway),
+`XDG_STATE_HOME` (the shared state mount), and whatever its config sections reference as
+`${VAR}`, such as an inference provider's key.
+
+Its configuration is `~/.semiontconfig`, of which it reads the `gateway`, `graph`, `vectors`,
+`embedding`, `identity`, `archivist`, `make-meaning`, `actors` and `inference` sections. The
+[service catalog](../../docs/operator/services/OVERVIEW.md) states what it mounts and reaches
+beside the other services.
 
 ## Why it is separate from the Archivist
 
 The two are a deliberate pair: the Archivist preserves and serves unique records; the
 Librarian helps seekers find and use material. These two actors are the LLM-bound ones —
 their latency and failure modes are inference-shaped, not storage-shaped — so a slow model
-never blocks a write, and retrieval capacity scales with request volume while the Archivist
-scales with corpus.
+never blocks a write. It owns no store: it reads the indices the Weaver and the Smelter keep
+([Scaling](../../docs/operator/administration/SCALING.md)).
 
 ## Related
 

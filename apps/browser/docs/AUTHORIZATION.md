@@ -1,28 +1,20 @@
-# Browser Authorization Architecture
+# Browser Authorization
 
-## Overview
+What the Browser knows about what a person may do, which is very little, and the one
+permission path it carries.
 
-The Semiont Browser carries the machinery for fine-grained access control, but
-nothing exercises it. The gateway has exactly one authorization gate —
-authenticate, or 401 — and returns no 403 anywhere, so the permission-denied path
-below is wired end to end and dormant. It is the place a future per-resource
-permission model would arrive, not a description of a system running today.
+## What a knowledge base decides
 
-## Current State
+A gateway makes one decision about a request: its token is good, or the answer is 401. It reads
+no role to decide access and answers no 403 ([RBAC](../../../docs/protocol/RBAC.md)). Accounts,
+and any roles they hold, live at the knowledge base's identity provider.
 
-### What exists
+So the Browser has nothing to check before it acts. A component attempts the action and handles
+the error.
 
-- **A complete 403 path** — transport maps the status to a `forbidden` error,
-  the session raises `notifyPermissionDenied`, the modal shows. Tested, and
-  untriggered against this gateway.
-- **PermissionDeniedModal** for user-friendly access denial messages
-- **Type-safe error handling** with proper status codes
+## What the session knows: who, not what
 
-### What does NOT exist
-
-**Role flags.** There is no `isAdmin` and no `isModerator`, on the session or
-anywhere else. The active session's `user$` emits exactly what
-`GET /api/users/me` returns:
+The active session's `user$` emits exactly what `GET /api/users/me` returns:
 
 ```typescript
 import { useSemiont, useObservable } from '@semiont/react-ui';
@@ -32,186 +24,11 @@ const user = useObservable(session?.user$);
 // { did, email, name, image, domain } — and nothing else
 ```
 
-The `did` is the identity: it is what the bus stamps on every event and what a
-client compares against to recognise its own work. The rest is for display.
+The `did` is the identity: it is what the bus stamps on every event and what a client compares
+against to recognise its own work. The rest is for display.
 
-Accounts and any roles they hold live at the knowledge base's identity provider.
-The gateway reads none of them, so the browser has none to read either, and a
-component that gates on a role flag is gating on `undefined`.
-
-#### 2. PermissionDeniedModal (`@semiont/react-ui`)
-
-A library modal that surfaces when users encounter 403 errors. It reads the active session's `SessionSignals` (specifically `permissionDenied$`, exposed by the browser as `activeSignals$`), so it appears whenever that signal becomes non-null. Its own copy is in the person's language; beneath it is the refusal's own message, unaltered and marked as the knowledge base's. Recovery options:
-
-- **Go Back** - Return to previous page
-- **Go to Home** - Navigate to home page
-- **Switch Account** - Sign in with different credentials
-
-The modal is mounted inside `AuthShell` alongside `SessionEndedModal`.
-
-#### 3. `signals.notifyPermissionDenied` (`@semiont/sdk`)
-
-A 403 from the gateway surfaces on the transport's error stream; the `SemiontBrowser` observes it and raises the signal on the active session's `SessionSignals`:
-
-```typescript
-// inside SemiontBrowser, observing the session's transport errors
-declare const signals: SessionSignals; // the session's signals
-
-session.errors$.subscribe((err) => {
-  if (err.code === 'unauthorized') {
-    void session.refresh();
-  } else if (err.code === 'forbidden') {
-    signals.notifyPermissionDenied(err.message);
-  }
-});
-```
-
-A `401` is not routed to the modal directly: `session.refresh()` either heals
-the session in silence or, when renewal is exhausted, ends it and raises
-session-ended. A `403` has no recovery, so it raises permission-denied with the
-refusal's message as its detail.
-
-When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so nothing is raised. The signal is cleared (`acknowledgePermissionDenied`) when the user dismisses the modal.
-
-## 403 Error Handling Flow
-
-```mermaid
-flowchart TD
-    A[API Call] --> B{Response Status}
-    B -->|403| C[APIError on transport.errors$]
-    C --> D[SemiontBrowser observes the error]
-    D --> E[signals.notifyPermissionDenied]
-    E --> F[permissionDenied$ raised on active session]
-    F --> G[PermissionDeniedModal reads activeSignals$, shows]
-    G --> H{User Choice}
-    H -->|Go Back| I[Router.back + clear]
-    H -->|Go Home| J[Navigate to / + clear]
-    H -->|Switch Account| K[Sign In Flow + clear]
-```
-
-### Error Detection Layers
-
-1. **Transport Level** (`@semiont/http-transport`)
-   - Throws `APIError` with status: 403 and surfaces it on `transport.errors$`
-   - Preserves error context from the gateway
-
-2. **Session Level** (`@semiont/sdk` — `SemiontBrowser`)
-   - Routes a `forbidden` error to `signals.notifyPermissionDenied(err.message)` (above)
-
-3. **Component Level**
-   - Nothing to check proactively. With no role flags and no 403s, a component
-     cannot know in advance that an action will be refused — it attempts the
-     action and handles the error.
-
-## Security Considerations
-
-### Current Implementation
-
-- **404 for unauthorized routes** - Routes return 404 instead of 403 to hide existence
-- **No permission details in errors** - Generic messages prevent information leakage
-- **Client-side permission checks** - Basic checks, not authoritative
-
-### Best Practices
-
-1. **Never trust client-side permissions** - Always validate on gateway
-2. **Fail closed** - Default to denying access
-3. **Obscure sensitive routes** - Use 404s for privileged paths
-4. **Minimal error information** - Don't reveal system internals
-
-## Future Roadmap
-
-### Near-term Enhancements
-
-#### 1. Enhanced Error Responses
-
-```typescript
-interface PermissionError {
-  status: 403;
-  code: 'PERMISSION_DENIED';
-  details: {
-    resource: 'document:123';
-    action: 'edit';
-    required: ['doc.edit', 'team.member'];
-    userHas: ['doc.view'];
-    suggestion: 'Request edit access from owner';
-  }
-}
-```
-
-#### 2. Permission-Aware Components
-
-```tsx sketch
-function DocumentEditor({ document }) {
-  const permissions = useDocumentPermissions(document.id);
-
-  if (!permissions.canEdit) {
-    return <ReadOnlyView document={document} />;
-  }
-
-  return <FullEditor document={document} />;
-}
-```
-
-#### 3. Optimistic Permission Checking
-
-```typescript sketch
-// Check before making API call
-const { canDelete } = useResourcePermissions(resourceId);
-if (!canDelete) {
-  showPermissionModal({
-    action: 'delete',
-    resource: 'document'
-  });
-  return;
-}
-```
-
-### Long-term Vision
-
-#### Fine-Grained RBAC
-
-- **Resource-level permissions** - Per-document, per-collection access
-- **Team-based access** - Organizational hierarchy support
-- **Temporal permissions** - Time-limited access grants
-- **Delegated permissions** - Acting on behalf of others
-
-#### Access Request Workflow
-
-```typescript
-interface AccessRequest {
-  resource: string;
-  permissions: string[];
-  justification: string;
-  duration?: number;
-  approver?: string;
-}
-```
-
-#### Permission Caching Strategy
-
-```typescript
-const permissionCache = new Map<string, string[]>([
-  ['document:123', ['read', 'comment']],
-  ['collection:abc', ['read', 'write']],
-  ['global', ['create_document']],
-]);
-```
-
-## Integration with Authentication
-
-Authorization works in tandem with authentication:
-
-- **Authentication** (401) - "Who are you?" - See [AUTHENTICATION.md](./AUTHENTICATION.md)
-- **Authorization** (403) - "What can you do?"
-
-Both systems use the same event-driven architecture for consistent error handling and user experience.
-
-## Usage Examples
-
-### Identifying the signed-in person
-
-There is no permission to check before acting. What the session can tell you is
-who the caller is — which is what attribution and "is this mine?" need:
+There is no `isAdmin` and no `isModerator`, on the session or anywhere else. A component that
+gates on a role flag is gating on `undefined`.
 
 ```tsx
 function MyComponent() {
@@ -225,35 +42,66 @@ function MyComponent() {
 }
 ```
 
-### Handling Permission Errors
+## The permission-denied path
+
+The Browser handles a 403 from end to end, and no gateway sends one. The path is tested and
+dormant: it is where a refusal would arrive if a knowledge base ever made one.
+
+```mermaid
+flowchart TD
+    A[A call is answered 403] --> C[APIError, code forbidden, on session.errors$]
+    C --> D[SemiontBrowser observes it]
+    D --> E[signals.notifyPermissionDenied]
+    E --> G[PermissionDeniedModal shows]
+```
+
+1. **The transport** (`@semiont/http-transport`) throws an `APIError` with status 403 and code
+   `forbidden`, and republishes it on the session's `errors$`.
+2. **`SemiontBrowser`** (`@semiont/sdk`) observes the active session's errors and raises the
+   signal:
+
+   ```typescript
+   // inside SemiontBrowser, observing the session's transport errors
+   declare const signals: SessionSignals; // the session's signals
+
+   session.errors$.subscribe((err) => {
+     if (err.code === 'unauthorized') {
+       void session.refresh();
+     } else if (err.code === 'forbidden') {
+       signals.notifyPermissionDenied(err.message);
+     }
+   });
+   ```
+
+3. **`PermissionDeniedModal`** (`@semiont/react-ui`), mounted in `AuthShell` beside
+   `SessionEndedModal`, reads `permissionDenied$` from `activeSignals$` and shows. Its own copy
+   is in the person's language; beneath it is the refusal's message, unaltered and marked as the
+   knowledge base's. It offers going back, going home, and signing in as someone else, and
+   dismissing it clears the signal (`acknowledgePermissionDenied`).
+
+A 401 does not take this path. `session.refresh()` renews the token in silence, or the session
+ends and `SessionEndedModal` says why ([Authentication](./AUTHENTICATION.md)).
+
+A call that is refused still rejects where it was made:
 
 ```typescript
-// A verb call rejects on failure; a 403 also surfaces the modal automatically
 try {
   await semiont.mark.delete(resourceId, annotationId);
 } catch (error) {
   if (error instanceof APIError && error.status === 403) {
-    // The transport stamped this as `forbidden` and already routed it to
-    // SessionSignals → PermissionDeniedModal appears
+    // Already routed to SessionSignals: the modal is showing.
   }
 }
 ```
 
-## Testing
+When no session is active, as on the landing page, `activeSignals$` is `null` and nothing is
+raised.
 
-### Manual Testing
+## Testing it
 
-1. **Trigger 403 error** - Access restricted resource
-2. **Verify modal appears** - PermissionDeniedModal should show
-3. **Test recovery options** - Each button should work correctly
-
-### Automated Testing
-
-Raise the signal on a real test browser and render the modal against it —
-the pattern of
-`packages/react-ui/src/components/modals/__tests__/PermissionDeniedModal.test.tsx`,
-which also replaces `@headlessui/react`'s `Dialog` and `Transition` with plain
-elements:
+Raise the signal on a test browser and render the modal against it. This is the pattern of
+`packages/react-ui/src/components/modals/__tests__/PermissionDeniedModal.test.tsx`, which also
+replaces `@headlessui/react`'s `Dialog` and `Transition` with plain elements:
 
 ```tsx
 import { renderWithProviders, createTestBrowserWithSignals, screen } from '@semiont/react-ui/test-utils';
@@ -271,56 +119,16 @@ describe('Authorization', () => {
 });
 ```
 
-## Configuration
+## When the modal does not appear
 
-### Environment Variables
+- **Was there a 403?** Against a Semiont gateway there is not: every refusal is a 401, and the
+  modal is expected never to show.
+- **Is the page inside the protected layout?** `AuthShell` mounts only around `know/` and
+  `moderate/`. Outside it the modal is not mounted.
+- **Did the error reach `session.errors$`?** That stream is what drives the signal.
 
-There are no authorization-specific environment variables.
+## Related
 
-### Permission Definitions
-
-Future permission configuration structure:
-
-```typescript
-const permissions = {
-  document: ['create', 'read', 'update', 'delete', 'share'],
-  collection: ['create', 'read', 'update', 'delete', 'manage'],
-};
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Modal not appearing on 403**
-   - First: confirm a 403 actually occurred. This gateway returns none — every
-     refusal is a 401 — so against it the modal is expected never to show.
-   - Check that the transport surfaced a `forbidden` error on `session.errors$` (it drives `notifyPermissionDenied`)
-   - Verify `PermissionDeniedModal` is mounted inside `AuthShell`
-   - Confirm the page is inside the protected layout boundary — outside it, `AuthShell` and so the modal are not mounted
-   - Check browser console for errors
-
-2. **Looking for role flags**
-   - There are none. `user$` carries `did`, `email`, `name`, `image`, `domain`.
-   - Roles live at the identity provider; the gateway reads none of them, so a
-     per-resource permission model has to arrive there first.
-
-3. **403 errors not caught**
-   - Ensure using `APIError` class from http-transport
-   - Check error instanceof APIError
-
-## Related Documentation
-
-- [Authentication Architecture](./AUTHENTICATION.md) - 401 handling and session management
-- [@semiont/http-transport Reference](../../../packages/http-transport/docs/API-Reference.md#apierror) - `APIError` shape and HTTP error handling
-- [Gateway RBAC](../../../docs/operator/administration/SECURITY.md) - Server-side permission system
-
-## Contributing
-
-When adding new permission-related features:
-
-1. **Use existing patterns** - Event system, modals, hooks
-2. **Type everything** - Full TypeScript coverage required
-3. **Consider future RBAC** - Design for expansion
-4. **Document permissions** - Clear comments on what each permission allows
-5. **Test error paths** - Ensure graceful degradation
+- [Authentication](./AUTHENTICATION.md): sessions, 401s and the session-ended path
+- [RBAC](../../../docs/protocol/RBAC.md): the one decision a gateway makes, and the two service roles
+- [`APIError`](../../../packages/http-transport/docs/API-Reference.md#apierror): the transport's error

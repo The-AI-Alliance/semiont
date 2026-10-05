@@ -1,605 +1,164 @@
-# Browser Development Guide
+# Browser Development
 
-Complete guide to local development workflows, common tasks, debugging, and troubleshooting for the Semiont Browser.
+How to work on the Semiont Browser: running it from source against a real stack, the scripts
+it has, adding a page, and where to look when something is wrong.
 
-## Table of Contents
+Building the whole monorepo, and running your changes as the shipped images, is the
+contributor's [Local Development](../../../docs/contributor/LOCAL-DEVELOPMENT.md). This page is
+what is particular to this app.
 
-- [Local Development with the `semiont` launcher](#local-development-with-the-semiont-launcher)
-- [Manual Development Setup](#manual-development-setup)
-- [Common Development Tasks](#common-development-tasks)
-- [Environment Variables](#environment-variables)
-- [Debugging Tips](#debugging-tips)
-- [Common Troubleshooting](#common-troubleshooting)
-- [Code Style Guidelines](#code-style-guidelines)
-- [CSS and Styling Workflow](#css-and-styling-workflow)
-- [Related Documentation](#related-documentation)
+## Run it from source against a stack
 
-## Local Development with the `semiont` launcher
-
-A running stack comes from the [`semiont` launcher](../../launcher/README.md) — a
-host-installed binary that drives your container runtime. It is run **from a
-knowledge-base repo**, not from this monorepo: the KB supplies the config, the
-launcher pulls the service images.
-
-### Essential commands
+The Browser is a client, so it needs a knowledge base to talk to. Start one with the
+[`semiont` launcher](../../launcher/README.md), from a knowledge base's directory, and then
+serve the app from source in place of the stack's own Browser.
 
 ```bash
-# From inside a KB clone
-semiont start                     # The whole stack, plus the Browser on :3000
-semiont status                    # Per-service container state + health probes
-semiont logs                      # Follow all services, [svc]-prefixed
-semiont stop                      # Tear the stack down
-
-# One service at a time (gateway | browser | worker | smelter | weaver | database)
-semiont start --service gateway   # Start or restart just the gateway
-semiont stop --service browser   # Close the Browser (it survives a bare `stop`)
-```
-
-`semiont start --config <name>` picks which of the KB's
-`.semiont/semiontconfig/*.toml` to run (`--list-configs` lists them), and
-`semiont start --dry-run` prints the exact runtime commands a real run would
-execute.
-
-### Two development modes
-
-**Against a stack, iterating on this package** — start the stack, then run the
-Vite dev server from `apps/browser` with `npm run dev` and point it at the
-running gateway on `:4000`. Fast HMR against real data; the stack's own Browser
-container keeps serving the built SPA on `:3000` independently.
-
-**Against locally built images** — when your change needs to be exercised as the
-*shipped* container (or you changed a package the gateway imports), rebuild with
-[`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh) and restart the
-stack with `SEMIONT_VERSION=local semiont start`. Without that variable the
-launcher pulls the published images and your changes are invisible.
-
-### What the launcher gives you
-
-- **One command, whole stack** — five Semiont services plus PostgreSQL, Neo4j,
-  Qdrant, and Ollama, wired together.
-- **No per-project install** — `@semiont/browser` ships inside the Browser
-  image; nothing to `npm install` per KB.
-- **Runtime flexibility** — Apple Container, Docker, or Podman, auto-detected
-  (`--runtime` forces one).
-- **The Browser is machine-level** — any `start` ensures it, and it survives
-  `stop`, because it views every KB rather than belonging to one.
-
-### First-time setup
-
-```bash
-brew install the-ai-alliance/semiont/semiont
-git clone <a-kb-repo> && cd <a-kb-repo>
+# In a knowledge base's directory
 semiont start
-semiont useradd --email admin@example.com   # prompts for the password
+semiont useradd --email you@example.com   # prompts for the password
+semiont stop --service browser            # free port 3000 for the dev server
 ```
 
-**Browser only** (point it at an existing KB):
 ```bash
-semiont start --service browser
-# Serves the built SPA on :3000; connect it to any running gateway
+# In this repository
+cd apps/browser
+npm run dev                               # Vite on http://localhost:3000, with hot reload
 ```
 
-**Full-stack development** (feature work):
-```bash
-semiont start
-# Five Semiont services + PostgreSQL, Neo4j, Qdrant, Ollama
-```
+Open <http://localhost:3000>, add the knowledge base in the Knowledge Bases panel (`http`,
+`localhost`, `4000`), and sign in.
 
-**Gateway integration testing**:
-```bash
-semiont start
-# Then run the Browser from source against it:
-cd apps/browser && npm run dev
-# The stack's gateway serves real data while Vite serves the SPA with HMR
-```
+**The dev server must take the Browser's own port.** Sign-in is a cross-origin exchange with the
+knowledge base's identity provider, which accepts it only from the origin it was told the
+Browser is at, port included. That is why the stack's Browser is stopped first rather than left
+running beside the dev server. A stack whose Browser was moved with
+`semiont start --service browser --port <n>` expects that port instead.
 
-**Fresh start** (reset data):
-```bash
-semiont stop
-semiont clean     # Removes PostgreSQL, Qdrant, and Neo4j state
-semiont start
-```
+**The dev server lists no running stacks.** The "found on this machine" list comes from
+`/discovery/*`, which only `server.js` serves, from a directory the launcher mounts into the
+container. Under Vite, add the knowledge base by hand.
 
-`semiont clean` is the only thing that removes persistent stack state — `stop`
-deliberately leaves it so the next `start` reuses it. It does not touch the event
-log, which lives in the KB's git repo.
+## Run it as the shipped container
 
-## Manual Development Setup
+When a change needs to be exercised as the image, or it touches a package a service runs,
+rebuild with [`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh) and start the
+stack with `SEMIONT_VERSION=local`. Without that variable the launcher runs the published
+images and your change is not in them. [Local Development](../../../docs/contributor/LOCAL-DEVELOPMENT.md)
+has the loop.
 
-If you prefer manual setup or need to understand the internals:
+## Scripts
 
-### Development Modes (Manual)
+| Script | Does |
+|---|---|
+| `npm run dev` | The Vite dev server, on port 3000 |
+| `npm run build` | Typecheck, then `vite build` into `dist/` |
+| `npm run build:quick` | `vite build` alone |
+| `npm start` | `vite preview`: serves the built `dist/` on port 3000 |
+| `npm run typecheck` | `tsc --noEmit` over the app |
+| `npm run typecheck:test` | The same over the tests |
+| `npm test` | The suite, once |
+| `npm run test:watch` | The suite, watching |
+| `npm run test:coverage` | The suite, with coverage |
+| `npm run test:security` | The tests of the protected layout's session gates and of the locale layout |
+| `npm run test:a11y` | The accessibility tests |
 
-**1. Standard Development** (`npm run dev`)
-- Uses Vite dev server with hot reload
-- Requires gateway API running on port 4000
+Translations are generated before `dev`, `build`, `start` and the test scripts run:
+`scripts/merge-translations.js` merges `messages-source/` with `@semiont/react-ui`'s strings
+into `messages/` and `public/messages/`. Edit `messages-source/`, never the generated
+directories ([Internationalization](./INTERNATIONALIZATION.md)).
 
-**2. Mock API Development** (`npm run dev:mock`) - Recommended for UI work
-- Starts mock API server on port 3001
-- No gateway dependencies needed
-- Perfect for rapid UI/UX iteration
+How the tests are written is [Testing](./TESTING.md).
 
-**3. Fast Mode** (`npm run dev:fast`)
-- Vite dev server with favicons and PDF.js pre-copied
-- Requires gateway API running separately
+## Adding a page
 
-### Fast Iteration Features
+Pages are not discovered from the file tree. A page is a component under `src/app/[locale]/`
+and a route registered for it in `src/App.tsx`.
 
-- **Hot Module Replacement (HMR)** - Changes update instantly without losing state
-- **Fast Refresh** - Error recovery without losing component state
-- **Mock API Server** - Pre-configured endpoints for common operations
-- **TypeScript Path Aliases** - Use `@/components` instead of relative imports
+**1. Write the page**, one directory per route:
 
-### Mock API Endpoints
-
-The mock server (`npm run dev:mock`) provides:
-- `/api/health` - Health check endpoint
-- `/api/auth/session` - Mock authentication state
-- `/api/status` - Gateway status and version
-
-### Tips for Faster Development
-
-1. **Component Playground** - Add a scratch page and its route (see *Adding a New Page*) for isolated component testing
-2. **Disable Type Checking** (temporarily run tsc without --noEmit checks)
-3. **Clear Cache** - Run `rm -rf node_modules/.vite` if experiencing stale module issues
-4. **VS Code Integration** - Use Command Palette (`Cmd+Shift+P`) for quick file navigation
-
-## Common Development Tasks
-
-### Adding a New Page
-
-**1. Create the page** under `src/app/[locale]/`, one directory per route:
 ```tsx sketch
-// src/app/[locale]/dashboard/page.tsx
-import { AsyncErrorBoundary } from "@semiont/react-ui";
-import { DashboardContent } from "@/components/DashboardContent";
-
-export default function Dashboard() {
-  return (
-    <main className="container mx-auto px-4 py-8">
-      <AsyncErrorBoundary>
-        <DashboardContent />
-      </AsyncErrorBoundary>
-    </main>
-  );
-}
-```
-
-**2. Register its route** in `src/App.tsx`. Pages are not discovered from the file tree: each
-is a `React.lazy` import and a `<Route>` under the layout it belongs to.
-```tsx sketch
-const DashboardPage = React.lazy(() => import('./app/[locale]/dashboard/page'));
-
-// inside the `/:locale` route:
-<Route path="dashboard" element={<DashboardPage />} />
-```
-
-**3. Create component** in `src/components/`:
-```tsx sketch
-// src/components/DashboardContent.tsx
-import { useSemiont, useObservable } from "@semiont/react-ui";
-
-export function DashboardContent() {
-  const session = useObservable(useSemiont().activeSession$);
-  // Verb-namespace queries emit CacheState values; `useObservable` bridges
-  // them into React state (e.g. session?.client.browse.entityTypes()).
-  const state = useObservable(session?.client.browse.entityTypes());
-
-  if (!session) return <div>Please sign in to view dashboard</div>;
-  if (!state || state.status === 'pending') return <div>Loading...</div>;
-  if (state.status === 'failed') return <div>Failed to load</div>;
-
-  return (
-    <div>
-      <h1>Dashboard</h1>
-      {/* Your dashboard content */}
-    </div>
-  );
-}
-```
-
-### Adding New API Integration
-
-See [API Integration Guide](./API-INTEGRATION.md) for complete details.
-
-**Quick example**: data access is exposed by `@semiont/sdk` as verb-namespace
-methods on `SemiontClient` (e.g. `client.browse.*`) that return RxJS Observables
-backed by EventBus-invalidated caches. Adding a new read means:
-
-```typescript sketch
-// 1. The OpenAPI spec + generated types define the response shape
-//    (specs/ → @semiont/core types). No hand-written response interfaces.
-
-// 2. The SDK exposes it as a namespace method returning a CacheObservable
-//    (added in @semiont/sdk, e.g. BrowseNamespace.dashboard(): CacheObservable<DashboardData>)
-
-// 3. The component subscribes via useObservable — no React Query, no manual cache keys
+// src/app/[locale]/know/timeline/page.tsx
 import { useSemiont, useObservable } from '@semiont/react-ui';
 
-function Dashboard() {
+export default function TimelinePage() {
   const session = useObservable(useSemiont().activeSession$);
-  const state = useObservable(session?.client.browse.dashboard()); // CacheState<DashboardData>
-  // EventBus domain events invalidate and refresh the cache automatically.
+  const state = useObservable(session?.client.browse.entityTypes());
+
+  if (!state || state.status === 'pending') return <p>Loading…</p>;
+  if (state.status === 'failed') return <p role="alert">{state.error.message}</p>;
+  return <ul>{state.value.map((t) => <li key={t}>{t}</li>)}</ul>;
 }
 ```
 
-See [API Integration Guide](./API-INTEGRATION.md) for the namespace + bus model.
+**2. Register its route** in `src/App.tsx`, as a `React.lazy` import and a `<Route>` under the
+layout it belongs to:
 
-### Adding New UI Components
-
-**1. Create component** in `src/components/`:
 ```tsx sketch
-// src/components/MetricsCard.tsx
-import { ReactNode } from 'react';
+const TimelinePage = React.lazy(() => import('./app/[locale]/know/timeline/page'));
 
-interface MetricsCardProps {
-  title: string;
-  value: string | number;
-  icon?: ReactNode;
-  trend?: 'up' | 'down' | 'neutral';
-  className?: string;
-}
-
-export function MetricsCard({
-  title,
-  value,
-  icon,
-  trend = 'neutral',
-  className = ''
-}: MetricsCardProps) {
-  const trendColors = {
-    up: 'text-green-600',
-    down: 'text-red-600',
-    neutral: 'text-gray-600'
-  };
-
-  return (
-    <div className={`bg-white rounded-lg shadow p-6 ${className}`}>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className={`text-2xl font-semibold ${trendColors[trend]}`}>
-            {value}
-          </p>
-        </div>
-        {icon && (
-          <div className="text-gray-400">
-            {icon}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// inside the `know` route, which is inside ProtectedLayout:
+<Route path="timeline" element={<TimelinePage />} />
 ```
 
-**2. Use with error boundary**:
-```tsx sketch
-<AsyncErrorBoundary>
-  <MetricsCard
-    title="Active Users"
-    value={dashboardData?.metrics.activeUsers ?? 0}
-    trend="up"
-  />
-</AsyncErrorBoundary>
-```
+A page that needs a signed-in person goes under `ProtectedLayout`, the pathless route that
+mounts `AuthShell` around `know/` and `moderate/`. There is no per-page guard to write: the
+section's layout decides between its signed-in and signed-out views
+([Authentication](./AUTHENTICATION.md#route-protection-pattern)).
 
-### Adding Custom Hooks
+A page reads and writes through the session's client and nothing else. The app contains no
+`fetch` call. [API Integration](./API-INTEGRATION.md) has the client's namespaces and how live
+queries refresh themselves.
 
-**Create hook** in `src/hooks/`:
-```typescript sketch
-// src/hooks/useLocalStorage.ts
-import { useState, useEffect } from 'react';
+A component that could serve another host application belongs in `@semiont/react-ui`, not
+here. This app holds routes, providers and the few components that make sense nowhere else
+([Component Library](./COMPONENT-LIBRARY.md)).
 
-export function useLocalStorage<T>(key: string, initialValue: T) {
-  const [storedValue, setStoredValue] = useState<T>(initialValue);
+## Styles
 
-  useEffect(() => {
-    try {
-      const item = window.localStorage.getItem(key);
-      if (item) {
-        setStoredValue(JSON.parse(item));
-      }
-    } catch (error) {
-      console.warn(`Error reading localStorage key "${key}":`, error);
-    }
-  }, [key]);
+`src/app/globals.css` imports `@semiont/react-ui/styles` and then Tailwind:
 
-  const setValue = (value: T | ((val: T) => T)) => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
-    } catch (error) {
-      console.warn(`Error setting localStorage key "${key}":`, error);
-    }
-  };
-
-  return [storedValue, setValue] as const;
-}
-```
-
-### Adding Authentication Guards
-
-**1. Create protected route wrapper**:
-```tsx sketch
-// src/components/ProtectedRoute.tsx
-import { useSemiont, useObservable } from "@semiont/react-ui";
-import { useNavigate } from "react-router-dom";
-import { useEffect } from "react";
-
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const browser = useSemiont();
-  const session = useObservable(browser.activeSession$);
-  const activating = useObservable(browser.sessionActivating$) ?? false;
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!activating && !session) {
-      navigate('/auth/signin');
-    }
-  }, [session, activating, navigate]);
-
-  if (activating) {
-    return <div className="flex justify-center p-8">Loading...</div>;
-  }
-
-  return session ? <>{children}</> : null;
-}
-```
-
-**2. Use in protected pages**:
-```tsx sketch
-// src/app/admin/page.tsx
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-
-export default function AdminPage() {
-  return (
-    <ProtectedRoute>
-      <AdminContent />
-    </ProtectedRoute>
-  );
-}
-```
-
-## Environment Variables
-
-Environment variables are configured automatically based on your environment configuration files in `/config/environments/`.
-
-**1. Add to environment JSON** in `/config/environments/[env].json`:
-```json
-{
-  "services": {
-    "browser": {
-      "url": "https://staging.example.com",
-      "port": 3000
-    }
-  }
-}
-```
-
-**2. Deployment**: Environment variables are set automatically during deployment based on your configuration.
-
-## Debugging Tips
-
-### Authentication Issues
-- Check browser dev tools Network tab
-- Confirm requests carry an `Authorization: Bearer <jwt>` header — the SDK session attaches the access token; it is never a cookie
-- Check `/api/users/me` — it answers with the caller's DID, which is the name every event is attributed to
-- Verify gateway is running and accessible
-
-### API Errors
-- Review browser Network tab for failed requests
-- Check API client error handling in console
-- Verify gateway is running and accessible
-- Check CORS configuration
-
-### Performance Issues
-- Review React DevTools Profiler
-- Monitor Network waterfall in dev tools
-
-### Build Errors
-- Run `npm run typecheck` to identify TypeScript errors
-- Verify all environment variables are set
-- Check for unused imports or missing dependencies
-- Clear Vite cache: `rm -rf node_modules/.vite`
-
-### Runtime Errors
-- Error boundaries capture detailed error information
-- Check browser console for stack traces
-- Review error boundary fallback UI
-- Enable React strict mode for dev warnings
-
-## Common Troubleshooting
-
-### "API calls failing"
-**Symptoms**: 404 or network errors when making API requests
-
-**Solutions**:
-- Check network tab for CORS issues
-- Ensure gateway is running and accessible
-- Verify API endpoint path is correct
-- Check authentication token is included
-
-### "Authentication not working"
-**Symptoms**: Unable to sign in or session not persisting
-
-**Solutions**:
-- Check the **issuer's** logs, not the gateway's — the gateway is never contacted for a sign-in that fails, so a failed sign-in leaves no trace in its logs
-- Confirm the sign-in was stored: `localStorage` holds the access and refresh pair under `semiont.session.<kb id>`. The access token is sent as `Authorization: Bearer`, never set as a cookie
-- Check `/api/users/me` returns the expected DID
-- Ensure the redirect URI registered on the issuer's browser client matches where the app actually runs. There is no gateway callback route; PKCE returns to the app
-
-### "Build failing"
-**Symptoms**: `npm run build` fails with errors
-
-**Solutions**:
-- Run `npm run typecheck` to identify TypeScript errors
-- Verify all environment variables are set
-- Check for unused imports or missing dependencies
-- Update dependencies: `npm update`
-- Clear node_modules and reinstall: `rm -rf node_modules && npm install`
-
-### "Performance issues"
-**Symptoms**: Slow page loads, large bundle size
-
-**Solutions**:
-- Implement code splitting with dynamic imports
-- Optimize images (use appropriate sizes, lazy loading)
-
-### "Hot reload not working"
-**Symptoms**: Changes not reflecting in browser
-
-**Solutions**:
-- Check for syntax errors in console
-- Restart dev server: `npm run dev`
-- Clear Vite cache: `rm -rf node_modules/.vite`
-- Check file watcher limits on Linux: `echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf`
-
-## Code Style Guidelines
-
-### Functional Programming
-
-**Functional, side-effect free code is strongly preferred**:
-- Use functional components with hooks
-- Avoid class components and mutations
-- Prefer pure functions
-- Use immutable data structures
-- Avoid side effects in business logic
-
-### Component Patterns
-
-- Use descriptive component and variable names
-- Follow existing patterns in the codebase
-- Prefer composition over inheritance
-- Extract reusable logic into custom hooks
-- Use error boundaries for error handling
-
-### Documentation
-
-- No unnecessary comments - code should be self-documenting
-- Add JSDoc for complex functions
-- Document non-obvious business logic
-- Keep README and docs up to date
-
-### TypeScript
-
-- Enable strict mode
-- Avoid `any` type
-- Use type inference where possible
-- Define interfaces for props and data structures
-- Use const assertions for literal types
-
-## CSS and Styling Workflow
-
-The Browser uses a **hybrid CSS architecture** combining semantic CSS from @semiont/react-ui with Tailwind for app-specific styling.
-
-### When to Use Which System
-
-#### Use @semiont/react-ui Components (Semantic CSS)
-When the component exists in @semiont/react-ui, use it directly:
+- **`@semiont/react-ui`'s semantic classes** style every library component. Do not override
+  them from the app.
+- **Tailwind utilities** are for this app's own layout: page containers, spacing, positioning.
 
 ```tsx
-import { Button, Toolbar } from '@semiont/react-ui';
+import { Button } from '@semiont/react-ui';
 
-// These come with semantic CSS classes pre-applied
-<Button variant="primary">Click me</Button>
+// Good: spacing around a library component
+<Button variant="primary" className="mt-4">Submit</Button>;
 ```
 
-**Benefits:**
-- Consistent styling across the application
-- Framework-agnostic (no Tailwind dependency)
-- Built-in accessibility features
-- Managed dark mode support
+Dark mode is one switch for both. The theme provider sets `data-theme` on the root element,
+react-ui's tokens follow it, and Tailwind's `dark:` variant is configured to follow the same
+attribute (`tailwind.config.js`).
 
-#### Use Tailwind for App-Specific Components
-For components unique to the Browser application:
+The patterns are in the [Style Guide](./style-guide.md), and the tokens and classes in
+react-ui's [Styles](../../../docs/builder/react-ui/STYLES.md).
 
-```tsx
-// App-specific layout component
-<div className="flex items-center gap-4 p-6 bg-white dark:bg-gray-800">
-  <span className="text-lg font-semibold">Custom content</span>
-</div>
-```
+## When something is wrong
 
-**Use Tailwind for:**
-- Page layouts and containers
-- Custom components not in @semiont/react-ui
-- Spacing and positioning utilities
-- One-off styling needs
+- **See the bus.** In the page's console, `window.__SEMIONT_BUS_LOG__ = true` logs one line for
+  every bus event the page sends and receives. It is usually the fastest way to see what a
+  change did ([bus logging](../../../tests/e2e/docs/bus-logging.md)).
+- **Who am I signed in as?** `GET /api/users/me` on the gateway, with the session's token,
+  answers the DID every event is attributed to.
+- **Sign-in fails.** Look at the identity provider's logs, not the gateway's: a sign-in that
+  fails never reaches the gateway. An `Invalid origin` there means the app is not running at
+  the origin the provider expects, which is the port rule above.
+- **Signed out on reload.** The session is in `localStorage`, under `semiont.session.<kb id>`.
+  If it is there and the app still shows signed out, the provider refused to renew it.
+- **Requests are blocked as mixed content.** An app loaded over `https` cannot call a gateway
+  over `http`.
+- **Changes do not show up.** Check the console for a syntax error, restart `npm run dev`,
+  and clear Vite's cache with `rm -rf node_modules/.vite`.
+- **`npm run build` fails.** Run `npm run typecheck` for the error.
 
-### Combining Both Systems
+## Related
 
-When you need to add spacing or layout to @semiont/react-ui components:
-
-```tsx
-// Good - adds spacing without breaking component styles
-<Button variant="primary" className="mt-4">
-  Submit
-</Button>;
-
-// Bad - overriding semantic classes
-<Button variant="primary" className="bg-blue-500 hover:bg-blue-600">
-  Submit
-</Button>;
-```
-
-### CSS Import Structure
-
-The CSS is imported in `src/app/globals.css`:
-
-```css
-/* Tailwind */
-@import "tailwindcss";
-
-/* Import all @semiont/react-ui styles */
-@import '@semiont/react-ui/styles';
-```
-
-### Dark Mode Coordination
-
-- **@semiont/react-ui**: Uses `data-theme="dark"` attribute
-- **Tailwind**: Uses `class="dark"` on HTML element
-- Both are coordinated by the theme provider
-
-### Style File Locations
-
-- **App-specific styles:** `/src/lib/button-styles.ts`, `/src/lib/annotation-styles.ts`
-- **Global styles:** `/src/app/globals.css`
-- **Component library styles:** `@semiont/react-ui/styles` (imported automatically)
-
-### Development Tips
-
-1. **Check @semiont/react-ui first** - Before creating a custom component
-2. **Use semantic classes** - Don't override @semiont/react-ui styles
-3. **Test dark mode** - Ensure both systems work in dark mode
-4. **Keep separation clear** - Components vs. layout utilities
-
-For detailed styling guidelines, see the [Style Guide](./style-guide.md).
-
-## Related Documentation
-
-### Development Guides
-- [Testing Guide](./TESTING.md) - Test structure, running tests, writing tests
-- [API Integration](./API-INTEGRATION.md) - API client usage, async operations
-- [Deployment](./DEPLOYMENT.md) - Publishing and deployment workflows
-
-### Architecture
-- [Browser Architecture](./ARCHITECTURE.md) - High-level system design
-- [Rendering Architecture](../../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
-- [Authentication](./AUTHENTICATION.md) - OAuth, JWT, session management
-
-### Features
-- [Annotations](./ANNOTATIONS.md) - W3C annotation system
-- [Style Guide](./style-guide.md) - UI/UX patterns
-- [Keyboard Navigation](./KEYBOARD-NAV.md) - Keyboard navigation implementation
-- [Accessibility](./ACCESSIBILITY.md) - WCAG 2.1 AA implementation patterns
-
-### System Documentation
-- [Architecture](../../../docs/architecture/README.md) - Overall platform
-- [Gateway README](../../gateway/README.md) - Gateway API
-- [Launcher README](../../launcher/README.md) - `semiont` launcher usage
-
----
-
-**For Questions**: See [System Documentation](../../../docs/) or file an issue
+- [Architecture](./ARCHITECTURE.md): how the app is built
+- [Authentication](./AUTHENTICATION.md): sessions, sign-in, route protection
+- [Testing](./TESTING.md): how the tests are written and run
+- [Container](./CONTAINER.md): the image
+- [Local Development](../../../docs/contributor/LOCAL-DEVELOPMENT.md): the monorepo's loop
+- [The launcher](../../launcher/README.md): every verb and flag

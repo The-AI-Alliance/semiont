@@ -2,315 +2,130 @@
 
 [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-browser)
 
-Production-ready Docker container images for the Semiont Browser, published to GitHub Container Registry with multi-platform support.
+`ghcr.io/the-ai-alliance/semiont-browser`: the Semiont Browser's built files and a small static
+file server, for `linux/amd64` and `linux/arm64`. How it is run, by the launcher or on your own
+platform, is [Deployment](./DEPLOYMENT.md). How every Semiont image is tagged and verified is
+the operator's [Container Images](../../../docs/operator/administration/IMAGES.md).
 
-## Quick Start
-
-### Pull Image
-
-```bash
-# Latest release
-docker pull ghcr.io/the-ai-alliance/semiont-browser:latest
-
-# Specific @semiont/browser package version (recommended for production)
-docker pull ghcr.io/the-ai-alliance/semiont-browser:0.5.29
-
-# Specific git commit of the image build (for debugging/pinning)
-docker pull ghcr.io/the-ai-alliance/semiont-browser:sha-0377abc
-```
-
-### Run Container
+## Run it
 
 ```bash
-docker run -d \
-  -p 3000:3000 \
-  --name semiont-browser \
+docker run -d -p 3000:3000 --name semiont-browser \
   ghcr.io/the-ai-alliance/semiont-browser:latest
 ```
 
-Open <http://localhost:3000> and add your knowledge base (protocol, host,
-port, then sign in) from the app's connection panel. The container itself
-takes no gateway configuration — see [Configuration](#configuration).
+Open <http://localhost:3000> and add a knowledge base in the Knowledge Bases panel: its
+gateway's protocol, host and port. Then sign in.
+
+## The browser connects, not the container
+
+The image is a static file server (`server.js`) for the prebuilt app. It has no gateway
+address, at build time or at run time, and it proxies nothing.
+
+Connections to knowledge bases are made in the running app, by the person using it:
+
+1. They add a knowledge base (protocol, host, port) in the Knowledge Bases panel.
+2. The app sends them to the identity provider that knowledge base trusts, and finishes the
+   sign-in on its own callback route. The SDK keeps an access and refresh token pair for each
+   knowledge base in the web browser's `localStorage`, and renews the access token at the
+   identity provider before it expires.
+3. The app then calls that gateway **directly from the web browser**: who the person is, media
+   tokens and content over HTTP routes, and everything else over the bus (`POST /bus/emit`,
+   and `POST /bus/subscribe` for the event stream).
+
+```
+Web browser ── GET  https://app.example.com/ ───────────▶ Browser container (static files)
+Web browser ── sign-in and token renewal ───────────────▶ the knowledge base's identity provider
+Web browser ── POST https://kb.example.com/bus/emit ────▶ the knowledge base's gateway
+               POST https://kb.example.com/bus/subscribe
+```
+
+So the one network requirement is that each gateway, and its identity provider, is reachable
+**from the person's web browser**. Reachability from the Browser's container is irrelevant, and
+no reverse proxy or path-based routing sits between them. A gateway answers any origin. Several
+knowledge bases can be added side by side, and they survive a reload.
 
 ## Configuration
 
-### Architecture: The Browser Connects, Not the Container
+One runtime variable:
 
-The Browser image is a static file server (`server.js`) for the prebuilt
-Vite SPA. It has no gateway URL — at build time or at runtime — and it never
-proxies API traffic.
+| | | |
+|---|---|---|
+| `PORT` | run time | The port the static server listens on. Default `3000` |
+| `/discovery` | run time | A read-only mount the launcher uses to tell the app which knowledge bases are running on the machine. Optional |
 
-Knowledge-base connections are made **in the running app, by the user**:
+There are no `SEMIONT_*` variables. The bundle is built when the `@semiont/browser` npm package
+is published, and the server does no templating.
 
-1. Open the Browser in a browser and add a knowledge base (protocol, host,
-   port) from the connection panel.
-2. Sign in at the issuer that KB trusts: the Browser sends you there and
-   finishes on its own callback route. The SDK (`@semiont/sdk`) stores a
-   per-KB access + refresh token pair in the browser's `localStorage`.
-3. The SPA then talks to that KB origin **directly from the browser** —
-   who you are, media tokens and content over HTTP routes; domain traffic
-   over the event bus (`POST /bus/emit`, `GET /bus/subscribe` SSE). The SDK
-   renews the access token at the issuer before it expires.
+## What is in it
 
-Multiple knowledge bases can be configured side by side, and connections
-persist across page reloads. The gateway allows cross-origin requests from
-any origin, so the only network requirement is that each KB gateway is
-reachable **from the user's browser** — reachability from the Browser
-container is irrelevant. No reverse proxy or path-based routing layer is
-needed.
+- **Base image:** `node:26-alpine`.
+- **Contents:** the published `@semiont/browser` npm package, installed at the image's version.
+  The image does not build from source.
+- **Entrypoint:** `tini`, then `node node_modules/@semiont/browser/server.js`.
+- **Health check:** built in. It requests `/` every 30 seconds.
+- **Logs:** one line when the server starts listening, and any server error. It does not log
+  requests.
 
-### Environment Variables
+`server.js` serves files out of `dist/`, answers `index.html` for every route that is not a
+file, and serves `/discovery/*` from its mount: a file or a 404, never the app.
 
-The image consumes exactly one runtime variable:
+## Tags
 
-- **`PORT`** — port the static server listens on (default: `3000`)
+- **The version**: the `@semiont/browser` package version in the image.
+- **`sha-<commit>`**: the commit the image was published from.
+- **`latest`**: moved to a release when it is promoted. It is what the launcher runs unless
+  `SEMIONT_VERSION` names a version.
 
-There are no `SEMIONT_*` runtime variables: the JS bundle is prebuilt when
-the `@semiont/browser` npm package is published, and the static server does
-no templating. Gateway locations are chosen by users in the app, not by
-container configuration.
+A tag can be moved and a digest cannot. To pin exactly what you verified, reference the image
+by digest ([Container Images](../../../docs/operator/administration/IMAGES.md#supply-chain-verification)).
 
-## Deployment Scenarios
+## Building it yourself
 
-### The launcher
-
-`semiont start` runs the Browser on `http://localhost:3000` beside any KB
-stack it starts. The Browser container and a gateway never talk to each
-other, so no proxy sits between them: the user's browser loads the SPA from
-`http://localhost:3000` and connects to a knowledge base by adding
-`http` / `localhost` / `4000` in the app's connection panel. Publishing the
-gateway port to the host is what matters — a browser cannot resolve
-container-network names like `semiont-gateway`.
-
-### Kubernetes with Ingress Controller
-
-Give the Browser and each knowledge-base gateway their own
-browser-reachable origins. No path-based API routing is required:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: semiont-browser
-spec:
-  replicas: 2
-  template:
-    spec:
-      containers:
-      - name: browser
-        image: ghcr.io/the-ai-alliance/semiont-browser:0.5.29
-        ports:
-        - containerPort: 3000
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: semiont-ingress
-spec:
-  rules:
-  # The SPA — all paths serve static assets
-  - host: app.example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        gateway:
-          service:
-            name: semiont-browser-service
-            port:
-              number: 3000
-  # Each knowledge-base gateway gets its own origin
-  - host: kb.example.com
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        gateway:
-          service:
-            name: semiont-gateway-service
-            port:
-              number: 4000
-```
-
-Users add `https` / `kb.example.com` / `443` in the connection panel; the
-browser then calls the gateway origin directly (the gateway allows
-cross-origin requests). Serve gateways over HTTPS — a browser will refuse to
-call an `http://` knowledge base from an `https://` page (mixed content).
-
-### AWS ECS
-
-Run the Browser and gateway as separate services, each with its own
-browser-reachable HTTPS endpoint (for example, hostname-based listener rules
-on an ALB). The Browser task definition needs **no environment variables**
-— there is no gateway URL to inject. Users connect to the gateway origin
-from the app's connection panel, exactly as in the other scenarios.
-
-## Building Custom Images
-
-The image is built from [`apps/browser/Dockerfile`](../Dockerfile) in the Semiont
-repo. It installs the **published `@semiont/browser` npm package** — it does not
-build from source — so the only build arguments are the package version and the
-npm registry. The image takes no site-specific configuration: the bundle is
-built when the npm package is published, and users pick their knowledge bases
-in the app.
+The image is built from [`apps/browser/Dockerfile`](../Dockerfile). Its build arguments are the
+package version to install and the registry to install it from:
 
 ```bash
-# From the semiont repo root: image pinned to a published package version
+# From the repository root
 docker build \
-  --build-arg SEMIONT_BROWSER_VERSION=0.5.12 \
+  --build-arg SEMIONT_BROWSER_VERSION=<version> \
   -t semiont-browser:custom \
   -f apps/browser/Dockerfile .
 ```
 
-Official images are published (multi-arch, Trivy-scanned, SBOM + provenance
-attested) by the `publish-browser.yml` workflow — prefer
-`ghcr.io/the-ai-alliance/semiont-browser` over local builds unless you are
-testing unpublished changes.
+| Build argument | Default | |
+|---|---|---|
+| `SEMIONT_BROWSER_VERSION` | `latest` | The `@semiont/browser` version to install |
+| `NPM_REGISTRY` | `https://registry.npmjs.org` | The registry to install it from |
 
-### Multi-Platform Builds
+To run a change that is not published, build every image from your working tree with
+[`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh)
+([Local Development](../../../docs/contributor/LOCAL-DEVELOPMENT.md)). Published images come
+from the `publish-browser.yml` workflow: scanned, with an SBOM and build provenance attested.
 
-```bash
-# Build for multiple architectures
-docker buildx build \
-  --platform linux/amd64,linux/arm64 \
-  --build-arg SEMIONT_BROWSER_VERSION=0.5.12 \
-  -t semiont-browser:multiarch \
-  -f apps/browser/Dockerfile .
-```
+## Secrets
 
-## Environment Variable Reference
-
-| Variable | Type | Required | Example | Description |
-|----------|------|----------|---------|-------------|
-| `SEMIONT_BROWSER_VERSION` | Build-time | No | `0.5.12` | `@semiont/browser` npm version to install (default `latest`) |
-| `NPM_REGISTRY` | Build-time | No | `https://registry.npmjs.org` | Registry to install from |
-| `PORT` | Runtime | No | `3000` | Port the static server listens on (default `3000`) |
-
-## Security Best Practices
-
-### Secrets Management
-
-**Never include secrets in the Docker image** — the Browser needs none. It
-takes no configuration beyond `PORT`:
-
-```bash
-docker run -d -p 3000:3000 ghcr.io/the-ai-alliance/semiont-browser:latest
-
-# Gateway secrets (JWT signing key, its service-account credential) stay in the gateway container
-```
-
-Users' knowledge-base tokens exist only in their own browsers' `localStorage`
-— they never pass through the Browser container.
-
-### Secret Rotation
-
-The Browser contains no secrets. The gateway's signing key and its service-account credential live in the gateway container. Rotate them there.
+The image holds none and needs none. A person's tokens exist only in their own web browser's
+`localStorage` and never pass through this container. The gateway's signing key and its service
+account are the gateway's ([Secrets](../../../docs/operator/services/SECRETS.md)).
 
 ## Troubleshooting
 
-### Cannot connect to a knowledge base
+**A knowledge base cannot be added: a network error.** Its gateway must be reachable from the
+person's web browser, not from this container. For a local stack that is `localhost:4000`, the
+port published to the host. A container's name on the container network, such as
+`semiont-gateway`, does not resolve in a web browser.
 
-**Problem**: Adding a KB in the connection panel fails with a network error.
+**Requests are blocked as mixed content.** The app was loaded over `https` and the knowledge
+base was added with `http`. Serve the gateway over HTTPS and choose `https` when adding it.
 
-**Cause**: The KB gateway must be reachable from the **user's browser**, not
-from the Browser container.
+**A knowledge base drops to signed out.** Its identity provider would not renew the session:
+the refresh token expired or was revoked, or the account was disabled there. The gateway's
+`JWT_SECRET` plays no part: it signs agent and media tokens, never a person's. Sign in again.
 
-**Solutions**:
-1. Verify the gateway is running and exposed on a browser-reachable address.
-2. Local stacks: connect to `localhost:4000` (the host-published port).
-   Container-network names like `semiont-gateway` do not resolve in a browser.
-3. Kubernetes/cloud: give the gateway its own browser-reachable origin
-   (Ingress host or load-balancer endpoint), and connect to that.
+## Related
 
-### Requests blocked as "mixed content"
-
-**Problem**: The Browser is served over `https://`, but the knowledge base
-was added with the `http` protocol — the browser silently blocks the calls.
-
-**Solution**: Serve knowledge-base gateways over HTTPS in production and
-select `https` when adding the KB.
-
-### Signed out of a knowledge base unexpectedly
-
-**Problem**: A previously connected KB drops to signed-out.
-
-**Cause**: The issuer would not renew the session: the refresh token
-expired or was revoked, or the account was disabled there. The gateway's
-`JWT_SECRET` plays no part. It signs agent and media tokens, never a
-person's.
-
-**Solution**: Sign in to that KB again from the connection panel.
-
-## Health Checks
-
-The container includes a built-in health check:
-
-```bash
-# Check container health
-docker inspect semiont-browser | jq '.[0].State.Health'
-
-# Manual health check
-curl http://localhost:3000/
-```
-
-## Logs
-
-```bash
-# View container logs
-docker logs semiont-browser
-
-# Follow logs in real-time
-docker logs -f semiont-browser
-```
-
-The static server logs a single startup line (`Semiont Browser listening on
-port 3000`) plus any server errors; it does not log individual requests.
-
-## Image Tags
-
-Published images follow this tagging strategy:
-
-- **`0.5.12`** - The `@semiont/browser` npm package version baked into the image (immutable)
-- **`sha-0377abc`** - Git commit of the repo at image-publish time (immutable, for debugging)
-- **`latest`** - Most recent release (mutable, applied when a publish is marked as latest)
-
-**Recommendation**:
-- Development/staging: `latest` is fine
-- Production: Pin a specific version tag (e.g., `0.5.12`)
-
-## Architecture Notes
-
-### Connection Flow
-
-```
-Browser ── GET https://app.example.com/ ─────────────▶ Browser container (static SPA)
-Browser ── POST https://kb.example.com/api/tokens/… ─▶ KB gateway (sign-in, token refresh)
-Browser ── POST /bus/emit, GET /bus/subscribe (SSE) ─▶ KB gateway (domain traffic)
-```
-
-The Browser container serves static assets and is otherwise out of the data
-path. Every API call originates in the user's browser and goes straight to
-the knowledge-base origin the user configured in the app — across as many
-knowledge bases as the user has added.
-
-## Related Documentation
-
-- [Deployment Guide](./DEPLOYMENT.md) - Deployment workflows and strategies
-- [Development Guide](./DEVELOPMENT.md) - Local development setup
-- [Container Topology](../../../docs/operator/CONTAINER-TOPOLOGY.md) - Multi-container deployment architecture
-- [Container Images](../../../docs/operator/administration/IMAGES.md) - All published images and the gateway npm-distribution model
-
-## Support
-
-For issues or questions:
-
-- GitHub Issues: <https://github.com/The-AI-Alliance/semiont/issues>
-- Container Registry: <https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-browser>
-- Actions Workflows: <https://github.com/The-AI-Alliance/semiont/actions>
-
----
-
-**Container Runtime**: Apple Container, Docker, or Podman
-**Orchestration**: Compatible with Kubernetes, ECS
-**Base Image**: node:26-alpine
-**Platforms**: linux/amd64, linux/arm64
+- [Deployment](./DEPLOYMENT.md): running the image, with the launcher or without
+- [Development](./DEVELOPMENT.md): running the app from source
+- [Container Topology](../../../docs/operator/CONTAINER-TOPOLOGY.md): how the containers of a stack connect
+- [Container Images](../../../docs/operator/administration/IMAGES.md): every image, its tags and verifying one

@@ -100,10 +100,10 @@ lost; the client reconnects on its own.
 
 **Where the interface stands.** It is the boundary to the broker, and it is
 held: `npm run lint:broker-boundary` fails when the `async_nats` crate is named
-outside `nats.rs`, when the NATS plane is named outside `app.rs` (where the
-plane is chosen), or when the `nats` npm client is imported outside the
-dispatcher's JetStream job queue, whose `JobQueue` interface is the same
-boundary on the Node side. The subjects, the bucket names and the round trip
+outside `nats.rs`, the dispatcher's JetStream queue (whose `JobQueue` interface
+is the same boundary on its side) and `semiont-core`'s broker helpers; when the
+NATS plane is named outside `app.rs` (where the plane is chosen); or when any
+TypeScript imports a NATS client. The subjects, the bucket names and the round trip
 that confirms a subscription are private to `nats.rs`. Another broker would take an implementation of
 `SignalPlane` and `SharedTable` meeting the contract in
 [signal/mod.rs](../src/signal/mod.rs) — delivery at most once, in order per
