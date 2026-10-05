@@ -138,6 +138,9 @@
       "AnnotationTarget": {
         "$ref": "components/schemas/AnnotationTarget.json"
       },
+      "AttributedEvent": {
+        "$ref": "components/schemas/AttributedEvent.json"
+      },
       "BeckonFocusEvent": {
         "$ref": "components/schemas/BeckonFocusEvent.json"
       },

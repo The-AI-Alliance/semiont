@@ -28,6 +28,10 @@ async function main() {
   // indistinguishable from working. Containers get it from the image
   // (SEMIONT_ANCHORED_TEXT_DIR=/anchored-text, mounted by `semiont start`);
   // a script running outside one names it itself.
+  //
+  // SEMIONT_ROOT names a knowledge base: its committed .semiont/config
+  // declares a [site] domain, the identity the knowledge base acts under.
+  // startMakeMeaning refuses one that declares none.
   const project = new SemiontProject(process.env.SEMIONT_ROOT!, {
     anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR!,
   });

@@ -5,7 +5,7 @@ import React, { useEffect, useRef } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
 import type { Annotation } from '@semiont/core';
-import { getAnnotationIdFromEvent, type StoredEventLike } from '@semiont/core';
+import { getAnnotationIdFromEvent, type AttributedEvent } from '@semiont/core';
 import { HistoryEvent } from './HistoryEvent';
 
 interface Props {
@@ -16,7 +16,7 @@ interface Props {
    * terminal failure (B15) is indistinguishable from a request still in
    * flight and the panel says "Loading..." for ever.
    */
-  events: StoredEventLike[];
+  events: AttributedEvent[];
   eventsLoading?: boolean;
   eventsError?: Error | null;
   onRetryEvents?: () => void;
@@ -53,7 +53,7 @@ export function AnnotationHistory({
   // Filter out job events - they're represented by mark:body-updated events instead
   // `job:progress` is not a persisted event type, but older logs hold such
   // events; naming it here keeps those out of the history.
-  const events: StoredEventLike[] = eventsData
+  const events: AttributedEvent[] = eventsData
     .filter((e) => {
       return e.type !== 'job:started' && e.type !== 'job:progress' && e.type !== 'job:completed';
     })

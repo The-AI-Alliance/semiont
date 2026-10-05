@@ -24,7 +24,7 @@ const node = (created: unknown, modified?: unknown) => ({
     type: 'Annotation',
     motivation: 'linking',
     selector: JSON.stringify({ type: 'TextQuoteSelector', exact: 'Black Hawk' }),
-    creator: JSON.stringify({ '@type': 'Person', id: 'did:semiont:user:u1', name: 'A' }),
+    creator: JSON.stringify({ '@type': 'Person', id: 'did:web:example.org:users:u1', name: 'A' }),
     created,
     ...(modified !== undefined ? { modified } : {}),
   },

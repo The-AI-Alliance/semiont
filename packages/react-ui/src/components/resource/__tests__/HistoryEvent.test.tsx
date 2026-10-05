@@ -26,7 +26,6 @@ vi.mock('../event-formatting', () => ({
   formatEventType: vi.fn((_type: string, t: (key: string) => string) => t('resourceCreated')),
   getEventEmoji: vi.fn(() => '\u{1F4C4}'),
   formatRelativeTime: vi.fn(() => '2 minutes ago'),
-  formatUserId: vi.fn((id: string) => id),
   getEventDisplayContent: vi.fn(() => mockDisplayContent),
   getEventEntityTypes: vi.fn(() => mockEntityTypes),
   getResourceCreationDetails: vi.fn(() => mockCreationDetails),
@@ -46,13 +45,19 @@ const mockGetEventEntityTypes = getEventEntityTypes as ReturnType<typeof vi.fn>;
 const mockGetResourceCreationDetails = getResourceCreationDetails as ReturnType<typeof vi.fn>;
 const mockFormatEventType = formatEventType as ReturnType<typeof vi.fn>;
 
+const KB = 'did:web:the-ai-alliance.github.io:semiont-template-kb';
+const PERSON = `${KB}:users:59523dd4-a0e3-4c1c-8c2d-7fcbe3d789dd`;
+const WORKER = `${KB}:agents:anthropic:claude-haiku-4-5`;
+
+/** An event as a history reply carries it: the stored event and its actor's agent. */
 function makeStoredEvent(overrides: Record<string, any> = {}): any {
   return {
     id: 'evt-1',
     type: 'yield:created',
     timestamp: '2026-03-06T12:00:00Z',
     resourceId: 'res-1',
-    userId: 'user-1',
+    userId: PERSON,
+    agent: { '@type': 'Person', '@id': PERSON, name: 'Adam Pingel' },
     version: 1,
     payload: { name: 'Test', format: 'text/plain', contentChecksum: 'abc' },
     ...overrides,
@@ -210,8 +215,8 @@ describe('HistoryEvent', () => {
     expect(wrapper).toHaveAttribute('data-related', 'false');
   });
 
-  it('renders userId when present', () => {
-    const event = makeStoredEvent({ userId: 'alice' } as any);
+  it('names the actor the reply names', () => {
+    const event = makeStoredEvent();
     renderWithProviders(
       <HistoryEvent
         event={event}
@@ -224,7 +229,44 @@ describe('HistoryEvent', () => {
       />
     );
 
-    expect(screen.getByText('alice')).toBeInTheDocument();
+    expect(screen.getByText('Adam Pingel')).toBeInTheDocument();
+  });
+
+  it("shows a person the reply does not name by their DID", () => {
+    const event = makeStoredEvent({ agent: { '@type': 'Person', '@id': PERSON } });
+    renderWithProviders(
+      <HistoryEvent
+        event={event}
+        annotations={[]}
+        allEvents={[event]}
+        isRelated={false}
+        t={mockT}
+        Link={MockLink}
+        routes={mockRoutes}
+      />
+    );
+
+    expect(screen.getByText(PERSON)).toBeInTheDocument();
+  });
+
+  it("names a software peer's row by its provider and model", () => {
+    const event = makeStoredEvent({
+      userId: WORKER,
+      agent: { '@type': 'Software', '@id': WORKER, name: 'anthropic claude-haiku-4-5', provider: 'anthropic', model: 'claude-haiku-4-5' },
+    });
+    renderWithProviders(
+      <HistoryEvent
+        event={event}
+        annotations={[]}
+        allEvents={[event]}
+        isRelated={false}
+        t={mockT}
+        Link={MockLink}
+        routes={mockRoutes}
+      />
+    );
+
+    expect(screen.getByText('anthropic claude-haiku-4-5')).toBeInTheDocument();
   });
 
   it('renders tag content with tag class', () => {
@@ -306,13 +348,10 @@ describe('HistoryEvent', () => {
     expect(tags).toHaveLength(2);
   });
 
-  it('renders creation details when present', () => {
-    mockGetResourceCreationDetails.mockReturnValue({
-      type: 'created',
-      userId: 'alice',
-    });
+  it("renders creation details when present, naming the event's actor", () => {
+    mockGetResourceCreationDetails.mockReturnValue({ type: 'created' });
     const event = makeStoredEvent();
-    renderWithProviders(
+    const { container } = renderWithProviders(
       <HistoryEvent
         event={event}
         annotations={[]}
@@ -324,13 +363,12 @@ describe('HistoryEvent', () => {
       />
     );
 
-    expect(screen.getByText('alice')).toBeInTheDocument();
+    expect(container.querySelector('.semiont-history-event__detail-value')).toHaveTextContent('Adam Pingel');
   });
 
   it('renders "View Original" link for cloned resources', () => {
     mockGetResourceCreationDetails.mockReturnValue({
       type: 'cloned',
-      userId: 'bob',
       sourceDocId: 'doc-source-123',
     });
     const event = makeStoredEvent();

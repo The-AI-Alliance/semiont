@@ -41,7 +41,7 @@ explicit `subscribeToResource` call.
 // The live queries packages/react-ui/src/features/resource-viewer/state/resource-viewer-page-state-unit.ts
 // tracks, each through trackList, which exposes it as a ListState (value$, loading$, error$):
 const annotations = client.browse.annotations(resourceId);     // CacheObservable<Annotation[]>
-const events = client.browse.events(resourceId);               // CacheObservable<StoredEventResponse[]>
+const events = client.browse.events(resourceId);               // CacheObservable<AttributedEvent[]>
 const referencedBy = client.browse.referencedBy(resourceId);   // CacheObservable<ReferencedByEntry[]>
 // Subscribing to any of these (from Layer 2 / Layer 3) keeps the resource
 // scope live; dropping the last subscriber releases it on teardown.

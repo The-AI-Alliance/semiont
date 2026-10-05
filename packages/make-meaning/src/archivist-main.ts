@@ -271,7 +271,7 @@ async function main() {
 
   // Vocabulary bootstrap emits frame:add-entity-type for missing defaults —
   // handled by our own Stower, in-process, no cross-service boot race.
-  await bootstrapEntityTypes(localBus, eventStore, logger.child({ component: 'entity-types-bootstrap' }));
+  await bootstrapEntityTypes(localBus, eventStore, kbDomain, logger.child({ component: 'entity-types-bootstrap' }));
 
   // The entity-type warm: getEntityTypes() lazily runs
   // initializeTagCollections(), which merges DEFAULT_ENTITY_TYPES into the

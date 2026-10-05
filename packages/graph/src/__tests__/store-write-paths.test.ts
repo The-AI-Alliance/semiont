@@ -25,7 +25,7 @@ import { Neo4jGraphDatabase } from '../implementations/neo4j';
 import { NeptuneGraphDatabase } from '../implementations/neptune';
 import { JanusGraphDatabase } from '../implementations/janusgraph';
 
-const CREATOR = { '@type': 'Person' as const, id: 'did:semiont:user:u1', name: 'Ada' };
+const CREATOR = { '@type': 'Person' as const, id: 'did:web:example.org:users:u1', name: 'Ada' };
 
 /**
  * The AUTHORING moment, deliberately long past. A store that stamps its own

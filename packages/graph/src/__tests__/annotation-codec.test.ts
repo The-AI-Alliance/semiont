@@ -25,7 +25,7 @@ import { vertexToAnnotation as neptuneVertexToAnnotation } from '../implementati
 import { vertexToAnnotation as janusVertexToAnnotation } from '../implementations/janusgraph';
 import { MemoryGraphDatabase } from '../implementations/memorygraph';
 
-const CREATOR = { '@type': 'Person' as const, id: 'did:semiont:user:u1', name: 'Ada' };
+const CREATOR = { '@type': 'Person' as const, id: 'did:web:example.org:users:u1', name: 'Ada' };
 const CREATED = '2026-08-21T10:00:00.000Z';
 
 /**
@@ -330,7 +330,7 @@ describe('intendedGraphAnnotation — what the graph is supposed to hold', () =>
     // would flag the whole corpus, which is why this scopes itself instead.
     const intended = intendedGraphAnnotation({
       ...full,
-      wasAttributedTo: [{ '@type': 'Person', id: 'did:semiont:user:u1', name: 'Ada' }],
+      wasAttributedTo: [{ '@type': 'Person', id: 'did:web:example.org:users:u1', name: 'Ada' }],
     } as Annotation);
 
     expect('wasAttributedTo' in intended).toBe(false);

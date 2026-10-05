@@ -83,6 +83,7 @@ export type {
   EventSignature,
   StoredEvent,
   EnrichedEvent,
+  AttributedEvent,
   BodyOperation,
   BodyItem,
   EventQuery,

@@ -73,6 +73,8 @@ const { kb, stower, browser, gatherer, matcher, cloneTokenManager } = knowledgeS
 await makeMeaning.stop();
 ```
 
+The project root is a knowledge base: its committed `.semiont/config` declares a `[site] domain`, and `startMakeMeaning()` refuses one that declares none. The knowledge base acts under that identity, `did:web:<domain>` — it is who seeds the default entity types.
+
 This single call initializes:
 - **KnowledgeSystem** — groups the Knowledge Base and its actors
   - **KnowledgeBase** — groups EventStore, ViewStorage, WorkingTreeStore, the anchored-text store, GraphDatabase, VectorStore, and the WeaveProgress and SmeltProgress folds
@@ -217,7 +219,7 @@ This pattern (functional core, imperative shell) is shared with `@semiont/event-
 
 ### Service (Primary)
 
-- `startMakeMeaning(project, config, eventBus, logger)` — Initialize all infrastructure
+- `startMakeMeaning(project, config, eventBus, logger)` — Initialize all infrastructure; refuses a knowledge base that declares no `[site] domain`
 - `MakeMeaningService` — Type for service return value (`knowledgeSystem`, `stop`)
 
 ### Knowledge System

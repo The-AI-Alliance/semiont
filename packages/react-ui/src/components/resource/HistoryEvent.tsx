@@ -3,22 +3,22 @@
 import type { AnnotationId } from '@semiont/core';
 import React, { useRef, useCallback, useEffect } from 'react';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
-import type { StoredEventLike, PersistedEventType } from '@semiont/core';
+import type { AttributedEvent, StoredEventLike, PersistedEventType } from '@semiont/core';
 import { getAnnotationIdFromEvent } from '@semiont/core';
 import {
   formatEventType,
   getEventEmoji,
   formatRelativeTime,
-  formatUserId,
   getEventDisplayContent,
   getEventEntityTypes,
   getResourceCreationDetails,
 } from './event-formatting';
+import { renderAgentLabel } from './panels/agent-label';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
 interface Props {
-  event: StoredEventLike;
+  event: AttributedEvent;
   annotations: any[]; // Unified annotations array (all types)
   allEvents: StoredEventLike[];
   isRelated: boolean;
@@ -46,6 +46,7 @@ export function HistoryEvent({
   const annotationId = getAnnotationIdFromEvent(event);
   const creationDetails = getResourceCreationDetails(event);
   const entityTypes = getEventEntityTypes(event);
+  const actor = renderAgentLabel(event.agent);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Store callback in ref to avoid including in dependency arrays
@@ -132,9 +133,9 @@ export function HistoryEvent({
             {formatEventType(event.type as PersistedEventType, t, event.payload)}
           </span>
         )}
-        {event.userId && (
+        {actor && (
           <span className="semiont-history-event__user">
-            {formatUserId(event.userId)}
+            {actor}
           </span>
         )}
         <span className="semiont-history-event__timestamp">
@@ -157,7 +158,7 @@ export function HistoryEvent({
       {creationDetails && (
         <div className="semiont-history-event__details">
           <span className="semiont-history-event__detail">
-            {t('user')}: <span className="semiont-history-event__detail-value">{creationDetails.userId ? formatUserId(creationDetails.userId) : ''}</span>
+            {t('user')}: <span className="semiont-history-event__detail-value">{actor}</span>
           </span>
           {creationDetails.type === 'cloned' && creationDetails.sourceDocId && (
             <Link

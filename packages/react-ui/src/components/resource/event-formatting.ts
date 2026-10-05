@@ -13,36 +13,6 @@ import type { Annotation } from '@semiont/core';
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 
 // =============================================================================
-// USER ID DISPLAY
-// =============================================================================
-
-/**
- * Format a DID or user ID for display.
- *
- * did:web:example.com:users:admin%40example.com → admin@example.com
- * did:web:system:smelter → Smelter
- * plain-string → plain-string
- */
-export function formatUserId(userId: string): string {
-  if (!userId.startsWith('did:')) return userId;
-
-  // System actors: did:web:system:smelter → Smelter
-  const systemMatch = userId.match(/^did:web:system:(.+)$/);
-  if (systemMatch) {
-    const name = systemMatch[1];
-    return name.charAt(0).toUpperCase() + name.slice(1);
-  }
-
-  // User DIDs: did:web:example.com:users:admin%40example.com → admin@example.com
-  const userMatch = userId.match(/^did:web:[^:]+:users:(.+)$/);
-  if (userMatch) {
-    return decodeURIComponent(userMatch[1]);
-  }
-
-  return userId;
-}
-
-// =============================================================================
 // EVENT FORMATTING AND DISPLAY
 // =============================================================================
 
@@ -309,10 +279,7 @@ export function getEventEntityTypes(event: StoredEventLike): string[] {
  */
 export interface ResourceCreationDetails {
   type: 'created' | 'cloned';
-  userId?: string;
   sourceDocId?: string; // For cloned resources
-  parentResourceId?: string;
-  metadata?: Record<string, any>;
 }
 
 /**
@@ -323,21 +290,11 @@ export function getResourceCreationDetails(event: StoredEventLike): ResourceCrea
   const payload = eventData.payload as any;
 
   if (eventData.type === 'yield:created') {
-    return {
-      type: 'created',
-      userId: eventData.userId,
-      metadata: undefined,
-    };
+    return { type: 'created' };
   }
 
   if (eventData.type === 'yield:cloned') {
-    return {
-      type: 'cloned',
-      userId: eventData.userId,
-      sourceDocId: payload.parentResourceId,
-      parentResourceId: payload.parentResourceId,
-      metadata: undefined,
-    };
+    return { type: 'cloned', sourceDocId: payload.parentResourceId };
   }
 
   return null;

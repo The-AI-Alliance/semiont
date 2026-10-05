@@ -93,7 +93,7 @@ to `undefined`.
 - `client.browse.entityTypes()` — known entity types
 - `client.browse.tagSchemas()` — tag schemas
 - `client.browse.referencedBy(rId)` — resources referencing this one
-- `client.browse.events(rId)` — a resource's event log
+- `client.browse.events(rId)` — a resource's event log, each event with the `agent` who did it
 
 Subscribing to a per-resource read such as `client.browse.annotations(rId)`
 (or `client.browse.resource(rId)`) is also what **acquires the resource's SSE

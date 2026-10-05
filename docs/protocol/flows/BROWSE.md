@@ -13,12 +13,12 @@ A live query is asked for once and then kept current: when something it shows ch
 | `browse.annotations` | live query | `browse:annotations-requested` | Every annotation on a resource |
 | `browse.annotation` | live query | `browse:annotation-requested` | One annotation |
 | `browse.referencedBy` | live query | `browse:referenced-by-requested` | The annotations elsewhere that refer to a resource |
-| `browse.events` | live query | `browse:events-requested` | A resource's event history |
+| `browse.events` | live query | `browse:events-requested` | A resource's event history, each event with who did it |
 | `browse.entityTypes` | live query | `browse:entity-types-requested` | The entity-type vocabulary |
 | `browse.tagSchemas` | live query | `browse:tag-schemas-requested` | The registered tag schemas |
 | `browse.agents` | live query | `browse:agents-requested` | The people and software agents the knowledge base knows |
-| `browse.resourceEvents` | one-shot | `browse:events-requested` | A resource's event history |
-| `browse.annotationHistory` | one-shot | `browse:annotation-history-requested` | One annotation's event history |
+| `browse.resourceEvents` | one-shot | `browse:events-requested` | A resource's event history, each event with who did it |
+| `browse.annotationHistory` | one-shot | `browse:annotation-history-requested` | The event history of one annotation the resource holds: its creation and the changes to its body, each with who did it |
 | `browse.resourceAnchoredText` | one-shot | `browse:anchored-text-requested` | A resource's text with the positions that index it, for a type whose text is derived, such as a scanned PDF |
 | `browse.files` | one-shot | `browse:directory-requested` | A listing of a directory in the working tree |
 | `browse.kb` | one-shot | `browse:kb-requested` | What the knowledge base says of itself: its name and its domain |
@@ -42,6 +42,8 @@ Driving another participant's viewer is [Beckon](BECKON.md): `beckon.openResourc
 ## Rules
 
 **A read is answered from what exists.** No `browse:` request appends to the log.
+
+**A history says who did each thing.** An event names its actor by DID and nothing else. A history reply carries each event as the log holds it and, beside it, the `agent` that DID identifies: a person, or a software peer with its provider and model. A person's `name` is filled in from the knowledge base's record of what its people are called, and a person it has no name for carries none. The agent is made when the reply is made. It is in no log, and no name is written into an event's payload.
 
 **A search says what kind of answer it gives.** `browse.resources` matches the query's text first. When nothing matches by text, it answers with resources that discuss the query, found through the vector index, and the reply's `matchKind` says which it is: `lexical` or `semantic`.
 

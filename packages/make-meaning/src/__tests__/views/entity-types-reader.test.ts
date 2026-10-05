@@ -21,7 +21,7 @@ import { Stower } from '../../stower';
 import { getGraphDatabase } from '@semiont/graph';
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { createTestProject } from '../helpers/test-project';
+import { createTestProject, TEST_KB_DOMAIN } from '../helpers/test-project';
 import { createVectorStore } from '@semiont/vectors';
 
 const mockLogger: Logger = {
@@ -73,7 +73,7 @@ describe('Entity Types Projection Reader', () => {
       const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger, { vectorStore: await createVectorStore({ type: 'memory', dimensions: async () => 4 }) });
       const stower = new Stower(kb, eventBus, project, mockLogger);
       await stower.initialize();
-      await bootstrapEntityTypes(eventBus, eventStore);
+      await bootstrapEntityTypes(eventBus, eventStore, TEST_KB_DOMAIN);
       await stower.stop();
       eventBus.destroy();
 
@@ -174,7 +174,7 @@ describe('Entity Types Projection Reader', () => {
       const beforeBootstrap = await readEntityTypesProjection(project);
       expect(beforeBootstrap).toEqual([]);
 
-      await bootstrapEntityTypes(eventBus, eventStore);
+      await bootstrapEntityTypes(eventBus, eventStore, TEST_KB_DOMAIN);
       await stower.stop();
       eventBus.destroy();
 

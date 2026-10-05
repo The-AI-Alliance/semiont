@@ -11,8 +11,8 @@ import { isObject, isString } from './type-guards';
 
 /**
  * Minimal event shape accepted by event utility functions.
- * Compatible with both the internal `StoredEvent` type and the OpenAPI-derived
- * schema type (`GetEventsResponse['events'][number]`), which lacks `version`.
+ * Compatible with the internal `StoredEvent` type and with the spec's
+ * `StoredEventResponse` and `AttributedEvent`.
  *
  * Flat shape — event fields and metadata are peers (no `event` wrapper).
  */

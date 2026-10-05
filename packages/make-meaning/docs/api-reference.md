@@ -48,8 +48,8 @@ Responds to:
 - `browse:resources-requested` → emits `browse:resources-result` or `browse:resources-failed`
 - `browse:annotations-requested` → emits `browse:annotations-result` or `browse:annotations-failed`
 - `browse:annotation-requested` → emits `browse:annotation-result` or `browse:annotation-failed`
-- `browse:events-requested` → emits `browse:events-result` or `browse:events-failed`
-- `browse:annotation-history-requested` → emits `browse:annotation-history-result` or `browse:annotation-history-failed`
+- `browse:events-requested` → emits `browse:events-result` or `browse:events-failed` (a resource's events as the log holds them, each with the `agent` its `userId` identifies; a Person is named from the people projection, and no name is written into a payload)
+- `browse:annotation-history-requested` → emits `browse:annotation-history-result` or `browse:annotation-history-failed` (the events of one annotation the view holds — its creation and the changes to its body — attributed the same way)
 - `browse:referenced-by-requested` → emits `browse:referenced-by-result` or `browse:referenced-by-failed`
 - `browse:entity-types-requested` → emits `browse:entity-types-result` or `browse:entity-types-failed`
 - `browse:tag-schemas-requested` → emits `browse:tag-schemas-result` or `browse:tag-schemas-failed`

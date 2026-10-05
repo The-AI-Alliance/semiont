@@ -135,8 +135,10 @@ const [uiState, setUiState] = useState<AnnotationUIState>({
 
 ### AnnotationHistory
 
-The resource's annotation-event history. Takes the events to show and the host's
-framework-agnostic navigation primitives (`Link` + `routes`).
+The resource's annotation-event history. Takes the events to show, as
+`client.browse.events(rId)` gives them, and the host's framework-agnostic
+navigation primitives (`Link` + `routes`). Each row names its event's `agent`: a
+person by name, a software peer by provider and model.
 
 ```tsx
 import { AnnotationHistory } from '@semiont/react-ui';

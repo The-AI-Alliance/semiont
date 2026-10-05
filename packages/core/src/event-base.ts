@@ -98,6 +98,13 @@ type EnrichmentFields =
   & Omit<components['schemas']['EnrichedResourceEvent'], keyof components['schemas']['StoredEventResponse']>
   & { annotation?: Annotation };
 
+/**
+ * A persisted event as a history reply carries it: the stored event, and the
+ * agent its `userId` identifies. The agent is derived when the reply is made
+ * and is in no log.
+ */
+export type AttributedEvent = components['schemas']['AttributedEvent'];
+
 // ── Body operation types (OpenAPI-derived) ───────────────────────────────────
 
 export type BodyItem = components['schemas']['TextualBody'] | components['schemas']['SpecificResource'];

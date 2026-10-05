@@ -10,6 +10,7 @@ import type {
   ResourceId,
   AnchorRect,
   AnnotationId,
+  AttributedEvent,
   TagSchema,
   Collaborator,
   CollaboratorEntry,
@@ -36,7 +37,6 @@ import type {
   AnnotationHistoryResponse,
   ResourceList,
 } from './types';
-type StoredEventResponse = components['schemas']['StoredEventResponse'];
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type AnnotationsListResponse = components['schemas']['GetAnnotationsResponse'];
 
@@ -169,7 +169,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   /** The directory, joined with the limits reports as each arrives. */
   private readonly collaborators$: Observable<CacheState<Collaborator[]>>;
   private readonly referencedByCache: Cache<ResourceId, ReferencedByEntry[]>;
-  private readonly resourceEventsCache: Cache<ResourceId, StoredEventResponse[]>;
+  private readonly resourceEventsCache: Cache<ResourceId, AttributedEvent[]>;
 
   /** Filter-blob memory so `invalidateResourceLists` can replay per-key. */
   private readonly resourceListFilters = new Map<string, ResourceListFilters>();
@@ -394,7 +394,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       return result.referencedBy;
     });
 
-    this.resourceEventsCache = createCache<ResourceId, StoredEventResponse[]>(async (resourceId) => {
+    this.resourceEventsCache = createCache<ResourceId, AttributedEvent[]>(async (resourceId) => {
       const result = await busRequest(
         this.transport,
         'browse:events-requested',
@@ -507,7 +507,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     return CacheObservable.from(this.withScope(resourceId, this.referencedByCache.observe(resourceId)), () => this.referencedByCache.fetch(resourceId));
   }
 
-  events(resourceId: ResourceId): CacheObservable<StoredEventResponse[]> {
+  events(resourceId: ResourceId): CacheObservable<AttributedEvent[]> {
     return CacheObservable.from(this.withScope(resourceId, this.resourceEventsCache.observe(resourceId)), () => this.resourceEventsCache.fetch(resourceId));
   }
 
@@ -567,7 +567,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     return this.content.getBinaryStream(resourceId);
   }
 
-  async resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]> {
+  async resourceEvents(resourceId: ResourceId): Promise<AttributedEvent[]> {
     const result = await busRequest(
       this.transport,
       'browse:events-requested',

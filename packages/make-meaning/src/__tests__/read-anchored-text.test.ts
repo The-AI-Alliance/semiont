@@ -20,6 +20,7 @@ import { createSmeltProgress } from '../smelt-progress';
 import { ResourceOperations } from '@semiont/core';
 import { startMakeMeaning, type MakeMeaningConfig, type MakeMeaningService } from '../service';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
+import { declareTestKb } from './helpers/test-project';
 
 stubEmbeddingProbeFetch();
 
@@ -65,6 +66,7 @@ describe('readAnchoredText + the anchored-text store', () => {
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-anchored-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
+    await declareTestKb(testDir);
     eventBus = new EventBus();
     service = await startMakeMeaning(new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` }), config, eventBus, silentLogger);
     kb = service.knowledgeSystem.kb;

@@ -2074,6 +2074,36 @@ type ArchivistHealth struct {
 // ArchivistHealthStatus defines model for ArchivistHealth.Status.
 type ArchivistHealthStatus string
 
+// AttributedEvent defines model for AttributedEvent.
+type AttributedEvent struct {
+	// Agent Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
+	Agent Agent `json:"agent"`
+
+	// Id Unique event ID (UUID)
+	Id string `json:"id"`
+
+	// Metadata Metadata added at persistence time. Part of every StoredEvent. Integrity is provided by git at the commit level (when gitSync is enabled), not by in-event metadata fields.
+	Metadata EventMetadata `json:"metadata"`
+
+	// Payload Event-type-specific payload
+	Payload map[string]interface{} `json:"payload"`
+
+	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	ResourceId *ResourceId `json:"resourceId,omitempty"`
+
+	// Timestamp When the event occurred
+	Timestamp time.Time `json:"timestamp"`
+
+	// Type Event type (flow verb name, e.g. mark:added)
+	Type string `json:"type"`
+
+	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	UserId UserId `json:"userId"`
+
+	// Version Event schema version
+	Version int `json:"version"`
+}
+
 // BeckonFocusEvent Emitted when an annotation receives focus for beckoning. resourceId is a guard, not navigation: it names the resource this focus applies to, and a viewer currently showing a different resource ignores the event — a deliberate ignore rather than a silent no-op. Focus never moves the viewer; driving the Browser to a resource is browse:resource-open's job.
 type BeckonFocusEvent struct {
 	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
@@ -3275,8 +3305,8 @@ type GenerationJobParams struct {
 // GetAnnotationHistoryResponse defines model for GetAnnotationHistoryResponse.
 type GetAnnotationHistoryResponse struct {
 	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
-	AnnotationId AnnotationId          `json:"annotationId"`
-	Events       []StoredEventResponse `json:"events"`
+	AnnotationId AnnotationId      `json:"annotationId"`
+	Events       []AttributedEvent `json:"events"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
@@ -3308,7 +3338,7 @@ type GetEntityTypesResponse struct {
 
 // GetEventsResponse defines model for GetEventsResponse.
 type GetEventsResponse struct {
-	Events []StoredEventResponse `json:"events"`
+	Events []AttributedEvent `json:"events"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`

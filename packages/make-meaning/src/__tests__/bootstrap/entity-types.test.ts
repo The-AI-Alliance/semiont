@@ -5,7 +5,7 @@
  * - Initial bootstrap (emits frame:add-entity-type for all defaults)
  * - Idempotency (reads __system__ event log, skips existing types)
  * - Partial bootstrap (adds only missing types)
- * - System user ID usage
+ * - The knowledge base as the actor
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -13,11 +13,11 @@ import { bootstrapEntityTypes } from '../../bootstrap/entity-types';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
 import { type SemiontProject } from '@semiont/core/node';
-import { userId, resourceId, EventBus, type Logger, type GraphServiceConfig } from '@semiont/core';
+import { userId, kbDid, resourceId, EventBus, type Logger, type GraphServiceConfig } from '@semiont/core';
 import { createKnowledgeBase, type KnowledgeBase } from '../../knowledge-base';
 import { Stower } from '../../stower';
 import { getGraphDatabase } from '@semiont/graph';
-import { createTestProject } from '../helpers/test-project';
+import { createTestProject, TEST_KB_DOMAIN } from '../helpers/test-project';
 import { createVectorStore } from '@semiont/vectors';
 
 const mockLogger: Logger = {
@@ -55,7 +55,7 @@ describe('Entity Types Bootstrap', () => {
 
   describe('initial bootstrap', () => {
     it('should emit frame:entity-type-added for all DEFAULT_ENTITY_TYPES on fresh KB', async () => {
-      await bootstrapEntityTypes(eventBus, eventStore);
+      await bootstrapEntityTypes(eventBus, eventStore, TEST_KB_DOMAIN);
 
       const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
       const addedEvents = systemEvents.filter(e => e.type === 'frame:entity-type-added');
@@ -63,20 +63,20 @@ describe('Entity Types Bootstrap', () => {
       expect(addedEvents.length).toBe(DEFAULT_ENTITY_TYPES.length);
     });
 
-    it('should use system user ID for bootstrap events', async () => {
-      await bootstrapEntityTypes(eventBus, eventStore);
+    it("should emit every bootstrap event as the knowledge base's own DID", async () => {
+      await bootstrapEntityTypes(eventBus, eventStore, TEST_KB_DOMAIN);
 
       const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
       const addedEvents = systemEvents.filter(e => e.type === 'frame:entity-type-added');
 
-      const SYSTEM_USER_ID = userId('did:semiont:system');
+      expect(addedEvents.length).toBe(DEFAULT_ENTITY_TYPES.length);
       addedEvents.forEach(event => {
-        expect(event.userId).toBe(SYSTEM_USER_ID);
+        expect(event.userId).toBe(kbDid(TEST_KB_DOMAIN));
       });
     });
 
     it('should emit events in DEFAULT_ENTITY_TYPES order', async () => {
-      await bootstrapEntityTypes(eventBus, eventStore);
+      await bootstrapEntityTypes(eventBus, eventStore, TEST_KB_DOMAIN);
 
       const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
       const addedEvents = systemEvents.filter(e => e.type === 'frame:entity-type-added');
@@ -90,8 +90,8 @@ describe('Entity Types Bootstrap', () => {
 
   describe('idempotency', () => {
     it('should not emit duplicate events on second call', async () => {
-      await bootstrapEntityTypes(eventBus, eventStore);
-      await bootstrapEntityTypes(eventBus, eventStore);
+      await bootstrapEntityTypes(eventBus, eventStore, TEST_KB_DOMAIN);
+      await bootstrapEntityTypes(eventBus, eventStore, TEST_KB_DOMAIN);
 
       const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
       const addedEvents = systemEvents.filter(e => e.type === 'frame:entity-type-added');
@@ -101,9 +101,9 @@ describe('Entity Types Bootstrap', () => {
 
     it('should only emit missing types when some already exist', async () => {
       // Manually add a few entity types
-      const SYSTEM_USER_ID = userId('did:semiont:system');
+      const kbUserId = userId(kbDid(TEST_KB_DOMAIN));
       for (const tag of ['Person', 'Organization']) {
-        eventBus.emit('frame:add-entity-type', { tag, _userId: SYSTEM_USER_ID });
+        eventBus.emit('frame:add-entity-type', { tag, _userId: kbUserId });
         await new Promise(r => setTimeout(r, 50));
       }
 
@@ -111,7 +111,7 @@ describe('Entity Types Bootstrap', () => {
       const beforeCount = eventsBefore.filter(e => e.type === 'frame:entity-type-added').length;
       expect(beforeCount).toBe(2);
 
-      await bootstrapEntityTypes(eventBus, eventStore);
+      await bootstrapEntityTypes(eventBus, eventStore, TEST_KB_DOMAIN);
 
       const eventsAfter = await eventStore.log.getEvents(resourceId('__system__'));
       const afterCount = eventsAfter.filter(e => e.type === 'frame:entity-type-added').length;

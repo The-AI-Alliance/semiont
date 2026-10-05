@@ -39,6 +39,7 @@ import type { components, EventMap, paths } from '@semiont/core';
 import type {
   ResourceId,
   AnnotationId,
+  AttributedEvent,
   BodyOperation,
   JobId,
   Motivation,
@@ -54,7 +55,6 @@ import type {
 import type { Annotation } from '@semiont/core';
 import type { AnchoredTextAnswer } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
-type StoredEventResponse = components['schemas']['StoredEventResponse'];
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type MatchSearchResult = components['schemas']['MatchSearchResult'];
 type JobProgress = components['schemas']['JobProgress'];
@@ -278,7 +278,7 @@ export interface BrowseNamespace {
    */
   agents(): CacheObservable<Collaborator[]>;
   referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]>;
-  events(resourceId: ResourceId): CacheObservable<StoredEventResponse[]>;
+  events(resourceId: ResourceId): CacheObservable<AttributedEvent[]>;
 
   // One-shot reads (Promise — no caching, no live update)
   resourceContent(resourceId: ResourceId): Promise<string>;
@@ -288,7 +288,7 @@ export interface BrowseNamespace {
   resourceAnchoredText(resourceId: ResourceId): Promise<AnchoredTextAnswer>;
   resourceRepresentation(resourceId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }>;
   resourceRepresentationStream(resourceId: ResourceId): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;
-  resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]>;
+  resourceEvents(resourceId: ResourceId): Promise<AttributedEvent[]>;
   annotationHistory(resourceId: ResourceId, annotationId: AnnotationId): Promise<AnnotationHistoryResponse>;
   files(dirPath?: string, sort?: 'name' | 'mtime' | 'annotationCount'): Promise<components['schemas']['BrowseFilesResponse']>;
   /**

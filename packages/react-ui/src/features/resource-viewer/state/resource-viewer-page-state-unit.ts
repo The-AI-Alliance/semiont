@@ -1,6 +1,6 @@
 import type { AnnotationId } from '@semiont/core';
 import { BehaviorSubject, type Observable, map } from 'rxjs';
-import type { ResourceId, components } from '@semiont/core';
+import type { AttributedEvent, ResourceId } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
@@ -24,7 +24,6 @@ export interface AnnotationGroups {
   references: Annotation[];
   tags: Annotation[];
 }
-type StoredEventResponse = components['schemas']['StoredEventResponse'];
 
 export interface WizardState {
   open: boolean;
@@ -47,7 +46,7 @@ export interface ResourceViewerPageStateUnit extends StateUnit {
 
   annotations: ListState<Annotation[]>;
   entityTypes: ListState<string[]>;
-  events: ListState<StoredEventResponse[]>;
+  events: ListState<AttributedEvent[]>;
   referencedBy: ListState<ReferencedByEntry[]>;
   /** Derived from `annotations.value$`; failure/loading live on `annotations`. */
   annotationGroups$: Observable<AnnotationGroups>;
@@ -87,7 +86,7 @@ export function createResourceViewerPageStateUnit(
 
   const annotations = trackList<Annotation[]>(() => client.browse.annotations(resourceId), []);
   const entityTypes = trackList<string[]>(() => client.browse.entityTypes(), []);
-  const events = trackList<StoredEventResponse[]>(() => client.browse.events(resourceId), []);
+  const events = trackList<AttributedEvent[]>(() => client.browse.events(resourceId), []);
   const referencedBy = trackList<ReferencedByEntry[]>(() => client.browse.referencedBy(resourceId), []);
   disposer.add(annotations.dispose);
   disposer.add(entityTypes.dispose);
