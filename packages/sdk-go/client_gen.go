@@ -5378,7 +5378,6 @@ type StatusResponse struct {
 	AuthenticatedAs *string `json:"authenticatedAs,omitempty"`
 	Features        struct {
 		Collaboration   string `json:"collaboration"`
-		Rbac            string `json:"rbac"`
 		SemanticContent string `json:"semanticContent"`
 	} `json:"features"`
 	Message string `json:"message"`
