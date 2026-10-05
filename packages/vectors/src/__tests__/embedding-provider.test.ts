@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { MockEmbeddingProvider } from '../testing';
+import { MockEmbeddingProvider, deterministicVector } from '../testing';
 
 describe('MockEmbeddingProvider', () => {
   let provider: MockEmbeddingProvider;
@@ -35,6 +35,11 @@ describe('MockEmbeddingProvider', () => {
     const vecs = await provider.embedBatch(['a', 'b', 'c']);
     expect(vecs).toHaveLength(3);
     vecs.forEach(v => expect(v).toHaveLength(8));
+  });
+
+  it('returns the vector deterministicVector states, singly and in a batch', async () => {
+    expect(await provider.embed('hello')).toEqual(deterministicVector('hello', 8));
+    expect(await provider.embedBatch(['a', 'b'])).toEqual([deterministicVector('a', 8), deterministicVector('b', 8)]);
   });
 
   it('reports correct dimensions', async () => {

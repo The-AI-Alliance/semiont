@@ -72,6 +72,11 @@ echo "📚 Checking sdk doc snippets..."
 bash "$COMPLIANCE_DIR/audit-doc-snippets.sh"
 echo ""
 
+# The source and test audits below decide by exit status; hold them to it first
+echo "🧪 Checking the compliance audits can fail..."
+bash "$COMPLIANCE_DIR/audit-compliance-gate.sh"
+echo ""
+
 # React-UI source code
 echo "📦 Auditing packages/react-ui source..."
 cd "$REPO_ROOT/packages/react-ui"

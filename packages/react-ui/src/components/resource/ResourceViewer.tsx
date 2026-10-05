@@ -151,6 +151,22 @@ export function ResourceViewer({
   // Same primary-representation semantics as the page and the worker — one helper.
   const mimeType = getPrimaryMediaType(resource) || 'text/plain';
 
+  // The host's callbacks are read through refs, so a host that passes a new
+  // function on every render does not re-create the handlers below, which the
+  // views and the toolbar receive as props.
+  const onOpenResourceRef = useRef(onOpenResource);
+  onOpenResourceRef.current = onOpenResource;
+  const onOpenPanelRef = useRef(onOpenPanel);
+  onOpenPanelRef.current = onOpenPanel;
+  const onAnnotateModeChangeRef = useRef(onAnnotateModeChange);
+  onAnnotateModeChangeRef.current = onAnnotateModeChange;
+  const onSelectionMotivationChangeRef = useRef(onSelectionMotivationChange);
+  onSelectionMotivationChangeRef.current = onSelectionMotivationChange;
+  const onClickActionChangeRef = useRef(onClickActionChange);
+  onClickActionChangeRef.current = onClickActionChange;
+  const onShapeChangeRef = useRef(onShapeChange);
+  onShapeChangeRef.current = onShapeChange;
+
   // Toolbar preferences: controlled (prop supplied) or a plain uncontrolled
   // default. Preferences are state, not events — no localStorage and no
   // preference bus channels here; hosts wanting the shared+persisted Browser UX
@@ -159,8 +175,8 @@ export function ResourceViewer({
   const annotateMode = annotateModeProp ?? internalAnnotateMode;
   const changeAnnotateMode = useCallback((mode: boolean) => {
     if (annotateModeProp === undefined) setInternalAnnotateMode(mode);
-    onAnnotateModeChange?.(mode);
-  }, [annotateModeProp, onAnnotateModeChange]);
+    onAnnotateModeChangeRef.current?.(mode);
+  }, [annotateModeProp]);
 
   // Determine active view based on annotate mode
   const activeView = annotateMode ? 'annotate' : 'browse';
@@ -178,22 +194,22 @@ export function ResourceViewer({
   const selectedMotivation = selectionMotivationProp !== undefined ? selectionMotivationProp : internalSelectionMotivation;
   const changeSelectionMotivation = useCallback((motivation: SelectionMotivation | null) => {
     if (selectionMotivationProp === undefined) setInternalSelectionMotivation(motivation);
-    onSelectionMotivationChange?.(motivation);
-  }, [selectionMotivationProp, onSelectionMotivationChange]);
+    onSelectionMotivationChangeRef.current?.(motivation);
+  }, [selectionMotivationProp]);
 
   const [internalClickAction, setInternalClickAction] = useState<ClickAction>('detail');
   const selectedClick = clickActionProp ?? internalClickAction;
   const changeClickAction = useCallback((action: ClickAction) => {
     if (clickActionProp === undefined) setInternalClickAction(action);
-    onClickActionChange?.(action);
-  }, [clickActionProp, onClickActionChange]);
+    onClickActionChangeRef.current?.(action);
+  }, [clickActionProp]);
 
   const [internalShape, setInternalShape] = useState<ShapeType>('rectangle');
   const selectedShape = shapeProp ?? internalShape;
   const changeShape = useCallback((shape: ShapeType) => {
     if (shapeProp === undefined) setInternalShape(shape);
-    onShapeChange?.(shape);
-  }, [shapeProp, onShapeChange]);
+    onShapeChangeRef.current?.(shape);
+  }, [shapeProp]);
 
   // JSON-LD view state
   const [showJsonLdView, setShowJsonLdView] = useState(false);
@@ -254,7 +270,7 @@ export function ResourceViewer({
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
         // bodySource is already a bare resource ID — the host owns navigation
-        onOpenResource?.(bodySource);
+        onOpenResourceRef.current?.(bodySource);
       }
       return;
     }
@@ -279,7 +295,7 @@ export function ResourceViewer({
       setDeleteConfirmation({ annotation, position });
       return;
     }
-  }, [annotateMode, selectedClick, onOpenResource]);
+  }, [annotateMode, selectedClick]);
 
   // Annotation click coordinator - handles panel opening and scrolling
   const handleAnnotationClickEvent = useCallback(({ annotationId, anchorRect }: {
@@ -309,8 +325,8 @@ export function ResourceViewer({
     // All annotations open the unified annotations panel — the host owns the panel.
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel.
     // View geometry passes through untouched: the emitter owned it, the host anchors with it.
-    onOpenPanel?.({ panel: 'annotations', scrollToAnnotationId: makeAnnotationId(annotationId), motivation: annotation.motivation, ...(anchorRect ? { anchorRect } : {}) });
-  }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick, onOpenPanel]);
+    onOpenPanelRef.current?.({ panel: 'annotations', scrollToAnnotationId: makeAnnotationId(annotationId), motivation: annotation.motivation, ...(anchorRect ? { anchorRect } : {}) });
+  }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick]);
 
   // Single subscription call per file (see scripts/compliance/audit-hooks-ordering.ts).
   useSessionEventSubscriptions(session, {

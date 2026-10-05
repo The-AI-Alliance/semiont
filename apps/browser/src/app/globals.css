@@ -7,7 +7,7 @@
 /* Load Tailwind plugins */
 @plugin "@tailwindcss/typography";
 
-/* Scan frontend source for Tailwind classes */
+/* Scan the Browser's source for Tailwind classes */
 @source "../../src";
 
 /* Scan @semiont/react-ui for Tailwind classes */

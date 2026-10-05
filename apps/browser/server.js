@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Minimal static file server for the Semiont frontend SPA.
+ * Minimal static file server for the Semiont Browser SPA.
  * Serves the Vite-built dist/ directory with SPA fallback (all routes → index.html),
  * plus the launcher's KB discovery document under /discovery/* — served or 404,
  * NEVER the SPA fallback (a 200 index.html would be indistinguishable from data).
@@ -117,7 +117,7 @@ function createHandler({ distDir, discoveryDir }) {
     const indexPath = path.join(distDir, 'index.html');
     if (!fs.existsSync(indexPath)) {
       res.writeHead(500, { 'Content-Type': 'text/plain' });
-      res.end('Frontend not built: index.html not found');
+      res.end('Browser not built: index.html not found');
       return;
     }
     serveFile(res, indexPath, '.html');
@@ -139,11 +139,11 @@ if (require.main === module) {
   }));
 
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Semiont frontend listening on port ${PORT}`);
+    console.log(`Semiont Browser listening on port ${PORT}`);
   });
 
   server.on('error', (err) => {
-    console.error('Frontend server error:', err);
+    console.error('Browser server error:', err);
     process.exit(1);
   });
 }

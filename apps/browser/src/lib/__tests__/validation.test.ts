@@ -6,8 +6,7 @@ import {
   sanitizeImageURL,
 } from '@semiont/react-ui';
 
-// Use environment variables for URLs
-const getFrontendUrl = () => 'http://localhost:3000';
+const APP_ORIGIN = 'http://localhost:3000';
 
 describe('Validation Library (Native JS)', () => {
   let consoleSpy: ReturnType<typeof vi.spyOn>;
@@ -55,7 +54,7 @@ describe('Validation Library (Native JS)', () => {
     });
 
     it('should allow localhost HTTP for development', () => {
-      const localhostUrl = `${getFrontendUrl()}/image.jpg`;
+      const localhostUrl = `${APP_ORIGIN}/image.jpg`;
       expect(() => ImageURLSchema.parse(localhostUrl)).not.toThrow();
     });
 

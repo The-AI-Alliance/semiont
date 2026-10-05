@@ -1,11 +1,12 @@
 # semiont launcher
 
-A host-installed CLI that runs a local Semiont stack — Neo4j, Qdrant, Ollama,
-PostgreSQL, the Semiont gateway, worker, smelter, weaver, archivist,
-librarian, dispatcher, the Browser, and (when a broker-backed driver is selected) a NATS
-`messaging` daemon —
-by driving your container runtime (Apple `container`, Docker, or Podman)
-directly.
+A host-installed CLI that runs a local Semiont stack by driving your container
+runtime (Apple `container`, Docker, or Podman) directly: Semiont's seven
+services (gateway, dispatcher, archivist, librarian, worker, smelter, weaver)
+and the Browser, and beside them Keycloak, PostgreSQL, NATS, Neo4j, Qdrant,
+the telemetry containers and, when a model runs locally, Ollama. The operator's
+[service catalog](../../docs/operator/services/OVERVIEW.md) says what each is
+for.
 
 ## What this is for
 
@@ -369,7 +370,9 @@ semiont stop
   or `issuer` line, so the file is the same on every machine. Each service's
   staged copy states every address this start placed, as a literal, in the
   sections that service reads; the gateway's and dispatcher's documents carry
-  theirs. No container is told where anything is through its environment. A
+  theirs. Two addresses reach a container through its environment instead: the
+gateway's (`GATEWAY_HOST`), which a config's `publicURL` interpolates, and the
+telemetry collector's (`OTEL_EXPORTER_OTLP_ENDPOINT`). A
   config may also write a launcher-run daemon's address as the launcher's own
   reference (`${NEO4J_HOST}`, `${QDRANT_HOST}`, `${POSTGRES_HOST}`,
   `${NATS_HOST}`, `${OLLAMA_HOST}`, `${KEYCLOAK_HOST}`, `${KEYCLOAK_PORT}`),
@@ -739,8 +742,9 @@ stack, and one server carries both sections that use it:
   not a record — but the gateway's correlation ledger keeps its claims in a
   JetStream KV bucket there, so this driver needs JetStream too.
 
-Both sections must name the same `servers`; a start that finds them pointing at
-different addresses refuses, naming both, rather than run two brokers. The
+When the sections state a broker of your own, both must name the same
+`servers`; a start that finds them pointing at different addresses refuses,
+naming both: one role is one daemon. The
 daemon runs one way — `-js -sd /data` with the state mount — because both
 drivers use the store. `semiont status` lists it as
 `messaging (NATS)`.
@@ -840,8 +844,9 @@ stop the stack first, or run the tests in a container.
 
 ## Releasing
 
-`launcher-release.yml` runs goreleaser on every `vX.Y.Z` tag: GitHub Release
-archives with SBOMs and provenance attestation, plus the Homebrew formula
+`launcher-release.yml` runs goreleaser at a release's `vX.Y.Z` tag, dispatched by
+`release.yml` once the tag exists ([Release Process](../../docs/contributor/RELEASE.md)):
+GitHub Release archives with SBOMs and provenance attestation, plus the Homebrew formula
 pushed to `The-AI-Alliance/homebrew-semiont` (needs the `TAP_GITHUB_TOKEN`
 secret). No code signing anywhere — brew-installed binaries carry no
 quarantine attribute, and channels that would require a signing entity

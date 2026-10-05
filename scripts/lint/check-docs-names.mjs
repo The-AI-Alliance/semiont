@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Every name the builder's, the Browser's, react-ui's and the protocol's documents use exists in the tree.
+ * Every name the builder's, the apps', react-ui's and the protocol's documents use exists in the tree.
  *
  * Documents restate the code by hand, and this gate is what keeps the two in
  * step. Without it a document can import an export or call a client method
@@ -10,7 +10,7 @@
  *
  * Checked in `docs/builder` (the guides, the skills and `react-ui`), `packages/sdk/README.md`,
  * the root `README.md`, `packages/react-ui/docs`, `packages/react-ui/README.md`,
- * `apps/browser/docs`, `apps/browser/README.md`, `docs/protocol` and `docs/protocol/flows`:
+ * `apps/README.md`, every app's `README.md` and `docs`, `docs/protocol` and `docs/protocol/flows`:
  *
  *   - imports from `@semiont/*`: each name is exported by that package (a
  *     wildcard re-export of another package counts, read from its types);
@@ -163,11 +163,19 @@ const BROWSER_METHODS = members('packages/sdk/src/session/semiont-browser.ts');
 
 const SCRIPTS = new Set();
 for (const pj of [join(ROOT, 'package.json'),
-  ...['packages', 'apps'].flatMap((d) => readdirSync(join(ROOT, d)).map((n) => join(ROOT, d, n, 'package.json')))]) {
+  ...['packages', 'apps', 'tests'].flatMap((d) => readdirSync(join(ROOT, d)).map((n) => join(ROOT, d, n, 'package.json')))]) {
   if (existsSync(pj)) for (const s of Object.keys(JSON.parse(read(pj)).scripts ?? {})) SCRIPTS.add(s);
 }
 
 // ── What each document says ───────────────────────────────────────────────────
+
+/** An app's README and the documents in its `docs` directory. */
+const appDocs = (app) => [
+  `apps/${app}/README.md`,
+  ...(existsSync(join(ROOT, 'apps', app, 'docs'))
+    ? readdirSync(join(ROOT, 'apps', app, 'docs')).filter((f) => f.endsWith('.md')).map((f) => `apps/${app}/docs/${f}`)
+    : []),
+];
 
 const DOCS = [
   ...readdirSync(join(ROOT, 'docs/builder')).filter((f) => f.endsWith('.md')).map((f) => `docs/builder/${f}`),
@@ -179,8 +187,10 @@ const DOCS = [
   ...readdirSync(join(ROOT, 'docs/builder/react-ui')).filter((f) => f.endsWith('.md')).map((f) => `docs/builder/react-ui/${f}`),
   ...readdirSync(join(ROOT, 'packages/react-ui/docs')).filter((f) => f.endsWith('.md')).map((f) => `packages/react-ui/docs/${f}`),
   'packages/react-ui/README.md',
-  ...readdirSync(join(ROOT, 'apps/browser/docs')).filter((f) => f.endsWith('.md')).map((f) => `apps/browser/docs/${f}`),
-  'apps/browser/README.md',
+  'apps/README.md',
+  ...readdirSync(join(ROOT, 'apps'), { withFileTypes: true })
+    .filter((e) => e.isDirectory() && existsSync(join(ROOT, 'apps', e.name, 'README.md')))
+    .flatMap((e) => appDocs(e.name)),
   ...readdirSync(join(ROOT, 'docs/protocol')).filter((f) => f.endsWith('.md')).map((f) => `docs/protocol/${f}`),
   ...readdirSync(join(ROOT, 'docs/protocol/flows')).filter((f) => f.endsWith('.md')).map((f) => `docs/protocol/flows/${f}`),
 ];
@@ -264,8 +274,12 @@ for (const doc of DOCS) {
     }
     for (const m of t.matchAll(/npm run ([\w:.-]+)/g)) if (!SCRIPTS.has(m[1])) report(doc, line, 'script', m[1]);
     for (const m of t.matchAll(/(?:^|[\s`(['"])((?:packages|apps|scripts|specs|tests|docs|\.github)\/[\w.\-/[\]@]+\.[a-z]{2,5})(?=[\s`)'",:;]|$)/g)) {
-      const pkgRoot = doc.startsWith('apps/browser') ? 'apps/browser' : 'packages/react-ui';
-      if (![join(ROOT, m[1]), join(ROOT, pkgRoot, m[1])].some(existsSync)) report(doc, line, 'path', m[1]);
+      // A path is the repository's, or its document's own package's: a
+      // README's `docs/TESTING.md` is the one beside it. The react-ui builder
+      // docs live under docs/builder and still name react-ui's files.
+      const pkgRoot = doc.startsWith('docs/builder/react-ui/') ? 'packages/react-ui' : doc.match(/^(?:apps|packages)\/[^/]+/)?.[0];
+      const bases = [ROOT, ...(pkgRoot ? [join(ROOT, pkgRoot)] : [])];
+      if (!bases.some((base) => existsSync(join(base, m[1])))) report(doc, line, 'path', m[1]);
     }
     if (doc.startsWith('apps/browser')) {
       for (const m of t.matchAll(/(?:^|[\s`(['"])(src\/[\w.\-/[\]@]+\.[a-z]{2,5})(?=[\s`)'",:;]|$)/g)) {

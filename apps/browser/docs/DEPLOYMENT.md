@@ -37,11 +37,14 @@ For iterating on the Browser itself, run it from source rather than the image �
 Any container platform can schedule the image: Kubernetes, OpenShift, a cloud's container service, or a
 machine with Docker. Nothing here does it for you. Browser-specific considerations:
 
-- **It needs to reach the gateway.** The browser app discovers KBs by host/port; the gateway must be
-  reachable from the *user's browser*, not merely from inside the cluster.
-- **Ingress and TLS** in front of port 3000 is platform work.
-- **No server-side session state** — the Browser is a static SPA served by a small Node server;
-  auth is bearer-token, held in the browser. It scales horizontally without sticky sessions.
+- **Each gateway needs its own address the person's web browser can reach**, and so does its
+  identity provider. Reachability from inside the cluster is not enough. Nothing routes by
+  path: give the Browser one origin and each knowledge base's gateway another.
+- **Ingress and TLS** in front of port 3000 is platform work. Serve gateways over HTTPS too:
+  a web browser refuses to call an `http` gateway from an `https` page.
+- **No server-side session state.** The Browser is a static app served by a small Node server,
+  and a person's tokens are held in their web browser. Run as many replicas as you like, with
+  no sticky sessions. Its task or pod needs no environment beyond `PORT`.
 
 The full list of what a platform provides: [Deploying Semiont](../../../docs/operator/administration/DEPLOYMENT.md#your-own-platform).
 
@@ -50,4 +53,5 @@ The full list of what a platform provides: [Deploying Semiont](../../../docs/ope
 - [DEVELOPMENT.md](./DEVELOPMENT.md) — local development
 - [administration/DEPLOYMENT.md](../../../docs/operator/administration/DEPLOYMENT.md) — stack deployment
 - [administration/IMAGES.md](../../../docs/operator/administration/IMAGES.md) — image build/publish
+- [CONTAINER.md](./CONTAINER.md) — the image: its configuration, contents and tags
 - [CONTAINER-TOPOLOGY.md](../../../docs/operator/CONTAINER-TOPOLOGY.md) — what runs where

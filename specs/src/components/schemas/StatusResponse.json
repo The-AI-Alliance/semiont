@@ -15,15 +15,11 @@
         },
         "collaboration": {
           "type": "string"
-        },
-        "rbac": {
-          "type": "string"
         }
       },
       "required": [
         "semanticContent",
-        "collaboration",
-        "rbac"
+        "collaboration"
       ]
     },
     "message": {

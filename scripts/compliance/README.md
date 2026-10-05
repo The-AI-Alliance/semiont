@@ -33,6 +33,7 @@ scripts/compliance/          # Shared core scripts (workspace-agnostic)
 ├── discover-symbols.ts      # TypeScript AST analysis
 ├── batch-audit.ts           # Multi-file compliance checker
 ├── audit-dependency-arrays.ts  # React hooks pattern validator
+├── audit-compliance-gate.sh # Checks the audits fail on a planted violation
 └── docs/
     └── TENETS-REACT-UI.md   # React UI architecture rules
 
@@ -149,6 +150,19 @@ mkdir -p "$REPO_ROOT/.compliance"
 npx tsx "$AUDIT" "$SRC_DIR" symbols.json > "$REPO_ROOT/.compliance/REACT-UI-COMPLIANCE.md"
 ```
 
+## Pass or fail
+
+The audit decides, by its exit status. `batch-audit.ts` and `batch-audit-tests.ts` exit 1 when
+any symbol or test file fails (❌), and name each one on stderr. Warnings and unknowns do not
+fail them. Each `generate-*-report.sh` wrapper exits with its audit's status, after writing the
+report and previewing it.
+
+Read that status. Do not grep the report to learn whether a tree passed: the report is for
+people, and its wording is free to change.
+
+[`audit-compliance-gate.sh`](audit-compliance-gate.sh) holds the audits to this. It plants a
+violation each must refuse and a clean tree each must pass, and CI runs it before the audits.
+
 ## Compliance Report Format
 
 Generated reports use this structure:
@@ -157,16 +171,17 @@ Generated reports use this structure:
 # React UI Compliance Report
 
 ## Summary
-- Total symbols analyzed: 311
-- Passing (✅): 306
-- Warnings (⚠️): 0
-- Failing (❌): 0
-- Compliance rate: 98%
+
+- **Total symbols analyzed**: 311
+- **Passing (✅)**: 306
+- **Warnings (⚠️)**: 0
+- **Failing (❌)**: 0
 
 ## Violation Breakdown
-- eventBus in deps violations: 0
-- Callback prop in deps violations: 0
-- Inline handler violations: 0
+
+- **eventBus in deps violations**: 0
+- **Callback prop in deps violations**: 0
+- **Inline handler violations**: 0
 
 ## Detailed Analysis
 | Path | Symbol | Type | Callbacks in deps? | Inline handlers? | Status |
@@ -241,26 +256,25 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
 
-      # Audit React-UI
+      # The audits can fail: each refuses a planted violation
+      - name: Compliance Audits Can Fail
+        run: ./scripts/compliance/audit-compliance-gate.sh
+
+      # Audit React-UI: the script exits non-zero on a failing symbol
       - name: React-UI Compliance
         run: |
           cd packages/react-ui
           ./scripts/generate-compliance-report.sh
-          if grep -q "Failing (❌): [1-9]" ../../.compliance/REACT-UI-COMPLIANCE.md; then
-            echo "::error::React-UI compliance violations detected"
-            exit 1
-          fi
 
       # Audit Browser
       - name: Browser Compliance
         run: |
           cd apps/browser
           ./scripts/generate-compliance-report.sh
-          if grep -q "Failing (❌): [1-9]" ../../.compliance/BROWSER-COMPLIANCE.md; then
-            echo "::error::Browser compliance violations detected"
-            exit 1
-          fi
 ```
+
+The repository's own workflow is
+[`architecture-compliance.yml`](../../.github/workflows/architecture-compliance.yml).
 
 ## Performance
 

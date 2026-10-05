@@ -1948,17 +1948,31 @@ func serveDetached(reportTo, container string, ports []string) {
 	}
 	routes, err := servedRoutes(container)
 	if err != nil {
-		fmt.Fprintf(ready, "error %v\n", err)
+		reportThenWait(ready, fmt.Sprintf("error %v", err))
 		os.Exit(64)
 	}
 	listeners, port, err := listenAll(ports)
 	if err != nil {
-		fmt.Fprintf(ready, "unbound %s %v\n", port, err)
+		reportThenWait(ready, fmt.Sprintf("unbound %s %v", port, err))
 		os.Exit(1)
 	}
 	fmt.Fprintln(ready, "bound")
 	ready.Close()
 	serveOn(container, routes, listeners)
+}
+
+// reportThenWait sends the parent a line and returns once the parent has
+// closed its end, for a child about to exit. A process that exits with its
+// line still unread resets the connection on Windows, and the parent then
+// reads nothing: so the write side is closed and the parent's close awaited.
+func reportThenWait(parent net.Conn, line string) {
+	fmt.Fprintln(parent, line)
+	if tcp, ok := parent.(*net.TCPConn); ok {
+		_ = tcp.CloseWrite()
+	}
+	_ = parent.SetReadDeadline(time.Now().Add(10 * time.Second))
+	_, _ = io.Copy(io.Discard, parent)
+	parent.Close()
 }
 
 // listenAll binds every port, or none: on failure it closes what it bound

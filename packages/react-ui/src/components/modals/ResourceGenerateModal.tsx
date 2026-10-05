@@ -129,6 +129,15 @@ export function ResourceGenerateModal({
   translations: t,
   generationAgent,
 }: ResourceGenerateModalProps) {
+  // The host's callbacks are read through refs, so a host that passes a new
+  // function on every render does not re-create the handlers below.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const onGatherRef = useRef(onGather);
+  onGatherRef.current = onGather;
+  const onGenerateSubmitRef = useRef(onGenerateSubmit);
+  onGenerateSubmitRef.current = onGenerateSubmit;
+
   // Same draft ownership as the wizard: the step is controlled and this modal
   // holds its draft, so what was typed outlives the step itself, which is
   // mounted only while there is gathered context.
@@ -182,16 +191,16 @@ export function ResourceGenerateModal({
     setGatherFired(true);
     setLastGather({ ...config, excludeEntityTypes });
     setEditingGather(false);
-    onGather({
+    onGatherRef.current({
       ...config,
       ...(excludeEntityTypes.length ? { excludeEntityTypes } : {}),
     });
-  }, [onGather, excludeEntityTypes]);
+  }, [excludeEntityTypes]);
 
   const handleGenerate = useCallback((config: GenerationConfig) => {
-    onGenerateSubmit(resourceId, config);
-    onClose();
-  }, [onGenerateSubmit, resourceId, onClose]);
+    onGenerateSubmitRef.current(resourceId, config);
+    onCloseRef.current();
+  }, [resourceId]);
 
   // The dirty guard: typed text must not die with a dismissed modal. Toggles,
   // depth, and exclusion picks are cheap to redo and never nag. Generate's
@@ -206,8 +215,8 @@ export function ResourceGenerateModal({
       setShowDiscardPrompt(true);
       return;
     }
-    onClose();
-  }, [draftDirty, onClose]);
+    onCloseRef.current();
+  }, [draftDirty]);
 
   // The whole stack is ONE scroll pane; when the params zone appears (context
   // arrival — including each re-gather), enter at the BOTTOM so the

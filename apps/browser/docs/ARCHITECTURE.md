@@ -1,6 +1,7 @@
 # Browser Architecture
 
-This document describes the high-level architecture of the Semiont Browser application.
+This document describes how the Semiont Browser application is built. Where it sits in
+Semiont as a whole is [Human UI](../../../docs/architecture/HUMAN-UI.md).
 
 ## Table of Contents
 
@@ -22,7 +23,7 @@ The Semiont Browser is a Vite + React Router SPA. The architecture emphasizes:
 - **Type Safety**: TypeScript throughout with strict mode enabled
 - **Server State Management**: RxJS observable caches on the SDK's verb-namespace client, invalidated automatically by gateway domain events
 - **Authentication**: bearer-only — the SDK session sends its access token as `Authorization: Bearer` and keeps the access and refresh pair in `localStorage`, per knowledge base; no cookie, no Browser-side auth server
-- **No Global Mutable State**: All state is managed through React hooks and contexts
+- **Session state outside React**: one `SemiontBrowser` singleton from the SDK holds the knowledge bases and the active session; components read it through observables
 - **Fail-Fast Philosophy**: No default values - explicit configuration required
 
 ## Technology Stack
@@ -111,45 +112,35 @@ This architecture enables:
 - **Framework Independence**: Components work with any React framework
 - **Consistent Design**: Shared components across all Semiont applications
 - **Type Safety**: Shared TypeScript types and interfaces
-- **Comprehensive Testing**: 1250+ tests in the component library
+- **Tested in the library**: the components' tests live with them in `@semiont/react-ui`
 - **Clear Boundaries**: Separation between framework code and UI components
 
 See [Component Library Integration Guide](./COMPONENT-LIBRARY.md) for detailed usage.
 
 ### API Communication
-- **Fetch API** - HTTP client (wrapped with authentication)
-- **Server-Sent Events (SSE)** - Real-time updates for long-running operations
+- **`@semiont/sdk`** over `@semiont/http-transport` - every call to a knowledge base. The app itself contains no `fetch` call
+- **Server-Sent Events (SSE)** - the bus stream: one `POST /bus/subscribe` connection for the active knowledge base
 
-### Request Routing
+### Two origins
 
-The SPA serves static files. All routing is client-side (React Router):
+The app is loaded from one origin and talks to others. Nothing proxies between them.
 
 ```
-Browser → http://localhost/
-  ↓
-Static file server (Envoy/nginx serves index.html for all non-asset paths)
-  ↓
-React Router handles /:locale/* routes client-side
-  ↓
-The SDK calls the gateway (/bus/*, /api/*)
+The person's web browser
+  ├── loads the SPA from the Browser's origin (http://localhost:3000)
+  │     server.js serves the built files, index.html for every route,
+  │     and /discovery/* (the knowledge bases the launcher is running)
+  │
+  └── calls each knowledge base's gateway at its own origin (http://localhost:4000)
+        /bus/emit, /bus/subscribe      the bus
+        /api/users/me, /api/tokens/media, /api/resources/{id}
+        with Authorization: Bearer <jwt> from that knowledge base's session
 ```
 
-**Path-Based Routing:**
-
-- **`/bus/*`** → Gateway bus (called by the SDK from the browser)
-  - `/bus/subscribe` — the SSE stream
-  - `/bus/emit` — commands and requests
-- **`/api/*`** → Gateway HTTP routes (`/api/users/me`, `/api/tokens/media`, `/api/health`, `/api/status`)
-- On both, the SDK sends `Authorization: Bearer <jwt>` from the active KB's session
-
-- **`/*`** → Static Browser SPA (served by Envoy/nginx)
-  - Vite-built static files
-  - index.html for all non-asset paths (SPA routing)
-
-**Key Architecture Points:**
-- No Browser-side Node.js server process at runtime
-- The knowledge base's issuer signs the user in and issues the tokens; the Browser completes the exchange on its callback route and stores the session per KB
-- Each KB has its own session (an access token and a refresh token) in `localStorage`, keyed by KB id; the Browser sends the active KB's access token on outgoing API calls
+- **`server.js` is a static file server and nothing more.** It holds no session, proxies no API traffic, and knows no gateway. All routing under `/:locale/*` is client-side (React Router).
+- **A gateway must be reachable from the person's web browser**, not from the Browser's container. Gateways answer any origin.
+- The knowledge base's issuer signs the person in and issues the tokens; the app completes the exchange on its callback route and stores the session per knowledge base
+- Each knowledge base has its own session (an access token and a refresh token) in `localStorage`, keyed by its id; the app sends the active one's access token on every call
 
 ## Authentication Architecture
 
@@ -355,8 +346,8 @@ Component renders
 ```
 User action (e.g., create annotation)
     └── await semiont.mark.annotation(input)   (Bearer token attached)
-        └── gateway applies the change, broadcasts a domain event (mark:added)
-            └── event arrives over the bus gateway → browse Cache invalidates the affected query
+        └── the knowledge base records the change and announces it (mark:added)
+            └── the event arrives on the bus stream → the browse cache invalidates the affected query
                 └── live Observable re-emits → subscribed components re-render
 ```
 
@@ -368,7 +359,7 @@ No call site invalidates anything by hand — the domain event drives the cache 
 SemiontClient creates one ActorStateUnit (single SSE to /bus/subscribe)
     └── ResourceViewerPage mounts and subscribes to browse.*(id) live queries
         └── observing them acquires the resource scope (adds scoped channels)
-            └── Gateway emits domain events on scoped bus
+            └── the gateway delivers the resource's events to that scope
                 └── ActorStateUnit bridges events into local EventBus
                     └── BrowseNamespace invalidates caches
                         └── Live query Observables re-emit

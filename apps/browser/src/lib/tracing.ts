@@ -29,7 +29,7 @@ import {
 } from '@opentelemetry/semantic-conventions';
 
 export interface WebObservabilityConfig {
-  /** Service identity (e.g. `semiont-frontend`). */
+  /** Service identity (e.g. `semiont-browser`). */
   serviceName: string;
   /** Service version. */
   serviceVersion?: string;

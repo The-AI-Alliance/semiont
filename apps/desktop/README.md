@@ -38,7 +38,9 @@ Three x86_64 artifacts are published:
 
 ## Connecting to a gateway
 
-On first launch, enter the gateway host and port (e.g. `localhost:4000`) in the Knowledge Bases panel. The app talks to the gateway over plain HTTP, so any gateway reachable from your machine works.
+On first launch, add a knowledge base in the Knowledge Bases panel: its gateway's protocol, host and port (for a local stack, `http`, `localhost`, `4000`). The app then sends you to the knowledge base's identity provider to sign in. Any gateway reachable from your machine works.
+
+Working in the app is the same as in the web build: see [the analyst's guide](../../docs/analyst/README.md).
 
 ## Building from source
 

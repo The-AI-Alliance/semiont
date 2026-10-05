@@ -14,10 +14,14 @@ The Browser also ships as a published, attested container image
 
 ## Container images only
 
-These ship as attested images and are **not** published to npm. The gateway is a Rust
-binary its image compiles from [gateway](./gateway/); the others' code lives in
-`@semiont/make-meaning` (the actors) and `@semiont/jobs` (the processors), and each of
-their app directories is the container entry point plus its Dockerfile.
+These ship as attested images and are **not** published to npm. The gateway and the
+dispatcher are Rust binaries, each compiled into its image from its directory here. The
+other five are Node: their code lives in `@semiont/make-meaning` (the actors) and
+`@semiont/jobs` (the processors), and each one's directory here holds only its Dockerfile.
+
+What each service reads, mounts and reaches is stated once, in the operator's
+[service catalog](../docs/operator/services/OVERVIEW.md). What the actors inside them do is
+[Knowledge System](../docs/architecture/KNOWLEDGE-SYSTEM.md).
 
 | Service | Source | Port | What it runs |
 | --- | --- | --- | --- |

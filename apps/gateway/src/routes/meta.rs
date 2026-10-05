@@ -64,7 +64,6 @@ pub async fn status(Authenticated(principal): Authenticated) -> Response {
             features: StatusResponseFeatures {
                 semantic_content: "planned".to_owned(),
                 collaboration: "planned".to_owned(),
-                rbac: "planned".to_owned(),
             },
             message: "Ready to build the future of knowledge management!".to_owned(),
             authenticated_as: Some(principal.email),

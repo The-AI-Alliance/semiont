@@ -46,7 +46,7 @@ Testing in the Semiont Browser is split between two packages following the compo
 │    packages/react-ui                │
 │         Test Coverage:              │
 │                                     │
-│  • Core UI components (1250+ tests) │
+│  • Core UI components               │
 │  • Business logic                   │
 │  • Custom hooks                     │
 │  • Utilities and helpers            │
@@ -549,7 +549,7 @@ it('renders page', () => {
 
 **Component testing is split across packages:**
 
-**@semiont/react-ui (1250+ tests):**
+**@semiont/react-ui:**
 - Core UI components: `Button`, `Toast`, `StatusDisplay`
 - Resource components: `ResourceViewer`, `AnnotateView`, `BrowseView`
 - Auth components: `AuthErrorDisplay`
@@ -587,15 +587,6 @@ src/contexts/__tests__/AuthShell.integration.test.tsx
 ```
 
 **Key Testing Pattern**: Business logic lives in @semiont/react-ui and is thoroughly tested there. The Browser tests app-shell/routing/provider integration and app-specific components.
-
-## Future Testing Enhancements
-
-Planned improvements for higher test coverage:
-
-1. **Component Unit Tests** - Expand critical UI component testing
-2. **Hook Testing** - Custom React hook validation
-3. **Integration Tests** - Full user authentication flows
-4. **Visual Regression Tests** - UI consistency validation with Percy/Chromatic
 
 ## Related Documentation
 

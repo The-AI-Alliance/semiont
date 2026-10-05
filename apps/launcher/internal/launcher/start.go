@@ -229,10 +229,10 @@ func Start(args []string) int {
 	// Resolve the KB root: SEMIONT_ROOT override (strict), else walk up from
 	// cwd for .semiont/ — deliberately after arg parsing so --help works
 	// anywhere. Only flows that read the config need a root at all, and for
-	// a full start, --service archivist and --service gateway that root must
-	// additionally be a git clone (requireGitClone, below). The config-free
-	// targets (configFreeService) run from anywhere: "just the browser" needs
-	// no clone at all. Every other target is config-driven: infra roles need
+	// a full start and --service archivist that root must additionally be a
+	// git clone (requireGitClone, below). The config-free targets
+	// (configFreeService) run from anywhere: "just the browser" needs no
+	// clone at all. Every other target is config-driven: infra roles need
 	// the config to know their OBLIGATION (provided / external /
 	// host-process / absent), so they need the KB root too.
 	configNeeded := opts.service == "" || !configFreeService(opts.service)
@@ -255,10 +255,9 @@ func Start(args []string) int {
 		// The git-clone invariant: the Archivist mounts the clone at /kb and
 		// is the git single-writer. In a non-clone each `git add` it runs
 		// fails and only a counter records it, so the refusal is made here,
-		// with instructions. A gateway start is held to it as well, though
-		// the gateway mounts no part of the KB and its start reads nothing
-		// from git.
-		if opts.service == "" || opts.service == "gateway" || opts.service == "archivist" {
+		// with instructions. It holds for the starts that run the Archivist;
+		// no other service mounts any part of the KB.
+		if opts.service == "" || opts.service == "archivist" {
 			if !requireGitClone(u, root) {
 				return 1
 			}

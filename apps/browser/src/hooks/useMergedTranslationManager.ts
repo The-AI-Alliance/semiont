@@ -5,7 +5,7 @@ import { interpolateTranslation, type TranslationManager } from '@semiont/react-
 type Messages = Record<string, Record<string, string>>;
 
 /**
- * Translation Manager for Frontend
+ * Translation Manager for the Browser
  *
  * Wraps react-i18next. The messages JSON (loaded by i18next-http-backend) has
  * the same flat namespace structure: { "Namespace": { "key": "value" } }.

@@ -21,15 +21,15 @@ promoting ~18 of that package's internals to public API to satisfy a directory l
 
 Change the CMD only against that file.
 
-The image also bundles `neo4j-driver`, which the Smelter's does not. It is a lazy peer of
-`@semiont/graph`, loaded at connect time, and the weaver is the one make-meaning entry point
-that actually dials the graph.
+The image also bundles `neo4j-driver`, as the Archivist's and the Librarian's do and the
+Smelter's does not. It is a lazy peer of `@semiont/graph`, loaded at connect time, so only the
+images of services that dial the graph carry it. The Weaver is the one that writes it.
 
 ## What it does
 
 Subscribes to graph-relevant domain events over SSE and writes them into the graph store:
 resources, annotations, references, entity types, and the edges between them. That projection
-is what `browse:referenced-by` answers from, and what gather's knowledge-graph traversal
+is what `browse.referencedBy` answers from, and what gather's knowledge-graph traversal
 walks.
 
 It is a pure network peer. Its only privileged attachment beyond the bus is the graph
@@ -39,11 +39,12 @@ arrives as `browse:*` bus reads.
 ## Readers wait on its signals
 
 Every apply emits `weave:applied` with the resource and the sequence it has reached. The
-gateway folds those into per-resource progress, and the read-after-write barrier in gather's
-knowledge-graph build waits on that signal rather than polling.
+Archivist and the Librarian each fold those into per-resource progress, and the
+read-after-write barrier in gather's knowledge-graph build waits on that signal rather than
+polling.
 
 So a stopped weaver is not a quiet degradation. Reads that need a just-written node block at
-the barrier and then fail — the graph stays empty, and gathers 404.
+the barrier and then fail — the graph stays empty, and a gather finds nothing to walk.
 
 `weave:rebuild` is the one command it accepts: optionally scoped to a single resource,
 strictly serialized, answered with a correlated `weave:rebuild-ok` or `weave:rebuild-failed`.
@@ -57,18 +58,20 @@ Reads `~/.semiontconfig` (TOML), section chosen by `[defaults] environment`. Req
 | --- | --- |
 | `services.gateway.publicURL` | the bus it subscribes to and emits on |
 | `services.graph.type` | the graph sink — must be server-backed |
+| `services.identity.issuer` | where it signs in |
 
+Those are the three sections it reads: `gateway`, `graph` and `identity`.
 `type = "memory"` is refused at startup: the in-memory graph lives in one process's heap and
-cannot be shared with the gateway's readers.
+cannot be shared with the Archivist and the Librarian, which read it.
 
-Three environment variables:
+Its environment is **`SEMIONT_OIDC_CLIENT_ID`** / **`SEMIONT_OIDC_CLIENT_SECRET`**: its own
+service account at the knowledge base's issuer, exchanged for an issuer token and then for an
+agent token naming the stable identity `(semiont, weaver)`:
+`did:web:<the knowledge base's domain>:agents:semiont:weaver`.
 
-- **`SEMIONT_OIDC_CLIENT_ID`** / **`SEMIONT_OIDC_CLIENT_SECRET`** — its own service account at
-  the knowledge base's issuer, exchanged for an issuer token and then for an agent token naming
-  the stable identity `(semiont, weaver)` — `did:web:<host>:agents:semiont:weaver`.
-- **`XDG_STATE_HOME`** — where the catch-up checkpoint is written (default `~/.local/state`).
-  The checkpoint is an optimization, never a correctness input: losing it degrades the next
-  catch-up to a full replay.
+It mounts nothing. Its catch-up checkpoint is a file in the container's own temporary
+directory, so it lasts as long as the container does. The checkpoint is an optimization, never
+a correctness input: losing it degrades the next catch-up to a full replay.
 
 ## Startup catch-up and reconcile
 
@@ -103,5 +106,7 @@ without invalidating the views; the archivist's startup rebuild reaps such views
 
 - [`@semiont/make-meaning`](../../packages/make-meaning/) — the pipeline and this entry point
 - [`@semiont/graph`](../../packages/graph/) — the store adapters and the annotation codec
-- [Gateway](../gateway/) — the bus it rides, and the reader whose barrier waits on its signals
+- [Gateway](../gateway/) — the bus it rides
+- [Librarian](../librarian/) and [Archivist](../archivist/) — the readers whose barriers wait on
+  its signals
 - [Smelter](../smelter/) — the other projection pipeline: same shape, vectors instead of graph

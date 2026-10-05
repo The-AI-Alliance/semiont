@@ -60,7 +60,7 @@ signature change, not a line someone can slip in.
 Required in the environment: `JWT_SECRET` (≥32 chars), plus
 `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` — the gateway's own
 service account at the knowledge base's issuer, which it exchanges for a token
-to reach the Archivist. There is no `DATABASE_URL`: the gateway holds no
+to reach the Archivist. It takes no database address: the gateway holds no
 database.
 
 ## Boot and shutdown
@@ -166,7 +166,7 @@ the repository root:
 ```bash
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace                 # the shared-table runners: the only Rust tests
+cargo test --workspace                 # every crate's tests; the gateway crate has none of its own
 cargo build --release -p semiont-gateway   # target/release/semiont-gateway
 ```
 

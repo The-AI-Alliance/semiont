@@ -9,6 +9,9 @@
  * Usage:
  *   npx tsx batch-audit.ts <root-dir> <inventory-file>
  *
+ * Writes the report to stdout. Exits 1 when any symbol fails (❌), naming each
+ * on stderr; warnings and unknowns do not fail it.
+ *
  * Example:
  *   npx tsx batch-audit.ts ../src ./symbols.json
  *   npx tsx batch-audit.ts ../src ./INVENTORY.md
@@ -446,6 +449,22 @@ function main() {
   // Output summary + table
   console.log(generateSummary(results, bypassConfig));
   console.log(formatAsMarkdownTable(results));
+
+  // The audit itself says whether the tree passes: a failing symbol is a
+  // non-zero exit, named on stderr. Whatever runs this reads its exit status
+  // and never has to parse the report. `exitCode`, not `exit()`, so the report
+  // above is written in full first.
+  const failing = results.filter(r => r.status === '❌');
+  if (failing.length > 0) {
+    console.error(`❌ ${failing.length} failing symbol(s):`);
+    for (const row of failing) {
+      const checks = Object.entries(row)
+        .filter(([column, value]) => column !== 'status' && value.includes('❌'))
+        .map(([column]) => column);
+      console.error(`   ${row.path}  ${row.symbol}  (${checks.join(', ')})`);
+    }
+    process.exitCode = 1;
+  }
 }
 
 if (require.main === module) {

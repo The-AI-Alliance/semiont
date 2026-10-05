@@ -281,6 +281,24 @@ describe('ResourceGenerateModal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('calls the onClose of the latest render', () => {
+    // The modal reads the host's callbacks through refs. A host that passes a
+    // new function on each render must be called with the one it passed last.
+    const { rerender } = renderModal();
+    const latest = vi.fn<() => void>();
+    rerender(
+      <ResourceGenerateModal
+        isOpen onClose={latest} resourceId="res-1" defaultTitle="Default Title"
+        locale="en" entityTypeOptions={['Person', 'Topic']} onGenerateSubmit={onGenerateSubmit}
+        gatherContext={null} gatherLoading={false} gatherError={null}
+        onGather={onGather} translations={T}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText('Close'));
+    expect(latest).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('opening seeds the proposed title from defaultTitle, even one that arrived after mount', () => {
     // The page passes the source resource's name, which loads asynchronously —
     // a draft seeded only in the useState initializer holds whatever was there
