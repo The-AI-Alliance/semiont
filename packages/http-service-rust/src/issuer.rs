@@ -3,10 +3,8 @@
 //! is held, when the one held has reached its maximum age, and for a key id it
 //! lacks once it is a cooldown old. One fetch runs at a time, under a
 //! deadline: the requests that need it wait for it, and its failure stands
-//! for a cooldown. The three timings are the bearer scheme's
-//! `x-semiont-limits` (crate::limits).
+//! for a cooldown. The three timings are the service's to state.
 
-use crate::limits::limits;
 use jsonwebtoken::errors::ErrorKind;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde_json::{Map, Value};
@@ -16,9 +14,21 @@ use std::time::{Duration, Instant};
 
 const NO_MATCHING_KEY: &str = "no key the issuer publishes matches the token";
 
+/// When a verifier fetches the issuer's keys.
+#[derive(Clone, Copy, Debug)]
+pub struct KeyTimings {
+    /// How long a fetched key set is used.
+    pub max_age: Duration,
+    /// The least time between two fetches, and how long a failed one stands.
+    pub refetch_cooldown: Duration,
+    /// How long a fetch may take.
+    pub fetch_deadline: Duration,
+}
+
 pub struct IssuerVerifier {
     issuer: String,
     audience: String,
+    timings: KeyTimings,
     http: reqwest::Client,
     jwks_uri: Mutex<Option<String>>,
     held: Mutex<Held>,
@@ -51,10 +61,16 @@ fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 impl IssuerVerifier {
-    pub fn new(issuer: String, audience: String, http: reqwest::Client) -> IssuerVerifier {
+    pub fn new(
+        issuer: String,
+        audience: String,
+        timings: KeyTimings,
+        http: reqwest::Client,
+    ) -> IssuerVerifier {
         IssuerVerifier {
             issuer,
             audience,
+            timings,
             http,
             jwks_uri: Mutex::new(None),
             held: Mutex::new(Held::default()),
@@ -147,8 +163,8 @@ impl IssuerVerifier {
 
     /// What the keys held now answer for `kid`, without fetching.
     fn answer(&self, kid: Option<&str>) -> Answer {
-        let cooldown = Duration::from_secs(limits().key_refetch_cooldown_seconds);
-        let max_age = Duration::from_secs(limits().key_set_max_age_seconds);
+        let cooldown = self.timings.refetch_cooldown;
+        let max_age = self.timings.max_age;
         let held = locked(&self.held);
         let usable = held
             .set
@@ -184,7 +200,7 @@ impl IssuerVerifier {
             if !matches!(self.answer(kid), Answer::Fetch) {
                 continue;
             }
-            let deadline = Duration::from_secs(limits().key_fetch_deadline_seconds);
+            let deadline = self.timings.fetch_deadline;
             let fetched = tokio::time::timeout(deadline, self.fetch())
                 .await
                 .unwrap_or_else(|_| {

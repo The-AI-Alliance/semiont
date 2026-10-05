@@ -1,0 +1,17 @@
+[package]
+name = "semiont-http-service"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+description = "What Semiont's Rust services that serve HTTP share: connections a service can close from its side, the bearer credential, and the verifier of tokens from the knowledge base's trusted issuer."
+
+[dependencies]
+axum.workspace = true
+futures.workspace = true
+hyper = { workspace = true, features = ["server", "http1"] }
+hyper-util = { workspace = true, features = ["tokio"] }
+jsonwebtoken = { workspace = true, features = ["rust_crypto"] }
+reqwest = { workspace = true, features = ["json"] }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["net", "macros", "rt", "sync", "time"] }
+tower = { workspace = true, features = ["util"] }

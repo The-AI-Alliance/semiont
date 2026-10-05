@@ -933,6 +933,12 @@
       "AnchoredTextEntry": {
         "$ref": "components/schemas/AnchoredTextEntry.json"
       },
+      "AnchoredTextExtractedEntry": {
+        "$ref": "components/schemas/AnchoredTextExtractedEntry.json"
+      },
+      "AnchoredTextDeclinedEntry": {
+        "$ref": "components/schemas/AnchoredTextDeclinedEntry.json"
+      },
       "ArchivistRoster": {
         "$ref": "components/schemas/ArchivistRoster.json"
       },

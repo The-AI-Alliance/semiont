@@ -30,7 +30,7 @@ pub async fn agent(
     headers: HeaderMap,
     body: Body,
 ) -> Result<Response, ApiError> {
-    let Some(bearer) = crate::http::bearer_token(&headers) else {
+    let Some(bearer) = semiont_http_service::bearer_token(&headers) else {
         return Err(missing_credential(&headers));
     };
     let minter = authorize_minter(&bearer, &app.issuer)

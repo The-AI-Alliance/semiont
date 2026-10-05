@@ -11,7 +11,7 @@
 //! presence: `session:joined` and `session:left`.
 
 use crate::app::App;
-use crate::http::{ApiError, Authenticated, ConnectionAbort, typed_body};
+use crate::http::{ApiError, Authenticated, typed_body};
 use crate::ledger::DeliveryGate;
 use crate::limits::{self, Limits};
 use crate::metrics;
@@ -29,6 +29,7 @@ use semiont::bus_log::bus_log;
 use semiont::transport::TraceCarrier;
 use semiont::types::{BusSubscribeRequest, LimitRefusalCode};
 use semiont_core::spec::spec;
+use semiont_http_service::ConnectionAbort;
 use semiont_observability::logging;
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};

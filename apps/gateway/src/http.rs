@@ -1,6 +1,5 @@
-//! The HTTP edge: connections the gateway can close from its side, what every
-//! response carries, errors as the spec's ErrorResponse, and the bearer
-//! credential.
+//! The HTTP edge: what every response carries, errors as the spec's
+//! ErrorResponse, and who a request's bearer credential names.
 
 use crate::app::App;
 use crate::principal::{Principal, principal_from_token};
@@ -11,153 +10,16 @@ use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use futures::StreamExt;
-use futures::task::AtomicWaker;
-use hyper_util::rt::{TokioIo, TokioTimer};
 use semiont::types::{ErrorResponse, LimitRefusal, LimitRefusalCode, ResourceId};
+use semiont_http_service::bearer_token;
 use semiont_observability::logging;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
-use std::io;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::task::{Context, Poll};
 use std::time::Instant;
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio::net::{TcpListener, TcpStream};
-use tower::ServiceExt;
 
 pub const PROTECTED_RESOURCE_METADATA_PATH: &str = "/.well-known/oauth-protected-resource";
-
-// ── Connections ──────────────────────────────────────────────────────────
-
-/// Closes the connection a request arrived on: a stream whose client stopped
-/// reading is torn down from this side, with what the connection held.
-#[derive(Clone)]
-pub struct ConnectionAbort(Arc<AbortState>);
-
-struct AbortState {
-    aborted: AtomicBool,
-    waker: AtomicWaker,
-}
-
-impl ConnectionAbort {
-    fn new() -> ConnectionAbort {
-        ConnectionAbort(Arc::new(AbortState {
-            aborted: AtomicBool::new(false),
-            waker: AtomicWaker::new(),
-        }))
-    }
-
-    pub fn abort(&self) {
-        self.0.aborted.store(true, Ordering::SeqCst);
-        self.0.waker.wake();
-    }
-}
-
-struct Abortable {
-    stream: TcpStream,
-    state: Arc<AbortState>,
-}
-
-impl Abortable {
-    fn aborted(&self, cx: &Context<'_>) -> bool {
-        self.state.waker.register(cx.waker());
-        self.state.aborted.load(Ordering::SeqCst)
-    }
-}
-
-fn closed() -> io::Error {
-    io::Error::new(io::ErrorKind::ConnectionAborted, "closed by the gateway")
-}
-
-impl AsyncRead for Abortable {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<io::Result<()>> {
-        if self.aborted(cx) {
-            return Poll::Ready(Err(closed()));
-        }
-        Pin::new(&mut self.stream).poll_read(cx, buf)
-    }
-}
-
-impl AsyncWrite for Abortable {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        if self.aborted(cx) {
-            return Poll::Ready(Err(closed()));
-        }
-        Pin::new(&mut self.stream).poll_write(cx, buf)
-    }
-
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        if self.aborted(cx) {
-            return Poll::Ready(Err(closed()));
-        }
-        Pin::new(&mut self.stream).poll_flush(cx)
-    }
-
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        Pin::new(&mut self.stream).poll_shutdown(cx)
-    }
-}
-
-/// Serve `router` on `listener` until `stop` resolves; then accept nothing more.
-/// A connection past `connections` open at once is closed unanswered (capacity).
-pub async fn serve(
-    listener: TcpListener,
-    router: axum::Router,
-    connections: usize,
-    stop: impl std::future::Future<Output = ()>,
-) {
-    tokio::pin!(stop);
-    let open = Arc::new(AtomicUsize::new(0));
-    loop {
-        tokio::select! {
-            accepted = listener.accept() => {
-                let Ok((stream, _)) = accepted else { continue };
-                if open.load(Ordering::SeqCst) >= connections {
-                    drop(stream);
-                    crate::metrics::record_refused("connections");
-                    continue;
-                }
-                open.fetch_add(1, Ordering::SeqCst);
-                let _ = stream.set_nodelay(true);
-                let (open, router) = (open.clone(), router.clone());
-                tokio::spawn(async move {
-                    connection(stream, router).await;
-                    open.fetch_sub(1, Ordering::SeqCst);
-                });
-            }
-            () = &mut stop => break,
-        }
-    }
-}
-
-async fn connection(stream: TcpStream, router: axum::Router) {
-    let abort = ConnectionAbort::new();
-    let io = TokioIo::new(Abortable {
-        stream,
-        state: abort.0.clone(),
-    });
-    let service = hyper::service::service_fn(
-        move |mut request: axum::http::Request<hyper::body::Incoming>| {
-            request.extensions_mut().insert(abort.clone());
-            router.clone().oneshot(request.map(Body::new))
-        },
-    );
-    let _ = hyper::server::conn::http1::Builder::new()
-        .timer(TokioTimer::new())
-        .serve_connection(io, service)
-        .await;
-}
 
 // ── Every response ───────────────────────────────────────────────────────
 
@@ -400,22 +262,6 @@ pub async fn typed_body<T: DeserializeOwned>(body: Body, operation: &str) -> Res
 }
 
 // ── The bearer credential ────────────────────────────────────────────────
-
-/// The token an `Authorization: Bearer …` header carries: the scheme in any
-/// case, whatever follows it trimmed; nothing following it is no token.
-pub fn bearer_token(headers: &HeaderMap) -> Option<String> {
-    let value = headers.get(header::AUTHORIZATION)?.to_str().ok()?;
-    let scheme = value.get(..6)?;
-    if !scheme.eq_ignore_ascii_case("bearer") {
-        return None;
-    }
-    let rest = &value[6..];
-    if !rest.is_empty() && !rest.starts_with([' ', '\t']) {
-        return None;
-    }
-    let token = rest.trim_matches(|c: char| c.is_whitespace());
-    (!token.is_empty()).then(|| token.to_owned())
-}
 
 /// The origin the caller reached, which the challenge names.
 fn origin(headers: &HeaderMap) -> String {

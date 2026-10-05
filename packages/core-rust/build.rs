@@ -22,11 +22,24 @@ use std::fs;
 use std::path::PathBuf;
 
 /// The schemas only the services read.
-const SERVICE_SCHEMAS: [&str; 4] = [
+const SERVICE_SCHEMAS: [&str; 17] = [
     "GatewayConfig",
     "DispatcherConfig",
     "JobRecord",
     "DispatcherHealth",
+    "ArchivistConfig",
+    "ArchivistRoster",
+    "ArchivistRosterRole",
+    "ArchivistHealth",
+    "ResourceView",
+    "ResourceAnnotations",
+    "EntityTypesProjection",
+    "TagSchemasProjection",
+    "PeopleProjection",
+    "StorageUriEntry",
+    "AnchoredTextEntry",
+    "AnchoredTextExtractedEntry",
+    "AnchoredTextDeclinedEntry",
 ];
 
 fn main() {

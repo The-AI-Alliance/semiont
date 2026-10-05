@@ -5,7 +5,7 @@
 use crate::archivist::Archivist;
 use crate::composition::{Composition, compose};
 use crate::config::{SignalConfig, read_gateway_config};
-use crate::issuer::IssuerVerifier;
+use crate::limits::limits;
 use crate::rates::EmitRates;
 use crate::signal::SignalPlane;
 use crate::signal::in_process::InProcessPlane;
@@ -15,6 +15,7 @@ use crate::{archivist, metrics, routes};
 use semiont::identity;
 use semiont_core::config;
 use semiont_core::types::GatewayConfig;
+use semiont_http_service::{IssuerVerifier, KeyTimings};
 use semiont_http_transport::service_account::Credential;
 use semiont_observability::{logging, telemetry};
 use serde_json::json;
@@ -120,6 +121,11 @@ async fn run(
     let issuer = IssuerVerifier::new(
         config.identity.issuer.clone(),
         identity::kb_resource(&config.kb.domain),
+        KeyTimings {
+            max_age: Duration::from_secs(limits().key_set_max_age_seconds),
+            refetch_cooldown: Duration::from_secs(limits().key_refetch_cooldown_seconds),
+            fetch_deadline: Duration::from_secs(limits().key_fetch_deadline_seconds),
+        },
         http.clone(),
     );
     let archivist = Archivist::new(
@@ -209,10 +215,11 @@ async fn run(
         let _ = tx.send(stop_signal().await);
     });
     let mut received = "";
-    crate::http::serve(
+    semiont_http_service::serve(
         listener,
         routes::router(app.clone()),
         app.config.capacity.connections as usize,
+        || crate::metrics::record_refused("connections"),
         async {
             received = rx.await.unwrap_or("SIGTERM");
         },

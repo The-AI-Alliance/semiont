@@ -58,7 +58,7 @@ semiont/
 │   ├── graph/ vectors/ inference/ ontology/ observability/ mcp-server/
 │   ├── sdk-rust/           # The Rust SDK (crate `semiont`), with
 │   ├── http-transport-rust/ telemetry-rust/ codegen-rust/
-│   ├── core-rust/ observability-rust/    # what the Rust services share
+│   ├── core-rust/ observability-rust/ http-service-rust/    # what the Rust services share
 │   └── sdk-go/             # The Go SDK
 ├── tests/
 │   ├── conformance/        # Black-box suites: the gateway, the dispatcher, every SDK

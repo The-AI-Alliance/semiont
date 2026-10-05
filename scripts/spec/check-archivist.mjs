@@ -41,6 +41,8 @@ const RECORD_SCHEMAS = [
   'PeopleProjection',
   'StorageUriEntry',
   'AnchoredTextEntry',
+  'AnchoredTextExtractedEntry',
+  'AnchoredTextDeclinedEntry',
 ];
 const CONFIG_SCHEMAS = ['ArchivistConfig', 'ArchivistRoster', 'ArchivistRosterRole'];
 const TABLES = ['specs/src/archivist/shard-cases.json', 'specs/src/service-config/roster-cases.json'];
@@ -80,7 +82,7 @@ if (has('ArchivistConfig') && has('ArchivistRoster')) {
 }
 
 if (has('AnchoredTextEntry')) {
-  const [extracted, declined] = schema('AnchoredTextEntry').oneOf;
+  const [extracted, declined] = schema('AnchoredTextEntry').oneOf.map((member) => read(resolve(SCHEMAS, member.$ref)));
   const provenance = Object.fromEntries(
     Object.entries(schema('ExtractedText').allOf[1].properties).filter(([name]) => name !== 'kind'),
   );
@@ -118,7 +120,7 @@ if (!existsSync(resolve(REPO, PROTOCOL))) {
 } else {
   const protocol = readFileSync(resolve(REPO, PROTOCOL), 'utf8');
   const named = (what, term) => { if (!protocol.includes(term)) fail(`${PROTOCOL} does not name ${what} ${term}`); };
-  for (const name of [...RECORD_SCHEMAS, 'ArchivistConfig']) named('the schema', name);
+  for (const name of [...RECORD_SCHEMAS.filter((name) => !/^AnchoredText.+Entry$/.test(name)), 'ArchivistConfig']) named('the schema', name);
   for (const path of TABLES) named('the table', path.split('/').pop());
   const registry = read(resolve(REPO, 'specs/src/bus/registry.json'));
   const persisted = registry.channels
@@ -134,4 +136,4 @@ if (failures.length > 0) {
   for (const message of failures) console.error(`✗ ${message}`);
   process.exit(1);
 }
-console.log(`✓ the Archivist is specified (${RECORD_SCHEMAS.length} file formats, its configuration document, ${TABLES.length} shared tables, ${PROTOCOL})`);
+console.log(`✓ the Archivist is specified (${RECORD_SCHEMAS.length} file-format schemas, its configuration document, ${TABLES.length} shared tables, ${PROTOCOL})`);

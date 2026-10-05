@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "description": "The bytes were declined: no text is extracted from them.",
+  "properties": {
+    "v": {
+      "type": "integer",
+      "enum": [
+        2
+      ],
+      "description": "The entry format."
+    },
+    "stamp": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The stamp of the writer that derived the entry. A reader takes the entry only when it equals the stamp the writer states in the store's `STAMP` file."
+    },
+    "declined": {
+      "type": "string",
+      "enum": [
+        "no-text-layer",
+        "encrypted",
+        "corrupt",
+        "too-large"
+      ],
+      "description": "Why extraction yielded nothing, by class."
+    }
+  },
+  "required": [
+    "v",
+    "stamp",
+    "declined"
+  ],
+  "additionalProperties": false
+}

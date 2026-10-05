@@ -2115,6 +2115,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "semiont-archivist-record"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "semiont-codegen"
 version = "0.6.11"
 dependencies = [
@@ -2225,6 +2233,7 @@ dependencies = [
  "rustls",
  "semiont",
  "semiont-core",
+ "semiont-http-service",
  "semiont-http-transport",
  "semiont-observability",
  "semiont-telemetry",
@@ -2235,6 +2244,21 @@ dependencies = [
  "tokio",
  "tower",
  "uuid",
+]
+
+[[package]]
+name = "semiont-http-service"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "futures",
+ "hyper",
+ "hyper-util",
+ "jsonwebtoken",
+ "reqwest",
+ "serde_json",
+ "tokio",
+ "tower",
 ]
 
 [[package]]

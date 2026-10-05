@@ -15,6 +15,10 @@
  *   - no schema in `specs/` gives a caller a `noGit` switch. Whether a project
  *     stages is the project's `[git] sync`, never one command's choice.
  *
+ * The same holds in Rust: no crate runs git. The Archivist's staging driver,
+ * when it is written in Rust, is the one file that may, and is named here
+ * then.
+ *
  * A test may run git to set a repository up or to read its index. Each allowed
  * file must still use what it is allowed, so an entry cannot outlive the
  * implementation it was for.
@@ -34,6 +38,8 @@ const productionSource = (file) =>
   /\.(ts|tsx|mts|cts|js|mjs|cjs)$/.test(file) &&
   !/(^|\/)__tests__\/|\.(test|spec)\.[^/]+$/.test(file);
 
+const rustSource = (file) => /^(apps|packages)\/(?!desktop\/)(?:[^/]+\/)+src\/.*\.rs$/.test(file);
+
 const specSchema = (file) => /^specs\/src\/.*\.json$/.test(file);
 
 const RULES = [
@@ -50,6 +56,19 @@ const RULES = [
     scope: productionSource,
     uses: /['"](?:--cached|rev-parse)['"]|\[\s*['"](?:mv|rm)['"]\s*,/,
     allowed: [DRIVER],
+  },
+  {
+    what: 'a git subprocess',
+    scope: rustSource,
+    // Command::new("git"), by any path to Command.
+    uses: /\bCommand::new\s*\(\s*"git"\s*\)/,
+    allowed: [],
+  },
+  {
+    what: 'a git library',
+    scope: rustSource,
+    uses: /\b(?:git2|gix)::/,
+    allowed: [],
   },
   {
     what: 'a `noGit` switch on the wire',

@@ -12,6 +12,9 @@
  * 1. The builder stages, from `FROM rust:` to the next FROM, are the same text.
  * 2. The stage builds (`-p`) and keeps (`cp target/release/`) exactly the
  *    binaries the images copy out of it (`COPY --from=builder /<binary>`).
+ * 3. The stage copies every member of the workspace: its manifest, its `src`
+ *    and its build script when it has one. Cargo loads every member to build
+ *    any one, so a member the stage leaves out fails every image's build.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -52,6 +55,18 @@ if (first) {
   }
   for (const binary of new Set([...built, ...kept])) {
     if (!wanted.has(binary)) fail(`the builder stage builds ${binary}, and no image copies it`);
+  }
+}
+
+if (first) {
+  const workspace = readFileSync(join(ROOT, 'Cargo.toml'), 'utf8');
+  const members = [...(workspace.match(/^members = \[([^\]]*)\]/m)?.[1] ?? '').matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  if (members.length === 0) fail('Cargo.toml names no workspace members: the check has lost what it reads');
+  const copies = (source) => new RegExp(`^COPY (?:\\S+ )*${source.replaceAll('/', '\\/')} `, 'm').test(first.builder);
+  for (const member of members) {
+    if (!copies(`${member}/Cargo.toml`)) fail(`the builder stage does not copy ${member}/Cargo.toml, a member of the workspace`);
+    if (!copies(`${member}/src`)) fail(`the builder stage does not copy ${member}/src, a member of the workspace`);
+    if (existsSync(join(ROOT, member, 'build.rs')) && !copies(`${member}/build.rs`)) fail(`the builder stage does not copy ${member}/build.rs`);
   }
 }
 

@@ -45,114 +45,114 @@ func (e AnchoredTextAbsentKind) Valid() bool {
 	}
 }
 
-// Defines values for AnchoredTextEntry0Method.
+// Defines values for AnchoredTextDeclinedEntryDeclined.
 const (
-	AnchoredTextEntry0MethodForm            AnchoredTextEntry0Method = "form"
-	AnchoredTextEntry0MethodOcr             AnchoredTextEntry0Method = "ocr"
-	AnchoredTextEntry0MethodPdfTextLayer    AnchoredTextEntry0Method = "pdf-text-layer"
-	AnchoredTextEntry0MethodTable           AnchoredTextEntry0Method = "table"
-	AnchoredTextEntry0MethodTextPassthrough AnchoredTextEntry0Method = "text-passthrough"
+	AnchoredTextDeclinedEntryDeclinedCorrupt     AnchoredTextDeclinedEntryDeclined = "corrupt"
+	AnchoredTextDeclinedEntryDeclinedEncrypted   AnchoredTextDeclinedEntryDeclined = "encrypted"
+	AnchoredTextDeclinedEntryDeclinedNoTextLayer AnchoredTextDeclinedEntryDeclined = "no-text-layer"
+	AnchoredTextDeclinedEntryDeclinedTooLarge    AnchoredTextDeclinedEntryDeclined = "too-large"
 )
 
-// Valid indicates whether the value is a known member of the AnchoredTextEntry0Method enum.
-func (e AnchoredTextEntry0Method) Valid() bool {
+// Valid indicates whether the value is a known member of the AnchoredTextDeclinedEntryDeclined enum.
+func (e AnchoredTextDeclinedEntryDeclined) Valid() bool {
 	switch e {
-	case AnchoredTextEntry0MethodForm:
+	case AnchoredTextDeclinedEntryDeclinedCorrupt:
 		return true
-	case AnchoredTextEntry0MethodOcr:
+	case AnchoredTextDeclinedEntryDeclinedEncrypted:
 		return true
-	case AnchoredTextEntry0MethodPdfTextLayer:
+	case AnchoredTextDeclinedEntryDeclinedNoTextLayer:
 		return true
-	case AnchoredTextEntry0MethodTable:
-		return true
-	case AnchoredTextEntry0MethodTextPassthrough:
+	case AnchoredTextDeclinedEntryDeclinedTooLarge:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for AnchoredTextEntry0PdfClass.
+// Defines values for AnchoredTextDeclinedEntryV.
 const (
-	AnchoredTextEntry0PdfClassA AnchoredTextEntry0PdfClass = "A"
-	AnchoredTextEntry0PdfClassB AnchoredTextEntry0PdfClass = "B"
-	AnchoredTextEntry0PdfClassC AnchoredTextEntry0PdfClass = "C"
-	AnchoredTextEntry0PdfClassD AnchoredTextEntry0PdfClass = "D"
-	AnchoredTextEntry0PdfClassE AnchoredTextEntry0PdfClass = "E"
-	AnchoredTextEntry0PdfClassF AnchoredTextEntry0PdfClass = "F"
-	AnchoredTextEntry0PdfClassG AnchoredTextEntry0PdfClass = "G"
+	AnchoredTextDeclinedEntryVN2 AnchoredTextDeclinedEntryV = 2
 )
 
-// Valid indicates whether the value is a known member of the AnchoredTextEntry0PdfClass enum.
-func (e AnchoredTextEntry0PdfClass) Valid() bool {
+// Valid indicates whether the value is a known member of the AnchoredTextDeclinedEntryV enum.
+func (e AnchoredTextDeclinedEntryV) Valid() bool {
 	switch e {
-	case AnchoredTextEntry0PdfClassA:
-		return true
-	case AnchoredTextEntry0PdfClassB:
-		return true
-	case AnchoredTextEntry0PdfClassC:
-		return true
-	case AnchoredTextEntry0PdfClassD:
-		return true
-	case AnchoredTextEntry0PdfClassE:
-		return true
-	case AnchoredTextEntry0PdfClassF:
-		return true
-	case AnchoredTextEntry0PdfClassG:
+	case AnchoredTextDeclinedEntryVN2:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for AnchoredTextEntry0V.
+// Defines values for AnchoredTextExtractedEntryMethod.
 const (
-	AnchoredTextEntry0VN2 AnchoredTextEntry0V = 2
+	AnchoredTextExtractedEntryMethodForm            AnchoredTextExtractedEntryMethod = "form"
+	AnchoredTextExtractedEntryMethodOcr             AnchoredTextExtractedEntryMethod = "ocr"
+	AnchoredTextExtractedEntryMethodPdfTextLayer    AnchoredTextExtractedEntryMethod = "pdf-text-layer"
+	AnchoredTextExtractedEntryMethodTable           AnchoredTextExtractedEntryMethod = "table"
+	AnchoredTextExtractedEntryMethodTextPassthrough AnchoredTextExtractedEntryMethod = "text-passthrough"
 )
 
-// Valid indicates whether the value is a known member of the AnchoredTextEntry0V enum.
-func (e AnchoredTextEntry0V) Valid() bool {
+// Valid indicates whether the value is a known member of the AnchoredTextExtractedEntryMethod enum.
+func (e AnchoredTextExtractedEntryMethod) Valid() bool {
 	switch e {
-	case AnchoredTextEntry0VN2:
+	case AnchoredTextExtractedEntryMethodForm:
+		return true
+	case AnchoredTextExtractedEntryMethodOcr:
+		return true
+	case AnchoredTextExtractedEntryMethodPdfTextLayer:
+		return true
+	case AnchoredTextExtractedEntryMethodTable:
+		return true
+	case AnchoredTextExtractedEntryMethodTextPassthrough:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for AnchoredTextEntry1Declined.
+// Defines values for AnchoredTextExtractedEntryPdfClass.
 const (
-	AnchoredTextEntry1DeclinedCorrupt     AnchoredTextEntry1Declined = "corrupt"
-	AnchoredTextEntry1DeclinedEncrypted   AnchoredTextEntry1Declined = "encrypted"
-	AnchoredTextEntry1DeclinedNoTextLayer AnchoredTextEntry1Declined = "no-text-layer"
-	AnchoredTextEntry1DeclinedTooLarge    AnchoredTextEntry1Declined = "too-large"
+	AnchoredTextExtractedEntryPdfClassA AnchoredTextExtractedEntryPdfClass = "A"
+	AnchoredTextExtractedEntryPdfClassB AnchoredTextExtractedEntryPdfClass = "B"
+	AnchoredTextExtractedEntryPdfClassC AnchoredTextExtractedEntryPdfClass = "C"
+	AnchoredTextExtractedEntryPdfClassD AnchoredTextExtractedEntryPdfClass = "D"
+	AnchoredTextExtractedEntryPdfClassE AnchoredTextExtractedEntryPdfClass = "E"
+	AnchoredTextExtractedEntryPdfClassF AnchoredTextExtractedEntryPdfClass = "F"
+	AnchoredTextExtractedEntryPdfClassG AnchoredTextExtractedEntryPdfClass = "G"
 )
 
-// Valid indicates whether the value is a known member of the AnchoredTextEntry1Declined enum.
-func (e AnchoredTextEntry1Declined) Valid() bool {
+// Valid indicates whether the value is a known member of the AnchoredTextExtractedEntryPdfClass enum.
+func (e AnchoredTextExtractedEntryPdfClass) Valid() bool {
 	switch e {
-	case AnchoredTextEntry1DeclinedCorrupt:
+	case AnchoredTextExtractedEntryPdfClassA:
 		return true
-	case AnchoredTextEntry1DeclinedEncrypted:
+	case AnchoredTextExtractedEntryPdfClassB:
 		return true
-	case AnchoredTextEntry1DeclinedNoTextLayer:
+	case AnchoredTextExtractedEntryPdfClassC:
 		return true
-	case AnchoredTextEntry1DeclinedTooLarge:
+	case AnchoredTextExtractedEntryPdfClassD:
+		return true
+	case AnchoredTextExtractedEntryPdfClassE:
+		return true
+	case AnchoredTextExtractedEntryPdfClassF:
+		return true
+	case AnchoredTextExtractedEntryPdfClassG:
 		return true
 	default:
 		return false
 	}
 }
 
-// Defines values for AnchoredTextEntry1V.
+// Defines values for AnchoredTextExtractedEntryV.
 const (
-	AnchoredTextEntry1VN2 AnchoredTextEntry1V = 2
+	AnchoredTextExtractedEntryVN2 AnchoredTextExtractedEntryV = 2
 )
 
-// Valid indicates whether the value is a known member of the AnchoredTextEntry1V enum.
-func (e AnchoredTextEntry1V) Valid() bool {
+// Valid indicates whether the value is a known member of the AnchoredTextExtractedEntryV enum.
+func (e AnchoredTextExtractedEntryV) Valid() bool {
 	switch e {
-	case AnchoredTextEntry1VN2:
+	case AnchoredTextExtractedEntryVN2:
 		return true
 	default:
 		return false
@@ -2058,13 +2058,31 @@ type AnchoredTextAnswer struct {
 	union json.RawMessage
 }
 
+// AnchoredTextDeclinedEntry The bytes were declined: no text is extracted from them.
+type AnchoredTextDeclinedEntry struct {
+	// Declined Why extraction yielded nothing, by class.
+	Declined AnchoredTextDeclinedEntryDeclined `json:"declined"`
+
+	// Stamp The stamp of the writer that derived the entry. A reader takes the entry only when it equals the stamp the writer states in the store's `STAMP` file.
+	Stamp string `json:"stamp"`
+
+	// V The entry format.
+	V AnchoredTextDeclinedEntryV `json:"v"`
+}
+
+// AnchoredTextDeclinedEntryDeclined Why extraction yielded nothing, by class.
+type AnchoredTextDeclinedEntryDeclined string
+
+// AnchoredTextDeclinedEntryV The entry format.
+type AnchoredTextDeclinedEntryV int
+
 // AnchoredTextEntry One entry of the anchored-text store: the file `<ab>/<cd>/<key>.json` under the store's directory, where the key is the SHA-256 of the bytes the text was extracted from, in hex. The Smelter writes it; the Archivist reads it. Written as compact JSON, `v` and `stamp` first, by writing a sibling temporary file and renaming it onto the path. The store's writer states its current stamp, followed by a newline, in the file `STAMP` at the store's root.
 type AnchoredTextEntry struct {
 	union json.RawMessage
 }
 
-// AnchoredTextEntry0 The text extracted from the bytes, where each word is on the page, and how it was extracted.
-type AnchoredTextEntry0 struct {
+// AnchoredTextExtractedEntry The text extracted from the bytes, where each word is on the page, and how it was extracted.
+type AnchoredTextExtractedEntry struct {
 	// Lines Where each word of `text` is, line by line, in reading order.
 	Lines []struct {
 		// H The line's height in PDF points.
@@ -2081,7 +2099,7 @@ type AnchoredTextEntry0 struct {
 	} `json:"lines"`
 
 	// Method How the text was extracted.
-	Method AnchoredTextEntry0Method `json:"method"`
+	Method AnchoredTextExtractedEntryMethod `json:"method"`
 
 	// OcrConfidence How well the engine read the pixels, when any of this text came from OCR.
 	OcrConfidence *struct {
@@ -2094,7 +2112,7 @@ type AnchoredTextEntry0 struct {
 	} `json:"ocrConfidence,omitempty"`
 
 	// PdfClass PDF classification, when the source was a PDF.
-	PdfClass *AnchoredTextEntry0PdfClass `json:"pdfClass,omitempty"`
+	PdfClass *AnchoredTextExtractedEntryPdfClass `json:"pdfClass,omitempty"`
 
 	// Stamp The stamp of the writer that derived the entry. A reader takes the entry only when it equals the stamp the writer states in the store's `STAMP` file.
 	Stamp string `json:"stamp"`
@@ -2106,35 +2124,17 @@ type AnchoredTextEntry0 struct {
 	UnreadPages *[]int `json:"unreadPages,omitempty"`
 
 	// V The entry format.
-	V AnchoredTextEntry0V `json:"v"`
+	V AnchoredTextExtractedEntryV `json:"v"`
 }
 
-// AnchoredTextEntry0Method How the text was extracted.
-type AnchoredTextEntry0Method string
+// AnchoredTextExtractedEntryMethod How the text was extracted.
+type AnchoredTextExtractedEntryMethod string
 
-// AnchoredTextEntry0PdfClass PDF classification, when the source was a PDF.
-type AnchoredTextEntry0PdfClass string
+// AnchoredTextExtractedEntryPdfClass PDF classification, when the source was a PDF.
+type AnchoredTextExtractedEntryPdfClass string
 
-// AnchoredTextEntry0V The entry format.
-type AnchoredTextEntry0V int
-
-// AnchoredTextEntry1 The bytes were declined: no text is extracted from them.
-type AnchoredTextEntry1 struct {
-	// Declined Why extraction yielded nothing, by class.
-	Declined AnchoredTextEntry1Declined `json:"declined"`
-
-	// Stamp The stamp of the writer that derived the entry. A reader takes the entry only when it equals the stamp the writer states in the store's `STAMP` file.
-	Stamp string `json:"stamp"`
-
-	// V The entry format.
-	V AnchoredTextEntry1V `json:"v"`
-}
-
-// AnchoredTextEntry1Declined Why extraction yielded nothing, by class.
-type AnchoredTextEntry1Declined string
-
-// AnchoredTextEntry1V The entry format.
-type AnchoredTextEntry1V int
+// AnchoredTextExtractedEntryV The entry format.
+type AnchoredTextExtractedEntryV int
 
 // Annotation defines model for Annotation.
 type Annotation struct {
@@ -8291,22 +8291,22 @@ func (t *AnchoredTextAnswer) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsAnchoredTextEntry0 returns the union data inside the AnchoredTextEntry as a AnchoredTextEntry0
-func (t AnchoredTextEntry) AsAnchoredTextEntry0() (AnchoredTextEntry0, error) {
-	var body AnchoredTextEntry0
+// AsAnchoredTextExtractedEntry returns the union data inside the AnchoredTextEntry as a AnchoredTextExtractedEntry
+func (t AnchoredTextEntry) AsAnchoredTextExtractedEntry() (AnchoredTextExtractedEntry, error) {
+	var body AnchoredTextExtractedEntry
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromAnchoredTextEntry0 overwrites any union data inside the AnchoredTextEntry as the provided AnchoredTextEntry0
-func (t *AnchoredTextEntry) FromAnchoredTextEntry0(v AnchoredTextEntry0) error {
+// FromAnchoredTextExtractedEntry overwrites any union data inside the AnchoredTextEntry as the provided AnchoredTextExtractedEntry
+func (t *AnchoredTextEntry) FromAnchoredTextExtractedEntry(v AnchoredTextExtractedEntry) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeAnchoredTextEntry0 performs a merge with any union data inside the AnchoredTextEntry, using the provided AnchoredTextEntry0
-func (t *AnchoredTextEntry) MergeAnchoredTextEntry0(v AnchoredTextEntry0) error {
+// MergeAnchoredTextExtractedEntry performs a merge with any union data inside the AnchoredTextEntry, using the provided AnchoredTextExtractedEntry
+func (t *AnchoredTextEntry) MergeAnchoredTextExtractedEntry(v AnchoredTextExtractedEntry) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -8317,22 +8317,22 @@ func (t *AnchoredTextEntry) MergeAnchoredTextEntry0(v AnchoredTextEntry0) error 
 	return err
 }
 
-// AsAnchoredTextEntry1 returns the union data inside the AnchoredTextEntry as a AnchoredTextEntry1
-func (t AnchoredTextEntry) AsAnchoredTextEntry1() (AnchoredTextEntry1, error) {
-	var body AnchoredTextEntry1
+// AsAnchoredTextDeclinedEntry returns the union data inside the AnchoredTextEntry as a AnchoredTextDeclinedEntry
+func (t AnchoredTextEntry) AsAnchoredTextDeclinedEntry() (AnchoredTextDeclinedEntry, error) {
+	var body AnchoredTextDeclinedEntry
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromAnchoredTextEntry1 overwrites any union data inside the AnchoredTextEntry as the provided AnchoredTextEntry1
-func (t *AnchoredTextEntry) FromAnchoredTextEntry1(v AnchoredTextEntry1) error {
+// FromAnchoredTextDeclinedEntry overwrites any union data inside the AnchoredTextEntry as the provided AnchoredTextDeclinedEntry
+func (t *AnchoredTextEntry) FromAnchoredTextDeclinedEntry(v AnchoredTextDeclinedEntry) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeAnchoredTextEntry1 performs a merge with any union data inside the AnchoredTextEntry, using the provided AnchoredTextEntry1
-func (t *AnchoredTextEntry) MergeAnchoredTextEntry1(v AnchoredTextEntry1) error {
+// MergeAnchoredTextDeclinedEntry performs a merge with any union data inside the AnchoredTextEntry, using the provided AnchoredTextDeclinedEntry
+func (t *AnchoredTextEntry) MergeAnchoredTextDeclinedEntry(v AnchoredTextDeclinedEntry) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err

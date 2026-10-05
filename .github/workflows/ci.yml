@@ -98,6 +98,16 @@ jobs:
             fi
           done
 
+      # The Archivist's record keeps files and nothing else: it reaches no
+      # network and links no git. The HTTP surface, the bus and the staging
+      # drivers are crates beside it.
+      - name: Check the Archivist's record links no HTTP and no git
+        run: |
+          if cargo tree --locked -p semiont-archivist-record -e normal --prefix none | grep -E '^(reqwest|hyper|axum|git2|gix|semiont-http-[a-z]+|async-nats) v'; then
+            echo "✗ semiont-archivist-record links an HTTP client or server, the broker or a git library; the record is files, and those are the crates around it"
+            exit 1
+          fi
+
       # The SDK names a transport and never is one: HTTP and OpenTelemetry
       # are the crates beside it, which a client that wants neither leaves out.
       - name: Check the SDK links no HTTP client and no telemetry
