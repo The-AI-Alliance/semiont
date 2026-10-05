@@ -4,7 +4,7 @@ A worker serves a single software-agent identity and turns queued jobs into Know
 
 Workers are **not** actors. They don't subscribe to a reducer; they claim jobs over the bus and dispatch by job type. But they emit the same EventBus commands as any other caller in the system. The **Stower** actor (in `@semiont/make-meaning`) handles all persistence to the Knowledge Base — a worker never writes to storage directly.
 
-**See also**: [Type System Guide](./TYPES.md) for job state architecture and type narrowing patterns.
+**See also**: [Job types](./JobTypes.md) for what each job carries, [Failure discipline](./FailureDiscipline.md) for how one fails, and the [worker service](../../../apps/worker/README.md) for running it: its port, its health endpoint, its configuration and its stall watchdog.
 
 ## The Processor Model
 
@@ -43,7 +43,29 @@ const adapter = startWorkerProcess({
 
 `startWorkerProcess` creates a `JobClaimAdapter` over the session's transport actor. The adapter **pulls**: it asks the dispatcher for the next job of `jobTypes` at every moment it becomes idle — at start, after each job settles, on a matching `job:queued` while parked, and on reconnect — and parks when told nothing is pending. It surfaces each claimed job on `activeJob$`, and for every one `startWorkerProcess` calls `handleJob → handleJobInner`, which does the actual fetch / process / emit.
 
+A job queued while a worker is busy is claimed at that worker's next settle. The dispatcher also announces pending jobs again at each tick, which covers a wake-up lost on its way to an idle worker. A repeated announcement is harmless: a claim is by type, so a worker that finds nothing pending is declined and parks.
+
 A claim the dispatcher refuses for any reason other than an empty queue arrives on `refused$`. `bus.unauthorized` means this credential can never claim — the shipped worker exits on it so the operator sees why, rather than parking forever.
+
+On `SIGTERM` or `SIGINT` the host disposes each agent's adapter and session, then closes its health server.
+
+## A Worker Written Outside This Package
+
+The claim runtime is exported from the package root, with its types (`JobClaimAdapter`, `JobClaimAdapterOptions`, `ActiveJob`, `ClaimRefusal`, `WorkerVitals`), for a worker that is not this one. It takes a `BusRequestPrimitive` (`@semiont/core`) and the job types to claim:
+
+```typescript
+import { createJobClaimAdapter } from '@semiont/jobs';
+
+const adapter = createJobClaimAdapter({
+  bus: httpTransport.actor,             // HttpTransport's ActorStateUnit
+  jobTypes: ['highlight-annotation'],
+});
+adapter.activeJob$.subscribe((job) => { /* null between jobs */ });
+adapter.refused$.subscribe((refusal) => { /* a claim refused for a reason other than an empty queue */ });
+adapter.start();
+```
+
+The caller emits the lifecycle events itself and reports each outcome with `adapter.completeJob()` or `adapter.failJob(jobId, message)`, either of which pulls the next job. The [`semiont-worker` skill](../../../docs/builder/skills/semiont-worker/SKILL.md) walks through a complete worker, and [Jobs](../../../docs/protocol/JOBS.md) is the protocol it speaks.
 
 ## Built-in Job Types
 
@@ -60,7 +82,7 @@ A claim the dispatcher refuses for any reason other than an empty queue arrives 
 
 The highlight, comment, assessment, and tag processors share one signature shape:
 
-```typescript
+```typescript sketch
 process<X>Job(
   content: string,            // prepared by the worker process, not the processor
   inferenceClient: InferenceClient,

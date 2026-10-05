@@ -12,7 +12,7 @@ import { createServer, SERVER_INFO } from './server.js';
  * Semiont MCP Server
  *
  * Exposes the Semiont verb-oriented API to AI applications via MCP tools.
- * Tools are named by flow: browse, mark, bind, gather, match, yield.
+ * Tools are named by flow: browse, mark, bind, gather, yield.
  */
 
 const config = readConfig(process.env);

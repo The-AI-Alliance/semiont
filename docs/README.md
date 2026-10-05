@@ -33,6 +33,7 @@ You work in a knowledge base through the Semiont Browser.
 
 You write code against a knowledge base, in TypeScript or Rust.
 
+- [Quick Start](builder/QUICK-START.md): a knowledge base running on your machine, to build against
 - [Building with the Semiont SDK](builder/README.md): install, the guides, the reference
 - [Embedding the React components](builder/README.md#react-embedding-semiontreact-ui)
 - [Agent skills](builder/skills/), one ready-made definition per task
@@ -41,7 +42,7 @@ You write code against a knowledge base, in TypeScript or Rust.
 
 You run a knowledge base, on your own machine or for others.
 
-- [Quick Start](../README.md#quick-start): install the launcher, create a knowledge base, start it
+- [Quick Start](builder/QUICK-START.md): install the launcher, create a knowledge base, start it
 - [Running a local stack](operator/LOCAL-SEMIONT.md), and [the launcher's manual](../apps/launcher/README.md) for every command and setting
 - [Deploying Semiont](operator/administration/DEPLOYMENT.md): on your machine, on a hosted machine, or on a platform of your own
 - [The service catalog](operator/services/OVERVIEW.md) and [container topology](operator/CONTAINER-TOPOLOGY.md): what a stack is made of
@@ -54,5 +55,6 @@ You change Semiont itself.
 
 - [CONTRIBUTING.md](../CONTRIBUTING.md): the branch and pull-request workflow
 - [Orientation](contributor/README.md): where the code lives. Then [local development](contributor/LOCAL-DEVELOPMENT.md), [testing](contributor/TESTING.md), [dependencies](contributor/DEPENDENCIES.md) and [releasing](contributor/RELEASE.md)
+- [Browser development](../apps/browser/docs/DEVELOPMENT.md): running the Browser from source against a stack
 - [How Semiont works inside](architecture/README.md): the actor model, the knowledge system, anchoring, media types, the package layers
 - [The packages](../packages/README.md): each package's internals are documented in its own directory

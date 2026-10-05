@@ -6,215 +6,71 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/event-sourcing.svg)](https://www.npmjs.com/package/@semiont/event-sourcing)
 [![License](https://img.shields.io/npm/l/@semiont/event-sourcing.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-Event sourcing infrastructure for the Semiont knowledge platform. Provides the persistence layer for the append-only event log, materialized views, and event-driven projections.
+The record of a knowledge base, and the views read from it. Every change is an event appended to a log in the knowledge base's working tree. Views of the current state are materialized from that log, and can always be made from it again.
 
-## Architecture
+## Who uses it
 
-```
-appendEvent(event, options?)
-  1. Persist to EventLog (JSONL files)
-  2. Materialize views (resource descriptors, entity types)
-  3. Publish StoredEvent to Core EventBus typed channels
+- **The Archivist** holds the one event store, built in [`@semiont/make-meaning`](../make-meaning/README.md). Its Stower is the only writer, and its Browser reads events and views to answer `browse` requests.
+- **`startMakeMeaning()`** builds the same store in one process, for scripts and tests.
+- **[`@semiont/jobs`](../jobs/README.md)** uses `annotationIdFor`, so that the same annotation made twice has one id.
 
-options.correlationId rides the bus envelope of the publish in step 3, so a
-caller can match the published event to the command that caused it. It is
-never written to the log. See docs/protocol/EVENT-BUS.md.
-```
+**Building an application?** You do not need this package. An application reads a resource's history through [`@semiont/sdk`](../sdk/README.md) (`browse.events`), and writes by using the verbs.
 
-The **EventStore** is the single write path. It coordinates three concerns:
+## What is in it
 
-- **EventLog** — Append-only persistence to sharded JSONL files under `.semiont/events/`. This is the source of truth.
-- **ViewManager** — Materializes resource views and system projections from events. Supports both incremental updates on every append and a full `rebuildAll(eventLog)` for startup recovery.
-- **Core EventBus** (`@semiont/core`) — Publishes `StoredEvent` to typed channels after persistence
+| | |
+|---|---|
+| `createEventStore(project, eventBus, logger)` | The store of a knowledge base: its log, its views, and the bus it publishes on |
+| `EventStore.appendEvent` | The one way an event is written |
+| `EventLog`, `EventStorage` | The log: JSONL files under `.semiont/events/`, one stream per resource, and `__system__` for what belongs to the knowledge base as a whole |
+| `EventQuery` | Reading events, with filters |
+| `ViewManager`, `ViewMaterializer` | The views: a resource's description and its annotations, and the system views (entity types, tag schemas, people) |
+| `applyEntityTypeAdded`, `applyTagSchemaAdded`, `applyPersonProfiled` | The system views' rules, as pure functions |
+| `FilesystemViewStorage`, and the storage-uri index | Where views are kept, and which resource a file in the working tree is |
+| `annotationIdFor` | An annotation's id, from what makes it that annotation |
 
-Event publishing uses the Core EventBus from `@semiont/core`. There is no internal pub/sub system — subscribers in the same process subscribe directly to typed channels on the Core EventBus, and the Archivist republishes each persisted event onto the gateway's bus, where the Weaver, the Smelter and connected clients follow it.
-
-The materialized views directory is **ephemeral by design** — see the [ViewManager / ViewMaterializer](#viewmanager--viewmaterializer) section for the rebuild model and how it relates to the graph and vector consumers.
-
-## Installation
-
-```bash
-npm install @semiont/event-sourcing
-```
-
-## Quick Start
+## Example
 
 ```typescript
-import { createEventStore } from '@semiont/event-sourcing';
+import { createEventStore, EventQuery } from '@semiont/event-sourcing';
 import { SemiontProject } from '@semiont/core/node';
-import { EventBus, resourceId, userId } from '@semiont/core';
+import { EventBus, resourceId, userId, type Logger } from '@semiont/core';
 
-const project = new SemiontProject('/path/to/project', {
+declare const logger: Logger;
+
+const project = new SemiontProject('/path/to/knowledge-base', {
   anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR!,
 });
-const eventBus = new EventBus();
-const eventStore = createEventStore(project, eventBus, logger);
+const eventStore = createEventStore(project, new EventBus(), logger);
 
-// Append an event — persists, materializes views, publishes to EventBus
+// Appended to the log, then materialized into the views, then published.
 const stored = await eventStore.appendEvent({
-  type: 'yield:created',
+  type: 'mark:archived',
   resourceId: resourceId('doc-123'),
-  userId: userId('did:web:example.com:users:alice'),
+  userId: userId('did:web:example.org:users:alice'),
   version: 1,
-  payload: {
-    name: 'My Document',
-    format: 'text/markdown',
-    contentChecksum: 'sha256:abc...',
-  },
+  payload: {},
 });
+console.log(stored.metadata.sequenceNumber);
 
-// stored          — flat StoredEvent (id, type, resourceId, payload, …)
-// stored.metadata — { sequenceNumber }
+const history = await new EventQuery(eventStore.log.storage).getResourceEvents(resourceId('doc-123'));
 ```
 
-## Components
+## What a change must keep
 
-### EventStore
+- **The log is the record.** It is append-only, it lives in the knowledge base's working tree, and git gives it its history and its integrity. An event carries no hash of the one before it.
+- **One write path, in one order.** `appendEvent` persists, then materializes the views, then publishes. A subscriber that hears an event can read a view that already includes it.
+- **Views are disposable.** They live outside the working tree, and deleting them loses nothing: `rebuildAll` makes them again from the log when a process starts. Replaying events 1 to N gives the state that living through them gave, because both paths run the same code.
+- **A view's rules are pure functions.** What the system views do with a repeat, an overwrite or an ordering is decided in the reducers, and tested without a filesystem. [The projection pattern](../../docs/architecture/PROJECTION-PATTERN.md) says how to add one.
+- **A correlation id is not recorded.** It rides the bus envelope of the publish, so a caller can match the event to the command that caused it. It is never written to the log.
+- **The event catalogue is not here.** What events exist, and each one's payload, is [`@semiont/core`](../core/README.md)'s `PersistedEvent`, generated from the bus registry.
 
-Orchestration layer. `appendEvent()` is the only write method — it coordinates persistence, view materialization, and event publishing in sequence.
+## Documentation
 
-```typescript
-import { createEventStore } from '@semiont/event-sourcing';
+- [API reference](docs/API.md): the store, the log, queries, and how views are materialized and rebuilt.
+- [Storage layout](docs/STORAGE-LAYOUT.md): where each file is.
+- [The projection pattern](../../docs/architecture/PROJECTION-PATTERN.md): the views' design, and its rules.
 
-const eventStore = createEventStore(project, eventBus, logger);
-```
+## License
 
-The `eventBus` parameter is required. After persistence, `appendEvent` publishes the full `StoredEvent` to:
-- The global typed channel (e.g., `eventBus.on('mark:added')`)
-- The resource-scoped typed channel (e.g., `eventBus.scope(resourceId).on('mark:added')`)
-
-### EventLog
-
-Append-only event persistence to sharded JSONL files. Each resource gets its own event stream directory under `.semiont/events/<ab>/<cd>/<resourceId>/`, holding `events-NNNNNN.jsonl` files rotated every 10,000 events. System events go to `.semiont/events/__system__/`. Integrity is provided by git at the commit level (when `gitSync` is enabled) — there is no per-event hash chain. See [docs/STORAGE-LAYOUT.md](docs/STORAGE-LAYOUT.md).
-
-```typescript
-// Append (used internally by EventStore)
-const stored = await eventStore.log.append(event, resourceId);
-
-// Read all events for a resource
-const events = await eventStore.log.getEvents(resourceId);
-
-// List all resource IDs
-const ids = await eventStore.log.getAllResourceIds();
-```
-
-### EventQuery
-
-Read-only query interface with filtering support.
-
-```typescript
-import { EventQuery } from '@semiont/event-sourcing';
-
-const query = new EventQuery(eventStore.log.storage);
-
-// Get all events for a resource
-const events = await query.getResourceEvents(resourceId);
-
-// Query with filters
-const filtered = await query.queryEvents({
-  resourceId,
-  eventTypes: ['mark:added', 'mark:removed'],
-  limit: 50,
-});
-```
-
-### ViewManager / ViewMaterializer
-
-Materializes JSON views from events. Resource views are projected to `<stateDir>/resources/<ab>/<cd>/<resourceId>.json`. System views (entity types, tag schemas, people) are projected to `<stateDir>/projections/__system__/`. The storage-uri index is sharded under `<stateDir>/projections/storage-uri/`.
-
-The materializer processes events through a large switch statement that builds up resource descriptors, annotation collections, and system state. There are two paths into it:
-
-**Live append path** — every `EventStore.appendEvent()` call materializes the event incrementally:
-- Resource events → `views.materializeResource(rid, event, getAllEvents)` → updates the resource view file and the storage-uri index.
-- System events (`frame:entity-type-added`, `frame:tag-schema-added`, `person:profiled`) → `views.materializeSystem(event)` → updates `entitytypes.json` / `tagschemas.json` / `people.json`.
-
-**Startup rebuild path** — `views.rebuildAll(eventLog)` walks the entire event log once at process start and writes every view from scratch. Idempotent: existing view files are overwritten. This is the recovery mechanism for the materialized layer.
-
-```typescript
-// Called once during knowledge-base construction, before any HTTP request
-await eventStore.views.rebuildAll(eventStore.log);
-```
-
-The two paths use the same materialization primitives, so replaying event 1..N via `rebuildAll` produces the same final state as the live path walking 1..N over time.
-
-#### Pure projection reducers
-
-The `__system__` projections (`entitytypes.json`, `tagschemas.json`, `people.json`) are written by a thin I/O shell wrapping pure functions that own the merge/dedup/sort/conflict semantics. The pure reducers live in [`src/views/projection-reducers.ts`](src/views/projection-reducers.ts):
-
-- `applyEntityTypeAdded(view, tag)` → `string[]` — dedup + locale-aware sort.
-- `applyTagSchemaAdded(view, schema)` → `{ next; warning? }` — most-recent-wins by id, warning on overwrite-with-different-content.
-- `applyPersonProfiled(view, did, name, since)` → `PeopleView` — last-wins per DID.
-
-The shell methods on `ViewMaterializer` (`materializeEntityTypes`, `materializeTagSchemas`, `materializePeople`) read the projection file, call the reducer, then write the result. The semantics are the reducer's; the disk I/O is the shell's.
-
-This split keeps projection-update tests pure (single-digit milliseconds, no filesystem) and gives load-bearing invariants — sortedness, uniqueness, idempotence, most-recent-wins — a property-based-test home using fast-check. The full architectural narrative, the axiom catalog, and guidance for adding new projections lives in [`docs/architecture/PROJECTION-PATTERN.md`](../../docs/architecture/PROJECTION-PATTERN.md).
-
-#### Why startup rebuild exists
-
-The materialized views directory (`stateDir`) is **ephemeral by design** — it's safe to wipe (`semiont clean`, dev cleanup), and the event log under `.semiont/events/` is the single source of truth. `rebuildAll` is what makes "ephemeral" safe: any time `stateDir` goes empty, the next process start repopulates it from the event log.
-
-This makes the views layer the third leg of a symmetric pattern: the three derived read models (graph, vectors, materialized views) each have exactly one owner, which recovers its store from the record at startup:
-
-| Derived store | Startup recovery | Owned by |
-|---|---|---|
-| Graph (Neo4j) | `Weaver.catchUp()`, from its checkpoint | `@semiont/make-meaning` |
-| Vectors (Qdrant) | `Smelter.reconcile()`, against the catalog | `@semiont/make-meaning` |
-| Materialized views | `ViewManager.rebuildAll(eventLog)` | `@semiont/event-sourcing` |
-
-Each runs in its own service: the Archivist calls `rebuildAll` before it serves a request, the Weaver catches up in `weaver-main`, and the Smelter reconciles in `smelter-main`. `createKnowledgeBase` calls `rebuildAll` the same way for an in-process composition.
-
-`rebuildAll` accepts any object satisfying the `RebuildEventSource` structural type (`getEvents(rid)` + `getAllResourceIds()`); the concrete `EventLog` satisfies it without an explicit conformance declaration.
-
-### Storage
-
-- **EventStorage** — Low-level JSONL file I/O with 4-hex hash sharding and file rotation
-- **FilesystemViewStorage** — JSON view persistence implementing the `ViewStorage` interface
-- **Storage URI Index** — Maps `file://` URIs to resource IDs for filesystem-based resources
-
-## Event Types
-
-All persisted events use flow verb names (see `PersistedEvent` in `@semiont/core`):
-
-| Event Type | Flow | Description |
-|---|---|---|
-| `yield:created` | Yield | Resource created |
-| `yield:cloned` | Yield | Resource cloned from a parent resource |
-| `yield:updated` | Yield | Resource content updated |
-| `yield:moved` | Yield | Resource file moved |
-| `yield:representation-added` | Yield | Multi-format representation added |
-| `yield:representation-removed` | Yield | Representation removed |
-| `mark:added` | Mark | Annotation created |
-| `mark:removed` | Mark | Annotation deleted |
-| `mark:body-updated` | Mark | Annotation body modified |
-| `mark:archived` | Mark | Resource archived |
-| `mark:unarchived` | Mark | Resource unarchived |
-| `mark:entity-tag-added` | Mark | Entity type tag added to resource |
-| `mark:entity-tag-removed` | Mark | Entity type tag removed from resource |
-| `frame:entity-type-added` | Frame | New entity type added (system-level) |
-| `frame:tag-schema-added` | Frame | Tag schema added (system-level) |
-| `person:profiled` | Person | A person's display name recorded (system-level) |
-| `job:started` | Job | Background job started |
-| `job:assigned` | Job | The dispatcher accepted a claim — records the job's holder and its requester |
-| `job:completed` | Job | Background job completed |
-| `job:failed` | Job | Background job failed |
-
-## Exports
-
-```typescript
-// Core
-export { EventStore, createEventStore, EventLog, ViewManager };
-
-// Storage
-export { EventStorage, FilesystemViewStorage, type ViewStorage, type ResourceView };
-export { resolveStorageUri, writeStorageUriEntry, removeStorageUriEntry, listStorageUriEntries, ResourceNotFoundError };
-
-// Query
-export { EventQuery };
-
-// Views
-export { ViewMaterializer };
-export { applyEntityTypeAdded, applyTagSchemaAdded, applyPersonProfiled };
-
-// Utilities
-export { annotationIdFor };
-```
+Apache-2.0

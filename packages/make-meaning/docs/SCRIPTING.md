@@ -1,264 +1,169 @@
-# Direct Scripting Guide
+# A Knowledge Base in Your Own Process
 
-Use `@semiont/make-meaning` directly in TypeScript scripts without requiring a running HTTP gateway.
+`startMakeMeaning()` runs a knowledge base's record, and the five actors a client talks to, inside one process. There is no gateway and no network. This page is for the script or the test that wants that.
 
-## When to Use Direct Scripting
+## When this is the right tool
 
-- **Batch processing** — analyze or modify multiple resources efficiently
-- **Data migration** — import resources from external systems
-- **Custom workflows** — domain-specific automation
-- **Testing** — integration tests without HTTP layer
-- **Maintenance** — rebuild projections or reprocess content
+Most programs should not do this. A program that works with a knowledge base uses [`@semiont/sdk`](../../sdk/README.md) against a running stack, where there is sign-in, a job queue, a graph and a vector index. [Usage](../../../docs/builder/Usage.md) starts there.
 
-## Basic Setup
+This fits a test of this package or of something built on it, and a script that reads or repairs a knowledge base's record where it lies.
+
+**Never run it against a knowledge base whose stack is up.** The Archivist is the working tree's only writer, and a second process appending to the same log breaks that. Stop the stack first.
+
+What a process started this way does not have:
+
+| | |
+|---|---|
+| **Jobs** | There is no dispatcher and no worker. `mark.assist` and `yield.fromContext` create a job that nothing answers, and time out |
+| **A graph projection** | There is no Weaver. With `graph: { type: 'memory' }` the graph stays empty, so a search by name and a referenced-by lookup find nothing. Configured with a graph database, it reads whatever a Weaver wrote there |
+| **A vector index** | There is no Smelter, so nothing is embedded. Semantic recall is empty, and a resource gather waits out `gather.settleTimeoutMs` before it goes on without it |
+| **Sign-in** | The process acts as the one identity it states. A client over it has no `auth` and no `system` |
+| **Uploads through the client** | `LocalContentTransport` does not implement `putBinary`, so `yield.resource` throws. [Creating a resource](#creating-a-resource) is how it is done here |
+
+Reads from the views, and every write, work as they do in a stack.
+
+## Starting it
 
 ```typescript
-#!/usr/bin/env tsx
-
+import { startMakeMeaning, type MakeMeaningConfig } from '@semiont/make-meaning';
 import { EventBus } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { createProcessLogger } from '@semiont/observability/process-logger';
-import { startMakeMeaning, type MakeMeaningConfig } from '@semiont/make-meaning';
 
-async function main() {
-  // anchoredTextDir is REQUIRED and has no default. It names where this KB's
-  // derived anchored-text (OCR) store lives. A default would let a script that
-  // forgot it write a full OCR pass per representation into a directory nobody
-  // reads, lose it on exit, and re-derive it forever — silent, expensive, and
-  // indistinguishable from working. Containers get it from the image
-  // (SEMIONT_ANCHORED_TEXT_DIR=/anchored-text, mounted by `semiont start`);
-  // a script running outside one names it itself.
-  //
-  // SEMIONT_ROOT names a knowledge base: its committed .semiont/config
-  // declares a [site] domain, the identity the knowledge base acts under.
-  // startMakeMeaning refuses one that declares none.
-  const project = new SemiontProject(process.env.SEMIONT_ROOT!, {
-    anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR!,
-  });
-  const logger = createProcessLogger('script');
+const project = new SemiontProject('/path/to/knowledge-base', {
+  anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR!,
+});
 
-  // Hand-built here; `makeMeaningConfigFrom` derives the same shape from a
-  // config loaded with `loadEnvironmentConfig` (`@semiont/core/node`)
-  const config: MakeMeaningConfig = {
-    // The resource-gather settle bound (semanticContext read-your-writes
-    // barrier). TOML deployments set it at
-    // [environments.<env>.make-meaning.gather]; hand-built configs state
-    // their policy explicitly — there is no in-code default.
-    gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
-    services: {
-      graph: { platform: { type: 'posix' }, type: 'memory' },
-      vectors: { type: 'memory' },
-      embedding: { type: 'ollama', model: 'nomic-embed-text' },
-    },
-    actors: {
-      gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: process.env.ANTHROPIC_API_KEY! },
-      matcher:  { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: process.env.ANTHROPIC_API_KEY! },
-    },
-    workers: {
-      default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: process.env.ANTHROPIC_API_KEY! },
-    },
-  };
+const inference = { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: process.env.ANTHROPIC_API_KEY! } as const;
+const config: MakeMeaningConfig = {
+  gather: { settleTimeoutMs: 15_000 },
+  search: { semanticFloor: 0.6 },
+  services: {
+    graph: { platform: { type: 'posix' }, type: 'memory' },
+    vectors: { type: 'memory' },
+    embedding: { type: 'ollama', model: 'nomic-embed-text' },
+  },
+  actors: { gatherer: inference, matcher: inference },
+  workers: { default: inference },
+};
 
-  // EventBus is created outside make-meaning
-  const eventBus = new EventBus();
-
-  // Start make-meaning service (initializes KB and actors)
-  const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);
-
-  try {
-    // Access components:
-    // makeMeaning.knowledgeSystem.kb                — Knowledge Base (eventStore, views, content, anchoredText, graph, weaveProgress, smeltProgress, vectors)
-    // makeMeaning.knowledgeSystem.stower            — Write gateway actor
-    // makeMeaning.knowledgeSystem.browser           — Read actor (browse queries, directory listings)
-    // makeMeaning.knowledgeSystem.gatherer          — Context assembly actor
-    // makeMeaning.knowledgeSystem.matcher           — Search/link actor
-    // makeMeaning.knowledgeSystem.cloneTokenManager — Clone token actor
-
-    console.log('Script running...');
-  } finally {
-    await makeMeaning.stop();
-    eventBus.destroy();
-  }
-}
-
-main().catch(console.error);
+const eventBus = new EventBus();
+const makeMeaning = await startMakeMeaning(project, config, eventBus, createProcessLogger('script'));
 ```
 
-### Running
+What the three inputs have to be:
 
-`SemiontProject` composes the state tree (materialized views and projections) under `XDG_STATE_HOME`, which has no default.
+- **The knowledge base** is a directory whose committed `.semiont/config` declares a `[site] domain`. A knowledge base acts under that identity, and one that declares none is refused.
+- **`anchoredTextDir`** has no default. It is where text derived from PDFs is kept, and a script that guessed it would derive every document again on each run. A Semiont image sets `SEMIONT_ANCHORED_TEXT_DIR`; a script outside one names the directory itself.
+- **`XDG_STATE_HOME`** has to be set in the environment. The views are written under it, and `SemiontProject` refuses to construct without it.
 
-```bash
-export SEMIONT_ROOT=/path/to/your/project
-export SEMIONT_ANCHORED_TEXT_DIR=/path/to/anchored-text
-export XDG_STATE_HOME=/path/to/state
-tsx scripts/your-script.ts
-```
+Nothing in the configuration is defaulted: the gather bound, the search floor, the vector store and the embedding provider are each stated. `makeMeaningConfigFrom` builds the same value from a configuration loaded with `loadEnvironmentConfig` (`@semiont/core/node`).
 
-## Creating Resources
+The caller makes the `EventBus` and keeps it. Every actor in the process shares it, and so does the client below.
 
-Content is written to the content store first; `createResource` then registers it and returns the new `ResourceId`:
+## The client over it
+
+`LocalTransport` and `LocalContentTransport` are the SDK's two transport contracts, in process. A `SemiontClient` over them is the same client an application uses, so everything in the SDK's documentation that is not in the table above applies.
 
 ```typescript
-import { ResourceOperations, deriveStorageUri, userId } from '@semiont/core';
-import { asBusRequestPrimitive } from '@semiont/make-meaning';
+import { LocalTransport, LocalContentTransport, type MakeMeaningService } from '@semiont/make-meaning';
+import { SemiontClient } from '@semiont/sdk';
+import { resourceId, userId, type EventBus } from '@semiont/core';
 
-const kb = makeMeaning.knowledgeSystem.kb;
-const uri = deriveStorageUri('my-document', 'text/plain');
-const stored = await kb.content.store(Buffer.from('Document content here'), uri);
+declare const eventBus: EventBus;
+declare const makeMeaning: MakeMeaningService;
 
-const rId = await ResourceOperations.createResource(
+const client = new SemiontClient(
+  new LocalTransport({ eventBus, userId: userId('did:web:example.org:users:alice') }),
+  new LocalContentTransport(makeMeaning.knowledgeSystem.kb),
+);
+
+const doc = resourceId('doc-123');
+await client.frame.addEntityType('Person');
+await client.mark.annotation({
+  motivation: 'highlighting',
+  target: { source: doc, selector: { type: 'TextQuoteSelector', exact: 'a passage' } },
+});
+const annotations = await client.browse.annotations(doc).fresh();
+```
+
+The `userId` is who the process acts as. It is stamped on every emit, as the gateway stamps the identity it verified, and the actors trust nothing else.
+
+## Creating a resource
+
+The bytes go into the working tree first. `ResourceOperations.createResource` then records the resource and resolves to its id once the Stower has appended it.
+
+```typescript
+import { asBusRequestPrimitive, type MakeMeaningService } from '@semiont/make-meaning';
+import { ResourceOperations, deriveStorageUri, userId, type EventBus } from '@semiont/core';
+
+declare const eventBus: EventBus;
+declare const makeMeaning: MakeMeaningService;
+
+const { kb } = makeMeaning.knowledgeSystem;
+const stored = await kb.content.store(
+  Buffer.from('# Hello\n\nA first document.\n'),
+  deriveStorageUri('Hello', 'text/markdown'),
+);
+
+const id = await ResourceOperations.createResource(
   {
-    name: 'My Document',
+    name: 'Hello',
     storageUri: stored.storageUri,
     contentChecksum: stored.checksum,
     byteSize: stored.byteSize,
-    format: 'text/plain',
+    format: 'text/markdown',
     language: 'en',
   },
-  { did: userId('did:web:example.com:users:script-user'), roles: [] },
+  { did: userId('did:web:example.org:users:alice'), roles: [] },
   asBusRequestPrimitive(eventBus),
 );
-
-console.log(`Created: ${rId}`);
 ```
 
-## Jobs
+`asBusRequestPrimitive(eventBus)` gives the in-process bus the request and reply shape `busRequest` (`@semiont/core`) works over, for any channel the client has no method for.
 
-The in-process knowledge base runs no jobs: the job queue belongs to the dispatcher, a service of the
-stack, and jobs are run by workers against it. A script that runs jobs — annotation detection,
-generation — runs the stack and uses the SDK: `semiont.mark` and `semiont.yield` start them, and
-`semiont.job` follows and cancels them (see [Job Workers](./job-workers.md)).
+## Below the client
 
-## Querying the Knowledge Base
+`makeMeaning.knowledgeSystem.kb` holds the stores themselves, which is what a maintenance script is usually after. [Architecture](./architecture.md#knowledge-base) lists them, and the [context modules](./architecture.md#context-modules) are the readers the actors use over them.
 
 ```typescript
-import { ResourceContext, AnnotationContext, GraphContext } from '@semiont/make-meaning';
+import { AnnotationContext, type MakeMeaningService } from '@semiont/make-meaning';
+import { SYSTEM_SCOPE } from '@semiont/core';
+
+declare const makeMeaning: MakeMeaningService;
 
 const { kb } = makeMeaning.knowledgeSystem;
 
-// Get resource metadata
-const resource = await ResourceContext.getResourceMetadata(resourceId, kb);
+// The log also holds the system scope (the vocabulary and the people), which is not a resource.
+const ids = (await kb.eventStore.log.getAllResourceIds()).filter((id) => id !== SYSTEM_SCOPE);
 
-// Get annotations
-const annotations = await AnnotationContext.getAllAnnotations(resourceId, kb);
-
-// Search resources via graph — whatever a Weaver has projected into the
-// configured graph: the Weaver is a standalone service, not started here
-const { resources: results } = await kb.graph.listResources({ search: 'query text', limit: 10 });
-
-// Get graph stats
-const stats = await kb.graph.getStats();
-console.log(`Total resources: ${stats.resourceCount}`);
-```
-
-## Batch Processing
-
-```typescript
-import { SYSTEM_SCOPE } from '@semiont/core';
-
-// The log also holds the system scope (vocabulary and people), which is no resource
-const resourceIds = (await makeMeaning.knowledgeSystem.kb.eventStore.log.getAllResourceIds())
-  .filter((rId) => rId !== SYSTEM_SCOPE);
-
-console.log(`Processing ${resourceIds.length} resources...`);
-
-for (const rId of resourceIds) {
-  const annotations = await AnnotationContext.getAllAnnotations(rId, kb);
-  console.log(`${rId}: ${annotations.length} annotations`);
+for (const id of ids) {
+  const annotations = await AnnotationContext.getAllAnnotations(id, kb);
+  console.log(`${id}: ${annotations.length} annotations`);
 }
 ```
 
-## Using the SDK (Recommended)
+Read through `kb`, and write through the bus. The Stower is the only code that appends to the log, and a script that called the event store itself would skip what the Stower checks and derives.
 
-For most scripting use cases, the `@semiont/sdk` `SemiontClient` with verb namespaces is the simplest approach:
-
-```typescript
-import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
-import { resourceId, annotationId } from '@semiont/core';
-
-const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-const session = await SemiontSession.signInDevice({
-  kb: httpKb({
-    id: 'script', label: 'Semiont',
-    host: url.hostname, port: Number(url.port || 4000),
-    protocol: url.protocol === 'https:' ? 'https' : 'http',
-  }),
-  storage: new InMemorySessionStorage(),
-  onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
-});
-const semiont = session.client;
-
-// The SDK is RxJS-native. Streams and uploads are PromiseLike — `await` works directly;
-// a Browse live query is read once with `.fresh()`.
-
-// Browse resources
-const resource = await semiont.browse.resource(resourceId('doc-123')).fresh();
-const content = await semiont.browse.resourceContent(resourceId('doc-123'));
-const events = await semiont.browse.resourceEvents(resourceId('doc-123'));
-
-// Mark annotations / register entity types
-await semiont.mark.annotation({
-  motivation: 'highlighting',
-  target: { source: resourceId('doc-123'), selector: { type: 'TextQuoteSelector', exact: 'a passage' } },
-});
-await semiont.frame.addEntityType('Person');
-
-// Gather LLM context
-const { response: context } = await semiont.gather.annotation(resourceId('doc-123'), annotationId('ann-1'));
-
-// Bind references
-await semiont.bind.body(resourceId('doc-123'), annotationId('ann-1'), [
-  { op: 'add', item: { type: 'SpecificResource', source: resourceId('doc-456'), purpose: 'linking' } },
-]);
-```
-
-Use the context modules directly (`ResourceContext`, `AnnotationContext`, `GraphContext`) only when you need lower-level control.
-
-## Differences from Direct Context Modules
-
-| Aspect | SemiontClient (SDK) | Direct Context Modules |
-|--------|------------------|----------------------|
-| **Transport** | HTTP REST + SSE | Direct function calls |
-| **Authentication** | Sign-in at the knowledge base's issuer; the session keeps the token fresh | Not needed |
-| **Events** | Observable return types | EventBus subscriptions |
-| **Error handling** | HTTP status codes / Observable errors | Exceptions |
-| **Deployment** | Gateway server required | Standalone script |
-| **API surface** | Full (all 8 verbs + job, auth, system) | Low-level KB access |
-
-## Troubleshooting
-
-### "XDG_STATE_HOME is not set"
-
-`SemiontProject` refuses to construct without a state tree. Set XDG_STATE_HOME before running:
-
-```bash
-export XDG_STATE_HOME=/path/to/state
-tsx scripts/your-script.ts
-```
-
-### Script Hangs
-
-Ensure you call `makeMeaning.stop()` and `eventBus.destroy()` in a `finally` block. Add a timeout as fallback:
+## Stopping
 
 ```typescript
-setTimeout(() => {
-  console.error('Timeout - forcing exit');
-  process.exit(1);
-}, 10 * 60 * 1000);
+import type { MakeMeaningService } from '@semiont/make-meaning';
+import type { EventBus } from '@semiont/core';
+
+declare const eventBus: EventBus;
+declare const makeMeaning: MakeMeaningService;
+
+await makeMeaning.stop();
+eventBus.destroy();
 ```
 
-### "Cannot find module" Errors
+A script that does not stop the service keeps the process alive: the actors hold subscriptions. Put both calls in a `finally`.
 
-Run from the monorepo root with packages built:
+## When it does not start
 
-```bash
-npm run build:packages
-tsx scripts/your-script.ts
-```
-
-## See Also
-
-- [Architecture](./architecture.md) — Actor model and data flow
-- [Examples](./examples.md) — Common use cases
-- [Make-Meaning Service](../src/service.ts) — Service implementation
+| It says | Why |
+|---|---|
+| `XDG_STATE_HOME is not set` | The state tree has no default. Set it before the script runs |
+| That the knowledge base declares no domain | `.semiont/config` has no `[site] domain`. Add one and commit it |
+| That a connection timed out | A store in `services` is not answering. Each connect is bounded at 60 seconds. The `ollama` embedding provider needs Ollama running, with the model pulled |

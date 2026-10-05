@@ -6,251 +6,79 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/inference.svg)](https://www.npmjs.com/package/@semiont/inference)
 [![License](https://img.shields.io/npm/l/@semiont/inference.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-**AI primitives for text generation: a provider-agnostic inference client.**
+The model providers Semiont's services call, behind one interface. An `InferenceClient` generates text, or a typed list of elements, says what its model's limits are, and can be cancelled. Anthropic and Ollama implement it.
 
-This package provides the **core AI primitives** for the Semiont platform:
-- The `InferenceClient` interface (provider abstraction)
-- Client implementations for Anthropic and Ollama, plus a scripted mock for tests
-- A `createInferenceClient()` factory that selects the implementation from config
-- Cross-provider structured generation (`generateStructured` — parsed elements or a throw, never a silent `[]`)
-- Usage metrics via `@semiont/observability`
+## Who uses it
 
-For **application-specific AI logic** (semantic processing, prompt engineering, response parsing), see [@semiont/make-meaning](../make-meaning/).
+Two of Semiont's services hold a model credential, and only they create clients:
 
-## Architecture Context
+- the [Worker](../../apps/worker/README.md), through [`@semiont/jobs`](../jobs/README.md): one client for each model its job types are configured with;
+- the [Librarian](../../apps/librarian/README.md), through [`@semiont/make-meaning`](../make-meaning/README.md): one for the Matcher and one for the Gatherer.
 
-**Infrastructure Ownership**: In production, inference clients are **created by the Librarian's entry point in [@semiont/make-meaning](../make-meaning/), `librarian-main`** (one client per knowledge-system actor — Gatherer, Matcher) and by [@semiont/jobs](../jobs/)' worker process (one client per job group). `startMakeMeaning()` creates the same two actor clients when it composes the actors in one process. Each builds an `InferenceClientConfig` from its own configuration and calls `createInferenceClient()`.
+`startMakeMeaning()` creates the Librarian's two in one process, for scripts and tests.
 
-The API below can also be used directly for **testing, CLI tools, or standalone scripts**.
+**Building an application?** You do not need this package. An application asks a knowledge base to do the inference, through [`@semiont/sdk`](../sdk/README.md): `mark.assist`, `yield.fromContext`, `gather` and `match`.
 
-## Philosophy
+## What is in it
 
-This package is named `inference` rather than `ai-inference` to align with Semiont's core tenet: humans and AI agents have equal opportunity to work behind similar interfaces. The abstraction remains open for future human-agent parity.
+| | |
+|---|---|
+| `InferenceClient` | The contract: `generateText`, `generateTextWithMetadata`, `generateStructured`, `limits()`, and the two capabilities a provider declares |
+| `createInferenceClient(config, logger?)` | Picks the implementation from `config.type`. It does no I/O |
+| `AnthropicInferenceClient` | Anthropic's Messages API, through its SDK |
+| `OllamaInferenceClient` | Ollama's native HTTP API, with no SDK |
+| `MockInferenceClient` | A scripted double for tests: canned responses in order, every call recorded |
+| `StructuredReadError` | What a structured generation throws when the response cannot be read as the list that was asked for |
+| `answerLimitsRequests`, `reportLimits` | How a service that holds clients answers a limits request on the bus, with each model's discovered limits |
 
-**Package Responsibility**: AI primitives only. No application logic, no prompt engineering, no response parsing. Those belong in `@semiont/make-meaning`.
+Every generation records a usage metric through [`@semiont/observability`](../observability/README.md): provider, model, duration, outcome, and the token counts the provider reported.
 
-## Installation
+The package holds no prompts, no reading of what a model answered, and no retries. Those are its callers'.
 
-```bash
-npm install @semiont/inference
-```
-
-## Quick Start
+## Example
 
 ```typescript
 import { createInferenceClient } from '@semiont/inference';
 
-// Anthropic (apiKey required)
-const claude = createInferenceClient({
-  type: 'anthropic',
-  model: 'claude-sonnet-4-6',
-  apiKey: process.env['ANTHROPIC_API_KEY']!,
-});
+// Ollama needs no key, and its endpoint defaults to http://localhost:11434.
+// For Anthropic: { type: 'anthropic', model, apiKey }.
+const client = createInferenceClient({ type: 'ollama', model: 'gemma2:9b' });
 
-// Ollama (no API key; endpoint defaults to http://localhost:11434)
-const local = createInferenceClient({
-  type: 'ollama',
-  model: 'gemma2:9b',
-});
+// Asked of the provider on first use, then kept.
+const { contextTokens, maxOutputTokens } = await client.limits();
 
-const text = await claude.generateText(
-  'Explain quantum computing in simple terms',
-  500,   // maxTokens
-  0.7    // temperature
+// A prompt, the most tokens to generate, and the temperature.
+const text = await client.generateText('Explain quantum computing in simple terms', 500, 0.7);
+
+// A typed list, or a throw. The schema is of one element.
+const { items } = await client.generateStructured<{ exact: string }>(
+  'List the people named in: "Ada met Charles."',
+  1000,
+  0,
+  { type: 'object', properties: { exact: { type: 'string' } }, required: ['exact'], additionalProperties: false },
 );
-console.log(text);
 ```
 
-## API Reference
+## What a change must keep
 
-See [docs/API.md](docs/API.md) for the full reference.
+- **Callers never ask which provider they hold.** What differs between providers is a capability the client declares: `maxConcurrency`, how many independent calls gain from running at once, and `verifyDetectionYield`, whether a detection's results are count-checked. A new provider takes a position on each.
+- **Limits are asked of the provider, never kept in a table here.** `limits()` discovers the model's context window and its output ceiling. A success is cached, a failure is not, and when the limits cannot be found it throws rather than guess.
+- **A structured generation returns parsed elements or throws.** A response that is unreadable, empty or cut off mid-list is a `StructuredReadError` carrying the provider's stop reason. It is never an empty list.
+- **A cancelled call stops at the provider.** Every generation takes an `AbortSignal`, and aborting tears the request down rather than leaving it running and billed.
+- **Token counts are the provider's own.** `usage` is absent when the provider reported none. It is never estimated.
 
-### `createInferenceClient(config, logger?): InferenceClient`
+## Adding a provider
 
-Factory ([src/factory.ts](src/factory.ts)). Selects the implementation from `config.type`:
+1. Implement `InferenceClient` in [src/implementations/](src/implementations/). The interface requires both capabilities, so a provider that takes no position does not compile. [factory.test.ts](src/__tests__/factory.test.ts) pins each implementation's values: add the new one's.
+2. Add its name to `InferenceClientType` and its case to `createInferenceClient`, in [src/factory.ts](src/factory.ts).
+3. Admit the type in the configuration [`@semiont/core`](../core/README.md) reads: its config loader and schema name the providers too.
 
-```typescript
-interface InferenceClientConfig {
-  type: 'anthropic' | 'ollama';
-  model: string;        // e.g. 'claude-sonnet-4-6', 'gemma2:9b'
-  apiKey?: string;      // required for 'anthropic' (throws if missing/empty)
-  endpoint?: string;    // provider URL; Ollama default: http://localhost:11434
-  baseURL?: string;     // fallback used when endpoint is not set
-}
-```
+The callers need no change: they are written to the contract.
 
-The optional second argument is a `Logger` from `@semiont/core`.
+## Documentation
 
-### `InferenceClient`
-
-The contract every implementation satisfies ([src/interface.ts](src/interface.ts)):
-
-```typescript
-interface InferenceClient {
-  readonly type: string;     // 'anthropic' | 'ollama' | 'mock'
-  readonly modelId: string;  // configured model name
-
-  // Declared per-provider capabilities — consumers read these instead of
-  // switching on provider identity:
-  readonly maxConcurrency: number;        // independent calls that gain from running at once
-                                          // (Anthropic 4; Ollama 1 — one GPU, no parallel gain)
-  readonly verifyDetectionYield: boolean; // whether detection count-verifies extractions
-                                          // (true for real providers; Mock false — tests opt in)
-
-  limits(): Promise<InferenceLimits>;
-  generateText(prompt, maxTokens, temperature, signal?): Promise<string>;
-  generateTextWithMetadata(prompt, maxTokens, temperature, signal?): Promise<InferenceResponse>;
-  generateStructured<T>(prompt, maxTokens, temperature, elementSchema, signal?): Promise<StructuredResponse<T>>;
-}
-```
-
-Whatever varies by provider is a **capability declared here**, hard-coded per implementation — downstream packages are written purely in terms of this contract and never sniff provider identity. A new provider must take a position on each capability (tests pin the declarations).
-
-Every generation method takes a trailing optional `AbortSignal`: aborting tears down the underlying transport (and, on Anthropic, the SDK's internal retry loop) so a cancelled call rejects promptly instead of surviving as a billed background request. Implementations must honor it — accepting and ignoring the signal is a defect.
-
-```typescript
-
-interface InferenceLimits {
-  contextTokens: number;         // context window (Anthropic: max input; Ollama: shared input+output)
-  maxOutputTokens: number;       // max output per generation (Ollama mirrors the shared window here)
-  outputTokensPerHour?: number;  // provider's worst-case output-rate model, when it
-                                 // publishes one (Anthropic: 128_000; absent for Ollama)
-  acceptsTemperature?: boolean;  // whether the model takes a caller-supplied temperature
-                                 // (Anthropic probes it at discovery; absent = no claim)
-}
-
-interface InferenceResponse {
-  text: string;
-  stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence' | string;
-  usage?: TokenUsage;   // the PROVIDER's own token counts — never estimated;
-}                       // absent means unreported, not zero
-
-interface TokenUsage {
-  inputTokens: number;
-  outputTokens: number;
-}
-```
-
-`StructuredResponse<T>` carries the same optional `usage`, so a consumer can pair what a call yielded with what it cost from one return value.
-
-### Structured generation
-
-`generateStructured(prompt, maxTokens, temperature, elementSchema)` returns **parsed array elements**, not text — the JSON guarantee lives in the return type (`StructuredResponse<T> = { items: T[]; stopReason }`), not in a comment:
-
-```typescript
-const { items } = await client.generateStructured<Entity>(prompt, 1000, 0, {
-  type: 'object',
-  properties: { exact: { type: 'string' } },
-  required: ['exact'],
-  additionalProperties: false,
-});
-```
-
-Each implementation honors the contract with its provider's mechanism:
-- **Ollama**: grammar-constrained sampling — the request's `format` field carries the caller's element schema wrapped in an array schema.
-- **Anthropic**: response-level structured output — `output_config.format` carries the caller's element schema under an **array root** (accepted on both live-config models), so the response text IS the schema-conforming JSON. No tools, no wrapper, no unwrap.
-
-A response that cannot be read as an array — unparseable output, a missing array, an unhonoured grammar, or an **empty response** (which throws with the stop reason that produced it, so thinking-exhaustion classifies as the truncation it is) — **throws a typed `StructuredReadError`** carrying the provider's `stopReason`, because the cause classifies differently downstream: `max_tokens` is truncation (an identical retry truncates identically, so detection subdivides), `'unknown'` (no stop reason at all) is measured size-correlated on real documents (detection subdivides that too, while keeping it retryable), and everything else is model misbehavior a retry may fix. It is never coerced to `[]`: an empty extraction is a legitimate, distinct outcome, and conflating the two silently discards real data.
-
-Current callers all expect arrays (entity extraction, motivation detection). If an object-emitting caller appears, `generateStructured` grows a sibling, not an option — see the notes in [src/interface.ts](src/interface.ts).
-
-### Provider limits
-
-`limits()` publishes the provider's **actual** context/output ceilings for the configured model — discovered from the provider itself, never hand-maintained constants:
-
-- **Anthropic**: the Models API (`models.retrieve`) — `max_input_tokens` / `max_tokens` — plus `outputTokensPerHour: 128_000`, the SDK's own worst-case rate model (the `calculateNonstreamingTimeout` constant): the one duration statement the provider surface makes, which detection's duration-safe budgets derive from.
-- **Ollama**: `POST /api/show` — the model's context window. Input and output share that window, so it is published as both fields (`maxOutputTokens === contextTokens` signals a shared window). No rate is published — local hardware's rate is unknowable a priori. Absence does **not** mean no duration bound: the detection consumer applies its own conservative assumed floor rate instead, because an unbounded output budget turns a model repetition loop into an hour-long transient burn.
-
-Discovery is lazy and cached per client; a failed discovery is **not** cached — the next call retries. When ceilings cannot be determined (unknown model, endpoint unreachable), `limits()` **throws**: fail-loud, never a guessed floor.
-
-Request-time behaviors of the adapters:
-- **Ollama sets `num_ctx` explicitly** on every generate request — sized to the prompt estimate + output budget, capped at the model window. Without it, Ollama's model-*default* window silently clips large prompts. A request that genuinely cannot fit **throws** instead of being clipped.
-- **The Ollama adapter owns its transport timeouts.** With `stream: false`, Ollama sends no response headers until generation completes, and Node's default fetch would kill any call generating longer than ~5 minutes (undici's `headersTimeout`) — a ceiling below every deliberate bound, owned by nobody. Generate requests run on a per-request undici@7 dispatcher with those timeouts disabled; the caller's `AbortSignal` is the one bound. The undici `^7` pin is load-bearing (the built-in fetch rejects an undici@8 Agent) and test-gated.
-- **Cloud-routed Ollama models are reported honestly, not corrected**: hidden thinking returned despite `think: false` is surfaced on the response and warned (it inflates `eval_count`, which is documented at the field), and the structured `format` is advisory rather than grammar-enforced on that path — violations surface as `StructuredReadError`.
-- **Anthropic streams internally** above the SDK's non-streaming output ceiling (≈21K tokens) — same interface, same response shape.
-
-### `MockInferenceClient`
-
-A scripted test double ([src/implementations/mock.ts](src/implementations/mock.ts)): construct it with a list of canned responses, then inspect `calls` (recorded prompt/maxTokens/temperature per invocation, plus the `elementSchema` of a structured call). `reset()` and `setResponses()` helpers included. An optional third constructor argument injects `InferenceLimits` for chunking/budget tests; the default is generous (1M/1M window plus a generous published rate) so ordinary tests never trip window guards, duration caps, or the count-verifier. Its capabilities are deterministic-test defaults — `maxConcurrency: 1`, `verifyDetectionYield: false` — so a test exercising concurrency or verification declares its own client rather than paying a surprise call.
-
-```typescript
-import { MockInferenceClient } from '@semiont/inference';
-
-const mock = new MockInferenceClient(['first reply', 'second reply']);
-await mock.generateText('hi', 100, 0);
-expect(mock.calls[0].prompt).toBe('hi');
-```
-
-## Observability
-
-Every generation records a usage metric through `@semiont/observability`'s `recordInferenceUsage`: provider, model, duration, outcome (`success`/`error`), and token counts when the provider reports them.
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────┐
-│  @semiont/make-meaning   @semiont/jobs      │
-│  (application logic)     (job workers)      │
-│  - builds InferenceClientConfig             │
-│  - calls createInferenceClient()            │
-└──────────────────┬──────────────────────────┘
-                   │ uses
-┌──────────────────▼──────────────────────────┐
-│      @semiont/inference                     │
-│  (AI primitives only)                       │
-│  - InferenceClient interface                │
-│  - createInferenceClient() factory          │
-│  - cross-provider structured generation     │
-└──────────┬───────────────────┬──────────────┘
-           │                   │
-┌──────────▼──────────┐ ┌─────▼──────────────┐
-│  AnthropicInference │ │  OllamaInference   │
-│  Client             │ │  Client            │
-│  (@anthropic-ai/sdk)│ │  (native HTTP API) │
-└─────────────────────┘ └────────────────────┘
-```
-
-**Key Principles:**
-- **@semiont/inference**: provider abstraction, text generation, output discipline
-- **@semiont/make-meaning**: semantic processing, prompt engineering, response parsing
-- **Clean separation**: adding a new provider only affects @semiont/inference
-
-## Supported Providers
-
-| Provider | Type | API Key | Models |
-|----------|------|---------|--------|
-| Anthropic | `anthropic` | Required | Claude family |
-| Ollama | `ollama` | Not required | gemma2:9b, llama3.1:8b, mistral, etc. |
-
-### Adding a New Provider
-
-1. Implement the `InferenceClient` interface in `src/implementations/` — including a
-   position on each declared capability (`maxConcurrency`: does this provider gain from
-   concurrent independent calls? `verifyDetectionYield`: should detection count-verify
-   its extractions?). The capability pins in `factory.test.ts` fail until you take one.
-2. Add type to `InferenceClientType` union in `src/factory.ts`
-3. Add case in `createInferenceClient()` switch
-4. Application code in `@semiont/make-meaning` and `@semiont/jobs` requires no changes —
-   consumers read capabilities off the contract instead of switching on provider identity
-
-## Dependencies
-
-From [package.json](package.json):
-
-- `@anthropic-ai/sdk` - Anthropic API client
-- `@semiont/core` - `Logger` type
-- `@semiont/observability` - usage metrics
-- `undici` - the dispatcher the Ollama client disables transport timeouts with
-
-Ollama uses native HTTP (`fetch`) with no SDK dependency.
-
-## Testing
-
-```bash
-npm test                # Run tests
-npm run test:watch      # Watch mode
-npm run test:coverage   # Coverage report
-```
+- [API reference](docs/API.md): each method, what each provider does to honour it, the mock, and the limits report.
+- [Configuration](../../docs/operator/administration/CONFIGURATION.md#inference): how a knowledge base names its models.
 
 ## License
 

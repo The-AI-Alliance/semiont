@@ -1,183 +1,81 @@
-# Graph Database Architecture
+# Graph Architecture
 
-## Overview
+What the graph is for, what it holds, and how it stays right when events reach it in no fixed order. How to make a store and query it is the [API reference](API.md). The contract every store implements is [`src/interface.ts`](../src/interface.ts).
 
-The graph database is a read-only projection of the event log, for relationship traversal and cross-resource queries. It is NEVER the source of truth.
+## A projection, never the record
 
-## Critical Principle: Derived Projection
+The graph is derived from a knowledge base's record. Everything in it can be made again from the events, and nothing in it is the source of truth.
 
-**The graph database is a read-only projection DERIVED from the event log, NOT a system of record.**
+One process writes it: the Weaver, in [`@semiont/make-meaning`](../../make-meaning/docs/architecture.md#weaver-projection-pipeline-standalone-process), which applies the record's events to the graph. Every other user of this package reads.
 
-A stack still needs one: the Weaver, the Archivist and the Librarian each connect to it when they start, and exit when they cannot.
+The graph answers what crosses documents:
 
-### What Is Answered WITHOUT the Graph
+- what refers to a resource, and what a resource is connected to;
+- resources by name, by path or by entity type;
+- the candidates the Matcher finds for a reference;
+- the neighbourhood of a resource that a gathered context includes.
 
-Single-resource reads and every write are served from the event log and the materialized views, with no graph query:
+It is not asked for anything about a single document. A resource, its annotations, their history, and every write are served from the record and its views.
 
-- ✅ Viewing a resource and its annotations - Uses filesystem projections
-- ✅ Creating annotations - Event store + filesystem projection
-- ✅ Updating annotations - Event store + filesystem projection
-- ✅ Deleting annotations - Event store + filesystem projection
-- ✅ Single-document workflows - Browse, annotate
-- ✅ Real-time SSE updates - Event broadcast to connected clients
+## What the graph holds
 
-### What Requires the Graph
+| Vertex | |
+|---|---|
+| `Resource` | A resource's description: its name, entity types, format, storage URI, and whether it is archived |
+| `Annotation` | An annotation. In Neo4j it also carries a label for its motivation (`:Linking`, for one), so a query by motivation is a label match |
+| `EntityType` | One per entity type in use |
+| `TagCollection` | The knowledge base's entity-type vocabulary |
 
-Cross-resource queries are answered by the graph:
+| Edge | From, to |
+|---|---|
+| `BELONGS_TO` | An annotation, to the resource it annotates |
+| `REFERENCES` | An annotation, to the resource it links to, once the reference is resolved |
+| `TAGGED_AS` | An annotation, to each of its entity types |
 
-- ❌ Cross-document relationship queries (referenced-by, connections)
-- ❌ Resource search by name, path or entity type
-- ❌ Candidate search for a reference (Matcher)
-- ❌ The knowledge-graph neighborhood in a gathered context
+The graph is not a copy of the views. It stores what its queries need and no more: an annotation's attribution, for one, is on almost every annotation in the record and is not written here. So whether the graph is right cannot be checked by comparing it with a view. `intendedGraphAnnotation(annotation)` in [`src/annotation-codec.ts`](../src/annotation-codec.ts) is the statement of what the graph should hold for an annotation, and is what a check compares against.
 
-## Multi-Provider Architecture
+## Writes that take any order
 
-```mermaid
-graph LR
-    subgraph "Application"
-        APP[Semiont Application]
-        GDI[GraphDatabase Interface]
-    end
+The Weaver applies one resource's events in order, and the events of different resources side by side. A person who creates a resource and links an annotation to it produces two events, on two resources. The link can reach the graph before the resource it points at.
 
-    subgraph "Graph Implementations"
-        NEO[Neo4j<br/>Cypher]
-        NEP[Neptune<br/>Gremlin]
-        JAN[JanusGraph<br/>Gremlin]
-        MEM[Memory<br/>JavaScript]
-    end
+The Neo4j store is written so that this does not matter. A link makes its target if the target is not there, and marks it a stub:
 
-    subgraph "Data Model"
-        RES[Resource Vertices]
-        ANN[Annotation Vertices]
-        ET[EntityType Vertices]
-        TAG[TagCollection Vertices]
-        BT[BELONGS_TO Edges]
-        REF[REFERENCES Edges]
-        TA[TAGGED_AS Edges]
-    end
-
-    APP --> GDI
-    GDI --> NEO
-    GDI --> NEP
-    GDI --> JAN
-    GDI --> MEM
-
-    NEO --> RES
-    NEP --> RES
-    JAN --> RES
-    MEM --> RES
-
-    RES --> ANN
-    ANN -->|belongs to| BT
-    ANN -->|references| REF
-    ANN -->|tagged as| TA
-    RES --> TAG
+```cypher
+MATCH (a:Annotation {id: $annotationId})
+MERGE (target:Resource {id: $targetResourceId})
+ON CREATE SET target.stub = true
+MERGE (a)-[:REFERENCES]->(target)
 ```
 
-## Event-Driven Projection
+Creating a resource fills in whatever is there, stub or nothing:
 
-The graph is populated from Event Store events:
-
-```mermaid
-graph LR
-    API[API Request] --> ES[Event Store]
-    ES --> WEAVER[Weaver<br/>Event Processor]
-    WEAVER --> GDB[Graph Database]
-
-    ES -->|yield:created| WEAVER
-    ES -->|mark:added| WEAVER
-    ES -->|mark:entity-tag-added| WEAVER
-
-    WEAVER -->|createResource| GDB
-    WEAVER -->|createAnnotation| GDB
-    WEAVER -->|updateResource| GDB
+```cypher
+MERGE (d:Resource {id: $id})
+SET d.name = $name, d.entityTypes = $entityTypes, d.stub = false
 ```
 
-### Event Processing Guarantees
+Whichever event is applied first, the graph ends the same: a whole resource, and an edge to it. Applying either event again changes nothing. A listing of resources leaves stubs out, so a resource is not seen before its own event has been applied.
 
-1. **Channel Selection**: The Weaver's event stream is merged from the 9 graph-relevant channels (`WEAVER_CHANNELS`) and nothing else, so no other event enters the processing pipeline
-2. **RxJS Pipeline**: Events flow through `groupBy(resourceId) → burstBuffer → concatMap`, providing per-resource ordering and cross-resource parallelism declaratively
-3. **Adaptive Burst Buffering**: First event after idle passes through immediately (zero latency for interactive use). Subsequent events in a burst are batched and flushed together, using batch graph operations where available (e.g., Neo4j UNWIND)
-4. **Sequential Processing per Resource**: Events for the same resource processed in order via `concatMap` within each resource group
-5. **System Event Routing**: System events (no `resourceId`) processed immediately without burst buffering
-6. **Error Isolation**: Failed events are logged but don't kill the pipeline — processing continues
-7. **Idempotent Operations**: Repeated events produce same result
-8. **Order-Independent Projections**: MERGE-based operations handle events in any order
+A stub lasts as long as it takes to apply the other event. One that stays means an event was not applied:
 
-For details on handling race conditions and eventual consistency, see [Eventual Consistency](./EVENTUAL-CONSISTENCY.md).
+```cypher
+MATCH (r:Resource) WHERE r.stub = true RETURN r.id
+```
 
-## Data Model Principles
+**This is the Neo4j store's design, and only its.** The in-memory store keeps a link as part of the annotation, so it has no target to wait for. The Neptune and JanusGraph stores add the edge to a resource vertex that must already be there. They make no stub, and no test applies events to them out of order.
 
-### Vertex Types
+## When the graph is behind, or away
 
-1. **Resource** - Immutable after creation, apart from archival state and entity tags
-2. **Annotation** - Can be updated (W3C Web Annotations)
-3. **EntityType** - One vertex per entity type tag
-4. **TagCollection** - Append-only entity type collections
+A stack needs a graph: the Weaver, the Archivist and the Librarian each connect to it when they start. While it is running:
 
-### Edge Types
+- **Behind.** A read of one resource by id that misses in the graph is answered from the view, which is ahead of it. A gathered context waits for the Weaver to have applied what it needs, up to a bound, and is assembled without its graph neighbourhood past that bound.
+- **Away.** Writes and reads of a single document carry on, since they do not touch the graph. Queries only the graph can answer fail.
 
-1. **BELONGS_TO** - Annotation → Resource (source)
-2. **REFERENCES** - Annotation → Resource (target, if resolved)
-3. **TAGGED_AS** - Annotation → EntityType
-
-### Design Principles
-
-- Resource immutability
-- Type safety (no defensive defaults)
-- Vertex labels for type identification
-- Consistent edge directions
-- W3C compliance
-
-## Provider Comparison
-
-| Feature | Neo4j | Neptune | JanusGraph | Memory |
-|---------|-------|---------|------------|---------|
-| Query Language | Cypher | Gremlin | Gremlin | JavaScript |
-| Arrays | Native | JSON | JSON | Native |
-| Transactions | Auto-commit | Auto-commit | Auto-commit | N/A |
-| Scaling | Vertical | Managed | Horizontal | None |
-| Setup | Docker | AWS | Complex | None |
-
-## Graceful Degradation
-
-When the graph database becomes unavailable while a stack is running:
-
-1. **User Impact**: Writes and view-backed reads continue; graph-backed queries fail
-2. **Weaver Behavior**: A failed apply is logged and counted, and the applied mark never advances past it
-3. **Recovery**: The Weaver's catch-up at its next start replays from the last cleanly applied sequence
-4. **No Data Loss**: Event store remains authoritative
-
-### Recovery Operations
-
-The Weaver rebuilds on the `weave:rebuild` bus command. `packages/make-meaning/src/cli/rebuild-graph.ts` sends it to a running stack:
+Nothing is lost either way, because the record is elsewhere. When the Weaver starts it catches up from where it had got to. To rebuild from nothing, the `weave:rebuild` command tells a running Weaver to clear the graph and replay the record:
 
 ```bash
-# Rebuild single resource from events
-npm run rebuild-graph --workspace=@semiont/make-meaning -- <resourceId>
-
-# Nuclear option: rebuild entire GraphDB
-npm run rebuild-graph --workspace=@semiont/make-meaning
+npm run rebuild-graph --workspace=@semiont/make-meaning                   # everything
+npm run rebuild-graph --workspace=@semiont/make-meaning -- <resourceId>   # one resource
 ```
 
-### Health Monitoring
-
-`weaver-main` serves `Weaver.getHealthMetrics()` at `/health`:
-
-```typescript
-const health = weaver.getHealthMetrics();
-// {
-//   subscriptions: 1,       // One injected event stream (the 9-channel fan-in)
-//   resourcesTracked: 42,   // Resources with an applied mark
-//   pipelineActive: true,   // RxJS burst-buffered pipeline is running
-//   applyFailures: 0        // Applies that failed and were not checkpointed
-// }
-```
-
-## Best Practices
-
-1. **Event-Driven Updates**: Never write directly to graph
-2. **Read-Only Queries**: Graph is for reading only
-3. **Graceful Degradation**: Handle graph unavailability
-4. **Provider Abstraction**: Code to interface, not implementation
-5. **Cache Tag Collections**: Load once for performance
+How the Weaver orders, batches and checkpoints its work is in [`@semiont/make-meaning`'s architecture](../../make-meaning/docs/architecture.md#weaver-projection-pipeline-standalone-process).

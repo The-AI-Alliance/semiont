@@ -1,10 +1,17 @@
 # Building with the Semiont SDK
 
+> ⚠️ **Alpha.** API and package surface are not yet stable; breaking changes between 0.x releases are expected.
+
 For people, and AI agents, building on Semiont with the SDK: a script, a
-daemon, an application, an agent. The examples are TypeScript. The Rust SDK
-has the same namespaces, methods and behaviour, and its
-[README](../../packages/sdk-rust/README.md) maps each TypeScript shape here to
-its Rust form.
+daemon, an application, an agent.
+
+The SDK is a typed client whose namespaces are the
+[eight verbs](../protocol/flows/README.md) everything in Semiont speaks. It comes in
+[TypeScript](../../packages/sdk/README.md) (`@semiont/sdk`) and
+[Rust](../../packages/sdk-rust/README.md) (the [`semiont`](https://crates.io/crates/semiont)
+crate), full peers held to one [conformance suite](../../tests/conformance/sdk/README.md).
+The examples here are TypeScript. The Rust SDK has the same namespaces, methods
+and behaviour, and its README maps each TypeScript shape here to its Rust form.
 
 TypeScript:
 
@@ -19,10 +26,18 @@ cargo add semiont
 cargo add semiont-http-transport --features sign-in    # the transport over a gateway
 ```
 
+From a shell, the [`semiont` launcher](../../apps/launcher/README.md#login-and-upload)
+speaks the same eight verbs: `semiont yield`, `semiont browse` and the rest,
+each with `--help`.
+
 Other readers have other homes: building Semiont itself is
 [docs/contributor](../contributor/README.md), running it is
 [docs/operator](../operator/README.md), and the wire and the contracts every SDK
 is held to are [docs/protocol](../protocol/README.md).
+
+Before any of it you need a knowledge base to point at. The
+[Quick Start](./QUICK-START.md) gets one running on your machine: install the
+launcher, create a knowledge base, start it, sign in, and annotate a document.
 
 Five documents here, each with ONE job, and one contract in
 [docs/protocol](../protocol/README.md). They follow the classic four-quadrant split (how-to / reference /
@@ -97,8 +112,9 @@ internals behind the last four.
 
 ## Reading order by audience
 
-**New to Semiont entirely** — [INTRODUCTION.md](./INTRODUCTION.md) first; it
-routes you to the right doc by goal.
+**New to Semiont entirely** — the [Quick Start](./QUICK-START.md) for a running
+knowledge base, then [INTRODUCTION.md](./INTRODUCTION.md); it routes you to the
+right doc by goal.
 
 **"I want to call the API from a script"** —
 the SDK's [README](../../packages/sdk/README.md) § Install & connect, then DEVELOPER-GUIDE recipes 1–10.

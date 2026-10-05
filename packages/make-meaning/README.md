@@ -6,280 +6,83 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/make-meaning.svg)](https://www.npmjs.com/package/@semiont/make-meaning)
 [![License](https://img.shields.io/npm/l/@semiont/make-meaning.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-**Making meaning from resources through actors, context assembly, and relationship reasoning.**
+The knowledge system: a knowledge base's record and the stores derived from it, and the actors that serve them over the bus. Four of Semiont's services are entry points of this package.
 
-This package implements the actor model from [ACTOR-MODEL.md](../../docs/architecture/ACTOR-MODEL.md). It owns the **Knowledge Base** and the seven actors that serve it.
+## Who uses it
 
-**The actors run as separate services.** Each container entry point in this package starts the subset it owns, and the gateway constructs **none** of them — it verifies tokens, relays the bus and proxies content. The job queue is the dispatcher's ([apps/dispatcher](../../apps/dispatcher/README.md)).
-
-| Service | Entry point | Actors |
-| --- | --- | --- |
+| Service | Entry point | Runs |
+|---|---|---|
 | **Archivist** | `@semiont/make-meaning/archivist-main` | Stower, Browser, CloneTokenManager |
 | **Librarian** | `@semiont/make-meaning/librarian-main` | Gatherer, Matcher |
 | **Smelter** | `@semiont/make-meaning/smelter-main` | Smelter |
 | **Weaver** | `@semiont/make-meaning/weaver-main` | Weaver |
 
-`startMakeMeaning()` assembles the five access actors in one process — that is what `LocalTransport`, scripts and tests use. It runs no jobs: a script that runs them runs the stack. In the split topology no process assembles a subset: each sidecar's `*-main` composes exactly what it owns, and the gateway composes nothing from this package.
+Each entry point composes exactly what its service owns. The gateway composes nothing from this package: it verifies tokens and relays the bus. The job queue is the [dispatcher](../../apps/dispatcher/README.md)'s, and jobs are run by [`@semiont/jobs`](../jobs/README.md). What each service is for is in the [service catalogue](../../docs/operator/services/OVERVIEW.md).
 
-### The access actors — the bus-facing interface of the Knowledge Base
+`startMakeMeaning()` puts the five actors a client talks to (Stower, Browser, CloneTokenManager, Gatherer, Matcher) in one process, for scripts and tests. It starts no Weaver, no Smelter and no worker.
 
-- **Stower** (write, *Archivist*) — the single write gateway to the Knowledge Base; handles all resource and annotation mutations and job lifecycle events. The only caller that appends events
-- **Browser** (read, *Archivist*) — handles all KB read queries: resources, annotations, events, annotation history, referenced-by lookups, entity type and tag-schema listing, the collaborator directory (the KB's declared software agents, derived from the workers/actors inference config), the KB's description of itself (its committed name and domain, and the working tree's branch), and directory browse (merging filesystem listings with KB metadata)
-- **Gatherer** (context assembly, *Librarian*) — assembles gathered context for annotations (`gather:requested`) and resources (`gather:resource-requested`); searches vectors for semantically similar passages (adds `semanticContext` to `GatheredContext`)
-- **Matcher** (search/link, *Librarian*) — context-driven candidate search with multi-source retrieval, composite structural scoring, and optional LLM semantic scoring
-- **CloneTokenManager** (yield, *Archivist*) — manages clone token lifecycle for resource cloning
+**Building an application?** Use [`@semiont/sdk`](../sdk/README.md) against a running knowledge base. This package is for the one case where a program wants a knowledge base in its own process, with no gateway: [Scripting](docs/SCRIPTING.md).
 
-**Stower and Browser stay together on purpose:** Stower writes the events and projections that Browser reads, so splitting them would open a cross-process read-after-write window over the same state. Git is single-writer for the same reason — the Archivist owns the working tree.
+## What is in it
 
-### The projection pipelines — addressed by no one, replying to nothing
+| | |
+|---|---|
+| `startMakeMeaning(project, config, eventBus, logger)` | A knowledge system in one process. It refuses a knowledge base that declares no `[site] domain` |
+| `LocalTransport`, `LocalContentTransport` | The SDK's transport contracts, in process: a `SemiontClient` over them needs no network |
+| `Stower` | The one writer. Every change to the record goes through it |
+| `Browser` | Every read of the record and its views, and the names of the people a reply mentions |
+| `Gatherer`, `Matcher` | Context assembled around a resource or an annotation, and candidates found for a reference |
+| `CloneTokenManager` | The tokens a resource is cloned with |
+| `Smelter`, `smelterFanIn` | The pipeline that keeps the vector index in step with the record |
+| `createKnowledgeBase`, `KnowledgeBase`, `KnowledgeSystem` | The stores as one value, and the stores with their actors |
+| `AnnotationOperations`, `ResourceContext`, `AnnotationContext`, `GraphContext`, `LLMContext` | What the actors are built from: annotation writes, and the readers that assemble context |
+| `makeMeaningConfigFrom` | A `MakeMeaningConfig` from a knowledge base's loaded configuration |
 
-- **Weaver** (project, *Weaver service*) — subscribes to graph-relevant domain events and projects them into the graph database. It rebuilds from the event log only on an explicit `weave:rebuild`, so a projection-shape change needs that command, not just a restart
-- **Smelter** (embed, *Smelter service*) — subscribes to domain events, reads content bytes from the Archivist (`archivistContentReads` in `@semiont/content`), chunks text, embeds via `@semiont/vectors`, and indexes into the vector store (Qdrant). It also owns anchored-text extraction. On startup it reconciles Qdrant against the KS catalog — re-embedding what's missing or stale (every upsert is stamped with the embedded bytes' checksum, so changed content is detected) and deleting orphans — so a wiped Qdrant volume, or events missed while it was down, recover by restarting it
+The Weaver is not exported. It runs only from its entry point.
 
-(The third derived read model — the materialized views — is not pipeline-maintained: the EventStore's `ViewManager` materializes views synchronously inside `appendEvent()` for a read-your-writes guarantee. The Archivist rebuilds them at startup; unlike the graph, they need no explicit command.)
-
-All seven actors subscribe to the EventBus via RxJS pipelines and expose no public business methods — only `initialize()` and `stop()`, plus a startup recovery entry point on the pipelines (`Weaver.catchUp()` / `Smelter.reconcile()`). Callers communicate with the access actors by putting events on the bus.
-
-The EventBus is a **complete interface** for all knowledge-domain operations. The gateway hosts no actors: it relays bus frames between clients and the services that do. `@semiont/sdk` exposes the same operations via verb-oriented namespaces (`semiont.browse`, `semiont.mark`, `semiont.gather`, etc.).
-
-## Quick Start
-
-```bash
-npm install @semiont/make-meaning
-```
-
-### Start Make-Meaning Service
+## Example
 
 ```typescript
-import { startMakeMeaning } from '@semiont/make-meaning';
+import { startMakeMeaning, LocalTransport, LocalContentTransport, type MakeMeaningConfig } from '@semiont/make-meaning';
+import { SemiontClient } from '@semiont/sdk';
+import { EventBus, userId, type Logger } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
-import { EventBus } from '@semiont/core';
-import type { Logger } from '@semiont/core';
 
-// EventBus is created outside make-meaning — it is not encapsulated by this package
-const eventBus = new EventBus();
-const project = new SemiontProject('/path/to/project', {
+declare const config: MakeMeaningConfig;
+declare const logger: Logger;
+
+const project = new SemiontProject('/path/to/knowledge-base', {
   anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR!,
 });
-
-// Start all infrastructure
+const eventBus = new EventBus();
 const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);
 
-// Access components
-const { knowledgeSystem } = makeMeaning;
-const { kb, stower, browser, gatherer, matcher, cloneTokenManager } = knowledgeSystem;
+// The SDK's client, over this process's bus.
+const client = new SemiontClient(
+  new LocalTransport({ eventBus, userId: userId('did:web:example.org:users:alice') }),
+  new LocalContentTransport(makeMeaning.knowledgeSystem.kb),
+);
+const entityTypes = await client.browse.entityTypes().fresh();
 
-// Graceful shutdown
 await makeMeaning.stop();
 ```
 
-The project root is a knowledge base: its committed `.semiont/config` declares a `[site] domain`, and `startMakeMeaning()` refuses one that declares none. The knowledge base acts under that identity, `did:web:<domain>` — it is who seeds the default entity types.
+## What a change must keep
 
-This single call initializes:
-- **KnowledgeSystem** — groups the Knowledge Base and its actors
-  - **KnowledgeBase** — groups EventStore, ViewStorage, WorkingTreeStore, the anchored-text store, GraphDatabase, VectorStore, and the WeaveProgress and SmeltProgress folds
-  - **Stower** — subscribes to write commands on EventBus
-  - **Browser** — subscribes to all KB read queries and directory browse requests on EventBus
-  - **Gatherer** — subscribes to annotation and resource gather requests on EventBus; searches vectors for semantically similar passages
-  - **Matcher** — subscribes to candidate search requests on EventBus
-  - **CloneTokenManager** — subscribes to clone token operations on EventBus
-- **Bus command handlers** — request-channel translators registered via `registerBusHandlers`
-
-It does **not** start the Weaver or the Smelter (standalone processes — `@semiont/make-meaning/weaver-main` and `@semiont/make-meaning/smelter-main`) or the job workers (the worker process in [@semiont/jobs](../jobs/) — see [Job Workers](./docs/job-workers.md)).
-
-### Gather Context (via EventBus)
-
-```typescript
-import { firstValueFrom, race, filter, map, timeout } from 'rxjs';
-
-const correlationId = crypto.randomUUID();
-
-// Emit gather request for an annotation. The correlation id rides the
-// frame's envelope, not the payload.
-eventBus.emit(
-  'gather:requested',
-  { annotationId, resourceId, options: { contextWindow: 1000 } },
-  { correlationId },
-);
-
-// Await result: the reply is the frame carrying the same correlation id
-const result = await firstValueFrom(
-  race(
-    eventBus.frames('gather:complete').pipe(filter(f => f.correlationId === correlationId)),
-    eventBus.frames('gather:failed').pipe(filter(f => f.correlationId === correlationId)),
-  ).pipe(map(f => f.payload), timeout(30_000)),
-);
-```
-
-## Architecture
-
-### Actor Model
-
-All meaningful actions flow through the EventBus. The KB actors are reactive — they subscribe via RxJS pipelines in `initialize()` and communicate results by emitting on the bus.
-
-```mermaid
-graph TB
-    Workers["Job Workers"] -->|commands| BUS["Event Bus"]
-    EBC["SemiontClient"] -->|commands| BUS
-
-    subgraph ks ["Knowledge System"]
-        STOWER["Stower<br/>(write)"]
-        BROWSER["Browser<br/>(read)"]
-        GATHERER["Gatherer<br/>(context assembly)"]
-        MATCHER["Matcher<br/>(search/link)"]
-        SMELTER["Smelter<br/>(embed pipeline, standalone process)"]
-        WEAVER["Weaver<br/>(graph pipeline, standalone process)"]
-        CTM["CloneTokenManager<br/>(clone)"]
-        KB["Knowledge Base"]
-        VECTORS["Vector Store<br/>(Qdrant)"]
-        STOWER -->|persist| KB
-        BROWSER -->|query| KB
-        GATHERER -->|query| KB
-        GATHERER -->|search| VECTORS
-        MATCHER -->|query| KB
-        MATCHER -->|search| VECTORS
-        SMELTER -->|embed & index| VECTORS
-        SMELTER -->|read| KB
-        WEAVER -->|project| KB
-        CTM -->|query| KB
-    end
-
-    BUS -->|"yield:create, yield:update, yield:mv<br/>mark:create, mark:delete, mark:update-body<br/>frame:add-entity-type, frame:add-tag-schema<br/>mark:archive, mark:unarchive, mark:update-entity-types<br/>job:start, job:complete, job:fail"| STOWER
-    BUS -->|"browse:resource-requested, browse:resources-requested<br/>browse:annotations-requested, browse:annotation-requested<br/>browse:events-requested, browse:annotation-history-requested<br/>browse:referenced-by-requested, browse:entity-types-requested<br/>browse:tag-schemas-requested, browse:agents-requested<br/>browse:kb-requested, browse:directory-requested"| BROWSER
-    BUS -->|"gather:requested<br/>gather:resource-requested"| GATHERER
-    BUS -->|"match:search-requested"| MATCHER
-    BUS -->|"domain events:<br/>yield:created, yield:updated<br/>yield:representation-added<br/>mark:added, mark:removed, mark:archived"| SMELTER
-    BUS -->|"graph-relevant<br/>domain events"| WEAVER
-    BUS -->|"yield:clone-token-requested<br/>yield:clone-resource-requested<br/>yield:clone-create"| CTM
-
-    STOWER -->|"yield:create-ok, yield:update-ok<br/>mark:delete-ok, *-failed replies<br/>(domain events are republished onto the bus<br/>by the EventStore: yield:created, mark:added, ...)"| BUS
-    BROWSER -->|"browse:resource-result, browse:resources-result<br/>browse:annotations-result, browse:annotation-result<br/>browse:events-result, browse:annotation-history-result<br/>browse:referenced-by-result, browse:entity-types-result<br/>browse:tag-schemas-result, browse:agents-result<br/>browse:kb-result, browse:directory-result"| BUS
-    GATHERER -->|"gather:complete, gather:failed<br/>gather:resource-complete, gather:resource-failed"| BUS
-    MATCHER -->|"match:search-results, match:search-failed"| BUS
-    CTM -->|"yield:clone-token-generated<br/>yield:clone-resource-result<br/>yield:clone-created"| BUS
-
-    classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
-    classDef actor fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
-    classDef kb fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
-    classDef caller fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
-
-    class BUS bus
-    classDef vectorstore fill:#6b8e9d,stroke:#4a6a7a,stroke-width:2px,color:#fff
-    class STOWER,BROWSER,GATHERER,MATCHER,SMELTER,WEAVER,CTM actor
-    class KB kb
-    class VECTORS vectorstore
-    class Workers,EBC caller
-```
-
-### Knowledge System and Knowledge Base
-
-The **Knowledge System** binds the Knowledge Base to its actors. Nothing outside the Knowledge System reads or writes the Knowledge Base directly.
-
-The **Knowledge Base** is an inert store — it has no intelligence, no goals, no decisions. It groups six stores and the progress folds of the two projection pipelines:
-
-| Store | Implementation | Purpose |
-|-------|---------------|---------|
-| **Event Log** | `EventStore` | Immutable append-only log of all domain events |
-| **Materialized Views** | `ViewStorage` | Denormalized projections for fast reads (materialized synchronously on append) |
-| **Content Store** | `WorkingTreeStore` | Working-tree files addressed by URI |
-| **Anchored Text** | `AnchoredTextStore` | Derived coordinate maps for resources whose text had to be recovered |
-| **Graph** | `GraphDatabase` | Eventually consistent relationship projection |
-| **Vectors** | `VectorStore` | Semantic vector index (Qdrant + memory) via `@semiont/vectors` |
-| **Projection Progress** | `WeaveProgress` / `SmeltProgress` | Folds of the `weave:applied` / `smelt:settled` signals — the read barriers for the graph and vector projections |
-
-Neither projection pipeline is a KB member — the Weaver (event-to-graph) and the Smelter (event-to-vector) run as standalone processes via `@semiont/make-meaning/weaver-main` and `@semiont/make-meaning/smelter-main`.
-
-```typescript
-import { createKnowledgeBase } from '@semiont/make-meaning';
-
-const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, { vectorStore });
-// kb.eventStore, kb.views, kb.content, kb.anchoredText, kb.graph
-// kb.weaveProgress, kb.smeltProgress, kb.vectors, kb.projectionsDir
-```
-
-### EventBus Ownership
-
-The EventBus is created by the caller (a script or a test) and passed into `startMakeMeaning()` as a dependency. Make-meaning does not own or encapsulate the EventBus — the caller shares it with every actor in the process.
-
-### Pure projection validators
-
-Entity types are a controlled vocabulary: the Stower refuses a `mark:update-entity-types` that adds one not registered. The rule is a pure function in [`src/views/projection-validators.ts`](src/views/projection-validators.ts): `validateEntityTypes(registered, requested)` → `{ ok: true } | { ok: false; unknown }`, a set membership check that lists the offending tags in caller order. The Stower is the I/O shell: it reads the projection (via the readers in `src/views/`), passes it to the validator, and refuses the whole request before its first append. Validator unit tests run in single-digit milliseconds with no filesystem and no event bus; `__tests__/stower-entity-types.test.ts` covers the wiring.
-
-This pattern (functional core, imperative shell) is shared with `@semiont/event-sourcing`'s projection reducers; see [`docs/architecture/PROJECTION-PATTERN.md`](../../docs/architecture/PROJECTION-PATTERN.md) for the architectural narrative, the full axiom catalog, and guidance for adding new validators.
+- **The bus is the whole interface.** An actor has no business methods, only `initialize()` and `stop()`. Whatever a client can do, it does by putting an event on the bus, in one process or across services.
+- **One writer.** The Stower is the only code that appends to the record. The Stower and the Browser run in one process on purpose, so that a read never races the write it follows, and the Archivist is the working tree's only writer for the same reason.
+- **Each derived store has one owner.** The views are materialized inside the append. The graph is the Weaver's: it catches up from its checkpoint when it starts, and rebuilds from nothing only when told to (`weave:rebuild`). The vector index is the Smelter's, and is reconciled against the record when it starts.
+- **Who did something is derived, never taken from a payload.** The Stower works out an annotation's creator and generator from the identity the gateway verified, and refuses a payload that names one.
+- **A name is given to a person in one place.** Records carry a DID. The Browser fills in what a person is called as a reply goes out.
+- **Entity types are a controlled vocabulary.** The Stower refuses one that the knowledge base has not registered.
+- **A knowledge base acts as itself.** It seeds its default entity types under its own DID, `did:web:<[site] domain>`, which is why one that declares no domain is refused.
 
 ## Documentation
 
-- **[Architecture](./docs/architecture.md)** — Actor model, data flow, storage architecture
-- **[API Reference](./docs/api-reference.md)** — Context modules and operations
-- **[Examples](./docs/examples.md)** — Common use cases and patterns
-- **[Job Workers](./docs/job-workers.md)** — Async annotation workers (in @semiont/jobs)
-- **[Scripting](./docs/SCRIPTING.md)** — Direct scripting without HTTP gateway
-
-## Exports
-
-### Service (Primary)
-
-- `startMakeMeaning(project, config, eventBus, logger)` — Initialize all infrastructure; refuses a knowledge base that declares no `[site] domain`
-- `MakeMeaningService` — Type for service return value (`knowledgeSystem`, `stop`)
-
-### Knowledge System
-
-- `KnowledgeSystem` — Interface grouping the Knowledge Base and its actors
-- `stopKnowledgeSystem(ks)` — Ordered teardown of the Knowledge System
-
-### Knowledge Base
-
-- `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options)` — Async factory function; `options.vectorStore` is required
-- `KnowledgeBase` — Interface grouping the KB stores (`eventStore`, `views`, `content`, `anchoredText`, `graph`, `vectors`) plus the `weaveProgress` and `smeltProgress` folds
-
-### Actors
-
-- `Stower` — Write gateway actor
-- `Browser` — Read actor (all KB queries, directory listings merged with KB metadata)
-- `Gatherer` — Context assembly actor (annotation and resource gather flows; vector semantic search)
-- `Matcher` — Search/link actor (context-driven candidate search with structural + semantic scoring)
-- `CloneTokenManager` — Clone token lifecycle actor (yield domain)
-- `Smelter` / `smelterFanIn` — the embedding pipeline and its domain-event fan-in; wired together by the standalone `@semiont/make-meaning/smelter-main` entry point, and exported for callers that run the pipeline on their own `BusRequestPrimitive`
-
-The Weaver is not exported — it runs from the standalone `@semiont/make-meaning/weaver-main` entry point.
-
-### Operations
-
-- `AnnotationOperations` — Annotation CRUD (emits commands to EventBus)
-
-### Context Assembly
-
-- `ResourceContext` — Resource metadata queries from ViewStorage
-- `AnnotationContext` — Annotation queries and LLM context building
-- `GraphContext` — The unified knowledge-graph builder
-- `LLMContext` — Resource-level LLM context assembly
-
-### Generation
-
-- `generateResourceSummary` — Resource summarization
-- `generateReferenceSuggestions` — Smart suggestion generation
-
-## Dependencies
-
-- **[@semiont/core](../core/)** — Core types, EventBus, `StateUnit` / `BusRequestPrimitive`, utilities
-- **[@semiont/http-transport](../http-transport/)** — `HttpTransport`, the standalone services' connection to the bus
-- **[@semiont/event-sourcing](../event-sourcing/)** — Event store and view storage
-- **[@semiont/content](../content/)** — Working-tree content storage, the anchored-text store, and byte reads from the Archivist
-- **[@semiont/graph](../graph/)** — Graph database abstraction
-- **[@semiont/ontology](../ontology/)** — Entity types and the readers of entity types on an annotation
-- **[@semiont/inference](../inference/)** — AI primitives (generateText)
-- **[@semiont/vectors](../vectors/)** — Vector store abstraction (Qdrant + memory) and embedding providers (Voyage, Ollama)
-- **[@semiont/jobs](../jobs/)** — The job worker: processors and the worker process
-- **[@semiont/observability](../observability/)** — Actor spans and metrics providers
-- **[@semiont/sdk](../sdk/)** — `parseJwtExpiry` / `refreshDelayMs`, the token refresh schedule (used by the sidecars' agent session)
-
-## Testing
-
-```bash
-npm test                # Run tests
-npm run test:watch      # Watch mode
-npm run test:coverage   # Coverage report
-```
+- [Architecture](docs/architecture.md): what each actor answers, who a write is attributed to, the knowledge base's stores, the context modules, the order things start in.
+- [Scripting](docs/SCRIPTING.md): a knowledge base in your own process, and what such a process does not have.
+- [The actor model](../../docs/architecture/ACTOR-MODEL.md): the design this implements.
+- [Workers](../jobs/docs/Workers.md): the worker, in `@semiont/jobs`.
 
 ## License
 

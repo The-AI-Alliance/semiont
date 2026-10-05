@@ -6,148 +6,60 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/jobs.svg)](https://www.npmjs.com/package/@semiont/jobs)
 [![License](https://img.shields.io/npm/l/@semiont/jobs.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-The job worker for [Semiont](https://github.com/The-AI-Alliance/semiont): the processors for each job type, the job types, and the worker process that claims jobs over the bus. The job queue is the dispatcher's ([apps/dispatcher](../../apps/dispatcher/README.md)), and what it does with a job is [docs/protocol/JOBS.md](../../docs/protocol/JOBS.md).
+The worker: the process that claims jobs and does them. A job is an annotation pass over a resource (references, highlights, comments, assessments, tags) or the generation of a new resource, done with a model through [`@semiont/inference`](../inference/README.md).
 
-## Architecture Context
+The queue is not here. It is the [dispatcher](../../apps/dispatcher/README.md)'s, and the protocol between the two is [Jobs](../../docs/protocol/JOBS.md).
 
-Workers run in a separate process and connect to the knowledge base's gateway over HTTP/SSE using a `SemiontSession` (from `@semiont/sdk`), with a `JobClaimAdapter` on the session's bus connection. Whenever a worker is idle it claims the next pending job of its types with `job:claim` (a `job:queued` announcement wakes a parked worker), and it emits its lifecycle events onto the bus via `session.client.transport.emit(...)`. The gateway relays them over SSE to the dispatcher, the Stower and clients such as the Browser.
+## Who uses it
 
-## Installation
+- **The Worker service** is this package's `worker-main`, run as the `semiont-worker` image ([apps/worker](../../apps/worker/README.md)).
+- **[`@semiont/make-meaning`](../make-meaning/README.md)** takes one constant from it: the stall threshold that its own gather deadlines are checked against.
 
-```bash
-npm install @semiont/jobs
-```
+**Building an application?** You do not need this package. An application starts a job through [`@semiont/sdk`](../sdk/README.md) (`mark.assist` for an annotation pass, `yield.fromContext` for a generation) and follows it with the `job` namespace.
 
-**Dependencies:**
-- `@semiont/core` — Core types, the bus protocol (`busRequest`, `BusRequestPrimitive`), the config loader
-- `@semiont/sdk` — `SemiontSession`, `SemiontClient` (worker process)
-- `@semiont/http-transport` — `HttpTransport`, `HttpContentTransport`
-- `@semiont/inference` — InferenceClient for AI operations
-- `@semiont/content` — Resource bytes read from the Archivist (`archivistContentReads`), PDF text-layer extraction, the output byte budget
-- `@semiont/event-sourcing` — Annotation id generation
-- `@semiont/observability` — Spans and job-outcome metrics
+## What is in it
 
-## Quick Start
+| | |
+|---|---|
+| `@semiont/jobs/worker-main` | The Worker's entry point. It signs in as an agent, opens a client for each model it is configured with, and claims jobs until it is stopped |
+| `createJobClaimAdapter` | Claiming over the bus: `job:claim` whenever the worker is idle, woken by `job:queued` |
+| `processReferenceJob`, `processHighlightJob`, `processCommentJob`, `processAssessmentJob`, `processTagJob`, `processGenerationJob` | One function per job type. There are no worker classes |
+| `AnnotationDetection`, `generateResourceFromTopic` | What the processors call: the detection passes, and generation |
+| `JobType`, `AnyJob`, and each job's params | The job types. `JobType` and `JobStatus` are generated from the spec |
+| `isPendingJob`, `isRunningJob`, `isCompleteJob`, `isFailedJob`, `isCancelledJob` | Guards that narrow a job to its state |
 
-A job is created on the bus (`job:create`), answered by the dispatcher, and claimed by a worker. A
-client starts one through the SDK — `semiont.mark.assist(...)` for an annotation pass,
-`semiont.yield.fromContext(...)` for generation — and follows it with `semiont.job`. A worker is this
-package's `worker-main`, run as the `semiont-worker` image.
+## Example
 
-## Job Types
+A job is a union discriminated by its `status`, so what a job carries follows from the state it is in.
 
 ```typescript
-type JobType =
-  | 'reference-annotation'     // Entity reference detection
-  | 'generation'               // AI content generation
-  | 'highlight-annotation'     // Key passage highlighting
-  | 'assessment-annotation'    // Evaluative assessments
-  | 'comment-annotation'       // Explanatory comments
-  | 'tag-annotation'           // Structural role tagging
-```
+import { isCompleteJob, isRunningJob, type AnyJob } from '@semiont/jobs';
 
-## Job Metadata
-
-All jobs share common metadata:
-
-```typescript
-interface JobMetadata {
-  id: JobId;
-  type: JobType;
-  userId: UserId;         // Who requested it — the verified DID, the job's only identity
-  created: string;
-  retryCount: number;
-  maxRetries: number;
-  completedUnits?: string[];  // Checkpoint: work units already persisted —
-                              // the retry skips them
-  unitCursors?: Record<string, UnitCursor>;  // How far each unfinished unit got
+function describe(job: AnyJob): string {
+  if (isRunningJob(job)) return `${job.metadata.type}: running`;      // job.progress is here, job.result is not
+  if (isCompleteJob(job)) return `${job.metadata.type}: done`;        // job.result is here
+  return `${job.metadata.type}: ${job.status}`;
 }
 ```
 
-`userId` is the job's only identity — the DID the gateway verified on the `job:create`. The dispatcher records it as the requester when it accepts a claim, and that record is what lets the knowledge base attribute a write citing this job; a worker never states it. `completedUnits` and `unitCursors` are written by the dispatcher, from `job:checkpoint` (as work lands) and from `job:fail`, merged across attempts — see Failure discipline below.
+## What a change must keep
 
-## Progress
+- **A worker holds nothing of the knowledge base.** It has no mount and no broker credential. It reaches the gateway with a URL and a token, reads a resource's bytes from the Archivist, and writes annotations by the awaited `mark:commit`, a batch per unit of work.
+- **A worker sees a job only as it is handed over.** It never reads the queue's storage. What it knows of a job is what `job:claimed` carried.
+- **A worker never says who asked.** A job's requester is the identity the gateway verified on `job:create`, recorded by the dispatcher. What the worker contributes is itself, as the software agent that generated the result.
+- **A processor is plain work.** It is given content, an inference client, the job's params and callbacks for progress and for committing a chunk. It fetches nothing and knows no transport.
+- **One progress shape.** Every job type reports the spec's `JobProgress`. There are no per-type progress types.
+- **Failure is bounded, classified and resumable.** Every inference call has a deadline and is truly cancelled. A failure caused by size subdivides the work in place. A retry resumes from the last checkpoint and skips what was committed. [Failure discipline](docs/FailureDiscipline.md) has the rules.
 
-A running job's `progress` is `StoredProgress`: the last `JobProgress` its worker reported with `job:report-progress`, or `{}` before the first report. It is one shape for every job type — the spec's `JobRunning.progress` — so there are no per-type progress types. See [Job Types Guide](./docs/JobTypes.md#progress).
-
-## Annotation Workers
-
-The worker process (`worker-main.ts` → `startAgentWorker` in `worker-runtime.ts` → `startWorkerProcess` in `worker-process.ts`) claims jobs over the bus via a `JobClaimAdapter` and dispatches by `jobType` to a processor function. There are no per-type worker classes; each job type maps to one `process*Job` function:
-
-| Job Type | Processor |
-|----------|-----------|
-| `reference-annotation` | `processReferenceJob` |
-| `generation` | `processGenerationJob` |
-| `highlight-annotation` | `processHighlightJob` |
-| `assessment-annotation` | `processAssessmentJob` |
-| `comment-annotation` | `processCommentJob` |
-| `tag-annotation` | `processTagJob` |
-
-Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`) and, for references, in `extractEntities` (`src/workers/detection/entity-extractor.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`). Processors never fetch content themselves — the worker process prepares it with `prepareDetection` (bytes through `contentReads` for text media, the Smelter's anchored text for geometry-bearing media such as PDF) and passes it in.
-
-Workers emit lifecycle events via `session.client.transport.emit('job:start' | 'job:report-progress' | 'job:checkpoint' | 'job:complete' | 'job:fail', payload)` and persist annotations through the **awaited `mark:commit` operation** — a batch per unit of work that resolves only once the Stower actor in @semiont/make-meaning has appended every annotation to the event log. Unit completion and `job:complete` gate on that acknowledgement, never on emission, so a down persistence sink is a retryable failure instead of silent loss. The dispatcher's job command handlers mirror the lifecycle events into the queue (completion, checkpoints, retry-on-failure with `maxRetries`, progress-as-heartbeat). `job:fail` carries the fields the worker computes: `completedUnits` and `unitCursors` (the checkpoint), `failureClass`, and `willRetry` — see Failure discipline.
-
-## Failure discipline
-
-Long inference work fails in bounded, classified, resumable ways:
-
-- **Every inference call is bounded and truly cancelled.** A call gets 10 minutes (`INFERENCE_TIMEOUT_MS`); at the bound the worker aborts it at the transport (`AbortSignal` through the provider SDK to the socket — milliseconds to rejection, no zombie billing on) and fails the job with a typed `InferenceTimeoutError`. An in-flight heartbeat reports elapsed-time liveness every 15 s during long calls.
-- **Budgets are derived, never tuned** (`workers/detection/detection-chunking.ts`). Input:output allocation is 1:2 per entity type asked for (`input ≤ outputBudget / (2 × typesPerCall)`), and **every** provider gets a duration cap: per-call output is bounded at what the provider's worst-case rate finishes in HALF the bound — the published rate when there is one, a conservative assumed floor (`ASSUMED_OUTPUT_TOKENS_PER_HOUR`, 30 tok/s) for rate-silent providers like Ollama, where an unbounded budget turns a model repetition loop into an hour-long transient burn.
-- **Size-shaped failures subdivide in place** (`callChunkSubdividing`). Five failure families descend, each with its own floor: a **truncation** descends by size and gets one same-size re-roll at the floor; a **timeout** descends two levels then propagates; an **`'unknown'`-stop unreadable response** (garbage output with no stop reason — measured size-correlated on real documents) descends by size and propagates at the floor; an **unreadable response from a model that finished** (`end_turn`) descends two levels then propagates, as a timeout does; and a **flagged under-report** (below) descends by size, and at the floor its salvage — everything it did find, every span write-time-verified — is **accepted loudly** rather than discarded. A piece that cannot actually shrink is at its floor regardless of arithmetic: at temperature 0, an identical re-run returns the identical failure. Sub-piece overlap duplicates fall to the existing span-keyed dedupe.
-- **Successful-looking extractions are verified** (`assertYieldNotCollapsed`). A local model can return a clean, schema-conforming response carrying a fraction of the entities present — deterministic and otherwise invisible. When the provider declares `verifyDetectionYield` (all real providers do), each chunk's item count is checked against a cheap count call over the same text; an extraction under half the count is flagged and subdivided. Every anchoring outcome and every call — including flagged and failed ones — is recorded to `semiont.detection.*` metrics (`@semiont/observability`).
-- **Entity types run concurrently up to the provider's declared capacity** (`client.maxConcurrency`): a hosted API with rate headroom runs several types at once; a local single-model server runs them sequentially, because concurrent requests only split one GPU. Jobs never switches on provider identity — both behaviors are capabilities declared on the `InferenceClient`.
-- **Failures are classified at the worker, where errors are still typed** (`failure-class.ts`). Only KNOWN-deterministic failures — truncation at the subdivision floor, unsupported media, a 4xx other than 408 or 429 — skip the retry budget; everything unrecognized stays retryable. The class rides `job:fail` as `failureClass`.
-- **Retries resume from the checkpoint.** Every detection job commits its annotations chunk by chunk; each committed chunk's cursor rides `job:checkpoint` and `job:fail` into `metadata.unitCursors`, and reference-annotation also records each finished entity type in `metadata.completedUnits`. The retry skips the completed units and resumes each unfinished one from its cursor.
-
-## Adding a Job Type
-
-Workers are not subclassed. To add a job type:
-
-1. Add the new type to the spec: its name in `JobType.json` (`JobType` in `src/types.ts` is generated from it), its category in `specs/src/jobs/storage.json`, and its result schema in the `JobResult` union. Add its params type in `src/types.ts`. There is no progress type — every job reports `JobProgress`.
-2. Add a `process*Job` function in `src/processors.ts` that runs the inference, commits its annotations through the per-chunk callback and returns the result.
-3. Dispatch the new `jobType` to that processor in `handleJobInner()` in `src/worker-process.ts`.
-
-Processors are transport-agnostic: they take content, an `InferenceClient`, the job params, a `buildAnnotation` closure (which carries the `generator` — the worker's own `Software` agent), an `onProgress` callback and a per-chunk commit callback, and return a result. No user identity reaches a processor: an annotation states what produced it, and who requested it is derived by the knowledge base from the job the commit cites. The worker process handles claiming, content fetching, committing, and lifecycle event emission.
-
-## Discriminated Unions
-
-Jobs use TypeScript discriminated unions for type safety:
-
-```typescript
-function handleJob(job: AnyJob) {
-  if (job.status === 'running') {
-    console.log(job.progress);    // Available — StoredProgress, `{}` until the first report
-    // console.log(job.result);   // Compile error
-  }
-  if (job.status === 'complete') {
-    console.log(job.result);      // Available
-    // console.log(job.progress); // Compile error
-  }
-}
-```
-
-## Storage Format
-
-The dispatcher keeps one `JobRecord` per job in a JetStream key-value bucket, in the layout
-`specs/src/jobs/storage.json` states. A worker never reads it: it sees a job only as the dispatcher
-hands it over on `job:claimed`.
+Adding a job type starts in the spec, not here: [Workers](docs/Workers.md#adding-a-custom-job-type) lists the steps.
 
 ## Documentation
 
-- **[Workers Guide](./docs/Workers.md)** — Building custom workers
-- **[Job Types Guide](./docs/JobTypes.md)** — All job type definitions
-- **[Type System Guide](./docs/TYPES.md)** — Discriminated unions and type safety
-- **[Configuration Guide](./docs/Configuration.md)** — Running a worker
-- **[API Reference](./docs/API.md)** — Complete API reference
+- [Workers](docs/Workers.md): how a worker runs, where content comes from, how it emits, a worker written outside this package, adding a job type.
+- [Job types](docs/JobTypes.md): a job's states, the six types, and what each one's params, result and progress mean.
+- [Failure discipline](docs/FailureDiscipline.md): deadlines, budgets, subdivision, verification, classification, resumption.
+- [The worker service](../../apps/worker/README.md): running it.
 
 ## License
 
 Apache-2.0
-
-## Related Packages
-
-- [`@semiont/core`](../core/) — Domain types, `SemiontProject`, EventBus, `BusRequestPrimitive`
-- [`@semiont/sdk`](../sdk/) — `SemiontSession`, `SemiontClient`
-- [`@semiont/http-transport`](../http-transport/) — `HttpTransport`, `HttpContentTransport`
-- [`@semiont/inference`](../inference/) — AI inference client
-- [`@semiont/make-meaning`](../make-meaning/) — Actor model, Knowledge Base, service orchestration

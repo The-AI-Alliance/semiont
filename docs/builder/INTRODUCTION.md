@@ -299,7 +299,7 @@ vibe-code your app on Semiont; don't vibe-code your own Semiont.
 
 ## What you need, and where to go next
 
-You need a running knowledge base to point at (the [Quick Start](../../README.md#quick-start) gets you one), and Node for the TypeScript in these docs.
+You need a running knowledge base to point at (the [Quick Start](./QUICK-START.md) gets you one), and Node for the TypeScript in these docs.
 
 Where to go by goal:
 

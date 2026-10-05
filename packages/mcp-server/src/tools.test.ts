@@ -1,29 +1,104 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ToolSchema } from '@modelcontextprotocol/sdk/types.js';
+import { ToolSchema, type Tool } from '@modelcontextprotocol/sdk/types.js';
 
 import { TOOLS } from './tools.js';
 
+/** What one row of the README's "Available tools" tables says of a tool. */
+interface DocumentedTool {
+  required: string[];
+  optional: string[];
+  /** The defaults the row states, by parameter. */
+  defaults: Record<string, string>;
+}
+
+/** A table row's cells, without the two empty ones its outer pipes make. */
+function cellsOf(line: string): string[] {
+  return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((cell) => cell.trim());
+}
+
+/** The code spans of a piece of Markdown. */
+function codeSpans(markdown: string): string[] {
+  return markdown.split('`').filter((_, i) => i % 2 === 1);
+}
+
+/** The parameters a cell names. A parenthesis after a name describes it and names nothing. */
+function paramsIn(cell: string): string[] {
+  return codeSpans(cell.replace(/\([^)]*\)/g, ''));
+}
+
+/** The defaults a cell states: each `name` (default `value`). */
+function defaultsIn(cell: string): Record<string, string> {
+  const defaults: Record<string, string> = {};
+  for (const [, name, value] of cell.matchAll(/`([^`]+)` \(default `([^`]+)`\)/g)) {
+    defaults[name] = value;
+  }
+  return defaults;
+}
+
 /**
- * The catalogue as the README documents it ("Available tools"). Written out
- * here rather than derived from `TOOLS`, so a parameter that drifts in the
- * source without a README edit fails this file.
+ * The tools the README documents, read from the tables under "Available
+ * tools". Anything there this cannot read is an error, never a tool with no
+ * parameters: a table with no `Tool` or `Required` column, a row whose cells
+ * do not match its header, a row that names no tool.
  */
-const DOCUMENTED: Record<string, { required: string[]; optional: string[] }> = {
-  browse_resource:       { required: ['id'], optional: [] },
-  browse_resources:      { required: [], optional: ['search', 'archived', 'limit'] },
-  browse_highlights:     { required: ['resourceId'], optional: [] },
-  browse_references:     { required: ['resourceId'], optional: [] },
-  mark_annotation:       { required: ['resourceId', 'selectionData'], optional: ['entityTypes'] },
-  mark_assist:           { required: ['resourceId'], optional: ['entityTypes', 'language', 'sourceLanguage'] },
-  bind_body:             { required: ['sourceResourceId', 'annotationId', 'targetResourceId'], optional: [] },
-  gather_annotation:     { required: ['resourceId', 'annotationId'], optional: ['contextWindow'] },
-  yield_resource:        { required: ['name', 'content', 'storageUri'], optional: ['entityTypes', 'contentType'] },
-  yield_from_annotation: { required: ['resourceId', 'annotationId', 'storageUri'], optional: ['title', 'prompt', 'language', 'sourceLanguage'] },
-};
+function documentedTools(readme: string): Map<string, DocumentedTool> {
+  const lines = readme.split('\n');
+  const start = lines.indexOf('## Available tools');
+  if (start === -1) throw new Error('README.md has no "Available tools" section');
+  const next = lines.findIndex((line, i) => i > start && line.startsWith('## '));
+  const section = lines.slice(start + 1, next === -1 ? undefined : next);
+
+  const documented = new Map<string, DocumentedTool>();
+  let header: string[] | undefined;
+  for (const line of section) {
+    if (!line.startsWith('|')) {
+      header = undefined;
+      continue;
+    }
+    const cells = cellsOf(line);
+    if (cells.every((cell) => /^-+$/.test(cell))) continue;
+    if (!header) {
+      if (!cells.includes('Tool') || !cells.includes('Required')) {
+        throw new Error(`a table under "Available tools" has no Tool or no Required column: ${line}`);
+      }
+      header = cells;
+      continue;
+    }
+    if (cells.length !== header.length) {
+      throw new Error(`a row under "Available tools" does not match its header: ${line}`);
+    }
+    const [name] = codeSpans(cells[header.indexOf('Tool')]);
+    if (!name) throw new Error(`a row under "Available tools" names no tool: ${line}`);
+    if (documented.has(name)) throw new Error(`"Available tools" documents ${name} twice`);
+
+    // A table with no Optional column documents tools that take none.
+    const optionalAt = header.indexOf('Optional');
+    const optional = optionalAt === -1 ? '' : cells[optionalAt];
+    documented.set(name, {
+      required: paramsIn(cells[header.indexOf('Required')]),
+      optional: paramsIn(optional),
+      defaults: defaultsIn(optional),
+    });
+  }
+  return documented;
+}
+
+/** What a tool tells a model about one of its parameters. */
+function descriptionOf(tool: Tool, param: string): string {
+  const property: unknown = tool.inputSchema.properties?.[param];
+  if (typeof property !== 'object' || property === null
+    || !('description' in property) || typeof property.description !== 'string') {
+    throw new Error(`${tool.name} does not describe ${param}`);
+  }
+  return property.description;
+}
+
+const DOCUMENTED = documentedTools(readFileSync(new URL('../README.md', import.meta.url), 'utf-8'));
 
 describe('TOOLS', () => {
-  it('exposes exactly the ten documented tools', () => {
-    expect(TOOLS.map(t => t.name)).toEqual(Object.keys(DOCUMENTED));
+  it('registers exactly the tools the README documents, in its order', () => {
+    expect(TOOLS.map((tool) => tool.name)).toEqual([...DOCUMENTED.keys()]);
   });
 
   it('is valid against the MCP tool schema', () => {
@@ -32,13 +107,22 @@ describe('TOOLS', () => {
     }
   });
 
-  it.each(Object.entries(DOCUMENTED))('declares %s with the documented parameters', (name, expected) => {
-    const tool = TOOLS.find(t => t.name === name);
-    if (!tool) throw new Error(`${name} is not registered`);
+  it.each(TOOLS.map((tool) => [tool.name, tool] as const))('declares %s with the parameters the README documents', (name, tool) => {
+    const documented = DOCUMENTED.get(name);
+    if (!documented) throw new Error(`${name} is not in the README's "Available tools"`);
 
-    expect(tool.inputSchema.required ?? []).toEqual(expected.required);
+    expect(tool.inputSchema.required ?? []).toEqual(documented.required);
     expect(Object.keys(tool.inputSchema.properties ?? {}).sort())
-      .toEqual([...expected.required, ...expected.optional].sort());
+      .toEqual([...documented.required, ...documented.optional].sort());
+  });
+
+  it.each(TOOLS.map((tool) => [tool.name, tool] as const))('tells a model the defaults the README states for %s', (name, tool) => {
+    const documented = DOCUMENTED.get(name);
+    if (!documented) throw new Error(`${name} is not in the README's "Available tools"`);
+
+    for (const [param, value] of Object.entries(documented.defaults)) {
+      expect(descriptionOf(tool, param), `${name}.${param}`).toContain(`(default: ${value})`);
+    }
   });
 
   it('gives every tool a description', () => {

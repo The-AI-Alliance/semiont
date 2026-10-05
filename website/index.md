@@ -55,7 +55,7 @@ semiont yield --upload papers/attention-is-all-you-need.pdf   # prints the resou
 semiont mark --delegate <resourceId> --motivation linking --entity-type Concept
 ```
 
-The **[Quick Start](https://github.com/The-AI-Alliance/semiont#quick-start)** walks through each step.
+The **[Quick Start](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/QUICK-START.md)** walks through each step.
 
 ### Or start with content already in place
 

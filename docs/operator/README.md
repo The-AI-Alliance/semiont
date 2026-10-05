@@ -16,7 +16,7 @@ One stack serves one knowledge base. It is:
 
 ## Three ways to run one
 
-**Start with the launcher.** `semiont` is one binary that brings up a whole stack on your machine with one command. It is the path the [Quick Start](../../README.md#quick-start) takes, and an analyst can run their own knowledge base this way. See [Running a local stack](LOCAL-SEMIONT.md).
+**Start with the launcher.** `semiont` is one binary that brings up a whole stack on your machine with one command. It is the path the [Quick Start](../builder/QUICK-START.md) takes, and an analyst can run their own knowledge base this way. See [Running a local stack](LOCAL-SEMIONT.md).
 
 **Put the stack on a hosted machine.** The same launcher places a stack in a GitHub Codespace and forwards it to your machine: `semiont start --runtime codespace`. The stack runs next to the knowledge base's repository, and people reach it from wherever they are. That is the shape of a real deployment at its smallest. See [Knowledge Bases](../KNOWLEDGE-BASES.md).
 

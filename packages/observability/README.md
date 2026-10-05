@@ -6,183 +6,56 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/observability.svg)](https://www.npmjs.com/package/@semiont/observability)
 [![License](https://img.shields.io/npm/l/@semiont/observability.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-OpenTelemetry-based tracing and metrics for [Semiont](https://github.com/The-AI-Alliance/semiont). Tiers 2 and 3 of the Semiont observability stack: Node process-init helpers, a thin `withSpan` wrapper and W3C trace-context propagation across the bus (Tier 2), and a small set of metric recorders for the platform's hot paths plus log correlation (Tier 3).
+Tracing, metrics and the process logger for Semiont's TypeScript services and transports, on [OpenTelemetry](https://opentelemetry.io). It is off unless a process is given somewhere to export to: with no endpoint configured, every function here does nothing.
 
-> **Off by default.** With no `OTEL_EXPORTER_OTLP_ENDPOINT` (or `OTEL_CONSOLE_EXPORTER=true`) set, every API in this package becomes a no-op via the `@opentelemetry/api` no-op tracer. You pay nothing in production unless you opt in.
+## Who uses it
 
-## Architecture context
+- **Each Node service starts it** at its entry point, and takes its logger from it: the Worker in [`@semiont/jobs`](../jobs/README.md), and the Archivist, Librarian, Smelter and Weaver in [`@semiont/make-meaning`](../make-meaning/README.md).
+- **The actors** wrap each bus handler in a span, and the packages under them record what they measure: [`@semiont/inference`](../inference/README.md), [`@semiont/jobs`](../jobs/README.md), [`@semiont/content`](../content/README.md) and [`@semiont/event-sourcing`](../event-sourcing/README.md).
+- **[`@semiont/http-transport`](../http-transport/README.md)** runs each request in a span and carries the trace across the wire. That is how this package comes to be in the Browser's bundle.
 
-Semiont's observability is layered:
+The gateway and the dispatcher are Rust, and have a crate of their own for this.
 
-- **Tier 1 — `busLog`** (in [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core)): a 5-op grep-friendly timeline at the `ITransport` contract layer (`EMIT`, `RECV`, `SSE`, `PUT`, `GET`). Off until switched on (`SEMIONT_BUS_LOG=1` in Node, `window.__SEMIONT_BUS_LOG__ = true` in the browser); one property read per call while off.
-- **Tier 2 — OpenTelemetry traces** (this package): spans, with W3C trace-context propagation across the bus's HTTP and SSE legs so a single user action produces one trace spanning Browser → gateway → worker → smelter.
-- **Tier 3 — metrics and log correlation** (this package): counters, histograms and gauges for the platform's hot paths, and the active span's `trace_id` / `span_id` on every structured log line.
+**Building an application?** You do not need this package. The SDK's transport reports through OpenTelemetry's global API, so an application that registers a tracer of its own sees the transport's spans in its traces.
 
-This package does not implement any platform domain logic; it provides the spanning helpers and metric recorders the rest of the codebase calls.
+## What is in it
 
-## Installation
+| Import | |
+|---|---|
+| `@semiont/observability` | Runs in Node and in a browser. Spans: `withSpan`, and `withActorSpan` for a bus handler. Trace context across the bus: `getActiveTraceparent`, `extractTraceparent`, `withTraceparent`. `getLogTraceContext`, for a log line. The metric recorders (`record…`) and the gauges a process registers (`register…Provider`) |
+| `@semiont/observability/node` | `initObservabilityNode` and `shutdownObservabilityNode`: the tracer, the meter, the exporter and the context manager of a Node process |
+| `@semiont/observability/process-logger` | `createProcessLogger(component)`: a service's structured logger. Each line carries the trace and span that were active when it was written |
 
-```bash
-npm install @semiont/observability
-```
+Each recorder says what it measures where it is defined, in [src/index.ts](src/index.ts).
 
-## Quick start (Node)
+## Example
 
-Initialize once at the process entry point, before any spanning code runs:
-
-```ts
-// worker-main.ts (or smelter-main.ts, etc.)
+```typescript
 import { initObservabilityNode } from '@semiont/observability/node';
-
-initObservabilityNode({ serviceName: 'semiont-worker' });
-
-// ...rest of process startup
-```
-
-Then use the universal API anywhere:
-
-```ts
 import { withSpan } from '@semiont/observability';
 
-await withSpan('handle-request', async (span) => {
-  span.setAttribute('user.id', userId);
-  return await doWork();
+// Once, at the entry point, before anything that makes a span.
+initObservabilityNode({ serviceName: 'semiont-worker' });
+
+const length = await withSpan('read-document', async (span) => {
+  span.setAttribute('document.pages', 12);
+  return 4096;
 });
 ```
 
-Configuration is via the standard `OTEL_*` env vars:
+## What a change must keep
 
-| Variable | Purpose |
-|---|---|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Collector HTTP endpoint (e.g. `http://jaeger:4318`) |
-| `OTEL_SERVICE_NAME` | Overrides the `serviceName` passed to `init` |
-| `OTEL_TRACES_SAMPLER` | Sampler (default: `parentbased_always_on`) |
-| `OTEL_TRACES_SAMPLER_ARG` | Sampler ratio (default: `1.0`) |
-| `OTEL_METRIC_EXPORT_INTERVAL` | Metric export interval ms (default: 30000) |
-| `OTEL_CONSOLE_EXPORTER=true` | Dev-only: with no endpoint set, write spans + metrics to the process's output |
-| `OTEL_METRICS_EXPORTER=console` | Write metrics to the process's output while spans still go to the endpoint |
-| `OTEL_SDK_DISABLED=true` | Skip initialization entirely |
+- **Off by default, and free when off.** With no exporter configured, the tracer and the meter are OpenTelemetry's own no-ops. Nothing here may do work, or fail, because telemetry is not set up.
+- **The main import runs in a browser.** It imports no Node builtin. What needs Node is in `/node` and `/process-logger`.
+- **One trace across the bus.** A request carries the active span as a W3C `traceparent` header, and a frame relayed over the stream carries it in its `_trace` field. A handler continues that trace rather than starting one.
+- **No domain logic.** The package gives the helpers and the recorders. What is worth a span or a count is decided where the work happens.
+- **Initialized once.** `initObservabilityNode` is called at a process's entry point. A second call does nothing and returns `false`.
 
-## Process logger (Node)
+## Documentation
 
-For long-lived Node entry points (workers, smelter, the other sidecars), the package exposes a winston-based structured logger that auto-correlates each line with the active span:
-
-```ts
-// worker-main.ts (or smelter-main.ts, etc.)
-import { createProcessLogger } from '@semiont/observability/process-logger';
-
-const logger = createProcessLogger('worker');
-logger.info('Started', { config });
-```
-
-Reads `LOG_LEVEL` (default `info`) and `LOG_FORMAT` (`json` default, `simple` for dev). When an OTel SDK is initialized and a span is active at log time, every emitted line gets `trace_id` / `span_id` fields — Tier 3 correlation between grep-the-stdout and the trace UI. Lives on its own subpath so consumers that don't want winston in their bundle can ignore it.
-
-## In the browser
-
-The universal API below runs in the Browser as it does in Node: the Browser bundles it through `@semiont/http-transport`, which is why `index.ts` imports no Node builtins. The Browser's tracer itself — the web SDK and its exporter — is the Browser's own (`apps/browser/src/lib/tracing.ts`), so no server that traces carries a browser SDK. Spans created in the SPA propagate to the gateway in the `traceparent` header of each bus emit; the gateway hands trace context back to subscribers in the `_trace` field of each SSE payload.
-
-## Universal API
-
-Everything below is from the main `@semiont/observability` import — works identically in Node and the browser.
-
-### Spans
-
-```ts
-import { withSpan, withActorSpan, SpanKind } from '@semiont/observability';
-
-// Generic async wrapper
-await withSpan('parse-document', () => parser.parse(buf));
-
-// With kind + attributes
-await withSpan(
-  'job:reference-annotation',
-  () => runJob(job),
-  { kind: SpanKind.CONSUMER, attrs: { 'job.id': job.id } },
-);
-
-// Actor handler wrapper — used at each actor's bus subscriptions to standardize
-// span names across actors (Stower, Browser, Gatherer, Matcher, Smelter).
-await withActorSpan('stower', 'mark:create', () => handler(payload));
-```
-
-### Trace-context propagation
-
-Trace context crosses the bus in two forms. An outbound request (a bus emit, a content read or write) carries the active span in its W3C `traceparent` header, read with `getActiveTraceparent`. A frame the gateway relays over SSE has no headers of its own, so the gateway puts the context in the payload's `_trace` field: the receiver takes it off with `extractTraceparent` and runs its handlers under it with `withTraceparent`. `@semiont/http-transport` does both, so code that goes through a transport calls none of these:
-
-```ts
-import {
-  extractTraceparent,
-  withTraceparent,
-  getActiveTraceparent,
-  withSpan,
-} from '@semiont/observability';
-
-// Receiving: take `_trace` off the payload and continue its trace.
-const carrier = extractTraceparent(incoming);
-await withTraceparent(carrier, () =>
-  withSpan('handle-incoming', () => process(incoming)),
-);
-
-// Sending: put the active span on the outbound request's headers.
-const headers: Record<string, string> = {};
-const trace = getActiveTraceparent();
-if (trace) {
-  headers['traceparent'] = trace.traceparent;
-  if (trace.tracestate) headers['tracestate'] = trace.tracestate;
-}
-```
-
-### Log correlation
-
-Add the active trace-id and span-id to every log line so log search and the trace UI link up:
-
-```ts
-import { getLogTraceContext } from '@semiont/observability';
-
-logger.info('job started', { ...getLogTraceContext() });
-// → meta { trace_id: '4e3...', span_id: 'a1b...' } on the 'job started' line
-```
-
-### Metrics
-
-The gateway and the dispatcher are Rust and emit their own metrics, the SSE subscriber count among them. The recorders here (Tier 3) cover the hot paths of the TypeScript services and transports:
-
-```ts
-import {
-  recordBusSent,
-  recordHandlerDuration,
-  recordJobOutcome,
-  recordInferenceUsage,
-} from '@semiont/observability';
-
-recordBusSent('mark:create', resourceId);  // channel, and the scope it was sent in
-recordHandlerDuration('stower', 'mark:create', durationMs);
-recordJobOutcome('reference-annotation', 'completed', durationMs);
-recordInferenceUsage({ provider: 'ollama', model: 'gemma3:27b', durationMs, outcome: 'success', inputTokens: 412, outputTokens: 87 });
-```
-
-### Provider registration
-
-Long-lived snapshots (vector index size, the fact pump's backlog) are gauges, registered via callback so the SDK can pull at metric-export time:
-
-```ts
-import { registerVectorIndexSizeProvider } from '@semiont/observability';
-
-registerVectorIndexSizeProvider(() => vectorStore.count());
-```
-
-## Implementation notes
-
-This package wires `BasicTracerProvider` and `MeterProvider` (stable `@opentelemetry/sdk-trace-base` 2.x line) directly, plus `AsyncLocalStorageContextManager` for Node async-context propagation. It deliberately avoids `@opentelemetry/sdk-node` because that package's experimental 0.x versions cross-depend on older 2.0.x SDK lines, forcing npm to nest duplicate copies of the stable packages and bloating consumer bundles.
-
-`initObservabilityNode` is idempotent — calling twice is a no-op and returns `false` on the second call. Both providers shut down cleanly on `SIGTERM` / `SIGINT`.
+- [API reference](docs/API.md): the helpers, with an example of each, and the process logger.
+- [Observability](../../docs/operator/administration/OBSERVABILITY.md): the variables that turn it on, and where a stack sends its telemetry.
 
 ## License
 
-Apache-2.0 — see [LICENSE](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE).
-
-## Related packages
-
-- [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core) — Tier 1 `busLog`, domain types
-- [`@semiont/make-meaning`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/make-meaning) — the knowledge-base actors, the primary consumer of this package's spanning helpers
-- [`@semiont/http-transport`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/http-transport) — HTTP transport, propagates `traceparent` on every request
+Apache-2.0

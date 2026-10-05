@@ -14,7 +14,7 @@ This document explains how user interactions with annotations flow through the S
 
 **What it does**:
 - CRUD operations for annotations (via the SDK)
-- TypeScript types generated from `specs/openapi.json` (in `@semiont/core`)
+- TypeScript types generated from the OpenAPI spec, `specs/src/openapi.json` (in `@semiont/core`)
 - Utility functions for annotation manipulation (e.g., `getAnnotationExactText`, `getBodySource`) (in `@semiont/core`)
 
 **What it does NOT do**:
@@ -629,6 +629,6 @@ These rules MUST be followed:
 
 ## Related Documentation
 
-- **OpenAPI Spec**: `specs/openapi.json` - Source of truth for annotation types
+- **OpenAPI Spec**: `specs/src/openapi.json`, and `specs/src/components/schemas/Annotation.json` in it - Source of truth for annotation types
 - **Event channels**: `packages/core/src/bus-protocol.ts` - `EventMap`, the channel type definitions
 - **Annotation Utilities**: `packages/core/src/web-annotation-utils.ts` - Pure functions for annotation manipulation

@@ -6,150 +6,67 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/vectors.svg)](https://www.npmjs.com/package/@semiont/vectors)
 [![License](https://img.shields.io/npm/l/@semiont/vectors.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-Vector storage, embedding, and semantic search for Semiont.
+The vector index of a knowledge base: where the embeddings of its resources and annotations are kept, and how they are searched by meaning. A vector database and an embedding model each sit behind an interface.
 
-Provides a pluggable abstraction over vector databases and embedding providers. The text chunking that feeds it is `@semiont/core`'s. Used by the Smelter actor to index content and by Gatherer/Matcher to retrieve semantically similar resources and annotations.
+## Who uses it
 
-## Architecture
+Each service connects from its own entry point in [`@semiont/make-meaning`](../make-meaning/README.md):
 
-Two separate vector collections:
+- **The Smelter** is the one writer. It chunks a resource's text, embeds it, and keeps the index in step with the record.
+- **The Librarian** searches it, for the Gatherer's context and the Matcher's candidates.
+- **The Archivist** searches it when a search for resources by text finds nothing.
 
-- **resources** — chunked full-text content from stored files
-- **annotations** — W3C Web Annotation entities with motivation, entity types, and exact text
+`startMakeMeaning()` connects the same way in one process, for scripts and tests.
 
-Both collections support filtered similarity search with configurable score thresholds.
+**Building an application?** You do not need this package. An application searches through [`@semiont/sdk`](../sdk/README.md): `browse.resources`, `match.search` and `gather`.
 
-## Vector Stores
+## What is in it
 
-### Qdrant (production)
+| | |
+|---|---|
+| `VectorStore` | The contract: write a resource's chunks or an annotation's vector, delete them, and search either collection with a filter and a score threshold |
+| `createVectorStore(config)` | Picks the implementation from `config.type` |
+| `QdrantVectorStore` | [Qdrant](https://qdrant.tech). Collections are created when missing |
+| `MemoryVectorStore` | Brute-force cosine similarity in one process, for tests |
+| `EmbeddingProvider` | The contract: `embed`, `embedBatch`, `dimensions()`, `model()` |
+| `createEmbeddingProvider(config)` | Picks the implementation from `config.type` |
+| `VoyageEmbeddingProvider`, `OllamaEmbeddingProvider` | Voyage AI, and a local Ollama |
+| `mergeByResource` | Folds chunk-level hits into one result per resource |
+| `@semiont/vectors/testing` | `MockEmbeddingProvider` and `deterministicVector`, for a test that needs embeddings without a model |
 
-```typescript
-import { createVectorStore } from '@semiont/vectors';
+The chunking that feeds it, `chunkText`, is [`@semiont/core`](../core/README.md)'s.
 
-const store = await createVectorStore({
-  type: 'qdrant',
-  host: 'localhost',
-  port: 6333,
-  // A thunk over an embedding provider (below), called only to create a collection
-  dimensions: () => provider.dimensions(),
-});
-```
-
-Requires a running [Qdrant](https://qdrant.tech) instance. The `@qdrant/js-client-rest` client is lazy-loaded on `connect()`. Collections are auto-created if they don't exist.
-
-### Memory (testing)
-
-```typescript
-const store = await createVectorStore({
-  type: 'memory',
-  dimensions: () => provider.dimensions(),  // required by the config; this store never calls it
-});
-```
-
-Brute-force cosine similarity. No external dependencies.
-
-## Embedding Providers
-
-Vector dimensionality is intrinsic to the embedding model, so it is discovered from the provider itself — `await provider.dimensions()` embeds a probe string once per instance and measures it. There is no hand-maintained model→width table: any model the provider serves works, and an unreachable provider fails loudly instead of yielding a wrong-width index.
-
-### Voyage AI (cloud)
+## Example
 
 ```typescript
-import { createEmbeddingProvider } from '@semiont/vectors';
+import { createEmbeddingProvider, createVectorStore } from '@semiont/vectors';
 
-const provider = await createEmbeddingProvider({
-  type: 'voyage',
-  model: 'voyage-3',
-  apiKey: '...',
-});
-```
-
-### Ollama (local)
-
-```typescript
 const provider = await createEmbeddingProvider({
   type: 'ollama',
   model: 'nomic-embed-text',
   baseURL: 'http://localhost:11434',
 });
-```
 
-## Text Chunking
+// The store asks the provider how wide its vectors are; nothing here knows.
+const store = await createVectorStore({ type: 'memory', dimensions: () => provider.dimensions() });
 
-```typescript
-import { chunkText, DEFAULT_CHUNKING_CONFIG } from '@semiont/core';
-
-const chunks = chunkText(longDocument, { chunkSize: 512, overlap: 50 });
-// => string[]
-```
-
-Splits on paragraph boundaries, then sentence boundaries, then word boundaries. `chunkSize` and `overlap` are in tokens (~4 characters per token).
-
-## Search
-
-```typescript
 const embedding = await provider.embed('quantum computing');
-
-// Search resources
-const resources = await store.searchResources(embedding, {
-  limit: 10,
-  scoreThreshold: 0.7,
-  filter: { excludeResourceId: openResourceId },  // a ResourceId
-});
-
-// Search annotations
-const annotations = await store.searchAnnotations(embedding, {
-  limit: 5,
-  filter: { entityTypes: ['Person', 'Organization'], motivation: 'linking' },
-});
+const hits = await store.searchResources(embedding, { limit: 10, scoreThreshold: 0.7 });
 ```
 
-Each result includes `id`, `score`, `resourceId`, `text`, and optionally `annotationId` and `entityTypes`.
+## What a change must keep
 
-## Writing Vectors
+- **It is a derived store.** Every vector can be made again from the record, and the Smelter does so when it starts. Nothing here is the source of truth.
+- **One writer.** Only the Smelter writes. The other services read, and a memory store is refused by them, because it could not be shared with the process that fills it.
+- **A vector's width is asked of the model.** `provider.dimensions()` embeds a probe and measures it. There is no table of models and widths to keep.
+- **Rewriting a resource replaces it.** `upsertResourceVectors` removes every vector the resource had, so a resource that shrank leaves no orphan chunks.
+- **Vectors say how fresh they are.** Each resource's vectors carry the checksum of the content they were made from, which is how the Smelter knows what to redo.
+- **Callers never ask which database or model they hold.** They are written to `VectorStore` and `EmbeddingProvider`.
 
-```typescript
-// Index a resource's content
-const chunks = chunkText(content, DEFAULT_CHUNKING_CONFIG);
-const embeddings = await provider.embedBatch(chunks);
-await store.upsertResourceVectors(resourceId, chunks.map((text, i) => ({
-  chunkIndex: i,
-  text,
-  embedding: embeddings[i],
-})), contentChecksum, entityTypes);
+## Documentation
 
-// Index an annotation
-const vec = await provider.embed('Marie Curie');
-await store.upsertAnnotationVector(annotationId, vec, {
-  annotationId,
-  resourceId,
-  motivation: 'linking',
-  entityTypes: ['Person'],
-  exactText: 'Marie Curie',
-});
-```
-
-`upsertResourceVectors` replaces all existing vectors for the resource, so re-indexing a resource that shrank leaves no orphan chunks. `contentChecksum` is the checksum of the bytes the chunks were computed from and `entityTypes` is the resource's entity-type set; both are stamped onto every point.
-
-## Configuration
-
-In a knowledge base's `.semiont/semiontconfig/<name>.toml`:
-
-```toml
-[environments.local.vectors]
-type = "qdrant"
-host = "localhost"
-port = 6333
-
-[environments.local.embedding]
-type = "voyage"
-model = "voyage-3"
-apiKey = "${MY_VOYAGE_KEY}"   # the key, from a variable you name
-
-[environments.local.embedding.chunking]
-chunkSize = 512
-overlap = 64
-```
+- [API reference](docs/API.md): the stores, the providers, searching and writing.
+- [Configuration](../../docs/operator/administration/CONFIGURATION.md): how a knowledge base names its vector store and embedding model.
 
 ## License
 

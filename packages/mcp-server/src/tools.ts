@@ -1,9 +1,10 @@
 /**
  * Tool definitions — the `tools/list` payload.
  *
- * Data only, so the catalogue can be read (and asserted against the README)
- * without booting the stdio server. Every name here has a matching `case` in
- * `callTool` (handlers.ts) and a row in the README's "Available tools".
+ * Data only, so the catalogue can be read without booting the stdio server.
+ * Every name here has a matching `case` in `callTool` (handlers.ts) and a row
+ * in the README's "Available tools", which tools.test.ts reads: a tool's
+ * parameters, and each default its row states, are held to that table.
  */
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
@@ -12,7 +13,7 @@ export const TOOLS: Tool[] = [
   // ── Browse ────────────────────────────────────────────────────────
   {
     name: 'browse_resource',
-    description: 'Get a resource by ID with its annotations and references',
+    description: 'Get a resource\'s descriptor by ID',
     inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Resource ID' } }, required: ['id'] },
   },
   {
@@ -23,7 +24,7 @@ export const TOOLS: Tool[] = [
       properties: {
         search: { type: 'string', description: 'Search query' },
         archived: { type: 'boolean', description: 'Filter by archived status (default: false)' },
-        limit: { type: 'number', description: 'Maximum results (default: 20)' },
+        limit: { type: 'number', description: 'Maximum results (default: 50)' },
       },
     },
   },
@@ -40,25 +41,25 @@ export const TOOLS: Tool[] = [
   // ── Mark ──────────────────────────────────────────────────────────
   {
     name: 'mark_annotation',
-    description: 'Create an annotation (highlight, comment, reference, tag) on a resource',
+    description: 'Create a highlight annotation on a resource, with each entity type as a tagging body',
     inputSchema: {
       type: 'object',
       properties: {
         resourceId: { type: 'string', description: 'Resource ID' },
         selectionData: { type: 'object', description: 'Selection data (offset, length, text)', properties: { offset: { type: 'number' }, length: { type: 'number' }, text: { type: 'string' } } },
-        entityTypes: { type: 'array', items: { type: 'string' }, description: 'Entity types for this annotation' },
+        entityTypes: { type: 'array', items: { type: 'string' }, description: 'Entity types, each added to the annotation as a tagging body' },
       },
       required: ['resourceId', 'selectionData'],
     },
   },
   {
     name: 'mark_assist',
-    description: 'AI-assisted annotation: detect entities, highlights, assessments, comments, or tags',
+    description: 'AI-assisted annotation: detect entity references in a resource',
     inputSchema: {
       type: 'object',
       properties: {
         resourceId: { type: 'string', description: 'Resource ID' },
-        entityTypes: { type: 'array', items: { type: 'string' }, description: 'Entity types to detect (for linking motivation)' },
+        entityTypes: { type: 'array', items: { type: 'string' }, description: 'Entity types to detect' },
         language: { type: 'string', description: 'BCP-47 tag for the annotation body language (what the LLM writes). Stamped on TextualBody.language.' },
         sourceLanguage: { type: 'string', description: 'BCP-47 tag for the source-resource language. Fed into the prompt for source-aware analysis.' },
       },
@@ -117,7 +118,7 @@ export const TOOLS: Tool[] = [
       properties: {
         resourceId: { type: 'string' },
         annotationId: { type: 'string' },
-        title: { type: 'string' },
+        title: { type: 'string', description: 'Title of the generated resource (default: Generated)' },
         storageUri: { type: 'string' },
         prompt: { type: 'string', description: 'AI generation prompt' },
         language: { type: 'string', description: 'BCP-47 tag — language the generated resource is written in.' },

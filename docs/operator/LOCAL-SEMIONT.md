@@ -1,6 +1,6 @@
 # Running a local stack
 
-The [`semiont` launcher](../../apps/launcher/README.md) runs a stack on your own machine, for the knowledge base in the directory you run it from. If this is your first time, follow the [Quick Start](../../README.md#quick-start): it goes from install to a first annotation. This page covers what the Quick Start leaves out.
+The [`semiont` launcher](../../apps/launcher/README.md) runs a stack on your own machine, for the knowledge base in the directory you run it from. If this is your first time, follow the [Quick Start](../builder/QUICK-START.md): it goes from install to a first annotation. This page covers what the Quick Start leaves out.
 
 To put the stack on a hosted machine instead, see [Knowledge Bases](../KNOWLEDGE-BASES.md). To deploy it on your own platform, see [Deploying Semiont](administration/DEPLOYMENT.md).
 
@@ -23,7 +23,7 @@ semiont start
 semiont useradd --email you@example.com
 ```
 
-For a new one, `semiont init` creates a knowledge base in the current directory first ([Quick Start](../../README.md#quick-start)).
+For a new one, `semiont init` creates a knowledge base in the current directory first ([Quick Start](../builder/QUICK-START.md)).
 
 `semiont start` pulls the images, starts the infrastructure and then the services in [order](services/OVERVIEW.md#start-order), waits for each to be healthy, and exits. The stack keeps running. A new stack has no accounts: `semiont useradd` creates the first one, and every one after it, and prompts for the password.
 

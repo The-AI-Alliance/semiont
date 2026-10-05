@@ -11,14 +11,53 @@ host-installed [`semiont` launcher](https://github.com/The-AI-Alliance/semiont/t
 (a single static binary), which *pulls* the published, attested
 `ghcr.io/the-ai-alliance/semiont-*` images and bind-mounts the KB's config at
 runtime — KB repos build no images of their own (see
-[Container Images](operator/administration/IMAGES.md)). One command starts the
-whole stack, including the Semiont browser at http://localhost:3000:
+[Container Images](operator/administration/IMAGES.md)).
+
+On this page: the [demo knowledge bases](#demo-kbs), which arrive with content, and
+[how to run one](#running-one); the [community](#community) ones;
+[starting from scratch](#starting-from-scratch); and running any of them
+[in a GitHub Codespace](#in-a-github-codespace).
+
+## Demo KBs
+
+Each ships a small corpus and a layered set of skills (ingest → mark →
+canonicalize → wire-edges → compose-aggregates) that demonstrate the SDK in a
+particular domain. The value is the *skills*, not the data — the skills are
+corpus-generic and work on any corpus dropped into the same directory layout.
+
+| Knowledge Base | Domain | Clone |
+|---|---|---|
+| **[semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb)** | Public-domain literature from Project Gutenberg | `git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git` |
+| **[semiont-arxiv-kb](https://github.com/The-AI-Alliance/semiont-arxiv-kb)** | Research papers from arXiv | `git clone https://github.com/The-AI-Alliance/semiont-arxiv-kb.git` |
+| **[semiont-legal-kb](https://github.com/The-AI-Alliance/semiont-legal-kb)** | Synthetic legal documents — contracts, attorney correspondence, internal memos | `git clone https://github.com/The-AI-Alliance/semiont-legal-kb.git` |
+| **[semiont-caselaw-kb](https://github.com/The-AI-Alliance/semiont-caselaw-kb)** | U.S. case law — Supreme Court opinions and state appellate cases | `git clone https://github.com/The-AI-Alliance/semiont-caselaw-kb.git` |
+| **[semiont-clinical-evidence-kb](https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb)** | Synthetic clinical evidence — trials, observational studies, treatment guidelines, drug-safety reports | `git clone https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb.git` |
+| **[semiont-newsroom-kb](https://github.com/The-AI-Alliance/semiont-newsroom-kb)** | Synthetic investigative-journalism documents — interview transcripts, FOIA responses, public statements | `git clone https://github.com/The-AI-Alliance/semiont-newsroom-kb.git` |
+| **[semiont-household-kb](https://github.com/The-AI-Alliance/semiont-household-kb)** | Synthetic home-property records — service receipts, contractor emails, manuals, mortgage / insurance, HOA notices | `git clone https://github.com/The-AI-Alliance/semiont-household-kb.git` |
+
+### Running one
+
+Install the launcher first: steps 0 to 2 of the [Quick Start](builder/QUICK-START.md),
+which also say where an Anthropic key goes. Then clone a knowledge base and start it.
+One command starts the whole stack, including the Semiont browser at http://localhost:3000:
 
 ```bash
 brew install the-ai-alliance/semiont/semiont   # once
+git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
+cd semiont-gutenberg-kb
 semiont start
 semiont useradd --email admin@example.com   # prompts for the password
 ```
+
+A demo knowledge base arrives with its identity and its configs already set, so
+there is no `semiont init` to run, and with content, so there is nothing to ingest
+before you read and annotate. A plain `semiont start` runs its local Ollama
+config, which needs no key. `semiont start --config anthropic` runs on your
+Anthropic key instead.
+
+A new stack has no users, which is what `useradd` is for. Then open the browser,
+pick the knowledge base in its Knowledge Bases panel and sign in: steps 5 and 6
+of the Quick Start.
 
 `semiont logs` follows the stack, `semiont status` health-checks it, and
 `semiont stop` tears it down — except the browser, which is the machine-level
@@ -27,7 +66,44 @@ leaves it running, and `semiont stop --service browser` is the explicit
 off-switch. Its Knowledge Bases panel discovers launcher-managed stacks
 automatically.
 
-**Or run it on GitHub's machine instead of yours.** The same launcher places
+See [Running a local stack](operator/LOCAL-SEMIONT.md) for the full local guide:
+choosing a config, the ports, and where things are kept.
+
+## Community
+
+| Knowledge Base | Domain | Clone |
+|---|---|---|
+| **[synthetic-family](https://github.com/pingel-org/synthetic-family)** | Synthetic family history and genealogy | `git clone https://github.com/pingel-org/synthetic-family.git` |
+
+Built a knowledge base others could learn from? Open a
+[discussion](https://github.com/The-AI-Alliance/semiont/discussions) to get
+it listed here.
+
+## Starting from scratch
+
+**`semiont init`** births a new KB in place — no clone required. It stamps
+the permanent did:web identity at birth (from `--domain` or your git
+origin), synthesizes a validated semiontconfig from `--inference` /
+`--model` / `--embedding` choices (or copies the template's configs with
+`--from-template`), and refuses rather than writing a config that cannot
+start:
+
+```bash
+semiont init --yes --inference anthropic --embedding ollama:nomic-embed-text
+```
+
+Or clone the empty template:
+
+| Template | Description | Clone |
+|---|---|---|
+| **[semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)** | Empty template — start here for a new project | `git clone https://github.com/The-AI-Alliance/semiont-template-kb.git` |
+
+The template is the canonical source of the shared `.semiont/` scaffolding —
+the demo KBs above are forks of it, kept in sync.
+
+## In a GitHub Codespace
+
+Run a knowledge base on GitHub's machine instead of yours. The same launcher places
 a KB stack in a **GitHub Codespace**. One command does several things:
 - creates the codespace, or resumes it;
 - waits for the stack, which the codespace's own launcher runs;
@@ -64,55 +140,3 @@ codespace whose setup failed during `start` included — so
 Prerequisites (the `gh` CLI and an `ANTHROPIC_API_KEY` Codespaces user secret)
 are in each KB's README; the raw `gh` recipe is kept there too as the
 no-launcher path.
-
-See [Running a local stack](operator/LOCAL-SEMIONT.md) for the full local guide:
-choosing a config, the ports, and where things are kept.
-
-## Starting from scratch
-
-**`semiont init`** births a new KB in place — no clone required. It stamps
-the permanent did:web identity at birth (from `--domain` or your git
-origin), synthesizes a validated semiontconfig from `--inference` /
-`--model` / `--embedding` choices (or copies the template's configs with
-`--from-template`), and refuses rather than writing a config that cannot
-start:
-
-```bash
-semiont init --yes --inference anthropic --embedding ollama:nomic-embed-text
-```
-
-Or clone the empty template:
-
-| Template | Description | Clone |
-|---|---|---|
-| **[semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)** | Empty template — start here for a new project | `git clone https://github.com/The-AI-Alliance/semiont-template-kb.git` |
-
-The template is the canonical source of the shared `.semiont/` scaffolding —
-the demo KBs below are forks of it, kept in sync.
-
-## Demo KBs
-
-Each ships a small corpus and a layered set of skills (ingest → mark →
-canonicalize → wire-edges → compose-aggregates) that demonstrate the SDK in a
-particular domain. The value is the *skills*, not the data — the skills are
-corpus-generic and work on any corpus dropped into the same directory layout.
-
-| Knowledge Base | Domain | Clone |
-|---|---|---|
-| **[semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb)** | Public-domain literature from Project Gutenberg | `git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git` |
-| **[semiont-arxiv-kb](https://github.com/The-AI-Alliance/semiont-arxiv-kb)** | Research papers from arXiv | `git clone https://github.com/The-AI-Alliance/semiont-arxiv-kb.git` |
-| **[semiont-legal-kb](https://github.com/The-AI-Alliance/semiont-legal-kb)** | Synthetic legal documents — contracts, attorney correspondence, internal memos | `git clone https://github.com/The-AI-Alliance/semiont-legal-kb.git` |
-| **[semiont-caselaw-kb](https://github.com/The-AI-Alliance/semiont-caselaw-kb)** | U.S. case law — Supreme Court opinions and state appellate cases | `git clone https://github.com/The-AI-Alliance/semiont-caselaw-kb.git` |
-| **[semiont-clinical-evidence-kb](https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb)** | Synthetic clinical evidence — trials, observational studies, treatment guidelines, drug-safety reports | `git clone https://github.com/The-AI-Alliance/semiont-clinical-evidence-kb.git` |
-| **[semiont-newsroom-kb](https://github.com/The-AI-Alliance/semiont-newsroom-kb)** | Synthetic investigative-journalism documents — interview transcripts, FOIA responses, public statements | `git clone https://github.com/The-AI-Alliance/semiont-newsroom-kb.git` |
-| **[semiont-household-kb](https://github.com/The-AI-Alliance/semiont-household-kb)** | Synthetic home-property records — service receipts, contractor emails, manuals, mortgage / insurance, HOA notices | `git clone https://github.com/The-AI-Alliance/semiont-household-kb.git` |
-
-## Community
-
-| Knowledge Base | Domain | Clone |
-|---|---|---|
-| **[synthetic-family](https://github.com/pingel-org/synthetic-family)** | Synthetic family history and genealogy | `git clone https://github.com/pingel-org/synthetic-family.git` |
-
-Built a knowledge base others could learn from? Open a
-[discussion](https://github.com/The-AI-Alliance/semiont/discussions) to get
-it listed here.

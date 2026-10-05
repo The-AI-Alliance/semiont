@@ -291,7 +291,7 @@ semiont.frame.addEntityType('Person');       // Promise<void>
 
 There are no query keys to manage. Each live `browse.*` query is backed by an internal `Cache` primitive keyed by its resource id. Caches refresh themselves in response to gateway **domain events** delivered over the bus gateway — call sites never invalidate anything by hand. `mark:added`, for example, refetches the resource's annotation list and history, and `frame:entity-type-added` refetches the entity types.
 
-The table of what each event does to which cache is `specs/src/client/refresh.json` (generated into `packages/core/src/generated/cache-refresh.ts`); [CACHE-SEMANTICS.md](../../../docs/protocol/CACHE-SEMANTICS.md) states the contract. A stream reopened after a drop, and a detected event gap (`bus:resume-gap`), have rows of their own, so no update is silently missed.
+The table of what each event does to which cache is `specs/src/client/refresh.json` (`scripts/spec/generate-cache-refresh.mjs` makes it a module of `@semiont/core` at build); [CACHE-SEMANTICS.md](../../../docs/protocol/CACHE-SEMANTICS.md) states the contract. A stream reopened after a drop, and a detected event gap (`bus:resume-gap`), have rows of their own, so no update is silently missed.
 
 ### Error Handling
 
