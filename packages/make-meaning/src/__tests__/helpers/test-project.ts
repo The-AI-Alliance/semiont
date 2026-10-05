@@ -47,3 +47,16 @@ export async function createTestProject(nameHint: string = 'test'): Promise<Test
 
   return { project, teardown };
 }
+
+/** The identity `declareTestKb` gives a knowledge base. */
+export const TEST_KB_DOMAIN = 'example.org:test-kb';
+
+/**
+ * Writes the committed `.semiont/config` of the knowledge base at `root`,
+ * declaring its `[site] domain`. `startMakeMeaning` refuses a knowledge base
+ * that declares none.
+ */
+export async function declareTestKb(root: string): Promise<void> {
+  await fs.mkdir(join(root, '.semiont'), { recursive: true });
+  await fs.writeFile(join(root, '.semiont', 'config'), `[site]\ndomain = "${TEST_KB_DOMAIN}"\n`);
+}

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { resourceContextFor, annotationContextFor } from '../../__tests__/fixtures/gathered-context';
-import { EventBus, resourceId, annotationId, jobId } from '@semiont/core';
+import { mockResource } from '../../__tests__/fixtures/resource';
+import { EventBus, resourceId, annotationId, jobId, userId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
 import { BindNamespace } from '../bind';
 import { GatherNamespace } from '../gather';
@@ -8,42 +9,61 @@ import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
 import { JobNamespace } from '../job';
 import { JobFailedError } from '../job-status-poll';
-import type { IGatewayOperations, ITransport, IContentTransport, GatheredContext } from '@semiont/core';
+import type { MarkAssistEvent, YieldGenerationEvent } from '../types';
+import type { UploadProgress } from '../../awaitable';
+import type { EventMap, IGatewayOperations, ITransport, IContentTransport, GatheredContext } from '@semiont/core';
 import { inMemoryTransport, gatewayOperationSpies } from '../../__tests__/helpers/in-memory-transport';
 
 const RID = resourceId('res-1');
 const AID = annotationId('ann-1');
+const JID = jobId('j1');
+const UID = userId('did:web:test:users:u');
+// What the dispatcher holds for job `j1` whatever its type and status.
+const J1_STORED = { jobId: JID, userId: UID, created: '2026-01-01T00:00:00.000Z' };
 // fromContext derives ids FROM the focus — these fixtures carry RID/AID so
 // the derivation pins below compare against known values.
 const CTX_RES = resourceContextFor('res-1');
 const CTX_ANN = annotationContextFor('res-1', 'ann-1');
+// The context a match.search for reference `ref-1` is run with.
+const REF = annotationId('ref-1');
+const CTX_REF = annotationContextFor('res-1', 'ref-1');
+
+/** Answers the request being handled, on any channel, with that channel's payload. */
+type Reply = <K extends keyof EventMap>(channel: K, payload: EventMap[K]) => void;
 
 /**
  * Mock transport whose `emit(channel, payload, envelope)` looks up a handler
- * and pushes the configured `{ response }` onto its internal bus, in a frame
- * whose envelope carries the request's `correlationId`. busRequest reads
- * replies via `frames(resultChannel)` and matches on that envelope; this
- * lets tests script per-call request/response round-trips without faking SSE.
+ * and lets it reply on the transport's internal bus, in a frame whose envelope
+ * carries the request's `correlationId`. busRequest reads replies via
+ * `frames(resultChannel)` and matches on that envelope; this lets tests script
+ * per-call request/response round-trips without faking SSE. A reply is typed
+ * by the channel it goes out on, so a scripted payload the spec does not
+ * define does not compile.
  */
 function createMockTransport(
-  responses: Record<string, (payload: Record<string, unknown>) => { resultChannel: string; response: Record<string, unknown> }> = {},
+  responses: Partial<Record<keyof EventMap, (reply: Reply) => void>> = {},
 ): { transport: ITransport; emitSpy: ReturnType<typeof vi.fn>; transportBus: EventBus } {
   const transportBus = new EventBus();
-  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>, envelope?: { correlationId?: string }) => {
-    const handler = responses[channel];
-    if (handler) {
-      const { resultChannel, response } = handler(payload);
-      const correlationId = envelope?.correlationId as string;
-      queueMicrotask(() => {
-        transportBus.emit(resultChannel as never, { response } as never, { correlationId });
-      });
-    }
-  });
+  const emitSpy = vi.fn();
+
+  const replyTo = (correlationId: string): Reply =>
+    <K extends keyof EventMap>(channel: K, payload: EventMap[K]) => {
+      queueMicrotask(() => { transportBus.emit(channel, payload, { correlationId }); });
+    };
 
   const transport: ITransport & IGatewayOperations = {
     ...inMemoryTransport({
       bus: transportBus,
-      onEmit: (channel, payload, envelope) => { void emitSpy(channel, payload, envelope); },
+      onEmit: (channel, payload, envelope) => {
+        emitSpy(channel, payload, envelope);
+        const handler = responses[channel];
+        if (!handler) return;
+        const correlationId = envelope?.correlationId;
+        if (correlationId === undefined) {
+          throw new Error(`mock transport: ${channel} has a scripted reply but was emitted with no correlationId to answer`);
+        }
+        handler(replyTo(correlationId));
+      },
     }),
     ...gatewayOperationSpies(),
   };
@@ -70,25 +90,25 @@ describe('MarkNamespace', () => {
   beforeEach(() => {
     eventBus = new EventBus();
     const mock = createMockTransport({
-      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
     });
     mark = new MarkNamespace(mock.transport, eventBus);
   });
 
   it('annotation() emits mark:create-request on bus', async () => {
     const mock = createMockTransport({
-      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
-      'mark:create-request': () => ({ resultChannel: 'mark:create-ok', response: { annotationId: 'ann-new' } }),
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
+      'mark:create-request': (reply) => reply('mark:create-ok', { response: { annotationId: annotationId('ann-new') } }),
     });
     const m = new MarkNamespace(mock.transport, eventBus);
-    const result = await m.annotation({ motivation: 'highlighting', target: { source: RID } } as any);
+    const result = await m.annotation({ motivation: 'highlighting', target: { source: RID } });
     expect(mock.emitSpy).toHaveBeenCalledWith('mark:create-request', expect.objectContaining({ resourceId: RID }), expect.objectContaining({ correlationId: expect.any(String) }));
     expect(result.annotationId).toBe('ann-new');
   });
 
   it('delete() emits mark:delete and resolves on mark:delete-ok', async () => {
     const mock = createMockTransport({
-      'mark:delete': () => ({ resultChannel: 'mark:delete-ok', response: { annotationId: AID } }),
+      'mark:delete': (reply) => reply('mark:delete-ok', { response: { annotationId: AID } }),
     });
     const m = new MarkNamespace(mock.transport, eventBus);
     await m.delete(RID, AID);
@@ -101,13 +121,13 @@ describe('MarkNamespace', () => {
     const assertion = expect(m.delete(RID, AID)).rejects.toThrow(/denied/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
-    mock.transportBus.emit('mark:delete-failed' as never, { message: 'denied' } as never, { correlationId: cid });
+    mock.transportBus.emit('mark:delete-failed', { message: 'denied' }, { correlationId: cid });
     await assertion;
   });
 
   it('archive() emits mark:archive and resolves on mark:archive-ok', async () => {
     const mock = createMockTransport({
-      'mark:archive': () => ({ resultChannel: 'mark:archive-ok', response: {} }),
+      'mark:archive': (reply) => reply('mark:archive-ok', {}),
     });
     const m = new MarkNamespace(mock.transport, eventBus);
     await m.archive(RID);
@@ -120,13 +140,13 @@ describe('MarkNamespace', () => {
     const assertion = expect(m.archive(RID)).rejects.toThrow(/archive boom/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
-    mock.transportBus.emit('mark:archive-failed' as never, { message: 'archive boom' } as never, { correlationId: cid });
+    mock.transportBus.emit('mark:archive-failed', { message: 'archive boom' }, { correlationId: cid });
     await assertion;
   });
 
   it('unarchive() emits mark:unarchive and resolves on mark:unarchive-ok', async () => {
     const mock = createMockTransport({
-      'mark:unarchive': () => ({ resultChannel: 'mark:unarchive-ok', response: {} }),
+      'mark:unarchive': (reply) => reply('mark:unarchive-ok', {}),
     });
     const m = new MarkNamespace(mock.transport, eventBus);
     await m.unarchive(RID);
@@ -139,13 +159,13 @@ describe('MarkNamespace', () => {
     const assertion = expect(m.unarchive(RID)).rejects.toThrow(/file not found/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
-    mock.transportBus.emit('mark:unarchive-failed' as never, { message: 'Cannot unarchive: file not found at x' } as never, { correlationId: cid });
+    mock.transportBus.emit('mark:unarchive-failed', { message: 'Cannot unarchive: file not found at x' }, { correlationId: cid });
     await assertion;
   });
 
   it('updateEntityTypes() emits mark:update-entity-types (diff payload) and resolves on -ok', async () => {
     const mock = createMockTransport({
-      'mark:update-entity-types': () => ({ resultChannel: 'mark:update-entity-types-ok', response: {} }),
+      'mark:update-entity-types': (reply) => reply('mark:update-entity-types-ok', {}),
     });
     const m = new MarkNamespace(mock.transport, eventBus);
     await m.updateEntityTypes(RID, ['A'], ['A', 'B']);
@@ -162,12 +182,12 @@ describe('MarkNamespace', () => {
     const assertion = expect(m.updateEntityTypes(RID, [], ['Person'])).rejects.toThrow(/rejected/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
-    mock.transportBus.emit('mark:update-entity-types-failed' as never, { message: 'rejected by handler' } as never, { correlationId: cid });
+    mock.transportBus.emit('mark:update-entity-types-failed', { message: 'rejected by handler' }, { correlationId: cid });
     await assertion;
   });
 
   it('assist() returns Observable that emits on job:report-progress', async () => {
-    const progress: any[] = [];
+    const progress: MarkAssistEvent[] = [];
     const completed = new Promise<void>((resolve) => {
       mark.assist(RID, 'linking', { entityTypes: ['Person'] }).subscribe({
         next: (p) => progress.push(p),
@@ -179,13 +199,13 @@ describe('MarkNamespace', () => {
     // Unified lifecycle: filter by the jobId (`j1`) assigned by job:create.
     // assist() forwards the inner `progress` field as the Observable's `next`.
     eventBus.emit('job:report-progress', {
-      jobId: 'j1', resourceId: 'res-1', _userId: 'did:web:test:users:u', jobType: 'reference-annotation',
-      percentage: 50, progress: { stage: 'scanning', percentage: 50, message: 'scanning' },
-    } as any);
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'reference-annotation',
+      percentage: 50, progress: { percentage: 50, message: { code: 'detecting-entities', entityType: 'Person' } },
+    });
     eventBus.emit('job:complete', {
-      jobId: 'j1', resourceId: 'res-1', _userId: 'did:web:test:users:u', jobType: 'reference-annotation',
-      result: { totalFound: 3, totalEmitted: 3, errors: 0 },
-    } as any);
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'reference-annotation',
+      result: { kind: 'reference-annotation', totalFound: 3, totalEmitted: 3, errors: 0 },
+    });
 
     await completed;
     expect(progress.length).toBeGreaterThan(0);
@@ -195,12 +215,17 @@ describe('MarkNamespace', () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
-      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
-      'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { status: 'complete', result: { createdCount: 5 } } }),
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
+      'job:status-requested': (reply) => reply('job:status-result', {
+        response: {
+          ...J1_STORED, type: 'highlight-annotation', status: 'complete',
+          result: { kind: 'highlight-annotation', highlightsFound: 5, highlightsCreated: 5 },
+        },
+      }),
     });
     const m = new MarkNamespace(mock.transport, bus);
 
-    const progress: any[] = [];
+    const progress: MarkAssistEvent[] = [];
     let completed = false;
     m.assist(RID, 'highlighting', {}).subscribe({
       next: (p) => progress.push(p),
@@ -221,7 +246,7 @@ describe('MarkNamespace', () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
-      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
     });
     const m = new MarkNamespace(mock.transport, bus);
 
@@ -233,9 +258,9 @@ describe('MarkNamespace', () => {
 
     await vi.advanceTimersByTimeAsync(100);
     bus.emit('job:complete', {
-      jobId: 'j1', resourceId: 'res-1', _userId: 'did:web:test:users:u', jobType: 'reference-annotation',
-      result: { totalFound: 0, totalEmitted: 0, errors: 0 },
-    } as any);
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'reference-annotation',
+      result: { kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 },
+    });
     expect(completed).toBe(true);
 
     bus.destroy();
@@ -246,7 +271,7 @@ describe('MarkNamespace', () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
-      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
     });
     const m = new MarkNamespace(mock.transport, bus);
 
@@ -255,9 +280,9 @@ describe('MarkNamespace', () => {
     await vi.advanceTimersByTimeAsync(100);
     await vi.advanceTimersByTimeAsync(9_000);
     bus.emit('job:report-progress', {
-      jobId: 'j1', resourceId: 'res-1', _userId: 'did:web:test:users:u', jobType: 'highlight-annotation',
-      percentage: 50, progress: { stage: 'scanning', percentage: 50, message: 'scanning' },
-    } as any);
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'highlight-annotation',
+      percentage: 50, progress: { percentage: 50, message: { code: 'analyzing' } },
+    });
 
     await vi.advanceTimersByTimeAsync(9_000);
     expect(mock.emitSpy).not.toHaveBeenCalledWith('job:status-requested', expect.any(Object));
@@ -275,7 +300,7 @@ describe('MarkNamespace', () => {
   it('cancel(jobId) targets one job and resolves the cancelled count', async () => {
     const bus = new EventBus();
     const mock = createMockTransport({
-      'job:cancel-requested': () => ({ resultChannel: 'job:cancel-ok', response: { cancelled: 1 } }),
+      'job:cancel-requested': (reply) => reply('job:cancel-ok', { response: { cancelled: 1 } }),
     });
     const j = new JobNamespace(mock.transport, bus);
 
@@ -303,7 +328,7 @@ describe('MarkNamespace', () => {
   it('assist() survives a retryable failure and completes on the later terminal', async () => {
     const bus = new EventBus();
     const mock = createMockTransport({
-      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
     });
     const m = new MarkNamespace(mock.transport, bus);
 
@@ -318,9 +343,9 @@ describe('MarkNamespace', () => {
     await new Promise((r) => setTimeout(r, 0));
 
     const fail = (willRetry: boolean) => bus.emit('job:fail', {
-      jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
+      jobId: JID, resourceId: RID, jobType: 'highlight-annotation',
       error: 'transient blip', willRetry,
-    } as never);
+    });
 
     fail(true);
     expect(errored).toBeNull();          // the run is not over
@@ -329,13 +354,13 @@ describe('MarkNamespace', () => {
     // Progress must keep flowing on the retried attempt, too — a
     // takeUntil(fail$) would silence it even when the stream survives.
     bus.emit('job:report-progress', {
-      jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
+      jobId: JID, resourceId: RID, jobType: 'highlight-annotation',
       percentage: 20, progress: { percentage: 20 },
-    } as never);
+    });
 
     bus.emit('job:complete', {
-      jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
-    } as never);
+      jobId: JID, resourceId: RID, jobType: 'highlight-annotation',
+    });
 
     expect(errored).toBeNull();
     expect(completed).toBe(true);
@@ -349,16 +374,16 @@ describe('MarkNamespace', () => {
   it('assist() still errors when the failure IS terminal', async () => {
     const bus = new EventBus();
     const mock = createMockTransport({
-      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
     });
     const m = new MarkNamespace(mock.transport, bus);
 
     const err = await new Promise<Error>((resolve) => {
       m.assist(RID, 'highlighting', {}).subscribe({ error: resolve });
       setTimeout(() => bus.emit('job:fail', {
-        jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
+        jobId: JID, resourceId: RID, jobType: 'highlight-annotation',
         error: 'budget spent', willRetry: false,
-      } as never), 0);
+      }), 0);
     });
     expect(err.message).toBe('budget spent');
     // A failure a caller can route on: the code every SDK reports for it.
@@ -371,16 +396,16 @@ describe('MarkNamespace', () => {
   it('assist() treats an ABSENT willRetry as terminal — an older worker must not hang the stream', async () => {
     const bus = new EventBus();
     const mock = createMockTransport({
-      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
     });
     const m = new MarkNamespace(mock.transport, bus);
 
     const err = await new Promise<Error>((resolve) => {
       m.assist(RID, 'highlighting', {}).subscribe({ error: resolve });
       setTimeout(() => bus.emit('job:fail', {
-        jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
+        jobId: JID, resourceId: RID, jobType: 'highlight-annotation',
         error: 'no field',
-      } as never), 0);
+      }), 0);
     });
     expect(err.message).toBe('no field');
     bus.destroy();
@@ -390,8 +415,10 @@ describe('MarkNamespace', () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
-      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
-      'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { jobId: 'j1', status: 'cancelled' } }),
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
+      'job:status-requested': (reply) => reply('job:status-result', {
+        response: { ...J1_STORED, type: 'highlight-annotation', status: 'cancelled' },
+      }),
     });
     const m = new MarkNamespace(mock.transport, bus);
 
@@ -411,8 +438,10 @@ describe('MarkNamespace', () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
-      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
-      'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { jobId: 'j1', status: 'failed', error: 'worker gave up' } }),
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
+      'job:status-requested': (reply) => reply('job:status-result', {
+        response: { ...J1_STORED, type: 'highlight-annotation', status: 'failed', error: 'worker gave up' },
+      }),
     });
     const m = new MarkNamespace(mock.transport, bus);
 
@@ -462,7 +491,7 @@ describe('MarkNamespace', () => {
 describe('BindNamespace', () => {
   it('body() emits bind:update-body and resolves on bind:body-updated', async () => {
     const mock = createMockTransport({
-      'bind:update-body': () => ({ resultChannel: 'bind:body-updated', response: {} }),
+      'bind:update-body': (reply) => reply('bind:body-updated', {}),
     });
     const bind = new BindNamespace(mock.transport, new EventBus());
     await bind.body(RID, AID, [{ op: 'add', item: { type: 'SpecificResource', source: resourceId('res-2') } }]);
@@ -481,7 +510,7 @@ describe('BindNamespace', () => {
     ).rejects.toThrow(/rejected/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
-    mock.transportBus.emit('bind:body-update-failed' as never, { message: 'rejected by handler' } as never, { correlationId: cid });
+    mock.transportBus.emit('bind:body-update-failed', { message: 'rejected by handler' }, { correlationId: cid });
     await assertion;
   });
 });
@@ -520,7 +549,7 @@ describe('GatherNamespace', () => {
     await new Promise((r) => setTimeout(r, 20));
     const call = emitSpy.mock.calls[0];
     const cid = call?.[2]?.correlationId;
-    eventBus.emit('gather:complete', { annotationId: AID, response: { context: {} } } as any, { correlationId: cid });
+    eventBus.emit('gather:complete', { annotationId: AID, response: CTX_ANN }, { correlationId: cid });
     await completed;
   });
 
@@ -532,7 +561,7 @@ describe('GatherNamespace', () => {
     await new Promise((r) => setTimeout(r, 20));
     const call = emitSpy.mock.calls[0];
     const cid = call?.[2]?.correlationId;
-    eventBus.emit('gather:failed', { annotationId: AID, message: 'boom' } as any, { correlationId: cid });
+    eventBus.emit('gather:failed', { annotationId: AID, message: 'boom' }, { correlationId: cid });
     const err = await errored;
     expect(err.message).toContain('boom');
   });
@@ -553,7 +582,7 @@ describe('MatchNamespace', () => {
   });
 
   it('search() emits match:search-requested on bus', () => {
-    match.search(RID, annotationId('ref-1'), {} as any).subscribe(() => {});
+    match.search(RID, REF, CTX_REF).subscribe(() => {});
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('match:search-requested', expect.objectContaining({
         resourceId: RID,
@@ -565,23 +594,23 @@ describe('MatchNamespace', () => {
 
   it('search() completes on match:search-results', async () => {
     const completed = new Promise<void>((resolve) => {
-      match.search(RID, annotationId('ref-1'), {} as any).subscribe({ next: () => {}, complete: () => resolve() });
+      match.search(RID, REF, CTX_REF).subscribe({ next: () => {}, complete: () => resolve() });
     });
     await new Promise((r) => setTimeout(r, 20));
     const call = emitSpy.mock.calls[0];
     const cid = call?.[2]?.correlationId;
-    eventBus.emit('match:search-results', { referenceId: 'ref-1', response: [] } as any, { correlationId: cid });
+    eventBus.emit('match:search-results', { referenceId: REF, response: [] }, { correlationId: cid });
     await completed;
   });
 
   it('search() errors on match:search-failed', async () => {
     const errored = new Promise<Error>((resolve) => {
-      match.search(RID, annotationId('ref-1'), {} as any).subscribe({ error: (err) => resolve(err) });
+      match.search(RID, REF, CTX_REF).subscribe({ error: (err) => resolve(err) });
     });
     await new Promise((r) => setTimeout(r, 20));
     const call = emitSpy.mock.calls[0];
     const cid = call?.[2]?.correlationId;
-    eventBus.emit('match:search-failed', { referenceId: 'ref-1', error: 'no results' } as any, { correlationId: cid });
+    eventBus.emit('match:search-failed', { referenceId: REF, error: 'no results' }, { correlationId: cid });
     const err = await errored;
     expect(err.message).toContain('no results');
   });
@@ -592,7 +621,7 @@ describe('MatchNamespace', () => {
 describe('JobNamespace', () => {
   it('cancelByType resolves with the cancelled count from job:cancel-ok', async () => {
     const mock = createMockTransport({
-      'job:cancel-requested': () => ({ resultChannel: 'job:cancel-ok', response: { cancelled: 3 } }),
+      'job:cancel-requested': (reply) => reply('job:cancel-ok', { response: { cancelled: 3 } }),
     });
     const job = new JobNamespace(mock.transport, new EventBus());
     const count = await job.cancelByType('generation');
@@ -606,7 +635,7 @@ describe('JobNamespace', () => {
     const assertion = expect(job.cancelByType('annotation')).rejects.toThrow(/queue down/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
-    mock.transportBus.emit('job:cancel-failed' as never, { message: 'queue down' } as never, { correlationId: cid });
+    mock.transportBus.emit('job:cancel-failed', { message: 'queue down' }, { correlationId: cid });
     await assertion;
   });
 });
@@ -615,7 +644,9 @@ describe('JobNamespace.pollUntilComplete', () => {
   it('a job that does not end within the time allowed fails as a timeout, under its code', async () => {
     vi.useFakeTimers();
     const mock = createMockTransport({
-      'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { jobId: 'j1', status: 'running' } }),
+      'job:status-requested': (reply) => reply('job:status-result', {
+        response: { ...J1_STORED, type: 'highlight-annotation', status: 'running' },
+      }),
     });
     const job = new JobNamespace(mock.transport, new EventBus());
 
@@ -637,21 +668,17 @@ describe('YieldNamespace', () => {
     eventBus = new EventBus();
     content = makeMockContent();
     const mock = createMockTransport({
-      'yield:clone-token-requested': () => ({
-        resultChannel: 'yield:clone-token-generated',
-        response: { token: 'tok', expiresAt: '2026-01-01' },
+      'yield:clone-token-requested': (reply) => reply('yield:clone-token-generated', {
+        response: { token: 'tok', expiresAt: '2026-01-01', resource: mockResource('res-1') },
       }),
-      'job:create': () => ({
-        resultChannel: 'job:created',
-        response: { jobId: 'j1' },
-      }),
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
     });
     emitSpy = mock.emitSpy;
     yld = new YieldNamespace(mock.transport, eventBus, content);
   });
 
   it('resource() delegates to content.putBinary', async () => {
-    const result = await yld.resource({ name: 'doc', file: new Blob(['hi']), format: 'text/plain', storageUri: 'file://x' } as any);
+    const result = await yld.resource({ name: 'doc', file: new File(['hi'], 'doc.txt'), format: 'text/plain', storageUri: 'file://x' });
     expect(content.putBinary).toHaveBeenCalled();
     expect(result.resourceId).toBe('res-new');
   });
@@ -668,9 +695,9 @@ describe('YieldNamespace', () => {
       return uploadPromise;
     });
 
-    const events: any[] = [];
+    const events: UploadProgress[] = [];
     const file = Buffer.from(new Uint8Array(1024)); // 1 KB pre-flight size
-    yld.resource({ name: 'doc', file, format: 'text/plain', storageUri: 'file://x' } as any).subscribe({
+    yld.resource({ name: 'doc', file, format: 'text/plain', storageUri: 'file://x' }).subscribe({
       next: (e) => events.push(e),
     });
 
@@ -704,13 +731,13 @@ describe('YieldNamespace', () => {
       return new Promise(() => { /* never resolves; we only assert progress shape here */ });
     });
 
-    const events: any[] = [];
+    const events: UploadProgress[] = [];
     yld.resource({
       name: 'doc',
       file: Buffer.from(new Uint8Array(2048)),
       format: 'text/plain',
       storageUri: 'file://x',
-    } as any).subscribe({ next: (e) => events.push(e) });
+    }).subscribe({ next: (e) => events.push(e) });
 
     captured.onProgress?.({ bytesUploaded: 256, totalBytes: 0 });
 
@@ -731,7 +758,7 @@ describe('YieldNamespace', () => {
       file: Buffer.from('xx'),
       format: 'text/plain',
       storageUri: 'file://x',
-    } as any).subscribe({ next: () => {} });
+    }).subscribe({ next: () => {} });
 
     expect(capturedSignal?.aborted).toBe(false);
     sub.unsubscribe();
@@ -888,7 +915,7 @@ describe('YieldNamespace', () => {
   });
 
   it('fromContext() emits progress and completes on job:complete', async () => {
-    const progress: any[] = [];
+    const progress: YieldGenerationEvent[] = [];
     const completed = new Promise<void>((resolve) => {
       yld.fromContext(CTX_ANN, { title: 'T', storageUri: 'file://x' }).subscribe({
         next: (p) => progress.push(p),
@@ -898,13 +925,13 @@ describe('YieldNamespace', () => {
 
     await new Promise((r) => setTimeout(r, 20));
     eventBus.emit('job:report-progress', {
-      jobId: 'j1', resourceId: 'res-1', _userId: 'did:web:test:users:u', jobType: 'generation',
-      percentage: 50, progress: { percentage: 50, message: 'halfway' },
-    } as any);
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'generation',
+      percentage: 50, progress: { percentage: 50, message: { code: 'generating-resource' } },
+    });
     eventBus.emit('job:complete', {
-      jobId: 'j1', resourceId: 'res-1', _userId: 'did:web:test:users:u', jobType: 'generation',
-      result: { resourceName: 'T' },
-    } as any);
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'generation',
+      result: { kind: 'generation', resourceId: resourceId('res-new'), resourceName: 'T', truncated: false },
+    });
 
     await completed;
     expect(progress.length).toBeGreaterThanOrEqual(1);
@@ -912,15 +939,20 @@ describe('YieldNamespace', () => {
 
   it('cloneToken() uses bus request', async () => {
     const result = await yld.cloneToken(RID);
-    expect(result).toEqual({ token: 'tok', expiresAt: '2026-01-01' });
+    expect(result).toEqual({ token: 'tok', expiresAt: '2026-01-01', resource: mockResource('res-1') });
   });
 
   it('fromContext() falls back to job polling when SSE is silent', async () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
-      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
-      'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { status: 'complete', result: { resourceId: 'res-poll' } } }),
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
+      'job:status-requested': (reply) => reply('job:status-result', {
+        response: {
+          ...J1_STORED, type: 'generation', status: 'complete',
+          result: { kind: 'generation', resourceId: resourceId('res-poll'), resourceName: 'T', truncated: false },
+        },
+      }),
     });
     const y = new YieldNamespace(mock.transport, bus, makeMockContent());
 
@@ -945,7 +977,7 @@ describe('YieldNamespace', () => {
     vi.useFakeTimers();
     const bus = new EventBus();
     const mock = createMockTransport({
-      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
     });
     const y = new YieldNamespace(mock.transport, bus, makeMockContent());
 
@@ -957,9 +989,9 @@ describe('YieldNamespace', () => {
 
     await vi.advanceTimersByTimeAsync(100);
     bus.emit('job:complete', {
-      jobId: 'j1', resourceId: 'res-1', _userId: 'did:web:test:users:u', jobType: 'generation',
-      result: { resourceName: 'T' },
-    } as any);
+      jobId: JID, resourceId: RID, _userId: UID, jobType: 'generation',
+      result: { kind: 'generation', resourceId: resourceId('res-new'), resourceName: 'T', truncated: false },
+    });
     expect(completed).toBe(true);
 
     bus.destroy();
@@ -1044,7 +1076,7 @@ describe('late-rejection guards', () => {
     const match = new MatchNamespace(transport, new EventBus());
 
     const errors: Error[] = [];
-    const sub = match.search(RID, annotationId('ref-1'), {} as never).subscribe({
+    const sub = match.search(RID, REF, CTX_REF).subscribe({
       next: () => {},
       error: (e: Error) => errors.push(e),
     });
@@ -1116,7 +1148,7 @@ describe('late-rejection guards', () => {
  * works for File-shaped inputs.
  */
 describe('YieldNamespace.resource — runtime fallback when Buffer is unavailable', () => {
-  let savedBuffer: typeof globalThis.Buffer | undefined;
+  let bufferGlobal: PropertyDescriptor | undefined;
   let eventBus: EventBus;
   let content: IContentTransport;
   let yld: YieldNamespace;
@@ -1127,33 +1159,33 @@ describe('YieldNamespace.resource — runtime fallback when Buffer is unavailabl
     const mock = createMockTransport();
     yld = new YieldNamespace(mock.transport, eventBus, content);
 
-    // Force-undefine `Buffer` to model a browser runtime. Saved so we
-    // can restore it for sibling tests that depend on `Buffer.from(...)`.
-    savedBuffer = globalThis.Buffer;
-    delete (globalThis as unknown as { Buffer?: unknown }).Buffer;
+    // Remove the `Buffer` global to model a browser runtime. Its property
+    // descriptor is saved so it can be put back exactly for sibling tests
+    // that depend on `Buffer.from(...)`.
+    bufferGlobal = Object.getOwnPropertyDescriptor(globalThis, 'Buffer');
+    Reflect.deleteProperty(globalThis, 'Buffer');
   });
 
   afterEach(() => {
-    if (savedBuffer !== undefined) {
-      (globalThis as unknown as { Buffer: typeof globalThis.Buffer }).Buffer = savedBuffer;
-    }
+    if (bufferGlobal) Object.defineProperty(globalThis, 'Buffer', bufferGlobal);
   });
 
   it('emits started → finished with a File-shaped input when Buffer is undefined', async () => {
-    // Browser shape: an object with `.size`, no Buffer involvement.
-    const file = { size: 4096 } as File;
+    // Browser shape: a File, no Buffer involvement.
+    const file = new File([new Uint8Array(4096)], 'doc.bin');
 
-    const events: any[] = [];
-    yld.resource({ name: 'doc', file, format: 'text/plain', storageUri: 'file://x' } as any).subscribe({
+    const events: UploadProgress[] = [];
+    const errors: unknown[] = [];
+    yld.resource({ name: 'doc', file, format: 'text/plain', storageUri: 'file://x' }).subscribe({
       next: (e) => events.push(e),
-      error: (e) => events.push({ kind: 'error', error: e }),
+      error: (e) => errors.push(e),
     });
 
     // Without the typeof guard this throws `Buffer is not defined`
     // synchronously before `started` ever fires. With it, the Buffer
     // branch is short-circuited and the size is read from `.size`.
     expect(events[0]).toEqual({ phase: 'started', totalBytes: 4096 });
-    expect(events.some((e) => e.kind === 'error')).toBe(false);
+    expect(errors).toEqual([]);
 
     // Let the mocked putBinary resolve and `finished` to fire.
     await new Promise((r) => setTimeout(r, 0));
@@ -1161,8 +1193,8 @@ describe('YieldNamespace.resource — runtime fallback when Buffer is unavailabl
   });
 
   it('passes the File through to content.putBinary unchanged', async () => {
-    const file = { size: 1024 } as File;
-    yld.resource({ name: 'doc', file, format: 'text/plain', storageUri: 'file://x' } as any).subscribe();
+    const file = new File([new Uint8Array(1024)], 'doc.bin');
+    yld.resource({ name: 'doc', file, format: 'text/plain', storageUri: 'file://x' }).subscribe();
 
     await new Promise((r) => setTimeout(r, 0));
     expect(content.putBinary).toHaveBeenCalledWith(

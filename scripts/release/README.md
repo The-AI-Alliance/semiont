@@ -12,6 +12,8 @@ Release lifecycle scripts. `version-bump.sh` runs on the host with just `jq` and
 | `announce.sh` | Lint a release post, and post it on `--post` | `gh` |
 | `verify-release.sh` | Check a published release across every channel | `gh`, `jq`, `curl` |
 | `version-bump.sh` | Bump version across all packages, commit, push the branch | `jq`, `git` |
+| `cargo-version.sh` | Write the version to the crates published to crates.io | `awk` |
+| `published-crates.sh` | Name the crates published to crates.io | `awk` |
 | `version.mjs` | Show, sync, or set version | `node` |
 
 ## Typical Release Flow
@@ -41,7 +43,7 @@ gh workflow run release.yml
 ```
 
 `release.yml` tags the commit, creates the GitHub Release, and dispatches
-`publish-npm-packages.yml` and `launcher-release.yml`. The npm workflow in turn
+`publish-npm-packages.yml`, `launcher-release.yml` and `publish-crates.yml`. The npm workflow in turn
 dispatches `publish-browser.yml` and `publish-service-images.yml` with
 `tag_latest=true`, since it is the only stage that knows the packages the images
 bundle are actually published.
@@ -60,12 +62,21 @@ rebuilding an older version must not move `:latest` onto it.
 ./scripts/release/verify-release.sh 0.5.33
 ```
 
-Inspects the artifacts rather than workflow conclusions: tag on origin, release
-assets, a downloaded tarball hashed against `checksums.txt`, the tap formula,
-every package in `version.json` present in the npm registry, and for all seven
-images both platforms, an attestation whose subject matches the tag digest, and
-`:latest` resolving to the same digest as the released version. Exits non-zero
-listing what failed.
+Inspects the artifacts rather than workflow conclusions:
+
+- the tag on origin and the GitHub Release;
+- a launcher archive and its SBOM for every system and architecture
+  `apps/launcher/.goreleaser.yaml` builds, with one archive of each format
+  downloaded and hashed against `checksums.txt`;
+- the tap formula;
+- every package in `version.json`, with its tarball fetched from the npm
+  registry;
+- every crate `published-crates.sh` names, on crates.io at the version, with
+  its `.crate` downloaded and hashed against the checksum the index states;
+- for every image, both platforms, an attestation whose subject matches the tag
+  digest, and `:latest` resolving to the same digest as the released version.
+
+Exits non-zero listing what failed.
 
 A mutable tag existing proves nothing about where it points, so the `:latest`
 check compares against both the released version and the previous one — "never

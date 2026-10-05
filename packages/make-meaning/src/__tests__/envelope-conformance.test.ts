@@ -42,7 +42,7 @@ describe('in-process relays carry the frame envelope', () => {
 
   it('LocalTransport', async () => {
     const bus = new EventBus();
-    const transport = new LocalTransport({ eventBus: bus, userId: userId('did:semiont:test') });
+    const transport = new LocalTransport({ eventBus: bus, userId: userId('did:web:example.org:users:test') });
     try {
       const observed = firstKey(bus);
       await assertCarriesEnvelope({

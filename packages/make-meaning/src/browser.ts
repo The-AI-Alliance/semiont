@@ -26,12 +26,12 @@ import * as path from 'path';
 import { Subscription, from, EMPTY } from 'rxjs';
 import { mergeMap, catchError } from 'rxjs/operators';
 import type { SemiontProject } from '@semiont/core/node';
-import type { EventMap, Logger, components } from '@semiont/core';
-import { EventBus, errField } from '@semiont/core';
+import type { AttributedEvent, EventMap, Logger, StoredEvent, components } from '@semiont/core';
+import { EventBus, didToAgent, errField, getAnnotationIdFromEvent } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { getExactText, getTargetSource, getTargetSelector, getBodySource, getStorageUri } from '@semiont/core';
 import { EventQuery } from '@semiont/event-sourcing';
-import type { ViewStorage } from '@semiont/event-sourcing';
+import type { PeopleView, ViewStorage } from '@semiont/event-sourcing';
 import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
 import type { WorkingTreeStore, AnchoredTextStore } from '@semiont/content';
@@ -189,7 +189,12 @@ export class Browser {
    * One projection read per reply, not per Agent.
    */
   private async named<T>(response: T): Promise<T> {
-    let people;
+    return (await this.namer())(response);
+  }
+
+  /** The resolver `named` applies, over one read of the people projection. */
+  private async namer(): Promise<<T>(value: T) => T> {
+    let people: PeopleView;
     try {
       people = await readPeopleProjection(this.project);
     } catch (error) {
@@ -199,9 +204,21 @@ export class Browser {
       // names, which is the same shape as a person who has never acted and is
       // a case every client already renders.
       this.logger.warn('People projection unreadable — this reply names no one', { error: errField(error) });
-      return response;
+      return (value) => value;
     }
-    return resolvePersonNames(response, people);
+    return (value) => resolvePersonNames(value, people);
+  }
+
+  /**
+   * Stored events as a history reply carries them: each with the agent its
+   * `userId` identifies, a Person's name filled in. Only the agent is named.
+   * The event beside it is the log's, payload and all: the Weaver rebuilds the
+   * graph from these replies, and a name resolved into a payload here would be
+   * a name written into the graph.
+   */
+  private async attributed(events: StoredEvent[]): Promise<AttributedEvent[]> {
+    const name = await this.namer();
+    return events.map((event) => ({ ...event, agent: name(didToAgent(event.userId)) }));
   }
 
   private async handleBrowseResource(event: EventMap['browse:resource-requested'], correlationId: string | undefined): Promise<void> {
@@ -331,7 +348,7 @@ export class Browser {
 
       this.eventBus.emit('browse:events-result', {
         response: {
-          events: storedEvents,
+          events: await this.attributed(storedEvents),
           total: storedEvents.length,
           resourceId: event.resourceId,
         },
@@ -354,24 +371,18 @@ export class Browser {
       const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
       const allEvents = await eventQuery.queryEvents({ resourceId: event.resourceId });
 
-      // Filter events related to this annotation
-      const annotationEvents = allEvents.filter((stored) => {
-        const p = stored.payload as any;
-        if (p?.highlightId === event.annotationId) return true;
-        if (p?.referenceId === event.annotationId) return true;
-        return false;
-      });
+      const annotationEvents = allEvents.filter((stored) => getAnnotationIdFromEvent(stored) === event.annotationId);
 
       // Sort by sequence number
       annotationEvents.sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
 
       this.eventBus.emit('browse:annotation-history-result', {
-        response: await this.named({
-          events: annotationEvents,
+        response: {
+          events: await this.attributed(annotationEvents),
           total: annotationEvents.length,
           annotationId: event.annotationId,
           resourceId: event.resourceId,
-        }),
+        },
       }, { correlationId });
     } catch (error) {
       this.logger.error('Browse annotation history failed', { resourceId: event.resourceId, annotationId: event.annotationId, error: errField(error) });

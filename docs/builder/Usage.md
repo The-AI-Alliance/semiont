@@ -408,10 +408,11 @@ const content = await semiont.browse.resourceContent(resourceId);
 // Binary representation — verbatim stored bytes; the stored media type comes back as `contentType`
 const { data, contentType } = await semiont.browse.resourceRepresentation(resourceId);
 
-// Event history
+// Event history: each event as the log holds it, with the `agent` who did it
 const events = await semiont.browse.resourceEvents(resourceId);
+const who = events.map((event) => event.agent.name ?? event.agent['@id']);
 
-// Annotation history
+// Annotation history: one annotation's events, in order
 const history = await semiont.browse.annotationHistory(resourceId, annotationId);
 
 // File browser

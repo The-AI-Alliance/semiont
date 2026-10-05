@@ -137,8 +137,8 @@ The read actor for the Knowledge Base. Handles deterministic, fact-based queries
 | `browse:resources-requested` | `ResourceContext.listResources()` (delegates to `kb.graph.listResources` when `search` is set, otherwise reads the materialized views) | `browse:resources-result` / `browse:resources-failed` |
 | `browse:annotations-requested` | `AnnotationContext.getAllAnnotations()` | `browse:annotations-result` / `browse:annotations-failed` |
 | `browse:annotation-requested` | `AnnotationContext.getAnnotation()` + `ResourceContext.getResourceMetadata()` | `browse:annotation-result` / `browse:annotation-failed` |
-| `browse:events-requested` | `EventQuery.queryEvents()` | `browse:events-result` / `browse:events-failed` |
-| `browse:annotation-history-requested` | `EventQuery` + annotation event filtering | `browse:annotation-history-result` / `browse:annotation-history-failed` |
+| `browse:events-requested` | `EventQuery.queryEvents()`; each event with the agent its `userId` identifies, a Person named from `people.json` | `browse:events-result` / `browse:events-failed` |
+| `browse:annotation-history-requested` | `EventQuery`, kept to the events `getAnnotationIdFromEvent` reads as this annotation's; attributed as `browse:events-requested` is | `browse:annotation-history-result` / `browse:annotation-history-failed` |
 | `browse:referenced-by-requested` | Graph referenced-by lookup + resource metadata | `browse:referenced-by-result` / `browse:referenced-by-failed` |
 | `browse:entity-types-requested` | `readEntityTypesProjection()` | `browse:entity-types-result` / `browse:entity-types-failed` |
 | `browse:tag-schemas-requested` | Tag-schema projection read | `browse:tag-schemas-result` / `browse:tag-schemas-failed` |
@@ -280,7 +280,7 @@ See [Job Workers](./job-workers.md) for details.
 
 ## Initialization Order
 
-`startMakeMeaning()` initializes components in dependency order:
+`startMakeMeaning()` refuses a knowledge base whose committed `.semiont/config` declares no `[site] domain`: the knowledge base acts under that identity. It then initializes components in dependency order:
 
 1. GraphDatabase
 2. EventStore (with EventBus integration)
@@ -288,7 +288,7 @@ See [Job Workers](./job-workers.md) for details.
 4. **KnowledgeBase** (groups the stores; constructs the WeaveProgress and SmeltProgress folds; rebuilds views unless `skipRebuild` — the graph belongs to the standalone Weaver)
 5. Event enrichment wiring (`wireEnrichment`)
 6. **Stower** (must start before reader actors — it handles writes they depend on)
-7. Entity type bootstrap (emits via EventBus, Stower persists)
+7. Entity type bootstrap (emits via EventBus as the knowledge base itself, `did:web:<[site] domain>`; Stower persists)
 8. **Gatherer** (context assembly, vector semantic search; gets its own InferenceClient and the `gather.settleTimeoutMs` barrier bound)
 9. **Matcher** (candidate search, vector semantic search, composite scoring; gets its own InferenceClient)
 10. **Browser** (browse reads, entity type and tag-schema listing, directory browse; gets the role roster and the embedding provider)

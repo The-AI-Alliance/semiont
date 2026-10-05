@@ -12,7 +12,7 @@ import { annotationId, getResourceId, resourceId } from '@semiont/core';
 import type { CreateAnnotationInternal, ResourceDescriptor } from '@semiont/core';
 import { JanusGraphDatabase } from '../implementations/janusgraph';
 
-const CREATOR = { '@type': 'Person' as const, id: 'did:semiont:user:u1', name: 'Ada' };
+const CREATOR = { '@type': 'Person' as const, id: 'did:web:example.org:users:u1', name: 'Ada' };
 
 function resource(id: string): ResourceDescriptor {
   return {

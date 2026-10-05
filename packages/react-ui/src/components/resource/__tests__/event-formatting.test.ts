@@ -209,11 +209,7 @@ describe('event-formatting', () => {
         timestamp: '',
       } as any;
       const result = getResourceCreationDetails(event);
-      expect(result).toEqual({
-        type: 'created',
-        userId: 'user-1',
-        metadata: undefined,
-      });
+      expect(result).toEqual({ type: 'created' });
     });
 
     it('returns cloned details for yield:cloned', () => {
@@ -224,13 +220,7 @@ describe('event-formatting', () => {
         timestamp: '',
       } as any;
       const result = getResourceCreationDetails(event);
-      expect(result).toEqual({
-        type: 'cloned',
-        userId: 'user-2',
-        sourceDocId: 'parent-1',
-        parentResourceId: 'parent-1',
-        metadata: undefined,
-      });
+      expect(result).toEqual({ type: 'cloned', sourceDocId: 'parent-1' });
     });
 
     it('returns null for non-creation events', () => {

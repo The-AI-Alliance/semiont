@@ -11,7 +11,7 @@
  */
 
 import { Subject } from 'rxjs';
-import { EventBus, annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
+import { EventBus, annotationId as makeAnnotationId, didToAgent, resourceId as makeResourceId } from '@semiont/core';
 import type { Annotation, BusFrame, EventMap, EventOfType, Logger, PersistedEventType, ResourceDescriptor, StoredEvent } from '@semiont/core';
 import { MemoryGraphDatabase } from '@semiont/graph';
 import type { GraphDatabase } from '@semiont/graph';
@@ -332,7 +332,8 @@ export function serveHistory(eventBus: EventBus, history: StoredEvent[]): () => 
     }),
     eventBus.frames('browse:events-requested').subscribe(({ payload: req, correlationId }) => {
       const rid = String((req as { resourceId: string }).resourceId);
-      const events = byRid.get(rid) ?? [];
+      // As the Archivist answers: each stored event with its actor's agent.
+      const events = (byRid.get(rid) ?? []).map((e) => ({ ...e, agent: didToAgent(e.userId) }));
       eventBus.emit('browse:events-result', {
         response: { events, total: events.length, resourceId: rid },
       } as unknown as EventMap['browse:events-result'], { correlationId });

@@ -34,6 +34,7 @@ import { LocalContentTransport } from '../local-content-transport';
 import { ResourceOperations } from '@semiont/core';
 import { startMakeMeaning, type MakeMeaningConfig, type MakeMeaningService } from '../service';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
+import { declareTestKb } from './helpers/test-project';
 
 stubEmbeddingProbeFetch();
 
@@ -65,7 +66,7 @@ const config: MakeMeaningConfig = {
   },
 };
 
-const TEST_USER_DID = userId('did:semiont:test-host');
+const TEST_USER_DID = userId('did:web:example.org:users:test-host');
 const TEST_USER_ID  = makeUserId('did:web:test:users:test-host');
 
 interface Harness {
@@ -79,6 +80,7 @@ interface Harness {
 async function bootHarness(): Promise<Harness> {
   const testDir = join(tmpdir(), `semiont-local-${uuidv4()}`);
   await fs.mkdir(testDir, { recursive: true });
+  await declareTestKb(testDir);
   const project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
   const eventBus = new EventBus();
   let service: MakeMeaningService | null = null;

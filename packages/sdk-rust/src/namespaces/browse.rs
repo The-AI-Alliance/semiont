@@ -36,9 +36,9 @@ use crate::transport::{
     BoxFuture, ConnectionState, Content, ContentStream, ContentTransport, Envelope, Transport,
 };
 use crate::types::{
-    Agent, AnchoredTextAnswer, Annotation, BrowseAgentsRequest, BrowseAnchoredTextRequest,
-    BrowseAnnotationHistoryRequest, BrowseAnnotationRequest, BrowseAnnotationsRequest,
-    BrowseClickEvent, BrowseDirectoryRequest, BrowseDirectoryRequestSort,
+    Agent, AnchoredTextAnswer, Annotation, AttributedEvent, BrowseAgentsRequest,
+    BrowseAnchoredTextRequest, BrowseAnnotationHistoryRequest, BrowseAnnotationRequest,
+    BrowseAnnotationsRequest, BrowseClickEvent, BrowseDirectoryRequest, BrowseDirectoryRequestSort,
     BrowseDirectoryResultResponse, BrowseEntityTypesRequest, BrowseEventsRequest, BrowseKbRequest,
     BrowseReferencedByRequest, BrowseResourceOpenEvent, BrowseResourceRequest,
     BrowseResourceViewedEvent, BrowseResourcesRequest, BrowseTagSchemasRequest, CollaboratorEntry,
@@ -262,7 +262,7 @@ struct Live {
     /// that asks it.
     limits: Cache<&'static str, Vec<InferencePairLimits>>,
     referenced_by: Cache<ResourceId, Vec<GetReferencedByResponseReferencedByItem>>,
-    events: Cache<ResourceId, Vec<StoredEventResponse>>,
+    events: Cache<ResourceId, Vec<AttributedEvent>>,
     windows: Arc<Windows>,
     /// What listens for each trigger, until the namespace is disposed.
     listening: Mutex<JoinSet<()>>,
@@ -1181,7 +1181,7 @@ impl BrowseNamespace {
         )
     }
 
-    pub fn events(&self, resource_id: &ResourceId) -> Cached<Vec<StoredEventResponse>> {
+    pub fn events(&self, resource_id: &ResourceId) -> Cached<Vec<AttributedEvent>> {
         self.of_resource(&self.live.events, resource_id, resource_id, |value| value)
     }
 
@@ -1236,7 +1236,7 @@ impl BrowseNamespace {
     pub async fn resource_events(
         &self,
         resource_id: &ResourceId,
-    ) -> Result<Vec<StoredEventResponse>, SemiontError> {
+    ) -> Result<Vec<AttributedEvent>, SemiontError> {
         let answer = self
             .links
             .request::<BrowseEventsRequested>(&events_of(resource_id))

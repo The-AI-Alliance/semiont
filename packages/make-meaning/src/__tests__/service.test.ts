@@ -14,12 +14,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { startMakeMeaning, type MakeMeaningService, type MakeMeaningConfig } from '../service';
 import { SemiontProject } from '@semiont/core/node';
-import { EventBus, type Logger } from '@semiont/core';
+import { EventBus, SYSTEM_SCOPE, kbDid, type Logger } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
+import { declareTestKb, TEST_KB_DOMAIN } from './helpers/test-project';
 
 stubEmbeddingProbeFetch();
 
@@ -41,6 +42,7 @@ describe('Make-Meaning Service', () => {
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-test-service-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
+    await declareTestKb(testDir);
     project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
 
     eventBus = new EventBus();
@@ -96,6 +98,28 @@ describe('Make-Meaning Service', () => {
       const breadcrumbed = vi.mocked(mockLogger.info).mock.calls
         .some(([msg]) => typeof msg === 'string' && /memory vector store.*rebuil|rebuil.*memory vector store/i.test(msg));
       expect(breadcrumbed).toBe(true);
+    });
+  });
+
+  describe("the knowledge base's identity", () => {
+    it('seeds the default entity types as the knowledge base itself', async () => {
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
+
+      const seeded = (await service.knowledgeSystem.kb.eventStore.log.getEvents(SYSTEM_SCOPE))
+        .filter((e) => e.type === 'frame:entity-type-added');
+      expect(seeded.length).toBeGreaterThan(0);
+      expect(new Set(seeded.map((e) => e.userId))).toEqual(new Set([kbDid(TEST_KB_DOMAIN)]));
+    });
+
+    it('refuses a knowledge base that declares no [site] domain', async () => {
+      const undeclaredDir = join(tmpdir(), `semiont-test-undeclared-${uuidv4()}`);
+      await fs.mkdir(undeclaredDir, { recursive: true });
+      const undeclared = new SemiontProject(undeclaredDir, { anchoredTextDir: `${undeclaredDir}/anchored-text` });
+      try {
+        await expect(startMakeMeaning(undeclared, config, eventBus, mockLogger)).rejects.toThrow('[site] domain');
+      } finally {
+        await fs.rm(undeclaredDir, { recursive: true, force: true });
+      }
     });
   });
 
@@ -256,6 +280,7 @@ describe('Make-Meaning Service', () => {
     it('should allow multiple service instances with different directories', async () => {
       const testDir2 = join(tmpdir(), `semiont-test-service-2-${uuidv4()}`);
       await fs.mkdir(testDir2, { recursive: true });
+      await declareTestKb(testDir2);
       const project2 = new SemiontProject(testDir2, { anchoredTextDir: `${testDir2}/anchored-text` });
 
       const eventBus2 = new EventBus();
@@ -303,6 +328,7 @@ describe('startup dependency connects', () => {
     vi.stubGlobal('fetch', providerFetch);
     const testDir = join(tmpdir(), `semiont-test-connects-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
+    await declareTestKb(testDir);
     const project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
     const eventBus = new EventBus();
     const config: MakeMeaningConfig = {

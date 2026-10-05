@@ -1,0 +1,138 @@
+name: Publish Rust crates
+
+run-name: "Crates${{ inputs.dry_run && ' (dry run)' || '' }}"
+
+# Publishes the Rust SDK's crates to crates.io, at version.json's version.
+#
+# crates.io trusts this workflow by name: each published crate's settings name
+# this repository and this file ("Trusted Publishing"), so no token is stored
+# anywhere. Renaming the file means changing that setting on every crate.
+#
+# Dispatched by release.yml at the release's tag. A `push: tags` trigger cannot
+# be used here: release.yml pushes the tag with GITHUB_TOKEN, and GitHub does
+# not raise workflow-triggering events for GITHUB_TOKEN-authored pushes.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (package and build every crate, publish none)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # The token crates.io issues lasts 30 minutes.
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      # rustup installs the toolchain rust-toolchain.toml names.
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+          cargo --version
+
+      # Which crates are published is cargo's to say (a member without
+      # `publish = false`), and their order is their dependencies': a crate is
+      # published after every published crate it depends on. Neither is listed
+      # here.
+      - name: Name the crates, their order and the version
+        id: plan
+        run: |
+          version=$(jq -r .version version.json)
+          metadata=$(cargo metadata --locked --no-deps --format-version 1)
+
+          published=$(jq -r '.packages[] | select(.publish == null) | .name' <<< "$metadata" | sort)
+          if [ -z "$published" ]; then
+            echo "::error::the workspace publishes no crate"
+            exit 1
+          fi
+          # verify-release.sh and cargo-version.sh read published-crates.sh;
+          # the two answers must be one.
+          named=$(scripts/release/published-crates.sh | sort)
+          if [ "$published" != "$named" ]; then
+            echo "::error::cargo publishes [${published//$'\n'/ }] and scripts/release/published-crates.sh names [${named//$'\n'/ }]"
+            exit 1
+          fi
+
+          # A published version is permanent, so one that is not the release's
+          # is refused before anything is uploaded.
+          wrong=$(jq -r --arg v "$version" '.packages[] | select(.publish == null) | select(.version != $v) | "\(.name) \(.version)"' <<< "$metadata")
+          if [ -n "$wrong" ]; then
+            echo "::error::version.json says $version, but: $wrong"
+            exit 1
+          fi
+
+          # "dependency crate" pairs for tsort; a crate paired with itself is
+          # in the order though it depends on none.
+          order=$(jq -r '
+            [.packages[] | select(.publish == null)] as $published
+            | ($published | map(.name)) as $names
+            | $published[]
+            | .name as $crate
+            | "\($crate) \($crate)",
+              (.dependencies[] | select(.name != $crate) | select(.name as $d | $names | index($d)) | "\(.name) \($crate)")
+          ' <<< "$metadata" | tsort | tr '\n' ' ')
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "order=$order" >> "$GITHUB_OUTPUT"
+          echo "Publishing at $version, in this order: $order"
+
+      # Before anything permanent: every crate packages, and builds from its
+      # packaged form against the others. It also leaves the build warm, so
+      # the uploads below finish well inside the token's 30 minutes.
+      - name: Package and build every crate
+        run: cargo publish --dry-run --workspace --locked
+
+      - name: Authenticate with crates.io
+        if: ${{ !inputs.dry_run }}
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1.0.5
+
+      # A version already on crates.io is skipped and said so, so a run that
+      # published some of the crates and then failed can be run again.
+      - name: Publish
+        if: ${{ !inputs.dry_run }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          VERSION: ${{ steps.plan.outputs.version }}
+          ORDER: ${{ steps.plan.outputs.order }}
+        run: |
+          agent='semiont-publish-crates (https://github.com/The-AI-Alliance/semiont)'
+          for crate in $ORDER; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' -A "$agent" "https://crates.io/api/v1/crates/$crate/$VERSION")
+            case "$status" in
+              200)
+                echo "exists    $crate $VERSION — already on crates.io, skipping"
+                echo "- \`$crate\` $VERSION: already published, skipped" >> "$GITHUB_STEP_SUMMARY"
+                ;;
+              404)
+                cargo publish --locked -p "$crate"
+                echo "- \`$crate\` $VERSION: published" >> "$GITHUB_STEP_SUMMARY"
+                ;;
+              *)
+                echo "::error::crates.io answered $status for $crate $VERSION; not publishing on an answer that is neither yes nor no"
+                exit 1
+                ;;
+            esac
+          done
+
+      - name: Summary
+        if: ${{ inputs.dry_run }}
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          ORDER: ${{ steps.plan.outputs.order }}
+        run: |
+          {
+            echo "Dry run: packaged and built at $VERSION, published nothing."
+            echo
+            echo "Order: $ORDER"
+          } >> "$GITHUB_STEP_SUMMARY"

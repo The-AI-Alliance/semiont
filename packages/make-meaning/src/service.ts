@@ -142,6 +142,7 @@ async function connectStores(
 
 async function createKnowledgeSystemFromConfig(
   project: SemiontProject,
+  kbDomain: string,
   config: MakeMeaningConfig,
   eventBus: EventBus,
   logger: Logger,
@@ -154,7 +155,7 @@ async function createKnowledgeSystemFromConfig(
   const stower = new Stower(kb, eventBus, project, logger.child({ component: 'stower' }));
   await stower.initialize();
 
-  await bootstrapEntityTypes(eventBus, eventStore, logger.child({ component: 'entity-types-bootstrap' }));
+  await bootstrapEntityTypes(eventBus, eventStore, kbDomain, logger.child({ component: 'entity-types-bootstrap' }));
 
   const gatherer = new Gatherer(
     // The content capability is ResourceId-keyed; in-process it wraps this
@@ -235,9 +236,16 @@ export async function startMakeMeaning(
 ): Promise<MakeMeaningService> {
   assertMakeMeaningConfig(config);
 
+  // The knowledge base acts under its own identity: it seeds its default
+  // entity types as `did:web:<domain>`.
+  const kbDomain = project.siteDomain();
+  if (!kbDomain) {
+    throw new Error("The knowledge base's committed .semiont/config declares no [site] domain: it is the identity this knowledge base acts under");
+  }
+
   const skipRebuild = options?.skipRebuild ?? (process.env.SEMIONT_SKIP_REBUILD === 'true');
 
-  const knowledgeSystem = await createKnowledgeSystemFromConfig(project, config, eventBus, logger, skipRebuild);
+  const knowledgeSystem = await createKnowledgeSystemFromConfig(project, kbDomain, config, eventBus, logger, skipRebuild);
 
   // Register the bus command handlers that translate caller-facing
   // request channels (mark:create-request, bind:update-body,

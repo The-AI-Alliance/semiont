@@ -33,6 +33,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { stubEmbeddingProbeFetch } from '../helpers/smelter-harness';
+import { declareTestKb } from '../helpers/test-project';
 
 stubEmbeddingProbeFetch();
 
@@ -84,6 +85,7 @@ describe('Scripting Example: Query Graph Database', () => {
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-graph-test-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
+    await declareTestKb(testDir);
     project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
 
     config = {

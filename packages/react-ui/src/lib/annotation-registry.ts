@@ -2,11 +2,9 @@
  * Centralized annotation type registry
  *
  * Single source of truth for W3C annotation motivation metadata including:
- * - Visual styling (CSS classes)
- * - Behavior flags (clickable, hover, side panel)
+ * - Visual styling (CSS class, icon)
  * - Type guards (motivation matching)
  * - Accessibility (screen reader announcements)
- * - Runtime handlers (click, hover, detect, update, create)
  *
  * This is the ONLY place to define annotation type metadata: one decision
  * lives in one place. No aliasing, wrappers, or compatibility layers elsewhere.
@@ -18,66 +16,24 @@ import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];
 
 /**
- * Display metadata for AI-assisted annotation of this type: the names used in
- * messages, and a formatter that renders an assist request's parameters.
- */
-export interface DetectionConfig {
-  // Plural display name for messages (e.g., 'entity references', 'highlights')
-  displayNamePlural: string;
-
-  // Singular display name for messages (e.g., 'entity reference', 'highlight')
-  displayNameSingular: string;
-
-  // Function to format request parameters for display in progress UI
-  // Returns array of { label, value } pairs to show what was requested
-  formatRequestParams?: (args: unknown[]) => Array<{ label: string; value: string }>;
-}
-
-/**
- * Creation configuration - describes how to create annotations of this type
- */
-export interface CreateConfig {
-  // How to build the annotation body from the creation arguments
-  bodyBuilder: 'empty' | 'text' | 'entityTag' | 'dualTag';
-
-  // Whether to refetch annotations after creation
-  refetchAfter: boolean;
-
-  // Optional success message template (for tags)
-  successMessage?: string;
-}
-
-/**
- * Annotator: Encapsulates all motivation-specific behavior
- * Handles clicks, hovers, detection, and other operations for one annotation type
+ * Annotator: the metadata of one annotation type - how its annotations are
+ * recognized, displayed and announced
  */
 export interface Annotator {
   // Metadata (static)
   motivation: Motivation;
   internalType: string;
   displayName: string;
-  description: string;
 
   // Visual styling
   className: string;
   iconEmoji?: string;
-
-  // Behavior flags
-  isClickable: boolean;
-  hasHoverInteraction: boolean;
-  hasSidePanel: boolean;
 
   // Type guard function
   matchesAnnotation: (annotation: Annotation) => boolean;
 
   // Accessibility
   announceOnCreate: string;
-
-  // Detection configuration (optional - only for types that support AI detection)
-  detection?: DetectionConfig;
-
-  // Creation configuration - describes how to create this annotation type
-  create: CreateConfig;
 }
 
 /**
@@ -88,154 +44,46 @@ export const ANNOTATORS = {
     motivation: 'highlighting',
     internalType: 'highlight',
     displayName: 'Highlight',
-    description: 'Mark text for attention',
     className: 'annotation-highlight',
     iconEmoji: '🟡',
-    isClickable: true,
-    hasHoverInteraction: true,
-    hasSidePanel: true,
     matchesAnnotation: (ann: Annotation) => isHighlight(ann),
-    announceOnCreate: 'Highlight created',
-    create: {
-      bodyBuilder: 'empty',
-      refetchAfter: false
-    },
-    detection: {
-      displayNamePlural: 'highlights',
-      displayNameSingular: 'highlight',
-      formatRequestParams: (args: unknown[]) => {
-        const params: Array<{ label: string; value: string }> = [];
-        if (typeof args[0] === 'string' && args[0]) params.push({ label: 'Instructions', value: args[0] });
-        if (typeof args[2] === 'number') params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
-        return params;
-      }
-    }
+    announceOnCreate: 'Highlight created'
   },
   comment: {
     motivation: 'commenting',
     internalType: 'comment',
     displayName: 'Comment',
-    description: 'Add a comment about the text',
     className: 'annotation-comment',
     iconEmoji: '💬',
-    isClickable: true,
-    hasHoverInteraction: true,
-    hasSidePanel: true,
     matchesAnnotation: (ann: Annotation) => isComment(ann),
-    announceOnCreate: 'Comment created',
-    create: {
-      bodyBuilder: 'text',
-      refetchAfter: false
-    },
-    detection: {
-      displayNamePlural: 'comments',
-      displayNameSingular: 'comment',
-      formatRequestParams: (args: unknown[]) => {
-        const params: Array<{ label: string; value: string }> = [];
-        if (typeof args[0] === 'string' && args[0]) params.push({ label: 'Instructions', value: args[0] });
-        if (typeof args[1] === 'string' && args[1]) params.push({ label: 'Tone', value: args[1] });
-        if (typeof args[2] === 'number') params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
-        return params;
-      }
-    }
+    announceOnCreate: 'Comment created'
   },
   assessment: {
     motivation: 'assessing',
     internalType: 'assessment',
     displayName: 'Assessment',
-    description: 'Provide evaluation or assessment',
     className: 'annotation-assessment',
     iconEmoji: '🔴',
-    isClickable: true,
-    hasHoverInteraction: true,
-    hasSidePanel: true,
     matchesAnnotation: (ann: Annotation) => ann.motivation === 'assessing',
-    announceOnCreate: 'Assessment created',
-    create: {
-      bodyBuilder: 'text',
-      refetchAfter: false
-    },
-    detection: {
-      displayNamePlural: 'assessments',
-      displayNameSingular: 'assessment',
-      formatRequestParams: (args: unknown[]) => {
-        const params: Array<{ label: string; value: string }> = [];
-        if (typeof args[0] === 'string' && args[0]) params.push({ label: 'Instructions', value: args[0] });
-        if (typeof args[1] === 'string' && args[1]) params.push({ label: 'Tone', value: args[1] });
-        if (typeof args[2] === 'number') params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
-        return params;
-      }
-    }
+    announceOnCreate: 'Assessment created'
   },
   reference: {
     motivation: 'linking',
     internalType: 'reference',
     displayName: 'Reference',
-    description: 'Link to another resource',
     className: 'annotation-reference',
     iconEmoji: '🔵',
-    isClickable: true,
-    hasHoverInteraction: true,
-    hasSidePanel: true,
     matchesAnnotation: (ann: Annotation) => isReference(ann),
-    announceOnCreate: 'Reference created',
-    create: {
-      bodyBuilder: 'entityTag',
-      refetchAfter: true
-    },
-    detection: {
-      displayNamePlural: 'entity references',
-      displayNameSingular: 'entity reference',
-      formatRequestParams: (args: unknown[]) => {
-        const params: Array<{ label: string; value: string }> = [];
-        const types = args[0];
-        if (Array.isArray(types) && types.length > 0) {
-          params.push({ label: 'Entity Types', value: types.join(', ') });
-        }
-        if (args[1] === true) {
-          params.push({ label: 'Include Descriptive References', value: 'Yes' });
-        }
-        return params;
-      }
-    }
+    announceOnCreate: 'Reference created'
   },
   tag: {
     motivation: 'tagging',
     internalType: 'tag',
     displayName: 'Tag',
-    description: 'Structural role annotation',
     className: 'annotation-tag',
     iconEmoji: '🏷️',
-    isClickable: true,
-    hasHoverInteraction: true,
-    hasSidePanel: true,
     matchesAnnotation: (ann: Annotation) => isTag(ann),
-    announceOnCreate: 'Tag created',
-    create: {
-      bodyBuilder: 'dualTag',
-      refetchAfter: false,
-      successMessage: 'Tag "{value}" created'
-    },
-    detection: {
-      displayNamePlural: 'tags',
-      displayNameSingular: 'tag',
-      formatRequestParams: (args: unknown[]) => {
-        const params: Array<{ label: string; value: string }> = [];
-        if (typeof args[0] === 'string' && args[0]) {
-          const schemaNames: Record<string, string> = {
-            'legal-irac': 'Legal (IRAC)',
-            'scientific-imrad': 'Scientific (IMRAD)',
-            'argument-toulmin': 'Argument (Toulmin)'
-          };
-          params.push({ label: 'Schema', value: schemaNames[args[0]] || args[0] });
-        }
-        const categories = args[1];
-        if (Array.isArray(categories) && categories.length > 0) {
-          params.push({ label: 'Categories', value: categories.join(', ') });
-        }
-        return params;
-      }
-    }
+    announceOnCreate: 'Tag created'
   }
 } satisfies Record<string, Annotator>;
 

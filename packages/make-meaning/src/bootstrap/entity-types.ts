@@ -15,16 +15,17 @@
  */
 
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
-import { EventBus, userId, busRequest, SYSTEM_SCOPE, type Logger } from '@semiont/core';
+import { EventBus, userId, kbDid, busRequest, SYSTEM_SCOPE, type Logger } from '@semiont/core';
 import { asBusRequestPrimitive } from '../bus-request-local';
 import type { EventStore } from '@semiont/event-sourcing';
 
 /**
  * Bootstrap entity types if any are missing from the event log.
  * Reads the __system__ stream to find existing frame:entity-type-added events,
- * then emits only the missing ones.
+ * then emits only the missing ones, as the knowledge base itself: `kbDomain`
+ * is its committed `[site] domain`.
  */
-export async function bootstrapEntityTypes(eventBus: EventBus, eventStore: EventStore, logger?: Logger): Promise<void> {
+export async function bootstrapEntityTypes(eventBus: EventBus, eventStore: EventStore, kbDomain: string, logger?: Logger): Promise<void> {
   // Read the __system__ event stream — the durable source of truth
   const systemEvents = await eventStore.log.getEvents(SYSTEM_SCOPE);
   const existingTypes = new Set(
@@ -42,11 +43,10 @@ export async function bootstrapEntityTypes(eventBus: EventBus, eventStore: Event
 
   logger?.info('Bootstrapping missing entity types', { missing: missing.length, existing: existingTypes.size });
 
-  // Semiont itself, seeding the defaults — not a person and not a software
-  // peer, so neither `did:web:<domain>:users:…` nor `…:agents:…` fits, and no
-  // domain is in scope here anyway. A method-specific DID says plainly which
-  // actor this is.
-  const SYSTEM_USER_ID = userId('did:semiont:system');
+  // The knowledge base seeds its own defaults: the actor is neither a person
+  // (`did:web:<domain>:users:…`) nor a software peer (`…:agents:…`), but the
+  // knowledge base, under its own DID.
+  const kbUserId = userId(kbDid(kbDomain));
 
   for (const entityType of missing) {
     logger?.debug('Adding entity type via EventBus', { entityType });
@@ -57,7 +57,7 @@ export async function bootstrapEntityTypes(eventBus: EventBus, eventStore: Event
     await busRequest(
       asBusRequestPrimitive(eventBus),
       'frame:add-entity-type',
-      { tag: entityType, _userId: SYSTEM_USER_ID },
+      { tag: entityType, _userId: kbUserId },
       10_000,
     );
   }

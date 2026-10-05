@@ -26,6 +26,7 @@ import { startMakeMeaning, ResourceContext, type MakeMeaningConfig } from '..';
 import { CloneTokenManager, type CloneTokenStores } from '../clone-token-manager';
 import { ResourceOperations } from '@semiont/core';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
+import { declareTestKb } from './helpers/test-project';
 
 stubEmbeddingProbeFetch();
 
@@ -91,6 +92,7 @@ describe('CloneTokenManager format selection', () => {
   beforeEach(async () => {
     testDir = join(tmpdir(), `semiont-ctm-test-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
+    await declareTestKb(testDir);
     const project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
 
     const config: MakeMeaningConfig = {

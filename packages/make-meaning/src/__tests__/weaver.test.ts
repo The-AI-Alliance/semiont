@@ -1412,7 +1412,7 @@ describe('Weaver', () => {
       created: '2020-01-01T00:00:00.000Z',
       target: { source: 'placeholder' },
       body: [],
-      creator: { '@type': 'Person' as const, id: 'did:semiont:user:u1', name: 'Ada' },
+      creator: { '@type': 'Person' as const, id: 'did:web:example.org:users:u1', name: 'Ada' },
       ...over,
     });
 
@@ -1463,7 +1463,7 @@ describe('Weaver', () => {
       // not an isomorphic copy.
       serveBrowseReads([rid], {
         [rid]: [{ ...viewAnn(), target: { source: rid },
-                  wasAttributedTo: [{ '@type': 'Person', id: 'did:semiont:user:u1', name: 'Ada' }] }],
+                  wasAttributedTo: [{ '@type': 'Person', id: 'did:web:example.org:users:u1', name: 'Ada' }] }],
       });
       const summary = await consumer.reconcile();
 

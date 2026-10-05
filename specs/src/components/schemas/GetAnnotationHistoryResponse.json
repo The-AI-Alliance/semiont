@@ -3,7 +3,7 @@
   "properties": {
     "events": {
       "type": "array",
-      "items": { "$ref": "StoredEventResponse.json" }
+      "items": { "$ref": "AttributedEvent.json" }
     },
     "total": {
       "type": "number"

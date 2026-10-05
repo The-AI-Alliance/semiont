@@ -158,8 +158,8 @@ console.log(highlightAnnotator.iconEmoji); // "🟡"
 
 // The annotator an annotation belongs to: each one answers for itself
 const annotator = Object.values(ANNOTATORS).find((a) => a.matchesAnnotation(annotation));
-if (annotator?.isClickable) {
-  // Handle click
+if (annotator) {
+  // A supported type: group it under annotator.internalType, style it with annotator.className
 }
 
 // The registry key for a W3C motivation ('highlighting' → 'highlight')
@@ -181,28 +181,16 @@ const {
 
   // Display
   displayName,         // "Highlight"
-  description,         // "Mark text for attention"
   iconEmoji,           // "🟡" (optional)
 
   // Styling
   className,           // 'annotation-highlight'
-
-  // Behavior
-  isClickable,
-  hasHoverInteraction,
-  hasSidePanel,
 
   // Type checking
   matchesAnnotation,   // (annotation: Annotation) => boolean
 
   // Accessibility: what a screen reader hears when one is created
   announceOnCreate,
-
-  // AI Detection (optional): a DetectionConfig
-  detection,
-
-  // How this type is created: a CreateConfig
-  create,
 }: Annotator = ANNOTATORS.highlight;
 ```
 
@@ -285,22 +273,6 @@ function AssistMonitor({ resourceId }: { resourceId: ResourceId }) {
 ```
 
 See [EVENTS.md](EVENTS.md) for complete event documentation.
-
-### Detection Configuration
-
-Each annotator can declare its assist capability via the `detection`
-(`DetectionConfig`) field in its registry metadata (`lib/annotation-registry.ts`).
-It carries display names and a formatter for the request parameters:
-
-```typescript
-const { detection } = ANNOTATORS.highlight;
-
-detection.displayNamePlural;    // 'highlights'
-detection.displayNameSingular;  // 'highlight'
-detection.formatRequestParams(['Focus on definitions', undefined, 3]);
-// [{ label: 'Instructions', value: 'Focus on definitions' },
-//  { label: 'Density', value: '3 per 2000 words' }]
-```
 
 ---
 
