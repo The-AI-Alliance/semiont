@@ -21,11 +21,11 @@ The communication plane: the SDK clients, the SPA server, and every process-to-p
 
 ```mermaid
 graph TB
-    subgraph CLIENTS ["clients — people and the SDK"]
+    subgraph CLIENTS ["clients — people and SDKs"]
         USER["User's desktop<br/>web browser — runs the SPA · @semiont/sdk"]
-        INGEST["Content ingestion<br/>@semiont/sdk"]
-        CURATE["Content curation<br/>@semiont/sdk"]
-        AGENT["Agentic workflows<br/>@semiont/sdk"]
+        INGEST["Content ingestion<br/>SDK client"]
+        CURATE["Content curation<br/>SDK client"]
+        AGENT["Agentic workflows<br/>SDK client"]
     end
 
     BROWSERC["semiont-browser<br/>static SPA server"]
@@ -80,14 +80,14 @@ Reading the diagram:
 
 - **Dotted edges are identity, and they come first.** Nobody reaches the gateway without visiting the issuer. People and SDK clients sign in there. Every service obtains its own service-account token there, then exchanges it at `POST /api/tokens/agent` for the agent identity its work is attributed to. The gateway verifies each bearer against the issuer's published keys and keeps no account of its own.
 - **Bidirectional edges are the bus**: `POST /bus/emit`, and `POST /bus/subscribe` as Server-Sent Events. The gateway hosts no actors. Every service subscribes over those two endpoints like any other participant, and each rectangle names what runs inside it.
-- **The blue rectangles are the bus's clients**, and each speaks an SDK: the Browser in a person's web browser, and the same client without a UI for ingestion, curation and agentic workflows. The `semiont` launcher's verbs and the MCP server are two of them.
+- **The blue rectangles are the bus's clients**, and each speaks an SDK — TypeScript (`@semiont/sdk`), Rust (`semiont`) or Go: the Browser in a person's web browser, and the same client without a UI for ingestion, curation and agentic workflows. The `semiont` launcher's verbs and the MCP server are two of them.
 - **Edges pointing at the archivist are plain HTTP.** The gateway proxies content for outside clients, and reads from the archivist the events a reconnecting stream missed. The smelter, the librarian and the workers dial the archivist directly for bytes.
 - **The dispatcher has no edge to the archivist.** Job ids, types, parameters and status flow through it, and content never does. A worker claims a job there, then reads bytes from the archivist and writes annotations to it.
 - **`semiont-browser` only serves static files.** The app runs in the person's web browser and connects to gateways from there, so the container needs no config and no connection of its own.
 
 Two mechanisms behind the gateway hub are not drawn as edges:
 
-- **The signal plane** is the fan-out behind the two bus endpoints, and it is a driver. `[signal] type = "nats"`, which `semiont init` writes, carries it on core NATS subjects, so the gateway can run as several replicas. `in-process` keeps it inside one gateway. The bus contract is the same either way, and no client sees the choice.
+- **The signal plane** is the fan-out behind the two bus endpoints, and it is a driver. `[signal] type = "nats"`, which `semiont init` writes, carries frames on core NATS subjects and keeps the gateway's in-flight state (the correlation ledger, and each principal's open-stream count) in JetStream key-value tables that every replica shares, so the gateway can run as several replicas. `in-process` keeps both inside one gateway's memory. The bus contract is the same either way, and no client sees the choice.
 - **The job queue** is the dispatcher's, held in NATS JetStream. Jobs are created at the dispatcher, announced on `job:queued`, and claimed by exactly one worker over the bus. The dispatcher admits a claim only from a token carrying the worker role.
 
 One NATS daemon, the `messaging` role, serves both. The second diagram draws it.
@@ -107,6 +107,7 @@ graph TB
         DISP["semiont-dispatcher<br/>owns the job queue · answers job:*"]
         NATS["semiont-nats<br/>messaging — core subjects · JetStream"]
         JS[("job queue<br/>KV bucket jobs · stream JOBS")]
+        SIG[("signal tables<br/>KV ledger_* · streams_held")]
     end
 
     subgraph G4 ["identity"]
@@ -147,6 +148,7 @@ graph TB
     GW -->|signal plane| NATS
     DISP -->|JetStream| NATS
     NATS -->|rw — sole owner: dispatcher| JS
+    NATS -->|rw — owner: gateway| SIG
 
     WEAVE --> NEO
     ARCH --> NEO
@@ -182,7 +184,7 @@ graph TB
     class GW hub
     class NEO,QD,OL,PG,KC,COLL,TRACES,METRICS,NATS infra
     class ANCH,VIEWS store
-    class JS ctl
+    class JS,SIG ctl
     class TREE record
 
     NEO ~~~ TREE
@@ -206,9 +208,9 @@ Reading the diagram:
 - **Cylinders are files on the host**, and their edges are mounts. `rw` and `ro` are marked where it matters.
 - **The deep-blue cylinder is the knowledge base's working tree**: the git-tracked system of record, with exactly one writer, the archivist.
 - **Purple cylinders are derived state**, rebuildable from the record.
-- **The amber cylinder is neither.** The job queue is the dispatcher's own operational state, held in JetStream: a key-value bucket of jobs, where every transition is a compare-and-set, and a work-queue stream whose deliveries are the leases. Pending jobs live only there. The event log records that a job started, completed or failed, never that it was created. So the queue is durable, travels with the broker's `/data`, and has one writer.
+- **Amber cylinders are neither.** They are operational state held in JetStream on the broker's `/data`, each with one owner. The job queue is the dispatcher's: a key-value bucket of jobs, where every transition is a compare-and-set, and a work-queue stream whose deliveries are the leases. Pending jobs live only there. The event log records that a job started, completed or failed, never that it was created, so the queue is durable. The signal tables are the gateway's, and every entry in them expires. They hold only what is in flight: who may see the reply to which request, replies kept for a client that reconnects, and each principal's open streams. Sharing them is what lets any gateway replica answer as the others would.
 - **Rectangle-to-rectangle edges** are each service's infrastructure. Dotted edges are telemetry: OTLP into the collector, traces forwarded to Jaeger, metrics scraped by Prometheus.
-- **The gateway attaches to two things**: the broker, for the signal plane, and the issuer, whose keys it verifies tokens against. It holds no database and no queue.
+- **The gateway attaches to two things**: the broker, for the signal plane and its tables, and the issuer, whose keys it verifies tokens against. It holds no database and no queue.
 - **The worker's frame is a deployment boundary.** A worker holds no mount and no broker credential. Everything it dials (the gateway's bus, the archivist's bytes, an inference provider) is a network address, so it can run on a machine the rest of the stack never shares. A worker that is not the deployment's own joins the same way: its client is granted the worker role at the issuer, and the dispatcher admits its claims by that role.
 - **The Ollama edges show the fully local case.** On a config that names a remote API such as Anthropic's, inference for the workers and the librarian goes there instead. Embeddings stay on Ollama unless the config names Voyage.
 
@@ -223,7 +225,7 @@ The second diagram draws the mounts; this table states the rule. Exactly one con
 | Container | `/kb` (git tree) | anchored-text | state (views) |
 |---|---|---|---|
 | archivist | **rw — sole owner** | read | **stamp holder** — writes views |
-| gateway | — | — | — |
+| gateway | — | — | — (its signal tables are JetStream on `semiont-nats`, not a mount) |
 | dispatcher | — | — | — (the job queue is JetStream on `semiont-nats`, not a mount) |
 | librarian | — | — | shared — reads views |
 | smelter | — | **stamp holder** — writes | — |
