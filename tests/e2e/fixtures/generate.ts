@@ -5,8 +5,8 @@ import { openResourceByName } from './discover';
 /**
  * A NAMED text seed, not Discover's first card. The generation specs create
  * resources, and every generated resource lands newest-first — so "first card"
- * would hand a later test whatever an earlier test just wrote, and eventually
- * a `.pdf`. Spec 09 documents this breakage twice over. Generating FROM a
+ * would hand a later test whatever a test before it just wrote, and eventually
+ * a `.pdf`. Generating FROM a
  * resource consumes nothing, so every spec can share one seed.
  */
 export const GENERATE_SOURCE = 'Photosynthesis Overview';

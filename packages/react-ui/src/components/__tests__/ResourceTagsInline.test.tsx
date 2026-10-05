@@ -183,10 +183,10 @@ describe('ResourceTagsInline', () => {
     });
   });
 
-  // ── Inline tag editing: the declared contract, implemented ────────────
+  // ── Inline tag editing ────────────────────────────────────────────────
 
   describe('Editing mode', () => {
-    it('browse mode renders no editing affordances (pins today’s rendering)', () => {
+    it('browse mode renders no editing affordances', () => {
       const { container } = render(
         <ResourceTagsInline {...defaultProps} isEditing={false} vocabulary={['Person']} />,
       );

@@ -6,12 +6,10 @@
  * Controlled instances render the given value and report intents via the callback —
  * never self-mutate, never touch localStorage, never hear other instances.
  * Uncontrolled instances hold a plain internal default (false / 'detail' /
- * 'linking' / 'rectangle') — NOT the legacy localStorage+bus behavior (that lives
- * in the useToolbarPrefs() policy layer).
+ * 'linking' / 'rectangle') — NOT a shared, persisted value (that is the
+ * useToolbarPrefs() policy layer, which a host composes and passes down).
  *
- * RED ledger: authored `it.fails` (observed: 5 expected fail), flipped to `it` once
- * the prop pairs existed. Provider-free; real AnnotateToolbar (its controls are the
- * subject).
+ * Provider-free; real AnnotateToolbar (its controls are the subject).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, within, waitFor } from '@testing-library/react';
@@ -41,28 +39,23 @@ function makeResource(mediaType = 'text/plain'): SemiontResource & { content: st
 
 const annotations = { highlights: [], references: [], assessments: [], comments: [], tags: [] };
 
-/** Session double with a live subscribe registry so specs can fire legacy broadcasts. */
-function liveSession() {
-  const handlers = new Map<string, Set<(p: unknown) => void>>();
+/**
+ * Session double. The client is the viewer's only way onto the bus, so every
+ * method on it is a spy and `emitted` names the ones that were called.
+ */
+function sessionDouble() {
   const client = {
     browse: { click: vi.fn(), invalidateAnnotationList: vi.fn() },
     beckon: { hover: vi.fn() },
-    mark: {
-      toggleMode: vi.fn(), delete: vi.fn(), request: vi.fn(),
-      changeSelection: vi.fn(), changeClick: vi.fn(), changeShape: vi.fn(),
-    },
+    mark: { delete: vi.fn(), request: vi.fn() },
   };
-  const session = {
-    client,
-    subscribe: (channel: string, handler: (p: unknown) => void) => {
-      if (!handlers.has(channel)) handlers.set(channel, new Set());
-      handlers.get(channel)!.add(handler);
-      return () => { handlers.get(channel)!.delete(handler); };
-    },
-  } as unknown as SemiontSession;
-  const fire = (channel: string, payload?: unknown) =>
-    handlers.get(channel)?.forEach((h) => h(payload));
-  return { session, client, fire };
+  const session = { client, subscribe: () => () => {} } as unknown as SemiontSession;
+  const emitted = (): string[] =>
+    Object.entries(client).flatMap(([namespace, methods]) =>
+      Object.entries(methods)
+        .filter(([, method]) => method.mock.calls.length > 0)
+        .map(([name]) => `${namespace}.${name}`));
+  return { session, emitted };
 }
 
 const isAnnotate = (c: HTMLElement) => !!c.querySelector('.semiont-annotate-view');
@@ -101,7 +94,7 @@ describe('ResourceViewer — toolbar prefs as props', () => {
 
   // ── Keystone: per-instance isolation across three viewers on one session ──
   it('keystone: three viewers — controlled A/B independent, C uncontrolled; B\'s Mode click fires only B\'s callback', async () => {
-    const { session, client } = liveSession();
+    const { session, emitted } = sessionDouble();
     const onB = vi.fn();
     const a = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
@@ -125,29 +118,27 @@ describe('ResourceViewer — toolbar prefs as props', () => {
     expect(isBrowse(b.container)).toBe(true);               // …and does not self-flip
     expect(isAnnotate(a.container)).toBe(true);             // A unchanged
     expect(isBrowse(c.container)).toBe(true);               // C unchanged
-    expect(client.mark.toggleMode).not.toHaveBeenCalled();  // no global emit
+    expect(emitted()).toEqual([]);                          // no emit on the shared session
     expect(prefKeyTouched(getSpy)).toBe(false);             // no localStorage traffic
     expect(prefKeyTouched(setSpy)).toBe(false);
   });
 
   // ── Per-pref: mode ──
-  it('mode: uncontrolled uses the plain default and is inert to the legacy broadcast', () => {
-    localStorage.setItem('annotateMode', 'true'); // legacy key must be IGNORED
+  it('mode: uncontrolled uses the plain default, not the stored preference', () => {
+    localStorage.setItem('annotateMode', 'true'); // the policy layer's key must be IGNORED
     getSpy.mockClear(); setSpy.mockClear();
-    const { session, fire } = liveSession();
+    const { session } = sessionDouble();
     const u = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource()} annotations={annotations} />,
     );
     expect(isBrowse(u.container)).toBe(true);      // plain default, not the stored 'true'
-    fire('mark:mode-toggled');
-    expect(isBrowse(u.container)).toBe(true);      // inert: preference events are gone
     expect(prefKeyTouched(getSpy)).toBe(false);
     expect(prefKeyTouched(setSpy)).toBe(false);
   });
 
   // ── Per-pref: click action ──
   it('clickAction: controlled renders the value; the bar control reports and does not mutate', async () => {
-    const { session, client } = liveSession();
+    const { session, emitted } = sessionDouble();
     const onChange = vi.fn();
     const v = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
@@ -159,12 +150,12 @@ describe('ResourceViewer — toolbar prefs as props', () => {
     await pick(v.container, 'Click', 'Detail');
     expect(onChange).toHaveBeenCalledWith('detail');              // reports intent
     expect(within(bar).getByText('Follow')).toBeInTheDocument();  // does not self-mutate
-    expect(client.mark.changeClick).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);                                // a preference is not a bus signal
   });
 
   // ── Per-pref: selection motivation (annotate-mode bar) ──
   it('selectionMotivation: controlled renders the value; picking reports; re-picking the current reports null', async () => {
-    const { session, client } = liveSession();
+    const { session, emitted } = sessionDouble();
     const onChange = vi.fn();
     const v = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource()} annotations={annotations}
@@ -179,12 +170,12 @@ describe('ResourceViewer — toolbar prefs as props', () => {
 
     await pick(v.container, 'Motivation', 'Highlight');             // current value → toggles off
     expect(onChange).toHaveBeenCalledWith(null);
-    expect(client.mark.changeSelection).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
   });
 
   // ── Per-pref: shape (media-gated; image annotate bar) ──
   it('shape: controlled renders the value; picking reports and does not mutate', async () => {
-    const { session, client } = liveSession();
+    const { session, emitted } = sessionDouble();
     const onChange = vi.fn();
     const v = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource('image/png')} annotations={annotations}
@@ -197,6 +188,6 @@ describe('ResourceViewer — toolbar prefs as props', () => {
     await pick(v.container, 'Shape', 'Polygon');
     expect(onChange).toHaveBeenCalledWith('polygon');
     expect(within(bar).getByText('Circle')).toBeInTheDocument();    // does not self-mutate
-    expect(client.mark.changeShape).not.toHaveBeenCalled();
+    expect(emitted()).toEqual([]);
   });
 });

@@ -39,7 +39,7 @@ function mockClient(overrides: {
       resources: (filters: BrowseFilters = {}) => {
         resourceCalls.push(filters);
         return asStates(resourcesFn(filters).asObservable().pipe(
-          // Arrays get the list envelope `resources()` now emits; explicit
+          // Arrays get the list envelope `resources()` emits; explicit
           // status objects (B15 fixtures) and `undefined` pass through.
           map((v) => (Array.isArray(v) ? { resources: v, total: v.length, offset: 0, limit: 20, matchKind: overrides.matchKind ?? 'lexical' } : v)),
         ));
@@ -327,10 +327,8 @@ describe('DiscoverStateUnit — StateUnit axioms', () => {
 });
 
 describe('createDiscoverStateUnit — terminal load failure', () => {
-  // `isLoadingRecent$` was `recent$.pipe(map(r => r === undefined))`, so a
-  // terminally failed list (B15) — which has no value either — left
-  // /know/discover spinning for ever. Same defect as the References and
-  // History panels.
+  // A terminally failed list (B15) has no value either, so a `loading$` that
+  // is only "no value yet" would leave /know/discover spinning for ever.
 
   it('recent: stops loading and surfaces the reason instead of spinning for ever', async () => {
     const resources$ = new BehaviorSubject<unknown[] | undefined>(undefined);

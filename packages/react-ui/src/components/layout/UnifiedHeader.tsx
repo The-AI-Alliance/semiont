@@ -14,7 +14,6 @@ interface UnifiedHeaderProps {
   t: TranslateFn;
   tHome: TranslateFn;
   showBranding?: boolean;
-  showAuthLinks?: boolean;
   brandingLink?: string;
   variant?: 'standalone' | 'embedded' | 'floating';
   isAuthenticated?: boolean;
@@ -89,7 +88,7 @@ export function UnifiedHeader({
       className="semiont-unified-header__content"
       data-variant={variant}
     >
-      {showBranding ? (
+      {showBranding && (
         <div className="semiont-unified-header__branding-wrapper" ref={dropdownRef}>
           <button
             onClick={toggle}
@@ -130,13 +129,7 @@ export function UnifiedHeader({
             </div>
           )}
         </div>
-      ) : (
-        <div></div>
       )}
-
-      <div className="semiont-unified-header__actions" data-variant={variant}>
-        {/* UserMenu removed - navigation moved to logo dropdown */}
-      </div>
     </div>
   );
 

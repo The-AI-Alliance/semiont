@@ -157,10 +157,10 @@ interface GatewaySection {
 interface EnvironmentSection {
   gateway?: GatewaySection;
   /**
-   * The pre-rename spelling of `gateway`. Accepted so the KB fleet — whose
-   * TOMLs live in repos this build cannot reach — keeps loading across the
-   * rename. Retires when every fleet repo says `gateway`; that trigger is a
-   * release-checklist item, not something CI here can observe.
+   * A second spelling of `gateway`, accepted because the KB fleet — whose
+   * TOMLs live in repos this build cannot reach — declares it. Retires when
+   * every fleet repo says `gateway`; that trigger is a release-checklist
+   * item, not something CI here can observe.
    */
   backend?: GatewaySection;
   archivist?: {
@@ -186,7 +186,7 @@ interface EnvironmentSection {
     type?: 'qdrant' | 'memory';
     host?: string;
     port?: number;
-    // Legacy: embedding nested under vectors (migrated to top-level)
+    // Embedding nested under vectors; a top-level [embedding] takes precedence
     embedding?: {
       type?: 'voyage' | 'ollama';
       model?: string;
@@ -242,7 +242,7 @@ interface EnvironmentSection {
   actors?: Record<string, { inference?: InferenceConfig }>;
 }
 
-// ── File reader abstraction (same pattern as createConfigLoader) ──────────────
+// ── File reader abstraction ───────────────────────────────────────────────────
 
 export type TomlFileReader = {
   readIfExists: (path: string) => string | null;
@@ -296,10 +296,10 @@ export function loadTomlConfig(
   //    halves. TWO inputs only — an explicit argument (tests pass one) and the
   //    committed config — and they cannot contradict each other, because the
   //    explicit one is legible at the call site. There is deliberately NO ambient
-  //    environment variable in this chain: `SEMIONT_ENV` was removed because an
-  //    invisible input that can disagree with the staged config is precisely the
-  //    bug shape #1108 fixed. And no silent 'local'/'development' fallback — an
-  //    unselected environment is a config error, not a default.
+  //    environment variable in this chain: a `SEMIONT_ENV` would be an invisible
+  //    input that can disagree with the staged config. And no silent
+  //    'local'/'development' fallback — an unselected environment is a config
+  //    error, not a default.
   const resolvedEnvironment = environment ?? raw.defaults?.environment;
   if (!resolvedEnvironment) {
     throw new Error(
@@ -309,11 +309,9 @@ export function loadTomlConfig(
   }
 
   // 4. A named environment with no [environments.X] section ANYWHERE is a config
-  //    error, not a silent empty {}. The silent {} is what let a KB declaring
+  //    error, not a silent empty {}. A silent {} lets a KB declaring
   //    `environment = "staging"` (with no [environments.staging]) load nothing and
-  //    let every downstream default fire, back when a domain-less [site]
-  //    still resolved to 'localhost',
-  //    the fabricated colliding did:web:localhost identity. Fail loud instead.
+  //    lets every downstream default fire. Fail loud instead.
   const projectHasSection =
     projectConfig?.environments != null && resolvedEnvironment in projectConfig.environments;
   const globalHasSection = raw.environments != null && resolvedEnvironment in raw.environments;
@@ -327,8 +325,8 @@ export function loadTomlConfig(
 
   // A knowledge base declares its identity once: `[site]`, at the top level of
   // its committed .semiont/config, read there by SemiontProject and the
-  // launcher and by nothing here. An environment-scoped [site] used to replace
-  // that table whole, domain included; nothing may override a KB's identity.
+  // launcher and by nothing here. An environment-scoped [site] is refused:
+  // nothing may override a KB's identity.
   const scopedSites = [
     ...Object.entries(projectConfig?.environments ?? {}).map(([name, section]) => ({ name, section, file: `${projectRoot}/.semiont/config` })),
     ...Object.entries(raw.environments ?? {}).map(([name, section]) => ({ name, section, file: globalConfigPath })),
@@ -382,7 +380,7 @@ export function loadTomlConfig(
     const flatInference = section('inference');
     if (!flatInference) return specific;
     // For keyed sub-sections, inherit credentials from the matching provider sub-section.
-    // For flat (legacy) format, flatInference.type is required to know which fields apply.
+    // For flat format, flatInference.type is required to know which fields apply.
     const providerDefaults: Partial<InferenceConfig> = {};
     if (specific.type === 'anthropic') {
       const a = flatInference.anthropic;
@@ -558,11 +556,11 @@ export function loadTomlConfig(
     } as EnvironmentConfig['services']['embedding'];
   }
 
-  // MANDATORY (user, 2026-09-21). A knowledge base without a trusted issuer
-  // can authenticate nobody: no person, because there are no keys to verify
-  // against; no sidecar, because `authorizeAgentMinter` refuses before it
-  // mints; and it cannot reach its own record, because dialling the Archivist
-  // needs a service-account token.
+  // MANDATORY. A knowledge base without a trusted issuer can authenticate
+  // nobody: no person, because there are no keys to verify against; no
+  // sidecar, because `authorizeAgentMinter` refuses before it mints; and it
+  // cannot reach its own record, because dialling the Archivist needs a
+  // service-account token.
   function identity(): EnvironmentConfig['services']['identity'] {
     const id = section('identity');
     if (!id) {
@@ -591,10 +589,10 @@ export function loadTomlConfig(
     return { type: id.type, issuer: id.issuer, subjectClaim: id.subjectClaim } as EnvironmentConfig['services']['identity'];
   }
 
-  // `gateway` is the current spelling; `backend` is the pre-rename one, still
-  // accepted for the fleet. A file carrying BOTH is half-migrated — a mistake
-  // someone just made, not a state worth supporting — so it fails loudly
-  // instead of picking a winner the next reader cannot identify.
+  // `gateway` and `backend` are one section under two spellings, the second
+  // accepted for the fleet. A file carrying BOTH is a mistake, not a state
+  // worth supporting — so it fails loudly instead of picking a winner the
+  // next reader cannot identify.
   function gateway(): EnvironmentConfig['services']['gateway'] {
     const current = section('gateway');
     const legacy = section('backend');
@@ -656,7 +654,7 @@ export function loadTomlConfig(
 
   // No browser service is emitted. The Browser is machine-level — one Browser
   // serves many KBs — so a KB neither knows nor affects its port or
-  // publicURL. `[browser]` and the older `[frontend]` are inert unknown
+  // publicURL. `[browser]` and `[frontend]` are inert unknown
   // sections: tolerated, never read, never refused. `[jobs]` is the
   // launcher's alone — it writes the dispatcher's queue settings from it — so
   // it is inert here too.
@@ -701,7 +699,6 @@ export function loadTomlConfig(
 
 /**
  * Create a TOML config loader backed by a file reader.
- * Drop-in replacement for createConfigLoader that reads TOML instead of JSON.
  * The caller must resolve globalConfigPath (e.g. expand '~' using process.env.HOME).
  */
 export function createTomlConfigLoader(

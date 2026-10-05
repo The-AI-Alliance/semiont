@@ -12,8 +12,8 @@ import { execFileSync } from 'child_process';
 import { SemiontProject, SemiontState } from '../project';
 
 // SemiontState/SemiontProject derive their state tree from XDG_STATE_HOME, which
-// has no fabricated default anymore — it throws when unset (CLAUDE.md). Point it
-// into the test's temp space so every construction below resolves to a real
+// has no fabricated default: absence fails loudly, so it throws when unset. Point
+// it into the test's temp space so every construction below resolves to a real
 // local path; the throw itself is asserted in its own test, which unsets it.
 process.env.XDG_STATE_HOME = join(tmpdir(), 'semiont-project-test-state');
 

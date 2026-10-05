@@ -213,6 +213,19 @@ describe('Make-Meaning Service', () => {
       service = null;
     });
 
+    it('should dispose SmeltProgress on service stop', async () => {
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
+
+      const disposeSpy = vi.spyOn(kb.smeltProgress, 'dispose');
+
+      await service.stop();
+
+      expect(disposeSpy).toHaveBeenCalled();
+
+      service = null;
+    });
+
     it('should disconnect graph database on service stop', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
       const { kb } = service.knowledgeSystem;
@@ -267,12 +280,10 @@ describe('Make-Meaning Service', () => {
   });
 });
 
-// The 2026-07-20 startup-hang fix bounded the three dependency connects and
-// announced each one. The helper is core's `withDeadline`, unit-tested there;
-// THIS exercises the call sites — hermetically:
-// a memory vector store connects in-process, and the embedding provider's
-// only startup network call (the dimension-discovery probe) is served by a
-// stubbed fetch.
+// The three dependency connects are each bounded and announced. The helper is
+// core's `withDeadline`, unit-tested there; THIS exercises the call sites —
+// hermetically: a memory vector store connects in-process, and a stubbed
+// fetch stands where the embedding provider would answer.
 describe('startup dependency connects', () => {
   const mockLogger: Logger = {
     debug: vi.fn(),
@@ -313,8 +324,7 @@ describe('startup dependency connects', () => {
     const service = await startMakeMeaning(project, config, eventBus, mockLogger);
     try {
       // Each connect is announced BEFORE it is attempted — when one hangs,
-      // the last log line names the culprit (the property the live
-      // investigation lacked).
+      // the last log line names the culprit.
       const infos = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
       expect(infos).toContain('Connecting to graph database');
       expect(infos).toContain('Connecting to embedding provider');
@@ -324,9 +334,9 @@ describe('startup dependency connects', () => {
       // Startup makes NO call to the embedding provider. Dimensionality is a
       // provider-derived fact, so it follows the inference rule — discovered
       // at the point of use, not as a precondition of booting — and a memory
-      // store needs no dimensionality at all. Eagerly probing here is what
-      // made an unreachable provider fatal at startup: CI (postgres only,
-      // no Ollama) could not boot the gateway even with a `memory` store.
+      // store needs no dimensionality at all. An eager probe here would make
+      // an unreachable provider fatal at startup: an environment with no
+      // Ollama could not boot the gateway even with a `memory` store.
       expect(providerFetch).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();

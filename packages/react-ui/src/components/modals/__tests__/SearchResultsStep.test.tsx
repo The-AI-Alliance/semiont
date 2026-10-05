@@ -1,15 +1,15 @@
 /**
- * `SearchResultsStep` is pure RESULTS (since 2026-08-19): ranked rows with
- * scores and Link buttons, nothing else.
+ * `SearchResultsStep` is pure RESULTS: ranked rows with scores and Link
+ * buttons, nothing else.
  *
  * The evidence lives with the HOST: the wizard stacks the full display-only
  * `GatherContextStep` (quotation, graph pane, corpus pane, collapsed strategy
- * band) above this step, exactly as on the configure steps. The earlier
- * concern — corpus matches beside real results reading as a second, staler
- * ranking — dissolved with the stacking: evidence sits above the strategy
- * band, results below it, no competing side-by-side columns. This step
- * therefore renders NO context of its own; a gather pane appearing here means
- * someone re-embedded the minimal context redux the stacking replaced.
+ * band) above this step, exactly as on the configure steps. Evidence sits
+ * above the strategy band, results below it, no competing side-by-side
+ * columns — so corpus matches never read as a second, staler ranking beside
+ * the real results. This step therefore renders NO context of its own; a
+ * gather pane appearing here means someone embedded a second copy of the
+ * context the host already shows.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';

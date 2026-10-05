@@ -261,8 +261,8 @@ A `spatial` type has three readiness moments, deliberately decoupled:
 
 **Failure degrades; it does not break.** No map — because the document has none,
 because extraction declined, or because the barrier timed out — means an
-annotation with geometry and no quote. That is the behavior a `spatial` type had
-before any text recovery existed, so the failure mode is "no improvement", never
+annotation with geometry and no quote. That is how a `spatial` type behaves
+with no text recovery at all, so the failure mode is "no improvement", never
 "broken".
 
 ### Annotating

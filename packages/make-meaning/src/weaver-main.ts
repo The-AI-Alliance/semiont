@@ -10,8 +10,9 @@
  * The weaver is a pure network peer: events and rebuild commands arrive
  * over SSE, history reads (`browse:*`) and `weave:applied` signals ride
  * the same bus, and its single privileged attachment beyond the bus is
- * the graph database. The graph projection is part of the graph stack,
- * not of the gateway process — this entry point IS that stack membership.
+ * the graph database. The graph projection is part of the graph stack, not
+ * of the service that keeps the record — this entry point IS that stack
+ * membership.
  *
  * Environment variables:
  *   SEMIONT_OIDC_CLIENT_ID     — this process's own account at the KB's
@@ -22,8 +23,9 @@ import { WEAVER_MANIFEST, weaverFanIn } from './weaver-fan-in';
 import { Weaver, type WeaverTiming } from './weaver';
 import { FileWeaverCheckpoint } from './weaver-checkpoint';
 import { HttpTransport } from '@semiont/http-transport';
-import { baseUrl as makeBaseUrl, createTomlConfigLoader } from '@semiont/core';
+import { baseUrl as makeBaseUrl, createTomlConfigLoader, withDeadline } from '@semiont/core';
 import { runBootPass, type BootPassState } from './boot-pass';
+import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
 import { getGraphDatabase } from '@semiont/graph';
 import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
@@ -37,8 +39,7 @@ const tomlReader = {
   readIfExists: (p: string): string | null => existsSync(p) ? readFileSync(p, 'utf-8') : null,
 };
 // Environment resolved by the loader from `[defaults] environment`
-// (no project root here — global ~/.semiontconfig only). Was hardcoded 'local',
-// which read the wrong section for any non-local KB the container stages.
+// (no project root here — global ~/.semiontconfig only).
 const envConfig = createTomlConfigLoader(
   tomlReader,
   configPath,
@@ -58,7 +59,8 @@ if (!maybeGraphConfig?.type) {
 }
 if (maybeGraphConfig.type === 'memory') {
   // The in-memory graph is a hermetic TEST sink — it lives in a single
-  // process's heap and cannot be shared with the gateway's readers.
+  // process's heap and cannot be shared with the graph's readers (the
+  // Archivist and the Librarian).
   throw new Error("services.graph.type 'memory' is a test-only sink; the weaver requires a server-backed graph");
 }
 // Re-bind after the guards: module-level narrowing does not carry into main().
@@ -85,15 +87,13 @@ const healthPort = 24102;
 // degrades the next catch-up to a full replay. The weaver runs with NO state
 // mount (see the supervisor note in main()), so its checkpoint lives in the
 // container's ephemeral tmp EXPLICITLY — not an XDG_STATE_HOME that is never
-// set for this service, papered over with a fabricated `~/.local/state`
-// (CLAUDE.md: absence must fail loudly or be chosen outright, never defaulted).
+// set for this service, papered over with a fabricated `~/.local/state`:
+// absence must fail loudly or be chosen outright, never defaulted.
 const checkpointPath = join(tmpdir(), 'semiont', 'weaver-checkpoint.json');
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
 import { startAgentSession } from './agent-session';
 const logger = createProcessLogger('weaver');
-
-// ── Auth ─────────────────────────────────────────────────────────────
 
 // ── Main ─────────────────────────────────────────────────────────────
 
@@ -122,7 +122,8 @@ async function main() {
     logger,
   });
 
-  const graphDb = await getGraphDatabase(graphConfig);
+  const graphDb = await withDeadline('Graph database', STARTUP_CONNECT_TIMEOUT_MS,
+    () => getGraphDatabase(graphConfig), RESTART_HINT);
   logger.info('Graph database ready', { type: graphConfig.type });
 
   const httpTransport = new HttpTransport({
@@ -197,19 +198,18 @@ async function main() {
   // changed while this weaver was down is brought back in sync here —
   // checkpointed replay, full replay if the checkpoint is gone.
   //
-  // NOT fatal. It used to be, on the argument that "a weaver that cannot
-  // catch up is projecting a graph of unknown freshness" — true, but exiting
-  // does not make the graph fresher, and the rule only ever guarded this ~30 s
-  // window: a subscription that drops silently an hour from now leaves exactly
-  // the same stale graph. What it did guarantee was that one 429 removed the
-  // weaver entirely (2026-09-07). The failed phase is recorded and logged; the
-  // live subscription keeps running.
+  // NOT fatal. "A weaver that cannot catch up is projecting a graph of unknown
+  // freshness" is true, but exiting does not make the graph fresher, and
+  // exiting here would guard only this ~30 s window: a subscription that drops
+  // silently an hour later leaves exactly the same stale graph. What exiting
+  // would guarantee is that one 429 removes the weaver entirely. The failed
+  // phase is recorded and logged; the live subscription keeps running.
   await runBootPass('catch-up', () => weaver.catchUp(), logger, (s) => { catchUpState = s; });
 
-  // Reconcile pass (#845): the state-diff backstop for divergence the
+  // Reconcile pass: the state-diff backstop for divergence the
   // accounting cannot witness — out-of-band mutations, wiped/rolled-back
-  // graph volumes, historical damage. Also non-fatal; heal failures were
-  // already reported in the summary rather than thrown.
+  // graph volumes, historical damage. Also non-fatal; heal failures are
+  // reported in the summary rather than thrown.
   await runBootPass('reconcile', () => weaver.reconcile(), logger, (s) => { reconcileState = s; });
 }
 

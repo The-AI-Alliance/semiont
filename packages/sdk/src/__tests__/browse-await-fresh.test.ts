@@ -1,12 +1,12 @@
 /**
- * #847 — a one-shot `await` of a Browse live-query returns a FRESH
+ * A one-shot `.fresh()` read of a Browse live query returns a FRESH
  * value, not the stale memoized one, on re-read.
  *
  * A headless consumer (e.g. a loader's resume-guard) does `read → write →
  * read` in the same process. The first read populates the cache; without a
- * scoped subscription, no `mark:added` invalidation arrives, so the second
- * `await` previously returned the stale memo. The fix: the await path fetches
- * fresh (`cache.fetch`) rather than serving the memo. `.subscribe(...)` keeps
+ * scoped subscription, no `mark:added` invalidation arrives, so a second
+ * read served from the memo would be stale. `.fresh()` fetches
+ * (`cache.fetch`) rather than serving the memo. `.subscribe(...)` keeps
  * the stale-while-revalidate cached view.
  *
  * No gateway: a fake transport returns an incrementing `browse:annotations-result`
@@ -48,7 +48,7 @@ const noopContent = {
 
 // The one-shot read is the explicit `.fresh()`: a Browse live query is not
 // thenable, so nothing awaits one directly.
-describe('browse read — the one-shot .fresh() read is fresh (#847)', () => {
+describe('browse read — the one-shot .fresh() read is fresh', () => {
   let bus: EventBus;
   let browse: BrowseNamespace;
   const rId: ResourceId = makeResourceId('res-1');
@@ -66,12 +66,12 @@ describe('browse read — the one-shot .fresh() read is fresh (#847)', () => {
     const first = await browse.annotations(rId).fresh();
     expect(first[0]!.id).toBe('a1');
 
-    // Simulates read → write → read: the gateway now returns a newer value.
+    // Simulates read → write → read: the second read's gateway value is newer.
     const second = await browse.annotations(rId).fresh();
     expect(second[0]!.id).toBe('a2'); // fresh, not the cached 'a1'
   });
 
-  it('still resolves the first read', async () => {
+  it('resolves the first read', async () => {
     const v = await browse.annotations(rId).fresh();
     expect(v).toHaveLength(1);
   });

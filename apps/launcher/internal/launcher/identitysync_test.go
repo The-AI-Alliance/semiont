@@ -13,12 +13,10 @@ import (
 
 // `semiont identity sync` — the repair the identity preflight's refusals name.
 //
-// The preflight can already say "this realm has no semiont-weaver client".
-// Nothing could add it, so every realm-shape change shipped with a
-// hand-written recovery paragraph instead. These drive a STUB admin API for
-// the same reason the preflight tests do: what is asserted is the launcher's
-// reconciliation, and a real Keycloak cannot be made to be missing a client
-// on demand.
+// The preflight says "this realm has no semiont-weaver client"; sync is what
+// adds it. These drive a STUB admin API for the same reason the preflight
+// tests do: what is asserted is the launcher's reconciliation, and a real
+// Keycloak cannot be made to be missing a client on demand.
 
 // stubAdmin: Keycloak's admin surface, holding whatever clients `existing`
 // names. Records every request path so a test can assert what was NOT touched.
@@ -64,7 +62,7 @@ func newStubAdmin(t *testing.T, realm string, existing []map[string]any) *stubAd
 			s.paths = append(s.paths, r.Method+" "+r.URL.Path)
 			bad, httpsOnly := s.badLogin, s.httpsOnly
 			s.mu.Unlock()
-			// As Keycloak 26.7.4 answers, measured: a wrong password is 400
+			// As Keycloak 26.7.4 answers: a wrong password is 400
 			// invalid_grant, and plain HTTP from an address the master realm
 			// does not count as private is 403 invalid_request.
 			if httpsOnly {
@@ -185,7 +183,7 @@ func (s *stubAdmin) touched(substr string) bool {
 func secretForTest(svc string) string { return "secret-" + svc }
 
 func TestIdentitySyncCreatesOnlyTheMissingClients(t *testing.T) {
-	// A realm that predates the dispatcher: every client but one.
+	// A realm holding every client but one.
 	present := []map[string]any{}
 	for _, svc := range serviceClients[:len(serviceClients)-1] {
 		present = append(present, map[string]any{"clientId": serviceClientID(svc)})
@@ -309,10 +307,10 @@ func TestIdentitySyncIsIdempotent(t *testing.T) {
 	}
 }
 
-// ── Beyond missing clients: the realm drifts in ways the preflight already
-// detects, and every one of those detections needs a remedy here. Otherwise
-// "a new realm field costs a line in one function" is true of clients only,
-// and every other change goes back to a hand-written paragraph.
+// ── Beyond missing clients: the realm drifts in ways the preflight detects,
+// and every one of those detections needs a remedy here. Otherwise "a new
+// realm field costs a line in one function" is true of clients only, and
+// every other change needs a hand-written recovery paragraph.
 
 func allServiceClientReps() []map[string]any {
 	out := []map[string]any{}
@@ -325,9 +323,9 @@ func allServiceClientReps() []map[string]any {
 // serviceClientRep: a service client as Keycloak LISTS it — protocol mappers
 // included, each with the id the admin API addresses it by. DERIVED from the
 // client the realm document renders, so a stub can never carry a mapper shape
-// the import would not; only `rolesValue`, what the roles mapper currently
-// stamps, is the stub's to choose — a realm imported before the worker role
-// existed stamps just the service role on the worker too.
+// the import would not; only `rolesValue`, what the roles mapper stamps, is
+// the stub's to choose — a realm imported before the worker role existed
+// stamps just the service role on the worker too.
 func serviceClientRep(svc, rolesValue string) map[string]any {
 	mappers := []map[string]any{}
 	for _, m := range serviceAccountClient(svc, "unused", "unused")["protocolMappers"].([]map[string]any) {
@@ -451,7 +449,7 @@ func TestIdentitySyncDisablesTheImplicitFlow(t *testing.T) {
 }
 
 // The lifespan the config asks for is the revocation window. The preflight
-// warns when the realm disagrees; nothing could change it.
+// warns when the realm disagrees; sync is what changes it.
 func TestIdentitySyncCorrectsTheAccessTokenLifespan(t *testing.T) {
 	reps := append(allServiceClientReps(),
 		map[string]any{"clientId": BrowserClientID, "redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*"}},

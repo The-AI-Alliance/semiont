@@ -85,12 +85,12 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
 
   describe('findBestTextMatch — normalized branch position mapping', () => {
     it('recovers the correct original offset despite whitespace before the match', () => {
-      // The motivating bug: content has "Kenison, C.J.\nThe question…" where
-      // "The question" starts at original index 14. The stored exact uses a
-      // straight quote where the source has a smart quote, so verbatim fails
-      // and we go through the normalized branch. The recovered offset must
-      // be 14 — not 16 (the old char-walk overshot by the 2 whitespace runs
-      // before the match: the space after the comma and the newline).
+      // Content has "Kenison, C.J.\nThe question…" where "The question"
+      // starts at original index 14. The stored exact uses a straight quote
+      // where the source has a smart quote, so verbatim fails and we go
+      // through the normalized branch. The recovered offset must be 14 — not
+      // 16, which a char-by-char walk yields by overshooting the 2 whitespace
+      // runs before the match: the space after the comma and the newline.
       const content = 'Kenison, C.J.\nThe question for decision “foo” end';
       const search = 'The question for decision "foo"'; // straight quotes
       const result = findBestTextMatch(content, search, undefined, buildContentCache(content));

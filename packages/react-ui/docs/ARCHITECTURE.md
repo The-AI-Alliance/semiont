@@ -59,8 +59,7 @@ export function list() { /* ... */ }
 // Update every usage of `all()` to `list()`
 ```
 
-**From CLAUDE.md:**
-> "If something is wrong, fix it directly. If something is redundant, delete it immediately. Do not add aliases for 'backward compatibility'."
+**In short:** fix what is wrong where it is, delete what is redundant, and add no alias to keep an old name working.
 
 ---
 
@@ -123,7 +122,7 @@ function ResourceNames() {
 
 **Three-Layer Pattern:**
 
-1. **Service Layer**: Bus subscription (the page state unit's `browse.*(resourceId)` live-query subscriptions acquire the resource scope by observation; #847)
+1. **Service Layer**: Bus subscription (the page state unit's `browse.*(resourceId)` live-query subscriptions acquire the resource scope by observation)
 2. **Hook Layer**: State-unit observables read with `useObservable`, plus `useEventSubscriptions` for bus side effects
 3. **Component Layer**: Pure React (hooks + JSX)
 
@@ -131,7 +130,7 @@ function ResourceNames() {
 
 ```tsx
 // Layer 1 (Service): the page state unit subscribes to client.browse.*(rId)
-// live queries, which acquire the resource scope by observation (#847) —
+// live queries, which acquire the resource scope by observation —
 // no explicit subscribeToResource call, no component-level hook needed.
 
 // Layer 2 (Hook): read the mark state unit's assist observables; the state
@@ -251,7 +250,7 @@ function SignInError({ translations }: Pick<AuthErrorDisplayProps, 'translations
 - React Context is the standard React pattern
 - DI frameworks (InversifyJS, etc.) add complexity
 - Context is simple and well-understood
-- From CLAUDE.md: "Do not ever suggest 'Dependency Injection', which is horrid and evil"
+- This codebase uses no dependency-injection framework
 
 **How:**
 - Define manager interfaces
@@ -534,11 +533,11 @@ const tabCount = useMemo(() => openResources.length, [openResources]); // Unnece
 
 ## Code Quality Standards
 
-### From CLAUDE.md
+### Rules
 
 1. **No cruft** - Delete dead code immediately
 2. **No aliases** - If API changes, update all call sites
-3. **No `any` casts** - Without explicit permission
+3. **No `any` casts** - A type error means the types are misaligned; fix the types
 4. **Direct fixes** - Don't create compatibility layers
 5. **TypeScript strict mode** - All type errors must be fixed
 

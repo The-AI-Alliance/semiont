@@ -2,21 +2,22 @@
  * Knowledge Base
  *
  * The durable store that records what intelligent actors decide.
- * Groups the KB subsystems from ARCHITECTURE.md:
+ * Groups the KB subsystems from docs/architecture/KNOWLEDGE-SYSTEM.md:
  *
  * - Event Log (immutable append-only) — via EventStore
  * - Materialized Views (fast single-doc queries) — via ViewStorage
  * - Content Store (working-tree files, URI-addressed) — via WorkingTreeStore
+ * - Anchored text (derived coordinate maps) — via AnchoredTextStore
  * - Graph (eventually consistent relationship projection) — via GraphDatabase
  * - WeaveProgress (weave:applied fold — the graph-projection barrier; the
  *   Weaver itself runs standalone via @semiont/make-meaning/weaver-main)
  * - SmeltProgress (smelt:settled fold — the vector-projection barrier;
  *   same standalone-actor arrangement as the Weaver)
- * - Vectors (semantic search) — via VectorStore (optional, read-only)
+ * - Vectors (semantic search) — via VectorStore (required, read-only)
  *
  * The Smelter (event-to-vector projection) runs as an external actor
  * via @semiont/make-meaning/smelter-main. It subscribes to domain events
- * via the EventBus gateway, embeds content, and writes to Qdrant directly.
+ * over the bus, embeds content, and writes to Qdrant directly.
  */
 
 import type { EventStore, EventLog, EventReadStorage, ViewMaterializer } from '@semiont/event-sourcing';
@@ -57,8 +58,8 @@ export type ContentLifecycle = Pick<WorkingTreeStore, 'register' | 'move' | 'rem
 
 /**
  * The record's single write seam. `Stower` is the only appendEvent caller
- * anywhere in make-meaning or the gateway (post-#1252): single-owner by
- * construction. A second caller is a design smell, not a wiring chore.
+ * anywhere: single-owner by construction. A second caller is a design smell,
+ * not a wiring chore.
  *
  * It carries a read — `viewStorage.get`, narrowed to `get` — because one write
  * path is at-least-once and must not duplicate the log: `mark:commit` diffs
@@ -142,8 +143,8 @@ export async function createKnowledgeBase(
   // Fold of `weave:applied` signals. The Weaver itself is NOT constructed
   // here: the graph projection is part of the graph stack, not the
   // embedding process — `weaver-main` runs it as a standalone actor, and
-  // its signals arrive over the bus. This fold is the gateway-side half,
-  // wherever the Weaver runs.
+  // its signals arrive over the bus. This fold is the reader's half of the
+  // barrier, wherever the Weaver runs.
   const weaveProgress = createWeaveProgress(eventBus);
   // Its vector-projection sibling: fold of `smelt:settled` decision signals
   // from the standalone Smelter, backing the gather-side read-your-writes
@@ -154,10 +155,9 @@ export async function createKnowledgeBase(
   if (!options?.skipRebuild) {
     // Rebuild materialized views from the event log first. The Browser actor
     // reads from these views, so they must be populated before any request is
-    // served. The graph projection no longer full-rebuilds here — the Weaver
-    // catches up incrementally via its checkpoint, called from
-    // startMakeMeaning once the Browser is serving the `browse:*` reads
-    // catch-up rides on.
+    // served. The graph projection is not rebuilt here — the standalone
+    // Weaver catches up incrementally from its checkpoint (weaver-main),
+    // over the `browse:*` reads the Browser serves.
     await eventStore.views.rebuildAll(eventStore.log);
   }
 

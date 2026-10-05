@@ -5,8 +5,6 @@
  * annotations (grouped into an AnnotationsCollection) and reports loading/error —
  * no page, no composite state unit, no providers. The lightweight alternative to
  * ResourceViewerPage that a bring-your-own-session host can feed into ResourceViewer.
- *
- * Started RED (the hook does not exist) and GREEN once it does.
  */
 import { describe, it, expect } from 'vitest';
 import { asStates } from '../../__tests__/test-client';

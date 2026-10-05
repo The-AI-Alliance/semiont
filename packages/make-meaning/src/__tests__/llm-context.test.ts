@@ -133,7 +133,7 @@ describe('LLM Context', () => {
     testResourceId = resId;
 
     // Populate graph database (required by GraphContext)
-    // Construct a minimal ResourceDescriptor since createResource now returns only ResourceId
+    // Construct a minimal ResourceDescriptor: `create` returns only the ResourceId
     await graphDb.createResource({
       '@context': 'https://www.w3.org/ns/anno.jsonld',
       '@id': resId,
@@ -638,7 +638,7 @@ describe('LLM Context', () => {
     const baseOpts = { depth: 1, maxResources: 5, includeContent: false, includeSummary: false };
     // The settle bound is explicit test policy (config-owned, threaded as
     // a plain argument). Small and REAL — these paths never wait it out
-    // (event-driven settle / skip / probe), and a regression fails fast
+    // (event-driven settle / skip / probe), and a broken path fails fast
     // instead of hanging a production-scale bound.
     const SETTLE_MS = 1_000;
     const hit = [{ id: 'r-sim#0', score: 0.9, resourceId: 'r-sim', text: 'similar text', entityTypes: [] }];
@@ -697,10 +697,9 @@ describe('LLM Context', () => {
       };
 
       // Real timers, tiny real bound: the settle timeout is explicit test
-      // policy now (config-owned, threaded as a plain argument), so no
-      // fake-clock choreography exists to fight scheduling weather. This
-      // retires the coverage-fragile advancement loop for good (it failed
-      // main CI run 29622765997).
+      // policy (config-owned, threaded as a plain argument), so there is no
+      // fake-clock choreography to fight scheduling weather — a timer
+      // advancement loop is fragile under coverage.
       const ctx = await LLMContext.getResourceContext(
         resourceId(testResourceId), baseOpts, lagged, mockClient, 250, degradeLogger,
       );

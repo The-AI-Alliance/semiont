@@ -108,8 +108,8 @@ describe('Scripting Example: Query Graph Database', () => {
     eventBus = new EventBus();
     makeMeaning = await startMakeMeaning(project, config, eventBus, mockLogger);
 
-    // The service no longer runs a Weaver (the graph projection is part
-    // of the graph stack). A hermetic test that wants projection wires one
+    // The service runs no Weaver (the graph projection is part of the
+    // graph stack). A hermetic test that wants projection wires one
     // directly against the service's own graph instance and bus — exactly
     // what weaver-main does in a deployment.
     const bus = asBusRequestPrimitive(eventBus);
@@ -160,7 +160,7 @@ describe('Scripting Example: Query Graph Database', () => {
 
     const rId = makeResourceId(result);
 
-    // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription
+    // EVENTUAL CONSISTENCY: the Weaver receives events via global subscription
     // Wait for async processing to complete
     await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -207,7 +207,7 @@ describe('Scripting Example: Query Graph Database', () => {
       eventBus,
       makeMeaning.knowledgeSystem.kb);
 
-    // EVENTUAL CONSISTENCY: Wait for GraphConsumer to process events and update graph
+    // EVENTUAL CONSISTENCY: Wait for the Weaver to process events and update graph
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Query annotations using GraphDatabase interface
@@ -243,7 +243,7 @@ describe('Scripting Example: Query Graph Database', () => {
       userId('did:web:test:users:test-script'),
     );
 
-    // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription
+    // EVENTUAL CONSISTENCY: the Weaver receives events via global subscription
     // Wait for async processing to complete
     await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -298,7 +298,7 @@ describe('Scripting Example: Query Graph Database', () => {
         makeMeaning.knowledgeSystem.kb);
     }
 
-    // EVENTUAL CONSISTENCY: Wait for GraphConsumer to process events and update graph
+    // EVENTUAL CONSISTENCY: Wait for the Weaver to process events and update graph
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Query graph statistics using GraphDatabase interface
@@ -329,7 +329,7 @@ describe('Scripting Example: Query Graph Database', () => {
       userId('did:web:test:users:test-script'),
     );
 
-    // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription
+    // EVENTUAL CONSISTENCY: the Weaver receives events via global subscription
     // Wait for async processing to complete
     await new Promise(resolve => setTimeout(resolve, 1000));
 

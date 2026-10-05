@@ -45,7 +45,7 @@ interface Props {
   /**
    * The KB's collaborator roster (`client.browse.agents()`, typically via
    * `useCollaborators`). Optional so hosts that never wire it — including
-   * external consumers of this package — render exactly as before.
+   * external consumers of this package — render without the roster section.
    *
    * Each entry's `limits` is absent whenever discovery could not answer *right
    * now*, so a missing ceiling is normal and shows as no ceiling rather than as

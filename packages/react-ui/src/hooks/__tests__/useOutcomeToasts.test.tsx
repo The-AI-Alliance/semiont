@@ -9,7 +9,7 @@ import { resourceId } from '@semiont/core';
 // The hook's only dependencies are the toast surface and the bus — spy on the
 // former, drive the latter through the real subscription path (the wiring:
 // channel registration, resourceId filter, severity choice).
-// Every string is localized now. Echo keys + params so an assertion names
+// Every string is localized. Echo keys + params so an assertion names
 // the KEY that fired, not the sentence — the sentence is copy, and copy moves.
 vi.mock('../../contexts/TranslationContext', () => ({
   useTranslations: () => (key: string, params?: Record<string, unknown>) =>
@@ -124,9 +124,9 @@ describe('useOutcomeToasts', () => {
   });
 
   it('raw wire replies (CommandError) do NOT toast — they are busRequest plumbing', () => {
-    // The *-failed reply channels are bridged to every client and matched by
-    // correlationId in busRequest. Toasting them raw double-toasts the
-    // requester and leaks other users' failures.
+    // A *-failed reply reaches only the client that made the request and is
+    // matched by correlationId in busRequest. Toasting it raw as well would
+    // toast the requester twice.
     const { eventBus } = setup();
     act(() => {
       eventBus.emit('mark:create-failed', { message: 'nope' } as never, { correlationId: 'c-1' });
@@ -157,8 +157,9 @@ describe('useOutcomeToasts', () => {
 
   it('assist silence surfaces as INFO, not error — the job is still running', () => {
     // The client stopping hearing is not the assist failing: silence from a
-    // running job is an advisory. A run the UI gave up on still persisted 221
-    // annotations, so an error toast was telling the user something untrue.
+    // running job is an advisory. A run the UI gives up on can go on to
+    // persist its annotations, so an error toast would tell the user
+    // something untrue.
     const { eventBus } = setup();
     act(() => {
       eventBus.emit('mark:assist-timeout', { resourceId: resourceId(RID), motivation: 'highlighting' });
@@ -182,7 +183,7 @@ describe('useOutcomeToasts', () => {
  * event says how complete it was) lives HERE, on the ephemeral surface — a
  * toast makes no claim of durable resource state, which is all the system can
  * back until the verdict has a schema-named, projected home on the resource
- * (the persistent badge was removed for exactly that reason, 2026-09-09).
+ * (a persistent badge would claim exactly that durable state).
  *
  * The rows mirror the wire's absence discipline: absent underReportedPieces
  * IS the claim of cleanliness (mutation-proven on the emitter) — success copy,

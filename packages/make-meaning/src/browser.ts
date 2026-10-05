@@ -108,8 +108,8 @@ export class Browser {
     const errorHandler = (err: unknown) =>
       this.logger.error('Browser pipeline error', { error: err });
 
-    // `frames`: a responder echoes the key it was handed, and the payload no
-    // longer carries one — the correlationId rides the frame's envelope.
+    // `frames`: a responder echoes the key it was handed, and the payload
+    // carries none — the correlationId rides the frame's envelope.
     const pipe = <K extends keyof EventMap>(
       name: K,
       handler: (event: EventMap[K], correlationId: string | undefined) => Promise<void>,
@@ -121,12 +121,11 @@ export class Browser {
           ),
         ).pipe(
           // Isolate per-event failures: a single handler throw must NOT tear down the
-          // channel subscription for every future request — that's the browse:entity-types
-          // wedge. Handlers emit their
+          // channel subscription for every future request. Handlers emit their
           // own *-failed reply; this is the structural backstop for any throw that escapes a
           // handler's try/catch — the channel survives, the offending request is logged.
           // (A per-channel *-failed can't be emitted from this generic helper without the
-          // request→failure mapping — that's the Tier 1 operations registry.)
+          // request→failure mapping, which is `BUS_OPERATIONS`.)
           catchError((error) => {
             this.logger.error(`browse handler threw on ${name as string}`, { error: errField(error) });
             return EMPTY;
@@ -165,10 +164,10 @@ export class Browser {
    * reporting "no map" for a document that is merely still being read.
    *
    * **This path never invokes the engine.** The Smelter is the sole producer.
-   * A miss that survives the barrier answers `null`, and the caller degrades —
-   * for a PDF annotation that means geometry with no quoted text, which is what
-   * shipped before any of this existed. OCR in a request path is precisely what
-   * this design exists to avoid.
+   * A miss that survives the barrier answers a named absence (`not-yet` or
+   * `no-map`), and the caller degrades — for a PDF annotation that means
+   * geometry with no quoted text. OCR in a request path is precisely what this
+   * design exists to avoid.
    */
   private async handleAnchoredText(event: EventMap['browse:anchored-text-requested'], correlationId: string | undefined): Promise<void> {
     try {
@@ -254,8 +253,7 @@ export class Browser {
           total: result.total,
           offset,
           limit,
-          // The producer of the answer labels it (the label moved here
-          // from a hardcoded 'lexical' when the fallback landed).
+          // The producer of the answer labels it.
           matchKind: result.matchKind,
         }),
       }, { correlationId });

@@ -1,8 +1,7 @@
 /**
  * Re-asking after `not-yet`, the PULL half: a `not-yet` answer schedules a
  * bounded re-ask (5s → 15s → 45s, then held at 45s), so the deferred state
- * self-heals even before `smelt:settled` is bridged — and keeps healing after
- * a missed broadcast once it is.
+ * self-heals even when the `smelt:settled` broadcast is missed.
  *
  * The flip must reach the MOUNTED page: the map is captured per page at load,
  * so a retry that lands `extracted` re-resolves the open page (the epoch).

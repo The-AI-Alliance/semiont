@@ -48,7 +48,7 @@ func signInOf(member json.RawMessage) (SignIn, bool) {
 	return e, true
 }
 
-// readSignIns: the document as it is now, each member as it was written. A
+// readSignIns: the document as it stands, each member as it was written. A
 // file that is not there holds nothing. One that is not a JSON object is an
 // error, never an empty document: a writer that took it for empty would
 // replace sign-ins it could not read.

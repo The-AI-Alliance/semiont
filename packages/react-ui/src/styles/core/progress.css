@@ -5,9 +5,7 @@
    Usage: Apply .semiont-progress to container and .semiont-progress__fill to the fill element.
 
    Available modifiers:
-   - .semiont-progress--small (height: 0.25rem)
-   - .semiont-progress--large (height: 1rem)
-   - .semiont-progress--striped (animated stripes)
+   - .semiont-progress--indeterminate (sliding fill)
    ============================================ */
 
 /* Base Progress Bar Container */
@@ -33,19 +31,6 @@
 
 [data-theme="dark"] .semiont-progress__fill {
   background-color: var(--semiont-color-primary-500);
-}
-
-/* Size Variants */
-
-/* Striped Variant */
-
-@keyframes progress-stripes {
-  from {
-    background-position: 1rem 0;
-  }
-  to {
-    background-position: 0 0;
-  }
 }
 
 /* Color Variants */

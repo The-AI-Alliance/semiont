@@ -73,9 +73,9 @@ describe('KnowledgePage landing redirect', () => {
     expect(routerReplaceCalls).toEqual(['/know/discover']);
   });
 
-  it('ignores the legacy global lastViewedDocumentId key entirely', () => {
-    // A value left behind by an older build — or by a DIFFERENT KB — must not
-    // steer the redirect. Storage from previous versions is not honoured.
+  it('ignores a global lastViewedDocumentId key entirely', () => {
+    // A value under a global localStorage key — whichever KB it came from —
+    // must not steer the redirect.
     localStorage.setItem('lastViewedDocumentId', 'res-from-another-kb');
     lastViewedResource$.next(null);
 

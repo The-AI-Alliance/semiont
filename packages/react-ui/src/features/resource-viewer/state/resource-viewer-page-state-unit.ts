@@ -58,7 +58,7 @@ export interface ResourceViewerPageStateUnit extends StateUnit {
 
 // Session-typed: the parameter is the lifetime this unit must not outlive.
 // The internal flow units below keep the narrower client — their lifetime is
-// THIS unit's disposer, which is now session-bound; that is layering, not a
+// THIS unit's disposer, which is session-bound; that is layering, not a
 // loophole.
 export function createResourceViewerPageStateUnit(
   session: SemiontSession,
@@ -99,7 +99,7 @@ export function createResourceViewerPageStateUnit(
 
   const wizard$ = new BehaviorSubject<WizardState>(WIZARD_CLOSED);
 
-  // Resource-scoped freshness follows observation (#847): subscribing to the
+  // Resource-scoped freshness follows observation: subscribing to the
   // `browse.*(resourceId)` live queries exposed by this state unit
   // (annotations$, events$, referencedBy$) acquires the resource scope for as
   // long as they're observed and releases it on teardown — so no manual

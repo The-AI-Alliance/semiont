@@ -40,7 +40,7 @@ describe('extractPdfTextLayer', () => {
         expect(layer.items.length).toBeGreaterThan(0);
 
         // Line seams must carry a separator — words must not glue across lines
-        // (regression guard for the hasEOL-aware separator).
+        // (the hasEOL-aware separator).
         expect(layer.text).not.toContain('textsecond');
         expect(layer.text).not.toContain('textthird');
     });
@@ -92,8 +92,7 @@ describe('extractPdfTextLayer', () => {
 
 describe('per-page classification', () => {
     // Routing class C (mixed native + scanned) requires knowing which PAGES
-    // are scanned. A document-level flag cannot express it — the shared
-    // prerequisite that OCR of scanned pages and detection's #739 both need.
+    // are scanned. A document-level flag cannot express it.
 
     it('classifies each page of a mixed document independently', async () => {
         const layer = await extractPdfTextLayer(readFixture('mixed.pdf'));
@@ -107,8 +106,8 @@ describe('per-page classification', () => {
         expect(layer.pages.every((p) => p.hasTextLayer)).toBe(true);
     });
 
-    it("today's document-level null is exactly 'no page has a text layer'", async () => {
-        // The invariant tying the new per-page flag to the existing contract:
+    it("a document-level null is exactly 'no page has a text layer'", async () => {
+        // The invariant tying the per-page flag to the document-level contract:
         // a non-null layer always has at least one page with text.
         const layer = await extractPdfTextLayer(readFixture('mixed.pdf'));
         if (!layer) throw new Error('expected layer, got null');

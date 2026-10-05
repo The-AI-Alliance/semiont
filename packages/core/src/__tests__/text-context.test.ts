@@ -87,15 +87,14 @@ describe('reconcileSelector — context-recovered', () => {
   });
 
   it('disambiguates with a prefix longer than the 32-char minimum window', () => {
-    // Regression for the 32/64 mismatch: the prompts invite up to 64 chars
-    // of prefix, but the comparison window used to be a fixed 32 — so a long
-    // distinctive prefix silently failed to disambiguate and fell to
-    // first-of-many. The place name appears 3 times; only a >32-char prefix
-    // tells the occurrences apart.
+    // The prompts invite up to 64 chars of prefix; a comparison window fixed
+    // at 32 would let a long distinctive prefix silently fail to disambiguate
+    // and fall to first-of-many. The place name appears 3 times; only a
+    // >32-char prefix tells the occurrences apart.
     const place = 'Paris';
     const seg = (lead: string) => `${lead} the delegation arrived in ${place} and stayed.`;
     // Three near-identical sentences; the distinguishing words sit >32 chars
-    // before "Paris", beyond the old window.
+    // before "Paris", beyond the 32-char minimum window.
     const content = [
       seg('In the cold and rainy spring of the difficult year'),
       seg('In the warm and pleasant summer of the prosperous year'),
@@ -149,12 +148,11 @@ describe('reconcileSelector — fuzzy-match', () => {
     expect(result?.exact).toBe('United States');
   });
 
-  it('the real bug: LLM straight-quotes vs source smart-quotes anchors at the correct offset', () => {
-    // This is the legal-KB failure, write-side. Source has a smart quote;
-    // the LLM echoed `exact` with a straight quote. Verbatim indexOf fails,
-    // the fuzzy/normalized branch recovers it — and must land at the true
-    // offset (14), storing the SOURCE's text (smart quotes), not the LLM's.
-    // Before the findBestTextMatch map fix this returned offset 16.
+  it('LLM straight-quotes vs source smart-quotes anchors at the correct offset', () => {
+    // Source has a smart quote; the LLM echoed `exact` with a straight
+    // quote. Verbatim indexOf fails, the fuzzy/normalized branch recovers
+    // it — and must land at the true offset (14), storing the SOURCE's text
+    // (smart quotes), not the LLM's. A char-by-char offset walk lands on 16.
     const exact = 'The question for decision to "any person" today';
     const content = `Kenison, C.J.\nThe question for decision to “any person” today and more.`;
     const result = reconcileSelector(content, { exact });
@@ -228,9 +226,9 @@ describe('reconcileSelector — no-overlap invariant on output', () => {
 
 describe('reconcileSelector — LLM prefix/suffix never leak into output', () => {
   it('overlapping LLM prefix is replaced with a source-extracted prefix', () => {
-    // The motivating bug: LLM emits a prefix that overlaps the start of
-    // `exact`. Output must extract prefix from source at the corrected
-    // start, so the overlap disappears.
+    // The LLM emits a prefix that overlaps the start of `exact`. Output
+    // must extract prefix from source at the corrected start, so the
+    // overlap disappears.
     const exact = 'The question for decision';
     const content = `Kenison, C.J.\n${exact} by this appeal.`;
     const result = reconcileSelector(content, {
@@ -246,7 +244,7 @@ describe('reconcileSelector — LLM prefix/suffix never leak into output', () =>
   });
 });
 
-// ─── Charset round-trip (kept from prior coverage) ───────────────────────
+// ─── Charset round-trip ──────────────────────────────────────────────────
 
 describe('reconcileSelector — charset handling', () => {
   const checkRoundTrip = (content: string, exact: string) => {
@@ -294,12 +292,12 @@ describe('reconcileSelector — charset handling', () => {
 });
 
 describe('reconcileSelector — empty hint ≡ absent hint', () => {
-  // Structured generation can deliver `prefix: ""` where the old free-text
-  // path omitted the key (measured 2026-08-06: with hint properties in
-  // `required`, models emit empty strings — and even as optionals a model
-  // may volunteer them). The multi-occurrence logic treats a falsy hint as
-  // "no hint" at both decision points (`if (llmPrefix || llmSuffix)` and
-  // `!llmPrefix || …`); this pin keeps that equivalence load-bearing.
+  // Structured generation can deliver `prefix: ""` where a free-text reply
+  // omits the key: with hint properties in `required`, models emit empty
+  // strings — and even as optionals a model may volunteer them. The
+  // multi-occurrence logic treats a falsy hint as "no hint" at both decision
+  // points (`if (llmPrefix || llmSuffix)` and `!llmPrefix || …`); this pin
+  // keeps that equivalence load-bearing.
   // Structured generation relies on it, and any rewrite of the
   // disambiguation (a nearest-to-offset-hint choice, say) inherits this
   // contract: '' must never be treated as a real, failing hint.

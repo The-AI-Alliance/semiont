@@ -127,7 +127,7 @@ export interface ResourceViewerPageProps {
 /**
  * ResourceViewerPage - Main component
  *
- * Uses hooks directly (NO containers, NO render props, NO ResourceViewerPageContent wrapper)
+ * Uses hooks directly (NO containers, NO render props, NO content wrapper)
  *
  * @emits nav:push - Navigate to a resource or filtered view
  * @emits beckon:sparkle - Trigger sparkle animation on an annotation
@@ -312,7 +312,7 @@ export function ResourceViewerPage({
 
   // Resource-generate flow, from the Generate button: drive the SAME yield
   // progress$ the annotation path uses so the full `AssistProgress` widget
-  // shows — NOT a toast. Both paths are one `generate(context, options)` now:
+  // shows — NOT a toast. Both paths are one `generate(context, options)`:
   // the context's focus.kind (resource here, annotation above) decides the
   // shape.
   const handleResourceGenerateSubmit = useCallback((_resourceId: string, config: GenerationConfig) => {
@@ -333,10 +333,10 @@ export function ResourceViewerPage({
     }
   }, [rUri, semiont, showSuccess, showError]);
 
-  // The wizard's compose handler: create-and-link, in place. The old flow
-  // stashed the context in sessionStorage and navigated to the compose page;
-  // the modal already holds the context, so the side-channel dies with the
-  // mode. Text-only by design — uploads stay on the standalone compose page.
+  // The wizard's compose handler: create-and-link, in place. The modal
+  // already holds the context, so nothing is stashed in sessionStorage and
+  // nothing navigates to the compose page. Text-only by design — uploads stay
+  // on the standalone compose page.
   const handleWizardComposeSubmit = useCallback(async (referenceId: AnnotationId, params: ComposeParams) => {
     if (!semiont) throw new Error('No active session');
     try {
@@ -395,7 +395,7 @@ export function ResourceViewerPage({
 
   // Domain events flow through the bus gateway (ActorStateUnit → local EventBus).
   // BrowseNamespace cache invalidation handles annotation/resource updates.
-  // Resource-scoped freshness follows observation (#847): subscribing to the
+  // Resource-scoped freshness follows observation: subscribing to the
   // resource's `browse.*` live queries acquires its scope (which bridges scoped
   // domain events into the local EventBus) and releases it on teardown.
 
@@ -516,7 +516,7 @@ export function ResourceViewerPage({
   // Combine resource with content
   const resourceWithContent = { ...resource, content };
 
-  // Handlers for AnnotationHistory (legacy event-based interaction)
+  // Handlers for AnnotationHistory
   const handleEventHover = useCallback((id: AnnotationId | null) => {
     if (id) {
       session?.client.beckon.sparkle(id);
@@ -524,11 +524,10 @@ export function ResourceViewerPage({
   }, [session]);
 
   // Clicking a history row reveals that annotation in the content. HistoryEvent
-  // renders these rows as buttons labelled "View annotation", so this used to be
-  // a focusable, screen-reader-announced control wired to a no-op.
-  // `beckon:focus` is the existing "scroll to and highlight" contract rather
-  // than a new prop chain — BrowseView already subscribed to it, AnnotateView
-  // now does too.
+  // renders these rows as buttons labelled "View annotation" — focusable,
+  // screen-reader-announced controls, so the click must do what the label says.
+  // `beckon:focus` is the "scroll to and highlight" contract, used rather than
+  // a prop chain — BrowseView and AnnotateView both subscribe to it.
   const handleEventClick = useCallback((id: AnnotationId | null) => {
     if (id) {
       stateUnit?.beckon.focus(id);

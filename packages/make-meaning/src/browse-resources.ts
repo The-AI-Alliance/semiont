@@ -1,6 +1,5 @@
 /**
- * Every resource, paged over the bus. Shared by the weaver and the smelter,
- * which had identical loops.
+ * Every resource, paged over the bus. Shared by the weaver and the smelter.
  *
  * The archivist answers `browse:*`, and a projector that authenticates first can
  * ask before it has subscribed. Retried per PAGE, not per boot pass: a pass
@@ -20,7 +19,7 @@ import {
  * How long a projector waits for the archivist to subscribe.
  *
  * Not `STARTUP_FETCH_RETRY` (~39s): that is sized for the gateway, and the
- * archivist's own boot now runs to ~339s worst case — its auth retry plus its
+ * archivist's own boot runs to ~339s worst case — its auth retry plus its
  * embedding-provider retry. Sized by that relationship and gated in
  * `browse-resources.test.ts`, not chosen.
  */

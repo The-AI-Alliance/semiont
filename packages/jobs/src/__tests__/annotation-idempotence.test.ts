@@ -4,12 +4,11 @@
  * pins that at the level a recovery sees it: run the same unit twice against
  * one resource; the annotation count is unchanged the second time.
  *
- * The core test pins the id FUNCTION. This one pins the thing that actually
- * failed: the builders. Between them sits the wiring — which fields each
- * builder feeds the hash — and that wiring is what a recovery depends on. A
- * builder that forgot to pass `body` would still produce deterministic ids and
- * still pass every core test, while silently collapsing every comment on a
- * span into one annotation.
+ * The core test pins the id FUNCTION. This one pins the builders. Between
+ * them sits the wiring — which fields each builder feeds the hash — and that
+ * wiring is what a recovery depends on. A builder that forgot to pass `body`
+ * would still produce deterministic ids and still pass every core test, while
+ * silently collapsing every comment on a span into one annotation.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -49,8 +48,7 @@ describe('re-running a unit does not mint duplicate annotations', () => {
 
   it('survives re-emission at a different time by a different agent', () => {
     // Recovery happens later, in a fresh worker process. If `created` or the
-    // generator leaked into the id, every recovery would duplicate — which is
-    // exactly the bug.
+    // generator leaked into the id, every recovery would duplicate.
     const other = { '@type': 'Software', '@id': 'did:web:example.com:agents:ollama:OTHER' } as unknown as Agent;
     const first = buildTextAnnotation(CONTENT, RID, GENERATOR, 'highlighting', match(0, 12));
     const second = buildTextAnnotation(CONTENT, RID, other, 'highlighting', match(0, 12));

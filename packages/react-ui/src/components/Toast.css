@@ -109,7 +109,7 @@
   color: var(--semiont-color-blue-800);
 }
 
-/* Dark mode toast variants - Fixed to respect data-theme attribute */
+/* Dark mode toast variants */
 [data-theme="dark"] .semiont-toast[data-variant="success"] {
   background-color: rgba(34, 197, 94, 0.1);
   border-color: var(--semiont-color-green-600);

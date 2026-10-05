@@ -5,21 +5,17 @@
  *
  * ⚠️ STANDING RULE, load-bearing: **this surface serves the KB tree and
  * each resource's linked-data description, and nothing else.** Every other
- * `browse:*`, and `match:*` and `gather:*`, stay on the bus. The rule's
- * history: exactly one customer, the gateway's SSE resume, until the
- * Archivist became the knowledge base's storage authority (2026-08-29) and
- * this surface the way bytes and record reads reach it (bytes ride HTTP,
- * never the bus); then the user's ruling of 2026-09-27 — the Archivist
- * serves each resource's description over HTTP — added the description,
- * so the gateway, which proxies bytes, proxies it too and makes no bus
- * request of its own. An endpoint that is none of these still does not
- * belong here.
+ * `browse:*`, and `match:*` and `gather:*`, stay on the bus. What is here,
+ * and why: the gateway's SSE resume reads the event log; the Archivist is
+ * the knowledge base's storage authority, and bytes ride HTTP, never the
+ * bus; and it serves each resource's description over HTTP, so the gateway,
+ * which proxies bytes, proxies that too and makes no bus request of its
+ * own. An endpoint that is none of these does not belong here.
  *
- * The event read path (settled 2026-08-27): moving the event store out of
- * the gateway breaks `/bus/subscribe`'s `Last-Event-ID` replay, which read
- * the log in-process (now apps/gateway/src/routes/stream.rs). The answer is
- * one narrow call — the events for ONE resource from ONE sequence — which
- * the gateway calls directly:
+ * The event read path: the gateway holds no event store, and its
+ * `/bus/subscribe` `Last-Event-ID` replay (apps/gateway/src/routes/stream.rs)
+ * needs the log. The answer is one narrow call — the events for ONE resource
+ * from ONE sequence — which the gateway calls directly:
  *
  *   GET /events/:resourceId?fromSequence=N   (inclusive, like the filter it
  *   mirrors: `queryEvents(rId, { fromSequence })`; the caller does the +1)
@@ -31,8 +27,8 @@
  *   `Semiont-Principal` and its roles in `Semiont-Roles`: the bytes are
  *   stored `noGit` at their storageUri and the resource is recorded — by the
  *   Stower, or the CloneTokenManager for an upload carrying a clone token —
- *   and the answer is its id. The user's ruling of 2026-09-27: the
- *   Archivist records the upload as part of its byte write.)
+ *   and the answer is its id: the Archivist records the upload as part of
+ *   its byte write.)
  *
  *   GET /resources/:id/content                      (the bytes, streamed,
  *   with the media type the record stores; the 404 carries `reason` so the
@@ -51,9 +47,9 @@
  * formality: these paths serve the EVENT LOG and accept BYTE WRITES into the
  * working tree.
  *
- * It used to be a shared static string compared by equality, held by six
- * processes and rotatable only by restarting the stack. With no verifier
- * configured, every path but /health refuses rather than serving
+ * An issuer token, not a shared static string: a string compared by equality
+ * is held by every caller and rotatable only by restarting the stack. With
+ * no verifier configured, every path but /health refuses rather than serving
  * unauthenticated: absence fails, it is never a default-open.
  */
 
@@ -180,7 +176,7 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
           json(res, 200, answer);
         })
         .catch((error: unknown) => {
-          logger.error('D1 read path failed', { resourceId: rawId, fromSequence, error: errField(error) });
+          logger.error('Event read failed', { resourceId: rawId, fromSequence, error: errField(error) });
           json(res, 500, { error: 'event read failed' });
         });
       return;
@@ -222,8 +218,8 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
       return;
     }
 
-    // GET /resources/:id/jsonld — the description. Matched before the
-    // `/content` suffix below cannot claim it: both end a resource path.
+    // GET /resources/:id/jsonld — the description. Matched by its suffix, as
+    // `/content` is above: both end a resource path.
     const describeMatch = req.method === 'GET' && /^\/resources\/(.+)\/jsonld$/.exec(url.pathname);
     if (describeMatch) {
       if (!(await authorized(req, res))) return;

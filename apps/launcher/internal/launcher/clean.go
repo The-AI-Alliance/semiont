@@ -238,7 +238,7 @@ func cleanRuntime(u *UI) (string, bool) {
 // cleanTarget resolves which root's state to clean. No --root: the same
 // cwd ladder start uses. --root: a path or registered basename first
 // (resolveRootArg), else a literal key with a dir under roots/ — the form
-// status prints for orphans, whose KB no longer resolves any other way.
+// status prints for orphans, whose KB resolves no other way.
 func cleanTarget(u *UI, rootArg string) (key, dir string, code int) {
 	d := dataDir()
 	if d == "" {

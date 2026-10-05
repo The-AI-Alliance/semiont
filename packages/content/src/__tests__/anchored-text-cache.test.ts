@@ -1,6 +1,6 @@
 /**
  * The anchored-text cache's persistence. The cache exists because recognition
- * was measured to dominate extraction time.
+ * dominates extraction time.
  *
  * The contract under test is deliberately stated as an OUTCOME — a second
  * extraction of identical content does not invoke the OCR engine — rather than
@@ -67,8 +67,7 @@ const pdfExtractor = derivingExtractorFor('application/pdf')!;
 
 /** Entry files wherever the layout puts them — the pins that manipulate
  *  stored files find them by walking, so the layout can move without the
- *  pins' semantics moving (they were re-anchored from a flat `readdirSync`
- *  when the store took its sharded layout). */
+ *  pins' semantics moving. */
 const allEntryFiles = (root: string): string[] => {
   const out: string[] = [];
   const walk = (d: string) => {
@@ -283,14 +282,6 @@ describe('anchored-text cache', () => {
     expect(recognizeSpy).toHaveBeenCalledTimes(2);
   });
 
-  // DELETED when deriving came to require the store: 'extracts normally when given
-  // no cache at all'. Its premise — "the cache is optional: every existing caller
-  // passes nothing" — had already stopped being true (both live callers pass one),
-  // and the cache is now required, so the path it covered no longer exists to be
-  // tested. Its one live assertion, that a synthetic-bitmap scan declines cleanly
-  // after a full recognition pass, is covered by the cache-miss cases above, which
-  // run the same engine pass against the same fixture.
-
   // The negative is worth caching precisely because it is expensive: a scan the
   // engine cannot read costs a full recognition pass to discover, and without
   // an entry every one of the six passes rediscovers it. "We read this and
@@ -323,11 +314,10 @@ describe('anchored-text cache', () => {
 
 describe('the seam is extract(), not the OCR boundary', () => {
   // The record is the finished outcome, so on a hit the stored answer comes
-  // back WHOLE — no byte gate, no native parse, no OCR, no re-assembly. The
-  // earlier seam, at the OCR boundary, skipped only Tesseract, on the argument
-  // that the text-layer parse "has to run either way" to classify the document
-  // — true on a miss, false on a hit, because the classification is stored
-  // with the answer.
+  // back WHOLE — no byte gate, no native parse, no OCR, no re-assembly. A seam
+  // at the OCR boundary would skip only Tesseract: the text-layer parse "has
+  // to run either way" to classify the document only on a miss, never on a
+  // hit, because the classification is stored with the answer.
 
   it('stores the native outcome and serves a hit without parsing or recognizing', { timeout: 60_000 }, async () => {
     const native = fs.readFileSync(path.join(FIXTURES, 'single-line.pdf'));
@@ -350,7 +340,7 @@ describe('the seam is extract(), not the OCR boundary', () => {
 
   it('the stamp covers the native parser, not just the engine', async () => {
     // The record depends on the pdf.js parse (classification, text layer,
-    // shaping) since the seam moved — a parser upgrade must read as a miss.
+    // shaping) — a parser upgrade must read as a miss.
     const store = createAnchoredTextStore(dir);
     await store.write(calculateChecksum(Buffer.from('b')), { kind: 'extracted', text: 'x', items: [], method: 'ocr' });
 
@@ -381,14 +371,12 @@ describe('the seam is extract(), not the OCR boundary', () => {
 });
 
 describe('the key binds an entry to its bytes', () => {
-  // The specification for the rekey, written as the outcome: geometry derived
-  // from one revision of the bytes must be unreachable by a reader holding a
-  // different revision. Watched RED against the earlier contract, where live
-  // call sites keyed by resource id — a mutable handle — so the write for old
-  // bytes and the read for new bytes used the SAME key and the reader received
-  // stale geometry: quotes anchored to places the current document does not
-  // have. Under the checksum key the miss holds by construction, not by
-  // invalidation.
+  // Geometry derived from one revision of the bytes must be unreachable by a
+  // reader holding a different revision. A key by resource id — a mutable
+  // handle — would give the write for old bytes and the read for new bytes
+  // the SAME key, and the reader would receive stale geometry: quotes
+  // anchored to places the current document does not have. Under the
+  // checksum key the miss holds by construction, not by invalidation.
   const MAP_FOR_OLD_BYTES = {
     kind: 'extracted' as const,
     text: 'alpha beta',
@@ -424,13 +412,17 @@ describe('the key binds an entry to its bytes', () => {
   });
 
   it('refuses a key it could not have produced, rather than sanitizing it', async () => {
-    // The old fileFor stripped invalid characters, so two keys differing only
-    // in stripped characters would silently share one file. Refusal replaces
-    // the strip: no file is created, and the read is an ordinary miss.
+    // Stripping invalid characters would let two keys differing only in
+    // stripped characters silently share one file. So the write is refused
+    // with a throw, no file is created, and the read is an ordinary miss.
     const store = createAnchoredTextStore(dir);
 
-    await store.write('../escape/attempt', { kind: 'extracted', text: 'x', items: [], method: 'ocr' });
-    await store.write('not a checksum!', { kind: 'extracted', text: 'x', items: [], method: 'ocr' });
+    await expect(
+      store.write('../escape/attempt', { kind: 'extracted', text: 'x', items: [], method: 'ocr' }),
+    ).rejects.toThrow(/invalid key/);
+    await expect(
+      store.write('not a checksum!', { kind: 'extracted', text: 'x', items: [], method: 'ocr' }),
+    ).rejects.toThrow(/invalid key/);
 
     expect(allEntryFiles(dir)).toEqual([]);
     expect(await store.read('../escape/attempt')).toBeNull();
@@ -440,14 +432,14 @@ describe('the key binds an entry to its bytes', () => {
 describe('the discriminant never reaches disk', () => {
   // The store persists its OWN record and rebuilds the outcome on read, so
   // `kind` is stripped on write and re-added on read. Two consequences, each
-  // pinned: entries written before the discriminant existed read back as
-  // discriminated outcomes (no migration, no stamp bump), and entries written
-  // now contain no `kind` byte the record's own shape already implies.
+  // pinned: a stored entry, which carries no `kind`, reads back as a
+  // discriminated outcome, and a written entry contains no `kind` byte the
+  // record's own shape already implies.
 
-  it('reads a v2 entry from before the discriminant existed back as a discriminated outcome', async () => {
+  it('reads a v2 entry stored without a kind back as a discriminated outcome', async () => {
     const store = createAnchoredTextStore(dir);
-    // Steal the live stamp from a real write, then plant byte-for-byte what
-    // write() produced before `kind` existed — success and decline flavors.
+    // Steal the live stamp from a real write, then plant kind-less entries
+    // by hand — success and decline flavors.
     await store.write('feed0001', { kind: 'extracted', text: 'x', items: [], method: 'ocr' });
     const [file] = allEntryFiles(dir);
     const { stamp } = JSON.parse(fs.readFileSync(file!, 'utf8'));
@@ -524,8 +516,8 @@ describe('would-hit key listing', () => {
   });
 
   it('sweeps the flat resource-id-keyed generation from the root, and only the root', async () => {
-    // A `.json` at the store root is an entry from before the checksum key:
-    // flat layout, resource-id key — a dead scheme. Leaving a generation of
+    // A `.json` at the store root is a flat-layout entry under a resource-id
+    // key — a scheme no caller reads or writes. Leaving a generation of
     // them is how the store's size becomes unexplainable; reconcile
     // re-deriving a lost artifact is what makes deleting them safe.
     // Non-entry files are not ours to reap.

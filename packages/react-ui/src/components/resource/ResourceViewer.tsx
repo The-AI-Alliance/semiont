@@ -29,8 +29,8 @@ import type { AnnotationsCollection } from '../../types/annotation-props';
  * Bring-your-own-session: the `session` (SemiontSession) and the host's
  * navigation / panel callbacks come in as props — no SemiontProvider required.
  * Every event it subscribes to is session-scoped and reaches it via
- * `session.subscribe`. Translations fall back to built-in English when no
- * TranslationProvider is mounted; caching flows through `session.client.browse.*`.
+ * `session.subscribe`. Translations come from the nearest TranslationProvider,
+ * which is required; caching flows through `session.client.browse.*`.
  *
  * Event flow:
  *   make-meaning → EventLog → SSE → EventBus → sdk cache invalidation → live queries
@@ -72,12 +72,12 @@ interface Props {
   shape?: ShapeType;
   onShapeChange?: (shape: ShapeType) => void;
   /**
-   * Render the built-in AnnotateToolbar (default true — today's behavior,
-   * byte-identical). `false` → no bar at any internal site (browse + every
-   * annotate render mode), while every seam stays live: annotate-mode selection
-   * capture, image/pdf drawing, `mark.request` emission, and the controlled
-   * props. Tier-2 hosts compose their own controls from the controlled props;
-   * this makes that opt-out a contract instead of a CSS override.
+   * Render the built-in AnnotateToolbar (default true). `false` → no bar at
+   * any internal site (browse + every annotate render mode), while every seam
+   * stays live: annotate-mode selection capture, image/pdf drawing,
+   * `mark.request` emission, and the controlled props. Hosts that compose
+   * their own controls from the controlled props get that opt-out as a
+   * contract instead of a CSS override.
    */
   showToolbar?: boolean;
   /**
@@ -89,8 +89,8 @@ interface Props {
    * and nesting them would imply an interchangeability that does not exist.
    *
    * Forwarding them is what makes the registries reachable at all for a host
-   * that imports `ResourceViewer` — the documented entry point. Before this,
-   * reaching `BrowseView`'s `renderers` meant dropping to `BrowseView`
+   * that imports `ResourceViewer` — the documented entry point. Without it,
+   * reaching `BrowseView`'s `renderers` means dropping to `BrowseView`
    * directly and reimplementing the browse/annotate switching this component
    * exists to provide.
    */
@@ -169,7 +169,7 @@ export function ResourceViewer({
   // already invalidates the RIGHT resource's annotation list on
   // mark:added/mark:removed (payload-keyed, once per event) and patches
   // mark:body-updated in place. A viewer-side handler on these session-wide
-  // channels was pure duplication — and with N viewers on one session (the
+  // channels would be pure duplication — and with N viewers on one session (the
   // embeddable resource-per-chat-message pattern), an O(N) refetch
   // amplification on every mark event.
 

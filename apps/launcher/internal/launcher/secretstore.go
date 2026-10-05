@@ -216,8 +216,8 @@ func showSecretStoreLocations(u *UI, root string) {
 }
 
 // moveSecretStore moves every kept value: copy, read each back, record the
-// new store, then delete from the old. A failure before the record leaves the
-// old store in charge and says what the new one now holds.
+// destination store, then delete from the source. A failure before the record
+// leaves the source in charge and says what the destination holds.
 func moveSecretStore(u *UI, key string, from, to custodyStore, ref secretRef, configured bool) int {
 	if held, ok := to.names(u); !ok {
 		return 1

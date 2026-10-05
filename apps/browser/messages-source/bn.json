@@ -193,7 +193,6 @@
     "statusConnected": "সংযুক্ত",
     "statusExpired": "সেশন মেয়াদ শেষ",
     "statusSignedOut": "সাইন আউট হয়েছে",
-    "statusUnreachable": "পৌঁছানো যাচ্ছে না",
     "invalidHost": "অবৈধ হোস্টনেম",
     "discoveredTitle": "এই মেশিনে পাওয়া গেছে",
     "managedBadge": "লঞ্চার দ্বারা পরিচালিত",

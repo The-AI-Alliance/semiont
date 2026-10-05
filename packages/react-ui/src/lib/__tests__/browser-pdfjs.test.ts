@@ -129,12 +129,10 @@ describe('renderPdfPageToDataUrl', () => {
 describe('setPdfWasmUrl', () => {
   /**
    * pdf.js v6 decodes JPEG 2000 / JBIG2 / ICC through wasm side-files it
-   * fetches from `wasmUrl + <fixed filename>` at decode time. The June v4→v6
-   * migration wired `workerSrc` but never this, so every JPX object since has
-   * failed to decode — and a page holding one wedges on "Dependent image
-   * isn't ready yet" (the 1958 REVIEW page-1 blank, diagnosed live
-   * 2026-09-13). Same seam shape as the worker: the host resolves the URL,
-   * this module hands it to `getDocument`.
+   * fetches from `wasmUrl + <fixed filename>` at decode time. Without it
+   * every JPX object fails to decode — and a page holding one wedges on
+   * "Dependent image isn't ready yet". Same seam shape as the worker: the
+   * host resolves the URL, this module hands it to `getDocument`.
    */
   test('passes the configured wasmUrl to getDocument', async () => {
     getDocumentMock.mockReturnValue({ promise: Promise.resolve({}) });

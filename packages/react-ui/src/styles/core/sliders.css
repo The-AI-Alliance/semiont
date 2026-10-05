@@ -3,10 +3,6 @@
 
    This is the authoritative source for all slider/range input styles.
    Usage: Apply .semiont-slider to <input type="range"> elements.
-
-   Available modifiers:
-   - .semiont-slider--small (reduced size)
-   - .semiont-slider--large (increased size)
    ============================================ */
 
 /* Base Slider Reset and Styling */
@@ -160,8 +156,6 @@
   background: var(--semiont-color-gray-400);
   cursor: not-allowed;
 }
-
-/* Size Variants */
 
 /* Slider Container with Labels */
 

@@ -16,14 +16,12 @@ const STATUS_COLORS: Record<KbSessionStatus, string> = {
   authenticated: 'var(--semiont-color-success-500, #22c55e)',
   expired: 'var(--semiont-color-warning-500, #eab308)',
   'signed-out': 'var(--semiont-color-neutral-400, #9ca3af)',
-  unreachable: 'var(--semiont-color-error-500, #ef4444)',
 };
 
 const STATUS_KEYS: Record<KbSessionStatus, string> = {
   authenticated: 'statusConnected',
   expired: 'statusExpired',
   'signed-out': 'statusSignedOut',
-  unreachable: 'statusUnreachable',
 };
 
 const endpointKey = (host: string, port: number) => `${host}:${port}`;
@@ -38,8 +36,8 @@ const MISSING = '–';
 /**
  * The branch a KB's tree was on when it last described itself. Current only
  * when the KB answered this panel's own read; otherwise dimmed, with when it
- * was read — a branch changes with no event, so an older answer may no longer
- * be true.
+ * was read — a branch changes with no event, so an older answer may be out
+ * of date.
  */
 function LastReadBranch({ lastRead, current, t, locale }: { lastRead: KbRead | undefined; current: boolean; t: T; locale: string }) {
   if (!lastRead) return <span>{MISSING}</span>;
@@ -93,7 +91,7 @@ function StatusDot({ status, t }: { status: KbSessionStatus; t: T }) {
  */
 function ConnectForm({ t, title, onSubmit, onCancel, error, isSubmitting, autoFocus, pulsing, initialHost = 'localhost', initialPort = 4000 }: {
   t: T;
-  /** Overrides the generic heading — used to announce a contested ADDRESS. */
+  /** Overrides the generic heading, to announce a contested ADDRESS. */
   title?: string;
   onSubmit: (host: string, port: number, protocol: 'http' | 'https') => Promise<void>;
   onCancel: () => void;
@@ -226,8 +224,8 @@ export function KnowledgeBasePanel() {
   // document and it SELECTS; the did then confirms the copy we reached is the
   // KB we meant. A did can match several entries — one KB running in two
   // places is normal and expected — so it can never be the selector. The
-  // grouping below predates that guarantee and stays because an older document
-  // can still contain duplicate addresses.
+  // grouping below does not lean on that guarantee: a document from an older
+  // launcher can contain duplicate addresses.
   const discoveredByEndpoint = new Map<string, DiscoveredKB[]>();
   for (const d of discoveredKbs) {
     const key = endpointKey(d.host, d.port);
@@ -267,12 +265,12 @@ export function KnowledgeBasePanel() {
   const isAnotherCopy = (d: DiscoveredKB): boolean => registeredDids.has(d.did);
   // A duplicated ADDRESS is a conflict: only one process binds a port, so at
   // most one claimant's promise is true. It is shown, never resolved by
-  // guessing (a shared DID is not a conflict). Producers no longer emit these;
-  // old documents can.
+  // guessing (a shared DID is not a conflict). Only a document from an older
+  // launcher carries one.
   const conflictedAddresses = [...discoveredByEndpoint.entries()]
     .filter(([, bucket]) => bucket.length > 1)
     .map(([address, bucket]) => ({ address, count: bucket.length }));
-  // A click was always an address; when the address is contested, the form
+  // A click names an address; when the address is contested, the form
   // says so instead of carrying a KB name that is at most half true.
   const addFormAddress = addForm?.host !== undefined && addForm.port !== undefined
     ? endpointKey(addForm.host, addForm.port)

@@ -11,7 +11,7 @@ import (
 // A moved KB re-registers its did at the new path; the old path's row is
 // then a corpse nothing else removes — it clutters the listing and makes
 // the basename ambiguous for --root. Re-registration drops rows claiming
-// the SAME did at OTHER paths that no longer exist on disk; a same-did row
+// the SAME did at OTHER paths that are gone from disk; a same-did row
 // whose path still exists stays (two live clones are real, not a corpse).
 func TestReRegistrationDropsMovedKBCorpse(t *testing.T) {
 	harness.Home(t)

@@ -86,7 +86,7 @@ export class LLMContext {
     const graph = await GraphContext.buildKnowledgeGraph(resourceId, kb, logger);
 
     // Related resources for content. The cap is a view concern: take the first
-    // (maxResources - 1) peer resource nodes, matching the previous display count.
+    // (maxResources - 1) peer resource nodes.
     const resourceIdStr = resourceId.toString();
     const relatedDocs: ResourceDescriptor[] = [];
     const relatedNodes = graph.nodes
@@ -116,11 +116,10 @@ export class LLMContext {
 
     // The inference garnish — summary + reference suggestions — runs ONLY
     // when the caller asked (`includeSummary`): gather reads as a read
-    // operation, and an unrequested inference round trip inside it was an
-    // oversight, now a decision. Its failure DEGRADES to absent with one
-    // breadcrumb — the vectors barrier below models the posture — because a
-    // gather that can assemble the graph must never fail outright over an
-    // optional garnish.
+    // operation, so an inference round trip inside it is never unrequested.
+    // Its failure DEGRADES to absent with one breadcrumb — the vectors
+    // barrier below models the posture — because a gather that can assemble
+    // the graph must never fail outright over an optional garnish.
     let summary: string | undefined;
     let suggestedReferences: string[] | undefined;
     if (options.includeSummary && mainContent) {

@@ -2,7 +2,7 @@
  * `runAdaptiveChunks` — the lazy cursor that makes `nextChunkSize` real.
  *
  * `chunk-size-controller.test.ts` pins the sizing RULE in isolation; the rule
- * changed nothing until something cut text with it. The gap between those two
+ * changes nothing until something cuts text with it. The gap between those two
  * files is the whole of adaptive sizing: `chunkText` fixes every boundary up
  * front from provider limits alone, so a measurement taken on chunk N has
  * nowhere to land. This driver cuts chunk N+1 only after chunk N has reported,
@@ -10,8 +10,8 @@
  *
  * What is asserted here is the LOOP, not the rule: that the cursor covers the
  * document exactly once however the size moves, that a reported outcome reaches
- * the next cut, and that progress stays exact while the denominator it used to
- * be divided by no longer exists.
+ * the next cut, and that progress stays exact with no chunk total to divide
+ * by.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -109,19 +109,18 @@ describe('runAdaptiveChunks', () => {
     expect(seen.length).toBeGreaterThan(2);
     // Against the SHRINK FACTOR, not merely "shorter". Boundary-seeking alone
     // makes a later cut a little shorter than an earlier one, so `<` passes on
-    // a loop that ignores the sizer entirely — measured: mutating the feedback
-    // away left this test green. The step has to be visible as a step.
+    // a loop that ignores the sizer entirely (mutating the feedback away
+    // leaves it green). The step has to be visible as a step.
     expect(seen[1]!.piece.length).toBeLessThan(seen[0]!.piece.length * 0.8);
     expect(seen[2]!.piece.length).toBeLessThan(seen[1]!.piece.length * 0.8);
   });
 
   it('stops at the end instead of re-cutting the tail it just returned', async () => {
-    // `chunkText` backed the cursor off by the overlap unconditionally, so
-    // after the chunk that reached the end it took ONE more — covering only
-    // text that chunk already contained. Measured across four document sizes,
-    // every one paid exactly one extra inference call whose entire span sat
-    // inside its predecessor, yielding nothing but duplicate spans for the
-    // dedupe layer to drop. One free call per document, per detection type.
+    // A cursor that backs off by the overlap unconditionally takes ONE more
+    // chunk after the one that reached the end — covering only text that
+    // chunk already contained. That is one extra inference call per document,
+    // per detection type, whose entire span sits inside its predecessor and
+    // yields nothing but duplicate spans for the dedupe layer to drop.
     const { seen } = await run(prose(1500), (_c, out) => steady(out));
 
     // Measured against the text FRONTIER, not the cursor: `next` is deliberately
@@ -148,7 +147,7 @@ describe('runAdaptiveChunks', () => {
   it('holds the opening size end to end when the provider reports no usage', async () => {
     // The whole loop's version of the same rule: against a provider that never
     // reports token counts, an adaptive run must be indistinguishable from the
-    // static one it replaced — not a run that climbs to the ceiling because
+    // static one — not a run that climbs to the ceiling because
     // "nothing reported" was read as "nothing produced".
     const { seen } = await run(prose(1500), () => ({ truncated: false }));
 
@@ -195,11 +194,11 @@ describe('runAdaptiveChunks', () => {
   });
 
   it('reports exact character progress that never runs backwards', async () => {
-    // The denominator adaptivity destroys. `i / chunks.length` needed a chunk
+    // The denominator adaptivity destroys. `i / chunks.length` needs a chunk
     // count known in advance; with sizes moving there is none, and a PROJECTED
     // count would make a shrink look like regress. Characters are exact, and
-    // were always more honest than chunk index — boundary-seeking already made
-    // chunks unequal, so "chunk 3 of 10" was never 30% of the document.
+    // more honest than chunk index anyway — boundary-seeking makes chunks
+    // unequal, so "chunk 3 of 10" is not 30% of the document.
     const text = prose(800);
     let previous = -1;
     let flip = false;
@@ -234,8 +233,7 @@ describe('runAdaptiveChunks', () => {
 //
 // The checkpoint makes the cursor durable; this is the half that spends it.
 // Without it the cursor is a record nobody reads, and a retried job re-pays for
-// every chunk it already committed — the 26-minute attempt chunk-grain resume
-// exists to stop repeating.
+// every chunk it already committed.
 describe('runAdaptiveChunks — resuming', () => {
   it('starts at the checkpointed position, not the top', async () => {
     const text = prose(1500);
@@ -293,8 +291,8 @@ describe('runAdaptiveChunks — resuming', () => {
 
 describe('deriveDetectionBudget bounds', () => {
   it('opens at the density guess and ceilings at what the window can actually hold', async () => {
-    // The 1:2 allocation is a GUESS about density — the only one #1121 left in
-    // place — and it is the number the sizer exists to replace with
+    // The 1:2 allocation is a GUESS about density — the only one there is —
+    // and it is the number the sizer exists to replace with
     // measurement. So it opens the run, and the window fit (context minus
     // scaffold minus the reserved output budget) is the hard cap above it.
     const budget = budgetFor();
@@ -307,7 +305,7 @@ describe('deriveDetectionBudget bounds', () => {
     // The honest edge. A shared window with a published rate high enough to
     // disable the duration bound is allocated to the last token: input + output
     // + scaffold IS the context. Input cannot then grow without shrinking the
-    // output reservation, which this phase does not size — so the ceiling meets
+    // output reservation, which the sizer does not size — so the ceiling meets
     // the opening and the sizer keeps only its ease-off half. That is a
     // property of the provider's shape, not a defect, and it is pinned here so
     // a later reading of `ceiling === chunkSize` is not mistaken for a bug.

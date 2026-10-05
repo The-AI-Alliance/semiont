@@ -2,8 +2,9 @@
  * Anchored-text cache — the persistent store.
  *
  * OCR costs ~2.9 s per scanned page, and six passes read the same document (five
- * detection motivations plus the smelter's embed), each its own job in its own
- * process. This stores what the engine produced so only the first pass pays.
+ * detection motivations plus the Smelter's embed), each its own job in its own
+ * process. This stores what the engine produced: the Smelter derives it once,
+ * and every other pass is served the stored outcome.
  *
  * **Derived values only.** Everything here is reproducible from the source
  * bytes, which is what makes a stamp miss safe. A PDF Semiont generated is no
@@ -62,9 +63,9 @@ export interface CachedLine {
  * it reach storage would have forced every consumer — the transport, the
  * browser, a headless client — to reassemble pages it never asked to see.
  *
- * The `ocrConfidence` SUMMARY is stored (v2) — this repairs a regression
- * where a hit answered with no confidence at all. Per-word confidences remain
- * unstored: the summary is the record's quality provenance; the word list is
+ * The `ocrConfidence` SUMMARY is stored (v2), so a hit answers with the
+ * confidence the extraction reported. Per-word confidences are not stored:
+ * the summary is the record's quality provenance; the word list is
  * operator log detail.
  *
  * v1 records (bare `{ text, lines }`, no provenance) read as misses under the
@@ -100,10 +101,10 @@ export type CachedAnchoredText =
  * and different traineddata means different recognized text, which is a
  * difference in the value itself, not merely in how fast it was produced.
  *
- * pdf.js joined when the seam moved to `extract()`: the record is the finished
- * extraction outcome, so it depends on the native parse — classification,
- * text-layer read, table/form shaping — not just the engine. A parser upgrade
- * is a change in the value, and the entry must miss.
+ * pdf.js is in the stamp because the seam is `extract()`: the record is the
+ * finished extraction outcome, so it depends on the native parse —
+ * classification, text-layer read, table/form shaping — not just the engine.
+ * A parser upgrade is a change in the value, and the entry must miss.
  */
 function buildStamp(): string {
     const require = createRequire(import.meta.url);
@@ -165,17 +166,17 @@ export interface AnchoredTextStore {
      * bytes. **THROWS on failure: a write that returns has written.**
      *
      * Asymmetric with `read` above, which never throws, and deliberately so —
-     * a miss is a normal answer, a failed write is not. The store used to
-     * swallow for everyone, which forced the one caller that needs a throw
-     * (the Smelter's re-anchor publish, whose `smelt:rebuild-anchors-failed`
-     * accounting rides on it) to route around the store entirely. Now the
-     * contract is honest and **leniency is the caller's**, stated where it is
-     * wanted: the read-through seam in `pdf-extractor` catches, because a
-     * store may make extraction faster but must never make it fail.
+     * a miss is a normal answer, a failed write is not. A store that swallowed
+     * for everyone would force the one caller that needs a throw (the
+     * Smelter's re-anchor publish, whose `smelt:rebuild-anchors-failed`
+     * accounting rides on it) to route around the store entirely. So
+     * **leniency is the caller's**, stated where it is wanted: the
+     * read-through seam in `pdf-extractor` catches, because a store may make
+     * extraction faster but must never make it fail.
      */
     write(key: string, outcome: ExtractionOutcome): Promise<void>;
     /**
-     * Every key `read()` would currently HIT — entries under a stale stamp or
+     * Every key `read()` would HIT — entries under a stale stamp or
      * unreadable files are excluded, exactly as `read()` would exclude them.
      * That equivalence is load-bearing: the reconcile planner treats a listed
      * key as "artifact present" and plans re-derivation for the rest (its
@@ -198,9 +199,9 @@ function isCached(value: unknown): value is CachedAnchoredText {
         && line.words.every((w) => isArray(w) && w.length === 4 && w.every(isNumber)));
 }
 
-/** A key that could not have come from a checksum (or a legacy hex handle) is
+/** A key that could not have come from a checksum (or a hex resource id) is
  *  refused outright rather than sanitized: a silently stripped key could share
- *  a file with a different entry. Rejection replaces the old strip. */
+ *  a file with a different entry. */
 const VALID_KEY = /^[A-Za-z0-9_-]+$/;
 
 /**
@@ -233,10 +234,11 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
             } catch {
                 hit = null;   // absent, unreadable, truncated, or not ours
             }
-            // Logged here rather than at the call sites: `prepare-detection` and
-            // the smelter both extract, so each would see only its own share of
-            // the traffic and the policy would be stated twice. Hit rate is what
-            // keeps the decision to build this cache auditable after the fact.
+            // Logged here rather than at the call sites: the Smelter's extract
+            // seam and the Archivist's anchored-text read both come through
+            // here, so each would see only its own share of the traffic and the
+            // policy would be stated twice. Hit rate is what keeps the decision
+            // to build this cache auditable after the fact.
             logger?.debug('Anchored-text cache', {
                 outcome: hit ? 'hit' : 'miss',
                 key,
@@ -254,8 +256,9 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
         async write(key, outcome) {
             const target = fileFor(key);
             if (target === null) {
-                logger?.debug('Anchored-text cache: refusing invalid key', { key });
-                return;   // a store that cannot write is still a store
+                // A write that returns has written, so a key this store
+                // cannot place is refused loudly, never sanitized.
+                throw new Error(`Anchored-text store: invalid key ${JSON.stringify(key)}`);
             }
             // Key order (`v`, `stamp`, first) is load-bearing: `list()` below
             // reads only a prefix of each file and matches the stamp there.
@@ -304,9 +307,9 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
                 return [];   // no directory yet: nothing has been written
             }
 
-            // One-generation sweep: a `.json` at the root is an entry from
-            // before the checksum key — flat layout, resource-id key, a dead
-            // scheme. The rebuild path (the planner's third drift class)
+            // One-generation sweep: a `.json` at the root is a flat-layout
+            // entry under a resource-id key — a scheme no caller reads or
+            // writes. The rebuild path (the planner's third drift class)
             // re-derives anything still needed, which is what makes this
             // delete safe; leaving a generation behind is how the store's
             // size becomes unexplainable.
@@ -341,9 +344,8 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
                     for (const name of names) {
                         if (!name.endsWith('.json')) continue;
                         // Interim-generation sweep: a 32-hex basename is a
-                        // resource-id key — writes that landed sharded after
-                        // the store took its shard layout and before the
-                        // call sites switched to checksum keys. Checksums
+                        // resource-id key filed under the shard layout — a
+                        // scheme no caller reads or writes. Checksums
                         // are 64-hex (SHA-256), so the two generations are
                         // disjoint by length. Reaped here for the same
                         // reason the flat sweep lives here: one bulk call

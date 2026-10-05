@@ -161,7 +161,10 @@ semiont stop --runtime docker   # Only if you mean exactly that one
 
 ### Graph or vectors unavailable
 
-Both degrade rather than fail — core features keep working without them. See [Graph Architecture](../../../packages/graph/docs/ARCHITECTURE.md#graceful-degradation).
+Neither is optional at start: the Weaver, the Archivist and the Librarian each connect to the graph when they start, the Smelter, the Archivist and the Librarian each connect to the vector store, and a service that cannot connect exits. When one becomes unavailable under a running stack, writes and reads served from the views continue, and what the lost store answers does not:
+
+- **Graph.** Graph queries fail: search by name or entity type, referenced-by, candidate search for a reference, and the graph neighborhood of a gathered context. The Weaver logs and counts each apply that fails, and catches up at its next start. See [Graph Architecture](../../../packages/graph/docs/ARCHITECTURE.md#graceful-degradation).
+- **Vectors.** A search that matches nothing by text answers with nothing rather than with similar resources, Match ranks its candidates without semantic similarity, and a context gathered around an annotation comes without `semanticContext`; a context gathered around a resource fails. The Smelter logs each index write that fails, and reconciles the index against the catalog at its next start.
 
 ```bash
 semiont logs --service graph

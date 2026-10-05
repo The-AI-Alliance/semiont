@@ -1,7 +1,8 @@
 /**
  * Resource Generation
  *
- * Generates markdown resources from topics using AI inference.
+ * Generates resource content from a topic using AI inference: markdown, plain
+ * text, or Typst source (which the worker compiles to PDF), by `outputMediaType`.
  */
 
 import { getLocaleEnglishName, deriveViews } from '@semiont/core';
@@ -110,7 +111,7 @@ export async function generateResourceFromTopic(
     // The focal resource's id — equal to the id `buildKnowledgeGraph` anchored
     // the graph's main node on, so `deriveViews` resolves edges. Read directly off
     // the descriptor (a plain string on the generated type); there is no event id to
-    // thread here as the matcher had.
+    // thread here.
     const mainResourceId =
       focus.kind === 'annotation'
         ? focus.sourceResource['@id']
@@ -310,9 +311,9 @@ Requirements:
 - Be factual and informative${structureRequirement}${titleRequirement}${citeRequirement}
 ${formatRequirements}`;
 
-  // Simple parser - just use the response directly as markdown
+  // The response is the content as-is, in whichever format was asked for
   const parseResponse = (response: string): { title: string; content: string } => {
-    // Clean up any markdown code fences if present
+    // Strip a code fence if the model wrapped the content in one
     let content = response.trim();
     if (content.startsWith('```markdown') || content.startsWith('```md') || content.startsWith('```typst')) {
       content = content.slice(content.indexOf('\n') + 1);

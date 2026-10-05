@@ -169,16 +169,16 @@ function isWorkItem(input: SmelterInput): input is SmelterWorkItem {
   return Object.hasOwn(WORK_ITEM_TYPES, input.type);
 }
 
+/** The decline vocabulary of the settled signal — derived from the wire
+ *  type so the bus registry stays the single source of truth. */
+type SkipReason = NonNullable<EventMap['smelt:settled']['reason']>;
+
 /**
  * Outcome of a content fetch on the embed path. `skipped` carries the
  * checksum of the bytes inspected so the settled signal stays content-keyed;
  * `unavailable` is a transient failure and MUST NOT settle — an error is not
  * a decision (axiom S14).
  */
-/** The decline vocabulary of the settled signal — derived from the wire
- *  type so the bus registry stays the single source of truth. */
-type SkipReason = NonNullable<EventMap['smelt:settled']['reason']>;
-
 type FetchedContent =
   | { kind: 'text'; text: string; checksum: string; machineRead: boolean }
   | { kind: 'skipped'; checksum: string; contentType: string; reason: SkipReason }
@@ -194,8 +194,8 @@ const CONCLUDED: unique symbol = Symbol('smelter.concluded');
  * `prepareEmbed` must return either this or a ready record, and only `conclude`
  * — which logs the decision — can produce one. So a new way to decline indexing
  * cannot be written silently: a bare `return;` fails to compile, and a
- * hand-built `{ kind: 'concluded' }` lacks the brand (a skip that left no log
- * line once let a 217 MB book vanish from indexing unseen).
+ * hand-built `{ kind: 'concluded' }` lacks the brand (a skip that leaves no
+ * log line lets a whole book vanish from indexing unseen).
  */
 interface Concluded {
   readonly kind: 'concluded';
@@ -280,10 +280,10 @@ export class Smelter {
     /**
      * The anchored-text store, held DIRECTLY.
      *
-     * It used to be built here over the content transport, which put the
-     * gateway between this process and an artifact it produces itself. The
-     * Smelter now owns the store on its own mount and is the only writer;
-     * every read of it moved to the Archivist's bus channels.
+     * The caller builds it on the Smelter's own mount (`smelter-main`, from
+     * `SEMIONT_ANCHORED_TEXT_DIR`), so nothing stands between this process
+     * and an artifact it produces itself. The Smelter is the only writer;
+     * every other reader asks the Browser, on `browse:anchored-text-requested`.
      */
     private anchoredStore: AnchoredTextStore,
     private bus: BusRequestPrimitive,
@@ -582,28 +582,27 @@ export class Smelter {
   private async fetchEmbeddableText(resourceId: string): Promise<FetchedContent> {
     try {
       // The stored representation's bytes, untouched — the content route is a
-      // pure pipe now (no negotiation), so getBinary returns exactly the bytes
+      // pure pipe (no negotiation), so getBinary returns exactly the bytes
       // the catalog's checksum was computed from (S12; the route-side half is
-      // the gateway's resource-raw-mode lemma test). The checksum is computed
-      // before the media gate so `skipped` decisions stay content-keyed.
+      // the Archivist read path's stored-bytes-verbatim test). The checksum is
+      // computed before the media gate so `skipped` decisions stay content-keyed.
       const { data, contentType } = await this.content.getBinary(makeResourceId(resourceId));
       const bytes = Buffer.from(data);
       const checksum = calculateChecksum(bytes);
       // The only site that wants text by EITHER route, so it is the only site
-       // that branches. Deriving is expensive, stores a canonical artifact,
-       // and is reachable only here and in `reanchorResource` because both
-       // hold the store; decoding is a pure function over bytes.
+      // that branches. Deriving is expensive, stores a canonical artifact,
+      // and is reachable only here and in `reanchorResource` because both
+      // hold the store; decoding is a pure function over bytes.
       const extractor = derivingExtractorFor(contentType);
       if (!extractor && textSourceOf(contentType) === 'none') {
         return { kind: 'skipped', checksum, contentType, reason: 'no-extractor' };
       }
       // The cache seam: derivation consults the artifact store for this
       // exact byte content and, on a miss, the seam itself stores whatever it
-      // concluded — success with provenance, or the decline. The write moved
-      // INTO extract() when the stored record became the whole extraction
-      // outcome, which is why there is no publish call in this method
-      // anymore: exactly one place writes exactly one artifact, and this is
-      // not it.
+      // concluded — success with provenance, or the decline. The stored
+      // record is the whole extraction outcome, so the write lives INSIDE
+      // extract() and this method makes no publish call: exactly one place
+      // writes exactly one artifact, and this is not it.
       const extracted: ExtractedText | ExtractionDecline = extractor
         ? await extractor.extract(bytes, contentType, { key: checksum, store: this.anchoredStore })
         // Decoding never declines and never yields geometry — any byte sequence
@@ -766,8 +765,8 @@ export class Smelter {
    * Restore what `handleResourceArchived` deleted, from CURRENT state: the
    * resource's vectors (media-gated, full-replace) and its current exact-text
    * annotations — the same catalog read `reconcile()` uses, so the live path
-   * and a restart agree (unarchiving once left a resource out of vector
-   * search until the next restart).
+   * and a restart agree (an unarchive that restored nothing would leave the
+   * resource out of vector search until the next restart).
    */
   private async handleResourceUnarchived(event: SmelterInput): Promise<void> {
     const rid = event.resourceId;
@@ -959,9 +958,9 @@ export class Smelter {
         if (!indexed) {
           work.push({ type: 'smelt:embed', resourceId: rid, payload: {} });
         } else if (catalog.checksum !== undefined && indexed.contentChecksum !== catalog.checksum) {
-          // Stale-but-present content: indexed from earlier bytes (or from a
-          // pre-stamp deployment, where the stamp reads as undefined) —
-          // re-embed (S12). The fresh embed re-reads the tags too.
+          // Stale-but-present content: indexed from earlier bytes (or with
+          // no stamp at all, which reads as undefined) — re-embed (S12).
+          // The fresh embed re-reads the tags too.
           work.push({ type: 'smelt:embed', resourceId: rid, payload: {} });
         } else if (!sameStringSet(indexed.entityTypes, catalog.entityTypes)) {
           // Content current, tags drifted: tag edits change no bytes, so the
@@ -975,12 +974,12 @@ export class Smelter {
         // current checksum means embed/re-embed will not run (those paths
         // re-publish the artifact as a side effect); a geometry-capable
         // extractor means an artifact SHOULD exist; an absent key means it
-        // was lost — the store is container-transient today, and a publish
-        // can fail silently. A catalog without a checksum cannot claim
-        // "current", so it never plans re-anchoring — the stamp diff owns
-        // that resource's fate. The store is checksum-keyed, so presence is
-        // asked by the catalog's checksum — the identity of the bytes — not
-        // the rid.
+        // was lost — the launcher clears the store when the Smelter's image
+        // changes, and a publish can fail silently. A catalog without a
+        // checksum cannot claim "current", so it never plans re-anchoring —
+        // the stamp diff owns that resource's fate. The store is
+        // checksum-keyed, so presence is asked by the catalog's checksum —
+        // the identity of the bytes — not the rid.
         if (indexed && catalog.checksum !== undefined
             && indexed.contentChecksum === catalog.checksum
             && catalog.yieldsGeometry && !anchoredKeys.has(catalog.checksum)) {
@@ -1092,11 +1091,10 @@ export class Smelter {
    * scoped, strictly serialized (concatMap on the command stream + the
    * drain chain), correlated ok/failed replies, and partial completion
    * FAILS — a rebuild that quietly skipped resources would present exactly
-   * like a document with no text, which is the #845 failure mode wearing
-   * different clothes.
+   * like a document with no text.
    *
    * Never destructive: nothing is deleted first, stale entries are simply
-   * overwritten (the W5-frames lesson — a rebuild that clears before it
+   * overwritten (as in W5-frames — a rebuild that clears before it
    * re-derives turns a partial failure into a loss). Re-anchoring makes
    * zero embedding calls; work items ride the normal per-resource lanes,
    * so a rebuild can never interleave with live processing of the same
@@ -1143,11 +1141,8 @@ export class Smelter {
    * whether the media type's extractor derives geometry (whether an
    * anchored-text artifact should exist). Both answers are core's, keyed by the
    * media type's strategy: embeddable ⇔ the type has any text-reading strategy
-   * at all, and geometry ⇔ that strategy derives it. Until the strategy-keyed
-   * `EXTRACTORS` registry was removed, embeddability was asked as
-   * `EXTRACTORS[strategy] !== null` — true, but a second statement of
-   * `strategy !== 'none'`, answered by resolving an implementation to learn a
-   * fact about a media type.
+   * at all, and geometry ⇔ that strategy derives it — facts about a media
+   * type, asked of the type and never by resolving an implementation.
    * Shared by `reconcile()` and the `smelt:rebuild-anchors` planner.
    */
   private classifyEmbeddable(
@@ -1168,10 +1163,10 @@ export class Smelter {
     return embeddable;
   }
 
-  /** Page through `browse:resources-requested` until the catalog is exhausted. */
-  /** Shared with the weaver since 2026-09-09 — see `browse-resources.ts` for why the
-   *  retry lives at the page rather than around the pass. `archived: false` is
-   *  the smelter's own filter and the one difference between the two loops. */
+  /** Page through `browse:resources-requested` until the catalog is
+   *  exhausted. Shared with the weaver — see `browse-resources.ts` for why
+   *  the retry lives at the page rather than around the pass.
+   *  `archived: false` is the smelter's own filter; the weaver passes none. */
   private listAllResources(): Promise<ResourceDescriptor[]> {
     return browseAllResources(this.bus, { limit: Smelter.RECONCILE_PAGE_SIZE, archived: false });
   }

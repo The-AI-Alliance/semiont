@@ -13,9 +13,7 @@
  *                   selectors vs spatial geometry (PDFs are spatial)
  * - `textSource`  — WHERE a type's text comes from: decoded from its own bytes,
  *                   or derived by reading them ('none' → skip embedding, never
- *                   mojibake). Formerly named `extractText`, which called
- *                   decoding an extraction — the conflation that let a
- *                   worker OCR PDFs for four months (#739)
+ *                   mojibake)
  * - `authorable`  — offered in the compose editor's format dropdown
  * - `uploadable`  — big tent: true for every registry member
  * - `generatable` — the generation worker can produce it as a yield artifact
@@ -80,7 +78,6 @@ const REGISTRY: Readonly<Record<string, MediaTypeCapabilities>> = MEDIA_TYPES;
 
 /**
  * Strip parameters ("; charset=...") and normalize case.
- * Replaces the inline `split(';')[0]` sites across the codebase.
  */
 export function baseMediaType(format: string): string {
   return format.split(';')[0]!.trim().toLowerCase();
@@ -103,10 +100,8 @@ export function capabilitiesOf(format: string): MediaTypeCapabilities | undefine
 /**
  * The clone-format gate: a clone opens in the compose editor, so authorable
  * sources keep their base media type and everything else falls back to
- * text/plain. It moved here when the clone command came to carry storage
- * coordinates instead of bytes. Lives beside the registry it reads; the SDK
- * applies it when deriving a clone upload's format and the
- * CloneTokenManager's tests pin it.
+ * text/plain. Lives beside the registry it reads; the SDK applies it when
+ * deriving a clone upload's format and the CloneTokenManager's tests pin it.
  */
 export function cloneFormat(sourceMediaType: string | undefined): SupportedMediaType {
   const base = baseMediaType(sourceMediaType ?? 'text/plain');
@@ -153,8 +148,7 @@ export function mediaTypeForExtension(ext: string): SupportedMediaType | undefin
  * pure charset-aware `Buffer → string` anyone holding bytes may run;
  * `pdf-text-layer` parses and, failing that, OCRs — expensive, not deterministic
  * across engine versions, and runnable only by the process that persists its
- * output. Calling both "extraction" is the conflation this accessor's former
- * name made.
+ * output. Calling both "extraction" conflates them.
  */
 export function textSourceOf(format: string): TextSource {
   const caps = capabilitiesOf(format);
@@ -182,12 +176,11 @@ const GEOMETRY_BY_STRATEGY: Record<TextSource, boolean> = {
  * for this resource?" (reconcile's check for a lost artifact) and "does this
  * type anchor spatially or by character offset?".
  *
- * Derived from `textSource`, not stored: it used to be a `yieldsGeometry`
- * boolean declared on each `TextExtractor` in `@semiont/content` — a property
- * of the STRATEGY, declared per-implementation, in a different package from
- * the strategy vocabulary. Two facts that must agree, gated by nothing, and
- * consumers asking about a media type had to resolve an implementation to get
- * an answer.
+ * Derived from `textSource`, not stored: geometry is a property of the
+ * STRATEGY. A boolean declared on each extractor implementation would be a
+ * second fact that must agree with the strategy vocabulary, gated by nothing,
+ * and a consumer asking about a media type would have to resolve an
+ * implementation to get an answer.
  *
  * Lenient like `textSourceOf`, not strict like `isAnnotatable`. An
  * unregistered `text/*` type decodes, and decoding yields no geometry — so
@@ -221,9 +214,9 @@ const DERIVED_TEXT_BY_STRATEGY: Record<TextSource, boolean> = {
  * which refuses everything else.
  *
  * Deliberately a DISTINCT question from `yieldsGeometryOf`, though the
- * answers coincide today: a future transcription strategy would derive text
- * with no geometry. The mechanism literal (`pdf-text-layer`) stays confined
- * to the extraction side, which genuinely dispatches per mechanism.
+ * answers coincide for every strategy defined: a transcription strategy would
+ * derive text with no geometry. The mechanism literal (`pdf-text-layer`) stays
+ * confined to the extraction side, which genuinely dispatches per mechanism.
  */
 export function derivesTextOf(format: string): boolean {
   return DERIVED_TEXT_BY_STRATEGY[textSourceOf(format)];

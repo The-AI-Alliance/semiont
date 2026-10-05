@@ -320,9 +320,9 @@ describe('AnnotationDetection', () => {
     });
 
     it('should reject invalid category', async () => {
-      // Schema-id resolution moved to the dispatcher; the worker only sees
-      // the resolved TagSchema. An invalid category is the worker's only
-      // remaining validation surface.
+      // The dispatcher resolves the schema id; the worker only sees the
+      // resolved TagSchema. An invalid category is the worker's only
+      // validation surface.
       await expect(
         AnnotationDetection.detectTags(
           testContent,
@@ -360,9 +360,9 @@ describe('AnnotationDetection', () => {
     });
 
     it('throws on a truncated (max_tokens) response instead of under-reporting', async () => {
-      // Truncation parity with the reference path: the motivation path now
-      // reads stopReason via generateTextWithMetadata and fails the job loudly
-      // rather than parsing a valid-but-incomplete array as a partial success.
+      // Truncation parity with the reference path: the motivation path
+      // reads the response's stopReason and fails the job loudly rather than
+      // parsing a valid-but-incomplete array as a partial success.
       mockClient.setResponses(
         [JSON.stringify([{ exact: 'Climate change', start: 0, end: 14 }])],
         ['max_tokens'],
@@ -427,8 +427,8 @@ describe('AnnotationDetection', () => {
   // heartbeat alive at chunk boundaries.
   describe('chunking (derived from provider limits)', () => {
     const SMALL_SHARED_LIMITS = { contextTokens: 2400, maxOutputTokens: 2400 };
-    // ALPHASPAN sits near the start; GAMMASPAN past char 8,000 — beyond both
-    // the first chunk and the former substring(0, 8000) prompt clip.
+    // ALPHASPAN sits near the start; GAMMASPAN past char 8,000 — beyond the
+    // first chunk.
     const early = 'ALPHASPAN opens the document.';
     const late = 'GAMMASPAN closes the document.';
     const bigContent = early + ' ' + 'lorem ipsum dolor sit amet, consectetur adipiscing elit. '.repeat(150) + late;
@@ -550,7 +550,7 @@ describe('AnnotationDetection', () => {
       await AnnotationDetection.detectHighlights(testContent, client);
 
       expect(client.calls.length).toBe(1);
-      // The old hand-tuned literal is gone; the budget comes from limits().
+      // No hand-tuned literal: the budget comes from limits().
       expect(client.calls[0].maxTokens).not.toBe(2000);
       expect(client.calls[0].maxTokens).toBeGreaterThan(2000);
     });
@@ -565,10 +565,10 @@ describe('AnnotationDetection', () => {
       expect(totalChunks).toBeGreaterThan(1);
       // A boundary sits BETWEEN chunks: N chunks → N−1 boundary events. Each
       // carries (consumedChars, totalChars) — characters, not ordinals, because
-      // chunk sizing is now decided as the run goes and there is no chunk total
-      // to divide by. The cursor was always the more honest numerator anyway:
-      // boundary-seeking made chunks unequal long before sizing did, so
-      // "chunk 3 of 10" was never 30% of the document.
+      // chunk sizing is decided as the run goes and there is no chunk total
+      // to divide by. The cursor is the more honest numerator anyway:
+      // boundary-seeking makes chunks unequal, so "chunk 3 of 10" is not 30%
+      // of the document.
       expect(onChunk.mock.calls.length).toBe(totalChunks - 1);
       let previous = 0;
       onChunk.mock.calls.forEach(([consumed, total]) => {
@@ -584,7 +584,7 @@ describe('AnnotationDetection', () => {
     // `detectInChunks` is ONE loop shared by highlight, comment, assessment and
     // tag — four of the five detection types. The reference path has the same
     // tests in its own suite; without these, mutating this loop to discard the
-    // measurement it just took left every suite green.
+    // measurement it just took leaves every suite green.
     describe('adaptive chunk sizing', () => {
       // Separate ceilings, so the window leaves headroom above the 1:2 density
       // guess (a shared window is allocated to the last token by construction).
@@ -645,9 +645,9 @@ describe('AnnotationDetection', () => {
     // ── resuming a unit ────────────────────────────────────────────────────
     //
     // Four of the five detection types share `detectInChunks`, and each of them
-    // runs exactly one unit (tags one per category), so before the cursor a
-    // motivation job could checkpoint NOTHING until the whole document was
-    // done — a mid-document death restarted from zero every time.
+    // runs exactly one unit (tags one per category), so without the cursor a
+    // motivation job can checkpoint NOTHING until the whole document is
+    // done — a mid-document death restarts from zero every time.
     describe('resuming from a checkpoint', () => {
       const RESUME_LIMITS = { contextTokens: 4_000, maxOutputTokens: 1_200, outputTokensPerHour: 3_600_000_000 };
       const opener = 'OPENING_MARKER begins the document and appears nowhere else.';

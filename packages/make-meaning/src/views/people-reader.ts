@@ -55,9 +55,9 @@ export async function readPeopleProjection(state: SemiontState): Promise<PeopleV
  * This is the ONE place a Person acquires a name (`didToAgent` deliberately
  * leaves it absent), which is what keeps the name resolvable to a single
  * source. It also OVERRIDES a stored name rather than only filling an absent
- * one: artifacts written before this existed carry the subject UUID where a
- * name belongs, and they must read correctly too — that is the whole benefit
- * of resolving on read rather than freezing at write.
+ * one: some stored artifacts carry the subject UUID where a name belongs,
+ * and they must read correctly too — that is the whole benefit of resolving
+ * on read rather than freezing at write.
  *
  * A DID with no profile is left unnamed. The knowledge base says what it
  * knows, and a client renders the absence however it likes.

@@ -1,18 +1,15 @@
 /**
  * Triangulation test for the state unit → useObservable → prop → chip render chain.
  *
- * Written after an e2e failure (test 05) where `ReferencesPanel` rendered
- * "No entity types available" even though the client provably received a
- * 9-string entity-types array from the gateway.
+ * `ResourceViewerPage.test.tsx` stubs `UnifiedAnnotationsPanel`, and with it
+ * `ReferencesPanel`, as a `<div data-testid>`, so it never verifies that an
+ * observable emitting [9 strings] actually produces 9 chips in the DOM. This
+ * test does.
  *
- * This test closes the Layer 5-6 gap: the existing `ResourceViewerPage.test.tsx`
- * stubs `UnifiedAnnotationsPanel`/`ReferencesPanel` as `<div data-testid>`s,
- * so it never verifies that an observable emitting [9 strings] actually
- * produces 9 chips in the DOM. This test does.
- *
- * If this test passes and the e2e still fails, the bug is further upstream
- * (BrowseNamespace wiring, multiple ApiClient instances, SSE delivery).
- * If it fails, the bug is here in component-land.
+ * If this passes while a live panel renders "No entity types available" for a
+ * populated knowledge base, the fault is further upstream (BrowseNamespace
+ * wiring, multiple client instances, SSE delivery). If it fails, the fault is
+ * here in component-land.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -128,9 +125,9 @@ describe('Layer 5-6 — state-unit observable → useObservable → ReferencesPa
   });
 
   it('[9 strings] with duplicate emissions (simulating SSE-duplicate deliveries) renders 9 chips', async () => {
-    // The failing e2e run showed the same correlationId delivered 3x due
-    // to concurrent SSE streams. Same data, but multiple BehaviorSubject
-    // writes. Must not clobber the render.
+    // Concurrent SSE streams can deliver the same correlationId more than
+    // once: same data, but multiple BehaviorSubject writes. Must not clobber
+    // the render.
     const source$ = new BehaviorSubject<string[]>([]);
     renderWithBus((session) => <ObservableHarness source$={source$} session={session} />);
 
@@ -144,10 +141,10 @@ describe('Layer 5-6 — state-unit observable → useObservable → ReferencesPa
     expect(document.querySelectorAll('.semiont-tag-selector__item').length).toBe(NINE_TYPES.length);
   });
 
-  it('no regression: [] still renders "No entity types available"', () => {
-    // Confirms the control case: an empty observable does render the
-    // message the failing e2e saw. Guards against the test passing
-    // trivially because of a selector bug.
+  it('control: [] renders "No entity types available"', () => {
+    // The control case: an empty observable does render the empty-state
+    // message. Guards against the tests above passing trivially because of
+    // a selector bug.
     const source$ = new BehaviorSubject<string[]>([]);
     renderWithBus((session) => <ObservableHarness source$={source$} session={session} />);
 

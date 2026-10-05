@@ -1,7 +1,7 @@
 /**
  * SmeltProgress Tests
  *
- * The gateway-local fold of `smelt:settled` signals. `whenSettled` is the
+ * The process-local fold of `smelt:settled` signals. `whenSettled` is the
  * read-your-writes barrier: it resolves with the Smelter's decision
  * (`indexed` | `skipped`) the moment the vector projection settles the
  * exact content generation the caller holds — event-driven, no polling

@@ -9,7 +9,7 @@
     {
       "name": "emitTimeoutMs",
       "value": 30000,
-      "docs": "The deadline on one POST /bus/emit. The gateway accepts an emit promptly; one still unanswered here means the gateway is unresponsive, and the emit is rejected rather than awaited forever. Without it a worker's emit to a wedged gateway hung its loop."
+      "docs": "The deadline on one POST /bus/emit. The gateway accepts an emit promptly; one still unanswered here means the gateway is unresponsive, and the emit is rejected rather than awaited forever. Without it a worker's emit to a wedged gateway hangs its loop."
     },
     {
       "name": "emitRetry",
@@ -72,7 +72,7 @@
     {
       "name": "refreshBeforeExpMs",
       "value": 300000,
-      "docs": "The LARGEST margin before expiry at which a token is proactively renewed. A ceiling, not the margin: the margin is half the token's own lifetime, capped here. As a fixed margin it equalled the five-minute lifetime Keycloak mints by default, so every renewal was already due, and an idle signed-in page sent 1418 token requests in ten seconds."
+      "docs": "The LARGEST margin before expiry at which a token is proactively renewed. A ceiling, not the margin: the margin is half the token's own lifetime, capped here. A fixed margin can equal the lifetime an issuer mints (Keycloak's default is five minutes), which makes every renewal already due: an idle signed-in page then sends over a hundred token requests a second."
     },
     {
       "name": "minRefreshDelayMs",

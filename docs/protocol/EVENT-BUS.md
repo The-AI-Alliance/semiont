@@ -79,7 +79,7 @@ Each channel falls into one of five payload categories. The category tells you w
 | **UI signal** | OpenAPI schema or `void` | yes when schema-typed | no | `beckon:hover`, `panel:toggle`, `mark:select-comment` |
 | **SSE infrastructure** | OpenAPI schema | no | no | `bus:resume-gap` |
 
-`CHANNEL_SCHEMAS` — declared in [the registry](../../specs/src/bus/registry.json), generated into `bus-protocol.ts` — maps every channel to its OpenAPI schema name (or `null` when validation isn't applicable — `StoredEvent` wrappers, `void` signals, compound inline types). The `/bus/emit` route reads this map and rejects payloads that don't validate.
+`CHANNEL_SCHEMAS` — declared in [the registry](../../specs/src/bus/registry.json), generated into `bus-protocol.ts` — maps every channel to its OpenAPI schema name (or `null` when validation isn't applicable — `StoredEvent` wrappers, `void` signals, inline wrapper types such as `{ response: T }`). The gateway's `/bus/emit` route validates against the same registry entries and rejects payloads that don't validate.
 
 ### Wire unions discriminate — every one of them
 
@@ -154,7 +154,7 @@ import { busRequest } from '@semiont/core';
 const resource = await busRequest(semiont.transport, 'browse:resource-requested', { resourceId });
 ```
 
-Two declarations make this work, and together they retire a whole bug class (a reply channel that's forgotten from the bridged set, which fails as a silent 30 s timeout):
+Two declarations make this work, and together they rule out a whole bug class (a reply channel that's forgotten from the bridged set, which fails as a silent 30 s timeout):
 
 - **The operations registry.** [`BUS_OPERATIONS`](../../packages/core/src/bus-operations.ts) declares every request/reply operation **once** as a triple — `request → { result, failure, progress? }`. `busRequest` reads the request channel's entry to find its reply channels (so a caller can't pass a mismatched or unbridged pair), and the bridged-reply set is *derived* from it (see [Fan-in](#fan-in-sse-bridging)). The return type is inferred from the result channel — callers never write `<TResult>`.
 
@@ -167,7 +167,7 @@ Two declarations make this work, and together they retire a whole bug class (a r
 
 ## Trace context: the `_trace` carrier
 
-Distributed traces ride on the bus payload as a sibling of `correlationId`. The `_trace` field carries the W3C `traceparent` (and optional `tracestate`) so spans started by handlers become children of the originating span:
+Distributed traces ride on a relayed frame's payload. The `_trace` field carries the W3C `traceparent` (and optional `tracestate`) so spans started by handlers become children of the originating span:
 
 ```ts
 interface TraceCarrier {
@@ -176,14 +176,14 @@ interface TraceCarrier {
 }
 ```
 
-Two helpers in `@semiont/observability` manage the field:
+The two directions carry it differently:
 
-- `injectTraceparent(payload)` — call before emitting; stamps the active span's traceparent onto `payload._trace`. No-op if no span is active.
-- `extractTraceparent(payload)` — call on receipt; pulls and removes the field, returning the carrier so the handler can run under `withTraceparent(carrier, ...)`.
+- **Emit.** A client's `POST /bus/emit` carries the active span in the `traceparent` request header (`getActiveTraceparent()` in `@semiont/observability` reads it); the payload is left alone.
+- **Receive.** An SSE event has no headers of its own, so the gateway's stream route writes the trace context onto `payload._trace`. On receipt, `extractTraceparent(payload)` pulls and removes the field, returning the carrier so the handler runs under `withTraceparent(carrier, ...)`.
 
-The HTTP gateway picks up the `traceparent` request header instead — the SSE event body doesn't have a header trailer, so HTTP-side delivery uses the request header and the bus payload is left alone. In-process transports (where there's no HTTP boundary) use the `_trace` carrier directly.
+An in-process transport has no HTTP boundary and no `_trace` field: a handler's parent is the active OpenTelemetry context of the code that emitted.
 
-The field is **internal plumbing**: subscribers see it stripped before delivery, and most consumer code never needs to touch it. If you're writing a new transport, mirror the pattern — inject before emit, extract before subscriber dispatch.
+The field is **internal plumbing**: subscribers see it stripped before delivery, and most consumer code never needs to touch it. A new wire transport mirrors the pattern — propagate on emit, extract before subscriber dispatch.
 
 For details on how `_trace` correlates with the grep-friendly `busLog` timeline and the OpenTelemetry span tree, see **[../operator/administration/OBSERVABILITY.md](../operator/administration/OBSERVABILITY.md)**.
 
@@ -192,7 +192,7 @@ For details on how `_trace` correlates with the grep-friendly `busLog` timeline 
 A channel reaches clients in one of two **disjoint** delivery disciplines:
 
 - **Global fan-out** — forwarded to every connected client, which filters by `correlationId` (correlation replies like `match:search-results`) or just reacts (KB-global events like `frame:entity-type-added`). This is the *bridged* set (see [Fan-in](#fan-in-sse-bridging)).
-- **Resource-scoped** — delivered only to clients that have *joined* a resource's scope via `subscribeToResource(id)`. Publishers emit on a scoped bus (`eventBus.scope(resourceId)`); the HTTP transport carries each subscription as a `{scope, channels, lastEventId?}` entry in the `POST /bus/subscribe` matrix, and scoped SSE frames are tagged with their originating scope. One connection holds many resource scopes at once (multi-resource scope, 2026-07-29) — distinct resources compose. On the client, subscribing to a resource's `browse.*` live queries attaches a ref-counted scope that auto-detaches on the last unsubscribe (#847) — *freshness follows observation*.
+- **Resource-scoped** — delivered only to clients that have *joined* a resource's scope via `subscribeToResource(id)`. Publishers emit on a scoped bus (`eventBus.scope(resourceId)`); the HTTP transport carries each subscription as a `{scope, channels, lastEventId?}` entry in the `POST /bus/subscribe` matrix, and scoped SSE frames are tagged with their originating scope. One connection holds many resource scopes at once — distinct resources compose. On the client, subscribing to a resource's `browse.*` live queries attaches a ref-counted scope that auto-detaches on the last unsubscribe — *freshness follows observation*.
 
 Which discipline a channel has is declared, not computed: the registry gives each such channel an `audience` of `everyone` or `scoped`, and the two generated lists (`BRIDGED_BROADCASTS` and `RESOURCE_SCOPED_CHANNELS`, in [bridged-channels.ts](../../packages/core/src/bridged-channels.ts)) are those declarations. The scoped channels are the events of the record that concern one resource: annotations, a resource's own facts, its renditions, and its jobs. The events of the record that concern the whole knowledge base (`frame:entity-type-added`, `yield:created` and their siblings) go to everyone.
 
@@ -223,7 +223,7 @@ Commands, results, and UI signals are transient. They flow across the bus, drive
 
 ## Fan-in: SSE bridging
 
-The SDK's `SemiontClient` owns a local `EventBus`; the HTTP transport bridges wire events into it. `BRIDGED_CHANNELS` in [bridged-channels.ts](../../packages/core/src/bridged-channels.ts) is the set the transport forwards. It is **derived**, not listed by hand: every operation's reply channels (result + failure + optional progress) come from the `BUS_OPERATIONS` registry, plus the registry's `audience: everyone` set — the non-request/reply minority (KB-global domain events like `frame:entity-type-added`, UI signals like `beckon:*`, and infra like `bus:resume-gap`). Deriving the reply set from the registry is what makes "a reply channel forgotten from the bridged set" — the recurring silent-timeout bug — unrepresentable.
+The SDK's `SemiontClient` owns a local `EventBus`; the HTTP transport bridges wire events into it. `BRIDGED_CHANNELS` in [bridged-channels.ts](../../packages/core/src/bridged-channels.ts) is the set the transport forwards. It is **derived**, not listed by hand: every operation's reply channels (result + failure + optional progress) come from the `BUS_OPERATIONS` registry, plus the registry's `audience: everyone` set — the non-request/reply minority (KB-global domain events like `frame:entity-type-added`, UI signals like `beckon:*`, and infra like `bus:resume-gap`). Deriving the reply set from the registry is what makes "a reply channel forgotten from the bridged set" — a silent timeout — unrepresentable.
 
 ### Where the invariants are enforced
 
@@ -235,7 +235,7 @@ Three layers, deliberately, because each catches what the others structurally ca
 | **Compile time** | `satisfies` clauses in the generated TypeScript | an unknown channel, a missing payload binding, a schema name that isn't in the OpenAPI types |
 | **Test time** | [bus-invariants.test.ts](../../packages/core/src/__tests__/bus-invariants.test.ts) and [bridged_test.go](../../packages/sdk-go/bus/bridged_test.go) | duplicates in the bridged set, the frozen-snapshot equality, bridged ∩ persisted, and — in Go, which has no `satisfies` — the reply-is-bridged and request-is-emittable properties |
 
-The Go tests overlap the TypeScript ones on purpose. Both languages generate from one registry, so today they are a second opinion rather than the only guard; that redundancy is the point, because an artifact checked only against the thing that generated it can agree with a mistake indefinitely.
+The Go tests overlap the TypeScript ones on purpose. Both languages generate from one registry, so they are a second opinion rather than the only guard; that redundancy is the point, because an artifact checked only against the thing that generated it can agree with a mistake indefinitely.
 
 The HTTP transport wires this once, for the life of its stream: each frame it receives on a bridged or a resource-scoped channel crosses to the client's bus with its envelope, the correlation id carried. See [`http-transport.ts`](../../packages/http-transport/src/transport/http-transport.ts).
 
@@ -308,11 +308,9 @@ npm run generate:bus:check    # verify without writing (what CI runs)
 Hand-written TypeScript that the registry cannot express — runtime-only UI
 types like `AnchorRect` (DOM geometry, callbacks) — lives in the companion
 module `packages/core/src/bus-ui-types.ts`, which the generated file imports
-and re-exports. Adding a resource-scoped broadcast means adding a channel to
-`resourceBroadcasts.channels` in the registry, not editing the generated
-`RESOURCE_BROADCAST_TYPES`.
+and re-exports.
 
-Payload *schemas* still live in the OpenAPI components — the registry only
+Payload *schemas* live in the OpenAPI components — the registry only
 names which schema each channel carries. Channels whose payload is
 TypeScript-only (DOM geometry, callbacks) are excluded from the Go output:
 they never cross the wire.
@@ -353,8 +351,8 @@ classifies its channels with no hand edit. Consume them through
 `event`), `audience` (`everyone` | `scoped` | `declared`), `inProcess`,
 `effect`, and which channels are events of the record. A channel that names no
 class refuses to generate — there is no default, because a silent fallthrough
-once classified `job:queued` as in-process and starved every worker. Declare
-the axis; read the attribute.
+can classify a channel such as `job:queued` as in-process and starve every
+worker. Declare the axis; read the attribute.
 
 **There is no progress class.** An operation declares a `result` and a
 `failure`, and that is all. Incremental reporting uses the job lifecycle family

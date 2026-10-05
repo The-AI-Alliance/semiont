@@ -1,8 +1,8 @@
 /**
  * Typst compiler invocation.
  *
- * The model writes Typst source directly (settled 2026-08-04, over markdown
- * converted to Typst); this module turns it into PDF bytes via the pinned
+ * The model writes Typst source directly, not markdown converted to
+ * Typst; this module turns it into PDF bytes via the pinned
  * binary the worker image ships (`/usr/local/bin/typst`, v0.15.1, resolved
  * through PATH so tests can substitute a fake). Compile failures return the
  * legible error text — Typst's `file:line:col` + caret diagnostics are the

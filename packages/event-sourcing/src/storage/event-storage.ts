@@ -52,7 +52,7 @@ export function wrapEventReadError(filePath: string, error: NodeJS.ErrnoExceptio
 
 /**
  * EventStorage handles physical storage of events
- * Owns: file I/O, sharding, AND sequence/hash tracking
+ * Owns: file I/O, sharding, AND sequence tracking
  */
 export class EventStorage {
   private config: Required<EventStorageConfig>;
@@ -126,7 +126,7 @@ export class EventStorage {
 
   /**
    * Initialize directory structure for a resource's event stream
-   * Also loads sequence number and last hash if stream exists
+   * Also loads the sequence number if the stream exists
    */
   async initializeResourceStream(resourceId: ResourceId): Promise<void> {
     const docPath = this.getResourcePath(resourceId);
@@ -439,7 +439,7 @@ export class EventStorage {
   }
 
   // ============================================================
-  // Sequence/Hash Tracking
+  // Sequence Tracking
   // ============================================================
 
   /**

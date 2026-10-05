@@ -24,9 +24,10 @@
  * rosters live in `service-channels.ts`:
  *   in  — LIBRARIAN_INBOUND_CHANNELS (the actor rosters, each pinned to its
  *         actor's real subscriptions by a census gate, plus the handler's
- *         channel and the two progress signals), which is also the
- *         transport's whole SSE subscription — never the full bridged set;
- *         SSE frames are pushed onto the local bus.
+ *         channel and the two progress signals); SSE frames are pushed onto
+ *         the local bus. The transport's SSE subscription is this set plus
+ *         LIBRARIAN_REPLY_CHANNELS (the replies to the one read this process
+ *         awaits) — never the full bridged set.
  *   out — LIBRARIAN_OUTBOUND_CHANNELS: every reply channel DERIVED from
  *         BUS_OPERATIONS over the inbound set. No strays: every operation
  *         here is keyed under its own request channel, and the progress
@@ -87,8 +88,8 @@ const baseUrl: string = gatewayPublicURL;
 const config = makeMeaningConfigFrom(envConfig);
 // One decider for the config's shape invariants (graph presence, the
 // gather barrier nesting inside the stall watchdog) — the same assertion
-// the other composition roots run, now that the Gatherer's settle barrier
-// lives in this process.
+// the roots in service.ts run: the Gatherer's settle barrier lives in this
+// process.
 assertMakeMeaningConfig(config);
 
 const maybeGraphConfig = config.services.graph;
@@ -131,15 +132,13 @@ import { createProcessLogger } from '@semiont/observability/process-logger';
 import { startAgentSession } from './agent-session';
 const logger = createProcessLogger('librarian');
 
-// ── Auth ─────────────────────────────────────────────────────────────
-
 // ── Main ─────────────────────────────────────────────────────────────
 
 async function main() {
   const { initObservabilityNode, registerSupervisorRestartCount } = await import('@semiont/observability/node');
   initObservabilityNode({ serviceName: 'semiont-librarian' });
-  // The Librarian is supervised and mounts /semiont-state, so the durable
-  // record already existed here — nothing read it into a metric until now.
+  // The Librarian is supervised and mounts /semiont-state, where the
+  // supervisor keeps its durable event log: report its restart count.
   registerSupervisorRestartCount();
 
   // A Software peer under the stable identity (semiont, librarian), the same
@@ -169,9 +168,8 @@ async function main() {
   );
 
   logger.info('Connecting to graph database', { type: graphConfig.type });
-  // Bounded, like the gateway's connects have been since 2026-07-20 and unlike
-  // this main until now: an unbounded await on a dependency that is not up leaves
-  // the container hung and unhealthy, where `restart: on-failure` only rescues a
+  // Bounded: an unbounded await on a dependency that is not up leaves the
+  // container hung and unhealthy, where `restart: on-failure` only rescues a
   // process that EXITS. The vector store gets the deadline as a signal because
   // creating a collection retries while the embedding model warms up — this stops
   // that retry rather than abandoning it mid-flight.
@@ -199,21 +197,18 @@ async function main() {
     token$: session.token$,
     tokenRefresher: session.refresh,
     // The inbound roster plus the awaited-reply channels — never the full
-    // bridged set, whose global reply fan-out is the worker-OOM failure
-    // mode. This process awaits ONE wire reply (the anchored-text ask behind
-    // gather's text dispatcher); the census in service-channels.ts pins the
-    // list, and busRequest's isSubscribed gate fails fast if an await is
-    // ever added without growing it.
+    // bridged set (see service-channels.ts). This process awaits ONE wire
+    // reply (the anchored-text ask behind gather's text dispatcher); the
+    // census in service-channels.ts pins the list, and busRequest's
+    // isSubscribed gate fails fast if an await is ever added without
+    // growing it.
     channels: [...LIBRARIAN_INBOUND_CHANNELS, ...LIBRARIAN_REPLY_CHANNELS],
   });
   // Bytes from the Archivist, not the gateway: the gateway's content routes
-  // proxy onto this same call, so dialing it added a hop and put the process
-  // that is meant to stop touching the KB tree on the path to it. Throws at
-  // boot if the address or the credential is absent.
-  // `envConfig`, not the narrowed `config`: reaching the Archivist needs the
-  // issuer this process authenticates at, and `makeMeaningConfigFrom` carries
-  // only make-meaning's own services. Every field of `ArchivistAddressConfig`
-  // is optional, so the narrow config satisfied it and failed at runtime.
+  // proxy onto this same call, so dialing it would only add a hop. Throws at
+  // boot if the address or the credential is absent: the address is
+  // `services.archivist` in the loaded config, and the issuer this process
+  // authenticates at rides in `credential`.
   const contentReads = archivistContentReads(envConfig, credential);
 
   // The progress folds, fed by the signals LIBRARIAN_INBOUND_CHANNELS pumps onto the
@@ -252,8 +247,8 @@ async function main() {
   );
   await gatherer.initialize();
 
-  // The summary handler follows its actor (the D2-i pattern): it calls the
-  // Gatherer's inference path, so it registers here beside it.
+  // The summary handler follows its actor: it calls the Gatherer's
+  // inference path, so it registers here beside it.
   registerGatherSummaryHandler(localBus, gatherer, logger);
 
   // ── Bus pumps ──────────────────────────────────────────────────────

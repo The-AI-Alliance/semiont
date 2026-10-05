@@ -36,12 +36,10 @@ export interface AnchoredTextState {
  * Resolving a resource's anchored text, and keeping at it while the answer is
  * `not-yet`.
  *
- * One concern, previously spread across a cache ref, two pieces of state and
- * three effects in `PdfAnnotationCanvas`: the cached fetch, a bounded retry
- * ladder (the PULL half — self-heals before `smelt:settled` is bridged, and
- * after a missed broadcast once it is), and a `smelt:settled` subscription
- * (the PUSH half — fires at the exact moment `not-yet` stops being true, so
- * the re-ask does not ride out the ladder).
+ * One concern: the cached fetch, a bounded retry ladder (the PULL half —
+ * self-heals when the `smelt:settled` broadcast is missed), and a
+ * `smelt:settled` subscription (the PUSH half — fires at the exact moment
+ * `not-yet` stops being true, so the re-ask does not ride out the ladder).
  *
  * The ladder, the gate and the subscription all stand down together: every
  * non-`not-yet` answer is terminal.

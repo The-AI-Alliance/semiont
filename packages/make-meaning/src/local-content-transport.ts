@@ -90,11 +90,8 @@ export class LocalContentTransport implements IContentTransport {
   }
 
   /**
-   * The same resolution the wire path serves, buffered — local and hosted
-   * modes must answer identically, which they did not before every reader
-   * shared one resolution: this resolved through
-   * `representations[].storageUri`, a field `ViewMaterializer` never wrote,
-   * so every binary read here threw.
+   * The same resolution the wire path serves, buffered, so local and hosted
+   * modes answer identically.
    */
   private loadBinary(resourceId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }> {
     return workingTreeContentReads(this.kb.views, this.kb.content).getBinary(resourceId);

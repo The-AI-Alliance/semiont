@@ -60,9 +60,9 @@ export function createDiscoverStateUnit(
   disposer.add(() => queryInput$.complete());
 
   // `trackList` holds the single subscription and multicasts through its own
-  // subjects, so the previous `shareReplay` is unnecessary — and it would have
-  // been actively wrong here: a replayed ERROR cannot be retried away, and
-  // retry must reach `browse.resources()` again for B15 to clear the marker.
+  // subjects, so no `shareReplay` is needed — and one would be actively
+  // wrong here: a replayed ERROR cannot be retried away, and retry must
+  // reach `browse.resources()` again for B15 to clear the marker.
   // The thunk therefore rebuilds the whole chain per attempt.
   const recent = trackList<ResourceDescriptor[]>(
     () => selectedEntityType$.pipe(

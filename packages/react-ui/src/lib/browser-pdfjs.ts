@@ -4,9 +4,8 @@
  *
  * pdf.js (the ~300 kB display layer) is pulled in via a dynamic `import()` the
  * first time a PDF is actually opened, so it is code-split out of the main app
- * bundle — restoring the lazy-load behaviour the old CDN loader had. Only the
- * pdf.js *types* are imported statically (erased at build time, zero runtime
- * cost).
+ * bundle. Only the pdf.js *types* are imported statically (erased at build
+ * time, zero runtime cost).
  *
  * The worker can't be resolved inside this tsup-built library (Vite's `?url`
  * lives in the app), so the host hands us the worker URL via `setPdfWorkerSrc`

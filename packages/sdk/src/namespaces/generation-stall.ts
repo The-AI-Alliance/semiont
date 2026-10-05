@@ -1,11 +1,3 @@
-import {
-  GENERATION_STALL_ASSUMED_TOKENS_COUNT,
-  GENERATION_STALL_FLOOR_MS,
-  GENERATION_STALL_PER_TOKEN_MS,
-  SemiontError,
-} from '@semiont/core';
-import type { JobErrorCode } from '@semiont/core';
-
 /**
  * The ONE stall guard for generation streams: silence past the deadline
  * cancels the job and raises a typed error, and no consumer of the stream
@@ -20,6 +12,14 @@ import type { JobErrorCode } from '@semiont/core';
  * before the wire.
  */
 
+import {
+  GENERATION_STALL_ASSUMED_TOKENS_COUNT,
+  GENERATION_STALL_FLOOR_MS,
+  GENERATION_STALL_PER_TOKEN_MS,
+  SemiontError,
+} from '@semiont/core';
+import type { JobErrorCode } from '@semiont/core';
+
 /**
  * The single derivation site: a floor, and a wait that grows with the
  * length asked for. The three numbers are specs/src/client/timing.json's, so
@@ -32,9 +32,10 @@ export function deriveStallDeadlineMs(maxTokens: number | undefined): number {
 
 /**
  * Inter-event silence exceeded the deadline. By the time this reaches a
- * consumer the guard has already fired the server-side cancel
- * (`job:cancel-requested`, jobType `generation`). Consumers word their own
- * user-facing message — the SDK ships no copy.
+ * consumer the guard has already asked for the stalled job to be cancelled
+ * (`job:cancel-requested`, by its `jobId`) — unless no job was known yet,
+ * when `jobId` is null and there was nothing to cancel. Consumers word their
+ * own user-facing message — the SDK ships no copy.
  */
 export class GenerationStallError extends SemiontError {
   declare code: JobErrorCode;

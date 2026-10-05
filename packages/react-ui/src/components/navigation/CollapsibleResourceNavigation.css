@@ -4,29 +4,7 @@
   height: 100%;
 }
 
-/* Header - maintains consistent height regardless of content */
-
-/* When collapsed, center the hamburger button */
-
-/* Title in expanded state */
-
-/* Navigation header title (e.g., "Resources", "Compose") */
-
-/* Dropdown menu for collapsible navigation */
-
-/* Collapse button (chevron) in expanded state */
-
-/* Expand button (hamburger) in collapsed state */
-
-/* Icon styles */
-
-/* Content area */
-
 /* Container with padding */
 .semiont-collapsible-nav__container {
   padding: 1rem; /* matches p-4 */
 }
-
-/* Resources list with vertical spacing */
-
-/* Resources section */

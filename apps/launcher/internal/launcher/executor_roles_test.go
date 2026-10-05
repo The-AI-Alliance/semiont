@@ -3,15 +3,14 @@ package launcher
 // executor_roles_test.go — the census gate on the executor's surface.
 //
 // `executor` is the seam that lets flows.go be written once and walked twice,
-// live and as a plan. That is worth keeping. What it had stopped being is a
-// ROLE: 52 methods accumulated into a catalog of everything a flow can do, and
-// a catalog is a thing you add to without deciding anything.
+// live and as a plan. It is a composition of named roles rather than one
+// catalog of everything a flow can do, because a catalog is a thing you add to
+// without deciding anything.
 //
-// So the catalog is now a composition of named roles, and this gate holds that
-// shape: every method belongs to exactly one role, and the roles account for
-// every method. A new effect therefore has to be PLACED — which is a decision,
-// made once, where the next reader can see it — rather than appended to a list
-// of 52.
+// This gate holds that shape: every method belongs to exactly one role, and
+// the roles account for every method. A new effect therefore has to be PLACED
+// — which is a decision, made once, where the next reader can see it — rather
+// than appended to a list.
 //
 // Reflection rather than a hand-written list, deliberately: a list here would
 // be a second statement of the interface, and the first thing to drift.
@@ -66,7 +65,7 @@ func TestExecutorRolesPartitionItsSurface(t *testing.T) {
 	sort.Strings(missing)
 	if len(missing) > 0 {
 		t.Errorf("%d executor method(s) belong to no role: %s\n"+
-			"Put each in the role it serves. A method nobody placed is the catalog growing back.",
+			"Put each in the role it serves. A method nobody placed makes the surface a catalog.",
 			len(missing), strings.Join(missing, ", "))
 	}
 

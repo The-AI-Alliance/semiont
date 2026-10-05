@@ -7,8 +7,7 @@
  * + thrown) and the `afterResponse` passthrough uncovered.
  *
  * These tests capture the `hooks` object passed into `ky.create` and invoke the
- * hooks directly. Added alongside the ky 1 -> 2 migration, which moved every
- * hook to a single state-object argument.
+ * hooks directly, each with the single state-object argument ky 2 hands a hook.
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
@@ -255,7 +254,7 @@ describe('HttpTransport shouldRetry — the transport retry rule', () => {
     expect(verdict('POST', 401)).toBeUndefined();
   });
 
-  test('a GET that got a 504 is still retried — the fix must not over-narrow', () => {
+  test('a GET that got a 504 is retried — the gate must not over-narrow', () => {
     expect(verdict('GET', 504)).toBeUndefined();
   });
 

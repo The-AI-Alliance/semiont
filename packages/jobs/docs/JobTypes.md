@@ -28,9 +28,10 @@ interface JobMetadata {
   created: string;        // ISO 8601
   retryCount: number;
   maxRetries: number;
-  completedUnits?: string[];  // Checkpoint: units already persisted (entity types for
-                              // reference-annotation, categories for tag-annotation);
-                              // written by checkpointUnits and failJob, the retry skips them
+  completedUnits?: string[];  // Checkpoint: units already persisted (the entity types
+                              // of a reference-annotation job); written by the
+                              // dispatcher from job:checkpoint and job:fail, the
+                              // retry skips them
   unitCursors?: Record<string, UnitCursor>;  // How far each unfinished unit got —
                                              // a retry resumes mid-unit
 }
@@ -70,7 +71,7 @@ interface JobReferenceAnnotationResult {
 
 ```typescript
 import type { PendingJob, DetectionParams } from '@semiont/jobs';
-import { jobId, userId, resourceId } from '@semiont/core';
+import { jobId, userId, resourceId, entityType } from '@semiont/core';
 
 const job: PendingJob<DetectionParams> = {
   status: 'pending',
@@ -84,7 +85,7 @@ const job: PendingJob<DetectionParams> = {
   },
   params: {
     resourceId: resourceId('doc-456'),
-    entityTypes: ['Person', 'Organization', 'Location'],
+    entityTypes: ['Person', 'Organization', 'Location'].map(entityType),
     includeDescriptiveReferences: true,
   },
 };
@@ -108,13 +109,13 @@ interface GenerationJobParams {
                                     // ANCHOR (see "Ids come from the focus" below)
   prompt?: string;                  // Freeform refinement — rendered as an authoritative
                                     // "Instruction:" line under the task framing
-  entityTypes?: EntityType[];
+  entityTypes?: string[];
   language?: string;                // Generated-content locale, e.g., 'en-US'
   sourceLanguage?: string;          // Source resource locale (BCP-47)
   temperature?: number;
   maxTokens?: number;               // Length only — never implies structure
-  outputMediaType?: SupportedMediaType; // Default text/markdown; only text/markdown |
-                                    // text/plain are produced — anything else fails the job
+  outputMediaType?: SupportedMediaType; // Default text/markdown; text/markdown, text/plain and
+                                    // application/pdf are produced — anything else fails the job
   task?: 'resource' | 'answer' | 'summary' | (string & {});
                                     // Framing (what to produce). Unknown strings are used
                                     // verbatim as the framing + a worker warn (loud degrade)
@@ -371,7 +372,7 @@ const job: PendingJob<TagDetectionParams> = {
 A running job's `progress` is `StoredProgress` — the spec's `JobRunning.progress`: the last `JobProgress` its worker reported with `job:report-progress`, or `{}` before the first report. One shape for every job type:
 
 ```typescript
-type StoredProgress = components['schemas']['JobRunning']['progress'];
+type StoredProgress = components['schemas']['JobStoredProgress'];
 // = JobProgress | Record<string, never>
 ```
 

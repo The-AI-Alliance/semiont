@@ -17,11 +17,10 @@
  * - Separate ceilings (Anthropic): output takes its full ceiling (duration-
  *   capped below), and input follows the same 1:2 allocation — never more
  *   than half the output budget. Input does NOT get "the rest of the
- *   window": measured 2026-09-02, a window-sized chunk of entity-dense text
- *   demands more output than any budget holds, so the model grinds toward
- *   max_tokens for minutes (killed at the call bound as a "stall") or
- *   collapses to the degenerate []. Large documents chunk; that is the fix,
- *   not a cost.
+ *   window": a window-sized chunk of entity-dense text demands more output
+ *   than any budget holds, so the model grinds toward max_tokens for minutes
+ *   (killed at the call bound as a "stall") or collapses to the degenerate
+ *   []. Large documents chunk; that is the fix, not a cost.
  */
 
 import { chunkText, cutChunk, type ChunkingConfig, type Logger, type UnitCursor } from '@semiont/core';
@@ -72,52 +71,35 @@ const OVERLAP_TOKENS = Math.ceil(OVERLAP_CHARS / 4);
 export const DETECTION_TEMPERATURE = 0;
 
 /**
- * Assumed worst-case output rate for providers that publish none. Rate-silent
- * providers (Ollama — local hardware, rate unknowable a priori) previously
- * got NO duration bound: capacity-sizing handed a 262K-window model a
- * ~174K-token output budget, and a repetition loop then burned the full
+ * Assumed worst-case output rate for providers that publish none. A
+ * rate-silent provider (Ollama — local hardware, rate unknowable a priori)
+ * with NO duration bound is sized by capacity alone: a 262K-window model gets
+ * a ~174K-token output budget, and a repetition loop then burns the full
  * 10-minute guillotine as TRANSIENT — retried identically. Under a
  * duration-shaped cap the same loop dies in minutes as max_tokens →
  * deterministic → subdividable: the useful failure.
  *
- * 30 tok/s. A live sweep measured 36–90 tok/s across three local model
- * families (qwen3.5:9b ~36, gemma4:26b ~50, gemma4:e2b ~90), and the
- * half-bound rule in the cap below means real rates down to 15 tok/s still
- * finish inside the guillotine — anything slower is wedged, not working,
- * which is exactly what the guillotine is for. A conservative floor,
- * deliberately NOT per-model: the same sweep found failure pockets rather
- * than a boundary, so per-model thresholds chase noise. Owned policy
- * constant, same status as the 1:2 split and DETECTION_TEMPERATURE.
+ * 30 tok/s. Three local model families measure 36–90 tok/s (qwen3.5:9b ~36,
+ * gemma4:26b ~50, gemma4:e2b ~90), and the half-bound rule in the cap below
+ * means real rates down to 15 tok/s still finish inside the guillotine —
+ * anything slower is wedged, not working, which is exactly what the
+ * guillotine is for. A conservative floor, deliberately NOT per-model: the
+ * same measurement shows failure pockets rather than a boundary, so
+ * per-model thresholds chase noise. Owned policy constant, same status as
+ * the 1:2 split and DETECTION_TEMPERATURE.
  */
 export const ASSUMED_OUTPUT_TOKENS_PER_HOUR = 108_000;
 
 /**
- * The count-verifier band (user-ratified 2026-09-05): an extraction that
- * found fewer than 1/BAND of the mentions a cheap count call reports is
- * flagged as silent yield collapse. The band is LOAD-BEARING at 2: the same
- * model was measured flipping between entity-like and mention-like
- * enumeration on the same corpus, and that legitimate judgment spread must
- * fit INSIDE the band — probe evidence (n=6) put every healthy ratio at
- * 0.68–0.88 and every collapse at 0.18–0.41.
+ * The count-verifier band: an extraction that found fewer than 1/BAND of the
+ * mentions a cheap count call reports is flagged as silent yield collapse.
+ * The band is LOAD-BEARING at 2: the same model flips between entity-like and
+ * mention-like enumeration on the same corpus, and that legitimate judgment
+ * spread must fit INSIDE the band — probe evidence (n=6) puts every healthy
+ * ratio at 0.68–0.88 and every collapse at 0.18–0.41.
  */
 export const YIELD_COLLAPSE_BAND = 2;
 
-/**
- * The silent-yield-collapse verdict: a schema-clean, done-reason-clean
- * extraction that found a fraction of what a cheap count call says is present.
- * Extends DeterministicJobError because the collapse is MEASURED deterministic
- * — bit-identical across retries and across budget regimes — so a retry is
- * guaranteed waste; the classification and the size-floored subdivision
- * descent both follow from the base class. It diverges from truncation at the
- * size floor: NO re-roll (a same-size re-roll provably returns the identical
- * collapse), and — ruled 2026-09-05 after the first live gate run, amending
- * the original fail-the-job invariant — the floor ACCEPTS the flagged piece's
- * `salvage` loudly rather than failing the unit: one hostile ~530-char
- * stretch had discarded ~20 chunks of good extraction, and at floor sizes the
- * count's evidence sits far below anything the probe validated. The warning
- * and the 'collapsed' telemetry rows are the durable record; re-detection
- * heals.
- */
 /** A floor-accepted piece's evidence: what extraction found against what a
  * count call reported, over a piece of this size. Facts only — never a
  * judgment against an expected yield. */
@@ -127,6 +109,20 @@ export interface UnderReportedPiece {
   pieceChars: number;
 }
 
+/**
+ * The silent-yield-collapse verdict: a schema-clean, done-reason-clean
+ * extraction that found a fraction of what a cheap count call says is present.
+ * Extends DeterministicJobError because the collapse is MEASURED deterministic
+ * — bit-identical across retries and across budget regimes — so a retry is
+ * guaranteed waste; the classification and the size-floored subdivision
+ * descent both follow from the base class. It diverges from truncation at the
+ * size floor: NO re-roll (a same-size re-roll provably returns the identical
+ * collapse), and the floor ACCEPTS the flagged piece's `salvage` loudly
+ * rather than failing the unit: failing lets one hostile ~530-char stretch
+ * discard ~20 chunks of good extraction, and at floor sizes the count's
+ * evidence sits far below anything the probe validated. The warning and the
+ * 'collapsed' telemetry rows are the durable record; re-detection heals.
+ */
 export class YieldCollapseError extends DeterministicJobError {
   override readonly name = 'YieldCollapseError';
   /** What the flagged extraction DID find — every span write-time-verified,
@@ -199,13 +195,13 @@ export function deriveDetectionBudget(
   // risk profile) is exactly the capacity solution's. Capacity says what CAN
   // fit in one call; this says what SHOULD. EVERY provider gets the bound:
   // the published rate when there is one, the conservative assumed floor
-  // when there is not — a rate-silent provider with no bound turned
+  // when there is not — a rate-silent provider with no bound turns
   // repetition loops into hour-long transient burns (see
   // ASSUMED_OUTPUT_TOKENS_PER_HOUR). It is a floor on chunk count, never a
   // raise (a tighter capacity budget is left alone). Side effect worth
   // knowing: on Anthropic this lands every detection call at or under the
-  // SDK's non-streaming threshold — off the MessageStream path the original
-  // `terminated` failure arrived on.
+  // SDK's non-streaming threshold — off the MessageStream path, whose
+  // dropped connections surface as `terminated`.
   const outputTokensPerHour = limits.outputTokensPerHour ?? ASSUMED_OUTPUT_TOKENS_PER_HOUR;
   {
     // Half the bound, not all of it: at the full bound the slowest
@@ -219,15 +215,6 @@ export function deriveDetectionBudget(
     }
   }
 
-  // The 1:2 allocation policy, applied to every provider shape (the shared
-  // split satisfies it by construction; separate ceilings did not). Output
-  // must hold an annotation echo of every span in the chunk plus its
-  // key/context envelope, so a chunk larger than half the output budget is
-  // a call whose honest answer cannot fit — the failure measured live on
-  // 2026-09-02 (silent multi-minute grinds to max_tokens, degenerate []).
-  // The demand is PER TYPE ASKED FOR, so a K-type call divides the input
-  // share by K. Still no density modeling: same one policy, content never
-  // enters.
   // The window fit: the largest input that still leaves the WHOLE output budget
   // room beside it. This is the sizer's ceiling, and it is the only hard bound
   // on input there is — the two derivations above are not.
@@ -242,6 +229,15 @@ export function deriveDetectionBudget(
   // measurement, so the guess opens the run and the window caps it.
   const capacityInput = contextTokens - scaffoldTokens - outputBudget;
 
+  // The 1:2 allocation policy, applied to every provider shape (the shared
+  // split satisfies it by construction; separate ceilings do not). Output
+  // must hold an annotation echo of every span in the chunk plus its
+  // key/context envelope, so a chunk larger than half the output budget is
+  // a call whose honest answer cannot fit: it grinds silently for minutes
+  // to max_tokens, or returns the degenerate [].
+  // The demand is PER TYPE ASKED FOR, so a K-type call divides the input
+  // share by K. Still no density modeling: same one policy, content never
+  // enters.
   inputBudget = Math.min(inputBudget, Math.floor(outputBudget / (2 * typesPerCall)));
 
   if (inputBudget <= OVERLAP_TOKENS) {
@@ -269,10 +265,6 @@ export function deriveDetectionBudget(
   };
 }
 
-/** One chunk handed out by `runAdaptiveChunks`, with the cursor either side of
- * it. `at`/`next` over `totalChars` is exact progress — and the identity a
- * resume checkpoint records, which a variable boundary forces (an ordinal
- * cannot name a chunk whose size is decided while the job runs). */
 /**
  * The half of a `UnitCursor` the DETECTION layer can honestly report: where the
  * walk stands and how it is cutting. The tallies belong to the processor, which
@@ -281,6 +273,10 @@ export function deriveDetectionBudget(
  */
 export type ChunkCursor = Pick<UnitCursor, 'next' | 'size'>;
 
+/** One chunk handed out by `runAdaptiveChunks`, with the cursor either side of
+ * it. `at`/`next` over `totalChars` is exact progress — and the identity a
+ * resume checkpoint records, which a variable boundary forces (an ordinal
+ * cannot name a chunk whose size is decided while the job runs). */
 export interface AdaptiveChunk {
   piece: string;
   /** The token size this piece was cut at. Hand it to `callChunkSubdividing`:
@@ -298,9 +294,8 @@ export interface AdaptiveChunk {
 /**
  * Walk a document in chunks whose size is decided by the chunks before them.
  *
- * `chunkText` fixes every boundary up front from provider limits alone, which
- * is why the sizing rule could exist for a week and change nothing: a
- * measurement taken on chunk N had nowhere to land. Here chunk N+1 is cut only
+ * `chunkText` fixes every boundary up front from provider limits alone, so a
+ * measurement taken on chunk N has nowhere to land. Here chunk N+1 is cut only
  * after chunk N has reported, so the run opens at the static density guess and
  * then moves — a sparse document climbing toward the window's real capacity
  * (fewer, bigger calls), a dense one easing off before it pays a subdivision.
@@ -339,23 +334,21 @@ export async function runAdaptiveChunks(
 }
 
 /**
- * Depth cap for TIMEOUTS only: a call still timing out on a quarter-sized
- * chunk is not a size problem, and timeouts classify transient — the
- * job-level retry is their second chance. Truncations descend by size
- * instead (see `callChunkSubdividing`).
+ * Depth cap for the subdividable failures that are not size-floored: timeouts,
+ * and the unreadable response of a model that finished. A call still timing
+ * out on a quarter-sized chunk is not a size problem, and timeouts classify
+ * transient — the job-level retry is their second chance. Truncations descend
+ * by size instead (see `callChunkSubdividing`).
  */
 export const MAX_SUBDIVISION_DEPTH = 2;
 
-/** The failures a smaller chunk can plausibly fix. An unreadable response
- * that stopped naturally is model misbehavior, not size. */
-/** Unreadable output whose stop reason is UNKNOWN (done_reason absent). First
- * held not-subdividable for lack of evidence; the live gate then reproduced it
- * twice on real text (2026-09-03 at ~21K chars, then at ~4.5K, mid-descent,
- * adjacent to max_tokens truncations that healed by subdividing) and measured
- * the retry-at-same-size alternative as a deterministic 34 s burn. Size-shaped
- * on the evidence — descends like truncation, but with no floor re-roll
- * (near-deterministic, nothing salvaged) and unchanged retryable
- * classification (a genuinely broken server still deserves its budget). */
+/** Unreadable output whose stop reason is UNKNOWN (done_reason absent).
+ * Size-shaped on the evidence: it reproduces on real text at ~21K chars and at
+ * ~4.5K mid-descent, adjacent to max_tokens truncations that heal by
+ * subdividing, and a retry at the same size is a deterministic 34 s burn. So
+ * it descends like truncation, but with no floor re-roll (near-deterministic,
+ * nothing salvaged) and retryable classification (a genuinely broken server
+ * deserves its budget). */
 function unknownUnreadable(error: unknown): boolean {
   return error instanceof StructuredReadError && error.stopReason === 'unknown';
 }
@@ -365,12 +358,12 @@ function unknownUnreadable(error: unknown): boolean {
  * stopped for an unknown reason. Subdividable, but DEPTH-capped rather than
  * size-floored, and the two halves of that are separately earned:
  *
- * Subdividable, because one of these killed a 26-minute attempt at chunk 25 of
- * 49 while the preceding 24 chunks parsed cleanly on the same prompt and model
- * — so the malformation was content-triggered drift, which changing the input
- * can fix. A same-size retry cannot: DETECTION_TEMPERATURE is 0, so the
- * identical call returns the identical response (the same reason a collapse
- * verdict gets no re-roll).
+ * Subdividable, because the malformation is content-triggered drift, which
+ * changing the input can fix: it appears on one chunk (measured at chunk 25 of
+ * 49) while the chunks before it parse cleanly on the same prompt and model. A
+ * same-size retry cannot: DETECTION_TEMPERATURE is 0, so the identical call
+ * returns the identical response (the same reason a collapse verdict gets no
+ * re-roll).
  *
  * Depth-capped rather than size-floored, because if the drift is instead
  * systematic — the model answering this prompt shape wrongly everywhere — every
@@ -384,6 +377,7 @@ function unreadableDespiteFinishing(error: unknown): boolean {
   return error instanceof StructuredReadError && error.stopReason === 'end_turn';
 }
 
+/** The failures a smaller chunk can plausibly fix. */
 function subdividable(error: unknown): boolean {
   return error instanceof InferenceTimeoutError || truncation(error)
     || unknownUnreadable(error) || unreadableDespiteFinishing(error);
@@ -399,14 +393,6 @@ function truncation(error: unknown): boolean {
   );
 }
 
-/**
- * Run one chunk's inference call, subdividing IN PLACE when it fails in a
- * way a smaller chunk can fix — instead of burning the whole attempt to
- * come back at the same size. Sub-pieces re-use the caller's overlap, so
- * spans straddling a split are caught twice and fall to the downstream
- * span-keyed dedupe. On a failure subdivision cannot fix, the ORIGINAL
- * error propagates so classification sees what actually happened.
- */
 /** What `callChunkSubdividing` produced AND what it cost — the second half is
  * what `runAdaptiveChunks` sizes the next chunk from. Accumulated across the
  * whole descent, because the caller's own `call` closure sees one piece at a
@@ -437,6 +423,14 @@ function outcomeOf(error: unknown): 'truncated' | 'timeout' | 'collapsed' | 'err
   return 'error';
 }
 
+/**
+ * Run one chunk's inference call, subdividing IN PLACE when it fails in a
+ * way a smaller chunk can fix — instead of burning the whole attempt to
+ * come back at the same size. Sub-pieces re-use the caller's overlap, so
+ * spans straddling a split are caught twice and fall to the downstream
+ * span-keyed dedupe. On a failure subdivision cannot fix, the ORIGINAL
+ * error propagates so classification sees what actually happened.
+ */
 export async function callChunkSubdividing<T>(
   label: string,
   chunk: string,
@@ -513,23 +507,23 @@ export async function callChunkSubdividing<T>(
       // A descent must also actually CHANGE the input: once a piece fits
       // inside the smaller chunk size, re-chunking returns it unchanged, and
       // at temperature 0 the identical call returns the identical failure —
-      // measured live (one 572-char piece "descended" through three depths,
-      // same verdict each time). A piece that cannot shrink is AT its floor,
-      // whatever the arithmetic floor says.
+      // without this check a 572-char piece "descends" through three depths
+      // to the same verdict each time. A piece that cannot shrink is AT its
+      // floor, whatever the arithmetic floor says.
       const pieces = chunkText(piece, { chunkSize: half, overlap: chunking.overlap });
       const shrinks = pieces.length > 1 || pieces[0] !== piece;
       // Size-shaped failures (truncation, collapse, the unknown-stop
-      // unreadable) descend to the SIZE floor; only timeouts are depth-capped —
-      // that descent must reach failures that first appear mid-descent
-      // (measured at depth 3).
+      // unreadable) descend to the SIZE floor — that descent must reach
+      // failures that first appear mid-descent (measured at depth 3). Timeouts
+      // and the finished-but-unreadable response are depth-capped.
       const canDescend = shrinks && (truncation(error) || unknownUnreadable(error)
         ? half > 2 * OVERLAP_TOKENS
         : depth < MAX_SUBDIVISION_DEPTH);
       if (!canDescend) {
-        // A collapse verdict at the floor is ACCEPTED, loudly (ruled
-        // 2026-09-05): its salvage flows through with a warning instead of
-        // one hostile piece discarding the whole unit's work. No re-roll —
-        // the collapse is deterministic, a same-size retry changes nothing.
+        // A collapse verdict at the floor is ACCEPTED, loudly: its salvage
+        // flows through with a warning instead of one hostile piece
+        // discarding the whole unit's work. No re-roll — the collapse is
+        // deterministic, a same-size retry changes nothing.
         if (error instanceof YieldCollapseError) {
           logger?.warn('Floor-size piece still flagged as collapsed — accepting its under-reported salvage and continuing', {
             pieceChars: piece.length,

@@ -1,6 +1,5 @@
 import { test, expect } from '../fixtures/auth';
-import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
-import { SemiontClient, resourceId as ridBrand, type TagSchema } from '@semiont/sdk';
+import { resourceId as ridBrand, type TagSchema } from '@semiont/sdk';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
@@ -13,7 +12,7 @@ import { signInSession } from '../fixtures/sdk-session';
  * Four things are exercised end-to-end:
  *
  * 1. **Registration round-trip.** `client.frame.addTagSchema(SCHEMA)`
- *    emits `frame:add-tag-schema`; the gateway's Stower persists a
+ *    emits `frame:add-tag-schema`; the Archivist's Stower persists a
  *    `frame:tag-schema-added` domain event on the `__system__` stream
  *    and broadcasts it (a bridged channel — see
  *    `packages/core/src/bridged-channels.ts`). The signed-in test
@@ -26,9 +25,8 @@ import { signInSession } from '../fixtures/sdk-session';
  *
  * 3. **Dispatcher rejects unregistered schema.** `mark.assist` with a
  *    `schemaId` not in the projection must reject synchronously with
- *    `Tag schema not registered: <id>`. This is the failure mode
- *    introduced when the schema lookup moved from the worker to the
- *    dispatcher: the worker no longer has a build-time fallback, so an
+ *    `Tag schema not registered: <id>`. The dispatcher does the schema
+ *    lookup and the worker has no build-time fallback, so an
  *    unknown schemaId is a synchronous-at-job-creation error rather
  *    than a worker-time "Invalid tag schema".
  *
@@ -41,22 +39,22 @@ import { signInSession } from '../fixtures/sdk-session';
  *    check that the dispatcher correctly resolved `schemaId` →
  *    `TagSchema` and that the worker used the embedded schema.
  *
- * Regression targets:
+ * What a failure means:
  *
- * - **Bridge regression** — the test page never receives
+ * - **Bridge** — the test page never receives
  *   `frame:tag-schema-added` even though `frame.addTagSchema` succeeded
- *   on the SDK side. Means `'frame:tag-schema-added'` was dropped from
+ *   on the SDK side. Means `'frame:tag-schema-added'` is missing from
  *   `BRIDGED_CHANNELS` or the gateway isn't fanning the system event
  *   to SSE subscribers.
- * - **Materialization regression** — the projection file isn't being
+ * - **Materialization** — the projection file isn't being
  *   written, so `browse.tagSchemas()` doesn't surface the registration.
  *   `ViewMaterializer.materializeTagSchemas` or `ViewManager.materializeSystem`
  *   would be the culprit.
- * - **Dispatcher fallback regression** — `mark.assist` against an
+ * - **Dispatcher fallback** — `mark.assist` against an
  *   unknown schemaId silently succeeds. Means the dispatcher is
  *   either consulting a stale build-time registry or the projection
  *   lookup is hiding errors.
- * - **Worker schema-embedding regression** — annotations land but
+ * - **Worker schema-embedding** — annotations arrive but
  *   without the `classifying` body, or with the wrong schemaId in
  *   that body. Means the dispatcher isn't embedding the resolved
  *   `TagSchema` in `TagDetectionParams`, or the processor isn't
@@ -139,7 +137,7 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       // The schema must appear in browse.tagSchemas(). The cache
       // backing this method invalidates on `frame:tag-schema-added`,
       // so the await will refetch.
-      // Cache reads are no longer awaitable — `.fresh()` is the explicit
+      // Cache reads are not awaitable — `.fresh()` is the explicit
       // one-shot network read (rejects on failure). Awaiting the
       // CacheObservable itself silently yields the observable, not the value.
       const schemas = await client.browse.tagSchemas().fresh();

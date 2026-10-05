@@ -2,16 +2,13 @@
  * Gatherer Actor
  *
  * LLM context assembly for the Knowledge System. Subscribes to gather events,
- * queries KB stores via context modules, and emits results back to the bus.
- *
- * From ARCHITECTURE.md:
- * "When a Generator Agent or Linker Agent emits a gather event, the Gatherer
- * receives it from the bus, queries the relevant KB stores, and assembles
- * the context needed for downstream work."
+ * queries KB stores via context modules, and emits results back to the bus
+ * for the Generator and Linker Agents (docs/architecture/KNOWLEDGE-SYSTEM.md).
  *
  * Handles:
  * - gather:requested — annotation-level LLM context assembly
  * - gather:resource-requested — resource-level LLM context assembly
+ * - gather:limits-requested — the limits of the model whose credential it holds
  *
  * RxJS pipeline uses groupBy(resourceId) + concatMap for per-resource isolation.
  *
@@ -36,10 +33,12 @@ import { LLMContext, type ResourceGatherReads } from './llm-context';
 
 /**
  * The Gatherer's capability slice — DERIVED as the intersection of the two
- * gather paths' reads, never restated. A full `KnowledgeBase` satisfies it
- * structurally; the standalone Librarian builds it from the shared stateDir
- * (views), the network clients (graph/vectors), bus-fed progress folds, and
- * a resource-id-keyed network read (content).
+ * gather paths' reads, never restated. A `KnowledgeBase` supplies all of it
+ * but `content` and `anchoredText`: the in-process root wraps its working
+ * tree (`workingTreeContentReads`) and asks for anchored text over the bus;
+ * the standalone Librarian builds the slice from the shared stateDir (views),
+ * network clients (graph/vectors/content), bus-fed progress folds, and the
+ * same anchored-text bus read.
  */
 export type GathererStores = AnnotationGatherReads & ResourceGatherReads;
 
@@ -108,7 +107,7 @@ export class Gatherer {
   }
 
   // ========================================================================
-  // Gather handlers (existing)
+  // Gather handlers
   // ========================================================================
 
   private async handleAnnotationGather(event: EventMap['gather:requested'], correlationId: string | undefined): Promise<void> {

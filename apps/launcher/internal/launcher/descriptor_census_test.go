@@ -6,15 +6,12 @@ import (
 	"testing"
 )
 
-// Six enumerations used to restate the same facts in a mixed vocabulary —
-// `roles` keyed by role and valued by technology, two sweep lists spelling
-// container names out by hand, a status roster, a usage string, and the
-// realm's client list. They are now predicates over ONE descriptor set,
-// keyed by (role, driver).
+// ONE descriptor set, keyed by (role, driver), owns the facts: the two sweep
+// lists, the `--service` vocabulary and the realm's client list derive from
+// it, and the status roster is checked against it.
 //
-// The literals below are the hand-written lists, frozen. They are not a
-// second home for the facts: they are the evidence that the derivation
-// reproduces what shipped, name for name and position for position. Delete
+// The literals below are not a second home for those facts: they pin what
+// the derivation produces, name for name and position for position. Delete
 // a literal only together with the behaviour it pins.
 
 // The deliberate difference between the two sweeps, asserted as a PREDICATE
@@ -44,8 +41,8 @@ func TestStopSweepIsPreflightPlusOllama(t *testing.T) {
 }
 
 // Every container the descriptor set can produce is swept by both lists,
-// except the documented absences. This is the gate that failed to exist when
-// semiont-keycloak reached the preflight and never reached stop.
+// except the documented absences. A container that reaches the preflight
+// and never reaches stop survives the teardown.
 func TestBothSweepsCoverEveryContainerDescriptor(t *testing.T) {
 	noPreflight := map[string]string{
 		"browser":   "not a stack member — the preflight must not sweep a viewer kept open across stacks",
@@ -76,8 +73,7 @@ func TestBothSweepsCoverEveryContainerDescriptor(t *testing.T) {
 }
 
 // The `--service` vocabulary, derived from the start walk: a reader meets
-// the roles in the order they come up. Declaring the start order moved it
-// off the old reading order — one list of roles now, not two.
+// the roles in the order they come up — one list of roles, not two.
 func TestRoleListDerivesTheStartWalk(t *testing.T) {
 	want := "traces, metrics, collector, database, messaging, identity, gateway, graph, vectors, inference, embedding, archivist, librarian, dispatcher, worker, smelter, weaver, or browser"
 	if roleList != want {
@@ -111,15 +107,15 @@ func TestStatusReportCoversEveryRole(t *testing.T) {
 
 // serviceClients is the realm's account list: every Semiont service that
 // presents a token to another. The Browser presents none — it is a viewer,
-// and the only Semiont role without an account. Now derived; the literal is
-// what shipped.
-func TestServiceClientsDeriveTodaysAccountList(t *testing.T) {
+// and the only Semiont role without an account. The list is derived; the
+// literal pins it.
+func TestServiceClientsDeriveTheRealmAccountList(t *testing.T) {
 	assertNames(t, "serviceClients", serviceClients,
 		[]string{"archivist", "dispatcher", "gateway", "librarian", "smelter", "weaver", "worker"})
 }
 
 // What keeping role and driver apart is FOR: a row asserting a container
-// for a role is now a row about a (role, driver) pair, so the identity role
+// for a role is a row about a (role, driver) pair, so the identity role
 // cannot claim Keycloak's container while the config selects an external
 // issuer.
 func TestExternalDriversCarryNoContainer(t *testing.T) {

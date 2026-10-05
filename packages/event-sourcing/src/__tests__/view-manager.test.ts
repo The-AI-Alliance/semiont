@@ -131,7 +131,7 @@ describe('ViewManager', () => {
   });
 
   describe('materializeSystem()', () => {
-    it('should call materializer for entitytype.added events', async () => {
+    it('should call materializer for frame:entity-type-added events', async () => {
       const payload = {
         entityType: {
           '@id': 'http://example.com/entitytypes/Document',

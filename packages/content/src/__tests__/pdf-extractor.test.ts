@@ -1,10 +1,11 @@
 /**
- * pdfExtractor — the native PDF text layer, and a named decline (#744).
+ * pdfExtractor — a PDF's text by class, or a named decline.
  *
- * The 'pdf-text-layer' registry slot: class A (native text layer) extracts
- * through the shared `extractPdfTextLayer` reader; every other class
- * declines with its name — 'no-text-layer' (B, scanned), 'encrypted' (F),
- * 'corrupt' (G). Fixtures are the generator's (vitest globalSetup).
+ * The deriving extractor for 'application/pdf': class A (native text layer)
+ * extracts through the shared `extractPdfTextLayer` reader; C (hybrid), D
+ * (table) and E (form) extract in their own shapes; the rest decline by
+ * name — 'no-text-layer' (B, a scan OCR reads nothing from), 'encrypted'
+ * (F), 'corrupt' (G). Fixtures are the generator's (vitest globalSetup).
  */
 
 import path from 'path';
@@ -26,8 +27,8 @@ const readFixture = (name: string): Buffer => fs.readFileSync(path.join(FIXTURES
 
 const KNOWN_PHRASE = 'known phrase from fixture';
 
-describe('pdfExtractor (the pdf-text-layer slot)', () => {
-    it("fills the 'pdf-text-layer' slot", () => {
+describe('pdfExtractor (the deriving extractor for application/pdf)', () => {
+    it('is what derivingExtractorFor returns for application/pdf', () => {
         expect(derivingExtractorFor('application/pdf')).not.toBeNull();
     });
 
@@ -72,7 +73,7 @@ describe('class C — hybrid native/scanned routing', () => {
         if (out.kind === 'declined') throw new Error(`unexpected decline: ${out.declined}`);
         expect(out.pdfClass).toBe('C');
         expect(out.unreadPages).toEqual([2]);
-        // Partial coverage still yields what it can — page 1 embeds today.
+        // Partial coverage still yields what it can — page 1 embeds.
         expect(out.text).toContain('native page text');
     });
 

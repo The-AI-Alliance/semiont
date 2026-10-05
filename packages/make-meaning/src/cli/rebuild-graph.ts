@@ -44,8 +44,7 @@ async function rebuildGraph(rId?: string) {
     readIfExists: (p: string): string | null => existsSync(p) ? readFileSync(p, 'utf-8') : null,
   };
   // Environment resolved by the loader from `[defaults] environment`
-  // (no project root here — global ~/.semiontconfig only). Was hardcoded 'local',
-  // which read the wrong section for any non-local KB.
+  // (no project root here — global ~/.semiontconfig only).
   const envConfig = createTomlConfigLoader(tomlReader, configPath, process.env)(null);
 
   const gatewayPublicURL = envConfig.services?.gateway?.publicURL;
@@ -104,9 +103,7 @@ async function rebuildGraph(rId?: string) {
 }
 
 // Parse command line arguments: [resourceId]
-const args = process.argv.slice(2);
-const envFlagIdx = args.indexOf('--environment');
-const rId = args.find((_, i) => i !== envFlagIdx && i !== envFlagIdx + 1);
+const [rId] = process.argv.slice(2);
 
 rebuildGraph(rId)
   .catch(err => {

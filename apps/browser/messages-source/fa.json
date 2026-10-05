@@ -193,7 +193,6 @@
     "statusConnected": "متصل",
     "statusExpired": "نشست منقضی شده",
     "statusSignedOut": "خارج شده",
-    "statusUnreachable": "غیرقابل دسترس",
     "invalidHost": "نام هاست نامعتبر",
     "discoveredTitle": "یافت‌شده روی این دستگاه",
     "managedBadge": "مدیریت‌شده توسط راه‌انداز",

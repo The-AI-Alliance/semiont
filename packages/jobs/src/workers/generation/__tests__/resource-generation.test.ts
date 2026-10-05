@@ -1,11 +1,9 @@
 /**
  * Resource Generation — prompt-builder tests.
  *
- * The sole test home for `generateResourceFromTopic` (it consolidates the
- * former make-meaning `generation/resource-generation.test.ts` and the jobs
- * `resource-generation.prompt.test.ts` into this one co-located file). Calls
- * the real builder against a `MockInferenceClient` and inspects the prompt
- * captured at the inference boundary.
+ * The sole test home for `generateResourceFromTopic`. Calls the real builder
+ * against a `MockInferenceClient` and inspects the prompt captured at the
+ * inference boundary.
  *
  * Fixtures use the unified `GatheredContext` (discriminated `focus` + shared
  * `graph`). The graph-derived prompt sections (connections, citedBy, siblings)
@@ -198,15 +196,15 @@ describe('generateResourceFromTopic', () => {
     expect(result.truncated).toBe(false);
   });
 
-  // NOTE: the function uses the topic parameter as the title rather than extracting it
-  // from the markdown heading — intentional (see resource-generation.ts). Kept as a skipped
-  // record of the alternative (AI-generated titles overriding the topic).
-  it.skip('should extract title from markdown heading', async () => {
+  // The title is the caller's topic. A heading the model writes is content: it
+  // stays in the body and never renames the resource.
+  it('takes the title from the topic, not from the generated heading', async () => {
     client.setResponses(['# Machine Learning Basics\n\nMachine learning is a subset of AI.']);
 
     const result = await generateResourceFromTopic('Machine Learning', [], client, LOGGER);
 
-    expect(result.title).toBe('Machine Learning Basics');
+    expect(result.title).toBe('Machine Learning');
+    expect(result.content).toContain('# Machine Learning Basics');
   });
 
   it('should handle markdown code fences', async () => {
@@ -337,7 +335,7 @@ describe('generateResourceFromTopic', () => {
 
   it("the user's hint steers the prompt when present, and leaves no residue when absent", async () => {
     // `focus.userHint` — "supplement or replace the selected text for search and
-    // generation" (GatheredContext.json). The matcher has consumed it since #911;
+    // generation" (GatheredContext.json). The matcher consumes it too;
     // this pins the generation half of that contract.
     client.setResponses(['# X\n\nContent.']);
     await generateResourceFromTopic(
@@ -847,8 +845,8 @@ describe('generateResourceFromTopic', () => {
     });
 
     it('defaults (task and structure unset) keep the resource framing but impose NO structure directive', async () => {
-      // A deliberate behavior change: the template used to force # Title + a
-      // structure-guidance clause always; unset now means neither is emitted.
+      // Unset means neither `# Title` nor a structure-guidance clause is
+      // emitted.
       client.setResponses(['# X\n\nbody']);
 
       await generateResourceFromTopic('Topic', [], client, LOGGER);

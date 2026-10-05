@@ -4,10 +4,10 @@
  * Not part of the runtime surface; consumers import it from their test suites.
  * Published as a subpath (the `@semiont/core/testing` pattern) because an
  * `EmbeddingProvider` is required at every KnowledgeBase / Gatherer / Matcher
- * construction site — so every consumer's tests need a double, and a copy per
- * package is the redundancy the house rules forbid. Previously this lived in
- * `src/__tests__/`, which `tsconfig.build.json` excludes, so nothing outside
- * this package could reach it.
+ * construction site — so every consumer's tests need a double, and one
+ * published double is the alternative to a hand-written copy per package,
+ * which drifts. It sits outside `src/__tests__/` because `tsconfig.build.json`
+ * excludes that directory, which nothing outside this package can reach.
  */
 
 import type { EmbeddingProvider } from './embedding/interface';

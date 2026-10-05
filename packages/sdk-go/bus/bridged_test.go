@@ -4,16 +4,17 @@ package bus
 //
 // TypeScript catches most of these at compile time through `satisfies`
 // clauses; Go has no equivalent, so the same properties are asserted at test
-// time. Both languages generate from specs/src/bus/registry.json, so today
+// time. Both languages generate from specs/src/bus/registry.json, so
 // these are a second opinion rather than the only guard — which is the point.
 // A generated artifact checked only against the thing that generated it can
 // agree with a mistake indefinitely.
 
 import "testing"
 
-// A duplicate in the bridged set makes the gateway SSE forwarder subscribe
-// twice — it maps `?channel=` entries 1:1 with no dedup — so every event on
-// that channel arrives twice.
+// Subscribe sends the channels it is given as the `global` list of a POST
+// /bus/subscribe body, and the gateway registers one route per entry with no
+// dedup: subscribed whole, a bridged set holding a duplicate would deliver
+// every frame on that channel twice.
 func TestBridgedChannelsHasNoDuplicates(t *testing.T) {
 	seen := map[Channel]bool{}
 	for _, c := range BridgedChannels {

@@ -1,8 +1,6 @@
-import { useContext } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { PageLayout, AuthErrorDisplay } from '@semiont/react-ui';
-import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 
 export default function AuthError() {
@@ -11,7 +9,6 @@ export default function AuthError() {
   const tNav = (k: string, p?: Record<string, unknown>) => _t(`Navigation.${k}`, p as any) as string;
   const tHome = (k: string, p?: Record<string, unknown>) => _t(`Home.${k}`, p as any) as string;
   const [searchParams] = useSearchParams();
-  const keyboardContext = useContext(KeyboardShortcutsContext);
 
   const errorType = searchParams.get('error') ?? null;
 
@@ -30,7 +27,6 @@ export default function AuthError() {
       routes={routes}
       tNav={tNav}
       tHome={tHome}
-      {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
       className="bg-gray-50 dark:bg-gray-900"
     >
       <AuthErrorDisplay errorType={errorType} Link={Link} translations={translations} />

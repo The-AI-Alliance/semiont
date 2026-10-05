@@ -68,9 +68,9 @@ import type { SessionStorage } from './session-storage';
 import type { SessionFactory } from './session-factory';
 
 /**
- * Tabs are per-KB state: Record<kbId, OpenResource[]>. State from the
- * retired flat `openDocuments` key is deliberately ignored (it never
- * recorded which KB its entries belonged to).
+ * Tabs are per-KB state: Record<kbId, OpenResource[]>. A flat
+ * `openDocuments` key in storage is deliberately ignored: it does not
+ * record which KB its entries belong to.
  */
 function loadOpenResourcesByKb(storage: SessionStorage): Record<string, OpenResource[]> {
   try {
@@ -109,7 +109,7 @@ export interface SignInOutcome {
  * What a knowledge base said when it was asked to describe itself, read
  * against the entry it was asked as.
  *
- *  - `recorded`: it answered as that entry, and its name and branch are now on it.
+ *  - `recorded`: it answered as that entry, and its name and branch are recorded on it.
  *  - `conflict`: a different knowledge base answered. Its did and the name it
  *    gave itself are here, and on nothing else: the entry is as it was.
  *  - `no-verdict`: it did not answer, or could not say who it is. Not evidence
@@ -127,8 +127,7 @@ export interface SemiontBrowserConfig {
    * Builds a `SemiontSession` for a KB. The browser is transport-
    * agnostic — every HTTP-vs-local construction concern lives in the
    * factory. HTTP-backed apps pass `createHttpSessionFactory()` from
-   * `@semiont/sdk`; a future in-process variant from `@semiont/make-meaning`
-   * would expose its own factory.
+   * `@semiont/sdk`; an in-process app passes its own.
    */
   sessionFactory: SessionFactory;
 }
@@ -139,9 +138,9 @@ export class SemiontBrowser {
   readonly activeSession$: BehaviorSubject<SemiontSession | null>;
   /**
    * Modal signals (session-expired / permission-denied) for the
-   * currently-active session. Parallels `activeSession$` — always
+   * active session. Parallels `activeSession$` — always
    * non-null when `activeSession$` is non-null, always null when it
-   * is. Extracted from the session itself so headless sessions
+   * is. Kept apart from the session itself so headless sessions
    * (workers, CLIs, tests) don't carry dead modal observables.
    * See [SessionSignals](./session-signals.ts).
    */
@@ -506,12 +505,12 @@ export class SemiontBrowser {
 
       // Route transport-level errors through RECOVERY, not straight to the
       // modal. A single `unauthorized` is not session death: requests race
-      // the refresh window, and the old direct wire fired "Session Expired
-      // — HTTP 401" over sessions that healed a beat later — and, for a
-      // truly dead session, WITHOUT clearing storage, so every reload
-      // restored the corpse and re-armed an effectively undismissable modal
-      // (both its buttons navigate — into the same loop; found live
-      // 2026-09-14). `session.refresh()` covers both ends: success heals in
+      // the refresh window, and a direct wire to the modal would fire
+      // "Session Expired — HTTP 401" over sessions that heal a beat later —
+      // and, for a truly dead session, WITHOUT clearing storage, so every
+      // reload would restore the corpse and re-arm an effectively
+      // undismissable modal (both its buttons navigate — into the same
+      // loop). `session.refresh()` covers both ends: success heals in
       // silence; exhaustion runs the session's own teardown — stored session
       // cleared, `onAuthFailed` fires the modal once, with the session's own
       // reason instead of the raw transport line. `forbidden` has no
@@ -815,8 +814,8 @@ export class SemiontBrowser {
    *
    * **Reads the COMMITTED map, not `this.openByKb`.** The in-memory
    * copy is a projection cache — any sibling context's write may already have
-   * outdated it — so mutating it and persisting was a plain lost update: two
-   * windows each adding a tab silently lost one. `SessionStorage.get` is
+   * outdated it — so mutating it and persisting would be a plain lost update: two
+   * windows each adding a tab silently lose one. `SessionStorage.get` is
    * synchronous, so read-modify-write costs a parse and closes it. It is also
    * what makes revalidation safe across contexts: a removal is written
    * against committed state, so a sibling's later add cannot resurrect it.

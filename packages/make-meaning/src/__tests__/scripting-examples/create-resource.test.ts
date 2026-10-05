@@ -113,7 +113,7 @@ describe('Scripting Example: Create Resource', () => {
       userId('did:web:test:users:test-script'),
     );
 
-    // Verify resource was created — result is now a ResourceId directly
+    // Verify resource was created — result is a ResourceId
     expect(result).toBeDefined();
 
     // Verify via event store

@@ -69,9 +69,9 @@ describe('ProtectedErrorBoundary', () => {
     });
 
     it('does NOT show "Authentication Error" — the boundary is not auth-themed', () => {
-      // Throw an error whose message contains the word "session" — the old
-      // AuthErrorBoundary substring-matched on this and switched its UI to
-      // an auth-flavored fallback. The new boundary must not.
+      // Throw an error whose message contains the word "session": the
+      // boundary must not substring-match on it and switch its UI to an
+      // auth-flavored fallback.
       render(
         <ProtectedErrorBoundary>
           <ThrowOnRender message="session blew up" />

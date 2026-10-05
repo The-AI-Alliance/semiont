@@ -2,12 +2,11 @@
  * An `Annotation` on the wire is exactly the W3C annotation its author wrote:
  * no producer adds a derived field to it.
  *
- * The server used to staple `_resolvedDocumentName` and
- * `_resolvedDocumentMediaType` onto linking annotations on the way out — a
- * lookup result wearing the shape of an authored fact. It went unnoticed for
- * as long as it did because nothing could catch it: the fields were never in
- * the spec, so `tsc` saw a cast on the reader's side and the request validator
- * saw a schema with no `additionalProperties: false` to violate.
+ * A field stapled onto a linking annotation on the way out — a
+ * `_resolvedDocumentName`, say — is a lookup result wearing the shape of an
+ * authored fact, and nothing else catches it: a field outside the spec
+ * reaches `tsc` only as a cast on the reader's side, and the request validator
+ * sees a schema with no `additionalProperties: false` to violate.
  *
  * So the guard is a test, and its allowed set is DERIVED from the spec rather
  * than restated here. A hand-written key list would be a second answer to
@@ -56,9 +55,9 @@ describe('annotations carry only what the spec declares', () => {
     bus = new EventBus();
     eventStore = createEventStore(tp.project, bus, mockLogger);
 
-    // Two resources: the target must EXIST and be named, because that is the
-    // only case the enricher fired on. A gate run against a missing target
-    // would pass while the defect sat untouched.
+    // Two resources: the target must EXIST and be named, because only then is
+    // there a document name a producer could resolve. A gate run against a
+    // missing target would pass with nothing to catch.
     for (const [rid, name] of [[SOURCE, 'Source doc'], [TARGET, 'Target doc']] as const) {
       await eventStore.appendEvent({
         type: 'yield:created',
@@ -73,7 +72,7 @@ describe('annotations carry only what the spec declares', () => {
     await tp.teardown();
   });
 
-  /** A resolved reference — the one shape the server decorated. */
+  /** A resolved reference — the one shape with a target document to resolve. */
   const linkingAnnotation = (id: string): Annotation => ({
     '@context': 'http://www.w3.org/ns/anno.jsonld',
     type: 'Annotation',
@@ -101,8 +100,8 @@ describe('annotations carry only what the spec declares', () => {
   });
 
   it('holds for every annotation the read returns, not just the linked one', async () => {
-    // A highlight has no body to resolve, so it was never decorated — it is
-    // here so the gate covers the whole reply rather than one motivation.
+    // A highlight has no body to resolve — it is here so the gate covers the
+    // whole reply rather than one motivation.
     await eventStore.appendEvent({
       type: 'mark:added',
       resourceId: SOURCE, userId: USER, version: 1,

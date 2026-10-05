@@ -33,13 +33,12 @@ export type BusReply<Op extends BusOperationKey> =
  * connection, a local misconfiguration — which is why the two vocabularies stay
  * separate rather than collapsing into one.
  *
- * `bus.bad-payload` and `bus.forbidden` were removed (2026-09-13): zero
- * producers, zero consumers, and the HTTP-shaped facts they named already live
- * in `TransportErrorCode` with a real producer (`transportErrorCodeForStatus`).
- * A member nothing can emit promises a distinction the system cannot make.
- * `bus.unauthorized` left with them and returned 2026-09-22, the moment it had
- * a producer: the dispatcher refusing a `job:claim` from a caller without the
- * worker role.
+ * There is no `bus.bad-payload` or `bus.forbidden`: nothing produces either,
+ * and the HTTP-shaped facts they would name live in `TransportErrorCode` with
+ * a real producer (`transportErrorCodeForStatus`). A member nothing can emit
+ * promises a distinction the system cannot make. `bus.unauthorized` is a
+ * member because it has a producer: the dispatcher refusing a `job:claim`
+ * from a caller without the worker role.
  *
  * The mapping has one site, the table. Left unmapped, a consumer would reach
  * into `details.payload.code` and there would be two ways to ask the same
@@ -88,18 +87,16 @@ export class BusRequestError extends SemiontError {
 }
 
 /**
- * The reply channels — result, failure, and (for streaming operations)
- * progress — of every operation in `channels`, deduplicated. Entries that
- * are not operation request channels (broadcast signals, domain events)
- * contribute nothing.
+ * The reply channels — result and failure — of every operation in
+ * `channels`, deduplicated. Entries that are not operation request channels
+ * (broadcast signals, domain events) contribute nothing.
  *
  * This is THE derivation for a narrowed-subscription transport profile
  * (`HttpTransportConfig.channels`: subscribe exactly the reply channels of
  * the operations a process awaits) and for a service's outbound reply pump
  * (forward exactly the replies of the operations it answers). Restating a
- * reply channel by hand was the recurring unbridged-reply bug class.
+ * reply channel by hand is the unbridged-reply bug class.
  */
-
 export function replyChannelsFor(channels: readonly string[]): EventName[] {
   const out = new Set<EventName>();
   for (const ch of channels) {
@@ -168,10 +165,10 @@ export interface BusRequestPrimitive {
    *
    * REQUIRED. An in-process transport answers `true` for every channel,
    * because it delivers every emit — that is the true answer, not a stub.
-   * It was optional until 2026-09-16, and the optionality was a
-   * compatibility layer: `busRequest` had to branch on whether the method
-   * existed, so the check ran or did not according to which implementation
-   * it held rather than according to what was true.
+   * An optional member would be a compatibility layer: `busRequest` would
+   * branch on whether the method exists, so the check would run or not
+   * according to which implementation it held rather than according to what
+   * is true.
    *
    * Answers for the GLOBAL subscription set only. Correlated replies always
    * ride global channels, so a scope-only subscription cannot deliver one —
@@ -200,15 +197,16 @@ function abandonment(signal: AbortSignal): Observable<never> {
  * The `operation` is a `BusOperationKey` (a request channel declared in
  * `BUS_OPERATIONS`); the matching `result`/`failure` reply channels are looked
  * up from the registry, so a caller cannot pass a mismatched or unbridged reply
- * pair — the recurring unbridged-reply bug class is unrepresentable. Every
+ * pair — the unbridged-reply bug class is unrepresentable. Every
  * registry reply derives into `BRIDGED_CHANNELS` (see bridged-channels.ts), so
- * the transport always subscribes to it (an unbridged reply pair gives no
- * compile/runtime signal).
+ * a transport on the default channel set subscribes to it (an unbridged reply
+ * pair gives no compile/runtime signal).
  *
  * The return type is INFERRED from the registry (`BusReply<Op>` = the result
- * channel's `response` type, or `void`) — callers never annotate it. Every reply
- * is `{ correlationId, response: T }` (data) or `{ correlationId }` (void).
- * `busRequest` reads `e.response`.
+ * channel's `response` type, or `void`) — callers never annotate it. A result
+ * reply is a frame whose envelope carries the request's `correlationId` and
+ * whose payload is `{ response: T }` (data) or `{}` (void); `busRequest` matches
+ * on the envelope and reads `payload.response`.
  *
  * `signal` lets the caller ABANDON the request. Abandoned, it rejects with the
  * signal's reason, as an abortable API does, and that is all it does: what
@@ -302,17 +300,16 @@ export async function busRequest<Op extends BusOperationKey>(
   // It rejects on a timeout or an abandonment, and is read only where it is
   // awaited, at the tail. Every path that leaves before then — a closed bus, a
   // refused emit — leaves it rejected with nobody holding it, which a Node
-  // process treats as fatal (found by the liveness harness's reject-emit
-  // schedules). Marked handled once, here; the
-  // await at the tail still throws what it rejected with.
+  // process treats as fatal. Marked handled once, here; the await at the tail
+  // still throws what it rejected with.
   resultPromise.catch(() => {});
 
   // ── Attach gate ───────────────────────────────────────────────────────────
-  // No correlated emit before the reply path exists: the measured failure was
-  // an emit accepted (202) and answered while the session's subscribe stream
-  // had not attached — the reply was published to nobody. Wait, inside the
-  // SAME deadline (the timeout operator above is already ticking), for the
-  // transport to report the one deliverable state. Only `'open'` delivers;
+  // No correlated emit before the reply path exists: an emit accepted (202)
+  // and answered while the session's subscribe stream has not attached
+  // publishes its reply to nobody. Wait, inside the SAME deadline (the
+  // timeout operator above is already ticking), for the transport to report
+  // the one deliverable state. Only `'open'` delivers;
   // `'degraded'` is a dropped stream by definition and waits like
   // `connecting`/`reconnecting`. `'closed'` fails fast — a request against a
   // closed bus should not burn a timeout.

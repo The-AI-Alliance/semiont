@@ -193,7 +193,6 @@
     "statusConnected": "Conectat",
     "statusExpired": "Sesiune expirată",
     "statusSignedOut": "Deconectat",
-    "statusUnreachable": "Inaccesibil",
     "invalidHost": "Nume de gazdă invalid",
     "discoveredTitle": "Găsit pe această mașină",
     "managedBadge": "Gestionat de launcher",

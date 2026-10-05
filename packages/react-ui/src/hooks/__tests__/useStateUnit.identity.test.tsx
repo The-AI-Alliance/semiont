@@ -2,9 +2,7 @@
  * Identity / re-creation seam tests for useStateUnit.
  *
  * These tests probe the "what if the client/cache reference changes after
- * the state unit has been constructed" seam — the strongest remaining candidate
- * for the test 05 entity-types failure after Layer 2/3/5-6 unit tests
- * all came back green.
+ * the state unit has been constructed" seam.
  *
  * Three scenarios modeled:
  *  1. useStateUnit's factory is called once and captures the initial
@@ -13,9 +11,8 @@
  *  2. If `clientA` is replaced by `clientB` in context, and `clientB.browse`
  *     is the one actually receiving bus events, the state unit (still on `clientA`)
  *     sees nothing.
- *  3. Even if we re-run the factory, an in-flight fetch on `clientA` may
- *     resolve AFTER `clientB` is live — writing the response into a dead
- *     cache that nobody observes.
+ *  3. A reply that reaches `clientA` AFTER `clientB` is live still reaches
+ *     the state unit: it observes the cache that receives the write.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -40,14 +37,13 @@ const NINE_TYPES = [
  * An in-memory `ITransport` over one `EventBus`, differing per test only in
  * how `emit` answers.
  *
- * Typed as `ITransport` with NO cast, deliberately. These fakes were built as
- * object literals behind `as unknown as ITransport`, and the cast hid three
- * required members — `baseUrl`, `errors$` and `isSubscribed`. Only the one
- * that happened to be CALLED blew up, and not even loudly: the SWR cache
- * swallowed `bus.isSubscribed is not a function` into its retry-then-idle
- * path, so the symptom was an empty entity-type list (CLIENT-SUBSCRIPTION-
- * MANIFEST, 2026-09-16). Constructing through this signature makes the next
- * required member a compile error instead.
+ * Typed as `ITransport` with NO cast, deliberately. An object literal behind
+ * `as unknown as ITransport` hides missing required members — `baseUrl`,
+ * `errors$`, `isSubscribed` — and only one that happens to be CALLED blows
+ * up, and not even loudly: the SWR cache swallows
+ * `bus.isSubscribed is not a function` into its retry-then-idle path, so the
+ * symptom is an empty entity-type list. Constructing through this signature
+ * makes a missing required member a compile error instead.
  *
  * `isSubscribed` answers `true` honestly rather than as a stub: `stream()`
  * here returns the bus subject for whatever channel is asked, so this
@@ -55,7 +51,7 @@ const NINE_TYPES = [
  */
 // NOT `FaultyTransport` from `@semiont/sdk/testing`, deliberately: that double
 // scripts replies declaratively (a fault schedule + a reply queue), and the
-// DEAD-CACHE WRITE test below must hold a request pending, observe its
+// LATE REPLY test below must hold a request pending, observe its
 // correlationId, re-render, and only THEN answer it. No fault kind expresses
 // "resolve this one later", so this file keeps a callback-scripted transport.
 function inMemoryTransport(
@@ -199,11 +195,10 @@ describe('useStateUnit identity seam — stale client references', () => {
   );
 
   it(
-    'DEAD-CACHE WRITE: if the stale browseA later receives a response, the value lands in an unobserved cache',
+    'LATE REPLY: a response reaching the stale browseA after the swap is observed by the state unit bound to it',
     async () => {
-      // This test demonstrates the "fetch resolves into a cache nobody
-      // reads" failure mode. Useful as a regression marker even though
-      // it follows directly from the previous test's setup.
+      // The previous test's setup, except that browseA's request is answered
+      // after the swap.
       const transportBus = new EventBus();
       const pendingCids: string[] = [];
       const emit = vi.fn().mockImplementation((channel: string, _payload: Record<string, unknown>, envelope?: { correlationId?: string }) => {
@@ -233,16 +228,13 @@ describe('useStateUnit identity seam — stale client references', () => {
       // Swap. state unit still on browseA.
       rerender(<Harness browse={browseB} />);
 
-      // Now resolve browseA's fetch — late. Nobody's listening.
+      // Answer browseA's request, after the swap.
       transportBus.emit('browse:entity-types-result', { response: { entityTypes: NINE_TYPES } }, { correlationId: pendingCids[0]! });
       await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 
-      // state unit is still pinned to browseA; that cache DID receive the value,
-      // but the UI's state-unit observable was built BEFORE the swap and its
-      // underlying client is browseA — so the UI still sees it. Actually
-      // this one passes (the state unit is bound to the cache that got the
-      // write). The bug is only exposed by test #2 above where the live
-      // client never gets queried.
+      // The state unit is pinned to browseA, the cache that received the
+      // write, so the UI sees the late value. The stuck case is the previous
+      // test's, where the captured client is never answered.
       expect(observedTypes).toEqual(NINE_TYPES);
     },
   );

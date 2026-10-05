@@ -1,7 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { SemiontClient } from '@semiont/sdk';
 import { getTargetSource, getTargetSelector, getBodySource } from '@semiont/core';
-import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
@@ -15,12 +13,11 @@ import { signInSession } from '../fixtures/sdk-session';
  * `semiont-newsroom-kb/skills/bind-claim-to-source` — a source-only `target`
  * with a `SpecificResource` body.
  *
- * RED→GREEN: before #908, `@semiont/core`'s `assembleAnnotation` hard-threw
- * "Either TextPositionSelector, SvgSelector, or FragmentSelector is required" on
- * a selectorless target, so the `mark.annotation` below would reject. #908 deleted
- * that throw — a successful create + serve IS the verification that whole-resource
- * targets are now first-class. (Deterministic RED lives in the `@semiont/core`
- * unit test; this is the system-level guard against the live stack.)
+ * `@semiont/core`'s `assembleAnnotation` requires no selector of a target, so
+ * the `mark.annotation` below is accepted: a successful create + serve IS the
+ * verification that whole-resource targets are first-class. (The deterministic
+ * check lives in the `@semiont/core` unit test; this is the system-level guard
+ * against the live stack.)
  *
  * Self-seeding: creates its own two resources, so it doesn't depend on the
  * global seed's fixtures.
@@ -37,8 +34,8 @@ test.describe('resource-level anchor', () => {
       // Two resources: "claim" A (the annotation target) and "source" B (the edge target).
       const a = (
         await client.yield.resource({
-          name: 'P5 Claim',
-          storageUri: 'file://e2e/p5-claim.txt',
+          name: 'Anchor Claim',
+          storageUri: 'file://e2e/anchor-claim.txt',
           file: Buffer.from('A claim that needs a supporting source.', 'utf-8'),
           format: 'text/plain',
           language: 'en',
@@ -46,8 +43,8 @@ test.describe('resource-level anchor', () => {
       ).resourceId;
       const b = (
         await client.yield.resource({
-          name: 'P5 Source',
-          storageUri: 'file://e2e/p5-source.txt',
+          name: 'Anchor Source',
+          storageUri: 'file://e2e/anchor-source.txt',
           file: Buffer.from('The supporting source document.', 'utf-8'),
           format: 'text/plain',
           language: 'en',
@@ -55,8 +52,8 @@ test.describe('resource-level anchor', () => {
       ).resourceId;
 
       // Whole-resource edge A→B: a source-only target (no selector) with a
-      // SpecificResource body. Before #908 this threw "selector required"; that
-      // it returns an id at all is the core assertion of the feature.
+      // SpecificResource body. That it returns an id at all, rather than a
+      // "selector required" refusal, is the core assertion of the feature.
       const { annotationId } = await client.mark.annotation({
         target: { source: a },
         motivation: 'linking',

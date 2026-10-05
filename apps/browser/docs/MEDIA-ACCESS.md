@@ -135,7 +135,6 @@ The split is **display vs programmatic**, not text vs binary:
 
 ---
 
-**Last Updated**: 2026-08-03
 **Key implementation**:
 - `packages/react-ui/src/hooks/useMediaToken.ts` — the refreshing token hook
 - `packages/react-ui/src/lib/media-url.ts` — `mediaUrl()`, the one place the `?token=` URL is built

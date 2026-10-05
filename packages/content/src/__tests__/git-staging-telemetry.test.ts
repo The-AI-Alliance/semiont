@@ -1,22 +1,21 @@
 /**
- * The staging queue still reports what git costs.
+ * The staging queue reports what git costs.
  *
- * INHERITED from `event-sourcing`'s `git-telemetry.test.ts`, deleted when
- * staging moved here, off the event loop: that suite pinned the write path's
- * guarantee — every git invocation is measured — against a per-package
- * wrapper that no longer exists. The guarantee outlives the wrapper, so it is
- * re-asserted at the one place git now runs.
+ * The write path's guarantee — every git invocation is measured — asserted
+ * at the one place git runs.
  *
  * A failing invocation is measured too: git still consumed time and still
  * blocked whatever was waiting on the queue, so it still has a duration worth
- * reporting.
+ * reporting. It is counted as a staging failure as well, under its reason.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const recordGitCommand = vi.fn();
+const recordGitStagingFailure = vi.fn();
 vi.mock('@semiont/observability', () => ({
   recordGitCommand: (...args: unknown[]) => recordGitCommand(...args),
+  recordGitStagingFailure: (...args: unknown[]) => recordGitStagingFailure(...args),
 }));
 
 import { promises as fs } from 'fs';
@@ -30,6 +29,7 @@ describe('staging telemetry', () => {
 
   beforeEach(async () => {
     recordGitCommand.mockClear();
+    recordGitStagingFailure.mockClear();
     root = await fs.mkdtemp(join(tmpdir(), 'semiont-stager-tel-'));
     execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' });
   });
@@ -47,13 +47,19 @@ describe('staging telemetry', () => {
     await stager.dispose();
   });
 
-  it('measures a FAILING invocation — it consumed time either way', async () => {
+  it('measures a FAILING invocation, and counts it as a staging failure by reason', async () => {
     const stager = createStager(root, { flushMs: 5, maxWaitMs: 50 });
-    stager.add('does-not-exist.txt');
+    stager.add('does-not-exist.txt'); // pathspec matches nothing: git fails, always
 
-    await stager.flush().catch(() => {});
+    // The flush resolves: a failed stage is degraded service, reported through
+    // the failure counter rather than to the caller.
+    await stager.flush();
+
+    expect(recordGitCommand).toHaveBeenCalledTimes(1);
     expect(recordGitCommand).toHaveBeenCalledWith('add', expect.any(Number));
-    await stager.dispose().catch(() => {});
+    expect(recordGitStagingFailure).toHaveBeenCalledTimes(1);
+    expect(recordGitStagingFailure).toHaveBeenCalledWith('other');
+    await stager.dispose();
   });
 
   it('one measurement per BATCH, not per path — the dedupe is visible here too', async () => {

@@ -5,10 +5,10 @@ import { SkipLinks } from '@semiont/react-ui';
 /**
  * Locale Layout — root layout for all /:locale/* routes.
  *
- * Mounts only auth-independent providers. Auth-dependent providers
- * (KnowledgeBaseProvider, AuthProvider, SessionProvider, modals)
- * are mounted via AuthShell in protected layouts (know/, admin/,
- * moderate/, auth/welcome/).
+ * Mounts `Providers` (the auth-independent contexts) and the skip links.
+ * The auth-dependent tree (the protected error boundary and the session
+ * modals) is `AuthShell`, which `ProtectedLayout` in App.tsx mounts above
+ * know/ and moderate/.
  */
 export default function LocaleLayout() {
   return (

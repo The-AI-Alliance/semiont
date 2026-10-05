@@ -70,13 +70,13 @@ export interface MakeMeaningConfig {
   search: { semanticFloor: number };
   services: {
     graph?: GraphServiceConfig;
-    /** REQUIRED, at the type level (ruled 2026-08-12): a vector store is
+    /** REQUIRED, at the type level: a vector store is
      *  mandatory and nothing is defaulted, so the config NAMES its store —
      *  `memory` is a first-class explicit choice, never a fallback. The TOML
      *  loader refuses configs without it; the type makes hand-built configs
      *  state their choice. */
     vectors: VectorsServiceConfig;
-    /** REQUIRED (same ruling): the embedding provider is the KB's semantic
+    /** REQUIRED, likewise: the embedding provider is the KB's semantic
      *  identity — always named, never detected or defaulted. */
     embedding: EmbeddingServiceConfig;
     /** Where the record is. Optional in the type because the actors that
@@ -90,14 +90,6 @@ export interface MakeMeaningConfig {
   workers?: WorkerInferenceConfig;
 }
 
-/**
- * Extract the MakeMeaningConfig slice from a full EnvironmentConfig.
- * actors and workers come from _metadata (populated by the TOML loader).
- *
- * Lives here (not in a consumer) because every composition root that runs
- * make-meaning actors — the gateway's startMakeMeaning and the Archivist's
- * archivist-main — needs the identical mapping; two copies would drift.
- */
 /**
  * The KB name a mountless service composes its state paths from —
  * `[kb] name`, staged by the launcher from the KB's committed identity.
@@ -122,6 +114,12 @@ export function requireKBName(config: EnvironmentConfig): string {
  * the sections specs/src/service-config/sections.json lists for it, so copying
  * a part it never uses (the dispatcher's graph, the Librarian's workers) would
  * be a read of a section it does not declare, which the loader refuses.
+ * `gather`, `search`, `actors` and `workers` come from `_metadata`, which the
+ * TOML loader populates.
+ *
+ * Lives here (not in a consumer) because every entry point that starts from
+ * a loaded config — archivist-main, librarian-main, the rebuild-projections
+ * CLI — needs the identical mapping; two copies would drift.
  */
 export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningConfig {
   const meta = () => config._metadata as (EnvironmentConfig['_metadata'] & {

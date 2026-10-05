@@ -1,11 +1,12 @@
 /**
  * `mark:commit` is at-least-once, and the event log is the system of record.
  *
- * Two things were already idempotent by annotation id — the resource view
+ * Two things are idempotent by annotation id — the resource view
  * (`view-materializer.ts`) and the graph (`weaver.ts`) — and both of them are
- * PROJECTIONS. The log itself appends whatever it is handed. So a
- * re-committed batch leaves a green graph over a doubled log, which is the
- * failure mode hardest to notice and impossible to undo.
+ * PROJECTIONS. The log itself appends whatever it is handed. So without a
+ * guard at the append, a re-committed batch leaves a green graph over a
+ * doubled log, which is the failure mode hardest to notice and impossible to
+ * undo.
  *
  * Two paths re-send a batch that already landed, and neither is exotic:
  *
@@ -105,8 +106,8 @@ describe('mark:commit does not duplicate the event log', () => {
   };
 
   it('re-committing an identical batch appends nothing the second time', async () => {
-    // The measured scenario: 1,673 annotations durable, acknowledgement lost,
-    // job retried. Today this appends 1,673 more.
+    // Path 1: the batch is durable, the acknowledgement lost, the job retried.
+    // Appending it again would double every annotation in the log.
     await commit(['a1', 'a2', 'a3'], 'first');
     expect(store.markAddedIds()).toEqual(['a1', 'a2', 'a3']);
 

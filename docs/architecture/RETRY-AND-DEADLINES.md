@@ -103,8 +103,8 @@ subscription must always come back; every other site is a request with a caller 
 
 `retry.ts` holds the mechanism. Policies, deadlines and provider-specific predicates live in
 the package that owns the question, and that placement is load-bearing: an embedding path that
-borrowed `STARTUP_FETCH_RETRY` — sized for *until the gateway starts listening* — expired
-waiting for a model download and killed three services on every first boot. `STARTUP_FETCH_RETRY`
+borrows `STARTUP_FETCH_RETRY` — sized for *until the gateway starts listening* — expires
+waiting for a model download and kills three services on every first boot. `STARTUP_FETCH_RETRY`
 is the one hand-written policy in core, because five boot paths genuinely share the question it
 answers. `EMIT_RETRY` is in core too, generated from
 [`specs/src/client/timing.json`](../../specs/src/client/timing.json): it is client timing every

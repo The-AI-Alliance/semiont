@@ -53,7 +53,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: cargo install cargo-deny --locked --version 0.20.2
 
-      # -D advisory-not-detected: an ignore that no longer matches anything
-      # fails the run, so none outlives the crate it was about.
+      # -D advisory-not-detected: an ignore that matches nothing fails the
+      # run, so none outlives the crate it was about.
       - name: Check advisories, bans and sources
         run: cargo deny --locked check -D advisory-not-detected advisories bans sources

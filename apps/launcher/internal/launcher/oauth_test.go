@@ -17,9 +17,9 @@ import (
 // gated on detecting a terminal, because a person whose browser does not open
 // still needs both.
 //
-// This failed in CI once, for the reason `stdinIsTerminal` now exists: a CI
-// step's stdin is commonly /dev/null, which IS a character device, so the
-// shorthand check read as interactive and the URI was never printed.
+// The terminal check is `stdinIsTerminal`, not a character-device test: a CI
+// step's stdin is commonly /dev/null, which IS a character device, and would
+// read as interactive.
 func TestPromptToOpenAlwaysShowsTheCodeAndURI(t *testing.T) {
 	da := deviceAuthorization{
 		UserCode:                "ABCD-1234",

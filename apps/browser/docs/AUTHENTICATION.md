@@ -229,7 +229,7 @@ When no session is active (e.g. on the landing page), `activeSignals$` is
 ## Testing
 
 See [tests/e2e/specs/07-sign-out-sign-in.spec.ts](../../../tests/e2e/specs/07-sign-out-sign-in.spec.ts)
-for the end-to-end regression guard: sign out, sign back in through the
+for the end-to-end guard: sign out, sign back in through the
 issuer, confirm the new session's bus/SSE/client round-trip. The test gates
 on the KB row's sign-out control reappearing rather than URL matching,
 because `toHaveURL(/know/)` passes immediately post-sign-out (the URL already

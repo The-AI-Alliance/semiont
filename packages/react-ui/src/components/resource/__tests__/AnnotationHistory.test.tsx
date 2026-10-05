@@ -85,9 +85,8 @@ describe('AnnotationHistory', () => {
   });
 
   describe('terminal load failure', () => {
-    // The panel used to derive `loading` from `eventsData === undefined` and
-    // hard-code `const error = false`, so a failed load sat on "Loading..."
-    // for ever and the error branch below it was unreachable.
+    // A panel that derives `loading` from `eventsData === undefined` and has
+    // no error input leaves a failed load on "Loading..." for ever.
 
     it('reports the failure instead of staying on the loading text', () => {
       renderWithProviders(
@@ -172,8 +171,8 @@ describe('AnnotationHistory', () => {
   });
 
   it('filters out job events', () => {
-    // e3 is `job:progress`, a retired event type. Logs written before it was
-    // retired still hold them, so the filter must keep excluding it.
+    // e3 is `job:progress`, a retired event type. Stored logs can hold them,
+    // so the filter must exclude it.
     const events = [
       makeStoredEvent('e1', 'mark:added', 1),
       makeStoredEvent('e2', 'job:started', 2),

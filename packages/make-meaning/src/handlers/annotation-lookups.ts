@@ -7,7 +7,7 @@
  * - `gather:summary-requested` calls the Gatherer's inference path, so it
  *   follows the Gatherer (as annotation assembly follows the Stower in the
  *   Archivist): the standalone root and librarian-main register it beside
- *   their Gatherer; the gateway does NOT.
+ *   their Gatherer.
  */
 
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';

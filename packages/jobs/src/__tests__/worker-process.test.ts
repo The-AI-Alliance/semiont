@@ -6,21 +6,21 @@
  * job:* lifecycle, every invocation emits:
  *
  *   job:start                                  (at entry)
- *     → for each returned annotation: mark:create
+ *     → for each chunk: mark:commit (awaited), then job:checkpoint
  *                                                 (annotation jobs)
  *     → session.client.yield.resource(...)
  *                                                 (generation only; creates the resource)
  *     → job:complete                            (at success exit)
  *
- * `job:complete` / `job:fail` are global, `jobId`-keyed signals (#847) — emitted
+ * `job:complete` / `job:fail` are global, `jobId`-keyed signals — emitted
  * once, with no resource scope. The dispatching caller filters by `jobId`;
  * resource viewers filter the same global stream by `resourceId`.
  *
- * Post-WORKER-SESSIONS refactor, the worker runs on top of a
- * `SemiontSession`. Tests use a fake session whose `client.actor.emit`
- * captures bus emits, `client.browse.resourceContent` returns test
- * content, and `client.yield.resource` captures the multipart upload
- * for generation. No raw `fetch` or `WorkerStateUnit` involved.
+ * The worker runs on top of a `SemiontSession`. Tests use a fake session
+ * whose `client.transport.emit` captures bus emits and answers
+ * `mark:commit`, a `contentReads.getBinary` double for detection's byte
+ * read, and `client.yield.resource` capturing the multipart upload for
+ * generation. No raw `fetch` involved.
  *
  * On failure the outer wrapper (startWorkerProcess) emits `job:fail`
  * and calls adapter.failJob(); we exercise that by letting a processor
@@ -65,10 +65,10 @@ vi.mock('../processors', async (importOriginal) => ({
   processGenerationJob: vi.fn(),
 }));
 
-// prepareDetection reads through the extractor registry. Stub only the PDF
-// slot so orchestration tests drive the extracted-vs-declined decision without
-// real PDF fixtures; everything else in @semiont/content (deriveStorageUri,
-// the passthrough extractor, etc.) stays real.
+// Stub only `extractPdfTextLayer`, so generation's citation tests supply a
+// text layer without real PDF fixtures; everything else in @semiont/content
+// stays real. Detection's extracted-vs-declined decision is driven by the
+// session's `browse.resourceAnchoredText` double, not by this mock.
 vi.mock('@semiont/content', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/content')>();
   return {
@@ -84,7 +84,7 @@ vi.mock('@semiont/content', async (importOriginal) => {
  * `makeConfig` keeps its one-argument shape; `vi.clearAllMocks()` clears the
  * calls between tests but leaves this implementation in place.
  *
- * It hangs off the config rather than the session because detection now reads
+ * It hangs off the config rather than the session because detection reads
  * from the Archivist, not through the gateway. The bytes are inert — every
  * extractor these tests exercise is mocked per test.
  */
@@ -104,7 +104,7 @@ function makeFakeSessionAndAdapter() {
 
   // The Archivist stand-in for the durability ack: a unit counts as complete
   // only once `mark:commit` has acknowledged its annotations as logged.
-  // `mark:commit` is a request/reply operation now, so the harness must answer
+  // `mark:commit` is a request/reply operation, so the harness must answer
   // it or every unit blocks until the commit timeout. `commitSink` lets a test
   // play the sink being down.
   // Handlers registered via `transport.on`, so a test can fire the signals the
@@ -127,7 +127,7 @@ function makeFakeSessionAndAdapter() {
    * the second:
    *
    *   ok         appended, acknowledged
-   *   ack-lost   APPENDED, acknowledgement never routed  ← the measured bug
+   *   ack-lost   APPENDED, acknowledgement never routed
    *   silent     never arrived, so nothing appended, nothing answered
    *   fail       refused, nothing appended
    *
@@ -213,7 +213,6 @@ function makeFakeSessionAndAdapter() {
         resource: vi.fn((_rid: string) => ({
           fresh: async () => ({ representations: [{ mediaType: 'text/plain' }] }),
         })),
-        resourceContent: vi.fn(async (_rid: string) => 'the content'),
         // The Smelter's geometry consult. Only PDF tests take this path;
         // they override it. Default is a benign settled answer.
         resourceAnchoredText: vi.fn(async (_rid: string) => ({
@@ -263,9 +262,9 @@ function makeFakeSessionAndAdapter() {
  */
 const emitting = (r: { annotations: unknown[]; result: unknown; unit?: string }) =>
   (async (...args: unknown[]) => {
-    // Typed with the checkpoint it actually takes: the looser
-    // `(a: unknown[]) => …` cast this replaced kept compiling when the seam
-    // grew a second argument, and the omission surfaced only at runtime as
+    // Typed with the checkpoint it actually takes: a looser
+    // `(a: unknown[]) => …` cast keeps compiling when the seam's arguments
+    // change, and the omission surfaces only at runtime as
     // "Cannot read properties of undefined (reading 'unit')".
     const onChunkComplete = args[5] as (a: unknown[], c: UnitCheckpoint) => Promise<void>;
     await onChunkComplete(r.annotations, { unit: r.unit ?? 'highlighting', cursor: { next: 900, size: 220, found: 0, emitted: 0 } });
@@ -322,18 +321,15 @@ describe('handleJob orchestration', () => {
   // ── Annotation jobs — all five follow the same shape. Each suite asserts:
   //   (1) processor was called
   //   (2) leads with `job:start` carrying jobId + jobType
-  //   (3) exactly N `mark:create` emits (N = returned annotation count), in order
+  //   (3) one awaited `mark:commit` per chunk, trailed by its `job:checkpoint`
   //   (4) exactly one `job:complete` emit carrying jobType + result
   //   (5) adapter.completeJob called exactly once, AFTER the above
 
   describe('highlight-annotation', () => {
     it('forwards the progress CODE onto the wire — the producer says what, clients say it in their language', async () => {
       // The wire half of one rule: a progress event carries a code and typed
-      // params, never prose. The worker once dropped this argument as an
-      // interim (nothing worth forwarding until the processors emitted
-      // codes). Dropping it again is silent: every event still flows, the UI
-      // just goes back to having nothing to render, which is the defect
-      // forwarding the code exists to remove.
+      // params, never prose. Dropping the argument is silent: every event
+      // still flows, and the UI just has nothing to render.
       vi.mocked(processHighlightJob).mockImplementation(async (_c, _i, _p, _b, onProgress) => {
         onProgress(60, { code: 'creating-annotations', count: 2 });
         return { annotations: [], result: { highlightsFound: 0, highlightsCreated: 0 } as never };
@@ -350,7 +346,7 @@ describe('handleJob orchestration', () => {
       });
     });
 
-    it('emits job:start, mark:create per annotation, then job:complete', async () => {
+    it('emits job:start, mark:commit and job:checkpoint per chunk, then job:complete', async () => {
       vi.mocked(processHighlightJob).mockImplementation(emitting({
         annotations: [{ id: 'a1' }, { id: 'a2' }] as never,
         result: { highlightsFound: 2, highlightsCreated: 2 } as never,
@@ -360,10 +356,10 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('highlight-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        // A `job:checkpoint` now trails every committed chunk, not only every
+        // A `job:checkpoint` trails every committed chunk, not only every
         // completed unit. For a one-unit job that is the ONLY checkpoint there
-        // can be before the job ends — which is precisely why the unit grain
-        // was too coarse for these four types.
+        // can be before the job ends: the unit grain alone is too coarse for
+        // these four types.
         .toEqual(['job:start', 'mark:commit', 'job:checkpoint', 'job:complete']);
       expect(h.busEmits.find(e => e.channel === 'job:complete')!.payload)
         .toMatchObject({ jobType: 'highlight-annotation', result: { highlightsFound: 2 } });
@@ -390,7 +386,7 @@ describe('handleJob orchestration', () => {
   });
 
   describe('comment-annotation', () => {
-    it('emits job:start, one mark:create, then job:complete', async () => {
+    it('emits job:start, mark:commit and job:checkpoint per chunk, then job:complete', async () => {
       vi.mocked(processCommentJob).mockImplementation(emitting({
         annotations: [{ id: 'c1' }] as never,
         result: { commentsFound: 1, commentsCreated: 1 } as never,
@@ -400,17 +396,17 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('comment-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        // A `job:checkpoint` now trails every committed chunk, not only every
+        // A `job:checkpoint` trails every committed chunk, not only every
         // completed unit. For a one-unit job that is the ONLY checkpoint there
-        // can be before the job ends — which is precisely why the unit grain
-        // was too coarse for these four types.
+        // can be before the job ends: the unit grain alone is too coarse for
+        // these four types.
         .toEqual(['job:start', 'mark:commit', 'job:checkpoint', 'job:complete']);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
   });
 
   describe('assessment-annotation', () => {
-    it('emits job:start, mark:create per annotation, then job:complete', async () => {
+    it('emits job:start, mark:commit and job:checkpoint per chunk, then job:complete', async () => {
       vi.mocked(processAssessmentJob).mockImplementation(emitting({
         annotations: [{ id: 'a1' }] as never,
         result: { assessmentsFound: 1, assessmentsCreated: 1 } as never,
@@ -420,21 +416,21 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('assessment-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        // A `job:checkpoint` now trails every committed chunk, not only every
+        // A `job:checkpoint` trails every committed chunk, not only every
         // completed unit. For a one-unit job that is the ONLY checkpoint there
-        // can be before the job ends — which is precisely why the unit grain
-        // was too coarse for these four types.
+        // can be before the job ends: the unit grain alone is too coarse for
+        // these four types.
         .toEqual(['job:start', 'mark:commit', 'job:checkpoint', 'job:complete']);
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
   });
 
-  // The reference-annotation branch commits per unit through
-  // `onUnitComplete` — covered by the 'checkpointed resume' describes at
-  // the end of this file, which superseded the old post-run-batch test.
+  // The reference-annotation branch commits per chunk and checkpoints per
+  // unit through `onUnitComplete` — covered by the 'checkpointed resume'
+  // describes later in this file.
 
   describe('tag-annotation', () => {
-    it('emits job:start, mark:create per annotation, then job:complete', async () => {
+    it('emits job:start, mark:commit and job:checkpoint per chunk, then job:complete', async () => {
       vi.mocked(processTagJob).mockImplementation(emitting({
         annotations: [{ id: 't1' }] as never,
         result: { tagsFound: 1, tagsCreated: 1 } as never,
@@ -444,10 +440,10 @@ describe('handleJob orchestration', () => {
       await handleJob(h.adapter, makeConfig(h.session), makeJob('tag-annotation'));
 
       expect(h.busEmits.map(e => e.channel))
-        // A `job:checkpoint` now trails every committed chunk, not only every
+        // A `job:checkpoint` trails every committed chunk, not only every
         // completed unit. For a one-unit job that is the ONLY checkpoint there
-        // can be before the job ends — which is precisely why the unit grain
-        // was too coarse for these four types.
+        // can be before the job ends: the unit grain alone is too coarse for
+        // these four types.
         .toEqual(['job:start', 'mark:commit', 'job:checkpoint', 'job:complete']);
       expect(h.busEmits.find(e => e.channel === 'job:complete')!.payload).toMatchObject({
         jobType: 'tag-annotation',
@@ -469,7 +465,7 @@ describe('handleJob orchestration', () => {
       const h = makeFakeSessionAndAdapter();
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', {
-        context: minimalContext('annotation'),   // the focus IS the reference now
+        context: minimalContext('annotation'),   // the focus IS the reference
         prompt: 'Write about X',
         language: 'en',
       }));
@@ -486,7 +482,7 @@ describe('handleJob orchestration', () => {
       expect(uploaded.language).toBe('en');
       expect(uploaded.generator).toBeTruthy();
 
-      // Bus emits: job:start then job:complete (no yield:create, no mark:create).
+      // Bus emits: job:start then job:complete (no yield:create, no mark:commit).
       expect(h.busEmits.map(e => e.channel))
         .toEqual(['job:start', 'job:complete']);
       expect(h.busEmits.find(e => e.channel === 'job:complete')!.payload).toMatchObject({
@@ -501,9 +497,9 @@ describe('handleJob orchestration', () => {
     });
 
     // ── The Save location is authoritative ───────────────────────────────────
-    // The form requires it, every layer carries it, and the worker used to
-    // derive its own from the title instead — so the artifact landed at
-    // file://<title-slug><ext> and RENAMING THE TITLE MOVED THE FILE.
+    // The form requires it, every layer carries it, and the worker uses it
+    // verbatim. Deriving one from the title would put the artifact at
+    // file://<title-slug><ext>, and RENAMING THE TITLE WOULD MOVE THE FILE.
 
     it('uploads to the storageUri the caller asked for, not a title-derived one', async () => {
       vi.mocked(processGenerationJob).mockResolvedValue({
@@ -523,8 +519,8 @@ describe('handleJob orchestration', () => {
     });
 
     it('the title does not move the file — two titles, one requested uri', async () => {
-      // The defect this closes, stated as an invariant: where the bytes land
-      // is the user's decision, not a function of what they called the thing.
+      // The invariant: where the bytes land is the user's decision, not a
+      // function of what they called the thing.
       const uris: Array<string | undefined> = [];
       for (const title of ['First Title', 'Totally Different Title']) {
         vi.mocked(processGenerationJob).mockResolvedValue({
@@ -545,9 +541,7 @@ describe('handleJob orchestration', () => {
     });
 
     it('an EMPTY storageUri fails the job and writes nothing — there is no fallback', async () => {
-      // FLIPPED, deliberately (decided 2026-08-24). This pin once held the
-      // worker to `params.storageUri || deriveStorageUri(…)`, which was
-      // defensible while nothing filled the field. Now the form always
+      // No `params.storageUri || deriveStorageUri(…)`: the form always
       // proposes a path, so a fallback could only hide a caller that forgot.
       // `required` means non-empty, enforced by the guard.
       vi.mocked(processGenerationJob).mockResolvedValue({
@@ -653,10 +647,9 @@ describe('handleJob orchestration', () => {
     });
 
     it('forwards entityTypes from job params to the resource upload', async () => {
-      // Regression. The worker is the
-      // last stop in the entityTypes pipeline; without this forwarding
-      // step `browse.resources({ entityType: 'Character' })` would never
-      // surface synthesized resources.
+      // The worker is the last stop in the entityTypes pipeline; without
+      // this forwarding step `browse.resources({ entityType: 'Character' })`
+      // would never surface synthesized resources.
       vi.mocked(processGenerationJob).mockResolvedValue({
         content: new TextEncoder().encode('body'),
         title: 'T',
@@ -743,7 +736,7 @@ describe('handleJob orchestration', () => {
 
       await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', { context: minimalContext('annotation'), cite: true }));
 
-      // One commit per batch now, so a per-annotation view is reconstructed:
+      // One commit per batch, so a per-annotation view is reconstructed:
       // each annotation paired with the resourceId its batch was keyed by.
       const markCreates = h.busEmits
         .filter(e => e.channel === 'mark:commit')
@@ -751,7 +744,7 @@ describe('handleJob orchestration', () => {
           const p = e.payload as { resourceId: string; annotations: unknown[] };
           return p.annotations.map(annotation => ({ payload: { resourceId: p.resourceId, annotation } }));
         });
-      expect(markCreates, 'one mark:create per resolved citation').toHaveLength(1);
+      expect(markCreates, 'one committed annotation per resolved citation').toHaveLength(1);
       expect(markCreates[0]!.payload).toMatchObject({
         resourceId: 'new-res-42', // the annotation lives on the DERIVED resource
         annotation: {
@@ -793,7 +786,7 @@ describe('handleJob orchestration', () => {
         makeJob('generation', { context: minimalContext('annotation'), cite: true, outputMediaType: 'application/pdf' }),
       );
 
-      // One commit per batch now, so a per-annotation view is reconstructed:
+      // One commit per batch, so a per-annotation view is reconstructed:
       // each annotation paired with the resourceId its batch was keyed by.
       const markCreates = h.busEmits
         .filter(e => e.channel === 'mark:commit')
@@ -842,7 +835,7 @@ describe('handleJob orchestration', () => {
         makeJob('generation', { context: minimalContext('annotation'), cite: true, outputMediaType: 'application/pdf' }),
       );
 
-      // One commit per batch now, so a per-annotation view is reconstructed:
+      // One commit per batch, so a per-annotation view is reconstructed:
       // each annotation paired with the resourceId its batch was keyed by.
       const markCreates = h.busEmits
         .filter(e => e.channel === 'mark:commit')
@@ -864,9 +857,9 @@ describe('handleJob orchestration', () => {
       // `emitEvent` is typed `EventMap[K]`, but TypeScript suppresses
       // excess-property checking for spreads and for variables passed by
       // reference — so `{ ...lifecycleBase }` can carry an undeclared field
-      // past the compiler. It did: `userId` rode every job lifecycle emit
-      // even though only `_userId` (gateway-injected) is declared. This
-      // pins the payload shapes so the next one is caught here instead.
+      // past the compiler: a `userId`, say, where only `_userId`
+      // (gateway-injected) is declared. This pins the payload shapes so one
+      // is caught here instead.
       vi.mocked(processHighlightJob).mockImplementation(emitting({
         annotations: [{ id: 'a1' }] as never,
         result: { highlightsFound: 1, highlightsCreated: 1 } as never,
@@ -890,8 +883,8 @@ describe('handleJob orchestration', () => {
       // fulfils — and NOTHING else. `jobId` is a DOMAIN fact: the record
       // derives who requested these annotations from that job's own events,
       // so the worker never names a requester. The correlation key busRequest
-      // mints rides the envelope; its reappearance here would mean a ROUTING
-      // fact had leaked back into a domain payload, which is what this pin
+      // mints rides the envelope; its appearance here would mean a ROUTING
+      // fact had leaked into a domain payload, which is what this pin
       // exists to catch.
       expect(keysOf('mark:commit')).toEqual(['annotations', 'jobId', 'resourceId']);
     });
@@ -899,23 +892,20 @@ describe('handleJob orchestration', () => {
 
   // ── Every minting path is acknowledged ─────────────────────────────────────
   //
-  // The durability ack was first wired into the reference job only; highlight,
-  // comment, assessment, tag and generation kept emitting `mark:create`
-  // fire-and-forget. The emit timeout (EMIT_TIMEOUT_MS) stopped those paths
-  // HANGING, which hid the rest: an emit that resolves means the gateway
-  // accepted the frame, not that the Stower appended anything, so a down
-  // Archivist still discarded their output while the job reported success.
+  // A path that emits `mark:create` fire-and-forget can lose its output: the
+  // emit timeout (EMIT_TIMEOUT_MS) stops it HANGING, but an emit that
+  // resolves means the gateway accepted the frame, not that the Stower
+  // appended anything, so a down Archivist discards the output while the job
+  // reports success.
   //
-  // This is the census. It fails if a new job type — or a re-added
-  // `mark:create` in an existing one — mints annotations without waiting for
-  // the log, which is the only way this gap comes back.
+  // This is the census. It fails if any job type mints annotations without
+  // waiting for the log.
   describe('no job type persists without an acknowledgement', () => {
     // TOTAL over `JobType`, and that totality is the whole point. A hand-kept
     // list of the types that happened to exist when it was written does not
-    // fail when the source grows — which is exactly how this gap outlived the
-    // reference job's fix. Typing the map `Record<JobType, Coverage>` makes a
-    // seventh job type a MISSING KEY and a removed one an EXCESS KEY, so either
-    // fails `tsc --noEmit` before a single test runs.
+    // fail when the source grows. Typing the map `Record<JobType, Coverage>`
+    // makes a seventh job type a MISSING KEY and a removed one an EXCESS KEY,
+    // so either fails `tsc --noEmit` before a single test runs.
     //
     // `coveredBy` is the deliberate escape hatch for a type this file's mocks
     // cannot observe. It still costs a key and a pointer, so an omission has to
@@ -925,10 +915,10 @@ describe('handleJob orchestration', () => {
       | { coveredBy: string };
 
     // Each case stubs its OWN processor. `vi.clearAllMocks()` clears calls but
-    // KEEPS implementations, so without this the four detection cases passed on
-    // a `mockResolvedValue` leaked from an earlier test in the file — and an
+    // KEEPS implementations, so without this the four detection cases would pass
+    // on a `mockResolvedValue` leaked from an earlier test in the file — and an
     // un-stubbed processor returns undefined, whose empty batch `commitAnnotations`
-    // correctly skips, so the census would have asserted against a job that never
+    // correctly skips, so the census would assert against a job that never
     // minted anything. A gate that only holds when its neighbours run first is
     // not a gate.
     const minted = () => ({ annotations: [{ id: 'a1' }] as never, result: {} as never });
@@ -962,11 +952,11 @@ describe('handleJob orchestration', () => {
         },
       },
 
-      // Not observable HERE: its commit rides `onUnitComplete` inside
-      // `processReferenceJob`, which this file mocks wholesale, so nothing
-      // reaches the bus. It is pinned where the callback actually runs.
+      // Not exercised in this census: its commit rides `onChunkComplete` inside
+      // `processReferenceJob`, which this file mocks wholesale. It is pinned
+      // where the callback actually runs.
       'reference-annotation': {
-        coveredBy: 'processors.test.ts — the rejecting-sink and recovering-sink pins on onUnitComplete',
+        coveredBy: 'processors.test.ts — the rejecting-sink and recovering-sink pins on onChunkComplete',
       },
     };
 
@@ -1032,10 +1022,10 @@ describe('handleJob orchestration', () => {
   });
 
   // ── Detection media-type gate ────────────────────────────────────────
-  // browse.resourceContent() sends Accept: text/plain and TextDecoder-
-  // decodes whatever returns, so a detection job on a binary resource
-  // would feed mojibake to the LLM. The gate checks textSourceOf
-  // on the resource's primary media type before fetching.
+  // A media type with no text source (`textSourceOf` is 'none' — a zip, an
+  // image) can never yield text to detect over. `prepareDetection` declines
+  // it on the resource's primary media type before reading any bytes, and
+  // the job fails as a user error.
 
   describe('detection media-type gate', () => {
     it('fails a detection job on a binary resource before fetching content or calling the processor', async () => {
@@ -1048,12 +1038,12 @@ describe('handleJob orchestration', () => {
         handleJob(h.adapter, makeConfig(h.session), makeJob('reference-annotation', { entityTypes: ['Person'] }))
       ).rejects.toThrow(/has no extractable text/);
 
-      expect(h.session.client.browse.resourceContent).not.toHaveBeenCalled();
+      expect(getBinary).not.toHaveBeenCalled();
       expect(processReferenceJob).not.toHaveBeenCalled();
       expect(h.busEmits.some(e => e.channel === 'job:complete')).toBe(false);
     });
 
-    // #737: all five detection motivations fan out to the PDF
+    // All five detection motivations fan out to the PDF
     // text-layer path. Geometry is shared (buildPdfAnnotation, covered in
     // build-pdf-annotation.test.ts); this proves the dispatch routes every
     // motivation through 'pdf-text-layer' — feeding each processor the extracted
@@ -1117,7 +1107,7 @@ describe('handleJob orchestration', () => {
     });
 
     it('declines cleanly (no throw, no processor) for a scanned PDF with no text layer', async () => {
-      // A genuine content decline now comes back from the CONSULT by name: the
+      // A genuine content decline comes back from the CONSULT by name: the
       // Smelter tried and settled skipped. The dispatch completes the job with
       // that reason rather than crashing or running the model on nothing.
       const h = makeFakeSessionAndAdapter();
@@ -1185,7 +1175,7 @@ describe('handleJob orchestration', () => {
         handleJob(h.adapter, makeConfig(h.session), makeJob('comment-annotation'))
       ).rejects.toThrow(/has no extractable text/);
 
-      expect(h.session.client.browse.resourceContent).not.toHaveBeenCalled();
+      expect(getBinary).not.toHaveBeenCalled();
     });
 
     it('proceeds for a registry-miss text subtype (RFC 2046 fallback)', async () => {
@@ -1232,8 +1222,8 @@ describe('handleJob orchestration', () => {
 // `job:complete` / `job:fail` are GLOBAL, `jobId`-keyed correlation signals
 // (uniform with every other result in the system). The dispatching caller
 // filters by `jobId`; resource viewers filter the same global stream by
-// `resourceId`. There is no resource-scoped copy — `RESOURCE_BROADCAST_TYPES`
-// is empty. All channels emit globally with no scope.
+// `resourceId`. There is no resource-scoped copy. All channels emit globally
+// with no scope.
 // ──────────────────────────────────────────────────────────────────────
 
 describe('handleJob — global job-completion', () => {
@@ -1265,7 +1255,7 @@ describe('handleJob — global job-completion', () => {
     expect(startEmit!.scope).toBeUndefined();
   });
 
-  it('emits mark:create globally (the per-annotation create command is not a resource broadcast)', async () => {
+  it('emits mark:commit globally (the commit request is not a resource broadcast)', async () => {
     vi.mocked(processHighlightJob).mockImplementation(emitting({
       annotations: [{ id: 'a1' }] as never,
       result: {} as never,
@@ -1283,8 +1273,8 @@ describe('handleJob — global job-completion', () => {
 
 // ──────────────────────────────────────────────────────────────────────
 // startWorkerProcess — the outer wrapper that creates a job-claim
-// adapter from session.client.actor, subscribes to activeJob$, and
-// translates handleJob rejections into job:fail + adapter.failJob.
+// adapter from session.client.transport.actor, subscribes to activeJob$,
+// and translates handleJob rejections into job:fail + adapter.failJob.
 // ──────────────────────────────────────────────────────────────────────
 
 describe('startWorkerProcess', () => {
@@ -1294,13 +1284,11 @@ describe('startWorkerProcess', () => {
     return mod.startWorkerProcess;
   };
 
-  // We need an actor whose `emit`/`addChannels`/`on$` satisfy the
-  // adapter, plus a way to push an activeJob$ value after start().
-  // The adapter internally subscribes to `job:queued` and emits
-  // `job:claim`; we skip that whole dance and directly shove a job
-  // through by calling the activeJob$ subscriber from inside the
-  // adapter. Easiest path: mock `createJobClaimAdapter` to return
-  // a controllable fake.
+  // The double is the claim adapter: each test mocks `createJobClaimAdapter`
+  // to return a fake whose `activeJob$` or `refused$` it holds, so pushing a
+  // value there drives the worker's subscription directly. The real
+  // adapter's `job:queued` / `job:claim` exchange never runs.
+
   // The cancel SIGNAL's routing, distinct from what the loop does once aborted.
   // A worker holds one active job; a `job:cancel-requested` naming a different
   // one must not touch it. Getting this wrong cancels a stranger's work, and
@@ -1354,10 +1342,10 @@ describe('startWorkerProcess', () => {
   });
 
   // The refusal policy: a claim refused because this credential is not a
-  // worker's can never succeed, so the process exits for restart — the failure
-  // #1438 found was a worker parked forever, refused on every wake-up, with
-  // nothing in its own logs saying why. Any other refusal is logged and the
-  // worker stays parked until the next wake-up.
+  // worker's can never succeed, so the process exits for restart rather than
+  // parking forever, refused on every wake-up, with nothing in its own logs
+  // saying why. Any other refusal is logged and the worker stays parked until
+  // the next wake-up.
   it('exits on bus.unauthorized from refused$ and only logs on anything else', async () => {
     const { BehaviorSubject, Subject } = await import('rxjs');
     const refused$ = new Subject<{ code: string | null; message: string }>();
@@ -1397,9 +1385,8 @@ describe('startWorkerProcess', () => {
     const failJob = vi.fn();
     const adapterStart = vi.fn();
 
-    // After the audit move, `createJobClaimAdapter` lives in
-    // `./job-claim-adapter` (sibling of worker-process.ts), not in
-    // `@semiont/sdk`. Mock the sibling so worker-process picks up the fake.
+    // `createJobClaimAdapter` lives in `./job-claim-adapter` (sibling of
+    // worker-process.ts). Mock the sibling so worker-process picks up the fake.
     vi.doMock('../job-claim-adapter', () => ({
       createJobClaimAdapter: vi.fn(() => ({
         activeJob$: activeJob$.asObservable(),
@@ -1524,8 +1511,7 @@ describe('startWorkerProcess', () => {
 
     // A first attempt with one retry budgeted — the queue WILL re-queue this.
     // `entityTypes` matters: without it the processor is never invoked, the
-    // queued rejection is never consumed, and it leaks into a later test —
-    // which is exactly what happened on the first draft of this pin.
+    // queued rejection is never consumed, and it leaks into a later test.
     activeJob$.next(
       makeJob('reference-annotation', { referenceId: 'ann-1', entityTypes: ['Person'] }, [], { retryCount: 0, maxRetries: 1 }),
     );
@@ -1560,7 +1546,7 @@ describe('referenceIdOf', () => {
 // chunk), `onUnitComplete` the control state (per unit); completed unit names
 // ride job:fail, and a retried claim skips them.
 //
-// The commit is one acknowledged batch per unit, not N fire-and-forget
+// The commit is one acknowledged batch per chunk, not N fire-and-forget
 // creates: the unit may not count until its annotations are durably in the
 // event log.
 
@@ -1589,7 +1575,7 @@ describe('reference-annotation — checkpointed resume', () => {
     expect(h.busEmits.map(e => e.channel))
       .toEqual([
         'job:start',
-        // Two checkpoints per non-empty unit now: one trailing the chunk's
+        // Two checkpoints per non-empty unit: one trailing the chunk's
         // commit (the mid-unit cursor), one at the unit boundary (the unit is
         // complete and drops its cursor).
         'mark:commit', 'job:checkpoint', 'job:checkpoint',  // Person (1 annotation)
@@ -1830,19 +1816,18 @@ describe('startWorkerProcess — job:fail carries the failure class', () => {
 });
 
 describe('a lost acknowledgement is not a lost batch', () => {
-  // Measured 2026-09-08: a Person detection ran 51 minutes over a 102-page PDF,
-  // the Archivist appended all 1,673 annotations, the gateway then went down,
-  // and 60 s later the job reported
+  // If the gateway goes down after the Archivist has appended a batch, the
+  // acknowledgement cannot route, and 60 s later the commit reports
   //
-  //     Job failed — Bus request timed out after 60000ms on mark:commit-ok
+  //     Bus request timed out after 60000ms on mark:commit-ok
   //
-  // Nothing was lost. The status was simply wrong — and a user cannot tell that
-  // apart from total loss, which after 51 minutes of paid inference is the
-  // whole problem.
+  // Nothing is lost, and a job that failed on that would be simply wrong — a
+  // user cannot tell it apart from total loss, which after an hour of paid
+  // inference is the whole problem.
   //
-  // The worker derives its outcome from whether a MESSAGE arrived. It must
-  // derive it from whether the WORK LANDED. Both facts are available: the
-  // annotations are addressable by their own (content-derived) ids.
+  // The outcome must follow whether the WORK LANDED, not whether a MESSAGE
+  // arrived. Both facts are available: the annotations are addressable by
+  // their own (content-derived) ids.
 
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
@@ -1874,10 +1859,10 @@ describe('a lost acknowledgement is not a lost batch', () => {
   });
 
   it('still FAILS when the batch never landed — the probe must not launder a real loss', async () => {
-    // The guard on the fix. `silent` and `ack-lost` are the same timeout to the
+    // The guard on the probe. `silent` and `ack-lost` are the same timeout to the
     // worker and opposite truths about the data; a probe that answered "durable"
-    // for both would convert the false failure into a false SUCCESS,
-    // which is the defect the acknowledgement was introduced to kill.
+    // for both would convert a false failure into a false SUCCESS,
+    // which is the defect the acknowledgement exists to prevent.
     const h = makeFakeSessionAndAdapter();
     h.commitSink.mode = 'silent';
 
@@ -1892,7 +1877,7 @@ describe('a lost acknowledgement is not a lost batch', () => {
     // Pins the probe against ONE tempting wrong shape: "re-commit and see" —
     // idempotency at the log makes a second commit harmless to the data,
     // so it looks like a free way to answer the question. It is not. It doubles
-    // the work, and in the measured scenario the gateway is DOWN, so the
+    // the work, and when the ack was lost because the gateway is DOWN, the
     // re-commit just times out again and answers nothing. Ask the log what it
     // holds; do not write to it to find out.
     const h = makeFakeSessionAndAdapter();
@@ -1905,10 +1890,10 @@ describe('a lost acknowledgement is not a lost batch', () => {
 });
 
 describe('the record says HOW durability was established', () => {
-  // Auditable provenance, not a status badge. After the probe landed there were
-  // four distinct evidentiary states collapsing into two records: an
-  // acknowledged completion read exactly like one inferred from a single
-  // annotation's presence, and "the log says it isn't there" read exactly like
+  // Auditable provenance, not a status badge. There are four distinct
+  // evidentiary states, and without the field they collapse into two records:
+  // an acknowledged completion reads exactly like one inferred from a single
+  // annotation's presence, and "the log says it isn't there" reads exactly like
   // "the log never answered". A record that cannot tell diligence from a gap
   // cannot be audited.
   //
@@ -1992,8 +1977,8 @@ describe('the record says HOW durability was established', () => {
   });
 
   it('a probe nobody answered is recorded as unreachable', async () => {
-    // The measured incident's own branch, and the one the plain record could
-    // never distinguish from the case above.
+    // The gateway-down branch, and the one a plain record cannot distinguish
+    // from the case above.
     const payload = await runToFailure((h) => {
       h.commitSink.mode = 'ack-lost';
       h.probeSink.mode = 'unreachable';
@@ -2047,11 +2032,11 @@ describe('the record says HOW durability was established', () => {
   });
 });
 
-// A 26-minute attempt failed, the queue re-ran the whole job within a second,
-// and the operator-visible signal was NONE: heartbeats continued, the client
-// saw no fail event, and nothing anywhere said "this document is running for
-// the second time". Provider spend is already in Prometheus; what was missing
-// is the key that ties it to a re-run.
+// When an attempt fails and the queue re-runs the whole job, the
+// operator-visible signal would otherwise be NONE: heartbeats continue, and
+// nothing anywhere says "this document is running for the second time".
+// Provider spend is in Prometheus; the attempt number is the key that ties it
+// to a re-run.
 describe('every event says which attempt produced it', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 

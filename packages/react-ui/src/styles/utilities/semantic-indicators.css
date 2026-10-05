@@ -164,13 +164,6 @@
 }
 
 /* ========================================
-   ARIA Labels for Complex States
-   ======================================== */
-
-/* Note: ARIA attributes should be set in HTML, not CSS.
-   These selectors identify elements that need proper ARIA labels. */
-
-/* ========================================
    Hover State Differentiation
    ======================================== */
 
@@ -223,12 +216,6 @@
   text-underline-offset: 2px !important;
   font-weight: 600 !important;
 }
-
-/* ========================================
-   Stat Card Icon States
-   ======================================== */
-
-/* Make stat card icons more distinguishable */
 
 /* ========================================
    Dark Theme Support

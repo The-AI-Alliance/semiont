@@ -14,8 +14,8 @@
  * These are the five access actors. Two projection-pipeline actors complete
  * the seven, and BOTH run standalone (the projections are part of their
  * stores' stacks, not of the embedding process): the Weaver (weaver-main →
- * graph) and the Smelter (smelter-main → vectors). The gateway keeps only
- * the Weaver's `weave:applied` fold (kb.weaveProgress).
+ * graph) and the Smelter (smelter-main → vectors). The KnowledgeBase keeps
+ * only their progress folds (kb.weaveProgress, kb.smeltProgress).
  *
  * EventBus and workers are peers to KnowledgeSystem, not members.
  */
@@ -37,19 +37,6 @@ export interface KnowledgeSystem {
   stop:              () => Promise<void>;
 }
 
-/**
- * The gateway's view of the system: the Archivist service owns
- * Stower/Browser/CloneTokenManager and the Librarian owns Matcher and
- * Gatherer, out-of-process. The gateway hosts NO actors — `kb` here is a
- * READ bundle over the shared stateDir for the handler subset and the
- * gateway's routes; the one writer, of git and of the views, is the
- * Archivist.
- */
-export interface GatewayKnowledgeSystem {
-  kb:   KnowledgeBase;
-  stop: () => Promise<void>;
-}
-
 export async function stopKnowledgeSystem(ks: KnowledgeSystem): Promise<void> {
   await ks.gatherer.stop();
   await ks.matcher.stop();
@@ -57,5 +44,6 @@ export async function stopKnowledgeSystem(ks: KnowledgeSystem): Promise<void> {
   await ks.cloneTokenManager.stop();
   await ks.stower.stop();
   ks.kb.weaveProgress.dispose();
+  ks.kb.smeltProgress.dispose();
   await ks.kb.graph.disconnect();
 }

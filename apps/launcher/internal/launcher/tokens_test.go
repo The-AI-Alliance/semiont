@@ -29,8 +29,8 @@ func signInFor(n int) SignIn {
 }
 
 // Two writers, each renewing its own stack a hundred times, both end holding
-// their last tokens. Without the lock each wrote the document it had read, and
-// one stack's tokens were lost under the other's.
+// their last tokens. Without the lock each would write the document it had
+// read, and one stack's tokens would be lost under the other's.
 func TestTwoWritersOfTheSignInStoreLoseNothingOfEachOthers(t *testing.T) {
 	harness.Home(t)
 	const writes = 100
@@ -231,8 +231,8 @@ func TestARenewalDoesNotSignBackInAStackThatWasSignedOut(t *testing.T) {
 }
 
 // What another program already renewed is used as it is: the refresh token
-// this command read is no longer the current one, and spending it at an issuer
-// that rotates would be refused.
+// this command read is not the current one, and spending it at an issuer that
+// rotates would be refused.
 func TestARenewalSpendsNoRefreshTokenAnotherProgramReplaced(t *testing.T) {
 	harness.Home(t)
 	endpoint, grants := renewingIssuer(t, nil)

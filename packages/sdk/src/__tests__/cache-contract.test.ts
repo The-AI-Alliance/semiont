@@ -1,13 +1,13 @@
 /**
- * The cache accessor contract (settled 2026-07-29).
+ * The cache accessor contract.
  *
  * Accessors are LAZY (fetch on first subscribe, never at call time — safe to
  * call from render) and uniformly memoized (per-key identity for the
- * withScope-wrapped accessors too; the un-scoped ones were already stable
- * and stay pinned by entity-types-flow's B4 test).
+ * withScope-wrapped accessors too; the un-scoped ones are pinned by
+ * entity-types-flow's B4 test).
  *
- * One-shot reads are explicit: the thenable is dead, and `.fresh()` carries
- * the #847 re-read-reflects-writes semantics (fresh fetch, rejects on
+ * One-shot reads are explicit: a live query is not thenable, and `.fresh()`
+ * carries the re-read-reflects-writes semantics (fresh fetch, rejects on
  * failure, shares in-flight fetches).
  *
  * Everything runs on the real client over the scriptable transport;
@@ -75,12 +75,9 @@ describe('lazy: the fetch belongs to the first subscription, not the call', () =
 
 describe('uniform identity: per-key, including the withScope-wrapped accessors', () => {
   it('resource()/annotations()/referencedBy()/events() return the SAME observable per key', () => {
-    // Calibration history: scoped accessors were once recorded as fresh per
-    // call; two recon passes "corrected" that in opposite directions; a pin
-    // written before anything changed measured the truth — withScope
-    // memoizes per-source (`scopedSources`, #847), so identity was
-    // ALREADY uniform and making accessors lazy changed only laziness. This
-    // test is the standing measurement.
+    // withScope memoizes per-source (`scopedSources`), so identity is
+    // uniform across scoped and un-scoped accessors, and laziness does not
+    // change it. This test is the standing measurement.
     const { client } = createTestClient({ transport: { makeResponse: RESPONSES } });
     const rid = makeResourceId('res-1');
     const other = makeResourceId('res-2');
@@ -97,7 +94,7 @@ describe('uniform identity: per-key, including the withScope-wrapped accessors',
 });
 
 describe('.fresh(): the explicit one-shot read', () => {
-  it('fresh() fetches even when the cache is warm, and resolves the value (#847)', async () => {
+  it('fresh() fetches even when the cache is warm, and resolves the value', async () => {
     const { client, transport } = createTestClient({ transport: { makeResponse: RESPONSES } });
 
     const sub = client.browse.entityTypes().subscribe(() => {});
@@ -121,11 +118,11 @@ describe('.fresh(): the explicit one-shot read', () => {
     client.dispose();
   });
 
-  it('the thenable is DEAD: awaiting a live query no longer compiles', async () => {
+  it('a live query is not thenable: awaiting one does not compile', async () => {
     const { client } = createTestClient({ transport: { makeResponse: RESPONSES } });
 
     // The tripwire — compile-time only, deliberately never invoked:
-    // if CacheObservable ever grows a `then` again, the @ts-expect-error
+    // if CacheObservable grows a `then`, the @ts-expect-error
     // becomes UNUSED and tsc fails the build.
     const tripwire = () => {
       // @ts-expect-error — CacheObservable is not thenable; use .fresh()

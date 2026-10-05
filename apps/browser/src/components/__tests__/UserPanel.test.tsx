@@ -17,7 +17,7 @@ vi.mock('@/i18n/routing', () => ({
   useRouter: () => ({ push: mockRouterPush }),
 }));
 
-// Mock react-ui. The UserPanel now reads user info, kb, and client off
+// Mock react-ui. The UserPanel reads user info and kb off
 // `useSemiont().activeSession$`, and signs out via `semiont.signOut(kb.id)`.
 // The mock browser exposes controllable subjects so tests can flip the shape
 // the panel sees.
@@ -84,36 +84,16 @@ const ACTIVE_KB = {
 };
 
 function setUser(overrides: Record<string, any> = {}) {
-  const base = {
+  user$.next({
     name: 'John Doe',
     image: 'https://example.com/avatar.jpg',
     domain: 'example.com',
     email: 'john@example.com',
-    isAdmin: false,
-    isModerator: false,
-  };
-  // Support legacy test shape (displayName/avatarUrl/userDomain)
-  const translated: Record<string, any> = { ...base };
-  if ('displayName' in overrides) {
-    translated.name = overrides.displayName;
-    delete overrides.displayName;
-  }
-  if ('avatarUrl' in overrides) {
-    translated.image = overrides.avatarUrl;
-    delete overrides.avatarUrl;
-  }
-  if ('userDomain' in overrides) {
-    translated.domain = overrides.userDomain;
-    delete overrides.userDomain;
-  }
-  user$.next({ ...translated, ...overrides });
+    ...overrides,
+  });
 }
 
-/**
- * Restore a live session. Needed as its own step because tests may set
- * `activeSession$` to null, and the `kb` helpers below spread the current
- * value — spreading null would silently produce a session with no client.
- */
+/** Restore a live session; a test may set `activeSession$` to null. */
 function resetSession() {
   activeSession$.next({
     id: 'session-1',
@@ -122,15 +102,6 @@ function resetSession() {
     user$,
     refresh: async () => null,
   });
-}
-
-function setActiveKnowledgeBase(kb: typeof ACTIVE_KB | null) {
-  const current = activeSession$.getValue();
-  if (kb === null) {
-    activeSession$.next({ ...current, kb: null });
-  } else {
-    activeSession$.next({ ...current, kb });
-  }
 }
 
 describe('UserPanel Component', () => {
@@ -155,7 +126,6 @@ describe('UserPanel Component', () => {
 
     resetSession();
     setUser();
-    setActiveKnowledgeBase(ACTIVE_KB);
     mockUseSessionExpiry.mockReturnValue({ timeRemaining: 3600000 });
     mockFormatTime.mockReturnValue('1 hour');
     mockSanitizeImageURL.mockImplementation((url: string) => url);
@@ -236,8 +206,8 @@ describe('UserPanel Component', () => {
       expect(screen.queryByText('User')).not.toBeInTheDocument();
     });
 
-    it('should not render domain when userDomain is null', () => {
-      setUser({ image: null, domain: undefined, email: 'someone' });
+    it('renders no domain line before the user is known', () => {
+      user$.next(null);
       render(<UserPanel />);
       expect(screen.queryByText(/@/)).not.toBeInTheDocument();
     });
@@ -274,26 +244,10 @@ describe('UserPanel Component', () => {
       expect(mockRouterPush).toHaveBeenCalledWith('/');
     });
 
-    it('should still navigate when no KB is active', async () => {
-      // Defensive branch: if Sign Out is somehow clicked while activeKnowledgeBase
-      // is null, the handler must NOT call signOut(...) — there is no id to pass —
-      // but must still navigate home.
-      setActiveKnowledgeBase(null);
-
-      render(<UserPanel />);
-      const signOutButton = screen.getByRole('button', { name: 'Sign Out' });
-      await userEvent.click(signOutButton);
-
-      expect(mockSignOut).not.toHaveBeenCalled();
-      expect(mockRouterPush).toHaveBeenCalledWith('/');
-    });
-
     it('offers no Sign Out at all when there is no session', () => {
       // The panel renders inside ToolbarPanels, which the UNAUTHENTICATED
       // knowledge layout also mounts — so `activeSession$` really can be null
-      // here. Sign Out then has no client to call and no KB to sign out of;
-      // the state unit built from `session?.client` would capture `undefined`
-      // and the handler would TypeError on `client.auth`.
+      // here. Sign Out then has no KB to sign out of.
       activeSession$.next(null);
 
       expect(() => render(<UserPanel />)).not.toThrow();

@@ -5,7 +5,7 @@ import { openResourceByName } from '../fixtures/discover';
 /**
  * Smoke test: the pdf.js browser acceptance gate.
  *
- * Proves the npm/Vite pdf.js path (post-#885 on `main`) actually renders
+ * Proves the npm/Vite pdf.js path actually renders
  * a PDF in a real browser and that a manually-drawn rectangle annotation
  * round-trips and survives a reload — the one piece no unit test covers.
  *
@@ -136,12 +136,12 @@ test.describe('pdf render + spatial highlight', () => {
   });
 
   /**
-   * The capture-gap regression guard.
+   * The capture-gap guard.
    *
    * The test above proves a hand-drawn rectangle persists, but never that it
-   * remembers what it was drawn around — which is exactly how a PDF annotation
-   * with no `TextQuoteSelector` shipped unnoticed: the rect rendered, the
-   * annotation survived reload, and only the panel entry was blank.
+   * remembers what it was drawn around: for a PDF annotation with no
+   * `TextQuoteSelector` the rect renders, the annotation survives reload, and
+   * only the panel entry is blank.
    *
    * The drag covers nearly the whole page, so the seed's text layer ("Smoke
    * Test PDF" on a 300×200 page) is certainly underneath it — this asserts the
@@ -166,8 +166,8 @@ test.describe('pdf render + spatial highlight', () => {
     // "didn't persist" rather than "persisted without text".
     await bus.expectRequestResponse('mark:create-request', 'mark:create-ok', 30_000);
 
-    // The payoff: the panel entry quotes the page text, instead of being the
-    // anonymous rectangle this fix replaced.
+    // The payoff: the panel entry quotes the page text, instead of being an
+    // anonymous rectangle.
     //
     // The panel is ALREADY open in annotate mode, so it is asserted rather
     // than opened — clicking the toolbar button here toggles it CLOSED, and

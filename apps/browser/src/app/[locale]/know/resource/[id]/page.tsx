@@ -58,8 +58,8 @@ export default function KnowledgeResourcePage() {
   // `KnowledgeLayout` gates `<Outlet />` on a live session, so this component
   // is unmounted the instant `activeSession$` goes null and remounts fresh
   // against the new KB — it never observes the transition it would need to
-  // detect. A previous attempt did exactly that and was dead in production
-  // while its unit test (which renders this page WITHOUT the layout) passed.
+  // detect. A unit test that renders this page WITHOUT the layout keeps it
+  // mounted across the switch, so a latch passes there and is dead in the app.
   if (!session) return <ResourceLoadingState />;
 
   return <KnowledgeResourcePageInner key={`${session.id}:${rId}`} session={session} rId={rId} />;

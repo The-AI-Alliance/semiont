@@ -13,9 +13,9 @@ set -euo pipefail
 # one half without the other is silent unsupervised operation.
 #
 # Also fails on: a second copy of supervise.sh/boot.sh (two supervisors is
-# two policies), a CMD that runs supervise.sh directly (the pre-split shape —
-# it defeats every orchestrator's restart policy), and any reappearance of
-# SUPERVISE_ENTRY (deleted; the entry path lives in CMD alone).
+# two policies), a CMD that runs supervise.sh directly (it defeats every
+# orchestrator's restart policy), and any mention of SUPERVISE_ENTRY (the
+# entry path lives in CMD alone).
 #
 # Exit code: 0 if clean, 1 if violations found.
 
@@ -24,9 +24,9 @@ cd "$REPO_ROOT"
 
 SHARED="scripts/container/supervise.sh"
 BOOT="scripts/container/boot.sh"
-# No exemption list, deliberately. The browser was exempt until 2026-09-08 on
-# the reasoning that a static server has nothing in flight to lose — an
-# argument about the death record used to deny the restart. Every service in
+# No exemption list, deliberately, and none for the browser: that a static
+# server has nothing in flight to lose is an argument about the death record,
+# not one against the restart. Every service in
 # apps/ is supervised; an exemption list is where the next one would hide.
 
 FAIL=0
@@ -64,11 +64,11 @@ for df in apps/*/Dockerfile; do
     FAIL=1
   fi
   if sed -n '/^CMD/,$p' "$df" | grep -q "supervise.sh"; then
-    echo "❌ supervision: $df runs supervise.sh from CMD — the pre-split shape; supervision is the launcher's per-run decision"
+    echo "❌ supervision: $df runs supervise.sh from CMD; supervision is the launcher's per-run decision"
     FAIL=1
   fi
   if grep -q "SUPERVISE_ENTRY" "$df"; then
-    echo "❌ supervision: $df mentions SUPERVISE_ENTRY — deleted; the entry path is stated once, in CMD"
+    echo "❌ supervision: $df mentions SUPERVISE_ENTRY; the entry path is stated once, in CMD"
     FAIL=1
   fi
 

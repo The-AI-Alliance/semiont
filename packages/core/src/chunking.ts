@@ -27,13 +27,6 @@ export function estimateTokens(text: string): number {
 }
 
 /**
- * Split text into overlapping chunks.
- *
- * Splits on paragraph boundaries when possible, falling back to sentence
- * boundaries, then word boundaries. Each chunk overlaps with the previous
- * by `overlap` tokens worth of text.
- */
-/**
  * One chunk, cut from `at`, plus where the next one starts.
  *
  * The boundary rule lives HERE and `chunkText` loops over it, so a caller that
@@ -74,9 +67,6 @@ export function cutChunk(
   // would hand the caller one more cut covering only text the piece just
   // returned already contains — a whole extra inference call per document,
   // yielding nothing but duplicate spans for the dedupe layer to discard.
-
-
-
   if (end >= text.length) {
     return { piece: text.slice(at, end).trim(), next: text.length };
   }
@@ -84,6 +74,13 @@ export function cutChunk(
   return { piece: text.slice(at, end).trim(), next: nextStart > at ? nextStart : end };
 }
 
+/**
+ * Split text into overlapping chunks.
+ *
+ * Splits on paragraph boundaries when possible, falling back to sentence
+ * boundaries, then word boundaries. Each chunk overlaps with the previous
+ * by `overlap` tokens worth of text.
+ */
 export function chunkText(text: string, config: ChunkingConfig = DEFAULT_CHUNKING_CONFIG): string[] {
   if (text.length === 0) return [];
   const totalTokens = estimateTokens(text);

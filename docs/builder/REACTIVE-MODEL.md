@@ -36,7 +36,7 @@ Three rules hold in every SDK:
 
 The SDK uses RxJS as its substrate (because the collaboration model needs reactive primitives) but exposes a Promise-shaped surface for the cases that don't need the reactive view (because the consumer who just wants a value shouldn't have to learn RxJS first). This doc explains how that works, why it works, and where RxJS is still visible by design.
 
-The choice for `@semiont/sdk` was to use Observable as the primitive — multicast, pipeable, native to live queries and cross-actor coordination — and to layer Promise-shaped sugar on top so callers who only want the final answer can `await` and move on.
+The choice for `@semiont/sdk` is to use Observable as the primitive — multicast, pipeable, native to live queries and cross-actor coordination — and to layer Promise-shaped sugar on top so callers who only want the final answer can `await` and move on.
 
 The result: a script that just wants to read a resource never imports anything from `rxjs`. A browser app rendering a loading state subscribes to the same call. An AI agent observing what its human partner just hovered uses `.subscribe(...)` on the same shape. A data pipeline that needs to filter and map composes with operators. Four idiomatic shapes on the same return values.
 
@@ -46,17 +46,17 @@ Everything reactive in the SDK is an RxJS Observable:
 
 - **Live queries** (`browse.resource`, `browse.resources`, `browse.annotations`, etc.) — values that re-emit when bus events fire (including events from other participants).
 - **Bounded streams** (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`, `yield.resource`) — progress events plus a final result.
-- **Collaboration signals on the bus** — `mark.changeShape`, `beckon.hover`, `bind.initiate`, `browse.click`, etc. emit; participants observe via `client.bus.on(channel)` or `session.subscribe(channel, handler)`. Fire-and-forget at the call site, fan-out across participants on the bus.
+- **Collaboration signals on the bus** — `mark.request`, `beckon.hover`, `bind.initiate`, `browse.click`, etc. emit; participants observe via `client.bus.on(channel)` or `session.subscribe(channel, handler)`. Fire-and-forget at the call site, fan-out across participants on the bus.
 - **Lifecycle state** (`client.transport.state$`, `client.transport.errors$`, `session.token$`, `session.user$`, `session.errors$`) — synchronous-snapshot `BehaviorSubject`s and the transport's error stream.
 - **Bus subscriptions** (`session.subscribe(channel, handler)`, `client.bus.on(channel)`) — raw fan-out of typed events; the channel-by-name escape hatch when no namespace method covers the case.
 
 Observable is the right primitive for all of these. Promise has no "second value." The cache primitive behind Browse — multicast, per-key dedup, stale-while-revalidate — composes cleanly only because the substrate supports the operators that make it possible. Forcing Promise here would require parallel `observe()` / `get()` methods on every namespace and would lose the collaboration story entirely.
 
-### The sugar: PromiseLike on top — and where it was deliberately removed
+### The sugar: PromiseLike on top — and where it is deliberately absent
 
 A consumer that doesn't care about progress shouldn't have to learn RxJS to use the SDK.
 
-Two Observable subclasses live in [`packages/sdk/src/awaitable.ts`](../../packages/sdk/src/awaitable.ts). Both extend `Observable<T>`, but only **StreamObservable** is still thenable — `CacheObservable`'s thenable was DELETED (2026-07-29) in favor of an explicit `.fresh()`:
+Two Observable subclasses live in [`packages/sdk/src/awaitable.ts`](../../packages/sdk/src/awaitable.ts). Both extend `Observable<T>`, but only **StreamObservable** is thenable — `CacheObservable` has an explicit `.fresh()` instead:
 
 ```ts
 import { Observable, lastValueFrom, firstValueFrom } from 'rxjs';
@@ -92,11 +92,11 @@ export class CacheObservable<T> extends Observable<CacheState<T>> {
 The asymmetric semantics are deliberate — and the asymmetry in SURFACE is too:
 
 - **`StreamObservable.then`** resolves to the **last** value on completion. Bounded progress streams have a final answer — the search result, the generated resource, the assembled context.
-- **`CacheObservable.fresh()`** **fetches a fresh value** (and rejects on failure), so a one-shot read — e.g. a script's `read → write → read` — reflects the write rather than serving a stale memo (#847). `.subscribe(...)`, by contrast, is the stale-while-revalidate live view: it emits `CacheState<T>` — `{ status: 'pending' }` first, then `ready` values, re-emitting on invalidation; a terminal load failure arrives as a `failed` EMISSION, never a stream error (the subscription lives on). The split is the point — **`.fresh()` = "the value now, from the wire"; `subscribe` = "the state, kept live."** `fresh()` is a METHOD, not a thenable, because the thenable was a landmine: `return client.browse.resource(id)` from any `async` function auto-awaited, silently converting a cache read into a network round trip — a refactor that wrapped a call site in `async` changed its transport behavior with zero diff at the call. Now `await client.browse.x(...)` does not compile; the network round trip is always spelled `.fresh()`. (A `CacheObservable` with no fetch action — a non-cache wrapper — `fresh()`es to the first non-pending state.) Also since 2026-07-29: calling a browse accessor is PURE — the fetch fires on first subscribe, so accessors are safe to call from render.
+- **`CacheObservable.fresh()`** **fetches a fresh value** (and rejects on failure), so a one-shot read — e.g. a script's `read → write → read` — reflects the write rather than serving a stale memo. `.subscribe(...)`, by contrast, is the stale-while-revalidate live view: it emits `CacheState<T>` — `{ status: 'pending' }` first, then `ready` values, re-emitting on invalidation; a terminal load failure arrives as a `failed` EMISSION, never a stream error (the subscription lives on). The split is the point — **`.fresh()` = "the value now, from the wire"; `subscribe` = "the state, kept live."** `fresh()` is a METHOD, not a thenable, because a thenable there is a landmine: `return client.browse.resource(id)` from any `async` function would auto-await, silently converting a cache read into a network round trip — a refactor that wraps a call site in `async` would change its transport behavior with zero diff at the call. So `await client.browse.x(...)` does not compile; the network round trip is always spelled `.fresh()`. (A `CacheObservable` with no fetch action — a non-cache wrapper — `fresh()`es to the first non-pending state.) Calling a browse accessor is PURE — the fetch fires on first subscribe, so accessors are safe to call from render.
 
 The subclass name documents which semantics apply. `.subscribe(...)` works on both — yields the full sequence including loading states or progress events. `.pipe(...)` returns a plain `Observable<T>` (and, for StreamObservable, loses the thenable); once you compose with operators you've explicitly opted into RxJS, and `lastValueFrom` from `rxjs` is the right bridge.
 
-A third subclass — `UploadObservable` — is shaped specifically for `yield.resource`. Subscribers see the full upload-progress lifecycle (`started` → optional `progress` → `finished`); awaiting resolves to `{ resourceId }` extracted from the `'finished'` event, preserving the awaited shape from before progress events existed.
+A third subclass — `UploadObservable` — is shaped specifically for `yield.resource`. Subscribers see the full upload-progress lifecycle (`started` → optional `progress` → `finished`); awaiting resolves to `{ resourceId }` extracted from the `'finished'` event.
 
 ### Return-shape discipline
 
@@ -296,7 +296,7 @@ The lowest-level path. Reach for it when:
 client.bus.frames('mark:added').subscribe((frame) => log(frame.correlationId, frame.payload));
 ```
 
-Both are read-only observables, and publishing goes through `emit`, whose third argument is that same envelope. (The bus formerly exposed `get(channel)`, which handed back the channel's `Subject` — so every reader also held a write path back into it.)
+Both are read-only observables, and publishing goes through `emit`, whose third argument is that same envelope. (The bus never hands out a channel's `Subject`: every reader would also hold a write path back into it.)
 
 If you find yourself reaching for `transport.emit` from application code repeatedly, the right move is usually to add a namespace method. The bus exposure is *not* `@internal` — it's a real surface for advanced use — but the typed namespaces are the canonical entry point for everything else.
 

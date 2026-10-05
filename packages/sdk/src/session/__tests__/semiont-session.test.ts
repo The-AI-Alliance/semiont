@@ -2,15 +2,14 @@
  * SemiontSession — unit tests for lifecycle, token wiring, and the
  * refresh/validate callback contract.
  *
- * `SemiontClient` is mocked at the module level (the session only
- * uses it to propagate token$ into HTTP calls; the test harness
+ * `SemiontClient` is mocked at the module level (of it, these tests
+ * need only its state and error streams and `dispose`; the test harness
  * doesn't exercise any real HTTP or SSE). Auth is parameterized
- * entirely through callbacks now, so tests provide `refresh` and
- * optional `validate` directly rather than mocking `client.auth.me` /
- * `client.auth.refresh`.
+ * entirely through callbacks, so tests provide `refresh` and
+ * optional `validate` directly.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BehaviorSubject, firstValueFrom, skip, take } from 'rxjs';
 
 const mockDispose = vi.fn();
@@ -22,7 +21,6 @@ vi.mock('../../client', async () => {
   class MockSemiontApiClient {
     dispose = mockDispose;
     state$ = mockStateSubject;
-    bus = { get: () => ({ next: () => {}, subscribe: () => ({ unsubscribe: () => {} }) }) };
     transport = (() => {
       const errorsSubject = new Subject();
       return { errorsSubject, errors$: errorsSubject.asObservable() };
@@ -35,8 +33,8 @@ vi.mock('../../client', async () => {
 });
 
 import { SemiontClient, APIError } from '../../client';
-import { SemiontSession, type SemiontSessionConfig } from '../semiont-session';
-import type { AccessToken } from '@semiont/core';
+import { SemiontSession, type SemiontSessionConfig, type UserInfo } from '../semiont-session';
+import { userId, type AccessToken } from '@semiont/core';
 import { SESSION_PREFIX_RE, storageKey, seedStoredSession, testSession, TestStorage } from './test-storage-helpers';
 import { getStoredSession } from '../storage';
 
@@ -52,13 +50,21 @@ const KB = {
   endpoint: { kind: 'http' as const, host: 'localhost', port: 4000, protocol: 'http' as const },
 };
 
+const ALICE: UserInfo = {
+  did: userId('did:web:example.org:users:alice'),
+  email: 'a@b.c',
+  name: 'Alice',
+  image: null,
+  domain: 'example.org',
+};
+
 let storage: TestStorage;
 let refresh: SemiontSessionConfig['refresh'] & ReturnType<typeof vi.fn>;
 let validate: NonNullable<SemiontSessionConfig['validate']> & ReturnType<typeof vi.fn>;
 
 /** Shortcut: new session with the default test callbacks. */
 function newSession(overrides?: Partial<SemiontSessionConfig>): SemiontSession {
-  // The mock SemiontClient ignores its constructor args; pass dummies.
+  // The mock SemiontClient takes no constructor args.
   const client = new (SemiontClient as unknown as new (...args: unknown[]) => SemiontClient)();
   const token$ = new BehaviorSubject<AccessToken | null>(null);
   return new SemiontSession({
@@ -76,13 +82,7 @@ beforeEach(() => {
   storage = new TestStorage();
   mockDispose.mockReset();
   refresh = vi.fn<() => Promise<string | null>>(async () => null) as typeof refresh;
-  validate = vi.fn<NonNullable<SemiontSessionConfig['validate']>>(
-    async () => ({ id: 'u1', email: 'a@b.c', name: 'Alice', isAdmin: false, isModerator: false } as any),
-  ) as typeof validate;
-});
-
-afterEach(() => {
-  // Tests that create sessions should dispose them inside the test.
+  validate = vi.fn<NonNullable<SemiontSessionConfig['validate']>>(async () => ALICE) as typeof validate;
 });
 
 describe('SemiontSession — construction & initial token', () => {
@@ -126,8 +126,8 @@ describe('SemiontSession — construction & initial token', () => {
   it('survives a THROWN refresh during startup — `ready` resolves, it does not reject', async () => {
     // The startup path refreshes an expired stored token before validating,
     // and a refresh that throws there ends the session like one that returns
-    // null. A throw there used to escape `validate()` and reject `ready`, so
-    // an unreachable gateway did not merely fail to sign in — it broke
+    // null. A throw that escaped `validate()` would reject `ready`, so an
+    // unreachable gateway would not merely fail to sign in — it would break
     // session CONSTRUCTION for every caller awaiting it.
     const expired = freshJwt(-3600);
     seedStoredSession(storage, KB.id, expired, 'refresh-tok');
@@ -172,17 +172,17 @@ describe('SemiontSession — refresh', () => {
     await session.dispose();
   });
 
-  // ── A refresh margin equal to the token lifetime (2026-09-23) ───────
-  // The unit tests above drive `refresh()` DIRECTLY, so a schedule that fires
-  // at `delay = 0` is indistinguishable from one that fires correctly — which
-  // is precisely why nothing caught a signed-in tab issuing 1418 successful
+  // ── A refresh margin equal to the token lifetime ────────────────────
+  // The unit tests above drive `refresh()` DIRECTLY, so to them a schedule
+  // that fires at `delay = 0` is indistinguishable from one that fires
+  // correctly — and a zero delay is a signed-in tab issuing 1418 successful
   // `POST /token` in ten idle seconds. This one asserts the SCHEDULE.
 
   it('does not storm: an idle session on a 300s token refreshes about once per half-life', async () => {
     vi.useFakeTimers();
     try {
-      // 300s is the collision exactly: Keycloak's default lifespan, and what
-      // the old fixed five-minute margin was subtracted from.
+      // 300s is the collision exactly: Keycloak's default lifespan, and the
+      // size of a fixed five-minute margin.
       const b64 = (o: unknown) => btoa(JSON.stringify(o));
       // Minted fresh on every call, as a real issuer does — `iat` moves. A
       // fixture that returns one fixed token instead ages past its own
@@ -208,7 +208,7 @@ describe('SemiontSession — refresh', () => {
       expect(refresh).toHaveBeenCalledTimes(1);
 
       // Ten more minutes at one refresh per half-life is four, plus the one
-      // already counted. The old rule produced 1418 in ten SECONDS.
+      // already counted. A zero delay produces 1418 in ten SECONDS.
       await vi.advanceTimersByTimeAsync(10 * 60_000);
       expect(refresh.mock.calls.length, 'refresh count over ten minutes').toBeLessThanOrEqual(6);
 
@@ -238,11 +238,10 @@ describe('SemiontSession — refresh', () => {
   // A refresh callback makes an HTTP call, so it can THROW as easily as it can
   // return null — a network blip, DNS failure, or gateway 5xx. Both mean the
   // same thing to the session (this token cannot be renewed), so both must
-  // land on the same terminal path. Before this, a throw escaped `refresh()`
-  // and skipped all four terminal behaviours; via the proactive timer's
-  // `void this.refresh()` it became an unhandled rejection with no further
-  // refresh ever scheduled — a session holding an expired token forever,
-  // which is the shape of the 401-loop incident.
+  // land on the same terminal path. A throw that escaped the renewal would
+  // skip all four terminal behaviours; via the proactive timer's un-awaited
+  // call it would become an unhandled rejection with no further refresh
+  // ever scheduled — a session holding an expired token forever.
 
   it('a THROWN refresh terminates the session exactly like one that returns null', async () => {
     const jwt = freshJwt();
@@ -397,7 +396,7 @@ describe('SemiontSession — a refusal while the session is still starting', () 
     const asked: string[] = [];
     validate = vi.fn(async (token: AccessToken) => {
       asked.push(token);
-      if (token === renewed) return { did: 'did:web:example.org:users:alice', email: 'a@b.c', name: 'Alice', image: null, domain: 'example.org' };
+      if (token === renewed) return ALICE;
       await held;
       throw APIError.fromStatus('HTTP 401', 401, 'Unauthorized', undefined, undefined);
     }) as typeof validate;
@@ -424,7 +423,6 @@ describe('SemiontSession — a refusal while the session is still starting', () 
 });
 
 describe('SemiontSession — a refusal of a running session', () => {
-  const ALICE = { did: 'did:web:example.org:users:alice', email: 'a@b.c', name: 'Alice', image: null, domain: 'example.org' };
   const refusal = () => APIError.fromStatus('HTTP 401', 401, 'Unauthorized', undefined, undefined);
 
   it('answers refusals that arrive together with one renewal and one ask', async () => {

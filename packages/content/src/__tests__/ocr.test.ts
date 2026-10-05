@@ -50,7 +50,7 @@ describe('recognizeImages', () => {
     });
 
     it('leaves no cached copy in the working directory', async () => {
-        // `cacheMethod: 'none'` — before this was set, tesseract.js wrote a
+        // `cacheMethod: 'none'` — without it tesseract.js writes a
         // 5 MB eng.traineddata into cwd on first use.
         await recognizeImages([image]);
         expect(fs.existsSync(path.join(process.cwd(), 'eng.traineddata'))).toBe(false);

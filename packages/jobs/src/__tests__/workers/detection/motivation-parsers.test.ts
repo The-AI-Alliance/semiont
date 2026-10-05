@@ -4,7 +4,7 @@
  * Tests the MotivationParsers class, which validates and reconciles
  * ALREADY-PARSED elements from the structured inference surface. "Could
  * not read the model" throws inside `generateStructured` and never reaches
- * this layer — the former unparseable-string / non-array throw tests moved
+ * this layer — the unparseable-string / non-array throws are tested
  * upstream with the behavior (see `anthropic-structured.test.ts` and
  * `ollama.test.ts`). What this layer owns: per-element structural validation
  * (the last line on the Ollama path and the schema/type drift guard) and

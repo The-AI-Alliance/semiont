@@ -6,8 +6,6 @@
  * beckon events via `session.subscribe`. `AnnotateToolbar` is mocked here — its
  * own provider-freedom is pinned in AnnotateView.embeddable.test.tsx — so this
  * spec isolates BrowseView's body.
- *
- * Started RED (tsc: no `session` prop) and GREEN once BrowseView takes one.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';

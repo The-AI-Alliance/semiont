@@ -8,9 +8,8 @@ package launcher
 // where each daemon listens is the launcher's to place at every start
 // (topology.go), so the file is the same on every machine. Bindings are
 // exactly the three-name roster (actors.gatherer, actors.matcher,
-// workers.default; resolveWorkerInference falls back to default — verified
-// 2026-07-22); per-worker refinement is the user's edit, as it always really
-// was.
+// workers.default; resolveWorkerInference falls back to default); per-worker
+// refinement is the user's edit.
 //
 // Every generated config passes through the SAME vet as a template copy:
 // loadConfig + derivePlan on a temp file before the real name exists. A
@@ -86,8 +85,7 @@ func generateSemiontconfig(p genParams) string {
 	switch p.Inference {
 	case "anthropic":
 		// Honor --anthropic-endpoint: validating against a proxy but writing
-		// the default endpoint would be a silent mismatch (Copilot review,
-		// PR #1065).
+		// the default endpoint would be a silent mismatch.
 		endpoint := p.AnthropicEndpoint
 		if endpoint == "" {
 			endpoint = "https://api.anthropic.com"
@@ -138,7 +136,7 @@ func generateSemiontconfig(p genParams) string {
 func writeVettedConfig(u *UI, root, name, content string) bool {
 	// name becomes a filename and (via --config-name) is user-controlled — a
 	// separator or ".." would escape .semiont/semiontconfig. Require a plain
-	// stem (Copilot review, PR #1065).
+	// stem.
 	if name == "" || name == "." || name == ".." ||
 		strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
 		u.Fail("Config name %q must be a simple file stem (no path separators).", name)

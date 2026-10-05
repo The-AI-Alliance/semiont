@@ -10,10 +10,10 @@ export interface SearchConfig {
 
 export interface ConfigureSearchStepProps {
   /**
-   * CONTROLLED. This used to be local `useState`, so stepping Back unmounted the
-   * component and silently discarded what the user had chosen — a Back button
-   * that costs you work is worse than no Back button, because it invites the
-   * press. The wizard owns it for the modal's lifetime instead.
+   * CONTROLLED. Stepping Back unmounts the component, so local `useState` would
+   * silently discard what the user had chosen — a Back button that costs you
+   * work is worse than no Back button, because it invites the press. The
+   * wizard owns it for the modal's lifetime.
    */
   config: SearchConfig;
   /** Echo of the gather step's hint — the thing being steered stays visible. */

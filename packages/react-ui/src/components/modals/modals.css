@@ -1,5 +1,5 @@
 /* ================================ */
-/* Tier 7: Modal Components        */
+/* Modal Components                */
 /* ================================ */
 
 /* Base Modal Styles */
@@ -218,8 +218,8 @@
 
 /*
  * The wizard footer. Retreat sits at the leading edge and advance at the
- * trailing one, and neither stretches — `--flex` on all three buttons is what
- * made "Cancel", "Back" and "Search" read as three peers.
+ * trailing one, and neither stretches — `--flex` on every button would make
+ * "Back" and "Search" read as peers.
  * `margin-inline-end: auto` rather than `space-between` so a footer with only
  * one child still lands on the correct side.
  */
@@ -614,8 +614,6 @@
   color: var(--semiont-text-secondary);
   word-break: break-all;
 }
-
-/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
 
 /* The quoted passage a popup is about — the reader's anchor for everything
    else in the popup, so it reads as quoted material, not as body copy. */

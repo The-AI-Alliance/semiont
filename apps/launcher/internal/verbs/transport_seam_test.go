@@ -16,13 +16,12 @@ import (
 
 // The transport seam: a verb's wire behaviour, tested IN PROCESS.
 //
-// Every other bus-verb test in this repo builds the launcher binary, spawns it,
-// and points it at `fakert`'s HTTP server — because `bus.Client` is concrete and
-// there is nothing to substitute. This test injects a transport instead. No
+// A black-box bus-verb test builds the launcher binary, spawns it, and points
+// it at `fakert`'s HTTP server. This test injects a transport instead. No
 // binary, no socket, no ports: it asserts the channel, the payload, and that the
 // verb reports the subscriber count the transport returned.
 //
-// The suite it replaces takes minutes; this takes microseconds.
+// A black-box suite of these takes minutes; this takes microseconds.
 
 // verbFixture puts the on-disk state `VerbSession` reads — a recorded local
 // stack and a stored token — under a temp HOME, so a verb can run without a
@@ -86,9 +85,8 @@ func TestBeckonDrivesTheInjectedTransport(t *testing.T) {
 	}
 }
 
-// The count the transport reports must reach the user's line, or the seam has
-// reopened the gap the count closed: a signal that reached an empty room and
-// said nothing.
+// The count the transport reports must reach the user's line: without it, a
+// signal that reaches an empty room says nothing.
 func TestBeckonReportsTheTransportsSubscriberCount(t *testing.T) {
 	for _, c := range []struct {
 		subscribers int
@@ -119,12 +117,3 @@ func TestBeckonReportsTheTransportsSubscriberCount(t *testing.T) {
 		}
 	}
 }
-
-// captureOutput runs fn with both standard streams redirected and returns what
-// each received. Verbs print results to stdout and refusals to stderr, so a
-// helper that saw only one would silently miss half the behaviour under test.
-
-// harness.CaptureStdout is the stdout-only convenience the earlier tests read better with.
-
-// mustContainAll is the in-process twin of the black-box suite's mustContain
-// (that one lives in package launcher_test and is not importable here).

@@ -1,7 +1,6 @@
 /**
- * AssistShell — the shared assist chrome. Pins the net behavior that
- * holds across the isAssisting-prop relocation: the form/progress switch and
- * the dismiss policy (dismiss is offered only once the assist is no longer
+ * AssistShell — the shared assist chrome. Pins the form/progress switch and
+ * the dismiss policy (dismiss is offered only once the assist has stopped
  * running — the SHELL owns that policy; AssistProgress just renders whatever
  * callback it is handed).
  */

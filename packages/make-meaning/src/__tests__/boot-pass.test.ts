@@ -1,17 +1,17 @@
 /**
  * `runBootPass` — a projector's startup repair must not kill the projector.
  *
- * The weaver and smelter each run repair passes at boot (catch-up, reconcile) and
- * each treated any failure as fatal: rethrow into the catch-all around `main()`,
- * `process.exit(1)`, and — with containers running under no restart policy — gone
- * until a human notices. A single 429 from the gateway was enough (2026-09-07).
+ * The weaver and smelter each run repair passes at boot (catch-up, reconcile). A
+ * failure rethrown into the catch-all around `main()` is `process.exit(1)`, and —
+ * with containers running under no restart policy — gone until a human notices. A
+ * single 429 from the gateway is enough.
  *
  * The underlying emit retries a retryable refusal, which narrows the window but
  * does not change what happens at the end of it. This is that end.
  *
  * Tested here rather than through `weaver-main.ts` because that module calls
- * `main()` at load, so importing it runs it. Extracting the contract is also what
- * makes both mains answer the same way structurally, rather than by two sessions
+ * `main()` at load, so importing it runs it. Sharing the contract is also what
+ * makes both mains answer the same way structurally, rather than by each
  * separately remembering to.
  */
 
@@ -25,8 +25,8 @@ const fakeLogger = () => ({
 
 describe('runBootPass', () => {
   it('does NOT rethrow when the pass fails — the process survives', async () => {
-    // The whole point. A rejected boot pass used to reach `main().catch()`, which
-    // exits. A failed repair pass is a DATA condition, not a reason to die.
+    // The whole point. A rejection that reached `main().catch()` would exit. A
+    // failed repair pass is a DATA condition, not a reason to die.
     const logger = fakeLogger();
     await expect(
       runBootPass('catch-up', async () => { throw new Error('/bus/emit 429'); }, logger),
@@ -34,9 +34,9 @@ describe('runBootPass', () => {
   });
 
   it('records the failure, so the phase outlives the pass', async () => {
-    // While a failed pass was fatal this state was written and then made
-    // unreachable one line later: the process exited before anything could read
-    // what it had just recorded.
+    // Surviving is what makes this state readable: under a fatal pass it would be
+    // written and then unreachable one line later, the process gone before
+    // anything could read it.
     const states: BootPassState[] = [];
     await runBootPass('catch-up', async () => { throw new Error('/bus/emit 429'); },
       fakeLogger(), (s) => states.push(s));
@@ -47,7 +47,7 @@ describe('runBootPass', () => {
 
   it('logs the failure at error level — the ONLY operator signal left', async () => {
     // Staying up gives away the crude staleness alarm that a dead container
-    // provided, and nothing replaces it: `/health` reports `status: 'ok'` whatever
+    // is, and nothing replaces it: `/health` reports `status: 'ok'` whatever
     // a pass did. If this log goes quiet, a projector can fall behind with nothing
     // saying so.
     const logger = fakeLogger();

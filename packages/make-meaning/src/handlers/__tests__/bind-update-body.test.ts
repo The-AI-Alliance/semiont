@@ -1,18 +1,18 @@
 /**
- * `registerBindUpdateBodyHandler` — the Bind flow's relay, which had NO test.
+ * `registerBindUpdateBodyHandler` — the Bind flow's relay.
  *
- * That absence is most of why the crossing bug (a failed body update whose
- * signal never reached this handler) survived the Archivist extraction: the
- * relay's failure leg never ran anywhere, and the suites that exercise binding
- * at all drive only the success path. These tests drive a FAILING body update
- * end-to-end, plus the legs around it.
+ * The relay once had no test, which is most of why a failed body update
+ * reached its caller as a `bus.timeout` instead of the reason: the relay's
+ * failure leg ran nowhere, and the suites that exercise binding at all drive
+ * only the success path. These tests drive a FAILING body update end-to-end,
+ * plus the legs around it.
  *
- * What this file CANNOT prove, and what does the other half: whether the
- * Archivist's failure signal reaches this handler when the two are different
- * processes. On one bus every channel is delivered, so the crossing bug is
- * invisible here by construction. `gateway-handler-census.test.ts` holds that
- * — no channel either roster names may be classified `in-process`, because
- * the bridge carries neither direction for one.
+ * One bus is the real arrangement, not a simplification: the relay registers
+ * beside the Stower it drives, in the Archivist and in the in-process root,
+ * so the `mark:update-body` it emits and the outcome it waits for never cross
+ * a process boundary. What crosses the wire is `bind:update-body` and its
+ * reply: `service-channels.test.ts` pins the request in the Archivist's
+ * inbound roster, and `service-pump-roundtrip.test.ts` its reply's round trip.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

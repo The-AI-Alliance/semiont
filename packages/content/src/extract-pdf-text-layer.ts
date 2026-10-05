@@ -66,8 +66,8 @@ export async function extractPdfTextLayer(
     // detached, which would silently zero the caller's bytes. Callers keep
     // their bytes; pdf.js gets its own.
     const data = new Uint8Array(bytes);
-    // pdf.js v5 removed the isEvalSupported option; this path only calls
-    // getTextContent (no rendering / no PDF functions).
+    // pdf.js has no isEvalSupported option (gone since v5); this path only
+    // calls getTextContent (no rendering / no PDF functions).
     const loadingTask = pdfjs.getDocument({ data, standardFontDataUrl: STANDARD_FONT_DATA_URL });
 
     try {
@@ -118,8 +118,8 @@ export async function extractPdfTextLayer(
         return { pages, text, items, fields: await readFormFields(doc) };
     } finally {
         // Release the pdf.js document — this runs in long-lived processes.
-        // pdf.js 6.0 removed PDFDocumentProxy.destroy(); teardown moved to
-        // PDFDocumentLoadingTask.destroy().
+        // Teardown is PDFDocumentLoadingTask.destroy(); pdf.js 6 has no
+        // PDFDocumentProxy.destroy().
         await loadingTask.destroy();
     }
 }

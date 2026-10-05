@@ -1,7 +1,5 @@
 /**
- * The resource-generate flow modal — first a step sequence with its own gather
- * hook, then given gather state as props, then folded into the single stack
- * described here.
+ * The resource-generate flow modal.
  *
  * One composite stack, no step machine: the gather controls sit at the TOP,
  * the gathered evidence appears below them once gather fires, and the
@@ -125,7 +123,7 @@ describe('ResourceGenerateModal', () => {
   });
 
   it('Gather emits onGather; the spent controls collapse to a receipt of what fired', () => {
-    // The modal no longer knows how to gather — it says WHAT to gather and the
+    // The modal does not know how to gather — it says WHAT to gather and the
     // page wires the state unit. No resourceId in the payload: the
     // owner already holds it.
     const { baseElement } = renderModal({ gatherLoading: true });
@@ -218,9 +216,7 @@ describe('ResourceGenerateModal', () => {
       expect.objectContaining({
         title: 'Generated Doc',
         // The submitted payload names this what it IS — a full storage
-        // URI, built here by prefixing `file://`. It was called `storagePath`
-        // while holding a URI, which is why the page handlers had to rename
-        // it field-by-field on the way out.
+        // URI, built here by prefixing `file://`.
         storageUri: 'file://generated/out.md',
         // The default is sent, not inherited from the worker.
         outputMediaType: 'text/markdown',
@@ -288,7 +284,7 @@ describe('ResourceGenerateModal', () => {
   it('opening seeds the proposed title from defaultTitle, even one that arrived after mount', () => {
     // The page passes the source resource's name, which loads asynchronously —
     // a draft seeded only in the useState initializer holds whatever was there
-    // at FIRST render, which for the real page was ''. Opening is the moment
+    // at FIRST render, which for the real page is ''. Opening is the moment
     // that matters: the draft re-seeds then.
     const { rerender } = render(
       <ResourceGenerateModal

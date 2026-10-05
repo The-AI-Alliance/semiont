@@ -5,35 +5,36 @@
  * events on the EventBus and translates them into domain events on the
  * EventStore + content operations on the WorkingTreeStore.
  *
- * From ARCHITECTURE.md:
- * The Knowledge Base has exactly three actor interfaces:
- * - Stower (write) — this actor
- * - Gatherer (read context)
- * - Matcher (read search)
- *
  * No other code should call eventStore.appendEvent() or mutate the working tree
- * through kb.content.
+ * through kb.content. The actors that serve the Knowledge Base are described
+ * in docs/architecture/KNOWLEDGE-SYSTEM.md.
  *
- * Subscriptions:
- * - yield:create       → resource.created (+ content store)   → yield:created / yield:create-failed
- * - yield:clone-persist → resource.cloned (+ content store)   → yield:cloned / yield:clone-persist-failed
- * - yield:update       → resource.updated (+ content store)   → yield:updated / yield:update-failed
- * - yield:mv           → resource.moved (+ working tree move) → yield:moved / yield:move-failed
- * - mark:create        → annotation.added                     → mark:created / mark:create-failed
- * - mark:delete        → annotation.removed                   → mark:deleted / mark:delete-failed
- * - mark:update-body   → annotation.body.updated              → (no result event yet)
- * - mark:archive       → resource.archived (+ file removal)   (resource-scoped, no result event)
- * - mark:unarchive     → resource.unarchived                  (resource-scoped, no result event)
- * - frame:add-entity-type → entitytype.added                   → frame:entity-type-added / frame:entity-type-add-failed
- * - frame:add-tag-schema  → tagschema.added                    → frame:tag-schema-added / frame:tag-schema-add-failed
- * - mark:update-entity-types → entitytag.added / entitytag.removed
- * - job:start          → job.started
- * - job:complete       → job.completed
- * - job:fail           → job.failed
+ * Subscriptions (command → domain event appended → reply):
+ * - yield:create             → yield:created (+ content register)   → yield:create-ok / yield:create-failed
+ * - yield:clone-persist      → yield:cloned (+ content register)    → yield:clone-persist-ok / yield:clone-persist-failed
+ * - yield:update             → yield:updated (+ content register)   → yield:update-ok / yield:update-failed
+ * - yield:mv                 → yield:moved (+ working tree move)    → yield:move-failed (no ok reply)
+ * - mark:create              → mark:added                           → mark:create-failed (no ok reply here)
+ * - mark:commit              → mark:added, one per new annotation   → mark:commit-ok / mark:commit-failed
+ * - mark:delete              → mark:removed                         → mark:delete-ok / mark:delete-failed
+ * - mark:update-body         → mark:body-updated                    → mark:body-update-failed (no ok reply)
+ * - frame:add-entity-type    → frame:entity-type-added              → frame:entity-type-add-ok / frame:entity-type-add-failed
+ * - frame:add-tag-schema     → frame:tag-schema-added               → frame:tag-schema-add-ok / frame:tag-schema-add-failed
+ * - mark:archive             → mark:archived (+ file removal)       → mark:archive-ok / mark:archive-failed
+ * - mark:unarchive           → mark:unarchived                      → mark:unarchive-ok / mark:unarchive-failed
+ * - mark:update-entity-types → mark:entity-tag-added / -removed     → mark:update-entity-types-ok / mark:update-entity-types-failed
+ * - person:profile           → person:profiled, on a changed name   (no reply)
+ * - job:start                → job:started                          (no reply)
+ * - job:assign               → job:assigned                         (no reply)
+ * - job:complete             → job:completed                        (no reply)
+ * - job:fail                 → job:failed                           (no reply)
+ *
+ * `mark:create-ok` comes from annotation-assembly, which emits it when it
+ * observes the persisted `mark:added`.
  *
  * Note: `job:report-progress` is intentionally NOT persisted. Progress
  * events are ephemeral UI feedback and would clutter the event log
- * (historical logs show ~3× as many progress entries as start+complete
+ * (persisted, they run to ~3× as many entries as start+complete
  * combined). UI consumers subscribe to the bus directly for live
  * progress; the event log keeps only the durable lifecycle boundaries.
  */
@@ -103,7 +104,7 @@ export class Stower {
     this.logger.info('Stower actor initialized');
 
     // `frames`, not `on`: a handler that answers a request must echo the key it
-    // was HANDED. The payload stopped carrying one, so the envelope is where a
+    // was HANDED. The payload carries none, so the envelope is where a
     // responder reads it and where the reply puts it back.
     const pipe = <K extends keyof EventMap>(
       event: K,
@@ -437,11 +438,11 @@ export class Stower {
    * Two paths re-send a batch that already landed: an acknowledgement lost
    * after a successful append (the unit is never checkpointed, so the retry
    * re-runs exactly the unit that landed), and a partial batch, reported as a
-   * failure and retried whole. Deterministic, content-addressed ids made those
+   * failure and retried whole. Deterministic, content-addressed ids make those
    * safe for the PROJECTIONS — the resource view and the graph both refuse a
    * duplicate id — but a projection's guard says nothing about the log, which
-   * appends whatever it is handed. The result was a green graph over a doubled
-   * log: silent, and not undoable.
+   * appends whatever it is handed. Unchecked, the result is a green graph over
+   * a doubled log: silent, and not undoable.
    *
    * So the batch is diffed against what the resource already holds. ONE view
    * read per commit, never per annotation: the view for a 1,673-annotation
@@ -555,7 +556,8 @@ export class Stower {
         // events-stream can deliver it to the client that initiated the bind.
         correlationId ? { correlationId } : undefined,
       );
-      // No manual .next() needed — appendEvent publishes StoredEvent on the Core EventBus
+      // No ok reply: appendEvent publishes the persisted `mark:body-updated`
+      // on the bus under the command's correlationId.
     } catch (error) {
       this.logger.error('Failed to update annotation body', { error: errField(error) });
       this.eventBus.emit('mark:body-update-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
@@ -597,8 +599,8 @@ export class Stower {
         try {
           await fs.access(absPath);
         } catch {
-          // Was a silent `return` — a missing file now surfaces as a real
-          // failure the caller can observe, not a successful-looking no-op.
+          // A missing file surfaces as a real failure the caller can
+          // observe, not a successful-looking no-op.
           throw new Error(`Cannot unarchive: file not found at ${event.storageUri}`);
         }
       }
@@ -667,10 +669,10 @@ export class Stower {
     const removed = event.currentEntityTypes.filter(et => !event.updatedEntityTypes.includes(et));
 
     try {
-      // Entity tags are a controlled vocabulary (ratified 2026-07-09): gate
+      // Entity tags are a controlled vocabulary: gate
       // ADDS against the registered set, refusing in the words the
       // dispatcher's job:create uses for the same check.
-      // Removals are never gated: deleting a stale/unregistered legacy tag is
+      // Removals are never gated: deleting a stale or unregistered tag is
       // the cleanup path. Runs before the first append so a mixed request is
       // all-or-nothing.
       if (added.length > 0) {
@@ -728,15 +730,6 @@ export class Stower {
   }
 
   /**
-   * The dispatcher's record that it accepted a claim: which holder took which
-   * job, and who requested it. Persisted under the dispatcher's own identity
-   * (`_userId` is the dispatcher's service DID) beside the worker's
-   * `job:started`, so a later write citing this job can be checked against the
-   * holder and its `creator` derived from the requester by reading this
-   * resource's log alone — nothing outside the record, and nothing the writer
-   * asserted.
-   */
-  /**
    * What the knowledge base's issuer says a person is called, recorded once
    * per CHANGE rather than once per act.
    *
@@ -771,6 +764,15 @@ export class Stower {
     });
   }
 
+  /**
+   * The dispatcher's record that it accepted a claim: which holder took which
+   * job, and who requested it. Persisted under the dispatcher's own identity
+   * (`_userId` is the dispatcher's service DID) beside the worker's
+   * `job:started`, so a later write citing this job can be checked against the
+   * holder and its `creator` derived from the requester by reading this
+   * resource's log alone — nothing outside the record, and nothing the writer
+   * asserted.
+   */
   private async handleJobAssign(event: EventMap['job:assign']): Promise<void> {
     if (!event._userId) {
       throw new Error('job:assign missing _userId (gateway injection)');

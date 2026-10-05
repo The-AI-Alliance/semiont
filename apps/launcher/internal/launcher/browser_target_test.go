@@ -1,14 +1,9 @@
 package launcher
 
-// The hand-off from `semiont browse` to the Browser, in process: finding a
-// running Browser, what `--browser` says when it cannot hand off, and
-// `--launch` starting one.
-//
-// The subject is the COLD case: `browse --browser` published a signal and
-// nobody was there to receive it. What the launcher says next is the whole
-// user-facing feature (it knows the Browser's origin, never a path, and never
-// opens a window), so these tests assert the message and the exit code, not
-// just the branch taken.
+// Finding the Browser, in process: BrowserTarget answers where the Browser is
+// and whether it is up, and roleHealthy probes a role's recorded endpoint —
+// the gateway through its generated client, a sidecar through the generic
+// prober.
 
 import (
 	"net/http"
@@ -18,12 +13,11 @@ import (
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
-// liveOrigin is a Browser that answers — enough for probeHealth, which asks
-// only whether the origin responds.
+// ── the probe ───────────────────────────────────────────────────────────
 
-// deadOrigin is an address nothing listens on: bind a port, learn its number,
-// release it. Picking a number by hand is how a test starts passing for the
-// wrong reason on a machine that happens to run something there.
+// The case the stable-name fallback exists for: the record carries a container
+// ID that does not resolve, while the endpoint is plainly live. Without the
+// fallback, status prints "absent" beside a ✓.
 func TestBrowserTargetFallsBackToTheStableNameForAStaleID(t *testing.T) {
 	shim := t.TempDir()
 	// A docker that knows only `semiont-browser`, so a lookup by the stale
@@ -97,5 +91,3 @@ func TestRoleHealthyReportsADeadGateway(t *testing.T) {
 		t.Error("an unreachable gateway must not read healthy on the fallback path either")
 	}
 }
-
-// ── what it says when nobody was there ──────────────────────────────────

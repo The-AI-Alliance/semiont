@@ -65,7 +65,7 @@
   margin-bottom: 1.5rem;
 }
 
-/* Tags now use centralized styles from components/tags.css
+/* Tags use the centralized styles in core/tags.css
    Entity tags use: .semiont-tag.semiont-tag--info.semiont-tag--rounded-md */
 
 /* Input group */

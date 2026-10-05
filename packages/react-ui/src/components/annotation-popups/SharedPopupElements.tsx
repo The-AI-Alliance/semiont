@@ -112,7 +112,6 @@ export function PopupContainer({ children, position, onClose, isOpen, wide = fal
             <DialogPanel
               className="semiont-popup-panel"
               style={popupStyle}
-              data-annotation-ui
               data-wide={wide ? 'true' : 'false'}
             >
               <>{children}</>

@@ -10,23 +10,7 @@ import (
 	"testing"
 )
 
-// TestContainerPathsMatchTheImage gates a class of drift nothing else catches:
-// the launcher mounts a host directory ONTO a container path, and the gateway
-// image declares that same path in an ENV so the app knows where to look. Two
-// literals, in two languages, in two files, and no compiler that can see both.
-//
-// Drift is silent in the worst way. The mount still succeeds — every runtime
-// creates the target if it is absent — so the stack boots clean and the app
-// reads an empty directory forever. For the anchored-text store that surfaces
-// as "OCR got slow again", months later, with nothing in any log to explain it.
-//
-// Reading the Dockerfile from a Go test crosses a module boundary deliberately:
-// the coupling is real and spans both sides, so a check that does not span it
-// would only assert one side against a copy of itself.
-// declaredEnv parses one Dockerfile's ENV lines. Reading them from a Go test
-// crosses a module boundary deliberately: the coupling is real and spans both
-// sides, so a check that does not span it would only assert one side against a
-// copy of itself.
+// declaredEnv parses one Dockerfile's ENV lines.
 func declaredEnv(t *testing.T, parts ...string) map[string]string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(parts...))
@@ -49,22 +33,35 @@ func declaredEnv(t *testing.T, parts ...string) map[string]string {
 	return declared
 }
 
+// TestContainerPathsMatchTheImage gates a class of drift nothing else catches:
+// the launcher mounts a host directory ONTO a container path, and the mounting
+// image declares that same path in an ENV so the app knows where to look. Two
+// literals, in two languages, in two files, and no compiler that can see both.
+//
+// Drift is silent in the worst way. The mount still succeeds — every runtime
+// creates the target if it is absent — so the stack boots clean and the app
+// reads an empty directory forever. For the anchored-text store that surfaces
+// as "OCR got slow again", months later, with nothing in any log to explain it.
+//
+// Reading the Dockerfile from a Go test crosses a module boundary deliberately:
+// the coupling is real and spans both sides, so a check that does not span it
+// would only assert one side against a copy of itself.
 func TestContainerPathsMatchTheImage(t *testing.T) {
 	// Each row: an image, the ENV it uses to find something, and the container
-	// path the launcher mounts onto for it. The row belongs to whichever image
-	// MOUNTS the store — anchored-text moved from the gateway to the Smelter,
-	// the store's writer, with the mount and the stamp, and the Smelter was
-	// declaring no such ENV while `smelter-main` refused to boot without it.
-	// Add a row whenever a mount gains an ENV; move one whenever a mount moves.
+	// path the launcher mounts onto for it. A row belongs to an image that
+	// MOUNTS the store: anchored-text's is the Smelter, the store's writer and
+	// the owner of its stamp, and `smelter-main` refuses to boot without the
+	// ENV. Add a row whenever a mount gains an ENV; move one whenever a mount
+	// moves.
 	for _, c := range []struct {
 		label  string
 		file   []string
 		env    string
 		mounts string
 	}{
-		// The KB tree's row moved from the gateway to the ARCHIVIST with the
-		// mount itself: the gateway declares neither of these env vars now,
-		// because it mounts nothing they could name.
+		// The KB tree's row is the ARCHIVIST's, the one image that mounts it.
+		// The gateway declares neither of these env vars, because it mounts
+		// nothing they could name.
 		{"archivist", []string{"..", "..", "..", "archivist", "Dockerfile"},
 			"SEMIONT_ROOT", kbMountTarget},
 		{"smelter", []string{"..", "..", "..", "smelter", "Dockerfile"},
@@ -128,15 +125,15 @@ func TestConfigDocumentsAreWhereTheImagesLook(t *testing.T) {
 //
 // Asserted on the run arguments the launcher BUILDS, not observed on a running
 // stack — an observation passes for whatever happens to be up, while this fails
-// the moment someone re-adds a mount, which is the only way the property is
+// the moment someone adds a mount, which is the only way the property is
 // ever lost.
 func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 	const kbRoot = "/host/kb"
 	mount := kbRoot + ":" + kbMountTarget
 
 	// Every builder that could plausibly want the tree, with the arguments a
-	// real start passes. `archivistArgs` is the one that takes a kbRoot at all
-	// now — the others cannot mount it because they are not given it, which is
+	// real start passes. `archivistArgs` is the only one that takes a kbRoot at
+	// all — the others cannot mount it because they are not given it, which is
 	// the property expressed in the signatures themselves.
 	fleet := map[string][]string{
 		"gateway":   gatewayArgs("/stage", "container", "1.2.3.4", "secret", "jwt", "v", 4000, nil, nil),
@@ -164,11 +161,11 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 
 // An in-container supervisor restarts the archivist on crash and on hang —
 // the only mechanism that can be true on all three runtimes (Apple container
-// has no --restart at all; probed 2026-09-04). Supervision is a per-run
-// opt-in now (the launcher passes SEMIONT_SUPERVISE and boot.sh wraps the
-// CMD), so this asserts the image half — the shared supervisor on board,
-// parameterized for the archivist — against the files, never by running
-// anything. The launcher half is TestStartOptsEveryServiceIntoSupervision.
+// has no --restart at all). Supervision is a per-run opt-in (the launcher
+// passes SEMIONT_SUPERVISE and boot.sh wraps the CMD), so this asserts the
+// image half — the shared supervisor on board, parameterized for the
+// archivist — against the files, never by running anything. The launcher
+// half is TestStartOptsEveryServiceIntoSupervision.
 func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
 	df, err := os.ReadFile(filepath.Join("..", "..", "..", "archivist", "Dockerfile"))
 	if err != nil {

@@ -48,8 +48,8 @@ describe('extractPageImages', () => {
 
     // Every other fixture here is /FlateDecode, which pdf.js decodes to a
     // Uint8Array. A JPEG decodes to a Uint8ClampedArray — not an instance of
-    // Uint8Array — so a guard testing only for the latter silently discarded
-    // every real scanned PDF while this suite stayed green. Asserting the PNG's
+    // Uint8Array — so a guard testing only for the latter silently discards
+    // every real scanned PDF while the Flate cases stay green. Asserting the PNG's
     // dimensions rather than merely its presence pins that the pixels were
     // actually decoded, not just that a buffer came back.
     it('reads a JPEG-coded scan', async () => {
@@ -64,11 +64,11 @@ describe('extractPageImages', () => {
     // An image used by more than one page is promoted to pdf.js's GLOBAL
     // scope: page 1 resolves `img_p0_1` from `page.objs`, page 2 resolves
     // `g_d1_img_p1_1` from `page.commonObjs`. Asking `page.objs` for a global
-    // object never invokes the callback — so this hung forever rather than
-    // failing, in a path the smelter and the detection worker both await, and
-    // a worker that will not claim another job while one is active.
+    // object never invokes the callback — it does not fail, it waits, in a
+    // path the smelter and the detection worker both await, and a worker
+    // will not claim another job while one is active.
     //
-    // The explicit timeout is the point: without it a regression re-hangs the
+    // The explicit timeout is the point: without it a wrong scope hangs the
     // suite instead of reporting.
     it('reads an image shared across pages', { timeout: 20_000 }, async () => {
         const byPage = await extractPageImages(readFixture('shared-image.pdf'));
@@ -84,13 +84,13 @@ describe('extractPageImages', () => {
  * JPEG (`/DCTDecode`) images — which is what essentially every real scanned
  * PDF uses — decode to a `Uint8ClampedArray`, and `Uint8ClampedArray` is not
  * an instance of `Uint8Array`. A guard that tests only for `Uint8Array`
- * therefore discards real scans while accepting every fixture in this repo,
- * all of which are `/FlateDecode` and decode to a plain `Uint8Array`.
+ * therefore discards real scans while accepting every `/FlateDecode` image,
+ * which decodes to a plain `Uint8Array`.
  *
  * The failure is silent and reads as success: no image means no OCR, which
  * surfaces as `declined: 'no-text-layer'` (class B) or `unreadPages` (class C)
- * — indistinguishable from "OCR ran and found nothing". Measured on a real
- * 28-page scanned book: 0 of 3 image-only pages recovered, in 0.3s.
+ * — indistinguishable from "OCR ran and found nothing". On a real 28-page
+ * scanned book it recovers 0 of 3 image-only pages, in 0.3s.
  *
  * Both views index bytes identically, so both are accepted. These cases pin
  * that; the fixture-driven tests above cover the `Uint8Array` side.

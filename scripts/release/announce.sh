@@ -5,10 +5,9 @@
 #   scripts/release/announce.sh 0.5.34 draft.md --post     # lint, then publish
 #
 # The file's first line is the discussion title; everything after it is the body.
-# Lint always runs first, and a blocking failure prevents posting. The rules are
-# the ones that have actually been broken: `.plans/` paths leaking into a post
-# where no reader can resolve them, and bullets swelling into paragraphs once the
-# whitepaper sections were dropped.
+# Lint always runs first, and a blocking failure prevents posting. The rules
+# catch `.plans/` paths leaking into a post where no reader can resolve them,
+# and bullets swelling into paragraphs.
 
 set -uo pipefail
 

@@ -1,11 +1,10 @@
 /**
  * The wire carries identity.
  *
- * Three fields have to exist before the gateway can route a reply to the one
- * client that asked for it: `clientId` on both bus request bodies, and
- * `correlationId` on the progress payload. The schemas carry them; the
- * gateway's reply filter, which writes a correlated reply only to its owner's
- * connections, is what reads them.
+ * One field has to exist, on both bus request bodies, before the gateway can
+ * route a reply to the one client that asked for it: `clientId`. The schemas
+ * carry it; the gateway's reply filter, which writes a correlated reply only
+ * to its owner's connections, is what reads it.
  *
  * Asserted against `specs/src/components/schemas/` rather than the generated
  * types because the schema is the authority — the TS types, the Go client and
@@ -36,8 +35,8 @@ describe('the wire carries identity', () => {
 
   it('BusEmitRequest carries clientId, optionally', () => {
     // Optional in the schema because plain broadcasts need no return address;
-    // the ROUTE enforces it for registered request channels whose payload
-    // carries a correlationId. A schema-level requirement would reject every
+    // the ROUTE enforces it for a registry operation's request emitted with a
+    // correlationId. A schema-level requirement would reject every
     // legitimate broadcast emit.
     const s = schema('BusEmitRequest');
     expect(s.properties).toHaveProperty('clientId');
@@ -53,10 +52,4 @@ describe('the wire carries identity', () => {
       expect.arrayContaining(['channel', 'payload', 'scope', 'clientId']),
     );
   });
-
-  // Two progress-channel cases lived here: one asserting a progress payload
-  // had a schema and no longer declared `correlationId`, and a vacuity guard
-  // asserting at least one operation declared progress. The guard fired when
-  // the last one was removed on 2026-09-17 — working exactly as written. The
-  // registry did move, deliberately.
 });

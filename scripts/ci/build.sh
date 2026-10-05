@@ -98,8 +98,7 @@ elif [[ -n "$PACKAGES" ]]; then
   # wants the bare `react-ui` — silently selects nothing: both build sections
   # run empty, "BUILD COMPLETE ✓" prints, publish pushes the PREVIOUS dist,
   # and the resulting image is stale in a way that only shows up as "my change
-  # isn't in there". Measured 2026-08-21: a full 60s cycle produced an image
-  # containing none of the intended work.
+  # isn't in there".
   UNKNOWN=()
   for t in "${TARGETS[@]}"; do
     MATCHED=false

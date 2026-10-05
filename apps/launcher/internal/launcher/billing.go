@@ -5,8 +5,8 @@ package launcher
 // report, opt-in behind the `user` scope. Everything shown is GitHub's number
 // — quantities, rates, discounts, net — never a launcher estimate; the
 // included-quota story is theirs too (it arrives as discountAmount).
-// Attribution is per REPOSITORY (bare name, no owner — the payload's shape,
-// verified 2026-07-20), never per codespace.
+// Attribution is per REPOSITORY (bare name, no owner — the payload's shape),
+// never per codespace.
 
 import (
 	"encoding/json"
@@ -35,7 +35,7 @@ func statusBilling(u *UI) int {
 		return 1
 	}
 	// captureBoth, not capture: an unauthenticated gh explains itself on
-	// stderr ("please run: gh auth login") — discarding that showed a bare
+	// stderr ("please run: gh auth login") — discarding that shows a bare
 	// "cannot resolve login" with no way forward.
 	login, err := captureBoth("gh", "api", "user", "--jq", ".login")
 	if err != nil {

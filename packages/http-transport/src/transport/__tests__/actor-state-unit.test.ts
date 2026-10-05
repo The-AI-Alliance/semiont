@@ -32,7 +32,7 @@ describe('createActorStateUnit', () => {
   // The connect wire shape (POST + subscription-matrix body) is pinned in
   // the 'multi-scope subscription matrix' describe at the bottom.
 
-  it('on$ delivers typed events filtered by channel', async () => {
+  it('stream delivers typed events filtered by channel', async () => {
     const sse = mockSSEResponse();
 
     const stateUnit = createActorStateUnit({
@@ -58,7 +58,7 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('on$ is multicast — multiple subscribers share the stream', async () => {
+  it('stream is multicast — multiple subscribers share the stream', async () => {
     const sse = mockSSEResponse();
 
     const stateUnit = createActorStateUnit({
@@ -101,9 +101,9 @@ describe('createActorStateUnit', () => {
     const [url, opts] = mockFetch.mock.calls[0] as [string, { method?: string; body: string }];
     expect(url).toBe('http://localhost:4000/bus/emit');
     expect(opts.method).toBe('POST');
-    // Parsed, not string-compared: the body gained `clientId` (the routing
+    // Parsed, not string-compared: the body carries `clientId` (the routing
     // address for correlated replies) and a key-order-sensitive
-    // string match makes every future wire field a spurious failure here.
+    // string match makes every added wire field a spurious failure here.
     expect(JSON.parse(opts.body)).toEqual({
       channel: 'beckon:hover',
       payload: { annotationId: 'a-1' },
@@ -114,9 +114,8 @@ describe('createActorStateUnit', () => {
   });
 
   it('emit bounds the /bus/emit POST with a timeout signal', async () => {
-    // An unresponsive gateway must not hang the caller's loop forever — the
-    // transport-level bound behind the 2026-09-03 finalization hang. Pin that
-    // the POST carries an AbortSignal (the emit deadline); without it, a
+    // An unresponsive gateway must not hang the caller's loop forever. Pin
+    // that the POST carries an AbortSignal (the emit deadline); without it, a
     // wedged gateway hangs every mark:create / job:complete indefinitely.
     mockFetch.mockResolvedValueOnce({ ok: true });
     const stateUnit = createActorStateUnit({
@@ -141,10 +140,10 @@ describe('createActorStateUnit', () => {
     // this pins the propagation the deadline produces, and the pin above pins
     // that the deadline is wired.)
     //
-    // Per-request retry changed WHEN that rejection arrives: a deadline
-    // is the definition of "try again", so the emit now spends its budget first.
-    // The no-hang guarantee is unchanged and is what this still pins — it is the
-    // budget, not the first failure, that bounds the wait. `mockRejectedValue`
+    // Per-request retry decides WHEN that rejection arrives: a deadline
+    // is the definition of "try again", so the emit spends its budget first.
+    // The no-hang guarantee is what this pins — it is the budget, not the
+    // first failure, that bounds the wait. `mockRejectedValue`
     // (not `…Once`) so every attempt times out; fake timers drive the retry
     // sleeps, which are ordinary `setTimeout`s even though the deadline is not.
     vi.useFakeTimers();
@@ -188,10 +187,10 @@ describe('createActorStateUnit', () => {
 
   // ── Don't ask without a credential ──────────────────────────────────
   // A session that exhausts refresh pushes `null` to `token$`, and
-  // HttpTransport renders that as `''`. The actor used to send
-  // `Authorization: Bearer ` and retry forever — a guaranteed-failing request
-  // generated on a timer, which is the 401 storm. A connect with no
-  // credential cannot succeed, so it must not be attempted.
+  // HttpTransport renders that as `''`. Sending `Authorization: Bearer `
+  // and retrying is a guaranteed-failing request generated on a timer — a
+  // 401 storm. A connect with no credential cannot succeed, so it must not
+  // be attempted.
 
   it('makes NO request while it has no credential', async () => {
     vi.useFakeTimers();
@@ -237,7 +236,7 @@ describe('createActorStateUnit', () => {
     vi.useRealTimers();
   });
 
-  // ── Stop discarding the status ──────────────────────────────────────
+  // ── A refusal keeps its status ──────────────────────────────────────
   // A REAL credential the gateway refuses. The credential gate is upstream,
   // so a 401 here is a rejected token, never an empty bearer. The status must
   // survive as structured data — the backoff/terminal split reads it, and an
@@ -295,8 +294,8 @@ describe('createActorStateUnit', () => {
 
     stateUnit.start();
     await vi.advanceTimersByTimeAsync(600_000); // ten minutes of a dead credential
-    // The measured incident rate was ~24/min — ~240 asks in this window. A
-    // refused credential cannot improve by being re-sent, so the bound is a
+    // A flat 5s cadence would be ~120 asks in this window. A refused
+    // credential cannot improve by being re-sent, so the bound is a
     // handful, and the actor parks in a state that says why.
     expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(1);
     expect(mockFetch.mock.calls.length).toBeLessThanOrEqual(3);
@@ -457,10 +456,10 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('emit resolves -1 when the gateway could not count, and 0 only when it counted zero', async () => {
+  it('emit resolves undefined when the gateway could not count, and 0 only when it counted zero', async () => {
     // A gateway on a broker signal plane cannot see the fabric's observers,
-    // so its BusEmitAccepted carries no `subscribers`. That is UNKNOWN (-1,
-    // matching the Go client), never an empty room.
+    // so its BusEmitAccepted carries no `subscribers`. That is no count
+    // (`undefined`; the Go client's `counted == false`), never an empty room.
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ subscribers: 0 }) });
 
@@ -476,7 +475,7 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('emit resolves -1 when an accepted emit has an unreadable body', async () => {
+  it('emit resolves undefined when an accepted emit has an unreadable body', async () => {
     // The emit was accepted, so rejecting would misreport it as failed; the
     // count is simply unknown.
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => { throw new Error('no body'); } });
@@ -519,10 +518,9 @@ describe('createActorStateUnit', () => {
   });
 
   it('emit RETRIES a 429 and resolves — the gateway is up and asking us to wait', async () => {
-    // A 429 rejected on the first attempt, and the sidecars treated a
-    // failed boot emit as fatal, so one rate-limit refusal killed a
-    // projector outright (2026-09-07 weaver incident). Retry is compliance
-    // with the gateway's own instruction, not optimism.
+    // Rejecting a 429 on the first attempt would let one rate-limit refusal
+    // fail whatever the emit is part of — a projector's boot pass, say.
+    // Retry is compliance with the gateway's own instruction, not optimism.
     mockFetch.mockResolvedValueOnce({ ok: false, headers: new Headers(), status: 429, statusText: 'Too Many Requests', text: async () => 'retry when one settles' });
     mockFetch.mockResolvedValueOnce({ ok: true });
 
@@ -535,7 +533,7 @@ describe('createActorStateUnit', () => {
   });
 
   it('emit does NOT retry a 401 — the gateway is up and rejected us', async () => {
-    // The asymmetry that made a status-blind predicate wrong in both directions:
+    // The asymmetry that makes a status-blind predicate wrong in both directions:
     // 429 and 401 both mean "the gateway answered", and only one of them is an
     // invitation to try again. Retrying auth failures would burn the budget and
     // delay a real error reaching the caller.
@@ -636,9 +634,9 @@ describe('createActorStateUnit', () => {
   });
 
   it('reassembles an event whose bytes span multiple reader.read() chunks', async () => {
-    // Regression: the SSE parser's currentEvent/currentData/currentId
-    // state used to be declared inside the read loop, so a large event
-    // whose terminating blank line arrived in a later chunk was silently
+    // The SSE parser's currentEvent/currentData/currentId state must
+    // outlive one read: declared inside the read loop, a large event
+    // whose terminating blank line arrives in a later chunk is silently
     // dropped. This test pushes the event in pieces deliberately split
     // mid-data-line and mid-trailing-blank-line; the parser must hold
     // state across `reader.read()` calls.
@@ -674,8 +672,8 @@ describe('createActorStateUnit', () => {
 
   it('reassembles a large frame delivered in many small chunks, and a chunk carrying several complete events', async () => {
     // Companion to the spanning test above, pinned against the segment-
-    // accumulating line splitter (worker OOM, 2026-09-03): the old
-    // `buffer += chunk; buffer.split('\n')` re-flattened the whole
+    // accumulating line splitter. The simpler
+    // `buffer += chunk; buffer.split('\n')` re-flattens the whole
     // accumulated buffer per read — O(frame²/chunk) large-string churn on
     // multi-MB reply frames. The splitter must (a) survive a data line
     // split across dozens of reads, including cuts exactly on '\n', and
@@ -969,10 +967,10 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('recovers (does not crash) when a channel-set change fires while degraded (#844)', { timeout: 12_000 }, async () => {
-    // Regression for #844: a channel-set change while `degraded` scheduled a
-    // reconnect whose transition the state machine rejected — `transition()`
-    // threw from inside the reconnect timer, an uncaught exception that killed
+  it('recovers (does not crash) when a channel-set change fires while degraded', { timeout: 12_000 }, async () => {
+    // A channel-set change while `degraded` schedules a reconnect. A
+    // `transition()` that threw on an edge the state machine rejects would
+    // throw from inside the reconnect timer, an uncaught exception that kills
     // the host process. With no stream live, the change's connect is the
     // recovery: `degraded → connecting → open`.
     const sse1 = mockSSEResponse();
@@ -990,7 +988,7 @@ describe('createActorStateUnit', () => {
     const states: string[] = [];
     stateUnit.state$.subscribe((s) => states.push(s));
 
-    // A listener keeps an uncaught throw from the buggy reconnect timer from
+    // A listener keeps an uncaught throw from the reconnect timer from
     // tearing down the test worker, and lets us assert it didn't happen.
     const uncaught: Error[] = [];
     const onUncaught = (e: Error) => uncaught.push(e);
@@ -1023,7 +1021,7 @@ describe('createActorStateUnit', () => {
     }
   });
 
-  it('invalid transition throws (e.g. stop() after stop() is a no-op, not a throw)', async () => {
+  it('stop() after stop(), and dispose() after that, do not throw', async () => {
     // The state machine is internal; the public API is stop()/dispose().
     // Assert that idempotent usage doesn't throw.
     mockSSEResponse();
@@ -1040,15 +1038,15 @@ describe('createActorStateUnit', () => {
 
   // ── Bus resumption / CACHE-SEMANTICS B17 ──────────────────────────────
   //
-  // Watermark tracking, seeding, and persistence are per-scope now and
+  // Watermark tracking, seeding, and persistence are per-scope and
   // pinned in the 'multi-scope subscription matrix' describe at the
-  // bottom. What stays here is the apply/stash ORDERING invariant.
+  // bottom. Pinned here is the apply/stash ORDERING invariant.
 
-  it('stashes an id only AFTER the event has been applied to on$ subscribers (the receive→apply gap)', async () => {
-    // The pre-fix loop ran saveLastEventId BEFORE the awaited apply fan-out.
-    // Inside that await, a bystander cache's debounced save could fire,
+  it('stashes an id only AFTER the event has been applied to stream subscribers (the receive→apply gap)', async () => {
+    // Were saveLastEventId to run BEFORE the awaited apply fan-out, then
+    // inside that await a bystander cache's debounced save could fire,
     // find every cache quiet (nothing invalidated yet), and flush the
-    // just-stashed bookmark — persisting an id whose event no cache had
+    // just-stashed bookmark — persisting an id whose event no cache has
     // absorbed. The invariant pinned here: by the instant saveLastEventId
     // runs, the event's subscribers have already run — so an id is only
     // ever stashable once its apply-effects are pending or done.
@@ -1078,14 +1076,14 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  // ── Make-before-break reconnect (#847) ────────────────────────────────
+  // ── Make-before-break reconnect ───────────────────────────────────────
 
   it('retires the old connection only after the new one opens + the drain window (make-before-break + linger)', async () => {
-    // Pre-#847 a scope-change reconnect aborted the live connection up front
-    // (break-before-make), opening a gap in which an in-flight ephemeral
-    // result was dropped. Now the old connection stays live until the new
+    // A scope-change reconnect that aborted the live connection up front
+    // (break-before-make) would open a gap in which an in-flight ephemeral
+    // result is dropped. The old connection stays live until the new
     // fetch resolves, then LINGERS for LINGER_MS (draining buffered replies)
-    // before being aborted — and rapid connects still converge to a single
+    // before being aborted — and rapid connects converge to a single
     // live stream (the orphan-stream guarantee).
     const c1 = mockConn();
     const stateUnit = createActorStateUnit({
@@ -1150,9 +1148,9 @@ describe('createActorStateUnit', () => {
   });
 
   it('delivers an event arriving on the old connection during a scope change', async () => {
-    // The gap that hung browse.* (#842/#843): a result emitted while the
-    // connection was being swapped for a scope change was lost. With make-
-    // before-break the old connection is still live and delivers it.
+    // A result emitted while the connection is being swapped for a scope
+    // change must not be lost: its browse.* caller would hang. With make-
+    // before-break the old connection is live through the swap and delivers it.
     const c1 = mockConn();
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
@@ -1186,12 +1184,12 @@ describe('createActorStateUnit', () => {
   // ── Linger-drain: replies in flight on the old connection at handover ──
 
   it('delivers a reply still in flight on the old connection after the new one opens (linger-drain)', async () => {
-    // The starvation repro: N browse requests issued on the unscoped
-    // connection; their correlated results were written to the old socket
-    // around the handover and discarded when the old connection was aborted
-    // the instant the new fetch resolved (buffered-but-unread bytes are lost
-    // on abort). The old connection must LINGER (keep draining) after
-    // handover; the id-dedup absorbs the overlap.
+    // Browse requests issued on the unscoped connection have their
+    // correlated results written to the old socket around the handover.
+    // Aborting the old connection the instant the new fetch resolves
+    // discards them (buffered-but-unread bytes are lost on abort) and
+    // starves the callers. The old connection must LINGER (keep draining)
+    // after handover; the id-dedup absorbs the overlap.
     const c1 = mockConn();
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
@@ -1227,8 +1225,9 @@ describe('createActorStateUnit', () => {
 
   it('dedupes a deterministic-id reply delivered by both connections during the linger overlap', async () => {
     // The gateway stamps correlated replies with deterministic ephemeral ids
-    // (`e-<channel>:<correlationId>`, routes/bus.ts) precisely so both
-    // connections tag the same reply identically — one emission, not two.
+    // (`e-<channel>:<correlationId>`, apps/gateway/src/routes/stream.rs)
+    // precisely so both connections tag the same reply identically — one
+    // emission, not two.
     const c1 = mockConn();
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
@@ -1331,9 +1330,8 @@ describe('createActorStateUnit', () => {
     // fan-out the claim is recorded on. Here both read loops are handed the
     // same stable id with NO await in between, so they can both be inside the
     // fan-out await at once. If the dedup claim were recorded after that await
-    // (the shape the fast-path reload fix introduced), both would find the set
-    // empty and deliver — the overlap dedup defeated. See
-    // PR #1077's review.
+    // (beside the watermark stash), both would find the set empty and
+    // deliver — the overlap dedup defeated.
     const c1 = mockConn();
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
@@ -1431,7 +1429,7 @@ describe('multi-scope subscription matrix', () => {
 
     mockSSEResponse();
     su.addChannels(['mark:added'], resourceId('res-A'));
-    su.addChannels(['mark:added'], resourceId('res-B')); // pre-fix: silently overwrote activeScope
+    su.addChannels(['mark:added'], resourceId('res-B')); // a second scope beside res-A, not a replacement
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     // Debounce collapsed both into one reconnect; no third follows.
     await new Promise((r) => setTimeout(r, 200));

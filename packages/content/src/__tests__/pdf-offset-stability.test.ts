@@ -23,10 +23,10 @@
  * afterwards, so a document re-detected across it mints a fresh set alongside the
  * old ones. Take that consciously, and say so in the commit.
  *
- * Measured 2026-09-12: `pdfjs-dist` 6.2.108 → 6.3.289 (a move the `^6.2.108`
- * caret already allows) left these byte-identical across 1,192 pages of real
- * documents — 1,254,746 text runs, streams and assembled text alike. This gate
- * is what keeps that true rather than merely once-observed.
+ * `pdfjs-dist` 6.2.108 → 6.3.289 (a move the `^6.2.108` caret allows) leaves
+ * these byte-identical across 1,192 pages of real documents — 1,254,746 text
+ * runs, streams and assembled text alike. This gate is what keeps that true
+ * rather than merely once-observed.
  */
 
 import path from 'path';
@@ -74,10 +74,10 @@ describe('text-layer offsets are stable across engine versions', () => {
 
   it('the geometry an annotation actually STORES is pinned too', async () => {
     // The id is hashed over offsets, but the rects are what the annotation
-    // carries — so they are what a reader could compare after the fact. If the
-    // report's preferred fix ever lands (identity from the durable anchor), these
-    // become the identity inputs, and this assertion becomes load-bearing rather
-    // than merely descriptive.
+    // carries — so they are what a reader could compare after the fact. If
+    // identity ever derives from the durable anchor instead, these become the
+    // identity inputs, and this assertion becomes load-bearing rather than
+    // merely descriptive.
     const layer = await extractPdfTextLayer(readFixture('multi-line.pdf'));
 
     expect(layer!.items.map((item) => [item.page, item.x, item.y]), WHY_IT_MOVED).toEqual([

@@ -3,8 +3,8 @@
 ## Overview
 
 The Semiont Browser leverages **`@semiont/react-ui`**, a framework-
-agnostic React component library extracted from the Browser to enable
-reuse across different applications and frameworks. This document
+agnostic React component library, reusable across different
+applications and frameworks. This document
 explains the package boundary, what lives where, and how the Browser
 composes the library.
 

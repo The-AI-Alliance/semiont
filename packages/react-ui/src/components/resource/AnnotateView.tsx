@@ -39,7 +39,7 @@ interface Props {
   annotateMode: boolean;
   /** Session for the shown resource — its client emits mark:* / mark.request; its bus feeds toolbar + beckon events. */
   session: SemiontSession | null;
-  /** Recently-created annotation ids to sparkle (host-provided; was ResourceAnnotationsContext). */
+  /** Recently-created annotation ids to sparkle (host-provided). */
   sparkleAnnotationIds?: Set<string>;
   /** The bar's Mode control reports the chosen mode here (the owner applies it). */
   onModeChange?: (mode: boolean) => void;
@@ -109,7 +109,7 @@ export function AnnotateView({
   }, []);
 
   // "Scroll to and highlight this annotation" — the same contract BrowseView
-  // serves, so the behaviour no longer depends on which view mode is active.
+  // serves, so the behaviour does not depend on which view mode is active.
   // The `scrollToAnnotationId` prop path (uiState → renderer) stays as the
   // host-facing capability it is; this is the in-app producer's route.
   // `resourceId` is a GUARD, not navigation: it names the resource this focus
@@ -145,10 +145,6 @@ export function AnnotateView({
       // Check if mousedown was on an existing annotation
       const target = e.target as Element;
       clickedOnAnnotation = !!target.closest('[data-annotation-id]');
-
-      if (!target.closest('[data-annotation-ui]')) {
-        // Removed unused selection state
-      }
     };
 
     const handleMouseUp = (e: MouseEvent) => {
@@ -217,9 +213,9 @@ export function AnnotateView({
   }, [selectedMotivation, content, resourceUri]);
 
   // One shell for every render mode; the registry supplies the content.
-  // Previously a three-way `switch` that repeated this wrapper, the toolbar
-  // block and the content div verbatim in each branch — any toolbar prop
-  // change had to be made three times and stayed correct only by vigilance.
+  // A `switch` per mode would repeat this wrapper, the toolbar block and the
+  // content div in each branch, so any toolbar prop change would have to be
+  // made in every one and stay correct only by vigilance.
   const mediaRenderers: AnnotateMediaRenderers = { ...defaultAnnotateRenderers, ...renderers };
   const Renderer = mediaRenderers[render];
 

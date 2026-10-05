@@ -22,7 +22,7 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 
 // A case states what a table already states. These hold each to its table, so
 // a table that changes fails the case that restates it rather than leaving it
-// to agree with a client about the old value.
+// to agree with a client about a stale value.
 describe('the corpus against the tables it restates', () => {
   it('failure-codes answers with every code a failure can carry, and expects of each the client code specs/src/errors/codes.json gives it', () => {
     const { busRequest } = table<{ busRequest: { unrecognizedFailure: string; codes: Array<{ code: string; wire?: string }> } }>('errors/codes.json');
@@ -88,7 +88,7 @@ for (const [sdk, { wire, exempt }] of Object.entries(inject('sdkDrivers'))) {
         it(`${kase.name}: ${kase.about}`, () => runCase(world(), wire, kase, 'wire'));
       } else {
         // An exemption is held, not taken on trust: the driver must say it
-        // cannot do what the case asks. One that can is no longer exempt.
+        // cannot do what the case asks. One that can is not exempt.
         it(`${kase.name}: exempt, because ${why}`, async () => {
           await expect(runCase(world(), wire, kase, 'wire')).rejects.toThrow(/the driver does not implement /);
         });

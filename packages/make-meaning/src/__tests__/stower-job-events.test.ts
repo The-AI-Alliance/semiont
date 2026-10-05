@@ -25,12 +25,10 @@ const USER = 'did:web:test:users:test';
 /**
  * The write seam these handlers use, typed as `StowerStores` rather than cast.
  *
- * It was `as never`, and that cast cost three green tests: when `mark:commit`
- * grew its at-least-once guard and the seam grew `viewStorage`, `tsc` had
- * nothing to check and the stub went on satisfying a shape that no longer
- * existed — the failure surfaced only at runtime, as "Cannot read properties
- * of undefined". Typed, the next widening fails the BUILD here, naming the
- * missing member.
+ * An `as never` cast gives `tsc` nothing to check: when the seam widens, the
+ * stub goes on satisfying a shape that does not exist and the failure
+ * surfaces only at runtime, as "Cannot read properties of undefined". Typed,
+ * a widening fails the BUILD here, naming the missing member.
  */
 function stubStores() {
   const appendEvent = vi.fn().mockResolvedValue(undefined);
@@ -170,8 +168,7 @@ describe('Stower job:* handlers', () => {
     ['job:fail', 'job:failed'],
   ])('%s persists which attempt produced it', async (channel, persisted) => {
     // The durable record is where an operator reconstructs a campaign's spend.
-    // Dropping `attempt` here leaves the log unable to say a document ran twice
-    // — the exact blindness that let a 26-minute re-run go unnoticed.
+    // Dropping `attempt` here leaves the log unable to say a document ran twice.
     bus.emit(channel as 'job:complete', jobEvent({ error: 'e', attempt: 2 }) as never);
     await settle();
 
@@ -196,8 +193,8 @@ describe('Stower job:* handlers', () => {
   //
   // The whole point of this channel is the REPLY. `mark:create` resolves when
   // the bus accepts it, which says nothing about the event log; a worker that
-  // advanced on that lost a unit whenever the Archivist was down and hung
-  // forever whenever it flapped. These pin the contract the worker now bets a
+  // advances on that loses a unit whenever the Archivist is down and hangs
+  // forever whenever it flaps. These pin the contract the worker bets a
   // unit's completion on.
   describe('mark:commit', () => {
     // No `creator`: it is derived by the Stower from the emitter and the cited

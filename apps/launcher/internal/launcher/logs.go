@@ -43,7 +43,7 @@ var logServices = func() []string {
 	return out
 }()
 
-// Logs implements `semiont logs` — the port of the fleet's logs.sh.
+// Logs implements `semiont logs`.
 func Logs(args []string) int {
 	u := NewUI(false)
 	runtime := ""

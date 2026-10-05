@@ -529,8 +529,7 @@ jobs:
 
       # The drift check above is SELF-CONSISTENT: same command both sides, so
       # a generation command that drops schemas passes it forever. This is the
-      # independent oracle — spec says N schemas, Go must have N. (It was the
-      # absence of this check that let ~150 pruned schemas sit unnoticed.)
+      # independent oracle — spec says N schemas, Go must have N.
       - name: Generated Go client covers every schema
         run: node scripts/ci/check-go-schema-coverage.mjs
 
@@ -548,8 +547,8 @@ jobs:
           go-version-file: apps/launcher/go.mod
 
       # gofmt REPORTS on stdout and exits 0 even when files are unformatted —
-      # `gofmt -l . && next` therefore never gates anything. Test the output,
-      # or drift lives for weeks (launcher_test.go did exactly that).
+      # `gofmt -l . && next` therefore never gates anything. The step fails on
+      # any output instead.
       - name: Check formatting (gofmt)
         run: |
           unformatted=$(gofmt -l apps/launcher packages/sdk-go)

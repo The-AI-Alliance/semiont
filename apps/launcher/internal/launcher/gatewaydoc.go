@@ -1,13 +1,11 @@
 package launcher
 
 // gatewaydoc.go — the gateway's configuration document: GatewayConfig in
-// specs/, the Go type generated from it (packages/sdk-go). Ruled 2026-09-27:
-// "Resolved JSON doc". The launcher writes it for the gateway it starts,
-// resolved — every ${VAR} a value, the way the gateway's own loader resolved
-// it in the container before it read a document instead — so the gateway
-// neither parses TOML nor resolves or defaults anything. Secrets are never
-// values in it: a credential is a ${NAME} in the KB config, and the document
-// names NAME.
+// specs/, the Go type generated from it (packages/sdk-go). The launcher
+// writes it for the gateway it starts, resolved — every ${VAR} a value — so
+// the gateway neither parses TOML nor resolves or defaults anything. Secrets
+// are never values in it: a credential is a ${NAME} in the KB config, and the
+// document names NAME.
 
 import (
 	"encoding/json"
@@ -76,9 +74,9 @@ func gatewayNamedVars(env *envConfig) []string {
 
 // gatewayVars: what a ${VAR} in the gateway's settings resolves against — the
 // addresses the launcher places (topologyVars), and the user's own variables.
-// The gateway-host variables are absent on purpose: the gateway never received
-// them (gatewayArgs), so a ${GATEWAY_HOST:-…} in its publicURL takes its
-// default, as it always has.
+// The gateway-host variables are absent on purpose: the gateway is handed
+// neither (gatewayArgs), so a ${GATEWAY_HOST:-…} in its publicURL takes its
+// default.
 func gatewayVars(rt, addr string, issuerPort int, userEnv []string) map[string]string {
 	vars := topologyVars(rt, addr, issuerPort)
 	for name, value := range userEnvVars(userEnv) {

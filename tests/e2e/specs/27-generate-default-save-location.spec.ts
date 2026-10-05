@@ -1,7 +1,6 @@
 import { test, expect } from '../fixtures/auth';
-import { SemiontClient, resourceId as rid } from '@semiont/sdk';
+import { resourceId as rid } from '@semiont/sdk';
 import { proposeStoragePath, folderOf, getStorageUri } from '@semiont/core';
-import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { expectGeneratedAt } from '../fixtures/generated';
 import { openConfigureStep, runGeneration } from '../fixtures/generate';
 import { signInSession } from '../fixtures/sdk-session';

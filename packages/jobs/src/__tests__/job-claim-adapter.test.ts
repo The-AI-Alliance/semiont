@@ -3,13 +3,11 @@
  *
  * The adapter takes a shared bus and attaches job-claim behaviour. The fake
  * is built over a REAL `EventBus` rather than a `Map` of `Subject<any>`:
- * core's bus is already typed per channel, so the fake needs no cast and
- * cannot be fed a payload production would reject — the old `Subject<any>`
- * map accepted anything, which is how this file's `job:queued` fixtures went
- * years without `userId`. No HTTP or SSE.
+ * core's bus is typed per channel, so the fake needs no cast and cannot be
+ * fed a payload production would reject, which a `Subject<any>` map accepts
+ * silently. No HTTP or SSE.
  *
- * The first block is the PULL model's specification, written as the
- * inversion of the edge-triggered cases it replaced: a worker asks the queue
+ * The first block is the PULL model's specification: a worker asks the queue
  * at every moment it becomes idle — start, settle, a matching wake-up while
  * parked, reconnect — and never otherwise. Claims are answered here by
  * pushing `job:claimed` / `job:claim-failed` at the correlationId the adapter
@@ -51,7 +49,7 @@ function fakeBus(initialState: ConnectionState = 'open') {
   // the latter pairs every channel with every payload, so `.payload.jobId`
   // would not typecheck even for an emit we know is `job:claim`. This shape
   // lets `channel` narrow `payload` — the same correlation the bus itself
-  // now carries.
+  // carries.
   type Emitted = { [K in keyof EventMap]: { channel: K; payload: EventMap[K]; correlationId?: string } }[keyof EventMap];
   const emits: Emitted[] = [];
   const eventBus = new EventBus();
@@ -155,8 +153,8 @@ describe('createJobClaimAdapter — the worker pulls when idle', () => {
 
     adapter.completeJob();
 
-    // The bug's signature, inverted: the next claim is synchronous with the
-    // settle. No announcement, no tick, no advance.
+    // The next claim is synchronous with the settle. No announcement, no
+    // tick, no advance.
     expect(h.claims()).toHaveLength(2);
     expect(await firstValueFrom(adapter.isProcessing$)).toBe(true);
 
@@ -300,12 +298,11 @@ describe('createJobClaimAdapter — the worker pulls when idle', () => {
     adapter.dispose();
   });
 
-  it('job:queued is in the worker MANIFEST — the adapter no longer widens anything', () => {
+  it('job:queued is in the worker MANIFEST — the adapter widens nothing', () => {
     // The worker's transport subscribes its manifest, NOT BRIDGED_CHANNELS,
     // so a `job:queued` missing from the manifest is a channel the adapter's
-    // own stream can never carry. This assertion was briefly INVERTED
-    // (2026-09-16, "redundant with the classification") and every worker sat
-    // idle with the frame live on the broker.
+    // own stream can never carry: every worker sits idle with the frame live
+    // on the broker.
     expect(WORKER_CONSUMED_BROADCASTS).toContain('job:queued');
     expect(WORKER_CHANNELS).toContain('job:queued');
   });

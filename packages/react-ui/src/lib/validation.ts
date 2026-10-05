@@ -74,15 +74,14 @@ export const ImageURLSchema = {
 /**
  * Validates the authenticated user a knowledge base reports.
  *
- * The identity is the `did`. It used to be a row id, which named the caller in
- * a way nothing else in the system used, so it could not be compared against
- * anything — events, attributions and claims all carry the did.
+ * The identity is the `did`, not a row id: events, attributions and claims
+ * all carry the did, and a row id names the caller in a way nothing else in
+ * the system uses, so it cannot be compared against anything.
  *
- * There are no role flags here. `isAdmin` and `isModerator` were carried as
- * optional fields until nothing read them — no gateway route gates on them and
- * no component branches on them, so the moderation surface is shown to every
- * authenticated user. A knowledge base that still sends them is not rejected:
- * this parser copies the fields it knows and ignores the rest.
+ * There are no role flags here. No gateway route gates on `isAdmin` or
+ * `isModerator` and no component branches on them, so the moderation surface
+ * is shown to every authenticated user. A knowledge base that sends them is
+ * not rejected: this parser copies the fields it knows and ignores the rest.
  */
 export interface OAuthUser {
   did: string;

@@ -84,9 +84,8 @@ export function TaggingPanel({
   const t = useTranslations('TaggingPanel');
   const ta = useTranslations('AssistProgress');
 
-  // Dismiss parity: tag was the one assist surface with no way to clear a
-  // finished progress display, because it had no `closeProgress` key to
-  // label the control. Same wiring as every other surface.
+  // Dismiss, wired as on every other assist surface: without it a finished
+  // progress display cannot be cleared.
   const handleDismissProgress = useCallback(() => {
     session?.client.mark.dismissProgress();
   }, [session]);
@@ -126,7 +125,7 @@ export function TaggingPanel({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Subscribe to click events - update focused state
-  // Event handler for annotation clicks (extracted to avoid inline arrow function)
+  // Event handler for annotation clicks (a named callback rather than an inline arrow function)
   const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
     setFocusedAnnotationId(annotationId);
     setTimeout(() => setFocusedAnnotationId(null), 3000);
@@ -250,8 +249,6 @@ export function TaggingPanel({
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [pendingAnnotation, session]);
-
-  // Color schemes are now handled via CSS data attributes
 
   return (
     <div className="semiont-panel">

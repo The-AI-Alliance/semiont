@@ -85,9 +85,9 @@ func Frame(args []string) int {
 				return 1
 			}
 			// Frame owns more than one schema primitive in the protocol
-			// (entity types today, tag schemas next), so a bare operand has
-			// no unambiguous meaning. Refusing keeps the door open; guessing
-			// would nail it shut.
+			// (entity types, tag schemas), though this verb writes only the
+			// first, so a bare operand has no unambiguous meaning. Refusing
+			// keeps the door open; guessing would nail it shut.
 			u.Fail("frame takes no bare arguments; say what %q is:  --entity-type %s", a, a)
 			return 1
 		}

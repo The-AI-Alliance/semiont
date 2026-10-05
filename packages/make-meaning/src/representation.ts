@@ -1,17 +1,13 @@
 /**
  * Where a resource's bytes are, and what type they are — decided ONCE.
  *
- * This join — `resourceId → view → storageUri + mediaType → bytes` — was
- * written out five times before it was decided here, and the copies disagreed:
- * three different fallbacks for an absent media type, and two different
- * opinions about which field holds the URI. One copy was simply wrong —
- * `LocalContentTransport` resolved through `representations[].storageUri`,
- * which `ViewMaterializer` never wrote, so binary reads threw for every
- * resource in local mode and nothing noticed.
+ * This join — `resourceId → view → storageUri + mediaType → bytes` — is
+ * decided in this one place: written out per caller, the copies drift apart
+ * on the fallback for an absent media type and on which field holds the URI.
  *
- * Every face now derives from here: the Archivist's HTTP content endpoint,
+ * Every face derives from here: the Archivist's HTTP content endpoint,
  * the in-process `ContentReads.getBinary`, the local transport, and the
- * preview paths. A sixth caller adds a call, never a second resolution.
+ * preview paths. A new caller adds a call, never a second resolution.
  */
 
 import { getPrimaryRepresentation, type ResourceDescriptor, type ResourceId } from '@semiont/core';
@@ -34,13 +30,12 @@ export interface RepresentationSource {
  * URI and mediaType come from the same object: the primary representation is
  * `storageUri`'s ONE home (bytes are a fact about a rendition, and
  * `ViewMaterializer` writes the URI there on `yield:created` and relocates
- * it on `yield:moved`). The old descriptor-level field, and the octet-stream
- * fallback for the URI-without-representation mismatch it made possible, are
- * gone — the mismatch is no longer representable.
+ * it on `yield:moved`). The descriptor has no URI field of its own, so a URI
+ * without a representation is not representable and no media-type fallback
+ * exists for it.
  *
  * `null` means "no bytes", which is a fact about the resource and not an
- * error — a primary representation without a URI is the has-content signal
- * every caller used before, kept.
+ * error — a primary representation without a URI is the no-content signal.
  */
 export function representationSource(resource: ResourceDescriptor | undefined): RepresentationSource | null {
   const primary = getPrimaryRepresentation(resource);

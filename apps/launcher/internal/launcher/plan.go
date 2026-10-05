@@ -16,11 +16,10 @@ import (
 	"strings"
 )
 
-// presence: whether a role is part of this stack, and WHO runs it — one of
-// the three questions `obligation` used to answer at once. The other
-// two have left: what the launcher may change inside a service is
-// `authority`, declared on the descriptor, and the memory preflight reads
-// presence because "do we run it" is genuinely its question.
+// presence: whether a role is part of this stack, and WHO runs it. What the
+// launcher may change inside a service is a separate question — `authority`,
+// declared on the descriptor — and the memory preflight reads presence
+// because "do we run it" is genuinely its question.
 //
 // `absent` is not a way to run. It is a presence — the role is not here —
 // and naming it so is what stops it being treated as a fourth mechanism.
@@ -259,17 +258,15 @@ func driverDisplay(role, driver string) string {
 }
 
 // providedRunArgs builds the `run -d` argv for a launcher-provided role from
-// its plan: aux ports first (byte-parity with the historical builders), then
-// the primary publish (host side from config, container side the driver
-// default), driver extras (inference's memory/volume), config-derived env,
-// image.
+// its plan: aux ports first, then the primary publish (host side from
+// config, container side the driver default), driver extras (inference's
+// memory/volume), config-derived env, image.
 func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 	spec := descriptorFor(role, rp.Driver)
 	// NO --rm: a crashed container must remain inspectable — its logs are
-	// the diagnosis (a friction log lost most of a day to --rm destroying
-	// them; the runtime's `logs` answered "No such container"). Cleanup is
-	// already explicit at both ends: start's preflight and stop both
-	// stop+rm by name.
+	// the diagnosis, and --rm destroys them (the runtime's `logs` answers
+	// "No such container"). Cleanup is already explicit at both ends:
+	// start's preflight and stop both stop+rm by name.
 	a := []string{"run", "-d", "--name", spec.container, "--memory", spec.mem}
 	for _, ap := range spec.auxPorts {
 		a = append(a, "-p", fmt.Sprintf("%d:%d", ap.port, ap.port))
@@ -302,9 +299,8 @@ func ollamaRunArgs(rp rolePlan, extra ...string) []string {
 }
 
 // planPortChecks: the must-be-free ports, derived from the plan — only roles
-// the launcher actually provides claim ports. Order preserves the historical
-// check order (graph aux, graph, vectors, database, gateway, sidecars,
-// browser, traces-when-observing).
+// the launcher actually provides claim ports. The order is the order the
+// checks run in, and the start goldens pin it.
 func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 	var checks []portNeed
 	addRole := func(role string) {
@@ -324,21 +320,28 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 	// The gateway's port is config-owned; every other Semiont port is
 	// launcher fiat and comes from the descriptor set. No browser here: the
 	// Browser is not a stack member — its port is checked inside flowBrowser,
-	// and only when (re)starting. No dispatcher either, which this
-	// derivation makes visible rather than fixes: adding it is a behaviour
-	// change, and this phase makes none.
+	// and only when (re)starting.
 	checks = append(checks, portNeed{plan.GatewayPort, "Gateway"})
-	for _, role := range []string{"worker", "smelter", "weaver", "archivist", "librarian"} {
-		checks = append(checks, stackPortNeeds(role)...)
+	return append(checks, fiatPortNeeds(observe)...)
+}
+
+// fiatPortNeeds: the ports a stack claims whatever its config says — the
+// Semiont services behind the gateway, then observability. ONE list for the
+// two sites that decide it: a full start requires these free, and a stop
+// holding no record of the stack's claims verifies these released.
+func fiatPortNeeds(observe bool) []portNeed {
+	var needs []portNeed
+	for _, role := range []string{"worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"} {
+		needs = append(needs, stackPortNeeds(role)...)
 	}
 	// The collector runs on every start, observed or not.
-	checks = append(checks, stackPortNeeds("collector")...)
+	needs = append(needs, stackPortNeeds("collector")...)
 	if observe {
 		// --no-observe declines the observability BACKENDS (Jaeger, Prometheus).
-		checks = append(checks, stackPortNeeds("traces")...)
-		checks = append(checks, stackPortNeeds("metrics")...)
+		needs = append(needs, stackPortNeeds("traces")...)
+		needs = append(needs, stackPortNeeds("metrics")...)
 	}
-	return checks
+	return needs
 }
 
 func knownDrivers(role string) string {
@@ -408,8 +411,8 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	//
 	// The launcher's own reference is the launcher's whatever the platform
 	// says — what loadConfig writes where no address is stated (topology.go),
-	// and what the fleet's configs were committed with under `platform =
-	// "external"`, where that word meant external to the gateway process.
+	// and what a config commits under `platform = "external"` when it means
+	// external to the gateway process.
 	somebodyElses := func(section, key, platform, address, host, reference string) (bool, error) {
 		switch {
 		case referenceName(host) == reference:
@@ -549,8 +552,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 				rp.Image = d.Image
 			}
 			rp.Env = []string{"POSTGRES_DB=" + d.Name}
-			// POSTGRES_USER only when it departs from the image default —
-			// keeps derivation byte-identical with today's argv.
+			// POSTGRES_USER only when it departs from the image default.
 			if d.User != "" && d.User != "postgres" {
 				rp.Env = append(rp.Env, "POSTGRES_USER="+d.User)
 			}
@@ -657,9 +659,8 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	// provided — launched with the staged realm, its database on the PostgreSQL
 	// the [database] section names. An issuer the config states, and every oidc
 	// issuer, is external: verified, never launched.
-	// MANDATORY (user, 2026-09-21). Absence used to mean "no identity role",
-	// which produced a stack nobody could sign in to and whose gateway could
-	// not reach its own record — a shape only a test harness ever wanted.
+	// MANDATORY: a stack with no identity role is one nobody can sign in to
+	// and whose gateway cannot reach its own record.
 	if env.Identity == nil {
 		return nil, secErr("identity", "no section — every knowledge base trusts an issuer; add type and issuer")
 	}

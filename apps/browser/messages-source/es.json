@@ -193,7 +193,6 @@
     "statusConnected": "Conectado",
     "statusExpired": "Sesión expirada",
     "statusSignedOut": "Sesión cerrada",
-    "statusUnreachable": "Inaccesible",
     "invalidHost": "Nombre de host no válido",
     "discoveredTitle": "Encontrado en este equipo",
     "managedBadge": "Gestionado por el lanzador",

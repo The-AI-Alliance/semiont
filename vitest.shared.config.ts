@@ -8,13 +8,12 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    // The layout every package in this repo uses. Restated in three configs
-    // before this moved here; a package with a different layout overrides it,
-    // and one with this layout says nothing.
-    // `.tsx` is not optional here: react-ui has 138 `.test.tsx` and the browser
-    // 20, so a `.ts`-only glob silently runs none of them — a far worse failure
-    // than the missing reporters this file exists to fix. One glob, because
-    // `src/**` already reaches into `__tests__` directories at any depth.
+    // The layout every package in this repo uses: a package with a different
+    // layout overrides it, and one with this layout says nothing.
+    // `.tsx` is not optional here: react-ui and the browser have `.test.tsx`
+    // suites, and a `.ts`-only glob silently runs none of them. One glob,
+    // because `src/**` already reaches into `__tests__` directories at any
+    // depth.
     include: ['src/**/*.test.{ts,tsx}'],
     exclude: ['node_modules', 'dist'],
     coverage: {
@@ -44,11 +43,9 @@ export default defineConfig({
         // main (see `sidecar-boot-refusal.test.ts`), not a coverage number.
         'src/*-main.ts',
       ],
-      // No blanket `thresholds` here. One bound exactly one package while
-      // fourteen others did not import this file, so it read as a repo-wide
-      // floor and enforced nothing — a comment pretending to be a gate. A
-      // threshold belongs in the package that measured it, at the value it
-      // measured, with the date.
+      // No blanket `thresholds` here: one reads as a repo-wide floor and binds
+      // only the packages that import this file. A threshold belongs in the
+      // package that measured it, at the value it measured.
     },
   },
 });

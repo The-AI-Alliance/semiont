@@ -170,8 +170,8 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
 
   // This component IS the graph pane, and its body IS a graph — a hand-rolled
   // deterministic SVG (no physics, no library, no pan-zoom; a decision
-  // surface, not an explorer). Chrome travels with the component, so every
-  // consumer inherits it. Emptiness is evidence: an empty neighborhood
+  // surface, not an explorer). Chrome travels with the component: the pane
+  // title is drawn here. Emptiness is evidence: an empty neighborhood
   // renders its empty state, never a blank pane.
   return (
     <div className="semiont-gather-pane semiont-gather-pane--graph">

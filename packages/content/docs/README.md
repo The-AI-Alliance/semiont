@@ -4,9 +4,9 @@ Documentation for the working-tree content package.
 
 ## Topics
 
-- **[API Reference](API.md)** - Complete API documentation
+- **[API Reference](API.md)** - API documentation
 - **[Architecture](architecture.md)** - Design principles and implementation
-- **[Media Types](mime-types.md)** - Storage URI derivation (the registry itself lives in @semiont/core)
+- **[Media Types](mime-types.md)** - Storage URI derivation (it and the registry live in @semiont/core)
 
 ## Quick Reference
 
@@ -22,12 +22,12 @@ Documentation for the working-tree content package.
 
 - `extractPdfTextLayer()` extracts positioned text runs from native PDFs via pdfjs-dist
 - Returns `null` for scanned/image-only PDFs
-- `locate()` maps a character span to per-line bounding rectangles
+- `locate()`, from `@semiont/core`, maps a character span to per-line bounding rectangles
 - Coordinates are PDF points, origin bottom-left; the Y-flip happens in the browser
 
 ### Media Types
 
-- `deriveStorageUri()` builds a `file://` URI from a resource name and a validated `SupportedMediaType`
+- `deriveStorageUri()`, from `@semiont/core`, builds a `file://` URI from a resource name and a validated `SupportedMediaType`
 - The media-type registry (admitted types, extensions, capabilities) lives in `@semiont/core`'s `media-types.ts`
 
 From [../src/working-tree-store.ts](../src/working-tree-store.ts): Working tree storage.

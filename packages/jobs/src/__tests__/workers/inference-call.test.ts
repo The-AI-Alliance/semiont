@@ -1,10 +1,9 @@
 /**
  * Bounded inference calls.
  *
- * The claim loop's only unbounded await was the model call: one HTTP
- * request that never settles used to wedge the worker forever (the
- * adapter ignores announcements while isProcessing). These tests pin
- * the bound: a never-resolving call becomes an ordinary job failure,
+ * Unbounded, one HTTP request that never settles wedges the worker
+ * forever (the adapter ignores announcements while a job is held). These
+ * tests pin the bound: a never-resolving call becomes an ordinary job failure,
  * a fast call passes through untouched, and real model errors are not
  * masked as timeouts.
  */
@@ -66,7 +65,7 @@ describe('bounded inference calls', () => {
       boundedGenerateStructured(client, 'p', 100, 0.1, ELEMENT),
     ).resolves.toEqual({ items: [], stopReason: 'end_turn' });
 
-    // The trailing AbortSignal is part of the pass-through now: every call
+    // The trailing AbortSignal is part of the pass-through: every call
     // carries one so the bound can cancel it.
     expect(client.generateTextWithMetadata).toHaveBeenCalledWith('p', 100, 0.1, expect.any(AbortSignal));
     expect(client.generateStructured).toHaveBeenCalledWith('p', 100, 0.1, ELEMENT, expect.any(AbortSignal));
@@ -93,11 +92,10 @@ describe('bounded inference calls', () => {
   });
 
   // Liveness must come from ELAPSED TIME, not from chunk geometry. A
-  // single-chunk document (the normal case — the derived input budget is
-  // ~935 K tokens) crosses no chunk boundary, so the boundary heartbeat emits
-  // nothing for the entire run; the client's 180 s silence window then
-  // expires on a healthy job. The in-flight call is the only window that
-  // knows the truth.
+  // single-chunk document crosses no chunk boundary, so the boundary
+  // heartbeat emits nothing for the entire run; the client's 180 s silence
+  // window then expires on a healthy job. The in-flight call is the only
+  // window that knows the truth.
   describe('in-flight heartbeat', () => {
     it('fires repeatedly DURING one long inference call', async () => {
       vi.useFakeTimers();
@@ -182,9 +180,9 @@ describe('bounded inference calls', () => {
   });
 
   describe('tracing', () => {
-    // The reported bug's own diagnostic rider: a 411 s detection job was ONE
-    // span with no children, so extraction could not be told from inference in
-    // a trace. These pin that every provider call is separately visible.
+    // Without a span per call a detection job is ONE span with no children,
+    // so extraction cannot be told from inference in a trace. These pin that
+    // every provider call is separately visible.
     it('wraps a structured call in its own span, attributed to the provider and model', async () => {
       const client = clientWith({});
 
@@ -226,11 +224,10 @@ describe('bounded inference calls', () => {
     });
   });
 
-  // True cancellation: a bound that cannot cancel is half a bound. The
-  // 10-minute guillotine used to free only the claim loop — the request it
-  // abandoned kept running (and billing) as a zombie, one of which was caught
-  // completing 24–34 minutes after abandonment (a live reproduction,
-  // 2026-08-24).
+  // True cancellation: a bound that cannot cancel is half a bound. A
+  // guillotine that only frees the claim loop leaves the abandoned request
+  // running (and billing) as a zombie — one measured completing 24–34
+  // minutes after abandonment.
   describe('true cancellation', () => {
     it('the bound aborts the underlying request on expiry — not merely abandons it', async () => {
       vi.useFakeTimers();

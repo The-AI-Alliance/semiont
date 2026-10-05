@@ -8,9 +8,9 @@ import { recordAnchorOutcome } from '@semiont/observability';
  * error — the write-time selector invariant still holds — but both are places
  * the span could be the wrong instance.
  *
- * ONE decider, deliberately. This classification lived in two places (the
- * reference path's inline warn and the motivation parsers' logger) that
- * happened to agree; two copies of a risk judgement is one copy too many.
+ * ONE decider, deliberately: the reference path and the motivation parsers
+ * both audit through here, because two copies of a risk judgement is one copy
+ * too many.
  */
 const DEGRADED: ReadonlySet<string> = new Set<AnchorMethod>(['first-of-many', 'fuzzy-match']);
 

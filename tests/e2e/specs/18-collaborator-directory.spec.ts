@@ -1,7 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { SemiontClient } from '@semiont/sdk';
 import type { CollaboratorEntry } from '@semiont/core';
-import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
@@ -135,8 +133,8 @@ test.describe('collaborator directory (browse.agents)', () => {
       // ── 5. Attribution loop: a real worker's generator DID ∈ directory ──
       const rid = (
         await client.yield.resource({
-          name: 'P5 Directory Attribution',
-          storageUri: 'file://e2e/p5-directory-attribution.txt',
+          name: 'Directory Attribution',
+          storageUri: 'file://e2e/directory-attribution.txt',
           file: Buffer.from(
             'Photosynthesis converts sunlight into chemical energy. ' +
               'The Calvin cycle fixes carbon dioxide into glucose. ' +

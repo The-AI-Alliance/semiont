@@ -5,7 +5,7 @@ package launcher
 // Deployment topology is the launcher's to know, never the KB config's to
 // declare. A knowledge base's config says WHAT it needs: a graph, a vector
 // store, an embedding model, an issuer. WHERE those listen on this machine
-// today is a fact of the start that placed them. So:
+// is a fact of the start that placed them. So:
 //
 //   - A daemon is the launcher's to run and to place unless its section says
 //     `platform = "external"`. Its section states no address: loadConfig

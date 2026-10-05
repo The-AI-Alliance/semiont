@@ -2,7 +2,7 @@
 
 Sibling workflow to the e2e suite. Where Playwright tests assert that
 specific flows work, **live monitoring** is for the cases the suite
-doesn't yet cover: a human poking around the dev stack, finding
+doesn't cover: a human poking around the dev stack, finding
 something visibly wrong, and needing to know what fired.
 
 This is how you find the bugs the e2e suite is missing — and the

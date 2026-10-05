@@ -18,7 +18,7 @@ export default mergeConfig(
       // Pool configuration to reduce memory usage
       pool: 'threads',
       maxConcurrency: 2,
-      // Configure reporters (replaces deprecated 'basic' reporter)
+      // Vitest's 'basic' reporter is deprecated; this is its equivalent
       reporters: [
         ['default', { summary: false }]
       ],

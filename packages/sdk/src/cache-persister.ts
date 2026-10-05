@@ -25,9 +25,9 @@ import type { SessionStorage } from './session/session-storage';
  * The persisted watermarks audit the persisted cache documents: on reload
  * the client resumes each scope's replay from its watermark, so any event
  * at-or-before it whose effect is NOT in the persisted caches would be
- * silently skipped. Writing ids immediately per event created exactly
+ * silently skipped. Writing ids immediately per event creates exactly
  * that hazard (a crash inside the refetch + save-debounce window
- * persisted a bookmark ahead of the caches). Instead: `saveLastEventId`
+ * persists a bookmark ahead of the caches). Instead: `saveLastEventId`
  * only STASHES the id under its scope; the wrapped storage writes the
  * whole record through — document first, ids second — on the next
  * cache-document write. The persisted ids may therefore LAG the caches
@@ -51,9 +51,9 @@ export function coupledLastEventId(
   loadLastEventIds: () => ReadonlyMap<ResourceId, string> | null;
   /**
    * B17-Q (C1) — quiescence-gate the flush. Write-ordering alone couples
-   * write MOMENTS, not content: doc B's save could flush a bookmark whose
-   * event doc A had not yet absorbed (mid-refetch or mid-debounce) — the
-   * measured spec-14 bug. With a gate (wired by the session factory to
+   * write MOMENTS, not content: doc B's save can flush a bookmark whose
+   * event doc A has not yet absorbed (mid-refetch or mid-debounce). With a
+   * gate (wired by the session factory to
    * `browse.persistenceSettled()`), a cache-document write carries the
    * pending ids through only when every persisted cache is quiet; otherwise
    * the ids stay pending — lagging, the safe direction — and ride the next

@@ -7,7 +7,7 @@ Common use cases and patterns for `@semiont/make-meaning`.
 All examples assume the service is started:
 
 ```typescript
-import { startMakeMeaning, AnnotationOperations } from '@semiont/make-meaning';
+import { startMakeMeaning, AnnotationOperations, asBusRequestPrimitive } from '@semiont/make-meaning';
 import { EventBus, ResourceOperations, userId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { firstValueFrom, filter, timeout, race } from 'rxjs';
@@ -36,8 +36,8 @@ const rId = await ResourceOperations.createResource(
     format: 'text/markdown',
     language: 'en',
   },
-  { did: userId('user-123'), roles: [] },
-  eventBus,
+  { did: userId('did:web:example.com:users:user-123'), roles: [] },
+  asBusRequestPrimitive(eventBus),
 );
 
 console.log(`Resource ID: ${rId}`);
@@ -49,12 +49,13 @@ console.log(`Resource ID: ${rId}`);
 
 ```typescript
 import { ResourceContext } from '@semiont/make-meaning';
+import { getPrimaryMediaType } from '@semiont/core';
 
 const resource = await ResourceContext.getResourceMetadata(resourceId, kb);
 if (resource) {
   console.log(`Resource: ${resource.name}`);
   console.log(`Created: ${resource.dateCreated}`);
-  console.log(`Format: ${resource.format}`);
+  console.log(`Format: ${getPrimaryMediaType(resource)}`);
 }
 ```
 
@@ -87,13 +88,10 @@ for (const resource of withPreviews) {
 ### Creating Annotations
 
 ```typescript
-import { userToAgent } from '@semiont/core';
-
 const result = await AnnotationOperations.createAnnotation(
   {
     motivation: 'commenting',
     target: {
-      type: 'SpecificResource',
       source: resourceId,
       selector: [
         { type: 'TextPositionSelector', start: 0, end: 50 },
@@ -104,8 +102,7 @@ const result = await AnnotationOperations.createAnnotation(
       { type: 'TextualBody', value: 'Great intro!', purpose: 'commenting', format: 'text/plain' },
     ],
   },
-  userId('user-123'),
-  userToAgent({ id: userId('user-123'), name: 'Test User', email: 'test@example.com', domain: 'example.com' }),
+  userId('did:web:example.com:users:user-123'),
   eventBus,
   kb,  // views.get — the annotatability gate reads the target's media type
 );
@@ -122,7 +119,7 @@ import { AnnotationContext } from '@semiont/make-meaning';
 const projection = await AnnotationContext.getResourceAnnotations(resourceId, kb);
 console.log(`Annotations: ${projection.annotations.length} (projection v${projection.version})`);
 
-// Just the annotations, with resolved references enriched
+// Just the annotations
 const allAnnotations = await AnnotationContext.getAllAnnotations(resourceId, kb);
 ```
 
@@ -164,9 +161,10 @@ const session = await SemiontSession.signInDevice({
 });
 const semiont = session.client;
 
-// The SDK is RxJS-native, but its return values are PromiseLike — `await` works directly.
-const resource = await semiont.browse.resource(resourceId('doc-123'));
-const annotations = await semiont.browse.annotations(resourceId('doc-123'));
+// The SDK is RxJS-native. Streams and uploads are PromiseLike — `await` works directly;
+// a Browse live query is read once with `.fresh()`.
+const resource = await semiont.browse.resource(resourceId('doc-123')).fresh();
+const annotations = await semiont.browse.annotations(resourceId('doc-123')).fresh();
 const content = await semiont.browse.resourceContent(resourceId('doc-123'));
 const events = await semiont.browse.resourceEvents(resourceId('doc-123'));
 
@@ -210,8 +208,10 @@ if (!result.ok) throw result.error;
 
 ## Graph Traversal
 
-Direct graph queries go through the `GraphDatabase` interface. (Bus clients get
-referenced-by lookups from the Browser via `browse:referenced-by-requested`.)
+Direct graph queries go through the `GraphDatabase` interface, and read what a Weaver has
+projected into the configured graph — the Weaver is a standalone service, which
+`startMakeMeaning()` does not start. (Bus clients get referenced-by lookups from the
+Browser via `browse:referenced-by-requested`.)
 
 ```typescript
 // Find backlinks (incoming links)

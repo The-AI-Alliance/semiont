@@ -1,6 +1,6 @@
 #!/bin/sh
 # supervise.sh — the in-container supervisor for every long-running Semiont
-# service (first the Archivist's, now shared by every service image).
+# service, shared by every service image.
 #
 # Exists because no runtime mechanism can: Apple container has no --restart
 # flag, and plain docker cannot restart-on-unhealthy. One loop gives all
@@ -16,14 +16,13 @@
 #   SUPERVISE_NAME    service name, used in every event line and the state dir
 #   SUPERVISE_PROBE   health URL polled once armed
 #
-# LOGGING, deliberately minimal: the child writes to STDOUT exactly as before —
+# LOGGING, deliberately minimal: the child writes to STDOUT as it would unsupervised —
 # the container outlives child deaths, so the runtime's own log keeps every
 # life, `container logs`/dumpLogs work natively, and the launcher's preflight
 # snapshot archives it before teardown. Only the supervisor's OWN events
 # (starts, exit codes, kills) also go to a small capped file on the state
-# mount, so the death record survives even a torn-down container. That file is
-# what made the Archivist's crash loop diagnosable and what the gateway lacked
-# on 2026-09-08, when a death took its own evidence with it. A service with no
+# mount, so the death record survives even a torn-down container: without
+# that file a death takes its own evidence with it. A service with no
 # writable /semiont-state (the browser) falls back to /tmp and keeps only the
 # runtime log — restart without the durable record, by design, not by accident.
 

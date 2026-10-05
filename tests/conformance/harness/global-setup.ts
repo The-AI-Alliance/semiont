@@ -6,7 +6,7 @@
  *
  * The bundles are made here, from `specs/src`, rather than read from the
  * gitignored bundles in `specs/`: a stale bundle would let the suite pass
- * against a spec that is no longer the source.
+ * against a spec that is not the source.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';

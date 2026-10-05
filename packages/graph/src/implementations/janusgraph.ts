@@ -1,5 +1,4 @@
 // JanusGraph implementation with real Gremlin connection
-// This replaces the mock in-memory implementation
 
 import { GraphDatabase } from '../interface';
 import { assertMutableResourceUpdate } from '../interface';
@@ -44,8 +43,7 @@ function getPropertyValue(props: any, key: string): any {
  *
  * Module-level so the cross-store conformance suite can run this store's
  * decode path with no live JanusGraph: everything past the flattening is the
- * shared codec's. This is where a missing selector used to become `'{}'` and
- * a missing motivation used to become `'linking'`.
+ * shared codec's.
  */
 export function vertexToAnnotation(vertex: any, entityTypes: string[] = []): Annotation {
   const props = vertex.properties || {};
@@ -147,9 +145,9 @@ export class JanusGraphDatabase implements GraphDatabase {
     if (!contentChecksum) throw new Error(`Resource ${id} missing required field: contentChecksum`);
     if (!mediaType) throw new Error(`Resource ${id} missing required field: contentType`);
 
-    // The graph property is named `creator` for historical reasons; it holds
-    // the resource's `wasAttributedTo` verbatim, as the event carried it (see
-    // the write side). Nothing is derived here — the projection copies.
+    // The graph property is named `creator`; it holds the resource's
+    // `wasAttributedTo` verbatim, as the event carried it (see the write
+    // side). Nothing is derived here — the projection copies.
     const storedAttribution = typeof creatorRaw === 'string' ? JSON.parse(creatorRaw) : creatorRaw;
 
     const resource: ResourceDescriptor = {
@@ -291,7 +289,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     // JanusGraph supports server-side text predicates via Elasticsearch,
     // but composing OR across multiple text properties requires the
     // anonymous-traversal API; for a gateway that's not the production
-    // target today, JS post-filtering is simpler and adequate at our scale.
+    // target, JS post-filtering is simpler and adequate at our scale.
     const docs = await this.g!.V().hasLabel('Resource').toList();
     return queryResources(docs.map((v: any) => this.vertexToResource(v)), filter);
   }
@@ -515,7 +513,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     if (!annotation) throw new Error('Annotation not found');
 
     // TODO Preserve existing TextualBody entities, add SpecificResource
-    // For now, just update with SpecificResource (losing entity tags)
+    // The update carries the SpecificResource alone, losing entity tags
     await this.updateAnnotation(annotationId, {
       body: [
         {
@@ -584,22 +582,6 @@ export class JanusGraphDatabase implements GraphDatabase {
   }
   
   async getResourceConnections(resourceId: ResourceId): Promise<GraphConnection[]> {
-    // Use Gremlin to find connected resources
-    const paths = await this.g!
-      .V()
-      .has('Resource', 'id', resourceId)
-      .inE('BELONGS_TO')
-      .outV()
-      .outE('REFERENCES')
-      .inV()
-      .path()
-      .toList();
-
-    // Convert paths to connections
-    // This is simplified - real implementation would process paths properly
-    this.logger?.debug('Found paths', { count: paths.length });
-
-    // For now, also build connections from references
     const connections: GraphConnection[] = [];
     const refs = await this.getReferences(resourceId);
 
@@ -609,7 +591,8 @@ export class JanusGraphDatabase implements GraphDatabase {
       if (bodySource) {
         const targetDoc = await this.getResource(bodySource);
         if (targetDoc) {
-          const existing = connections.find(c => c.targetResource.id === targetDoc.id);
+          const targetId = getResourceId(targetDoc);
+          const existing = connections.find(c => getResourceId(c.targetResource) === targetId);
           if (existing) {
             existing.annotations.push(ref);
           } else {
@@ -629,7 +612,7 @@ export class JanusGraphDatabase implements GraphDatabase {
   
   async findPath(_fromResourceId: ResourceId, _toResourceId: ResourceId, _maxDepth?: number): Promise<GraphPath[]> {
     // TODO: Implement real graph traversal with JanusGraph
-    // For now, return empty array
+    // Not implemented: returns an empty array
     return [];
   }
   
@@ -709,11 +692,6 @@ export class JanusGraphDatabase implements GraphDatabase {
     return results;
   }
 
-  async detectAnnotations(_resourceId: ResourceId): Promise<Annotation[]> {
-    // Auto-detection would analyze resource content
-    return [];
-  }
-  
   async getEntityTypes(): Promise<string[]> {
     if (this.entityTypesCollection === null) {
       await this.initializeTagCollections();

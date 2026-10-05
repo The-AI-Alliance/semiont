@@ -42,9 +42,9 @@ describe('@semiont/graph - factory', () => {
   describe('getGraphDatabase', () => {
     afterEach(() => closeGraphDatabase());
 
-    // The config loader resolved every ${VAR} before this config existed. A
-    // value that still contains `${…}` is the value, taken as given, and
-    // a second pass over it would throw on a password like this one.
+    // By the time this config exists the config loader has resolved every
+    // ${VAR}. A value that still contains `${…}` is the value, taken as given,
+    // and a second pass over it would throw on a password like this one.
     it('hands a neo4j config to the driver exactly as given', async () => {
       await getGraphDatabase({
         platform: { type: 'container' },

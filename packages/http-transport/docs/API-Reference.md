@@ -12,7 +12,7 @@ import { HttpTransport } from '@semiont/http-transport';
 new HttpTransport(config: HttpTransportConfig)
 ```
 
-Implements `ITransport` from `@semiont/core`. Owns the SSE bus connection, HTTP `/bus/emit`, and the auth/exchange/health/status REST surface that crosses the remote boundary.
+Implements `ITransport` from `@semiont/core`. Owns the SSE bus connection, HTTP `/bus/emit`, and the auth/health/status REST surface that crosses the remote boundary.
 
 ### `HttpTransportConfig`
 
@@ -48,7 +48,7 @@ import { HttpContentTransport } from '@semiont/http-transport';
 new HttpContentTransport(transport: HttpTransport)
 ```
 
-Implements `IContentTransport` from `@semiont/core`. Binary I/O — `putBinary`, `getBinary`, `getBinaryStream` — plus `getResourceGraph`, which dereferences `GET /resources/:id/jsonld` and returns the parsed `GetResourceResponse` (the resource's JSON-LD metadata graph). Shares the wrapped transport's `baseUrl`, `token$`, and timeout; all requests piggyback on the same auth.
+Implements `IContentTransport` from `@semiont/core`. Binary I/O — `putBinary`, `getBinary`, `getBinaryStream` — plus `getResourceGraph`, which dereferences `GET /resources/:id/jsonld` and returns the parsed `GetResourceResponse` (the resource's JSON-LD metadata graph). Shares the wrapped transport's `baseUrl`, `token$`, and timeout (an upload has no deadline); all requests piggyback on the same auth.
 
 ## `APIError`
 
@@ -93,7 +93,7 @@ Direct imports from `@semiont/http-transport` are appropriate when constructing 
 
 ## Behavioral contract
 
-The guarantees every `ITransport` implementation must honor — including `HttpTransport` — are documented in [`docs/protocol/TRANSPORT-CONTRACT.md`](../../../docs/protocol/TRANSPORT-CONTRACT.md). HTTP-specific guarantees (the `/bus/emit` gateway, SSE reconnect, `Last-Event-ID` replay window, six-state connection machine) live in [`docs/protocol/TRANSPORT-HTTP.md`](../../../docs/protocol/TRANSPORT-HTTP.md).
+The guarantees every `ITransport` implementation must honor — including `HttpTransport` — are documented in [`docs/protocol/TRANSPORT-CONTRACT.md`](../../../docs/protocol/TRANSPORT-CONTRACT.md). HTTP-specific guarantees (the `/bus/emit` gateway, SSE reconnect, per-scope `lastEventId` replay, seven-state connection machine) live in [`docs/protocol/TRANSPORT-HTTP.md`](../../../docs/protocol/TRANSPORT-HTTP.md).
 
 ## Other docs in this package
 

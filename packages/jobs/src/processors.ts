@@ -151,28 +151,25 @@ function annotationDedupeKey(ann: Record<string, unknown>): string {
 }
 
 /**
- * Drop annotations that are identical in the fields that define an
- * annotation's meaning: motivation, anchored span, and body.
+ * THE dedupe decider — one mechanism for all five detection types. It drops
+ * annotations identical in the fields that define an annotation's meaning:
+ * motivation, anchored span, and body.
  *
- * Why this is needed: each LLM-emitted span is reconciled independently
- * (no cross-entry coordination), and `reconcileSelector`'s `first-of-many`
- * fallback anchors every undisambiguated entry at the *same* first
- * occurrence. So a phrase repeated in non-distinctive context can produce
- * several entries that all collapse onto one span — identical events. This
- * collapses them back to one.
+ * Two things produce such repeats. Adjacent chunks overlap, so the same span
+ * arrives twice. And each LLM-emitted span is reconciled independently (no
+ * cross-entry coordination), with `reconcileSelector`'s `first-of-many`
+ * fallback anchoring every undisambiguated entry at the *same* first
+ * occurrence — so a phrase repeated in non-distinctive context yields several
+ * entries on one span.
  *
  * What it does NOT drop: same span, *different* body (e.g. the same text
  * tagged as two entity types, or two distinct comments on one passage).
  * Those are legitimately distinct annotations.
  *
- * Applied identically by every processor below.
- */
-/**
- * THE dedupe decider — one mechanism for all five detection types, held
- * across a stream of chunk batches: adjacent chunks overlap, so the same
- * span arrives twice, and there is no post-pass to collapse it in. Scope it
- * to one emission stream — per unit for reference detection, per job for the
- * four motivations. Never add a batch post-pass beside it (gated).
+ * Held across a stream of chunk batches, because there is no post-pass to
+ * collapse repeats in. Scope it to one emission stream — per unit for
+ * reference detection, per job for the four motivations. Never add a batch
+ * post-pass beside it (gated).
  */
 function makeSpanDeduper(): (annotations: Annotation[]) => Annotation[] {
   const seen = new Set<string>();
@@ -197,13 +194,13 @@ export function buildTextAnnotation(
   // Body may be a single AnnotationBody object or a non-empty array of
   // them, OR omitted entirely. W3C treats body as optional; annotations
   // whose motivation alone conveys meaning (highlighting) legitimately
-  // skip it. Every other motivation currently passes something; the
+  // skip it. Every other motivation passes something; the
   // processor that calls this makes the choice per-motivation.
   body?: Annotation['body'],
 ) {
   // Write-time invariant. Every selector that reaches storage must be
   // internally consistent with the source content. If a worker bypasses
-  // `reconcileSelector` or a future change re-introduces overlap, the
+  // `reconcileSelector` or a future change introduces overlap, the
   // throw fires loudly here instead of corrupting the KB.
   if (content.substring(match.start, match.end) !== match.exact) {
     throw new Error(
@@ -282,8 +279,8 @@ export function buildTextAnnotation(
  * derivation cached per content checksum and gated by a stamp that a release of
  * `@semiont/content`, the PDF engine or its traineddata busts by design; measured
  * across the caret-reachable engine move (pdfjs 6.2.108 → 6.3.289) over 1,192 pages
- * of real documents, they did not move, and `pdf-offset-stability.test.ts` in
- * `@semiont/content` now fails if they ever do. The OCR path is unmeasured, and a
+ * of real documents, they do not move, and `pdf-offset-stability.test.ts` in
+ * `@semiont/content` fails if they ever do. The OCR path is unmeasured, and a
  * scanned document takes its whole text from there. If that gate ever fires, this
  * is the line to revisit: hashing the DURABLE anchor instead (page geometry plus
  * `exact`) makes identity depend only on what the annotation carries — at the cost
@@ -440,7 +437,7 @@ export async function processHighlightJob(
  * `onProgress` in the run passes it: `progress$` REPLACES its value per event
  * (mark-state-unit), so a field sent once would flash at 10% and disappear.
  * The parameters describe the whole run, so every event carries them — the
- * same convention `processReferenceJob` already follows for its entity types.
+ * same convention `processReferenceJob` follows for its entity types.
  */
 function detectionEcho(p: {
   instructions?: string;
@@ -492,9 +489,8 @@ export async function processCommentJob(
     async (comments, cursor) => {
       found += comments.length;
       const fresh = dedupe(comments.map((c) =>
-        // Match the pre-#651 CommentAnnotationWorker: include format and
-        // language on the body TextualBody. Optional in the schema, but
-        // consumers that do language-aware rendering rely on them.
+        // Format and language go on the body TextualBody: optional in the
+        // schema, but consumers that do language-aware rendering rely on them.
         buildAnnotation('commenting', c, [
           { type: 'TextualBody', value: c.comment, purpose: 'commenting', format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
         ]),
@@ -548,8 +544,7 @@ export async function processAssessmentJob(
       found += assessments.length;
       const fresh = dedupe(assessments.map((a) =>
         // Single-object body with purpose aligned to motivation, matching the
-        // pre-#651 AssessmentAnnotationWorker's shape and the majority of
-        // persisted assessments. Do not switch to an array or to
+        // majority of persisted assessments. Do not switch to an array or to
         // purpose='describing' — that loses the "this is an assessment, not
         // a description" signal and breaks existing readers that access
         // `body.value` directly on the object.
@@ -575,8 +570,8 @@ export async function processAssessmentJob(
  * `onUnitComplete`: only after the callback resolves does the unit count as
  * complete, and a retried claim skips the units recorded that way.
  * Annotations leave per chunk through `onChunkComplete`; the processor
- * returns only the result — returning the annotations as well would recreate
- * the post-run batch, where one failed call discards every completed unit's
+ * returns only the result — returning the annotations as well would make a
+ * post-run batch, where one failed call discards every completed unit's
  * work wholesale.
  */
 export async function processReferenceJob(
@@ -606,9 +601,9 @@ export async function processReferenceJob(
   const completedItems: CompletedItem[] = [];
   // Seeded with what earlier attempts already counted for the units this
   // attempt is RESUMING. Units that completed earlier carry no cursor — they
-  // are filtered out before this function sees them — so their share is still
-  // missing from the job total. That is the pre-existing unit-grain gap, a
-  // known residue left whole rather than silently half-fixed here.
+  // are filtered out before this function sees them — so their share is
+  // missing from the job total: a known gap at unit grain, left whole rather
+  // than silently half-fixed here.
   let totalFound = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.found, 0);
   let totalEmitted = Object.values(resumeCursors ?? {}).reduce((n, c) => n + c.emitted, 0);
   let errors = 0;
@@ -622,16 +617,16 @@ export async function processReferenceJob(
   const bodyLanguage = params.language ?? 'en';
 
   // Entity types run BOUNDED-CONCURRENT. They are independent units — own
-  // extraction, own commit, own checkpoint — and a single sequential job used a
-  // sliver of the provider's rate limit, so the old `for … await` was the
-  // 9×-sequential ≈ 2.5 h/document. The bound is the point: unbounded fan-out
-  // just trades sequential waiting for 429 thrash.
+  // extraction, own commit, own checkpoint — and a sequential `for … await`
+  // uses a sliver of the provider's rate limit: nine types in sequence is
+  // ≈ 2.5 h/document. The bound is the point: unbounded fan-out just trades
+  // sequential waiting for 429 thrash.
   //
   // Shared counters and `completedItems` are mutated SYNCHRONOUSLY between
   // awaits inside the worker — safe under the single-threaded event loop (no
   // read-modify-write straddles an await), so no locking is needed. Progress is
-  // now "M of N done" rather than "on type i": concurrent types finish out of
-  // order, and `completedItems` already tolerates that.
+  // "M of N done" rather than "on type i": concurrent types finish out of
+  // order, and `completedItems` tolerates that.
   let completed = 0;
   const total = entityTypeNames.length;
 
@@ -764,10 +759,7 @@ export async function processReferenceJob(
   });
 
   // The terminal frame carries the completed set — each unit's found and
-  // persisted counts, the run's yield — and it is the only frame that can: the
-  // per-unit entries ride the progress emitted at the START of each unit, so
-  // the LAST unit's entry — and on a single-type job, every entry — was never
-  // reported anywhere.
+  // persisted counts, the run's yield.
   onProgress(100, { code: 'complete-created', count: totalEmitted, kind: 'reference' }, {
     ...(totalExpected > 0 ? { entitiesExpected: totalExpected } : {}),
     completedItems: [...completedItems],
@@ -818,9 +810,7 @@ export async function processTagJob(
 
   for (let c = 0; c < params.categories.length; c++) {
     const category = params.categories[c]!;
-    // The loop always existed; it just never reported itself, so the tag flow
-    // was the one counting flow with no subject line. It reports `current` and
-    // its position like every other counting flow.
+    // Reports `current` and its position, like every other counting flow.
     const position = () => ({
       current: { kind: 'category' as const, value: category },
       processed: c,
@@ -851,11 +841,10 @@ export async function processTagJob(
         categoryFound += matches.length;
         const fresh = dedupe(matches.map((t) => {
           const cat = t.category ?? 'unknown';
-          // Two-body shape matches the pre-#651 TagAnnotationWorker and every
-          // persisted tag annotation: the category as a tagging TextualBody,
-          // plus the tagging-schema id as a classifying TextualBody. The
-          // classifying body is the only trace of schema provenance in the
-          // event log — do not drop it.
+          // Two-body shape, matching every persisted tag annotation: the
+          // category as a tagging TextualBody, plus the tagging-schema id as a
+          // classifying TextualBody. The classifying body is the only trace of
+          // schema provenance in the event log — do not drop it.
           return buildAnnotation('tagging', t, [
             { type: 'TextualBody', value: cat,              purpose: 'tagging',     format: 'text/plain' satisfies SupportedMediaType, language: bodyLanguage },
             { type: 'TextualBody', value: params.schema.id, purpose: 'classifying', format: 'text/plain' satisfies SupportedMediaType },
@@ -893,7 +882,7 @@ export async function processTagJob(
 }
 
 /**
- * Output bound, symmetric with #1124's extraction budget and deliberately the
+ * Output bound, symmetric with the extraction budget and deliberately the
  * SAME threshold: an artifact larger than what extraction accepts would be a
  * resource our own Smelter declines as 'too-large'. One judgment, two
  * enforcement points. A runaway generation fails loudly (job:fail); it never
@@ -924,7 +913,7 @@ export async function processGenerationJob(
     );
   }
 
-  const title = params.title ?? 'Untitled';
+  const title = params.title;
   const entityTypes = (params.entityTypes ?? []).map(String);
 
   // PDF path: the model authors Typst; the worker's pinned binary compiles it,

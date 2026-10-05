@@ -1,7 +1,7 @@
 /**
  * The GatheredContext display renders a resource focus.
  *
- * ContextSummary's graph views are focus-agnostic; GatherContextStep gains a
+ * ContextSummary's graph views are focus-agnostic; GatherContextStep shows a
  * resource-focus strip and hides the annotation-only controls (hint + the
  * Bind/Generate/Compose footer) for a resource focus.
  */
@@ -141,7 +141,7 @@ describe('GatheredContext display — resource focus', () => {
   });
 
   it('the quotation is contiguous prose — nothing interleaved, no monospace', () => {
-    // The live bug: chips injected between `text` and `after` rendered
+    // Chips injected between `text` and `after` would render
     // "Black Hawk [Person] [linking]'s band." — metadata interrupting the
     // quotation it describes, mid-possessive.
     const { container } = render(
@@ -182,8 +182,8 @@ describe('GatheredContext display — resource focus', () => {
     expect(chips.filter((c) => c.textContent === 'linking')).toEqual([]);
     // — the selected span carries the viewer's own class for the motivation
     // (the registry's applied name; the motivation stylesheets declare it as a
-    // synonym of `semiont-motivation-reference`), with the hand-rolled inline
-    // highlight gone.
+    // synonym of `semiont-motivation-reference`), with no inline highlight
+    // style of its own.
     const span = strip.querySelector('.annotation-reference') as HTMLElement | null;
     expect(span).not.toBeNull();
     expect(span!.textContent).toBe('term');
@@ -354,14 +354,14 @@ describe('GatheredContext display — resource focus', () => {
     );
   }
 
-  it('draws the neighborhood as SVG — the interim lists are gone', () => {
+  it('draws the neighborhood as SVG, with no lists', () => {
     const { container } = renderViz();
     const pane = container.querySelector('.semiont-gather-pane--graph')!;
     expect(pane.querySelector('svg')).not.toBeNull();
     // focal + peer + citer + sibling; the citing annotation collapses into its edge
     expect(pane.querySelectorAll('.semiont-graph__node')).toHaveLength(4);
     expect(pane.querySelectorAll('.semiont-graph__edge')).toHaveLength(3);
-    expect(pane.querySelector('ul')).toBeNull(); // replaced, not joined
+    expect(pane.querySelector('ul')).toBeNull(); // no list beside the graph
   });
 
   it('the focal node is visually distinct, and there is exactly one', () => {
@@ -502,7 +502,7 @@ describe('GatheredContext display — resource focus', () => {
       expect(svg.getAttribute('viewBox')!.startsWith('0 0 628 ')).toBe(true);
     });
 
-    it('the floating cited-line caption is gone — the drawn citer nodes ARE the count', () => {
+    it('there is no floating cited-line caption — the drawn citer nodes ARE the count', () => {
       const { container } = renderViz();
       const pane = container.querySelector('.semiont-gather-pane--graph')!;
       expect(container.querySelector('[data-node-id="res-3"]')).not.toBeNull(); // citer drawn
@@ -514,7 +514,7 @@ describe('GatheredContext display — resource focus', () => {
   it('an annotation focus WITHOUT the annotate group renders display-only', () => {
     // The resolution controls belong to the caller that can serve them. A
     // display-only caller must never get a hint textarea wired to nothing —
-    // which is what the old always-on gate produced for an annotation focus.
+    // which is what an always-on gate would produce for an annotation focus.
     const { container } = render(
       <GatherContextStep
         context={annotationContext()}

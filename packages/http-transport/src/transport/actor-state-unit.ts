@@ -55,9 +55,9 @@ export interface ActorStateUnitOptions {
    * scope's replay instead of gapping. `load` runs once at construction;
    * `save` fires per persisted (`p-*`) id with that frame's scope —
    * ephemeral (`e-*`) ids are never saved: they carry no replay meaning,
-   * and letting them displace a scope's watermark was exactly the silent
-   * replay-loss hole the single-id design had. The transport stays
-   * storage-free; callers wrap their own adapter in these thunks.
+   * and one displacing a scope's watermark would silently lose that
+   * scope's replay. The transport stays storage-free; callers wrap their
+   * own adapter in these thunks.
    */
   loadLastEventIds?: () => ReadonlyMap<ResourceId, string> | null;
   saveLastEventId?: (scope: ResourceId, id: string) => void;
@@ -123,7 +123,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    * once and a reconnect replaces one, so a per-connection id would strand
    * the reply on the dying socket. Both overlap connections present this
    * same address, and the deterministic `e-<channel>:<cid>` id dedups the
-   * double delivery exactly as it does today.
+   * double delivery.
    *
    * Not persisted: "stable" means across transport reconnects, not across
    * page reloads. A reload builds a new actor, and its `pendingReplies`
@@ -141,7 +141,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    * Move the state machine to `next`. An unexpected edge is logged and
    * ignored — NOT thrown. `transition()` runs inside timer callbacks (the
    * reconnect and degraded timers), so a throw here is an uncaught exception
-   * that takes down the host process (#844). A bad edge means a bug in the
+   * that takes down the host process. A bad edge means a bug in the
    * reconnect loop, but degrading gracefully (keep the current state, warn)
    * is strictly better than killing a long-running job. The permitted edges
    * are in `ALLOWED_TRANSITIONS`.
@@ -168,7 +168,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     }
     if (prev === 'reconnecting' && next !== 'reconnecting') {
       // Leaving reconnecting (to connecting, degraded, or closed) —
-      // the timer is either no longer relevant or has just fired.
+      // the timer is either irrelevant or has just fired.
       if (degradedTimer) { clearTimeout(degradedTimer); degradedTimer = null; }
     }
 
@@ -179,12 +179,11 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   /**
    * All in-flight SSE fetch controllers. Tracked as a Set because
    * connect() may race with itself under mount-churn or rapid channel-
-   * set changes — whenever a new connect() starts we abort ALL previous
-   * in-flight fetches rather than only the last-tracked one. A previous
-   * single-slot implementation leaked orphaned streams (diagnosed by
-   * observing 3 concurrent SSE subscribes in the /bus/subscribe network
-   * log, each delivering duplicate RECV frames). Using a Set guarantees
-   * at most one live stream post-reconnect regardless of race order.
+   * set changes — a new connect() retires ALL previous in-flight fetches
+   * (up front, or after a handoff's linger) rather than only the
+   * last-tracked one. A single slot leaks orphaned streams, each
+   * delivering duplicate RECV frames; a Set guarantees at most one live
+   * stream post-reconnect regardless of race order.
    */
   const inflightControllers = new Set<AbortController>();
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -301,10 +300,9 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   const backoffDelay = () => {
     const cap = Math.min(reconnectMs * 2 ** retryAttempt, MAX_RECONNECT_MS);
     retryAttempt++;
-    // `equalJitter` is core's — this loop and `retryWithBackoff` carried
-    // identical copies of the formula, agreeing by coincidence. The CEILING
-    // stays this loop's own (it backs off per reconnect attempt, not per retry
-    // policy); only the jitter is shared, which is the part that must not drift.
+    // `equalJitter` is core's, shared with `retryWithBackoff`: the jitter is
+    // the part that must not drift. The CEILING is this loop's own (it backs
+    // off per reconnect attempt, not per retry policy).
     return equalJitter(cap);
   };
 
@@ -345,12 +343,12 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
     // Snapshot the connections this connect() supersedes.
     //   - keepPrevious=false (initial connect / drop-recovery): there is no
-    //     live connection worth preserving, so abort up front — this closes
-    //     the orphan-stream leak described above.
+    //     live connection worth preserving, so abort up front — no orphaned
+    //     stream survives.
     //   - keepPrevious=true (scope-change reconnect): MAKE-BEFORE-BREAK. Keep
     //     the previous connection(s) ALIVE until the new one is `open`, then
     //     abort them (below, after the fetch resolves), so an in-flight
-    //     ephemeral result isn't dropped in a reconnect gap (#847). The brief
+    //     ephemeral result isn't dropped in a reconnect gap. The brief
     //     window where old and new both deliver is deduped by event id.
     const previous = [...inflightControllers];
     if (!keepPrevious) {
@@ -419,16 +417,16 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       if (!running) return;
 
       // Make-before-break handoff: the new connection is established (the
-      // gateway has subscribed it and any `Last-Event-ID` replay is flowing),
+      // gateway has answered it, and replays each watermarked scope on it),
       // so mark the previous connection(s) superseded and LINGER them — keep
       // them draining for LINGER_MS before the abort. Aborting immediately
-      // here discarded replies already written to the old socket but not yet
-      // read (the buffered-bytes loss); an event
+      // here would discard replies already written to the old socket but not
+      // yet read (buffered bytes are lost on abort); an event
       // delivered by both connections during the overlap is deduped by id in
       // the read loop below (persisted ids are stable; correlated-reply ids
-      // are deterministic per routes/bus.ts). Had the fetch failed, we'd have
-      // thrown above and never reached here, leaving the old connection live
-      // (no gap).
+      // are deterministic, stamped by the gateway's stream route). Had the
+      // fetch failed, we'd have thrown above and never reached here, leaving
+      // the old connection live (no gap).
       if (keepPrevious) {
         for (const c of previous) superseded.add(c);
         const lingerTimer = setTimeout(() => {
@@ -453,15 +451,15 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       /**
        * Segments of the current, still-incomplete line. A single `data:`
        * line carries a whole JSON payload — a browse reply can run to
-       * megabytes — delivered across many `reader.read()` chunks. The
-       * previous `buffer += chunk` + `buffer.split('\n')` re-flattened and
-       * re-scanned the ENTIRE accumulated buffer on every read: O(frame² /
+       * megabytes — delivered across many `reader.read()` chunks. An
+       * accumulating `buffer += chunk` + `buffer.split('\n')` re-flattens and
+       * re-scans the ENTIRE accumulated buffer on every read: O(frame² /
        * chunkSize) bytes of large-string allocation per frame, all landing
-       * in V8's large-object space, which only major GC reclaims. Under the
-       * reply fan-out burst (~85 multi-MB `browse:*-result` frames/min)
-       * that allocation rate outran mark-compact and OOM'd the worker
-       * (2026-09-03, DoD #7). Segments are joined exactly once, when the
-       * line's newline arrives; each read scans only its own chunk.
+       * in V8's large-object space, which only major GC reclaims. Under a
+       * burst of multi-MB `browse:*-result` frames (~85/min measured)
+       * that allocation rate outruns mark-compact and OOMs the process.
+       * Segments are joined exactly once, when the line's newline arrives;
+       * each read scans only its own chunk.
        */
       let lineSegments: string[] = [];
 
@@ -506,7 +504,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           } else if (line === '') {
             // Skip an overlap duplicate — the same stable-id event delivered
             // by both the old and new connection during a make-before-break
-            // handoff (#847). No two frames share an id, so this never drops a
+            // handoff. No two frames share an id, so this never drops a
             // distinct event.
             const isDuplicate = currentId !== undefined && seenEventIds.has(currentId);
             if (currentEvent === 'bus-event' && currentData && !isDuplicate) {
@@ -521,8 +519,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
                 // eslint-disable-next-line no-console
                 console.debug(`[bus LINGER] ${parsed.channel} delivered on superseded connection`);
               }
-              // Tier 2: lift trace context off the SSE payload (the
-              // gateway's writeBusEvent puts it there). The synchronous
+              // Tier 2: lift trace context off the SSE payload (the gateway's
+              // stream route puts it there, as `_trace`). The synchronous
               // fan-out to subscribers happens inside the bus.recv span,
               // so handlers see the parent trace.
               const carrier = extractTraceparent(
@@ -535,8 +533,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
               // be recorded BEFORE the await: the await yields the event loop,
               // so during a make-before-break overlap the sibling connection
               // can read the same stable-id frame, find the set still missing
-              // it, and deliver it a second time — defeating the overlap dedup
-              // (#847).
+              // it, and deliver it a second time — defeating the overlap dedup.
               // Rolled back if the apply throws, so a redelivery after a
               // dropped read loop is re-processed rather than silently
               // swallowed by its own claim.
@@ -561,18 +558,18 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
               }
               // The resume watermark and the persisted bookmark answer "have
               // this event's effects been absorbed?" and stay AFTER the apply.
-              // The pre-fix order (stash first, then an AWAITED apply) opened a
-              // gap where a bystander cache's debounced save could fire
+              // The other order (stash first, then an AWAITED apply) opens a
+              // gap where a bystander cache's debounced save can fire
               // mid-await, find every cache quiet, and flush a bookmark whose
-              // event nothing had absorbed — the fast-path reload loss.
+              // event nothing has absorbed — an event a reload then skips.
               // Both stay on the LAGGING side, which is safe: a reconnect or
               // crash mid-apply resumes from the previous id and redelivers,
               // and re-invalidation is idempotent.
               //
               // Watermarks are PER SCOPE and persisted-ids-only: a `p-*` id is
               // stamped only on scoped deliveries (the frame always carries
-              // `scope`), and ephemeral ids never displace a scope's watermark
-              // — the silent replay-loss hole the old single-id design had.
+              // `scope`), and ephemeral ids never displace a scope's watermark,
+              // which would silently lose that scope's replay.
               if (currentId !== undefined && currentId.startsWith('p-') && parsed.scope) {
                 scopeWatermarks.set(parsed.scope, currentId);
                 // B17: persist per scope — see ActorStateUnitOptions.
@@ -647,7 +644,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     live = null;
     transition('reconnecting');
     if (connecting !== null) {
-      // A handoff's connect is still in flight. It is the recovery now; if it
+      // A handoff's connect is still in flight, and it is the recovery; if it
       // fails it comes back through here and schedules the retry.
       transition('connecting');
       return;
@@ -670,15 +667,15 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   };
 
   // Debounce channel-set-change reconnects. React StrictMode in dev
-  // produces mount → cleanup → mount synchronously, which previously
-  // translated into three back-to-back reconnects — enough to tear down
+  // produces mount → cleanup → mount synchronously, which undebounced
+  // translates into three back-to-back reconnects — enough to tear down
   // in-flight responses, fire gap detection, refetch, tear that down
   // again, and leave the page stuck in "Loading..." while caches
-  // thrashed. With a short debounce the whole sequence collapses into
+  // thrash. With a short debounce the whole sequence collapses into
   // one reconnect after the final channel-set is stable.
   //
   // Two cadences (remove-side hysteresis): additions
-  // take the fast 100 ms path (a new scope needs liveness now); remove-only
+  // take the fast 100 ms path (a new scope needs liveness quickly); remove-only
   // changes wait `lazyRemoveMs` — removal merely narrows delivery, and the
   // consumer's hover churn would otherwise reconnect on every mouse pass.
   // The connect body reads current state, so whichever timer fires first
@@ -725,9 +722,9 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
       // A channel this connection does not carry can never fire, and a
       // stream that never fires is indistinguishable from a quiet system:
-      // on 2026-09-16 every worker sat idle on `stream('job:queued')` while
-      // the frame flowed on the broker, and the only tell was a null
-      // timestamp on /health. Refuse AT THE CALL, naming the channel.
+      // a worker sits idle on `stream('job:queued')` while the frame flows
+      // on the broker, and the only tell is a null timestamp on /health.
+      // Refuse AT THE CALL, naming the channel.
       //
       // The question is wider than `isSubscribed`, which answers for the
       // global set alone — correlated replies ride global channels, so that
@@ -747,9 +744,9 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       }
       return shared$.pipe(
         filter((e) => e.channel === channel),
-        // The ONE surviving assertion, and the only honest one: SSE frames
-        // arrive as untyped JSON, so something has to name their shape. It is
-        // keyed by the channel rather than chosen by the caller.
+        // SSE frames arrive as untyped JSON, so something has to name their
+        // shape. The assertion is keyed by the channel rather than chosen by
+        // the caller.
         map((e) => e.payload as EventMap[K]),
       );
     },
@@ -759,8 +756,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // (`HttpTransport.emit`). ActorStateUnit is plumbing. We do propagate the
       // active span's W3C traceparent on the outbound POST so the gateway
       // can stitch the bus.dispatch server span as a child.
-      // The envelope's fields go on the REQUEST envelope, beside `clientId`,
-      // which has always been there under a description stating the rule:
+      // The envelope's fields go on the REQUEST envelope, beside `clientId`:
       // routing is a wire concern and never enters a channel's domain type.
       const body: Record<string, unknown> = { channel, payload, clientId };
       if (envelope?.correlationId !== undefined) body.correlationId = envelope.correlationId;
@@ -777,8 +773,9 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // Retried per request, so one refusal does not re-run the requests
       // that already succeeded: a 429/503/504 or an expired deadline gets
       // another attempt; a 400/401/403 rejects on the first, unretried. The
-      // predicate is core's, shared with the boot passes above, so
-      // "retryable" means one thing across the fleet.
+      // predicate is core's, and its statuses are `RETRY_RULES.boot` (the
+      // rule for a boot pass or a bus request), so this emit keeps no list
+      // of its own.
       //
       // The whole attempt — POST, status check, and the error it throws — is
       // inside the retried unit, because the refusal IS the failure being
@@ -808,7 +805,6 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           }
           // APIError, not a bare Error: the status rides as a FIELD, which
           // is what makes it classifiable without parsing it back out of prose.
-          // The message keeps its shape, so callers matching on it are unaffected.
           throw APIError.fromStatus(
             `/bus/emit ${attempt.status}${detail ? `: ${detail}` : ''}`,
             attempt.status,

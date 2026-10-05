@@ -113,9 +113,9 @@ func (f *fakeGateway) lastEmit(t *testing.T) map[string]any {
 }
 
 // frame builds one SSE frame in the gateway's shape: the correlation key
-// rides the ENVELOPE beside the channel (routes/bus.ts writes
-// `{channel, correlationId, payload}`), never inside the payload. Pass "" for
-// a plain event — one that answers no request.
+// rides the ENVELOPE beside the channel (apps/gateway/src/routes/stream.rs
+// writes `{channel, correlationId, payload}`), never inside the payload. Pass
+// "" for a plain event — one that answers no request.
 func frame(channel, cid string, payload map[string]any) string {
 	env := map[string]any{"channel": channel, "payload": payload}
 	if cid != "" {

@@ -5,9 +5,9 @@
  * `SemiontSession` is a headless per-gateway client + token + user
  * holder. It can run in any process: browser, worker, CLI, test. But
  * the session-expired / permission-denied *notifications* are inherently
- * a UI-host concern. Keeping those observables on `SemiontSession` meant
- * workers and CLIs carried dead BehaviorSubjects that nothing would ever
- * fire.
+ * a UI-host concern. Keeping those observables on `SemiontSession` would
+ * mean workers and CLIs carry dead BehaviorSubjects that nothing ever
+ * fires.
  *
  * `SessionSignals` owns the notification state and has no hard reference
  * to a session. A UI host (e.g. `SemiontBrowser`) constructs one alongside
@@ -54,7 +54,7 @@ export interface PermissionDenied {
  * What the registry entry claimed, and what answered.
  *
  * Both dids, because neither alone is actionable: the user has to recognise
- * which KB they registered and which one is there now.
+ * which KB they registered and which one answers.
  */
 export interface KbIdentityConflict {
   expectedDid: string;

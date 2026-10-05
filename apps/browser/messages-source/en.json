@@ -77,7 +77,6 @@
     "statusConnected": "Connected",
     "statusExpired": "Session expired",
     "statusSignedOut": "Signed out",
-    "statusUnreachable": "Unreachable",
     "invalidHost": "Invalid hostname",
     "discoveredTitle": "Found on this machine",
     "managedBadge": "Managed by launcher",

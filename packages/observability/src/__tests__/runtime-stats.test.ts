@@ -1,11 +1,9 @@
 /**
  * The process reports its own ceiling.
  *
- * The Archivist died at ~1016 MB inside a 2048 MB container
- * (leaving every browse request waiting) because Node was sitting under
- * its OWN default old-space ceiling, not the container's. Nothing in the
- * fleet reported either number, so "half the memory is unreachable" was a
- * discovery made after the fact rather than a value on a dashboard.
+ * Node's default old-space ceiling sits well below a container's allotment
+ * (about 1016 MB inside a 2048 MB container), and a process dies at its OWN
+ * ceiling, not the container's.
  *
  * `heapLimit` is the one that matters most and is the least obvious: it is
  * what the process will actually die at, and it is also how you verify a

@@ -513,8 +513,8 @@ describe('EventStorage', () => {
   });
 
   describe('Read-error reporting', () => {
-    // Friction log 2026-07-20: an errno -35 read failure surfaced with no
-    // file path, costing most of a day. Read failures must name the file.
+    // A read failure that surfaces with no file path (errno -35, say) cannot
+    // be traced to its file. Read failures must name the file.
 
     describe('wrapEventReadError()', () => {
       it('names the failing file and preserves the original message', () => {
@@ -569,7 +569,7 @@ describe('EventStorage', () => {
       ).rejects.toThrow(/failed to read event log entry .*doc-count-err.*events-000001\.jsonl/);
     });
 
-    it('still returns [] for a missing file (ENOENT unchanged)', async () => {
+    it('returns [] for a missing file (ENOENT is not a read failure)', async () => {
       const events = await storage.readEventsFromFile(resourceId('doc-absent'), 'events-000001.jsonl');
       expect(events).toEqual([]);
     });

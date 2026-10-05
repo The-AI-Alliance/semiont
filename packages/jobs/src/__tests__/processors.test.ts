@@ -46,9 +46,8 @@ vi.mock('../workers/generation/typst-compiler', async (importOriginal) => ({
 }));
 
 // No `@semiont/event-sourcing` mock: annotation ids are content-addressed, so
-// the real function is already deterministic. The mock existed only to buy
-// that determinism, and keeping it would hide the identity these builders now
-// compute — which is the thing worth exercising.
+// the real function is deterministic, and a mock would hide the identity
+// these builders compute — which is the thing worth exercising.
 
 // No `@semiont/core` mock — these tests exercise the real `reconcileSelector`
 // against synthetic content. The processor's `buildTextAnnotation` invariant
@@ -82,10 +81,10 @@ const GENERATOR: Agent = {
   model: 'test',
 };
 
-// The detection processors now take a media-agnostic `buildAnnotation`; for
+// The detection processors take a media-agnostic `buildAnnotation`; for
 // these text-detection tests it is `buildTextAnnotation` curried with the
-// resource + attribution context (exactly what the processors used to do
-// internally). Attribution shape is exercised through this closure.
+// resource + attribution context. Attribution shape is exercised through
+// this closure.
 const textBuild = (content: string): BuildAnnotation =>
   (motivation, match, body) => buildTextAnnotation(content, RID, GENERATOR, motivation, match, body);
 
@@ -109,7 +108,7 @@ const pdfBuild = (layer: PdfTextLayer): BuildAnnotation =>
   (motivation, match, body) => buildPdfAnnotation(layer, RID, GENERATOR, motivation, match, body);
 
 // The concurrency the fake provider advertises — detection reads it off the
-// client now (a real provider hard-codes its own), so tests set it here.
+// client (a real provider hard-codes its own), so tests set it here.
 const TEST_MAX_CONCURRENCY = 4;
 function makeInferenceClient(): InferenceClient {
   return {
@@ -210,7 +209,7 @@ describe('processHighlightJob', () => {
   });
 
   it('keeps distinct PDF highlights (dedupe must not key on an absent TextPositionSelector)', async () => {
-    // Regression: PDF annotations carry no TextPositionSelector, so a dedupe
+    // PDF annotations carry no TextPositionSelector, so a dedupe
     // key built only from position offsets degrades to `highlighting|?|?|null`
     // and collapses every bodiless PDF highlight to one. Two distinct spans
     // must survive as two annotations, anchored by FragmentSelector geometry.
@@ -255,9 +254,8 @@ describe('processCommentJob', () => {
     expect(result.annotations).toHaveLength(1);
     expect((result.annotations[0] as any).motivation).toBe('commenting');
     // Canonical commenting body — single-item array of TextualBody with
-    // format + language. Do not drop format/language; the pre-#651
-    // CommentAnnotationWorker emitted them and consumers may rely on
-    // them for rendering.
+    // format + language. Do not drop format/language; consumers may rely
+    // on them for rendering.
     expect((result.annotations[0] as any).body).toEqual([
       { type: 'TextualBody', value: 'interesting point', purpose: 'commenting', format: 'text/plain', language: 'en' },
     ]);
@@ -283,9 +281,8 @@ describe('processAssessmentJob', () => {
     expect(result.annotations).toHaveLength(1);
     expect((result.annotations[0] as any).motivation).toBe('assessing');
     // Canonical assessing body — a single AnnotationBody object (not an
-    // array), purpose aligned to motivation. Matches the pre-#651
-    // AssessmentAnnotationWorker and the majority of persisted
-    // assessments. Do not flip to array or to purpose='describing' —
+    // array), purpose aligned to motivation. Matches the majority of
+    // persisted assessments. Do not flip to array or to purpose='describing' —
     // either change loses signal or breaks readers that access
     // `body.value` directly on the object.
     expect((result.annotations[0] as any).body).toEqual({
@@ -335,10 +332,9 @@ describe('processReferenceJob', () => {
 
   // ── Entity types run concurrently ─────────────────────────────────────
   //
-  // The sequential per-type loop was the 9×-sequential grind. These pin that
-  // types now run bounded-concurrent: every type still commits exactly once and
-  // reports its own found/persisted, order-independent, and no more than
-  // DETECTION_TYPE_CONCURRENCY are ever in flight.
+  // These pin that types run bounded-concurrent: every type commits exactly
+  // once and reports its own found/persisted, order-independent, and no more
+  // than the provider's `maxConcurrency` are ever in flight.
 
   it('runs multiple entity types and commits each exactly once', async () => {
     // Each type returns its own entity (verbatim in the content so anchoring holds).
@@ -393,8 +389,7 @@ describe('processReferenceJob', () => {
   it('runs SEQUENTIALLY when the provider advertises maxConcurrency 1 (the Ollama case)', async () => {
     // A local single-model server gets no aggregate speedup from concurrent
     // requests and pays KV-cache memory for them, so its client advertises 1 —
-    // and detection must then never overlap calls, exactly as the sequential
-    // per-type loop did.
+    // and detection must then never overlap calls.
     const content = 'x '.repeat(50);
     let inFlight = 0, maxInFlight = 0;
     vi.mocked(extractEntities).mockImplementation(async () => {
@@ -489,11 +484,10 @@ describe('processReferenceJob', () => {
 
 // ── The unit gates on the COMMIT, not on the emit ───────────────────────────
 //
-// `onUnitComplete` is the durability seam. The worker's version of it once
-// emitted `mark:create` fire-and-forget and returned, so a down Archivist lost
-// the unit silently and a flapping one hung the worker forever. It now awaits a
-// `mark:commit` acknowledgement, which means a rejecting sink must stop the
-// unit from counting — and a recovering one must let it through.
+// `onChunkComplete` is the durability seam. Fire-and-forget (`mark:create`),
+// it would lose the unit silently on a down Archivist; the worker's version
+// awaits a `mark:commit` acknowledgement, which means a rejecting sink must
+// stop the unit from counting — and a recovering one must let it through.
 //
 // Tested here rather than at the worker because this is where "counts anywhere"
 // is decided: the loop awaits the callback BEFORE touching totals, completed
@@ -501,12 +495,10 @@ describe('processReferenceJob', () => {
 describe('processReferenceJob — unit completion gates on the commit', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  // Detection reports its yield. The baseline's headline number — "Person 935
-  // found / 844 persisted" — had to be reconstructed by reading logs, because
-  // the per-unit result reported only what the model PROPOSED. The gap is
-  // dedupe plus the commit ack, and it is the yield every sizing decision is
-  // judged against, so it belongs on the result rather than in an operator's
-  // head.
+  // Detection reports its yield: what the model PROPOSED against what
+  // persisted. The gap is dedupe plus the commit ack, and it is the yield
+  // every sizing decision is judged against, so it belongs on the result
+  // rather than in an operator's head.
   it('reports found AND persisted per unit — the gap between them is the yield', async () => {
     // Three proposals, two distinct spans: the duplicate collapses in dedupe,
     // so found and persisted must differ here or the test proves nothing.
@@ -556,10 +548,10 @@ describe('processReferenceJob — unit completion gates on the commit', () => {
       onChunkComplete,
     )).rejects.toThrow(/sink down/);
 
-    // The point of the phase: an un-acked chunk must NOT let the unit
-    // checkpoint. Swallowing here is what turned an Archivist outage into
-    // silent data loss — the unit would advance, the checkpoint would record
-    // it, and a resume would skip work that never persisted.
+    // An un-acked chunk must NOT let the unit checkpoint. Swallowing here
+    // turns an Archivist outage into silent data loss — the unit would
+    // advance, the checkpoint would record it, and a resume would skip work
+    // that never persisted.
     expect(onChunkComplete).toHaveBeenCalledTimes(1);
     expect(onUnitComplete).not.toHaveBeenCalled();
   });
@@ -666,7 +658,7 @@ describe('processGenerationJob', () => {
     expect(result.truncated).toBe(false);
     // Honest lifecycle: generation has exactly two real transitions — the LLM
     // call starting, and content finalized / creation beginning. No 'fetching'
-    // stage (it labeled zero work; context arrives pre-gathered in params).
+    // stage: context arrives pre-gathered in params.
     // Percentages approximate the share of expected wall-clock complete at each
     // transition: inference dominates, so its start is ~5 and its end ~95.
     // The producer owns terminality: the run ends with a terminal code at 100,
@@ -679,9 +671,9 @@ describe('processGenerationJob', () => {
   });
 
   it('a max_tokens stop reports truncated on the terminal event AND the result', async () => {
-    // The worker KNOWS the artifact was cut off and used to tell nobody. The
-    // bit rides both surfaces — the event (the frame the client renders) and
-    // the result (the record).
+    // The worker KNOWS the artifact was cut off, and says so: the bit rides
+    // both surfaces — the event (the frame the client renders) and the
+    // result (the record).
     vi.mocked(generateResourceFromTopic).mockResolvedValue({
       content: 'Cut off mid-sen',
       title: 'Initial',
@@ -954,7 +946,7 @@ describe('processGenerationJob — PDF generation via Typst', () => {
 });
 
 describe('processGenerationJob — output bound', () => {
-  // Symmetric with #1124's extraction byte budget, and deliberately the SAME
+  // Symmetric with the extraction byte budget, and deliberately the SAME
   // threshold: a generated artifact larger than what extraction accepts would
   // be a resource our own Smelter declines as 'too-large'. Tested by the
   // numbers — the judgment doesn't require materializing 200 MB (the same
@@ -998,11 +990,11 @@ describe('annotation attribution composition', () => {
   beforeEach(() => vi.clearAllMocks());
 
   // Who asked (`creator`) and the responsible parties (`wasAttributedTo`) are
-  // no longer the worker's to say: the Stower derives both from the cited job.
-  // The former tests of that here now live at the layer that decides it —
-  // `attribution()` in @semiont/core and the Stower's job-citation suite. What
-  // survives here is the one fact the worker DOES state, on every motivation:
-  // what produced the annotation.
+  // not the worker's to say: the Stower derives both from the cited job, and
+  // that is tested at the layer that decides it — `attribution()` in
+  // @semiont/core and the Stower's job-citation suite. Pinned here is the one
+  // fact the worker DOES state, on every motivation: what produced the
+  // annotation.
 
   it('states what produced it — and nothing about who asked — across every motivation', async () => {
     vi.mocked(AnnotationDetection.detectComments).mockImplementation(inOneChunk([
@@ -1239,7 +1231,7 @@ describe('locale threading', () => {
         { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'], sourceLanguage: 'fr' },
         textBuild('content'), vi.fn(), onChunkComplete));
 
-      // Worker now receives the full schema (resolved by the dispatcher),
+      // The worker receives the full schema (resolved by the dispatcher),
       // not a schemaId.
       expect(AnnotationDetection.detectTags).toHaveBeenCalledWith(
         'content', client, SCHEMA_1, 'Issue', 'fr',
@@ -1285,9 +1277,8 @@ describe('locale threading', () => {
 
       // Positional signature: topic, entityTypes, client, logger, prompt, locale,
       // context, temperature, maxTokens, sourceLanguage, outputMediaType, task, structure, cite.
-      // Context is no longer optional on the wire (GenerationJobParams
-      // required trio) — the fixture context threads through where the
-      // all-optional era pinned `undefined`.
+      // Context is required on the wire (GenerationJobParams required
+      // trio), so the fixture context threads through.
       expect(generateResourceFromTopic).toHaveBeenCalledWith(
         'Topic', [], client, LOGGER, undefined, 'de', GEN_REQUIRED.context,
         undefined, undefined, 'fr', 'text/markdown', undefined, undefined, undefined,
@@ -1419,9 +1410,9 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
   });
 
   it('tag: overlapping LLM prefix is replaced with a source-extracted prefix', async () => {
-    // The motivating bug pattern — LLM emits a prefix that overlaps the
-    // start of exact. Reconciler must repair: anchor `exact` in the
-    // source, extract a fresh prefix that no longer overlaps.
+    // The LLM emits a prefix that overlaps the start of exact. Reconciler
+    // must repair: anchor `exact` in the source, extract a fresh prefix
+    // that does not overlap.
     const exact = 'The question for decision';
     const content = `Kenison, C.J.\n${exact} by this appeal.`;
     vi.mocked(AnnotationDetection.detectTags).mockImplementation((async (...args: unknown[]) => {
@@ -1494,7 +1485,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
 
   it('comment: multi-occurrence ambiguity with non-matching context falls back to first occurrence', async () => {
     // Content has three occurrences of 'foo'. Without offsets the LLM
-    // can no longer hint; prefix/suffix that don't match anywhere yields
+    // cannot hint; prefix/suffix that don't match anywhere yields
     // first-of-many, which is the first occurrence.
     const content = 'X foo Y foo Z foo W'; // foo at 2, 8, 14
     vi.mocked(AnnotationDetection.detectComments).mockImplementation((async (...args: unknown[]) => {
@@ -1558,7 +1549,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
 //
 // Multiple LLM entries for a repeated phrase, reconciled independently,
 // can all land on the same span via reconcileSelector's first-of-many
-// fallback. dedupeAnnotations (applied identically in every processor)
+// fallback. The span deduper (one decider for every processor)
 // collapses identical events (same motivation + span + body) to one,
 // while keeping same-span/different-body annotations distinct.
 
@@ -1743,7 +1734,7 @@ describe('progress messages are codes, not prose', () => {
 
   it('NO processor emits a prose sentence — the census is the enum, and tsc is its enforcement', async () => {
     // The sweeping guard: whatever a processor reports, it is an object with
-    // a `code`. A string here is the defect this phase exists to remove.
+    // a `code`. A string here is the defect.
     const content = 'A critical finding.';
     vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'critical', start: 2, end: 10 },
@@ -1774,8 +1765,7 @@ describe('progress messages are codes, not prose', () => {
 //
 // The client's `progress$` REPLACES its value on each event, so a field
 // describing the RUN (not the moment) must ride EVERY event — sent once, it
-// flashes at 10% and vanishes. The comment flow showed "Marking…" and nothing
-// else for the rest of the run because of exactly that.
+// flashes at 10% and vanishes.
 // ─────────────────────────────────────────────────────────────────────
 describe('request parameters ride every event', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -1889,9 +1879,9 @@ describe('what is in flight is reported one way', () => {
     });
   });
 
-  it('tag: the category rides the SAME field, kind-tagged — tags get a subject at last', async () => {
-    // processTagJob already loops per category; it just never said so. This is
-    // the parity gap Copilot flagged on #1179, now a one-field change.
+  it('tag: the category rides the SAME field, kind-tagged', async () => {
+    // processTagJob loops per category, and says so the way reference says
+    // its entity type.
     const content = 'Issue: the duty of care.';
     vi.mocked(AnnotationDetection.detectTags).mockImplementation(inOneChunk([
       { exact: 'duty of care', start: 11, end: 23, category: 'Issue' },
@@ -1912,9 +1902,8 @@ describe('what is in flight is reported one way', () => {
     });
   });
 
-  it('no producer emits the old flow-specific field names', async () => {
-    // The whole point: one vocabulary. A reappearance of any of these is the
-    // regression this lane exists to prevent.
+  it('no producer emits flow-specific field names', async () => {
+    // The whole point: one vocabulary.
     vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Paris', entityType: 'Location' } as never,
     ]));
@@ -2141,12 +2130,12 @@ describe('under-report verdicts on the terminal surface', () => {
 
   // ── the terminal record describes the DOCUMENT, not one attempt ─────────
   //
-  // `totalFound` is documented as "Total entities found", and before this a
-  // retry reported only the chunks it happened to run: measured at 19 where the
-  // document yielded 25. The landed unit-grain retry had the same defect at
-  // coarser grain — every skipped unit's counts simply vanished. The tallies
-  // ride the checkpoint (decided 2026-09-12) precisely so a resumed attempt
-  // can continue the count instead of restarting it.
+  // `totalFound` is documented as "Total entities found", so a retry that
+  // reported only the chunks it happened to run would under-state it (19
+  // where the document yields 25). The tallies ride the checkpoint precisely
+  // so a resumed attempt can continue the count instead of restarting it.
+  // Units an earlier attempt COMPLETED carry no cursor, so their counts are
+  // missing from the total — the same gap at coarser grain.
   describe('resumed tallies', () => {
     it('seeds the unit counters from the checkpoint so the result covers the whole document', async () => {
       vi.mocked(extractEntities).mockImplementation((async (...args: unknown[]) => {
@@ -2220,7 +2209,7 @@ describe('under-report verdicts on the terminal surface', () => {
   // the only place the checkpoint's key can be matched to the run that has to
   // consume it. A wrong or missing key is silent: the unit simply starts at the
   // top and the retry re-pays for everything, with nothing in the record to say
-  // a resume was even attempted. (Mutating the lookup away left every other
+  // a resume was even attempted. (Mutating the lookup away leaves every other
   // suite green, which is why these exist.)
   describe('resume cursors reach the right unit', () => {
     it('processHighlightJob hands its motivation\'s cursor to the detector', async () => {
@@ -2370,9 +2359,9 @@ describe('entitiesExpected on the progress surface', () => {
   });
 
   it('the numerator advances at the same grain as the denominator', async () => {
-    // Copilot's PR-1337 finding: expected grew per chunk while found waited
-    // for the unit — "0 of ~37" for an entire single-type run, annotations
-    // painting all the while. Found and emitted must move as chunks COMMIT.
+    // If expected grows per chunk while found waits for the unit, a
+    // single-type run reads "0 of ~37" throughout, annotations painting all
+    // the while. Found and emitted must move as chunks COMMIT.
     vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
       const onCounted = args[8] as (c: number) => void;
       const onChunkResults = args[10] as (i: unknown[]) => Promise<void>;
@@ -2416,10 +2405,10 @@ describe('entitiesExpected on the progress surface', () => {
   });
 });
 
-// Characterizing the 26-minute-attempt bug: a whole-job retry re-emitted from
-// chunk 1 and left 164 exact duplicates (identical `exact` at identical
-// `start`). Content-addressed ids should have made that a no-op. These pin the
-// id contract at the emit site, which discriminates "the hash input varies"
+// A whole-job retry re-emits from chunk 1, and content-addressed ids make
+// that a no-op — unless the hash input varies between attempts, which leaves
+// exact duplicates (identical `exact` at identical `start`). These pin the id
+// contract at the emit site, which discriminates "the hash input varies"
 // from "something downstream appends anyway".
 describe('re-running a unit emits the SAME annotation ids', () => {
   beforeEach(() => { vi.clearAllMocks(); });
@@ -2451,8 +2440,7 @@ describe('re-running a unit emits the SAME annotation ids', () => {
   it('the id is stable across a differing bodyLanguage default', async () => {
     // `unresolvedBody` carries `language: params.language ?? 'en'` and the body
     // IS hashed. If a retry ever resolved that default differently, ids would
-    // diverge and both dedupe layers would fail together — the shape that best
-    // fits the measured duplicates.
+    // diverge and both dedupe layers would fail together.
     const committed: string[][] = [];
     for (const language of [undefined, 'en']) {
       const got: string[] = [];

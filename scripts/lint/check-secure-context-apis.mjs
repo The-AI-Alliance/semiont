@@ -3,13 +3,13 @@
  * A browser withholds some APIs from a page that is not a secure context: one
  * served over plain http from any host but localhost. The launcher registers
  * such an origin for the Browser (the host's LAN address), so code a browser
- * can reach must not depend on them. `crypto.randomUUID` broke the Browser
- * there once, and `crypto.subtle` broke its sign-in a second time: nothing in
- * the tree said these were a class.
+ * can reach must not depend on them. `crypto.randomUUID` and `crypto.subtle`
+ * are both withheld there, and nothing else in the tree says they are a
+ * class.
  *
  * This census finds every use of a secure-context-only API in the sources a
  * browser can reach, and fails on any site not listed below with its role. A
- * listed site that is no longer there fails too: an allowlist that outlives
+ * listed site that is not there fails too: an allowlist that outlives
  * its sites stops describing the tree.
  *
  * Scanned: the TypeScript of apps/browser, packages/react-ui, packages/sdk and

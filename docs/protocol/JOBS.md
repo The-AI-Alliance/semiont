@@ -237,7 +237,7 @@ Hands the next pending job of the requested types to the caller. Reads `types`, 
 2. **The claim is by type, and atomic.** Non-string members of `types` are ignored; an empty list
    matches every type. The dispatcher moves one pending job of a matching type to `running`. Of any
    number of simultaneous claims, exactly one wins each pending job. No order among matching pending
-   jobs is promised: today the dispatcher tries first the jobs whose delivery it holds, in the order
+   jobs is promised: this dispatcher tries first the jobs whose delivery it holds, in the order
    it received them, then every other stored record.
 3. **Nothing to claim is a decline, not an error:** `job:claim-failed`, `code: "none-pending"`,
    message `No pending job of the requested types`.
@@ -525,7 +525,7 @@ while the process runs.
 
 ## Known defects
 
-Current behaviour that is a defect. Each is described as it happens today; none is a rule of the
+Behaviour that is a defect. Each is described as it happens; none is a rule of the
 protocol.
 
 - **Transitions the dispatcher makes on its own are silent.** A job failed by the dead-worker sweep, a

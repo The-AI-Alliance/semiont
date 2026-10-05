@@ -33,7 +33,7 @@ func materializeTemplate(u *UI, src, ref string) (dir string, cleanup func(), ok
 		return "", nil, false
 	}
 	// `--` before positionals: a src beginning with "-" would otherwise be
-	// read as a git option (option injection) — Copilot review, PR #1065.
+	// read as a git option (option injection).
 	args := []string{"clone", "--depth", "1", "--branch", ref, "--", src, tmp}
 	u.Log("Fetching template %s", u.Dim("(git "+strings.Join(args, " ")+")"))
 	if out, err := captureBoth("git", args...); err != nil {
@@ -65,8 +65,7 @@ func copyTemplateConfigs(u *UI, root, tplDir string) bool {
 			continue
 		}
 		// Refuse symlinks: a template (or local dir) could symlink a .toml
-		// at an arbitrary local path, reading it into the newborn KB
-		// (Copilot review, PR #1065).
+		// at an arbitrary local path, reading it into the newborn KB.
 		if e.Type()&os.ModeSymlink != 0 {
 			rollback()
 			u.Fail("Template config %s is a symlink — refusing (a symlinked config could read arbitrary local files).", e.Name())
@@ -157,7 +156,7 @@ func rewriteDevcontainerName(b []byte, kbName string) []byte {
 		return b
 	}
 	// JSON-escape: a --name (or dir basename) with a quote or backslash would
-	// otherwise produce invalid JSON/JSONC (Copilot review, PR #1065).
+	// otherwise produce invalid JSON/JSONC.
 	// strconv.Quote yields a full quoted string, so drop the surrounding
 	// quotes we already have in the splice.
 	escaped := strconv.Quote(kbName)

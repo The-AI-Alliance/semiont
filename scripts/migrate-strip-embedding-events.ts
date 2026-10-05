@@ -3,8 +3,7 @@
  * Throwaway migration script: strip embedding:computed and embedding:deleted
  * events from persisted event streams.
  *
- * These event types have been replaced by the EmbeddingStore
- * (.semiont/embeddings/ → XDG state). Nothing reads them at runtime any more.
+ * The EmbeddingStore holds embeddings; nothing reads these events at runtime.
  *
  * Usage:
  *   npx tsx scripts/migrate-strip-embedding-events.ts /path/to/.semiont

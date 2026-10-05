@@ -269,7 +269,7 @@ describe('Smelter mark:unarchived', () => {
       expect((await vectorStore.listResourceStamps()).has('res-cycle')).toBe(true);
       expect((await vectorStore.listAnnotationIds()).has('ann-cycle')).toBe(true);
 
-      // Archive deletes both — pins existing behavior.
+      // Archive deletes both.
       events$.next(markArchived('res-cycle'));
       await tick();
       expect((await vectorStore.listResourceStamps()).has('res-cycle')).toBe(false);
@@ -394,11 +394,10 @@ describe('Smelter smelt:settled signal', () => {
     }
   });
 
-  // The plain-text pin — zero behavior change for text: same chunks reach the
-  // embedder, same checksum stamp, and the indexed signal carries no reason
-  // (a reason names a decline; an index is not a decline). Green before and
-  // after the registry refactor — this is the byte-identity proof.
-  it('pin: markdown passthrough is unchanged — chunks, checksum, reason-less indexed signal', async () => {
+  // The plain-text pin: text passes through as stored — its own chunks reach
+  // the embedder, the stamp is its checksum, and the indexed signal carries no
+  // reason (a reason names a decline; an index is not a decline).
+  it('pin: markdown passes through as stored — chunks, checksum, reason-less indexed signal', async () => {
     const text = '# Title\n\n' + 'A paragraph of body prose, repeated to force chunking. '.repeat(40);
     const h = await harness(new Map([['res-md', text]]), 'text/markdown');
     try {
@@ -467,7 +466,7 @@ describe('Smelter PDF embedding', () => {
   });
 
   it('stamps machine-read provenance on vectors whose text came from OCR', async () => {
-    // The chunk reaches its consumers — today, LLM prompts — with no document
+    // The chunk reaches its consumers — LLM prompts — with no document
     // attached, and nothing downstream can recompute how the text was
     // obtained. So the projection that carries the text carries the fact.
     const h = await pdfHarness({ 'res-scan': SCANNED_PDF });
@@ -768,7 +767,7 @@ describe('Smelter.reconcile', () => {
     ]);
     const summary = await smelter.reconcile();
 
-    // Counted the PLAN before: "embedded 3" printed while 1 of 3 landed.
+    // The outcome, not the plan: a planned count says "embedded 3" where 1 of 3 indexes.
     expect(summary.resourcesEmbedded).toBe(1);
     expect(summary.resourcesSkipped).toEqual({ empty: 1 });
     expect(summary.resourcesUnavailable).toBe(1);
@@ -854,11 +853,10 @@ describe('Smelter.reconcile', () => {
 describe('Smelter.reconcile — anchored-text re-derivation', () => {
   // The third drift class: the resource is indexed, its checksum is current,
   // its extractor derives geometry — and no artifact exists. That is a LOST
-  // map (the store is container-transient today; a publish can also fail
-  // silently), and before this class existed nothing ever re-derived it:
-  // reconcile's checksum diff saw matching stamps and planned no work, so a
-  // scanned PDF's annotations lost their quoted text on the first restart,
-  // permanently.
+  // map (the store's mount may not outlive the container; a publish can also
+  // fail silently), and the checksum diff alone cannot see it: the stamps
+  // match and it plans no work, so a scanned PDF's annotations would lose
+  // their quoted text on the first restart, permanently.
 
   // The artifact's key is the content checksum — of NATIVE_PDF here.
   const LOSTMAP_CHECKSUM = calculateChecksum(Buffer.from(NATIVE_PDF));
@@ -1042,8 +1040,8 @@ describe('smelt:rebuild-anchors — the operator rebuild command', () => {
 
     // A type predicate, so `filter` narrows the ARRAY and the found reply
     // keeps its channel↔payload pairing. A compound `find` predicate narrows
-    // inside the callback only, which is how `.payload.message` used to be
-    // read off a union that does not have it on every arm.
+    // inside the callback only, leaving `.payload.message` to be read off a
+    // union that does not have it on every arm.
     const isRebuildReply = (
       e: Emitted,
     ): e is Extract<Emitted, { channel: 'smelt:rebuild-anchors-ok' | 'smelt:rebuild-anchors-failed' }> =>
@@ -1116,14 +1114,14 @@ describe('smelt:rebuild-anchors — the operator rebuild command', () => {
  * A decision the Smelter makes about a resource, once that resource is
  * identified, must be readable by an operator.
  *
- * A 217 MB book vanished from indexing with zero log lines, three runs in a
- * row: its terminal emitted `smelt:settled` — the read-your-writes barrier, for
- * other PROCESSES — and nothing an operator could read.
+ * `smelt:settled` is the read-your-writes barrier, for other PROCESSES. A
+ * terminal that emits only that lets a resource vanish from indexing with zero
+ * log lines — nothing an operator could read.
  *
  * Every case runs BOTH embed paths. A three-event burst on one resource sends
  * the first event solo through `embedResource` and batches the other two through
- * `batchResourceCreated`, so the count of breadcrumbs is the assertion: a fix
- * covering only one path leaves one line where three are owed.
+ * `batchResourceCreated`, so the count of breadcrumbs is the assertion: a
+ * breadcrumb on only one path leaves one line where three are owed.
  *
  * `mockLogger` is shared across this file and never cleared, so every assertion
  * filters by a resourceId no other test uses.
@@ -1228,10 +1226,10 @@ describe('Smelter decisions not to index are readable', () => {
  * Live annotation events, driven through the REAL fan-in.
  *
  * Every other test here pushes events straight into the Smelter, which skips
- * the one seam where this bug lived: the fan-in turning a bus message into what
- * the Smelter reads. It wrapped the whole `StoredEvent` as its own `payload`,
- * so handlers reading `event.payload.annotationId` reached one level too
- * shallow. Removals were silent no-ops, and additions worked only because the
+ * one seam: the fan-in turning a bus message into what the Smelter reads. A
+ * fan-in that wraps the whole `StoredEvent` as its own `payload` leaves
+ * handlers reading `event.payload.annotationId` one level too shallow:
+ * removals become silent no-ops, and additions work only because the
  * Archivist's enricher also copies the annotation to the top level.
  */
 describe('Smelter behind the real fan-in — live annotation events reach their handlers', () => {

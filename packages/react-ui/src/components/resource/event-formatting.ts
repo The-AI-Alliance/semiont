@@ -208,7 +208,7 @@ export function getEventDisplayContent(
     }
 
     case 'mark:removed': {
-      // Find the original annotation.added event to get the text
+      // Find the original mark:added event to get the text
       // payload.annotationId is just the UUID, but annotation.id in the added event is the full URI
       const addedEvent = allEvents.find(e =>
         e.type === 'mark:added' &&
@@ -231,7 +231,7 @@ export function getEventDisplayContent(
     }
 
     case 'mark:added': {
-      // New unified event structure - annotation is in payload
+      // The annotation is in the payload
       try {
         const target = payload.annotation.target;
         if (typeof target !== 'string' && target.selector) {
@@ -304,8 +304,8 @@ export function getEventEntityTypes(event: StoredEventLike): string[] {
 
 /**
  * Resource creation details derived from a yield:created or yield:cloned
- * event. The creation kind (`type`) is read from the event channel —
- * the redundant `creationMethod` payload field is gone.
+ * event. The creation kind (`type`) is read from the event channel, not
+ * from a payload field.
  */
 export interface ResourceCreationDetails {
   type: 'created' | 'cloned';

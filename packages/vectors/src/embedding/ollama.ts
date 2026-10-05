@@ -13,8 +13,8 @@ import { slicedEmbed } from './sliced-batch';
 /**
  * How this provider batches, and how much of it may be in flight at once.
  *
- * The house rule derives budgets from `limits()` rather than hand-tuning them
- * (detection chunking, #1121). Ollama publishes no batch ceiling and no rate
+ * Budgets are derived from `limits()` rather than hand-tuned (detection
+ * chunking, #1121). Ollama publishes no batch ceiling and no rate
  * limit to derive from, so these are owned constants with their provenance
  * stated: what was measured, and what would invalidate it.
  *

@@ -8,8 +8,8 @@
  * - Accessibility (screen reader announcements)
  * - Runtime handlers (click, hover, detect, update, create)
  *
- * Per CLAUDE.md: This is the ONLY place to define annotation type metadata.
- * No aliasing, wrappers, or compatibility layers elsewhere.
+ * This is the ONLY place to define annotation type metadata: one decision
+ * lives in one place. No aliasing, wrappers, or compatibility layers elsewhere.
  */
 
 import type { components } from '@semiont/core';

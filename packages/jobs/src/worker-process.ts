@@ -50,11 +50,11 @@ import {
 
 /**
  * The ONE derivation for a job's associated reference/annotation id.
- * Generation params no longer carry `referenceId` on the wire — the context's
+ * Generation params carry no `referenceId` on the wire — the context's
  * focus is authoritative — so for generation jobs the id comes from
  * `focus.annotation.id` (annotation focus) or is undefined (resource focus).
- * Non-generation jobTypes (detection echoes) keep their own
- * `params.referenceId` passthrough.
+ * Non-generation jobTypes (detection echoes) pass their own
+ * `params.referenceId` through.
  */
 export function referenceIdOf(job: { type: string; params: Record<string, unknown> }): AnnotationId | undefined {
   if (job.type === 'generation') {
@@ -73,11 +73,6 @@ type Agent = components['schemas']['Agent'];
 /** Derived from the spec; the wire owns this vocabulary. */
 type DurabilityEvidence = components['schemas']['DurabilityEvidence'];
 
-/**
- * What the user is told when a resource cannot be read. Keyed by the
- * extraction vocabulary, minus `no-extractor` — that one is a user error
- * (detection asked of a media type that can never yield text) and throws.
- */
 export interface WorkerProcessConfig {
   /**
    * The session authenticated as this worker's software-agent identity.
@@ -85,7 +80,7 @@ export interface WorkerProcessConfig {
    */
   session: SemiontSession;
   /**
-   * The job types this agent serves. Today every job type a worker
+   * The job types this agent serves. Every job type a worker
    * subscribes to runs through the same inference engine — different
    * inference engines mean different agents and therefore different
    * worker processes.
@@ -116,16 +111,12 @@ export interface WorkerProcessConfig {
 }
 
 /**
- * Route `transport.emit` calls — choosing resource-scoped vs global based
- * on whether the event is a cross-subscriber broadcast.
- */
-/**
  * Census declarations (`WORKER_AWAITED_OPERATIONS`, worker-runtime.ts) for the
  * three operations THIS module awaits. `MarkCommitAwaits` is tied to its call by
  * a `satisfies`; the other two have no operation literal to tie to — they
- * await through the SDK (`session.client.browse.*(...).fresh()`), so
- * their declarations are by convention until SDK bus-backed methods carry their
- * operation in their own type (the census's recorded endgame).
+ * await through the SDK (`session.client.browse.*(...).fresh()`), whose
+ * bus-backed methods do not carry their operation in their own type, so
+ * their declarations are by convention.
  */
 export type MarkCommitAwaits = 'mark:commit';
 export type DescriptorReadAwaits = 'browse:resource-requested';
@@ -136,10 +127,9 @@ export type DescriptorReadAwaits = 'browse:resource-requested';
  *
  * Deliberately the SINGULAR read, not `browse:annotations-requested`. Reply
  * channels are global fan-out, and the annotation LIST channel is the one
- * measured at ~85 multi-MB frames/min during the 2026-09-03 worker OOM — the
- * reason `WORKER_CHANNELS` was narrowed in the first place. Re-subscribing it
- * to serve a rare error path would undo that fix; one annotation's frame is
- * small.
+ * measured at ~85 multi-MB frames/min — enough to OOM the worker, and the
+ * reason `WORKER_CHANNELS` is narrow. Subscribing it to serve a rare error
+ * path would undo that; one annotation's frame is small.
  */
 export type DurabilityProbeAwaits = 'browse:annotation-requested';
 
@@ -147,8 +137,8 @@ export type DurabilityProbeAwaits = 'browse:annotation-requested';
  * How long a unit's commit may take before the worker treats the sink as down.
  *
  * Generous relative to an append — the batch is one unit's annotations and the
- * Archivist may be catching up — but FINITE, which is the whole point: the
- * 2026-09-03 hang was an unbounded wait on a confirmation that never came.
+ * Archivist may be catching up — but FINITE, which is the whole point: an
+ * unbounded wait on a confirmation that never comes hangs the worker.
  */
 const MARK_COMMIT_TIMEOUT_MS = 60_000;
 
@@ -159,10 +149,10 @@ const MARK_COMMIT_TIMEOUT_MS = 60_000;
  *
  * Every worker path that mints annotations goes through here. `mark:create` is
  * fire-and-forget: its emit resolves when the gateway accepts the frame, which
- * says nothing about the Stower having appended anything — so a down Archivist
- * discarded a job's whole output while the job reported success. The emit
- * timeout (`EMIT_TIMEOUT_MS`) stopped those paths HANGING; only the
- * acknowledgement stops them LOSING.
+ * says nothing about the Stower having appended anything — so on that path a
+ * down Archivist discards a job's whole output while the job reports success.
+ * The emit timeout (`EMIT_TIMEOUT_MS`) stops such a path HANGING; only the
+ * acknowledgement stops it LOSING.
  *
  * Empty is a no-op, not a round trip: a job that found nothing has nothing to
  * make durable, and the caller still proceeds.
@@ -188,7 +178,7 @@ async function commitAnnotations(
     if (!(error instanceof BusRequestError) || error.code !== 'bus.timeout') throw error;
     const evidence = await probeDurability(session, resourceId, annotations);
     // The batch is in the log; only the acknowledgement was lost. Returning
-    // here IS the fix — see `probeDurability`.
+    // success here is the point of the probe — see `probeDurability`.
     if (evidence === 'probe-confirmed') return evidence;
     // Not established. The failure carries WHAT WAS OBSERVED out to the
     // terminal record, which is the only place it can still be told.
@@ -202,9 +192,9 @@ async function commitAnnotations(
  *
  * Subclasses nothing meaningful on purpose: `classifyFailure` recognises
  * neither this nor the `BusRequestError` it wraps, so both land `undefined` —
- * retryable — exactly as before. The message is the original's, so the
- * persisted `error` string is unchanged; this adds evidence beside it rather
- * than replacing it.
+ * retryable. The message is the wrapped error's, so the persisted `error`
+ * string is the same with or without the wrapper; this adds evidence beside
+ * it rather than replacing it.
  */
 export class CommitDurabilityError extends Error {
   override readonly name = 'CommitDurabilityError';
@@ -216,28 +206,28 @@ export class CommitDurabilityError extends Error {
 /**
  * Did the batch land?
  *
- * A lost `mark:commit-ok` says nothing about the event log. Measured
- * 2026-09-08: a 51-minute Person detection appended all 1,673 of its
- * annotations, the gateway then went down, the ack could not route, and the
- * job reported FAILED over durable data — indistinguishable, to a user, from
- * having produced nothing. The outcome must follow the durable fact, not the
- * arrival of a message.
+ * A lost `mark:commit-ok` says nothing about the event log: if the gateway
+ * goes down after a batch is appended, the ack cannot route, and without the
+ * probe the job reports FAILED over durable data — indistinguishable, to a
+ * user, from having produced nothing. The outcome must follow the durable
+ * fact, not the arrival of a message.
  *
  * Only the LAST annotation is probed, and that is sufficient rather than
  * approximate: `handleMarkCommit` appends a batch strictly in order and stops
  * at the first failure (`stower.ts`, pinned by
  * `stower-commit-idempotence.test.ts`), so the last id being present means every
- * earlier one is too. Probing all of them would be 1,673 round trips; probing
- * the list channel would re-subscribe the frames that OOM'd the worker (see
- * `DurabilityProbeAwaits`).
+ * earlier one is too. Probing all of them would be a round trip per
+ * annotation; probing the list channel would subscribe the frames that OOM
+ * the worker (see `DurabilityProbeAwaits`).
  *
- * Every non-answer resolves to `false` — retry — and that asymmetry is
- * deliberate. `mark:commit` appends only the annotations the log does not
- * already hold, so a needless retry costs one re-run of the unit; a wrong
- * `true` loses the whole unit silently, which is the false-success the
- * acknowledgement was introduced to kill. When the probe is unreachable the
- * truthful answer is neither: it is a third, INDETERMINATE state, and it is
- * forced into failure here.
+ * Every non-answer — `'probe-refused'`, `'probe-unreachable'` — fails the
+ * commit, which retries, and that asymmetry is deliberate. `mark:commit`
+ * appends only the annotations the log does not already hold, so a needless
+ * retry costs one re-run of the unit; a wrong `'probe-confirmed'` loses the
+ * whole unit silently, which is the false success the acknowledgement
+ * exists to prevent. An unreachable probe is neither yes nor no: it is a
+ * third, INDETERMINATE state, named as such in the evidence and treated as
+ * failure by the caller.
  */
 async function probeDurability(
   session: SemiontSession,
@@ -261,7 +251,7 @@ async function probeDurability(
     // `instanceof`: a second copy of @semiont/core anywhere in the tree makes
     // the prototype check fail, and it would fail SILENTLY — degrading a
     // refusal into "unreachable", which is the one distinction this field
-    // exists to make. (Observed exactly that under vi.resetModules.)
+    // exists to make. (`vi.resetModules` produces exactly that.)
     const code = isObject(error) && isString(error.code) ? error.code : undefined;
     return code === 'bus.rejected' ? 'probe-refused' : 'probe-unreachable';
   }
@@ -273,15 +263,15 @@ async function emitEvent<K extends keyof EventMap>(
   payload: EventMap[K],
 ): Promise<void> {
   // All worker-emitted bus events are global. `job:complete` / `job:fail`
-  // are global, `jobId`-keyed correlation signals (#847): the dispatching
+  // are global, `jobId`-keyed correlation signals: the dispatching
   // caller filters by `jobId`, and resource viewers filter the same global
-  // stream by `resourceId`. No resource-scoped copy (see RESOURCE_BROADCAST_TYPES).
+  // stream by `resourceId`. No resource-scoped copy.
   await session.client.transport.emit(channel, payload as EventMap[K]);
 }
 
 export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter {
   const { session, logger } = config;
-  // Workers are HTTP-bound today; the actor is needed for the job-claim
+  // Workers are HTTP-bound: the actor is needed for the job-claim
   // protocol (SSE subscribe + ad-hoc channel adds). Cast to HttpTransport
   // is intentional: `LocalTransport` workers don't exist. The adapter
   // itself is transport-neutral — see `BusRequestPrimitive` in
@@ -454,7 +444,7 @@ async function handleJobInner(
   // it — provenance is derived, never asserted.
   const { jobId, type: jobType, resourceId } = job;
 
-  // Annotation-scoped jobs (today: generation, triggered from a
+  // Annotation-scoped jobs (generation, triggered from a
   // reference) carry the source annotation through every lifecycle
   // payload so the UI can attach visual feedback to that annotation.
   // Resource-scoped jobs (bulk reference/tag/highlight/comment/
@@ -484,7 +474,7 @@ async function handleJobInner(
   //
   // These are GLOBAL broadcasts carrying no correlationId — the identity a
   // consumer routes on is domain data in the payload, not the envelope. Two
-  // consumers, two different keys, both measured 2026-09-17:
+  // consumers, two different keys:
   //   - a DISPATCHING caller filters by `jobId` (sdk `mark.assist`,
   //     `yield.fromContext`) — it awaited one specific job;
   //   - a RESOURCE VIEWER filters by `resourceId` (react-ui
@@ -515,9 +505,9 @@ async function handleJobInner(
   }
 
   // Detection needs the resource's text plus a media-appropriate way to anchor a
-  // detected span. Both come from `prepareDetection`, which reads through the
-  // same extractor registry the Smelter embeds from — so a resource that can be
-  // embedded can be detected over, scanned PDFs included.
+  // detected span. Both come from `prepareDetection`, which reads a resource
+  // by the same media-type text source the Smelter embeds from — so a resource
+  // that can be embedded can be detected over, scanned PDFs included.
   //
   // Two failures, deliberately distinguished. A media type with no extractor at
   // all ('none' — a zip, an image) can never yield text, so asking to detect
@@ -531,7 +521,7 @@ async function handleJobInner(
     const mediaType = getPrimaryMediaType(descriptor);
     // Its own span: extraction (fetch + decode, or a multi-second OCR pass on
     // a scanned PDF) is otherwise indistinguishable from inference in a
-    // trace, which is exactly what made a 411 s opaque job hard to diagnose.
+    // trace.
     const source = await withSpan(
       'detection:prepare',
       () => prepareDetection(mediaType ?? '', config.contentReads, resourceId, generator, (rid) => session.client.browse.resourceAnchoredText(rid)),
@@ -584,9 +574,7 @@ async function handleJobInner(
     //
     // `message` is a code plus typed params, forwarded verbatim — the
     // producer says WHAT happened and every client renders it in its own
-    // language. No sentence is composed anywhere on this path. (The prose
-    // arg was dropped here first, as an interim; the processors then gained
-    // codes worth forwarding.)
+    // language. No sentence is composed anywhere on this path.
     adapter.touchActivity();
     emitEvent(session, 'job:report-progress', {
       ...terminalBase(),
@@ -680,11 +668,11 @@ async function handleJobInner(
 
   } else if (jobType === 'reference-annotation') {
     // Checkpointed resume. A retried claim skips the units earlier attempts
-    // completed; every remaining unit commits through the callback the moment
-    // it finishes — the awaited emissions ARE the acceptance that lets the
+    // completed; every remaining unit commits chunk by chunk through
+    // `commitChunk`, and the unit callback checkpoints it once its last chunk
+    // has committed — the awaited commits ARE the acceptance that lets the
     // unit count as complete, and the accumulator feeds the job:fail payload
-    // if a later unit dies. The post-run batch this replaces discarded every
-    // completed unit when any later call failed.
+    // if a later unit dies.
     const params = asJobParams<DetectionParams>(job.params);
     const skip = new Set(job.completedUnits);
     const remaining = {
@@ -777,21 +765,16 @@ async function handleJobInner(
     // Content never travels on the bus. Upload via the http-transport's
     // `client.yield.resource()` — same serializer the /know/compose
     // page uses, so the multipart wire shape has ONE definition.
-    // The gateway writes content to disk and emits `yield:create`
-    // internally; we only learn the new resourceId from the response.
-    const genParams = job.params as {
-      prompt?: string;
-      language?: string;
-      entityTypes?: string[];
-    };
+    // The Archivist writes content to disk and records the resource
+    // (`yield:create`); we only learn the new resourceId from the response.
     // Annotation-focus generation auto-binds to the triggering reference; the
-    // id is derived from the context's focus (the wire no longer carries it).
+    // id is derived from the context's focus (the wire does not carry it).
     const genReferenceId = referenceIdOf(job);
 
     // The Save location the user typed is AUTHORITATIVE and there is no
-    // fallback. Deriving unconditionally meant the artifact landed at
-    // file://<title-slug><ext> and renaming the title MOVED THE FILE; a `||`
-    // fallback would now only hide a caller that forgot. The guard above
+    // fallback. Deriving one from the title would put the artifact at
+    // file://<title-slug><ext>, so renaming the title would MOVE THE FILE; a
+    // `||` fallback would only hide a caller that forgot. The guard above
     // rejects an absent OR empty uri, so by here it is a real location.
     const storageUri = job.params.storageUri;
 
@@ -815,9 +798,9 @@ async function handleJobInner(
       storageUri,
       sourceResourceId: resourceId as unknown as string,
       ...(genReferenceId ? { sourceAnnotationId: genReferenceId } : {}),
-      ...(genParams.prompt ? { generationPrompt: genParams.prompt } : {}),
-      ...(genParams.language ? { language: genParams.language } : {}),
-      ...(genParams.entityTypes && genParams.entityTypes.length > 0 ? { entityTypes: genParams.entityTypes } : {}),
+      ...(job.params.prompt ? { generationPrompt: job.params.prompt } : {}),
+      ...(job.params.language ? { language: job.params.language } : {}),
+      ...(job.params.entityTypes && job.params.entityTypes.length > 0 ? { entityTypes: job.params.entityTypes } : {}),
       generator,
       // The resource cites the job it fulfils; who asked for it is derived
       // downstream from that job's events, never stated here.

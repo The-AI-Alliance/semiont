@@ -193,7 +193,6 @@
     "statusConnected": "Připojeno",
     "statusExpired": "Relace vypršela",
     "statusSignedOut": "Odhlášeno",
-    "statusUnreachable": "Nedosažitelné",
     "invalidHost": "Neplatný název hostitele",
     "discoveredTitle": "Nalezeno v tomto počítači",
     "managedBadge": "Spravováno spouštěčem",

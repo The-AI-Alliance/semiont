@@ -52,7 +52,7 @@ describe('KnowledgeGraph node — the union discriminates', () => {
 
   it('an annotation node without its annotation is a skeleton the union forbids', () => {
     // @ts-expect-error — the node is the annotation's graph presence, whole
-    const skeleton: GraphNode = { id: 'ann-cite', type: 'annotation', label: 'linking' };
+    const skeleton: GraphNode = { id: annotationId('ann-cite'), type: 'annotation', label: 'linking' };
     expect(skeleton).toBeDefined();
   });
 });
@@ -60,8 +60,8 @@ describe('KnowledgeGraph node — the union discriminates', () => {
 describe('SemanticMatch — the card can name its source', () => {
   it('resourceName is required', () => {
     const named: SemanticMatch = { text: 't', resourceId: resourceId('r-1'), resourceName: 'The Source', score: 0.91 };
-    // @ts-expect-error — a match that cannot name its source no longer typechecks
-    const nameless: SemanticMatch = { text: 't', resourceId: 'r-1', score: 0.91 };
+    // @ts-expect-error — resourceName is required: a match names its source
+    const nameless: SemanticMatch = { text: 't', resourceId: resourceId('r-1'), score: 0.91 };
     expect({ named, nameless }).toBeDefined();
   });
 });

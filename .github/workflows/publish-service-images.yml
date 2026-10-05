@@ -11,7 +11,7 @@ run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-ru
 # Config is runtime (bind-mount); the images ship config-free.
 #
 # The gateway and the dispatcher compile Rust, and the gateway's arm64 half
-# took over an hour under emulation (2026-09-28), so each of their platforms
+# takes over an hour under emulation, so each of their platforms
 # builds on a runner of its own architecture and pushes by digest, and the
 # manifest job joins the two under the tags. The other five only `npm install` in their
 # images, which emulation handles in minutes, so each publishes both platforms
@@ -142,19 +142,17 @@ jobs:
         # reads the registry's JSON metadata document; `npm install` reads that
         # document to resolve a version and then downloads the file named in
         # `dist.tarball`. Those are different artifacts served by different
-        # infrastructure, and they do not become available at the same instant.
-        # On 0.6.2 this step reported every published package present and all
-        # seven service images then died on
-        # `404 .../@semiont/inference/-/inference-0.6.2.tgz` -- both statements
-        # were true at the same moment. A gate in front of a build has to
-        # perform the operation the build performs, not a cheaper one that
-        # correlates with it.
+        # infrastructure, and they do not become available at the same instant:
+        # the packument can report every published package present while an
+        # install dies on `404 .../@semiont/<pkg>/-/<pkg>-<ver>.tgz`. A gate in
+        # front of a build has to perform the operation the build performs, not
+        # a cheaper one that correlates with it.
         #
         # Waiting only for this service's own entry point is not enough either:
         # the install resolves that package's whole @semiont/* closure at the
-        # same version, and on 0.5.34 make-meaning had indexed while
-        # @semiont/jobs and @semiont/inference had not, so the gate passed and
-        # the build died in `npm install`. version.json owns which packages
+        # same version, and those propagate independently — an entry point can
+        # be indexed while a package it imports is not, and the build then dies
+        # in `npm install`. version.json owns which packages
         # publish, so wait for all of them rather than restating a per-service
         # dependency list that would drift the first time an import changed.
         run: |
@@ -266,8 +264,8 @@ jobs:
         run: node .github/scripts/check-licenses.mjs sbom.spdx.json .github/licenses/allowlist.txt .github/licenses/exceptions.txt
 
       # Boot smoke: run the image built above for the scan and require that it
-      # gets as far as CONFIG RESOLUTION. Every defect this catches died in
-      # milliseconds, before any dependency mattered — a missing dist entry
+      # gets as far as CONFIG RESOLUTION. Every defect this catches dies in
+      # milliseconds, before any dependency matters — a missing dist entry
       # point, an unresolved import, a native module absent for the platform —
       # and every one of them would otherwise be published and only discovered
       # when a stack refused to come up.
@@ -323,8 +321,8 @@ jobs:
           platforms: ${{ matrix.platforms }}
           # `dry_run` is a boolean input. Comparing it to the STRING 'true' coerces
           # both sides to numbers (true → 1, 'true' → NaN), so `!= 'true'` is true
-          # for every value and a dry run pushed — five :latest tags on 2026-09-20
-          # came from one, unattested. Negate the boolean, as the attest steps do.
+          # for every value and a dry run pushes, unattested. Negate the boolean,
+          # as the attest steps do.
           push: ${{ !inputs.dry_run }}
           tags: ${{ steps.tags.outputs.tags }}
           build-args: ${{ steps.args.outputs.args }}
@@ -377,7 +375,7 @@ jobs:
       # attestation alongside the image in GHCR. Verify with:
       #   gh attestation verify oci://ghcr.io/the-ai-alliance/semiont-<svc>:VERSION \
       #     --owner The-AI-Alliance
-      # A leg with an `arch` is attested once joined, by the manifest jobst.
+      # A leg with an `arch` is attested once joined, by the manifest job.
       - name: Attest build provenance
         if: ${{ !inputs.dry_run && !matrix.arch }}
         uses: actions/attest-build-provenance@v4.2.2

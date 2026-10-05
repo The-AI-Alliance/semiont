@@ -5,13 +5,12 @@
  * fed ONLY a `SemiontSession`, with NO SemiontProvider / cache context mounted.
  * Translations are the one thing the host mounts, because react-ui assumes no
  * language: a `TranslationProvider` with its locale or its own manager. This
- * is the definition of done for provider-free
- * rendering — the "an external host can import the pieces" half of the
- * acceptance test, the other half being that Semiont's own frontend still works.
+ * is what provider-free rendering means: an external host can import the
+ * pieces.
  *
- * GREEN since `ResourceViewer` threads its `session` down: the browse-mode
- * subtree (ResourceViewer → BrowseView → AnnotateToolbar) renders provider-free
- * from a bare session. The annotate-mode subtree is covered by
+ * `ResourceViewer` threads its `session` down: the browse-mode subtree
+ * (ResourceViewer → BrowseView → AnnotateToolbar) renders provider-free from a
+ * bare session. The annotate-mode subtree is covered by
  * AnnotateView.embeddable.test.tsx.
  */
 import { describe, it, expect, vi } from 'vitest';
@@ -54,9 +53,7 @@ const annotations = { highlights: [], references: [], assessments: [], comments:
  * A highlight the viewer has actually loaded. Required because a click carries
  * only the annotation id: the click handler resolves the annotation by id and
  * derives the motivation from it, so a click for an id absent from this
- * collection is a no-op. Before that, the wire carried the motivation and the
- * viewer never looked — which is why the anchorRect test below used to pass
- * against an empty collection.
+ * collection is a no-op.
  */
 const loadedHighlight: Annotation = {
   '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -70,7 +67,7 @@ const loadedHighlight: Annotation = {
 const annotationsWithHighlight = { ...annotations, highlights: [loadedHighlight] };
 
 describe('ResourceViewer — embeddable (bring-your-own-session, no session provider)', () => {
-  // GREEN: the whole browse-mode subtree (ResourceViewer → BrowseView →
+  // The whole browse-mode subtree (ResourceViewer → BrowseView →
   // AnnotateToolbar) renders provider-free from a bare session.
   it('renders content fed only a session, with no session provider mounted', () => {
     renderInEnglish(

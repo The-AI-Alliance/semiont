@@ -2,15 +2,15 @@
  * Bus logging — runtime-toggleable cross-wire visibility.
  *
  * One line per event that crosses a process boundary, in a grep-able
- * format that's symmetric across frontend and gateway:
+ * format that's the same in every process:
  *
  *   [bus EMIT] <channel> [scope=X] [cid=<first8>] <payload>
  *   [bus RECV] <channel> [scope=X] [cid=<first8>] <payload>
  *   [bus SSE]  <channel> [scope=X] [cid=<first8>] <payload>
  *
- * Tier 1 of the observability design. Forward-compatible with Tier 2:
- * the `cid` printed here is exactly the prefix of the W3C trace-id we
- * adopt later.
+ * Tier 1 of the observability stack. With a Tier 2 trace-id provider
+ * registered, each line also carries `trace=<first8>` of the active span's
+ * W3C trace-id.
  *
  * Cost when disabled: one property read per call, zero allocations.
  *
@@ -44,8 +44,7 @@ export function busLogEnabled(): boolean {
  *
  * Decoupling: `@semiont/core` does not depend on `@opentelemetry/api`.
  * If no provider is registered (Tier 1-only deployments, or before
- * `initObservabilityNode` runs), the field is omitted from the line —
- * same shape as before this hook existed.
+ * `initObservabilityNode` runs), the field is omitted from the line.
  */
 let traceIdProvider: (() => string | undefined) | undefined;
 
@@ -78,14 +77,13 @@ export function busLog(
 /**
  * Whether to run the unobserved-reply check on every local emit.
  *
- * On in Node (gateway + worker + smelter), where a dropped reply is a real
+ * On in Node (the TypeScript services), where a dropped reply is a real
  * delivery bug; off in the browser, where a 0-observer bridged reply just
  * means the awaiting `busRequest` already resolved/timed out (benign).
  *
  * Always-on (no env flag) by design: the failure it catches is rare and
- * high-signal, and the whole point is that it fires with zero setup — the
- * incident that motivated it
- * ran with bus-logging off, so a flag-gated check would have stayed silent.
+ * high-signal, and the whole point is that it fires with zero setup — a
+ * flag-gated check stays silent in every process running with bus-logging off.
  */
 export function warnUnobservedRepliesEnabled(): boolean {
   return IS_NODE;
@@ -99,12 +97,10 @@ const unobservedReplyWarned = new Set<string>();
  * The silent-dropped-reply detector.
  *
  * A correlation-bearing payload is a request/reply *reply* (`*-result`,
- * `*-complete`, `*-failed`, …). If one is emitted on the gateway bus with
+ * `*-complete`, `*-failed`, …). If one is emitted on a service's bus with
  * **zero local observers**, nothing forwards it — no SSE subscription, no
  * in-process consumer — so the awaiting client never receives it and times
- * out 30 s later with no error logged anywhere. That is exactly how
- * `gather:resource-complete` failed when it was missing from
- * `BRIDGED_CHANNELS`.
+ * out 30 s later with no error logged anywhere.
  *
  * Emits one WARN per channel naming the likely fix. Ignored (no warning):
  * non-reply emits (no `correlationId`), emits with observers, and — crucially —
@@ -122,10 +118,10 @@ export function warnIfUnobservedReply(
   // A 0-observer emit on a *bridged* channel is a redundant copy (a global +
   // resource-scoped dual-emit, or an SSE reconnect replay), not a missing
   // forwarder — the first copy already reached the awaiting `take(1)`
-  // subscriber. Only a NOT-bridged channel is a genuine drop. (`busRequest` now
-  // types its reply channels `BridgedChannel`, so an unbridged reply is a
-  // compile error; this runtime check covers non-`busRequest` correlation
-  // emits.)
+  // subscriber. Only a NOT-bridged channel is a genuine drop. (A `busRequest`
+  // reply channel comes from the registry, and every registry reply derives
+  // into `BRIDGED_CHANNELS`; this runtime check covers non-`busRequest`
+  // correlation emits.)
   if ((BRIDGED_CHANNELS as readonly string[]).includes(channel)) return;
   if (unobservedReplyWarned.has(channel)) return;
   unobservedReplyWarned.add(channel);

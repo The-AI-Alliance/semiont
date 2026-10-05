@@ -2,10 +2,10 @@
  * The max-length control is bounded by the generation-serving agent's
  * discovered output ceiling.
  *
- * The control was NOT previously unbounded: it shipped `min="100" max="4000"`.
- * So the bound replaces a hardcoded 4000 with the real ceiling, which for any
- * model above 4000 RAISES a cap users hit today, and for a smaller model
- * lowers it to something the provider will actually honour.
+ * With no ceiling known the control is bounded anyway: `min="100" max="4000"`.
+ * A discovered ceiling takes the place of that hardcoded 4000, which for any
+ * model above 4000 RAISES the cap, and for a smaller model lowers it to
+ * something the provider will actually honour.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { useState } from 'react';
@@ -160,7 +160,7 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
     expect(input().value).toBe('800');
   });
 
-  it('falls back to today\'s bounds and copy without an agent', () => {
+  it('falls back to the hardcoded bounds and copy without an agent', () => {
     // A missing ceiling is normal, never an error: the control keeps its
     // hardcoded bounds.
     const { input } = renderStep(undefined);
@@ -194,11 +194,11 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
   });
 
   it('lets the field be cleared, and never submits NaN for it', () => {
-    // Pre-existing hazard the clamp must not inherit: the handler was
-    // `parseInt(e.target.value)` and `parseInt('')` is NaN, which React then
-    // warns about and which would travel into the job config. Clearing must
-    // stay possible (you cannot retype a number otherwise), so the contract is
-    // about what SUBMITS, not about forbidding the empty state.
+    // A hazard the clamp must not carry: a bare `parseInt(e.target.value)`
+    // handler yields NaN for an empty field, which React warns about and
+    // which would travel into the job config. Clearing must stay possible (you
+    // cannot retype a number otherwise), so the contract is about what
+    // SUBMITS, not about forbidding the empty state.
     const { props } = renderStep(agentWithCeiling(4_000));
     const onGenerate = props.onGenerate;
     const input = screen.getByLabelText('Max length') as HTMLInputElement;
@@ -276,8 +276,8 @@ describe('ConfigureGenerationStep — the draft is the owner\'s', () => {
 });
 
 // ── The output format is a choice ───────────────────────────────────────────
-// The wire, the worker and the registry have carried three generatable types
-// the whole time; only the control was missing.
+// The wire, the worker and the registry all carry the generatable types; this
+// control is where the user chooses among them.
 
 describe('ConfigureGenerationStep — the output format', () => {
   const formatSelect = () => screen.getByLabelText(translations.outputFormat) as HTMLSelectElement;
@@ -362,7 +362,7 @@ describe('ConfigureGenerationStep — the GUI refuses a format/extension mismatc
   });
 
   it('refuses an extensionless path, and accepts a differently-cased one', () => {
-    // Open question 2, both edges: the rule is "ends with the registry
+    // Both edges: the rule is "ends with the registry
     // extension", so no extension fails it; case is not a real mismatch.
     renderStep();
     fireEvent.change(screen.getByLabelText('Save location'), { target: { value: 'generated/notes' } });
@@ -457,10 +457,10 @@ describe('the Save location proposes a path and stops following once touched', (
 });
 
 describe('temperature gating — the Creativity slider follows the model', () => {
-  // Measured 2026-09-25: claude-sonnet-5 refuses every non-default temperature
-  // with a 400 — including the wizard's own 0.7 default — so a rejecting model
-  // must neither show the control nor receive the field. Only an EXPLICIT
-  // false hides it: absence of discovery means no claim, and the control stays.
+  // claude-sonnet-5 refuses every non-default temperature with a 400 —
+  // including the wizard's own 0.7 default — so a rejecting model must neither
+  // show the control nor receive the field. Only an EXPLICIT false hides it:
+  // absence of discovery means no claim, and the control stays.
   const rejectingAgent = (): Collaborator =>
     ({
       agent: {

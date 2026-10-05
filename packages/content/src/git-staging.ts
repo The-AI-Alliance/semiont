@@ -40,9 +40,9 @@ export interface Stager {
 /**
  * git exposes NO index-lock wait — `core.filesRefLockTimeout` and friends cover
  * refs, packed-refs, reftable and credentials, not the index — and `git add`
- * against a held lock fails in ~21 ms. So the wait is ours. Measured
- * 2026-09-08: this schedule absorbed an 800 ms external hold on attempt 5, at
- * 0.85 s of a ~3.15 s budget.
+ * against a held lock fails in ~21 ms. So the wait is ours: this schedule
+ * absorbs an 800 ms external hold on attempt 5, at 0.85 s of a ~3.15 s
+ * budget.
  */
 const LOCK_RETRY_DELAYS_MS = [50, 100, 200, 400, 800, 1600];
 
@@ -60,10 +60,9 @@ const DEFAULT_MAX_WAIT_MS = 2_000;
  * One Stager per repo, keyed by resolved path.
  *
  * git's index is single-writer, and this module serializes per INSTANCE. Two
- * instances on one repo — the content store and the event log each built their
- * own — each believed it was the only writer and raced the other into
- * `index.lock`, and the lost race killed the Archivist as an unhandled
- * rejection.
+ * instances on one repo — the content store and the event log each ask for
+ * one — would each believe it is the only writer and race the other into
+ * `index.lock`.
  *
  * The FIRST caller's options win. A later caller cannot silently re-tune a
  * shared stager's debounce out from under the first.
@@ -126,7 +125,7 @@ function buildStager(cwd: string, options: StagerOptions = {}): Stager {
     return serialize(() =>
       git(['add', ...batch]).catch((error: unknown) => {
         // `queued` was emptied BEFORE the command ran, so a dropped batch is
-        // permanently missing from the index — a quieter failure than the
+        // permanently missing from the index — a quieter failure than a
         // crash and harder to notice. Re-queue it.
         //
         // ONLY for a lock race that outlived the retries. Re-queueing a
@@ -139,10 +138,10 @@ function buildStager(cwd: string, options: StagerOptions = {}): Stager {
           arm();
         }
         // NEVER rethrow. Staging the index is not in the critical path; a
-        // failure is DEGRADED, not down. Rejecting here is what killed the
-        // Archivist, and it would keep killing it through any caller that
-        // forgot a `.catch` — so the guarantee lives at this boundary rather
-        // than in every caller's discipline.
+        // failure is DEGRADED, not down. A rejection here has no handler on
+        // the debounced timer path, nor in any caller that forgot a
+        // `.catch`, and Node kills the process on one — so the guarantee
+        // lives at this boundary rather than in every caller's discipline.
         recordGitStagingFailure(lock ? 'index-lock' : 'other');
       }),
     );

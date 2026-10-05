@@ -29,8 +29,8 @@ export interface KnowledgeGraphReads {
 }
 
 // The unified knowledge-graph shape is the core/spec type:
-// resources AND annotations are nodes; edges are typed and directional. The
-// hand-written local twins were deleted — this is the one canonical type definition.
+// resources AND annotations are nodes; edges are typed and directional. It
+// is the one type definition; no local twin restates it.
 type KnowledgeGraph = components['schemas']['KnowledgeGraph'];
 
 /**
@@ -67,7 +67,7 @@ export class GraphContext {
    *
    * This is the single graph builder — both the matcher (ranking) and the
    * resource/viz path consume it. The flattened signals the matcher reads
-   * today (`connections`, `citedBy`/count, `siblingEntityTypes`,
+   * (`connections`, `citedBy`/count, `siblingEntityTypes`,
    * `bidirectional`) are all derivable from this:
    *  - peer connections → resource nodes + main→peer edges carrying `bidirectional`
    *  - inbound citations → citing-resource nodes + `citation` edges (citing→main),
@@ -92,8 +92,8 @@ export class GraphContext {
       if (view) {
         // Applied-offset barrier first: an event-driven wake at the moment
         // the Weaver reports parity with the view's sequence.
-        // Views without a stamp (written pre-stamp) cannot name a parity
-        // target and skip straight to the poll floor.
+        // A view without a stamp cannot name a parity target and skips
+        // straight to the poll floor.
         if (view.lastSequence !== undefined) {
           try {
             await kb.weaveProgress.whenApplied(

@@ -3,12 +3,9 @@ package launcher
 // preflight.go — prove the service accounts work BEFORE anything tries to use
 // them.
 //
-// Until the shared worker secret was retired, there was nothing here a check
-// could have discovered: the launcher generated one value and injected it in
-// the same act, so both sides agreed by construction. Now the credential lives
-// in two stores with independent lifecycles — a file per root, and a realm
-// written by an import that runs on FIRST BOOT AND NEVER AGAIN — and the
-// token's SHAPE matters as well as its value.
+// A service credential lives in two stores with independent lifecycles — a
+// file per root, and a realm written by an import that runs on FIRST BOOT AND
+// NEVER AGAIN — and the token's SHAPE matters as well as its value.
 //
 // So a start can hand six services credentials the realm has never seen, and
 // the only symptom is six services failing to authenticate with nothing
@@ -142,7 +139,7 @@ func checkServiceAccountClaims(svc string, claims map[string]any, audience strin
 		}
 		return serviceAccountFinding{svc: svc, reason: reason, fix: fix}, true
 	}
-	// Every further role the realm document stamps on THIS client — today the
+	// Every further role the realm document stamps on THIS client — the
 	// worker's, which the dispatcher admits a job:claim by. Derived from the
 	// function that renders the mapper, so a role added there is asked for here
 	// without a second list to forget. A realm imported before the role holds
@@ -213,13 +210,12 @@ const probeRedirectOtherPort = "http://localhost:61234/en/auth/callback"
 // about to move to?
 //
 // `--service browser --port N` is the one flow that changes the redirect URI
-// without touching the realm, and until this existed it was also the one flow
-// that never asked. The loopback entries are registered PORTLESS so any port
-// matches (RFC 8252 §7.3) — but a realm imported before that line, or edited
-// by hand, pins :3000, and then the move produces a healthy Browser nobody can
-// sign in to. `verifyPublicClients` reports the same condition as a WARNING,
-// because a stack on the default port still works; here the operator has
-// asked for the port that does not, so it refuses.
+// without touching the realm. The loopback entries are registered PORTLESS so
+// any port matches (RFC 8252 §7.3) — but a realm from an older import, or
+// edited by hand, pins :3000, and then the move produces a healthy Browser
+// nobody can sign in to. `verifyPublicClients` reports the same condition as
+// a WARNING, because a stack on the default port still works; here the
+// operator has asked for the port that does not, so it refuses.
 //
 // Narrow on purpose: this flow starts no service account and no CLI, so it
 // checks the one thing it is about to change.
@@ -253,8 +249,8 @@ func verifyBrowserRedirect(issuerBase string, port int) (publicClientFinding, bo
 // They are different matches against different lists. A redirect URI is matched
 // under RFC 8252 §7.3, where a portless loopback entry takes any port; a web
 // origin is matched EXACTLY. So registering the loopback redirects portlessly
-// (correct, and what makes `--port` work) reduced a `webOrigins: ["+"]` client's
-// CORS set to `http://localhost` on port 80, and the Browser's real origin was
+// (correct, and what makes `--port` work) reduces a `webOrigins: ["+"]` client's
+// CORS set to `http://localhost` on port 80, and the Browser's real origin is
 // in no set at all.
 //
 // That matters because the Browser is a static SPA doing its PKCE exchange

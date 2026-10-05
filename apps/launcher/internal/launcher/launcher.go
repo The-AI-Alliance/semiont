@@ -1,6 +1,5 @@
-// Package launcher implements the semiont subcommands: the host-installed
-// replacement for the fleet-synced start.sh / logs.sh / stop.sh (the golden
-// tests in the module root are the executable spec).
+// Package launcher implements the semiont subcommands (the golden tests in the
+// module root are the executable spec).
 package launcher
 
 // Set via -ldflags at release time.

@@ -6,11 +6,10 @@
  * a unit test needs to reach lives here instead, fully parameterized — no
  * module-scope env reads, no side effects at import.
  *
- * The load-bearing contract this module owns (and the reason it was
- * extracted): a worker's stamped identity is the DID the
- * `/api/tokens/agent` exchange MINTED for it, carried verbatim — never
- * re-derived from the URL the worker happens to dial. One logical agent
- * previously got two DIDs that way.
+ * The load-bearing contract this module owns: a worker's stamped identity is
+ * the DID the `/api/tokens/agent` exchange MINTED for it, carried verbatim —
+ * never re-derived from the URL the worker happens to dial: re-deriving gives
+ * one logical agent two DIDs.
  */
 
 import type { EventMap } from '@semiont/core';
@@ -109,10 +108,10 @@ export interface WorkerHealthPayload {
 }
 
 /**
- * The `/health` body. Additive: existing consumers (image HEALTHCHECK,
- * compose `service_healthy`, `semiont start`) keep reading
- * `status`/`agents`; the per-agent vitals expose claim-loop progress so a
- * stalled worker is *visible*, not just alive.
+ * The `/health` body. Its consumers (image HEALTHCHECK, compose
+ * `service_healthy`, `semiont start`) read `status`/`agents`; the per-agent
+ * vitals expose claim-loop progress so a stalled worker is *visible*, not
+ * just alive.
  */
 export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVitals }>): WorkerHealthPayload {
   return {
@@ -140,15 +139,12 @@ export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVital
  *
  * The layering matters because this watchdog has a hard limit: it is an
  * IN-PROCESS timer, so it cannot fire while the event loop itself is
- * blocked — the exact condition a blocked loop creates (the 2026-09-03
- * finalization hang: 18 min silent, this watchdog never fired, an empty
- * /health confirming the loop was wedged). The unbounded emit that caused
- * that specific hang is now bounded at the transport (`EMIT_TIMEOUT_MS`),
- * so the loop errors instead of blocking; but for any future blocked-loop
- * bug the ONLY backstop is the out-of-process one — the dispatcher's sweep,
- * which fails a running job whose worker has gone silent
- * (docs/protocol/JOBS.md). A liveness guarantee a blocked loop defeats is
- * not one; the sweep is the guarantee.
+ * blocked — the exact condition a blocked loop creates. An emit is bounded
+ * at the transport (`EMIT_TIMEOUT_MS`), so the loop errors on one instead of
+ * blocking; but for any other blocked-loop bug the ONLY backstop is the
+ * out-of-process one — the dispatcher's sweep, which fails a running job
+ * whose worker has gone silent (docs/protocol/JOBS.md). A liveness guarantee
+ * a blocked loop defeats is not one; the sweep is the guarantee.
  */
 export const STALL_THRESHOLD_MS = 15 * 60_000;
 export const STALL_CHECK_INTERVAL_MS = 60_000;
@@ -196,10 +192,10 @@ export function startStallWatchdog(opts: StallWatchdogOptions): { dispose(): voi
 /**
  * The bus operations a worker process ever AWAITS a reply to. Reply channels
  * are global fan-out on the gateway, so a full `BRIDGED_CHANNELS`
- * subscription made every worker receive every other client's reply traffic
- * — measured at ~85 multi-MB `browse:annotations-result` frames/min during
- * the 2026-09-03 worker OOM, all parsed and dropped by cid filtering. The
- * worker subscribes exactly its own operations' reply channels instead.
+ * subscription makes every worker receive every other client's reply traffic
+ * — measured at ~85 multi-MB `browse:annotations-result` frames/min, all
+ * parsed and dropped by cid filtering, enough to OOM the worker. The worker
+ * subscribes exactly its own operations' reply channels instead.
  *
  * This list restates a fact the code owns (which operations worker code
  * paths call `busRequest` on); its gate is the build-time census below
@@ -216,9 +212,8 @@ export const WORKER_AWAITED_OPERATIONS = [
   'job:claim',
   'browse:resource-requested',
   // Canonical geometry for a geometry-bearing detection: the consult behind
-  // `ConsultAnchoredText`, answered by the Smelter. Its omission broke every
-  // PDF detection job at the transport probe;
-  // the census below now fails the
+  // `ConsultAnchoredText`, answered by the Smelter. Without it every PDF
+  // detection job fails at the transport probe; the census below fails the
   // BUILD when this list and the declared awaits drift.
   'browse:anchored-text-requested',
   // Durability acknowledgement for a unit's annotations. The worker AWAITS
@@ -229,7 +224,7 @@ export const WORKER_AWAITED_OPERATIONS = [
   // The durability probe for a commit whose acknowledgement never routed.
   // SINGULAR by design: the annotation LIST channel is the multi-MB fan-out
   // this narrowing exists to keep out, and a rare error path is no reason to
-  // let it back in.
+  // let it in.
   'browse:annotation-requested',
 ] as const satisfies readonly BusOperationKey[];
 
@@ -237,12 +232,11 @@ export const WORKER_AWAITED_OPERATIONS = [
  * The broadcasts a worker CONSUMES — announcements nobody replies to, which
  * therefore derive from no operation.
  *
- * One home, because the alternative was proven: these lived as `addChannels`
- * calls beside their consumers, so the worker's complete set existed nowhere
- * and a widening could be deleted without any list getting shorter. That is
- * the 2026-09-16 outage — every worker idle on a `job:queued` its transport
- * would never carry, `lastQueuedEventAt: null`, nothing thrown and nothing
- * logged.
+ * One home, because the alternative fails silently: as `addChannels` calls
+ * beside their consumers, the worker's complete set exists nowhere and a
+ * widening can be deleted without any list getting shorter — every worker
+ * then idles on a `job:queued` its transport never carries,
+ * `lastQueuedEventAt: null`, nothing thrown and nothing logged.
  *
  * An entry here must have a consumer and a consumer must have an entry; the
  * census beside this file asserts both directions.
@@ -269,9 +263,9 @@ export const WORKER_ANSWERED_OPERATIONS = [
  * The global SSE channel set for a worker's transport: the whole manifest,
  * stated once and passed at construction. Nothing widens it afterwards.
  */
-// `replyChannelsFor` already returns `EventName[]`; annotating this
-// `readonly string[]` threw that proof away and was the only reason a
-// transport's channel roster was ever wider than the registry.
+// `replyChannelsFor` returns `EventName[]`; annotating this
+// `readonly string[]` would throw that proof away and let a transport's
+// channel roster be wider than the registry.
 export const WORKER_CHANNELS: readonly (keyof EventMap)[] = [
   ...replyChannelsFor(WORKER_AWAITED_OPERATIONS),
   ...WORKER_CONSUMED_BROADCASTS,
@@ -391,8 +385,8 @@ export async function startAgentWorker(
 
   // The exchange minted this worker's canonical DID (under the KB's own
   // domain) and we carry it VERBATIM — never re-derive identity from
-  // the URL we happen to dial (`host` is connection topology only). One
-  // logical agent previously got two DIDs this way.
+  // the URL we happen to dial (`host` is connection topology only):
+  // re-deriving gives one logical agent two DIDs.
   const generator: Agent = didToAgent(did);
 
   const kbId = `agent-${inference.type}-${inference.model}-${hostname()}`;

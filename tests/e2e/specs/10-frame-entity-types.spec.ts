@@ -5,7 +5,7 @@ import { test, expect } from '../fixtures/auth';
  *
  * Two things are exercised:
  *
- * 1. **Server bootstrap.** On startup the gateway's `bootstrapEntityTypes`
+ * 1. **Server bootstrap.** On startup the Archivist's `bootstrapEntityTypes`
  *    seeds the KB with `DEFAULT_ENTITY_TYPES` from `@semiont/ontology` by
  *    emitting `frame:add-entity-type` for each type missing from the
  *    `__system__` event log. After that runs, `browse.entityTypes()`
@@ -14,21 +14,20 @@ import { test, expect } from '../fixtures/auth';
  *
  * 2. **Live add round-trip.** Typing a new tag and clicking Add invokes
  *    `client.frame.addEntityType(...)` which emits `frame:add-entity-type`
- *    over the wire. The gateway's Stower handles it and broadcasts
+ *    over the wire. The Archivist's Stower handles it and broadcasts
  *    `frame:entity-type-added` (a bridged channel — see
  *    `packages/core/src/bridged-channels.ts`); the frontend's
  *    `browse.entityTypes()` cache invalidates on receipt and the new
  *    tag renders without a refresh.
  *
- * Regression targets:
+ * What a failure means:
  *
- * - Bootstrap regression: a default type missing from the rendered
+ * - Bootstrap: a default type missing from the rendered
  *   chip list, or none at all → bootstrap didn't fire / didn't reach
  *   the materialized view.
- * - Bridge regression: the new tag never renders → `frame:entity-type-added`
- *   isn't reaching the frontend (would mirror the `yield:create-ok`
- *   bridging gap fixed earlier).
- * - SDK regression: `[bus EMIT] frame:add-entity-type` never fires →
+ * - Bridge: the new tag never renders → `frame:entity-type-added`
+ *   isn't reaching the frontend.
+ * - SDK: `[bus EMIT] frame:add-entity-type` never fires →
  *   the moderate page's `addTag()` chain isn't reaching the namespace
  *   method.
  *
@@ -72,7 +71,6 @@ test.describe('frame entity-type vocabulary', () => {
 
     bus.clear();
 
-    const input = page.getByPlaceholder(/^.+$/).first();
     // The page's input is the only top-level text input in the tags
     // section. Lock to a more specific selector to avoid grabbing
     // toolbar inputs when the layout grows.
@@ -86,10 +84,6 @@ test.describe('frame entity-type vocabulary', () => {
     const addButton = page.getByRole('button', { name: /add tag/i });
     await expect(addButton).toBeEnabled();
     await addButton.click();
-
-    // Acknowledge `input` was assigned but not used — keep it as
-    // documentation of the alternative selector if the page changes.
-    void input;
 
     // Protocol assertion: the wire saw both the command and the
     // broadcast acknowledgment. `frame:add-entity-type` is the

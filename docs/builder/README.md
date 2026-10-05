@@ -76,8 +76,6 @@ internals behind the last four.
   a new **design rationale** goes in REACTIVE-MODEL or STATE-UNITS; a new
   **cache behavior** gets a B-number in CACHE-SEMANTICS *and* a test citing
   it. If a change doesn't fit one home, it's probably two changes.
-- Contract docs (CACHE-SEMANTICS, and the protocol docs below) carry
-  **revision logs** — behavior changes append a dated entry.
 - **Code fences are compile-checked.** Every ` ```ts `/` ```tsx `/
   ` ```typescript ` fence in these docs, the skills included, is extracted and type-checked against
   the built packages (plus an await-thenable pass) by

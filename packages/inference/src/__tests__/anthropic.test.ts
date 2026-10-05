@@ -31,11 +31,11 @@ const CAPABLE_MODEL = {
 };
 
 describe('AnthropicInferenceClient — the retry count is CHOSEN, not inherited', () => {
-  // Every site that decides retryability states its choice. This was the last
-  // one running on an unchosen vendor default, and unchosen defaults win
-  // silently. The value below happens to equal SDK 0.123.0's default, which is
-  // the point: writing it down changes no behavior today and stops a future
-  // SDK bump from changing it for us without anyone noticing.
+  // Every site that decides retryability states its choice; an unchosen
+  // vendor default wins silently. The value below happens to equal SDK
+  // 0.123.0's default, which is the point: writing it down changes no
+  // behavior and stops a future SDK bump from changing it for us without
+  // anyone noticing.
   it('passes maxRetries explicitly when constructing the SDK client', () => {
     ctorMock.mockClear();
     new AnthropicInferenceClient('key', 'model');
@@ -66,9 +66,8 @@ describe('AnthropicInferenceClient - structured generation is output_config, not
     // Last call: discovery's sampling probe precedes the real request.
     const req = createMock.mock.calls.at(-1)![0];
 
-    // The constraint is response-level — no tool scaffolding (the
-    // emit_json_array workaround is deleted), and the schema root is the
-    // ARRAY itself: no items wrapper, no unwrap.
+    // The constraint is response-level — no tool scaffolding, and the
+    // schema root is the ARRAY itself: no items wrapper, no unwrap.
     expect(req.tools).toBeUndefined();
     expect(req.tool_choice).toBeUndefined();
     expect(req.output_config.format.type).toBe('json_schema');
@@ -82,7 +81,7 @@ describe('AnthropicInferenceClient - structured generation is output_config, not
   });
 
   it('round-trips an entity whose `exact` span contains a quote', async () => {
-    // The variant-2 failure: an unescaped `"` inside a verbatim span.
+    // An unescaped `"` inside a verbatim span would break the parse.
     // Schema-enforced output serializes properly-escaped JSON, so it
     // round-trips cleanly.
     createMock.mockResolvedValue({
@@ -112,17 +111,17 @@ describe('AnthropicInferenceClient - structured generation is output_config, not
   });
 });
 
-describe('AnthropicInferenceClient - plain text mode unchanged', () => {
+describe('AnthropicInferenceClient - plain text mode', () => {
   beforeEach(() => {
     createMock.mockReset();
     retrieveMock.mockReset();
     streamMock.mockReset();
-    // The text path awaits discovery now (temperature suppression), so the
+    // The text path awaits discovery (temperature suppression), so the
     // Models API answer is part of this describe's fixture.
     retrieveMock.mockResolvedValue(CAPABLE_MODEL);
   });
 
-  it('returns the text block and offers no tools when format is unset', async () => {
+  it('returns the text block and offers no tools', async () => {
     createMock.mockResolvedValue({
       content: [{ type: 'text', text: 'hello world' }],
       stop_reason: 'end_turn',
@@ -240,12 +239,12 @@ describe('AnthropicInferenceClient - limits() discovery', () => {
 });
 
 describe('AnthropicInferenceClient - temperature suppression', () => {
-  // Measured 2026-09-25: claude-sonnet-5 refuses any non-default
-  // `temperature` with a 400 on BOTH the plain and output_config shapes, and
-  // the Models API exposes no sampling capability. Discovery therefore probes
-  // acceptance actively, the client omits the parameter for rejecting models,
-  // and the verdict is exposed on limits() so the UI can hide the Creativity
-  // slider (the omission is only honest because the capability is visible).
+  // claude-sonnet-5 refuses any non-default `temperature` with a 400 on BOTH
+  // the plain and output_config shapes, and the Models API exposes no
+  // sampling capability. Discovery therefore probes acceptance actively, the
+  // client omits the parameter for rejecting models, and the verdict is
+  // exposed on limits() so the UI can hide the Creativity slider (the
+  // omission is only honest because the capability is visible).
   const TEMPERATURE_400 = () =>
     Object.assign(new Error('400 {"type":"error","error":{"type":"invalid_request_error","message":"`temperature` is deprecated for this model."}}'), { status: 400 });
 

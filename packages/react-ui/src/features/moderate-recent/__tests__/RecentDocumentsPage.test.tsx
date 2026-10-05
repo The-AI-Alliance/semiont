@@ -11,7 +11,6 @@ import { RecentDocumentsPage } from '../components/RecentDocumentsPage';
 import type { RecentDocumentsPageProps } from '../components/RecentDocumentsPage';
 
 const createMockProps = (overrides?: Partial<RecentDocumentsPageProps>): RecentDocumentsPageProps => ({
-  hasDocuments: false,
   isLoading: false,
   theme: 'light',
   activePanel: null,
@@ -73,7 +72,7 @@ describe('RecentDocumentsPage', () => {
 
   describe('Empty State', () => {
     it('displays empty state when no documents', () => {
-      const props = createMockProps({ hasDocuments: false });
+      const props = createMockProps();
       render(<RecentDocumentsPage {...props} />);
 
       expect(screen.getByText('No documents found')).toBeInTheDocument();
@@ -81,7 +80,7 @@ describe('RecentDocumentsPage', () => {
     });
 
     it('renders empty state SVG icon', () => {
-      const props = createMockProps({ hasDocuments: false });
+      const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
       const svg = container.querySelector('.semiont-recent-docs__empty-icon');
@@ -89,7 +88,7 @@ describe('RecentDocumentsPage', () => {
     });
 
     it('applies correct styling to empty state text', () => {
-      const props = createMockProps({ hasDocuments: false });
+      const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
       const noDocsText = container.querySelector('.semiont-recent-docs__empty-message');
@@ -98,7 +97,7 @@ describe('RecentDocumentsPage', () => {
     });
 
     it('applies correct styling to activity hint text', () => {
-      const props = createMockProps({ hasDocuments: false });
+      const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
       const hintText = container.querySelector('.semiont-recent-docs__empty-hint');
@@ -297,7 +296,7 @@ describe('RecentDocumentsPage', () => {
     });
 
     it('applies dark mode classes to empty state SVG', () => {
-      const props = createMockProps({ theme: 'dark', hasDocuments: false });
+      const props = createMockProps({ theme: 'dark' });
       const { container } = render(<RecentDocumentsPage {...props} />);
 
       const svg = container.querySelector('.semiont-recent-docs__empty-icon');
@@ -307,15 +306,6 @@ describe('RecentDocumentsPage', () => {
   });
 
   describe('Edge Cases', () => {
-    it('handles hasDocuments true (future state)', () => {
-      const props = createMockProps({ hasDocuments: true });
-      render(<RecentDocumentsPage {...props} />);
-
-      // Currently shows empty state even when hasDocuments is true
-      // This is correct for current implementation
-      expect(screen.getByText('Recent Documents')).toBeInTheDocument();
-    });
-
     it('renders with custom translations', () => {
       const props = createMockProps({
         translations: {
@@ -339,7 +329,6 @@ describe('RecentDocumentsPage', () => {
 
     it('handles all props being defined', () => {
       const props = createMockProps({
-        hasDocuments: true,
         theme: 'dark',
         activePanel: 'settings',
       });

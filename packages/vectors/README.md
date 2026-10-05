@@ -8,7 +8,7 @@
 
 Vector storage, embedding, and semantic search for Semiont.
 
-Provides a pluggable abstraction over vector databases and embedding providers, with text chunking utilities. Used by the Smelter actor to index content and by Gatherer/Matcher to retrieve semantically similar resources and annotations.
+Provides a pluggable abstraction over vector databases and embedding providers. The text chunking that feeds it is `@semiont/core`'s. Used by the Smelter actor to index content and by Gatherer/Matcher to retrieve semantically similar resources and annotations.
 
 ## Architecture
 
@@ -30,7 +30,8 @@ const store = await createVectorStore({
   type: 'qdrant',
   host: 'localhost',
   port: 6333,
-  dimensions: 1024,
+  // A thunk over an embedding provider (below), called only to create a collection
+  dimensions: () => provider.dimensions(),
 });
 ```
 
@@ -41,7 +42,7 @@ Requires a running [Qdrant](https://qdrant.tech) instance. The `@qdrant/js-clien
 ```typescript
 const store = await createVectorStore({
   type: 'memory',
-  dimensions: 768,
+  dimensions: () => provider.dimensions(),  // required by the config; this store never calls it
 });
 ```
 
@@ -76,7 +77,7 @@ const provider = await createEmbeddingProvider({
 ## Text Chunking
 
 ```typescript
-import { chunkText, DEFAULT_CHUNKING_CONFIG } from '@semiont/vectors';
+import { chunkText, DEFAULT_CHUNKING_CONFIG } from '@semiont/core';
 
 const chunks = chunkText(longDocument, { chunkSize: 512, overlap: 50 });
 // => string[]
@@ -93,13 +94,13 @@ const embedding = await provider.embed('quantum computing');
 const resources = await store.searchResources(embedding, {
   limit: 10,
   scoreThreshold: 0.7,
-  filter: { excludeResourceId: 'res-already-open' },
+  filter: { excludeResourceId: openResourceId },  // a ResourceId
 });
 
 // Search annotations
 const annotations = await store.searchAnnotations(embedding, {
   limit: 5,
-  filter: { entityTypes: ['Person', 'Organization'], motivation: 'describing' },
+  filter: { entityTypes: ['Person', 'Organization'], motivation: 'linking' },
 });
 ```
 
@@ -115,36 +116,37 @@ await store.upsertResourceVectors(resourceId, chunks.map((text, i) => ({
   chunkIndex: i,
   text,
   embedding: embeddings[i],
-})));
+})), contentChecksum, entityTypes);
 
 // Index an annotation
-const vec = await provider.embed(annotation.exactText);
+const vec = await provider.embed('Marie Curie');
 await store.upsertAnnotationVector(annotationId, vec, {
   annotationId,
   resourceId,
-  motivation: 'describing',
+  motivation: 'linking',
   entityTypes: ['Person'],
   exactText: 'Marie Curie',
 });
 ```
 
-`upsertResourceVectors` replaces all existing vectors for the resource, so re-indexing a resource that shrank leaves no orphan chunks.
+`upsertResourceVectors` replaces all existing vectors for the resource, so re-indexing a resource that shrank leaves no orphan chunks. `contentChecksum` is the checksum of the bytes the chunks were computed from and `entityTypes` is the resource's entity-type set; both are stamped onto every point.
 
 ## Configuration
 
-In `semiont.toml`:
+In a knowledge base's `.semiont/semiontconfig/<name>.toml`:
 
 ```toml
-[environments.local.services.vectors]
+[environments.local.vectors]
 type = "qdrant"
 host = "localhost"
 port = 6333
 
-[environments.local.services.embedding]
+[environments.local.embedding]
 type = "voyage"
 model = "voyage-3"
+apiKey = "${MY_VOYAGE_KEY}"   # the key, from a variable you name
 
-[environments.local.services.embedding.chunking]
+[environments.local.embedding.chunking]
 chunkSize = 512
 overlap = 64
 ```

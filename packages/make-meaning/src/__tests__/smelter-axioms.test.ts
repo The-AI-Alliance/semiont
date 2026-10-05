@@ -3,18 +3,10 @@
  *
  * Every axiom carries its FOPL
  * statement as a comment directly above the property so spec and test cannot
- * drift. Axioms the current code falsifies are `it.fails(...)`: the property
+ * drift. Axioms the code falsifies are `it.fails(...)`: the property
  * runs, is expected to fail, and the suite stays green. When a refactor makes
  * the behavior correct, `it.fails` errors ("expected to fail but passed") and
  * MUST be promoted to `it(...)` in the same diff.
- *
- * Current ledger: all GREEN. (S9b flipped when reconcile accounting was
- * separated from `eventsProcessed`; S1 and S2 flipped when reconcile became
- * a planner whose work items flow through the mailbox; S12 flipped with
- * checksum-stamped vectors + the staleness diff; S13 flipped with
- * payload-only tag restamps, live and via the reconcile tag diff; S15 landed
- * green with reconcile's third drift class, which re-derives lost
- * anchored-text artifacts with zero embedding calls.)
  */
 
 import { describe, it, expect } from 'vitest';
@@ -94,10 +86,9 @@ const embeds = (mediaType: string) => textSourceOf(mediaType) === 'decode';
 /** Eligibility: the type has SOME way to read text (P0b). Wider than `embeds` —
  *  a PDF is eligible and still declines on garbage bytes.
  *
- *  Asked of core, which owns the text-source strategy. It used to be
- *  `EXTRACTORS[strategy] !== null`, which was true but was a second statement of
- *  `strategy !== 'none'`, answered by resolving an implementation to learn a fact
- *  about a media type. */
+ *  Asked of core, which owns the text-source strategy: resolving an extractor
+ *  implementation to learn a fact about a media type would be a second
+ *  statement of `strategy !== 'none'`. */
 const eligible = (mediaType: string) => textSourceOf(mediaType) !== 'none';
 
 // Pools by behavioral outcome: decodable types embed; the rest (binary
@@ -407,11 +398,11 @@ describe('P0 — pure laws', () => {
   });
 
   // P0b (FOPL): ∀ m ∈ M: eligible(m) ⇔ extraction(m) ≠ 'none',
-  // with ∀ s: extraction("text/" ⧺ s) = decode — the registry gate never
-  // narrows the old text/* prefix gate (an unregistered text/* type falls
-  // back to decode), and the pdf tier joins ELIGIBILITY: an extractor
-  // exists. Eligibility is not success — a scanned/corrupt PDF is eligible
-  // and still declines at extraction (never mojibake).
+  // with ∀ s: extraction("text/" ⧺ s) = decode — the registry gate admits
+  // every text/* type (an unregistered one falls back to decode), and the
+  // pdf tier is ELIGIBLE: an extractor exists. Eligibility is not success —
+  // a scanned/corrupt PDF is eligible and still declines at extraction
+  // (never mojibake).
   it('P0b: eligibility is exactly "an extractor exists for the strategy"', () => {
     fc.assert(
       fc.property(fc.string({ maxLength: 20 }).map((s) => `text/${s}`), (mt) => {
@@ -420,7 +411,7 @@ describe('P0 — pure laws', () => {
       }),
       { numRuns: 500 },
     );
-    expect(eligible('application/json')).toBe(true);        // structured text joins the old gate
+    expect(eligible('application/json')).toBe(true);        // structured text outside text/*
     expect(eligible('text/x-foo')).toBe(true);              // registry-miss text/* (RFC 2046 fallback)
     expect(eligible('application/zip')).toBe(false);        // binary stays out — no extractor
     expect(eligible('application/octet-stream')).toBe(false);
@@ -500,7 +491,7 @@ describe('Smelter axioms', () => {
   // Quantified over WELL-TYPED payloads: the body's own fields vary — `format`
   // and `contentChecksum` among them, the two a careless change would reach
   // for — while the embedding must still come from the transport's bytes (S12).
-  // A body the type forbids is unrepresentable, so it is no longer a case.
+  // A body the type forbids is unrepresentable, so it is not a case.
   it('S5: payload contents do not influence resource embedding', async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -856,11 +847,11 @@ describe('Smelter axioms', () => {
   // geometry(media(r)):
   //   artifact(r) exists
   // — and the re-anchor path never invokes the embedding provider (re-anchor
-  // ≠ re-embed; extraction is its only cost). S12 closed content staleness,
-  // S13 its metadata sibling; S15 closes the DERIVED-ARTIFACT sibling: the
-  // artifact store is transient while the vector stamps persist, so after a
-  // restart the checksum diff sees nothing to do and a lost map stayed lost,
-  // permanently.
+  // ≠ re-embed; extraction is its only cost). S12 covers content staleness,
+  // S13 its metadata sibling; S15 the DERIVED-ARTIFACT sibling: the artifact
+  // store is transient while the vector stamps persist, so after a restart
+  // the checksum diff alone sees nothing to do and a lost map would stay
+  // lost, permanently.
   it('S15: reconcile re-derives lost anchored-text artifacts without re-embedding', async () => {
     // Artifacts are checksum-keyed, and content addressing dedupes:
     // identical bytes under two resources are ONE artifact. Per-resource loss

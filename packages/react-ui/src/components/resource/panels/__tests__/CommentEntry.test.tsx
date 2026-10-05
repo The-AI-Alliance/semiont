@@ -517,8 +517,6 @@ describe('CommentEntry Component', () => {
     });
   });
 
-  // Ref Management tests removed - CommentEntry uses forwardRef but doesn't emit ref-update events
-
   describe('Styling and Appearance', () => {
     it('should have proper border and padding styles', () => {
       const { container } = renderWithProviders(<CommentEntry session={session} {...defaultProps} />);

@@ -84,8 +84,8 @@ function UnauthenticatedKnowledgeLayout() {
   // and Settings (works without a session). Everything else a previous visit
   // persisted is a dead end here — Account renders a "sign in first" notice,
   // and a RESOURCE panel (annotations/info/history/…) renders NOTHING at all:
-  // ToolbarPanels hides its container for non-common panels, which left the
-  // shell panel-less while its own message said to use the Knowledge Base
+  // ToolbarPanels hides its container for non-common panels, which leaves the
+  // shell panel-less while its own message says to use the Knowledge Base
   // panel. Redirect every non-viable panel to the one we are pointing at.
   // Decided once, not reactively: a deliberate click on Account while signed
   // out should still show its message, not snap away.
@@ -174,6 +174,6 @@ function KnowledgeLayoutBody() {
 
 export default function KnowledgeLayout() {
   // AuthShell is mounted by the parent ProtectedLayout in App.tsx so it
-  // survives navigation between know/, admin/, and moderate/ sections.
+  // survives navigation between the know/ and moderate/ sections.
   return <KnowledgeLayoutBody />;
 }

@@ -1,12 +1,11 @@
 #!/usr/bin/env tsx
 /**
- * Throwaway migration script: strip legacy chain-integrity fields from
+ * Throwaway migration script: strip chain-integrity fields from
  * persisted event metadata.
  *
  * Removes `metadata.checksum` and `metadata.prevEventHash` from every event
- * in every .jsonl file under <stateDir>/events/.  These fields were written
- * by the old in-event hash chain implementation, which has been replaced by
- * git-level integrity.
+ * in every .jsonl file under <stateDir>/events/.  They are an in-event hash
+ * chain that nothing writes or reads: integrity is git's.
  *
  * Usage:
  *   npx tsx scripts/migrate-strip-chain-metadata.ts /path/to/.semiont

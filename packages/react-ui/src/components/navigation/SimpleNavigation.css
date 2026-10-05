@@ -1,8 +1,5 @@
 /**
  * SimpleNavigation
- *
- * Swept 2026-09-24: the component has rendered `.semiont-simple-nav` since
- * #401 moved this package off Tailwind, with no rule behind it.
  */
 
 .semiont-simple-nav {

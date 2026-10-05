@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Audit: no fire-and-forget bus emitter typed `Promise<void>` in the SDK namespaces (X5).
 #
-# Fire-and-forget collaboration signals (beckon.hover, mark.changeShape, browse.click,
+# Fire-and-forget collaboration signals (beckon.hover, mark.request, browse.click,
 # bind.initiate, …) return `void` — they fire onto the bus synchronously and are
 # observed by other participants. A `Promise<void>` return implies the caller awaits a
 # real gateway ack, so it is reserved for *atomic gateway ops* that genuinely await a
@@ -11,7 +11,7 @@ set -euo pipefail
 #
 # This check flags any `Promise<void>` namespace method NOT in the ack allowlist, so a
 # reviewer consciously decides: real ack (add to the allowlist below) or fire-and-forget
-# signal (make it `void`). It is a thin regression speed-bump — every current match is a
+# signal (make it `void`). It is a thin speed-bump — every match is a
 # legitimate awaiting op, so the live target set is empty; its job is to keep it that way.
 #
 # A deliberate THIRD shape exists outside this gate's grep: the beckon wire drives
@@ -44,7 +44,7 @@ if [ -n "$VIOLATIONS" ]; then
   echo "$VIOLATIONS"
   echo ""
   echo "If this is a fire-and-forget bus emitter, return \`void\` (not Promise<void>) — see"
-  echo "beckon.hover / mark.changeShape. If it genuinely awaits a gateway ack, add its method"
+  echo "beckon.hover / mark.request. If it genuinely awaits a gateway ack, add its method"
   echo "name to ACK_ALLOWLIST in this script."
   exit 1
 fi

@@ -70,7 +70,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       createReference: 'Create Reference',
       annotating: 'Annotating...',
       // The widget's own strings come from the
-      // AssistProgress namespace now, not from this panel's.
+      // AssistProgress namespace, not from this panel's.
       inProgress: 'Annotating...',
       complete: 'Annotation complete!',
       failed: 'Annotation failed',
@@ -184,7 +184,7 @@ describe('ReferencesPanel Component', () => {
   // Entity types are optional on a reference, but `MarkSubmitEvent.body` is
   // `minItems: 1` — so "no types selected" must OMIT body, not send `[]`.
   // Sending `[]` 400s at /bus/emit, and `mark.submit` is fire-and-forget, so
-  // the failure is silent: the button looks inert. Found live 2026-08-24.
+  // the failure is silent: the button looks inert.
   describe('Create Reference payload', () => {
     const pendingLinking = {
       motivation: 'linking' as const,
@@ -495,9 +495,9 @@ describe('ReferencesPanel Component', () => {
 
     it('renders the entity log with the SAME markup the progress display uses', () => {
       // This form-side log and AssistProgress's completed-entity log are the
-      // same concept. They had two class families
-      // (semiont-assist-widget__log* here, semiont-annotation-log* there) one
-      // panel apart — one concept, one markup.
+      // same concept, so both use the semiont-annotation-log* classes and
+      // neither has a semiont-assist-widget__log* family of its own — one
+      // concept, one markup.
       const { container, rerender } = renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
@@ -866,7 +866,7 @@ describe('ReferencesPanel Component', () => {
     it('should have title without emoji', () => {
       renderWithEventBus(<ReferencesPanel {...panelProps()} />);
 
-      // The emoji is no longer in the title (it's only in the tab now)
+      // The emoji is not in the title (it is only in the tab)
       const title = screen.getByRole('heading', { level: 2 });
       expect(title.textContent).not.toContain('🔵');
       expect(title.textContent).toContain('title');

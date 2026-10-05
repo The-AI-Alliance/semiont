@@ -1,18 +1,3 @@
 {
-  "bypassed": [
-    {
-      "file": "src/components/annotation/__tests__/AnnotationList.test.tsx",
-      "reason": "Exception - legacy component pending refactor",
-      "issue": "Mocks AnnotateToolbar for testing",
-      "ticketUrl": "",
-      "addedDate": "2026-02-14"
-    },
-    {
-      "file": "src/components/markdown/__tests__/MarkdownRenderer.test.tsx",
-      "reason": "Exception - legacy component pending refactor",
-      "issue": "Mocks AnnotateToolbar for testing",
-      "ticketUrl": "",
-      "addedDate": "2026-02-14"
-    }
-  ]
+  "bypassed": []
 }

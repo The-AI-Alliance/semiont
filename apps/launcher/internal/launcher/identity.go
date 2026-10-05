@@ -90,18 +90,15 @@ func identityEndpoint(rp rolePlan) string {
 	return fmt.Sprintf("http://localhost:%d%s", rp.Port, issuerPath(rp.Issuer))
 }
 
-// serviceClients: every process that PRESENTS a token to another Semiont
-// service, and so needs an account at the realm.
-//
-// The gateway is among them, which it was not at first. The argument for
-// leaving it out — "it verifies tokens, it never presents one" — was true of
-// the agent exchange and false in general: the gateway dials the Archivist for
-// content, events and the working tree's branch, and has to prove who it is
-// like anyone else.
 // serviceClients: the realm's view of `stackServices` — every process that
-// presents a token to another Semiont service, and so needs an account. The
+// PRESENTS a token to another Semiont service, and so needs an account. The
 // Browser presents none: it is a viewer, and the only one of ours without an
 // account.
+//
+// The gateway is among them. "It verifies tokens, it never presents one" is
+// true of the agent exchange and false in general: the gateway dials the
+// Archivist for content, events and the working tree's branch, and has to
+// prove who it is like anyone else.
 //
 // Sorted, which is the only thing that differs from stackServices: the
 // rendered realm document is compared against a golden, and alphabetical is
@@ -195,23 +192,6 @@ func serviceAccountClient(svc, secret, audience string) map[string]any {
 	}
 }
 
-// keycloakRealmJSON renders the realm Keycloak imports on FIRST BOOT: the
-// realm itself, two public clients — the Browser's (authorization code
-// with PKCE) and the launcher's (the device grant) — each with an audience
-// mapper that stamps the gateway's client id into every access token, the
-// value the gateway's verifier checks.
-//
-// Import SKIPS a realm that already exists, so a second start changes nothing —
-// including the values here. A deployment whose realm predates a change to this
-// function keeps the settings it was created with; `semiont identity sync`
-// reconciles clients, roles, redirect URIs and lifetime, and the rest is a
-// console or admin-API job, not a restart.
-// browserClient / cliClient: the two PUBLIC registrations, rendered once so
-// the realm import and `semiont identity sync` cannot disagree about them.
-// They were inline in keycloakRealmJSON until sync needed to reconcile the
-// same fields; a second copy there would have been a mirror of the realm
-// document, and the loopback rule below is exactly the kind of detail a
-// second copy loses.
 // natsConfPath: where the staged broker config is mounted. Fixed, so the plan
 // can name it without knowing where the launcher staged the file.
 const natsConfPath = "/etc/nats/semiont.conf"
@@ -236,6 +216,10 @@ authorization {
 `)
 }
 
+// browserClient / cliClient: the two PUBLIC registrations, rendered once so
+// the realm import and `semiont identity sync` cannot disagree about them: a
+// second copy for sync would be a mirror of the realm document, and the
+// loopback rule below is exactly the kind of detail a second copy loses.
 func browserClient(audience, addr string, browserPort int) map[string]any {
 	c := publicClient(BrowserClientID, "Semiont Browser", audience)
 	c["standardFlowEnabled"] = true
@@ -282,11 +266,11 @@ func browserRedirectUris(addr string) []string {
 // no `Access-Control-Allow-Origin` header at all.
 //
 // That is why `webOrigins: ["+"]` — "derive these from the redirect URIs" — is
-// wrong here. It coupled the two, so making the loopback redirects portless
-// (which the redirect leg needs) silently reduced the CORS set to
-// `http://localhost` on port 80, and the Browser's real origin was in no set at
+// wrong here. It couples the two, so making the loopback redirects portless
+// (which the redirect leg needs) silently reduces the CORS set to
+// `http://localhost` on port 80, and the Browser's real origin is in no set at
 // all. The SPA does its PKCE token exchange client-side, cross-origin to the
-// issuer, so that POST was rejected and sign-in died as `error=Verification`.
+// issuer, so that POST is rejected and sign-in dies as `error=Verification`.
 //
 // The port is the Browser's configured one, so `--port` moves the origin with
 // it. A realm imports once and pins the port it was created with; `semiont
@@ -343,6 +327,18 @@ func cliClient(audience string) map[string]any {
 	return c
 }
 
+// keycloakRealmJSON renders the realm Keycloak imports on FIRST BOOT: the
+// realm itself, two public clients — the Browser's (authorization code
+// with PKCE) and the launcher's (the device grant) — and a service account
+// for each of serviceClients, every one with an audience mapper that stamps
+// audience, the KB's resource identifier, into every access token: the value
+// the gateway's verifier checks.
+//
+// Import SKIPS a realm that already exists, so a second start changes nothing —
+// including the values here. A deployment whose realm predates a change to this
+// function keeps the settings it was created with; `semiont identity sync`
+// reconciles clients, roles, redirect URIs, web origins and lifetime, and the
+// rest is a console or admin-API job, not a restart.
 func keycloakRealmJSON(realm, audience, addr string, browserPort, accessTokenLifespan int, sidecarSecrets map[string]string) []byte {
 	browser := browserClient(audience, addr, browserPort)
 	cli := cliClient(audience)
@@ -388,7 +384,7 @@ func keycloakRealmJSON(realm, audience, addr string, browserPort, accessTokenLif
 // "Mary Jane" and "van der Berg" wrong. Nobody here is willing to guess, so
 // the person says.
 //
-// This is Keycloak's own default written out, so it changes nothing today. It is
+// This is Keycloak's own default written out. It is
 // pinned for the reason keycloakAccessTokenLifespan is: inherited, the first-run
 // experience moves with a Keycloak upgrade and differs on any other issuer, with
 // no line to read back. An operator federating a different issuer owes Semiont
@@ -475,12 +471,6 @@ func masterRealmOverHTTP() []string {
 	}
 }
 
-// identityRunExtras: what a launched Keycloak needs beyond its plan row —
-// its database on the [database] PostgreSQL (created there when the launcher
-// runs that PostgreSQL), the realm file to import, and the bootstrap admin
-// password. The password is per root and persisted: Keycloak creates the
-// admin on its FIRST boot only, so a regenerated value would lock the
-// console out of a realm that already exists.
 // serviceClientSecrets: the per-root credential for every service client.
 // Resolved once per start — the realm import needs them, and so does the
 // preflight that checks the realm honoured them.
@@ -496,6 +486,12 @@ func serviceClientSecrets(x keeper, root string) (map[string]string, bool) {
 	return secrets, true
 }
 
+// identityRunExtras: what a launched Keycloak needs beyond its plan row —
+// its database on the [database] PostgreSQL (created there when the launcher
+// runs that PostgreSQL), the realm file to import, and the bootstrap admin
+// password. The password is per root and persisted: Keycloak creates the
+// admin on its FIRST boot only, so a regenerated value would lock the
+// console out of a realm that already exists.
 func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[string]string, string, bool) {
 	rp := fc.plan.Roles["identity"]
 	db := fc.plan.Roles["database"]

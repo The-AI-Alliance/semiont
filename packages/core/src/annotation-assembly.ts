@@ -100,8 +100,7 @@ export function validateSvgMarkup(svg: string): string | null {
  * Throws on invalid input (missing motivation, invalid SVG markup). The target
  * selector is OPTIONAL — a source-only target annotates the whole resource (W3C;
  * e.g. resource-level edges).
- */
-/**
+ *
  * `generator` is the one provenance fact an emitter may state: WHAT produced
  * the annotation (a software peer, carrying the model's parameters). Who asked
  * — `creator`, and `wasAttributedTo` — is never assembled here: the Stower

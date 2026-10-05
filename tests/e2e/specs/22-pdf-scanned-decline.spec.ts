@@ -3,9 +3,9 @@ import type { Page } from '@playwright/test';
 
 import { openResourceByName } from '../fixtures/discover';
 /**
- * A scanned PDF whose text cannot be recognized declines cleanly (#739/#746).
+ * A scanned PDF whose text cannot be recognized declines cleanly.
  *
- * The scanned path now runs for real: the worker reads the page's pixels and
+ * The worker reads a scanned page's pixels and
  * OCRs them rather than refusing outright. This spec pins the *other* outcome —
  * what happens when recognition genuinely comes up empty. Three things must
  * hold, and the third is the one that matters:
@@ -30,13 +30,13 @@ import { openResourceByName } from '../fixtures/discover';
  * operator-facing (extraction quality is logged, never stored on annotations),
  * and widening the protocol to make a test easier would be the wrong trade.
  *
- * This is not hypothetical. Two bugs on 2026-08-02 made every real scan take
- * the second path — `toRgb` rejecting JPEG-coded images, and `resolveImage`
- * hanging on a shared XObject — and this spec stayed green through both.
+ * A defect that sends every real scan down the second path — `toRgb`
+ * rejecting JPEG-coded images, say, or `resolveImage` hanging on a shared
+ * XObject — leaves this spec passing.
  *
  * "The engine actually ran" is pinned where it is observable, in
  * `@semiont/content`: `pdf-ocr.test.ts` asserts `recognizeImages` IS invoked
- * for a page that has an image, alongside the existing case asserting it is NOT
+ * for a page that has an image, alongside the case asserting it is NOT
  * invoked for a page that has none. Change either and this spec still passes.
  *
  * NOT covered here, deliberately: a scan OCR *can* read. That needs a genuine
@@ -96,8 +96,8 @@ test.describe('assisted detection on an unreadable scanned PDF', () => {
 
     // (1) the job COMPLETES rather than failing. Race the two so a genuine
     // failure surfaces with its message instead of a bare timeout (09's
-    // pattern). A decline is not an error — `job:fail` here would be a
-    // regression to the pre-#746 behavior of throwing on an unreadable page.
+    // pattern). A decline is not an error — `job:fail` here would mean the
+    // worker throws on an unreadable page.
     const completeOrFail = await Promise.race([
       bus.waitForRecv('job:complete', { timeout: 90_000 }).then((e) => ({ kind: 'complete' as const, entry: e })),
       bus.waitForRecv('job:fail', { timeout: 90_000 }).then((e) => ({ kind: 'fail' as const, entry: e })),

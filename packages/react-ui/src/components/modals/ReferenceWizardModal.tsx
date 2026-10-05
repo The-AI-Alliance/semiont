@@ -32,7 +32,7 @@ export interface ReferenceWizardModalProps {
   /**
    * Roster entry serving `generation`, forwarded to ConfigureGenerationStep so
    * the max-length control is bounded by the model's real output ceiling.
-   * Optional: absent means today's default bounds, never an error.
+   * Optional: absent means the default bounds, never an error.
    */
   generationAgent?: Collaborator;
   isOpen: boolean;
@@ -65,7 +65,7 @@ export interface ReferenceWizardModalProps {
   /**
    * Create-and-link, inside the modal: the host runs `yield.resource` then
    * `bind.body` and settles the promise; rejection keeps the modal open with
-   * the compose footer re-enabled. Replaces the old navigate-to-page flow.
+   * the compose footer re-enabled.
    */
   onComposeSubmit: (referenceId: AnnotationId, params: ComposeParams) => Promise<void>;
   /** Picker vocabulary for compose when the reference fixed no entity types. */
@@ -154,8 +154,7 @@ export function ReferenceWizardModal({
   const session = useObservable(useSemiont().activeSession$);
   const [wizardStep, setWizardStep] = useState<WizardStep>({ step: 'gather' });
   // Both step drafts live HERE, not in the steps. Stepping back unmounts a step;
-  // if the step owned its values, Back would silently discard everything typed —
-  // which is exactly what it used to do.
+  // if the step owned its values, Back would silently discard everything typed.
   const [searchConfig, setSearchConfig] = useState<SearchConfig>({ limit: 10, useSemanticScoring: true });
   const [generationDraft, setGenerationDraft] = useState<GenerationDraft>(
     () => freshGenerationDraft(defaultTitle, locale),
@@ -204,7 +203,7 @@ export function ReferenceWizardModal({
 
   // …and to failures, same scoping. A refused emit (/bus/emit 4xx), a matcher
   // error, and the match unit's timeout all land here — without this
-  // subscription every one of them left the button on "Searching…" forever.
+  // subscription every one of them leaves the button on "Searching…" forever.
   useEventSubscription('match:search-failed', (event) => {
     if (!isOpen) return;
     if (annotationId && event.referenceId === annotationId) {
@@ -220,16 +219,16 @@ export function ReferenceWizardModal({
   /**
    * The gather step's Hint, placed where the schema says it lives.
    *
-   * Two defects, one line. (1) Search and compose each built this inline and
-   * generation did not, so picking the AI path silently discarded what the user had
-   * typed — and then showed them an empty "Additional Instructions" box.
-   * (2) Both existing sites wrote `{ ...context, userHint }`, a TOP-LEVEL key
+   * Built ONCE, for search and generation alike: a path that builds its own
+   * context can leave the hint out, silently discarding what the user typed —
+   * and then showing them an empty "Additional Instructions" box. And under
+   * `focus`, never as `{ ...context, userHint }`: that is a TOP-LEVEL key
    * `GatheredContext` does not define; `GatheredContext.json` puts it at
    * `focus.userHint` ("hint to supplement or replace the selected text for search and
-   * generation"). So the hint was misplaced on every path, not just missing on one.
+   * generation").
    *
    * Both consumers read it: the matcher folds it into its search term and its
-   * LLM-scoring passage (matcher.ts, since #911), and generation's prompt builder
+   * LLM-scoring passage (matcher.ts), and generation's prompt builder
    * renders it in the annotation section (resource-generation.ts).
    */
   const contextWithHint = !context
@@ -362,8 +361,8 @@ export function ReferenceWizardModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              {/* Every step shows the evidence display now, so every step is
-                  wide and gets the gather layout (flex column, capped height). */}
+              {/* Every step shows the evidence display, so every step is wide
+                  and gets the gather layout (flex column, capped height). */}
               <DialogPanel className="semiont-search-modal__panel semiont-search-modal__panel--with-border semiont-search-modal__panel--gather semiont-search-modal__panel--wide">
                 <div className="semiont-search-modal__header">
                   <DialogTitle className="semiont-search-modal__title">

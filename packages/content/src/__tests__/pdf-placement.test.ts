@@ -1,5 +1,5 @@
 /**
- * Placement transform — where a page's image actually sits (#739).
+ * Placement transform — where a page's image actually sits.
  *
  * OCR returns boxes in image-pixel space; anchoring them needs the matrix
  * that placed the image on the page. Two things are tested separately here

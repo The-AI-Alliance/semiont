@@ -505,7 +505,7 @@
   padding-top: 0.25rem;
 }
 
-/* The evidence panes, graph and corpus — quiet lists under small-cap headers. */
+/* The evidence panes, graph and corpus — an SVG and a card list under small-cap headers. */
 .semiont-gather-pane {
   display: flex;
   flex-direction: column;
@@ -970,8 +970,6 @@
     max-width: 100%;
   }
 }
-
-/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
 
 /* The two gather panes differ only in what they hold; both fill their column. */
 .semiont-gather-pane--corpus,

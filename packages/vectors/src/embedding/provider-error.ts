@@ -1,10 +1,9 @@
 /**
  * An embedding provider's HTTP failure, carrying the status it came from.
  *
- * Both providers used to throw `new Error(\`… error ${status}: ${body}\`)`, which
- * put the status in the text and nowhere else — so no caller could branch on it
- * without matching a substring. That is the mirror this codebase refuses
- * elsewhere, and it is why a cold model cache was unclassifiable and therefore
+ * A plain `new Error(\`… error ${status}: ${body}\`)` would put the status in
+ * the text and nowhere else — so no caller could branch on it without matching
+ * a substring, and a cold model cache would be unclassifiable and therefore
  * fatal on every first boot of a fresh KB.
  *
  * One class for both providers so they agree by construction rather than by two
@@ -16,14 +15,14 @@ export type EmbeddingProviderName = 'ollama' | 'voyage';
 /**
  * Deadline on ONE embedding request — one round trip, never a whole batch.
  *
- * It was named `EMBED_TIMEOUT_MS` while `embedBatch` sent a resource's entire
- * chunk set as a single request, so this number silently bounded a whole book.
- * Slicing made the name true; the rename keeps it from drifting back.
+ * Named for the round trip so it cannot drift into bounding a batch: applied
+ * to a resource's entire chunk set sent as a single request, this number
+ * would silently bound a whole book.
  *
  * Without it a retry budget is a count with no wall clock: delays are bounded by
  * the policy, but a `fetch` with no signal can sit in TCP retransmit for minutes
- * under loss, so N attempts × unbounded is unbounded. `/bus/emit` learned this
- * already — the caller's deadline governs one attempt, the policy governs the set.
+ * under loss, so N attempts × unbounded is unbounded. `/bus/emit` follows the
+ * same rule — the caller's deadline governs one attempt, the policy governs the set.
  *
  * 15s rather than something tighter because Ollama can spend real time LOADING a
  * model into memory on the first embed after a pull lands. That is a success in
@@ -52,9 +51,8 @@ export class EmbeddingProviderError extends Error {
     body: string,
     slice?: { index: number; start: number; end: number },
   ) {
-    // The message keeps its old shape — status included — so existing log lines
-    // and anything matching on them read exactly as before. The fields are what
-    // is new; the prose is not a step backwards.
+    // The status is in the message as well as on the fields, so a log line
+    // reads on its own; callers branch on the fields.
     super(
       slice
         ? `${provider} embed error ${status} (slice ${slice.index}, texts ${slice.start}–${slice.end}): ${body}`
@@ -72,9 +70,9 @@ export class EmbeddingProviderError extends Error {
 /**
  * True when the model has not been pulled YET.
  *
- * The case `isTransientFetchError` did not anticipate, and deliberately does not
- * cover: its exclusion of HTTP-level failures is right for a gateway 401 — "the
- * server is UP and rejected us; retrying won't change its mind" — and wrong here.
+ * The case `isTransientFetchError` deliberately does not cover: its exclusion
+ * of HTTP-level failures is right for a gateway 401 — "the server is UP and
+ * rejected us; retrying won't change its mind" — and wrong here.
  * A cold-cache 404 means the server is up, the *resource* is not there yet, and
  * it will be. Do not widen `isTransientFetchError` to reach this; its narrowness
  * is load-bearing for the reasoning it already carries.
@@ -88,7 +86,7 @@ export class EmbeddingProviderError extends Error {
  *    "not yet" from "not there".
  *
  * It cannot tell "not pulled yet" from "the configured model name is wrong" —
- * both are a 404 and the provider says nothing more. That is accepted: a typo now
+ * both are a 404 and the provider says nothing more. That is accepted: a typo
  * fails after the retry budget instead of instantly, which is why the message on
  * exhaustion must name both possibilities.
  */

@@ -43,8 +43,7 @@ permissions:
 jobs:
   boot:
     runs-on: ubuntu-latest
-    # A ceiling, not an estimate: how long the build takes on a runner is
-    # measured by its first runs.
+    # A ceiling, not an estimate of how long the build takes on a runner.
     timeout-minutes: 90
     env:
       # The image tag the launcher boots: `local`, the images built below from

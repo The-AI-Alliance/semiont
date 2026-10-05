@@ -8,10 +8,9 @@ import (
 
 // useraddHint renders the "run this next" command a successful start prints.
 // Every such line is BUILT here rather than typed at the call site, because
-// the typed ones drifted: both summaries advertised `--admin` for as long as
-// that flag had been gone (roles went with the issuer), so a fresh install's
-// first instruction was a command useradd refuses. A flag that does not exist
-// cannot be spelled in one place any more.
+// typed ones drift: a summary advertising a flag useradd refuses makes a
+// fresh install's first instruction a command that fails. Built in one
+// place, a flag that does not exist cannot be spelled.
 func useraddHint(repo string) string {
 	cmd := "semiont useradd"
 	if repo != "" {
@@ -87,11 +86,11 @@ Examples:
 // realm's admin password lives in that machine's environment and never crosses
 // the wire.
 //
-// The password NEVER travels in argv. It used to ride into the container as an
-// env var (readable via `inspect` for the stack's whole lifetime); then as an
-// exec argument, redacted in the echo — but redaction is cosmetic: `ps` shows
-// any process's command line to every user on the host, and the caller's shell
-// wrote it to history besides. Now the launcher reads it (prompting on a
+// The password NEVER travels in argv, nor as a container env var. An env var
+// is readable via `inspect` for the stack's whole lifetime; an exec argument
+// can be redacted in the echo, but redaction is cosmetic: `ps` shows any
+// process's command line to every user on the host, and the caller's shell
+// writes it to history besides. The launcher reads it (prompting on a
 // terminal, else from stdin) and pipes it to `--password-stdin`, so it exists
 // only in two process memories and the pipe between them.
 func Useradd(args []string) int {
@@ -109,7 +108,7 @@ func Useradd(args []string) int {
 
 	// Every flag is READ here — the local path acts on them directly — and
 	// every flag but --repo and --runtime is also FORWARDED, because the
-	// codespace path still hands them to the gateway's bin. --repo and
+	// codespace path hands them to the codespace's own launcher. --repo and
 	// --runtime select a stack and never cross.
 	repo, wantLocal := "", false
 	generate, update, wantStdin := false, false, false
@@ -146,9 +145,9 @@ func Useradd(args []string) int {
 			i++
 			continue
 		case "--password":
-			// Removed, not deprecated. It put the secret in argv — visible in
-			// `ps` on the host and in the container, kept by the runtime's
-			// container record, and written to the caller's shell history.
+			// Refused: it puts the secret in argv — visible in `ps` on the
+			// host and in the container, kept by the runtime's container
+			// record, and written to the caller's shell history.
 			u.Fail("--password is no longer accepted: a password in argv is visible to every process on the host.")
 			fmt.Fprintln(os.Stderr, "  Let it prompt:   semiont useradd --email <email>")
 			fmt.Fprintln(os.Stderr, "  Or pipe it:      cat pw | semiont useradd --email <email>")
@@ -165,11 +164,9 @@ func Useradd(args []string) int {
 			o.stdin = true
 			continue // re-added below, exactly once
 		default:
-			// An unknown flag is REFUSED, not forwarded. The far end used to
-			// refuse it; now that this is the far end for a local stack,
-			// silently ignoring one would let `--admin` — which several
-			// documents still advertise and which grants nothing — look like
-			// it worked.
+			// An unknown flag is REFUSED, not forwarded: this is the far end
+			// for a local stack, and silently ignoring one would let
+			// `--admin` — which grants nothing — look like it worked.
 			if strings.HasPrefix(args[i], "--") {
 				u.Fail("Unknown flag: %s", args[i])
 				fmt.Fprintln(os.Stderr, "  See:  semiont useradd --help")
@@ -182,7 +179,7 @@ func Useradd(args []string) int {
 	// Asking for both a password and a generated one is a contradiction, and
 	// it must be REFUSED here: --password-stdin is stripped above and re-added
 	// only when a password is actually read, so forwarding alone would let the
-	// gateway's own mutual-exclusion check never see the pair — the user would
+	// far end's own mutual-exclusion check never see the pair — the user would
 	// silently get a generated password they did not ask to keep.
 	if generate && wantStdin {
 		u.Fail("--password-stdin and --generate-password are contradictory: one supplies a password, the other invents one.")
@@ -295,8 +292,8 @@ func useraddValidate(u *UI, o useraddOpts) bool {
 // — this machine neither holds it nor needs to.
 //
 // CRITICAL: `gh codespace ssh -- cmd` runs the remote side through a SHELL
-// (proven live — a `/workspaces/*` glob expands there, which is how the KB
-// root is reached). So every argument is single-quote escaped before it
+// (a `/workspaces/*` glob expands there, which is how the KB root is
+// reached). So every argument is single-quote escaped before it
 // crosses. The password is exempt by never being an argument: it goes down
 // ssh's stdin to `--password-stdin`.
 func useraddCodespace(u *UI, st *StackState, args []string, password string) int {

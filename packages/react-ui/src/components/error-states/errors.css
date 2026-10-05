@@ -23,8 +23,6 @@
   color: var(--semiont-color-error-light);
 }
 
-/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
-
 .semiont-error-state-resource {
   display: flex;
   flex-direction: column;

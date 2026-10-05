@@ -26,14 +26,14 @@ type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
  * Every GUI and SDK caller travels `mark:create-request` and is checked here.
  * The check is deliberately NOT on `mark:create`, which Stower consumes: that
  * channel is the fact-writing path, and gating it would need a leniency flag
- * for restore — the compatibility switch this placement exists to avoid.
+ * for any path that replays recorded facts — the compatibility switch this
+ * placement exists to avoid.
  *
- * The ungated channel's original second emitter, the TypeScript import/replay
- * path, was deleted on 2026-08-27 when export and import left TypeScript for
- * the launcher, so nothing travels the ungated channel today. The separation
- * is kept anyway — a restore that re-subjected historical facts to this gate
- * would be the 2026-07-09 "events are facts, commands are requests" ruling
- * undone.
+ * No such path travels `mark:create`: `semiont import` untars an
+ * archive and replays nothing through the event model, and the channel's
+ * other emitter, `AnnotationOperations.createAnnotation`, makes the same
+ * check itself. The separation holds regardless — events are facts, commands
+ * are requests, and a gate on requests never re-judges a recorded fact.
  */
 export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { views: Pick<ViewStorage, 'get'> }, parentLogger: Logger): void {
   const logger = parentLogger.child({ component: 'annotation-assembly' });

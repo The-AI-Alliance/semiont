@@ -67,9 +67,9 @@ export function trackList<T>(open: () => Observable<CacheState<T>>, empty: T): {
     subscription?.unsubscribe();
     // The cache speaks pending | ready | failed, so this collapses to
     // pattern-matching — and `failed` is an EMISSION, so the subscription
-    // never dies on error (the old dead-errored-observable hazard is
-    // structurally gone; retry() still re-attaches because a fresh
-    // subscription is what clears the failure marker and starts a new fetch).
+    // never dies on error (there is no dead errored observable to recover
+    // from; retry() re-attaches all the same, because a fresh subscription
+    // is what clears the failure marker and starts a new fetch).
     subscription = open().subscribe((st) => {
       switch (st.status) {
         case 'pending':

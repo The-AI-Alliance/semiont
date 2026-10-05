@@ -1,12 +1,11 @@
 /**
- * AssistProgress — the ONE job-progress renderer, unifying the three
- * previous shapes (AssistSection's inline block, AnnotateReferencesProgressWidget,
- * TaggingPanel's inline block) plus the resource-generate flow.
+ * AssistProgress — the ONE job-progress renderer, for every assist panel and
+ * the resource-generate flow.
  *
  * Contract: presentational and provider-free — no SemiontProvider, no session;
  * cancel/dismiss arrive as callbacks the caller wires (job.cancelRequest /
- * mark.dismissProgress). Feature blocks are data-presence-driven so each call
- * site keeps its current visuals by passing what it always had.
+ * mark.dismissProgress). Feature blocks are data-presence-driven: a call
+ * site gets a block by passing the data for it.
  *
  * i18n contract: every string this component
  * renders comes from `translations`. There are NO English fallbacks — a
@@ -22,20 +21,9 @@ import type { components } from '@semiont/core';
 import { AssistProgress, type AssistProgressTranslations } from '../AssistProgress';
 
 type JobProgress = components['schemas']['JobProgress'];
+type JobProgressMessage = components['schemas']['JobProgressMessage'];
 
 describe('AssistProgress', () => {
-  // Trimmed 2026-08-12, when the widget became one component with one status
-  // region, one control and a data-driven bar. Five tests were DELETED rather
-  // than adapted because they pinned surfaces that consolidation removes, and
-  // each has a successor in the consolidation block below:
-  //   • paramsTitle copy          → the params-line pin (label gone; line conditional)
-  //   • "title header only when given one" → A2 (the section header is the title)
-  //   • "cancel in the header / hidden once complete" → A3 ×2 (one control)
-  //   • "stage branching"          → A8 + A3-ended (no producer emits a
-  //                                  terminal stage; terminality is a prop)
-  //   • "percentage bar only when opted in" → A4 (a bar follows the data, not a flag)
-  // What survives here is what the consolidation does NOT change.
-
   it('renders provider-free — no session, no context, no providers', () => {
     // The embeddable contract: this must render standalone. If it ever reaches
     // for a provider, this throws rather than silently degrading.
@@ -107,7 +95,7 @@ describe('AssistProgress', () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The consolidated widget — one status region, one control, a data-driven bar.
-// The titles below state its axioms (A1–A5, A8).
+// The titles below state its axioms (A1–A5).
 //
 // These assert STRUCTURE, never copy: the wording ("Marking…", subject
 // beneath) was chosen by hand and it will be revised from use. A test pinned to
@@ -125,7 +113,7 @@ const T3 = (over: Partial<AssistProgressTranslations> = {}): AssistProgressTrans
     cancel: 'tr.cancel',
     close: 'tr.close',
     inProgress: 'tr.inProgress',
-    message: (m: any) => `tr.code(${m.code})`,
+    message: (m: JobProgressMessage) => `tr.code(${m.code})`,
     subject: (current: { kind: string; value: string }, done?: number, total?: number) =>
       done === undefined
         ? `tr.subject(${current.kind}:${current.value})`
@@ -147,11 +135,10 @@ const detecting = (over: Partial<JobProgress> = {}): JobProgress =>
 
 describe('AssistProgress — the consolidated widget', () => {
   it('A1: renders the subject exactly once for one progress event', () => {
-    // The defect: the status line and the detail line both called
-    // `currentLabel(currentEntityType)`. Once the wire carried a code instead
-    // of prose they produced the IDENTICAL string, which is why two tests here
-    // had to use getAllByText. Singular `getByText` throws on multiple
-    // matches — that IS the assertion.
+    // A status line and a detail line that both call
+    // `currentLabel(currentEntityType)` produce the IDENTICAL string, because
+    // the wire carries a code and not prose. Singular `getByText` throws on
+    // multiple matches — that IS the assertion.
     render(<AssistProgress progress={detecting()} dataType="reference" ended={false} translations={T3()} />);
 
     expect(screen.getByText(/tr\.subject\(entity-type:Person/)).toBeInTheDocument();
@@ -185,13 +172,13 @@ describe('AssistProgress — the consolidated widget', () => {
   });
 
   it('A3: the same single control means dismiss once the run has ENDED', async () => {
-    // Terminality is the owner's fact, arriving as a prop. The component
-    // never reads `progress.stage` — no producer emits a terminal stage.
+    // Terminality is the owner's fact, arriving as the `ended` prop: the
+    // component reads no terminal marker from the payload.
     const onCancel = vi.fn();
     const onDismiss = vi.fn();
     render(
       <AssistProgress
-        progress={detecting({ message: { code: 'complete-created', count: 7, kind: 'reference' } } as any)}
+        progress={detecting({ message: { code: 'complete-created', count: 7, kind: 'reference' } })}
         dataType="reference" ended
         onCancel={onCancel} onDismiss={onDismiss} translations={T3()}
       />,
@@ -211,11 +198,11 @@ describe('AssistProgress — the consolidated widget', () => {
     expect(screen.getByTestId(BAR)).toBeInTheDocument();
   });
 
-  it('A4: the TAG flow gets a bar from percentage alone — it sends no fraction', () => {
-    // The REAL tag shape. `processTagJob` emits percentage and nothing else:
-    // no currentCategory, no processed, no total. An
-    // earlier version of this test invented those fields and so "passed" while
-    // the tag flow had silently lost its bar (PR #1179 review).
+  it('A4: a tag frame carrying percentage alone still gets a bar — and no subject line', () => {
+    // The tag flow's `creating-tag-annotations` frame as `processTagJob` sends
+    // it: a percentage and a code, with no `current`, `processed` or `total`.
+    // A bar gated on the fraction would drop the tag flow's bar on this
+    // frame, so the fixture carries only what the producer sends.
     render(
       <AssistProgress ended={false}
         progress={{
@@ -231,10 +218,9 @@ describe('AssistProgress — the consolidated widget', () => {
   });
 
   it('A4: the bar is unconditional — percentage is required on every event', () => {
-    // Replaces a test that asserted "no bar when nothing fills it". That state
-    // is unreachable: `percentage` is a REQUIRED field on JobProgress, so there
-    // is always something to fill a bar with. Asserting an impossible case is
-    // how the tag regression hid.
+    // A "no bar when nothing fills it" state is unreachable: `percentage` is a
+    // REQUIRED field on JobProgress, so there is always something to fill a
+    // bar with.
     render(
       <AssistProgress ended={false}
         progress={{ percentage: 10, message: { code: 'loading' } } as JobProgress}
@@ -254,21 +240,6 @@ describe('AssistProgress — the consolidated widget', () => {
       .map((el) => el.textContent?.trim() ?? '')
       .filter((t) => t.length > 0 && !t.startsWith('tr.') && !/^[\s✨✅✓×✕()0-9/of]+$/.test(t));
     expect(stray).toEqual([]);
-  });
-
-  it('A8: renders no failure UI of its own — job:fail owns that surface', () => {
-    // The widget reads nothing from the payload's stage: `stage: 'error'` has
-    // no producer anywhere in the repo; failure reaches the user through
-    // useOutcomeToasts' job:fail handler. The widget must not resurrect a
-    // branch for a state it never sees.
-    render(
-      <AssistProgress ended={false}
-        progress={detecting({ stage: 'error' } as Partial<JobProgress>)}
-        dataType="reference" translations={T3()}
-      />,
-    );
-    // Still the ordinary running render — no special-cased error text.
-    expect(screen.getByTestId(STATUS).textContent).toContain('tr.code(detecting-entities)');
   });
 
   it('the outcome link renders only in the ended frame', async () => {

@@ -3,10 +3,9 @@
 /**
  * The one wizard footer: the only place the Back-and-primary markup exists.
  *
- * Four steps used to hand-build this markup, which is how four different footers
- * happened: three carried a `✕ Cancel` that duplicated the corner control, one had no
- * footer at all, and every button stretched to equal width so "leave" read as a peer of
- * "do the thing".
+ * Hand-built per step, the footers diverge: a `✕ Cancel` duplicating the corner
+ * control on some, no footer at all on another, and every button stretched to equal
+ * width so "leave" reads as a peer of "do the thing".
  *
  * The grammar:
  *   • Dismissal is NOT here. The corner ✕, Esc and the backdrop are the way out, and

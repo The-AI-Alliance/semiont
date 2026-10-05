@@ -13,8 +13,8 @@ single `console.debug` line in a grep-friendly format:
 ```
 
 The `trace=` suffix is present only when an OTel SDK is initialized in
-the process and a span is active when the line is emitted (Tier 2 of
-[Observability](../../../docs/operator/administration/OBSERVABILITY.md)). It's the
+the process and a span is active when the line is emitted (Tier 2, the
+traces of [Observability](../../../docs/operator/administration/OBSERVABILITY.md)). It's the
 first 8 hex of the W3C trace-id, so it correlates the grep timeline
 with the span tree in any APM UI.
 
@@ -23,7 +23,9 @@ Cost when disabled: a single truthy check, zero allocations.
 This is **Tier 1 of the three-tier observability stack** —
 correlation-ID discipline at the transport contract layer. Tier 2
 (OpenTelemetry spans) and Tier 3 (metrics + log correlation) reuse the
-same choke points.
+same choke points;
+[`@semiont/observability`](../../../packages/observability/README.md)
+lists the three.
 
 ## Choke points
 
@@ -40,7 +42,7 @@ over HTTP+SSE or stay in-process.
 | `RECV` | `LocalTransport.bridgeInto` subscriber callback              |
 | `EMIT` | Gateway `/bus/emit` HTTP route                               |
 | `SSE`  | Gateway `Connection::deliver` in `apps/gateway/src/routes/stream.rs`|
-| `PUT`  | `HttpContentTransport.putBinary()` + matching gateway route  |
+| `PUT`  | `HttpContentTransport.putBinary()`                           |
 | `GET`  | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching gateway route |
 | `GET`  | `LocalContentTransport.getBinary()` / `getBinaryStream()` (in-process)            |
 
@@ -85,11 +87,11 @@ With both flags on, opening a resource produces a contiguous timeline:
 [browser] [bus RECV] browse:resource-result    cid=a89a670a {correlationId, response}
 ```
 
-A worker generation that uploads new content adds a content pair:
+A worker generation that uploads new content adds a content line; the
+gateway writes none for an upload:
 
 ```
-[worker]  [bus PUT]  content size=14823 storageUri=...
-[gateway] [bus PUT]  content size=14823 storageUri=...
+[worker]  [bus PUT]  content {name, format, storageUri, sizeBytes}
 ```
 
 Failure modes — each obvious from a missing line:
@@ -97,9 +99,8 @@ Failure modes — each obvious from a missing line:
 | Missing line   | Diagnosis                                                          |
 |----------------|--------------------------------------------------------------------|
 | Gateway `EMIT` | Client never reached the server (auth, CORS, network).             |
-| Gateway `SSE`  | In-process handler never emitted a result, or no subscriber fired. |
+| Gateway `SSE`  | The answering service never emitted a result, or no stream was subscribed to it. |
 | Browser `RECV`| Gateway wrote to the SSE stream but bytes never parsed client-side.|
-| Gateway `PUT`  | Client started an upload but the body never reached the server.    |
 
 ## E2E capture API
 

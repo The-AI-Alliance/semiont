@@ -73,10 +73,9 @@ func namedByTheFake(s *scenario, pid string) (string, error) {
 }
 
 // A real runtime refuses to publish a port something else holds — Docker says
-// "port is already allocated" and exits 125. fakert used to report success
-// when its listener could not bind, because its readiness check only dialed
-// the port and the other holder answered (CI run 36800353204: every later
-// request of that test went to another test's server).
+// "port is already allocated" and exits 125. fakert does the same: a readiness
+// check that only dialed the port would be answered by the other holder, and
+// every later request of the test would go to another test's server.
 func TestFakeRuntimeRefusesAPortAlreadyHeld(t *testing.T) {
 	s := newScenario(t, "docker")
 	port := heldPort(t)
@@ -147,7 +146,7 @@ func TestForwardPidfileRecordsItsPort(t *testing.T) {
 	if len(lines) != 2 || strings.TrimSpace(lines[1]) != local {
 		t.Fatalf("forward pidfile %q does not record port %s", b, local)
 	}
-	// The fake still names the forward gh, which forwardAlive requires.
+	// The fake names the forward gh, which forwardAlive requires.
 	if name, err := namedByTheFake(s, strings.TrimSpace(lines[0])); err != nil || name != "gh" {
 		t.Errorf("the forward is named %q (%v), want gh", name, err)
 	}
@@ -158,9 +157,8 @@ func TestForwardPidfileRecordsItsPort(t *testing.T) {
 }
 
 // A published port needs a name: the name is how fakert knows which image's
-// routes to serve, and without one its listener died before binding while
-// `run -d` reported a container running. It refuses, as it refuses every
-// invocation it cannot model, and leaves nothing listening.
+// routes to serve, and without one it has none. It refuses, as it refuses
+// every invocation it cannot model, and leaves nothing listening.
 func TestUnnamedRunWithAPortIsRefused(t *testing.T) {
 	s := newScenario(t, "docker")
 	port := freePort(t)
@@ -175,8 +173,8 @@ func TestUnnamedRunWithAPortIsRefused(t *testing.T) {
 	}
 }
 
-// A listener that cannot start says why, and the run fails: before, `run -d`
-// reported a running container whatever happened to its listener.
+// A listener that cannot start says why, and the run fails rather than
+// reporting a running container.
 func TestServeThatCannotStartFailsTheRun(t *testing.T) {
 	s := newScenario(t, "docker")
 	port := freePort(t)
@@ -191,10 +189,10 @@ func TestServeThatCannotStartFailsTheRun(t *testing.T) {
 }
 
 // The fake gateway survives concurrent requests. `status` asks three limits
-// operations at once, and the fake counted bearer uses in an unguarded map: Go
-// kills a process on concurrent map writes, so the gateway died mid-status and
-// every call after it failed fast — no ceilings, and a session reported as
-// "stack not reachable" (CI runs 36800353204 and 36951774369).
+// operations at once, and the fake counts bearer uses in a map: Go kills a
+// process on concurrent map writes, so an unguarded one would take the gateway
+// down mid-status and fail every call after it — no ceilings, and a session
+// reported as "stack not reachable".
 func TestFakeGatewaySurvivesConcurrentRequests(t *testing.T) {
 	s := newScenario(t, "docker")
 	port := freePort(t)

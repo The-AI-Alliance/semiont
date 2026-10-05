@@ -11,19 +11,18 @@
 import type { EventName, EmittableChannel } from './bus-protocol';
 
 /**
- * BUS_OPERATIONS — the request/reply operations registry (Tier 1).
+ * BUS_OPERATIONS — the request/reply operations registry.
  *
- * Each entry declares ONE operation as the triple that was previously three
- * loose, independently-maintained facts spread across call sites:
+ * Each entry declares ONE operation as a triple, so its three facts are
+ * stated together rather than maintained independently across call sites:
  *   - the request channel (the key — an `EmittableChannel`),
  *   - the `result` channel (success reply),
  *   - and the `failure` channel.
  *
  * `BridgedChannel` / `BRIDGED_CHANNELS` are DERIVED from this map
  * (bridged-channels.ts): every reply lands in the bridged fan-in set by
- * construction, so "a reply channel forgotten from BRIDGED_CHANNELS" — the
- * recurring bug class (gather:resource-complete, frame:*-add-failed) — is no
- * longer representable.
+ * construction, so "a reply channel forgotten from BRIDGED_CHANNELS" is not
+ * representable.
  *
  * `Partial<Record<EmittableChannel, …>>` enforces that every key is a real
  * emittable request. `result`/`failure` stay `EventName` rather than
@@ -53,7 +52,7 @@ export const BUS_OPERATIONS = {
   'browse:agents-requested':             { result: 'browse:agents-result',           failure: 'browse:agents-failed' },
   'browse:kb-requested':                 { result: 'browse:kb-result',               failure: 'browse:kb-failed' },
   'browse:directory-requested':          { result: 'browse:directory-result',        failure: 'browse:directory-failed' },
-  // dormant — gateway handler complete, no client caller yet (annotation-detail capability)
+  // dormant — handler registered, no client caller (annotation-detail capability)
   'browse:annotation-context-requested': { result: 'browse:annotation-context-result', failure: 'browse:annotation-context-failed' },
 
   // ── FRAME (KB schema writes) ────────────────────────────────────
@@ -63,7 +62,7 @@ export const BUS_OPERATIONS = {
   // ── GATHER ──────────────────────────────────────────────────────
   'gather:requested':                    { result: 'gather:complete',                failure: 'gather:failed' },
   'gather:resource-requested':           { result: 'gather:resource-complete',       failure: 'gather:resource-failed' },
-  // dormant — gateway handler complete, no client caller yet (annotation summary)
+  // dormant — handler registered, no client caller (annotation summary)
   'gather:summary-requested':            { result: 'gather:summary-result',          failure: 'gather:summary-failed' },
   'gather:limits-requested':             { result: 'gather:limits-result',           failure: 'gather:limits-failed' },
 
@@ -97,11 +96,11 @@ export const BUS_OPERATIONS = {
   'smelt:rebuild-anchors':               { result: 'smelt:rebuild-anchors-ok',       failure: 'smelt:rebuild-anchors-failed' },
 
   // ── YIELD ───────────────────────────────────────────────────────
-  // ResourceOperations issues it via busRequest, in process or over the plane; the
-  // client also .on()-subscribes -ok for cache invalidation
+  // ResourceOperations issues it via busRequest, in process beside the Stower;
+  // clients refresh on the persisted `yield:created`, never on the -ok reply
   'yield:create':                        { result: 'yield:create-ok',                failure: 'yield:create-failed' },
   'yield:clone-persist':                 { result: 'yield:clone-persist-ok',         failure: 'yield:clone-persist-failed' },
-  // dormant — handler in stower exists, no request emitter; client pre-subscribes -ok
+  // dormant — handler in stower exists, no request emitter
   'yield:update':                        { result: 'yield:update-ok',                failure: 'yield:update-failed' },
   'yield:clone-create':                  { result: 'yield:clone-created',            failure: 'yield:clone-create-failed' },
   'yield:clone-resource-requested':      { result: 'yield:clone-resource-result',    failure: 'yield:clone-resource-failed' },

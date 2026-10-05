@@ -4,8 +4,8 @@
  * Two provider shapes (per @semiont/inference interface.ts): shared window
  * (Ollama publishes maxOutputTokens === contextTokens) splits the post-
  * scaffold window input:output = 1:2; separate ceilings (Anthropic) give
- * output its full ceiling and input the rest. Document content never enters
- * the arithmetic.
+ * output its full ceiling and input at most half of it. Document content
+ * never enters the arithmetic.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -39,10 +39,9 @@ describe('deriveDetectionBudget', () => {
   it('gives output its full ceiling on separate-ceilings providers, and input at most HALF of it', () => {
     // Anthropic shape: 200K context, 64K output ceiling. Input is NOT "the
     // rest of the window": the 1:2 allocation policy applies to every shape.
-    // Measured 2026-09-02 (repro-real.log): a ~40K-token entity-dense chunk
-    // demanded MORE than the whole output budget — the model ground toward
-    // truncation for minutes or collapsed to []. Capacity-sized input plans
-    // calls whose honest answers cannot fit.
+    // A ~40K-token entity-dense chunk demands MORE than the whole output
+    // budget — the model grinds toward truncation for minutes or collapses
+    // to []. Capacity-sized input plans calls whose honest answers cannot fit.
     // Rate high enough that the duration cap is a no-op — this test pins the
     // ALLOCATION shape alone. (OMITTING the rate does not mean uncapped: it
     // means the assumed floor.)
@@ -95,8 +94,7 @@ describe('deriveDetectionBudget', () => {
 // follows expected call duration. The bound DERIVES end to end: the
 // provider SDK's own worst-case rate model (128K output tokens/hour — the
 // calculateNonstreamingTimeout constant, surfaced through limits()) times
-// our own 10-minute call bound. No hand-tuned cap; #1121's principle
-// extends to a second bound.
+// half our own 10-minute call bound. No hand-tuned cap.
 
 describe('deriveDetectionBudget — duration bound', () => {
   const anthropic1M = { contextTokens: 1_000_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 };
@@ -104,20 +102,20 @@ describe('deriveDetectionBudget — duration bound', () => {
   // the rate does not mean uncapped — it means the assumed floor.
   const anthropic1MUncapped = { contextTokens: 1_000_000, maxOutputTokens: 64_000, outputTokensPerHour: 3_600_000_000 };
 
-  it('caps per-call output at the provider rate × the inference bound', () => {
+  it('caps per-call output at the provider rate × half the inference bound', () => {
     const budget = deriveDetectionBudget(anthropic1M, 1_000, 1);
 
     expect(budget.outputBudget).toBe(Math.floor(128_000 * (INFERENCE_TIMEOUT_MS / 2) / 3_600_000));
   });
 
-  it('scales input by the same factor — ratio preserved, so a capacity-sized document now splits', () => {
+  it('scales input by the same factor — ratio preserved, so a capacity-sized document splits', () => {
     const uncapped = deriveDetectionBudget(anthropic1MUncapped, 1_000, 1);
     const capped = deriveDetectionBudget(anthropic1M, 1_000, 1);
 
     const factor = capped.outputBudget / uncapped.outputBudget;
     expect(capped.chunking.chunkSize).toBe(Math.floor(uncapped.chunking.chunkSize * factor));
-    // The point of the bound: a document sized to the old single-call budget
-    // no longer fits one call.
+    // The point of the bound: a document sized to the uncapped single-call
+    // budget does not fit one call.
     expect(uncapped.chunking.chunkSize).toBeGreaterThan(capped.chunking.chunkSize);
   });
 
@@ -129,14 +127,12 @@ describe('deriveDetectionBudget — duration bound', () => {
   });
 
   it('a rate-silent provider is duration-capped at the ASSUMED floor rate', () => {
-    // DELIBERATE FLIP of the old "Ollama stays capacity-governed" pin, on a
-    // live sweep's data: capacity-sizing handed a 262K-window model a 174K-token
-    // output budget, and a repetition loop then burned the full 10-minute
-    // guillotine as TRANSIENT — retried identically, three times over. The
-    // same loop under a duration-shaped cap dies in minutes as max_tokens →
-    // deterministic → subdividable, the useful failure. Rate-silent providers
-    // now get the consumer's own conservative floor (30 tok/s) instead of no
-    // bound at all.
+    // Capacity-sizing alone hands a 262K-window model a 174K-token output
+    // budget, and a repetition loop then burns the full 10-minute guillotine
+    // as TRANSIENT — retried identically. The same loop under a
+    // duration-shaped cap dies in minutes as max_tokens → deterministic →
+    // subdividable, the useful failure. So a rate-silent provider gets the
+    // consumer's own conservative floor (30 tok/s) instead of no bound at all.
     const shared = { contextTokens: 262_144, maxOutputTokens: 262_144 };
 
     const budget = deriveDetectionBudget(shared, 500, 1);
@@ -150,23 +146,22 @@ describe('deriveDetectionBudget — duration bound', () => {
     expect(budget.chunking.chunkSize).toBe(4_499);
   });
 
-  it('a published rate still wins over the assumed floor — Anthropic is untouched', () => {
+  it('a published rate wins over the assumed floor', () => {
     const anthropic = { contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 };
     const budget = deriveDetectionBudget(anthropic, 500, 1);
     expect(budget.outputBudget).toBe(Math.floor(128_000 * (INFERENCE_TIMEOUT_MS / 2) / 3_600_000));
   });
 });
 
-// ── Output-demand allocation (2026-09-02 live diagnosis) ──────────────
-// The separate-ceilings branch used to hand input the whole remaining
-// window on the assumption that detection output stays far below its
-// ceiling. Measured false: on a 1M-context model both DoD documents were
-// single-chunk (~40K tokens in), and the honest answer for entity-dense
-// prose EXCEEDED the entire duration-safe output budget — calls ground
-// silently toward max_tokens for 4-10+ minutes (killed by the 10-minute
-// bound as "stalls") or collapsed to the degenerate []. The shared-window
-// branch always encoded the truth: annotation JSON echoes each span plus
-// an envelope, so output needs the LARGER share. One policy, every shape.
+// ── Output-demand allocation ──────────────────────────────────────────
+// Handing separate-ceilings input the whole remaining window assumes
+// detection output stays far below its ceiling. Measured false: for
+// entity-dense prose (~40K tokens in) the honest answer EXCEEDS the entire
+// duration-safe output budget — calls grind silently toward max_tokens for
+// 4-10+ minutes (killed by the 10-minute bound as "stalls") or collapse to
+// the degenerate []. The shared-window split encodes the truth: annotation
+// JSON echoes each span plus an envelope, so output needs the LARGER share.
+// One policy, every shape.
 
 describe('deriveDetectionBudget — input never exceeds half the output budget', () => {
   it('clamps duration-scaled separate-ceilings input to outputBudget/2', () => {
@@ -200,8 +195,8 @@ describe('deriveDetectionBudget — input never exceeds half the output budget',
   it('scales input down by the number of entity types one call asks for — output demand is per type', () => {
     // A call listing K types demands roughly K types' worth of annotation
     // JSON from the same input, so the allocation divides by K. K=1 is the
-    // production shape today (the per-type loop); the formula stops
-    // silently assuming it.
+    // production shape (the per-type loop); the formula does not silently
+    // assume it.
     const anthropic1M = { contextTokens: 1_000_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 };
     const one = deriveDetectionBudget(anthropic1M, 1_000, 1);
     const three = deriveDetectionBudget(anthropic1M, 1_000, 3);
@@ -269,15 +264,13 @@ describe('callChunkSubdividing', () => {
     }
   });
 
-  it("an 'unknown'-stop unreadable response DESCENDS BY SIZE (ruled 2026-09-05)", async () => {
-    // DELIBERATE FLIP of the earlier hold (retryable, never subdivided), on
-    // exactly the evidence its pin demanded: this shape recurred live
-    // (Location, 1996 Review — 6,424 unparseable chars, done_reason absent, on
-    // a 4,460-char piece MID-DESCENT at depth 3, adjacent to max_tokens
-    // truncations that healed by subdividing), and the retryable-at-same-size
-    // alternative was measured as a deterministic 34 s burn. Size-floored like
-    // truncation — NOT depth-capped like timeouts: the live failure sat at
-    // depth 3, where a depth cap would refuse to descend and change nothing.
+  it("an 'unknown'-stop unreadable response DESCENDS BY SIZE", async () => {
+    // Size-shaped on the evidence: this shape appears on a 4,460-char piece
+    // MID-DESCENT at depth 3 (done_reason absent), adjacent to max_tokens
+    // truncations that heal by subdividing, and a retry at the same size is a
+    // deterministic 34 s burn. Size-floored like truncation — NOT
+    // depth-capped like timeouts: at depth 3 a depth cap would refuse to
+    // descend and change nothing.
     const calls: string[] = [];
     let first = true;
     const { items: result } = await callChunkSubdividing('reference', CHUNK, CHUNKING, async (piece) => {
@@ -306,13 +299,12 @@ describe('callChunkSubdividing', () => {
   });
 
   it('does NOT subdivide on failures size cannot fix — plain errors', async () => {
-    // `end_turn` unreadable was in this list until 2026-09-11 and moved out
-    // deliberately: one killed a 26-minute attempt at chunk 25 of 49 after 24
-    // clean rounds on the same prompt, so the malformation was content-driven
-    // and subdivision is the one lever that can change it. It is depth-capped
-    // rather than size-floored so a systematic malformation still fails fast —
-    // see the `end_turn` describe below. A plain error stays here: nothing
-    // about it says size, so nothing about size can fix it.
+    // `end_turn` unreadable is deliberately NOT in this list: its
+    // malformation is content-driven, and subdivision is the one lever that
+    // can change it. It is depth-capped rather than size-floored so a
+    // systematic malformation fails fast — see the `end_turn` describe
+    // below. A plain error belongs here: nothing about it says size, so
+    // nothing about size can fix it.
     for (const boom of [
       new Error('model exploded'),
     ]) {
@@ -395,9 +387,9 @@ describe('callChunkSubdividing', () => {
   // ── The verdict reaches the caller ──────────────────────────────────────
   //
   // The floor acceptance is the one place an under-report becomes RESULT
-  // rather than failure, and until now nothing above the subdivider could see
-  // it happen. The verdict records what remains unknown at the END — a
-  // collapse healed by descent reports nothing.
+  // rather than failure, and `onUnderReport` is how anything above the
+  // subdivider sees it happen. The verdict records what remains unknown at
+  // the END — a collapse healed by descent reports nothing.
   describe('floor-accepted under-reports reach the caller', () => {
     const verdictOf = (found: number, counted: number, pieceChars: number) =>
       ({ found, counted, pieceChars });
@@ -445,12 +437,12 @@ describe('callChunkSubdividing', () => {
     });
   });
 
-  // An `end_turn` unreadable response killed a 26-minute attempt at chunk 25 of
-  // 49 — the model FINISHED and emitted unparseable JSON, which was neither
-  // truncation nor `unknown`, so it escalated straight to job death and
-  // discarded ~24 successful rounds. It belongs with the other unreadables:
-  // at DETECTION_TEMPERATURE = 0 a same-size re-roll provably returns the
-  // identical response, so changing the INPUT is the only remedy that can work.
+  // An `end_turn` unreadable response — the model FINISHED and emitted
+  // unparseable JSON — is neither truncation nor `unknown`, and unsubdivided
+  // it escalates straight to job death. It belongs with the other
+  // unreadables: at DETECTION_TEMPERATURE = 0 a same-size re-roll provably
+  // returns the identical response, so changing the INPUT is the only remedy
+  // that can work.
   describe("an 'end_turn' unreadable response subdivides instead of killing the job", () => {
     it('descends and keeps the other pieces’ work', async () => {
       const calls: string[] = [];
@@ -508,11 +500,11 @@ describe('callChunkSubdividing', () => {
   });
 
   it('never re-runs a piece that cannot shrink — a no-op descent is the floor', async () => {
-    // Measured live: a 572-char piece "descended" through three depths — each
-    // re-chunk returned the identical piece, and at temperature 0 the
-    // identical call returned the identical verdict. Once a piece fits inside
-    // the smaller chunk size, descent changes nothing; it is AT its floor
-    // regardless of the arithmetic floor. Collapse there: one call, propagate.
+    // Once a piece fits inside the smaller chunk size, each re-chunk returns
+    // the identical piece, and at temperature 0 the identical call returns
+    // the identical verdict (measured: a 572-char piece "descending" through
+    // three depths). Descent changes nothing; it is AT its floor regardless
+    // of the arithmetic floor. Collapse there: one call, its salvage accepted.
     const boom = new YieldCollapseError('found 1 of 4 counted mentions', ['the-one-found'], { found: 1, counted: 4, pieceChars: 100 });
     const tiny = 'word '.repeat(20); // ~25 tokens — fits any half-size here
     const calls: string[] = [];
@@ -537,14 +529,13 @@ describe('callChunkSubdividing', () => {
     expect(calls).toHaveLength(2); // the call + its one re-roll
   });
 
-  it('at the size floor a collapse verdict ACCEPTS the salvage loudly — the unit survives (ruled 2026-09-05)', async () => {
-    // DELIBERATE FLIP of the original "fail the job" invariant, on a ruling
-    // after the first full Ollama run: one hostile ~530-char stretch had
-    // discarded ~20 chunks of good extraction, and at floor sizes the count's
-    // evidence is far below anything the probe validated. The flagged piece's
-    // SALVAGE — what extraction did find, every span write-time-verified —
-    // flows through with a loud warning instead of nuking the unit. No re-roll
-    // either way: the collapse is deterministic.
+  it('at the size floor a collapse verdict ACCEPTS the salvage loudly — the unit survives', async () => {
+    // Accepted rather than failing the job: failing lets one hostile
+    // ~530-char stretch discard ~20 chunks of good extraction, and at floor
+    // sizes the count's evidence is far below anything the probe validated.
+    // The flagged piece's SALVAGE — what extraction did find, every span
+    // write-time-verified — flows through with a loud warning instead of
+    // nuking the unit. No re-roll either way: the collapse is deterministic.
     const boom = new YieldCollapseError('found 1 of 4 counted mentions', ['salvaged-entity'], { found: 1, counted: 4, pieceChars: 400 });
     const small = 'a'.repeat(400);
     const calls: string[] = [];
@@ -581,8 +572,8 @@ describe('callChunkSubdividing', () => {
     // List-dense text (a register: every line several entities, each
     // echoing ~130 chars of context) honestly demands several times its
     // input in output — deeper than any fixed depth. Demand halves with
-    // each subdivision, so size-based descent terminates; the depth cap is
-    // for timeouts only.
+    // each subdivision, so size-based descent terminates; the depth cap does
+    // not apply to truncation.
     // Bigger scale than the shared fixture so the success threshold sits
     // BELOW the depth-2 quarter size (~4,000 chars here) but ABOVE the
     // overlap-derived size floor — only size-based descent can get there.
@@ -696,15 +687,15 @@ describe('callChunkSubdividing telemetry', () => {
     expect(records[1]).toMatchObject({ reroll: true, outcome: 'success' });
   });
 
-  it("records a collapse verdict as its own outcome — silent yield collapse finally has an in-band signal", async () => {
-    // The core complaint about the collapse was "no signal, nothing downstream
-    // can detect it". The verifier creates the signal; the telemetry must not
-    // collapse it into 'truncated' (which the DeterministicJobError
-    // inheritance would otherwise do) — the two are different facts.
-    // The floor ACCEPTS the flagged piece now (ruled 2026-09-05), so the run
-    // RESOLVES — but the call's own record still says 'collapsed': acceptance
-    // is a policy above the telemetry, and the metric is the durable trace of
-    // every under-report, accepted or not.
+  it("records a collapse verdict as its own outcome — silent yield collapse has an in-band signal", async () => {
+    // A collapse is otherwise silent: nothing downstream can detect it. The
+    // verifier creates the signal; the telemetry must not collapse it into
+    // 'truncated' (which the DeterministicJobError inheritance would
+    // otherwise do) — the two are different facts.
+    // The floor ACCEPTS the flagged piece, so the run RESOLVES — but the
+    // call's own record says 'collapsed': acceptance is a policy above the
+    // telemetry, and the metric is the durable trace of every under-report,
+    // accepted or not.
     const { items: result } = await callChunkSubdividing<string>('reference', 'a'.repeat(400), { chunkSize: 8, overlap: 16 }, async () => {
       throw new YieldCollapseError('found 3 of 50 counted mentions', [], { found: 3, counted: 50, pieceChars: 100 });
     });

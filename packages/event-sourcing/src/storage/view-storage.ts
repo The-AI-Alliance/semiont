@@ -91,10 +91,9 @@ export class FilesystemViewStorage implements ViewStorage {
       if (error.code === 'ENOENT') {
         return null;
       }
-      // Don't delete on SyntaxError — the old code unlinked the file,
-      // which turned a transient race (read-during-write with the
-      // pre-atomic `fs.writeFile`) into a permanent "view missing"
-      // that the next materializer write had to repair from scratch.
+      // Don't delete on SyntaxError — unlinking the file would turn a
+      // transient read-during-write into a permanent "view missing"
+      // that the next materializer write has to repair from scratch.
       // With atomic `rename` in `save`, SyntaxError should only fire
       // on genuine corruption; either way, the next incremental
       // update will overwrite the file with a good view, so we just

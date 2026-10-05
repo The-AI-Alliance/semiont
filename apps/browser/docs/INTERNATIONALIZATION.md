@@ -1,7 +1,5 @@
 # Internationalization (i18n) Guide
 
-**Last Updated**: 2026-03-29
-
 ## Overview
 
 The Browser uses **i18next** + **react-i18next** for internationalization.

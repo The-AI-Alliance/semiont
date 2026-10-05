@@ -4,8 +4,8 @@
  * The guard lives inside `runGeneration`'s producer, so every consumption of
  * the stream — `await`, `.run()`, and the yield state unit's `drive` — shares
  * it. Pins here:
- *  - silence past the deadline → `job:cancel-requested` (jobType generation)
- *    on the wire + a typed `GenerationStallError`
+ *  - silence past the deadline → `job:cancel-requested` (for the stalled
+ *    job's `jobId`) on the wire + a typed `GenerationStallError`
  *  - an event inside the window resets it; a terminal inside the window never
  *    cancels
  *  - the deadline derives from `maxTokens` (floor + per-token, ONE site) with
@@ -265,8 +265,8 @@ describe('generation stall guard', () => {
     await rejection;
     expect(cancelCount(emitSpy)).toBe(1);
 
-    // Wire hygiene (GWC discipline): the client-only knob is stripped before
-    // `job:create` — `params` is the WIRE's GenerationJobParams, nothing more.
+    // Wire hygiene: the client-only knob is stripped before `job:create` —
+    // `params` is the WIRE's GenerationJobParams, nothing more.
     const createCall = emitSpy.mock.calls.find(([ch]) => ch === 'job:create')!;
     expect((createCall[1] as { params: Record<string, unknown> }).params).not.toHaveProperty('stallDeadlineMs');
   });
@@ -287,8 +287,7 @@ describe('generation stall guard', () => {
 
     await vi.advanceTimersByTimeAsync(1_000);
     expect(cancelCount(emitSpy)).toBe(1);
-    // The unit surfaces the stall exactly as its old timeout did: display
-    // cleared, not generating.
+    // The unit surfaces the stall: display cleared, not generating.
     expect(gen[gen.length - 1]).toBe(false);
     expect(prog[prog.length - 1]).toBeNull();
 

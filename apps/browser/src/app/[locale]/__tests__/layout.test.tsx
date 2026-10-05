@@ -1,10 +1,9 @@
 /**
  * LocaleLayout Provider Boundary Tests
  *
- * Regression tests that assert the locale layout does NOT mount AuthShell.
- * The whole point of the AuthShell extraction is that pre-app routes
- * (landing, about, OAuth flow) don't mount the auth-failure modals or
- * protected error boundary.
+ * The locale layout does NOT mount AuthShell: pre-app routes (landing,
+ * OAuth flow) carry neither the session modals nor the protected error
+ * boundary.
  *
  * AuthShell is mocked as a marker; the test fails if the locale layout
  * renders it.

@@ -37,8 +37,8 @@ func SelectVerbStack(u *UI, verb string, ss *StackSet, repo string, wantLocal bo
 	case repo != "":
 		return repoCodespaceStack(u, ss, repo)
 	// Standing in the clone whose stack is running: the cwd says "local" —
-	// demanding --runtime here made the user restate the prompt (same rule
-	// stop and start keep).
+	// demanding --runtime here would make the user restate the prompt (same
+	// rule stop and start keep).
 	case local != nil && local.KBRoot != "" && local.KBRoot == cwdRoot:
 	case local != nil && len(cs) == 0:
 	case local == nil && len(cs) == 1:
@@ -66,9 +66,9 @@ func SelectVerbStack(u *UI, verb string, ss *StackSet, repo string, wantLocal bo
 
 // repoCodespaceStack: the stack a --repo names — its record, or, on a miss,
 // the codespace GitHub says the repo has, adopted as start adopts it. THE
-// lookup for every --repo verb: five sites used to refuse a codespace that
-// start would have resumed. Adoption writes nothing; the verbs that change
-// the codespace or forward it (stop, status) record what they did.
+// lookup for every --repo verb, so none refuses a codespace that start would
+// resume. Adoption writes nothing; the verbs that change the codespace or
+// forward it (stop, status) record what they did.
 func repoCodespaceStack(u *UI, ss *StackSet, repo string) (*StackState, bool) {
 	if st := codespaceStack(ss, repo); st != nil {
 		return st, true

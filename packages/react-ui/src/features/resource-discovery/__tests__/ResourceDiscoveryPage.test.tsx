@@ -114,7 +114,7 @@ describe('ResourceDiscoveryPage', () => {
       expect(screen.queryByTestId(NOTICE)).toBeNull();
     });
 
-    it('renders exactly as today when the prop is absent', () => {
+    it('renders no notice when the prop is absent', () => {
       const props = createMockProps({
         searchQuery: 'cats',
         searchDocuments: [createMockResource('r1', 'All about cats')],
@@ -355,7 +355,7 @@ describe('ResourceDiscoveryPage', () => {
     });
 
     it('renders the recentDocuments prop as-is without applying any post-filter', () => {
-      // The component is now controlled — gateway filtering means
+      // The component is controlled — gateway filtering means
       // `recentDocuments` already contains only the resources matching the
       // active `selectedEntityType`. The component must not re-filter.
       const props = createMockProps({

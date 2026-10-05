@@ -1,9 +1,9 @@
 /**
  * The worker's stamped identity is the DID the `/api/tokens/agent` exchange
  * MINTED, carried verbatim — never re-derived from the URL the worker dials.
- * Pinned at the unit level: the
- * fixture dials 192.168.64.1 while the exchange mints did:web:kb.example —
- * pre-fix code stamped the dial host (one logical agent, two DIDs).
+ * Pinned at the unit level: the fixture dials 192.168.64.1 while the exchange
+ * mints did:web:kb.example — stamping the dial host would give one logical
+ * agent two DIDs.
  *
  * `worker-process` is module-mocked: the assertion seam is exactly what
  * `startAgentWorker` hands it as `generator`.
@@ -192,10 +192,10 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     ).rejects.toThrow(/semiont-worker.*401/);
   });
 
-  // The blip that used to be fatal: any momentary gateway unreachability
-  // at the instant the worker starts (gateway restart, container-network
-  // warm-up) threw `TypeError: fetch failed` straight out of main() and
-  // killed the process — with `--rm` and no restart policy, permanently.
+  // Without the retry, any momentary gateway unreachability at the instant
+  // the worker starts (gateway restart, container-network warm-up) throws
+  // `TypeError: fetch failed` straight out of main() and kills the process
+  // — with `--rm` and no restart policy, permanently.
   it('retries startup auth while the gateway is unreachable and succeeds once it comes up', async () => {
     // Reserve a port, then free it — the first attempts dial a closed port
     // and fail at the connection level, exactly like a gateway mid-restart.
@@ -345,7 +345,7 @@ describe('worker-runtime — health vitals', () => {
     };
 
     const first = buildHealthPayload([fakeWorker]);
-    // Additive: existing consumers keep reading status/agents.
+    // Consumers read status/agents.
     expect(first).toMatchObject({ status: 'ok', agents: 1 });
     expect(first.workers[0]!.lastQueuedEventAt).toBe('2026-07-17T00:00:00.000Z');
 
@@ -463,18 +463,15 @@ describe('worker-runtime — stall watchdog', () => {
   });
 });
 
-describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)', () => {
+describe('worker-runtime — narrowed SSE subscription', () => {
   it('WORKER_CHANNELS is exactly the manifest: awaited replies PLUS declared broadcasts', () => {
-    // The explicit pin survives the manifest change deliberately: growing a
-    // worker's subscription set must stay a conscious edit to a literal list,
-    // which is the OOM protection this test was written for (2026-09-03).
-    // What changed with the single manifest is only that the list now also
-    // names the broadcasts the worker consumes — `WORKER_CONSUMED_BROADCASTS` —
-    // which previously reached the set through `addChannels` calls at their
-    // use sites and so appeared in no list at all.
+    // An explicit pin, deliberately: growing a worker's subscription set must
+    // stay a conscious edit to a literal list — that is the OOM protection.
+    // The list names the broadcasts the worker consumes
+    // (`WORKER_CONSUMED_BROADCASTS`) as well as the reply channels.
     expect([...WORKER_CHANNELS].sort()).toEqual([
-      // Canonical-geometry consult replies — the pair whose absence killed
-      // every PDF detection job.
+      // Canonical-geometry consult replies — the pair without which every
+      // PDF detection job fails.
       'browse:anchored-text-failed',
       'browse:anchored-text-result',
       // The durability probe for a commit whose ack never routed. The
@@ -497,18 +494,18 @@ describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)'
       // and never answers — the gateway's handler replies for PENDING jobs,
       // the worker aborts for RUNNING ones. Two consumers, one contract.
       'job:cancel-requested',
-      // The queue announcement the claim adapter races for. Deleting its
-      // declaration idled every worker (2026-09-16).
+      // The queue announcement the claim adapter races for. Without its
+      // declaration every worker idles.
       'job:queued',
     ].sort());
   });
 
   it('every worker channel is a registry reply or a DECLARED broadcast — the manifest cannot drift', async () => {
-    // Same reason as before — the set cannot drift from the registry — with
-    // the one legitimate widening named. `job:cancel-requested` is NOT in
-    // BRIDGED_CHANNELS: it is an operation request channel, so it fails the
-    // old "must be bridged" form while being exactly what the worker means
-    // to consume. Anything outside both sets is drift.
+    // The set cannot drift from the registry, with the one legitimate
+    // widening named. `job:cancel-requested` is NOT in BRIDGED_CHANNELS: it
+    // is an operation request channel, so a plain "must be bridged" check
+    // would reject exactly what the worker means to consume. Anything
+    // outside both sets is drift.
     const { BRIDGED_CHANNELS, replyChannelsFor } = await import('@semiont/core');
     const replies = new Set<string>(replyChannelsFor(WORKER_AWAITED_OPERATIONS));
     const declared = new Set<string>(WORKER_CONSUMED_BROADCASTS);
@@ -518,11 +515,11 @@ describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)'
         `${channel} is neither an awaited reply nor a declared broadcast`,
       ).toBe(true);
     }
-    // The replies half still must be registry-bridged.
+    // The replies half must be registry-bridged.
     for (const channel of replies) expect(BRIDGED_CHANNELS).toContain(channel);
   });
 
-  it('the fat fan-out channels that OOMed the worker are NOT subscribed', () => {
+  it('the fat fan-out channels that OOM a worker are NOT subscribed', () => {
     expect(WORKER_CHANNELS).not.toContain('browse:annotations-result');
     expect(WORKER_CHANNELS).not.toContain('browse:resources-result');
   });

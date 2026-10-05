@@ -592,7 +592,7 @@ describe('MemoryGraphDatabase Implementation', () => {
       await db.createResource(resource2);
 
       // A reference with no entity tags at all — the default fixture carries
-      // one, which is why this case used to pass for the wrong reason.
+      // one, so the body is overridden empty.
       await db.createAnnotation(createTestReference(resource1['@id'], { body: [] }));
       await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id'], ['Person']));
 

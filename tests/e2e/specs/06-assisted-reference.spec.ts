@@ -18,20 +18,19 @@ import { openResourceByName } from '../fixtures/discover';
  *     → SSE → BrowseNamespace cache invalidation → references render.
  *
  * Two assertion levels:
- *   1. **Dispatch** (fast, original regression target): `job:create` →
+ *   1. **Dispatch** (fast): `job:create` →
  *      `job:created` — the chip-selected entity type reaches the wire.
  *   2. **Outcome**: after the assist runs, ≥1 reference annotation is
  *      **persisted** and survives a reload.
  *
- * Why the outcome assertion matters: the *previous* version of this spec
- * stopped at the dispatch pair, so a worker that silently dropped every
- * extracted entity (JSON parse failure → `return []`) still passed. This
- * spec is the system-level guard for that fix (structured output from the
- * model, and an unreadable extraction failing the job instead of returning
- * `[]`); the deterministic RED lives in the `@semiont/jobs` unit tests.
+ * Why the outcome assertion matters: the dispatch pair alone passes for a
+ * worker that silently drops every extracted entity (JSON parse failure →
+ * `return []`). This spec is the system-level guard (structured output from
+ * the model, and an unreadable extraction failing the job instead of returning
+ * `[]`); the deterministic one lives in the `@semiont/jobs` unit tests.
  *
  * Entity-type choice: **Concept**, not the "first chip" (= `Person`).
- * The seeded first resource (Photosynthesis) is Concept-dense, so the
+ * The seed this spec opens (Photosynthesis Overview) is Concept-dense, so the
  * extraction reliably yields references; Person/Location would
  * legitimately return zero on that doc and make the outcome flaky.
  *
@@ -41,14 +40,11 @@ test.describe('assisted reference detection', () => {
   test('selecting an entity type and clicking Annotate dispatches the job AND persists reference annotations', async ({ signedInPage: page, bus }) => {
     test.setTimeout(120_000);  // includes a real LLM entity-extraction round-trip
 
-    // Pin the Concept-dense TEXT seed BY NAME. Taking Discover's first card
-    // was data-order-dependent: Discover is newest-first, the seed adds two
-    // PDFs, and specs 09/16 push freshly generated resources to the top — so
-    // `.first()` could land on a PDF (no `.cm-content`, no Concept-dense prose)
-    // and the docstring's "the seeded first resource (Photosynthesis)"
-    // assumption would silently not hold. `.first()` still narrows the
-    // duplicate seeds the non-idempotent seeder accumulates. Same fix as
-    // spec 08; specs 14/20 pin their PDFs the same way.
+    // Pin the Concept-dense TEXT seed BY NAME. Discover's first card is
+    // data-order-dependent: Discover is newest-first, the seed adds PDFs,
+    // and specs 09/16 push freshly generated resources to the top — so
+    // `.first()` can land on a PDF (no `.cm-content`, no Concept-dense prose).
+    // Spec 08 pins its text seed, and specs 14/20 their PDFs, the same way.
     await openResourceByName(page, 'Photosynthesis Overview');
 
     // Baseline reference count — the KB accumulates across runs, so assert
@@ -104,8 +100,8 @@ test.describe('assisted reference detection', () => {
 
     // (2) Outcome — wait for the extracted references to actually persist
     // and render. Poll (rather than wait on a finish event) so we tolerate
-    // the LLM round-trip + SSE delivery latency. PRE-FIX this stayed at the
-    // baseline (silent drop → return []); that is the regression guarded.
+    // the LLM round-trip + SSE delivery latency. A worker that silently
+    // drops its extraction (→ return []) leaves this at the baseline.
     await expect
       .poll(async () => referenceEntries.count(), { timeout: 90_000 })
       .toBeGreaterThan(refsBefore);

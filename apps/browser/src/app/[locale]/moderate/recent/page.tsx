@@ -4,9 +4,6 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, useShellStateUnit, useObservable } from '@semiont/react-ui';
 import { RecentDocumentsPage } from '@semiont/react-ui';
 
-// Authentication is handled by middleware (proxy.ts)
-// Only authenticated moderators/admins can reach this page
-
 export default function RecentDocumentsPageWrapper() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`ModerateRecent.${k}`, p as any) as string;
@@ -20,7 +17,6 @@ export default function RecentDocumentsPageWrapper() {
 
   return (
     <RecentDocumentsPage
-      hasDocuments={false}
       isLoading={false}
       theme={theme}
       activePanel={activePanel}

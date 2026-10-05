@@ -19,11 +19,11 @@ const CTX_RES = resourceContextFor('res-1');
 const CTX_ANN = annotationContextFor('res-1', 'ann-1');
 
 /**
- * Mock transport whose `emit(channel, payload)` looks up a handler and
- * pushes the configured `{ correlationId, response }` onto its internal
- * bus, where `stream(resultChannel)` is observable. busRequest reads
- * results via `stream`; this lets tests script per-call request/response
- * round-trips without faking SSE.
+ * Mock transport whose `emit(channel, payload, envelope)` looks up a handler
+ * and pushes the configured `{ response }` onto its internal bus, in a frame
+ * whose envelope carries the request's `correlationId`. busRequest reads
+ * replies via `frames(resultChannel)` and matches on that envelope; this
+ * lets tests script per-call request/response round-trips without faking SSE.
  */
 function createMockTransport(
   responses: Record<string, (payload: Record<string, unknown>) => { resultChannel: string; response: Record<string, unknown> }> = {},
@@ -133,7 +133,7 @@ describe('MarkNamespace', () => {
     expect(mock.emitSpy).toHaveBeenCalledWith('mark:unarchive', expect.objectContaining({ resourceId: RID }), expect.objectContaining({ correlationId: expect.any(String) }));
   });
 
-  it('unarchive() REJECTS on mark:unarchive-failed (the former silent no-op now surfaces)', async () => {
+  it('unarchive() REJECTS on mark:unarchive-failed (a failure is never a silent no-op)', async () => {
     const mock = createMockTransport();
     const m = new MarkNamespace(mock.transport, eventBus);
     const assertion = expect(m.unarchive(RID)).rejects.toThrow(/file not found/);
@@ -268,9 +268,9 @@ describe('MarkNamespace', () => {
 
   // ── Cancelling ONE job ──────────────────────────────────────────────
   // `cancelByType` is category-wide; a UI cancelling one running detection
-  // needs to say WHICH. The gateway already targets by jobId — this is
-  // the missing client verb. Awaited, like its category sibling: the caller
-  // learns whether anything was cancelled.
+  // needs to say WHICH. The gateway targets by jobId — this is the client
+  // verb for it. Awaited, like its category sibling: the caller learns
+  // whether anything was cancelled.
 
   it('cancel(jobId) targets one job and resolves the cancelled count', async () => {
     const bus = new EventBus();
@@ -294,10 +294,11 @@ describe('MarkNamespace', () => {
 
   // ── A retryable failure is not the end ───────────────────────────────
   // The queue re-queues a transient failure while the budget has room, and
-  // the work continues on a fresh worker. A stream that ended on `job:fail`
-  // reported a RECOVERING run as a failed one — and the consumer never saw
-  // the completion that followed. `willRetry` (stamped by the worker from
-  // the same predicate the queue applies) is what separates the two.
+  // the work continues on a fresh worker. A stream that ended on every
+  // `job:fail` would report a RECOVERING run as a failed one — and the
+  // consumer would never see the completion that follows. `willRetry`
+  // (stamped by the worker from the same predicate the queue applies) is
+  // what separates the two.
 
   it('assist() survives a retryable failure and completes on the later terminal', async () => {
     const bus = new EventBus();
@@ -325,8 +326,8 @@ describe('MarkNamespace', () => {
     expect(errored).toBeNull();          // the run is not over
     expect(completed).toBe(false);
 
-    // Progress must keep flowing on the retried attempt, too — the old
-    // takeUntil(fail$) silenced it even when the stream survived.
+    // Progress must keep flowing on the retried attempt, too — a
+    // takeUntil(fail$) would silence it even when the stream survives.
     bus.emit('job:report-progress', {
       jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
       percentage: 20, progress: { percentage: 20 },
@@ -599,7 +600,7 @@ describe('JobNamespace', () => {
     expect(mock.emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'generation' }), expect.objectContaining({ correlationId: expect.any(String) }));
   });
 
-  it('cancelByType REJECTS on job:cancel-failed (queue error no longer swallowed)', async () => {
+  it('cancelByType REJECTS on job:cancel-failed (a queue error is not swallowed)', async () => {
     const mock = createMockTransport();
     const job = new JobNamespace(mock.transport, new EventBus());
     const assertion = expect(job.cancelByType('annotation')).rejects.toThrow(/queue down/);
@@ -867,10 +868,9 @@ describe('YieldNamespace', () => {
   });
 
   it('fromContext({ entityTypes }) carries entityTypes through into job:create params', () => {
-    // Regression. Before the fix the
-    // SDK silently dropped entityTypes between the GenerationOptions
-    // boundary and the bus payload, leaving synthesized resources
-    // un-stamped at schema-layer queries.
+    // entityTypes must survive from the GenerationOptions boundary to the
+    // bus payload: dropped there, synthesized resources go un-stamped at
+    // schema-layer queries.
     yld.fromContext(CTX_ANN, {
       title: 'T',
       storageUri: 'file://x',
@@ -967,7 +967,7 @@ describe('YieldNamespace', () => {
   });
 });
 
-// ── Late-rejection guards (commit e328794f) ────────────────────────────────
+// ── Late-rejection guards ──────────────────────────────────────────────────
 //
 // Four namespaces guard their `.catch` handlers against firing
 // `subscriber.error` on an already-closed subscriber:
@@ -1012,10 +1012,9 @@ function makeDeferredEmitTransport(emitPromise: Promise<unknown>): { transport: 
   return { transport, emitSpy, bus };
 }
 
-// Each test pins the late-rejection-after-unsubscribe path — the
-// guards added in e328794f. The converse (rejection while still
-// subscribed → error propagates) is already covered for gather/match
-// by the existing `gather:failed` / `match:search-failed` tests above;
+// Each test pins the late-rejection-after-unsubscribe path. The converse
+// (rejection while still subscribed → error propagates) is covered for
+// gather/match by the `gather:failed` / `match:search-failed` tests above;
 // mark/yield rely on the same promise-then-catch shape so a separate
 // positive test would be duplicative.
 
@@ -1106,16 +1105,15 @@ describe('late-rejection guards', () => {
 });
 
 /**
- * Regression guard for the browser-upload bug surfaced at /know/compose:
- * `yield.resource()` referenced the Node global `Buffer` directly via
- * `data.file instanceof Buffer`, which throws `ReferenceError: Buffer
- * is not defined` synchronously in browsers (Buffer is not a browser
- * global).
+ * `yield.resource()` must work where the Node global `Buffer` does not
+ * exist: a bare `data.file instanceof Buffer` throws `ReferenceError:
+ * Buffer is not defined` synchronously in browsers (Buffer is not a
+ * browser global).
  *
- * The fix gates the Buffer branch on a runtime check
+ * The Buffer branch is gated on a runtime check
  * (`typeof Buffer !== 'undefined'`); these tests pin that behavior
  * by deleting `globalThis.Buffer` and verifying the upload path
- * still works for File-shaped inputs.
+ * works for File-shaped inputs.
  */
 describe('YieldNamespace.resource — runtime fallback when Buffer is unavailable', () => {
   let savedBuffer: typeof globalThis.Buffer | undefined;
@@ -1151,8 +1149,8 @@ describe('YieldNamespace.resource — runtime fallback when Buffer is unavailabl
       error: (e) => events.push({ kind: 'error', error: e }),
     });
 
-    // Pre-fix this would throw `Buffer is not defined` synchronously
-    // before `started` ever fires. With the typeof guard, the Buffer
+    // Without the typeof guard this throws `Buffer is not defined`
+    // synchronously before `started` ever fires. With it, the Buffer
     // branch is short-circuited and the size is read from `.size`.
     expect(events[0]).toEqual({ phase: 'started', totalBytes: 4096 });
     expect(events.some((e) => e.kind === 'error')).toBe(false);

@@ -1,10 +1,8 @@
 package verbs
 
-// browse_browser_test.go — `semiont browse --browser`, split out of the
-// launcher's browser_target_test.go when the verbs moved to their own package.
-// That file had become two subjects under one name: BrowserTarget and
-// roleHealthy, which are the launcher's, and these, which drive the Browse
-// verb.
+// browse_browser_test.go — `semiont browse --browser`: the tests that drive
+// the Browse verb. BrowserTarget and roleHealthy are the launcher's, and are
+// tested in its browser_target_test.go.
 
 import (
 	"encoding/json"
@@ -35,11 +33,12 @@ func recordBrowserFixture(t *testing.T, b *launcher.ServiceState) {
 	}
 }
 
-// ── the probe ───────────────────────────────────────────────────────────
+// ── what it says when nobody was there ──────────────────────────────────
 
-// The case the stable-name fallback exists for: the record carries a container
-// ID that no longer resolves, while the endpoint is plainly live. Before the
-// fallback, status printed "absent" beside a ✓.
+// The COLD case: `browse --browser` published a signal and nobody was there to
+// receive it. What the launcher says next is the whole user-facing feature (it
+// knows the Browser's origin, never a path, and never opens a window), so this
+// asserts the message and the exit code, not just the branch taken.
 func TestBrowseBrowserRefusesWhenNoOneIsWatching(t *testing.T) {
 	for _, c := range []struct {
 		name    string

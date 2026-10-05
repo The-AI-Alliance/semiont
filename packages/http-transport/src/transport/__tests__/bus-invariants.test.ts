@@ -3,14 +3,13 @@
  * bus channel-classification contract (see @semiont/core's
  * src/__tests__/bus-invariants.test.ts for the full picture).
  *
- * `RESOURCE_SCOPED_CHANNELS` (derived in @semiont/core) is the per-resource set this transport
- * subscribes to *on top of* the global `BRIDGED_CHANNELS`. The two MUST be
- * disjoint: a channel in both is forwarded twice — once globally, once scoped —
- * with different SSE ids, defeating the client's event-id dedup.
- * This is a runtime relation between two
- * arrays, so the type system can't express it; the derivation
- * (`PERSISTED_EVENT_TYPES.filter(t => !BRIDGED_CHANNELS.includes(t))`) is meant
- * to guarantee it, and this test pins that the guarantee actually holds.
+ * `RESOURCE_SCOPED_CHANNELS` (generated into @semiont/core from the registry's
+ * `audience: scoped`) is the per-resource set this transport subscribes to
+ * *on top of* the global `BRIDGED_CHANNELS`. The two MUST be disjoint: a
+ * channel in both is forwarded twice — once globally, once scoped — with
+ * different SSE ids, defeating the client's event-id dedup. This is a runtime
+ * relation between two declared lists, so the type system can't express it;
+ * this test pins it.
  */
 
 import { describe, it, expect } from 'vitest';

@@ -238,7 +238,7 @@ DEVELOPER-GUIDE's testing section.
 
 ## Could your coding agent just build this?
 
-A fair question to ask before adopting anything in 2026. What a coding agent
+A fair question to ask before adopting anything. What a coding agent
 can produce quickly is a demo that *gestures* at the shape — a documents
 table, a comments field, a websocket. Semiont's actual shape is another
 matter. The protocol registry alone defines some two hundred bus channels and
@@ -258,8 +258,8 @@ delivery semantics that survive reconnects — per-scope resumption for events,
 deadline-bounded retention for replies; liveness properties like "no
 subscription silently pends forever," enforced by property-based test
 harnesses; an annotation model that follows a W3C standard instead of
-inventing one. Nearly every clause of those contracts was paid for by a
-subtle bug or a hard design call. A scaffolded lookalike re-encounters them
+inventing one. Nearly every clause of those contracts answers a
+subtle bug or a hard design call. A scaffolded lookalike meets them
 one production incident at a time.
 
 That's the trade Semiont offers a team building a custom AI or knowledge

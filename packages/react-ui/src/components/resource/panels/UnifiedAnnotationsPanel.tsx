@@ -31,13 +31,8 @@ interface PendingAnnotation {
 const TAB_ORDER: TabKey[] = ['statistics', 'reference', 'highlight', 'assessment', 'comment', 'tag'];
 
 /**
- * Simplified UnifiedAnnotationsPanel using event-driven architecture
- *
- * Key simplifications:
- * - Single annotations array (grouped internally by motivation)
- * - Single focusedAnnotationId (motivation-agnostic)
- * - Hover state managed via event bus (no props needed)
- * - All operations managed via event bus (no callback props)
+ * The annotations side panel: a statistics tab plus one tab per annotator,
+ * all fed from a single annotations array grouped internally by motivation.
  */
 interface UnifiedAnnotationsPanelProps {
   /** Session carrying the client and event bus; null renders inert. */

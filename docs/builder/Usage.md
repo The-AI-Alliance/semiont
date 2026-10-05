@@ -362,7 +362,7 @@ semiont.browse.tagSchemas().subscribe((st) => {
 });
 ```
 
-For the full per-flow contract — including the `__system__`-stream event-sourcing layer, projection materialization, and "most-recent wins + log warning" conflict semantics — see [`docs/protocol/flows/FRAME.md`](../protocol/flows/FRAME.md). Schema-evolution operations (rename / remove / version / migrate) are deferred, not yet scheduled.
+For the full per-flow contract — including the `__system__`-stream event-sourcing layer, projection materialization, and "most-recent wins + log warning" conflict semantics — see [`docs/protocol/flows/FRAME.md`](../protocol/flows/FRAME.md). There are no schema-evolution operations (rename / remove / version / migrate).
 
 ## Browse
 
@@ -737,7 +737,7 @@ try {
 }
 ```
 
-`APIError` is *not* re-exported from `@semiont/sdk` — it's transport-specific. Catch on `SemiontError` and route on the neutral code; reach for `APIError` directly only in HTTP-aware code that needs `error.status`:
+`APIError` is transport-specific. Catch on `SemiontError` and route on the neutral code; reach for `APIError` only in HTTP-aware code that needs `error.status`:
 
 ```typescript
 import { APIError } from '@semiont/http-transport';

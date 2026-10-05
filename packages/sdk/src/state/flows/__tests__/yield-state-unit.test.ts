@@ -44,7 +44,7 @@ function withYield(fromContextFn: ReturnType<typeof vi.fn>): TestClient {
 }
 
 // All lifecycle flows through the `client.yield.fromContext` Observable —
-// yield-state-unit no longer subscribes to bus channels directly. Tests drive
+// yield-state-unit subscribes to no bus channel directly. Tests drive
 // lifecycle by `next`/`complete`/`error`-ing the mocked Observable that
 // `fromContext` returns.
 describe('createYieldStateUnit', () => {
@@ -189,9 +189,7 @@ describe('createYieldStateUnit', () => {
     expect(gen[gen.length - 1]).toBe(false);
     expect(prog[prog.length - 1]).not.toBeNull();
 
-    // A finished run stays: no 2 s timer, and no 5 s one either — the two
-    // flows had different endings in the same component. Dismissal is
-    // explicit.
+    // A finished run stays: no timer dismisses it. Dismissal is explicit.
     vi.advanceTimersByTime(60_000);
     expect(prog[prog.length - 1]).not.toBeNull();
 
@@ -255,7 +253,7 @@ describe('createYieldStateUnit', () => {
     stateUnit.dispose();
   });
 
-  // The unit's own 300s timer is GONE: the one stall guard lives in
+  // The unit has no timer of its own: the one stall guard lives in
   // `runGeneration`'s producer, so it cannot be exercised through this
   // file's mocked `fromContext`. Its behavior — stall → server-side cancel →
   // typed error → display cleared — is pinned at the stream level in
@@ -387,7 +385,7 @@ describe('YieldStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
     const opts = { title: 'T', storageUri: 'file://x' };
     // Gateway stub errors synchronously: drive()'s error path runs (no throw) and
-    // the timeout() timer is cleared on the sync error, so no timers leak across runs.
+    // the unit holds no timer, so none leaks across runs.
     const stub = () => new Observable((s) => s.error(new Error('axiom-stub')));
     assertStateUnitAxioms({
       setup: () => {

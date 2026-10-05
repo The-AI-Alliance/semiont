@@ -2,8 +2,6 @@
  * Media-Type Registry Test Suite
  *
  * Pins the capability registry's rows and the behavior of its helpers.
- * The extension expectations absorb the test data that previously lived
- * in packages/content (now storage-uri.test.ts there).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -50,10 +48,10 @@ describe('media-types registry', () => {
       }
     });
 
-    // The capability implications, held as invariants. All three hold
-    // today — they are regression pins on a row edit, not discoveries.
+    // The capability implications, held as invariants: pins against a row
+    // edit, not discoveries.
     // Deliberately absent: the converse, `render !== 'none' → annotatable`.
-    // It holds today too, and pinning it would make AnnotateView's
+    // Every row satisfies it, and pinning it would make AnnotateView's
     // gate-on-renderability accidentally correct BY RULE; leaving it open
     // keeps renderable-but-unannotatable a reachable row edit.
 
@@ -216,8 +214,8 @@ describe('media-types registry', () => {
       expect(derivesTextOf('application/x-unknown-binary')).toBe(false);
     });
 
-    it('is a distinct question from geometry, though the answers coincide today', () => {
-      // A future transcription strategy would derive text with NO geometry;
+    it('is a distinct question from geometry, though the answers coincide on every strategy', () => {
+      // A transcription strategy would derive text with NO geometry;
       // conflating the two helpers would make that unrepresentable.
       for (const mt of ['application/pdf', 'text/plain', 'image/png']) {
         expect(derivesTextOf(mt)).toBe(yieldsGeometryOf(mt));
@@ -226,9 +224,9 @@ describe('media-types registry', () => {
   });
 
   describe('yieldsGeometryOf', () => {
-    // The question is about a MEDIA TYPE, so core answers it. It used to be a
-    // boolean declared on each extractor in @semiont/content — a property of the
-    // strategy, stored beside the implementations, in another package. Two homes
+    // The question is about a MEDIA TYPE, so core answers it. A boolean
+    // declared on each extractor in @semiont/content would be a property of the
+    // strategy stored beside the implementations, in another package: two homes
     // for one fact, gated by nothing.
     it("is true for the one strategy that derives geometry", () => {
       expect(yieldsGeometryOf('application/pdf')).toBe(true);
@@ -256,10 +254,10 @@ describe('media-types registry', () => {
     });
 
     it('agrees with textSourceOf on every registry row — one fact, derived', () => {
-      // The census gate the duplicated pair lacked. Not a mirror: the expectation
-      // is COMPUTED from the strategy, so it cannot drift from the thing it
-      // derives from. A new strategy makes GEOMETRY_BY_STRATEGY fail to compile
-      // in media-types.ts, which is where the fact belongs.
+      // A census gate, not a mirror: the expectation is COMPUTED from the
+      // strategy, so it cannot drift from the thing it derives from. A new
+      // strategy makes GEOMETRY_BY_STRATEGY fail to compile in media-types.ts,
+      // which is where the fact belongs.
       for (const type of Object.keys(MEDIA_TYPES) as SupportedMediaType[]) {
         expect(yieldsGeometryOf(type), type).toBe(textSourceOf(type) === 'pdf-text-layer');
       }
@@ -281,7 +279,7 @@ describe('media-types registry', () => {
     });
   });
 
-  describe('extension mapping (data formerly pinned in @semiont/content)', () => {
+  describe('extension mapping', () => {
     const expectations: Record<SupportedMediaType, string> = {
       'text/plain': '.txt',
       'text/markdown': '.md',

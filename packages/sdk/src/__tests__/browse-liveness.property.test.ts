@@ -4,9 +4,9 @@
  * `BrowseNamespace` + `createCache` + `busRequest` run unmodified on
  * `FaultyTransport` while fast-check draws fault schedules (drop / delay /
  * duplicate / reject-emit). Scopes COMPOSE — one connection holds any
- * number of resource scopes (the old single-slot model and its `scopeModel`
- * knob are gone). This generalizes `browse-concurrent-loaders.test.ts` —
- * one hand-picked interleaving — to the interleavings nobody names.
+ * number of resource scopes. This generalizes
+ * `browse-concurrent-loaders.test.ts` — one hand-picked interleaving — to
+ * the interleavings nobody names.
  *
  * L1's "notification" here is a MEANINGFUL one: live queries emit
  * `{ status: 'pending' }` immediately, which would satisfy a naive
@@ -31,12 +31,9 @@
  * an invalidate chain's warn can land after the bound when outputs were
  * already notified via the stale value, so asserting there would be flaky.
  * The two cache breadcrumbs ([cache RETRY]/[cache IDLE]) are also pinned
- * individually in the deterministic test at the bottom. The third breadcrumb
- * this suite once pinned — `[browse SCOPE-CONTENTION]` — is GONE with the
- * degradation path it observed: the transport ref-counts scopes per resource,
- * so they compose, the contention state is unreachable, and its assertion was
- * removed in the same change (a deliberate, axiom-visible edit to L4, as a
- * policy change must be).
+ * individually in the deterministic test at the bottom. Scope acquisition
+ * has no breadcrumb: the transport ref-counts scopes per resource, so they
+ * compose and there is no contention state to degrade from.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -71,9 +68,9 @@ const noopContent = {
 
 /**
  * One `useResourceLoader`-shaped mount: resource + annotations live queries.
- * Note: `failed` is an EMISSION now, not a stream error — for the harness
+ * Note: `failed` is an EMISSION, not a stream error — for the harness
  * (whose L1 counts value-or-error notifications) a failed state is re-thrown,
- * preserving the axiom's meaning: `pending` forever is the forbidden state.
+ * which keeps the axiom's meaning: `pending` forever is the forbidden state.
  */
 function loaderOutputs(browse: BrowseNamespace, rid: string): Observable<unknown>[] {
   const id = makeResourceId(rid);
@@ -215,8 +212,7 @@ describe('liveness axioms over the real BrowseNamespace composition', () => {
           ];
 
           // Let the initial chains make some progress, then invalidate one
-          // resource mid-flight — the interleaving the incident's evidence
-          // chain never covered (a refetch racing the original chain, B9).
+          // resource mid-flight: a refetch racing the original chain (B9).
           await new Promise<void>((r) => setTimeout(r, 0));
           browse.invalidateResourceDetail(makeResourceId('res-x'));
 
@@ -229,12 +225,9 @@ describe('liveness axioms over the real BrowseNamespace composition', () => {
 
   // ── L4 pair: each cache breadcrumb pinned individually (deterministic) ───
   //
-  // (The suite once pinned a third breadcrumb here — [browse SCOPE-CONTENTION]
-  // firing on scope contention. That state is unreachable since scopes
-  // compose; the breadcrumb, the degradation path, and the assertion were
-  // removed together — a deliberate, axiom-visible edit to L4. Multi-scope
-  // composition itself is pinned in browse-scope-by-observation +
-  // browse-concurrent-loaders.)
+  // (Scope acquisition has no breadcrumb: scopes compose, so there is no
+  // contention state. Multi-scope composition is pinned in
+  // browse-scope-by-observation + browse-concurrent-loaders.)
 
   it('L4: [cache RETRY] then [cache IDLE] fire when an SWR chain fails and exhausts', async () => {
     // Every request drops its reply → attempt times out (RETRY warn) → the

@@ -5,7 +5,7 @@
  * failures skip the retry budget; everything unrecognized stays retryable
  * (`undefined`), because mis-classifying a transient failure as deterministic
  * silently halves reliability, while the reverse merely costs one wasted
- * attempt — today's behavior.
+ * attempt.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -47,11 +47,11 @@ describe('classifyFailure', () => {
   });
 
   it('an unreadable structured response CUT OFF by max_tokens is deterministic — same input truncates the same way', () => {
-    // Measured live 2026-09-02 (repro-real.log run 3): the truncated JSON of
-    // an over-demanded answer surfaces as StructuredReadError from the
-    // adapter BEFORE the caller's assertNotTruncated can see the stop
-    // reason — without this rule it classified retryable and burned the
-    // budget re-issuing a guaranteed truncation.
+    // The truncated JSON of an over-demanded answer surfaces as
+    // StructuredReadError from the adapter BEFORE the caller's
+    // assertNotTruncated can see the stop reason — without this rule it
+    // classifies retryable and burns the budget re-issuing a guaranteed
+    // truncation.
     expect(classifyFailure(new StructuredReadError('response is not valid JSON', 'max_tokens'))).toBe('deterministic');
   });
 
@@ -64,47 +64,39 @@ describe('classifyFailure', () => {
   });
 
   it('a depth-exhausted end_turn stays retryable — because the RETRY re-cuts it, not because sampling might', () => {
-    // Decided 2026-09-12, where this classifier and `subdividable()` disagreed
-    // about one error. This test used to say "sampling may fix it", which was
-    // never true: `DETECTION_TEMPERATURE` is 0, so an identical call returns an
-    // identical answer, and that is precisely `subdividable()`'s argument for
-    // the opposite verdict.
+    // This classifier and `subdividable()` disagree about one error, on
+    // purpose. Sampling cannot fix it: `DETECTION_TEMPERATURE` is 0, so an
+    // identical call returns an identical answer, and that is precisely
+    // `subdividable()`'s argument for the opposite verdict.
     //
-    // The real reason it stays retryable arrived with chunk-grain resume: a
-    // resumed unit seeds the checkpoint's size and then takes one shrink step,
-    // so the retry reads the poison text in a DIFFERENT piece. The retry is no
-    // longer the same call. And the price of being wrong fell from a whole
-    // re-paid prefix (~26 min on the 1958 document) to one chunk.
+    // It stays retryable because of chunk-grain resume: a resumed unit seeds
+    // the checkpoint's size and then takes one shrink step, so the retry reads
+    // the poison text in a DIFFERENT piece. The retry is not the same call,
+    // and being wrong costs one chunk rather than a whole re-paid prefix.
     //
-    // Still `undefined`, not `'transient'`: the wire vocabulary has two values
+    // `undefined`, not `'transient'`: the wire vocabulary has two values
     // and this is neither — not weather, but "the next attempt reads different
     // input". Absent says unrecognised-so-retryable, which is what is true.
     expect(classifyFailure(new StructuredReadError('parsed to object, not an array', 'end_turn'))).toBeUndefined();
   });
 
-  it("an 'unknown'-stop unreadable response stays retryable — the live Ollama failure's exact shape", () => {
-    // gemma4:26b, 2026-09-03: done_reason ABSENT → the adapter maps 'unknown'.
-    // An unknown stop is not provably-repeatable the way max_tokens is, so it
-    // stays inside the retry budget.
-    //
-    // Retryable STANDS after this shape recurred live (the second full Ollama
-    // detection run, 2026-09-05): the new evidence flipped SUBDIVIDABILITY (see
-    // detection-chunking — the shape descends by size now), not classification.
-    // An unknown stop still is not provably-repeatable the way max_tokens is,
-    // and a genuinely broken server deserves its retry budget; the subdivision
-    // fix is what keeps the deterministic-in-practice case from burning that
-    // budget at same size.
+  it("an 'unknown'-stop unreadable response stays retryable — Ollama's absent done_reason", () => {
+    // Ollama (gemma4:26b) can omit done_reason → the adapter maps 'unknown'.
+    // An unknown stop is not provably-repeatable the way max_tokens is, and a
+    // genuinely broken server deserves its retry budget, so it stays inside
+    // it. What this shape changes is SUBDIVIDABILITY, not classification: it
+    // descends by size (see detection-chunking), which keeps the
+    // deterministic-in-practice case from burning that budget at same size.
     expect(classifyFailure(new StructuredReadError('response is not valid JSON', 'unknown'))).toBeUndefined();
   });
 
   // ── the status branch is DERIVED, not restated ────────────────────────────
   describe('status classification follows RETRY_RULES.job', () => {
     it('agrees with the rule on every status, so the two cannot drift apart', () => {
-      // A census of the sites that decide retryability found not that four of
-      // them disagreed — it was that two asserted a bare list nobody could see
-      // was a second opinion, and where a list and an argument disagreed the
-      // LIST won silently. This is the gate that makes that impossible here:
-      // change the rule and this file follows, change only one and this fails.
+      // A bare status list here would be a second opinion nobody can see is
+      // one, and where a list and an argument disagree the LIST wins silently.
+      // This is the gate that makes that impossible here: change the rule and
+      // this file follows, change only one and this fails.
       for (let status = 100; status < 600; status++) {
         const viaRule = RETRY_RULES.job.retryable({ status });
         const viaClassifier = classifyFailure({ status }) === 'transient';
@@ -113,8 +105,8 @@ describe('classifyFailure', () => {
     });
 
     it('keeps 413 deterministic — a payload too large is not weather', () => {
-      // Green on arrival, and pinned as a DECISION rather than left as the side
-      // effect of branch order: 413 is below 500 and outside the rule's
+      // Pinned as a DECISION rather than left as the side effect of branch
+      // order: 413 is below 500 and outside the rule's
       // transient set, so it falls to the >= 400 rejection branch. The transport
       // rule retries it (with a Retry-After) and this one does not — a genuine
       // per-context disagreement, which is what the taxonomy exists to make

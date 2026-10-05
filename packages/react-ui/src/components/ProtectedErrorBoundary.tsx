@@ -19,7 +19,7 @@ interface ProtectedErrorBoundaryProps {
  * shows a generic "something went wrong" fallback with a refresh option.
  *
  * NOT auth-specific. Auth state changes (sign-in, sign-out, expiry) flow
- * through the KnowledgeBaseSession context, not exceptions — so this
+ * through the active session's observables, not exceptions — so this
  * boundary will never catch an "auth error" in normal operation. Its job
  * is purely to keep a render bug from blanking the screen.
  *

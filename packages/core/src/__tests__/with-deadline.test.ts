@@ -3,9 +3,9 @@ import { withDeadline } from '../retry';
 
 const DEADLINE_MS = 60_000;
 
-// A dependency that never answers used to hang the process forever: Docker's
+// A dependency that never answers would hang the process forever: Docker's
 // `restart: on-failure` only rescues a process that EXITS, so an unbounded
-// startup connect left the container unhealthy indefinitely (observed on a
+// startup connect leaves the container unhealthy indefinitely (as on a
 // Codespaces resume, where every service restarts at once and `depends_on`
 // does not apply). These tests pin the conversion of that hang into a crash.
 describe('withDeadline', () => {
@@ -42,11 +42,11 @@ describe('withDeadline', () => {
 
 describe('the deadline reaches the work, not just the race', () => {
   it('hands the work an AbortSignal that fires at the deadline', async () => {
-    // The change that makes the hazard unbuildable rather than documented. The
-    // race alone could only ABANDON slow work; work that RETRIES never learned a
-    // deadline existed, so a boot path whose retry outlived this timeout would be
-    // killed just before it succeeded — and the only protection was two numbers
-    // being kept compatible by hand, in two packages.
+    // What makes the hazard unbuildable rather than documented. A race alone
+    // can only ABANDON slow work; work that RETRIES never learns a deadline
+    // exists, so a boot path whose retry outlives this timeout would be
+    // killed just before it succeeds — and the only protection would be two
+    // numbers kept compatible by hand, in two packages.
     vi.useFakeTimers();
     let seen: AbortSignal | undefined;
     const raced = withDeadline('Vector store', DEADLINE_MS, (signal: AbortSignal) => {

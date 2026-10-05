@@ -8,8 +8,8 @@
  *   - timeout: an rxjs `TimeoutError` from the operator is wrapped in a
  *     `BusRequestError` with code `bus.timeout` and structured `details`
  *
- * Plus correlation hygiene: the helper writes a fresh `correlationId` into
- * the emitted payload, ignores result/failure events on the same channels
+ * Plus correlation hygiene: the helper writes a fresh `correlationId` onto
+ * the emitted envelope, ignores result/failure events on the same channels
  * whose `correlationId` doesn't match, and resolves on the first matching
  * one.
  */
@@ -30,16 +30,16 @@ import {
 interface MockBus extends BusRequestPrimitive {
   emitChannel: string | null;
   emitPayload: Record<string, unknown> | null;
-  /** The envelope the request rode out on — where the key lives now. */
+  /** The envelope the request rode out on — where the key lives. */
   emitEnvelope: { correlationId?: string } | null;
   resultSubject: Subject<unknown>;
   failureSubject: Subject<unknown>;
   stateSubject: BehaviorSubject<ConnectionState>;
 }
 
-// `initialState` defaults to 'open' so the pre-gate tests above keep their
-// exact emit timing: an already-deliverable state takes the synchronous fast
-// path and the gate is invisible.
+// `initialState` defaults to 'open' so tests that do not exercise the attach
+// gate keep an exact emit timing: an already-deliverable state takes the
+// synchronous fast path and the gate is invisible.
 function makeBus(
   resultChannel: string,
   failureChannel: string,
@@ -76,9 +76,7 @@ function makeBus(
       return new Subject<unknown>().asObservable() as unknown as Observable<EventMap[keyof EventMap]>;
     }) as BusRequestPrimitive['stream'],
     // The default every real transport that delivers everything gives. Tests
-    // that exercise a NARROWED set override it per case below; before
-    // 2026-09-16 they had to, because omitting the member skipped the check
-    // entirely — the compatibility layer this default replaces.
+    // that exercise a NARROWED set override it per case below.
     isSubscribed: () => true,
     trackReply: () => () => {},
     // The envelope view this double answers from its own scripted subjects.
@@ -94,7 +92,7 @@ function makeBus(
 }
 
 describe('busRequest', () => {
-  // A real registered operation: `busRequest` now takes the operation key (the
+  // A real registered operation: `busRequest` takes the operation key (the
   // request channel) and looks up result/failure from `BUS_OPERATIONS`. The mock
   // bus is keyed on the derived channel names, so the fixtures keep them as
   // constants for the stream wiring.
@@ -153,9 +151,9 @@ describe('busRequest', () => {
     // The gateway synthesizes a failure when a request's channel has NO
     // SUBSCRIBER — the service that answers it has not connected yet. Flattening
     // that to 'bus.rejected' alongside a permission denial makes a startup race
-    // and a refusal indistinguishable, and the weaver's boot pass gave up for the
-    // life of the process on exactly this (2026-09-09: empty graph behind a
-    // healthy /health).
+    // and a refusal indistinguishable: a boot pass that cannot tell them apart
+    // gives up for the life of the process, an empty graph behind a healthy
+    // /health.
     //
     // Promoted HERE, at the one place the wire fact enters the client
     // vocabulary — the table's `wire` entries. Left in `details.payload.code`
@@ -186,7 +184,7 @@ describe('busRequest', () => {
   ])("promotes the dispatcher's claim verdict '%s' to %s", async (wire, client, message) => {
     // A worker's claim loop must tell "park until a wake-up" apart from "stop,
     // this credential can never claim" — and both ride job:claim-failed. As
-    // strings they were indistinguishable except by matching the prose; as
+    // strings they are indistinguishable except by matching the prose; as
     // promoted codes the loop branches on `err.code` like every other consumer.
     const bus = makeBus(RESULT, FAILURE);
     const captured = busRequest(bus, EMIT, {}).catch((e) => e);
@@ -219,9 +217,9 @@ describe('busRequest', () => {
     expect(err.code).toBe('bus.not-found');
   });
 
-  it('still says bus.rejected for a failure carrying no code', async () => {
-    // Every other failure channel is untouched: `code` is optional on the wire,
-    // and absence keeps today's behaviour exactly.
+  it('says bus.rejected for a failure carrying no code', async () => {
+    // `code` is optional on the wire; a failure without one is a plain
+    // rejection.
     const bus = makeBus(RESULT, FAILURE);
     const captured = busRequest(bus, EMIT, {}).catch((e) => e);
     await Promise.resolve();
@@ -338,14 +336,13 @@ describe('busRequest', () => {
   });
 
   it("re-throws emit's rejection without leaving the result subscription as an unhandled rejection", async () => {
-    // Regression: busRequest's `firstValueFrom(result$)` subscribes
-    // BEFORE awaiting `bus.emit()`. If emit throws, control leaves
-    // busRequest without ever awaiting the result promise. Its
-    // subscription stays open until the underlying stream completes
-    // (in production: during `semiont.dispose()`), at which point
-    // firstValueFrom throws EmptyError with no consumer — surfacing
-    // as an uncaught rejection that bubbled out of the SDK into
-    // skill scripts as a cosmetic stack trace after `Done.`.
+    // busRequest's `firstValueFrom(result$)` subscribes BEFORE awaiting
+    // `bus.emit()`. If emit throws, control leaves busRequest without
+    // ever awaiting the result promise. Its subscription stays open
+    // until the underlying stream completes (in production: during
+    // `semiont.dispose()`), at which point an unguarded firstValueFrom
+    // throws EmptyError with no consumer — an uncaught rejection that
+    // surfaces after the caller has finished.
     //
     // Pin the behavior: emit rejects → busRequest rethrows; the
     // resultSubject is then completed (mimicking bus disposal); no
@@ -364,7 +361,7 @@ describe('busRequest', () => {
       ).rejects.toThrow('emit failed');
 
       // Now complete the result stream, as `semiont.dispose()` would —
-      // this is what previously fired the dangling EmptyError.
+      // the point where a dangling EmptyError would fire.
       bus.resultSubject.complete();
       bus.failureSubject.complete();
 
@@ -378,9 +375,9 @@ describe('busRequest', () => {
   });
 
   it('does not leak an unhandled rejection when the bus is disposed while a fire-and-forget request is in flight', async () => {
-    // The reported crash: a busRequest whose `emit` is still pending — so its
-    // internal `firstValueFrom` promise has no awaiter yet — and whose returned
-    // promise nobody awaits. When the bus completes (dispose), pre-fix
+    // A busRequest whose `emit` is still pending — so its internal
+    // `firstValueFrom` promise has no awaiter yet — and whose returned
+    // promise nobody awaits. When the bus completes (dispose), an unguarded
     // `firstValueFrom` rejects `EmptyError` with no handler →
     // unhandledRejection → process crash.
     const unhandled: unknown[] = [];
@@ -618,7 +615,7 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
     bus.emit = vi.fn(async (channel, payload, envelope) => {
       order.push('emit');
       // The envelope must ride through a wrapper. Dropping it here silently
-      // lost the correlation key — the same way any production decorator that
+      // loses the correlation key — the same way any production decorator that
       // forgets the third argument would.
       return originalEmit(channel, payload, envelope);
     }) as BusRequestPrimitive['emit'];

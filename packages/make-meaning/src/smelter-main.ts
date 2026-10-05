@@ -41,8 +41,7 @@ const tomlReader = {
   readIfExists: (p: string): string | null => existsSync(p) ? readFileSync(p, 'utf-8') : null,
 };
 // Environment resolved by the loader from `[defaults] environment`
-// (no project root here — global ~/.semiontconfig only). Was hardcoded 'local',
-// which read the wrong section for any non-local KB the container stages.
+// (no project root here — global ~/.semiontconfig only).
 const envConfig = createTomlConfigLoader(
   tomlReader,
   configPath,
@@ -101,8 +100,6 @@ import { startAgentSession } from './agent-session';
 import { registerVectorIndexSizeProvider } from '@semiont/observability';
 import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
 const logger = createProcessLogger('smelter');
-
-// ── Auth ─────────────────────────────────────────────────────────────
 
 // ── Main ─────────────────────────────────────────────────────────────
 
@@ -170,8 +167,7 @@ async function main() {
 
   // Bytes come from the Archivist, not the gateway.
   // The gateway's own content routes are a proxy onto this same call, so
-  // going through it added a hop and put a process that is meant to stop
-  // touching the KB tree on the path to it. Throws here if the address or
+  // going through it would only add a hop. Throws here if the address or
   // this process's service-account credential is missing — a boot-time
   // refusal, not a per-resource failure.
   const contentReads = archivistContentReads(envConfig, credential);

@@ -185,14 +185,6 @@ Located in `core/tags.css`, for content categorization:
 <span className="semiont-tag semiont-tag--secondary">Secondary Tag</span>
 ```
 
-### Status Indicators
-Located in `core/indicators.css`, for online/offline states:
-
-```jsx
-<span className="semiont-indicator semiont-indicator--online"></span>
-<span className="semiont-indicator semiont-indicator--offline"></span>
-```
-
 ## W3C Web Annotation Motivations
 
 The `motivations/` directory contains styles for the five W3C Web Annotation standard motivations. Each file defines its `--semiont-motivation-<type>-*` custom properties on `:root`, styles inline annotations through an `annotation-<type>` class, and styles that motivation's panel entries (`.semiont-annotation-entry[data-type="<type>"]`). The class an annotation renders with comes from its entry in `ANNOTATORS` (`src/lib/annotation-registry.ts`).

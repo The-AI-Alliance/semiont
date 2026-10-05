@@ -19,11 +19,8 @@ import (
 // GIT_DIR — strictly validated, never silently ignored — else the root is
 // found by walking up from cwd looking for .semiont/. git is deliberately NOT
 // part of discovery; whether the root must also be a git clone is a separate
-// invariant, enforced only where the /kb mount makes it real (full start,
-// --service gateway).
-//
-// Today there is one root; the plural-ready shape (status's SEMIONT ROOTS
-// section, the source annotation) anticipates supporting many.
+// invariant, enforced for a full start, --service archivist and --service
+// gateway (requireGitClone).
 
 // resolveKBRoot returns the KB root and where it came from ("SEMIONT_ROOT"
 // or "discovered").
@@ -65,7 +62,7 @@ func resolveKBRoot() (path, source string, err error) {
 // not silently dropped — an unmounted volume may come back. This registry is
 // the substrate for multi-root support, for `--root <name>` selection, and
 // for sticky preferences: per-KB ones (config) live on the root's entry,
-// machine-wide ones (runtime — stacks are singleton-per-machine today) live
+// machine-wide ones (runtime — the local stack is one per machine) live
 // at the top level. Per-user-per-machine facts belong beside the KB, never
 // inside it.
 
@@ -161,7 +158,7 @@ func updateRootEntry(path string, change func(*rootEntry)) error {
 }
 
 // upsertRoot: path's row in reg, created if absent, with its identity
-// refreshed and its use stamped now.
+// refreshed and its use stamped.
 func upsertRoot(reg *rootsRegistry, path string) *rootEntry {
 	if abs, err := filepath.Abs(path); err == nil {
 		path = abs
@@ -169,10 +166,10 @@ func upsertRoot(reg *rootsRegistry, path string) *rootEntry {
 	now := time.Now().UTC()
 	// Identity refreshes on every use — the KB's .semiont/config can change.
 	ident := loadKBIdentity(path)
-	// A moved KB re-registers its did at the new path, leaving the old
+	// A moved KB re-registers its did at the new path, leaving its previous
 	// path's row a corpse nothing else removes (and a basename collision
-	// for --root). Drop rows claiming THIS did at OTHER paths that no
-	// longer exist on disk; a same-did row whose path exists is a live
+	// for --root). Drop rows claiming THIS did at OTHER paths that do not
+	// exist on disk; a same-did row whose path exists is a live
 	// clone, not a corpse, and stays.
 	if did := ident.didWeb(); did != "" {
 		kept := reg.Roots[:0]
@@ -289,12 +286,13 @@ func recordKeycloakPort(root string, port int) {
 // configForRealm names the config a realm-administering command must read:
 // the RUNNING stack's, else this root's sticky preference.
 //
-// The running stack is the authority, and asking the preference alone was a
-// hard block: `start` records the RESOLVED config in stack.json on every
+// The running stack is the authority, and the preference alone cannot stand
+// in for it: `start` records the RESOLVED config in stack.json on every
 // start, while roots.json holds only the sticky preference, which a bare
 // `semiont start` deliberately never writes (an unlaunchable --config must not
-// become the default). So the documented first run — start, then useradd —
-// refused on a healthy stack and advised a start that would change nothing.
+// become the default). Asked alone, it would make the documented first run —
+// start, then useradd — refuse on a healthy stack and advise a start that
+// would change nothing.
 func configForRealm(root string) string {
 	if abs, err := filepath.Abs(root); err == nil {
 		root = abs
@@ -363,13 +361,13 @@ func resolveRootArg(arg string) (string, error) {
 	}
 }
 
-// requireGitClone enforces the /kb-mount invariant: the gateway versions the
-// event log via git, so a real clone is mandatory wherever /kb is mounted.
-// Fails with instructions rather than git's opaque fatal when someone used
-// GitHub's "Download ZIP" (or has no git at all).
+// requireGitClone enforces the git-clone invariant: the Archivist mounts the
+// KB root at /kb and, as its one git writer, stages each event-log write
+// there. Fails with instructions rather than git's opaque fatal when someone
+// used GitHub's "Download ZIP" (or has no git at all).
 func requireGitClone(u *UI, root string) bool {
 	if _, err := capture("git", "-C", root, "rev-parse", "--show-toplevel"); err != nil {
-		u.Fail("The KB root must be a git clone (the gateway versions the event log via git): %s", root)
+		u.Fail("The KB root must be a git clone (the Archivist stages the event log with git): %s", root)
 		fmt.Fprintln(os.Stderr, "  If you used GitHub's 'Download ZIP', clone the repository instead:  git clone <repo-url>")
 		return false
 	}
@@ -402,10 +400,10 @@ func icloudZone(root, home string) string {
 // warnICloudRoot: a KB under an iCloud-managed folder can fail container
 // reads — iCloud evicts file content ("dataless" files), and a read through
 // the bind mount then surfaces inside the VM as errno -35 (EDEADLK), which
-// Node reports as "Unknown system error -35". The observed shape (friction
-// log 2026-07-20): first boot fine, every boot after the event log is
-// non-empty crashes the view-materializer scan. A WARNING, not a refusal —
-// the same setup also ran for months, because eviction state isn't stable.
+// Node reports as "Unknown system error -35". The shape: first boot fine,
+// every boot after the event log is non-empty crashes the view-materializer
+// scan. A WARNING, not a refusal — the same setup can also run for months,
+// because eviction state isn't stable.
 // Desktop/Documents warn only when Finder says the sync is actually on
 // (FXICloudDriveDesktop=1) — a Desktop KB on a non-synced Mac is fine and
 // must not nag.
@@ -506,8 +504,7 @@ func Forget(args []string) int {
 	// so when some exists, or the forgotten row's state lives on unnamed.
 	// UNLESS a surviving row shares the did — state keys derive from the
 	// did, so that state belongs to the live twin, and suggesting `clean`
-	// here offers to delete a KB the user still uses (observed live
-	// 2026-09-13 on the moved family root).
+	// here offers to delete a KB the user still uses.
 	for _, other := range reg.Roots {
 		if other.Did != "" && other.Did == e.Did {
 			return 0

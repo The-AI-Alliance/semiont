@@ -28,10 +28,10 @@ export interface ExtractedEntity {
  * backstop — the last line on the Ollama path.
  *
  * `prefix`/`suffix` are deliberately NOT in `required`: with all four
- * required, models return `"prefix": ""` instead of omitting the key
- * (measured 2026-08-06), turning "sometimes absent" into "always present,
- * sometimes empty" — an anchoring-path change avoided at the source here;
- * `reconcileSelector` also treats an empty hint as an absent one.
+ * required, models return `"prefix": ""` instead of omitting the key,
+ * turning "sometimes absent" into "always present, sometimes empty" — an
+ * anchoring-path change avoided at the source here; `reconcileSelector` also
+ * treats an empty hint as an absent one.
  */
 const ENTITY_ELEMENT_SCHEMA: ElementSchema = {
   type: 'object',
@@ -45,34 +45,6 @@ const ENTITY_ELEMENT_SCHEMA: ElementSchema = {
   additionalProperties: false,
 };
 
-/**
- * Extract entity references from text using AI.
- *
- * Locale: entity references' bodies are entity-type identifiers (not
- * LLM-generated natural-language text), so only `sourceLanguage` (source-
- * resource locale) is meaningful here — it's used in the prompt so the LLM
- * analyzes non-English source correctly. There's no body-locale parameter.
- *
- * @param text - The text to analyze
- * @param entityTypes - Array of entity types to detect (optionally with examples)
- * @param client - Inference client for AI operations
- * @param includeDescriptiveReferences - Include anaphoric/cataphoric references (default: false)
- * @param logger - Logger for entity-extraction diagnostics (parse failures,
- *   anchor decisions, drops). Required so dropped/filtered entities never
- *   disappear silently.
- * @param sourceLanguage - BCP-47 tag for the source content's language
- * @param onActivity - Invoked with (consumedChars, totalChars) whenever the
- *   extraction is demonstrably alive: at each chunk boundary (the cursor
- *   advances) AND periodically while a single inference call is in flight
- *   (the position repeats — liveness, not progress). Characters, not chunk
- *   ordinals: chunk sizing is decided as the run goes, so there is no chunk
- *   total to divide by — and the cursor was always the more honest numerator,
- *   since boundary-seeking already made chunks unequal. The caller MUST forward
- *   this to its progress channel: progress is the worker's liveness
- *   heartbeat for the stall watchdog, and the client's timeout is an
- *   INTER-EMISSION one, so a silent single-chunk run kills a healthy job.
- * @returns Array of extracted entities with their character offsets
- */
 /** Output cap for the count call: the answer is one number (≤7 digits), and a
  * tiny cap is itself the safety — a ~5-token output structurally cannot loop
  * or truncate the way the extraction's array can. */
@@ -102,8 +74,8 @@ function parseCount(text: string): number | undefined {
  * The verifier's own failure — count call errors, or answers with no number —
  * disables it for the chunk (warn, pass through): a safety net's outage must
  * not take down a healthy extraction. Known limit: the count saturates past
- * ~8K chars, so margins are cleanest at post-descent sizes; it still flagged
- * every measured collapse at 16K/32K.
+ * ~8K chars, so margins are cleanest at post-descent sizes; it nonetheless
+ * flags every measured collapse at 16K/32K.
  */
 async function assertYieldNotCollapsed(
   client: InferenceClient,
@@ -147,6 +119,34 @@ ${piece}
   return counted;
 }
 
+/**
+ * Extract entity references from text using AI.
+ *
+ * Locale: entity references' bodies are entity-type identifiers (not
+ * LLM-generated natural-language text), so only `sourceLanguage` (source-
+ * resource locale) is meaningful here — it's used in the prompt so the LLM
+ * analyzes non-English source correctly. There's no body-locale parameter.
+ *
+ * @param exact - The text to analyze
+ * @param entityTypes - Array of entity types to detect (optionally with examples)
+ * @param client - Inference client for AI operations
+ * @param includeDescriptiveReferences - Include anaphoric/cataphoric references
+ * @param logger - Logger for entity-extraction diagnostics (parse failures,
+ *   anchor decisions, drops). Required so dropped/filtered entities never
+ *   disappear silently.
+ * @param sourceLanguage - BCP-47 tag for the source content's language
+ * @param onActivity - Invoked with (consumedChars, totalChars) whenever the
+ *   extraction is demonstrably alive: at each chunk boundary (the cursor
+ *   advances) AND periodically while a single inference call is in flight
+ *   (the position repeats — liveness, not progress). Characters, not chunk
+ *   ordinals: chunk sizing is decided as the run goes, so there is no chunk
+ *   total to divide by — and the cursor is the more honest numerator anyway,
+ *   since boundary-seeking makes chunks unequal. The caller MUST forward
+ *   this to its progress channel: progress is the worker's liveness
+ *   heartbeat for the stall watchdog, and the client's timeout is an
+ *   INTER-EMISSION one, so a silent single-chunk run kills a healthy job.
+ * @returns Array of extracted entities
+ */
 export async function extractEntities(
   exact: string,
   entityTypes: string[] | { type: string; examples?: string[] }[],
@@ -160,8 +160,8 @@ export async function extractEntities(
   /** Each accepted piece's count-verifier expectation — the denominator. */
   onCounted?: (counted: number) => void,
   /** Where an earlier attempt left this unit. Absent on a first attempt, and
-   * then the run opens at the top exactly as before. Deliberately BEFORE the
-   * callback below, which stays last. */
+   * then the run opens at the top. Deliberately BEFORE the callback below,
+   * which stays last. */
   resume?: UnitCursor,
   /**
    * This chunk's entities, awaited before the loop continues: the caller
@@ -247,18 +247,17 @@ Example output:
 
   // Budgets derive from the provider's actual limits + the measured scaffold
   // (the template around the content) — no literals. Input is chunked only
-  // when the derived budget forces it; small documents make one call, as
-  // before.
+  // when the derived budget forces it; small documents make one call.
   const limits = await client.limits();
   // The provider DECLARES whether its extractions get count-verified
-  // (universal for real providers since the 2026-09-05 ruling — unverified
-  // completeness is not a savings). Jobs does no provider-specific switching:
+  // (universal for real providers — unverified completeness is not a
+  // savings). Jobs does no provider-specific switching:
   // whatever varies by provider is a capability on the InferenceClient
   // contract, read here like `maxConcurrency`.
   const verifyYield = client.verifyDetectionYield;
   const scaffoldTokens = estimateTokens(buildPrompt(''));
   // One call asks for every type in `entityTypes` — the processor's per-type
-  // loop passes one, so this is 1 in production today.
+  // loop passes one, so this is 1 in production.
   const budget = deriveDetectionBudget(limits, scaffoldTokens, entityTypes.length);
   const { chunking, outputBudget } = budget;
 

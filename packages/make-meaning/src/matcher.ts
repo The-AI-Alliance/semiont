@@ -6,9 +6,11 @@
  *
  * Handles:
  * - match:search-requested — multi-source retrieval + composite scoring
+ * - match:limits-requested — the limits of the model whose credential it holds
  *
- * The write side (annotation.body.updated) stays in the route where userId
- * is available from auth context.
+ * The bind that records a chosen referent is a write and is not here:
+ * `bind:update-body` forwards to `mark:update-body`, and the Stower appends
+ * `mark:body-updated`.
  */
 
 import { Subscription, from } from 'rxjs';
@@ -163,7 +165,7 @@ export class Matcher {
         ? this.stores.graph.listResources({ entityTypes: annotationEntityTypes, limit: 50 })
             .then(r => r.resources)
         : Promise.resolve([]),
-      // 4. Semantic match — vector similarity search (if vectors configured)
+      // 4. Semantic match — vector similarity search
       this.searchVectors(searchTerm),
     ]);
 
@@ -315,7 +317,7 @@ export class Matcher {
       };
     });
 
-    // Inference-based semantic scoring (when available, enabled, and there are candidates)
+    // Inference-based semantic scoring (unless the request disables it, and when there are candidates)
     if (scored.length > 0 && useSemanticScoring !== false) {
       try {
         const inferenceScores = await this.inferenceSemanticScore(
@@ -442,7 +444,8 @@ For each candidate, output a line with the number and score, like:
 
   /**
    * Search vectors for semantically similar resources.
-   * Returns empty array if vectors or embedding provider are not configured.
+   * Returns an empty array for a blank search term, and when the search
+   * fails (logged; the structural sources still answer).
    *
    * No entity-type filter: the annotation's entity types are a ranking signal
    * (Jaccard + IDF in `contextDrivenSearch`), not an inclusion gate. Gating

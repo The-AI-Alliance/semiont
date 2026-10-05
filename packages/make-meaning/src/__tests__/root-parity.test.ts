@@ -4,13 +4,12 @@
  *
  * Two compositions of the same actor fleet exist — the extracted mains
  * (archivist-main, librarian-main; production) and `startMakeMeaning`
- * (in-process; the SDK test seam and embedding, DECIDED to survive —
- * 2026-08-31). The extracted mains build their
- * subscriptions from the exported roster constants; this gate asserts the
- * in-process root observes the union of those same constants, so an
- * extraction-era change that adds a channel or an actor cannot land in the
- * mains while the monolith root silently lags — with LocalTransport tests
- * staying green against wiring production no longer has.
+ * (in-process; the SDK test seam and embedding). The extracted mains build
+ * their subscriptions from the exported roster constants; this gate asserts
+ * the in-process root observes the union of those same constants, so a
+ * change that adds a channel or an actor cannot reach the mains while the
+ * in-process root silently lags — with LocalTransport tests staying green
+ * against wiring production does not have.
  *
  * The union deliberately EXCLUDES the projection pipelines: the Weaver and
  * Smelter are standalone-only (constructed in their mains, never here), so

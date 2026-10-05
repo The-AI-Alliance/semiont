@@ -4,9 +4,7 @@ import { useKeyboardShortcuts, useDoubleKeyPress, KeyboardShortcutsHelpModal } f
 import { GlobalSearchModal } from '../components/modals/GlobalSearchModal';
 
 interface KeyboardShortcutsContextType {
-  openGlobalSearch: () => void;
   openKeyboardHelp: () => void;
-  closeAllOverlays: () => void;
 }
 
 export const KeyboardShortcutsContext = createContext<KeyboardShortcutsContextType | null>(null);
@@ -27,7 +25,6 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
   const router = useRouter();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const [overlayCloseCallbacks, setOverlayCloseCallbacks] = useState<(() => void)[]>([]);
 
   // Open global search
   const openGlobalSearch = useCallback(() => {
@@ -39,18 +36,11 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
     setIsHelpOpen(true);
   }, []);
 
-  // Close all overlays
+  // Close both modals
   const closeAllOverlays = useCallback(() => {
-    // Close all modals
     setIsSearchOpen(false);
     setIsHelpOpen(false);
-
-    // Call all registered overlay close callbacks
-    overlayCloseCallbacks.forEach(callback => callback());
-
-    // Clear the callbacks
-    setOverlayCloseCallbacks([]);
-  }, [overlayCloseCallbacks]);
+  }, []);
 
   // Register global keyboard shortcuts
   useKeyboardShortcuts([
@@ -93,11 +83,7 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
   // Double Escape to close all overlays
   useDoubleKeyPress('Escape', closeAllOverlays, 300);
 
-  const contextValue: KeyboardShortcutsContextType = {
-    openGlobalSearch,
-    openKeyboardHelp,
-    closeAllOverlays
-  };
+  const contextValue: KeyboardShortcutsContextType = { openKeyboardHelp };
 
   return (
     <KeyboardShortcutsContext.Provider value={contextValue}>

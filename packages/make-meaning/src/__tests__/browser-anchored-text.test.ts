@@ -5,9 +5,9 @@
  * What is worth pinning here is not "the store is read" but the three answers
  * a caller can get, because each drives different behaviour in a viewer:
  *
- *   a map          → quote the text under a hand-drawn rectangle
- *   null, settled  → this document has no map and never will; stop asking
- *   null, timeout  → not yet; the annotation ships with geometry only
+ *   a map      → quote the text under a hand-drawn rectangle
+ *   `no-map`   → settled as skipped: no map and never will be; stop asking
+ *   `not-yet`  → the barrier timed out; the annotation ships with geometry only
  *
  * The barrier is the same one `llm-context` uses for vectors: a caller can
  * arrive before the Smelter has finished the resource it just uploaded, and

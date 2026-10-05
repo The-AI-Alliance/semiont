@@ -15,7 +15,7 @@ import { SemiontProject } from '@semiont/core/node';
 import { WorkingTreeStore, ChecksumMismatchError } from '../working-tree-store';
 import { calculateChecksum } from '../checksum';
 
-// SemiontProject's state tree derives from XDG_STATE_HOME, which now throws when
+// SemiontProject's state tree derives from XDG_STATE_HOME, which throws when
 // unset (no fabricated default). Point it into temp space for this suite.
 process.env.XDG_STATE_HOME = join(tmpdir(), 'semiont-content-tests-state');
 
@@ -133,9 +133,8 @@ describe('WorkingTreeStore', () => {
     });
 
     it('a mismatched overwrite leaves the previous version intact', async () => {
-      // The property buffering never had: the old bytes must survive a failed
-      // replacement, because the store writes beside the target and renames
-      // only after the checksum agrees.
+      // The old bytes survive a failed replacement: the store writes beside
+      // the target and renames only after the checksum agrees.
       await store.store(Buffer.from('the good version'), 'file://precious.txt');
 
       const error = await store

@@ -1,13 +1,13 @@
 /**
- * Staging stops running on the event loop, and stops running once per change.
+ * Staging runs off the event loop, and once per path rather than once per
+ * change.
  *
  * The index is there for a **human**: the Archivist stages, operators commit
  * and branch by hand. That makes the requirement "current within seconds
- * whenever someone looks", not "current synchronously after every append" —
- * and the gap between those two readings is the whole defect. Today every
- * appended event spawns a blocking `git add` on the same file; a detection job
- * writing 1,400 annotations to one resource spawns 1,400 subprocesses that
- * stage one path.
+ * whenever someone looks", not "current synchronously after every append".
+ * Staging synchronously would spawn a blocking `git add` on the same file for
+ * every appended event: a detection job writing 1,400 annotations to one
+ * resource would spawn 1,400 subprocesses that stage one path.
  *
  * So the queue does two things, and the second matters more than the first:
  * it moves git OFF the loop, and it DEDUPES by path.
@@ -41,7 +41,7 @@ describe('git staging queue', () => {
     const stager = createStager(root, { flushMs: 50, maxWaitMs: 500 });
     stager.add(await write('a.txt'));
 
-    // The defect stated as a property: enqueueing returns before git has run.
+    // Enqueueing returns before git has run.
     expect(staged()).toEqual([]);
 
     await stager.flush();
@@ -117,10 +117,10 @@ describe('git staging queue', () => {
  * A lost `index.lock` race must not be fatal, must not lose work, and must not
  * happen to ourselves.
  *
- * Measured 2026-09-08: two `createStager` calls on one repo (content +
- * event log) raced, `git add` failed, the rejection was unhandled on the
- * debounced timer path, and Node killed the Archivist — 9 boots in 5 minutes.
- * Every request in flight died with it and read to its caller as a hang.
+ * Two stagers on one repo (content + event log) would race for the lock, and
+ * a `git add` rejection on the debounced timer path has no handler: Node
+ * kills the process, and every request in flight dies with it and reads to
+ * its caller as a hang.
  */
 describe('index.lock contention', () => {
   const lockPath = () => join(root, '.git', 'index.lock');
@@ -161,14 +161,14 @@ describe('index.lock contention', () => {
     stager.add('never-existed.txt'); // pathspec matches nothing: git fails, always
     // Staging the index is a convenience; the event log is the record. A
     // failure here is degraded service, and MUST NOT reach a caller as a
-    // rejection — one missing `.catch` anywhere would be fatal again.
+    // rejection — one missing `.catch` anywhere would be fatal.
     await expect(stager.flush()).resolves.toBeUndefined();
     await expect(stager.dispose()).resolves.toBeUndefined();
   });
 
   it('one repo gets ONE stager — callers cannot race each other', () => {
-    // The content store and the event log each created their own; each
-    // serialized internally and neither serialized against the other.
+    // The content store and the event log each ask for one; two instances
+    // would each serialize internally and neither against the other.
     expect(createStager(root)).toBe(createStager(root));
   });
 });

@@ -485,9 +485,8 @@ describe('Matcher', () => {
     });
 
     it('hydrates a graph-lagging semantic candidate from the view instead of dropping it', async () => {
-      // Post-GREEN pin (added after the "is this done?" review — the code
-      // path was fixed alongside the neighborhood loop; this pins it
-      // independently rather than by call-shape similarity).
+      // Pins the semantic lane independently of the neighborhood loop above,
+      // rather than by call-shape similarity.
       const localBus = new EventBus();
       const viewGet = vi.fn().mockImplementation((id: unknown) =>
         String(id) === 'res-sem'
@@ -523,12 +522,12 @@ describe('Matcher', () => {
       // The focal resource is cited by two resources; one citer's node is absent
       // from the graph (its view is missing). `deriveViews` reports the
       // graph as-is — it counts the missing-view citer — so `citedByCount` reflects
-      // the full reference history, NOT the old precomputed map that dropped it.
+      // the full reference history.
       //
       // Gamma is a neighborhood-only candidate with no name/entity/recency signal, so
       // its score is exactly: connected (+10) + citedBy boost (min(citedByCount*2, 15)).
-      // citedByCount = 2 → +4 → 14. The OLD behavior would have dropped the missing-view
-      // citer (citedByCount = 1 → +2 → 12); pinning 14 documents the intended rise.
+      // citedByCount = 2 → +4 → 14. Dropping the missing-view citer would give
+      // citedByCount = 1 → +2 → 12.
       mockSearchFn2.mockResolvedValue([]);
       mockGetResource.mockImplementation((id: ResourceId) => {
         if (id === resourceId('res-c')) return Promise.resolve({ '@id': 'res-c', name: 'Gamma' });

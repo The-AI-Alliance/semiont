@@ -248,17 +248,6 @@ describe('PopupContainer', () => {
     expect(panel).toHaveAttribute('data-wide', 'true');
   });
 
-  it('should have data-annotation-ui attribute', () => {
-    const { container } = renderWithProviders(
-      <PopupContainer {...defaultProps}>
-        <div>Content</div>
-      </PopupContainer>
-    );
-
-    const panel = container.querySelector('[data-annotation-ui]');
-    expect(panel).toBeInTheDocument();
-  });
-
   it('should position popup with fixed positioning', () => {
     const { container } = renderWithProviders(
       <PopupContainer {...defaultProps}>

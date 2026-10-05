@@ -1,5 +1,5 @@
 /**
- * OCR page assembly — text and word offsets, built together (#739).
+ * OCR page assembly — text and word offsets, built together.
  *
  * The offsets are the risky part: `buildPdfAnnotation` slices the assembled
  * text between a match's overlapping items and THROWS unless that substring

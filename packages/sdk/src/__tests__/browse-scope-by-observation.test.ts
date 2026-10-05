@@ -1,5 +1,5 @@
 /**
- * #847 — live-query freshness follows observation.
+ * Live-query freshness follows observation.
  *
  * Subscribing to a resource-scoped `browse.*(rId)` live query acquires that
  * resource's scope (via the transport's ref-counted `subscribeToResource`);
@@ -13,8 +13,7 @@
  * Many scopes at once: the SDK calls `subscribeToResource(rId)` once per
  * resource-scoped subscription; the transport ref-counts per resource and
  * DISTINCT resources compose — N mounted loaders on N resources each hold
- * their own scope concurrently. The old single-slot contention state (and
- * withScope's degradation workaround) no longer exists.
+ * their own scope concurrently.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -41,9 +40,9 @@ function makeFakeTransport() {
 
   // The result channel is NAMED, not derived by replacing '-requested' with
   // '-result' in the request's name. String surgery on channel names cannot
-  // be checked against the registry, and the typed bus is what forced the
-  // issue: `bus.emit(<computed string>, reply)` has no payload type to check
-  // the reply against.
+  // be checked against the registry, and on the typed bus
+  // `bus.emit(<computed string>, reply)` has no payload type to check the
+  // reply against.
   const respond = <Req extends keyof EventMap, Res extends keyof EventMap>(
     channel: string,
     requestChannel: Req,
@@ -77,7 +76,7 @@ const noopContent = {
   dispose: () => {},
 } as unknown as IContentTransport;
 
-describe('browse live-query subscription acquires the resource scope (#847)', () => {
+describe('browse live-query subscription acquires the resource scope', () => {
   let bus: EventBus;
   let browse: BrowseNamespace;
   let subscribeToResource: ReturnType<typeof makeFakeTransport>['subscribeToResource'];
@@ -134,14 +133,11 @@ describe('browse live-query subscription acquires the resource scope (#847)', ()
 });
 
 describe('multi-scope: distinct-rid live queries COMPOSE — all fully live', () => {
-  // The old single-slot contract threw for a second distinct resourceId and
-  // the interim starvation fix degraded that loader to unscoped
-  // observation. Both states are gone: N distinct-rid loaders at mount (the
-  // embeddable-viewer "resource per chat message" pattern) each acquire
-  // their OWN scope on the shared connection, keep it independently, and
-  // release it independently. This is the acceptance shape for concurrent
-  // scopes at the namespace level; the browse-concurrent-loaders suite
-  // covers the same over faulty wires.
+  // N distinct-rid loaders at mount (the embeddable-viewer "resource per
+  // chat message" pattern) each acquire their OWN scope on the shared
+  // connection, keep it independently, and release it independently. This
+  // is the acceptance shape for concurrent scopes at the namespace level;
+  // the browse-concurrent-loaders suite covers the same over faulty wires.
 
   const flush = () => new Promise<void>((r) => setTimeout(r, 0));
   const rid1: ResourceId = makeResourceId('res-1');
@@ -166,7 +162,7 @@ describe('multi-scope: distinct-rid live queries COMPOSE — all fully live', ()
     expect(values2.filter(Boolean)).toHaveLength(1);
     expect(subscribeToResource).toHaveBeenCalledWith(rid1);
     expect(subscribeToResource).toHaveBeenCalledWith(rid2);
-    // The degradation breadcrumb is dead code — nothing may warn here.
+    // Scope acquisition has no degraded mode — nothing may warn here.
     expect(warnSpy.mock.calls.map((c) => String(c[0])).filter((w) => w.includes('SCOPE-CONTENTION'))).toEqual([]);
 
     warnSpy.mockRestore();

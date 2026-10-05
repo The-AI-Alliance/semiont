@@ -7,9 +7,8 @@ import { resourceId } from '@semiont/core';
  * generated from the spec schema and consumed by both the sdk (write side)
  * and the worker (read side).
  *
- * Supersedes the GenerationParams contract file: the all-optional era is
- * over. Requiredness is decided once, in the schema — `title`, `storageUri`,
- * and `context` are the wire's law now, and `{}` no longer compiles (the
+ * Requiredness is decided once, in the schema — `title`, `storageUri`, and
+ * `context` are required on the wire, and `{}` does not compile (the
  * inverted pin below holds that door shut).
  */
 
@@ -39,9 +38,8 @@ describe('GenerationJobParams contract', () => {
     expect(p.title).toBe('Answer');
   });
 
-  it('the empty bag no longer compiles — requiredness is the wire\'s law', () => {
-    // @ts-expect-error — title, storageUri, and context are required (the
-    // shared type ended the all-optional era this file used to pin).
+  it('the empty bag does not compile — requiredness is the wire\'s law', () => {
+    // @ts-expect-error — title, storageUri, and context are required.
     const p: GenerationJobParams = {};
     expect(p).toEqual({});
   });

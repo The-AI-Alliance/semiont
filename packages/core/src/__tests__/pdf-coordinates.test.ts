@@ -1,8 +1,8 @@
 /**
  * PDF viewrect FragmentSelector codec tests.
  *
- * Property-based round-trip and RFC 3778 compliance for the codec extracted from
- * react-ui. The canvas-pixel transform tests stay in react-ui (UI-only).
+ * Property-based round-trip and RFC 3778 compliance for the codec. The
+ * canvas-pixel transform tests are in react-ui (UI-only).
  */
 
 import { describe, it, expect } from 'vitest';

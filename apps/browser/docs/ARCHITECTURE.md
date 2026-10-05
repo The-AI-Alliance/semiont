@@ -367,7 +367,7 @@ No call site invalidates anything by hand — the domain event drives the cache 
 ```
 SemiontClient creates one ActorStateUnit (single SSE to /bus/subscribe)
     └── ResourceViewerPage mounts and subscribes to browse.*(id) live queries
-        └── observing them acquires the resource scope (adds scoped channels; #847)
+        └── observing them acquires the resource scope (adds scoped channels)
             └── Gateway emits domain events on scoped bus
                 └── ActorStateUnit bridges events into local EventBus
                     └── BrowseNamespace invalidates caches

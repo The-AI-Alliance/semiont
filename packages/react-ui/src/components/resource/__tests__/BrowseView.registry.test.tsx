@@ -3,8 +3,6 @@
  *
  * A consumer can swap a media renderer via the `renderers` prop (e.g. its own PDF
  * viewer) without forking BrowseView. AnnotateToolbar is mocked (unrelated here).
- *
- * Started RED (tsc: no `renderers` prop) and GREEN once BrowseView takes one.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';

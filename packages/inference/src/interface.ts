@@ -79,14 +79,14 @@ export interface InferenceLimits {
    * Absent for providers whose rates are unknowable a priori (Ollama — local
    * hardware). Absence does NOT mean no duration bound: the detection
    * consumer applies its own conservative assumed floor rate instead — an
-   * unbounded budget turned model repetition loops into hour-long transient
+   * unbounded budget turns model repetition loops into hour-long transient
    * burns.
    */
   outputTokensPerHour?: number;
   /**
-   * Whether the model accepts a caller-supplied `temperature`. Measured
-   * 2026-09-25: `claude-sonnet-5` refuses any non-default value with a 400
-   * on both request shapes, and the Models API publishes no sampling
+   * Whether the model accepts a caller-supplied `temperature`.
+   * `claude-sonnet-5` refuses any non-default value with a 400 on both
+   * request shapes, and the Models API publishes no sampling
    * capability — so the Anthropic client PROBES acceptance at discovery and
    * records the verdict here; Ollama and the mock always accept. Rides
    * `CollaboratorEntry.limits` so the UI can hide the Creativity slider on
@@ -112,9 +112,9 @@ export interface InferenceLimits {
  *
  * Also thrown — on either generation path — when a response arrives EMPTY:
  * a thinking model can exhaust the whole output budget on hidden reasoning
- * before its first response character (measured live, gpt-oss:120b-cloud
- * 2026-09-05). Truncated-to-nothing is still truncation, and it needs the
- * same stop-reason ride to classify correctly.
+ * before its first response character (measured on gpt-oss:120b-cloud).
+ * Truncated-to-nothing is still truncation, and it needs the same
+ * stop-reason ride to classify correctly.
  */
 export class StructuredReadError extends Error {
   override readonly name = 'StructuredReadError';
@@ -144,20 +144,19 @@ export interface InferenceClient {
    * pressure that can OOM. There is no honest default across those two worlds,
    * so this is required, not optional.
    *
-   * Hard-coded per implementation for now; the natural seam for future
-   * per-provider or admin tuning (a value that later comes from config changes
-   * only where this is SET, not the callers).
+   * Hard-coded per implementation. This is the seam for per-provider or
+   * admin tuning: a value that came from config would change only where this
+   * is SET, not the callers.
    */
   readonly maxConcurrency: number;
 
   /**
    * Whether detection should run the count-verifier against this provider's
    * extractions: a cheap count call that flags an extraction finding under
-   * half the counted mentions as silent yield collapse (universalized to
-   * every real provider by user ruling 2026-09-05 — unverified completeness
-   * is not a savings). Declared HERE, per implementation, because
-   * @semiont/jobs does no provider-specific switching (architecture ruling,
-   * same date): whatever varies by provider is a capability on this contract,
+   * half the counted mentions as silent yield collapse (true for every real
+   * provider — unverified completeness is not a savings). Declared HERE, per
+   * implementation, because @semiont/jobs does no provider-specific
+   * switching: whatever varies by provider is a capability on this contract,
    * like `maxConcurrency`. The mock alone defaults false, so deterministic
    * tests opt in explicitly rather than paying a queue-popping count call by
    * surprise.
@@ -177,8 +176,7 @@ export interface InferenceClient {
    * Generate text from a prompt (simple interface).
    *
    * `signal` (here and on every generation method — a trailing optional
-   * parameter, deliberately not an options bag; that shape went, on purpose,
-   * when structured generation became its own method): true cancellation.
+   * parameter, deliberately not an options bag): true cancellation.
    * Implementations MUST thread it to their transport so an abort tears down
    * the underlying request — and, for SDKs with internal retry loops, ends
    * those too — rejecting promptly. Accepting the parameter and ignoring it
@@ -198,11 +196,10 @@ export interface InferenceClient {
    * values — the structured counterpart of `generateTextWithMetadata`, and
    * the ONLY generation surface detection may use.
    *
-   * The return type carries the guarantee the old `format: 'json'` option
-   * left in a comment: callers receive `T[]` or an exception. When the
-   * provider's answer cannot be read as an array (the SDK hands tool input
-   * over as an unparsed string, the response is missing the array, the
-   * grammar was not honoured), implementations THROW a
+   * The return type carries the guarantee: callers receive `T[]` or an
+   * exception. When the provider's answer cannot be read as an array (the
+   * response is not valid JSON, it parses to something other than an array,
+   * the grammar was not honoured), implementations THROW a
    * "Structured response could not be read" error — they never coerce to
    * `[]`, because empty is a legitimate, distinct outcome.
    */

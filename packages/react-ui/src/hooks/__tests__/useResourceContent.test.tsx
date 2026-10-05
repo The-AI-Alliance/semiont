@@ -1,13 +1,10 @@
 /**
  * useResourceContent is bring-your-own-client.
  *
- * The last provider-bound hook on the embeddable path joins the
- * useResourceLoader/useMediaToken convention: client-first (`null` → idle),
- * NO providers required, and errors are RETURNED, never toasted — the host
- * decides chrome. Real decodeWithCharset over encoded bytes (no core mocks).
- *
- * Started RED (the old hook threw from useSemiont with no providers and took
- * no client param) and GREEN once the de-provider lands.
+ * The hook follows the useResourceLoader/useMediaToken convention:
+ * client-first (`null` → idle), NO providers required, and errors are
+ * RETURNED, never toasted — the host decides chrome. Real decodeWithCharset
+ * over encoded bytes (no core mocks).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';

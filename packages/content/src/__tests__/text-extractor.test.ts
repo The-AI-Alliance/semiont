@@ -1,16 +1,11 @@
 /**
- * Deriving text, and who is allowed to (#743).
+ * Deriving text, and who is allowed to.
  *
- * The strategy-keyed `EXTRACTORS` registry these tests used to cover is gone.
- * It held one real extractor and a one-line wrapper around core's
- * `decodeRepresentation` — whose own behavior (UTF-8, charset parameters, the
- * no-charset default) is tested in `@semiont/core`'s `resource-utils.test.ts`,
- * so the wrapper's tests were duplicating that through an indirection and left
- * with it.
- *
- * What is covered here is what remains: which media types need deriving, that
- * deriving cannot be reached without the store that persists it, and that core's
- * geometry answer matches what actually runs.
+ * Covered here: which media types need deriving, that deriving cannot be
+ * reached without the store that persists it, and that core's geometry answer
+ * matches what actually runs. Decoding (UTF-8, charset parameters, the
+ * no-charset default) is core's `decodeRepresentation`, tested in
+ * `@semiont/core`'s `resource-utils.test.ts`.
  */
 
 import path from 'path';
@@ -29,10 +24,9 @@ describe('derivingExtractorFor', () => {
   });
 
   it('answers null for text — decoding is not deriving, and is core\'s job', () => {
-    // The deleted registry returned a passthrough extractor here, making
-    // "decode UTF-8" and "OCR a scan" the same call. Callers now reach
-    // `decodeRepresentation` in @semiont/core directly, as five sites in
-    // @semiont/make-meaning already did.
+    // A passthrough extractor here would make "decode UTF-8" and "OCR a
+    // scan" the same call. Callers reach `decodeRepresentation` in
+    // @semiont/core directly.
     expect(derivingExtractorFor('text/markdown')).toBeNull();
     expect(derivingExtractorFor('text/plain')).toBeNull();
     expect(derivingExtractorFor('application/json')).toBeNull();
@@ -55,7 +49,7 @@ describe('deriving requires the store that persists what it derives', () => {
   // because it cannot construct the argument.
   //
   // These assertions are the COMPILER's — `@ts-expect-error` fails `tsc` if the
-  // call ever starts type-checking, which is exactly the regression to catch.
+  // call ever starts type-checking, which is exactly the change to catch.
   // Nothing is invoked; a runtime guard would be the fifth thing to remember,
   // and remembering is what the required parameter removes.
   it('does not type-check without a cache', () => {
@@ -78,11 +72,11 @@ describe('deriving requires the store that persists what it derives', () => {
  * The census gate for core's geometry answer, stated against
  * `derivingExtractorFor`.
  *
- * The `yieldsGeometry` boolean each extractor declared is deleted, and core's
- * `yieldsGeometryOf` is the single home. That removes the chance of two
- * *declarations* disagreeing, but not the thing that matters: core can still be
- * wrong about what the code DOES. So the gate is behavioral — for every strategy,
- * check that positioned runs appear exactly where core says they will.
+ * Core's `yieldsGeometryOf` is the single home of the answer; no extractor
+ * declares it. That removes the chance of two *declarations* disagreeing, but
+ * not the thing that matters: core can still be wrong about what the code
+ * DOES. So the gate is behavioral — for every strategy, check that positioned
+ * runs appear exactly where core says they will.
  *
  * Asserting core's answer against a second hand-written table would be a mirror;
  * asserting it against what actually runs cannot be.

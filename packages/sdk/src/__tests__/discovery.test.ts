@@ -7,8 +7,7 @@
  * `httpDiscovery` (fetch + ETag/304 + the content-type check that makes an
  * SPA-fallback index.html-at-200 read as absent) and `textDiscovery(read)`
  * — a consumer-supplied text thunk, the fs-free seam a Node consumer wraps
- * `readFile` in (in place of a file-reading transport: no fs in the sdk,
- * user decision 2026-07-21).
+ * `readFile` in (in place of a file-reading transport: no fs in the sdk).
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { DISCOVERY_URL_PATH, HTTP_REQUEST_TIMEOUT_MS, type DiscoveredKB } from '@semiont/core';
@@ -29,10 +28,8 @@ const KB_B: DiscoveredKB = {
   host: 'localhost', port: 4100, placement: 'codespace', managedBy: 'semiont-launcher',
   repo: 'octo/kb-b', did: 'did:web:kb-b.example',
 };
-/** A third live KB. (Was `KB_NODID`, back when a did was optional and the
- *  merge key fell back to the address; identity is now required and the key
- *  is ALWAYS the address — decisions 8 and 9.) */
-const KB_NODID: DiscoveredKB = {
+/** A third live KB. */
+const KB_C: DiscoveredKB = {
   host: 'localhost', port: 4200, placement: 'local', managedBy: 'semiont-launcher',
   did: 'did:web:example.github.io:kb-c',
 };
@@ -121,7 +118,7 @@ describe('httpDiscovery', () => {
     expect(secondHeaders.get('If-None-Match')).toBe('"v1"');
   });
 
-  it('index.html at 200 → absent(not-found) — the pre-L2a SPA fallback reality', async () => {
+  it('index.html at 200 → absent(not-found) — the SPA fallback of an image without the discovery mount', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('<!doctype html><html></html>', {
       status: 200, headers: { 'Content-Type': 'text/html' },
     })));
@@ -153,7 +150,7 @@ describe('httpDiscovery', () => {
   });
 });
 
-describe('subscribeDiscovery — poll + diff, keyed did ?? host:port', () => {
+describe('subscribeDiscovery — poll + diff, keyed host:port', () => {
   /** A scriptable transport: each read() shifts the next scripted state. */
   function scripted(states: Array<Awaited<ReturnType<DiscoveryTransport['read']>>>) {
     const reads = vi.fn(async () => states.length > 1 ? states.shift()! : states[0]!);
@@ -183,9 +180,9 @@ describe('subscribeDiscovery — poll + diff, keyed did ?? host:port', () => {
     // CHANGE is not an update; see the next test.)
     const renamedA = { ...KB_A, siteName: 'KB A, renamed' };
     const { transport } = scripted([
-      { kind: 'managed', kbs: [KB_A, KB_NODID] },
-      { kind: 'managed', kbs: [renamedA, KB_NODID, KB_B] },   // A updated in place, B added
-      { kind: 'managed', kbs: [KB_B] },                        // A + no-did entry removed
+      { kind: 'managed', kbs: [KB_A, KB_C] },
+      { kind: 'managed', kbs: [renamedA, KB_C, KB_B] },   // A updated in place, B added
+      { kind: 'managed', kbs: [KB_B] },                   // A + C removed
     ]);
 
     const emitted = await collect(transport, async () => {
@@ -194,17 +191,17 @@ describe('subscribeDiscovery — poll + diff, keyed did ?? host:port', () => {
     });
 
     expect(emitted).toHaveLength(3);
-    expect(emitted[0]).toMatchObject({ state: { kind: 'managed' }, added: [KB_A, KB_NODID], updated: [], removed: [] });
+    expect(emitted[0]).toMatchObject({ state: { kind: 'managed' }, added: [KB_A, KB_C], updated: [], removed: [] });
     expect(emitted[1]).toMatchObject({ added: [KB_B], updated: [renamedA], removed: [] });
     expect(emitted[2]!.added).toEqual([]);
-    expect(emitted[2]!.removed).toEqual(expect.arrayContaining([renamedA, KB_NODID]));
+    expect(emitted[2]!.removed).toEqual(expect.arrayContaining([renamedA, KB_C]));
   });
 
   it('a KB that moves port is a removal plus an addition, not an update', async () => {
-    // Semantic shift from keying on the address: the old
-    // binding is DEAD — nothing answers there — and a new one appeared.
-    // Calling it an "update" would leave a panel showing a dead address as
-    // live. Under the old did-keyed model this was reported as one update.
+    // A consequence of keying on the address: the binding it left is DEAD —
+    // nothing answers there — and a new one appeared. Calling it an
+    // "update", as keying on the did would, leaves a panel showing a dead
+    // address as live.
     const movedA = { ...KB_A, port: 4001 };
     const { transport } = scripted([
       { kind: 'managed', kbs: [KB_A] },
@@ -239,7 +236,7 @@ describe('subscribeDiscovery — poll + diff, keyed did ?? host:port', () => {
     const { transport } = scripted([
       { kind: 'absent', reason: 'not-found' },
       { kind: 'managed', kbs: [KB_A] },
-      { kind: 'absent', reason: 'not-found' },   // launcher gone (or pre-L2a fallback returned)
+      { kind: 'absent', reason: 'not-found' },   // launcher gone (or the SPA fallback answering)
     ]);
 
     const emitted = await collect(transport, async () => {
@@ -320,14 +317,13 @@ describe('subscribeDiscovery — poll + diff, keyed did ?? host:port', () => {
   });
 
   it('a document with two entries sharing a merge key warns instead of silently merging', async () => {
-    // Ambiguity is shown, never resolved by guessing. Two did-less entries
-    // at one address can't both be true, and the diff's Map membership
-    // collapses them — say so rather than let a claimant vanish (how the
-    // predecessor defect hid for a release).
+    // Ambiguity is shown, never resolved by guessing. Two entries at one
+    // address can't both be true, and the diff's Map membership collapses
+    // them — say so rather than let a claimant vanish.
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       // Same ADDRESS, different dids — the real conflict (only one process
-      // binds a port), and the shape the 2026-07-24 live defect had.
+      // binds a port).
       const dupA: DiscoveredKB = { host: 'localhost', port: 4000, placement: 'local', managedBy: 'semiont-launcher', did: 'did:web:example.github.io:kb-a' };
       const dupB: DiscoveredKB = { host: 'localhost', port: 4000, placement: 'codespace', managedBy: 'semiont-launcher', repo: 'octo/other', did: 'did:web:example.github.io:other' };
       const { transport } = scripted([{ kind: 'managed', kbs: [dupA, dupB] }]);
@@ -347,7 +343,7 @@ describe('subscribeDiscovery — poll + diff, keyed did ?? host:port', () => {
   it('a well-formed document warns about nothing', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
-      const { transport } = scripted([{ kind: 'managed', kbs: [KB_A, KB_B, KB_NODID] }]);
+      const { transport } = scripted([{ kind: 'managed', kbs: [KB_A, KB_B, KB_C] }]);
       await collect(transport, async () => {});
       expect(warn).not.toHaveBeenCalled();
     } finally {

@@ -7,8 +7,8 @@
  * annotation AFTER the update, and a removal must go out unenriched; both hold
  * only because enrichment reads the view once it has been materialized, which
  * a test over a stubbed view could not tell apart. The SDK updates its
- * annotation cache in place from exactly this field, so a regression here is
- * a stale screen, not a failed request.
+ * annotation cache in place from exactly this field, so a defect here is a
+ * stale screen, not a failed request.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
@@ -69,11 +69,11 @@ describe('wireEnrichment — what the EventStore publishes on the annotation cha
   // server adds no derived field on either. The annotation-list reply has its
   // own gate in annotation-stays-w3c.test.ts; this holds the bus to the same
   // rule, because both read through `getAllAnnotations` and a decoration
-  // re-added there would reach subscribers as readily as readers.
+  // added there would reach subscribers as readily as readers.
   //
-  // A LINKING annotation specifically: the server only ever decorated a
-  // resolved reference, so a commenting fixture would pass while the defect sat
-  // untouched.
+  // A LINKING annotation specifically: only a resolved reference has a target
+  // to derive a field from, so a commenting fixture would pass with nothing to
+  // catch.
   it('a linking annotation goes out with no server-added keys', async () => {
     const TARGET = resourceId('res-enrich-target');
     await eventStore.appendEvent({
@@ -98,7 +98,7 @@ describe('wireEnrichment — what the EventStore publishes on the annotation cha
 
     const out = (await published).annotation!;
     expect(out.id).toBe('ann-linking');
-    // Named, so a regression says which key came back.
+    // Named, so a failure says which key leaked.
     expect(Object.keys(out).filter((k) => k.startsWith('_'))).toEqual([]);
   });
 
@@ -119,13 +119,11 @@ describe('wireEnrichment — what the EventStore publishes on the annotation cha
   });
 
   it('mark:removed goes out unenriched — it is not an enriched channel', async () => {
-    // The behaviour is unchanged; only its reason is. This used to read "the
-    // view no longer holds the annotation", which was true but described a
-    // runtime accident: the channel WAS flagged `enriched`, so the type promised
-    // an annotation the enricher could never attach. The flag is gone, so the
-    // absence is now declared rather than incidental — and reading `.annotation`
-    // here no longer compiles, which is why this asserts the key's absence the
-    // way its unenriched sibling below does.
+    // The absence is declared, not incidental. Once the removal is materialized
+    // the view holds no annotation to attach, so the channel is not flagged
+    // `enriched` and its type promises none — reading `.annotation` here does
+    // not compile, which is why this asserts the key's absence the way its
+    // unenriched sibling below does.
     await addAnnotation();
     const published = nextOn('mark:removed');
     await eventStore.appendEvent({

@@ -17,8 +17,8 @@ import (
 // and the token's flat roles and audience are checked. Every case here drives
 // a STUB issuer rather than a Keycloak: what these assert is the launcher's
 // reading of a token, and a real realm cannot be made to emit the broken
-// shapes on demand. The shapes themselves are not invented — they were read
-// off a live Keycloak 26.7.4 realm on 2026-09-19.
+// shapes on demand. The shapes themselves are not invented — they are what a
+// live Keycloak 26.7.4 realm emits.
 
 // stubIssuer: an OIDC discovery document plus a token endpoint, serving
 // whatever `grant` decides for each client.
@@ -98,9 +98,9 @@ func TestPreflightRefusesWhenGrantIsRefused(t *testing.T) {
 }
 
 // (b) Keycloak's NESTED realm_access.roles is not the flat claim the gateway
-// reads, and a realm whose mapper regressed to it would fail every sidecar at
-// the agent exchange. Verified live: realm_access.roles carries Keycloak's own
-// defaults and never the service role, so reading it would find nothing.
+// reads, and a realm whose mapper emits only that would fail every sidecar at
+// the agent exchange: realm_access.roles carries Keycloak's own defaults and
+// never the service role, so reading it would find nothing.
 func TestPreflightRefusesNestedRolesClaim(t *testing.T) {
 	srv := stubIssuer(t, func(string) (int, string) {
 		return 200, grantBody(map[string]any{
@@ -162,9 +162,9 @@ func TestPreflightPassesOnTheLiveShape(t *testing.T) {
 // role existed has a roles mapper on semiont-worker that renders just the
 // service role: every client authenticates, every other check passes, and the
 // worker can never claim a job. That is a broken deployment, not a realm that
-// merely predates a change, so it refuses. Observed live 2026-09-21: the
-// gateway minted the worker's agents with `worker:false` and the dispatcher
-// re-announced one job every 30s, forever, with nothing in any log saying why.
+// is merely behind, so it refuses: the gateway mints the worker's agents with
+// `worker:false` and the dispatcher re-announces one job every 30s, forever,
+// with nothing in any log saying why.
 func TestPreflightRefusesAWorkerThatCannotClaim(t *testing.T) {
 	// A realm imported before the worker role existed: every token carries
 	// exactly the service role.
@@ -245,9 +245,9 @@ func TestPreflightRefusesWhenDiscoveryIsUnreachable(t *testing.T) {
 //
 // verifyServiceAccounts covers the six machine identities and proves nothing
 // about whether anyone can log in. These drive a stub issuer that answers the
-// device and authorization endpoints the way a live Keycloak 26.7.4 realm was
-// observed to on 2026-09-20 — `invalid_client` vs `unauthorized_client` at the
-// device endpoint, and 400 for either authorization failure.
+// device and authorization endpoints the way a live Keycloak 26.7.4 realm
+// does — `invalid_client` vs `unauthorized_client` at the device endpoint,
+// and 400 for either authorization failure.
 
 type publicStub struct {
 	missingClient string // device endpoint: 401 invalid_client for this id
@@ -483,10 +483,10 @@ func TestPublicClientsReportAnUnreachableIssuerOnce(t *testing.T) {
 
 // --- the flags, not just the existence --------------------------------------
 //
-// Both probes below send NO credential. The discriminations they rely on were
-// read off a live Keycloak 26.7.4 on 2026-09-20, each with a positive AND a
-// negative control — a client with the flag set and one without — so neither
-// infers "enabled" from a single observation.
+// Both probes below send NO credential. The discriminations they rely on are
+// a live Keycloak 26.7.4's answers, each with a positive AND a negative
+// control — a client with the flag set and one without — so neither infers
+// "enabled" from a single observation.
 
 // PKCE must be REQUIRED. A realm that merely SUPPORTS it serves the login page
 // to a request carrying no code challenge, and the authorization code is then
@@ -647,11 +647,11 @@ func TestPreflightLifespanMatchesWhenTheRealmAgrees(t *testing.T) {
 // The implicit flow hands the access token back in a redirect FRAGMENT, where
 // it lands in browser history and any script on the page. The realm document
 // disables it on every client, but a realm imported before that line — or an
-// issuer someone configured by hand — can have it on, and nothing said so.
+// issuer someone configured by hand — can have it on.
 //
-// Fatal, not a warning (user, 2026-09-20). Its siblings here are posture
-// findings about a realm that is merely behind; this one is a live way to leak
-// a bearer token, and a stack that starts is a stack that leaks it.
+// Fatal, not a warning. Its siblings here are posture findings about a realm
+// that is merely behind; this one is a live way to leak a bearer token, and a
+// stack that starts is a stack that leaks it.
 func TestPublicClientsRefuseWhenImplicitFlowIsEnabled(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{implicitOn: true})
 	f, ok := implicitFinding(verifyPublicClients(srv.URL))
@@ -759,10 +759,9 @@ func TestNoServiceAccountSecretIsEverPrinted(t *testing.T) {
 // The sign-in preflight also probes the token endpoint with the Browser's
 // origin. The redirect probe asks whether the realm will send a person BACK to
 // the Browser; it never asks whether the realm will let the Browser complete
-// the exchange. Those are different matches against different lists, and #1416
-// broke the second while fixing the first — a realm passes the redirect probe
-// and still cannot finish a sign-in, which is exactly what a person hits at
-// localhost:3000.
+// the exchange. Those are different matches against different lists: a realm
+// can pass the redirect probe and be unable to finish a sign-in, which is
+// exactly what a person hits at localhost:3000.
 func TestBrowserOriginRefusedWhenTheRealmDerivesItsOrigins(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{derivedOrigins: true})
 	f, bad := verifyBrowserOrigin(srv.URL, 3000)

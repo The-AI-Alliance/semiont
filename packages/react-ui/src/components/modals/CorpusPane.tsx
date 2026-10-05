@@ -26,9 +26,8 @@ export interface CorpusPaneProps {
  * matcher re-runs fresh (selected text + hint, scoring) and may rank
  * differently.
  *
- * Read-only for now by decision, not forever — when per-match actions arrive
- * they route through the footer's fork or a designed extension of it, never
- * ad-hoc buttons here.
+ * Read-only by decision: per-match actions belong to the footer's fork or a
+ * designed extension of it, never ad-hoc buttons here.
  */
 export function CorpusPane({ semanticContext, translations: t }: CorpusPaneProps) {
   // Descending by score, whatever order the wire delivered.

@@ -77,8 +77,10 @@ export class AnnotationContext {
    * @param annotationId - Bare annotation ID
    * @param resourceId - Source resource ID
    * @param kb - Knowledge base stores
+   * @param embeddingProvider - Embeds the focal text for the semantic search
    * @param options - Context building options
    * @param inferenceClient - Optional inference client for target context summary
+   * @param logger - Optional logger
    * @returns Rich context for LLM processing
    * @throws Error if annotation or resource not found
    */
@@ -126,7 +128,7 @@ export class AnnotationContext {
       firstFiveIds: sourceView.annotations.annotations.slice(0, 5).map((a: Annotation) => a.id)
     });
 
-    // Find the annotation in the view (annotations now have bare IDs)
+    // Find the annotation in the view (annotations have bare IDs)
     const annotation = sourceView.annotations.annotations.find((a: Annotation) => a.id === annotationId);
     logger?.debug('Annotation search result', { found: !!annotation });
 
@@ -146,7 +148,7 @@ export class AnnotationContext {
     // Get target resource if annotation is a reference (has resolved body source)
     const bodySource = getBodySource(annotation.body);
 
-    // Body source is now a bare resource ID
+    // Body source is a bare resource ID
     let targetDoc = null;
     if (bodySource) {
       const targetResourceId = bodySource;
@@ -179,7 +181,7 @@ export class AnnotationContext {
       if (!targetSelector) {
         logger?.warn('No target selector found');
       } else if (targetSelector.type === 'TextPositionSelector') {
-        // TypeScript now knows this is TextPositionSelector with required start/end
+        // A TextPositionSelector, by the type check above: start/end are required
         const selector = targetSelector as TextPositionSelector;
         const start = selector.start;
         const end = selector.end;
@@ -191,7 +193,7 @@ export class AnnotationContext {
         sourceContext = { before, selected, after };
         logger?.debug('Built source context using TextPositionSelector', { start, end });
       } else if (targetSelector.type === 'TextQuoteSelector') {
-        // TypeScript now knows this is TextQuoteSelector with required exact
+        // A TextQuoteSelector, by the type check above: exact is required
         const selector = targetSelector as TextQuoteSelector;
         const exact = selector.exact;
         const index = contentStr.indexOf(exact);
@@ -430,7 +432,6 @@ Summary:`;
       throw new Error('Resource not found');
     }
 
-    // Get content from representation store
     const contentStr = await ResourceContext.getResourceContent(resource, kb);
     if (contentStr === undefined) {
       throw new Error('Resource content not found: no text for this media (not decoded, and no derived text yet)');
@@ -479,7 +480,6 @@ Summary:`;
       throw new Error('Resource not found');
     }
 
-    // Get content from representation store
     const contentStr = await ResourceContext.getResourceContent(resource, kb);
     if (contentStr === undefined) {
       throw new Error('Resource content not found: no text for this media (not decoded, and no derived text yet)');
@@ -539,7 +539,6 @@ Summary:`;
 
   /**
    * Generate LLM summary of annotation in context
-   * Creates inference client per-request (HTTP handler context)
    */
   private static async generateSummary(
     resource: ResourceDescriptor,

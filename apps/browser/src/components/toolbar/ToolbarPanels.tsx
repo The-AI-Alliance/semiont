@@ -1,4 +1,4 @@
-import React, { useContext, useTransition, useCallback } from 'react';
+import React, { useTransition, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   SettingsPanel,
@@ -13,7 +13,7 @@ import {
 } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
-import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
+import { useKeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { useLocale } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { COMMON_PANELS } from '@semiont/react-ui';
@@ -28,13 +28,14 @@ interface ToolbarPanelsProps {
 }
 
 /**
- * Renders the toolbar panel container with common panels (user, settings)
- * and any context-specific panels passed as children.
+ * Renders the toolbar panel container with the common panels (knowledge
+ * base, user, settings) and any context-specific panels passed as children.
  *
- * Settings changes are handled via GlobalSettingsEventBus - no callbacks needed.
+ * Settings changes arrive as `settings:*` bus events and are applied here -
+ * no callbacks needed.
  *
  * @example
- * // Simple context (compose, discover, moderate, admin pages)
+ * // Simple context (compose, discover, moderate pages)
  * <ToolbarPanels
  *   activePanel={activePanel}
  *   theme={theme}
@@ -59,14 +60,13 @@ export function ToolbarPanels({
   children
 }: ToolbarPanelsProps) {
   // Source hover-delay from the shared hook so every page that mounts
-  // ToolbarPanels gets the live value without prop-drilling. Previously
-  // each page passed `hoverDelayMs` through as a prop; pages that forgot
-  // (Discover, Admin, Moderation) rendered the Settings panel with
-  // `undefined`, which surfaced as `{undefined}ms delay` after the
-  // translation interpolation ran.
+  // ToolbarPanels gets the live value without prop-drilling. As a prop, a
+  // page that forgets to pass it renders the Settings panel with
+  // `undefined`, which surfaces as `{undefined}ms delay` after the
+  // translation interpolation runs.
   const { hoverDelayMs } = useHoverDelay();
-  // The keyboard-help opener the footer used to own; the panel absorbed it.
-  const keyboardContext = useContext(KeyboardShortcutsContext);
+  // The Settings panel opens keyboard help.
+  const { openKeyboardHelp } = useKeyboardShortcutsContext();
   const { t: _t } = useTranslation();
   const session = useObservable(useSemiont().activeSession$);
   const user = useObservable(session?.user$);
@@ -90,11 +90,10 @@ export function ToolbarPanels({
   }, [pathname, router, startTransition]);
 
   // APPLYING the settings this panel emits is this component's job, exactly
-  // like locale above. It used to be a per-route subscription — eleven
-  // copies — and the signed-out knowledge layout never got one, so Theme and
-  // Line Numbers were visibly dead when signed out while Language (handled
-  // here) worked. Living here makes "the panel is mounted" and "the panel
-  // works" the same condition; the route copies are deleted, not added to.
+  // like locale above. Living here makes "the panel is mounted" and "the
+  // panel works" the same condition: a per-route subscription leaves Theme
+  // and Line Numbers dead on any route without one, while Language (handled
+  // here) works.
   const { setTheme } = useTheme();
   const { toggleLineNumbers } = useLineNumbers();
   const handleThemeChanged = useCallback(
@@ -114,7 +113,7 @@ export function ToolbarPanels({
     return null;
   }
 
-  // In simple context (no children), only user and settings panels are valid.
+  // In simple context (no children), only the common panels are valid.
   // If a resource-specific panel is still active from a previous route, hide the container.
   if (!children && !COMMON_PANELS.includes(activePanel)) {
     return null;
@@ -169,7 +168,7 @@ export function ToolbarPanels({
             isPendingLocaleChange={isPending}
             version={__APP_VERSION__}
             sourceCodeUrl="https://github.com/The-AI-Alliance/semiont"
-            onOpenKeyboardHelp={keyboardContext?.openKeyboardHelp ?? (() => {})}
+            onOpenKeyboardHelp={openKeyboardHelp}
           />
         )}
       </div>

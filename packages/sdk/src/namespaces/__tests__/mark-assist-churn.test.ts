@@ -1,18 +1,18 @@
 /**
- * Regression: `mark.assist` must not churn the SSE connection.
+ * `mark.assist` must not churn the SSE connection.
  *
- * Root cause: a
- * headless `mark.assist` called `transport.subscribeToResource(rId)` to
- * receive the resource-scoped `job:complete`/`job:fail`. That mutates the
- * SSE channel set, which can only be changed by tearing down and re-opening
- * the connection — so every assist forced (two) SSE reconnects, and a
- * `browse.*` result emitted during the reconnect gap was dropped.
+ * The worker emits `job:report-progress`, `job:complete` and `job:fail` to
+ * every client, so the dispatching caller receives them via the always-on
+ * global bridge and follows its job by `jobId`. A resource's scope carries
+ * none of the three.
  *
- * The fix makes the worker also emit `job:complete`/`job:fail` globally
- * (dual-emit), so the dispatching caller receives them via the always-on
- * global bridge — no scoped subscription, no channel-set mutation, no
- * reconnect. `mark.assist` therefore must NOT call `subscribeToResource`,
- * and must still complete on a globally-delivered `job:complete`.
+ * A headless `mark.assist` that called `transport.subscribeToResource(rId)`
+ * anyway would change the SSE channel set, which the HTTP transport applies
+ * by handing the stream over to a second connection opened beside the live
+ * one — so every assist would cost two handoffs, one when the scope is
+ * joined and one when it is left, and gain nothing.
+ * `mark.assist` therefore must NOT call `subscribeToResource`, and must
+ * complete on a globally-delivered `job:complete`.
  *
  * No gateway: a fake transport stands in for the bus.
  */
@@ -139,7 +139,7 @@ describe('mark.assist — frames that arrive before the job has its id', () => {
   });
 });
 
-describe('job:complete dual-delivery contract', () => {
+describe('job:complete delivered twice', () => {
   let bus: EventBus;
   const rId = makeResourceId('res-1');
   const completePayload = { resourceId: rId, jobId: jobId('job-1'), jobType: 'reference-annotation' as const };
@@ -169,8 +169,7 @@ describe('job:complete dual-delivery contract', () => {
     });
     await flush();
 
-    // Worker dual-emit: the same completion arrives globally AND scoped, so a
-    // client subscribed to both sees two bus deliveries.
+    // The same completion, delivered twice on the bus.
     bus.emit('job:complete', completePayload);
     bus.emit('job:complete', completePayload);
 

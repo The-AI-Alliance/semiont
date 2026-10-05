@@ -4,14 +4,6 @@
  * The Smelter derives a coordinate map at ingest; detection jobs and the
  * browser read it. This file pins how a READER resolves one — in particular
  * that it can never receive geometry for bytes the resource no longer has.
- *
- * These tests used to reach their subjects through four `IContentTransport`
- * methods (`putAnchoredText`, `getAnchoredText`, …). Those were one-line
- * wrappers, and they were deleted: anchored text moved onto bus channels, so
- * the transport-layer twins had no callers and, on the HTTP side, no route
- * behind them. The wrappers are gone; the invariants they happened to cover
- * are these, now asserted against `readAnchoredText` and `kb.anchoredText`
- * themselves — which is what they were always about.
  */
 
 import { asBusRequestPrimitive } from '../bus-request-local';
@@ -124,8 +116,8 @@ describe('readAnchoredText + the anchored-text store', () => {
   });
 
   it('answers NOT-YET for a resource whose map nothing has settled', async () => {
-    // Not an error. But it is no longer a bare `null` either: nothing has
-    // settled this generation, so the honest answer is "come back" — and a
+    // Not an error, and not a bare `null` either: nothing has settled this
+    // generation, so the honest answer is "come back" — and a
     // caller that blocks on this read needs to know that rather than
     // concluding the document will never have a map.
     //
@@ -180,7 +172,7 @@ describe('readAnchoredText + the anchored-text store', () => {
       resourceId: resourceId(String(target)), contentChecksum: stored2.checksum, outcome: 'indexed',
     });
 
-    // Absent, and now SAYS SO by name. `not-yet` rather than `no-map`: the new
+    // Absent, and SAYS SO by name. `not-yet` rather than `no-map`: the new
     // generation settled indexed but carries no artifact, which the reconcile
     // planner heals (its third drift class). What matters for this invariant is
     // that the OLD map is not served — the answer is an absence either way.
@@ -191,7 +183,7 @@ describe('readAnchoredText + the anchored-text store', () => {
 
   // ── The two barrier-FREE reads ────────────────────────────────────────────
   //
-  // `getAnchoredText` above applies a read-your-writes barrier: a miss waits
+  // `readAnchoredText` above applies a read-your-writes barrier: a miss waits
   // for the Smelter to finish the resource's current content generation. These
   // two deliberately do not, and that asymmetry is the whole point of them
   // being separate methods rather than options on the first.
@@ -199,7 +191,7 @@ describe('readAnchoredText + the anchored-text store', () => {
   // Both tests below therefore emit NO `smelt:settled`. Under the barrier that
   // omission is what makes a miss block for the full timeout — so if either
   // read ever acquires one, these stop returning promptly and start hanging,
-  // which is exactly the regression worth catching. The smelter's cache
+  // which is exactly the failure worth catching. The smelter's cache
   // consult runs on every ingest.
 
   it('reads a map by checksum with no settle barrier — the caller already holds the identity', async () => {
@@ -240,10 +232,10 @@ describe('readAnchoredText + the anchored-text store', () => {
 /**
  * The answer says WHY there is no map.
  *
- * `readAnchoredText` used to return `ExtractionOutcome | null`, and that `null`
- * covered four different facts: the settle barrier expired, the Smelter settled
- * the resource as skipped, there was no content identity to look up, and the
- * progress fold was disposed. Two of those a caller should RETRY; two are
+ * A bare `null` beside `ExtractionOutcome` would cover four different facts:
+ * the settle barrier expired, the Smelter settled the resource as skipped,
+ * there is no content identity to look up, and the progress fold was
+ * disposed. Two of those a caller should RETRY; two are
  * terminal. A detection worker that blocks on this read cannot classify its
  * own failure without the distinction — it would either retry forever on a
  * document that will never have a map, or fail terminally on one that is merely

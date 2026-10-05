@@ -1,5 +1,7 @@
 /**
- * SmeltProgress — gateway-local fold of `smelt:settled` signals.
+ * SmeltProgress — process-local fold of `smelt:settled` signals. Every process
+ * that reads behind the barrier (the Archivist, the Librarian, the in-process
+ * root) keeps its own.
  *
  * The Smelter emits `smelt:settled` after deciding a resource's content:
  * `indexed` (embedded + upserted) or `skipped` (media gate, empty text) —
@@ -16,8 +18,8 @@
  * worker; an in-process Smelter would ride the core EventBus and this unit
  * would not change (the WeaveProgress precedent).
  *
- * The fold is ephemeral by design — on gateway restart it rebuilds lazily
- * from live signals. Barrier callers probe the vector store first, so a
+ * The fold is ephemeral by design — when its process restarts it rebuilds
+ * lazily from live signals. Barrier callers probe the vector store first, so a
  * cold fold only costs waits for resources whose settlement genuinely
  * hasn't been observed yet.
  */

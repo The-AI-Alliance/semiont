@@ -2,11 +2,11 @@
 
 ## Worker Process
 
-Workers run as a separate process. `worker-main.ts` authenticates as a software agent, opens a `SemiontSession` (from `@semiont/sdk`), builds a `generator` (a W3C `Software` agent under its own DID), and calls `startWorkerProcess(...)`.
+Workers run as a separate process. For each agent group, `worker-main.ts` calls `startAgentWorker` (`src/worker-runtime.ts`), which authenticates as a software agent, builds a `generator` (a W3C `Software` agent under its own DID), opens a `SemiontSession` (from `@semiont/sdk`), and calls `startWorkerProcess(...)`.
 
 ### `startWorkerProcess(config): JobClaimAdapter`
 
-`startWorkerProcess` lives in `src/worker-process.ts` and is internal to the package — the `worker-main.ts` entry point calls it once per agent group. It is not exported from the package root.
+`startWorkerProcess` lives in `src/worker-process.ts` and is internal to the package — `startAgentWorker` calls it once per agent group. It is not exported from the package root.
 
 ```typescript
 const adapter = startWorkerProcess({
@@ -50,7 +50,7 @@ The caller emits the lifecycle events and reports each outcome with `adapter.com
 
 ### Processors
 
-Each processor is transport-agnostic. Detection processors take `(content, inferenceClient, params, buildAnnotation, onProgress, onChunkComplete, resumeCursors?)` — `processReferenceJob` additionally takes `logger`, an `onUnitComplete` checkpoint callback and an abort `signal`, and its `onChunkComplete` is optional — and return `{ result }`. Annotations are committed per chunk through `onChunkComplete`, not returned, and no user identity reaches a processor. `processGenerationJob` takes `(inferenceClient, params, onProgress, logger)` and returns `{ content, title, format, citations, result }`. Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`).
+Each processor is transport-agnostic. Detection processors take `(content, inferenceClient, params, buildAnnotation, onProgress, onChunkComplete, resumeCursors?)` — `processReferenceJob` additionally takes `logger`, an `onUnitComplete` checkpoint callback and an abort `signal`, and its `onChunkComplete` is optional — and return `{ result }`. Annotations are committed per chunk through `onChunkComplete`, not returned, and no user identity reaches a processor. `processGenerationJob` takes `(inferenceClient, params, onProgress, logger)` and returns `{ content, title, format, citations, truncated }`. Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`) and, for references, in `extractEntities` (`src/workers/detection/entity-extractor.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`).
 
 ### Processing Flow
 

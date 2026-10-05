@@ -5,12 +5,10 @@ package launcher
 //
 // The repair half of the preflight. A realm is imported on its FIRST boot and
 // never again, so a deployment that predates a client simply does not have it,
-// `preflightIdentity` correctly refuses to start, and until now nothing could
-// fix it: re-importing would have meant deleting the realm, and the realm holds
-// the accounts. Each realm-shape change therefore shipped with a hand-written
-// paragraph of console steps. This is what ends that — the refusal names a
-// command instead, and the next new client costs a line in `serviceClients`
-// rather than a new paragraph of prose.
+// and `preflightIdentity` correctly refuses to start. Re-importing would mean
+// deleting the realm, and the realm holds the accounts; this reconciles it in
+// place, so the refusal names a command, and a new client costs a line in
+// `serviceClients` rather than a paragraph of console steps.
 //
 // CONFIGURATION ONLY, NEVER ACCOUNTS. It creates what is missing and removes
 // nothing. That is the property that makes it safe to run against a deployment
@@ -49,7 +47,7 @@ type syncReport struct {
 // realm change costs a line in one function instead of a paragraph of console
 // steps holds for missing clients and nothing else.
 //
-// Still additive. It creates absent clients, ADDS absent redirect URIs, and
+// Additive. It creates absent clients, ADDS absent redirect URIs, and
 // turns off a flow that should be off. It deletes no client, drops no redirect
 // URI a deployment added, and never reads or writes an account.
 func syncRealm(adminBase, realm, adminUser, adminPass, audience string, lifespan, browserPort int, secretFor func(svc string) string) (syncReport, error) {
@@ -73,10 +71,10 @@ func syncRealm(adminBase, realm, adminUser, adminPass, audience string, lifespan
 
 // reconcilePublicClients: the two registrations people sign in through.
 //
-// Two fields, both of which the preflight refuses or warns on: the loopback
-// redirect URIs that make `--port` work at all (RFC 8252 §7.3), and the
-// implicit flow, which would handballs the access token back in a redirect
-// fragment.
+// Three fields, each of which the preflight refuses or warns on: the loopback
+// redirect URIs that make `--port` work at all (RFC 8252 §7.3), the Browser's
+// web origins, and the implicit flow, which hands the access token back in a
+// redirect fragment.
 func reconcilePublicClients(base, realm, token string, browserPort int, rep *syncReport) error {
 	clients, err := existingClients(base, realm, token)
 	if err != nil {
@@ -215,7 +213,7 @@ func updateClient(base, realm, token, uuid string, patch map[string]any) error {
 }
 
 // reconcileRolesMapper brings an existing service client's roles mapper to
-// what the realm document renders for it now. The mapper is a sub-resource
+// what the realm document renders for it. The mapper is a sub-resource
 // with its own endpoint — a client-level PUT does not reach it — and it is
 // updated IN PLACE, by id, so the client ends with one `roles` claim, not two.
 // A client with no such mapper is left alone: that is a hand-built client the
@@ -297,11 +295,10 @@ func reconcileServiceClients(base, realm, token, audience string, secretFor func
 	for _, svc := range serviceClients {
 		id := serviceClientID(svc)
 		if c, ok := have[id]; ok {
-			// Present — but the client the import WOULD render may have gained
-			// a role since this one was created (the worker's job-claim role
-			// arrived that way), and the preflight refuses a realm whose mapper
-			// still renders the old value. The secret is never reconciled:
-			// sync cannot know it.
+			// Present — but the client the import WOULD render may carry a
+			// role this one was created without (the worker's job-claim
+			// role), and the preflight refuses a realm whose mapper lacks it.
+			// The secret is never reconciled: sync cannot know it.
 			change, err := reconcileRolesMapper(base, realm, token, svc, c)
 			if err != nil {
 				return rep, fmt.Errorf("updating %s: %w", id, err)
@@ -358,7 +355,7 @@ func adminToken(base, user, pass string) (string, error) {
 	return body.AccessToken, nil
 }
 
-// existingClient: what the realm currently holds for one clientId. The uuid is
+// existingClient: what the realm holds for one clientId. The uuid is
 // the admin API's own key, needed to update it; the representation is what a
 // reconciliation compares against.
 type existingClient struct {

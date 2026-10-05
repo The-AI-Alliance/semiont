@@ -29,8 +29,8 @@ typst compile --creation-timestamp 1700000000 plain.typ plain.pdf
 and `ModDate`, so unpinned compiles of identical source produce different bytes
 every time. Different bytes mean a different content checksum, which makes the
 Smelter re-embed a document that did not change — the spurious-re-embed failure
-smelter axioms S11/S12 exist to prevent. Measured 2026-08-04: unpinned compiles
-differ, pinned compiles are byte-identical. The flag also honours
+smelter axioms S11/S12 exist to prevent. Unpinned compiles
+differ; pinned compiles are byte-identical. The flag also honours
 `SOURCE_DATE_EPOCH`.
 
 ## Nothing about the page is set
@@ -50,9 +50,3 @@ them and every recorded assertion moves.
 If a compile does not put `"quick brown"` at the end of line 1 of `plain.typ`,
 that is a Typst version difference rather than a settings one — check the
 version before assuming a regression.
-
-## Where the reasoning lives
-
-The findings, the two-stage search design these fixtures test, and the spike
-harness that produced them are not in the repo; these fixtures are
-self-describing on purpose.

@@ -3,16 +3,14 @@ set -euo pipefail
 
 # Audit: boot-contract census (B1–B3). The static complement of a container
 # boot smoke: catches the class where unit tests stay green (their setups
-# fabricate env) while the image cannot boot — the three defects a real start
-# found shipped after the gateway dropped its KB mount, each hidden behind
-# the last.
+# fabricate env) while the image cannot boot.
 #
 # B1  env census, per service: every literal `process.env.X` read in a
 #     service's runtime files is provided by its Dockerfile ENV, its
 #     launcher argv builder's --env list, or the named allowlist below.
-#     Silence cannot come back: a new env read fails until it is provided
-#     or carries a named reason here. And every entry of the allowlist is
-#     still a read: an entry nothing reads is a reason given for something
+#     A new env read fails until it is provided
+#     or carries a named reason here. And every entry of the allowlist
+#     names a read: an entry nothing reads is a reason given for something
 #     that is not there. The gateway is not here: its
 #     environment is specs/src/service-environment/variables.json, which
 #     lint:service-environment checks in both directions.
@@ -56,7 +54,7 @@ literal_keys() {
 
 # Per-service runtime file sets. Approximations are deliberate and named:
 # the make-meaning services are scoped to their entry files, where every env
-# read of theirs lives today (the checkout-run rebuild CLIs under
+# read of theirs lives (the checkout-run rebuild CLIs under
 # make-meaning/src/cli are out of scope — they never ride an image).
 service_files() {
   case "$1" in
@@ -69,8 +67,8 @@ service_files() {
 }
 
 dockerfile_for() {
-  # One image recipe per app directory — the package a service installs is no
-  # longer implied by where its Dockerfile lives.
+  # One image recipe per app directory — the package a service installs is
+  # not implied by where its Dockerfile lives.
   case "$1" in
     *) echo "apps/$1/Dockerfile" ;;
   esac

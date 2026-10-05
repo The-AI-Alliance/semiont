@@ -25,10 +25,10 @@ export interface ConfigureGatherStepProps {
 }
 
 /**
- * First step of the resource-generate flow: pick the gather options before
+ * Top zone of the resource-generate stack: pick the gather options before
  * `gather.resource` runs. The `children` slot hosts the entity-type exclusion
  * multi-select. Dismissal is the modal's corner ✕/Esc/backdrop, so the footer
- * carries the advance alone.
+ * carries the Gather action alone.
  */
 export function ConfigureGatherStep({ onGather, translations: t, children }: ConfigureGatherStepProps) {
   const [includeContent, setIncludeContent] = useState(true);

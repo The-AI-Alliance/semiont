@@ -1,15 +1,13 @@
 /**
- * Teeth for the liveness axioms — the same
- * discipline as state-unit-axioms.test.ts: before the harness is trusted
- * GREEN against real compositions, it must FAIL against
- * deliberately-broken doubles reconstructing the pre-fix behaviors from the
- * starvation incident:
+ * Teeth for the liveness axioms — the same discipline as
+ * state-unit-axioms.test.ts: before the harness is trusted to pass real
+ * compositions, it must FAIL against deliberately-broken doubles:
  *
  *   (a)  a no-retry cache double that swallows the rejection   → L2 (swallow)
  *   (a2) an unbounded-retry variant                            → L2 (budget)
  *   (a3) a swallow-into-pending-forever await variant          → L2 (settlement)
- *   (b)  a swallowed-contention double (the RETIRED single-slot
- *        scope contract, reproduced locally — the real transport
+ *   (b)  a swallowed-contention double (a single-slot scope
+ *        contract, local to the double — the real transport
  *        composes distinct scopes onto one connection)         → L1
  *   (c)  an abort-at-handover connection double                → L3 (lost)
  *   (c2) a double-flush connection double                      → L3 (duplicate)
@@ -39,7 +37,7 @@ const OP = 'browse:resource-requested' as const;
 // ── L1/L2 doubles ─────────────────────────────────────────────────────────
 
 /**
- * The FIXED composition, reconstructed: a cold live-query that starts its
+ * The COMPLIANT composition: a cold live-query that starts its
  * request on subscribe, acquires its resource's scope (scopes compose: one
  * connection holds any number of them), retries a faulted request once (B14),
  * and surfaces the final rejection as an error notification.
@@ -59,12 +57,12 @@ function compliantQuery(transport: FaultyTransport, rid: string): Observable<unk
   });
 }
 
-/** (a) Pre-B14: the rejection is swallowed — no retry, no surfaced signal. */
+/** (a) Violates B14: the rejection is swallowed — no retry, no surfaced signal. */
 function swallowingQuery(transport: FaultyTransport, rid: string): Observable<unknown> {
   return new Observable((subscriber) => {
     busRequest(transport, OP, { resourceId: rid }, TIMEOUT_MS)
       .then((v) => subscriber.next(v))
-      .catch(() => { /* swallowed — the pre-fix catch(() => {}) */ });
+      .catch(() => { /* swallowed */ });
   });
 }
 
@@ -83,13 +81,13 @@ function stormingQuery(transport: FaultyTransport, rid: string): Observable<unkn
   });
 }
 
-/** (b) Pre-fix scope handling, reproduced end-to-end inside the double: the
- * RETIRED single-slot contract (one distinct scope at a time — the real
- * transport composes distinct scopes onto one connection) plus the pre-fix
- * swallow of its contention throw. The second distinct rid never issues its
- * request — that output starves, which is exactly what L1 must catch. */
+/** (b) Single-slot scope handling, end-to-end inside the double: one distinct
+ * scope at a time (the real transport composes distinct scopes onto one
+ * connection) plus a swallow of the contention throw. The second distinct rid
+ * never issues its request — that output starves, which is exactly what L1
+ * must catch. */
 function makeContentionStarvedQueries(transport: FaultyTransport, rids: readonly string[]): Observable<unknown>[] {
-  let activeScope: string | null = null; // the old one-slot contract, local to the double
+  let activeScope: string | null = null; // the one-slot contract, local to the double
   return rids.map((rid) =>
     new Observable((subscriber) => {
       if (activeScope !== null && activeScope !== rid) {
@@ -108,8 +106,9 @@ function makeContentionStarvedQueries(transport: FaultyTransport, rids: readonly
 /**
  * A connection-stream double with buffered (asynchronous) delivery. The mode
  * decides what a client-initiated transition does with the not-yet-delivered
- * buffer: `drain` flushes it first (the fix), `abort` discards it (pre-linger
- * defect 2), `duplicate` flushes every event twice (a dedup-failure stand-in).
+ * buffer: `drain` flushes it first (compliant), `abort` discards it (the loss
+ * L3 forbids), `duplicate` flushes every event twice (a dedup-failure
+ * stand-in).
  */
 function connectionDouble(mode: 'drain' | 'abort' | 'duplicate'): DeliverySubject {
   const out = new Subject<string>();
@@ -182,8 +181,8 @@ describe('liveness axioms — the harness has teeth', () => {
           outputs: [],
           settlements: [
             busRequest(transport, OP, { resourceId: 'res-a' }, TIMEOUT_MS)
-              // Pre-fix encoding of the forbidden fourth state: the rejection
-              // is converted into a promise that never settles.
+              // The forbidden fourth state: the rejection is converted into
+              // a promise that never settles.
               .catch(() => new Promise(() => {})),
           ],
         }),
@@ -194,7 +193,7 @@ describe('liveness axioms — the harness has teeth', () => {
     ).rejects.toThrow(/^L2: [\s\S]*settlement #0 did not settle/);
   });
 
-  it('(b) L1: a swallowed-contention double (the retired single-slot contract) starves the second output', async () => {
+  it('(b) L1: a swallowed-contention double (a single-slot scope contract) starves the second output', async () => {
     await expect(
       assertLivenessAxioms({
         setup: (transport) => ({

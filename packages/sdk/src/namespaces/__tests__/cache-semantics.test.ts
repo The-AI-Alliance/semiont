@@ -162,8 +162,8 @@ const MOCK_LIMITS: Record<string, unknown[]> = {
 };
 
 /**
- * Test harness: a mock ActorStateUnit whose responses are parameterized so
- * individual tests can control timing, delay, and error behavior.
+ * Options of the test harness: an in-memory transport whose replies are
+ * parameterized so individual tests can control failure, silence and timing.
  */
 interface HarnessOptions {
   resourceName?: (id: string) => string;
@@ -305,12 +305,12 @@ function flush(): Promise<void> {
   return new Promise((r) => setTimeout(r, 0));
 }
 
-describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () => {
+describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseNamespace', () => {
   const RID = resourceId('res-1');
   const AID = annotationId('ann-1');
 
   describe('B1 — first observation triggers a fetch', () => {
-    it('`resource(id)` emits the fetched value after an initial undefined', async () => {
+    it('`resource(id)` issues one fetch and emits the fetched value', async () => {
       const { browse, emitSpy } = createHarness();
       const val = await firstDefined(browse.resource(RID));
       expect(emitSpy).toHaveBeenCalledTimes(1);
@@ -344,11 +344,10 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       expect(a).toBe(b);
     });
 
-    // Identity coverage for every live-query method. Absence of this
-    // coverage previously hid a regression in `annotations()` where the
-    // transformed observable (`.pipe(map(r => r?.annotations))`) was
-    // rebuilt on every call. React consumers that compare observable
-    // identity re-subscribe on every render when B4 breaks.
+    // Identity coverage for every live-query method, the transformed ones
+    // included: `annotations()` pipes its cache observable through a `map`,
+    // and rebuilding that on every call breaks B4. React consumers that
+    // compare observable identity re-subscribe on every render when B4 breaks.
     it('resources(): identical for same filter; different for different filter', () => {
       const { browse } = createHarness();
       const a = browse.resources({ limit: 10 });
@@ -400,23 +399,23 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
   });
 
   describe('B5 — fetch success updates the store atomically', () => {
-    it('observers never see a transient undefined around the success write', async () => {
+    it('every state after the first is ready: no transient pending around the success write', async () => {
       const { browse } = createHarness();
       const seen: Array<ResourceDescriptor | undefined> = [];
       browse.resource(RID).subscribe((s) => seen.push(readyValue(s)));
       await firstDefined(browse.resource(RID));
-      // The only undefined should be the initial emission before the fetch resolves.
-      // Subsequent values should be defined; no undefined-after-defined transitions.
+      // Only the first emission, before the fetch resolves, is not `ready`
+      // (`readyValue` projects it to undefined); every one after it is.
       const definedSeenAfterFirst = seen.slice(1);
       expect(definedSeenAfterFirst.every((v) => v !== undefined)).toBe(true);
     });
   });
 
   describe('B6 — fetch failure leaves the previous state intact', () => {
-    it('value-less key: first-fetch exhaustion errors the observer (B15); guard + marker released', async () => {
-      // Two rejections exhaust the observe attempt + its B14 retry. Post-B15
-      // the value-less terminal failure is an error notification to this
-      // key's observers — not `undefined` forever (liveness axiom L1).
+    it('value-less key: first-fetch exhaustion is `failed` for the observer (B15); guard + marker released', async () => {
+      // Two rejections exhaust the observe attempt + its B14 retry. Under B15
+      // the value-less terminal failure is a notification to this key's
+      // observers — not `pending` forever (liveness axiom L1).
       const { browse, emitSpy, state } = createHarness({ rejectNext: 2 });
       const states: string[] = [];
       browse.resource(RID).subscribe((s) => states.push(s.status));
@@ -427,7 +426,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       expect(emitSpy).toHaveBeenCalledTimes(2); // attempt + B14 retry, then idle
 
       // Guard + marker released: a subsequent fetch succeeds and a fresh
-      // subscription (the errored one is terminal) sees it.
+      // subscription sees it.
       state.rejectRemaining = 0;
       browse.invalidateResourceDetail(RID);
       const val = await firstDefined(browse.resource(RID));
@@ -444,7 +443,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       browse.invalidateResourceDetail(RID);
       await flush();
 
-      // Stale value is still served; no transient undefined.
+      // The stale value is still served.
       const latest = await firstDefined(browse.resource(RID));
       expect(latest).toMatchObject({ name: 'Resource res-1' });
       expect(emitSpy).toHaveBeenCalledTimes(3); // initial + refetch + B14 retry
@@ -452,7 +451,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
   });
 
   describe('B7 — invalidate is stale-while-revalidate', () => {
-    it('observer keeps seeing the stale value during the refetch — no undefined flash', async () => {
+    it('observer keeps seeing the stale value during the refetch — no pending flash', async () => {
       const { browse, state } = createHarness();
       const seen: Array<ResourceDescriptor | undefined> = [];
       browse.resource(RID).subscribe((s) => seen.push(readyValue(s)));
@@ -470,12 +469,12 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       const last = seen[seen.length - 1];
       expect(last).toMatchObject({ name: 'Updated res-1' });
 
-      // No emission at any point was `undefined` after the first.
+      // Every emission after the first is `ready`.
       const defineds = seen.slice(1);
       expect(defineds.every((v) => v !== undefined)).toBe(true);
     });
 
-    it('clears the in-flight guard before refetching (commit 845c6b24 regression)', async () => {
+    it('clears the in-flight guard before refetching', async () => {
       // Scenario: a fetch is stuck in-flight (guard never cleared). If
       // invalidate does not clear the guard, the refetch short-circuits.
       // Two rejections exhaust the observe attempt + its B14 retry first.
@@ -799,7 +798,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       const before = listFetches();
 
       // No top-level `annotation`: the enricher declined, so there is nothing to
-      // write through. Returning early left the old body on screen.
+      // write through. Returning early would leave the stale body on screen.
       eventBus.emit('mark:body-updated', fakeMarkBodyUpdated(RID, mockAnnotation(AID, 'res-1')));
       await flush();
 
@@ -942,7 +941,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
         sub.unsubscribe();
         browse.dispose();
         // An open window is a live timer: left running, it would hold a Node
-        // process open and fire into caches that no longer exist.
+        // process open and fire into disposed caches.
         expect(vi.getTimerCount(), 'timers left running after disposal').toBe(0);
         await vi.advanceTimersByTimeAsync(INVALIDATION_WINDOW_MS * 2);
         expect(emitSpy.mock.calls.length, 'nothing is requested after disposal').toBe(settled);
@@ -987,16 +986,15 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
     });
   });
 
-  // B16 — disposal is terminal and inert at the namespace level. The
-  // make-meaning CI escape (2026-07-05): a B14
-  // retry straddled client teardown, busRequest resolved `bus.closed`, and
-  // the B15 push errored a handler-less subscriber — an unhandled rejection
-  // racing worker teardown. Structural fix: BrowseNamespace owns
-  // its caches (A7-owned), so disposing it completes every per-key
-  // observable and detaches its bus handlers; the straddling failure then
-  // has no observers to error. No `bus.closed` special-casing.
+  // B16 — disposal is terminal and inert at the namespace level. Without
+  // it, a B14 retry straddling client teardown has busRequest fail with
+  // `bus.closed`, and the key's observers are told `failed` by a client that
+  // is going away. The rule is structural: BrowseNamespace owns its caches
+  // (A7-owned), so disposing it completes every per-key observable and
+  // detaches its bus handlers; the straddling failure then has no observers
+  // to reach. No `bus.closed` special-casing.
   describe('B16 — browse.dispose() completes observers; teardown failures are structural no-ops', () => {
-    it('mid-chain dispose: value-less-key subscriber completes, never errors; no post-dispose retry traffic', async () => {
+    it('mid-chain dispose: value-less-key subscriber completes, with no `failed` and no error; no post-dispose retry traffic', async () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       try {
         // Every fetch would fail — but dispose lands before the first
@@ -1015,7 +1013,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
         await flush();
         await flush();             // the -failed reply lands post-dispose
 
-        expect(events).toEqual(['complete']);     // completed at dispose — the escape's subscriber shape is safe
+        expect(events).toEqual(['complete']);     // completed at dispose: no `failed`, no error
         expect(emitSpy).toHaveBeenCalledTimes(1); // no B14 re-issue after dispose
         expect(warnSpy).not.toHaveBeenCalled();   // no teardown breadcrumb noise
       } finally {
@@ -1062,7 +1060,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       expect(agentFetches).toBe(1);
     });
 
-    it('B16: browse.dispose() completes an agents() subscriber — the new cache is in the dispose list', async () => {
+    it('B16: browse.dispose() completes an agents() subscriber — the agents cache is in the dispose list', async () => {
       const { browse } = createHarness();
       const events: string[] = [];
       browse.agents().subscribe({

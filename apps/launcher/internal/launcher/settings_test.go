@@ -37,10 +37,10 @@ func TestEverySavedPreferenceIsASetting(t *testing.T) {
 	}
 }
 
-// Nothing the launcher prints names the old verb: `secret` moved under
-// `settings` with no alias, so a message that still says `semiont secret`
-// sends a person to a command that does not exist.
-func TestNoMessageNamesTheOldSecretVerb(t *testing.T) {
+// Nothing the launcher prints names a top-level `secret` verb: it lives under
+// `settings`, with no alias, so a message that says `semiont secret` sends a
+// person to a command that does not exist.
+func TestNoMessageNamesATopLevelSecretVerb(t *testing.T) {
 	var files []string
 	for _, glob := range []string{"*.go", "../verbs/*.go", "../../main.go"} {
 		m, err := filepath.Glob(glob)

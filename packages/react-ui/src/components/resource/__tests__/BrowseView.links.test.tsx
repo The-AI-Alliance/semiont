@@ -6,8 +6,8 @@
  * embedded/Electron security requirement) and delegates to `onLinkClick({href,
  * event})`. With no handler, the click is still cancelled (nothing happens).
  *
- * Started RED (no `onLinkClick` prop) and GREEN once BrowseView takes one. Real
- * react-markdown (not the mock) so the `<a>` is a genuine rendered content link.
+ * Real react-markdown (not the mock) so the `<a>` is a genuine rendered
+ * content link.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';

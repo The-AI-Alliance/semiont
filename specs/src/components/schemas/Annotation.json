@@ -37,7 +37,7 @@
     },
     "body": {
       "$ref": "./AnnotationBodies.json",
-      "description": "W3C Web Annotation body. Optional per the W3C spec — annotations whose motivation alone is meaningful (highlighting) legitimately omit it. Present values are either a single body or a non-empty array of bodies; the prior empty-array 'stub' branch has been removed (it was a naming lie shared between highlights and never-actually-emitted stub references, and the source of the #651 reference-annotation validator bug)."
+      "description": "W3C Web Annotation body. Optional per the W3C spec — annotations whose motivation alone is meaningful (highlighting) legitimately omit it. Present values are either a single body or a non-empty array of bodies; there is no empty array."
     },
     "creator": {
       "$ref": "./Agent.json",

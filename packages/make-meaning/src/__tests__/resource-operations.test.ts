@@ -112,7 +112,7 @@ describe('ResourceOperations', () => {
       expect(resId).toBeDefined();
     });
 
-    it('should emit resource.created event', async () => {
+    it('should emit yield:created event', async () => {
       const resId = await create(
         { name: 'Event Test Resource', content: Buffer.from('Event test content', 'utf-8'), format: 'text/plain', entityTypes: ['Person', 'Location'] },
         userId('did:web:test:users:user-1'),

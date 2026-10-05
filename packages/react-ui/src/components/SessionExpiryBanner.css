@@ -1,10 +1,7 @@
 /**
  * SessionExpiryBanner
  *
- * A warning that the session is about to end, shown above the app. Swept
- * 2026-09-24: every class here has been rendered since #401 moved this package
- * off Tailwind, with no rules behind them — so the banner drew as unstyled
- * text and its dismiss button as a bare glyph.
+ * A warning that the session is about to end, shown above the app.
  */
 
 .semiont-session-expiry-banner {

@@ -9,8 +9,7 @@
  * core dependency) so the requirement exists independent of any one
  * validator's wiring.
  *
- * RED before the schema required them: `ServicesConfig` had no `required`
- * array at all, so a bare `{}` validated. Green after.
+ * Without a `required` array on `ServicesConfig`, a bare `{}` validates.
  */
 import { describe, it, expect } from 'vitest';
 import { Ajv } from 'ajv';

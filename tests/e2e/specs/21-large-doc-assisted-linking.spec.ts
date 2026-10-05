@@ -1,103 +1,89 @@
 import { test, expect } from '@playwright/test';
-import { SemiontClient, resourceId as ridBrand } from '@semiont/sdk';
-import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { resourceId as ridBrand } from '@semiont/sdk';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
  * The system-level guard against entity extraction truncating a large document.
  *
- * The bug: detection sent the WHOLE document in ONE call with a hardcoded
- * 4000-token output cap, so any document yielding more entities than that cap
- * failed the entire job — **zero** annotations, not partial. Six RFCs were
- * ingested; only the 6 KB one enriched. `rfc793` (170 KB) was the stress case.
+ * Detection that sends the WHOLE document in ONE call under a fixed output
+ * cap fails the entire job on any document yielding more entities than the
+ * cap holds — **zero** annotations, not partial. A 170 KB RFC (`rfc793`) is
+ * the stress case.
  *
- * This spec reproduces that shape at the system level: ingest a large
+ * This spec holds that shape at the system level: ingest a large
  * document, run `mark.assist('linking')`, assert annotations **persisted**.
  * Pure SDK round-trip (no browser), per the spec-15/18 pattern — spec 06
  * already covers the browser path for the same flow at small size.
  *
  * ── DEFAULT OFF (@slow) ────────────────────────────────────────────────────
  *
- * Both tests here are tagged `@slow` and are **excluded from `npm test`**
+ * Every test here is tagged `@slow` and is **excluded from `npm test`**
  * (which runs `--grep-invert @slow`). Run them deliberately:
  *
- *     npm run test:slow                                  # both
+ *     npm run test:slow                                  # every @slow test
  *     npm run test:slow -- -g "chunk-forcing"            # just the loop guard
  *
  * Why: measured 1.4–8 min (170 KB) and 7.8 min (chunk-forcing) — either one
  * roughly doubles a ~6-minute full suite, and their value is release-gate
- * verification, not per-change regression catching.
+ * verification, not a per-change check.
  *
- * ── WHICH PROVIDER, AND WHAT EACH ONE PROVES ───────────────────────────────
+ * ── HOW A RUN IS SIZED, PER PROVIDER ───────────────────────────────────────
  *
- * Results here are **model-dependent**, because what the fix does depends on
- * the provider's window. Measured 2026-07-31 on both:
+ * What a run exercises follows from `deriveDetectionBudget`
+ * (`packages/jobs/src/workers/detection/detection-chunking.ts`), which sizes
+ * every call from the provider's limits:
  *
- *   anthropic (sonnet-4-5): 200K context / 64K output.
- *     Input bound = 200K − 64K − scaffold ≈ 135K tokens ≈ ~540 KB.
- *     PROVES: the derived output budget — the half that was the proximate
- *     cause (the hardcoded 4000). This path produced the clean RED→GREEN:
- *     pre-fix `truncated (max_tokens) — increase max_tokens…`, post-fix
- *     completes. Also proves the fail-loud guard at the pathological tail
- *     (`truncated … on chunk 1/1 despite the derived output budget of 64000`).
- *     Under the output-demand allocation (input ≤ outputBudget/2, landed
- *     2026-09-02 after the live diagnosis) this path chunks at ~42 KB, so
- *     at 170 KB it ALSO exercises the chunk loop on Anthropic — but this
- *     test still asserts outcome only, because on Ollama it does not.
+ *   - OUTPUT per call is capped at what the provider's output rate produces
+ *     in HALF the worker's 10-minute call bound: the published rate where
+ *     there is one (anthropic, 128K tokens/hour → 10,666 tokens), an assumed
+ *     108K tokens/hour where there is none (ollama → 9,000 tokens).
+ *   - INPUT opens at no more than half that output budget, whatever the
+ *     context size: at most ~21 KB per chunk on anthropic and ~18 KB on
+ *     ollama, at ~4 chars/token.
+ *   - The chunk size then follows measured output — up toward the window fit
+ *     while calls leave the budget under-used, down after a truncation — so
+ *     the chunk COUNT is document- and model-dependent.
  *
- *   ollama (gemma4:26b): context_length 262,144 (read live from POST
- *     /api/show — NOT an assumed ~8K), shared
- *     window, so the 1:2 split gives ≈ 87K tokens input ≈ ~340 KB per chunk.
- *     PROVES: the chunk loop, the per-chunk heartbeat, and overlap dedupe —
- *     but only above ~340 KB. At 170 KB this path ALSO runs as one chunk.
- *
- * Hence the two tests: the 170 KB one is the `rfc793` stress case (outcome
- * only, provider-agnostic); the ~750 KB one is sized past BOTH input bounds
- * so chunking is forced whichever provider serves `reference-annotation`.
+ * Both fixtures are many times the opening chunk on either provider, so both
+ * runs walk the chunk loop. Hence the two tests: the 170 KB one is the
+ * `rfc793` stress case (outcome only); the ~400 KB one also watches the
+ * progress stream.
  *
  * ── COST ───────────────────────────────────────────────────────────────────
  *
- * Slow by construction: a large single Anthropic call runs minutes; a
- * multi-chunk Ollama run is serialized and longer. Progress events now arrive
- * at every chunk boundary (the liveness heartbeat contract), so this spec
- * consumes them via `.run()` as a liveness signal — a stalled run is visible
- * in the log rather than as one long silence ending in a timeout.
+ * Slow by construction: every chunk is its own inference call, made one after
+ * another. Progress events arrive at every chunk boundary and while a call is
+ * in flight (the liveness heartbeat contract), so this spec consumes them via
+ * `.run()` as a liveness signal — a stalled run is visible in the log rather
+ * than as one long silence ending in a timeout.
  */
 
-/** ≥ 170 KB — the size of `rfc793`, the stress case among the six RFCs. */
+/** ≥ 170 KB — the size of `rfc793`, the stress case. */
 const TARGET_BYTES = 170_000;
 
 /**
- * Build a large document whose entity yield lands BETWEEN the two caps.
+ * Build a large document whose entity yield lands inside the WINDOW the
+ * density guard in the first test pins (150 < occurrences < 1000): dense
+ * enough to produce real output, short of the pathological tail.
  *
- * **Three ways to get this wrong, all measured against real stacks:**
+ * Truncation is driven by entity COUNT, not document length. **Three ways to
+ * get the fixture wrong, all measured against real stacks:**
  *
- * 1. **Too sparse.** v1 drew from a fixed 40-term vocabulary; at 170 KB it
- *    produced 48 entities (~2.4K output tokens) — under the OLD 4000-token
- *    cap, so it PASSED pre-fix and guarded nothing. The bug is driven by
- *    entity COUNT, not document length (of the six RFCs, the 6 KB `rfc768`
- *    passed at ~60 entities; the 21 KB `rfc826` failed).
- * 2. **Not real prose.** v2 was dense but built from invented proper nouns
- *    ("the Kestrel-142 protocol") in a repeating template; the model returned
- *    `stopReason: 'refusal'` and 0 entities — red for the wrong reason.
- * 3. **Too dense.** v3 mentioned 5–6 concepts per short paragraph — ~2,000+
+ * 1. **Too sparse.** A fixed 40-term vocabulary yields 48 entities at 170 KB
+ *    (~2.4K output tokens) — too little to truncate anywhere, so it guards
+ *    nothing.
+ * 2. **Not real prose.** Dense text built from invented proper nouns
+ *    ("the Kestrel-142 protocol") in a repeating template gets
+ *    `stopReason: 'refusal'` and 0 entities — a failure for the wrong reason.
+ * 3. **Too dense.** 5–6 concepts per short paragraph is ~2,000+
  *    entity OCCURRENCES (every occurrence is its own span, so dedupe does not
- *    reduce them) ≈ 100K+ output tokens. That overflows even the DERIVED 64K
- *    budget: post-fix it still failed, with `truncated … on chunk 1/1 despite
- *    the derived output budget of 64000 tokens`. That is the
- *    pathological tail failing honestly by design — correct behavior, useless
- *    as a regression guard.
- *
- * The guard must land in the window between the caps:
- *
- *   >  ~80 entities  → exceeds the old 4000-token cap  → RED pre-fix
- *   < ~1280 entities → fits the derived 64K budget     → GREEN post-fix
+ *    reduce them) ≈ 100K+ output tokens: the pathological tail, useless as a
+ *    guard.
  *
  * So: ONE named concept per paragraph, embedded in ordinary narrative prose
- * that carries no further extractable terms. ~360 paragraphs at 170 KB gives
- * a few hundred occurrences — an order of magnitude past the old cap, and
- * comfortably inside the new one. That is also what a real RFC looks like:
- * large, genuinely technical, but not concept-saturated.
+ * that carries no further extractable terms. A paragraph is about 1 KB, so
+ * 170 KB gives about 170 occurrences. That is also what a real RFC looks
+ * like: large, genuinely technical, but not concept-saturated.
  *
  * Deterministic — no RNG, so a flake reproduces.
  */
@@ -147,10 +133,9 @@ function buildLargeDocument(targetBytes: number = TARGET_BYTES): string {
 
 test.describe('large-document assisted linking', () => {
   test('a 170 KB document enriches — assisted linking persists annotations', { tag: ['@slow'] }, async () => {
-    // Wall-clock is provider-shaped. Anthropic: ONE large streamed call, a few
-    // minutes. ollama-gemma: the shared window forces ~17-20 chunks at this
-    // size, each its own serialized local inference call — tens of minutes.
-    // Budget for the slower path; the per-chunk progress events below are the
+    // Wall-clock is provider-shaped: the document is walked in chunks, each its
+    // own inference call at the model's own pace. The budget is for the slowest
+    // provider the suite runs against; the progress events below are the
     // liveness signal, so a genuine stall shows up as a gap rather than as one
     // long silence ending here.
     test.setTimeout(2_700_000);
@@ -165,22 +150,22 @@ test.describe('large-document assisted linking', () => {
         content.length,
         'fixture must reach the 170 KB stress size',
       ).toBeGreaterThanOrEqual(TARGET_BYTES);
-      // Density guard: the bug is driven by ENTITY COUNT, not length. A
-      // low-vocabulary fixture of this size passes even pre-fix (measured:
-      // 40 terms → 48 entities → ~2.4K tokens, under the old 4000 cap).
+      // Density guard: truncation is driven by ENTITY COUNT, not length. A
+      // low-vocabulary fixture of this size guards nothing (measured:
+      // 40 terms → 48 entities → ~2.4K output tokens).
       // Occurrences, not distinct terms: every occurrence is its own span, so
-      // occurrences drive output size. Pin the WINDOW between the two caps —
+      // occurrences drive output size. Pin the WINDOW —
       // a fixture outside it guards nothing in one direction or the other.
       const occurrences = (content.match(/Section \d+\. Teams working on/g) ?? []).length;
       // eslint-disable-next-line no-console
       console.log(`LARGE_DOC: ${occurrences} concept occurrences (~${occurrences * 50} output tokens)`);
       expect(
         occurrences,
-        'must exceed the OLD 4000-token cap (~80 entities) or it guards nothing — see buildLargeDocument',
+        'the fixture must carry more than 150 concept occurrences: output size follows entity count, so a sparser one guards nothing — see buildLargeDocument',
       ).toBeGreaterThan(150);
       expect(
         occurrences,
-        'must fit the DERIVED 64K budget (~1280 entities) or it fails post-fix too — v3 did exactly that',
+        'the fixture must carry fewer than 1000 concept occurrences: a denser one is the pathological tail, useless as a guard — see buildLargeDocument',
       ).toBeLessThan(1000);
       // eslint-disable-next-line no-console
       console.log(`LARGE_DOC: fixture ${content.length} bytes (~${Math.round(content.length / 4)} tokens)`);
@@ -216,11 +201,9 @@ test.describe('large-document assisted linking', () => {
           }
         });
 
-      // PRE-FIX this threw `/truncat/i` and failed the whole job — zero
-      // annotations, as on five of the six ingested RFCs.
       expect(
         final.kind,
-        'linking assist completes (it failed the whole job pre-fix on documents this size)',
+        'linking assist completes on a document this size',
       ).toBe('complete');
       // eslint-disable-next-line no-console
       console.log(`LARGE_DOC: assist completed in ${Date.now() - t0}ms`);
@@ -246,42 +229,18 @@ test.describe('large-document assisted linking', () => {
   });
 
   /**
-   * Forces the CHUNK LOOP — the half the 170 KB case cannot reach.
+   * The larger fixture: ~400 KB, about twenty times the opening chunk on
+   * either provider (see the header), so the run cannot be one call. The first
+   * cut is made at the opening size, before any measurement can grow it; every
+   * later size is the sizer's, which is why no chunk COUNT is asserted.
    *
-   * Per-chunk input bounds under the DURATION bound, which caps a call's
-   * output by the provider's published output rate (repointed from the
-   * earlier capacity-only sizing, which needed ~750 KB):
-   *   - ollama `gemma4:26b`: unchanged — no published rate, capacity governs:
-   *     context 262,144 (`/api/show`), shared window, 1:2 split →
-   *     ~87K tokens of input per chunk ≈ ~340 KB of text.
-   *   - anthropic sonnet-4-5: the duration bound caps output at 21,333
-   *     tokens (the SDK's 128K-tokens/hour rate × the worker's 10-minute
-   *     call bound), and the output-demand allocation (2026-09-02) caps
-   *     input at HALF that → ~10.6K tokens ≈ ~42 KB per chunk, regardless
-   *     of context size (200K and 1M models alike).
-   *
-   * ~400 KB exceeds BOTH, so chunking is forced regardless of which provider
-   * serves `reference-annotation` — on Anthropic via the DURATION bound (the
-   * bound that actually fires in production), on Ollama via capacity. That is
-   * what makes the assertion below legitimate: the rule is never to assert
-   * chunk counts *because* chunking is provider-dependent at e2e-realistic
-   * sizes — true at 170 KB, where this spec's first test correctly asserts
-   * outcome only. Sized deliberately past both bounds, "chunking occurred"
-   * stops being provider-dependent, so this asserts it as a DELIBERATE,
-   * reasoned deviation rather than an oversight.
-   *
-   * The output-demand allocation (input ≤ outputBudget/2, 2026-09-02) made
-   * the Anthropic chunk size context-independent (~42 KB on 200K and 1M
-   * models alike), so the earlier caveat about a 1M-context model re-inerting
-   * this test no longer applies. The CHUNKED log line below still prints the
-   * fixture size against the live budget — check it when the fleet's
-   * detection model or provider changes (Ollama's ~340 KB capacity bound is
-   * the binding one now).
-   *
-   * The signal: the chunk loop's `onChunk` emits N−1 boundary events, surfaced as
-   * interpolated progress strictly between the 20% and 100% milestones. A
-   * single-chunk run emits none (measured on both providers at 170 KB), so
-   * ≥1 such event means the loop genuinely ran.
+   * What the progress stream shows: the reference processor reports
+   * percentage by entity TYPES completed (20 + 60 × done/total), and this run
+   * asks for one type, so percentage says nothing about chunks. The cumulative
+   * `entitiesFound` does: it grows by what each committed chunk found, in a
+   * frame sent after that chunk's commit. More than one distinct non-zero
+   * value therefore means more than one chunk committed entities, which is
+   * what the assertion below requires.
    */
   test('a chunk-forcing document exercises the per-chunk loop and still persists annotations', { tag: ['@slow'] }, async () => {
     test.setTimeout(2_700_000);
@@ -291,8 +250,8 @@ test.describe('large-document assisted linking', () => {
     const client = session.client;
 
     try {
-      // ~400 KB — past both providers' per-chunk input bounds (duration-scaled
-      // ~180 KB on anthropic sonnet-4-5/200K, capacity ~340 KB on ollama).
+      // ~400 KB — about twenty times either provider's opening chunk (at most
+      // ~21 KB on anthropic, ~18 KB on ollama).
       const content = buildLargeDocument(400_000);
       // eslint-disable-next-line no-console
       console.log(`CHUNKED: fixture ${content.length} bytes (~${Math.round(content.length / 4)} tokens)`);
@@ -310,27 +269,27 @@ test.describe('large-document assisted linking', () => {
       );
 
       const t0 = Date.now();
-      const midBandEvents: number[] = [];
+      const foundTallies = new Set<number>();
       const final = await client.mark
         .assist(rid, 'linking', { entityTypes: ['Concept'] })
         .run((e) => {
           if (e.kind !== 'progress') return;
-          const pct = (e.data as { percentage?: number }).percentage;
+          const { percentage, entitiesFound } = e.data;
           // eslint-disable-next-line no-console
-          console.log(`CHUNKED: +${Date.now() - t0}ms progress ${pct}%`);
-          if (typeof pct === 'number' && pct > 20 && pct < 100) midBandEvents.push(pct);
+          console.log(`CHUNKED: +${Date.now() - t0}ms progress ${percentage}% found ${entitiesFound}`);
+          if (entitiesFound !== undefined && entitiesFound > 0) foundTallies.add(entitiesFound);
         });
 
       expect(final.kind, 'chunked linking assist completes').toBe('complete');
       // eslint-disable-next-line no-console
-      console.log(`CHUNKED: ${midBandEvents.length} chunk-boundary events in ${Date.now() - t0}ms`);
+      console.log(`CHUNKED: ${foundTallies.size} distinct entity tallies in ${Date.now() - t0}ms`);
 
       expect(
-        midBandEvents.length,
-        'a document past both providers\' per-chunk input bound must produce chunk-boundary ' +
-          'progress events (onChunk: N chunks → N−1 events); zero means it ran as one ' +
-          'chunk and the loop was never exercised',
-      ).toBeGreaterThan(0);
+        foundTallies.size,
+        'a document past both providers\' per-chunk input bound must commit entities from more ' +
+          'than one chunk: the cumulative `entitiesFound` grows once per committed chunk, so a ' +
+          'single value means it ran as one chunk and the loop was never exercised',
+      ).toBeGreaterThan(1);
 
       await expect
         .poll(async () => (await client.browse.annotations(rid).fresh()).length, { timeout: 60_000 })
@@ -343,26 +302,26 @@ test.describe('large-document assisted linking', () => {
   });
 
   /**
-   * Live-stack gate — the #738 input clip is really gone.
+   * Live-stack gate — **highlight / comment / assessment** read the whole
+   * document, not its first 8,000 characters.
    *
-   * `motivation-prompts.ts` used to hard-code `content.substring(0, 8000)` at
-   * six sites, silently capping the input for **highlight / comment /
-   * assessment** (reference/linking and tagging always passed full content —
-   * which is why the other tests in this file, all `linking`, prove NOTHING
-   * about this). All six are deleted.
+   * A `content.substring(0, 8000)` in one of `motivation-prompts.ts`'s builders
+   * would silently cap the input for that motivation. The linking prompt is
+   * not built there — which is why the other tests in this file, all
+   * `linking`, prove NOTHING about this.
    *
-   * The fixture is built so a surviving clip produces ZERO annotations rather
+   * The fixture is built so a clip produces ZERO annotations rather
    * than merely fewer: the first ~10 KB is deliberately low-salience
    * boilerplate ("the remainder of this document is organized as follows…"),
    * and every substantive, annotation-worthy claim lives beyond char 8,000.
-   * With the clip present the model would see only the barren prefix; with it
-   * gone, annotations anchor past the old boundary.
+   * A clipped model sees only the barren prefix; an unclipped one anchors
+   * annotations past char 8,000.
    *
    * Asserts on `TextPositionSelector.start` — the persisted whole-document
    * offset, which is exactly what "reconcile against the full document"
    * guarantees.
    */
-  test('formerly-clipped motivations annotate beyond char 8,000 (#738 input clip deleted)', { tag: ['@slow'] }, async () => {
+  test('highlight, comment and assessment annotate beyond char 8,000', { tag: ['@slow'] }, async () => {
     test.setTimeout(2_700_000);
 
     const session = await signInSession();
@@ -383,7 +342,7 @@ test.describe('large-document assisted linking', () => {
       }
       const boundary = content.length;
 
-      // ── substantive content, ALL of it past the old 8,000-char clip ──
+      // ── substantive content, ALL of it past char 8,000 ──
       const claims = [
         'Write amplification is the ratio of bytes physically written to bytes logically written; it is the single most important number when sizing an LSM tree.',
         'A read-your-writes guarantee is strictly weaker than linearizability, and conflating the two is the most common source of correctness bugs in replicated stores.',
@@ -398,7 +357,7 @@ test.describe('large-document assisted linking', () => {
       }
       // eslint-disable-next-line no-console
       console.log(`CLIP: ${content.length} bytes, substantive content starts at char ${boundary}`);
-      expect(boundary, 'the barren prefix must extend past the old 8,000-char clip').toBeGreaterThan(8_000);
+      expect(boundary, 'the barren prefix must extend past char 8,000, so a prompt clipped there sees nothing worth annotating').toBeGreaterThan(8_000);
 
       const rid = ridBrand(
         (
@@ -412,7 +371,7 @@ test.describe('large-document assisted linking', () => {
         ).resourceId,
       );
 
-      // All three formerly-clipped motivations — one at a time, same resource.
+      // All three motivations — one at a time, same resource.
       for (const motivation of ['highlighting', 'commenting', 'assessing'] as const) {
         const t0 = Date.now();
         const final = await client.mark.assist(rid, motivation, { language: 'en' }).run(() => {});
@@ -439,8 +398,8 @@ test.describe('large-document assisted linking', () => {
         expect(
           starts.some((start) => start > 8_000),
           `${motivation} must anchor at least one annotation beyond char 8,000 — everything ` +
-            `worth annotating in this fixture lives past ${boundary}, so a surviving ` +
-            `content.substring(0, 8000) clip in motivation-prompts.ts yields none (#738)`,
+            `worth annotating in this fixture lives past ${boundary}, so a ` +
+            `content.substring(0, 8000) clip in motivation-prompts.ts yields none`,
         ).toBe(true);
       }
     } finally {

@@ -22,8 +22,8 @@ import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager
  * survives every React re-render and route change.
  *
  * Auth-dependent UI (ProtectedErrorBoundary, SessionEndedModal,
- * PermissionDeniedModal, KbIdentityConflictModal) is bundled in `AuthShell` and mounted only in
- * protected layouts (know/, admin/, moderate/, auth/welcome/). Pre-app
+ * PermissionDeniedModal, KbIdentityConflictModal) is bundled in `AuthShell` and mounted only
+ * above the protected sections (know/, moderate/). Pre-app
  * routes (landing, OAuth flow) intentionally do NOT mount AuthShell —
  * they have no session UI.
  *

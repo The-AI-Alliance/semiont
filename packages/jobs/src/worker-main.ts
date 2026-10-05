@@ -50,8 +50,7 @@ const tomlReader = {
   readIfExists: (p: string): string | null => existsSync(p) ? readFileSync(p, 'utf-8') : null,
 };
 // Environment resolved by the loader from `[defaults] environment`
-// (no project root here — global ~/.semiontconfig only). Was hardcoded 'local',
-// which read the wrong section for any non-local KB the container stages.
+// (no project root here — global ~/.semiontconfig only).
 const envConfig = createTomlConfigLoader(
   tomlReader,
   configPath,

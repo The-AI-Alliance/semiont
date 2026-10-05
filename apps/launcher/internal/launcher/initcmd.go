@@ -54,13 +54,13 @@ With --yes and neither source, init refuses rather than guessing.
   --help, -h          Show this help
 `
 
-// Init implements `semiont init`.
 // defaultOllamaModel: the model a prompt-free `semiont init` binds when the
 // caller names none. A CHOICE, not a derivation — no list-all registry API
 // exists to pick from — and deliberately the smallest thing that can serve a
 // first KB, so the pull a first start does is minutes rather than an evening.
 const defaultOllamaModel = "gemma3:270m"
 
+// Init implements `semiont init`.
 func Init(args []string) int {
 	u := NewUI(false)
 	var name, domain, siteName string
@@ -228,8 +228,8 @@ func Init(args []string) int {
 	}
 	// A prompt-free init must produce a KB that STARTS. Ollama is the
 	// provider that needs no credential, so it is what a bare `init --yes`
-	// gets — the alternative was writing no config at all and telling the
-	// user to add one, which left the next line init itself prints
+	// gets — the alternative, writing no config at all and telling the
+	// user to add one, leaves the next line init itself prints
 	// (`semiont start`) unable to run.
 	if inference == "" && yes && fromTemplate == "" {
 		inference = "ollama"
@@ -256,9 +256,9 @@ func Init(args []string) int {
 			u.Fail(".semiont/ already exists here — this KB is already born. Re-initialize with --force.")
 			return 1
 		}
-		// --force is a fresh birth, not a merge: remove the old tree so no
-		// stale semiontconfig/*.toml survives beside the new identity
-		// (Copilot review, PR #1065). This is destructive by request.
+		// --force is a fresh birth, not a merge: remove the existing tree so
+		// no stale semiontconfig/*.toml survives beside the new identity.
+		// This is destructive by request.
 		if err := os.RemoveAll(semiontDir); err != nil {
 			u.Fail("--force: could not remove the existing .semiont/: %v", err)
 			return 1
@@ -362,8 +362,8 @@ siteName = %q
 		return 0
 	}
 
-	// ── Decide everything BEFORE touching disk (Copilot review, PR #1065:
-	// init must be transactional). Interactive prompts, model validation,
+	// ── Decide everything BEFORE touching disk: init must be
+	// transactional. Interactive prompts, model validation,
 	// and config generation all happen here; the writes come after, guarded
 	// by a rollback so a failure never leaves a half-born .semiont/.
 	if inference == "" && !yes && fromTemplate == "" {
@@ -451,7 +451,7 @@ siteName = %q
 	}
 
 	if noGit {
-		u.Warn("--no-git: git init is skipped, git.sync = false, and .semiont/ is not staged — the gateway versions the event log via git, so this KB cannot run the full stack until it becomes a clone.")
+		u.Warn("--no-git: git init is skipped, git.sync = false, and .semiont/ is not staged — semiont start requires a git clone, so this KB cannot run the full stack until it becomes a clone.")
 	}
 	startedWriting = true
 	if err := os.MkdirAll(semiontDir, 0o755); err != nil {
@@ -501,7 +501,7 @@ siteName = %q
 	// next command init prints, `semiont start`, falls through to the
 	// hardcoded `ollama-gemma` default, which a born KB has no file for
 	// (it writes <provider>.toml). A copied template carries several configs
-	// and names none of them, so it keeps the empty preference it always had.
+	// and names none of them, so its preference stays empty.
 	registerRootUse(dir, false, genName)
 	warnICloudRoot(u, dir)
 	success = true

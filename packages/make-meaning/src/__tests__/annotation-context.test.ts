@@ -46,7 +46,6 @@ function createMockGraphDb(): GraphDatabase {
     batchCreateResources: vi.fn().mockResolvedValue([]),
     createAnnotations: vi.fn().mockResolvedValue([]),
     resolveReferences: vi.fn().mockResolvedValue([]),
-    detectAnnotations: vi.fn().mockResolvedValue([]),
     getEntityTypes: vi.fn().mockResolvedValue([]),
     addEntityType: vi.fn().mockResolvedValue(undefined),
     addEntityTypes: vi.fn().mockResolvedValue(undefined),
@@ -531,7 +530,7 @@ describe('AnnotationContext', () => {
       (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
-      // Siblings now come from the graph projection (getResourceAnnotations), not the view.
+      // Siblings come from the graph projection (getResourceAnnotations), not the view.
       (mockGraphDb.getResourceAnnotations as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
         {
           '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -697,15 +696,14 @@ describe('AnnotationContext', () => {
     });
   });
 
-  // ── The resource-id content re-key ─────────────────────────────────────────
+  // ── Content reads keyed by resource id ─────────────────────────────────────
   //
-  // The fetch moved from `content.retrieve(storageUri)` to
-  // `content.getBinary(resourceId)`, so the Librarian can serve it over HTTP
-  // without the caller holding a storage path. `storageUri` stays on the
-  // descriptor as the has-content SIGNAL, which is the subtle half: the field
-  // is still read, just no longer used to fetch. These pin both halves — a
-  // regression that fetched by storageUri again, or dropped the signal check,
-  // would otherwise pass every existing test.
+  // The fetch is `content.getBinary(resourceId)`, so the Librarian can serve
+  // it over HTTP without the caller holding a storage path. `storageUri` on
+  // the descriptor is the has-content SIGNAL, which is the subtle half: the
+  // field is read, but is never the fetch key. These pin both halves — a
+  // fetch by storageUri, or a dropped signal check, would pass every other
+  // test.
   describe('content reads are keyed by resource id, gated on storageUri', () => {
     it('getAnnotationContext reads the resource through getBinary', async () => {
       const rid = 'res-content-by-id';
@@ -740,8 +738,8 @@ describe('AnnotationContext', () => {
     it('fetches the TARGET resource by id too, when a reference resolves', async () => {
       // A resolved reference gathers both ends: the source for the selector's
       // surroundings, the target for what it points at. Both go through
-      // getBinary now, and the target half is the easier one to leave behind
-      // because it only runs for annotations that actually resolve.
+      // getBinary, and the target half is the easier one to miss because it
+      // only runs for annotations that actually resolve.
       const src = 'res-ref-source';
       const dst = 'res-ref-target';
       await createTestResource(src, 'see the other document for detail');

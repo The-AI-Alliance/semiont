@@ -108,8 +108,7 @@ func captureOutput(t *testing.T, fn func()) (stdout, stderr string) {
 // custodyStoreContract: what every backend does, files and 1Password alike. A
 // value put is got back; a name never put reads as nothing kept; names lists
 // what is kept; remove removes. And every operation is shown on the terminal
-// before it runs — the operation and the secret's name, never its value
-// (ruled 2026-09-29).
+// before it runs — the operation and the secret's name, never its value.
 func custodyStoreContract(t *testing.T, s custodyStore) {
 	t.Helper()
 	u := NewUI(false)

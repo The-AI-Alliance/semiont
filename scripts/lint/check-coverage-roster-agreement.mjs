@@ -11,10 +11,8 @@
  * Codecov was never told about, the upload is accepted, and the package is
  * simply absent from the view everyone reads.
  *
- * That is not hypothetical. `sdk` had no flag from the day `codecov.yml` was
- * written until 2026-09-23; `vectors` joined the matrix in #595 and the config
- * was not touched. Both were invisible for as long as they existed, because
- * every step in the chain is green when the file it wants does not exist.
+ * Every step in the chain is green when the file it wants does not exist, so
+ * a package stays invisible for as long as nobody notices.
  *
  * A block that cannot be read is a FAILURE, not a pass: a census that silently
  * checks three of four things is not a census.
@@ -43,8 +41,8 @@ const read = (file) => {
   try {
     // Normalise the trailing newline. Every block parser below anchors on
     // line ends, and codecov.yml ships without a final one — which silently
-    // truncated the last flag's body and reported a `carryforward` that was
-    // plainly there. A gate that cries wolf gets switched off.
+    // truncates the last flag's body and reports as missing a `carryforward`
+    // that is plainly there. A gate that cries wolf gets switched off.
     const content = readFileSync(file, 'utf8');
     return content.endsWith('\n') ? content : `${content}\n`;
   } catch {

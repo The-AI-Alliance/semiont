@@ -1,11 +1,11 @@
 /**
- * prepareDetection (#736, rewritten for #739) — the media axis and the
+ * prepareDetection — the media axis and the
  * `buildAnnotation` closures it returns.
  *
- * Detection now reads through the SAME extractor registry the Smelter embeds
- * from, so these tests drive the real registry wherever they can: a text
- * resource decodes for real, and only the PDF slot is stubbed — this suite
- * is the dispatch layer. That slot is the Smelter consult: a geometry-bearing
+ * Detection reads a resource by the SAME media-type text source the Smelter
+ * embeds from, so these tests drive the real route wherever they can: a text
+ * resource decodes for real, and only the PDF route is stubbed — this suite
+ * is the dispatch layer. That route is the Smelter consult: a geometry-bearing
  * type's text and geometry come from the Smelter's anchored text, so this
  * worker holds no store and extracts nothing itself. The wiring being proven
  * is that the anchoring model follows the GEOMETRY, not the media type —
@@ -20,13 +20,11 @@ import type { PdfTextItem } from '@semiont/core';
 // No `@semiont/content` mock. This seam imports nothing from it that runs —
 // deriving is reachable only through `derivingExtractorFor` and callable only
 // with an `AnchoredTextStore`, which this worker does not have.
-// The `pdfExtract` spy that used to prove "the worker did not OCR" had no target
-// left; the `getBinary` assertions below prove the same thing observably, and
-// better: no bytes fetched is no derivation possible.
+// The `getBinary` assertions below prove "the worker did not OCR" observably:
+// no bytes fetched is no derivation possible.
 // No `@semiont/event-sourcing` mock: annotation ids are content-addressed, so
-// the real function is already deterministic. The mock existed only to buy
-// that determinism, and keeping it would hide the identity these builders now
-// compute — which is the thing worth exercising.
+// the real function is deterministic, and a mock would hide the identity
+// these builders compute — which is the thing worth exercising.
 
 import type { ContentReads } from '@semiont/content';
 import { prepareDetection } from '../workers/detection/prepare-detection';
@@ -132,7 +130,7 @@ describe('prepareDetection', () => {
   });
 
   it('a class A PDF takes the consult path too — the rule is yieldsGeometryOf, not "is it a scan"', async () => {
-    // A class-A carve-out would reintroduce a second producer for an operation
+    // A class-A carve-out would introduce a second producer for an operation
     // that is merely *probably* deterministic. The consult, not the pdfClass,
     // decides.
     const { reads, getBinary } = fakeReads();
@@ -183,7 +181,7 @@ describe('prepareDetection', () => {
       .toEqual({ declined: 'empty' });
   });
 
-  // ── media-type gate, unchanged ──────────────────────────────────────────
+  // ── media-type gate ─────────────────────────────────────────────────────
 
   it("declines 'no-extractor' for a media type that can never yield text", async () => {
     const { reads, getBinary } = fakeReads();

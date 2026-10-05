@@ -64,7 +64,7 @@ export interface ResourceGenerateModalProps {
   /**
    * Roster entry serving `generation`, forwarded to ConfigureGenerationStep so
    * the max-length control is bounded by the model's real output ceiling.
-   * Optional: absent means today's default bounds, never an error.
+   * Optional: absent means the default bounds, never an error.
    */
   generationAgent?: Collaborator;
   isOpen: boolean;
@@ -89,8 +89,7 @@ export interface ResourceGenerateModalProps {
    * Resource-gather state, verbatim from the SDK's gather unit slots
    * (`gather.resourceContext$` / `resourceLoading$` / `resourceError$`) — the
    * page reads the observables and threads them here, the same shape the
-   * reference wizard has always had. The modal renders this state; it never
-   * owns it.
+   * reference wizard takes. The modal renders this state; it never owns it.
    */
   gatherContext: GatheredContext | null;
   gatherLoading: boolean;
@@ -152,10 +151,10 @@ export function ResourceGenerateModal({
   // entity types.
   const [excludeEntityTypes, setExcludeEntityTypes] = useState<string[]>([]);
 
-  // Reset to the first step ON OPENING — and re-seed the draft, because
+  // Reset to the un-gathered stack ON OPENING — and re-seed the draft, because
   // `defaultTitle` is the source resource's name and loads asynchronously: the
-  // useState initializer ran at mount, which for the real page was before the
-  // name existed. Guarded to the false→true transition so a name
+  // useState initializer runs at mount, which on the real page is before the
+  // name exists. Guarded to the false→true transition so a name
   // arriving mid-flow cannot clobber what the user has typed.
   const wasOpen = useRef(false);
   // The dirty baseline is what was SEEDED, not the live prop: defaultTitle

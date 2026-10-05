@@ -51,8 +51,8 @@ export function AnnotationHistory({
 
   // Sort events by oldest first (most recent at bottom)
   // Filter out job events - they're represented by mark:body-updated events instead
-  // `job:progress` is no longer a persisted event type, but logs written before it
-  // was retired still hold them; naming it here keeps those out of the history.
+  // `job:progress` is not a persisted event type, but older logs hold such
+  // events; naming it here keeps those out of the history.
   const events: StoredEventLike[] = eventsData
     .filter((e) => {
       return e.type !== 'job:started' && e.type !== 'job:progress' && e.type !== 'job:completed';
@@ -90,8 +90,6 @@ export function AnnotationHistory({
   }, [hoveredAnnotationId]);
 
   if (error) {
-    // Previously `return null` behind a hard-coded `const error = false`, so
-    // this branch was unreachable and a failed load simply hung in `loading`.
     return (
       <div className="semiont-history-panel">
         <h3 className="semiont-history-panel__title">

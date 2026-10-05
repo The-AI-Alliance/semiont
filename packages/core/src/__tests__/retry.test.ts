@@ -82,11 +82,11 @@ describe('retryWithBackoff', () => {
         (info) => seen.push(info),
       ),
     ).rejects.toThrow();
-    // Equal jitter: each wait is in [cap/2, cap), so the exact sequence is no
-    // longer assertable — but the SCHEDULE is: the ceilings still double and
-    // still cap, and the reported delay is the actual wait rather than the
-    // ceiling. Asserting per-attempt bounds keeps both the doubling and the
-    // cap under test without pinning the random draw.
+    // Equal jitter: each wait is in [cap/2, cap), so the exact sequence is
+    // not assertable — but the SCHEDULE is: the ceilings double and cap, and
+    // the reported delay is the actual wait rather than the ceiling.
+    // Asserting per-attempt bounds keeps both the doubling and the cap under
+    // test without pinning the random draw.
     const caps = [8, 16, 32, 32];
     expect(seen).toHaveLength(caps.length);
     seen.forEach((info, i) => {
@@ -181,7 +181,8 @@ describe('isRetryableRequestError', () => {
   it("accepts AbortSignal.timeout's TimeoutError — a deadline IS 'try again'", () => {
     // Measured, not assumed: `AbortSignal.timeout()` rejects with a DOMException
     // named 'TimeoutError', NOT a TypeError — so `isTransientFetchError` cannot
-    // see it, and the bounded `/bus/emit` was unretryable on timeout.
+    // see it, and without this case a bounded `/bus/emit` is unretryable on
+    // timeout.
     const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
     expect(isTransientFetchError(timeout)).toBe(false);
     expect(isRetryableRequestError(timeout)).toBe(true);
@@ -208,9 +209,8 @@ describe("a caller's deadline outranks the budget", () => {
     // The reason this parameter exists: a caller racing its own timeout against
     // work that retries otherwise has two numbers it must keep compatible BY
     // HAND, in two packages — and the day they stop being compatible, the race
-    // kills a retry that was about to succeed. Measured on the embedding path:
-    // a ~5 min budget under a 60s deadline, reconcilable as numbers only by
-    // making one of them wrong.
+    // kills a retry that was about to succeed. A ~5 min budget under a 60s
+    // deadline is reconcilable as numbers only by making one of them wrong.
     const controller = new AbortController();
     let calls = 0;
 
@@ -246,10 +246,10 @@ describe("a caller's deadline outranks the budget", () => {
 });
 
 describe('isPeerUnavailable', () => {
-  // The condition the weaver's boot passes gave up on: `browse:*` is answered by
-  // the archivist, which had not subscribed 3 s into a boot. Both passes failed
-  // 12 ms apart and never retried, and the KB came up with an empty graph behind
-  // a healthy /health (2026-09-09).
+  // The condition a boot pass must wait out: `browse:*` is answered by the
+  // archivist, which may not have subscribed seconds into a boot. A pass that
+  // does not retry it leaves the KB with an empty graph behind a healthy
+  // /health.
   it('accepts the promoted peer-unavailable failure', () => {
     expect(isPeerUnavailable(new BusRequestError('no subscriber', 'bus.peer-unavailable'))).toBe(true);
   });
@@ -278,8 +278,8 @@ describe('isPeerUnavailable', () => {
 
 describe('STARTUP_FETCH_RETRY', () => {
   it('waits ~39s worst case — inside the 30–60s startup window', () => {
-    // Was a hand-rolled copy of the same loop `retryBudgetMs` runs — a second
-    // implementation of the policy's own arithmetic, free to drift from it.
+    // Asked of `retryBudgetMs`, not recomputed: a hand-rolled copy of its loop
+    // is a second implementation of the policy's own arithmetic, free to drift.
     const total = retryBudgetMs(STARTUP_FETCH_RETRY);
     expect(total).toBeGreaterThanOrEqual(30_000);
     expect(total).toBeLessThanOrEqual(60_000);

@@ -1,19 +1,17 @@
 /**
- * BUG: content arriving after the annotations left the overlay unpainted —
- * the overlay effect must be keyed on everything it reads: the rendered
- * content DOM AND the annotations.
+ * The overlay effect is keyed on everything it reads: the rendered content
+ * DOM AND the annotations.
  *
  * When annotations arrive BEFORE content (any host loading content async —
- * useResourceContent), the overlay resolved ranges against the empty document
- * and never re-ran when content landed: rendered text, ZERO spans, healed only
- * by a remount. When content arrives first (sync-content hosts), it worked by
- * accident of ordering. Both orders are pinned here, plus shrink-to-zero.
+ * useResourceContent), an effect keyed on the annotations alone resolves
+ * them against the empty document and never re-runs when the content
+ * arrives: rendered text, ZERO spans, healed only by a remount. Content-first
+ * (sync-content hosts) paints under either keying. Both orders are pinned
+ * here, plus shrink-to-zero.
  *
  * REAL overlay pipeline (no annotation-overlay mocks) — react-markdown is
  * mocked to identity, so the source→rendered offset map is 1:1 and spans
- * paint in jsdom via the actual Range/surroundContents path.
- *
- * Started RED (async order → 0 spans) → GREEN with the single keyed effect.
+ * paint in jsdom via the actual overlay path.
  */
 import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -66,7 +64,7 @@ const spans = (c: HTMLElement) => c.querySelectorAll('[data-annotation-id]');
 describe('BrowseView — overlay vs async content arrival', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('paints spans when content arrives AFTER annotations (the async-content bug)', () => {
+  it('paints spans when content arrives AFTER annotations (async content)', () => {
     const session = fakeSession();
     const { container, rerender } = render(
       <BrowseView {...baseProps} content="" annotations={withReference} session={session} />,
@@ -83,7 +81,7 @@ describe('BrowseView — overlay vs async content arrival', () => {
     expect(spans(container)[0]!.getAttribute('data-annotation-type')).toBe('reference');
   });
 
-  it('paints spans when annotations arrive AFTER content (the always-working order — pinned)', () => {
+  it('paints spans when annotations arrive AFTER content', () => {
     const session = fakeSession();
     const { container, rerender } = render(
       <BrowseView {...baseProps} content={CONTENT} annotations={emptyAnnotations} session={session} />,

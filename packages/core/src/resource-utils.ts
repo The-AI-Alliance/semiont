@@ -169,10 +169,10 @@ export function getNodeEncoding(charset: string): BufferEncoding {
 export function decodeRepresentation(buffer: Buffer, mediaType: string): string {
   // The chokepoint gate: decoding is only legitimate for media whose bytes
   // ARE its text — not for derived-text media (the anchored-text read answers
-  // those) and not for media with no text at all. A PDF reaching this
-  // function used to become megabytes of mojibake; refusing here means no
-  // caller — present or future — can decode bytes that were never text, which
-  // is why this gate supersedes a caller census. Category, not mechanism: a
+  // those) and not for media with no text at all. A PDF decoded here would
+  // become megabytes of mojibake; refusing means no caller — present or
+  // future — can decode bytes that were never text, which is why this gate
+  // supersedes a caller census. Category, not mechanism: a
   // new strategy declares its side in core's exhaustive category maps and
   // this gate follows automatically.
   const source = textSourceOf(mediaType);

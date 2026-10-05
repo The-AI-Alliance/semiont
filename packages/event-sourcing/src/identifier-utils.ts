@@ -23,11 +23,11 @@ export interface AnnotationIdentity {
   /**
    * The annotation's body, when it has one.
    *
-   * Included for EVERY motivation that carries one, which — measured
-   * 2026-09-03 — is every motivation except `highlighting`. The body was
-   * expected to matter only for `commenting`, but the same collision exists
-   * for `assessing` and `tagging` (two assessments of one span differ solely
-   * by their text), and for `linking`: a detected reference carries its entity
+   * Included for EVERY motivation that carries one, which is every
+   * motivation except `highlighting`. The body matters beyond `commenting`:
+   * the same collision exists for `assessing` and `tagging` (two assessments
+   * of one span differ solely by their text), and for `linking`: a detected
+   * reference carries its entity
    * type as an unresolved TextualBody, which is exactly the "type" in the
    * identity a detected annotation needs (resource, span, type, motivation).
    * So a per-motivation table of hash inputs collapses to one rule — hash the
@@ -56,7 +56,7 @@ function canonical(value: unknown): string {
  *
  * This is what makes every job-recovery path idempotent: a
  * re-queued job, a resumed unit and a retried failure all re-emit the same
- * annotation, and re-emitting it is now a no-op *with no read* — which is the
+ * annotation, and re-emitting it is a no-op *with no read* — which is the
  * property a read-before-write could not provide, because the thing it would
  * read is exactly what is down when recovery is happening.
  *
@@ -65,10 +65,8 @@ function canonical(value: unknown): string {
  * and must still collide, so anything about the emission rather than the
  * annotation would defeat the whole mechanism.
  *
- * 21 base64url characters of a SHA-256 — the same length the `nanoid(21)` this
- * replaces produced, so nothing downstream that sized a column or a URL around
- * it changes, and ~126 bits, which is far more than a per-resource span space
- * needs.
+ * 21 base64url characters of a SHA-256: ~126 bits, which is far more than a
+ * per-resource span space needs.
  *
  * ## The no-op guarantee is conditional on `anchor`, and callers differ
  *
@@ -92,10 +90,9 @@ function canonical(value: unknown): string {
  * that stamp is deliberately over-eager — **a release busts it and the same bytes
  * are re-extracted by different code.** So the honest statement is: the PDF path's
  * guarantee holds *per stamp generation*, and a release is the event that could end
- * one. Measured 2026-09-12 across the caret-reachable engine move (pdfjs 6.2.108 →
- * 6.3.289, 1,192 pages): the offsets did not move — and
- * `pdf-offset-stability.test.ts` is what keeps that from being a one-time
- * observation. The OCR path has not been measured.
+ * one. The offsets are stable across the pdfjs 6.2.108 → 6.3.289 engine move
+ * (1,192 pages), and `pdf-offset-stability.test.ts` is what keeps that from
+ * being a one-time observation. The OCR path has not been measured.
  */
 export function annotationIdFor(identity: AnnotationIdentity): AnnotationId {
   const material = canonical({

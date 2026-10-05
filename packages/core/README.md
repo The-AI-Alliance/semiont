@@ -8,13 +8,13 @@
 
 Core types and domain logic for the Semiont semantic knowledge platform. This package is the **source of truth for OpenAPI types** and provides the shared domain layer: event-sourcing types, the EventBus, the transport contract, W3C Web Annotation utilities, anchoring, DIDs, and configuration loading.
 
-> **Architecture Note**: This package generates TypeScript types from the OpenAPI specification. Every other package in the monorepo imports them from here.
+> **Architecture Note**: This package generates TypeScript types from the OpenAPI specification. Every other TypeScript package in the monorepo imports them from here.
 
 ## Who Should Use This
 
-- ✅ **Gateway** (`apps/gateway`) - Server implementation, imports types from core
+- ✅ **Services** (`@semiont/make-meaning`, `@semiont/jobs`) - Server implementations, import types from core
 - ✅ **Packages** - Other monorepo packages that need OpenAPI types, the EventBus, or the transport contract
-- ✅ **Browser / Browser** - Types and pure utilities (the main barrel is browser-safe)
+- ✅ **Browser** - Types and pure utilities (the main barrel is browser-safe)
 
 ## Who Should Use `@semiont/core/node` Instead
 
@@ -59,8 +59,8 @@ TypeScript types generated from the OpenAPI specification - the **source of trut
 import type { components, paths, operations } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
-type Resource = components['schemas']['Resource'];
-type CreateResourceRequest = components['schemas']['CreateResourceRequest'];
+type Resource = components['schemas']['ResourceDescriptor'];
+type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 ```
 
 These types are generated during the build process:
@@ -114,7 +114,7 @@ A resource is named by its `ResourceId` wherever it is named: an annotation targ
 
 ### Event Sourcing Types
 
-The persisted event catalog — every event type written to the JSONL event log, discriminated on `type` and namespaced by concern (`yield:*` resource lifecycle, `mark:*` annotations and tags, `frame:*` schema registration, `job:*` job lifecycle):
+The persisted event catalog — every event type written to the JSONL event log, discriminated on `type` and namespaced by concern (`yield:*` resource lifecycle, `mark:*` annotations and tags, `frame:*` schema registration, `person:*` display names, `job:*` job lifecycle):
 
 ```typescript
 import type {
@@ -140,7 +140,7 @@ function handle(event: PersistedEvent) {
 
 ### EventBus
 
-The RxJS-based event bus shared by gateway and clients, with a typed channel protocol:
+The RxJS-based event bus shared by services and clients, with a typed channel protocol:
 
 ```typescript
 import { EventBus, ScopedEventBus, burstBuffer, serializePerKey } from '@semiont/core';
@@ -162,7 +162,7 @@ import type { ITransport, IContentTransport, IGatewayOperations, ConnectionState
 import { BRIDGED_CHANNELS } from '@semiont/core';
 ```
 
-`@semiont/http-transport` implements these over HTTP + SSE; `LocalTransport` in `@semiont/make-meaning` implements them in-process.
+`@semiont/http-transport` implements these over HTTP + SSE; `LocalTransport` and `LocalContentTransport` in `@semiont/make-meaning` implement `ITransport` and `IContentTransport` in-process.
 
 ### Resource writes
 
@@ -173,7 +173,7 @@ import { ResourceOperations } from '@semiont/core';
 import type { CreateResourceInput, BusRequestPrimitive } from '@semiont/core';
 ```
 
-Each method rides a `BusRequestPrimitive` the caller supplies — the operation names the channel, the caller names the fabric — stamps the caller as `_userId`, and resolves to the new `ResourceId` from the Stower's correlated reply:
+Each method rides a `BusRequestPrimitive` the caller supplies — the operation names the channel, the caller names the fabric — stamps the caller as `_userId`, and resolves to the new `ResourceId` from the correlated reply — the Stower's, or the CloneTokenManager's for `createFromCloneToken`:
 
 - **`createResource(input, emitter, bus)`** — `yield:create`. The `Emitter` is `{ did, roles }`, stamped as `_userId` and `_roles` — the Stower refuses a worker's create that cites no job. Callers store the bytes first; `CreateResourceInput` carries the resulting `storageUri`, `contentChecksum` and `byteSize`, plus `name`, `format`, and optional `language`, `entityTypes`, generation provenance, `jobId` and `isDraft`.
 - **`persistClone(input, userId, bus)`** — `yield:clone-persist`. A clone names its `parentResourceId`; callers reach this only after a clone token has been validated.
@@ -214,7 +214,7 @@ import { findBodyItem, type BodyItemIdentity } from '@semiont/core';
 // This is the common case for Semiont's bind/unbind flow.
 const index = findBodyItem(annotation.body, {
   type: 'SpecificResource',
-  source: 'https://example.com/target',
+  source: '5bcd259ab1464cf68a556bbad21f513f',
 });
 
 // Strict match: disambiguate among same-source bodies under different
@@ -222,7 +222,7 @@ const index = findBodyItem(annotation.body, {
 // pointing at the same target under different W3C purposes.
 const linkingIdx = findBodyItem(annotation.body, {
   type: 'SpecificResource',
-  source: 'https://example.com/target',
+  source: '5bcd259ab1464cf68a556bbad21f513f',
   purpose: 'linking',
 });
 ```
@@ -252,7 +252,7 @@ over* a coordinate map; producing one (text layer, OCR, tables, forms) lives in
 because it carries pdf.js, Tesseract and `node:fs`.
 
 ```typescript
-import { locate, textUnder, anchorRuns, type AnchoredText } from '@semiont/core';
+import { locate, textUnder, anchorRuns, isTextRun, type AnchoredText } from '@semiont/core';
 
 // A model quoted text; find its geometry. One rect per line.
 const { rects } = locate(anchored, match.start, match.end);
@@ -292,7 +292,7 @@ didToAgent('did:web:example.com:agents:ollama:gemma2%3A27b');
 
 ### Error Classes
 
-In-process error types, sharing the `TransportErrorCode` vocabulary with the transport-specific classes (`APIError` lives in `@semiont/http-transport`):
+In-process error types, sharing the `SemiontError` base with the transport-specific classes (`APIError` lives in `@semiont/http-transport`):
 
 ```typescript
 import {
@@ -304,7 +304,7 @@ import {
   ConflictError,
 } from '@semiont/core';
 
-throw new NotFoundError('Resource not found');
+throw new NotFoundError('Resource'); // "Resource not found"
 ```
 
 ### Type Guards & Validation
@@ -333,12 +333,12 @@ Schema-generated configuration types plus loaders:
 
 ```typescript
 import { loadTomlConfig, parseEnvironment, ConfigurationError } from '@semiont/core';
-import type { SemiontConfig, EnvironmentConfig, ServicesConfig } from '@semiont/core';
+import type { EnvironmentConfig, ServicesConfig } from '@semiont/core';
 ```
 
 Filesystem-backed loading (`SemiontProject`, `loadEnvironmentConfig`) is in `@semiont/core/node` — see above.
 
-### Gateway Internal Types
+### Internal Types
 
 Types not in the OpenAPI spec:
 
@@ -360,9 +360,9 @@ Semiont follows a **spec-first architecture**:
 
 1. **OpenAPI Specification** ([specs/src/](../../specs/src/)) is the source of truth
 2. **@semiont/core** generates types from OpenAPI and provides domain utilities
-3. Every other package imports types from `@semiont/core`; application code talks to the gateway through `@semiont/sdk`, whose transports implement core's `ITransport` contract
+3. Every other TypeScript package imports types from `@semiont/core`; application code talks to the gateway through `@semiont/sdk`, whose transports implement core's `ITransport` contract
 
-**Type Yield Flow**: OpenAPI spec → `@semiont/core/src/types.ts` (via `openapi-typescript`) → imported across the monorepo. This ensures no circular dependencies and clear build order.
+**Type Generation Flow**: OpenAPI spec → `packages/core/src/types.ts` (via `openapi-typescript`) → imported across the monorepo. This ensures no circular dependencies and clear build order.
 
 ## Development
 

@@ -133,7 +133,7 @@ The workflows run these security checks:
 status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/moderate)
 
 response=$(curl -s http://localhost:3000/moderate)
-echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|DELETE|admin@"
+echo "$response" | grep -qE "sk-ant-[A-Za-z0-9_-]+|eyJ[A-Za-z0-9_-]{10,}\.eyJ"
 ```
 
 **Gateway API Security**:

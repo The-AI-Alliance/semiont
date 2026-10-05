@@ -1,10 +1,11 @@
 /**
  * A bus method's types come from the channel name.
  *
- * `on$<T = Record<string, unknown>>(channel: string)` let every caller name
- * its own payload type, checked against nothing — and the default made
- * "nobody typed this" indistinguishable from "this is typed". One consumer
- * hand-wrote `job:queued`'s payload and lost `userId` for it.
+ * A loose signature — `on$<T = Record<string, unknown>>(channel: string)` —
+ * lets every caller name its own payload type, checked against nothing, and
+ * its default makes "nobody typed this" indistinguishable from "this is
+ * typed": a consumer hand-writing `job:queued`'s payload can drop `userId`
+ * and compile.
  *
  * **The compiler is the test.** The probes below are never invoked: a
  * `@ts-expect-error` on a real call still *runs* the call under vitest, and
@@ -38,7 +39,7 @@ function inferenceProbe(bus: BusRequestPrimitive) {
   return [exact, differs];
 }
 
-/** Everything the loose signature used to allow. */
+/** Everything the loose signature allows. */
 function rejectionProbe(bus: BusRequestPrimitive) {
   // @ts-expect-error — the caller does not choose the payload type
   bus.stream<{ wrong: true }>('mark:added');
@@ -53,15 +54,15 @@ describe('BusRequestPrimitive.stream is typed by its channel', () => {
     expect(typeof inferenceProbe).toBe('function');
   });
 
-  it('carries the spec payload whole — the field a hand-written copy dropped', () => {
-    // `job:queued`'s consumer hand-wrote { jobId, jobType, resourceId } and
-    // omitted `userId`, the DID the audit trail needs. Derived, it cannot.
+  it('carries the spec payload whole — the field a hand-written copy drops', () => {
+    // A hand-written { jobId, jobType, resourceId } for `job:queued` omits
+    // `userId`, the DID the audit trail needs. Derived, it cannot.
     const hasUserId: 'userId' extends keyof EventMap['job:queued'] ? true : false = true;
     expect(hasUserId).toBe(true);
   });
 });
 
-describe('BusRequestPrimitive.stream refuses what the old signature allowed', () => {
+describe('BusRequestPrimitive.stream refuses what a loose signature allows', () => {
   it('takes no caller-supplied type, and no channel off the registry', () => {
     expect(typeof rejectionProbe).toBe('function');
   });

@@ -1,9 +1,9 @@
 /**
  * Stower `mark:update-entity-types` vocabulary gate
  *
- * Entity tags are a CONTROLLED VOCABULARY (ratified 2026-07-09). The direct
- * update path must enforce the same gate the job path already does — same
- * machinery (readEntityTypesProjection + validateEntityTypes), same
+ * Entity tags are a CONTROLLED VOCABULARY. The direct update path must
+ * enforce the same gate the job path does — same machinery
+ * (readEntityTypesProjection + validateEntityTypes), same
  * "Entity type not registered: …" message — with two boundary rules:
  *   - all-or-nothing per request: a mixed request must not half-land;
  *   - removals are NEVER vocabulary-gated: deleting a stale/unregistered

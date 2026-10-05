@@ -91,9 +91,9 @@ packages/react-ui/src/
     │   ├── textareas.css          # Multi-line inputs
     │   ├── selects.css            # Dropdowns
     │   ├── forms.css              # Form field wrappers and layout
-    │   ├── badges.css             # Section headers and a pulse keyframe; no badge classes
+    │   ├── badges.css             # A pulse keyframe; no badge classes
     │   ├── tags.css               # Content tags
-    │   └── indicators.css         # Status indicators
+    │   └── indicators.css         # A pulse keyframe and the session timer's text
     ├── motivations/               # W3C Web Annotation motivations
     │   ├── motivation-reference.css  # Linking (cyan/blue gradient)
     │   ├── motivation-highlight.css  # Highlighting (yellow)

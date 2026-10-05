@@ -194,8 +194,8 @@ SSE connection to `/bus/subscribe` + HTTP POST to `/bus/emit`:
 
 - **Request-response queries** — `busRequest` generates a correlationId, subscribes to the result channel, and emits the request. The client filters incoming events by correlationId.
 - **Fire-and-forget commands** — `actor.emit(channel, payload)` POSTs to `/bus/emit`; results arrive as separate events.
-- **Live domain events** — `mark:added`, `yield:create-ok`, etc. flow on resource-scoped channels. Subscribing to a resource's `browse.*(id)` live queries adds those channels to the bus actor's subscription — freshness follows observation, with the SDK driving the transport's internal `subscribeToResource` (#847) — and drops them when the last subscriber unsubscribes.
-- **Gap detection** — on reconnect after a disconnect, `BrowseNamespace` invalidates all active caches and refetches. No server-side replay.
+- **Live domain events** — `mark:added`, `mark:body-updated`, etc. flow on resource-scoped channels. Subscribing to a resource's `browse.*(id)` live queries adds those channels to the bus actor's subscription — freshness follows observation, with the SDK driving the transport's internal `subscribeToResource` — and drops them when the last subscriber unsubscribes.
+- **Resumption** — when the stream reopens after a drop, the gateway replays each resource scope's persisted events from the last one the client received, or emits `bus:resume-gap` when it cannot; `BrowseNamespace` refetches only what replay does not cover. See [`docs/protocol/CACHE-SEMANTICS.md`](../../../docs/protocol/CACHE-SEMANTICS.md) (B13).
 
 See [`docs/protocol/EVENT-BUS.md`](../../../docs/protocol/EVENT-BUS.md) and
 [`docs/protocol/CHANNELS.md`](../../../docs/protocol/CHANNELS.md) for
@@ -285,23 +285,33 @@ matching locates the text if offsets are stale.
 Annotations are serialized as standard JSON-LD on the wire and in
 exports — any W3C-compliant consumer can ingest them.
 
-## Synchronous vs Asynchronous Operations
+## Request/Reply Operations and Jobs
 
-Two conceptual patterns:
+The gateway hosts no handlers. Every bus operation is a `POST /bus/emit`
+that the gateway answers `202` once it has accepted the frame; what the
+operation produces arrives afterwards on the SSE stream. Two patterns
+follow:
 
-**Synchronous (request-response)** — commands that complete quickly on
-the gateway handler: create annotation, delete annotation, browse
-queries. The Browser awaits a result event matched by correlationId.
+**Request/reply** — creating or deleting an annotation, a browse query.
+The request carries a `correlationId`; the service that answers the
+operation (the Archivist, for these) emits its reply with the same id, and
+the gateway delivers it to the client that asked. The request settles when
+that reply arrives on the stream: with the reply's response, or as a
+`BusRequestError` on a failure reply or when none arrives by the request's
+deadline.
 
-**Asynchronous (job-based)** — operations that run minutes to hours:
-entity detection, resource generation. The Browser emits `job:create`,
-gets back `job:created` with a `jobId`, then listens for
-`job:report-progress` / `job:complete` events scoped to
-the resource.
+**Jobs** — long-running work a worker performs: AI-assisted annotation
+(`mark.assist`) and generation (`yield.fromContext`). The verb emits
+`job:create`, itself a request/reply: the dispatcher admits the job and
+answers `job:created` with its `jobId`. The worker then reports on
+`job:report-progress`, `job:complete` and `job:fail`, which reach every
+client; the SDK keeps the frames that carry its job's `jobId` and delivers
+them as the verb's stream: progress, then the outcome.
 
-Both flow through the same bus gateway. The difference is whether the
-final result event arrives in the same HTTP turnaround as the command
-(sync) or later, driven by worker processes (async).
+[`docs/protocol/EVENT-BUS.md`](../../../docs/protocol/EVENT-BUS.md) and
+[`docs/protocol/TRANSPORT-HTTP.md`](../../../docs/protocol/TRANSPORT-HTTP.md)
+specify the emit and the correlated reply;
+[`docs/protocol/JOBS.md`](../../../docs/protocol/JOBS.md) specifies jobs.
 
 ## Error Handling
 

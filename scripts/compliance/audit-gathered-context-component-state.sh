@@ -3,10 +3,8 @@ set -euo pipefail
 
 # Invariant A5: gathered context is SDK state, never component state.
 #
-# 1. `useResourceGather` was a public react-ui export that held a
-#    GatheredContext in component-local useState — deleted (public-surface
-#    removal, first release after 0.5.28). It must not return under any name
-#    at the old one.
+# 1. No `useResourceGather`: a react-ui hook of that name holds a
+#    GatheredContext in component-local useState.
 # 2. No react-ui/browser source holds a GatheredContext in useState — the
 #    page reads the gather state unit's slots (`context$`/`resourceContext$`
 #    and friends) and threads props. A component that needs gathered context
@@ -18,7 +16,7 @@ violations=0
 if grep -rn "useResourceGather" \
     "$REPO_ROOT/packages/react-ui/src" "$REPO_ROOT/apps/browser/src" \
     --include='*.ts' --include='*.tsx' 2>/dev/null; then
-  echo "❌ useResourceGather reappeared (deleted: components receive gather state as props)"
+  echo "❌ useResourceGather is present (components receive gather state as props)"
   violations=1
 fi
 

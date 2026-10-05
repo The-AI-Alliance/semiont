@@ -219,9 +219,6 @@ describe('BrowseNamespace', () => {
     });
 
     // ── Semantic fallback — axioms S9, S10 ────────────────────────────────
-    // RED was observed with `it.fails` + isObject probes (arrays excluded)
-    // before `resources()` carried the envelope; flipped to typed reads when
-    // the cache was widened to `ResourceList`.
 
     function semanticBrowse(): BrowseNamespace {
       const responses = defaultResponses();
@@ -270,8 +267,8 @@ describe('BrowseNamespace', () => {
       expect.objectContaining({ resourceId: RID }),
       expect.objectContaining({ correlationId: expect.any(String) }),
     );
-    // The HTTP hop through the gateway is gone — the reply arrives on the
-    // bridged result channel like every other bus reply.
+    // No HTTP hop through the gateway: the reply arrives on the bridged
+    // result channel like every other bus reply.
   });
 
   it('kb() asks on every call: a branch changes with no event to invalidate a kept answer', async () => {
@@ -420,9 +417,9 @@ describe('BrowseNamespace', () => {
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.events(RID));
       expect(emitSpy).toHaveBeenCalledTimes(2);
-      // Unenriched: the view no longer held the annotation when the EventStore
-      // enriched the event, so there is nothing to write through. This used to
-      // be a no-op, which left the old body on screen; B13c in
+      // Unenriched: the view did not hold the annotation when the EventStore
+      // enriched the event, so there is nothing to write through. A no-op
+      // here would leave the stale body on screen; B13c in
       // cache-semantics.test.ts is the contract clause.
       eventBus.emit('mark:body-updated', stored({ resourceId: RID, payload: { annotationId: AID } }));
       await firstDefined(browse.annotations(RID));
@@ -475,8 +472,8 @@ describe('BrowseNamespace', () => {
     });
 
     it('yield:cloned → invalidates — a clone created a resource nobody was told about', async () => {
-      // Pre-existing gap: nothing subscribed `yield:clone-persist-ok`, so a
-      // clone-persist created a resource and no list ever learned of it.
+      // Without this trigger a clone-persist creates a resource and no list
+      // ever learns of it.
       await firstDefined(browse.resource(RID));
       eventBus.emit('yield:cloned', stored({ resourceId: RID }));
       await firstDefined(browse.resource(RID));

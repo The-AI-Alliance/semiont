@@ -2,11 +2,10 @@
  * SystemNamespace — what a knowledge base says about itself. Gateway ops
  * only; no bus.
  *
- * This was `AdminNamespace` until the administration surface was removed:
- * user management lives at the issuer now, so the four admin operations went
- * and what remained — health and status — was never administration. Status is
- * how a client learns a knowledge base's identity and branch before it trusts
- * the connection (`describeConnection`), and health is the liveness probe.
+ * Health and status, and no administration: user management lives at the
+ * issuer. Status reports the service's version and features, and health is
+ * the liveness probe. A knowledge base's identity and branch are not here:
+ * `browse.kb()` answers those (`describeConnection`).
  */
 
 import type { paths } from '@semiont/core';

@@ -3,10 +3,6 @@
 
    This is the authoritative source for all checkbox styles.
    Usage: Apply .semiont-checkbox to <input type="checkbox"> elements.
-
-   Available modifiers:
-   - .semiont-checkbox--small (reduced size)
-   - .semiont-checkbox--large (increased size)
    ============================================ */
 
 /* Base Checkbox Styling */
@@ -80,8 +76,6 @@
 [data-theme="dark"] .semiont-checkbox:disabled {
   background-color: var(--semiont-color-gray-800);
 }
-
-/* Size Variants */
 
 /* Accessibility - Reduced Motion */
 @media (prefers-reduced-motion: reduce) {

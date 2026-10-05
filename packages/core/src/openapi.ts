@@ -7,9 +7,8 @@
  *
  * Compiled at BUILD time, deliberately. Ajv's `addSchema` does not compile;
  * runtime setups defer it to the first validation, so a schema Ajv cannot
- * compile becomes a 500 on every request through it — how a `discriminator`
- * on AnnotationBody broke `POST /bus/emit` (PR #1189). Here that is a build
- * failure naming the schema.
+ * compile — a `discriminator` on AnnotationBody, say — becomes a 500 on every
+ * request through it. Here that is a build failure naming the schema.
  *
  * A subpath, never the `.` barrel: the generated validators are ~1.9 MB bundled,
  * and every browser consumer imports the barrel.

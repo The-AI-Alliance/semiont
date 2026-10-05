@@ -130,8 +130,8 @@ func main() {
 		usage(os.Stdout)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", cmd)
-		// The old KB scripts took flags directly; the launcher needs the
-		// subcommand first. Catch that muscle memory with a pointed hint.
+		// A leading flag means the subcommand was left out: the launcher needs
+		// it first. Say where the flags go.
 		if strings.HasPrefix(cmd, "-") {
 			fmt.Fprintf(os.Stderr, "Flags go after a subcommand — did you mean:  semiont start %s\n", strings.Join(os.Args[1:], " "))
 		}

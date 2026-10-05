@@ -2,16 +2,14 @@
  * Each sidecar declares ONE manifest, and it covers everything that sidecar
  * consumes.
  *
- * The defect this gate exists for, found 2026-09-16 while writing the
- * manifests: both sidecar fan-ins ask the bus for their streams the moment
- * they are called (`SMELTER_CHANNELS.map((c) => bus.stream(c))`), but the
- * subscription set was widened later, via `addChannels`. The set and the
- * consumption were therefore never comparable at any single moment — which
- * is exactly how a widening can be deleted without any list getting shorter
- * (the 2026-09-16 worker outage), and how `stream`'s refusal of a channel
- * outside the subscription set would reject `yield:created` at weaver boot:
- * not in the constructed reply set, and not scopable because it is globally
- * bridged.
+ * What this gate exists for: both sidecar fan-ins ask the bus for their
+ * streams the moment they are called
+ * (`SMELTER_CHANNELS.map((c) => bus.stream(c))`). A subscription set widened
+ * afterwards, via an `addChannels`, is never comparable with the consumption
+ * at any single moment — which is how a widening can be deleted without any
+ * list getting shorter, and how `stream`'s refusal of a channel outside the
+ * subscription set would reject `yield:created` at weaver boot: not in the
+ * constructed reply set, and not scopable because it is globally bridged.
  *
  * The manifest is the whole set, stated once, and the transport is
  * constructed with it. Then consumption cannot outrun declaration.
@@ -67,8 +65,8 @@ describe('client subscription manifests (sidecars)', () => {
   });
 
   it.each(CLIENTS)('$kind: the fan-in does not widen the subscription set', (client) => {
-    // The widening verb is what let declaration and consumption drift apart.
-    // With the whole manifest at construction there is nothing left to widen,
+    // A widening verb is what lets declaration and consumption drift apart.
+    // With the whole manifest at construction there is nothing to widen,
     // and the fan-in's `stream()` calls are inside the set by definition.
     const source = stripComments(readFileSync(join(SRC, client.fanIn), 'utf-8'));
     expect(source, `${client.fanIn} still widens its subscription set`).not.toMatch(/addChannels/);

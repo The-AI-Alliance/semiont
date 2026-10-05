@@ -3,11 +3,9 @@
  *
  * Business logic for resource operations. All writes ride a
  * `BusRequestPrimitive` the CALLER supplies — the operation names channels,
- * the caller names the fabric. The Stower actor handles persistence wherever
- * it lives: beside an in-process bus (`asBusRequestPrimitive`), or across
- * the signal plane (the gateway's `requestPrimitiveFor` — a raw-bus emit
- * from the gateway starves under a remote plane, the `yield:create` bug of
- * 2026-09-15).
+ * the caller names the fabric. The Stower actor handles persistence; its
+ * callers — the Archivist's upload path and the CloneTokenManager — run
+ * beside it and supply the in-process primitive (`asBusRequestPrimitive`).
  *
  * For create: emits yield:create, awaits yield:create-ok / yield:create-failed.
  */
@@ -56,9 +54,9 @@ export class ResourceOperations {
     bus: BusRequestPrimitive,
   ): Promise<ResourceId> {
     // Confirmed in-process write over busRequest: the reply is matched by
-    // correlationId, so concurrent creates can't cross-resolve (the old race()
-    // took the first yield:create-ok on the channel regardless of which create
-    // it answered). In-process callers stamp `_userId` and `_roles` directly,
+    // correlationId, so concurrent creates can't cross-resolve — each create
+    // resolves on its own yield:create-ok, never on another's that shares the
+    // channel. In-process callers stamp `_userId` and `_roles` directly,
     // mirroring what the gateway does for wire callers.
     const { resourceId: rId } = await busRequest(
       bus,
@@ -127,8 +125,8 @@ export class ResourceOperations {
 
   /**
    * Create a resource from a clone token via EventBus → CloneTokenManager.
-   * The bytes are already stored (the gateway's upload path, `noGit` — the
-   * Archivist's register does the one `git add`, so git has a single writer);
+   * The bytes are already stored (the Archivist's upload path, `noGit` — the
+   * Stower's register does the one `git add`, so git has a single writer);
    * the command carries storage coordinates only, because bytes never ride
    * the bus.
    */

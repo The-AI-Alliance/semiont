@@ -1,7 +1,7 @@
 /**
  * createHttpSessionFactory — the default `SessionFactory` for HTTP-backed
- * KBs. Owns every HTTP-specific construction concern that used to live in
- * `SemiontBrowser`: building `HttpTransport`/`HttpContentTransport`,
+ * KBs. Owns every HTTP-specific construction concern, so `SemiontBrowser`
+ * has none: building `HttpTransport`/`HttpContentTransport`,
  * wiring the `tokenRefresher` callback, deduplicating concurrent 401
  * refresh round trips, renewing the session at its issuer, and asking the
  * gateway who a stored token is.
@@ -59,8 +59,8 @@ export function createHttpSessionFactory(): SessionFactory {
     /**
      * Ask the gateway who `token` is: one request, with no client behind it.
      * The session asks at startup, to populate `user$`, and decides for
-     * itself what a refusal means. A client built for the asking opened a
-     * bus stream each time it was built, with the token being asked about.
+     * itself what a refusal means. A client built for the asking would open
+     * a bus stream each time it is built, with the token being asked about.
      */
     const performValidate = (token: AccessToken): Promise<UserInfo> =>
       currentUserOf(baseUrl(kbGatewayUrl(endpoint)), token);

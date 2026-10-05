@@ -32,7 +32,7 @@ This architecture leverages RxJS EventBus for event routing, eliminates callback
 
 The page state unit (`resource-viewer-page-state-unit`) builds its
 annotations, events, and referencedBy list states with `trackList` over
-`client.browse.*(resourceId)`. **Freshness follows observation** (#847):
+`client.browse.*(resourceId)`. **Freshness follows observation**:
 subscribing to any of them acquires the resource's SSE scope (ref-counted
 across all of them), and the last unsubscribe releases it. There is no
 explicit `subscribeToResource` call.

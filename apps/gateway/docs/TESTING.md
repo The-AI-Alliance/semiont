@@ -7,8 +7,7 @@ and checks what they answer against the protocol as `specs/` states it — the
 OpenAPI document and the bus registry — and as
 [TRANSPORT-HTTP.md](../../../docs/protocol/TRANSPORT-HTTP.md) states the
 semantics a schema cannot hold. It imports nothing from the gateway, so it
-checks any implementation that answers to the same spec — it judged the
-TypeScript gateway before this one, case for case.
+checks any implementation that answers to the same spec.
 
 Every case runs on both signal planes — in-process, and NATS against a real
 `nats-server` — except those that need a broker (two replicas) or do not depend
@@ -48,16 +47,15 @@ The suite needs `nats-server` 2.10 or later on `PATH`.
 after another, on Alpine as the image is: `GET /api/health`, and `POST /bus/emit`
 with an empty payload and with an 8 KiB one, each from `wrk` on CPUs the gateway
 does not use. It is a measurement, not a gate, and nothing in CI runs it. The
-allocator was chosen by it (2026-09-28, eight gateway CPUs, 256 connections,
+allocator is chosen by it (eight gateway CPUs, 256 connections,
 median of three 10 s runs):
 
 | Allocator | health req/s | emit req/s | emit p50 | peak RSS |
 |---|---|---|---|---|
-| musl's malloc | 39,869 | 15,527 | 14.8 ms | 40 MiB |
-| musl's, with no counting wrapper | 39,876 | 15,681 | 15.0 ms | 40 MiB |
-| jemalloc | 589,293 | 266,000 | 0.9 ms | 49 MiB |
+| musl's malloc: the gateway built without the `#[global_allocator]` in [src/main.rs](../src/main.rs) | 39,876 | 15,681 | 15.0 ms | 40 MiB |
+| jemalloc: the gateway as it is built | 589,293 | 266,000 | 0.9 ms | 49 MiB |
 
-The counting wrapper the heap gauge used cost nothing measurable; musl's malloc itself was the bottleneck under eight workers.
+musl's malloc is the bottleneck under eight workers.
 
 ## Adding to the protocol
 

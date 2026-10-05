@@ -1,5 +1,5 @@
 /**
- * Text selection handler logic extracted from AnnotateView
+ * Text selection handler logic for AnnotateView
  *
  * Builds W3C annotation selectors (TextPositionSelector + TextQuoteSelector)
  * from a text selection. No DOM, React, or CodeMirror dependencies.

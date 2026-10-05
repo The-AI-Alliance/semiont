@@ -6,13 +6,10 @@
  * the EventMap + CHANNEL_SCHEMAS entries and derives the replies into
  * `BRIDGED_CHANNELS`), and `BusReply` must infer the reply-shape-standard
  * payload `{ agents: CollaboratorEntry[] }` from the result channel. Entries
- * cover both halves of the directory from day one — a Software agent with
- * structured `provider`/`model` and capabilities, and a Person without
- * `servesJobTypes` — so adding Persons needs no schema rework.
+ * cover both halves of the directory — a Software agent with structured
+ * `provider`/`model` and capabilities, and a Person without `servesJobTypes`.
  *
- * Enforced by `tsc --noEmit` (core `typecheck`), not vitest runtime. RED
- * before the spec + registration land (no such channel/operation); GREEN
- * after.
+ * Enforced by `tsc --noEmit` (core `typecheck`), not vitest runtime.
  */
 import { describe, it, expect } from 'vitest';
 import type { components } from '../types';

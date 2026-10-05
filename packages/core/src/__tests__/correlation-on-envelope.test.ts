@@ -2,17 +2,9 @@
  * The correlation key rides the ENVELOPE, and a requester matches its reply
  * without reading a payload.
  *
- * When this suite was written, `correlationId` was declared in 71 payload
- * schemas and echoed by hand in nine handlers (zero today — it rides the
- * envelope), while its other half `clientId` already sat correctly on the
- * envelope — under a description that states the very rule being broken:
- * routing is "a wire concern like `scope`, so it never enters a channel's
- * domain type".
- *
- * The bus now has an envelope to put it on, so the rule can finally be
- * followed. These assertions are over the RUNTIME contract, deliberately: a
- * gate on schema TEXT would go green by deleting declarations while the wire
- * stayed exactly as it was.
+ * These assertions are over the RUNTIME contract, deliberately: a gate on
+ * schema TEXT would go green by deleting declarations while the wire stayed
+ * exactly as it was.
  */
 import { describe, test, expect } from 'vitest';
 import { BehaviorSubject } from 'rxjs';

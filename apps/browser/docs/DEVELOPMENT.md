@@ -1,7 +1,5 @@
 # Browser Development Guide
 
-**Last Updated**: 2026-03-29
-
 Complete guide to local development workflows, common tasks, debugging, and troubleshooting for the Semiont Browser.
 
 ## Table of Contents
@@ -604,5 +602,4 @@ For detailed styling guidelines, see the [Style Guide](./style-guide.md).
 
 ---
 
-**Last Updated**: 2026-03-29
 **For Questions**: See [System Documentation](../../../docs/) or file an issue

@@ -11,12 +11,12 @@ All seven subscribe to the bus via RxJS pipelines and expose no public business 
 
 The third derived read model — the materialized views — is deliberately **not** pipeline-maintained: the EventStore's `ViewManager` materializes views synchronously inside `appendEvent()`, before the event is published, so subscribers get a read-your-writes guarantee that a fire-and-forget pipeline cannot provide.
 
-**The seam rule (standing).** Any new read path that consumes an eventually-consistent projection (the graph, the vectors) for content that may have *just been written* MUST declare its ordering semantics at design time, in its plan — one of exactly two choices:
+**The seam rule (standing).** Any new read path that consumes an eventually-consistent projection (the graph, the vectors) for content that may have *just been written* MUST declare its ordering semantics, in a comment at the read — one of exactly two choices:
 
 1. **Eventual** — the read tolerates projection lag. Say so, and say why lag is acceptable for that consumer.
 2. **Read-your-writes** — via the projection's progress fold: `weaveProgress.whenApplied(...)` for the graph, `smeltProgress.whenSettled(...)` for the vectors — with a **bounded, observable degrade** when the barrier times out (a breadcrumb plus a counter, never a silent thin result and never an unbounded wait).
 
-"Undeclared" is not an option — both existing seams paid for its absence (a graph race shipped as a product bug; a vector race was caught only in review). Unit-level axioms cannot own this property: every one of them holds *while* the race happens, so ordering across an actor boundary belongs to the seam. Views are exempt (synchronous by construction); any future projection inherits this rule on day one.
+"Undeclared" is not an option — a read that declares neither races the projection. Unit-level axioms cannot own this property: every one of them holds *while* the race happens, so ordering across an actor boundary belongs to the seam. Views are exempt (synchronous by construction); any future projection inherits this rule on day one.
 
 For the broader actor model that frames these seven, see [ACTOR-MODEL.md](ACTOR-MODEL.md). For the deployment layout (which actors live in which container), see [CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md).
 

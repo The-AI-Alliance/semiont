@@ -64,10 +64,10 @@ describe('findClaimSpan', () => {
 });
 
 describe('locate — proportional boundary narrowing', () => {
-  // Typst emits one text run per line, so a mid-line phrase used to bound the
-  // WHOLE line. The measured fallback: proportionally interpolate the
-  // boundary items' x-extents by character fraction — a rect narrower than
-  // the line, exact font metrics deferred to the operator-list probe.
+  // Typst emits one text run per line, so without clipping a mid-line phrase
+  // would bound the WHOLE line. Boundary items' x-extents are interpolated
+  // proportionally by character fraction — a rect narrower than the line;
+  // exact glyph metrics need the operator-list route.
   it('a mid-line phrase produces a rect narrower than the line', () => {
     const anchored: AnchoredText = {
       text: '0123456789',

@@ -9,7 +9,7 @@ import { createTestSemiontWrapper } from '../../../test-utils';
 import type { Annotation, AnnotationId } from '@semiont/core';
 import { annotationId, resourceId } from '@semiont/core';
 
-// BrowseView takes its `session` + `sparkleAnnotationIds` as props now — no
+// BrowseView takes its `session` + `sparkleAnnotationIds` as props — no
 // ResourceAnnotationsContext / SemiontProvider reach-in. `makeSession` (below)
 // wraps the fake client so browse:click / beckon:hover land on the bus the
 // trackers listen on, and session.subscribe registers beckon:* on that bus.
@@ -111,7 +111,7 @@ function createEventTracker() {
   };
 }
 
-// BrowseView now takes its session as a prop. Wrap the fake client so
+// BrowseView takes its session as a prop. Wrap the fake client so
 // browse:click / beckon:hover emit on the SAME bus the trackers listen on, and
 // session.subscribe registers beckon:* there (mirrors test-utils' fake session).
 function makeSession(client: SemiontClient): SemiontSession {
@@ -222,8 +222,8 @@ describe('BrowseView Component', () => {
     });
 
     it('should render the read-only annotation canvas for image mime types', () => {
-      // Was a bare ImageViewer, which silently dropped the annotations prop,
-      // so image marks never painted in browse mode.
+      // A bare ImageViewer would silently drop the annotations prop, so image
+      // marks would never paint in browse mode.
       const { container } = renderWithProviders(<BrowseView {...defaultProps} mimeType="image/png" />);
 
       expect(container.querySelector('.semiont-svg-drawing-canvas')).toBeInTheDocument();
@@ -490,7 +490,7 @@ describe('BrowseView Component', () => {
       // Browse mode is the reading surface: a drag-select that starts and ends
       // inside one annotated span fires click on it. The guard applies to
       // references too — a copy-drag inside a reference span must not emit
-      // (deliberate behavior change; previously it navigated under `follow`).
+      // (under `follow` the emit would navigate).
       const tracker = createEventTracker();
       const annotations = {
         ...defaultProps.annotations,
@@ -525,14 +525,6 @@ describe('BrowseView Component', () => {
       const tracker = createEventTracker();
       renderWithEventTracking(<BrowseView {...defaultProps} />, tracker);
 
-      expect(tracker.subscriptions.has('beckon:hover')).toBe(true);
-    });
-
-    it('should subscribe to beckon:hover event (legacy test)', () => {
-      const tracker = createEventTracker();
-      renderWithEventTracking(<BrowseView {...defaultProps} />, tracker);
-
-      // BrowseView subscribes to beckon:hover (not annotation-entry:hover)
       expect(tracker.subscriptions.has('beckon:hover')).toBe(true);
     });
 
@@ -656,8 +648,7 @@ describe('BrowseView Component', () => {
 
 // ─────────────────────────────────────────────────────────────────────
 // `beckon:focus` is guarded by resourceId — the same guard BrowseView's
-// sibling carries. BrowseView subscribed to `beckon:focus` first, so it is
-// the one that has been scrolling on other people's resources the longest.
+// sibling carries.
 // ─────────────────────────────────────────────────────────────────────
 describe('BrowseView — beckon:focus is guarded by resourceId', () => {
   it('ignores a focus aimed at a different resource, honours one that matches', () => {

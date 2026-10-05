@@ -1,9 +1,9 @@
 package launcher
 
 // The executable spec for derivePlan, the pure function from a parsed config
-// to the launcher's plan: derivePlan(config) must reproduce today's hardcoded
-// behavior for the two real template configs (field-for-field — the parity
-// constraint), and derive the documented alternatives for variant configs.
+// to the launcher's plan: for the two real template configs it must derive
+// the plan pinned here, field for field, and for variant configs the
+// documented alternatives.
 // Fixtures for the real configs are the same files the black-box suite uses
 // (testdata/kb — copies of the template KB's own TOMLs); variants are inline.
 
@@ -143,8 +143,7 @@ func checkRole(t *testing.T, plan *launchPlan, role string, want rolePlan) {
 	}
 }
 
-// The parity spec: both real template configs derive exactly today's
-// hardcoded behavior.
+// Both real template configs derive exactly the plan pinned here.
 func TestDerivePlanTemplateConfigs(t *testing.T) {
 	for _, name := range []string{"ollama-gemma.toml", "anthropic.toml"} {
 		t.Run(name, func(t *testing.T) {
@@ -316,7 +315,7 @@ func TestDerivePlanRefusesAConfigNamingNoEmbeddingProvider(t *testing.T) {
 }
 
 // A provider without a model is the same gap one level down — the loader
-// requires both, and half a rule is the drift this phase exists to end.
+// requires both, so the launcher does too.
 func TestDerivePlanRefusesAnEmbeddingWithoutAModel(t *testing.T) {
 	mustRefuse(t, variantConfig(t, map[string]string{"embedding": `[environments.local.embedding]
 type = "ollama"
@@ -352,8 +351,8 @@ model = "voyage-3"
 		Models: []servedModel{{Model: "voyage-3", Provider: "voyage"}}, // voyage is remote: nothing to install
 	})
 	// The fixture's worker binds Claude, so inference is a configured
-	// EXTERNAL role — "absent" would be the old drag-in logic's answer, and a
-	// voyage embedding must not drag Ollama in either.
+	// EXTERNAL role, not an absent one, and a voyage embedding must not drag
+	// Ollama in either.
 	checkRole(t, plan, "inference", rolePlan{
 		Presence: presenceExternal, Driver: "anthropic",
 		Address: "api.anthropic.com", Port: 443,
@@ -525,7 +524,7 @@ func TestPlanRequiresAJetStreamJobsSection(t *testing.T) {
 // ── Broker credentials ──────────────────────────────────────────────────────
 //
 // [signal] and [jobs] name ONE daemon, so their credentials reconcile the way
-// their servers already do: a disagreement is a config error, never a silent
+// their servers do: a disagreement is a config error, never a silent
 // choice between them. The credential reaches the daemon as its own
 // environment — the shape the graph role uses for NEO4J_AUTH and the database
 // role for POSTGRES_PASSWORD — because nats-server reads none by itself and
@@ -669,5 +668,45 @@ subjectClaim = "sub"
 	}
 	if rp.Issuer != "http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms/semiont" {
 		t.Errorf("issuer %q — the plan keeps the config's reference; services resolve it", rp.Issuer)
+	}
+}
+
+// The descriptor set says which ports each role claims at stack level, and a
+// full start must find every one of them free before it publishes any: a
+// claim planPortChecks misses is a port the post-sweep settle never waits on,
+// and whose squatter surfaces as a failed `run` instead of a named conflict.
+// A role bound to somebody else's service claims nothing — this start binds
+// nothing for it.
+func TestPlanPortChecksCoverEveryStackPortClaim(t *testing.T) {
+	plan := mustDerive(t, variantConfig(t, nil))
+	checked := portNumbers(planPortChecks(plan, true))
+	for _, role := range startOrder {
+		if rp, planned := plan.Roles[role]; planned && rp.Presence != presenceLauncher {
+			continue
+		}
+		for _, need := range stackPortNeeds(role) {
+			if !slices.Contains(checked, need.port) {
+				t.Errorf("%s claims %d (%s) at stack level, but a full start never requires it free", role, need.port, need.label)
+			}
+		}
+	}
+}
+
+// A stop holding no record of the stack's claims verifies fiatPorts instead,
+// so every stack-level claim such a stop can know must be in it: one it
+// misses is a survivor nobody reports, and the next start fails on it.
+func TestStopFallbackVerifiesEveryFiatPortClaim(t *testing.T) {
+	// The config sets these roles' ports and may bind them to somebody
+	// else's service, and a stop with no record reads no config.
+	configOwned := []string{"gateway", "graph", "vectors", "database", "identity"}
+	for _, role := range startOrder {
+		if slices.Contains(configOwned, role) {
+			continue
+		}
+		for _, need := range stackPortNeeds(role) {
+			if !slices.Contains(fiatPorts, need.port) {
+				t.Errorf("%s claims %d (%s) at stack level, but a stop with no record never verifies it released", role, need.port, need.label)
+			}
+		}
 	}
 }

@@ -60,7 +60,7 @@ func dispatcherNamedVars(env *envConfig) []string {
 
 // dispatcherVars: what a ${VAR} in the dispatcher's settings resolves against —
 // the gateway's set, plus the gateway's own host, which the dispatcher dials,
-// set last as a sidecar's has always been (gatewayHostEnv follows the user's
+// set last as a sidecar's is (gatewayHostEnv follows the user's
 // variables). The gateway's resolver omits it on purpose (gatewayVars): copied
 // as it is, a ${GATEWAY_HOST:-localhost} in the dispatcher's gateway URL would
 // resolve to the dispatcher's own container.

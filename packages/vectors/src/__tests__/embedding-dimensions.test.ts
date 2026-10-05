@@ -38,7 +38,7 @@ describe('OllamaEmbeddingProvider dimension discovery', () => {
     expect(await provider.dimensions()).toBe(7);
   });
 
-  it('measures a formerly-tabled model too — the probe outranks any constant', async () => {
+  it('measures a well-known model too — the probe outranks any constant', async () => {
     vi.stubGlobal('fetch', ollamaFetch(3));
     const provider = new OllamaEmbeddingProvider({ model: 'nomic-embed-text' });
     expect(await provider.dimensions()).toBe(3);
@@ -81,7 +81,7 @@ describe('VoyageEmbeddingProvider dimension discovery', () => {
     expect(await provider.dimensions()).toBe(7);
   });
 
-  it('measures a formerly-tabled model too — the probe outranks any constant', async () => {
+  it('measures a well-known model too — the probe outranks any constant', async () => {
     vi.stubGlobal('fetch', voyageFetch(3));
     const provider = new VoyageEmbeddingProvider({ apiKey: 'k', model: 'voyage-3' });
     expect(await provider.dimensions()).toBe(3);

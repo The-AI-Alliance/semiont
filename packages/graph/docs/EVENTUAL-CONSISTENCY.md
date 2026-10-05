@@ -34,13 +34,13 @@ The bus is an RxJS subject per event type — publication is fire-and-forget fro
 
 ### Per-Resource Sequential Processing
 
-The Weaver (`packages/make-meaning/src/weaver.ts`) subscribes globally and pre-filters events to only the 9 graph-relevant types (`yield:created`, `mark:added`, etc.) before any processing. Irrelevant events (`job.*`, `detection.*`, `generation.*`) are discarded immediately.
+The Weaver (`packages/make-meaning/src/weaver.ts`) is handed one event stream, which `weaverFanIn` (`packages/make-meaning/src/weaver-fan-in.ts`) merges from the 9 graph-relevant channels (`yield:created`, `mark:added`, etc.). No other event reaches the pipeline.
 
 Relevant events are piped through an RxJS pipeline with adaptive burst buffering:
 
 ```typescript
 eventSubject.pipe(
-  groupBy(se => se.event.resourceId ?? '__system__'),  // One stream per resource
+  groupBy(se => se.resourceId ?? SYSTEM_SCOPE),         // One stream per resource
   mergeMap(group => group.pipe(                         // Cross-resource parallelism
     burstBuffer({ burstWindowMs: 50, maxBatchSize: 500, idleTimeoutMs: 200 }),
     concatMap(eventOrBatch => /* process sequentially */)  // Per-resource ordering
@@ -95,7 +95,7 @@ MERGE (r:Resource {id: $id})
 SET r.name = $name,
     r.entityTypes = $entityTypes,
     r.archived = $archived,
-    r.dateCreated = $dateCreated,
+    r.created = $created,
     r.stub = false
 RETURN r
 ```
@@ -194,9 +194,10 @@ RETURN r.id, r
 Add monitoring to alert if stub count exceeds threshold:
 
 ```typescript
-const stubCount = await session.run(
+const result = await session.run(
   'MATCH (r:Resource {stub: true}) RETURN count(r) AS count'
 );
+const stubCount = result.records[0].get('count').toNumber();
 
 if (stubCount > 10) {
   console.warn('[Graph] Orphaned stub nodes detected - may indicate missing events');
@@ -266,19 +267,18 @@ The graph can be rebuilt from events to fix any inconsistencies:
 
 ### Single Resource Rebuild
 
-The `Weaver` lives in `@semiont/make-meaning` (`packages/make-meaning/src/weaver.ts`) and is created by `createKnowledgeBase`:
+The `Weaver` lives in `@semiont/make-meaning` (`packages/make-meaning/src/weaver.ts`) and runs as its own service (`weaver-main`). It rebuilds on the `weave:rebuild` bus command, which `packages/make-meaning/src/cli/rebuild-graph.ts` sends to a running stack. With a resource id, the command reaches `Weaver.rebuildResource()`:
 
-```typescript
-const { weaver } = await createKnowledgeBase(/* ... */);
-await weaver.rebuildResource(resourceId('resource-id-123'));
+```bash
+npm run rebuild-graph --workspace=@semiont/make-meaning -- resource-id-123
 ```
 
 ### Full Graph Rebuild
 
-Uses two-pass approach to ensure nodes before edges:
+Without a resource id, the command reaches `Weaver.rebuildAll()`, which uses a two-pass approach to ensure nodes before edges:
 
-```typescript
-await consumer.rebuildAll();
+```bash
+npm run rebuild-graph --workspace=@semiont/make-meaning
 ```
 
 **Process**:
@@ -287,23 +287,23 @@ await consumer.rebuildAll();
 
 This guarantees all resource nodes exist before any REFERENCES edges are created.
 
-### Symmetric rebuild across all derived stores
+### Recovery across all derived stores
 
-The graph is one of three derived read models in the Semiont knowledge base. Each is rebuildable from the event log on startup:
+The graph is one of three derived read models in the Semiont knowledge base. Each is recovered from the record at startup, by the service that owns it:
 
-| Derived store | Rebuild method | Owned by |
+| Derived store | Startup recovery | Owned by |
 |---|---|---|
-| Graph (Neo4j) | `Weaver.rebuildAll()` | `@semiont/make-meaning` |
-| Vectors (Qdrant) | `Smelter.rebuildAll()` | `@semiont/make-meaning` |
+| Graph (Neo4j) | `Weaver.catchUp()`, from its checkpoint | `@semiont/make-meaning` |
+| Vectors (Qdrant) | `Smelter.reconcile()`, against the catalog | `@semiont/make-meaning` |
 | Materialized views | `ViewManager.rebuildAll(eventLog)` | `@semiont/event-sourcing` |
 
-All three are awaited inside `createKnowledgeBase` before the HTTP server begins accepting requests. By the time any client can hit the API, all three derived stores are caught up to the event log. The graph rebuild described above is one instance of this pattern; the views layer follows the same shape (live incremental update on append + full rebuild on startup), and the same correctness argument applies — replaying events 1..N produces the same final state regardless of whether they arrive over time or all at once.
+Only the views are rebuilt before a request is served: the Archivist awaits `ViewManager.rebuildAll` before it starts answering. The Weaver and the Smelter are separate services that catch up after they start, so the graph and the vectors may trail the event log for a moment. The same correctness argument applies to all three — replaying events 1..N produces the same final state regardless of whether they arrive over time or all at once.
 
 See [`@semiont/event-sourcing`'s STORAGE-LAYOUT.md](../../event-sourcing/docs/STORAGE-LAYOUT.md#ephemerality-and-rebuild) for the views-layer ephemerality model.
 
 ## Browser Consistency
 
-The Browser does not cache graph query results. `referencedBy` data is consumed as a live RxJS observable (`client.browse.referencedBy(resourceId)` in `packages/react-ui/src/features/resource-viewer/state/resource-viewer-page-state-unit.ts`), so views reflect the graph projection as it converges — no manual cache invalidation is needed when links are created.
+The Browser reads `referencedBy` data as a live query of the SDK (`client.browse.referencedBy(resourceId)` in `packages/react-ui/src/features/resource-viewer/state/resource-viewer-page-state-unit.ts`). The SDK caches each answer per resource, and `specs/src/client/refresh.json` says when it asks again: for `referencedBy`, on `bus:resume-gap` only. An open view therefore shows the graph projection as it stood when the query was last asked; a link created afterwards appears the next time it is asked.
 
 ## Best Practices
 

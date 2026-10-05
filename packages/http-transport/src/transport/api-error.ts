@@ -5,8 +5,8 @@
  * `actor-state-unit.ts` throws it too (a refused emit carries its status) and
  * `http-transport.ts` imports `actor-state-unit.ts` — so the obvious home is a
  * cycle. The alternative, a second status-bearing error class beside this one,
- * is the duplicated shape the house rules forbid: there would then be two
- * answers to "how does an HTTP failure carry its status", and the retry
+ * is a duplicated shape, and one decision lives in one place: there would then
+ * be two answers to "how does an HTTP failure carry its status", and the retry
  * predicate could only agree with one of them.
  */
 

@@ -4,8 +4,6 @@
  * AnnotateView takes `session` + `sparkleAnnotationIds` as props; the REAL
  * AnnotateToolbar (not mocked — its provider-freedom is the crux here) reads
  * no session provider. CodeMirrorRenderer is mocked (heavy; already prop-based).
- *
- * Started RED (tsc: no `session` prop) and GREEN once AnnotateView takes one.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { screen } from '@testing-library/react';
@@ -30,10 +28,7 @@ const uiState: AnnotationUIState = {
 function fakeSession(): SemiontSession {
   return {
     client: {
-      mark: {
-        changeSelection: vi.fn(), changeClick: vi.fn(), changeShape: vi.fn(),
-        toggleMode: vi.fn(), request: vi.fn(),
-      },
+      mark: { request: vi.fn() },
     },
     subscribe: () => () => {},
   } as unknown as SemiontSession;

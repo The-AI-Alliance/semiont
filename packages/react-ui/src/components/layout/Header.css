@@ -97,9 +97,3 @@
 .semiont-unified-header__dropdown {
   margin-left: 2rem;
 }
-
-.semiont-unified-header__actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}

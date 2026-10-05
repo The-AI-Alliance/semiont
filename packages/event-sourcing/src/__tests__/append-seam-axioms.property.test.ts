@@ -8,15 +8,12 @@
  * no barrier of any kind, and the SDK treats an event-triggered refetch as
  * authoritative for the event that triggered it.
  *
- * Until now that guarantee lived only in a class comment (`view-manager.ts`:
+ * The guarantee is also stated in a class comment (`view-manager.ts`:
  * "it must block the caller until the view is written, so SSE subscribers
  * that see the subsequently-published event get the up-to-date view").
- * **An unenforced invariant is indistinguishable from a false one.** The
- * sibling invariant in the SDK's `cache-persister.ts` header — the persisted
- * bookmark "may therefore LAG the caches … but can never lead them" — is
- * asserted with exactly the same confidence in exactly the same register,
- * and is FALSE as implemented; that is a measured bug.
- * Prose cannot tell the two apart. These properties make this one executable.
+ * **An unenforced invariant is indistinguishable from a false one**: prose
+ * reads the same whether or not the code holds to it. These properties make
+ * this one executable.
  *
  * | Id | Axiom |
  * |----|-------|

@@ -43,21 +43,17 @@ jobs:
         # reads the registry's JSON metadata document; `npm install` reads that
         # document to resolve a version and then downloads the file named in
         # `dist.tarball`. Those are different artifacts served by different
-        # infrastructure, and they do not become available at the same instant.
-        # On 0.6.2 this step reported every published package present and all
-        # seven service images then died on
-        # `404 .../@semiont/inference/-/inference-0.6.2.tgz` -- both statements
-        # were true at the same moment. A gate in front of a build has to
-        # perform the operation the build performs, not a cheaper one that
-        # correlates with it.
+        # infrastructure, and they do not become available at the same instant:
+        # the packument can report every published package present while an
+        # install dies on `404 .../@semiont/<pkg>/-/<pkg>-<ver>.tgz`. A gate in
+        # front of a build has to perform the operation the build performs, not
+        # a cheaper one that correlates with it.
         #
         # Waiting only for @semiont/browser is not enough either: the install
         # resolves its whole @semiont/* closure at the same version, and those
         # propagate independently. version.json owns which packages publish, so
         # wait for all of them rather than restating a dependency list that
-        # would drift. This workflow passed the 0.6.2 publish that killed the
-        # service images -- by luck of which package lagged, not by
-        # construction, since it polls the identical package set.
+        # would drift.
         run: |
           PKGS=$(node -e "
             const v = JSON.parse(require('fs').readFileSync('version.json','utf-8'));
@@ -163,8 +159,8 @@ jobs:
       # Scope note, so this is not read as more than it is: @semiont/browser
       # ships a PRE-BUILT SPA, so its third-party dependencies are bundled into
       # the output before the package is published and never appear as npm
-      # packages in the image. Measured on 0.5.39 this inspects exactly 2
-      # packages (@semiont/browser itself and the installer-stage scaffold).
+      # packages in the image. This inspects the npm packages the SBOM lists:
+      # @semiont/browser itself and the installer-stage scaffold.
       # It is here for symmetry and to catch drift if this image ever gains a
       # real runtime dependency tree -- NOT as assurance about the bundle.
       - name: License policy gate
@@ -206,8 +202,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           # `dry_run` is a boolean input. Comparing it to the STRING 'true' coerces
           # both sides to numbers (true → 1, 'true' → NaN), so `!= 'true'` is true
-          # for every value and a dry run pushed — five :latest tags on 2026-09-20
-          # came from one, unattested. Negate the boolean, as the attest steps do.
+          # for every value and a dry run pushes, unattested. Negate the boolean,
+          # as the attest steps do.
           push: ${{ !inputs.dry_run }}
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |

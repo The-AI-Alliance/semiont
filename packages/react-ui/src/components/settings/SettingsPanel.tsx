@@ -14,7 +14,7 @@ interface SettingsPanelProps {
   isPendingLocaleChange?: boolean;
   hoverDelayMs: number;
   /**
-   * The three survivors of the deleted footer, which this panel absorbed.
+   * What the About section shows and links to.
    *
    * REQUIRED, not optional: react-ui cannot know the host's build version or
    * reach its keyboard-shortcuts context, so the host must answer — and there
@@ -200,7 +200,7 @@ export function SettingsPanel({
           </p>
         </div>
 
-        {/* About — what the footer used to carry, minus the policy links. */}
+        {/* About */}
         <div className="semiont-settings-panel__field semiont-settings-panel__about">
           <h4 className="semiont-settings-panel__about-name">Semiont</h4>
           <p className="semiont-settings-panel__about-tagline">{t('tagline')}</p>

@@ -1,17 +1,17 @@
 /**
  * Read a resource's derived coordinate map, with the read-your-writes barrier.
  *
- * Shared deliberately. Two callers reach this — the Browser actor serving
- * `browse:anchored-text-requested` over the wire, and `LocalContentTransport`
- * serving an in-process client — and if they applied the barrier differently,
- * local and hosted modes would give different answers to the same question at
- * the same moment. That divergence is invisible until someone debugs it.
+ * One caller reaches this: the Browser actor serving
+ * `browse:anchored-text-requested`. Every reader asks on that channel — over
+ * the wire, or in-process beside the Browser — so local and hosted modes
+ * apply one barrier and give the same answer to the same question at the
+ * same moment.
  *
  * **This never invokes the engine.** The Smelter is the sole producer. A miss
- * that survives the barrier answers `null`, and the caller degrades: for a PDF
- * annotation that means geometry with no quoted text, which is what shipped
- * before any of this existed. OCR in a request path is the thing this design
- * exists to avoid.
+ * that survives the barrier answers a named absence (`not-yet` or `no-map`),
+ * and the caller degrades: for a PDF annotation that means geometry with no
+ * quoted text. OCR in a request path is the thing this design exists to
+ * avoid.
  */
 
 import { getPrimaryRepresentation, type AnchoredTextAnswer, type ResourceId } from '@semiont/core';
@@ -36,10 +36,10 @@ export const ANCHORED_TEXT_SETTLE_TIMEOUT_MS = 15_000;
 /**
  * A resource's coordinate map, a stored decline, or a NAMED absence.
  *
- * Never null. Absence used to be a bare `null` covering four facts — the settle
- * barrier expired, the Smelter settled the resource as skipped, there was no
- * content identity, or the progress fold was disposed — two of which a caller
- * should retry and two of which are terminal. A reader that blocks on this
+ * Never null. A bare `null` would cover four facts — the settle barrier
+ * expired, the Smelter settled the resource as skipped, there is no content
+ * identity, or the progress fold was disposed — two of which a caller should
+ * retry and two of which are terminal. A reader that blocks on this
  * (detection consults it for a geometry-bearing type's text, fetching no bytes
  * and running no OCR of its own) cannot classify its own failure without the
  * distinction: it would retry forever on a document that will never have a map,

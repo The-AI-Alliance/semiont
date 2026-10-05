@@ -235,10 +235,9 @@ export class SemiontSession {
     // The gateway is asked who the token is. A token it refuses is renewed
     // once and asked about once more. A token the issuer has JUST issued and
     // the gateway refuses is final: renewing again cannot change the answer.
-    // Asking again for as long as the issuer went on issuing was a loop with
-    // no end — one browser tab sent a gateway 300 requests a second.
-    // So the
-    // gateway is asked at most twice and the issuer at most once
+    // Asking again for as long as the issuer goes on issuing is a loop with
+    // no end — one browser tab can send a gateway 300 requests a second. So
+    // the gateway is asked at most twice and the issuer at most once
     // (specs/src/session/cases.json, `startup`).
     const validate = this.doValidate;
     let token = startToken;
@@ -266,7 +265,7 @@ export class SemiontSession {
           this.signedOut('refused', 'session.credential-refused', 'The gateway refused a token its issuer had just issued');
           return;
         }
-        // The session's token is no longer the one asked about: the stream
+        // The session's token has changed since the ask: the stream
         // was refused with it too, and `refresh` has renewed it meanwhile.
         // That token is the just-issued one, and is not renewed again.
         const current = this.token$.getValue();
@@ -304,24 +303,16 @@ export class SemiontSession {
   }
 
   /**
-   * Refresh the access token via the configured `refresh` callback.
-   * On success, pushes the new token into `token$` and schedules the
-   * next proactive refresh. On failure, clears persisted state and
-   * fires `onAuthFailed` — the frontend's wiring of that callback is
-   * what surfaces the session-ended modal.
-   */
-  /**
    * Call the configured refresh callback, converting a THROW into the same
    * "no token" answer a null return gives.
    *
    * The callback makes an HTTP call, so it can reject as easily as it can
    * resolve null — a network blip, DNS failure, or gateway 5xx — and both
-   * mean the same thing here: this token cannot be renewed. Before this,
-   * a throw escaped the renewal and skipped every terminal behaviour; through
-   * the proactive timer's un-awaited call it became an unhandled
-   * rejection with NO further refresh scheduled, leaving a session holding an
-   * expired token forever. That is the client shape behind the 401-loop
-   * incident.
+   * mean the same thing here: this token cannot be renewed. A throw that
+   * escaped the renewal would skip every terminal behaviour; through the
+   * proactive timer's un-awaited call it would become an unhandled
+   * rejection with NO further refresh scheduled, leaving a session holding
+   * an expired token forever.
    *
    * The reason is returned rather than swallowed: a network failure and a
    * revoked session both end the session, but they are not the same event and
@@ -373,7 +364,7 @@ export class SemiontSession {
       const refused = err instanceof APIError && err.status === 401;
       // Only a token the session still holds ends it: one replaced while
       // the gateway was being asked (another context signed in, or renewed)
-      // is no longer the session's to be refused.
+      // is not the session's to be refused.
       if (refused && this.token$.getValue() === renewed) {
         this.signedOut('refused', 'session.credential-refused', 'The gateway refused a token its issuer had just issued');
       }
@@ -399,10 +390,10 @@ export class SemiontSession {
     // You cannot expire a session that never existed. With no stored
     // credentials there is nothing to refresh AND nothing to tear down —
     // a 401 here just means "signed out", which the shell already renders.
-    // Declaring expiry anyway was the second act of the 2026-09-14 modal
-    // loop: `activeKnowledgeBaseId` persists forever, every load activates
-    // the KB credential-less, the actor's null-token connect 401s, and the
-    // "expired" modal re-armed on a session that had never signed in.
+    // Declaring expiry anyway is a modal loop: `activeKnowledgeBaseId`
+    // persists forever, every load activates the KB credential-less, the
+    // actor's null-token connect 401s, and the "expired" modal re-arms on
+    // a session that never signed in.
     // (This also makes the REAL teardown below fire once: it clears the
     // stored session, so any follow-up 401s take this quiet path.)
     if (!getStoredSession(this.storage, this.kb.id)) {
@@ -416,10 +407,9 @@ export class SemiontSession {
   private scheduleProactiveRefresh(token: string): void {
     this.clearRefreshTimer();
     // The delay is derived from the token's own lifetime, never from a fixed
-    // margin: a constant margin can equal the lifetime some issuer mints, and
-    // this one did — five minutes against Keycloak's five-minute default —
-    // producing a delay of zero that rescheduled itself on arrival. See
-    // `refreshDelayMs`.
+    // margin: a fixed margin can equal the lifetime an issuer mints
+    // (Keycloak's default is five minutes), which gives a delay of zero that
+    // reschedules itself on arrival. See `refreshDelayMs`.
     const delay = refreshDelayMs(token);
     if (delay === null) return;
     this.refreshTimer = setTimeout(() => {

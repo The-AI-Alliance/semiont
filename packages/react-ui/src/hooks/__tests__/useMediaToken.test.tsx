@@ -4,8 +4,6 @@
  * `useMediaToken` takes the client explicitly (not `useSemiont()`), so a
  * bring-your-own-session host can mint authed `<img>` / PDF URLs from a bare
  * session — no provider.
- *
- * Started RED (old signature was `useMediaToken(id)`) and GREEN once it takes a client.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';

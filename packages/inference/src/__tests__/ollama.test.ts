@@ -13,7 +13,7 @@ function stubLogger(): Logger {
   return logger;
 }
 
-// Ollama generate calls now consult /api/show first (limits discovery), so
+// Ollama generate calls consult /api/show first (limits discovery), so
 // every fetch mock routes by URL: show → model metadata, generate → canned
 // completion.
 
@@ -126,9 +126,8 @@ describe('OllamaInferenceClient - cancellation threads to the transport', () => 
 });
 
 describe('OllamaInferenceClient - temperature is unconditional', () => {
-  // Ollama's mechanism is unchanged by the Anthropic suppression work: it
-  // always forwards temperature, and it declares acceptance on limits() so
-  // the same UI channel reads true here.
+  // Ollama suppresses nothing: it always forwards temperature, and it
+  // declares acceptance on limits() so the same UI channel reads true here.
   it('always forwards temperature and declares acceptsTemperature: true', async () => {
     const fetchMock = stubRoutedFetch();
 
@@ -171,9 +170,9 @@ describe('OllamaInferenceClient - managed num_ctx', () => {
     expect(generateCalls).toHaveLength(1);
     const body = requestBody(generateCalls[0]);
 
-    // num_predict unchanged; num_ctx new — at least estimate + maxTokens
-    // (today the model's default window silently clips large prompts),
-    // never above the discovered window.
+    // num_predict is the caller's budget; num_ctx is at least estimate +
+    // maxTokens (without it the model's default window silently clips large
+    // prompts), never above the discovered window.
     expect(body.options.num_predict).toBe(500);
     expect(body.options.num_ctx).toBeGreaterThanOrEqual(1500);
     expect(body.options.num_ctx).toBeLessThanOrEqual(8192);
@@ -205,18 +204,18 @@ describe('OllamaInferenceClient - grammar-constrained structured path', () => {
     const res = await client.generateStructured('p', 100, 0, ELEMENT);
 
     const body = requestBody(callsTo(fetchMock, '/api/generate')[0]);
-    // Grammar-constrained sampling, now element-typed: the schema constrains
-    // generation itself — strictly stronger than the old bare `items: {}`.
+    // Grammar-constrained sampling, element-typed: the schema constrains
+    // generation itself — strictly stronger than a bare `items: {}`.
     expect(body.format).toEqual({ type: 'array', items: ELEMENT });
     expect(res.items).toEqual([{ exact: 'Paris' }]);
   });
 
-  // The live gemma4:26b failure (2026-09-03) — 6,858 chars of unparseable
-  // output with `done_reason` ABSENT. These pin the vocabulary token at its
-  // origin: an absent done_reason maps to exactly 'unknown', and that string
-  // rides the StructuredReadError downstream, where classification
-  // (retryable) and subdivision (none today) key off it.
-  it("maps an ABSENT done_reason to exactly 'unknown' on the thrown StructuredReadError (the live failure shape)", async () => {
+  // Unparseable output with `done_reason` ABSENT — a shape gemma4:26b
+  // produces. These pin the vocabulary token at its origin: an absent
+  // done_reason maps to exactly 'unknown', and that string rides the
+  // StructuredReadError downstream, where classification (retryable) and
+  // subdivision (none) key off it.
+  it("maps an ABSENT done_reason to exactly 'unknown' on the thrown StructuredReadError", async () => {
     stubRoutedFetch({
       generate: { body: { response: 'entity: Cedar County ("the Society'.repeat(200), done: true } },
     });
@@ -241,8 +240,8 @@ describe('OllamaInferenceClient - grammar-constrained structured path', () => {
   });
 
   // A thinking model can burn the entire output budget on hidden reasoning
-  // before its first response character (measured live, gpt-oss:120b-cloud
-  // 2026-09-05) — the response arrives EMPTY with done_reason 'length'.
+  // before its first response character (measured on gpt-oss:120b-cloud)
+  // — the response arrives EMPTY with done_reason 'length'.
   // Truncated-to-nothing is still truncation: it must carry the stop reason
   // so it classifies deterministic and subdivides, not vanish into an
   // unrecognized-retryable mystery error.

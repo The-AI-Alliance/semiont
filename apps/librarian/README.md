@@ -42,7 +42,7 @@ annotation-assembly handler follows.
 
 The `weave:applied` / `smelt:settled` progress signals arrive over the same SSE feed and
 drive local folds, so the graph-lag grace and the vector settle barrier behave exactly as
-they did in-process.
+they do in-process.
 
 ## What it owns on disk
 

@@ -1,12 +1,10 @@
 /**
  * `showToolbar={false}` is a supported opt-out.
  *
- * Tier-2 hosts (controlled props, host-composed controls) hide the built-in
- * bar by CONTRACT, not by CSS-ing react-ui's internals. Hiding the bar must
- * not disable any seam: the keystone here proves annotate-mode selection
- * capture still emits mark.request with the bar gone.
- *
- * Started RED (the prop doesn't exist; bars render everywhere) → GREEN.
+ * Hosts that compose their own controls from the controlled props hide the
+ * built-in bar by CONTRACT, not by CSS-ing react-ui's internals. Hiding the
+ * bar must not disable any seam: the keystone here proves annotate-mode
+ * selection capture still emits mark.request with the bar gone.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, screen, within } from '@testing-library/react';
@@ -59,7 +57,7 @@ describe('ResourceViewer — showToolbar opt-out', () => {
     window.getSelection()?.removeAllRanges();
   });
 
-  it('default pins today’s behavior: the bar renders in browse and annotate modes', () => {
+  it('by default the bar renders in browse and annotate modes', () => {
     const { session } = fakeSession();
     const browse = renderInEnglish(
       <ResourceViewer session={session} resource={makeResource()} annotations={annotations} />,

@@ -1,9 +1,8 @@
 # Known gotchas
 
-Sharp edges that took real debugging the first time. Documented here
-so future-you doesn't repeat the journey.
+Sharp edges, and what to do about each.
 
-## `crypto.randomUUID` requires a secure context — browser code no longer calls it
+## `crypto.randomUUID` requires a secure context — browser code does not call it
 
 `http://localhost` and `http://127.0.0.1` count as secure;
 `http://<any-other-IP>` does not. Browsers expose `crypto.randomUUID`
@@ -22,7 +21,7 @@ is a browser notion. Only browser-reachable code is constrained here.)
 
 If a "crypto.randomUUID is not a function" error ever appears in a test
 run, someone added a direct call to browser-reachable code; route it
-through the core helpers instead of re-adding a shim.
+through the core helpers instead of adding a shim.
 
 ## LoginForm's host field resets the protocol
 

@@ -34,8 +34,8 @@ func TestStagedRealmIsReachableOnlyByItsOwner(t *testing.T) {
 }
 
 // The read half, pinned against the shape a real KB commits: the identity
-// lives in `[site]` of `.semiont/config`, and the launcher is now the only
-// thing that can carry it to the gateway.
+// lives in `[site]` of `.semiont/config`, and the launcher is the only thing
+// that can carry it to the gateway.
 func TestParseKBIdentityReadsSiteIdentity(t *testing.T) {
 	committed := `
 [project]

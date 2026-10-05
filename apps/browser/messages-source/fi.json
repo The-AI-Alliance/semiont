@@ -193,7 +193,6 @@
     "statusConnected": "Yhdistetty",
     "statusExpired": "Istunto vanhentunut",
     "statusSignedOut": "Kirjautunut ulos",
-    "statusUnreachable": "Ei tavoitettavissa",
     "invalidHost": "Virheellinen isäntänimi",
     "discoveredTitle": "Löytyi tältä koneelta",
     "managedBadge": "Käynnistimen hallinnassa",

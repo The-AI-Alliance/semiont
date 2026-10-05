@@ -1,22 +1,22 @@
 /**
  * QdrantVectorStore speaks the *query* API, not the removed *search* API.
  *
- * `@qdrant/js-client-rest` 1.19.0 deleted `search` and `searchBatch`, which the
- * universal `query`/`queryBatch` endpoint had superseded. This store called
- * both, so on any 1.19.0 install every vector read threw
- * `this.qdrant.searchBatch is not a function` — gather.resource failed outright
- * (observed 2026-08-05 on a live stack).
+ * `@qdrant/js-client-rest` 1.19.0 has no `search` or `searchBatch`; the
+ * universal `query`/`queryBatch` endpoint supersedes them. A store calling
+ * either throws `this.qdrant.searchBatch is not a function` on every vector
+ * read, and gather.resource fails outright.
  *
- * Two things let that reach runtime, and the fake below is built to close both:
+ * Two things would let that reach runtime, and the fake below is built to close
+ * both:
  *
- *   1. **No test ever constructed this store.** The suite covered the memory
- *      store only, so nothing executed these code paths at all.
- *   2. **`tsc` was satisfied.** The repo lockfile resolved 1.18.0, where the
- *      removed methods still existed; the *container* resolved 1.19.0 from the
- *      same `^1.18.0` range. The type-checker and the runtime were reading
- *      different versions of the client. The dependency is now pinned exactly
- *      (no range), so the lockfile, the images, and the launcher's Qdrant
- *      server pin (apps/launcher/internal/launcher/plan.go) move together, on
+ *   1. **A store no test constructs.** A suite covering the memory store only
+ *      executes none of these code paths.
+ *   2. **A satisfied `tsc`.** Under a `^1.18.0` range a lockfile can resolve
+ *      1.18.0, where the removed methods exist, while a *container* resolves
+ *      1.19.0: the type-checker and the runtime read different versions of
+ *      the client. The dependency is pinned exactly (no range), so the
+ *      lockfile, the images, and the launcher's Qdrant server pin
+ *      (apps/launcher/internal/launcher/descriptors.go) move together, on
  *      purpose.
  *
  * So the fake deliberately exposes ONLY the 1.19.0 surface — no `search`, no
@@ -46,7 +46,7 @@ class FakeQdrantClient {
     calls.push(`queryBatch:${collection}`);
     lastBatch = body.searches;
     // One response object PER search, each wrapping its hits in `points` —
-    // the shape change that a bare rename would have silently got wrong.
+    // the shape a bare rename from `searchBatch` silently gets wrong.
     return body.searches.map((_s, i) => ({
       points: [{ id: `p${i}`, score: 0.5 + i / 10, payload: { resourceId: `res-${i}`, text: `t${i}` } }],
     }));
@@ -116,7 +116,7 @@ describe('QdrantVectorStore uses the query API', () => {
   });
 
   it('merges batch responses by best score', async () => {
-    // The max-sim merge reads `batch.points`; against the old unwrapped array
+    // The max-sim merge reads `batch.points`; written for an unwrapped array
     // it would iterate the response object itself and yield nothing.
     const store = await connected();
 
@@ -129,8 +129,8 @@ describe('QdrantVectorStore uses the query API', () => {
   it('does not consult the embedding provider when the collections already exist', async () => {
     // The fake's getCollection resolves, so both collections are present and
     // nothing needs a vector size. Probing anyway would make a reachable
-    // embedding server a precondition of connecting — the eager coupling that
-    // broke CI startup. (Creation still resolves it; that path genuinely
+    // embedding server a precondition of connecting — an eager coupling that
+    // breaks CI startup. (Creation still resolves it; that path genuinely
     // needs the size, and `connect()` below never reaches it.)
     const dimensions = vi.fn(async () => 2);
     const store = new QdrantVectorStore({ host: 'localhost', port: 6333, dimensions });

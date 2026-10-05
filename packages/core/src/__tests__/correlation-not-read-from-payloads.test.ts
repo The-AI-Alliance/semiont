@@ -2,25 +2,22 @@
  * The other half of the payload census.
  *
  * `correlation-not-in-payload-types.test.ts` makes the TYPED form of the
- * regression impossible: no `EventMap[K]` declares `correlationId`, so
+ * violation impossible: no `EventMap[K]` declares `correlationId`, so
  * `event.correlationId` in a handler is a compile error. This census covers
  * what that one structurally cannot see — reaching the key where no payload
  * type is consulted at all.
  *
- * Both forms below were real, and both survived a clean `tsc` for the length
- * of the migration:
+ * Both forms below survive a clean `tsc`:
  *
- *   (payload as { correlationId: string }).correlationId   — 8 test harnesses
+ *   (payload as { correlationId: string }).correlationId   — through a cast
  *   frame.payload.correlationId                            — navigating in
  *
- * and the ledger's `correlationIdOf(payload)` was the same move behind a name.
- * Every one of them read as a routing lookup and returned `undefined` the
- * moment the key moved, with the compiler silent and the symptom a 30-second
- * timeout somewhere else entirely.
+ * Each reads as a routing lookup and returns `undefined`, with the compiler
+ * silent and the symptom a 30-second timeout somewhere else entirely.
  *
- * NOT banned, because these are the shape the move to the envelope is FOR:
+ * NOT banned, because these are the shape the envelope is FOR:
  *   - `frame.correlationId`, `envelope.correlationId`, `meta.correlationId`
- *     — reading the envelope, which is where the key now lives;
+ *     — reading the envelope, which is where the key lives;
  *   - `body.correlationId` on a `BusEmitRequest` — the wire envelope, a
  *     declared sibling of `payload`, not a field inside it;
  *   - `correlationId` as a parameter, variable, or object key.
@@ -54,10 +51,9 @@ const stripComments = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 
 /**
- * Two shapes, both measured in this repo:
+ * Two shapes:
  *   1. navigating INTO a payload for the key — `.payload.correlationId`;
- *   2. reaching it through a CAST — `… as <anything>).correlationId`, which
- *      is how every untyped read in the migration was written.
+ *   2. reaching it through a CAST — `… as <anything>).correlationId`.
  */
 const PAYLOAD_READS: ReadonlyArray<readonly [string, RegExp]> = [
   ['navigates into a payload', /\.\s*payload\s*\??\.\s*correlationId/g],

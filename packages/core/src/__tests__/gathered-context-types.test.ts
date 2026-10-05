@@ -7,8 +7,8 @@
  * node `type` is the `resource | annotation` enum.
  *
  * Enforced by `tsc --noEmit` (core `typecheck`), not vitest runtime. The
- * resource-focus case is RED on a generated type without the union
- * (`annotation` required, no `focus`) and GREEN after the reshape + regen.
+ * resource-focus case fails to compile on a generated type without the union
+ * (`annotation` required, no `focus`).
  */
 import { describe, it, expect } from 'vitest';
 import type { components } from '../types';
@@ -83,13 +83,13 @@ describe('GatheredContext — unified shape', () => {
   });
 });
 
-// ── Annotation-wrapper collapse ───────────────────────────────────────────────
-// The annotation focus carries the (dormant) target* capability that used to
-// live on the now-deleted per-kind annotation-response wrapper; the gather:annotation
-// channels now carry a bare GatheredContext, symmetric with the resource path.
+// ── Annotation focus ──────────────────────────────────────────────────────────
+// The annotation focus carries the (dormant) target* capability; the
+// gather:annotation channels carry a bare GatheredContext, symmetric with the
+// resource path.
 type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
 
-describe('GatheredContext — annotation-wrapper collapse', () => {
+describe('GatheredContext — annotation focus, carried bare', () => {
   it('annotation focus accepts targetResource? / targetContext?', () => {
     const ctx: GatheredContext = {
       focus: {
@@ -113,8 +113,8 @@ describe('GatheredContext — annotation-wrapper collapse', () => {
       graph: aGraph,
       metadata: {},
     };
-    // No `correlationId`: the key rides the envelope now, so a reply's
-    // domain type no longer declares it.
+    // No `correlationId`: the key rides the envelope, so a reply's
+    // domain type does not declare it.
     const complete: GatherAnnotationComplete = { annotationId: annotationId('a-1'), response: ctx };
     expect(complete.response.focus.kind).toBe('annotation');
   });

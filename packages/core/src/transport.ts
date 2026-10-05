@@ -9,8 +9,8 @@
  *
  *   ITransport          — bus primitives + lifecycle. Universal: every
  *                         concrete transport implements this.
- *   IGatewayOperations  — auth, admin, and system endpoints.
- *                         HTTP-shaped today; an in-process transport may
+ *   IGatewayOperations  — auth and system endpoints.
+ *                         HTTP-shaped; an in-process transport may
  *                         implement none, some, or a different set.
  *                         Optional on `SemiontClient` — passed only when
  *                         the host has a gateway that supports them.
@@ -109,9 +109,6 @@ export interface ITransport {
    * belong in a channel's domain type. `scope`, when set, marks the emit as
    * a resource-scoped broadcast, delivered only to subscribers attached to
    * that resource's scope; `correlationId` pairs a reply with its request.
-   * It was a bare `resourceScope` until the correlation key moved onto the
-   * envelope, which is why one routing fact travelled as a positional
-   * argument while its sibling had to be smuggled inside the payload.
    *
    * Resolves with the number of subscribers the emit reached
    * (`/bus/emit` responds `{subscribers: n}`, so a signal that reached an
@@ -141,10 +138,10 @@ export interface ITransport {
    *
    * SDK-internal: this is the scope primitive the SDK's resource-scoped
    * `browse.*` live queries drive on subscribe/teardown (freshness follows
-   * observation; #847) — it is not part of the application-facing surface.
-   * Distinct resources COMPOSE: each
-   * resource's subscriptions are ref-counted independently, and one client
-   * may hold many resource scopes at once on its single connection.
+   * observation) — it is not part of the application-facing surface.
+   * Distinct resources COMPOSE: each resource's subscriptions are
+   * ref-counted independently, and one client may hold many resource scopes
+   * at once on its single connection.
    */
   subscribeToResource(resourceId: ResourceId): () => void;
 
@@ -218,7 +215,7 @@ export interface ITransport {
 // ── IGatewayOperations ──────────────────────────────────────────────────
 
 /**
- * Auth, admin, and system endpoints. HTTP-shaped today —
+ * Auth and system endpoints. HTTP-shaped —
  * `HttpTransport` implements both this and `ITransport`; the
  * `SemiontClient` constructor takes a `IGatewayOperations` argument
  * separately from the bus transport so non-HTTP transports
@@ -260,7 +257,7 @@ export interface PutBinaryRequest {
   jobId?: string;
   isDraft?: boolean;
   /**
-   * Clone provenance: when set, the gateway stores the bytes and routes
+   * Clone provenance: when set, the Archivist stores the bytes and routes
    * creation through `yield:clone-create` — the CloneTokenManager validates
    * the token and inherits source metadata. Bytes never ride the bus.
    */

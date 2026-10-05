@@ -65,10 +65,10 @@ describe('HttpTransport retry — what the caller receives', () => {
       .then(() => null)
       .catch((e: unknown) => e);
 
-    // The contract callers are written against, unchanged: `beforeError`
-    // still runs, so this is the same `APIError` an unretried failure has
-    // always produced — not a TypeError from dereferencing `undefined`, and
-    // not a resolved `undefined` masquerading as success.
+    // The contract callers are written against: `beforeError` runs, so
+    // this is the `APIError` any unretried failure produces — not a
+    // TypeError from dereferencing `undefined`, and not a resolved
+    // `undefined` masquerading as success.
     expect(thrown).toBeInstanceOf(APIError);
     expect((thrown as APIError).status).toBe(502);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -76,7 +76,7 @@ describe('HttpTransport retry — what the caller receives', () => {
     transport.dispose();
   });
 
-  test('a GET that got a 504 is still retried — one attempt plus one retry', async () => {
+  test('a GET that got a 504 is retried — one attempt plus one retry', async () => {
     fetchMock.mockResolvedValueOnce(failWith(504));
     fetchMock.mockResolvedValueOnce(okJson({ email: 'a@b.c' }));
     const transport = new HttpTransport({
@@ -112,11 +112,11 @@ describe('HttpTransport retry — what the caller receives', () => {
   });
 
   test('a failed refresh surfaces the 401 as an APIError, not as a TypeError', async () => {
-    // The pre-existing `ky.stop` branch. A refresher that returns null stops
-    // the retry, and the caller must still learn the request failed with 401
-    // — `ky.stop` alone resolves the promise with `undefined`, so `.json()`
-    // then dereferences nothing and the caller catches a TypeError naming an
-    // internal instead of an auth failure it can act on.
+    // A refresher that returns null stops the retry, and the caller must
+    // learn the request failed with 401 — `ky.stop` would resolve the
+    // promise with `undefined`, so `.json()` then dereferences nothing and
+    // the caller catches a TypeError naming an internal instead of an auth
+    // failure it can act on.
     fetchMock.mockImplementation(async () => failWith(401));
     const transport = new HttpTransport({
       baseUrl: testBaseUrl,
@@ -197,7 +197,7 @@ describe('HttpTransport — what a refusal says', () => {
  * `currentUserOf`: who a token is, asked by a caller that holds nothing else.
  * A session asks this of a stored credential. It must be exactly one request:
  * a transport built for the asking opens a bus stream the moment it has a
- * token, and a session that asked in a loop sent one of each per round.
+ * token, so a session asking in a loop would send one of each per round.
  */
 describe('currentUserOf — one request, and no transport behind it', () => {
   const sent = (): Request => fetchMock.mock.calls[0]![0] as Request;

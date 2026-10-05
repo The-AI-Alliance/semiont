@@ -56,17 +56,17 @@ let eventCounter = 0;
  * Build a stored event for the axiom histories.
  *
  * The payload is typed against the persisted-event catalog, per event type.
- * It used to be `unknown`, and that hole cost real time: when an
- * annotation's `created` became required, ten axioms failed at
- * RUNTIME with a clean workspace typecheck, because nothing here checked an
- * annotation payload against the schema it claimed to be. A required field is
- * only as strong as the weakest constructor of the thing that carries it.
+ * An `unknown` payload would let a required field go missing unseen: an
+ * annotation without `created` passes a clean workspace typecheck and the
+ * axioms fail at RUNTIME, because nothing checks the payload against the
+ * schema it claims to be. A required field is only as strong as the weakest
+ * constructor of the thing that carries it.
  *
- * The one cast that remains is the resourceId discrimination: `EventOfType<K>`
- * demands a `resourceId` for every non-system event and forbids it on the two
+ * The one cast is the resourceId discrimination: `EventOfType<K>` demands a
+ * `resourceId` for every non-system event and forbids it on the two
  * `frame:*` ones, which this single signature cannot express while taking
  * `rid` as an ordinary argument. That is the shape of the union, not a gap in
- * the payload check — which is the part that was actually wrong.
+ * the payload check.
  */
 export function storedEvent<K extends PersistedEventType>(
   type: K,
@@ -93,8 +93,8 @@ export const makeAnnotationPayload = (aid: string, rid: string): Annotation => (
   motivation: 'commenting',
   target: { source: makeResourceId(rid) },
   body: [],
-  // The AUTHORED moment — the stores no longer mint one of their own, so an
-  // event without `created` decodes as a missing required field rather than
+  // The AUTHORED moment — the stores mint none of their own, so an event
+  // without `created` decodes as a missing required field rather than
   // silently acquiring the write moment.
   // Deliberately fixed, not `new Date()`: these
   // axioms compare a replayed projection against a reference fold, and a

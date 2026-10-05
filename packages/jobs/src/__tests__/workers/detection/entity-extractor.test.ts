@@ -2,7 +2,8 @@
  * Entity Extractor Tests
  *
  * Tests the extractEntities function which uses AI to detect entity references in text.
- * Focuses on extraction logic, offset validation, and response parsing.
+ * Covers the prompt, element pass-through, truncated and unreadable responses,
+ * chunking (liveness, per-chunk emission, adaptive sizing, resume) and the count-verifier.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -88,7 +89,7 @@ describe('extractEntities', () => {
   });
 
   it('passes LLM output through verbatim — downstream reconcileSelector decides which entities survive', async () => {
-    // `extractEntities` no longer filters and no longer carries offsets.
+    // `extractEntities` neither filters nor carries offsets.
     // It returns everything the LLM emitted with the required field
     // types; the processor calls `reconcileSelector` per entity and
     // drops the ones whose `exact` isn't in the source.
@@ -185,7 +186,7 @@ describe('extractEntities', () => {
   it('throws on unreadable response instead of silently returning []', async () => {
     // An unreadable model response is silent data loss in disguise — it must
     // surface as a thrown error (→ job:failed) rather than an empty success.
-    // The throw now originates in the structured surface itself
+    // The throw originates in the structured surface itself
     // (`generateStructured`): the mock parses its queued response and refuses
     // non-arrays exactly as the real providers do.
     mockInferenceClient.setResponses(['This is not JSON']);
@@ -242,9 +243,9 @@ describe('extractEntities', () => {
       `Paragraph ${String(k).padStart(2, '0')}: ${'filler words for bulk '.repeat(12)}PARA_${k} end.`,
     );
     const bigText = paragraphs.join('\n\n') + '\n\nFinal note: OMEGA_MARKER closes the document.';
-    // Published no-op rate: these tests are about CHUNKING; a rate-silent
-    // fixture would also enable the count-verifier, whose calls would
-    // interleave into `client.calls` and muddy every assertion here.
+    // Published no-op rate: these tests are about CHUNKING from the window; a
+    // rate-silent fixture would opt into the assumed duration floor
+    // (`ASSUMED_OUTPUT_TOKENS_PER_HOUR`) as a second bound on the budget.
     const SMALL_SHARED_LIMITS = { contextTokens: 2400, maxOutputTokens: 2400, outputTokensPerHour: 3_600_000_000 };
 
     const entity = (exact: string) => JSON.stringify([{ exact, entityType: 'Person' }]);
@@ -259,7 +260,7 @@ describe('extractEntities', () => {
       expect(client.calls[0].prompt).not.toContain('OMEGA_MARKER');
       // …but some chunk must — coverage reaches the end.
       expect(client.calls.some(c => c.prompt.includes('OMEGA_MARKER'))).toBe(true);
-      // Output budget is derived, identical per call, and not the old literal.
+      // Output budget is derived, identical per call, and not a hard-coded 4000.
       const budgets = new Set(client.calls.map(c => c.maxTokens));
       expect(budgets.size).toBe(1);
       expect(client.calls[0].maxTokens).not.toBe(4000);
@@ -298,10 +299,10 @@ describe('extractEntities', () => {
       expect(totalChunks).toBeGreaterThan(1);
       // A boundary sits BETWEEN chunks: N chunks → N−1 boundary events. Each
       // carries (consumedChars, totalChars) — characters, not ordinals, because
-      // chunk sizing is now decided as the run goes and there is no chunk total
-      // to divide by. The cursor was always the more honest numerator anyway:
-      // boundary-seeking made chunks unequal long before sizing did, so
-      // "chunk 3 of 10" was never 30% of the document.
+      // chunk sizing is decided as the run goes and there is no chunk total
+      // to divide by. The cursor is the more honest numerator anyway:
+      // boundary-seeking makes chunks unequal, so "chunk 3 of 10" is not 30%
+      // of the document.
       expect(onChunk.mock.calls.length).toBe(totalChunks - 1);
       let previous = 0;
       onChunk.mock.calls.forEach(([consumed, total]) => {
@@ -379,8 +380,8 @@ describe('extractEntities', () => {
         modelId: 'mock-model',
         limits: async () => SMALL_SHARED_LIMITS, // forces multiple chunks
         generateText: async () => '[]',
-        // Legacy surface answers cleanly for every chunk — a rewrite that
-        // still consults it completes and betrays itself here.
+        // The text surface answers cleanly for every chunk — an
+        // implementation that consults it completes and betrays itself here.
         generateTextWithMetadata: async () => ({ text: entity('AAA'), stopReason: 'end_turn' }),
         generateStructured: async () => {
           structuredCalls += 1;
@@ -399,10 +400,10 @@ describe('extractEntities', () => {
     it('reports liveness DURING a single long call — the seam that keeps a one-chunk job visible', async () => {
       // The heartbeat: this pins the THREADING, not the timer. The
       // wrapper's own heartbeat tests would still pass if `extractEntities`
-      // stopped forwarding one — and a single-chunk run (every realistic
-      // document) has no chunk boundary, so dropping this argument silently
-      // returns detection to emitting nothing for minutes: the exact reported
-      // bug, invisible to every other test in this suite.
+      // stopped forwarding one — and a single-chunk run has no chunk
+      // boundary, so dropping this argument silently leaves detection
+      // emitting nothing for minutes, invisible to every other test in this
+      // suite.
       vi.useFakeTimers();
       try {
         let finish: (v: { items: unknown[]; stopReason: string }) => void = () => {};
@@ -474,7 +475,7 @@ describe('extractEntities', () => {
       }
 
       it('grows the chunk once measured output shows the budget going unused', async () => {
-        // 60 of a 1200-token budget — 5%%, far under `growBelow`.
+        // 60 of a 1200-token budget — 5%, far under `growBelow`.
         const { client, promptChars } = sizingClient({ inputTokens: 400, outputTokens: 60 });
 
         await extractEntities(longText, ['Person'], client, false, LOGGER);
@@ -487,9 +488,9 @@ describe('extractEntities', () => {
       it('holds the chunk when the provider reports no usage at all', async () => {
         // `usage` is optional on the inference interface. Absent must read as
         // "nothing measured" and hold — never as "produced nothing", which is
-        // 0%% utilization and would grow every chunk to the ceiling having
+        // 0% utilization and would grow every chunk to the ceiling having
         // learned nothing. Against a silent provider an adaptive run is
-        // indistinguishable from the static one it replaced.
+        // indistinguishable from a static one.
         const { client, promptChars } = sizingClient();
 
         await extractEntities(longText, ['Person'], client, false, LOGGER);
@@ -633,13 +634,12 @@ describe('extractEntities — count-verifier', () => {
     expect(client.generateTextWithMetadata).toHaveBeenCalled();
   });
 
-  it('a flagged ratio at the floor ACCEPTS the under-report loudly — unit survives (ruled 2026-09-05)', async () => {
+  it('a flagged ratio at the floor ACCEPTS the under-report loudly — unit survives', async () => {
     // 1 extracted vs 50 counted → flagged. Text this small cannot shrink, so
     // it is AT its floor on the first flag (no-shrink rule): exactly one
     // extraction, and the salvage — the entity it DID find, span-verified —
-    // flows through rather than nuking ~20 good chunks with it (the blast
-    // radius the first full Ollama run measured, ruled on 2026-09-05).
-    // Descent on genuinely shrinkable chunks still discards and retries
+    // flows through rather than failing the unit and every good chunk with
+    // it. Descent on genuinely shrinkable chunks discards and retries
     // smaller.
     const items = [{ exact: 'Alice', entityType: 'Person' }];
     const client = verifyingClient(items, '50');
@@ -651,11 +651,10 @@ describe('extractEntities — count-verifier', () => {
   });
 
   it('the provider DECLARES verification — false means no count call, whatever its limits look like', async () => {
-    // The old behavior keyed off rate-silence (provider-shape sniffing in
-    // jobs) and exempted Anthropic. Both overruled 2026-09-05: the capability
-    // is declared on the client, and every real provider declares true. False
-    // remains the mock's test-ergonomics default — pinned here as the OFF
-    // path.
+    // Jobs does no provider-shape sniffing (rate-silence decides nothing
+    // here): the capability is declared on the client, and every real
+    // provider declares true. False is the mock's test-ergonomics default —
+    // pinned here as the OFF path.
     const items = [{ exact: 'Alice', entityType: 'Person' }];
     const client = { ...verifyingClient(items, '999'), verifyDetectionYield: false };
 
@@ -665,7 +664,7 @@ describe('extractEntities — count-verifier', () => {
     expect(client.generateTextWithMetadata).not.toHaveBeenCalled();
   });
 
-  it('an Anthropic-shaped client (publishes a rate, declares true) IS verified — the 2026-09-05 ruling', async () => {
+  it('an Anthropic-shaped client (publishes a rate, declares true) IS verified', async () => {
     const items = Array.from({ length: 12 }, () => ({ exact: 'Alice', entityType: 'Person' }));
     const client = verifyingClient(items, '15');
     client.limits = vi.fn(async () => ({ contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 }));

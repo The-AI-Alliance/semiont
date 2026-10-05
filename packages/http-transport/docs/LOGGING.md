@@ -19,7 +19,7 @@ Complete guide to logging and observability in `HttpTransport`.
 The `HttpTransport` in `@semiont/http-transport` provides optional logging support to help you:
 
 - **Debug authentication issues** - See whether a token is being sent
-- **Monitor API usage** - Track all HTTP requests and responses
+- **Monitor API usage** - Track the transport's REST and content requests and responses
 - **Diagnose errors** - Get full context for failures
 - **Integrate with monitoring** - Send logs to your observability platform
 
@@ -55,7 +55,7 @@ const transport = new HttpTransport({
   logger
 });
 
-// Now all HTTP requests made by the transport will be logged automatically
+// The transport's REST and content requests are logged automatically
 ```
 
 ### Console-Only Logging (Development)
@@ -100,39 +100,42 @@ interface Logger {
 
 ## What Gets Logged
 
-The transport logs activity from its **HTTP client (via ky)** — every request, response, and error that crosses the wire:
+The transport logs activity from its **HTTP client (via ky)** — every request, response, and HTTP error (4xx/5xx) of the gateway's REST operations and of resource content reads and uploads. The bus itself (`POST /bus/emit` and the `POST /bus/subscribe` stream) is sent with `fetch` and is not logged.
 
 ```typescript
 // Uploading a resource through the SDK triggers transport logging
-const upload = client.yield.resource({
+const { resourceId } = await client.yield.resource({
   name: 'My Document',
-  content: Buffer.from('Hello World'),
-  contentType: 'text/plain',
+  file: Buffer.from('Hello World'),
+  format: 'text/plain',
+  storageUri: 'file://docs/my-document.txt',
   entityTypes: ['example']
 });
 
 // Logs:
 // DEBUG: HTTP Request { type: 'http_request', url: '...', method: 'POST', ... }
-// DEBUG: HTTP Response { type: 'http_response', status: 201, ... }
+// DEBUG: HTTP Response { type: 'http_response', status: 202, ... }
 ```
 
 Binary uploads through `HttpContentTransport.putBinary(...)` go through the same
-ky instance and are logged the same way.
+ky instance and are logged the same way, except in a browser page when the caller
+asks for progress or passes a `signal`, as `client.yield.resource` does: that upload
+is sent through `XMLHttpRequest` and is not logged.
 
 ## Log Levels
 
-The transport uses the four standard log levels; only `debug` and `error` are emitted today:
+The transport uses the four standard log levels; only `debug` and `error` are emitted:
 
 ### debug - Verbose Request/Response Details
 
-**What**: Every HTTP request and response
+**What**: Every request and response of the ky client
 **When**: Development, troubleshooting specific issues
 **Volume**: High (can be very noisy)
 
 ```typescript
 logger.debug('HTTP Request', {
   type: 'http_request',
-  url: 'http://localhost:4000/api/resources',
+  url: 'http://localhost:4000/resources',
   method: 'POST',
   timestamp: 1234567890,
   hasAuth: true
@@ -140,23 +143,23 @@ logger.debug('HTTP Request', {
 
 logger.debug('HTTP Response', {
   type: 'http_response',
-  url: 'http://localhost:4000/api/resources',
+  url: 'http://localhost:4000/resources',
   method: 'POST',
-  status: 201,
-  statusText: 'Created'
+  status: 202,
+  statusText: 'Accepted'
 });
 ```
 
 ### info - Significant Operations
 
 **What**: Reserved for significant operations
-**When**: Not currently emitted by the transport
-**Volume**: None today
+**When**: Not emitted by the transport
+**Volume**: None
 
 ### warn - Recoverable Issues
 
-**What**: Issues that don't prevent operation (not currently used by the transport)
-**When**: Future use for retries, deprecation warnings
+**What**: Issues that don't prevent operation (not used by the transport)
+**When**: Reserved for retries, deprecation warnings
 **Volume**: Low
 
 ### error - Failures
@@ -168,7 +171,7 @@ logger.debug('HTTP Response', {
 ```typescript
 logger.error('HTTP Request Failed', {
   type: 'http_error',
-  url: 'http://localhost:4000/api/resources/999',
+  url: 'http://localhost:4000/resources/999',
   method: 'GET',
   status: 404,
   statusText: 'Not Found',
@@ -364,7 +367,7 @@ The transport **never** logs the value of `Authorization` headers to prevent tok
 // ✅ What gets logged
 {
   type: 'http_request',
-  url: 'http://localhost:4000/api/resources',
+  url: 'http://localhost:4000/api/status',
   method: 'GET',
   hasAuth: true  // ← Only indicates presence, not value
 }

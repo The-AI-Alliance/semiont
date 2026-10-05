@@ -5,10 +5,8 @@
  * gets freedom over its display form. `compact` is a display-only variant:
  * icon-only, tight, chromeless — the functional groups stay present and wired.
  * BrowseView's `inline` embed shows the compact bar automatically. Theming
- * (semiont-* classes + CSS vars) and labels (i18n) already exist — no new API
- * for those.
- *
- * Started RED (no `compact` prop) and GREEN once the bar takes one.
+ * (semiont-* classes + CSS vars) and labels (i18n) have their own mechanisms —
+ * `compact` adds no API for those.
  */
 import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi } from 'vitest';
@@ -53,7 +51,7 @@ describe('Annotate Bar display forms', () => {
 
   it('compact is display-only: the functional groups are still present', () => {
     renderInEnglish(<AnnotateToolbar {...toolbarProps} compact />);
-    // Groups render with their aria labels (default-English translations, no provider).
+    // Groups render with their aria labels (the English translations `renderInEnglish` mounts).
     expect(screen.getByLabelText(/mode/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/click/i)).toBeInTheDocument();
   });

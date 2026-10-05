@@ -2,7 +2,7 @@
  * PDF Canvas Coordinate Transform Tests
  *
  * Property-based tests for the canvas↔PDF coordinate transforms (Y-flip + scale).
- * The viewrect FragmentSelector codec moved to @semiont/core; its tests live in
+ * The viewrect FragmentSelector codec is in @semiont/core; its tests live in
  * packages/core/src/__tests__/pdf-coordinates.test.ts.
  *
  * AXIOMS FOR PDF COORDINATE TRANSFORMATIONS:

@@ -2,14 +2,11 @@
 /**
  * Every name the builder's, the Browser's, react-ui's and the protocol's documents use exists in the tree.
  *
- * Documents restate the code by hand and nothing kept the two in step. When
- * this gate was written, a census of these documents found 139 names that
- * resolved to nothing: a routing guide for a `RoutingProvider` and `useRouting`
- * that did not exist, examples calling `client.emit`, `client.on` and
- * `client.bus.get` after all three were gone, imports of deleted modals and
- * hooks, a performance guide whose every command was missing from
- * `package.json`, and tests pointing at files deleted months before. A reader
- * copying any of them got an error, and nothing said the document was wrong.
+ * Documents restate the code by hand, and this gate is what keeps the two in
+ * step. Without it a document can import an export or call a client method
+ * that does not exist, give a command missing from `package.json` or point at
+ * a file that is not there: a reader copying any of them gets an error, and
+ * nothing says the document is wrong.
  *
  * Checked in `docs/builder` (the guides, the skills and `react-ui`), `packages/sdk/README.md`,
  * the root `README.md`, `packages/react-ui/docs`, `packages/react-ui/README.md`,

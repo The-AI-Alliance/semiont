@@ -3,16 +3,16 @@
  *
  * An embedding provider is mandatory at every KnowledgeBase /
  * Gatherer / Matcher construction site, so every consumer's test suite needs a
- * double. `MockEmbeddingProvider` used to live in `src/__tests__/`, which
- * `tsconfig.build.json` excludes — invisible outside this package. This exports
- * it the way `@semiont/core/testing` does.
+ * double. `MockEmbeddingProvider` cannot live in `src/__tests__/`, which
+ * `tsconfig.build.json` excludes — invisible outside this package. So it is
+ * exported the way `@semiont/core/testing` does.
  *
  * The assertions are deliberately STATIC — they read the manifests rather than
  * importing `@semiont/vectors/testing` and seeing if it resolves. A resolving
  * import would reach through the workspace symlink into `dist/`, which does not
  * exist when `npm run build` runs `typecheck` as its first step: the test would
- * make the package unbuildable from clean. The real end-to-end proof is the
- * first cross-package import.
+ * make the package unbuildable from clean. No other package imports the
+ * subpath, so these static checks are the only proof that it resolves.
  *
  * A subpath needs FOUR things in agreement, and shipping three of them is a
  * silent failure — the export map resolves to a file the build never emitted.
@@ -50,14 +50,14 @@ describe('@semiont/vectors/testing subpath', () => {
     expect(read('rollup.dts.config.mjs')).toMatch(/dist-types\/testing\.d\.ts/);
   });
 
-  it('splits shared chunks, now that the package has more than one entry', () => {
+  it('splits shared chunks, because the package has more than one entry', () => {
     // Two entries bundling the same module each get a PRIVATE copy without
-    // this. `@semiont/core`'s config documents the incident: the sdk shipped a
-    // dist/testing.js holding private copies and prototype spies silently
-    // missed. react-ui is a live instance (its dist/index.js and
-    // dist/test-utils.js each inline ToastProvider/SemiontProvider). Today this
-    // package's testing entry imports only a type, so nothing is duplicated —
-    // this guards the moment it imports something runtime.
+    // this, and prototype spies on one silently miss what the other
+    // constructs (`@semiont/core`'s config describes the case). react-ui
+    // relies on it the same way: its `index` and `test-utils` entries both
+    // pull the provider modules. This package's testing entry imports only a
+    // type, so nothing is duplicated — this guards the moment it imports
+    // something runtime.
     const tsup = read('tsup.config.ts');
     expect(tsup).toMatch(/splitting:\s*true/);
     expect(tsup).toMatch(/treeshake:\s*true/);

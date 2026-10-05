@@ -4,7 +4,7 @@
  *
  * Supports two input formats:
  * 1. JSON format (from discover-symbols.ts)
- * 2. Markdown table format (legacy)
+ * 2. Markdown table format
  *
  * Usage:
  *   npx tsx batch-audit.ts <root-dir> <inventory-file>

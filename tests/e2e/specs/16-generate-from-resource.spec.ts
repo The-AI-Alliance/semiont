@@ -7,13 +7,13 @@ import { expectGeneratedAt } from '../fixtures/generated';
  *
  * Flow (ResourceViewerPage → ResourceInfoPanel → ResourceGenerateModal):
  *   Resource Info panel → **Generate** button (above Clone)
- *     → modal opens as one composite stack (#1211)
+ *     → modal opens as one composite stack
  *     → exclude an entity type from recall
  *     → Gather → real `gather:resource-requested`→`-complete` round-trip
  *     → evidence unfolds below; generation params mount under it
  *     → Generate → `yield.fromContext` (resource focus) runs the `generation` job → new derived resource.
  *
- * Covers the seams unit tests can't reach under the #900 native-binding skew:
+ * Covers the seams unit tests can't reach:
  * the real bus request/reply gather, the cold-`StreamObservable.run()` job
  * lifecycle, and the button → modal → viewer wiring. The two LLM round-trips
  * (gather + generation) make this slow — hence the long timeout.
@@ -22,7 +22,7 @@ import { expectGeneratedAt } from '../fixtures/generated';
  * Toolbar's `button[data-panel="info"]`; the recall chips are
  * `.semiont-form__recall-chip`; progress is asserted on the bus
  * (i18n-independent). The few accessible-name selectors use the `ResourceGenerate`
- * / `ResourceInfoPanel` en.json labels — now only **Generate** and **Gather**.
+ * / `ResourceInfoPanel` en.json labels — only **Generate** and **Gather**.
  *
  * Requires: the seeded KB has the default entity types (for the entity-type exclusion).
  */
@@ -128,10 +128,9 @@ test.describe('generate from resource', () => {
     ]);
     expect(outcome.kind, 'generation produced job:complete (a new derived resource), not job:fail').toBe('complete');
 
-    // ── The artifact landed where the form said ────────────────────────────
-    // `job:complete` only proves the worker finished. The worker once read the
-    // title and DISCARDED storageUri — a regression this test would have
-    // passed straight through.
+    // ── The artifact is where the form said ────────────────────────────────
+    // `job:complete` only proves the worker finished: a worker that reads the
+    // title and DISCARDS storageUri passes every assertion above.
     await expectGeneratedAt(title, storagePath, 'text/markdown');
   });
 });

@@ -6,7 +6,7 @@ A stack can be observed three ways, each switched on separately:
 2. **Metrics and log correlation.** Counters, histograms and gauges go to the same endpoint, and every structured log line carries the `trace_id` and `span_id` of the span it was written in.
 3. **The `busLog` timeline.** With `SEMIONT_BUS_LOG=1`, a process writes one line per bus event, in a format made for `grep`. It is a developer's tool: see [Bus logging](../../../tests/e2e/docs/bus-logging.md).
 
-All three share the W3C `trace_id`: the `cid` that `busLog` prints is its first eight hex digits.
+All three share the W3C `trace_id`: a `busLog` line written inside a span carries `trace=`, the id's first eight hex digits.
 
 ## What gets traced
 
@@ -73,7 +73,7 @@ and configure their SDK from them; the table below is the sidecars'.
 | `OTEL_SERVICE_NAME`               | `semiont-<service>`, such as `semiont-gateway` | Service identity            |
 | `OTEL_TRACES_SAMPLER`             | `parentbased_always_on`                | Sampler                            |
 | `OTEL_TRACES_SAMPLER_ARG`         | (n/a)                                  | Ratio for traceidratio samplers    |
-| `OTEL_CONSOLE_EXPORTER`           | `false`                                | Set `true` for stderr exporter (dev only) |
+| `OTEL_CONSOLE_EXPORTER`           | `false`                                | Set `true` to print to the service's output (dev only) |
 | `OTEL_SDK_DISABLED`               | `false`                                | Set `true` to skip init entirely   |
 
 **Off-by-default invariant**: with neither
@@ -109,7 +109,7 @@ Semiont stores no telemetry; you choose where it goes. The launcher chooses for 
 | Deployment              | Recommended target                                                                              |
 |-------------------------|-------------------------------------------------------------------------------------------------|
 | A stack the launcher runs | The launcher's trio: OTel collector (always on, OTLP `:4318`) → Jaeger for traces (UI `:16686`), Prometheus for metrics (UI `:9090`). |
-| A collector of your own | Point `OTEL_EXPORTER_OTLP_ENDPOINT` at any OTLP intake; or `OTEL_CONSOLE_EXPORTER=true` for stderr output. |
+| A collector of your own | Point `OTEL_EXPORTER_OTLP_ENDPOINT` at any OTLP intake; or `OTEL_CONSOLE_EXPORTER=true` to print to the service's output. |
 | Self-hosted             | Jaeger (Cassandra/ES-backed) or Grafana Tempo (S3-backed, pairs with Loki).                      |
 | A cloud's own tracing   | Through that cloud's OpenTelemetry Collector distribution, which translates OTLP to its format.  |
 | SaaS APM                | Honeycomb / Datadog / New Relic / Lightstep all accept OTLP — set endpoint + auth header.        |
@@ -179,7 +179,7 @@ implicitly) — see `packages/observability/src/node.ts`.
 ## Relationship to the structured logger and `busLog`
 
 - **Structured logger** (the Rust services', in `packages/observability-rust/src/logging.rs`;
-  `createProcessLogger()` in workers/smelter) — JSON-line,
+  `createProcessLogger()` in the TypeScript services) — JSON-line,
   level-filtered, always on. Logs semantic events (validation failed,
   user authenticated). Goes to log aggregator. Every line is auto-
   tagged with the active span's `trace_id` / `span_id` when one
@@ -188,21 +188,24 @@ implicitly) — see `packages/observability/src/node.ts`.
 - **`busLog`** — grep-text, opt-in via `SEMIONT_BUS_LOG=1` (a service process) or
   `window.__SEMIONT_BUS_LOG__ = true` (browser). One line per
   cross-process bus event. Targets developer terminal / stderr / e2e
-  fixture capture. The `cid` it prints is the first 8 hex of the
-  W3C trace-id, so a `busLog` timeline collates with traces in the
-  APM UI.
+  fixture capture. A line written inside a span carries `trace=`, the
+  first 8 hex of the W3C trace-id, so a `busLog` timeline collates with
+  traces in the APM UI.
 - **OTel spans + metrics** (this doc) — distributed tracing and
   metrics over OTLP. Targets a collector + APM gateway.
 
 ## Metrics
 
-Alongside traces, every Node process exports a small set of metrics
-through the same OTLP endpoint. No extra config required — the
-`OTEL_EXPORTER_OTLP_ENDPOINT` you set for traces also drives metrics.
+Alongside traces, every service exports metrics through the same OTLP
+endpoint. No extra config required — the `OTEL_EXPORTER_OTLP_ENDPOINT`
+you set for traces also drives metrics. The Browser exports spans only.
+
+The table is what the TypeScript services export: the Archivist, the
+Librarian, the Smelter, the Weaver and the worker.
 
 | Metric                       | Type             | Attributes                                              | Where                                         |
 |------------------------------|------------------|---------------------------------------------------------|-----------------------------------------------|
-| `semiont.bus.sent`           | counter          | `bus.channel`, `bus.scope`                              | Every transport `emit` (Browser, in-process, server): an emit a client sent |
+| `semiont.bus.sent`           | counter          | `bus.channel`, and `bus.scope` on a scoped emit         | Every transport `emit` (`HttpTransport`, `LocalTransport`): an emit a client sent |
 | `semiont.handler.duration`   | histogram        | `actor`, `bus.channel`                                  | Every actor handler (Stower / Gatherer / Matcher / Browser / Smelter) |
 | `semiont.job.outcome`        | counter          | `job.type`, `job.outcome` (`completed` / `failed`)      | Worker `handleJob`                       |
 | `semiont.job.duration`       | histogram        | `job.type`, `job.outcome`                               | Worker `handleJob`                            |
@@ -214,12 +217,23 @@ through the same OTLP endpoint. No extra config required — the
 | `semiont.detection.call.items` | histogram      | same as `semiont.detection.calls`                       | Annotations returned per call — against input size, this is yield |
 | `semiont.detection.call.tokens` | histogram     | same, plus `detection.direction` (`input`/`output`)     | Provider-reported tokens per detection call; kept separate from `semiont.inference.tokens` because that series carries no subdivision depth |
 | `semiont.detection.anchors`  | counter          | `detection.label`, `anchor.method` (`unique-match`/`context-recovered`/`first-of-many`/`fuzzy-match`) | Every annotation anchoring — the degraded-method **rate** is the precision signal, so clean outcomes are counted too |
+| `semiont.gather.degraded`    | counter          | `projection` (`graph`/`vectors`/`suggestions`)          | Librarian's Gatherer — a gather that came up short: `graph`, the graph projection did not catch up and the gather failed; `vectors`, the vector projection did not settle in time and the context carries no semantic matches; `suggestions`, the summary and suggestions inference call failed and the context carries neither. A rising `graph` or `vectors` rate means the Weaver or the Smelter is not keeping up |
+| `semiont.record.append.duration` | histogram    | `record.stage` (`persist`/`materialize`/`enrich`/`publish`) | Archivist — time in one stage of appending an event to the record: the log write, the view rebuild, enrichment, the publish onto its in-process bus |
+| `semiont.git.duration`       | histogram        | `git.command` (`add`/`mv`/`rm`)                         | Archivist — wall time of one `git` staging command, lock retries included. Staging is deduped, so the `add` count sits far below the number of events appended |
+| `semiont.git.staging.failures` | counter        | `reason` (`index-lock`/`other`)                         | Archivist — a staging command abandoned after its retries; the git index may be stale |
+| `semiont.archivist.fact_pump.depth` | observable gauge | (none)                                           | Archivist — facts appended to the record and not yet published to the bus. Zero at rest; a rising floor means the pump is behind its transport |
+| `semiont.vector.index.size`  | observable gauge | (none)                                                  | Smelter — the vector store's point count |
+| `semiont.process.start_time` | observable gauge | (none)                                                  | Every service — Unix seconds at which the process started; a change means it restarted |
 | `semiont.process.restarts`   | observable gauge | (none)                                                  | Every supervised service — times the in-container supervisor restarted the process, read back from the supervisor's event log. The series exists only when the run set `SEMIONT_SUPERVISE` (local stacks); absent, not `0`, everywhere else |
+| `semiont.process.abnormal_exit` | counter       | `reason` (`unhandledRejection`/`uncaughtException`)     | Every service — a fatal error, counted just before the process exits |
+| `semiont.runtime.event_loop.lag` | observable gauge | `lag.stat` (`mean`/`p99`/`max`)                     | Every service — event-loop delay over the last export interval, in ms: time the process could serve nothing |
+| `semiont.runtime.heap`       | observable gauge | `heap.stat` (`used`/`total`/`limit`/`rss`)              | Every service — process memory in bytes. `limit` is V8's own heap ceiling, which is what the process dies at, not the container's allocation |
 
-The gateway's and the dispatcher's metrics — the bus counters,
-`semiont.sse.subscribers`, `semiont.bus.correlation.size`,
-`semiont.job.queue.size`, and the process and runtime gauges — are specified,
-with their instruments, attributes and attribute values, in
+The gateway and the dispatcher are Rust and export their own metrics: the
+`semiont.process.*` and `semiont.runtime.*` instruments of the rows above, the
+gateway's counters, `semiont.sse.subscribers` and `semiont.bus.correlation.size`,
+and the dispatcher's `semiont.job.queue.size`. They are specified, with their
+instruments, attributes and attribute values, in
 [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json).
 The emits a client sent are a count of their own, `semiont.bus.sent`, a row of
 [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json);
@@ -233,27 +247,25 @@ Additional vars:
 
 Metrics follow the same on/off invariant as traces — neither exports
 unless an exporter is configured. With `OTEL_CONSOLE_EXPORTER=true`,
-metric snapshots also print to stderr at each export interval.
+metric snapshots also print to the service's output at each export interval.
 
 ## Log correlation
 
-Every structured log line the gateway writes (in the `json` format its
-configuration document selects) and the worker/smelter Winston loggers
-(`createProcessLogger()`) write is tagged with `trace_id` and `span_id`
-when an active span exists. Log queries in CloudWatch / Loki / Datadog
+Every log line a service writes is tagged with `trace_id` and `span_id`
+when an active span exists: the Rust services — the gateway and the
+dispatcher — by their logger, the TypeScript services by
+`createProcessLogger()`. Log queries in CloudWatch / Loki / Datadog
 can be filtered by `trace_id` and joined with the trace UI.
 
 ```json
-{"level":"info","msg":"emit","channel":"mark:create","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","span_id":"00f067aa0ba902b7"}
+{"level":"info","message":"emit","channel":"mark:create","trace_id":"4bf92f3577b34da6a3ce929d0e0e4736","span_id":"00f067aa0ba902b7"}
 ```
 
-When no SDK is initialized (or no span is active), the helper returns
-`undefined` and nothing is added — same log shape as before.
+When no SDK is initialized, or no span is active, neither field is added.
 
 ## Limitations
 
 - **Calls out to models and stores are not traced.** A call to Anthropic, Ollama, Neo4j or Qdrant has no span of its own. Inference is metered, by call, token and duration, in the `semiont.inference.*` metrics.
-- **There is no metric for the size of the vector index.**
 - **The Browser's spans name the operation, not the URL.** Its transport calls are traced as `bus.emit:mark:create` and the like; the underlying `fetch` is not instrumented separately.
 
 ## Related documentation

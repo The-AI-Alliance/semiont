@@ -107,7 +107,7 @@ clears them.
 
 **The heap ceiling is explicit, and paired.** The image sets
 `NODE_OPTIONS=--max-old-space-size=1536` against a 2 GB container allocation. Without it V8
-picks its own default, which lands well under the cgroup limit — this process once died at
+picks its own default, which lands well under the cgroup limit — the process dies at
 ~1016 MB inside 2048 MB, with half the memory it was allotted unreachable. The 1536/2048 pair
 must move together: raising the cap to the container's full allocation trades a catchable V8
 heap error for an uncatchable cgroup kill. `semiont.runtime.heap{heap.stat="limit"}` reports the

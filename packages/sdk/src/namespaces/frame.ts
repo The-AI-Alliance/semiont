@@ -4,18 +4,18 @@
  * Frame operates on the KB's **schema layer** — the conceptual vocabulary
  * the other seven flows are expressed in. Where yield/mark/match/bind/
  * gather/browse/beckon act on content (resources, annotations, references,
- * attention), Frame acts on what *kinds* of things exist: entity types,
- * eventually tag schemas, relation/predicate types, ontology imports.
+ * attention), Frame acts on what *kinds* of things exist: entity types and
+ * tag schemas. Relation/predicate types and ontology imports are not part
+ * of it.
  *
- * The MVP owns a single primitive — entity-type vocabulary writes on the
- * `frame:add-entity-type` channel. See `docs/protocol/flows/FRAME.md`
+ * It owns the vocabulary writes, on the `frame:add-entity-type` and
+ * `frame:add-tag-schema` channels. See `docs/protocol/flows/FRAME.md`
  * for the per-flow contract.
  *
- * Live reads of the entity-type vocabulary stay on Browse
- * (`browse.entityTypes()` is a `CacheObservable<string[]>`). Frame owns
- * writes; Browse owns reads. The asymmetry is intentional — re-implementing
- * Browse's cache primitives on Frame for a single read would duplicate
- * machinery without benefit.
+ * Live reads of the vocabulary stay on Browse (`browse.entityTypes()`,
+ * `browse.tagSchemas()`). Frame owns writes; Browse owns reads. The
+ * asymmetry is intentional — re-implementing Browse's cache primitives on
+ * Frame for its reads would duplicate machinery without benefit.
  */
 
 import type { ITransport, TagSchema } from '@semiont/core';

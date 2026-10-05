@@ -15,8 +15,8 @@ import (
 // write and location of a custody value goes through it
 // (TestCustodyValuesGoThroughTheStore), and every operation is shown on the
 // terminal before it runs: the operation and the secret's name, never its
-// value (ruled 2026-09-29). The lines are printed here, not by the callers or
-// the backends, so no caller can skip one and no backend can differ.
+// value. The lines are printed here, not by the callers or the backends, so
+// no caller can skip one and no backend can differ.
 type custodyStore struct{ b custodyBackend }
 
 // custodyBackend: where one root's values are kept.
@@ -73,7 +73,7 @@ func custodyForKey(u *UI, key string) (custodyStore, bool) {
 	return s, ok
 }
 
-// configuredCustody: the store a root's setting names today, adopting
+// configuredCustody: the store a root's setting names, adopting
 // nothing — for a caller that clears or moves values (clean, the
 // secret-store setter), which is no knowledge base's first need.
 func configuredCustody(u *UI, key string) (custodyStore, bool) {

@@ -193,7 +193,6 @@
     "statusConnected": "Verbonden",
     "statusExpired": "Sessie verlopen",
     "statusSignedOut": "Uitgelogd",
-    "statusUnreachable": "Onbereikbaar",
     "invalidHost": "Ongeldige hostnaam",
     "discoveredTitle": "Gevonden op deze machine",
     "managedBadge": "Beheerd door launcher",

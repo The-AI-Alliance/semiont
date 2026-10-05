@@ -4,10 +4,10 @@
  * refreshed without a restart. Real signatures against an in-process issuer;
  * nothing here names a vendor.
  *
- * These live in CORE because `IssuerVerifier` is core's. They ran under the
- * gateway until 2026-09-20, which meant `npm test --workspace=@semiont/core`
- * could pass on a broken verifier — and `@semiont/core/identity` is a
- * published subpath with three consumers.
+ * These live in CORE because `IssuerVerifier` is core's: run from another
+ * package, `npm test --workspace=@semiont/core` could pass on a broken
+ * verifier — and `@semiont/core/identity` is a published subpath other
+ * packages verify tokens through.
  *
  * Imported from SOURCE, not from `@semiont/core/identity`: a suite that tests
  * its own package through the built artifact reports on the last build, not on

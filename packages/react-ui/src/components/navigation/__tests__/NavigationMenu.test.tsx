@@ -65,8 +65,8 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      // Knowledge and Moderate. The menu takes no permission input any more,
-      // so there is no "no permissions" case to render differently.
+      // Knowledge and Moderate. The menu takes no permission input, so there
+      // is no "no permissions" case to render differently.
       expect(container.querySelectorAll('a').length).toBe(2);
       expect(container.querySelectorAll('hr').length).toBe(1);
     });
@@ -135,10 +135,9 @@ describe('NavigationMenu Component', () => {
 
   describe('Moderation Link', () => {
     /**
-     * The moderation surface is shown to every authenticated user. The link
-     * used to be gated on an `isModerator` prop, which gated nothing real —
-     * the gateway grants no access on that basis and never did, so hiding the
-     * link only obscured a page anyone could reach by typing its path.
+     * The moderation surface is shown to every authenticated user. The
+     * gateway grants no access on a moderator basis, so hiding the link would
+     * only obscure a page anyone can reach by typing its path.
      */
     it('should always render the moderate link', () => {
       render(

@@ -8,13 +8,13 @@ import { openConfigureStep, runGeneration } from '../fixtures/generate';
  * Both Generate flows have a `#wizard-outputFormat` select. Specs 09 and 16
  * exercise the flows themselves, but always at the default (`text/markdown`),
  * so nothing in the suite proves that choosing a different row changes the
- * artifact. This file covers the two rows that were added and the refusal
+ * artifact. This file covers the other two rows and the refusal
  * that guards them.
  *
  * Three seams, none reachable from unit tests:
  *
  *   1. **text/plain** — the dropdown value reaches the worker and the
- *      descriptor names it. A regression here is silent: markdown rendered as
+ *      descriptor names it. A defect here is silent: markdown rendered as
  *      plain text still reads fine, so only the descriptor catches it.
  *   2. **application/pdf** — the worker's Typst compile-and-repair loop runs
  *      for real. This is the only place in the suite that exercises it.
@@ -29,9 +29,9 @@ import { openConfigureStep, runGeneration } from '../fixtures/generate';
  * and so is coupled to specs 05/06 running first. The format field is shared
  * by both flows (one `ConfigureGenerationStep`), so covering it once covers it.
  *
- * PDF is in the DEFAULT tier by explicit choice (user, 2026-08-24), not
- * `@slow`. A two-page compile finished well inside the generation budget
- * during a live-stack run. If it ever starts crowding the budget, the fix is
+ * PDF is in the DEFAULT tier by choice, not `@slow`: a two-page compile
+ * finishes well inside the generation budget against a live stack. If it
+ * ever starts crowding the budget, the fix is
  * to tag it `@slow` — not to widen the timeout.
  */
 

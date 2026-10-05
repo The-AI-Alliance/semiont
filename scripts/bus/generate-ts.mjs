@@ -8,10 +8,8 @@
 //   packages/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/writes/delivery)
 //   packages/core-rust/src/bus-classification.json (the same attributes, for the Rust services)
 //
-// Byte-identical output is the CUTOVER PROOF: regenerate over the committed
-// files and `git diff` must be empty, which is what makes "the extraction was
-// faithful" a demonstration rather than a claim. Run with --check to diff
-// without writing (the CI drift gate).
+// Regenerating over the committed files must leave `git diff` empty. Run
+// with --check to diff without writing (the CI drift gate).
 
 import { deliveryClasses } from './delivery.mjs';
 import { validateRegistry, validateRegistryFormat } from './validate-registry.mjs';
@@ -39,14 +37,7 @@ const reg = JSON.parse(registryText);
 validateRegistry(reg);
 const byChannel = new Map(reg.channels.map((c) => [c.channel, c]));
 
-/** Pad `head` out to `col`; a head that overflows gets a single space —
- *  the convention the hand-written files already follow.
- *
- *  The generator NORMALIZES alignment. The committed file is column 38
- *  everywhere except 8 FRAME entries a human aligned to 39 — an
- *  inconsistency, not a rule, and preserving it would mean carrying
- *  formatting cruft in the authority. Those 8 lines shift by one space at
- *  cutover; `--check` proves the CONTENT is untouched. */
+/** Pad `head` out to `col`; a head that overflows gets a single space. */
 const pad = (head, col) => head + (head.length < col ? ' '.repeat(col - head.length) : ' ');
 
 /** Generated files must say so — the whole point of an authority is that
@@ -136,8 +127,8 @@ const schemaLines = emitLines(
 
 // The sections between the two maps are TEMPLATE (derived types and the
 // `satisfies` tails the generator owns) plus DATA and PROSE from the registry
-// — never an opaque frozen blob, which is what made the generated file
-// contain hand-edit zones that silently reverted.
+// — never an opaque frozen blob, which would leave the generated file with
+// hand-edit zones that silently revert.
 // DERIVED from the `enriched` flags, never a second list to keep in step: the
 // enricher dispatches on what this emits, so a flag with no case is a compile
 // error rather than an annotation that silently never arrives.
@@ -146,29 +137,17 @@ const enrichedBody = reg.channels
   .map((c) => `  '${c.channel}',`)
   .join('\n');
 
-const broadcastBody = [
-  reg.resourceBroadcasts.bodyComment,
-  ...reg.resourceBroadcasts.channels.map((c) => `  '${c}',`),
-]
-  .filter(Boolean)
-  .join('\n');
-
 const protocol =
   BANNER +
   reg.preamble.protocolHeader +
   'export type EventMap = {' +
   [...eventMapLines, ...reg.preamble.eventMapTail].join('\n') +
   '\n};\n\n' +
-  // AnchorRect and friends live in the hand-written companion module; the
-  // re-export keeps every existing `from './bus-protocol'` import working.
+  // AnchorRect lives in the hand-written companion module; the re-export
+  // serves `from './bus-protocol'` imports.
   "export type { AnchorRect } from './bus-ui-types';\n\n" +
   reg.docs.eventName +
   '\nexport type EventName = keyof EventMap;\n\n' +
-  reg.docs.resourceBroadcasts +
-  '\nexport const RESOURCE_BROADCAST_TYPES = [\n' +
-  broadcastBody +
-  '\n] as const satisfies readonly EventName[];\n\n' +
-  'export type ResourceBroadcastType = typeof RESOURCE_BROADCAST_TYPES[number];\n\n' +
   reg.docs.enrichedEvents +
   '\nexport const ENRICHED_EVENT_TYPES = [\n' +
   enrichedBody +
@@ -186,8 +165,7 @@ const protocol =
 // ── persisted-events.ts ────────────────────────────────────────────────
 // The catalog is the registry's stored-event channels, in their order: the
 // payload each names, and the `system` flag of the ones that belong to no
-// resource. It was a hand-written type with a hand-written runtime list
-// beside it and a compile-time check that the two agreed.
+// resource.
 const stored = reg.channels.filter((c) => c.shape === 'storedEvent');
 const persisted =
   BANNER +
@@ -277,10 +255,9 @@ const bridged =
   reg.audience.everyone.map((c) => `  '${c}',`).join('\n') +
   '\n] as const satisfies readonly EventName[];\n\n' +
   reg.preamble.bridgedDerivation +
-  // The scope-delivered set, now DECLARED rather than derived by subtraction.
-  // It was `PERSISTED_EVENT_TYPES minus BRIDGED_CHANNELS` in http-transport,
-  // which made membership a leftover nobody stated and hid eleven channels
-  // that said `inProcess` while being delivered to browsers every day.
+  // The scope-delivered set is DECLARED. Deriving it by subtraction
+  // (`PERSISTED_EVENT_TYPES minus BRIDGED_CHANNELS`) makes membership a
+  // leftover nobody states.
   '\n/**\n * The channels a client receives per RESOURCE SCOPE rather than globally —\n' +
   ' * what `subscribeToResource` joins. `audience: scoped` in the registry.\n */\n' +
   'export const RESOURCE_SCOPED_CHANNELS = [\n' +
@@ -300,10 +277,10 @@ for (const ch of requestSet) {
   if (replySet.has(ch)) throw new Error(`registry: "${ch}" is both a request and a reply`);
 }
 
-// Direction is DECLARED, never defaulted. The old fallthrough ("not a
-// request, no delivery → in-process") manufactured a value nothing had
-// decided — `job:queued` shipped as in-process and starved every worker.
-// Every channel now names its class or the generator refuses.
+// Direction is DECLARED, never defaulted. A fallthrough ("not a request,
+// no delivery → in-process") manufactures a value nothing decided — a
+// `job:queued` that reads as in-process starves every worker.
+// Every channel names its class or the generator refuses.
 const commandSet = new Set(reg.kind.command);
 const declaredSet = new Set(reg.audience.declared);
 const inProcessSet = new Set(reg.inProcess.channels);
@@ -438,13 +415,13 @@ const outputs = [
 
 // Alignment-insensitive comparison: the proof that matters is that no
 // CONTENT changed. Whitespace normalization is reported separately so a
-// cutover diff can never hide a semantic change.
+// realignment can never hide a semantic change.
 const squash = (s) => s.replace(BANNER, '').replace(/':[ ]+/g, "': ").replace(/,[ ]+failure:/g, ', failure:');
 
 let drift = 0;
 for (const [path, text] of outputs) {
-  // A first-time output (bus-classification.ts at introduction) reads as
-  // empty and reports as DRIFT + write, rather than throwing ENOENT.
+  // A first-time output reads as empty and reports as DRIFT + write, rather
+  // than throwing ENOENT.
   const current = existsSync(path) ? readFileSync(path, 'utf8') : '';
   if (current === text) {
     console.log(`ok    ${path.replace(ROOT + '/', '')}`);

@@ -9,7 +9,7 @@ import (
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
-// Two mechanisms shared the word "secret".
+// Two mechanisms share the word "secret".
 //
 //   - CUSTODY: a value the launcher GENERATES ONCE per root and KEEPS.
 //     It must outlive the stack, because regenerating it invalidates every

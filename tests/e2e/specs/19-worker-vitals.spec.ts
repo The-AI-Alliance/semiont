@@ -1,20 +1,19 @@
 import { test, expect } from '@playwright/test';
-import { SemiontClient } from '@semiont/sdk';
-import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { GATEWAY_URL } from '../playwright.config';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
  * Smoke test: the worker's `/health` vitals against a live stack. Pure
  * **HTTP + SDK round-trip** (no browser), per the spec-15/18 pattern.
  *
- * Why this exists: the original worker hang was *invisible* because
- * `/health` served a static `{status: 'ok', agents: N}` regardless of
- * whether the claim loop was moving. The payload now carries per-agent
+ * Why this exists: a `/health` that serves a static
+ * `{status: 'ok', agents: N}` regardless of whether the claim loop is
+ * moving makes a hung worker *invisible*. The payload carries per-agent
  * vitals so a stalled worker is visible, not just alive. This
  * spec pins that payload as a cross-process **contract** — the consumers
  * (image HEALTHCHECK, compose `service_healthy`, `semiont start` waits, and any
  * operator's `curl :24100/health`) live outside the jobs package, so unit
- * tests on `buildHealthPayload` can't catch a regression in the
+ * tests on `buildHealthPayload` can't catch a break in the
  * worker-main shell wiring that serves it. The payload shape is
  * deliberately re-declared here rather than imported from
  * `@semiont/jobs`: importing the producer's type would make the shape
@@ -23,8 +22,8 @@ import { signInSession } from '../fixtures/sdk-session';
  * What it pins:
  *
  * 1. **Freshness gate.** `workers[]` must be present AT ALL. A stack
- *    predating the vitals (semiont-worker < 0.5.13) serves the
- *    old static body — an environment verdict ("rebuild the stack"), not
+ *    predating the vitals (semiont-worker < 0.5.13) serves a
+ *    static body — an environment verdict ("rebuild the stack"), not
  *    a feature verdict, and the distinctive error below says so.
  * 2. **Payload contract.** `status: 'ok'`, `agents` counts `workers[]`,
  *    and every entry carries identity (`provider`/`model`/`did`/

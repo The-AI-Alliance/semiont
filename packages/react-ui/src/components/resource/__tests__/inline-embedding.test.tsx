@@ -1,15 +1,13 @@
 /**
  * Inline embedding.
  *
- * `inline` is a display variant (default: today's pane behavior, frontend
- * untouched): the viewer renders at content height in a bare container — no
+ * `inline` is a display variant (default: the pane behavior): the viewer
+ * renders at content height in a bare container — no
  * inner scroll container, no pane chrome. jsdom can't compute stylesheet
  * layout, so this spec pins the two testable seams: (1) the components emit
  * the `--inline` modifier classes; (2) the stylesheet contains the inline
  * overrides (height:auto / overflow:visible / padding drop). The visual
  * auto-height check is a manual, live smoke-test.
- *
- * Started RED (no `inline` prop) and GREEN once the viewer takes one.
  */
 import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi } from 'vitest';

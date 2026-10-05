@@ -50,7 +50,7 @@ const mockT = vi.fn((key: string, params?: Record<string, unknown>) => {
     subjectWithPosition: '{{kind}}: {{label}} ({{done}} of {{total}})',
     subjectKindEntityType: 'Entity type',
     subjectKindCategory: 'Category',
-    // The widget's own strings now come from the
+    // The widget's own strings come from the
     // AssistProgress namespace, not from each panel's.
     cancel: 'Cancel',
     inProgress: 'Annotating...',
@@ -305,8 +305,8 @@ describe('HighlightPanel + AssistSection Integration', () => {
         />
       );
 
-      // Stage is the observable across non-terminal updates now that the
-      // status text is a single translated string (the wire carries codes).
+      // Stage is the observable across non-terminal updates: the status text
+      // is a single translated string (the wire carries codes).
       expect(document.querySelector('.semiont-assist-progress')).toHaveAttribute('data-ended', 'false');
 
       // Update to analyzing

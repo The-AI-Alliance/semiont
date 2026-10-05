@@ -221,7 +221,7 @@ export function GatherContextStep({
               the motivation is never labeled, the focal span WEARS it via the
               viewer's own registry class (same class the document applies,
               themes included). Only annotations the context can PLACE render
-              here — today exactly `focus.annotation`. */}
+              here: exactly `focus.annotation`. */}
           {focus?.selected && (
             <div className="semiont-gather__source-strip">
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.375rem' }}>
@@ -334,8 +334,9 @@ export function GatherContextStep({
               • all gated on contextReady;
               • the AI paths are primary, the manual path secondary — Compose's
                 demotion is the recorded convention, not drift;
-              • ellipses are component-owned and mark step-vs-act: Search…/Generate…
-                lead to another step; Compose acts immediately (navigates away). */}
+              • ellipses are component-owned, not translated copy: Search…/Generate…
+                carry one, Compose does not. In `ReferenceWizardModal` all three
+                lead to another step. */}
           {focus && strategyFooter}
           {!annotate && chosenStrategy && (
             <div className="semiont-gather__footer semiont-gather__footer--echo">

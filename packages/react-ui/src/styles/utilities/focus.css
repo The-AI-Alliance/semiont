@@ -1,18 +1,6 @@
 /* Focus Utilities - WCAG 2.1 AA Compliant */
 /* Provides consistent focus indicators for keyboard navigation */
 
-/* Base focus visible styles for all interactive elements */
-
-/* Inset variant for contained elements */
-
-/* Subtle variant for less prominent elements */
-
-/* Dark theme adjustments */
-
-/* High contrast mode support */
-
-/* Remove default focus for mouse users, keep for keyboard */
-
 /* Global interactive element focus styles */
 /* These apply to all standard interactive elements */
 button:focus-visible,

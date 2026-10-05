@@ -7,8 +7,8 @@
  * the pre-app routes (auth/connect, auth/error, landing,
  * auth surfaces) do NOT mount AuthShell.
  *
- * Catches regressions where someone reorganizes routes and accidentally
- * drops the ProtectedLayout wrapper or moves a section out from under it.
+ * Fails when a route reorganization drops the ProtectedLayout wrapper or
+ * moves a section out from under it.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';

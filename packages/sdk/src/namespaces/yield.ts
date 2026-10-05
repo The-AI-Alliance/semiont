@@ -138,9 +138,9 @@ export class YieldNamespace implements IYieldNamespace {
       );
     }
     // `stallDeadlineMs` is a CLIENT-only guard knob — stripped here so `params`
-    // stays exactly the WIRE's GenerationJobParams (GWC discipline: TS spreads
-    // bypass excess-property checks, so an unstripped field would silently
-    // ride `job:create`).
+    // stays exactly the WIRE's GenerationJobParams (TS spreads bypass
+    // excess-property checks, so an unstripped field would silently ride
+    // `job:create`).
     const { stallDeadlineMs, ...wireOptions } = options;
     const stallMs = stallDeadlineMs ?? deriveStallDeadlineMs(options.maxTokens);
     return this.runGeneration(displayRid, { ...wireOptions, context }, stallMs);
@@ -154,11 +154,12 @@ export class YieldNamespace implements IYieldNamespace {
    * `job:report-progress`/`job:complete`/`job:fail` lifecycle (with the status
    * poll that stands in for a frame the stream did not carry) as
    * `YieldGenerationEvent`s, resolving on the terminal `complete`.
+   *
+   * `resourceId` is CLIENT-side display only (the poll-synthesized complete
+   * event) — it is deliberately NOT sent on the wire. `stallMs` is the ONE
+   * stall guard: it lives in this producer so `await`, `.run()`, and the
+   * state unit's drive all share it.
    */
-  /** `resourceId` is CLIENT-side display only (the poll-synthesized complete
-   *  event) — it is deliberately NOT sent on the wire. `stallMs` is the ONE
-   *  stall guard: it lives in this producer so `await`, `.run()`, and the
-   *  state unit's drive all share it. */
   private runGeneration(
     resourceId: ResourceId,
     params: GenerationJobParams,
@@ -169,11 +170,11 @@ export class YieldNamespace implements IYieldNamespace {
       let stallTimer: ReturnType<typeof setTimeout> | null = null;
 
       // `job:report-progress`, `job:complete`, and `job:fail` reach us on the
-      // always-on global bridge — the worker dual-emits the resource-broadcast
-      // ones globally as well as scoped. We deliberately do NOT call
-      // `transport.subscribeToResource(resourceId)`: mutating the SSE channel
-      // set forces a reconnect on every generation, which dropped in-flight
-      // `browse.*` results in the reconnect gap. Symmetric with `mark.assist`.
+      // always-on global bridge: the worker emits them to every client. We
+      // deliberately do NOT call `transport.subscribeToResource(resourceId)`:
+      // a resource's scope carries none of the three, and joining it can cost
+      // the HTTP transport a handoff to a second connection on every
+      // generation. Symmetric with `mark.assist`.
 
       const poll = new JobStatusPoll(
         this.transport,
@@ -333,7 +334,7 @@ export class YieldNamespace implements IYieldNamespace {
     // The clone's bytes ride the upload path, never the bus: fetch the
     // source, apply the clone-format gate (authorable sources keep their base
     // type, everything else falls back to text/plain), and put the bytes with
-    // the token — the gateway stores them and routes creation through
+    // the token — the Archivist stores them and routes creation through
     // `yield:clone-create`.
     const source = await this.fromToken(options.token);
     const format = cloneFormat(getPrimaryRepresentation(source)?.mediaType);

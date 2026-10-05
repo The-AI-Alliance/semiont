@@ -17,7 +17,6 @@ const translations: Record<string, string> = {
   'KnowledgeBasePanel.statusConnected': 'Connected',
   'KnowledgeBasePanel.statusExpired': 'Session expired',
   'KnowledgeBasePanel.statusSignedOut': 'Signed out',
-  'KnowledgeBasePanel.statusUnreachable': 'Unreachable',
   'KnowledgeBasePanel.unknownName': 'Unknown',
   'KnowledgeBasePanel.addressConflict': '{{count}} knowledge bases claim {{address}} — one is likely stale.',
   'KnowledgeBasePanel.connectToAddress': 'Connect to {{address}}',
@@ -297,10 +296,9 @@ describe('KnowledgeBasePanel', () => {
       await user.click(screen.getByText('Staging'));
       expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
       expect(screen.queryByPlaceholderText('Password')).not.toBeInTheDocument();
-      // And it names NOBODY. The prompt used to show the address cached on the
-      // KB record — whoever last signed in on this browser — as though it were
-      // the account about to be used. The issuer decides that, and until it
-      // does there is no one to name.
+      // And it names NOBODY. An address cached on the KB record is whoever
+      // last signed in on this browser, not the account about to be used. The
+      // issuer decides that, and until it does there is no one to name.
       expect(screen.queryByText(/@/)).not.toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
@@ -347,8 +345,7 @@ describe('KnowledgeBasePanel', () => {
     });
 
     it('does NOT adopt when the address matches but the did does not — someone else is there', () => {
-      // The live defect, now caught by verification rather than merely disarmed:
-      // a single entry at my address that is a DIFFERENT knowledge base.
+      // A single entry at my address that is a DIFFERENT knowledge base.
       const notMine = {
         host: 'prod.example.com', port: 4000, placement: 'codespace' as const,
         managedBy: 'semiont-launcher', did: 'did:web:pingel-org.github.io:synthetic-family',
@@ -455,11 +452,10 @@ describe('KnowledgeBasePanel', () => {
     });
 
     it('keys contested claimants distinctly — the PAIR identifies an entry', () => {
-      // Copilot review, PR #1108: keying rows on the address alone stopped
-      // twins colliding but traded one collision for the other — two claimants
-      // at ONE address (kept visible on purpose) then shared a key, letting
-      // React reuse DOM nodes across rows. Neither field alone identifies an
-      // entry, the pair does.
+      // Keying rows on the address alone stops twins colliding but trades one
+      // collision for the other — two claimants at ONE address (kept visible
+      // on purpose) then share a key, letting React reuse DOM nodes across
+      // rows. Neither field alone identifies an entry, the pair does.
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       discoveryHolder.current = { state: { kind: 'managed', kbs: [claimantA, claimantB] }, kbs: [claimantA, claimantB] };
 
@@ -486,8 +482,8 @@ describe('KnowledgeBasePanel', () => {
 
       await user.click(screen.getByText('Synthetic Family'));
 
-      // The form announces the ADDRESS it will connect to — the click was
-      // always an address, and at most one claimant's promise is true.
+      // The form announces the ADDRESS it will connect to — the click names
+      // an address, and at most one claimant's promise is true.
       expect(screen.getByText('Connect to localhost:4000')).toBeInTheDocument();
       expect(screen.queryByText('Connect to Knowledge Base')).not.toBeInTheDocument();
     });
@@ -541,7 +537,7 @@ describe('KnowledgeBasePanel', () => {
 
       expect(screen.getByText('Found on this machine')).toBeInTheDocument();
       expect(screen.getByText('Local KB')).toBeInTheDocument();
-      // Fixed shape, stacked (2026-07-21: vertical space over width): the
+      // Fixed shape, stacked (vertical space over width): the
       // endpoint and the repo slot are separate lines; no repo → '–' line.
       expect(screen.getByText('localhost:4001')).toBeInTheDocument();
       expect(within(screen.getByTitle('did:web:local.example')).getByText('–')).toBeInTheDocument();
@@ -592,13 +588,13 @@ describe('KnowledgeBasePanel', () => {
     });
 
     it('claims no identity when two discovered KBs share an endpoint (ambiguous join)', () => {
-      // Observed live: the launcher published a stale codespace forward AND a
+      // A launcher document can carry a stale codespace forward AND a
       // freshly started local stack both claiming localhost:4000. Only one
-      // process can bind a port, so one is stale — but the panel joins on
-      // host:port (registered KBs carry no did), so a last-wins map tagged the
-      // connected KB with the OTHER KB's repo and placement. Ambiguous ⇒ don't
-      // guess: no badge, and both entries stay visible so the stale launcher
-      // record is surfaced instead of silently swallowed.
+      // process can bind a port, so one is stale — and a last-wins map keyed on
+      // host:port would tag the connected KB with the OTHER KB's repo and
+      // placement. The address selects the entry, so a contested address is
+      // ambiguous ⇒ don't guess: no badge, and both entries stay visible so the
+      // stale launcher record is surfaced instead of silently swallowed.
       const dupLocal = {
         host: 'prod.example.com', port: 4000, placement: 'local' as const,
         managedBy: 'semiont-launcher', did: 'did:web:real', repo: 'org/real-kb',

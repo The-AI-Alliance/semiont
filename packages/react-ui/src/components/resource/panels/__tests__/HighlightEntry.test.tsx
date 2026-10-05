@@ -135,7 +135,7 @@ describe('HighlightEntry', () => {
     it('should emit browse:click on click', async () => {
       const clickHandler = vi.fn();
 
-      // The component only sees the `session` prop now, so the assertion
+      // The component only sees the `session` prop, so the assertion
       // must subscribe on that same session's bus — not the bus of the
       // wrapper renderWithProviders creates internally.
       const { container } = renderWithProviders(

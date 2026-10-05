@@ -1,12 +1,11 @@
 /**
  * The cross-store annotation codec conformance suite.
  *
- * One case table, every store's codec path, identical output required. The
- * three serializing stores used to carry near-verbatim copies of this codec
- * that disagreed in four places — a missing selector threw in neo4j, became
- * `{}` in janusgraph and neptune; a missing motivation threw in neo4j and
- * silently became `'linking'` in the other two. One event log, three
- * different annotations.
+ * One case table, every store's codec path, identical output required.
+ * Stores that disagree — a missing selector throwing in one and becoming `{}`
+ * in another, a missing motivation throwing in one and silently becoming
+ * `'linking'` in another — turn one event log into three different
+ * annotations.
  *
  * The codec is pure, so every case here runs with no live store.
  */
@@ -83,7 +82,7 @@ describe.each(STORES)('$name — decode conformance', ({ decode }) => {
     expect('selector' in (ann.target as object)).toBe(false);
   });
 
-  it("a legacy row whose stored selector is '{}' decodes clean — no migration needed", () => {
+  it("a row whose stored selector is '{}' decodes clean — no migration needed", () => {
     const ann = decode({ ...RESOURCE_LEVEL, selector: '{}' });
     expect('selector' in (ann.target as object)).toBe(false);
   });
@@ -214,7 +213,7 @@ describe('encode — the fields a store cannot invent for itself', () => {
     for (const store of STORES) expect(store.decode(props)).toEqual(provenance);
   });
 
-  it('survives a generator that no longer parses, rather than failing the whole read', () => {
+  it('survives a generator that does not parse, rather than failing the whole read', () => {
     const props = { ...encodeAnnotation(base), generator: '{ not json' };
     for (const store of STORES) {
       const decoded = store.decode(props);
@@ -272,7 +271,7 @@ describe('each store flattens its own driver shapes before the codec sees them',
   });
 });
 
-describe('memorygraph is a faithful reference, not a store where the bug is impossible', () => {
+describe('memorygraph is a faithful reference: it goes through the codec like the serializing stores', () => {
   it('round-trips a source-only annotation through the codec, selector-free', async () => {
     const graph = new MemoryGraphDatabase();
     await graph.connect();

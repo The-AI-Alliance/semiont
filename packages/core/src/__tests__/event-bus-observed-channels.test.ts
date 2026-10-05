@@ -7,7 +7,7 @@
  * ACCESS must not count. `on()` creates subjects lazily, so if a lazily-made
  * subject with no subscriber were reported as observed, the gate would pass
  * for a root that touched every channel and listened to none — precisely the
- * regression it exists to catch.
+ * failure it exists to catch.
  *
  * These are here rather than beside the gate because the gate needs a full
  * boot to run: it can only ever exercise this accessor incidentally, and never
@@ -66,25 +66,21 @@ describe('EventBus.observedChannels', () => {
   });
 
   it('reports the CHANNEL a scoped subscription observes, without a scope prefix', () => {
-    // Restated when scope moved onto the frame: this asserted
-    // `res-1:mark:create-ok`, because scoping used to BE a channel-key prefix
-    // and scoped subjects lived in the parent's map under that mangled name.
-    // Scope is now a field on the frame, so there is one subject per channel
-    // and no mangled key to report. The reason the gates use this accessor is
-    // unchanged — they ask WHICH CHANNELS a root observes, and check
-    // membership against a roster union (root-parity.test.ts,
-    // connect-record.test.ts); neither ever read the scope half.
+    // Scope is a field on the frame, so there is one subject per channel and
+    // no scope-prefixed key to report. The gates that use this accessor ask
+    // WHICH CHANNELS a root observes, and check membership against a roster
+    // union (root-parity.test.ts, connect-record.test.ts); neither reads a
+    // scope.
     eventBus.scope(resourceId('res-1')).on('mark:create-ok').subscribe(() => {});
 
     expect(eventBus.observedChannels()).toEqual(['mark:create-ok']);
   });
 
   it('a scoped and an unscoped subscription observe the SAME channel', () => {
-    // The old shape could tell them apart because they were different
-    // subjects. They are now one stream and two filtered views, so this
-    // accessor cannot distinguish them — and should not pretend to. "Which
-    // SCOPES are observed" is a different question; it deserves its own verb
-    // if anything ever needs it, not a parsed string.
+    // They are one stream and two filtered views, so this accessor cannot
+    // distinguish them — and should not pretend to. "Which SCOPES are
+    // observed" is a different question; it deserves its own verb if
+    // anything ever needs it, not a parsed string.
     eventBus.scope(resourceId('res-1')).on('mark:create-ok').subscribe(() => {});
     eventBus.on('mark:create-ok').subscribe(() => {});
 

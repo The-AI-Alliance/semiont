@@ -2,7 +2,7 @@
  * Out-of-order arrival renders correctly.
  *
  * Detection commits per chunk, and units run concurrently — so the
- * annotations array now grows in bursts whose document positions interleave:
+ * annotations array grows in bursts whose document positions interleave:
  * chunk 2's finds can arrive before chunk 1's. The panel's contract is that
  * LIST ORDER IS DOCUMENT ORDER (sort by TextPositionSelector.start), so
  * arrival order must be invisible in the rendered list — both for a scrambled

@@ -4,7 +4,7 @@
  * W3C Web Annotation: commenting motivation
  *
  * This file defines all styles for comment annotations
- * across text, panels, and image annotations.
+ * across text and panels.
  */
 
 /* ============================================
@@ -99,10 +99,6 @@
 }
 
 /* ============================================
-   Assist Section in Unified Panel
-   ============================================ */
-
-/* ============================================
    Button Styling
    ============================================ */
 .semiont-button[data-variant="assist"][data-type="comment"] {
@@ -166,11 +162,3 @@
   background: var(--semiont-bg-secondary);
   border-left-color: var(--semiont-motivation-comment-dark-primary);
 }
-
-/* ============================================
-   Image Annotation Overlays
-   ============================================ */
-
-/* ============================================
-   Comment-specific Visual Elements
-   ============================================ */

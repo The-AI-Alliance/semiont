@@ -3,10 +3,9 @@
  *
  * The gate is a runtime one because the defect is: `emit`'s third parameter is
  * optional in the interface, so an implementation that declares only two
- * typechecks, delivers every payload, and drops the correlation key. Every
- * relay here was written that way and the compiler had nothing to say — the
- * symptom was `startMakeMeaning` hanging on its entity-type bootstrap, which
- * awaits a reply keyed on exactly that key.
+ * typechecks, delivers every payload, and drops the correlation key. The
+ * compiler has nothing to say; the symptom is `startMakeMeaning` hanging on
+ * its entity-type bootstrap, which awaits a reply keyed on exactly that key.
  */
 
 import { describe, it } from 'vitest';

@@ -4,7 +4,7 @@
  * W3C Web Annotation: linking motivation
  *
  * This file defines all styles for reference/linking annotations
- * across text, panels, and image annotations.
+ * across text and panels.
  */
 
 /* ============================================
@@ -97,10 +97,6 @@
 }
 
 /* ============================================
-   Assist Section in Unified Panel
-   ============================================ */
-
-/* ============================================
    Button Styling
    ============================================ */
 .semiont-button[data-variant="assist"][data-type="reference"] {
@@ -169,7 +165,3 @@
 [data-theme="dark"] .semiont-reference-link:focus-visible {
   outline-color: var(--semiont-motivation-reference-dark-primary);
 }
-
-/* ============================================
-   Image Annotation Overlays
-   ============================================ */

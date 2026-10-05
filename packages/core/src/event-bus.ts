@@ -17,11 +17,11 @@ import type { ResourceId } from './identifiers';
  * What the bus carries: a FRAME, not a bare payload.
  *
  * Routing metadata rides the envelope and never enters a channel's domain
- * type — the rule `BusEmitRequest.clientId` already states for the wire.
- * In-process it had nowhere to live, so `correlationId` was declared in 71
- * payload schemas and echoed by hand in nine handlers, and `scope` became a
- * channel-key prefix: one fact with two representations depending on the
- * layer.
+ * type — as on the wire, where `BusEmitRequest` carries it beside `payload`.
+ * Without an in-process envelope, `correlationId` has to be declared in every
+ * correlated payload schema and echoed by hand in every handler, and `scope`
+ * becomes a channel-key prefix: one fact with two representations depending
+ * on the layer.
  *
  * A handler cannot tell which fabric it is on — that is the property the
  * signal plane is built on — so the envelope it reads must not depend on the
@@ -42,10 +42,9 @@ export type BusEnvelope = Omit<BusFrame<never>, 'payload'>;
  * RxJS-based event bus.
  *
  * THREE VERBS, each answering one question, and no caller ever holds a
- * Subject. `get()` used to hand one out, which meant nothing distinguished
- * publishing from observing — every holder could write, read and pipe the
- * same object — and that is what let the payload/envelope conflation stay
- * invisible.
+ * Subject. Handing one out would leave nothing to distinguish publishing
+ * from observing — every holder could write, read and pipe the same object —
+ * and would keep a payload/envelope conflation invisible.
  *
  * @example
  * ```typescript
@@ -74,11 +73,11 @@ export class EventBus {
   private subjects: Map<keyof EventMap, Subject<any>>;
   private isDestroyed: boolean;
   /**
-   * Observers per (channel, scope). One Subject now carries every scope of a
+   * Observers per (channel, scope). One Subject carries every scope of a
    * channel, so `subject.observers.length` counts subscribers of OTHER scopes
    * too — and `emit`'s count is load-bearing: the gateway turns zero into a
-   * synthesized `peer-unavailable`. Separate subjects used to make this
-   * accurate by accident; one stream has to keep the tally on purpose.
+   * synthesized `peer-unavailable`. A subject per scope would be accurate by
+   * accident; one stream has to keep the tally on purpose.
    */
   private observerCounts: Map<string, number> = new Map();
 
@@ -93,9 +92,8 @@ export class EventBus {
    */
   emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope: BusEnvelope = {}): number {
     const stream = this.channel(channel);
-    // Observability rides the ONE write path now. It used to wrap `next` on
-    // the subject handed out by `get()`, which meant it was installed per
-    // channel at first access and had to be re-wrapped for every new holder.
+    // Observability rides the ONE write path, so it is installed once rather
+    // than wrapped around `next` per channel and per holder.
     if (busLogEnabled()) busLog('EMIT', String(channel), payload as object, envelope.scope, envelope.correlationId);
     if (warnUnobservedRepliesEnabled()) {
       warnIfUnobservedReply(String(channel), envelope.correlationId, stream.observers.length);
@@ -121,8 +119,8 @@ export class EventBus {
    * to its requester, and what a scope-aware reader inspects.
    *
    * Global by default — a frame emitted into a resource scope is NOT seen
-   * here. Separate subjects gave that isolation for free; one stream and a
-   * filter has to state it.
+   * here. A subject per scope would give that isolation for free; one stream
+   * and a filter has to state it.
    */
   frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
     return this.viewOf(channel, undefined);

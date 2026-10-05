@@ -4,8 +4,9 @@
  * `useKbPanelOnLogin` (apps/browser/src/hooks/useKbPanelOnLogin.ts) exists for a
  * case an interactive sign-in CANNOT exercise, and the hook says so itself: you
  * reach the sign-in control through the KB panel, so after signing in you happen
- * to already be on it. The defect was a session **restored at launch** — nothing
- * reacted to it appearing, and you landed on whatever panel the app closed with.
+ * to already be on it. The case it exists for is a session **restored at
+ * launch**: without the hook nothing reacts to it appearing, and you are left
+ * on whatever panel the app closed with.
  *
  * So asserting the panel right after `signedInPage` would pass whether or not the
  * hook exists. The reload is the whole test: it is what turns the fixture's

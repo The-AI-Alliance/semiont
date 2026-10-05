@@ -73,8 +73,8 @@ function LocaleGuard({ children }: { children: React.ReactNode }) {
  * ProtectedLayout — pathless wrapper that mounts AuthShell once for every
  * authenticated route group below it. Section layouts (know/,
  * moderate/) live under this route so cross-section
- * navigation keeps the AuthShell tree (ProtectedErrorBoundary + the two
- * auth-failure modals) mounted instead of tearing it down and rebuilding.
+ * navigation keeps the AuthShell tree (ProtectedErrorBoundary + the
+ * session modals) mounted instead of tearing it down and rebuilding.
  */
 function ProtectedLayout() {
   return (

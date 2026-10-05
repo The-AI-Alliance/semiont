@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 )
 
-// useraddOpts: what the flags mean once parsed. The launcher owns them now
+// useraddOpts: what the flags mean once parsed. The launcher owns them
 // rather than forwarding them to a second parser.
 type useraddOpts struct {
 	email    string

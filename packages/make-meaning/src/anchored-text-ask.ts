@@ -2,17 +2,17 @@
  * How gather reads a resource's DERIVED text — the anchored-text bus read.
  *
  * One implementation for every process, because every process holds a
- * `BusRequestPrimitive` that reaches the Browser: the standalone root's local
- * bus (the Browser is in-process), the gateway's bus (the Archivist's pumps
- * answer), and the Librarian's `HttpTransport` (SSE in, `/bus/emit` out —
- * the reply channels must be in its subscription set, which `busRequest`'s
+ * `BusRequestPrimitive` that reaches the Browser: the standalone root's and
+ * the Archivist's local bus (the Browser is in-process), and the Librarian's
+ * `HttpTransport` (SSE in, `/bus/emit` out; the Archivist answers — the
+ * reply channels must be in its subscription set, which `busRequest`'s
  * probe enforces loudly at first use).
  *
  * This is the read-side half of "the media type decides where the text comes
  * from": `decode` media decode their own bytes; `pdf-text-layer` media answer
  * from here — the artifact the Smelter alone writes, served by the Archivist
- * from its read-only mount. Never from `decodeRepresentation`, which now
- * refuses them.
+ * from its read-only mount. Never from `decodeRepresentation`, which refuses
+ * them.
  */
 
 import { busRequest, type AnchoredTextAnswer, type BusOperationKey, type BusRequestPrimitive } from '@semiont/core';

@@ -12,7 +12,7 @@ package bus
 //     (the same reason the TS client's body carries
 //     `satisfies BusSubscribeRequest`).
 //     (SSE response, bearer; the body is a subscription matrix, one
-//     connection holding any number of scopes — the GET query form is gone)
+//     connection holding any number of scopes)
 //     every frame is `event: bus-event` with `data: {channel, payload, scope?}`
 //     — the SSE event name is NOT the channel; the channel is inside the data.
 //     `event: ping` frames are keep-alives and carry nothing.
@@ -393,10 +393,9 @@ func (c *Client) Request(ctx context.Context, op Channel, payload any, opts *Req
 	}
 }
 
-// correlationOf reads a reply's key from the ENVELOPE. It used to parse the
-// payload, which is precisely why the key had to be declared in 70 payload
-// schemas: a consumer that routes by reading the message body forces every
-// message body to carry routing metadata.
+// correlationOf reads a reply's key from the ENVELOPE, never the payload: a
+// consumer that routes by reading the message body forces every message
+// body to carry routing metadata.
 func correlationOf(ev Event) string {
 	return ev.CorrelationID
 }

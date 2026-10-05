@@ -4,20 +4,18 @@
  * Each Archivist actor (Stower, Browser, CloneTokenManager) constructs from
  * narrow capability doubles. `KnowledgeBase` appears nowhere in this file —
  * that absence IS the test: if an actor can be built and exercised without
- * the god-object, it is decoupled. These tests drive the boundary in and pin
- * it afterwards.
+ * the god-object, it is decoupled. These tests pin the boundary.
  *
- * The capability shapes are the actors' honest surfaces, measured 2026-08-27:
+ * The capability shapes are the actors' honest surfaces:
  * - Stower: content lifecycle {register, move, remove, resolveUri} (the
  *   lifecycle half only — no byte service, since bytes travel over HTTP)
  *   + appendEvent + project.projectionsDir.
  * - Browser: read-only slices — views, event-log reads + materializer,
  *   graph reads, vector search, content.retrieve, anchoredText, the smelt
  *   barrier.
- * - CloneTokenManager: views.get + {store, resolveUri}. Its old
- *   `retrieve()`-as-existence-check was a full file read to answer a
- *   boolean; the boundary replaces it with resolveUri + stat, because this
- *   actor never touches bytes.
+ * - CloneTokenManager: views.get + content.resolveUri. Existence is
+ *   resolveUri + stat: a `retrieve()` used as an existence check is a full
+ *   file read to answer a boolean, and this actor never touches bytes.
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
@@ -423,8 +421,8 @@ describe('channel rosters match actual subscriptions (census gate)', () => {
     // bus only to subscribe, so the recorded names ARE the subscription
     // census. BOTH read verbs are recorded — an actor that reads frames for
     // its envelope is no less a subscriber than one that reads payloads, and
-    // shadowing only `on` would have reported an empty roster for every
-    // actor migrated to `frames`.
+    // shadowing only `on` would report an empty roster for every actor that
+    // subscribes through `frames`.
     bus.on = ((channel) => {
       seen.push(channel as string);
       return realOn(channel);

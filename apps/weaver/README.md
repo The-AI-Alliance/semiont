@@ -80,9 +80,9 @@ the checkpoint is gone). **Reconcile** then diffs the projection against what th
 and heals divergence from the log — the backstop for damage the accounting cannot witness: a
 wiped graph volume, an out-of-band mutation.
 
-**A failed pass does not kill the process.** It used to: both rethrew into the catch-all
-around `main()`, and under no restart policy that meant gone until a human noticed — one
-refused bus request was enough. A failed repair pass is a data condition, so the weaver now
+**A failed pass does not kill the process.** Under no restart policy an exit means gone
+until a human notices, and one refused bus request is enough to fail a pass. A failed repair
+pass is a data condition, so the weaver
 survives it and logs an error. That error is the only operator-visible signal that the
 projection may be stale; nothing else reports it, and `/health` does not fold it in.
 

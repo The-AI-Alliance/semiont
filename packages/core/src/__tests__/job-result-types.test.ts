@@ -4,10 +4,10 @@
  *
  * A1: `JobGenerationResult.resourceId` is REQUIRED. The worker awaits the
  * create round-trip (`yield.resource(...)`) and holds the id before it ever
- * emits `job:complete` — the id is always on the wire. The schema previously
- * claimed the opposite (optional, "populated by Stower"), and that lie
- * propagated: an SDK consumer designed around "the id may be missing," and
- * the launcher grew a `!= nil` pointer dance. Enforced by `tsc --noEmit`.
+ * emits `job:complete` — the id is always on the wire. A schema claiming the
+ * opposite (optional) propagates: an SDK consumer designs around "the id may
+ * be missing," and the launcher grows a `!= nil` pointer dance. Enforced by
+ * `tsc --noEmit`.
  */
 import { describe, it, expect } from 'vitest';
 import type { components } from '../types';
@@ -23,7 +23,7 @@ describe('JobGenerationResult — the id is always there (A1)', () => {
 
   it('a result missing resourceId does not typecheck', () => {
     // @ts-expect-error — resourceId is required: the worker always sends it
-    const missing: JobGenerationResult = { resourceName: 'Ouranos' };
+    const missing: JobGenerationResult = { kind: 'generation', resourceName: 'Ouranos', truncated: false };
     expect(missing).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ type JobResult = components['schemas']['JobResult'];
  * A2 + A3: every member of the union carries the same single-valued
  * discriminant, so a consumer narrows WITHOUT a type assertion, and an
  * unhandled member is a compile error (the `never`-default idiom
- * `assistProgressCopy` established for `JobProgressMessage.code`).
+ * `assistProgressCopy` uses for `JobProgressMessage.code`).
  */
 function describeResult(r: JobResult): string {
   switch (r.kind) {

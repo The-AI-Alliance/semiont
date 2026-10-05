@@ -321,7 +321,7 @@ describe('AnnotationOperations', () => {
       expect(result.annotation.modified).toBeDefined();
     });
 
-    it('should emit annotation.added event', async () => {
+    it('should emit mark:added event', async () => {
       const result = await createAnnotationAndAwait(
         {
           motivation: 'highlighting',
@@ -678,7 +678,7 @@ describe('AnnotationOperations', () => {
       expect((result.annotation.body as any[])[0].value).toBe('new-tag');
     });
 
-    it('should emit annotation.body.updated event', async () => {
+    it('should emit mark:body-updated event', async () => {
       // Create annotation and await Stower persistence
       const createResult = await createAnnotationAndAwait(
         {
@@ -762,7 +762,7 @@ describe('AnnotationOperations', () => {
   });
 
   describe('deleteAnnotation', () => {
-    it('should emit annotation.removed event', async () => {
+    it('should emit mark:removed event', async () => {
       // Create annotation to delete and await Stower persistence
       const createResult = await createAnnotationAndAwait(
         {

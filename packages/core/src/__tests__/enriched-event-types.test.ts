@@ -43,10 +43,10 @@ describe('EventMap — the channels the EventStore enriches', () => {
 
   it('a REMOVAL is not enriched — the view no longer holds the annotation to attach', () => {
     // `enriched` means "the published event carries the annotation when the view
-    // holds it". For a removal the view never does, so the flag promised
-    // something the enricher could not deliver: consumers reading `.annotation`
-    // got `undefined` at runtime while the type said it might be there. Now the
-    // type says what the wire always did.
+    // holds it". For a removal the view never does, so the flag would promise
+    // something the enricher cannot deliver: consumers reading `.annotation`
+    // would get `undefined` at runtime while the type said it might be there.
+    // The type says what the wire does.
     const removed: EventMap['mark:removed'] = {
       ...envelope,
       type: 'mark:removed',
@@ -108,7 +108,7 @@ describe('ENRICHED_EVENT_TYPES', () => {
     expect(dups).toEqual([]);
   });
 
-  it('no longer contains mark:removed', () => {
+  it('does not contain mark:removed', () => {
     expect(ENRICHED_EVENT_TYPES).not.toContain('mark:removed');
   });
 });

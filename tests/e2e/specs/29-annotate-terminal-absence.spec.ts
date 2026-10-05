@@ -9,8 +9,8 @@
  * `Scanned Smoke PDF` is the terminal case with no race in it: the Smelter
  * stores `declined: no-text-layer` once, permanently, so the answer is settled
  * before this test ever opens the page. That is deliberate — the `not-yet` half
- * is a timing race against OCR and does not belong in a release gate until a
- * fixture exists that can lose that race reliably.
+ * is a timing race against OCR, and no fixture loses that race reliably, so it
+ * does not belong in a release gate.
  *
  * The canvas publishes its own state as `data-annotate-deferred`, so this
  * asserts the FLAG and the consequence, not just the consequence: a test that

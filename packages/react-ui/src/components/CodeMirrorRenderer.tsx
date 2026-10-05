@@ -123,7 +123,7 @@ function buildWidgetDecorations(
   const builder = new RangeSetBuilder<Decoration>();
   const widgetMetas = computeWidgetDecorations(segments, generatingReferenceId, getTargetResourceName);
 
-  // We still need the full annotation objects for ReferenceResolutionWidget
+  // ReferenceResolutionWidget needs the full annotation objects
   const annotationsByEnd = new Map<number, TextSegment>();
   for (const s of segments) {
     if (s.annotation && isReference(s.annotation)) {
@@ -236,7 +236,7 @@ export function CodeMirrorRenderer({
             onChange(newContent);
           }
         }),
-        // Handle clicks on annotations — delegates to extracted handler
+        // Handle clicks on annotations (logic in lib/codemirror-handlers)
         EditorView.domEventHandlers({
           click: (event, _view) => {
             const target = event.target as HTMLElement;
@@ -322,7 +322,7 @@ export function CodeMirrorRenderer({
       if (annotationElement) handleMouseLeave();
     };
 
-    // Delegated widget event handlers — delegates to extracted handlers
+    // Delegated widget event handlers (logic in lib/codemirror-handlers)
     const onWidgetClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const result = processWidgetClick(target);

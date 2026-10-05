@@ -102,9 +102,7 @@ export function createYieldStateUnit(
       },
       complete: () => {
         // The finished display STAYS until dismissed — `isGenerating$` going
-        // false is what flips it to its ended form. It used to clear itself
-        // after 2 s, which is a different ending from the assist path's 5 s,
-        // in the same component.
+        // false is what flips it to its ended form.
         isGenerating$.next(false);
       },
       error: (error: unknown) => {

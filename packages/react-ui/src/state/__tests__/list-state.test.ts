@@ -1,9 +1,8 @@
 /**
  * `trackList` — the three-state model behind every cache-backed list.
  *
- * It had no direct test despite backing four state units (resource viewer,
- * discover, compose, entity tags); this file is that coverage, with the
- * re-entering-loading case (found in review of PR #1112) as its centrepiece.
+ * It backs four state units (resource viewer, discover, compose, entity
+ * tags); the re-entering-loading case is the centrepiece here.
  */
 import { describe, it, expect } from 'vitest';
 import type { CacheState } from '@semiont/sdk';

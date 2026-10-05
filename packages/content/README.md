@@ -16,14 +16,15 @@ npm install @semiont/content
 
 ## Architecture Context
 
-**Infrastructure Ownership**: In production applications, the working tree store is **created and managed by [@semiont/make-meaning](../make-meaning/)'s `startMakeMeaning()` function**, which serves as the single orchestration point for all infrastructure components. Gateway code accesses it as `knowledgeBase.content`.
+**Infrastructure Ownership**: In a running stack the working tree store is **held by the Archivist**, the one service that mounts the knowledge base's working tree. Its entry point in [@semiont/make-meaning](../make-meaning/) constructs the store and hands each actor the slice it uses; the Smelter, the Librarian and the worker hold no store and read bytes from the Archivist through `archivistContentReads()`. The in-process root, `startMakeMeaning()`, constructs the same store as the `content` field of its `KnowledgeBase`.
 
 The quick start example below shows direct instantiation for **testing, CLI tools, or content management scripts**.
 
 ## Quick Start
 
 ```typescript
-import { WorkingTreeStore, deriveStorageUri } from '@semiont/content';
+import { WorkingTreeStore } from '@semiont/content';
+import { deriveStorageUri } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 
 const project = new SemiontProject('/path/to/project', {
@@ -83,16 +84,17 @@ interface StoredResource {
 
 When the project has `[git] sync = true` in `.semiont/config`, the store keeps the git index up to date automatically:
 
-- `store()` / `register()` run `git add`
+- `store()` / `register()` queue a `git add`, which is deferred and deduplicated (`flushStaging()` stages what is pending)
 - `move()` runs `git mv`
 - `remove()` runs `git rm` (or `git rm --cached` with `keepFile: true`)
 
-Every method accepts `{ noGit: true }` to skip staging for a single call. Without git sync, the store falls back to plain filesystem operations.
+Every mutating method accepts `{ noGit: true }` to skip staging for a single call. Without git sync, the store falls back to plain filesystem operations.
 
 ## PDF Extraction
 
-`EXTRACTORS['pdf-text-layer']` turns a PDF into text plus the geometry that
-indexes it, routing by what the document actually holds:
+`derivingExtractorFor('application/pdf')` returns the extractor that turns a
+PDF into text plus the geometry that indexes it, routing by what the document
+actually holds:
 
 | Class | Document | Read by |
 |---|---|---|
@@ -104,19 +106,40 @@ indexes it, routing by what the document actually holds:
 | F / G | encrypted, corrupt | declined by name, from the parser error |
 
 ```typescript
-import { EXTRACTORS } from '@semiont/content';
-import { textExtractionOf, locate } from '@semiont/core';
+import {
+  calculateChecksum,
+  createAnchoredTextStore,
+  derivingExtractorFor,
+} from '@semiont/content';
 
-const extracted = await EXTRACTORS[textExtractionOf('application/pdf')]!
-  .extract(pdfBytes, 'application/pdf');
+const store = createAnchoredTextStore(anchoredTextDir);
 
-if (!('declined' in extracted)) {
-  extracted.text;          // reading-order text
-  extracted.items;         // positioned runs indexing it
-  extracted.method;        // 'pdf-text-layer' | 'ocr' | 'table' | 'form'
-  extracted.unreadPages;   // class C: pages no reader could recover
+// null for a media type whose text needs no deriving (text/* decodes)
+const extractor = derivingExtractorFor('application/pdf');
+
+if (extractor) {
+  const outcome = await extractor.extract(pdfBytes, 'application/pdf', {
+    key: calculateChecksum(pdfBytes),  // the identity of the bytes being read
+    store,
+  });
+
+  if (outcome.kind === 'extracted') {
+    outcome.text;          // reading-order text
+    outcome.items;         // positioned runs indexing it
+    outcome.method;        // 'pdf-text-layer' | 'ocr' | 'table' | 'form'
+    outcome.unreadPages;   // class C: pages no reader could recover
+  } else {
+    outcome.declined;      // why there is no text
+  }
 }
 ```
+
+The third argument is required: the anchored-text store, and the key the
+outcome is filed under. A stored outcome is returned whole, so neither the
+parser nor the OCR engine runs; a fresh one is written to the store. Deriving
+is therefore open only to a process that holds the store, and in a running
+stack the Smelter is the one that derives. Text that decodes rather than
+derives is `decodeRepresentation` in [`@semiont/core`](../core/README.md).
 
 A decline is named (`'no-text-layer' | 'encrypted' | 'corrupt' | 'too-large'`)
 rather than a bare null, so a caller can settle with the reason.
@@ -134,21 +157,23 @@ geometry without importing this package's extraction stack.
 
 ## Anchored-text store
 
-OCR costs ~2.9 s per scanned page and six consumers read the same document, so
-what the engine produced is kept rather than re-derived:
+OCR costs ~2.9 s per scanned page, and the Smelter's embed, every detection job
+and the PDF viewer all read the same document, so what the engine produced is
+kept rather than re-derived:
 
 ```typescript
 import { createAnchoredTextStore } from '@semiont/content';
 
 const store = createAnchoredTextStore(dir, logger);
-await store.write(checksum, { text, items });
-const map = await store.read(checksum);   // null on any miss
+await store.write(checksum, outcome);       // an ExtractionOutcome; throws if the write fails
+const stored = await store.read(checksum);  // null on any miss
 ```
 
 Derived values only, keyed by content checksum and stamped with the versions of
-this package, the engine and its traineddata. A stamp mismatch, a corrupt file
-and an absent one are all the same answer: a miss. The store may make things
-faster, never make them fail.
+this package, pdf.js, the engine and its traineddata. A stamp mismatch, a
+corrupt file and an absent one are all the same answer: a miss. A read never
+throws; a failed write does, and the extractor catches it, so the store may
+make extraction faster, never make it fail.
 
 See **[ANCHORING.md](../../docs/architecture/ANCHORING.md)** for the pipeline this
 sits in.
@@ -159,17 +184,20 @@ sits in.
 import {
   calculateChecksum,       // SHA-256 hex of a string or Buffer
   verifyChecksum,          // Compare content against an expected checksum
-  deriveStorageUri,        // ("My Doc", "text/markdown") → "file://my-doc.md"
 } from '@semiont/content';
+import {
+  deriveStorageUri,        // ("My Doc", "text/markdown") → "file://my-doc.md"
+} from '@semiont/core';
 ```
 
-`deriveStorageUri` takes a `SupportedMediaType`; the media-type registry —
-which types are admitted, their extensions, and their capabilities — lives in
-[@semiont/core](../core/)'s `media-types.ts`. See [docs/mime-types.md](./docs/mime-types.md).
+`deriveStorageUri` is [@semiont/core](../core/)'s and takes a
+`SupportedMediaType`; the media-type registry — which types are admitted, their
+extensions, and their capabilities — lives in core's `media-types.ts`. See
+[docs/mime-types.md](./docs/mime-types.md).
 
 ## Documentation
 
-- [API Reference](./docs/API.md) - Complete API documentation
+- [API Reference](./docs/API.md) - API documentation
 - [Architecture](./docs/architecture.md) - Design principles
 
 ## Development

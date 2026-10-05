@@ -31,9 +31,9 @@ npm install @aws-sdk/client-neptune
 
 ## Architecture Context
 
-**Infrastructure Ownership**: In production applications, graph database instances are **created and managed by [@semiont/make-meaning](../make-meaning/)'s `startMakeMeaning()` function**, which serves as the single orchestration point for all infrastructure components (EventStore, GraphDB, RepStore, InferenceClient, JobQueue, Workers).
+**Infrastructure Ownership**: In a running stack, each service that uses the graph **connects to it from its own entry point in [@semiont/make-meaning](../make-meaning/)** with `getGraphDatabase()`: the Weaver (`weaver-main`) writes the projection, and the Archivist (`archivist-main`) and the Librarian (`librarian-main`) read it. `startMakeMeaning()` connects the same way when it composes the access actors in one process, for tests and embedding.
 
-The examples below show direct usage for **testing, CLI tools, or standalone applications**. For gateway integration, see [@semiont/make-meaning](../make-meaning/).
+The examples below show direct usage for **testing, CLI tools, or standalone applications**. For how the services use the graph, see [@semiont/make-meaning](../make-meaning/).
 
 ## Quick Start
 
@@ -70,10 +70,11 @@ const annotation = await graph.createAnnotation({
   id: annotationId('anno-456'),
   motivation: 'highlighting',
   target: {
-    source: 'doc-123',
+    source: resourceId('doc-123'),
     selector: { type: 'TextQuoteSelector', exact: 'Important phrase', prefix: '', suffix: '' }
   },
-  creator: { '@type': 'Person', name: 'user-123' }
+  creator: { '@type': 'Person', name: 'user-123' },
+  created: new Date().toISOString()
 });
 
 // Query relationships
@@ -85,13 +86,13 @@ const annotations = await graph.getResourceAnnotations(resourceId('doc-123'));
 - 🔌 **Multiple Providers** - Neo4j, AWS Neptune, JanusGraph, In-memory
 - 🎯 **Unified Interface** - Same API across all providers
 - 📊 **W3C Compliant** - Full Web Annotation Data Model support
-- 🔄 **Event-Driven Updates** - Sync from Event Store projections
-- 🚀 **Optional Projection** - Graph is optional, core features work without it
+- 🔄 **Event-Driven Updates** - Projected from the event log by the Weaver
+- 🚀 **Rebuildable Projection** - Derived from the event log, never the source of truth
 - 🔍 **Rich Queries** - Cross-document relationships and entity searches
 
 ## Documentation
 
-- [API Reference](./docs/API.md) - Complete API documentation
+- [API Reference](./docs/API.md) - API documentation
 - [GraphDatabase Interface](./docs/GraphInterface.md) - The full interface contract
 - [Architecture](./docs/ARCHITECTURE.md) - System design and principles
 - [Eventual Consistency](./docs/EVENTUAL-CONSISTENCY.md) - Order-independent projections and race condition handling
@@ -146,7 +147,7 @@ const graphConfig: GraphServiceConfig = {
 ```
 
 ### MemoryGraph
-In-memory implementation for development and testing.
+In-memory implementation for tests and in-process use. It lives in one process's heap, so the Weaver, the Archivist and the Librarian refuse it.
 
 ```typescript
 const graphConfig: GraphServiceConfig = {
@@ -192,21 +193,21 @@ await graph.addEntityType('NewType');
 
 See [GraphInterface.md](./docs/GraphInterface.md) for the full contract.
 
-## Graph as Optional Projection
+## Graph as Projection
 
-The graph database is designed as an **optional read-only projection**:
+The graph database is a **read-only projection** of the event log: derived, never the source of truth, and rebuildable from the events. A stack still needs one, because the Weaver, the Archivist and the Librarian each connect to it when they start. It answers some reads and not others:
 
-### Works WITHOUT Graph
-✅ Viewing resources and annotations
+### Answered WITHOUT the Graph
+✅ Viewing a resource and its annotations
 ✅ Creating/updating/deleting annotations
 ✅ Single-document workflows
 ✅ Real-time SSE updates
 
 ### Requires Graph
-❌ Cross-document relationship queries
-❌ Entity-based search across resources
-❌ Graph visualization
-❌ Network analysis
+❌ Cross-document relationship queries (referenced-by, connections)
+❌ Resource search by name, path or entity type
+❌ Candidate search for a reference (Matcher)
+❌ The knowledge-graph neighborhood in a gathered context
 
 See [Architecture Documentation](./docs/ARCHITECTURE.md) for details.
 

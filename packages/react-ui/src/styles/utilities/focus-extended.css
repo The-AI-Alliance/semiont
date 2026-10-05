@@ -6,10 +6,6 @@
  */
 
 /* ========================================
-   Action Button Variants
-   ======================================== */
-
-/* ========================================
    Button Variants and States
    ======================================== */
 
@@ -88,13 +84,6 @@
   outline: none;
 }
 
-/* Panel Inputs */
-
-/* ========================================
-   Navigation Components
-   ======================================== */
-/* NOTE: .semiont-nav-link was removed in commit 1b5f262e */
-
 /* ========================================
    Chip Components
    ======================================== */
@@ -160,8 +149,6 @@ select:focus:not(:focus-visible) {
   outline: none;
 }
 
-/* Language select options */
-
 /* Entity type button (selected state) */
 .semiont-form__entity-type-button[data-selected="true"]:focus-visible {
   outline: 2px solid var(--semiont-color-white);
@@ -173,10 +160,6 @@ select:focus:not(:focus-visible) {
   outline-color: var(--semiont-color-white);
   box-shadow: 0 0 0 4px var(--semiont-color-primary-400);
 }
-
-/* ========================================
-   Modal Components
-   ======================================== */
 
 /* ========================================
    Resource & Reference Components
@@ -240,14 +223,8 @@ select:focus:not(:focus-visible) {
 }
 
 /* ========================================
-   Detection Components
-   ======================================== */
-
-/* ========================================
    Miscellaneous Components
    ======================================== */
-
-/* Selection Indicator */
 
 /* Signout button */
 .semiont-signout-button:focus-visible {
@@ -264,10 +241,6 @@ select:focus:not(:focus-visible) {
 .semiont-signout-button:focus:not(:focus-visible) {
   outline: none;
 }
-
-/* ========================================
-   Table Components (when interactive)
-   ======================================== */
 
 /* ========================================
    High Contrast Mode Support

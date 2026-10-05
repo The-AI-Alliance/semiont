@@ -4,20 +4,20 @@ set -euo pipefail
 # Audit: session-bound state units are constructed via `useSessionStateUnit`,
 # never via `useStateUnit` with a non-null-asserted client.
 #
-# Decision D1 (settled 2026-07-29): a state-unit factory's parameter is the
+# A state-unit factory's parameter is the
 # lifetime it must not outlive — a `SemiontSession`. The `useSessionStateUnit`
 # hook constructs only under a live session and rebuilds (dispose-first) on
-# session swap, so `!` assertions on clients/sessions inside factory closures
-# are the tell that a call site regressed to the pattern that crashed
-# auth/welcome in production.
+# session swap, so a `!` assertion on a client or session inside a factory
+# closure is the tell of a call site that constructs outside that guarantee,
+# and crashes a page rendered with no session.
 #
 # Rule 1: no `!`-asserted identifier inside a `useStateUnit`/`useSessionStateUnit`
-#         call line (catches `createX(semiont!, …)` reintroductions).
+#         call line (catches `createX(semiont!, …)`).
 # Rule 2: `useStateUnit(` appears ONLY in the allowlist below — everything
 #         session-bound uses `useSessionStateUnit`.
 #
 # Allowlist (rule 2): units whose lifetime is genuinely NOT a session's —
-# today only the shell (browser-lifetime, spans sessions).
+# only the shell (browser-lifetime, spans sessions).
 # Exit code: 0 if clean, 1 if violations found.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

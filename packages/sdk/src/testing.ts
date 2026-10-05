@@ -9,10 +9,10 @@
  * client. `createTestSession` wraps the same stack in a real
  * `SemiontSession` for state-unit factories, which take a session.
  *
- * Why this exists: twice in one week a wrong belief about the SDK shipped
- * inside green tests, because hand-rolled mocks encoded the author's model
- * of the contract instead of the contract; PR #1113 then
- * found ~20 fixtures whose `state$` satisfied the TYPE but not the contract.
+ * Why this exists: a hand-rolled mock encodes its author's model of the
+ * contract instead of the contract, so a wrong belief about the SDK passes
+ * inside green tests — a fixture whose `state$` satisfies the TYPE but not
+ * the contract, for one.
  * Tests whose subject is consumer behavior should start here; bespoke
  * fixtures are for testing the transport contract itself.
  */
@@ -124,7 +124,7 @@ export interface TestClientOptions {
   /** FaultyTransport scripting: fault schedule, scope model, `makeResponse`. */
   transport?: FaultyTransportConfig;
   /**
-   * Gateway operations for the `auth`/`admin` namespaces. Omitted = both are
+   * Gateway operations for the `auth`/`system` namespaces. Omitted = both are
    * `undefined` (transport-only client, same as production LocalTransport
    * setups). Pass `stubGateway()` when a unit under test touches
    * `client.auth` and the test scripts it via `AuthNamespace.prototype`
@@ -144,13 +144,6 @@ export interface TestClientOptions {
 }
 
 /**
- * A real `SemiontClient` over a scriptable `FaultyTransport`.
- *
- * The returned `transport` IS the `FaultyTransport` instance — script faults
- * via its config, drive connection state via `transport.state$.next(...)`,
- * and account requests via `transport.requestLog`.
- */
-/**
  * A COMPLETE `IGatewayOperations` whose every method rejects loudly with its
  * own name — so a unit that touches an op the test didn't script fails with
  * "not scripted: <op>" instead of a fabricated success. Script behavior via
@@ -165,13 +158,18 @@ export function stubGateway(): IGatewayOperations {
     getCurrentUser: notScripted('getCurrentUser'),
     getMediaToken: notScripted('getMediaToken'),
     getProtectedResourceMetadata: notScripted('getProtectedResourceMetadata'),
-    // Observable-returning ops error their stream, same loudness.
     healthCheck: notScripted('healthCheck'),
     getStatus: notScripted('getStatus'),
   };
 }
 
-
+/**
+ * A real `SemiontClient` over a scriptable `FaultyTransport`.
+ *
+ * The returned `transport` IS the `FaultyTransport` instance — script faults
+ * via its config, drive connection state via `transport.state$.next(...)`,
+ * and account requests via `transport.requestLog`.
+ */
 export function createTestClient(options: TestClientOptions = {}): {
   client: SemiontClient;
   transport: FaultyTransport;

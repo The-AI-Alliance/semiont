@@ -9,12 +9,12 @@ package launcher
 // The content is already files at their natural paths; the event log is already
 // JSONL. So the archive is the KB directory, unmodified — `tar -xzf` yields a
 // working KB and `cat` reads the history. No manifest, no format version, no
-// schema, because nothing is transformed. The exchange format this replaces
-// carried BACKUP_FORMAT, FORMAT_VERSION and validators: a representation
-// invented for data that already had a perfectly good one on disk.
+// schema, because nothing is transformed: an exchange format with its own
+// version and validators would be a representation invented for data that
+// already has a perfectly good one on disk.
 //
 // tar.gz specifically, and NOT a git bundle, even though the event log is
-// git-committed today. Git is how a KB happens to be stored; a format that
+// git-committed. Git is how a KB happens to be stored; a format that
 // required it would mean "your data is yours, if you have git". The payoff
 // is not only principle: tar is on every machine, which is why the codespace
 // path below is one streamed command rather than a remote toolchain.
@@ -265,8 +265,6 @@ func writeArchive(root, out string, id *kbIdentity, withGit bool) (count int, to
 	// does — means a full disk produces a ✓ and a corrupt archive, discovered
 	// by whoever needed the backup. LIFO order is required and is what defer
 	// gives; the first failure wins unless the body already failed.
-	// (Copilot flagged the same class on the import side; this is where it
-	// mattered more.)
 	defer func() {
 		for _, c := range []io.Closer{tw, gz, f} {
 			if cerr := c.Close(); cerr != nil && err == nil {

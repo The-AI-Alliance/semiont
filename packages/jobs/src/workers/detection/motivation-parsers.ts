@@ -1,9 +1,9 @@
 /**
  * Response parsers for annotation detection motivations
  *
- * Provides static methods to parse and validate AI responses for each motivation type.
- * Includes offset validation and correction logic.
- * Extracted from worker implementations to centralize parsing logic.
+ * Static methods that validate the model's already-parsed elements for each
+ * motivation type and anchor each span in the document: the model emits no
+ * offsets, `reconcileSelector` computes them.
  *
  * NOTE: These are static utility methods without logger access.
  * Console statements kept for debugging - consider adding logger parameter in future.
@@ -16,18 +16,17 @@ import { noteAnchor } from './anchor-audit';
 // Parsers receive ALREADY-PARSED elements (`unknown[]`) from the structured
 // inference surface — `generateStructured` returns `T[]` or throws, so
 // "could not read the model" never reaches this layer and there is no string
-// to parse here (the former strict `parseJsonArray` moved into that contract,
-// as the earlier tolerant walker moved into it before). What remains here is
-// per-element structural validation (the last line on the Ollama path and the
-// schema/type drift guard) plus reconciliation against the full document.
+// to parse here. This layer does per-element structural validation (the last
+// line on the Ollama path and the schema/type drift guard) plus reconciliation
+// against the full document.
 //
 // Each element schema is declared ADJACENT to the Match interface it mirrors:
 // the schema constrains the wire, the interface is what the code consumes,
 // and nothing verifies they agree — adjacency is the drift guard.
 // `prefix`/`suffix` stay OUT of `required` deliberately: requiring them turns
-// "sometimes absent" into "always present, sometimes empty" (measured
-// 2026-08-06), an anchoring-path change avoided at the source here;
-// `reconcileSelector` also treats an empty hint as an absent one.
+// "sometimes absent" into "always present, sometimes empty" (measured), an
+// anchoring-path change avoided at the source here; `reconcileSelector` also
+// treats an empty hint as an absent one.
 
 /**
  * Represents a detected comment with validated position
@@ -309,7 +308,7 @@ export interface RawTagInput {
 /**
  * Audit one anchor-method classification. Forwards to the single decider
  * shared with the reference path (`anchor-audit.ts`) — which methods count as
- * risky is one judgement, and this file used to hold a second copy of it.
+ * risky is one judgement, made there.
  */
 function logAnchorMethod(motivation: string, exact: string, anchorMethod: AnchorMethod): void {
   noteAnchor(motivation, exact, anchorMethod);

@@ -12,12 +12,11 @@
  *                                  opaque `kbId` identifying the local
  *                                  instance to the host process.
  *
- * Code that doesn't know how to make a transport (`SemiontSession`,
- * `SemiontBrowser`, the frontend KB list UI) treats `KnowledgeBase` as
- * uniform and never inspects `endpoint`. Code that *does* construct
- * transports (the transport-factory passed to `SemiontBrowser`,
- * `kbGatewayUrl` for HTTP URL construction) inspects `endpoint.kind`
- * and dispatches.
+ * Session lifecycle code (a `SemiontSession`, `SemiontBrowser`'s
+ * activation) treats `KnowledgeBase` as uniform and never inspects
+ * `endpoint`. Code that constructs transports or signs in at an issuer (the
+ * `SessionFactory` passed to `SemiontBrowser`, `kbGatewayUrl` for HTTP URL
+ * construction, the sign-in paths) inspects `endpoint.kind` and dispatches.
  *
  * Each KB has its own session, its own credentials (where applicable),
  * and its own JWT (HTTP only). The user is "authenticated against KB X" —
@@ -34,10 +33,10 @@ import type { KbDescription } from '@semiont/core';
  * honestly construct up front — a session's whole input, and what `httpKb`
  * returns.
  *
- * This split states one thesis in the type
- * system: an address is not an identity. Collapsing the two forced the
- * question "what do I put here?" on callers who cannot answer it, and the
- * only available answers were fabrications.
+ * This split states one thesis in the type system: an address is not an
+ * identity. Collapsing the two forces the question "what do I put here?"
+ * on callers who cannot answer it, and the only available answers are
+ * fabrications.
  */
 export interface KbTarget {
   id: string;
@@ -54,8 +53,8 @@ export interface KbTarget {
  * `did` is REQUIRED here, and only here: a knowledge base declares its
  * identity or does not run (the launcher refuses to start one without a
  * `[site] domain`, and the gateway refuses to boot), so anything that has
- * been connected to *has* a did. What was previously unknowable is now
- * simply a `KbTarget`.
+ * been connected to *has* a did. One whose identity is not known is a
+ * `KbTarget`.
  *
  * It says **which knowledge base**, not **which running copy**, and it is
  * deliberately NOT unique: a local clone and a codespace of one repo are the
@@ -119,10 +118,10 @@ export type NewKnowledgeBase = Omit<KnowledgeBase, 'id'>;
  * Status of the locally-stored credential for a KB. Derived from the
  * presence and validity of the JWT in session storage.
  */
-export type KbSessionStatus = 'authenticated' | 'expired' | 'signed-out' | 'unreachable';
+export type KbSessionStatus = 'authenticated' | 'expired' | 'signed-out';
 
 /**
- * Construct a `KnowledgeBase` for an HTTP-backed Semiont gateway without
+ * Construct a `KbTarget` for an HTTP-backed Semiont gateway without
  * spelling out the nested `endpoint` literal. Convenience for tests,
  * worker bootstraps, and one-off scripts.
  *

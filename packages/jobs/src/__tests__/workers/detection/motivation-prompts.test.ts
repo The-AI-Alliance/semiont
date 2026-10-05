@@ -19,7 +19,7 @@ describe('MotivationPrompts', () => {
       expect(prompt).toContain(testContent);
       expect(prompt).toContain('JSON array');
       expect(prompt).toContain('exact');
-      // Offsets are no longer asked of the LLM.
+      // Offsets are not asked of the LLM.
       expect(prompt).not.toContain('"start"');
       expect(prompt).not.toContain('"end"');
       expect(prompt).toContain('prefix');
@@ -53,7 +53,7 @@ describe('MotivationPrompts', () => {
       expect(prompt).toContain('5 comments per 2000 words');
     });
 
-    it('must not clip content — the chunk is the input budget (#738)', () => {
+    it('must not clip content — the chunk is the input budget', () => {
       // The caller sizes content via derived provider limits; a builder-level
       // re-truncation is silent input loss. Sentinel past char 8,000 must
       // survive in BOTH branches (with and without instructions).
@@ -96,7 +96,7 @@ describe('MotivationPrompts', () => {
       expect(prompt).toContain('6 highlights per 2000 words');
     });
 
-    it('must not clip content — the chunk is the input budget (#738)', () => {
+    it('must not clip content — the chunk is the input budget', () => {
       const longContent = 'y'.repeat(9000) + ' SENTINEL_PAST_8K';
 
       expect(MotivationPrompts.buildHighlightPrompt(longContent)).toContain('SENTINEL_PAST_8K');
@@ -142,7 +142,7 @@ describe('MotivationPrompts', () => {
       expect(prompt).toContain('4 assessments per 2000 words');
     });
 
-    it('must not clip content — the chunk is the input budget (#738)', () => {
+    it('must not clip content — the chunk is the input budget', () => {
       const longContent = 'z'.repeat(9000) + ' SENTINEL_PAST_8K';
 
       expect(MotivationPrompts.buildAssessmentPrompt(longContent)).toContain('SENTINEL_PAST_8K');

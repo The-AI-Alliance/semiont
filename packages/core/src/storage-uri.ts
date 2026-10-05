@@ -6,10 +6,10 @@
  * registry; formats are validated upstream at the create/yield boundary, so
  * the lookup is strict — no fallback.
  *
- * Lives in `@semiont/core` rather than `@semiont/content` (moved
- * 2026-08-24) because the generation form proposes a default path and
- * react-ui cannot depend on the node-flavoured content package. This module
- * imports only the registry, so it is browser-safe.
+ * Lives in `@semiont/core` rather than `@semiont/content` because the
+ * generation form proposes a default path and react-ui cannot depend on the
+ * node-flavoured content package. This module imports only the registry, so
+ * it is browser-safe.
  */
 
 import { MEDIA_TYPES, type SupportedMediaType } from './media-types';

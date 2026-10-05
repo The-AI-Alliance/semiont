@@ -33,9 +33,9 @@ const source = (type: string, modelId: string, limits: () => Promise<InferenceLi
 
 /**
  * CENSUS GATE — the projection in `limits-report.ts` is a hand-written mirror
- * of `InferenceLimits.json`, so it drifts silently. It already did once:
- * `acceptsTemperature` was added to the schema and to the provider type and
- * dropped in the projection, which left the Creativity slider showing on a
+ * of `InferenceLimits.json`, so it drifts silently: a property present in
+ * the schema and the provider type but dropped in the projection —
+ * `acceptsTemperature`, say — leaves the Creativity slider showing on a
  * model that rejects `temperature`.
  *
  * This reads the SPEC, not a second list, so a property added to the schema

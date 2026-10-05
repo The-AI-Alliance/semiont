@@ -193,7 +193,6 @@
     "statusConnected": "Terhubung",
     "statusExpired": "Sesi berakhir",
     "statusSignedOut": "Keluar",
-    "statusUnreachable": "Tidak dapat dijangkau",
     "invalidHost": "Nama host tidak valid",
     "discoveredTitle": "Ditemukan di mesin ini",
     "managedBadge": "Dikelola oleh launcher",

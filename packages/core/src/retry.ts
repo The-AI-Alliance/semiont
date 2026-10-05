@@ -1,11 +1,11 @@
 /**
  * Retry: the mechanism, and the classifications core itself owns.
  *
- * Originally just `retryWithBackoff`, for startup-critical calls in long-running
+ * At its centre is `retryWithBackoff`, for startup-critical calls in long-running
  * peers — each authenticates the moment its container starts, the gateway may not
  * be reachable for a few seconds, and orchestration runs them with `--rm` and no
  * restart policy, so a process that dies on the first `TypeError: fetch failed` is
- * dead for good. That is still the shape; the module has grown a family around it.
+ * dead for good.
  *
  * **What lives HERE — the mechanism, because it is one fact each:**
  *   - `RetryPolicy` / `retryWithBackoff` — the loop, deadline-aware
@@ -17,10 +17,10 @@
  *
  * **What deliberately does NOT — the judgment, because each is local knowledge:**
  *   - **policies.** `EMIT_RETRY` (http-transport), `EMBEDDING_PROVIDER_RETRY`
- *     (vectors). A policy answers *how long does THIS wait*, and centralizing that
- *     is what caused a bug: the embedding path borrowed `STARTUP_FETCH_RETRY` —
- *     sized for "until a peer starts listening" — to wait out a model download,
- *     and its ceiling expired just before the thing it was waiting for arrived.
+ *     (vectors). A policy answers *how long does THIS wait*, and a centralized
+ *     one gets borrowed: an embedding path waiting out a model download on
+ *     `STARTUP_FETCH_RETRY` — sized for "until a peer starts listening" — sees
+ *     its ceiling expire just before the thing it is waiting for arrives.
  *     Two facts that happen to be measured in seconds are still two facts.
  *   - **deadlines.** `EMIT_TIMEOUT_MS`, `EMBED_ROUND_TRIP_TIMEOUT_MS`,
  *     `STARTUP_CONNECT_TIMEOUT_MS`, each with the call it bounds.
@@ -54,8 +54,8 @@ export interface RetryPolicy {
  * half — delay ∈ [cap/2, cap).
  *
  * **One home, because it is one fact.** `retryWithBackoff` and the SSE reconnect
- * loop (`actor-state-unit.ts`) both need it and carried byte-identical copies —
- * two implementations agreeing by coincidence, free to drift the first time
+ * loop (`actor-state-unit.ts`) both need it, and a copy in each would be two
+ * implementations agreeing by coincidence, free to drift the first time
  * either is tuned. The reconnect computes its own ceiling (`reconnectMs · 2ⁿ`,
  * capped); only the jitter is shared, which is the part that must not diverge.
  *
@@ -86,8 +86,8 @@ export interface RetryAttemptInfo {
 /**
  * The worst-case wall clock a policy can spend.
  *
- * Derived, because it was being restated by hand in three places — a docstring
- * saying "~39s", a test recomputing the sum, and a reader doing arithmetic to
+ * Derived, because the alternative is restating it by hand — a docstring
+ * saying "~39s", a test recomputing the sum, a reader doing arithmetic to
  * decide whether some other deadline could cut it short. Any of those can drift
  * from the policy the moment someone edits it, and the drift is silent.
  *
@@ -161,42 +161,14 @@ export function retryAfterMs(header: string | null): number | undefined {
   return header !== null && /^[0-9]+$/.test(header.trim()) ? Number(header.trim()) * 1000 : undefined;
 }
 
-
-
-/**
- * True for failures worth another attempt: the connection never landed
- * (`isTransientFetchError`), the server answered "not now"
- * (`RETRY_RULES.boot`), or our own deadline expired.
- *
- * The status half is DERIVED from `RETRY_RULES.boot` rather than restated here.
- * It used to be a private `RETRYABLE_STATUSES` set holding the same three
- * numbers, which made the taxonomy a second opinion instead of the answer — and
- * a second opinion in the same package is the exact defect the `RETRY_RULES`
- * catalog exists to remove. The reasoning for those three, and for excluding
- * `500`, now lives once, in the rule.
- *
- * The timeout case is the one that is easy to get wrong. `AbortSignal.timeout()`
- * rejects with a **DOMException named `TimeoutError`**, not a `TypeError` —
- * measured, not assumed — so `isTransientFetchError` cannot see it, and a
- * request that bounded itself was unretryable precisely when the bound fired.
- * Matched by `name` rather than `instanceof DOMException` because the constructor
- * is not guaranteed present in every runtime this package builds for, while the
- * name is part of the DOM spec.
- *
- * Auth and validation failures stay excluded, preserving `isTransientFetchError`'s
- * reasoning verbatim: a 401 means the gateway is UP and rejected us, and retrying
- * will not change its mind. A 429 differs — the gateway is up and *asking* us to
- * wait, so the same "it answered" fact points the other way.
- */
 /**
  * True when the service that answers a bus channel has not connected yet.
  *
  * A startup race, not a refusal: the gateway synthesizes this when a request's
  * channel has no subscriber, and the peer it is waiting for is usually seconds
- * away. The weaver's boot passes used to treat it as a data condition and give up
- * for the life of the process — an empty graph projection behind a healthy
- * `/health`, with live traffic then advancing the applied mark past events that
- * were never projected (2026-09-09).
+ * away. A boot pass that treats it as a data condition gives up for the life of
+ * the process — an empty graph projection behind a healthy `/health`, with live
+ * traffic then advancing the applied mark past events that were never projected.
  *
  * Narrow on purpose, and note what it EXCLUDES: `bus.unsubscribed` means *this*
  * transport is not subscribed to the reply channel — a local misconfiguration
@@ -212,6 +184,30 @@ export function isPeerUnavailable(error: unknown): boolean {
   return error instanceof BusRequestError && error.code === 'bus.peer-unavailable';
 }
 
+/**
+ * True for failures worth another attempt: the connection never landed
+ * (`isTransientFetchError`), the server answered "not now"
+ * (`RETRY_RULES.boot`), or our own deadline expired.
+ *
+ * The status half is DERIVED from `RETRY_RULES.boot` rather than restated here.
+ * A private set of the same statuses would make the taxonomy a second opinion
+ * instead of the answer — and a second opinion in the same package is the exact
+ * defect the `RETRY_RULES` catalog exists to remove. The reasoning for those
+ * statuses, and for excluding `500`, lives once, in the rule.
+ *
+ * The timeout case is the one that is easy to get wrong. `AbortSignal.timeout()`
+ * rejects with a **DOMException named `TimeoutError`**, not a `TypeError` —
+ * measured, not assumed — so `isTransientFetchError` cannot see it, and without
+ * this case a request that bounds itself is unretryable precisely when the
+ * bound fires. Matched by `name` rather than `instanceof DOMException` because
+ * the constructor is not guaranteed present in every runtime this package
+ * builds for, while the name is part of the DOM spec.
+ *
+ * Auth and validation failures stay excluded, preserving `isTransientFetchError`'s
+ * reasoning verbatim: a 401 means the gateway is UP and rejected us, and retrying
+ * will not change its mind. A 429 differs — the gateway is up and *asking* us to
+ * wait, so the same "it answered" fact points the other way.
+ */
 export function isRetryableRequestError(error: unknown): boolean {
   if (isTransientFetchError(error)) return true;
   if (typeof error !== 'object' || error === null) return false;
@@ -220,13 +216,6 @@ export function isRetryableRequestError(error: unknown): boolean {
   return typeof status === 'number' && RETRY_RULES.boot.retryable({ status });
 }
 
-/**
- * Run `fn`, retrying on errors `isRetryable` accepts, with equal-jitter
- * exponential backoff per `policy`. `onRetry` fires before each wait — the
- * caller's hook for logging the attempt, and it reports the actual jittered
- * delay. The final error (retryable budget exhausted, or the first
- * non-retryable one) is rethrown verbatim.
- */
 /**
  * Race `work` against a deadline, handing it the deadline as a signal.
  *
@@ -270,6 +259,13 @@ export async function withDeadline<T>(
   }
 }
 
+/**
+ * Run `fn`, retrying on errors `isRetryable` accepts, with equal-jitter
+ * exponential backoff per `policy`. `onRetry` fires before each wait — the
+ * caller's hook for logging the attempt, and it reports the actual jittered
+ * delay. The final error (retryable budget exhausted, or the first
+ * non-retryable one) is rethrown verbatim.
+ */
 export async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   isRetryable: (error: unknown) => boolean,
@@ -291,7 +287,7 @@ export async function retryWithBackoff<T>(
       // own deadline (`/bus/emit`'s EMIT_TIMEOUT_MS, the providers'
       // EMBED_ROUND_TRIP_TIMEOUT_MS), so the worst overshoot is that one bound rather than
       // unbounded. Threading the signal into every leaf call would close that gap
-      // and is not worth its plumbing yet.
+      // and is not worth its plumbing.
       if (signal?.aborted) throw error;
       if (attempt >= policy.attempts || !isRetryable(error)) throw error;
       // `delayMs` reported to `onRetry` is the ACTUAL wait, not the ceiling —

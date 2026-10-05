@@ -1,17 +1,16 @@
 /**
  * The page's PIXELS must not wait for its anchored-text map.
  *
- * The load effect starts anchoring and rendering together, and its own comment
- * promises "the page appears on its own schedule" — but `setPageImageUrl` sat
- * behind `Promise.all(...)`, so a scanned page (no text runs — the one kind
- * that fetches its map from the server) showed NOTHING until the anchored
+ * The load effect starts anchoring and rendering together, and the page
+ * appears on its own schedule. Were `setPageImageUrl` to sit behind
+ * `Promise.all(...)`, a scanned page (no text runs — the one kind that
+ * fetches its map from the server) would show NOTHING until the anchored
  * request resolved. On a stack where that bus request times out, that is the
  * full 30s B14 window with a blank first page and not one console error:
- * anchoring "never rejects" by design, so nothing ever reported the wait.
+ * anchoring "never rejects" by design, so nothing reports the wait.
  *
- * Diagnosed live 2026-09-13 on a 52-page scan whose page 1 appeared after
- * ~40s. The anchored map is the OPTIONAL half of loading a page; these pin
- * that its latency — up to and including "never" — cannot hold the image.
+ * The anchored map is the OPTIONAL half of loading a page; these pin that its
+ * latency — up to and including "never" — cannot hold the image.
  */
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { waitFor } from '@testing-library/react';
@@ -95,7 +94,7 @@ describe('PdfAnnotationCanvas — pixels before anchoring', () => {
     });
 
     // The late map must not be dropped: resolving it after the render is the
-    // ordinary sequence now, and it must not throw or unmount the image.
+    // ordinary sequence, and it must not throw or unmount the image.
     resolveMap(null);
     await waitFor(() => {
       expect(document.querySelector('img[src^="data:image/png"]')).toBeInTheDocument();

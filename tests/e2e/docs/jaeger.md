@@ -118,9 +118,10 @@ container's runtime.
 
 ## Limitations
 
-- **Browser doesn't currently emit OTel spans.** The captured prefixes
-  are mostly gateway-originated; we still query the Browser service
-  in case a Browser SDK is added later.
+- **The Browser emits OTel spans only when built with
+  `VITE_OTEL_OTLP_ENDPOINT`**, which the e2e stack's is not. The
+  captured prefixes are mostly gateway-originated; the Browser service
+  is queried too, for a build that does trace.
 - **Trace-id prefixes are 8 hex (32 bits).** Within a single test's
   time window collisions are unlikely but not impossible. The fixture
   surfaces every trace that prefix-matches; false positives are cheap

@@ -16,8 +16,6 @@ vi.mock('../../client', async () => {
   const { Subject } = await import('rxjs');
   class MockSemiontApiClient {
     dispose = mockDispose;
-    actor = { state$: { subscribe: () => ({ unsubscribe: () => {} }) } };
-    eventBus = { get: () => ({ next: () => {}, subscribe: () => ({ unsubscribe: () => {} }) }) };
     // Mirrors the `ITransport` errors$ contract enough for the
     // SemiontBrowser → signals routing tests to push test errors through.
     transport = (() => {
@@ -177,13 +175,12 @@ describe('SemiontBrowser — KB list', () => {
   });
 
   it("round-trips a KB's did through registration and storage (identity survives a reload)", async () => {
-    // The did is what a client joins discovered KBs to connected ones on.
-    // It is captured once at auth time
-    // from the KB's own /api/status, so if registration or the storage
-    // round-trip dropped it the join would silently never match — the
-    // failure mode this whole plan exists to end. Pinned here because
-    // `isKnowledgeBase` validates required fields only: a future rewrite
-    // that normalizes entries could quietly strip optional identity.
+    // The did is what verifies that the copy reached at an address is the KB
+    // an entry names. It is read once, at sign-in, from what the KB says of
+    // itself (`browse.kb()`), and it is required: an entry that lost it in
+    // registration or in the storage round-trip would not load at all.
+    // Pinned here because `loadKnowledgeBases` rebuilds each entry field by
+    // field, and a field left out of that projection is gone after a reload.
     const DID = 'did:web:the-ai-alliance.github.io:semiont-caselaw-kb';
     const browser = makeBrowser();
     const kb = browser.addKb(
@@ -205,12 +202,12 @@ describe('SemiontBrowser — KB list', () => {
     await reloaded.dispose();
   });
 
-  it('drops a stored KB that predates the did requirement, rather than loading one without identity', async () => {
-    // `did` is required; entries persisted before that rule have none.
-    // Loading them would satisfy the type only by lying — the identity join
-    // would compare against `undefined` and silently never match. Per the
-    // storage stance (no back-compat layer) they drop and the user re-adds:
-    // a one-time list clear, in exchange for every loaded KB actually having
+  it('drops a stored KB that has no did, rather than loading one without identity', async () => {
+    // `did` is required. Loading an entry stored without one would satisfy
+    // the type only by lying — the identity join would compare against
+    // `undefined` and silently never match. The storage format has no
+    // back-compat layer, so such entries drop and the user re-adds: a
+    // one-time list clear, in exchange for every loaded KB actually having
     // the identity its type promises.
     storage.set(STORAGE_KEY, JSON.stringify([
       { id: 'legacy', label: 'Pre-did KB', email: 'a@example.com', endpoint: KB_A.endpoint },
@@ -364,7 +361,7 @@ describe('SemiontBrowser — setActiveKb (disposal contract)', () => {
 describe('SemiontBrowser — open resources (KB-scoped)', () => {
   // Tabs are per-KB state; the visible list is a projection of the ACTIVE,
   // CONNECTED KB (gate: activeSession$ non-null). Storage is the durable
-  // per-KB record; removeKb reaps it; the legacy flat key is ignored.
+  // per-KB record; removeKb reaps it; a flat `openDocuments` key is ignored.
 
   /** KB_A + KB_B registered with stored sessions; KB_A active and live. */
   async function makeConnectedBrowser() {
@@ -566,8 +563,8 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
   });
 
   it('two contexts each adding a tab do not lose one', async () => {
-    // Nothing to do with validation: `mutateOpenResources` used to write from
-    // its in-memory copy, so whichever context wrote last erased the other.
+    // Nothing to do with validation: were `mutateOpenResources` to write from
+    // its in-memory copy, whichever context wrote last would erase the other.
     const browser = await makeConnectedBrowser();
     browser.addOpenResource('mine', 'Mine');
 
@@ -815,17 +812,16 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
   });
 
   /**
-   * A transport-level 401 routes through REFRESH, never straight to the modal
-   * (found live 2026-09-14: an undismissable "Session Expired — HTTP 401"
-   * that survived hard reloads).
+   * A transport-level 401 routes through REFRESH, never straight to the modal.
    *
-   * The old wire raised the session-ended notice on any single
-   * `unauthorized` transport error. Two failure modes, both traps: a request
-   * losing the refresh race 401s while the session heals a beat later —
-   * modal over a healthy session, on every load; and a truly dead session
-   * hit the modal WITHOUT `clearStoredSession`, so every reload restored the
-   * corpse and re-armed it — and both modal buttons navigate, into the same
-   * loop. Routing into `session.refresh()` covers both: success is silence;
+   * Raising the session-ended notice on any single `unauthorized` transport
+   * error has two failure modes, both traps: a request losing the refresh
+   * race 401s while the session heals a beat later — modal over a healthy
+   * session, on every load; and a truly dead session reaches the modal
+   * WITHOUT `clearStoredSession`, so every reload restores the corpse and
+   * re-arms it — and both modal buttons navigate, into the same loop: an
+   * undismissable "Session Expired — HTTP 401" that survives hard reloads.
+   * Routing into `session.refresh()` covers both: success is silence;
    * exhaustion runs the session's own teardown — storage cleared, the modal
    * fired once with the session's own reason.
    */
@@ -868,10 +864,10 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     });
 
     it('a 401 with NO stored credentials is not an expiry: no modal, no teardown theater', async () => {
-      // The field loop of 2026-09-14, second act: activeKnowledgeBaseId
-      // persists forever, so every load activates the KB signed-out; the
-      // actor connects with a null token, 401s, and refresh() -- with
-      // NOTHING to refresh -- declared "session expired" anyway. You cannot
+      // activeKnowledgeBaseId persists forever, so every load activates the
+      // KB signed-out; the actor connects with a null token and 401s, and
+      // refresh() has NOTHING to refresh. Declaring "session expired" there
+      // would re-arm the modal on every load. You cannot
       // expire a session that never existed: the signed-out shell is the
       // correct and sufficient UX, and the modal must stay silent.
       storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
@@ -890,7 +886,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
       await browser.dispose();
     });
 
-    it("forbidden still routes to permission-denied, with the refusal's message as its detail", async () => {
+    it("forbidden routes to permission-denied, with the refusal's message as its detail", async () => {
       const browser = await makeConnectedBrowser();
       const signals = browser.activeSignals$.getValue()!;
 
@@ -964,7 +960,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await browser.dispose();
   });
 
-  it('ignores the legacy flat openDocuments key entirely', async () => {
+  it('ignores a flat openDocuments key entirely', async () => {
     storage.set('openDocuments', JSON.stringify([{ id: 'old', name: 'Old', openedAt: 1 }]));
     const browser = await makeConnectedBrowser();
     expect(browser.openResources$.getValue()).toEqual([]);
@@ -1240,8 +1236,8 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
     expect(outcome.kb).not.toHaveProperty('gitBranch');
     // Who signed in is the session's to report, read from the verified token.
     // A copy on the KB record would be a second answer to that question, and
-    // the one that goes stale — it is what showed a previous run's address on
-    // a card nobody had signed into.
+    // the one that goes stale: it would show an earlier sign-in's address on
+    // a card nobody has signed into.
     expect(outcome.kb).not.toHaveProperty('email');
     expect(outcome.expected).toBeUndefined();
     expect(browser.kbs$.getValue()).toHaveLength(1);
@@ -1280,10 +1276,10 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
 
     expect(outcome.kb.id).toBe(KB_A.id);
     expect(outcome.kb).toMatchObject({ label: 'KB A' });
-    // The seeded record carries `email: 'old@example.com'` from a release that
-    // cached one. It must not come back out: a stored address from whoever
-    // last used this browser is exactly what surfaced under a KB card as the
-    // account someone was about to sign in as.
+    // The seeded record carries `email: 'old@example.com'`, as one written by
+    // a release that cached it does. It must not come back out: a stored
+    // address from whoever last used this browser would surface under a KB
+    // card as the account someone is about to sign in as.
     expect(outcome.kb).not.toHaveProperty('email');
     expect(outcome.expected).toEqual({ did: KB_A.did, name: 'Old name' });
     expect(browser.kbs$.getValue()).toHaveLength(1);
@@ -1562,10 +1558,9 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
   });
 
   it('routes 401 from transport.errors$ through refresh; exhaustion tears the session down properly', async () => {
-    // Re-sourced 2026-09-14: this pinned the old direct wire (401 → modal,
-    // raw message, storage intact) — the exact behavior that produced an
-    // undismissable reload-surviving modal in the field. The APIError-shaped
-    // push stays; the contract it pins is now refresh-then-teardown.
+    // The contract pinned is refresh-then-teardown. A direct wire (401 →
+    // modal, raw message, storage intact) is an undismissable modal that
+    // survives reloads.
     const { APIError } = await import('@semiont/http-transport');
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));

@@ -3,15 +3,14 @@ set -euo pipefail
 
 # Verify that every published @semiont/* package's dist resolves cleanly
 # under `tsc --moduleResolution NodeNext` against a synthetic consumer
-# project. Catches the asymmetric-dist regression class — bundled .js
+# project. Catches an asymmetric dist — bundled .js
 # with per-file .d.ts shards (or any other dist incoherence) — *before*
 # the tarballs reach a downstream NodeNext consumer.
 #
-# Background: tsup emits bundled
-# `dist/index.js`; tsc with `emitDeclarationOnly` used to emit sharded
-# `dist/*.d.ts` next to it. Under NodeNext, `dist/index.d.ts`'s internal
-# re-exports (`export * from './client'`) failed because the matching
-# `./client.js` didn't exist. We now bundle `.d.ts` via
+# tsup emits bundled `dist/index.js`. Sharded `dist/*.d.ts` next to it (tsc
+# with `emitDeclarationOnly`) break under NodeNext: `dist/index.d.ts`'s
+# internal re-exports (`export * from './client'`) fail because the matching
+# `./client.js` does not exist. `.d.ts` is bundled via
 # `rollup-plugin-dts` so the dist contains only one .d.ts per entry
 # point — this gate proves that contract holds.
 #

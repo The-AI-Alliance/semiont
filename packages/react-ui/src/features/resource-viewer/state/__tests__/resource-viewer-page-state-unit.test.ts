@@ -185,9 +185,6 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
   // terminal failure as an RxJS error (B15) once the B14 retry is exhausted
   // with nothing stored — and a key that failed has no value either, so a
   // (value | not-yet) model reports a dead request as an eternal spinner.
-  // Two panels do exactly that today: ReferencesPanel via
-  // `referencedByLoading = raw === undefined`, and AnnotationHistory via
-  // `loading = eventsData === undefined`.
 
   /**
    * One case per cache-backed list. Each builds its OWN correctly-typed

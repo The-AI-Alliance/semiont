@@ -4,17 +4,17 @@
  * Node's fetch is undici, and undici kills any request whose response HEADERS
  * have not arrived within its headersTimeout — 300s by default. With
  * `stream: false` Ollama sends no headers until the whole generation
- * finishes, so that default was a hidden 5-minute generation ceiling,
+ * finishes, so that default is a hidden 5-minute generation ceiling,
  * surfacing as a retryable-looking `TypeError: fetch failed`.
  *
  * These tests run against a real local server that delays its headers, at
  * test speed: a tiny bounded dispatcher stands in for the 300s default. The
- * first test doubles as the census gate for the one assumption the fix rests
- * on — that built-in fetch honors a per-request dispatcher from the npm
+ * first test doubles as the census gate for the one assumption the adapter
+ * rests on — that built-in fetch honors a per-request dispatcher from the npm
  * `undici` package (a different copy than Node's bundled one). If Node ever
  * stops honoring it, the bounded fetch stops dying and that test fails.
  *
- * What cannot be proven at test speed — that a real >5-minute generation now
+ * What cannot be proven at test speed — that a real >5-minute generation
  * completes — belongs to a live detection run.
  */
 import { describe, it, expect } from 'vitest';
@@ -68,7 +68,10 @@ describe('generate transport vs the undici header timeout', () => {
   });
 
   it('the adapter transport accepts headers that outlive such a window', async () => {
-    const { url, server } = await slowHeaderServer(300);
+    // 1500ms is past the ~1010ms at which the bounded dispatcher above dies.
+    // Headers that arrive sooner beat that timeout too, and would pass on
+    // either transport.
+    const { url, server } = await slowHeaderServer(1500);
     try {
       const res = await fetch(url, { dispatcher: unboundedTransport });
       expect(res.ok).toBe(true);

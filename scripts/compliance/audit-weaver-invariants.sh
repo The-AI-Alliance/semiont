@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Audit: Weaver structural invariants G1–G5. These are the invariants that
+# Audit: Weaver structural invariants G1–G6. These are the invariants that
 # hold by construction and cannot be expressed as runtime properties — the
 # static complement of the weaver-axioms.test.ts suite.
 #
@@ -87,15 +87,14 @@ fi
 # ---------------------------------------------------------------------------
 # G6: the divergence check derives its comparison from the codec.
 #
-# `divergenceOf` used to compare five hand-picked facts while the codec wrote a
-# dozen, so anything outside that list could go wrong unseen — the body check
-# was added for exactly that reason, and only for bodies. The comparison is now
-# `intendedGraphAnnotation`, which scopes itself to whatever the encoder writes
-# and follows it when it changes. A field list restated here is a mirror with
-# nothing keeping it in sync, which is what this gate exists to prevent.
+# `divergenceOf` compares against `intendedGraphAnnotation`, which scopes
+# itself to whatever the encoder writes and follows it when it changes. A
+# hand-picked field list lets anything outside it go wrong unseen: it is a
+# mirror with nothing keeping it in sync, which is what this gate exists to
+# prevent.
 # ---------------------------------------------------------------------------
 if ! grep -q "intendedGraphAnnotation" "$WEAVER"; then
-  echo "❌ G6: divergenceOf no longer compares against the codec's intendedGraphAnnotation."
+  echo "❌ G6: divergenceOf does not compare against the codec's intendedGraphAnnotation."
   echo "   A hand-written list of fields to compare is a restatement of a shape"
   echo "   the codec owns — derive it, do not retype it."
   FAIL=1

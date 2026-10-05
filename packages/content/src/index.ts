@@ -26,7 +26,7 @@ export {
   type ExtractionCache,
 } from './text-extractor';
 
-// Extraction byte budget (#1124). Also the generation output bound: an
+// Extraction byte budget. Also the generation output bound: an
 // artifact we generate must stay within the budget our own extractor
 // accepts, or we would mint resources the Smelter declines as 'too-large'.
 // One threshold, two enforcement points.

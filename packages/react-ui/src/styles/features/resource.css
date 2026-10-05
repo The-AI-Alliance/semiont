@@ -5,7 +5,7 @@
  */
 
 /* Resource-specific form extensions */
-/* Inherits base form styles from components/forms.css */
+/* Inherits base form styles from core/forms.css */
 
 .semiont-form__entity-types {
   display: flex;
@@ -258,14 +258,14 @@
 .semiont-document-viewer__main {
   flex: 1;
   display: flex;
-  flex-direction: row; /* Changed from column to row for side-by-side layout */
+  flex-direction: row; /* Side-by-side layout */
   overflow: hidden;
   min-width: 0; /* Allow flexbox to shrink below content width */
 }
 
 .semiont-document-viewer__content {
   flex: 1;
-  overflow: hidden; /* Changed: clip at this level, child scrolls instead */
+  overflow: hidden; /* Clip at this level, child scrolls instead */
   display: flex;
   flex-direction: column;
   min-width: 0; /* Prevent flex child from growing beyond parent */
@@ -273,7 +273,7 @@
 }
 
 .semiont-document-viewer__header {
-  flex-shrink: 0; /* NEW: Prevent header from being scrolled out */
+  flex-shrink: 0; /* Prevent header from being scrolled out */
   background: var(--semiont-bg-primary);
   border-bottom: 1px solid var(--semiont-color-gray-200);
 }
@@ -300,15 +300,13 @@
   color: var(--semiont-color-gray-100);
 }
 
-/* NEW: Scrollable body wrapper - replaces .semiont-document-viewer__body functionality */
+/* Scrollable body wrapper */
 .semiont-document-viewer__scrollable-body {
   flex: 1; /* Take remaining vertical space after header */
   overflow: auto; /* Scroll here instead of parent */
   min-height: 0; /* Allow flexbox shrinking */
   padding: 0;
 }
-
-/* DEPRECATED: Keep temporarily for safety, can be removed in future cleanup */
 
 .semiont-document-viewer__error {
   display: flex;
@@ -423,29 +421,21 @@
   flex-shrink: 0; /* Prevent sidebar from shrinking */
   height: 100%;
   background: transparent;
-  overflow: visible; /* FIXED: Don't clip toolbar or panels */
+  overflow: visible; /* Don't clip toolbar or panels */
 }
 
 /* Toolbar panels container */
 .semiont-toolbar-panels {
-  /* Width is now controlled by inline style from usePanelWidth hook */
-  /* Default fallback kept for non-JS scenarios */
+  /* Width is set by inline style from the usePanelWidth hook */
+  /* Fallback for non-JS scenarios */
   width: 24rem;
   background: var(--semiont-bg-primary);
   border-left: 1px solid var(--semiont-color-gray-200);
-  overflow: visible; /* FIXED: Don't clip panel content, child scrolls instead */
+  overflow: visible; /* Don't clip panel content, child scrolls instead */
   display: flex;
   flex-direction: column;
   height: 100%;
 }
-
-/* Legacy wider panels - now handled by user-adjustable width
-   Keeping as comments for reference:
-.semiont-toolbar-panels:has(.semiont-unified-panel),
-.semiont-toolbar-panels:has(.semiont-jsonld-panel) {
-  width: 28rem;
-}
-*/
 
 [data-theme="dark"] .semiont-toolbar-panels {
   background: var(--semiont-bg-primary);
@@ -454,7 +444,7 @@
 
 .semiont-toolbar-panels__content {
   flex: 1;
-  overflow: auto; /* FIXED: Allow scrolling so panel content isn't clipped */
+  overflow: auto; /* Allow scrolling so panel content isn't clipped */
   min-height: 0;
 }
 
@@ -463,8 +453,6 @@
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
-
-/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
 
 /* The viewer narrows when a side panel opens; the panel owns its own width. */
 .semiont-document-viewer--panel-open {

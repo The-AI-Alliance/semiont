@@ -6,24 +6,21 @@
  * satisfied by a rename; this cannot, and its failure names the offending
  * channel.
  *
- * It is also the gate that makes the ordinary form of the regression
- * impossible rather than merely absent. Once no `EventMap[K]` declares the
- * key, `handler(event) { event.correlationId }` is a type error at the point
- * it is written — which is the form every one of the nine echoing handlers
- * used before the key moved to the envelope.
+ * It is also the gate that makes the ordinary form of the violation
+ * impossible rather than merely absent. While no `EventMap[K]` declares the
+ * key, `handler(event) { event.correlationId }` — a handler echoing the key
+ * by hand — is a type error at the point it is written.
  *
- * **The predicate first specified for this census was wrong, and would have
- * failed on a clean registry.** It read:
+ * **The obvious predicate is wrong, and fails on a clean registry:**
  *
  *     'correlationId' extends keyof EventMap[K] ? K : never
  *
  * `keyof Record<string, never>` is `string`, and `'correlationId' extends
- * string` is true — so it flagged `mark:archive-ok`, whose payload is
+ * string` is true — so it flags `mark:archive-ok`, whose payload is
  * `Record<string, never>`: an EMPTY payload, which is the most correct a
- * reply channel can be. Landing it as written would have failed against a
- * clean tree and invited someone to "fix" it by making a correct channel
- * wrong. The structural test below asks the question that was actually meant:
- * does the payload SATISFY a carrier of the key?
+ * reply channel can be. That failure invites someone to "fix" it by making a
+ * correct channel wrong. The structural test below asks the question that is
+ * actually meant: does the payload SATISFY a carrier of the key?
  *
  * What this cannot see, stated so the next reader does not over-trust it:
  * reads through `unknown` or a cast, where no payload type is consulted at

@@ -6,9 +6,10 @@
  * selector — per the W3C Web Annotation model and `AnnotationTarget.json`.
  *
  * These assertions are enforced by `tsc --noEmit` (core's `typecheck`), not at
- * vitest runtime (esbuild strips the types). The source-only case is RED on a
- * generated type that requires the selector (`required: ["source","selector"]`)
- * and GREEN after the `$ref AnnotationTarget` swap + regen.
+ * vitest runtime (esbuild strips the types). The source-only case fails to
+ * compile on a generated type that requires the selector
+ * (`required: ["source","selector"]`); it compiles because the request's
+ * target is a `$ref` to `AnnotationTarget`.
  */
 import { describe, it, expect } from 'vitest';
 import type { components } from '../types';
@@ -22,7 +23,7 @@ describe('CreateAnnotationRequest target (selector-optional)', () => {
     expect(sourceOnly.source).toContain('r-1');
   });
 
-  it('still accepts a target with a selector (no regression)', () => {
+  it('accepts a target with a selector', () => {
     const withSelector: CreateTarget = {
       source: resourceId('r-1'),
       selector: { type: 'TextQuoteSelector', exact: 'hello' },
@@ -30,7 +31,7 @@ describe('CreateAnnotationRequest target (selector-optional)', () => {
     expect(withSelector.selector).toBeDefined();
   });
 
-  it('still requires source', () => {
+  it('requires source', () => {
     // @ts-expect-error — source is required on a create target
     const missingSource: CreateTarget = { selector: { type: 'TextQuoteSelector', exact: 'x' } };
     void missingSource;

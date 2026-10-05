@@ -49,7 +49,6 @@ function baseRegistry() {
       declared: [] as string[],
     },
     inProcess: { doc: [], channels: ['demo:internal'] },
-    resourceBroadcasts: { channels: [], bodyComment: [] },
     // The third axis: does emitting it CHANGE the knowledge base? Its domain
     // is the emittable set — an operation's request, or a kind.command —
     // which here is `demo:requested` alone.

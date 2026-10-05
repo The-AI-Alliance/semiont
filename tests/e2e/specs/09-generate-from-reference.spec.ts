@@ -32,7 +32,7 @@ import { expectGeneratedAt } from '../fixtures/generated';
  * band). For *generation*, the load-bearing failure modes are
  * downstream of dispatch — at upload time, when the worker calls
  * `client.yield.resource(...)`. A dispatch-only assertion misses the
- * regression class where dispatch succeeds but the worker's upload
+ * failure where dispatch succeeds but the worker's upload
  * path is broken (e.g. an XHR-only branch in HttpContentTransport
  * that crashes in Node with "XMLHttpRequest is not defined"). We
  * wait for `job:complete` (or `job:fail`, which fails the test with
@@ -56,21 +56,17 @@ test.describe('generate from unresolved reference', () => {
   test('clicking generate on an unresolved reference produces a job:complete with a new resourceId', async ({ signedInPage: page, bus }) => {
     test.setTimeout(120_000);
 
-    // ── Find a resource that still has at least one unresolved reference ──
+    // ── Find a resource that has at least one unresolved reference ──
     //
     // This test CONSUMES an unresolved reference (it generates against one), so
     // it needs a pool, and a rerun may find the first candidate already spent.
     // Hence a list rather than a single target.
     //
-    // The candidates are NAMED, and named on purpose. Two earlier revisions
-    // hunted Discover's card list instead, and both were coupled to KB
-    // composition rather than to anything this test is about:
-    //
-    //   - `firstCard` — broke as soon as a generated resource landed newest.
-    //   - "first 8 cards" — broke on 2026-08-07 with 59 resources in the KB:
-    //     the eight newest were an uploaded PDF and suite-generated resources,
-    //     so the seeds carrying ❓ had aged out of the newest-first window and
-    //     the hunt reported `checked 8 cards` with nothing found.
+    // The candidates are NAMED, and named on purpose. Hunting Discover's
+    // card list instead — the first card, or the first N — couples the test
+    // to KB composition rather than to anything it is about: the newest-first
+    // window fills with uploaded and suite-generated resources, and the seeds
+    // carrying ❓ age out of it.
     //
     // These two seeds are where the unresolved references actually come from:
     // spec 05 leaves a manual one on 'Quantum Computing Primer', spec 06 leaves
@@ -230,17 +226,17 @@ test.describe('generate from unresolved reference', () => {
     // Soft assertion: `job:complete` above is the ground truth. If the
     // body-update is delayed past the timeout, don't fail the test —
     // surface a console warning instead so a Stower-side projection
-    // bug shows up in test logs without flaking the regression target.
+    // bug shows up in test logs without flaking this test.
     const bodyUpdated = await bus.waitForRecv('mark:body-updated', { timeout: 10_000 }).catch(() => null);
     if (!bodyUpdated) {
       // eslint-disable-next-line no-console
       console.warn('[spec 09] job:complete arrived but mark:body-updated did not — possible Stower projection bug');
     }
 
-    // ── The artifact landed where the form said ────────────────────────────
+    // ── The artifact is where the form said ────────────────────────────────
     // Not a soft assertion. `wizard-storagePath` is filled above only because
     // the form refuses to submit without it — which means a worker that
-    // ignored the value (as it did when it derived the path from the title)
+    // ignored the value (deriving the path from the title, say)
     // would pass every other assertion in this file.
     await expectGeneratedAt(title, storagePath, 'text/markdown');
   });

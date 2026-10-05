@@ -7,10 +7,10 @@ import { processGenerationJob } from '../processors';
  * The generation params boundary is ONE type, shared.
  *
  * The wire schema (`GenerationJobParams` in specs) generates the core type; the
- * worker narrows `job.params` through `isGenerationJobParams` instead of
- * `as GenerationParams`; and the processor's parameter IS the generated type —
- * pinned below with `expectTypeOf`, so the sdk (write side) and the worker
- * (read side) can no longer drift a field apart silently.
+ * worker narrows `job.params` through `isGenerationJobParams` rather than a
+ * cast; and the processor's parameter IS the generated type — pinned below
+ * with `expectTypeOf`, so the sdk (write side) and the worker (read side)
+ * cannot drift a field apart silently.
  *
  * Without the generated type and the guard, nothing here compiles.
  */

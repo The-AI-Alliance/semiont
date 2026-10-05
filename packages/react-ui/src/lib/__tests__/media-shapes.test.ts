@@ -95,11 +95,11 @@ describe('media-shapes', () => {
       expect(getSelectorType('text/html')).toBe('text');
     });
 
-    // The `image/svg+xml` case previously asserted 'svg' — that pin encoded
-    // the `startsWith('image/')` drift rather than the registry, which gives
-    // every storage-tier image `anchoring: 'none'`. There is no 'none' member
-    // of SelectorType, so they land on the catch-all; harmless, because
-    // getSupportedShapes answers [] for them and the write path refuses.
+    // 'svg' for `image/svg+xml` would encode a `startsWith('image/')` test
+    // rather than the registry, which gives every storage-tier image
+    // `anchoring: 'none'`. There is no 'none' member of SelectorType, so they
+    // land on the catch-all; harmless, because getSupportedShapes answers []
+    // for them and the write path refuses.
     it('does not claim svg for storage-tier image types', () => {
       for (const t of ['image/gif', 'image/webp', 'image/svg+xml', 'image/bmp', 'image/tiff', 'image/x-icon']) {
         expect(getSelectorType(t)).not.toBe('svg');

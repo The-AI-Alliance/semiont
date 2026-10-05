@@ -4,15 +4,17 @@
 `packages/core/src/media-types.ts` is where TypeScript reads which types
 Semiont admits (the `SupportedMediaType` enum, authored in the OpenAPI spec),
 their canonical extensions, and their capabilities (render, anchoring, text
-extraction, authorable, uploadable). Its table is generated from
+source, authorable, uploadable, generatable). Its table is generated from
 `specs/src/media-types/registry.json`, the single source of truth.
 
-What this package owns is one consumer of that registry:
+The store in this package takes `file://` URIs; the function that builds one
+from a name and a media type lives in `@semiont/core` beside the registry it
+reads:
 
 ## deriveStorageUri
 
 ```typescript
-import { deriveStorageUri } from '@semiont/content';
+import { deriveStorageUri } from '@semiont/core';
 
 deriveStorageUri('My Document', 'text/markdown');
 // => 'file://my-document.md'
@@ -27,11 +29,10 @@ the registry's canonical extension for the given `SupportedMediaType`. The
 format is typed, not validated here — validation happens upstream at the
 create/yield boundary.
 
-## Looking for something that used to be here?
+## Other lookups in `@semiont/core`
 
-- `getExtensionForMimeType` → `extensionForMediaType` in `@semiont/core`
+- `extensionForMediaType` — the extension for any media-type string
   (lenient, `.dat` fallback — for naming foreign/imported content)
-- `hasKnownExtension` → `isSupportedMediaType` / `capabilitiesOf` in
-  `@semiont/core`
-- The extension table (`MIME_TO_EXTENSION`) → the `MEDIA_TYPES` registry in
-  `@semiont/core`
+- `isSupportedMediaType` / `capabilitiesOf` — whether a type is admitted, and
+  what the system can do with it
+- `MEDIA_TYPES` — the registry itself, extensions included

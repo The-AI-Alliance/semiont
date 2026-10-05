@@ -2,12 +2,11 @@
  * Job Claim Adapter — worker-side job lifecycle glue on top of a
  * shared bus.
  *
- * Replaces the old `WorkerStateUnit`, which owned its own actor and
- * duplicated the SSE connection that `SemiontClient` already held.
  * Workers construct a `SemiontSession` normally (one actor, one
  * SSE connection) and use this adapter to attach job-claim behaviour
- * on top of the session's bus. It does **not** own the bus, has no HTTP
- * concerns, and has no modal state.
+ * on top of the session's bus, so the worker holds no second connection.
+ * It does **not** own the bus, has no HTTP concerns, and has no modal
+ * state.
  *
  * THE MODEL — a worker asks the queue at every moment it becomes idle,
  * and never otherwise. `job:claim` carries this worker's types; the
@@ -39,9 +38,9 @@
  * can never claim has nothing to do here and the launcher's preflight
  * names the repair.
  *
- * The queue drivers' 30 s re-announce tick survives as INSURANCE against a
- * lost wake-up on an idle worker — never as dispatch. A healthy stack never
- * sees it act.
+ * The queue drivers' 30 s re-announce tick is INSURANCE against a lost
+ * wake-up on an idle worker — never dispatch. A healthy stack never sees it
+ * act.
  *
  * The `bus` parameter is typed against the small `BusRequestPrimitive`
  * interface (from `@semiont/core`) so the adapter is transport-neutral.
@@ -74,10 +73,11 @@ export interface ActiveJob {
   resourceId: ResourceId;
   params: ClaimedJob['params'];
   /**
-   * Entity-type units earlier failed attempts fully emitted — the
-   * checkpoint a resume reads, carried on the claimed record's metadata by
-   * `failJob`. The worker skips them, so a retry neither redoes nor
-   * duplicates completed work. Empty on first attempts.
+   * Entity-type units earlier attempts fully committed — the checkpoint a
+   * resume reads, carried on the claimed record's metadata, where the queue
+   * writes it from `job:checkpoint` and `job:fail`. The worker skips them, so
+   * a retry neither redoes nor duplicates completed work. Empty on first
+   * attempts.
    */
   completedUnits: string[];
   /**
@@ -306,8 +306,9 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       started = true;
 
       // `job:queued` is declared twice over, and both halves are load-bearing:
-      // as a bridged broadcast so the frame exists on the wire at all, and in
-      // `WORKER_CONSUMED_BROADCASTS` so this process's transport carries it.
+      // under `audience: declared` in the registry so the frame crosses the
+      // wire at all, and in `WORKER_CONSUMED_BROADCASTS` so this process's
+      // transport carries it.
       // The worker subscribes its manifest, not `BRIDGED_CHANNELS`.
       subscriptions.push(
         bus.stream('job:queued').subscribe((event) => {

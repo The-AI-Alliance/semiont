@@ -21,7 +21,6 @@ type flowCtx struct {
 	// restart: this is `start --service <role>`, not a full start. The flows
 	// are the SAME flows either way — it changes only what the banner says,
 	// which is the whole of what a single-service start does differently.
-	// It used to change which implementation ran.
 	restart bool
 }
 
@@ -96,9 +95,7 @@ func (fc flowCtx) envFor(svc string) []string {
 
 // roleBanner and startBanner: the heading a role's flow prints, in the voice
 // of the verb that reached it. Every flow announces itself — that is what
-// makes a flow callable from both walks, and what kept `start --service
-// gateway` from losing its banner when the single-service verb stopped
-// carrying a blanket one.
+// makes a flow callable from both walks.
 func roleBanner(fc flowCtx, title string) string {
 	if fc.restart {
 		return "Restarting " + title
@@ -119,9 +116,9 @@ var depRoleTitles = map[string]string{
 }
 
 // flowFullStart is THE full-start sequence: preflight → ports → staging →
-// pulls → traces (--observe) → collector → database → gateway → graph →
-// vectors → inference → embedding → archivist → librarian → sidecars →
-// Browser.
+// pulls → traces and metrics (--observe) → collector → database → messaging →
+// identity → gateway → graph → vectors → inference → embedding → archivist →
+// librarian → dispatcher → sidecars → Browser.
 //
 // embedding follows inference deliberately: an ollama-typed embedding is
 // served BY the Ollama inference just brought up, so probing it any earlier
@@ -150,15 +147,14 @@ func flowFullStart(x executor, fc flowCtx) int {
 	swept := x.sweepStray(preflightNames)
 	x.sweepStaging()
 	// The settle is for the runtime to release what we just tore down. With
-	// nothing removed there is nothing to settle, and every first start paid
-	// a second for it.
+	// nothing removed there is nothing to settle.
 	// The ports this start is about to claim — computed once and used twice:
 	// waited on here because the sweep may have just released any of them,
 	// then verified free below. Deriving the wait from a second, hand-rolled
-	// list is how the two drift: the earlier one missed the gateway, the three
-	// sidecars and Neo4j's aux port (exactly what a torn-down stack still
-	// holds) while including ports for roles bound to a REMOTE service, which
-	// this start never binds.
+	// list is how the two drift: one that misses the gateway, the sidecars or
+	// Neo4j's aux port (exactly what a torn-down stack still holds), or
+	// includes ports for roles bound to a REMOTE service, which this start
+	// never binds.
 	checks := planPortChecks(fc.plan, fc.opts.observe)
 	if removed > 0 || swept {
 		x.settle(portNumbers(checks)...)
@@ -210,9 +206,9 @@ func flowFullStart(x executor, fc flowCtx) int {
 		}
 	}
 
-	// The collector always runs; --no-observe declines only trace storage
-	// (Jaeger, above), and the staged config then routes traces to `nop`.
-	// After Jaeger, so a first trace export has somewhere to land.
+	// The collector always runs; --no-observe declines only the backends
+	// (Jaeger and Prometheus, above), and the staged config then routes traces
+	// to `nop`. After Jaeger, so a first trace export has somewhere to land.
 	if code := flowCollector(x, fc, addr, stage); code != 0 {
 		return code
 	}
@@ -242,10 +238,6 @@ func flowFullStart(x executor, fc flowCtx) int {
 		return code
 	}
 
-	if !ok {
-		return 1
-	}
-
 	if code := flowGateway(x, fc, addr, stage, otel); code != 0 {
 		return code
 	}
@@ -268,8 +260,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// The Archivist boots BEFORE the sidecars: as the owner of the record it
 	// answers their boot-time bus requests (the smelter's reconcile opens
 	// with browse:resources), and its /health only turns on after its bus
-	// pumps attach — so gating here closes the startup race a 3.5-second
-	// head start once lost a smelter to.
+	// pumps attach — so gating here closes the startup race.
 	if code := flowArchivist(x, fc, addr, stage, otel); code != 0 {
 		return code
 	}
@@ -326,9 +317,7 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 			if port != 3000 {
 				// Not a CORS warning: the API is bearer-only and answers every origin
 				// with `Access-Control-Allow-Origin: *` and no credentials (gateway
-				// http.rs), so no gateway rejects this origin. It used to name
-				// `frontendURL`, a config key that was read by nothing and has since
-				// been deleted.
+				// http.rs), so no gateway rejects this origin.
 				// What IS true is that anything holding the default origin literally —
 				// an OAuth app registration, a bookmark, a pinned integration — keeps
 				// pointing at 3000.
@@ -336,8 +325,8 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 			}
 			// stop+rm, not stop: without --rm (kept for crash forensics) a
 			// stopped container HOLDS its name — the next run --name fails
-			// with "already exists" on every runtime (Copilot review, PR
-			// #1064; the same reason stop.go always rm's).
+			// with "already exists" on every runtime (the same reason
+			// stop.go always rm's).
 			x.stopRm("semiont-browser")
 			x.settle(port)
 			if !x.portCheck(portNeed{port, "Browser"}) {
@@ -363,12 +352,9 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 		})
 }
 
-// flowDepRole: the uniform dependency-role shape for graph / vectors /
-// database, presence-dispatched.
 // flowTraces, flowMetrics, flowCollector: the observability tier's launches,
-// written once. `start --service traces` used to reach a second copy of each
-// — same argv, separately maintained, and the pair had already drifted on
-// which endpoint they recorded.
+// written once, so a full start and `start --service traces` cannot drift on
+// argv or on the endpoint they record.
 func flowTraces(x executor, fc flowCtx) int {
 	x.banner(roleBanner(fc, "Traces (Jaeger)"))
 	args := tracesArgs()
@@ -423,6 +409,8 @@ func flowCollector(x executor, fc flowCtx, addr, stage string) int {
 	return 0
 }
 
+// flowDepRole: the uniform dependency-role shape for database / messaging /
+// identity / graph / vectors / embedding, presence-dispatched.
 func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	rp := fc.plan.Roles[role]
 	// An embedding that OWNS the local Ollama (all-remote bindings — nothing
@@ -430,16 +418,6 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	// bindings are ollama-typed; only the owning role differs.
 	if role == "embedding" && rp.Presence == presenceHostPreferred {
 		return flowOllama(x, fc, "embedding", rp, addr)
-	}
-	// Absent identity says what IS running instead, in one line, rather than
-	// the generic "not configured; skipping" banner block, which reads as a
-	// misconfiguration: without an [identity] section the gateway issues its
-	// own tokens.
-	if role == "identity" && rp.Presence == presenceAbsent {
-		x.say(sayLog, "identity — nothing to launch: no [identity] section; the gateway issues its own tokens")
-		x.note("identity: nothing to launch (no [identity] section; gateway-issued tokens)")
-		x.record(role, "", "", providedNone, "", "")
-		return 0
 	}
 	disp := driverDisplay(role, rp.Driver)
 	x.banner(roleBanner(fc, depRoleTitles[role]+" ("+disp+")"))
@@ -690,10 +668,9 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 	x.banner(roleBanner(fc, title+" ("+driverDisplay(role, rp.Driver)+")"))
 	// Our own container goes BEFORE the probe: a semiont-ollama left by the
 	// last start publishes the same port and answers the same /api/version,
-	// so probing first took the stack's own Ollama for a host install (seen
-	// on a re-run inside a codespace, 2026-09-28). This is also the only
-	// removal it gets — the preflight sweep exempts inference, and --service
-	// inference has no preflight at all.
+	// so probing first would take the stack's own Ollama for a host install.
+	// This is also the only removal it gets — the preflight sweep exempts
+	// inference, and --service inference has no preflight at all.
 	if x.stopRm("semiont-ollama") {
 		x.settle(rp.Port)
 	}
@@ -752,14 +729,11 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	if !ok {
 		return 1
 	}
-	// No anchored-text mount: the gateway stopped reading and writing that
-	// store when its anchored-text routes went, and the stamp moved with the
-	// writer. The Smelter owns it now.
-	//
-	// The shared XDG state tree: the Archivist rebuilds the views in here,
-	// and the gateway attaches it for its supervisor's events log
-	// (gatewayArgs). Shared, not stamped — the Archivist owns this store's
-	// stamp.
+	// The gateway's one state mount is the shared XDG state tree, attached
+	// for its supervisor's events log (gatewayArgs); the Archivist rebuilds
+	// the views in there. Shared, not stamped — the Archivist owns this
+	// store's stamp. No anchored-text mount: the gateway neither reads nor
+	// writes that store, which is the Smelter's.
 	extra, ok := x.stateMountsShared("state", fc.root)
 	if !ok {
 		return 1
@@ -794,11 +768,11 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	// rather than reaching it over the content transport — and it owns the
 	// STAMP too, stamped with its own image. That pairing is the point: the
 	// stamp names the code whose output the store holds, so an image change
-	// clears and re-derives. The worker and weaver never touch anchored text.
+	// clears and re-derives. The worker and weaver mount no store.
 	//
-	// Exactly one service may pass the stamped path — the Archivist keeps a
-	// SHARED read-only mount, and the gateway dropped its mount in the same
-	// change that made this one stamped.
+	// Exactly one service may take the stamped path — the Archivist mounts
+	// the same store SHARED (stateMountsShared) and only reads it, and the
+	// gateway mounts none of it.
 	var extra []string
 	if sc.svc == "smelter" {
 		m, ok := x.stateMounts("anchored-text", image("smelter", fc.version), fc.root)
@@ -868,10 +842,9 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 
 // flowLibrarian: the Librarian (the Matcher — match:* search) starts with
 // the core services, BEFORE the sidecars: no sidecar boot path is known to
-// ask match:* today, but health-after-pumps plus this ordering makes the
-// question moot rather than racy (the smelter's 3.5s boot race against the
-// Archivist is the cautionary tale). It reads everything and writes nothing
-// durable — see librarianArgs.
+// ask match:*, but health-after-pumps plus this ordering makes the question
+// moot rather than racy. It reads everything and writes nothing durable —
+// see librarianArgs.
 func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) int {
 	x.banner(startBanner(fc, "Librarian"))
 	state, ok := x.stateMountsShared("state", fc.root)

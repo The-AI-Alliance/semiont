@@ -1,13 +1,12 @@
 /**
  * Triangulation tests for the entity-types data flow.
  *
- * Written after an e2e failure where `ReferencesPanel` received
- * `allEntityTypes: []` even though the client provably received the
- * full 9-string array from the gateway (verified by console-arg
- * capture in Playwright traces).
+ * The failure they localize: a consumer (`ReferencesPanel`) holds
+ * `allEntityTypes: []` although the client received the full 9-string
+ * array from the gateway.
  *
  * These tests articulate the "how the 9 strings should travel" theory
- * at each composition boundary so that a regression points to the
+ * at each composition boundary so that a failure points to the
  * specific seam, not the whole integration stack.
  *
  * Layer-2 tests (this file): BrowseNamespace composes Cache + bus.
@@ -114,10 +113,8 @@ interface Harness {
   eventBus: EventBus;
 }
 
-// Real client over the scriptable transport: this file's original
-// hand-rolled emit-switch was one of the mock-subject harnesses the double
-// retires — the replies below ride the REAL cache, the REAL busRequest, and
-// the client's own bus.
+// Real client over the scriptable transport: the replies below ride the
+// REAL cache, the REAL busRequest, and the client's own bus.
 function createHarness(): Harness {
   const { client } = createTestClient({
     transport: {

@@ -179,7 +179,7 @@ describe('metricsExporterKind', () => {
     expect(metricsExporterKind('http://collector.test', undefined)).toBe('otlp');
   });
 
-  it('is console when there is no endpoint — the pre-existing fallback', async () => {
+  it('is console when there is no endpoint — the fallback', async () => {
     const { metricsExporterKind } = await loadFresh();
     expect(metricsExporterKind(undefined, undefined)).toBe('console');
   });

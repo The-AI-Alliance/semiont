@@ -13,7 +13,7 @@ import (
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
-// The realm's ACCOUNT surface. `identitysync.go` already reconciles clients,
+// The realm's ACCOUNT surface. `identitysync.go` reconciles clients,
 // mappers and realm settings; these four calls are the rest of what `semiont
 // useradd` needs, so the launcher administers the realm through one client
 // instead of exec-ing a second one written in TypeScript.
@@ -313,8 +313,8 @@ func TestUseraddInactiveCreatesDisabled(t *testing.T) {
 }
 
 // --generate-password: the launcher that administers the realm makes the
-// password, sets it, and shows it once. Found live 2026-09-29: the flag was
-// parsed and never read, so every such call refused with "Password required".
+// password, sets it, and shows it once. A flag parsed and never read would
+// refuse every such call with "Password required".
 func TestUseraddGeneratesAPasswordForACreate(t *testing.T) {
 	s := newStubUsers(t, "semiont", []map[string]any{})
 	code := 0

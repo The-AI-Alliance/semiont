@@ -1,5 +1,5 @@
 /**
- * buildPdfAnnotation (#736) — the geometry tail shared by every PDF detection
+ * buildPdfAnnotation — the geometry tail shared by every PDF detection
  * motivation. Pure over a synthetic PdfTextLayer: span + layer -> per-line
  * FragmentSelectors + a TextQuoteSelector, no TextPositionSelector, with the
  * geometry<->text containment invariant.
@@ -9,9 +9,8 @@ import { resourceId, type components } from '@semiont/core';
 import type { PdfTextLayer } from '@semiont/content';
 
 // No `@semiont/event-sourcing` mock: annotation ids are content-addressed, so
-// the real function is already deterministic. The mock existed only to buy
-// that determinism, and keeping it would hide the identity these builders now
-// compute — which is the thing worth exercising.
+// the real function is deterministic, and a mock would hide the identity
+// these builders compute — which is the thing worth exercising.
 
 import { buildPdfAnnotation } from '../processors';
 
@@ -40,7 +39,7 @@ const LAYER: PdfTextLayer = {
   fields: [],
 };
 
-// Synthetic cross-page layer (#738): the SAME continuous text, but "alpha beta"
+// Synthetic cross-page layer: the SAME continuous text, but "alpha beta"
 // sits on page 1 and "gamma delta" on page 2. A span from "beta" through "gamma"
 // straddles the page break.
 const CROSS_PAGE_LAYER: PdfTextLayer = {
@@ -87,10 +86,10 @@ describe('a PDF annotation is identified by offsets it does not carry', () => {
   // So two builds of the SAME visual span, against two extractions that differ
   // only by a leading character, produce annotations that are identical in every
   // stored field and different in `id`. Every dedupe layer keys on `id` and
-  // therefore lets both through, correctly; the identity was wrong upstream, and
+  // therefore lets both through, correctly; the identity is wrong upstream, and
   // an operator sees duplicates with no error anywhere.
   //
-  // This test asserts TODAY's behavior, and it is written to be FLIPPED if the
+  // This test pins that behavior, and it is written to be FLIPPED if the
   // identity is ever moved onto the durable anchor: the two ids would then be
   // equal and the assertion below becomes `toBe`.
   const span = { exact: 'gamma', start: 11, end: 16 };
@@ -120,7 +119,7 @@ describe('a PDF annotation is identified by offsets it does not carry', () => {
   });
 });
 
-describe('buildPdfAnnotation (#736 geometry tail)', () => {
+describe('buildPdfAnnotation (geometry tail)', () => {
   it('single-line span -> one FragmentSelector + a TextQuoteSelector, and no TextPositionSelector', () => {
     const ann = buildPdfAnnotation(LAYER, RID, GENERATOR, 'highlighting',
       { exact: 'alpha beta', start: 0, end: 10 });
@@ -170,7 +169,7 @@ describe('buildPdfAnnotation (#736 geometry tail)', () => {
   });
 
   it('linking motivation carries its detection-time body through the shared geometry', () => {
-    // #737: at detection time a linking reference's body is the entity type as a
+    // At detection time a linking reference's body is the entity type as a
     // TextualBody (the SpecificResource target is appended later, at bind). The
     // geometry tail is identical to highlighting; only motivation + body differ.
     const body = { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const, format: 'text/plain' };
@@ -196,7 +195,7 @@ describe('buildPdfAnnotation (#736 geometry tail)', () => {
     expect(Array.isArray((ann as Record<string, unknown>).body)).toBe(true);
   });
 
-  it('#738 cross-page: a span straddling a page break yields one FragmentSelector per page', () => {
+  it('cross-page: a span straddling a page break yields one FragmentSelector per page', () => {
     // "beta\ngamma" (chars 6..16) — beta on page 1, gamma on page 2.
     const ann = buildPdfAnnotation(CROSS_PAGE_LAYER, RID, GENERATOR, 'highlighting',
       { exact: 'beta\ngamma', start: 6, end: 16 });

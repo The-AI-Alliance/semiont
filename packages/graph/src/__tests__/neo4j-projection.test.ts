@@ -1,11 +1,11 @@
 /**
  * The neo4j → wire annotation projection, tested at the module seam.
  *
- * The writes store temporals natively (`created: datetime($created)`), so the
- * driver hands the projection a neo4j DateTime OBJECT — and `node` is `any`
- * here, so only a test can see one leak into `Annotation.created: string`.
- * That leak shipped: every D11-embedded graph annotation violated the schema,
- * and the first validated round-trip (`match:search-requested`) 400'd.
+ * A stored row can hold a native temporal, which the driver hands the
+ * projection as a neo4j DateTime OBJECT — and `node` is `any` here, so only a
+ * test can see one leak into `Annotation.created: string`. A leaked object
+ * violates the schema, and the first validated round-trip
+ * (`match:search-requested`) rejects it.
  */
 import { describe, it, expect } from 'vitest';
 import { parseAnnotationNode } from '../implementations/neo4j';
@@ -44,12 +44,10 @@ const neo4jTemporalToString = (iso: string): string =>
   iso.replace(/\.000Z$/, 'Z').replace(/\.(\d{3})Z$/, '.$1000000Z');
 
 describe('parseAnnotationNode — temporals leave as ISO strings, never driver objects', () => {
-  // Writes stopped coercing `created` to a temporal, so new rows round-trip
-  // verbatim. Rows written BEFORE that hold a temporal, and this is what they
-  // read back as — a different string than the log carried. It is why the fix
-  // has to be paired with a rebuild, and why a rebuild BEFORE the fix does not
-  // help: it re-creates the loss.
-  it('a legacy temporal row reads back REFORMATTED — the string the log carried is not recoverable from it', () => {
+  // Writes store `created` as the codec's string, so a written row
+  // round-trips verbatim. A row holding a native temporal reads back as this
+  // — a different string than the log carried — until a rebuild replaces it.
+  it('a row holding a native temporal reads back REFORMATTED — the string the log carried is not recoverable from it', () => {
     const AUTHORED = '2020-03-04T05:06:07.000Z';
     const legacy = parseAnnotationNode(node(driverDateTime(neo4jTemporalToString(AUTHORED))));
 
@@ -69,7 +67,7 @@ describe('parseAnnotationNode — temporals leave as ISO strings, never driver o
     expect(ann.created).toBe('2026-01-01T00:00:00Z');
   });
 
-  it('serializes `modified` the same way (the pattern `created` failed to follow)', () => {
+  it('serializes `modified` the same way', () => {
     const ann = parseAnnotationNode(node('2026-01-01T00:00:00Z', driverDateTime('2026-08-19T04:05:06Z')));
     expect(ann.modified).toBe('2026-08-19T04:05:06Z');
   });
@@ -78,7 +76,7 @@ describe('parseAnnotationNode — temporals leave as ISO strings, never driver o
 describe('parseAnnotationNode — the rest of the projection contract', () => {
   // `type` and `selector` are deliberately absent from this list: the stored
   // `type` never reaches the wire annotation, and a source-only target has no
-  // selector at all. Requiring either one is what made the store manufacture
+  // selector at all. Requiring either one would make the store manufacture
   // a `'{}'` to satisfy itself.
   it.each([
     ['id', 'Annotation missing required field: id'],

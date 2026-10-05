@@ -82,11 +82,10 @@ const renderWithEmptyRegistry = (component: React.ReactElement<{ session: Semion
   return render(React.cloneElement(component, { session }), { wrapper: Wrapper });
 };
 
-// Mock TranslationContext. The component now uses `schema.name` /
+// Mock TranslationContext. The component uses `schema.name` /
 // `category.name` directly off the registered TagSchema objects (tag schemas
-// are registered per knowledge base at runtime), so the per-schema/per-category
-// translation keys the older mock carried (`schemaLegal`, `categoryIssue`,
-// etc.) are no longer referenced — kept the mock minimal.
+// are registered per knowledge base at runtime), so the mock carries no
+// per-schema or per-category translation keys.
 vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: vi.fn(() => (key: string, params?: Record<string, any>) => {
     const translations: Record<string, string> = {
@@ -388,8 +387,8 @@ describe('TaggingPanel Component', () => {
     });
 
     it('should include schema id as classifying body alongside tagging body', async () => {
-      // Regression: manual tags were missing the classifying body, so getTagSchemaId()
-      // returned undefined and TagEntry never showed the schema name.
+      // Without the classifying body, getTagSchemaId() returns undefined and
+      // TagEntry never shows the schema name.
       const tracker = createEventTracker();
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
@@ -423,7 +422,7 @@ describe('TaggingPanel Component', () => {
           purpose: 'tagging',
         });
 
-        // Second: the schema id — this is what was missing before the fix
+        // Second: the schema id
         expect(body[1]).toMatchObject({
           type: 'TextualBody',
           value: 'legal-irac',

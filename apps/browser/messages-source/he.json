@@ -193,7 +193,6 @@
     "statusConnected": "מחובר",
     "statusExpired": "הפגישה פגה",
     "statusSignedOut": "מנותק",
-    "statusUnreachable": "לא ניתן להגיע",
     "invalidHost": "שם מארח לא חוקי",
     "discoveredTitle": "נמצא במחשב זה",
     "managedBadge": "מנוהל על ידי המשגר",

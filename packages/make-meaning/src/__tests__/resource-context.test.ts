@@ -442,10 +442,8 @@ describe('ResourceContext', () => {
 
   });
   // ── Semantic fallback — axioms S1–S6, S8 ─────────────────────────────────
-  // These landed as test.fails (all seven observed red — `matchKind` did not exist
-  // on ResourceContext's result) and flipped to test() with the fallback in
-  // the same change. Every case asserts `matchKind` because S1/S8's
-  // embed-absence halves would pass vacuously on their own.
+  // Every case asserts `matchKind` because S1/S8's embed-absence halves would
+  // pass vacuously on their own.
   describe('semantic fallback — axioms', () => {
     const FLOOR = 0.6;
     const doc = (id: string, name = id): ResourceDescriptor => ({
@@ -500,10 +498,10 @@ describe('ResourceContext', () => {
       expect((result.resources[0] as { content?: string }).content).toBe('the passage that matched');
     });
 
-    // S3/S4 (vectors unconfigured / provider absent → empty lexical, labelled
-    // lexical) retired 2026-08-12: the vector store and embedding provider are
-    // required at the type level, so their premise is unrepresentable. S5
-    // survives — mandatory is not the same as always up.
+    // No S3/S4 (vectors unconfigured / provider absent → empty lexical,
+    // labelled lexical): the vector store and embedding provider are required
+    // at the type level, so their premise is unrepresentable. S5 stands —
+    // mandatory is not the same as always up.
 
     test('S5: a throwing embed degrades to the empty lexical result, logged — never an error', async () => {
       mockGraph.listResources.mockResolvedValue({ resources: [], total: 0 });
@@ -590,7 +588,7 @@ describe('getResourceContent — text source dispatcher', () => {
     expect(decodeRepresentation).not.toHaveBeenCalled();
   });
 
-  test('decode media decodes exactly as before — the anchored ask is never consulted', async () => {
+  test('decode media decodes its bytes — the anchored ask is never consulted', async () => {
     primaryRep('text/markdown');
     (decodeRepresentation as ReturnType<typeof vi.fn>).mockReturnValue('DECODED TEXT');
     const { kb, getBinary, ask } = reads();

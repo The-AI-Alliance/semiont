@@ -43,7 +43,7 @@ Each verb's contract is in **[flows/](flows/README.md)**.
 
 **The boundary falls where durability changes.** Applications are ephemeral — rewritten, redesigned, increasingly generated outright. The knowledge they produce is not: it accretes in an event log that outlives every one of them. So the protocol constrains exactly the operations whose consequences persist, and says nothing about presentation. You may improvise screens, layouts, and interaction idioms freely. You may not improvise what an annotation is, how a reference resolves, or what an entity type means — because those choices are permanent and shared across every application that ever touches the corpus. Without that line, each generation of each app silently invents its own micro-schema and the corpus fragments.
 
-**The set has stayed closed under pressure.** The honest test of a verb vocabulary is what happens when it meets a use case it wasn't designed for. So far, expressive pressure has arrived as *options on existing verbs* — output shape and citation controls on Yield, exclusion filters on Gather — rather than as new verbs. A document-grounded chat application was built from Yield, Mark, Match and Gather with no protocol additions at all.
+**The set stays closed under pressure.** The honest test of a verb vocabulary is what happens when it meets a use case it wasn't designed for. Expressive pressure arrives as *options on existing verbs* — output shape and citation controls on Yield, exclusion filters on Gather — rather than as new verbs. A document-grounded chat application is built from Yield, Mark, Match and Gather with no protocol additions at all.
 
 ## What holds across every verb
 

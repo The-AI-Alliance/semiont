@@ -234,7 +234,7 @@ see [SESSION.md](../../docs/builder/react-ui/SESSION.md#usekbdiscovery--launcher
 
 Each lives in `src/features/<feature>/state/` (or `src/state/` for cross-feature ones) next to the components that consume it. The `useStateUnit` hook wires them into React lifecycles.
 
-Use them via `import { createComposePageStateUnit } from '@semiont/react-ui'`. UI-shape-neutral state machines (flow VMs, worker adapters, search pipeline) continue to live in `@semiont/sdk` and are re-exported from here for convenience.
+Use them via `import { createComposePageStateUnit } from '@semiont/react-ui'`. UI-shape-neutral state machines (flow VMs, worker adapters, search pipeline) live in `@semiont/sdk` and are re-exported from here for convenience.
 
 ### API Integration
 
@@ -291,7 +291,7 @@ See [TESTING.md](../../docs/builder/react-ui/TESTING.md) for details.
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Design principles and decisions
 - [STYLES.md](../../docs/builder/react-ui/STYLES.md) - Using the styles, design tokens and classes
 - [FAVICON.md](../../docs/builder/react-ui/FAVICON.md) - Favicon assets and usage
-- [ANNOTATIONS.md](../../docs/builder/react-ui/ANNOTATIONS.md) - Annotation system (coming soon)
+- [ANNOTATIONS.md](../../docs/builder/react-ui/ANNOTATIONS.md) - Annotation system
 - [ACCESSIBILITY.md](../../docs/builder/react-ui/ACCESSIBILITY.md) - Accessibility architecture and WCAG compliance
 
 ## Examples

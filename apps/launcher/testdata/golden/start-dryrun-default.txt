@@ -95,7 +95,7 @@ podman rm semiont-prometheus
 podman stop semiont-jaeger
 podman rm semiont-jaeger
 # remove staged config copies: <config-stages>
-# require free ports: 7474 7687 6333 5432 4222 8080 4000 24100 24101 24102 24103 24104 4318 24110 16686 14318 9090
+# require free ports: 7474 7687 6333 5432 4222 8080 4000 24100 24101 24102 24103 24104 24105 4318 24110 16686 14318 9090
 # write <config-stage>/gateway.json (the gateway's configuration document: GatewayConfig, resolved)
 # write <config-stage>/dispatcher.json (the dispatcher's configuration document: DispatcherConfig, resolved)
 # stage per-service config copies under <config-stage>: archivist.toml librarian.toml worker.toml smelter.toml weaver.toml

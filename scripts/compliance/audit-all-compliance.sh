@@ -15,7 +15,7 @@ echo "⚛️  Checking React Hooks ordering..."
 npx tsx "$COMPLIANCE_DIR/audit-hooks-ordering.ts"
 echo ""
 
-# EventBus/SSE architecture check (detects legacy callback patterns)
+# EventBus/SSE architecture check (detects callback-based SSE patterns)
 echo "🔌 Checking EventBus/SSE architecture..."
 npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/packages/react-ui/src" || echo "⚠️  EventBus/SSE violations found in react-ui"
 npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/apps/browser/src" || echo "⚠️  EventBus/SSE violations found in browser"
@@ -56,8 +56,8 @@ bash "$COMPLIANCE_DIR/audit-mock-targets.sh"
 bash "$COMPLIANCE_DIR/audit-supervision.sh"
 echo ""
 
-# Weaver structural invariants (G1–G5)
-echo "🕸️  Checking Weaver invariants (no event-store/fs, standalone-only, single mark/signal writer, channel↔fold sync)..."
+# Weaver structural invariants (G1–G6)
+echo "🕸️  Checking Weaver invariants (no event-store/fs, standalone-only, single mark/signal writer, channel↔fold sync, codec-derived divergence)..."
 bash "$COMPLIANCE_DIR/audit-weaver-invariants.sh"
 echo ""
 # One annotation codec for all four graph stores (codec axioms A1/A5)

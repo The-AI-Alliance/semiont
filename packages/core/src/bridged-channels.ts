@@ -12,45 +12,15 @@ import type { EventName } from './bus-protocol';
 import { BUS_OPERATIONS } from './bus-operations';
 
 /**
- * BRIDGED_CHANNELS
- *
- * The set of bus channels that any concrete transport bridges into the
- * caller-supplied bus via `bridgeInto`. Transport-neutral: every concrete
- * `ITransport` shares the same set; HTTP delivers them via SSE, in-process
- * transports forward them directly from the local actor bus.
- *
- * This is the *fan-in* set — channels for events the transport receives and
- * pushes onto the client's bus. It is not the same as the channels the client
- * emits (which is open-ended).
- *
- * It is DERIVED, not hand-listed: the request/reply replies come from
- * `BUS_OPERATIONS` (bus-operations.ts), so no operation's reply can be
- * forgotten here — that was the recurring unbridged-reply bug class. The only
- * hand-maintained part is `BRIDGED_BROADCASTS`: the genuine non-request/reply
- * minority (lifecycle events and UI/infra signals that no single requester
- * owns).
- *
- * Resource-scoped channels (joined/left via `subscribeToResource`) are tracked
- * separately by transports that care about scope (HTTP).
- */
-
-/**
  * WHO receives a wire-crossing channel — independent of `kind` and of
  * `recorded`. An OPERATION's channels are absent: a request reaches the one
  * service that answers it, and a reply is correlated-addressed to its owner.
  *
  *   everyone — every default client auto-subscribes (derives BRIDGED_CHANNELS)
  *   scoped   — delivered to clients that joined the frame's RESOURCE scope
- *              (derives RESOURCE_SCOPED_CHANNELS, which used to be a
- *              persisted-minus-bridged subtraction nobody declared)
+ *              (derives RESOURCE_SCOPED_CHANNELS)
  *   declared — only clients whose manifest names it: workers, sidecars, and
  *              the gateway's own handlers
- *
- * Seeded 2026-09-16 from a per-channel audit of every wire-crossing channel,
- * evidenced by subscription sites and client manifests rather than by the
- * label a channel already carried. Two of those labels were false: `job:queued`
- * was auto-subscribed by every browser and read by none, and eleven channels
- * said `inProcess` while being delivered to browsers per resource scope.
  */
 export const BRIDGED_BROADCASTS = [
   'job:report-progress',
@@ -93,6 +63,27 @@ const REGISTRY_REPLIES = (Object.keys(BUS_OPERATIONS) as (keyof typeof BUS_OPERA
   },
 );
 
+/**
+ * BRIDGED_CHANNELS
+ *
+ * The set of bus channels that any concrete transport bridges into the
+ * caller-supplied bus via `bridgeInto`. Transport-neutral: every concrete
+ * `ITransport` shares the same set; HTTP delivers them via SSE, in-process
+ * transports forward them directly from the local actor bus.
+ *
+ * This is the *fan-in* set — channels for events the transport receives and
+ * pushes onto the client's bus. It is not the same as the channels the client
+ * emits (which is open-ended).
+ *
+ * It is DERIVED, not hand-listed: the request/reply replies come from
+ * `BUS_OPERATIONS` (bus-operations.ts), so no operation's reply can be
+ * forgotten here. The only hand-maintained part is `BRIDGED_BROADCASTS`: the
+ * genuine non-request/reply minority (lifecycle events and UI/infra signals
+ * that no single requester owns).
+ *
+ * Resource-scoped channels (joined/left via `subscribeToResource`) are tracked
+ * separately by transports that care about scope (HTTP).
+ */
 export const BRIDGED_CHANNELS: readonly BridgedChannel[] = [
   ...REGISTRY_REPLIES,
   ...BRIDGED_BROADCASTS,

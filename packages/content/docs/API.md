@@ -16,7 +16,7 @@ const project = new SemiontProject('/path/to/project', { anchoredTextDir: proces
 const store = new WorkingTreeStore(project, logger /* optional */);
 ```
 
-The store resolves `file://` URIs against the project root. When the project has `[git] sync = true` in `.semiont/config`, mutating operations also keep the git index up to date; every method accepts `{ noGit: true }` to skip that for a single call.
+The store resolves `file://` URIs against the project root. When the project has `[git] sync = true` in `.semiont/config`, mutating operations also keep the git index up to date; each of them accepts `{ noGit: true }` to skip that for a single call.
 
 ### Storing Content
 
@@ -31,13 +31,13 @@ const stored = await store.store(
 // Returns StoredResource:
 // {
 //   storageUri: 'file://docs/overview.md',
-//   checksum: '5aaa0b72...',        // SHA-256 hex of content
-//   byteSize: 12,
+//   checksum: '875dce0e...',        // SHA-256 hex of content
+//   byteSize: 11,
 //   created: '2026-06-10T12:00:00.000Z'
 // }
 ```
 
-Intermediate directories are created automatically. With git sync, the file is staged via `git add`.
+Intermediate directories are created automatically. With git sync, a `git add` of the file is queued: staging is deferred and deduplicated, and `flushStaging()` stages what is pending.
 
 ### Registering Existing Files
 
@@ -83,7 +83,7 @@ store.resolveUri('file://docs/overview.md');
 ### Types
 
 ```typescript
-interface StoredResource {
+interface StoredResource {  // from @semiont/core
   storageUri: string;    // file:// URI (e.g. "file://docs/overview.md")
   checksum: string;      // SHA-256 hex of content
   byteSize: number;      // Size in bytes
@@ -110,9 +110,11 @@ verifyChecksum(Buffer.from('Hello'), checksum);  // true
 
 ## Storage URI Derivation
 
+`deriveStorageUri` is exported by `@semiont/core`, not by this package; it
+builds the `file://` URIs the store takes.
+
 ```typescript
-import { deriveStorageUri } from '@semiont/content';
-import type { SupportedMediaType } from '@semiont/core';
+import { deriveStorageUri } from '@semiont/core';
 
 deriveStorageUri('My Document', 'text/markdown');
 // 'file://my-document.md' (lowercased, non-alphanumerics collapsed to hyphens)
@@ -142,25 +144,26 @@ if (layer === null) {
 
 ### locate
 
-Finds bounding rectangles for a character span `[start, end)` of `layer.text`. Returns one `PdfCoordinate` per line of text covered by the span (possibly across pages), or an empty array if no text items overlap the span.
+Finds bounding rectangles for a character span `[start, end)` of `layer.text`. Exported by `@semiont/core`. Returns `rects`, one `PdfCoordinate` per line of text covered by the span (possibly across pages), and `overlap`, the text items they were computed from; both are empty if no text items overlap the span.
 
 ```typescript
-import { locate } from '@semiont/content';
+import { locate } from '@semiont/core';
 
-const rects = locate(layer, 120, 178);
-// => [{ page: 1, x: 56.7, y: 701.2, width: 213.4, height: 11.9 }, ...]
+const { rects, overlap } = locate(layer, 120, 178);
+// rects => [{ page: 1, x: 56.7, y: 701.2, width: 213.4, height: 11.9 }, ...]
 ```
 
 ### Types
 
 ```typescript
 interface PdfTextLayer {
-  pages: PdfPageInfo[];  // Page dimensions in PDF points
-  text: string;          // Reading-order concatenation across all pages
-  items: PdfTextItem[];  // One entry per text run (roughly a word)
+  pages: PdfPageInfo[];    // Page dimensions in PDF points
+  text: string;            // Reading-order concatenation across all pages
+  items: PdfTextItem[];    // One entry per text run (roughly a word)
+  fields: PdfFormField[];  // Filled AcroForm values; empty without a form
 }
 
-interface PdfTextItem {
+interface PdfTextItem {    // from @semiont/core
   start: number;  // Char offset in PdfTextLayer.text (inclusive)
   end: number;    // Char offset in PdfTextLayer.text (exclusive)
   page: number;   // 1-indexed page number
@@ -174,7 +177,10 @@ interface PdfPageInfo {
   pageNumber: number;
   widthPt: number;
   heightPt: number;
+  textStart: number;      // Char offset in PdfTextLayer.text (inclusive)
+  textEnd: number;        // Char offset in PdfTextLayer.text (exclusive)
+  hasTextLayer: boolean;  // false for a scanned page
 }
 ```
 
-All geometry is in PDF point space with the origin at the bottom-left of the page (Y increases upward). The Y-flip to canvas pixels happens downstream in the browser. The `PdfCoordinate` type that `locate()` emits lives in `@semiont/core` alongside the viewrect FragmentSelector codec.
+All geometry is in PDF point space with the origin at the bottom-left of the page (Y increases upward). The Y-flip to canvas pixels happens downstream in the browser. `PdfTextItem` and the `PdfCoordinate` type that `locate()` emits live in `@semiont/core` alongside the viewrect FragmentSelector codec.

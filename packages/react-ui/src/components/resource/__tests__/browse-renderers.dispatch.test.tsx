@@ -1,17 +1,15 @@
 /**
- * BUG: the image browse renderer dropped its annotations — the default
- * renderers must forward what BrowseView hands them.
+ * The default renderers forward what BrowseView hands them: the annotations
+ * and the session.
  *
- * ImageBrowseRenderer destructured only content/mimeType and mounted a bare
- * ImageViewer: shape annotations invisible in browse mode (annotate mode
- * proves the data). Fix: the read-only annotation canvas (drawingMode=null),
- * WITH the session extension on MediaRendererProps — clicks/hover route in
- * browse mode too, and the PDF renderer's pre-existing session-less click gap
- * heals in the same motion.
+ * An ImageBrowseRenderer that destructures only content/mimeType and mounts a
+ * bare ImageViewer leaves shape annotations invisible in browse mode. The
+ * renderer mounts the read-only annotation canvas (drawingMode=null), WITH
+ * the session extension on MediaRendererProps — so clicks/hover route in
+ * browse mode too, for the PDF renderer as well.
  *
  * Prop-capturing canvas mocks pin the contract: mounted, given the
- * annotations, read-only, session threaded. Started RED (image: no canvas at
- * all; pdf: no session) → GREEN.
+ * annotations, read-only, session threaded.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { within } from '@testing-library/react';
@@ -92,12 +90,12 @@ describe('browse-renderers — annotation + session forwarding (dispatch contrac
     expect(captured.svg).toHaveLength(1);
     const props = captured.svg[0]!;
     expect(props.imageUrl).toBe('blob:image-url');
-    expect(props.existingAnnotations).toEqual([shapeAnnotation()]); // the dropped prop
+    expect(props.existingAnnotations).toEqual([shapeAnnotation()]); // the annotations arrive
     expect(props.drawingMode).toBeNull();                           // read-only in browse
     expect(props.session).toBe(session);                            // interaction parity
   });
 
-  it('pdf browse keeps its annotations (pinned) and gains the session (the healed click gap)', async () => {
+  it('pdf browse forwards its annotations and the session', async () => {
     const session = fakeSession();
     const annotations = { ...emptyAnnotations, highlights: [shapeAnnotation()] };
     const { container } = renderInEnglish(
@@ -108,16 +106,16 @@ describe('browse-renderers — annotation + session forwarding (dispatch contrac
     await within(container).findByText('pdf-canvas-mock'); // flush the lazy canvas
     expect(captured.pdf).toHaveLength(1);
     const props = captured.pdf[0]!;
-    expect(props.existingAnnotations).toEqual([shapeAnnotation()]); // pinned — worked before
+    expect(props.existingAnnotations).toEqual([shapeAnnotation()]); // the annotations arrive
     expect(props.drawingMode).toBeNull();
-    expect(props.session).toBe(session);                            // NEW — was a session-less no-op
+    expect(props.session).toBe(session);                            // without it a click is a no-op
     // Browse asks for the scrolling column.
     expect(props.pageLayout).toBe('scroll');
   });
 
   // Annotate is the mode people actually work in, so it gets the
-  // column too — leaving it on Previous/Next made the feature invisible to
-  // its primary audience.
+  // column too — leaving it on Previous/Next would make the feature
+  // invisible to its primary audience.
   it('the annotate registry asks for the column as well, with the live tool', async () => {
     const session = fakeSession();
     const { AnnotateView } = await import('../AnnotateView');

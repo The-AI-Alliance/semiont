@@ -19,7 +19,7 @@ For **application-specific AI logic** (semantic processing, prompt engineering, 
 
 ## Architecture Context
 
-**Infrastructure Ownership**: In production, inference clients are **created by [@semiont/make-meaning](../make-meaning/)'s `startMakeMeaning()`** (one client per knowledge-system actor — Gatherer, Matcher) and by [@semiont/jobs](../jobs/)' worker process (one client per job group). Both build an `InferenceClientConfig` from their own configuration and call `createInferenceClient()`.
+**Infrastructure Ownership**: In production, inference clients are **created by the Librarian's entry point in [@semiont/make-meaning](../make-meaning/), `librarian-main`** (one client per knowledge-system actor — Gatherer, Matcher) and by [@semiont/jobs](../jobs/)' worker process (one client per job group). `startMakeMeaning()` creates the same two actor clients when it composes the actors in one process. Each builds an `InferenceClientConfig` from its own configuration and calls `createInferenceClient()`.
 
 The API below can also be used directly for **testing, CLI tools, or standalone scripts**.
 
@@ -115,6 +115,8 @@ interface InferenceLimits {
   maxOutputTokens: number;       // max output per generation (Ollama mirrors the shared window here)
   outputTokensPerHour?: number;  // provider's worst-case output-rate model, when it
                                  // publishes one (Anthropic: 128_000; absent for Ollama)
+  acceptsTemperature?: boolean;  // whether the model takes a caller-supplied temperature
+                                 // (Anthropic probes it at discovery; absent = no claim)
 }
 
 interface InferenceResponse {
@@ -157,11 +159,11 @@ Current callers all expect arrays (entity extraction, motivation detection). If 
 `limits()` publishes the provider's **actual** context/output ceilings for the configured model — discovered from the provider itself, never hand-maintained constants:
 
 - **Anthropic**: the Models API (`models.retrieve`) — `max_input_tokens` / `max_tokens` — plus `outputTokensPerHour: 128_000`, the SDK's own worst-case rate model (the `calculateNonstreamingTimeout` constant): the one duration statement the provider surface makes, which detection's duration-safe budgets derive from.
-- **Ollama**: `POST /api/show` — the model's context window. Input and output share that window, so it is published as both fields (`maxOutputTokens === contextTokens` signals a shared window). No rate is published — local hardware's rate is unknowable a priori. Absence does **not** mean no duration bound: the detection consumer applies its own conservative assumed floor rate instead, because an unbounded output budget turned model repetition loops into hour-long transient burns.
+- **Ollama**: `POST /api/show` — the model's context window. Input and output share that window, so it is published as both fields (`maxOutputTokens === contextTokens` signals a shared window). No rate is published — local hardware's rate is unknowable a priori. Absence does **not** mean no duration bound: the detection consumer applies its own conservative assumed floor rate instead, because an unbounded output budget turns a model repetition loop into an hour-long transient burn.
 
 Discovery is lazy and cached per client; a failed discovery is **not** cached — the next call retries. When ceilings cannot be determined (unknown model, endpoint unreachable), `limits()` **throws**: fail-loud, never a guessed floor.
 
-Two request-time behaviors ride on the limits:
+Request-time behaviors of the adapters:
 - **Ollama sets `num_ctx` explicitly** on every generate request — sized to the prompt estimate + output budget, capped at the model window. Without it, Ollama's model-*default* window silently clips large prompts. A request that genuinely cannot fit **throws** instead of being clipped.
 - **The Ollama adapter owns its transport timeouts.** With `stream: false`, Ollama sends no response headers until generation completes, and Node's default fetch would kill any call generating longer than ~5 minutes (undici's `headersTimeout`) — a ceiling below every deliberate bound, owned by nobody. Generate requests run on a per-request undici@7 dispatcher with those timeouts disabled; the caller's `AbortSignal` is the one bound. The undici `^7` pin is load-bearing (the built-in fetch rejects an undici@8 Agent) and test-gated.
 - **Cloud-routed Ollama models are reported honestly, not corrected**: hidden thinking returned despite `think: false` is surfaced on the response and warned (it inflates `eval_count`, which is documented at the field), and the structured `format` is advisory rather than grammar-enforced on that path — violations surface as `StructuredReadError`.
@@ -169,7 +171,7 @@ Two request-time behaviors ride on the limits:
 
 ### `MockInferenceClient`
 
-A scripted test double ([src/implementations/mock.ts](src/implementations/mock.ts)): construct it with a list of canned responses, then inspect `calls` (recorded prompt/maxTokens/temperature/options per invocation). `reset()` and `setResponses()` helpers included. An optional third constructor argument injects `InferenceLimits` for chunking/budget tests; the default is generous (1M/1M window plus a generous published rate) so ordinary tests never trip window guards, duration caps, or the count-verifier. Its capabilities are deterministic-test defaults — `maxConcurrency: 1`, `verifyDetectionYield: false` — so a test exercising concurrency or verification declares its own client rather than paying a surprise call.
+A scripted test double ([src/implementations/mock.ts](src/implementations/mock.ts)): construct it with a list of canned responses, then inspect `calls` (recorded prompt/maxTokens/temperature per invocation, plus the `elementSchema` of a structured call). `reset()` and `setResponses()` helpers included. An optional third constructor argument injects `InferenceLimits` for chunking/budget tests; the default is generous (1M/1M window plus a generous published rate) so ordinary tests never trip window guards, duration caps, or the count-verifier. Its capabilities are deterministic-test defaults — `maxConcurrency: 1`, `verifyDetectionYield: false` — so a test exercising concurrency or verification declares its own client rather than paying a surprise call.
 
 ```typescript
 import { MockInferenceClient } from '@semiont/inference';
@@ -198,7 +200,7 @@ Every generation records a usage metric through `@semiont/observability`'s `reco
 │  (AI primitives only)                       │
 │  - InferenceClient interface                │
 │  - createInferenceClient() factory          │
-│  - cross-provider JSON output mode          │
+│  - cross-provider structured generation     │
 └──────────┬───────────────────┬──────────────┘
            │                   │
 ┌──────────▼──────────┐ ┌─────▼──────────────┐
@@ -238,6 +240,7 @@ From [package.json](package.json):
 - `@anthropic-ai/sdk` - Anthropic API client
 - `@semiont/core` - `Logger` type
 - `@semiont/observability` - usage metrics
+- `undici` - the dispatcher the Ollama client disables transport timeouts with
 
 Ollama uses native HTTP (`fetch`) with no SDK dependency.
 

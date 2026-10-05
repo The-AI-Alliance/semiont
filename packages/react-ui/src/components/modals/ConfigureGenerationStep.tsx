@@ -7,9 +7,8 @@ import type { GenerationOptions } from '@semiont/sdk';
 import { LOCALES, GENERATABLE_MEDIA_TYPES, capabilitiesOf, proposeStoragePath } from '@semiont/core';
 
 /**
- * Bounds for the max-length control when no ceiling is known. These are the
- * values this control has always shipped — the fallback is today's behaviour,
- * not an unbounded field.
+ * Bounds for the max-length control when no ceiling is known — the fallback
+ * is a bounded field, never an unbounded one.
  */
 const MIN_MAX_TOKENS = 100;
 const DEFAULT_MAX_TOKENS_CEILING = 4000;
@@ -35,10 +34,9 @@ export interface GenerationDraft {
  * What this form fills in. Named here, but TYPED by the SDK.
  *
  * `storageUri` is on this list rather than a local `storagePath: string`
- * because the two were the same thing under different names — a divergence
- * that survived precisely because nothing tied them together. Under the
- * SDK's name, the page forwards the submitted config by spread, so no
- * field-by-field copy can drop one.
+ * because a second name for the same thing is tied to nothing and diverges.
+ * Under the SDK's name, the page forwards the submitted config by spread, so
+ * no field-by-field copy can drop one.
  */
 type FormFilled =
   | 'title'
@@ -51,12 +49,11 @@ type FormFilled =
  * The submitted payload: the SDK's own generation options, DERIVED rather
  * than restated, plus the grounding context.
  *
- * This was a hand-written interface listing the same fields with independent
- * types — the shape `## Duplicated Shape` forbids — and it drifted exactly as
- * predicted: `storagePath: string` held a `storageUri`, so every consumer
- * re-mapped it by hand and silently dropped whatever the mapping forgot.
- * Deriving means a rename or retype in `GenerationOptions` is a compile
- * error here instead of a quiet gap at the wire.
+ * A hand-written interface listing the same fields with independent types
+ * would be a second copy of a shape the SDK owns, and such a copy drifts:
+ * every consumer re-maps it by hand and silently drops whatever the mapping
+ * forgets. Deriving means a rename or retype in `GenerationOptions` is a
+ * compile error here instead of a quiet gap at the wire.
  *
  * NARROWED on purpose: the SDK also carries `task`, `structure`, `cite` and
  * `stallDeadlineMs`, which this form does not collect, and a payload type
@@ -81,9 +78,9 @@ const extensionFor = (format: SupportedMediaType): string =>
   capabilitiesOf(format)?.extension ?? '';
 
 /**
- * A fresh draft, defined ONCE for both hosts. The two modals carried
- * byte-identical literals — magic numbers included — so every new field meant
- * two edits and an opportunity to seed only one of them.
+ * A fresh draft, defined ONCE for both hosts: a literal per modal — magic
+ * numbers included — would make every new field two edits and an opportunity
+ * to seed only one of them.
  */
 export const freshGenerationDraft = (title: string, locale: string): GenerationDraft => ({
   title,
@@ -165,11 +162,11 @@ export function ConfigureGenerationStep({
   translations: t,
   generationAgent,
 }: ConfigureGenerationStepProps) {
-  // CONTROLLED: these were six local `useState`s, so Back unmounted the step and
-  // threw away every typed instruction, the save path and both sliders.
+  // CONTROLLED: Back unmounts the step, and local `useState`s would throw away
+  // every typed instruction, the save path and both sliders with it.
   // `maxTokensText` stays TEXT rather than a number so the field can be cleared
   // mid-edit — `parseInt` on an empty field yields NaN, which React warns about
-  // and which used to travel into the job config.
+  // and which would travel into the job config.
   const { title, storagePath, prompt, language, temperature, maxTokensText, outputMediaType } = config;
   const set = (patch: Partial<GenerationDraft>) => onConfigChange({ ...config, ...patch });
 
@@ -194,12 +191,11 @@ export function ConfigureGenerationStep({
 
   const ceiling = generationAgent?.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS_CEILING;
 
-  // Measured 2026-09-25: claude-sonnet-5 refuses EVERY non-default
-  // temperature — the untouched 0.7 default included — so a rejecting model
-  // gets neither the control nor the field, and no control silently does
-  // nothing. Only an explicit false hides it: absent discovery means no claim,
-  // and the inference client suppresses as the second line of defense either
-  // way.
+  // claude-sonnet-5 refuses EVERY non-default temperature — the untouched 0.7
+  // default included — so a rejecting model gets neither the control nor the
+  // field, and no control silently does nothing. Only an explicit false hides
+  // it: absent discovery means no claim, and the inference client suppresses
+  // as the second line of defense either way.
   const temperatureAccepted = generationAgent?.limits?.acceptsTemperature !== false;
 
   /**
@@ -242,8 +238,8 @@ export function ConfigureGenerationStep({
 
   return (
     // No --scrollable: this form renders below the evidence display inside the
-    // host's single step-scroll pane — an independent scroll region here is
-    // what squeezed the parameters out of view (the measured failure).
+    // host's single step-scroll pane — an independent scroll region here
+    // squeezes the parameters out of view.
     <form onSubmit={handleSubmit} className="semiont-form">
       {hintEcho && (
         <p className="semiont-wizard__hint-echo">

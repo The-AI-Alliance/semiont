@@ -52,6 +52,10 @@ async function detectInChunks<T>(
   elementSchema: ElementSchema,
   parse: (items: unknown[]) => T[],
   onActivity?: (consumedChars: number, totalChars: number) => void,
+  /** Where an earlier attempt left this unit: a partway unit resumes at its
+   * recorded offset instead of the top. Before the callback below, which
+   * stays last. */
+  resume?: UnitCursor,
   /**
    * This chunk's parsed matches, awaited before the loop continues: the
    * caller commits them, and the loop must not run ahead of durability.
@@ -62,10 +66,6 @@ async function detectInChunks<T>(
    * WITH the results so a caller cannot record a position it has not made
    * durable.
    */
-  /** Where an earlier attempt left this unit: a partway unit resumes at its
-   * recorded offset instead of the top. Before the callback below, which
-   * stays last. */
-  resume?: UnitCursor,
   onChunkResults?: (parsed: T[], cursor: ChunkCursor) => Promise<void>,
 ): Promise<T[]> {
   const limits = await client.limits();
@@ -126,7 +126,6 @@ export class AnnotationDetection {
     language?: string,
     sourceLanguage?: string,
     onActivity?: (consumedChars: number, totalChars: number) => void,
-    /** This chunk's matches, as the chunk completes. */
     /** Where an earlier attempt left this unit. */
     resume?: UnitCursor,
     /** This chunk's matches, as the chunk completes. Kept LAST. */
@@ -157,7 +156,6 @@ export class AnnotationDetection {
     density?: number,
     sourceLanguage?: string,
     onActivity?: (consumedChars: number, totalChars: number) => void,
-    /** This chunk's matches, as the chunk completes. */
     /** Where an earlier attempt left this unit. */
     resume?: UnitCursor,
     /** This chunk's matches, as the chunk completes. Kept LAST. */
@@ -190,7 +188,6 @@ export class AnnotationDetection {
     language?: string,
     sourceLanguage?: string,
     onActivity?: (consumedChars: number, totalChars: number) => void,
-    /** This chunk's matches, as the chunk completes. */
     /** Where an earlier attempt left this unit. */
     resume?: UnitCursor,
     /** This chunk's matches, as the chunk completes. Kept LAST. */
@@ -226,14 +223,14 @@ export class AnnotationDetection {
     category: string,
     sourceLanguage?: string,
     onActivity?: (consumedChars: number, totalChars: number) => void,
-    /**
-     * This chunk's matches, ANCHORED before they leave: `parse` here yields
-     * raw tags, so this path runs `validateTagOffsets` per chunk — a per-item
-     * anchor against the full document, so partitioning changes nothing.
-     */
     /** Where an earlier attempt left this unit. */
     resume?: UnitCursor,
-    /** This chunk's matches, as the chunk completes. Kept LAST. */
+    /**
+     * This chunk's matches, as the chunk completes, ANCHORED before they
+     * leave: `parse` here yields raw tags, so this path runs
+     * `validateTagOffsets` per chunk — a per-item anchor against the full
+     * document, so partitioning changes nothing. Kept LAST.
+     */
     onChunkResults?: (matches: TagMatch[], cursor: ChunkCursor) => Promise<void>,
   ): Promise<TagMatch[]> {
     const categoryInfo = schema.tags.find((t) => t.name === category);

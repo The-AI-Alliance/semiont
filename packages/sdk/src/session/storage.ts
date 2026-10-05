@@ -37,10 +37,10 @@ export const LAST_VIEWED_RESOURCE_BY_KB_KEY = 'semiont.lastViewedResourceByKb';
  * carries no `exp` to schedule against (the caller then schedules nothing).
  *
  * **The margin is a fraction of the token's OWN lifetime**, capped at
- * {@link REFRESH_BEFORE_EXP_MS}. That is the whole fix: a constant margin can
+ * {@link REFRESH_BEFORE_EXP_MS}. That is the whole point: a constant margin can
  * equal — or exceed — the lifetime of a token some issuer mints, and when it
  * does, the subtraction yields a moment already past. Half the lifetime cannot,
- * for any lifetime, so no issuer's configuration can reproduce the loop. This
+ * for any lifetime, so no issuer's configuration can produce a refresh loop. This
  * matters beyond the realm Semiont runs: for `type = "oidc"` the launcher
  * deliberately refuses to set a lifespan at all, so an external issuer's
  * lifetime is not ours to correct and the client is the only place that can be
@@ -76,17 +76,17 @@ function parseJwtClaims(token: string): { exp?: number; iat?: number } | null {
  * `InvalidCharacterError` on `-` and `_`, the two characters base64url
  * substitutes for `+` and `/`, and it wants the `=` padding JWTs omit.
  *
- * Pure-ASCII payloads seldom produce those characters, which is how reading
- * them with a bare `atob` survived this long. A non-ASCII `name` claim
- * produces them often — measured at 2 of 8 sample names, "Zoë Fauré" among
- * them — and it is deterministic per account, so an affected user hits it on
- * every token they are ever issued.
+ * Pure-ASCII payloads seldom produce those characters, so a bare `atob`
+ * appears to work. A non-ASCII `name` claim produces them often — 2 of 8
+ * sample names, "Zoë Fauré" among them — and it is deterministic per
+ * account, so an affected user hits it on every token they are ever issued.
  *
- * The consequence was not a missing refresh. `isJwtExpired` answers `true`
+ * The consequence is not a missing refresh. `isJwtExpired` answers `true`
  * when the payload will not parse, and it gates both startup and the KB
- * panel's status — so those users' perfectly valid sessions read as expired,
- * every time. `TextDecoder` rather than a charCode loop because the payload
- * is UTF-8 by definition, and that is the whole reason those bytes are there.
+ * panel's status — so under a bare `atob` those users' perfectly valid
+ * sessions read as expired, every time. `TextDecoder` rather than a
+ * charCode loop because the payload is UTF-8 by definition, and that is the
+ * whole reason those bytes are there.
  */
 function decodeBase64Url(segment: string): string {
   const base64 = segment.replace(/-/g, '+').replace(/_/g, '/');
@@ -169,13 +169,13 @@ function isKnowledgeBase(entry: unknown): entry is KnowledgeBase {
     return false;
   }
   // `did` is required: a knowledge base declares its identity or does not
-  // run. Entries persisted before that rule have none, and without this
-  // check they would load and violate the type at runtime — the identity
-  // join would then compare against `undefined` and silently never match,
-  // which is the failure mode the rule exists to end. Per the storage stance
-  // (no back-compat layer), they drop and the user re-adds; the cost is a
-  // one-time list clear, paid once, in exchange for every loaded KB actually
-  // having the identity its type promises.
+  // run. An entry stored without one would, without this check, load and
+  // violate the type at runtime — the identity join would then compare
+  // against `undefined` and silently never match, which is the failure mode
+  // the rule exists to end. The storage format has no back-compat layer, so
+  // such entries drop and the user re-adds; the cost is a one-time list
+  // clear in exchange for every loaded KB actually having the identity its
+  // type promises.
   if (typeof e.did !== 'string') return false;
   const ep = e.endpoint as Record<string, unknown> | undefined;
   if (!ep || typeof ep !== 'object') return false;
@@ -191,11 +191,10 @@ function isKnowledgeBase(entry: unknown): entry is KnowledgeBase {
 }
 
 /**
- * Load the persisted KB list. Entries that don't conform to the current
+ * Load the persisted KB list. Entries that don't conform to the
  * `KnowledgeBase` shape are dropped silently — the storage format has no
- * back-compat layer (the project's stance on storage migrations: change
- * the shape directly, no legacy fallbacks). Stale entries vanish; the
- * user re-adds the affected KBs.
+ * back-compat layer. Nonconforming entries vanish; the user re-adds the
+ * affected KBs.
  */
 export function loadKnowledgeBases(storage: SessionStorage): KnowledgeBase[] {
   try {
@@ -205,9 +204,9 @@ export function loadKnowledgeBases(storage: SessionStorage): KnowledgeBase[] {
     // PROJECTED, not passed through. A guard proves the known fields are
     // there; it says nothing about what else a record written by an older
     // release carries, and a spread of one of those (`{ ...existing }`) would
-    // carry the extra straight back out. `email` was such a field — a copy of
-    // whoever last signed in, which then surfaced under a KB card as the
-    // account someone was about to sign in AS.
+    // carry the extra straight back out. `email` is such a field — a copy of
+    // whoever last signed in, which would surface under a KB card as the
+    // account someone is about to sign in AS.
     return entries.filter(isKnowledgeBase).map((e) => {
       const lastRead = kbReadOf(e.lastRead);
       return {

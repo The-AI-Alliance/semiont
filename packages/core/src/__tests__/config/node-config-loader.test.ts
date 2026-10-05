@@ -1,16 +1,13 @@
 /**
  * Where the Archivist is, and what a caller shows it.
  *
- * These live in CORE because both functions are core's, and until now they were
- * exercised only from `@semiont/content` and the gateway — so
- * `npm test --workspace=@semiont/core` could pass on a broken resolver.
+ * These live in CORE because both functions are core's: exercised only from
+ * `@semiont/content` and the gateway, `npm test --workspace=@semiont/core`
+ * could pass on a broken resolver.
  *
- * The property that matters most here is the one that changed: the credential
- * is a PARAMETER. It used to be read from `process.env` mid-call, which meant a
- * caller could neither supply one, stub one, nor hold two — and every field of
- * the config was optional, so a narrowed config satisfied the type carrying
- * none of what the function needed. The Librarian shipped that way and died on
- * its first Archivist read.
+ * The property that matters most here: the credential is a PARAMETER. Were it
+ * read from `process.env` mid-call, a caller could neither supply one, stub
+ * one, nor hold two.
  *
  * Imported from SOURCE, not the built subpath: a suite that tests its own
  * package through the artifact reports on the last build.
@@ -57,15 +54,15 @@ describe('archivistAddress', () => {
       clientId: 'semiont-librarian',
       clientSecret: 'a-different-secret',
     };
-    // Two callers, two credentials, one process — impossible while this read
-    // SEMIONT_OIDC_CLIENT_ID out of the environment.
+    // Two callers, two credentials, one process — impossible for a function
+    // that reads SEMIONT_OIDC_CLIENT_ID out of the environment.
     expect(archivistAddress(configFor({ host: 'a' }), CREDENTIAL).credential).toBe(CREDENTIAL);
     expect(archivistAddress(configFor({ host: 'a' }), other).credential).toBe(other);
   });
 
   it('ignores the environment entirely', () => {
-    // The old implementation would have preferred these. Pinning it means the
-    // regression is caught here rather than by a sidecar dying at boot.
+    // An implementation that read the environment would prefer these. Pinned
+    // so that it is caught here rather than by a sidecar dying at boot.
     vi.stubEnv('SEMIONT_OIDC_CLIENT_ID', 'from-the-environment');
     vi.stubEnv('SEMIONT_OIDC_CLIENT_SECRET', 'also-from-the-environment');
     expect(archivistAddress(configFor({ host: 'a' }), CREDENTIAL).credential).toEqual(CREDENTIAL);

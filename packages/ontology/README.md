@@ -13,7 +13,7 @@ Entity types, and the readers of entity types and tags on an annotation.
 This package holds:
 - **Entity types**: the kinds of thing a reference can be about and a resource can be classified as (Person, Organization, Location and so on). `DEFAULT_ENTITY_TYPES` is the starting set, and `getEntityTypes` reads them from an annotation.
 - **Tag readers**: `getTagCategory` and `getTagSchemaId`, which read a tag's category and its schema's id from an annotation's body. They need no schema registry.
-- **Tag collections**: the interfaces a graph driver implements to keep the vocabulary.
+- **Tag collections**: interfaces for keeping the entity-type vocabulary in a graph store.
 
 **Tag schemas are not in this package.** A knowledge base registers its own with `frame.addTagSchema(...)`; the `TagSchema` and `TagCategory` types are `@semiont/core`'s, and a schema's data lives with the knowledge base that owns it.
 
@@ -95,13 +95,13 @@ See [src/tag-extraction.ts](src/tag-extraction.ts).
 
 ## Tag collections
 
-The interfaces a graph driver implements to keep the entity-type vocabulary:
+Interfaces for keeping the entity-type vocabulary in a graph store:
 
 ```typescript
 import type { TagCollection, TagCollectionOperations } from '@semiont/ontology';
 ```
 
-`TagCollection` is a stored collection (`id`, `collectionType: 'entity-types'`, `tags`, `created`, `updatedAt`). `TagCollectionOperations` is `getEntityTypes`, `addEntityType`, `addEntityTypes`, `hasEntityTypesCollection` and `initializeCollections`. See [src/tag-collections.ts](src/tag-collections.ts).
+`TagCollection` is a stored collection (`id`, `collectionType: 'entity-types'`, `tags`, `created`, `updatedAt`). `TagCollectionOperations` is `getEntityTypes`, `addEntityType`, `addEntityTypes`, `hasEntityTypesCollection` and `initializeCollections`. See [src/tag-collections.ts](src/tag-collections.ts). The drivers in `@semiont/graph` keep the vocabulary through the first three, which `GraphDatabase` declares itself; none of them declares these interfaces.
 
 ## Dependencies
 

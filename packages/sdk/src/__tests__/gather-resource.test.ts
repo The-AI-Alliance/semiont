@@ -3,10 +3,9 @@
  * over `gather:resource-requested` → `gather:resource-complete`/`-failed`
  * (no progress events, so a Promise via busRequest, not a StreamObservable).
  *
- * The gateway route (`gatherer.ts` handleResourceGather) and the wire contract
- * (GatherResourceRequest/Complete, carrying a unified GatheredContext) already exist;
- * this exercises the SDK method that was previously a throwing stub, a gap
- * an external consumer (my-chat) reported.
+ * The gateway route (`gatherer.ts` handleResourceGather) answers on the wire contract
+ * (GatherResourceRequest/Complete, carrying a unified GatheredContext);
+ * this exercises the SDK method that calls it.
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
@@ -33,10 +32,9 @@ function makeTransport() {
     transport,
     // Replies are pushed through the SAME typed bus the transport streams
     // from, so a fixture that is not the channel's declared payload is a
-    // compile error rather than something the transport's cast used to hide.
-    // A push verb, not a handle. The old helper returned the channel's
-    // Subject so a test could write through it; `on` is read-only by design,
-    // and the write path is `emit`.
+    // compile error rather than something a cast on the transport hides.
+    // A push verb, not a handle: `on` is read-only by design, and the write
+    // path is `emit`.
     push: <K extends keyof EventMap>(channel: K, payload: EventMap[K], correlationId?: string) =>
       bus.emit(channel, payload, { correlationId }),
     getLastChannel: () => lastChannel,
@@ -71,8 +69,7 @@ describe('gather.resource', () => {
     const cid = getLastCorrelationId()!;
     expect(typeof cid).toBe('string');
 
-    // gather:resource-complete now carries a unified GatheredContext (focus.kind:'resource'),
-    // not the old per-kind response wrapper.
+    // gather:resource-complete carries a unified GatheredContext (focus.kind:'resource').
     const response = resourceContextFor(rid);
     push('gather:resource-complete', { resourceId: rid, response }, cid);
 
@@ -103,8 +100,7 @@ describe('gather.resource', () => {
       resourceId: makeResourceId('r3'),
       message: 'graph traversal failed',
       // No `code`: the contract declares only 'peer-unavailable' | 'not-found',
-      // and the wire never carried 'gather.failed'. The transport double's cast
-      // was what let this fixture claim otherwise. An absent code is exactly
+      // and the wire never carries 'gather.failed'. An absent code is exactly
       // the case the SDK maps to `bus.rejected`, which is what this asserts.
     }, cid);
 

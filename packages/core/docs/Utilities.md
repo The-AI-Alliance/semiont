@@ -55,18 +55,18 @@ const text2 = decodeWithCharset(buffer2.buffer, 'text/plain; charset=iso-8859-1'
 // Windows-1252 document
 const buffer3 = new Uint8Array([0x93, 0x94]); // Smart quotes in Windows-1252
 const text3 = decodeWithCharset(buffer3.buffer, 'text/plain; charset=windows-1252');
-// Returns: '""' (correctly decoded)
+// Returns: '“”' (correctly decoded)
 ```
 
 **Why This Matters:**
 
-When creating annotations, the gateway calculates TextPositionSelector offsets in the **original character space**. The Browser must decode content using the **same charset** to ensure offsets align correctly.
+When creating annotations, the worker calculates TextPositionSelector offsets in the **original character space**. The Browser must decode content using the **same charset** to ensure offsets align correctly.
 
 ```typescript
 // ❌ WRONG - Uses UTF-8 for ISO-8859-1 document
 const wrongText = new TextDecoder('utf-8').decode(buffer);
 const sel = reconcileSelector(wrongText, { exact: 'café' });
-// Offsets will be INCORRECT because character positions don't match gateway
+// Offsets will be INCORRECT because character positions don't match the worker
 
 // ✅ RIGHT - Uses charset from mediaType
 const rightText = decodeWithCharset(buffer, mediaType);
@@ -343,7 +343,7 @@ const SCHEMA: TagSchema = { id: 'my-schema', name: '...', /* ... */ };
 await semiont.frame.addTagSchema(SCHEMA);
 
 // Enumerate registered schemas (cached, refreshes on frame:tag-schema-added)
-const all = await semiont.browse.tagSchemas();
+const all = await semiont.browse.tagSchemas().fresh();
 ```
 
 **Use Case:** Tag schemas enable AI-powered structural analysis of documents — `mark.assist(rid, 'tagging', { schemaId, categories })` detects which passages serve as Issue / Rule / Application / Conclusion in a legal brief, or Introduction / Methods / Results / Discussion in a research paper.
@@ -354,7 +354,7 @@ See the [core package README](../README.md) for annotation manipulation function
 
 ## Event Utilities
 
-See the [core package README](../README.md) for event filtering and manipulation functions.
+`getAnnotationIdFromEvent` returns the id of the annotation a stored event is about, and `isStoredEvent` is the type guard for a stored event. See the [core package README](../README.md) for the persisted event types.
 
 ## Resource Utilities
 
@@ -374,14 +374,15 @@ import {
   getDerivedFrom,
   isArchived,
   getResourceEntityTypes,
-  isDraft
+  isDraft,
+  type ResourceDescriptor
 } from '@semiont/core';
 
 const resource: ResourceDescriptor = /* ... */;
 
-// Extract ID from full URI
+// Get the resource's id
 const id = getResourceId(resource);
-// "doc-abc123" from "http://localhost:4000/resources/doc-abc123"
+// "5bcd259ab1464cf68a556bbad21f513f" — the bare id, never a URI
 
 // Get primary representation
 const rep = getPrimaryRepresentation(resource);
@@ -396,7 +397,7 @@ const storageUri = getStorageUri(resource);
 
 // Get provenance
 const creator = getCreator(resource); // Agent who created it
-const derivedFrom = getDerivedFrom(resource); // Source resource URI
+const derivedFrom = getDerivedFrom(resource); // Source resource id
 
 // Get application-specific fields
 const archived = isArchived(resource);
@@ -409,7 +410,7 @@ const draft = isDraft(resource);
 Decode representation buffer using correct charset:
 
 ```typescript
-import { decodeRepresentation, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/core';
+import { decodeRepresentation, getPrimaryRepresentation, getPrimaryMediaType, type ResourceDescriptor } from '@semiont/core';
 
 const resource: ResourceDescriptor = /* ... */;
 const buffer: Buffer = /* raw bytes from storage */;

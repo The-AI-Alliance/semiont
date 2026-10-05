@@ -170,9 +170,8 @@ function findAllOccurrences(content: string, exact: string): number[] {
  * "Full" means the stored context aligns exactly with the source text
  * adjacent to the candidate. "Partial" is the looser substring check —
  * the stored context appears somewhere in the candidate's surroundings
- * but isn't anchored to the edges. This is the same partial-match logic
- * the previous `findTextWithContext` used, captured here so the scorer
- * can use it as one signal among many instead of a hard filter.
+ * but isn't anchored to the edges. The scorer uses it as one signal among
+ * many, not as a hard filter.
  */
 function contextScoreAt(
   content: string,

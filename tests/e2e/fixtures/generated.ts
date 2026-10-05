@@ -1,8 +1,6 @@
 import { expect } from '@playwright/test';
-import { SemiontClient } from '@semiont/sdk';
 import { getPrimaryMediaType, getStorageUri } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
-import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { signInSession } from './sdk-session';
 
 /**
@@ -11,8 +9,8 @@ import { signInSession } from './sdk-session';
  * `job:complete` proves the worker finished; it does not prove what the worker
  * wrote. Asking the gateway afresh is what distinguishes "the generation ran"
  * from "the generation produced the resource the form asked for" — the
- * distinction an authoritative Save location turns on, since the worker used
- * to derive the filename from the title and silently discard `storageUri`.
+ * distinction an authoritative Save location turns on: a worker that derives
+ * the filename from the title and discards `storageUri` completes its job too.
  *
  * Polls because `job:complete` and read-model availability are not the same
  * instant.
@@ -43,7 +41,7 @@ export async function generatedDescriptor(
 }
 
 /**
- * Assert a generated resource landed where the form said and in the format the
+ * Assert a generated resource is where the form said and in the format the
  * form chose. `storagePath` is what the user types — the field renders a
  * `file://` adornment and `ConfigureGenerationStep` prepends it on submit.
  */

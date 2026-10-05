@@ -1,12 +1,11 @@
 /**
  * The Archivist's sequence-ranged event read path.
  *
- * Running the Archivist as its own service takes the event store out of the
- * gateway's process, which breaks `/bus/subscribe`'s `Last-Event-ID` replay
- * (bus.ts reads the log in-process). The answer (settled 2026-08-27): a
- * dedicated read path on the Archivist, one narrow call — the events for one
- * resource from one sequence — mirroring `queryEvents(rId, { fromSequence })`
- * exactly.
+ * The Archivist runs as its own service, so the event store is outside the
+ * gateway's process and `/bus/subscribe`'s `lastEventId` replay cannot read
+ * the log in-process. It reads through a dedicated path on the Archivist, one
+ * narrow call — the events for one resource from one sequence — mirroring
+ * `queryEvents(rId, { fromSequence })` exactly.
  *
  * The reconnect gate lives here because the failure is SILENT: a gateway
  * that cannot replay degrades to a gap event, invisible to any typecheck.
@@ -159,7 +158,7 @@ describe('Archivist sequence-ranged read path', () => {
 
   it('replays events from a sequence — a reconnecting subscriber gets replay, not a gap', async () => {
     // The gateway's reconnect shape: a client held sequence 3, so the
-    // gateway asks from 3 + 1 (bus.ts passes fromSequence: parsed.sequence + 1).
+    // gateway asks from 3 + 1 (its replay passes `fromSequence = sequence + 1`).
     const res = await fetch(`${baseUrl}/events/${encodeURIComponent(String(rid))}?fromSequence=4`, {
       headers: { authorization: `Bearer ${SERVICE_TOKEN}` },
     });
@@ -210,7 +209,7 @@ describe('Archivist sequence-ranged read path', () => {
    * The recording upload: the gateway forwards a client's multipart upload
    * untouched, naming the principal it verified, and the Archivist — the KB
    * tree's one writer — stores the bytes and records the resource in one
-   * call, answering the new id. The gateway no longer parses the upload or
+   * call, answering the new id. The gateway neither parses the upload nor
    * makes a bus request of its own.
    */
   describe('POST /resources — store and record an upload', () => {
@@ -496,9 +495,8 @@ describe('Archivist sequence-ranged read path', () => {
         await new Promise<void>((resolve, reject) => issuer.close((e) => (e ? reject(e) : resolve())));
       });
 
-      // A credential the test supplies itself — which it could not do while
-      // `archivistAddress` read one out of `process.env`. Built on demand
-      // because `issuerUrl` is assigned by a hook, not at describe time.
+      // A credential the test supplies itself. Built on demand because
+      // `issuerUrl` is assigned by a hook, not at describe time.
       const testCredential = () => ({ issuer: issuerUrl, clientId: 'semiont-test', clientSecret: 'test-secret' });
 
       const addressOf = (url: string): ArchivistAddressConfig => {
@@ -541,11 +539,10 @@ describe('Archivist sequence-ranged read path', () => {
       });
 
       it('takes the credential from its caller, so a test can supply its own', () => {
-        // This is the property that was missing. The function used to read
-        // SEMIONT_OIDC_CLIENT_ID/_SECRET out of `process.env` mid-call, so a
-        // caller could neither supply a credential, stub one, nor hold two —
-        // and a narrowed config satisfied the type carrying none of what the
-        // function needed, which is exactly how the Librarian shipped broken.
+        // The credential is an argument, never read out of `process.env`
+        // mid-call: a caller can supply one, stub one, or hold two, and a
+        // narrowed config cannot satisfy the type while carrying none of
+        // what the function needs.
         const reads = archivistContentReads(addressOf(baseUrl), {
           issuer: issuerUrl, clientId: 'a-different-client', clientSecret: 'a-different-secret',
         });

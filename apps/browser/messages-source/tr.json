@@ -193,7 +193,6 @@
     "statusConnected": "Bağlı",
     "statusExpired": "Oturum süresi doldu",
     "statusSignedOut": "Çıkış yapıldı",
-    "statusUnreachable": "Erişilemiyor",
     "invalidHost": "Geçersiz ana bilgisayar adı",
     "discoveredTitle": "Bu makinede bulundu",
     "managedBadge": "Başlatıcı tarafından yönetiliyor",

@@ -4,7 +4,7 @@
  * W3C Web Annotation: tagging motivation
  *
  * This file defines all styles for tag annotations
- * across text, panels, and image annotations.
+ * across text and panels.
  */
 
 /* ============================================
@@ -103,10 +103,6 @@
 }
 
 /* ============================================
-   Assist Section in Unified Panel
-   ============================================ */
-
-/* ============================================
    Button Styling
    ============================================ */
 .semiont-button[data-variant="assist"][data-type="tag"] {
@@ -155,14 +151,17 @@
   border-color: var(--semiont-motivation-tag-dark-primary);
 }
 
-/* ============================================
-   Individual Tag Chips
-   ============================================ */
-/* Tag chip when related to tag motivation */
+.semiont-annotation-prompt__title {
+  margin: 0 0 0.25rem;
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-primary);
+}
 
-/* ============================================
-   Image Annotation Overlays
-   ============================================ */
+.semiont-annotation-prompt__text {
+  margin: 0;
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-secondary);
+}
 
 /* ============================================
    Tag-specific Visual Elements

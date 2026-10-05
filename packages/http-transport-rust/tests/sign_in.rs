@@ -1216,8 +1216,8 @@ async fn asking_who_a_token_is_opens_no_stream_of_its_own() {
     session.close().await;
 }
 
-/// The storm one browser tab made: an issuer that goes on renewing a
-/// credential the gateway goes on refusing.
+/// An issuer that goes on renewing a credential the gateway goes on
+/// refusing: unchecked, a storm of renewals and asks from one session.
 #[tokio::test(start_paused = true)]
 async fn a_gateway_that_refuses_what_its_issuer_issues_is_asked_twice_and_then_left_alone() {
     let world = World::on_a_quick_clock().await;

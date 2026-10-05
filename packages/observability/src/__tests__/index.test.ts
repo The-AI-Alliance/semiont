@@ -42,7 +42,6 @@ import {
   extractTraceparent,
   getActiveTraceparent,
   getLogTraceContext,
-  injectTraceparent,
   recordAbnormalTermination,
   recordAnchorOutcome,
   recordAppendStage,
@@ -54,13 +53,7 @@ import {
   recordHandlerDuration,
   recordInferenceUsage,
   recordJobOutcome,
-  recordReplySuppressed,
-  recordResumeGap,
-  recordSubscriberConnect,
-  recordSubscriberDisconnect,
-  recordUnanswerableRequest,
   materializeObservableGauges,
-  registerCorrelationRegistryProvider,
   registerFactPumpDepthProvider,
   registerProcessLifetimeMetrics,
   registerRestartCountProvider,
@@ -174,37 +167,22 @@ describe('getActiveTraceparent', () => {
   });
 });
 
-describe('injectTraceparent / extractTraceparent', () => {
-  it('injectTraceparent is a no-op outside a span', () => {
-    const payload: Record<string, unknown> = { foo: 'bar' };
-    const out = injectTraceparent(payload);
-    expect(out).toBe(payload);
-    expect(out['_trace']).toBeUndefined();
-  });
-
-  it('round-trips traceparent across inject/extract', async () => {
-    let payload: Record<string, unknown> = {};
-    await withSpan('unit.round-trip', async () => {
-      payload = injectTraceparent({ correlationId: 'cid' });
-    });
-
-    expect(payload['_trace']).toBeDefined();
-    expect((payload['_trace'] as { traceparent: string }).traceparent).toMatch(
-      /^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/,
-    );
+describe('extractTraceparent', () => {
+  it('returns the carrier and strips the field from the payload', () => {
+    const traceparent = '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01';
+    const payload: Record<string, unknown> = { foo: 'bar', _trace: { traceparent } };
 
     const carrier = extractTraceparent(payload);
-    expect(carrier).toBeDefined();
-    expect(carrier!.traceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/);
-    // Payload is mutated to strip the field.
-    expect(payload['_trace']).toBeUndefined();
+
+    expect(carrier).toEqual({ traceparent });
+    expect(payload).toEqual({ foo: 'bar' });
   });
 
-  it('extractTraceparent returns undefined when no `_trace` field is present', () => {
-    expect(extractTraceparent({ correlationId: 'cid' })).toBeUndefined();
+  it('returns undefined when no `_trace` field is present', () => {
+    expect(extractTraceparent({ foo: 'bar' })).toBeUndefined();
   });
 
-  it('extractTraceparent returns undefined when `_trace` is malformed', () => {
+  it('returns undefined when `_trace` is malformed', () => {
     const payload: Record<string, unknown> = { _trace: { traceparent: 42 } };
     const carrier = extractTraceparent(payload);
     expect(carrier).toBeUndefined();
@@ -397,21 +375,6 @@ describe('recordJobOutcome', () => {
   });
 });
 
-describe('SSE subscriber up/down counter', () => {
-  it('increments and decrements the gauge', async () => {
-    recordSubscriberConnect();
-    recordSubscriberConnect();
-    recordSubscriberDisconnect();
-    await flushMetrics();
-
-    const metricsByName = collectMetrics();
-    const counter = metricsByName.get('semiont.sse.subscribers');
-    expect(counter).toBeDefined();
-    // Net delta after +1 +1 -1 = +1 (cumulative aggregation).
-    expect(counter![0]?.value).toBe(1);
-  });
-});
-
 describe('registerVectorIndexSizeProvider', () => {
   it('emits one observation per flush from the registered provider', async () => {
     registerVectorIndexSizeProvider(() => 12345);
@@ -537,75 +500,12 @@ describe('recordInferenceUsage', () => {
   });
 });
 
-describe('recordReplySuppressed', () => {
-  it('counts a suppressed reply per channel', async () => {
-    recordReplySuppressed('browse:resources');
-    recordReplySuppressed('browse:resources');
-    recordReplySuppressed('match:search');
-    await flushMetrics();
-
-    const counter = collectMetrics().get('semiont.bus.reply.suppressed');
-    expect(counter).toBeDefined();
-    expect(counter!.find((d) => d.attributes['bus.channel'] === 'browse:resources')?.value).toBe(2);
-    expect(counter!.find((d) => d.attributes['bus.channel'] === 'match:search')?.value).toBe(1);
-  });
-});
-
-describe('recordResumeGap', () => {
-  it('counts a resume gap tagged by reason', async () => {
-    recordResumeGap('cursor-expired');
-    await flushMetrics();
-
-    const counter = collectMetrics().get('semiont.bus.resume_gap');
-    expect(counter).toBeDefined();
-    expect(
-      counter!.find((d) => d.attributes['bus.resume_gap.reason'] === 'cursor-expired')?.value,
-    ).toBe(1);
-  });
-});
-
-describe('recordUnanswerableRequest', () => {
-  it('counts an unanswerable request per channel', async () => {
-    recordUnanswerableRequest('gather:summary');
-    await flushMetrics();
-
-    const counter = collectMetrics().get('semiont.bus.unanswerable');
-    expect(counter).toBeDefined();
-    expect(counter!.find((d) => d.attributes['bus.channel'] === 'gather:summary')?.value).toBe(1);
-  });
-});
-
-describe('registerCorrelationRegistryProvider', () => {
-  it('observes claims and their ceiling as separate series', async () => {
-    registerCorrelationRegistryProvider(() => ({ claims: 7, claimsMax: 4096 }));
-    await flushMetrics();
-
-    const gauge = collectMetrics().get('semiont.bus.correlation.size');
-    expect(gauge).toBeDefined();
-    const kind = (k: string) =>
-      gauge!.find((d) => d.attributes['correlation.kind'] === k)?.value;
-    expect(kind('claims')).toBe(7);
-    // The ceiling is a series of its own so a reader never hard-codes it.
-    expect(kind('claims_max')).toBe(4096);
-  });
-
-  it('last registered provider wins', async () => {
-    const snap = (claims: number) => ({ claims, claimsMax: 4096 });
-    registerCorrelationRegistryProvider(() => snap(1));
-    registerCorrelationRegistryProvider(() => snap(42));
-    await flushMetrics();
-
-    const gauge = collectMetrics().get('semiont.bus.correlation.size')!;
-    expect(gauge.find((d) => d.attributes['correlation.kind'] === 'claims')?.value).toBe(42);
-  });
-});
-
 describe('observable gauges registered before the SDK', () => {
-  // The regression this exists for: the gateway registered its correlation
-  // gauge at module scope, before initObservability*() installed a meter. The
-  // metrics API hands out a no-op meter until then and never upgrades it, so
-  // the gauge accepted its callback, reported success, and exported nothing
-  // for the life of every gateway process. Order must not decide this.
+  // A gauge registered at module scope registers before initObservability*()
+  // installs a meter. The metrics API hands out a no-op meter until then and
+  // never upgrades it, so a gauge bound to it accepts its callback, reports
+  // success, and exports nothing for the life of the process. Order must not
+  // decide this.
   //
   // `semiont.process.start_time` is the one gauge no earlier test in this file
   // registers, so the parking path it exercises here is the real one rather

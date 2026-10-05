@@ -9,16 +9,16 @@ import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, Str
 
 // With `stream: false` Ollama sends nothing — not even response headers —
 // until the whole generation finishes, so any transport-level header timeout
-// is a hidden generation ceiling: undici's 300s default killed every longer
+// is a hidden generation ceiling: undici's 300s default kills every longer
 // generation as a retryable-looking `TypeError: fetch failed` before the
-// caller's own bound could fire. Both transport timeouts are disabled here so
+// caller's own bound can fire. Both transport timeouts are disabled here so
 // the caller's AbortSignal is the single bound on a generate call.
 //
 // The assertion bridges a declaration skew only: @types/node types this slot
 // via undici-types@8, while the Agent must come from undici@7 to match Node
 // 24's bundled copy — an undici@8 Agent is rejected at runtime with
-// UND_ERR_INVALID_ARG (measured 2026-09-04; transport.test.ts gates both the
-// runtime compatibility and the failure shape).
+// UND_ERR_INVALID_ARG (transport.test.ts gates both the runtime
+// compatibility and the failure shape).
 type FetchDispatcher = NonNullable<RequestInit['dispatcher']>;
 export const unboundedTransport = new Agent({ headersTimeout: 0, bodyTimeout: 0 }) as unknown as FetchDispatcher;
 
@@ -38,9 +38,9 @@ interface OllamaGenerateResponse {
   /**
    * Hidden reasoning from a thinking model. Requests always send
    * `think: false`, but cloud-hosted reasoning models ignore it (measured
-   * live, gpt-oss:120b-cloud 2026-09-05): the thinking happens anyway,
-   * spends the caller's `num_predict` budget, and its tokens are folded
-   * invisibly into `eval_count`.
+   * on gpt-oss:120b-cloud): the thinking happens anyway, spends the
+   * caller's `num_predict` budget, and its tokens are folded invisibly
+   * into `eval_count`.
    */
   thinking?: string;
   /** Number of prompt tokens evaluated. Available on most Ollama versions. */
@@ -56,7 +56,7 @@ export class OllamaInferenceClient implements InferenceClient {
   // context costs KV-cache memory. Detection's per-type fan-out is bounded by
   // this value, so it runs its types sequentially here.
   readonly maxConcurrency = 1;
-  // Where silent yield collapse was MEASURED — the verifier's original home.
+  // Silent yield collapse is MEASURED on this provider.
   readonly verifyDetectionYield = true;
   readonly modelId: string;
   private baseURL: string;
@@ -124,11 +124,11 @@ export class OllamaInferenceClient implements InferenceClient {
     signal?: AbortSignal,
   ): Promise<StructuredResponse<T>> {
     // Grammar-constrained sampling: the schema goes to Ollama's `format`
-    // parameter, which constrains generation itself — same mechanism as the
-    // old bare array schema, now element-typed. The response text is then
-    // parsed here, and anything that does not read as an array is a THROW,
-    // never a coerced [] — "could not read the model" must stay distinct
-    // from "the model found nothing."
+    // parameter, which constrains generation itself, element types
+    // included. The response text is then parsed here, and anything that
+    // does not read as an array is a THROW, never a coerced [] — "could
+    // not read the model" must stay distinct from "the model found
+    // nothing."
     const response = await this.generate(prompt, maxTokens, temperature, elementSchema, signal);
 
     let parsed: unknown;
@@ -172,7 +172,7 @@ export class OllamaInferenceClient implements InferenceClient {
     // Managed context window: size num_ctx to cover this request, capped at
     // the model's discovered window. Without an explicit num_ctx Ollama uses
     // the model's *default* window and SILENTLY CLIPS any prompt beyond it —
-    // input loss with no error (found 2026-07-30).
+    // input loss with no error.
     const limits = await this.limits();
     const promptTokens = estimateTokens(prompt);
     if (promptTokens + maxTokens > limits.contextTokens) {
@@ -211,8 +211,8 @@ export class OllamaInferenceClient implements InferenceClient {
     if (elementSchema !== undefined) {
       // Grammar-enforced for locally served models. Cloud-routed models
       // (`*-cloud`) treat this as ADVISORY only — a schema-violating response
-      // is possible there (measured live 2026-09-05: bare strings where the
-      // schema required objects) and surfaces as a StructuredReadError.
+      // is possible there (measured: bare strings where the schema
+      // required objects) and surfaces as a StructuredReadError.
       body['format'] = { type: 'array', items: elementSchema };
     }
 
@@ -287,7 +287,7 @@ export class OllamaInferenceClient implements InferenceClient {
       // stop reason must ride the error so `max_tokens` classifies
       // deterministic (and subdivides) instead of masquerading as an
       // unrecognized retryable mystery; any other stop reason stays
-      // retryable, exactly as an untyped error did.
+      // retryable.
       throw new StructuredReadError('response is empty', stopReason);
     }
 

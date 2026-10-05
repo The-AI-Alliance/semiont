@@ -40,9 +40,9 @@ export class MarkNamespace implements IMarkNamespace {
   }
 
   async delete(resourceId: ResourceId, annotationId: AnnotationId): Promise<void> {
-    // Confirmed write (matches `annotation()` above): await the gateway's
+    // Confirmed write (matches `annotation()` above): await the
     // correlation-keyed reply and REJECT on failure, rather than fire-and-forget
-    // an emit whose mark:delete-failed nobody awaited.
+    // an emit whose mark:delete-failed nobody awaits.
     await busRequest(
       this.transport,
       'mark:delete',
@@ -51,8 +51,8 @@ export class MarkNamespace implements IMarkNamespace {
   }
 
   async archive(resourceId: ResourceId): Promise<void> {
-    // Confirmed write: await the gateway's correlation-keyed reply and REJECT on
-    // failure, rather than fire-and-forget an emit whose failure had nowhere to go.
+    // Confirmed write: await the correlation-keyed reply and REJECT on failure,
+    // rather than fire-and-forget an emit whose failure has nowhere to go.
     await busRequest(
       this.transport,
       'mark:archive',
@@ -69,16 +69,16 @@ export class MarkNamespace implements IMarkNamespace {
   }
 
   /**
-   * Replace a resource's own entity-type classification. The gateway diffs
+   * Replace a resource's own entity-type classification. The Archivist diffs
    * `current` vs `updated` and folds the changes into `resource.entityTypes`
    * (mark:entity-tag-added/-removed → Weaver), so the change surfaces in
    * `browse.resources({ entityType })` and `getResourceEntityTypes`. A
    * **replace/diff** operation: pass the resource's current types as `current`,
    * the desired full set as `updated`.
    *
-   * Confirmed write (like `delete`/`archive`): awaits the gateway's
-   * correlation-keyed reply and REJECTS on failure rather than fire-and-forget an
-   * emit whose failure had nowhere to go.
+   * Confirmed write (like `delete`/`archive`): awaits the correlation-keyed
+   * reply and REJECTS on failure rather than fire-and-forget an emit whose
+   * failure has nowhere to go.
    */
   async updateEntityTypes(resourceId: ResourceId, current: string[], updated: string[]): Promise<void> {
     await busRequest(
@@ -93,14 +93,14 @@ export class MarkNamespace implements IMarkNamespace {
       let done = false;
 
       // `job:report-progress`, `job:complete`, and `job:fail` all reach us
-      // on the always-on global bridge — the worker dual-emits the
-      // resource-broadcast ones (`job:complete`/`job:fail`) globally as well
-      // as scoped, so the dispatching caller gets them without a scoped
+      // on the always-on global bridge: the worker emits them to every
+      // client, so the dispatching caller follows its job with no scoped
       // subscription. We deliberately do NOT call
-      // `transport.subscribeToResource(resourceId)` here: that mutates the
-      // SSE channel set, which can only change by tearing down and
-      // re-opening the connection, so it forced a reconnect on every assist
-      // and dropped in-flight `browse.*` results in the reconnect gap.
+      // `transport.subscribeToResource(resourceId)` here: a resource's scope
+      // carries none of the three, and when nothing else holds that scope,
+      // joining and leaving it each change the SSE channel set, which the
+      // HTTP transport applies by handing the stream over to a second
+      // connection.
 
       const poll = new JobStatusPoll(
         this.transport,
@@ -147,8 +147,8 @@ export class MarkNamespace implements IMarkNamespace {
       const fail$ = frames.of('job:fail');
 
       // Only a TERMINAL failure ends the progress stream. `takeUntil(fail$)`
-      // silenced progress on a retryable failure too, so a run that recovered
-      // went quiet even when the stream itself survived.
+      // would silence progress on a retryable failure too, so a run that
+      // recovers would go quiet while the stream itself survives.
       const terminalFail$ = fail$.pipe(filter((e) => e.willRetry !== true));
       const progressSub = progress$
         .pipe(takeUntil(merge(complete$, terminalFail$)))

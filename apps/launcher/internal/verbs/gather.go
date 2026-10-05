@@ -1,9 +1,7 @@
 package verbs
 
 // gather.go — `semiont gather`: assemble LLM-optimized context for a
-// resource or an annotation. Resource-focus is a plain request/reply;
-// annotation-focus is a STREAMING operation (gather:requested carries a
-// progress channel), so the wait narrates itself instead of hanging silent.
+// resource or an annotation. Either focus is a plain request/reply.
 
 import (
 	"context"
@@ -132,12 +130,11 @@ func Gather(args []string) int {
 
 	// The two gathers take DIFFERENT option sets — the resource variant
 	// traverses a graph, the annotation variant windows text around a mark.
-	// Sending one blob to both (what the untyped version did) silently fed
-	// each the other's fields.
+	// Sending one blob to both would silently feed each the other's fields.
 	var op bus.Channel
 	var payload any
 	if len(positional) == 2 {
-		op = "gather:requested" // annotation focus — streaming
+		op = "gather:requested" // annotation focus
 		req := semiont.GatherAnnotationRequest{
 			ResourceId:   positional[0],
 			AnnotationId: positional[1],
@@ -156,12 +153,8 @@ func Gather(args []string) int {
 		payload = req
 	}
 
-	// No progress narration: gather is a single request/reply. The bus had a
-	// streaming class whose one declared channel nothing ever emitted, so this
-	// callback could not fire; both went 2026-09-17.
-	opts := &bus.RequestOptions{}
-
-	reply, err := cli.Request(context.Background(), op, payload, opts)
+	// No progress narration: gather is a single request/reply.
+	reply, err := cli.Request(context.Background(), op, payload, nil)
 	if err != nil {
 		return busFail(u, "gather", err)
 	}

@@ -400,9 +400,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // Convert motivation to label (e.g., "linking" -> "Linking")
       const motivationLabel = motivationToLabel(annotation.motivation);
 
-      // The codec's property bag is applied verbatim; `created` is then
-      // re-set as a native temporal, which is the one property this store
-      // stores in a type of its own.
+      // The codec's property bag is applied verbatim, `created` included:
+      // it is stored as the codec's string, not as a native temporal.
       const cypher = bodySource
         ? `MATCH (from:Resource {id: $targetSource})
            MATCH (to:Resource {id: $bodySource})
@@ -601,7 +600,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-      // Get all results (no pagination in new simplified interface)
+      // Get all results (the interface has no pagination)
       const result = await session.run(
         `MATCH (a:Annotation) ${whereClause}
          OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
@@ -1039,12 +1038,6 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     return results;
   }
 
-  async detectAnnotations(_resourceId: ResourceId): Promise<Annotation[]> {
-    // This would use AI/ML to detect annotations in a resource
-    // For now, return empty array as a placeholder
-    return [];
-  }
-
   // Tag Collections
   async getEntityTypes(): Promise<string[]> {
     if (this.entityTypesCollection === null) {
@@ -1168,8 +1161,8 @@ export class Neo4jGraphDatabase implements GraphDatabase {
  * Project a neo4j annotation node to the wire `Annotation`.
  *
  * Module-level (not a method) so the projection is unit-testable without a
- * driver: `node` is untyped at this seam, which is exactly how a native
- * neo4j DateTime once reached the wire as `created` unseen by tsc.
+ * driver: `node` is untyped at this seam, so a native neo4j DateTime can
+ * reach the wire as `created` unseen by tsc.
  */
 export function parseAnnotationNode(node: any, entityTypes: string[] = []): Annotation {
   return decodeAnnotation(normalizeProperties(node.properties), entityTypes);
@@ -1179,13 +1172,13 @@ export function parseAnnotationNode(node: any, entityTypes: string[] = []): Anno
  * Flatten a node's properties to the strings the codec reads.
  *
  * `created` is stored as the codec's own string, so it round-trips verbatim.
- * Rows written before that change hold a native temporal instead, and the
- * driver hands those back as an object whose `toString()` REFORMATS the value
- * (a zero fraction elided, any other padded to nanoseconds) — so a legacy row
- * reads back with a different string than the log carried, until a rebuild
- * replaces it. The coercion
- * that has to happen before the codec sees a value it is entitled to treat
- * as a string. This seam is untyped, so only a test can see it slip.
+ * A stored row can hold a native temporal instead, and the driver hands that
+ * back as an object whose `toString()` REFORMATS the value (a zero fraction
+ * elided, any other padded to nanoseconds) — so such a row reads back with a
+ * different string than the log carried, until a rebuild replaces it. This
+ * is the coercion that has to happen before the codec sees a value it is
+ * entitled to treat as a string. The seam is untyped, so only a test can see
+ * it slip.
  */
 function normalizeProperties(props: any): AnnotationProperties {
   const normalized: AnnotationProperties = {};

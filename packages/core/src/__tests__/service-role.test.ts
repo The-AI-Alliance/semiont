@@ -3,8 +3,8 @@
  *
  * These live in CORE because the value and the shape check are core's: the
  * gateway gates `POST /api/tokens/agent` on them and the Archivist gates its
- * read path, and both used to implement the check themselves. They had already
- * drifted — one guarded against non-string array members, the other did not.
+ * read path, and a check implemented in each drifts — one guarding against
+ * non-string array members, the other not.
  *
  * Imported from SOURCE, not from `@semiont/core`: a suite that tests its own
  * package through the built artifact reports on the last build, not on the
@@ -51,8 +51,8 @@ describe('hasServiceRole', () => {
   });
 
   it('refuses an array whose members are not strings', () => {
-    // The half of the check the two readers disagreed about before this moved
-    // into core: `[{ name: 'semiont-service' }]` is not the role.
+    // The half of the check two separate implementations disagree on:
+    // `[{ name: 'semiont-service' }]` is not the role.
     expect(hasServiceRole({ roles: [{ name: SERVICE_ROLE }] })).toBe(false);
     expect(hasServiceRole({ roles: [null, undefined] })).toBe(false);
   });

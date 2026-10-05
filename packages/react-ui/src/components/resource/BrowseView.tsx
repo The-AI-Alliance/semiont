@@ -35,7 +35,7 @@ interface Props {
   hoverDelayMs?: number;
   /** Session for the shown resource — emits browse:click / beckon:hover; its bus feeds beckon events. */
   session: SemiontSession | null;
-  /** Recently-created annotation ids to sparkle (host-provided; was ResourceAnnotationsContext). */
+  /** Recently-created annotation ids to sparkle (host-provided). */
   sparkleAnnotationIds?: Set<string>;
   /** Override the read-only media renderers (render mode → renderer); merged over the defaults. */
   renderers?: BrowseMediaRenderers;
@@ -46,7 +46,7 @@ interface Props {
    *  resolves; `null` on leave (only if a hover fired — stubs stay silent). Host renders its own preview. */
   onReferenceHover?: (hover: ReferenceHover | null) => void;
   /** Inline display variant: auto-height to content, no inner scroll container, no pane chrome —
-   *  drops into a chat bubble / card / list item. Default: fill-the-pane (unchanged). */
+   *  drops into a chat bubble / card / list item. Default: fill-the-pane. */
   inline?: boolean;
   /** The bar's Mode control reports the chosen mode here (the owner applies it). */
   onModeChange?: (mode: boolean) => void;
@@ -114,8 +114,8 @@ export const BrowseView = memo(function BrowseView({
   // The two-layer overlay in ONE effect, keyed on everything it reads: the
   // rendered content DOM (`content` re-renders it) AND the annotations.
   // Splitting these across two effects with a ref-passed offset map silently
-  // dropped the `content` dependency — content arriving after annotations
-  // (any async-content host) painted ZERO spans until a remount. The
+  // drops the `content` dependency — content arriving after annotations
+  // (any async-content host) paints ZERO spans until a remount. The
   // length===0 early-return is safe: the prior run's cleanup already cleared.
   useEffect(() => {
     if (!containerRef.current || overlayAnnotations.length === 0) return;
@@ -259,7 +259,7 @@ export const BrowseView = memo(function BrowseView({
   }, []);
 
   // Handle hover events for scrolling
-  // Event handlers (extracted to avoid inline arrow functions)
+  // Event handlers (named callbacks rather than inline arrow functions)
   const handleAnnotationHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
     scrollToAnnotation(annotationId);
   }, [scrollToAnnotation]);

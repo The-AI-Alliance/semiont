@@ -1,7 +1,7 @@
 /**
  * FrameNamespace — schema-layer flow tests.
  *
- * Frame is the eighth flow's surface. Two writes today:
+ * Frame is the eighth flow's surface. Two writes:
  * `frame:add-entity-type` (vocabulary) and `frame:add-tag-schema`
  * (structural-analysis schemas — runtime-registered per KB).
  *
@@ -9,7 +9,7 @@
  * command (with a generated `correlationId`) and awaiting the gateway's
  * correlation-keyed `*-add-ok` / `*-add-failed` reply. These tests pin the wire
  * shape of each write, the sequential batch behavior of `addEntityTypes`, and —
- * the reason the flow was made confirmed — that a gateway failure **rejects**
+ * the reason the writes are confirmed — that a gateway failure **rejects**
  * rather than being silently dropped.
  */
 

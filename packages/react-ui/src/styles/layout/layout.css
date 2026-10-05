@@ -1,5 +1,5 @@
 /* ============================================
-   Tier 3: Layout Components
+   Layout Components
    ============================================ */
 
 /* PageLayout Component */
@@ -26,7 +26,3 @@
 .semiont-page-layout__main {
   flex: 1;
 }
-
-/* App Layout for Document/Knowledge Views */
-
-/* Layout with footer */

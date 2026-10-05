@@ -39,7 +39,7 @@ export {
   isCancelledJob,
 } from './types';
 
-// Job processors (extracted, transport-agnostic)
+// Job processors (transport-agnostic)
 export {
   processHighlightJob,
   processCommentJob,
@@ -77,6 +77,6 @@ export { STALL_THRESHOLD_MS } from './worker-runtime';
  * The worker's complete subscription manifest: every channel its transport is
  * constructed with, declared once. Exported so a composition-grain test can
  * subscribe the REAL set rather than a hand-written list of the channel it is
- * testing — the grain every 2026-09-16 bring-up bug slipped through.
+ * testing.
  */
 export { WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from './worker-runtime';

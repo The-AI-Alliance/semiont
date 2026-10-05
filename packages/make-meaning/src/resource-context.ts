@@ -55,11 +55,9 @@ export interface ListResourcesResult {
 /**
  * What the semantic fallback needs, passed as plain arguments (the
  * buildContext idiom — providers are parameters, not fields). Both the
- * provider and `kb.vectors` are mandatory (the old unconfigured branches —
- * vectors unconfigured, provider absent — were deliberately retired when
- * both became required). What still degrades is FAILURE: a throwing embed
- * yields the empty lexical page (axiom S5), because mandatory does not
- * mean always up.
+ * provider and `kb.vectors` are mandatory, so there is no unconfigured
+ * branch. What degrades is FAILURE: a throwing embed yields the empty
+ * lexical page (axiom S5), because mandatory does not mean always up.
  */
 export interface SemanticFallbackDeps {
   embeddingProvider: EmbeddingProvider;
@@ -212,7 +210,7 @@ export class ResourceContext {
         try {
           // The descriptors are already in hand, so this takes the descriptor
           // half of the one resolution rather than re-reading the view.
-          // Previews exist only for decode media: a binary row used to
+          // Previews exist only for decode media: a binary row would
           // preview 200 chars of mojibake.
           const source = representationSource(doc);
           if (source && !derivesTextOf(source.mediaType) && textSourceOf(source.mediaType) !== 'none') {
@@ -230,9 +228,9 @@ export class ResourceContext {
 
   /**
    * Get full content for a resource, as TEXT — the read-side dispatcher
-   * (gather once utf-8-decoded a PDF's raw bytes and shipped them to
-   * inference): the media type decides where the text comes from, exactly
-   * as it decides who may derive it.
+   * (utf-8-decoding a PDF's raw bytes would ship them to inference as
+   * text): the media type decides where the text comes from, exactly as
+   * it decides who may derive it.
    *
    * - `decode`         — the bytes ARE the text: fetch (ResourceId-keyed)
    *                      and charset-decode.

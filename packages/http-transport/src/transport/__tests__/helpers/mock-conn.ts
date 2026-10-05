@@ -1,9 +1,9 @@
 /**
  * Shared SSE/fetch mocking harness for the actor-state-unit suites.
  *
- * Extracted verbatim from `actor-state-unit.test.ts` so the liveness
- * property suite (`actor-liveness.property.test.ts`) can drive the same
- * connection mechanics without duplicating them.
+ * `actor-state-unit.test.ts` and the liveness property suite
+ * (`actor-liveness.property.test.ts`) drive the same connection mechanics
+ * through it rather than each carrying a copy.
  *
  * Importing this module stubs the global `fetch` with `mockFetch`. vitest
  * isolates the module registry per test file, so each suite gets its own
@@ -12,10 +12,11 @@
  */
 import { vi, type Mock } from 'vitest';
 
-// Explicit annotation, not inference: vitest 5 moved `Procedure` into an
-// internal dist chunk, so the inferred type of `vi.fn()` cannot be named
-// portably and `tsc` fails with TS2883. `Mock` defaults to `Procedure`, so
-// this keeps the loose call typing the suites rely on.
+// Explicit annotation, not inference: `vi.fn()` infers `Mock<Procedure>`, and
+// `Procedure` is exported by `@vitest/spy` alone (`vitest` re-exports `Mock`
+// but not `Procedure`), which this package does not depend on, so the inferred
+// type cannot be named portably and `tsc` fails with TS2883. `Mock` defaults
+// to `Procedure`, so this keeps the loose call typing the suites rely on.
 export const mockFetch: Mock = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
@@ -36,8 +37,8 @@ export function createSSEStream() {
   return {
     stream,
     // Swallow enqueue/close after the stream has errored or closed. Aborting a
-    // connection errors its stream; a test may still try to push to the now-
-    // retired connection, and that should be a no-op rather than a throw.
+    // connection errors its stream; a test may go on to push to the retired
+    // connection, and that should be a no-op rather than a throw.
     push: (text: string) => { try { controller.enqueue(encoder.encode(text)); } catch { /* errored/closed */ } },
     close: () => { try { controller.close(); } catch { /* already errored/closed */ } },
     error: (e: unknown) => { try { controller.error(e); } catch { /* already errored/closed */ } },

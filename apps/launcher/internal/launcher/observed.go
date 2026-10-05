@@ -3,16 +3,15 @@ package launcher
 // observed.go — what `semiont status` can say about work in flight, read from
 // surfaces the running stack already publishes.
 //
-// Two sources, neither of them new:
+// Two sources, both already there:
 //
 //   - the COLLECTOR's Prometheus readout on :24110. It runs on every start,
 //     observed or not (--no-observe declines the backends — Jaeger and
-//     Prometheus — never the collector's own pipeline), and status already
-//     fetches that exact URL as the collector's health probe. Reading the body
-//     it was discarding costs one parse.
-//   - the DISPATCHER's health body, which has always carried the job-queue
-//     driver it connected to and has always been thrown away by a probe that
-//     only looks at the status code.
+//     Prometheus — never the collector's own pipeline), and status fetches
+//     that exact URL as the collector's health probe, so reading the body
+//     costs one parse.
+//   - the DISPATCHER's health body, which carries the job-queue driver it
+//     connected to; a probe that only looks at the status code discards it.
 //
 // Both are host-side, unauthenticated, and already inside the report's
 // existing time budget. Nothing here adds an endpoint or a round trip.
@@ -97,7 +96,7 @@ func promSumInt(readout, name string, want map[string]string) (int, bool) {
 // jobsConcluded: how many jobs have actually finished, from the monotonic
 // outcome counter rather than the queue's own five counts.
 //
-// The queue's terminal counts describe its STORE, which now forgets a job a
+// The queue's terminal counts describe its STORE, which forgets a job a
 // day after it concludes — useful, but a rolling window rather than a total.
 // This counter is only ever added to, so it answers the different question:
 // how much work has been done.
@@ -123,9 +122,9 @@ func jobsConcluded(readout string) (completed, failed int, ok bool) {
 // PENDING AND RUNNING ONLY, and that is a correctness choice rather than
 // brevity. The same gauge carries complete/failed/cancelled, and those three
 // answer a different question: not what the dispatcher is working on, but
-// what it recently finished. Both queue drivers now drop a job's record a day
-// after it concludes, so the counts are a rolling window rather than the
-// lifetime totals they were — bounded, but still throughput and not depth.
+// what it recently finished. The queue drops a job's record a day after it
+// concludes, so the counts are a rolling window rather than lifetime
+// totals — bounded, but still throughput and not depth.
 // Printed beside a live depth they would read as one snapshot and silently be
 // a mixture of two questions; if throughput is worth showing it earns its own
 // line, with the window named.
@@ -148,11 +147,11 @@ func queueDepth(readout string) (pending, running int, ok bool) {
 // ceiling they are measured against. Retained replies are not reported: they
 // live in the broker's KV table, bounded by its TTL, not in the gateway.
 //
-// The ceilings are READ, not restated. They belong to the gateway
-// (signal/options.ts) and ride the same gauge as extra series precisely so
-// this file does not carry a second copy of a number that can change without
-// it. A count with no ceiling cannot answer the question worth asking, which
-// is whether the ledger is idle or one request from refusing.
+// The ceiling is READ, not restated. It belongs to the gateway
+// (apps/gateway/src/ledger.rs) and rides the same gauge as an extra series
+// precisely so this file does not carry a second copy of a number that can
+// change without it. A count with no ceiling cannot answer the question worth
+// asking, which is whether the ledger is idle or one request from refusing.
 //
 // Per gateway process: every replica projects the same shared claims table, so
 // the gauge is that table as the exporting process holds it — the same on every
@@ -212,10 +211,8 @@ func queueDriverDisplay(driver string) string {
 	return driver
 }
 
-// dispatcherQueueDriver: the driver the dispatcher actually connected to, from
-// its own health body — the live fact, not the configured intent. A stack
-// whose config says jetstream but whose dispatcher fell back would otherwise
-// report the config's wish.
+// dispatcherQueueDriver: the driver the dispatcher connected to, from its own
+// health body — the live fact, not the configured intent.
 func dispatcherQueueDriver(endpoint string) (string, bool) {
 	body, ok := httpBody(endpoint)
 	if !ok {

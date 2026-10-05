@@ -38,16 +38,20 @@ export const PENDING_AUTHORIZATION_KEY = 'semiont.pendingAuthorization';
 const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
 
 export class SignInError extends Error {
-  /**
-   * The HTTP status the issuer answered with, when there was one.
-   *
-   * Absent means no response existed to read — `fetch` threw. That difference
-   * decides whether a session ends or its refresh is retried: an issuer
-   * refusing a grant and a network losing a packet are not the same event,
-   * and until this field existed the status was read to build the message
-   * and then dropped, leaving the two indistinguishable one layer up.
-   */
-  constructor(readonly code: SignInErrorCode, message: string, readonly status?: number) {
+  constructor(
+    readonly code: SignInErrorCode,
+    message: string,
+    /**
+     * The HTTP status the issuer answered with, when there was one.
+     *
+     * Absent means no response existed to read — `fetch` threw. That
+     * difference decides whether a session ends or its refresh is retried: an
+     * issuer refusing a grant and a network losing a packet are not the same
+     * event, and a status that went only into the message would leave the two
+     * indistinguishable one layer up.
+     */
+    readonly status?: number,
+  ) {
     super(message);
     this.name = 'SignInError';
   }
@@ -332,23 +336,23 @@ export async function refreshAtIssuer(tokenEndpoint: string, clientId: string, r
  * renewal that FAILS throws, carrying the issuer's own words and, when the
  * retry budget ran out, how many attempts it took to give up.
  *
- * That is a deliberate narrowing of what `null` meant (it used to mean every
- * failure too), and it costs the caller nothing: a throw and a null are
- * identical at the session — `tryRefresh` converts one to the other — and
- * they are so specifically to keep the cause, which a bare `null` cannot
- * carry. An operator reading `Token refresh failed: HTTP 503` still cannot
- * tell whether that was tried once or four times, and the difference decides
- * whether they look at the network or at the issuer.
+ * `null` is deliberately that narrow, and it costs the caller nothing: a
+ * throw and a null are identical at the session — `tryRefresh` converts one
+ * to the other — and a failure throws specifically to keep the cause, which
+ * a bare `null` cannot carry. Without the attempt count, an operator reading
+ * `Token refresh failed: HTTP 503` cannot tell whether that was tried once
+ * or four times, and the difference decides whether they look at the
+ * network or at the issuer.
  *
- * **A refusal and an outage are no longer the same event.** They used to be: a
- * bare `catch { return null }` meant one lost packet ended a session exactly
+ * **A refusal and an outage are not the same event.** A bare
+ * `catch { return null }` would let one lost packet end a session exactly
  * like a revocation. `RETRY_RULES.refresh` draws the line — the issuer's answer
  * is the verdict, its absence never is — and the retry lives here rather than
  * in the session because a session terminates on `null`, and on a throw
  * exactly as on `null`: retry belongs in the callback, which owns the HTTP
  * call.
  *
- * The budget is bounded and exhaustion is still terminal, which is the answer
+ * The budget is bounded and exhaustion is terminal, which is the answer
  * to the objection to retrying before terminating — an invisible zombie
  * session would be worse than a visible re-login, so this only ever delays
  * the re-login, never replaces it.

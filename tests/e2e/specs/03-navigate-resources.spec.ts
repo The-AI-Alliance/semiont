@@ -4,16 +4,16 @@ import { test, expect } from '../fixtures/auth';
  * Smoke test: navigating to a second resource from within the app
  * actually updates the viewer (not just the URL).
  *
- * Regression target: the useStateUnit-captures-initial-rId bug.
- * Fixed by splitting KnowledgeResourcePage into outer-reads-params +
- * inner-keyed-on-rId; without that, the component stayed mounted
- * across :id changes and the state unit never rebuilt.
+ * Guards the key-based remount: KnowledgeResourcePage is split into
+ * outer-reads-params + inner-keyed-on-rId; without that, the component
+ * stays mounted across :id changes and the state unit, built once at
+ * mount, never rebuilds.
  *
  * Strategy: open resource A, go back to Discover via the sidebar
  * (client-side nav, keeps the knowledge layout mounted), then click
- * resource B. If the second navigation still lands in the same
- * ResourceViewerPage component instance (which is the condition the
- * bug needs), the key-based remount must refresh the state unit.
+ * resource B. If the second navigation lands in the same
+ * ResourceViewerPage component instance, the key-based remount must
+ * refresh the state unit.
  *
  * Requires the seeded KB to have at least two resources.
  */
@@ -28,9 +28,8 @@ test.describe('navigate between resources', () => {
     // of spec 09 (generate-from-reference) accumulate generated
     // resources at the top of Discover, sometimes with colliding
     // titles when the LLM derives the same name from the same prompt.
-    // The "useStateUnit-captures-initial-rId" regression we're guarding
-    // here is about navigating between two *different* resources, so
-    // we just need any two distinct ones.
+    // This test is about navigating between two *different* resources,
+    // so we just need any two distinct ones.
     const total = await cards.count();
     let firstIdx = 0;
     let secondIdx = -1;
@@ -78,7 +77,7 @@ test.describe('navigate between resources', () => {
 
     // Click the second resource card. This is a client-side navigation
     // from Discover into the resource viewer — the exact transition
-    // where the useStateUnit-stale-factory bug would manifest, if the
+    // where a state unit bound to the first resource would show, if the
     // component were reused (which would be the case if the user
     // navigated via a resource-tab click while already viewing another
     // resource).
@@ -92,9 +91,8 @@ test.describe('navigate between resources', () => {
 
     // Protocol proof: a *second* browse:resource-requested fired with a
     // fresh correlationId, and its matching response arrived. This is
-    // the concrete regression signal for the useStateUnit-stale-factory
-    // bug — if the state unit stayed bound to rId A, there'd be no second emit
-    // at all.
+    // the concrete signal: if the state unit stayed bound to rId A,
+    // there'd be no second emit at all.
     const secondCid = (await bus.expectRequestResponse(
       'browse:resource-requested',
       'browse:resource-result',

@@ -51,10 +51,10 @@ func TestGeneratedConfigSelectsAJobsDriverTheDispatcherCanRun(t *testing.T) {
 // A born KB must be startable by the command `init` itself prints next.
 //
 // `init` writes <provider>.toml — anthropic.toml, ollama.toml — and `start`
-// defaults to `ollama-gemma`, which no born KB has. So the first thing a new
-// user is told to run refused with "Config not found" whichever provider they
-// chose. `start` already consults the root's sticky config preference; init
-// registered the root with an empty one.
+// defaults to `ollama-gemma`, which no born KB has. `start` consults the
+// root's sticky config preference first, so init records the config it wrote
+// there; with an empty preference the first command a new user is told to run
+// refuses with "Config not found" whichever provider they chose.
 func TestInitRecordsTheConfigItWroteAsTheRootsPreference(t *testing.T) {
 	home := harness.Home(t)
 	root := filepath.Join(home, "born")
@@ -77,13 +77,12 @@ func TestInitRecordsTheConfigItWroteAsTheRootsPreference(t *testing.T) {
 	}
 }
 
-// `semiont init --yes` must produce a KB that starts. It did not: with no
-// --inference it wrote no config at all and told the user to "add a config",
-// and with --inference ollama it refused without --model. Both leave the very
-// next command it prints — `semiont start` — unable to run.
+// `semiont init --yes` must produce a KB that starts: with no --inference and
+// no --model it writes a config all the same, or the very next command it
+// prints — `semiont start` — cannot run.
 //
-// Defaults now: ollama inference on a small model, which is the provider that
-// needs no credential and the size that a first KB can actually pull.
+// The defaults are ollama inference on a small model: the provider that needs
+// no credential and the size that a first KB can actually pull.
 func TestBareInitProducesAStartableKB(t *testing.T) {
 	home := harness.Home(t)
 	root := filepath.Join(home, "bare")
@@ -120,10 +119,10 @@ func TestBareInitProducesAStartableKB(t *testing.T) {
 }
 
 // `init --inference anthropic` must write a config without a key in the
-// environment. The key is needed to START, not to be born — and refusing at
-// birth left the user with no config at all rather than one they could fill
-// in. Ollama's path already warned and proceeded when it could not verify a
-// model; anthropic refused. Same situation, opposite answer.
+// environment. The key is needed to START, not to be born — refusing at birth
+// would leave the user with no config at all rather than one they can fill
+// in. Ollama's path gives the same answer to the same situation: it warns and
+// proceeds when it cannot verify a model.
 func TestAnthropicInitNeedsNoKeyToWriteAConfig(t *testing.T) {
 	home := harness.Home(t)
 	t.Setenv("ANTHROPIC_API_KEY", "")

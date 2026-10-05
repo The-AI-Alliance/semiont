@@ -1,14 +1,10 @@
 /**
  * `HttpTransport`'s `ITransport` surface — the thin delegation to the actor.
  *
- * `emit`, `on`, `stream`, `state$` and `trackReply` are pass-throughs, and
- * they were untested: the wire-shape suite mocks `ky` (which the actor does
- * not use) and the actor suites drive `createActorStateUnit` directly, so
- * nothing exercised the transport's own methods. That mattered once
- * typing the bus by channel removed the casts they used to carry —
- * `on$<EventMap[K]>(channel as string)` on both readers, and
- * `payload as unknown as Record<string, unknown>` on `emit` — because a
- * delegation that compiles is not evidence that it delegates.
+ * `emit`, `on`, `stream`, `state$` and `trackReply` are pass-throughs that
+ * no other suite reaches: the wire-shape suite mocks `ky` (which the actor
+ * does not use) and the actor suites drive `createActorStateUnit` directly.
+ * A delegation that compiles is not evidence that it delegates.
  *
  * These pin behaviour, not types: that the right channel and payload reach
  * the actor, that a subscriber receives what arrives on its channel and
@@ -60,11 +56,9 @@ describe('HttpTransport ITransport delegation', () => {
 
   // `beckon:focus`, not `beckon:hover`: these two tests assert SSE DELIVERY,
   // and the registry declares `beckon:hover` `inProcess` — it never crosses
-  // the wire, so no gateway would ever send the frame this fixture pushed and
-  // no default client subscribes it. The stream refusal (2026-09-16)
-  // surfaced it: the fixture was proving fan-out over a channel that
-  // cannot arrive. `beckon:focus` is a bridgedBroadcast and proves the
-  // same filtering honestly.
+  // the wire, so no gateway would ever send a frame on it, no default client
+  // subscribes it, and `stream()` refuses it. `beckon:focus` is a
+  // bridgedBroadcast and proves the filtering honestly.
   it('on delivers its own channel only, and the returned disposer stops delivery', async () => {
     const sse = mockSSEResponse();
     // A credential is required to connect at all (the SSE connect gate), so a

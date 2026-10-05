@@ -17,7 +17,7 @@ import (
 // codespace stacks don't collide in the cloud, so many may run at once,
 // each forwarding its KB on its own local port (4000, else allocated above
 // it); local ports are the only contention point. stop and status compute their
-// work from these identifiers (falling back to the historical all-runtimes
+// work from these identifiers (falling back to the all-runtimes
 // name sweep only when no record exists). The record is belief, not ground
 // truth: status still verifies every claim against the runtime, gh, and
 // the health endpoints. Schema 2 single-stack files are migrated on read;
@@ -206,8 +206,8 @@ func LoadStackSet() *StackSet {
 	}
 	// Legacy single-stack file (schema 2).
 	//
-	// Schema 1 is NOT read. It predates `provided`, marking host reuse with a
-	// `hostReuse` bool that no longer exists on the struct, so a schema-1
+	// Schema 1 is NOT read. It has no `provided`, marking host reuse with a
+	// `hostReuse` bool the struct does not carry, so a schema-1
 	// record would load with every service unclassified — and an unclassified
 	// entry is worse than no record at all: teardown would treat a host
 	// process as launcher-owned. Refusing to read it is therefore right;
@@ -326,7 +326,7 @@ func saveStackSet(ss *StackSet) {
 // saveStack upserts one stack into the collection.
 func saveStack(st *StackState) {
 	st.UpdatedAt = time.Now().UTC()
-	st.Schema = 0 // schema lives on the set now
+	st.Schema = 0 // schema lives on the set
 	ss := LoadStackSet()
 	ss.Stacks[stackKey(st)] = st
 	saveStackSet(ss)

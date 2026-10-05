@@ -8,23 +8,23 @@ import (
 
 // descriptors.go — the service descriptor set.
 //
-// A stack is described by two axes that used to be one. The ROLE is what the
-// stack needs — graph, database, identity, gateway — abstract, independent of
-// who provides it. The DRIVER is the technology providing it — neo4j,
-// postgres, keycloak, oidc — and it owns every concrete fact: the container
-// name, the image, the memory ceiling, the ports, the product name.
+// A stack is described by two axes. The ROLE is what the stack needs — graph,
+// database, identity, gateway — abstract, independent of who provides it. The
+// DRIVER is the technology providing it — neo4j, postgres, keycloak, oidc —
+// and it owns every concrete fact: the container name, the image, the memory
+// ceiling, the ports, the product name.
 //
-// Keeping those facts on the role was a lie the reader had to correct at
-// every site: the identity ROW asserted `semiont-keycloak` even when the
-// config selected an external OIDC issuer, which launches nothing. Here a row
+// Keeping those facts on the role would be a lie the reader has to correct
+// at every site: an identity ROW asserting `semiont-keycloak` even when the
+// config selects an external OIDC issuer, which launches nothing. Here a row
 // is a (role, driver) pair, so that assertion is not a row anybody can write.
 //
 // Semiont's own services are roles with exactly one driver — themselves. They
 // carry no image: theirs is built from the registry and the version at start.
 //
-// Everything that used to be a hand-written list of container names derives
-// from this table (the two sweeps, the status roster, the realm's client
-// list, the `--service` usage string), gated by descriptor_census_test.go.
+// Every list of container names derives from this table (the two sweeps,
+// the status roster, the realm's client list, the `--service` usage string),
+// gated by descriptor_census_test.go.
 
 const driverSemiont = "semiont"
 
@@ -67,11 +67,8 @@ const (
 	authorityConfigure
 )
 
-// healthProbe: how a driver answers "are you up?" — the one fact that used
-// to have three homes (a status roster of 17 literals, a serviceEndpoint
-// switch of 15 cases missing three roles, and literals inside the sidecar
-// flows), which disagreed: status probed NATS on 4222 whatever the config
-// said.
+// healthProbe: how a driver answers "are you up?" — one home, so a start and
+// status cannot disagree about where a role is probed.
 type healthProbe struct {
 	// tcp: a TCP connect rather than an HTTP GET. A server with no health
 	// route answers the only question we can ask it.
@@ -117,9 +114,9 @@ type serviceDescriptor struct {
 	// args builder and the memory preflight read it. No floors: apps size
 	// themselves from the ceiling (node cgroup-aware heap, Neo4j auto-config).
 	//
-	// Sized from `container stats` on an idle stack (2026-08-31/09-03):
-	// every Node service ≤ ~310 MiB, collector 153, neo4j 922 — so 2G ≈ 6x
-	// headroom for the services, and neo4j keeps the 2G it actually uses.
+	// Sized from `container stats` on an idle stack: every Node service
+	// ≤ ~310 MiB, collector 153, neo4j 922 — so 2G ≈ 6x headroom for the
+	// services, and neo4j keeps the 2G it actually uses.
 	// Re-measure before trusting a ceiling after a service's scope changes.
 	mem string
 
@@ -158,13 +155,10 @@ type serviceDescriptor struct {
 // 11434, 16686); (3) user-facing Semiont stays memorable (3000 Browser,
 // 4000 Gateway); (4) Semiont-internal services listen in 241xx — nobody's
 // default, below both ephemeral floors (Linux 32768, macOS 49152). The
-// 909x block they used to squat is Prometheus/Pushgateway/Kafka/
-// Alertmanager territory.
+// 909x block is Prometheus/Pushgateway/Kafka/Alertmanager territory.
 //
 // Order is the reading order: Semiont's own services, then the
 // infrastructure they run on, then the model providers, then observability.
-// It is what `roleList` and every role enumeration inherit; the two sweep
-// orders below are separate and stay that way until dependencies are data.
 var serviceDescriptors = []serviceDescriptor{
 	// The gateway waits for the issuer whose keys it verifies tokens against
 	// and the broker its signal plane dials; it dials no graph, vector,
@@ -176,8 +170,7 @@ var serviceDescriptors = []serviceDescriptor{
 	// The three make-meaning sidecars open with boot-time bus requests the
 	// Archivist answers (the smelter's reconcile opens with browse:resources),
 	// and its /health only turns on after its bus pumps attach — so this edge
-	// is what closes the startup race a 3.5-second head start once lost a
-	// smelter to.
+	// is what closes the startup race.
 	{role: "worker", driver: driverSemiont, container: "semiont-worker", mem: "2G", ports: []portNeed{{24100, "Worker"}},
 		needs: needs("gateway", "archivist"), health: healthProbe{path: "/health"}},
 	{role: "smelter", driver: driverSemiont, container: "semiont-smelter", mem: "2G", ports: []portNeed{{24101, "Smelter"}},
@@ -207,7 +200,7 @@ var serviceDescriptors = []serviceDescriptor{
 		health: healthProbe{tcp: true}},
 
 	// graph 2G: a JVM auto-sizing its heap from visible memory — the silent
-	// 1G VM default was the known-tight spot on Apple container.
+	// 1G VM default is too tight on Apple container.
 	{role: "graph", driver: "neo4j", container: "semiont-neo4j", image: "neo4j:5.26.28-community", mem: "2G",
 		ports:   []portNeed{{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}},
 		display: "Neo4j", defaultPort: 7687, portLabel: "Neo4j Bolt", auxPorts: []portNeed{{7474, "Neo4j HTTP"}},
@@ -218,13 +211,13 @@ var serviceDescriptors = []serviceDescriptor{
 		ports: []portNeed{{6333, "Qdrant"}}, display: "Qdrant", defaultPort: 6333, portLabel: "Qdrant",
 		health: healthProbe{path: "/readyz"}},
 
-	// NATS keeps its product port (tier 2). 512M ceiling: measured 26 MiB
-	// idle with JetStream on (2026-09-15); the headroom is for stream replay
-	// after restart. Every stack has one: [jobs] is the dispatcher's
-	// JetStream queue, and [signal] may select nats too: ONE daemon, ONE
-	// shape — JetStream on, with the stamped /data store — because both use
-	// that store: the job queue's stream, and the signal driver's KV tables,
-	// where the gateway's ledger keeps its claims.
+	// NATS keeps its product port (tier 2). 512M ceiling: 26 MiB idle with
+	// JetStream on; the headroom is for stream replay after restart. Every
+	// stack has one: [jobs] is the dispatcher's JetStream queue, and
+	// [signal] may select nats too: ONE daemon, ONE shape — JetStream on,
+	// with the stamped /data store — because both use that store: the job
+	// queue's stream, and the signal driver's KV tables, where the gateway's
+	// ledger keeps its claims.
 	{role: "messaging", driver: "jetstream", container: "semiont-nats", image: "nats:2.14.0-alpine", mem: "512M",
 		ports: []portNeed{{4222, "NATS"}}, display: "NATS", defaultPort: 4222, portLabel: "NATS",
 		cmd: []string{"-js", "-sd", "/data"}, health: healthProbe{tcp: true}},
@@ -274,8 +267,7 @@ var serviceDescriptors = []serviceDescriptor{
 	{role: "traces", driver: "jaeger", container: "semiont-jaeger", image: "jaegertracing/all-in-one:1.76.0", mem: "1G",
 		ports:   []portNeed{{16686, "Jaeger UI"}, {14318, "Jaeger OTLP"}},
 		display: "Jaeger", defaultPort: 16686, portLabel: "Jaeger UI", health: healthProbe{}},
-	// Prometheus keeps its product port (tier 2) — free since the worker
-	// moved to 24100.
+	// Prometheus keeps its product port (tier 2).
 	{role: "metrics", driver: "prometheus", container: "semiont-prometheus", image: "prom/prometheus:v3.9.1", mem: "1G",
 		ports: []portNeed{{9090, "Prometheus UI"}}, display: "Prometheus", defaultPort: 9090, portLabel: "Prometheus UI",
 		health: healthProbe{path: "/-/healthy"}},
@@ -461,8 +453,9 @@ func driversFor(role string) []string {
 
 // containersForRole: every container name a driver of this role could run,
 // deduped, in table order. Empty for a role no driver launches (embedding),
-// and today never longer than one — but a role whose drivers run different
-// containers must be swept for all of them, not for a guess.
+// and never longer than one for any role in the table — but a role whose
+// drivers run different containers must be swept for all of them, not for a
+// guess.
 func containersForRole(role string) []string {
 	var out []string
 	for _, d := range descriptorsForRole(role) {
@@ -476,7 +469,7 @@ func containersForRole(role string) []string {
 
 // roleContainer: the one container name a role can run, "" when it runs
 // none. For the single-handle sites (status's inspect target, a codespace's
-// wire-level name) that predate multi-container roles.
+// wire-level name).
 func roleContainer(role string) string {
 	if names := containersForRole(role); len(names) > 0 {
 		return names[0]
@@ -522,8 +515,7 @@ var roleByContainer = func() map[string]string {
 // mayConfigure: may the launcher change anything INSIDE this role's
 // service? A service the launcher runs is ours entirely, so ownership
 // answers for itself; for one it does not run, the driver's declared
-// authority decides. Three refusals used to answer this question separately,
-// each by asking whether the role was "launcher-run".
+// authority decides.
 func mayConfigure(rp rolePlan) bool {
 	if rp.Presence == presenceLauncher {
 		return true
@@ -536,7 +528,7 @@ func mayConfigure(rp rolePlan) bool {
 //
 // The port follows the plan when the config owns it, and the descriptor
 // otherwise — which is what makes status honest about a config that moved a
-// port, and what the three separate copies of this could not do.
+// port.
 func healthEndpoint(role, driver string, plan *launchPlan) string {
 	d := descriptorFor(role, driver)
 	// identity is the one driver-specific shape: a configured issuer names
@@ -602,9 +594,8 @@ func probeDriver(role string) string {
 // ONE list for three jobs that coincide on it, and coincide for one reason —
 // the Browser is machine-level, not a stack member: the images a start
 // pulls, the configs it stages and mounts, and the realm accounts those
-// services present. They were three hand-written lists, and
-// one of them had six entries where the others had seven, so
-// `start --service dispatcher` staged no config and passed empty hosts.
+// services present. Three hand-written lists drift: one an entry short
+// stages that service no config and passes it empty hosts.
 var stackServices = func() []string {
 	var out []string
 	for _, role := range startOrder {

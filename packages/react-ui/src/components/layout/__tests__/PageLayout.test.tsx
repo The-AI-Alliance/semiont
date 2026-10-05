@@ -159,54 +159,6 @@ describe('PageLayout Component', () => {
     });
   });
 
-  describe('Props Handling', () => {
-    it('should pass showAuthLinks to UnifiedHeader', () => {
-      const { rerender, container } = render(
-        <PageLayout
-          Link={MockLink}
-          routes={mockRoutes}
-          tNav={mockTNav}
-          tHome={mockTHome}
-          showAuthLinks={true}
-        >
-          <div>Content</div>
-        </PageLayout>
-      );
-
-      expect(container.querySelector('header')).toBeInTheDocument();
-
-      rerender(
-        <PageLayout
-          Link={MockLink}
-          routes={mockRoutes}
-          tNav={mockTNav}
-          tHome={mockTHome}
-          showAuthLinks={false}
-        >
-          <div>Content</div>
-        </PageLayout>
-      );
-
-      expect(container.querySelector('header')).toBeInTheDocument();
-    });
-
-    it('should default showAuthLinks to true', () => {
-      const { container } = render(
-        <PageLayout
-          Link={MockLink}
-          routes={mockRoutes}
-          tNav={mockTNav}
-          tHome={mockTHome}
-        >
-          <div>Content</div>
-        </PageLayout>
-      );
-
-      expect(container.querySelector('header')).toBeInTheDocument();
-    });
-
-  });
-
   describe('Accessibility', () => {
     it('should have semantic header element', () => {
       const { container } = render(

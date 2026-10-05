@@ -113,10 +113,9 @@ npm_names=$(jq -r '.packages | to_entries[] | select(.value.publish) | "\(.key)\
     done)
 
 # "Indexed" and "installable" are different claims. The packument lists a
-# version minutes before the CDN will serve its tarball, and on 0.6.2 that gap
-# passed the publish gate and then killed all seven image builds on
-# `404 .../inference-0.6.2.tgz`. Checking only `.versions[$v]` here would report
-# a release verified while `npm install` still fails. One fetch answers both:
+# version minutes before the CDN will serve its tarball. Checking only
+# `.versions[$v]` here would report a release verified while `npm install`
+# fails on a 404 for the tarball. One fetch answers both:
 # the tarball URL comes out of the same document, and a HEAD settles it.
 for pkg in $npm_names; do
   enc=${pkg//\//%2f}
@@ -143,8 +142,8 @@ head_ "Container images"
 # Dockerfiles on disk decide which ones can. Disagreement means a service is
 # building nothing or is missing from the release, so treat it as a failure
 # rather than picking one list and hoping.
-# `sort -u`: the matrix has one row per (service, architecture) since the
-# gateway's arm64 half moved to a native runner, so `gateway` appears twice.
+# `sort -u`: a service whose architectures build on separate runners has one
+# matrix row per architecture, so it appears twice.
 # The question here is which services get images, not how many legs build them.
 matrix_services=$(grep -oE '^\s+- service: [a-z]+' "$ROOT/.github/workflows/publish-service-images.yml" | awk '{print $3}' | sort -u)
 dockerfile_apps=$(ls -d "$ROOT"/apps/*/Dockerfile 2>/dev/null | awk -F/ '{print $(NF-1)}' | grep -v '^browser$' | sort)

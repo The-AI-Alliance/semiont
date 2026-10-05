@@ -163,7 +163,7 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      const floatingDiv = container.querySelector('.fixed');
+      const floatingDiv = container.querySelector('.semiont-unified-header--floating');
       expect(floatingDiv).not.toBeInTheDocument();
     });
   });

@@ -25,11 +25,12 @@ import (
 // outside only (create, wait, forward, lifecycle) by shelling out to `gh`,
 // which owns auth and the tunnel client.
 
-// The KB (gateway, remote port 4000) is the ONLY port a codespace stack
-// forwards: the browser's Knowledge Bases panel connects to KBs by
-// host/port, so one browser works N codespace KBs at once — each stack gets
-// its own local port, canonical 4000 when free, else the lowest free above
-// it. Everything else stays inside the codespace, run by its own launcher.
+// kbRemotePort: the KB (gateway) port inside a codespace — one of the two a
+// codespace stack forwards, the other being its issuer's (forwardIssuer). The
+// browser's Knowledge Bases panel connects to KBs by host/port, so one browser
+// works N codespace KBs at once — each stack gets its own local port,
+// canonical 4000 when free, else the lowest free above it. Everything else
+// stays inside the codespace, run by its own launcher.
 const kbRemotePort = 4000
 
 // allocatePort picks one of this stack's local ports — its KB (from 4000)
@@ -192,11 +193,10 @@ func startCodespace(u *UI, opts startOptions) int {
 	if !requirePortFree(u, kbPort, "KB (forward)") {
 		return 1
 	}
-	// The VM must be Available before a tunnel to it can bind — measured
-	// 2026-07-20: `ports forward` against a stopped codespace TRIGGERS the
-	// wake and then dies, leaving the launcher waiting on a tunnel that
-	// will never exist. So ensure Available first, waking explicitly when
-	// stopped.
+	// The VM must be Available before a tunnel to it can bind: `ports
+	// forward` against a stopped codespace TRIGGERS the wake and then dies,
+	// leaving the launcher waiting on a tunnel that will never exist. So
+	// ensure Available first, waking explicitly when stopped.
 	if code := ensureCodespaceAvailable(u, repo, name); code != 0 {
 		return code
 	}
@@ -205,11 +205,9 @@ func startCodespace(u *UI, opts startOptions) int {
 	// cannot be opened through to the remote port ("ssh: rejected: connect
 	// failed"). A fresh create runs devcontainer hooks for minutes, so any
 	// probe through the tunnel during that window destroys it — including
-	// the launcher's own bind check, which DIALS the port. The checker was
-	// killing the thing it checked (live 2026-07-27; every fresh create
-	// reported "the port forward died after 1s — the stack may be fine",
-	// which was exactly backwards: the stack was down, and that is why the
-	// forward died).
+	// the launcher's own bind check, which DIALS the port: the checker
+	// would kill the thing it checks, and a forward that dies that way
+	// means the stack is down, not that the forward is at fault.
 	//
 	// Readiness is therefore asked over ssh, which does not touch the
 	// tunnel, and the tunnel is built only once the answer is yes. On a
@@ -259,9 +257,9 @@ func startCodespace(u *UI, opts startOptions) int {
 	// anything slow here is the forward, not the stack.
 	//
 	// The tick still takes the forward's pulse. A tunnel can die mid-wait
-	// for reasons unrelated to readiness (observed live 2026-07-23 — 600s
-	// spent polling a defunct forward), and reporting that as a sick KB
-	// sends the reader to the wrong machine.
+	// for reasons unrelated to readiness, and polling a defunct forward to
+	// the end of the budget, then reporting a sick KB, sends the reader to
+	// the wrong machine.
 	tick := func(elapsed time.Duration) bool {
 		select {
 		case <-fwdDead:
@@ -298,10 +296,6 @@ func startCodespace(u *UI, opts startOptions) int {
 	// The stack is up, so this is the cheapest moment to reach in. Only fires
 	// when nothing is recorded — a --repo-only start (no clone to read) has
 	// no other way to ever learn this.
-	//
-	// (This used to ride along with an admin-credentials read, and called
-	// itself a free piggyback on that ssh. The credentials read is gone — no
-	// KB auto-creates an admin — so this ssh is now its own cost.)
 	reconcileDid(u, newSt, false)
 
 	fmt.Println()
@@ -349,8 +343,8 @@ func startCodespace(u *UI, opts startOptions) int {
 	fmt.Printf("  First user:    %s\n", u.Bold(useraddHint(repo)))
 	fmt.Printf("  Check health:  %s\n", u.Bold("semiont status"))
 	fmt.Printf("  Follow logs:   %s %s\n", u.Bold("semiont logs --repo "+repo), u.Dim("(bare logs when unambiguous)"))
-	// "Halt billing" overpromised: stopping halts COMPUTE billing; storage
-	// bills until retention auto-deletes the codespace.
+	// "Halt compute", not "halt billing": stopping halts COMPUTE billing;
+	// storage bills until retention auto-deletes the codespace.
 	fmt.Printf("  Halt compute:  %s %s\n", u.Bold("semiont stop --repo "+repo), u.Dim("(storage bills until auto-delete; --delete destroys now)"))
 	fmt.Println()
 	return 0
@@ -424,10 +418,9 @@ func repoFromRoot(u *UI, opts startOptions) (slug string, did string, code int) 
 	// Pushed-state honesty: locally an uncommitted config edit is live via
 	// the /kb bind mount; in a codespace it silently doesn't exist.
 	if out, err := capture("git", "-C", root, "status", "--porcelain"); err == nil && out != "" {
-		// Lead with the PLACEMENT: during the 2026-07-20 flip incident this
-		// warning was the earliest tell that a start had gone cloud-shaped,
-		// but nothing in its old wording said so — the first word must name
-		// which path is running.
+		// Lead with the PLACEMENT: this warning can be the earliest tell
+		// that a start is cloud-shaped, so its first words must name which
+		// path is running.
 		u.Warn("Starting a CODESPACE for %s — it runs the repo as PUSHED to GitHub; the uncommitted changes in %s don't travel.", slug, root)
 	}
 	return slug, did, 0
@@ -496,12 +489,11 @@ type codespaceInstance struct {
 const codespaceGone = "deleted by hand, or by GitHub once it stayed stopped past its retention period"
 
 // classifyCodespaceState is THE decider for "what state is this codespace
-// in", over an already-fetched list. Three call sites used to decide it
-// independently and only status got it right (#1058): absence from a
-// SUCCESSFUL list is a state — "deleted", the normal end of every codespace
-// under the launcher's own 720h retention — while a failed or impossible
-// query is "unqueryable". Only "deleted" ever justifies forgetting a record.
-// A present codespace reports GitHub's state verbatim.
+// in", over an already-fetched list, so no call site decides it on its own:
+// absence from a SUCCESSFUL list is a state — "deleted", the normal end of
+// every codespace under the launcher's own 720h retention — while a failed or
+// impossible query is "unqueryable". Only "deleted" ever justifies forgetting
+// a record. A present codespace reports GitHub's state verbatim.
 func classifyCodespaceState(instances []codespaceInstance, listErr error, ghPresent bool, name string) string {
 	if !ghPresent || listErr != nil {
 		return "unqueryable"
@@ -587,12 +579,12 @@ type codespaceMachine struct {
 }
 
 // availableMachines: the machine classes GitHub offers THIS user for THIS
-// repo. Verified 2026-07-20: the list is filtered by the devcontainer's
-// `hostRequirements` — a repo declaring 4c/16gb is not offered the 2-core
-// class, while a repo with no devcontainer is. So anything in this list is
-// adequate by the KB's OWN declaration, which is what makes falling back to
-// another class safe rather than reckless (an undersized VM would fail
-// slowly, at the health gate, after minutes of pulls).
+// repo. The list is filtered by the devcontainer's `hostRequirements` — a
+// repo declaring 4c/16gb is not offered the 2-core class, while a repo with
+// no devcontainer is. So anything in this list is adequate by the KB's OWN
+// declaration, which is what makes falling back to another class safe rather
+// than reckless (an undersized VM would fail slowly, at the health gate,
+// after minutes of pulls).
 func availableMachines(repo string) ([]codespaceMachine, string, error) {
 	out, err := captureBoth("gh", "api", "/repos/"+repo+"/codespaces/machines")
 	if err != nil {
@@ -659,7 +651,7 @@ func createCodespace(u *UI, repo string, opts startOptions) (string, int) {
 	if code != 0 {
 		return "", code
 	}
-	// Cost levers, set EXPLICITLY at create (adjudicated 2026-07-20):
+	// Cost levers, set EXPLICITLY at create:
 	// idle-timeout 60m — looser than GitHub's 30m, headroom for long
 	// image/model pulls; retention 720h (30 days, GitHub's maximum) — explicit
 	// so a tighter account-level default cannot silently shorten a KB
@@ -700,9 +692,8 @@ func createCodespace(u *UI, repo string, opts startOptions) (string, int) {
 
 // ensureCodespaceAvailable gets the VM to Available before anything tries to
 // tunnel to it. A stopped codespace resumes BECAUSE something connects, so
-// there is a trigger step: `gh codespace ssh -- true` both wakes it and
-// blocks until it is connectable (measured: ~19s), which also proves the
-// ssh path the credentials read needs.
+// the wait has a trigger step: `gh codespace ssh -- true` both wakes it and
+// blocks until it is connectable (~19s).
 func ensureCodespaceAvailable(u *UI, repo, name string) int {
 	ghHere := onPath("gh")
 	var instances []codespaceInstance
@@ -725,18 +716,18 @@ func ensureCodespaceAvailable(u *UI, repo, name string) int {
 		return 1
 	}
 	// Waking is the wait's decision, not this one's: a start right after a
-	// stop sees ShuttingDown here and Shutdown only later, and a wake decided
-	// once, up front, never happened (live 2026-09-29).
+	// stop sees ShuttingDown here and Shutdown only later, so a wake decided
+	// once, up front, would never happen.
 	return waitCodespaceAvailable(u, repo, name)
 }
 
-// waitCodespaceAvailable polls until GitHub reports the VM Available.
-// Post-CREATE only: a fresh codespace is Provisioning for minutes and
-// forwarding before then cannot bind. Never call it for a stopped
-// codespace — those wake on connection, so this would wait forever.
+// waitCodespaceAvailable polls until GitHub reports the VM Available: a
+// fresh codespace is Provisioning for minutes and forwarding before then
+// cannot bind. A stopped codespace wakes only on connection, so the wait
+// connects to one when it sees it.
 // Liveness during the minutes-long wait: on a terminal, one redrawn line
 // carrying the polled state and elapsed time; piped, a 30s heartbeat —
-// silence and a spinner are different claims, and this wait had neither.
+// silence and a spinner are different claims.
 func waitCodespaceAvailable(u *UI, repo, name string) int {
 	t0 := time.Now()
 	lastBeat := t0
@@ -744,9 +735,9 @@ func waitCodespaceAvailable(u *UI, repo, name string) int {
 	woke := false
 	for i := 0; i < 300; i++ {
 		instances, err := ghCodespaceList(repo)
-		// Never print a state that was not observed: the old seed of
-		// "Provisioning" had this wait narrating a ghost for ten minutes
-		// when the codespace was already reaped.
+		// Never print a state that was not observed: seeded with
+		// "Provisioning", this wait would narrate a ghost for ten minutes
+		// when the codespace is already reaped.
 		state = classifyCodespaceState(instances, err, true, name)
 		// THE wake decision: a stopped codespace is woken the moment the wait
 		// sees it stopped — at the first look, or once a stop still in
@@ -805,10 +796,10 @@ type creationLogTail struct {
 	cmd      *exec.Cmd
 	mu       sync.Mutex
 	lines    []string // ring: the newest creationLogWindow lines (the display)
-	rendered int      // lines currently drawn on the terminal
+	rendered int      // lines drawn on the terminal
 	lastBeat time.Time
-	// The display window is far too small to explain a failure: in the live
-	// case the devcontainer marker sat ~18 lines below the real cause (a
+	// The display window is far too small to explain a failure: the
+	// devcontainer marker can sit ~18 lines below the real cause (a
 	// gateway refusing to boot), so a report built from `lines` would show
 	// the stack trace and none of the reason. This wider ring exists only to
 	// be printed when the hooks fail.
@@ -819,8 +810,8 @@ type creationLogTail struct {
 
 const creationLogWindow = 6
 
-// creationLogContext is what gets printed when hooks fail — enough to carry
-// the cause above the marker, not so much that it buries it.
+// creationLogContext is how many lines the wider ring keeps for a hook-failure
+// report — enough to carry the cause above the marker.
 const creationLogContext = 60
 
 // hookFailureContextLines is how much of that ring gets printed — enough to
@@ -852,8 +843,8 @@ func startCreationLogTail(u *UI, name string) *creationLogTail {
 	lt := &creationLogTail{u: u, cmd: cmd, lastBeat: time.Now()}
 	go func() {
 		sc := bufio.NewScanner(out)
-		// Pull progress rewrites lines with bare \r; \n-only splitting
-		// stitched those fragments into mega-lines (compose's, observed live).
+		// Pull progress (compose's) rewrites lines with bare \r; \n-only
+		// splitting would stitch those fragments into mega-lines.
 		sc.Split(splitCRLines)
 		for sc.Scan() {
 			line := strings.TrimRight(sc.Text(), " \t")
@@ -919,8 +910,8 @@ func (lt *creationLogTail) tick(elapsed time.Duration) {
 
 // truncateLine keeps a line to at most max runes plus an ellipsis. Rune
 // units, not bytes: the log is full of multi-byte characters (compose's box
-// drawing, the launcher's own glyphs), and a byte slice cut one in half on
-// the first live run (─────? …).
+// drawing, the launcher's own glyphs), and a byte slice cuts one in half
+// (─────? …).
 func truncateLine(s string, max int) string {
 	if len(s) <= max { // byte length ≤ max implies rune count ≤ max
 		return s
@@ -937,7 +928,7 @@ func truncateLine(s string, max int) string {
 
 // splitCRLines is a bufio.SplitFunc treating \r and \n alike as line ends —
 // progress output rewrites lines with bare \r, and \n-only splitting
-// stitched those fragments together.
+// would stitch those fragments together.
 func splitCRLines(data []byte, atEOF bool) (int, []byte, error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
@@ -951,8 +942,6 @@ func splitCRLines(data []byte, atEOF bool) (int, []byte, error) {
 	return 0, nil, nil
 }
 
-// stop kills the follower and, on a terminal, collapses the window so the
-// final transcript keeps only the launcher's own lines.
 // failure reports the latched hook-failure marker and the surrounding log,
 // or "" while the hooks are merely still running. Nil-safe, like tick/stop.
 func (lt *creationLogTail) failure() (string, []string) {
@@ -967,6 +956,8 @@ func (lt *creationLogTail) failure() (string, []string) {
 	return lt.failed, append([]string(nil), lt.preMark...)
 }
 
+// stop kills the follower and, on a terminal, collapses the window so the
+// final transcript keeps only the launcher's own lines.
 func (lt *creationLogTail) stop() {
 	if lt == nil {
 		return
@@ -992,13 +983,13 @@ func spawnForward(u *UI, name string, remote, local int) (int, <-chan struct{}, 
 	// Getting it backwards forwards a port nothing serves onto a local port
 	// something else may already own: gh then fails to bind but the process
 	// STAYS ALIVE, so it looks healthy while forwarding nothing. A symmetric
-	// 4000:4000 forward hides the order; live testing found it.
+	// 4000:4000 forward hides the order.
 	args := []string{"codespace", "ports", "forward",
 		fmt.Sprintf("%d:%d", remote, local), "-c", name}
 	u.EchoCmd("gh", args...)
 	cmd := exec.Command("gh", args...)
-	// Keep gh's stderr. It was discarded, so a dead forward could be
-	// reported but never EXPLAINED — and gh's own message is the whole
+	// Keep gh's stderr: without it a dead forward can be reported but never
+	// EXPLAINED — and gh's own message is the whole
 	// diagnosis ("ssh: rejected: connect failed (Connection refused)" means
 	// the remote port is not listening; "address already in use" means the
 	// local one is taken). A bounded buffer: this is one or two lines, and
@@ -1012,8 +1003,8 @@ func spawnForward(u *UI, name string, remote, local int) (int, <-chan struct{}, 
 	}
 	pid := cmd.Process.Pid
 	rememberForwardLog(pid, cmd.Stderr)
-	// A reaping Wait (not Release): the observed mid-wait death left a
-	// ZOMBIE, and a zombie still passes kill-0 aliveness — only Wait both
+	// A reaping Wait (not Release): a forward that dies mid-wait is left a
+	// ZOMBIE, and a zombie passes kill-0 aliveness — only Wait both
 	// reaps it and yields a truthful death signal for the health gate.
 	// The child still outlives a normally-exiting launcher: Wait blocks in
 	// a goroutine that dies with the process, killing nothing.
@@ -1041,7 +1032,7 @@ func spawnForward(u *UI, name string, remote, local int) (int, <-chan struct{}, 
 //
 // A mismatch is reported, never silently overwritten. did:web is the
 // permanent identity stamped into the KB's committed event log; if the
-// codespace now answers with a different one, the interesting fact is that
+// codespace answers with a different one, the interesting fact is that
 // the two disagree — the record is a claim about which KB this is, and
 // replacing it without a word would erase the evidence.
 func reconcileDid(u *UI, st *StackState, force bool) {
@@ -1073,8 +1064,7 @@ func reconcileDid(u *UI, st *StackState, force bool) {
 // ABSOLUTE globbed path: `gh codespace ssh` lands in /home/vscode, not the
 // workspace, so a relative path silently fails with "No such file or
 // directory". The glob expands remotely and does not depend on the workspace
-// directory's name. (Found live 2026-07-20, on the since-removed admin.json
-// read that shared this shape.)
+// directory's name.
 func fetchRemoteDid(u *UI, name string) (string, bool) {
 	const cfgPath = "/workspaces/*/.semiont/config"
 	u.Log("Reading KB identity %s", u.Dim("(gh codespace ssh -c "+name+" -- cat "+cfgPath+")"))
@@ -1157,8 +1147,8 @@ func stopCodespace(u *UI, st *StackState, service string, del, dryRun bool) int 
 	if del {
 		// --delete's goal state is "no codespace, no record". A codespace
 		// GitHub already removed is halfway there: skip the delete, forget
-		// the record, exit 0 — the old path treated the 404 as failure and
-		// left the record a permanent dead end.
+		// the record, exit 0 — treating the 404 as failure would leave the
+		// record a permanent dead end.
 		if gone {
 			forgetStack("codespace:" + st.Codespace.Repo)
 			u.Ok("Codespace %s was already gone (%s) — record forgotten.", st.Codespace.Name, codespaceGone)
@@ -1210,15 +1200,13 @@ func stopCodespace(u *UI, st *StackState, service string, del, dryRun bool) int 
 
 // statusCodespace: `semiont status` for a codespace stack — VM state from
 // gh, health through the forwards (re-established if the recorded one
-// died), credentials read fresh, and a LOCAL section that doesn't pretend
+// died), the KB identity reconciled, and a LOCAL section that doesn't pretend
 // the remote VM's directories are here.
 func statusCodespace(u *UI, st *StackState, refresh bool) int {
 	u.Section("CODESPACE")
-	// Distinguish three different things that all used to look alike:
-	// GitHub says it's gone, GitHub says it's not ready, and we could not
-	// ask at all. Only the first justifies telling anyone to delete a record.
-	// (This was the reference implementation classifyCodespaceState was
-	// extracted from — #1058 fixed it here first and nowhere else.)
+	// Three different things that must not look alike: GitHub says it's
+	// gone, GitHub says it's not ready, and we could not ask at all. Only
+	// the first justifies telling anyone to delete a record.
 	ghHere := onPath("gh")
 	var instances []codespaceInstance
 	var lerr error
@@ -1312,10 +1300,6 @@ func statusCodespace(u *UI, st *StackState, refresh bool) int {
 	fmt.Printf("  %s\n", u.Dim(fmt.Sprintf("(connect at Host localhost, Port %d — semiont useradd --repo %s creates a user)", st.Codespace.ForwardPort, st.Codespace.Repo)))
 
 	// Backfill a missing identity, or re-verify a recorded one on --refresh.
-	//
-	// (This used to describe itself as free because an admin-credentials read
-	// had already opened the ssh. That read is gone — no KB auto-creates an
-	// admin — so this is now the only reach here.)
 	reconcileDid(u, st, refresh)
 
 	u.Section("LOCAL")
@@ -1374,8 +1358,8 @@ func dropCollidingForwards(u *UI, needs []portNeed) {
 // codespaceFacts: the cost-relevant facts for one codespace, from
 // `gh api /user/codespaces` — retention expiry, idle timeout, machine class
 // and size, and when it was last STARTED. lastUsedAt is "billing since" for
-// an Available codespace: verified 2026-07-20 by observation (the field
-// moved to the exact minute a resume started it; createdAt stayed put).
+// an Available codespace: the field moves to the exact minute a resume
+// starts it, while createdAt stays put.
 // Everything here is DISPLAY — best-effort, absent facts render as nothing.
 type codespaceFacts struct {
 	Machine   string // class + size, e.g. "premiumLinux 8c/32GB"
@@ -1567,7 +1551,7 @@ func forwardProcAlive(pid int) bool {
 // forwardAlive: is the forward actually FORWARDING? A live gh process can
 // fail to bind (wrong port order, port taken, codespace not ready) and stay
 // running — a zombie that every pid-only check calls healthy while nothing
-// reaches the KB. Observed live 2026-07-20. So the port must answer too.
+// reaches the KB. So the port must answer too.
 func forwardAlive(pid, port int) bool {
 	if !forwardProcAlive(pid) || port == 0 {
 		return false
@@ -1584,11 +1568,11 @@ func forwardAlive(pid, port int) bool {
 // ssh so nothing touches the port forward (which does not exist yet, and which
 // a premature probe would destroy — see the call site).
 //
-// The probe is `curl` against localhost:4000 in the VM: the same question the
-// health gate asks, one hop earlier, where a "connection refused" costs
-// nothing. Each attempt is a fresh `gh codespace ssh`, so the cadence is slow
-// on purpose — ssh setup dwarfs the request, and a fresh create is a
-// minutes-long wait where seconds of resolution buy nothing.
+// The probe is the codespace's own `semiont status` (askRemoteKB), asked
+// inside the VM, where a "not ready" costs nothing. Each attempt is a fresh
+// `gh codespace ssh`, so the cadence is slow on purpose — ssh setup dwarfs
+// the request, and a fresh create is a minutes-long wait where seconds of
+// resolution buy nothing.
 func waitForRemoteKB(u *UI, name, repo string, created bool) int {
 	if created {
 		u.Log("Waiting for the stack %s", u.Dim("(a fresh create runs devcontainer hooks — image and model pulls take minutes)"))
@@ -1617,7 +1601,7 @@ func waitForRemoteKB(u *UI, name, repo string, created bool) int {
 			// is not up dies with "connection refused", which is the same
 			// answer this probe would have given. Waiting on ssh here would
 			// stall a codespace that never grows an sshd; guessing "ready"
-			// would rebuild the original bug (live 2026-07-28, caselaw-kb).
+			// would report a stack that is not up as a broken forward.
 			tail.stop()
 			return remoteAskUnavailable
 		}
@@ -1674,21 +1658,21 @@ const (
 	remoteUnknown                         // ssh itself is unusable — we cannot ask
 )
 
-// askRemoteKB asks the codespace whether its gateway serves health, and — the
-// part that matters — distinguishes "not ready" from "could not ask".
+// askRemoteKB asks the codespace whether its stack is up, and — the part
+// that matters — distinguishes "not ready" from "could not ask".
 //
 // ssh is a NICETY in this flow, never a gate: it can fail while the stack is
 // perfectly healthy (no sshd, auth trouble), and blocking on it would fail a
 // start that would otherwise have worked. Exit codes alone cannot separate
-// "curl refused" from "ssh died", so the remote command prints a sentinel and
+// "not up" from "ssh died", so the remote command prints a sentinel and
 // we read stdout: no sentinel means the question never reached the VM.
-// askRemoteKB asks the codespace's OWN launcher whether its stack is up —
-// every service healthy and no start in progress (status --root) — not whether
-// the gateway answers. The gateway is among the first services a start brings
-// up, so a gateway-only probe said "ready" while post-start was still starting
-// the rest, and the issuer move's rerun collided with it (live 2026-09-29).
-// Before post-start has installed the launcher, `semiont` is not found and
-// the answer is "wait".
+//
+// The question goes to the codespace's OWN launcher — every service healthy
+// and no start in progress (status --root) — not to the gateway. The gateway
+// is among the first services a start brings up, so a gateway-only probe says
+// "ready" while post-start is starting the rest, and the issuer move's rerun
+// would collide with it. Before post-start has installed the launcher,
+// `semiont` is not found and the answer is "wait".
 func askRemoteKB(name string) remoteReadiness {
 	probe := fmt.Sprintf(
 		"cd /workspaces/* && semiont status --root . >/dev/null 2>&1 && echo %s || echo %s",
@@ -1804,13 +1788,12 @@ func tryForward(u *UI, name string, remote, local int) (int, <-chan struct{}, fo
 			// The dial that just succeeded is ALSO what kills a tunnel whose
 			// remote is empty: gh accepts locally, then fails to open the
 			// channel through and exits — so "the dial worked" is not "the
-			// tunnel works" (live 2026-07-28: the bind check passed and the
-			// forward died a second later). It has to survive being used.
+			// tunnel works": the bind check can pass and the forward die a
+			// second later. It has to survive being used.
 			//
-			// The settle is NOT redundant with the caller's death watch, and
-			// removing it (attempted 2026-08-14) fails
-			// TestCodespaceWaitsOutATransientSshOutage in 0.04 s. The two
-			// watchers classify the SAME event differently:
+			// The settle is NOT redundant with the caller's death watch:
+			// without it TestCodespaceWaitsOutATransientSshOutage fails. The
+			// two watchers classify the SAME event differently:
 			//
 			//   here    a death just after the dial means the remote port is
 			//           empty — forwardRemoteEmpty, which establishForward
@@ -1819,8 +1802,7 @@ func tryForward(u *UI, name string, remote, local int) (int, <-chan struct{}, fo
 			//           it fails the start and tells you to respawn.
 			//
 			// Return early and a not-yet-ready stack is reported as a broken
-			// forward instead of being waited out, which is precisely the bug
-			// the 2026-07-28 incident left behind. The second buys the
+			// forward instead of being waited out. The second buys the
 			// distinction between "not up yet" and "broken", and nothing else
 			// in the flow can make it.
 			select {
@@ -1856,8 +1838,7 @@ func tryForward(u *UI, name string, remote, local int) (int, <-chan struct{}, fo
 // not answer, the tunnel is the only instrument left: gh exits with
 // "connection refused" while the remote port is empty, so that death means
 // "not ready" and the answer is to wait and try again — not to fail, and not
-// to assume the stack is up, which is what rebuilt the original bug
-// (live 2026-07-28, semiont-caselaw-kb).
+// to assume the stack is up.
 func establishForward(u *UI, name string, remote, local int, askable bool) (int, <-chan struct{}, int) {
 	deadline := time.Now().Add(remoteReadyBudget)
 	announced := false
@@ -1942,7 +1923,7 @@ func forwardIssuer(u *UI, st *StackState) int {
 	if want == 0 || portHeld(want) {
 		want = allocatePort(LoadStackSet(), cs.Repo, descriptorFor("identity", "keycloak").defaultPort)
 	}
-	// Claimed now, not after the move: a move takes minutes, and another
+	// Claimed before the move, not after: a move takes minutes, and another
 	// start on this machine allocating meanwhile must see the port as taken.
 	if want != cs.KeycloakPort {
 		cs.KeycloakPort = want
@@ -1950,9 +1931,9 @@ func forwardIssuer(u *UI, st *StackState) int {
 	}
 	if port != want {
 		// Never while the codespace's own start is still running: the rerun
-		// would sweep its containers mid-flight (live 2026-09-29). The start
-		// lock would queue it too; waiting here keeps the move's one line
-		// honest and its timing out of the lock's budget.
+		// would sweep its containers mid-flight. The start lock would queue
+		// it too; waiting here keeps the move's one line honest and its
+		// timing out of the lock's budget.
 		if code := waitForRemoteStack(u, cs.Name); code != 0 {
 			return code
 		}

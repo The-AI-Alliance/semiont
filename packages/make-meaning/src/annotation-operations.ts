@@ -38,8 +38,8 @@ type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRe
  * search). The wording states what cannot be done rather than making a
  * vocabulary claim the registry is not entitled to make about a miss.
  *
- * NOT applied to import or replay: those emit `mark:create` directly and never
- * reach either caller. That topology is the leniency — no flag, no bypass.
+ * NOT applied on `mark:create`, the fact-writing channel the Stower consumes:
+ * its two emitters are this refusal's two callers. No flag, no bypass.
  */
 export async function assertAnnotatableTarget(kb: { views: Pick<ViewStorage, 'get'> }, target: ResourceId): Promise<void> {
   const view = await kb.views.get(target);

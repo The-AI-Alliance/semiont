@@ -51,7 +51,6 @@ describe('CodeMirrorRenderer - Line Ending Handling', () => {
       // Content with CRLF line endings (Windows-style)
       const content = "PROMETHEUS BOUND\r\n\r\nARGUMENT\r\n\r\n\r\nIn the beginning, Ouranos";
 
-      // This is the actual annotation from the bug report
       // Position 52-59 should contain "Ouranos" in the CRLF content
       const start = 52;
       const end = 59;

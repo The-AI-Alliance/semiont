@@ -160,7 +160,7 @@ export function ReferenceEntry({
                   derivation (the shape generation mints — the vocabulary
                   deliberately has no 'deriving' purpose). Keyed off the fact
                   bind wrote, not off the target's name having loaded: the
-                  name arrives asynchronously now, and a headline keyed on it
+                  name arrives asynchronously, and a headline keyed on it
                   would flicker. */}
               {!selector && isResolved ? t('derived') : annotationType}
             </div>

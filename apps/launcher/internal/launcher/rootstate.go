@@ -4,12 +4,12 @@ package launcher
 // Each local semiont root gets its own directory under the launcher's data
 // home; infra containers bind-mount their store subdirs from it, so postgres
 // rows (which include users the event log does NOT record) survive restarts,
-// and the qdrant/neo4j projections skip their rebuild. The mount shapes are
-// the ones spikes measured on Apple container's virtiofs: chmod/chown of a
-// mount root is refused and in-mount chown silently no-ops, but host-side
-// mode bits pass through and created-inside writes land — so postgres points
-// PGDATA at a subdir the entrypoint creates inside the mount, and neo4j's
-// dirs get host-side 0777 to satisfy its `test -w` boot gate.
+// and the qdrant/neo4j projections skip their rebuild. The mount shapes
+// follow Apple container's virtiofs: chmod/chown of a mount root is refused
+// and in-mount chown silently no-ops, but host-side mode bits pass through
+// and created-inside writes land — so postgres points PGDATA at a subdir the
+// entrypoint creates inside the mount, and neo4j's dirs get host-side 0777 to
+// satisfy its `test -w` boot gate.
 
 import (
 	"crypto/sha256"
@@ -35,13 +35,12 @@ var keyUnsafe = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 // rootKey names a root's state directory: the KB's did:web domain, sanitized
 // — identity travels with the KB, so a moved clone keeps its state.
 //
-// The "path-" + hash branch below is NOT a fallback for did-less KBs any
-// more: since identity became required `start` refuses a KB that declares no
-// [site] domain, so no new path-keyed directory can be created. It survives
-// because directories created BEFORE that rule still exist on disk, and
-// `clean` — the only way that data dies — must be able to name them. Delete
-// it once no such directory can plausibly remain, not before: the
-// alternative is bytes nothing can remove.
+// The "path-" + hash branch below is NOT a fallback for did-less KBs: `start`
+// refuses a KB that declares no [site] domain, so no start creates a
+// path-keyed directory. The branch is there because such directories can
+// exist on disk, and `clean` — the only way that data dies — must be able to
+// name them. Delete it once no such directory can plausibly remain, not
+// before: the alternative is bytes nothing can remove.
 //
 // meta.json keeps the unsanitized truth so status and clean can always name
 // the root.
@@ -95,10 +94,10 @@ type stateStoreSpec struct {
 type stateMount struct{ sub, target string }
 
 // stateStores: the roles whose containers persist state — host bind mounts,
-// in the shapes the spikes on Apple container measured.
+// in the shapes Apple container's virtiofs allows.
 var stateStores = map[string]stateStoreSpec{
 	// The entrypoint chmods $PGDATA only — a created-inside subdir — never
-	// the mount root (which virtiofs refuses; measured, 7/7).
+	// the mount root (which virtiofs refuses).
 	"database": {
 		dir:    "postgres",
 		holds:  "database",
@@ -106,7 +105,7 @@ var stateStores = map[string]stateStoreSpec{
 		env:    []string{"PGDATA=/var/lib/postgresql/data/pgdata"},
 		owner:  "database",
 	},
-	// Qdrant just writes files; a plain mount works (measured, 7/7).
+	// Qdrant just writes files; a plain mount works.
 	"vectors": {
 		dir:        "qdrant",
 		holds:      "vectors",
@@ -117,7 +116,7 @@ var stateStores = map[string]stateStoreSpec{
 	// Neo4j's entrypoint gates on `test -w` of /data and /logs and insists
 	// on chowning an unwritable mount root — refused on virtiofs, and
 	// in-mount chown silently no-ops. Host-side 0777 satisfies the gate so
-	// the chown is never attempted (measured, 8/8).
+	// the chown is never attempted.
 	"graph": {
 		dir:        "neo4j",
 		holds:      "graph",
@@ -126,17 +125,17 @@ var stateStores = map[string]stateStoreSpec{
 		projection: true,
 		owner:      "graph",
 	},
-	// The gateway's own derived state: the anchored-text store, one coordinate
+	// The Smelter's derived state: the anchored-text store, one coordinate
 	// map per representation, ~2.9s/page of OCR to rebuild. Unmounted it lives
-	// in the container and dies on every stop, and nothing re-derives it —
-	// reconcile plans from Qdrant, which persists, so it sees matching
-	// checksums and does nothing.
+	// in the container and dies on every stop, and the Smelter's reconcile
+	// re-derives every lost map on the next start.
 	//
-	// The container path is a constant of the gateway image, which declares it
-	// as SEMIONT_ANCHORED_TEXT_DIR exactly the way it declares SEMIONT_ROOT=/kb.
-	// So this side carries no KB identifier and nothing here has to know how
-	// the gateway composes its own paths — the same arrangement every other
-	// store already has (/qdrant/storage, /var/lib/postgresql/data).
+	// The container path is a constant of the two images that mount it: the
+	// Smelter and the Archivist each declare it as SEMIONT_ANCHORED_TEXT_DIR,
+	// the way the Archivist declares SEMIONT_ROOT=/kb. So this side carries no
+	// KB identifier and nothing here has to know how a service composes its
+	// own paths — the same arrangement every other store has
+	// (/qdrant/storage, /var/lib/postgresql/data).
 	//
 	// projection: reproducible from the resource's bytes, so an image change
 	// clears rather than refuses — and `clean --store anchored-text` is safe.
@@ -156,11 +155,8 @@ var stateStores = map[string]stateStoreSpec{
 	// true is a DECISION, not an inheritance: queued work is clearable
 	// operational state — jobs survive restarts via the mount, a deliberate
 	// clear drops re-submittable work, and job state stays out of KB exports.
-	// Same classification the jobs dir had on the state store.
-	// Renamed jobs → messaging with the role; `dir` was already "nats", so
-	// the on-disk tree never moves and nothing is orphaned. The daemon
-	// always mounts it: the job queue and the gateway's ledger claims both
-	// live in it.
+	// The daemon always mounts it: the job queue and the gateway's ledger
+	// claims both live in it.
 	"messaging": {
 		dir:        "nats",
 		holds:      "job queue and signals",
@@ -173,7 +169,8 @@ var stateStores = map[string]stateStoreSpec{
 	// only for its supervisor's events log.
 	//
 	// mode: all three run as uid 1001 — the same Linux ownership gap as
-	// anchored-text. The Archivist died with EACCES in a codespace (uid 1000).
+	// anchored-text: without it the Archivist dies with EACCES in a codespace
+	// (uid 1000).
 	"state": {
 		dir:        "state",
 		holds:      "views and projections",
@@ -185,17 +182,17 @@ var stateStores = map[string]stateStoreSpec{
 }
 
 // clearStoreContents empties a store dir without unlinking the dir itself.
-// Delete-and-recreate orphans every container share attached to the old
-// directory (Apple container virtiofs, measured 2026-09-07: the attached
-// container sees an empty mount and ENOENT on writes, forever); clearing
-// contents is invisible to attached shares.
+// Delete-and-recreate orphans every container share attached to the deleted
+// directory (Apple container virtiofs: the attached container sees an empty
+// mount and ENOENT on writes, forever); clearing contents is invisible to
+// attached shares.
 //
 // A container clears it, as root, because containers wrote it: neo4j as
 // 7474, postgres as 70, qdrant and nats as root, Semiont's images as 1001.
 // On Linux the invoker is none of those, and a host-side RemoveAll fails on
-// the first subdir a container created (reproduced with the real images).
-// macOS runtimes map ownership and hid it. Only the store dir is mounted —
-// never the root dir, which holds secrets.
+// the first subdir a container created. macOS runtimes map ownership and
+// hide it. Only the store dir is mounted — never the root dir, which holds
+// secrets.
 func clearStoreContents(rt, sd string) error {
 	if out, err := captureBoth(rt, storeClearArgs(sd)...); err != nil {
 		return fmt.Errorf("%v: %s", err, strings.TrimSpace(out))
@@ -221,7 +218,7 @@ func (spec stateStoreSpec) storeDir(root string) string {
 
 // stateMountArgs renders the -v/-e run args for a role's persistent state.
 // nil for roles without a store, or when no data home resolves — the stack
-// still boots, just ephemeral, as before this feature.
+// still boots, just ephemeral.
 func stateMountArgs(role, root string) []string {
 	spec, ok := stateStores[role]
 	if !ok {
@@ -311,7 +308,7 @@ func storeDirNonEmpty(dir string) bool {
 // path exists at all — absent must stay distinguishable from empty ("unknown
 // is not missing"). What a file takes is the space allocated to it, not its
 // length: a sparse file, as a vector store's are, is long and takes little,
-// and summing lengths reported eight times what one held. Go-native walk;
+// and summing lengths can report eight times what one holds. Go-native walk;
 // unreadable entries are skipped, not fatal.
 func diskUse(path string) (int64, bool) {
 	if _, err := os.Stat(path); err != nil {

@@ -19,10 +19,6 @@ import (
 	"time"
 )
 
-// resolveAnthropicModel validates (key in hand) or passes through with a
-// warning (keyless). model=="" with a key picks the ONE editorial default:
-// the newest capable model — the API lists newest first; prefer the first
-// sonnet-class id, else the newest of all.
 // defaultAnthropicModel: what init binds when it can neither be told a model
 // nor fetch the list. A CHOICE, not a derivation — the same kind
 // defaultOllamaModel is — and the one the template every forked KB starts
@@ -30,12 +26,16 @@ import (
 // UNVALIDATED: a model can be withdrawn, and the warning says so.
 const defaultAnthropicModel = "claude-sonnet-4-5-20250929"
 
+// resolveAnthropicModel validates (key in hand) or passes through with a
+// warning (keyless). model=="" with a key picks the ONE editorial default:
+// the newest capable model — the API lists newest first; prefer the first
+// sonnet-class id, else the newest of all.
 func resolveAnthropicModel(u *UI, base, key, model string) (string, bool) {
 	if key == "" {
 		if model == "" {
-			// A key is needed to START, not to be born. Refusing here left
-			// the caller with no config at all rather than one they could
-			// edit — and the ollama path already warns and proceeds when it
+			// A key is needed to START, not to be born. Refusing here would
+			// leave the caller with no config at all rather than one they
+			// could edit — and the ollama path warns and proceeds when it
 			// cannot verify a model, which is the same situation.
 			u.Warn("No ANTHROPIC_API_KEY in the environment, so the live list cannot be fetched — binding %s, recorded unvalidated. Pass --model to choose another.", defaultAnthropicModel)
 			return defaultAnthropicModel, true
@@ -148,7 +148,7 @@ func validateOllamaModel(u *UI, ollamaBase, registryBase, model string) bool {
 		// consulted and did not have it — then it is a genuine typo. If
 		// Ollama itself is unreachable, the model may be installed there (or
 		// be a custom/local-only model) and we simply cannot know: unknown
-		// is not missing (Copilot review, PR #1065).
+		// is not missing.
 		if !facts.found {
 			u.Warn("Model %s is not in the ollama registry, and the local Ollama (%s) is unreachable — recorded as typed; verify it is installed before start.", model, ollamaBase)
 			return true

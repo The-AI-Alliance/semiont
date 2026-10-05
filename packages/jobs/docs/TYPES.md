@@ -95,13 +95,13 @@ type Job<P, R> =
 Progress is not a parameter: it has one shape for every job type.
 
 ```typescript
-type StoredProgress = components['schemas']['JobRunning']['progress'];
+type StoredProgress = components['schemas']['JobStoredProgress'];
 // = JobProgress | Record<string, never>
 ```
 
-`StoredProgress` is the spec's `JobRunning.progress` — the last `JobProgress` the worker reported with `job:report-progress`, or `{}` before its first report. A claim moves a job to `running` with `progress: {}`; `recordProgress` replaces it with each report (throttled per job). `JobProgress` requires only `percentage`; `message` is a coded `JobProgressMessage`, and the other fields (`current`/`processed`/`total`, `entitiesFound`, `completedItems`, `requestParams`, …) appear on the flows that report them.
+`StoredProgress` is the spec's `JobRunning.progress` — the last `JobProgress` the worker reported with `job:report-progress`, or `{}` before its first report. A claim moves a job to `running` with `progress: {}`; the dispatcher replaces it with each report it accepts (throttled per job). `JobProgress` requires only `percentage`; `message` is a coded `JobProgressMessage`, and the other fields (`current`/`processed`/`total`, `entitiesFound`, `completedItems`, `requestParams`, …) appear on the flows that report them.
 
-`RunningAnyJob` is a job of any type in the `running` state — what `claimNextJob` returns:
+`RunningAnyJob` is a job of any type in the `running` state — what a claim returns:
 
 ```typescript
 type RunningAnyJob = Extract<AnyJob, { status: 'running' }>;
@@ -120,7 +120,7 @@ const job: PendingJob<TagDetectionParams> = {
     userId: userId('did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'),
     created: '2026-01-31T10:00:00Z',
     retryCount: 0,
-    maxRetries: 3,
+    maxRetries: 1,
   },
   params: {
     resourceId: resourceId('doc_456'),
@@ -237,7 +237,7 @@ if (isRunningJob(job)) {
 There are no per-type worker classes. `startWorkerProcess` claims a job and dispatches on `jobType` to a plain `process*Job` function (in `processors.ts`). A processor returns only its typed result: annotations leave through the `onChunkComplete` callback as each chunk is produced, committed by an **awaited `mark:commit` citing the job** — resolving only after the event log holds them, and letting a retry resume from the cursor. `job:complete` comes after.
 
 ```typescript
-// processors.ts — pure async function, no class, no JobWorker
+// processors.ts, abridged — pure async function, no class, no JobWorker
 export async function processTagJob(
   content: string,
   inferenceClient: InferenceClient,
@@ -247,24 +247,32 @@ export async function processTagJob(
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
   resumeCursors?: Record<string, UnitCursor>,
 ): Promise<ProcessorResult<JobTagAnnotationResult>> {
-  const allTags = [];
+  const dedupe = makeSpanDeduper();
+  // found, created and byCategory are tallied as chunks land (elided here).
+
   for (const category of params.categories) {
-    const categoryTags = await AnnotationDetection.detectTags(
+    const prior = resumeCursors?.[category];
+    let categoryFound = prior?.found ?? 0;
+    let categoryCreated = prior?.emitted ?? 0;
+    await AnnotationDetection.detectTags(
       content, inferenceClient, params.schema, category, params.sourceLanguage,
+      (consumedChars, totalChars) => { /* onProgress(…): liveness while the category runs */ },
+      prior,
+      // Once per chunk: that chunk's matches and the cursor it leaves the category at.
+      async (matches, cursor) => {
+        categoryFound += matches.length;
+        const fresh = dedupe(matches.map((t) => buildAnnotation('tagging', t, /* body */)));
+        categoryCreated += fresh.length;
+        await onChunkComplete(fresh, {
+          unit: category,
+          cursor: { ...cursor, found: categoryFound, emitted: categoryCreated },
+        });
+      },
     );
-    allTags.push(...categoryTags);
   }
 
-  const annotations = allTags.map((t) => buildAnnotation('tagging', t, /* body */));
-  await onChunkComplete(annotations, checkpoint);
-
   return {
-    result: {
-      kind: 'tag-annotation',
-      tagsFound: allTags.length,
-      tagsCreated: annotations.length,
-      byCategory: countByCategory(annotations),
-    },
+    result: { kind: 'tag-annotation', tagsFound: found, tagsCreated: created, byCategory },
   };
 }
 ```

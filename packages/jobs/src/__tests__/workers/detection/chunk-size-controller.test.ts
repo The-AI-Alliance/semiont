@@ -76,7 +76,7 @@ describe('nextChunkSize', () => {
   it('holds when the provider reported no usage — absent is not zero', () => {
     // `usage` is optional on the inference interface and BOTH shipped clients
     // emit it conditionally. Reading its absence as zero output would put
-    // utilization at 0%%, i.e. below `growBelow`, i.e. grow — every chunk, all
+    // utilization at 0%, i.e. below `growBelow`, i.e. grow — every chunk, all
     // the way to the ceiling, having measured nothing at all. The sizer moves
     // on evidence or it does not move.
     expect(nextChunkSize({ truncated: false }, 1_000, BOUNDS)).toBe(1_000);

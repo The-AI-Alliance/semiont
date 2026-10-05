@@ -72,9 +72,9 @@ real books, any-intersection is exact only while the box is machine-tight; 0.5
 is the only threshold that holds on both loosely- and tightly-set typography,
 from about 1pt under to 4pt over.
 
-The same constant carries skew tolerance. Page tilt does not currently reach the
+The same constant carries skew tolerance. Page tilt does not reach the
 items — the recognizer deskews and snaps word boxes to the baseline — but if it
-ever did, 0.5 holds to a quarter of a degree where any-intersection is already
+did, 0.5 holds to a quarter of a degree where any-intersection is already
 failing most of the time.
 
 ## The pipeline
@@ -103,8 +103,8 @@ the thing this design exists to avoid.
 
 **Failure degrades, it does not break.** No map — because the document has none,
 because extraction declined, or because the barrier timed out — means the
-annotation ships with geometry and no quote. That is exactly the behaviour that
-predates any of this, so the failure mode is "no improvement", never "broken".
+annotation ships with geometry and no quote. That is exactly how an annotation
+behaves with no map at all, so the failure mode is "no improvement", never "broken".
 
 ### Why the map is stored at all
 
@@ -130,10 +130,10 @@ the stored events are `mark:added`, `mark:removed`, `mark:body-updated`,
 It is also unnecessary, because it has the order backwards. Recognition happens
 at **ingest**, not after annotation, so the map already exists when a user draws
 a rectangle and the quote can be computed before the annotation is created —
-exactly as the born-digital path always worked.
+exactly as on the born-digital path.
 
-So: no new stored event, no mutable targets, and annotations created before this
-existed simply keep no quote. Annotations are events over an immutable
+So: no new stored event, no mutable targets, and an annotation born without a
+quote keeps none. Annotations are events over an immutable
 resource, not edits to it.
 
 ## Authored maps are not stored here

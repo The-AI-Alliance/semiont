@@ -12,10 +12,9 @@ export class BindNamespace implements IBindNamespace {
   async body(resourceId: ResourceId, annotationId: AnnotationId, operations: BodyOperation[]): Promise<void> {
     // Confirmed write: the bind handler forwards to mark:update-body, matches the
     // persisted outcome by correlationId, and replies on bind:body-updated /
-    // bind:body-update-failed (the handler is already built for this). busRequest
-    // awaits that real outcome and REJECTS on failure — not the old optimistic
-    // fire-and-forget ack. busRequest mints the
-    // correlationId, so we no longer set one by hand.
+    // bind:body-update-failed. busRequest awaits that real outcome and REJECTS
+    // on failure — it is not an optimistic fire-and-forget ack. busRequest
+    // mints the correlationId.
     await busRequest(
       this.transport,
       'bind:update-body',

@@ -129,7 +129,7 @@ describe('a write that fulfils a job cites it, and its provenance is derived fro
       expect(store.markAddedIds()).toEqual(['a1']);
     });
 
-    it('accepts an agent without the worker role citing no job — autonomous work (row 5)', async () => {
+    it('accepts an agent without the worker role citing no job — autonomous work', async () => {
       await commit({ _userId: WORKER_AGENT });
 
       expect(failed).toEqual([]);

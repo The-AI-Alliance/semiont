@@ -20,7 +20,7 @@ export interface OpenResource {
   /** Timestamp when the resource was opened */
   openedAt: number;
 
-  /** Order/position for manual sorting (optional for backward compatibility) */
+  /** Order/position for manual sorting. Optional: a stored entry may have none. */
   order?: number;
 
   /** Media type for icon display (e.g., 'application/pdf', 'text/plain') */
@@ -78,11 +78,8 @@ export function applyTabChecks(
 }
 
 /**
- * Manual order where both entries have one, open time otherwise.
- *
- * Moved verbatim from `semiont-browser.ts` — a pure list operation
- * belongs beside the other one. No behaviour change: `order` is optional for
- * backward compatibility, and a mixed list still falls back to `openedAt`.
+ * Manual order where both entries have one, open time otherwise: `order`
+ * is optional, and a mixed list falls back to `openedAt`.
  */
 export function sortOpenResources(resources: OpenResource[]): OpenResource[] {
   return [...resources].sort((a, b) => {

@@ -16,7 +16,7 @@ A media token is a short-lived JWT with:
 
 Signed with the first key of the gateway's `JWT_SECRET` ring, as agent tokens are; a person's access token is the issuer's and is not. No gateway state — validation is pure crypto.
 
-The token is appended as a query parameter: `?token=<media-token>`. The gateway validates it on resource endpoints and accepts it in place of a Bearer token (for elements that can't send a header).
+The token is appended as a query parameter: `?token=<media-token>`. The gateway validates it on `GET /api/resources/{id}` and accepts it there in place of a Bearer token (for elements that can't send a header).
 
 ### Threat model
 
@@ -47,7 +47,7 @@ const { token, loading } = useMediaToken(client, resourceId);
 - The hook is per-resource
 - `token` is `undefined` while loading
 
-`ResourceViewerPage` in `@semiont/react-ui` calls this hook automatically for any resource whose `getMimeCategory` returns `'image'` (which includes `application/pdf`). Callers of `ResourceViewerPage` do not need to manage media tokens directly.
+`ResourceViewerPage` in `@semiont/react-ui` calls this hook automatically for any resource whose media type renders as `'image'` or `'pdf'` (the `render` mode `capabilitiesOf` from `@semiont/core` reports). Callers of `ResourceViewerPage` do not need to manage media tokens directly.
 
 ## Data flow for binary resources
 
