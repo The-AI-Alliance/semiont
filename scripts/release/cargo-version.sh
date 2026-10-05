@@ -21,14 +21,10 @@ if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   exit 2
 fi
 
-# The members of the workspace whose manifest takes the workspace's version.
 published=""
-while IFS= read -r member; do
-  manifest="$member/Cargo.toml"
-  if grep -q '^version\.workspace = true$' "$manifest"; then
-    published="$published $(awk -F'"' '/^name = / { print $2; exit }' "$manifest")"
-  fi
-done < <(awk '/^members = \[/ { listed = 1; next } listed && /^\]/ { exit } listed { gsub(/[", ]/, ""); print }' Cargo.toml)
+while IFS= read -r crate; do
+  published="$published $crate"
+done < <(scripts/release/published-crates.sh)
 if [[ -z "$published" ]]; then
   echo "cargo-version.sh: no member of the workspace takes the workspace's version" >&2
   exit 1

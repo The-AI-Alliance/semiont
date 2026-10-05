@@ -56,7 +56,7 @@ None of the chain uses a `push: tags` trigger. The tag is pushed with the workfl
 ./scripts/release/verify-release.sh <version>
 ```
 
-It inspects the artifacts, not the workflows' conclusions: the tag, the release's assets, a downloaded archive hashed against `checksums.txt`, the tap's formula, every published package in the npm registry, and for each image both platforms, an attestation whose subject matches the tag's digest, and `latest` resolving to the same digest as the version. It exits non-zero and lists what failed.
+It inspects the artifacts, not the workflows' conclusions: the tag, the release's assets, a downloaded archive hashed against `checksums.txt`, the tap's formula, every published package in the npm registry, every published crate on crates.io with its `.crate` hashed against the index, and for each image both platforms, an attestation whose subject matches the tag's digest, and `latest` resolving to the same digest as the version. It exits non-zero and lists what failed.
 
 To boot the published images:
 

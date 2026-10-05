@@ -60,12 +60,52 @@ has_asset() { jq -e --arg n "$1" '.assets[] | select(.name==$n)' "$REL" >/dev/nu
 # --------------------------------------------------------------------- launcher
 head_ "Launcher binaries"
 
-for plat in darwin_amd64 darwin_arm64 linux_amd64 linux_arm64; do
-  for suffix in .tar.gz .tar.gz.sbom.json; do
-    n="semiont_${VERSION}_${plat}${suffix}"
-    has_asset "$n" && ok "$n" || bad "$n missing"
+# Which systems the launcher is built for, and each one's archive format, are
+# goreleaser's to decide. A list restated here went stale when the release
+# gained Windows zips, and the release still verified without them.
+GORELEASER="$ROOT/apps/launcher/.goreleaser.yaml"
+yaml_list() {
+  awk -v key="$1" '
+    $0 ~ "^[[:space:]]*" key ":[[:space:]]*$" { on = 1; next }
+    on && /^[[:space:]]*-[[:space:]]/ { sub(/^[[:space:]]*-[[:space:]]*/, ""); print; next }
+    on { exit }' "$GORELEASER"
+}
+GOOS_LIST=$(yaml_list goos)
+GOARCH_LIST=$(yaml_list goarch)
+# "default <format>", then "<goos> <format>" for each override.
+ARCHIVE_FORMATS=$(awk '
+  function first(line) { sub(/^[^[]*\[[[:space:]]*/, "", line); sub(/[],[:space:]].*$/, "", line); return line }
+  /^archives:/ { archives = 1; next }
+  archives && /^[a-z]/ { exit }
+  archives && /format_overrides:/ { overrides = 1; next }
+  archives && !overrides && /formats:/ { print "default", first($0) }
+  overrides && /goos:/ { os = $NF }
+  overrides && /formats:/ { print os, first($0) }' "$GORELEASER")
+archive_format() {
+  local f
+  f=$(awk -v os="$1" '$1 == os { print $2 }' <<< "$ARCHIVE_FORMATS")
+  [ -n "$f" ] || f=$(awk '$1 == "default" { print $2 }' <<< "$ARCHIVE_FORMATS")
+  echo "$f"
+}
+
+PROBES=""        # one archive of each format, to download and hash below
+BREW_ASSETS=0    # Homebrew runs on macOS and Linux; the formula offers those
+if [ -z "$GOOS_LIST" ] || [ -z "$GOARCH_LIST" ] || [ -z "$(archive_format default)" ]; then
+  bad "could not read goos, goarch and the archive formats from ${GORELEASER#"$ROOT"/}"
+else
+  probed=" "
+  for os in $GOOS_LIST; do
+    fmt=$(archive_format "$os")
+    for arch in $GOARCH_LIST; do
+      archive="semiont_${VERSION}_${os}_${arch}.${fmt}"
+      for n in "$archive" "$archive.sbom.json"; do
+        has_asset "$n" && ok "$n" || bad "$n missing"
+      done
+      case "$probed" in *" $fmt "*) ;; *) probed="$probed$fmt "; PROBES="$PROBES $archive" ;; esac
+      case "$os" in darwin|linux) BREW_ASSETS=$((BREW_ASSETS+1)) ;; esac
+    done
   done
-done
+fi
 has_asset checksums.txt && ok "checksums.txt" || bad "checksums.txt missing"
 
 # The checksums file is goreleaser's own output, so agreeing with it only proves
@@ -73,16 +113,17 @@ has_asset checksums.txt && ok "checksums.txt" || bad "checksums.txt missing"
 # people install match what was signed and listed.
 if has_asset checksums.txt; then
   gh release download "v$VERSION" -R "$REPO" -p checksums.txt -D "$WORK" --clobber >/dev/null 2>&1
-  probe="semiont_${VERSION}_darwin_arm64.tar.gz"
-  if gh release download "v$VERSION" -R "$REPO" -p "$probe" -D "$WORK" --clobber >/dev/null 2>&1; then
-    want=$(awk -v f="$probe" '$2==f || $2=="*"f {print $1}' "$WORK/checksums.txt")
-    got=$(shasum -a 256 "$WORK/$probe" | cut -d' ' -f1)
-    [ -n "$want" ] && [ "$want" = "$got" ] \
-      && ok "$probe sha256 matches checksums.txt (${got:0:16}…)" \
-      || bad "$probe sha256 mismatch: listed=${want:-none} actual=$got"
-  else
-    bad "could not download $probe to hash it"
-  fi
+  for probe in $PROBES; do
+    if gh release download "v$VERSION" -R "$REPO" -p "$probe" -D "$WORK" --clobber >/dev/null 2>&1; then
+      want=$(awk -v f="$probe" '$2==f || $2=="*"f {print $1}' "$WORK/checksums.txt")
+      got=$(shasum -a 256 "$WORK/$probe" | cut -d' ' -f1)
+      [ -n "$want" ] && [ "$want" = "$got" ] \
+        && ok "$probe sha256 matches checksums.txt (${got:0:16}…)" \
+        || bad "$probe sha256 mismatch: listed=${want:-none} actual=$got"
+    else
+      bad "could not download $probe to hash it"
+    fi
+  done
 fi
 
 # ------------------------------------------------------------------- homebrew
@@ -95,7 +136,7 @@ if gh api "repos/$TAP/contents/Formula/semiont.rb" --jq .content 2>/dev/null | b
   # Every url the formula offers must point at this release, or `brew install`
   # silently serves an older build on some architectures.
   urls=$(grep -c "download/v$VERSION/" "$FORMULA")
-  [ "$urls" -eq 4 ] && ok "formula references 4 v$VERSION assets" || bad "formula references $urls v$VERSION assets, expected 4"
+  [ "$urls" -eq "$BREW_ASSETS" ] && ok "formula references $urls v$VERSION assets" || bad "formula references $urls v$VERSION assets, expected $BREW_ASSETS"
 else
   bad "could not read tap formula"
 fi
@@ -132,6 +173,38 @@ for pkg in $npm_names; do
     ok "$pkg@$VERSION"
   else
     bad "$pkg@$VERSION is indexed but its tarball does not serve — not installable"
+  fi
+done
+
+# ----------------------------------------------------------------------- crates
+head_ "Rust crates"
+
+# The crates are published by hand (docs/contributor/RELEASE.md), so a release
+# can finish without them. Each is asked of crates.io twice, as the npm
+# packages are: the index says the version exists, and the .crate it names is
+# downloaded and hashed against the checksum the index states.
+CRATES_IO_AGENT='semiont-verify-release (https://github.com/The-AI-Alliance/semiont)'
+CRATES=$("$ROOT/scripts/release/published-crates.sh")
+[ -n "$CRATES" ] || bad "published-crates.sh named no crate"
+for crate in $CRATES; do
+  meta=$(curl -sf -A "$CRATES_IO_AGENT" "https://crates.io/api/v1/crates/$crate/$VERSION")
+  if [ -z "$meta" ]; then
+    latest=$(curl -sf -A "$CRATES_IO_AGENT" "https://crates.io/api/v1/crates/$crate" | jq -r '.crate.max_version // empty')
+    bad "$crate $VERSION not on crates.io (latest=${latest:-none})"
+    continue
+  fi
+  if [ "$(jq -r .version.yanked <<< "$meta")" != "false" ]; then
+    bad "$crate $VERSION is yanked"
+    continue
+  fi
+  want=$(jq -r .version.checksum <<< "$meta")
+  if curl -sfL -A "$CRATES_IO_AGENT" -o "$WORK/$crate.crate" "https://crates.io/api/v1/crates/$crate/$VERSION/download"; then
+    got=$(shasum -a 256 "$WORK/$crate.crate" | cut -d' ' -f1)
+    [ "$want" = "$got" ] \
+      && ok "$crate $VERSION downloads, sha256 matches the index (${got:0:16}…)" \
+      || bad "$crate $VERSION sha256 mismatch: index=$want downloaded=$got"
+  else
+    bad "$crate $VERSION is on the index but its .crate does not download"
   fi
 done
 
