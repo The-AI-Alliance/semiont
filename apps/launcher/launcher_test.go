@@ -6692,25 +6692,20 @@ func TestStartServiceBrowserNoClone(t *testing.T) {
 		t.Fatalf("want exit 0 outside a clone, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout, "Restarting Browser", "🚀 browser is up")
-	// The git-clone invariant covers a full start, the gateway and the
-	// Archivist: gateway requires a clone though it mounts no part of the KB;
-	// any other sidecar needs only the .semiont/ tree.
-	if _, stderr, code := s.run(t, "start", "--service", "gateway"); code != 1 {
-		t.Errorf("gateway without git: want exit 1, got %d", code)
-	} else {
-		mustContain(t, "stderr", stderr, "must be a git clone")
-	}
-	// The Archivist mounts /kb as the git WRITER, so it inherits the same
-	// refusal — a non-clone would fail at its first `git add` instead.
+	// The git-clone invariant covers a full start and the Archivist, which
+	// mounts /kb as the git WRITER: a non-clone would fail at its first
+	// `git add` instead. Every other service needs only the .semiont/ tree.
 	if _, stderr, code := s.run(t, "start", "--service", "archivist"); code != 1 {
 		t.Errorf("archivist without git: want exit 1, got %d", code)
 	} else {
 		mustContain(t, "stderr", stderr, "must be a git clone")
 	}
-	// The Librarian mounts no part of the KB tree — it is not the git writer,
-	// so the clone invariant deliberately does NOT apply.
-	if _, stderr, code := s.run(t, "start", "--service", "librarian"); code != 0 {
-		t.Errorf("librarian without git: want exit 0 (it mounts no KB tree), got %d\nstderr:\n%s", code, stderr)
+	// The gateway and the Librarian mount no part of the KB tree, so the
+	// clone invariant does not apply to them.
+	for _, svc := range []string{"gateway", "librarian"} {
+		if _, stderr, code := s.run(t, "start", "--service", svc); code != 0 {
+			t.Errorf("%s without git: want exit 0 (it mounts no KB tree), got %d\nstderr:\n%s", svc, code, stderr)
+		}
 	}
 }
 

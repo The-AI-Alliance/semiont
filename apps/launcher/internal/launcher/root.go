@@ -19,8 +19,8 @@ import (
 // GIT_DIR — strictly validated, never silently ignored — else the root is
 // found by walking up from cwd looking for .semiont/. git is deliberately NOT
 // part of discovery; whether the root must also be a git clone is a separate
-// invariant, enforced for a full start, --service archivist and --service
-// gateway (requireGitClone).
+// invariant, enforced for a full start and --service archivist
+// (requireGitClone).
 
 // resolveKBRoot returns the KB root and where it came from ("SEMIONT_ROOT"
 // or "discovered").
