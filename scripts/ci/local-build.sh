@@ -85,6 +85,17 @@ if [[ -z "$RUST_TOOLCHAIN" ]]; then
   exit 1
 fi
 
+# --- What is kept between runs ---
+#
+# In the user's cache directory: macOS deletes files in /tmp that go unread
+# for three days, and Apple Container cannot sustain mounts from $TMPDIR.
+CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/semiont"
+NPM_CACHE_DIR="$CACHE_ROOT/local-build-npm"
+GOCACHE_DIR="$CACHE_ROOT/local-build-gocache"
+GOMODCACHE_DIR="$CACHE_ROOT/local-build-gomodcache"
+IMAGE_STATE="$CACHE_ROOT/local-build-images.json"
+mkdir -p "$NPM_CACHE_DIR" "$GOCACHE_DIR" "$GOMODCACHE_DIR"
+
 # --- Failure cleanup trap ---
 # On failure, stop and remove the Verdaccio container so the next run starts
 # clean. Disabled at the end of the happy path so Verdaccio keeps running for
@@ -284,39 +295,25 @@ banner "SDK-GO DRIFT GATE"
 # stale or absent — bundle fresh first. Version pinned to the repo's
 # devDependency, same as CI.
 step "Bundling specs/src into specs/openapi.json..."
-mkdir -p /tmp/semiont-npmcache
-if ! $RT run --rm -v "$REPO_ROOT":/workspace -v /tmp/semiont-npmcache:/root/.npm -w /workspace node:24-alpine \
+if ! $RT run --rm -v "$REPO_ROOT":/workspace -v "$NPM_CACHE_DIR":/root/.npm -w /workspace node:24-alpine \
   npx --yes @redocly/cli@2.34.0 bundle specs/src/openapi.json -o specs/openapi.json >/dev/null; then
   fail "Could not bundle the OpenAPI spec (redocly; output above)."
   exit 1
 fi
 
 step "Checking packages/sdk-go/client_gen.go against specs/openapi.json..."
-# Both Go caches are PER-CONSUMER (-build suffix), not shared with other
-# container consumers (agent sessions, the pre-commit hook). Concurrent
-# container VMs extracting into one shared module cache corrupt it — Go's
-# cache locking is flock, which does not hold across VM boundaries over
-# virtiofs — and a truncated extraction is trusted
+# Both Go caches are this script's own, not shared with other container
+# consumers. Concurrent container VMs extracting into one shared module cache
+# corrupt it — Go's cache locking is flock, which does not hold across VM
+# boundaries over virtiofs — and a truncated extraction is trusted
 # forever ("cannot embed directory ... contains no embeddable files").
 # This script cannot run concurrently with itself (port 4873), so a private
 # cache is effectively serial.
-GOCACHE_DIR=/tmp/semiont-gocache-build
+#
 # The MODULE cache is persisted too, not just the build cache. Without it every
 # run re-downloads the whole oapi-codegen tree (~100 MB, 21 modules), which
-# lets a DNS blip take this gate down. (/tmp, not $TMPDIR: Apple Container
-# cannot sustain mounts from /var/folders. Go writes the module cache
-# read-only, so `chmod -R u+w` before removing it by hand.)
-GOMODCACHE_DIR=/tmp/semiont-gomodcache-build
-mkdir -p "$GOCACHE_DIR" "$GOMODCACHE_DIR"
-# One-time seed from the shared /tmp/semiont-gomodcache's download dir, where
-# one exists (a pure content-addressed store — safe to copy, never to share
-# live), so the first -build run costs a local copy instead of a 100 MB
-# re-fetch. Nothing writes that directory.
-if [[ ! -d "$GOMODCACHE_DIR/cache/download" && -d /tmp/semiont-gomodcache/cache/download ]]; then
-  step "Seeding the module cache from the legacy shared downloads (one-time local copy)..."
-  mkdir -p "$GOMODCACHE_DIR/cache"
-  cp -R /tmp/semiont-gomodcache/cache/download "$GOMODCACHE_DIR/cache/download"
-fi
+# lets a DNS blip take this gate down. (Go writes the module cache read-only,
+# so `chmod -R u+w` before removing it by hand.)
 # Caching alone is not enough: `go run <pkg>@<version>` resolves the version
 # against the proxy on EVERY run — including a deprecation lookup — so a
 # populated cache alone needs the network. Pointing GOPROXY at the cache's own
@@ -761,8 +758,6 @@ fanout_all() {
 # @semiont/inference leave @semiont/jobs byte-identical, the signature match,
 # and all six sidecars skip — while a rebuild would pick the fix up: correct
 # about the package it watches and wrong about the image it produces.
-IMAGE_STATE="${XDG_CACHE_HOME:-$HOME/.cache}/semiont/local-build-images.json"
-mkdir -p "$(dirname "$IMAGE_STATE")"
 
 # One line capturing everything a rebuild depends on; EMPTY when any
 # integrity lookup fails, and an empty signature never skips and never
@@ -1055,9 +1050,8 @@ fi
 # The semiont launcher is a static Go binary that runs on the HOST and drives
 # the :local images (SEMIONT_VERSION=local semiont start). Built inside
 # $GO_IMAGE (derived from apps/launcher/go.mod) targeting the host platform — no
-# Go toolchain on the host, the same philosophy as the npm builds above. The Go
-# build cache persists under /tmp/semiont-gocache-build (/tmp, not $TMPDIR —
-# Apple Container cannot sustain mounts from /var/folders).
+# Go toolchain on the host, the same philosophy as the npm builds above. It
+# shares the drift gate's Go caches.
 
 banner "LAUNCHER"
 
@@ -1072,7 +1066,6 @@ case "$(uname -m)" in
   *)             LAUNCHER_GOARCH=amd64; warn "Unrecognized host arch $(uname -m) — building amd64" ;;
 esac
 
-mkdir -p "$GOCACHE_DIR" "$GOMODCACHE_DIR"
 # -buildvcs=false: Go would run git to stamp the commit into the binary, which
 # nothing reads (the version comes from -ldflags in a release build), and git
 # refuses a checkout owned by another user, as a root container on Linux sees it.
