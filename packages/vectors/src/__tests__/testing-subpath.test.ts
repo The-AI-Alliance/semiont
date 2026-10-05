@@ -11,8 +11,9 @@
  * importing `@semiont/vectors/testing` and seeing if it resolves. A resolving
  * import would reach through the workspace symlink into `dist/`, which does not
  * exist when `npm run build` runs `typecheck` as its first step: the test would
- * make the package unbuildable from clean. No other package imports the
- * subpath, so these static checks are the only proof that it resolves.
+ * make the package unbuildable from clean. `@semiont/make-meaning`'s test
+ * harness imports the subpath, which proves it resolves once built; these
+ * static checks say which leg is missing when it does not.
  *
  * A subpath needs FOUR things in agreement, and shipping three of them is a
  * silent failure — the export map resolves to a file the build never emitted.

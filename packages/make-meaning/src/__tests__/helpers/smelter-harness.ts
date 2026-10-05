@@ -3,8 +3,9 @@
  *
  * Used by `smelter.test.ts` (example-based behaviors) and
  * `smelter-axioms.test.ts` (fast-check properties). Provides:
- *   - a deterministic mock EmbeddingProvider (embedding is a pure function
- *     of text, so reference models stay trivial)
+ *   - the published mock EmbeddingProvider (`@semiont/vectors/testing`) with
+ *     its methods spied (embedding is a pure function of text, so reference
+ *     models stay trivial)
  *   - W3C annotation / SmelterEvent / ResourceDescriptor builders
  *   - an in-memory IContentTransport mirroring the production transport's
  *     semantics (unknown resources throw rather than returning null)
@@ -18,6 +19,7 @@ import type { Annotation, BusEnvelope, ExtractionOutcome, ConnectionState, Logge
 import { EventBus, annotationId as makeAnnotationId, resourceId as makeResourceId, userId as makeUserId } from '@semiont/core';
 import type { AnchoredTextStore } from '@semiont/content';
 import type { EmbeddingProvider } from '@semiont/vectors';
+import { MockEmbeddingProvider, deterministicVector } from '@semiont/vectors/testing';
 import type { BusRequestPrimitive } from '@semiont/core';
 import type { SmelterChannel } from '../../smelter-fan-in';
 
@@ -35,21 +37,22 @@ export const mockLogger: Logger = {
   child: vi.fn(() => mockLogger),
 };
 
+/** The dimension of every vector in these suites: small, so fixtures stay readable. */
+const EMBEDDING_DIMENSIONS = 4;
+
+/** The vector the suites' embedding provider returns for `text`. */
 export function deterministicEmbed(text: string): number[] {
-  const vec = new Array(4);
-  for (let i = 0; i < 4; i++) {
-    vec[i] = Math.sin((text.charCodeAt(i % text.length) || 0) + i);
-  }
-  return vec;
+  return deterministicVector(text, EMBEDDING_DIMENSIONS);
 }
 
-export function createMockEmbeddingProvider(model = 'mock-model'): EmbeddingProvider {
-  return {
-    embed: vi.fn().mockImplementation(async (text: string) => deterministicEmbed(text)),
-    embedBatch: vi.fn().mockImplementation(async (texts: string[]) => texts.map(deterministicEmbed)),
-    dimensions: vi.fn().mockResolvedValue(4),
-    model: vi.fn().mockReturnValue(model),
-  };
+/** The published mock provider, each method spied so a test can assert on its calls. */
+export function createMockEmbeddingProvider(): EmbeddingProvider {
+  const provider = new MockEmbeddingProvider(EMBEDDING_DIMENSIONS, 'mock-model');
+  vi.spyOn(provider, 'embed');
+  vi.spyOn(provider, 'embedBatch');
+  vi.spyOn(provider, 'dimensions');
+  vi.spyOn(provider, 'model');
+  return provider;
 }
 
 export function makeAnnotation(resourceId: string, annotationId: string, exact: string): Annotation {
