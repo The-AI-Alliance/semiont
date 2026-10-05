@@ -10,10 +10,10 @@ The [docs](docs/README.md) are organized by who is reading:
 
 | You want to | Start here |
 |---|---|
-| Build an application, a script or an agent, in TypeScript or Rust | [Builder docs](docs/builder/README.md): the SDK, the [React components](docs/builder/README.md#react-embedding-semiontreact-ui), the [agent skills](docs/builder/skills/README.md) |
 | Run a knowledge base, for yourself or for others | [Operator docs](docs/operator/README.md) |
 | Start from a knowledge base that already has content | [Demo and community knowledge bases](docs/KNOWLEDGE-BASES.md) |
 | Work in a knowledge base: read, annotate, link, review what agents propose | [Analyst docs](docs/analyst/README.md) |
+| Build an application, a script or an agent, in TypeScript or Rust | [Builder docs](docs/builder/README.md): the SDK, the [React components](docs/builder/README.md#react-embedding-semiontreact-ui), the [agent skills](docs/builder/skills/README.md) |
 | Change Semiont itself | [Contributor docs](docs/contributor/README.md), [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Understand how it works | [Architecture](docs/architecture/README.md), [protocol](docs/protocol/README.md) |
 
