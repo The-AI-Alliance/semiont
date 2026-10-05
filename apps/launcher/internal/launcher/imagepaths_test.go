@@ -207,7 +207,7 @@ func TestServiceHealthPortsAgreeAcrossAllHomes(t *testing.T) {
 		"worker":    filepath.Join("..", "..", "..", "..", "packages", "jobs", "src", "worker-main.ts"),
 		"smelter":   filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "smelter-main.ts"),
 		"weaver":    filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "weaver-main.ts"),
-		"archivist": filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "archivist-main.ts"),
+		"archivist": filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "archivist", "archivist-main.ts"),
 		"librarian": filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "librarian-main.ts"),
 	}
 	tsPort := regexp.MustCompile(`const healthPort = (\d+)`)
