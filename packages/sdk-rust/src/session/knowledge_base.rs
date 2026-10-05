@@ -93,27 +93,12 @@ pub fn is_valid_hostname(host: &str) -> bool {
 pub enum KbEndpoint {
     /// A remote gateway.
     Http(HttpEndpoint),
-    /// A knowledge system the host process has loaded, named by an id that
-    /// means something to that host alone.
-    Local {
-        #[serde(rename = "kbId")]
-        kb_id: String,
-    },
 }
 
 impl KbEndpoint {
-    pub fn http(&self) -> Option<&HttpEndpoint> {
+    pub fn http(&self) -> &HttpEndpoint {
         match self {
-            KbEndpoint::Http(endpoint) => Some(endpoint),
-            KbEndpoint::Local { .. } => None,
-        }
-    }
-
-    /// The word that names this kind of endpoint.
-    pub const fn kind(&self) -> &'static str {
-        match self {
-            KbEndpoint::Http(_) => "http",
-            KbEndpoint::Local { .. } => "local",
+            KbEndpoint::Http(endpoint) => endpoint,
         }
     }
 }
@@ -292,14 +277,6 @@ mod tests {
         assert_eq!(
             serde_json::from_value::<KnowledgeBase>(stored).ok(),
             Some(kb)
-        );
-
-        let local = KbEndpoint::Local {
-            kb_id: "here".to_owned(),
-        };
-        assert_eq!(
-            serde_json::to_value(&local).expect("it serializes"),
-            serde_json::json!({ "kind": "local", "kbId": "here" })
         );
     }
 }

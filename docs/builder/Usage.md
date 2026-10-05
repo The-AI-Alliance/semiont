@@ -75,7 +75,7 @@ const session = await SemiontSession.signInDevice({
 // storage-adapter wiring).
 ```
 
-`KnowledgeBase` is a uniform shape regardless of transport kind. The transport-specific connection details live in the nested `endpoint` discriminated union (`{ kind: 'http', host, port, protocol }` for HTTP gateways, `{ kind: 'local', kbId }` for a transport with no wire). Code that doesn't construct transports never inspects `endpoint`.
+A knowledge base's connection details are in its `endpoint`: `{ kind: 'http', host, port, protocol }`.
 
 The session refreshes at the issuer with the refresh token the grant returned. Override `refresh` only for non-standard flows (a service account's client-credentials grant, an interactive re-prompt).
 

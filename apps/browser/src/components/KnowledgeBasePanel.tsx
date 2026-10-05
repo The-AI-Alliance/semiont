@@ -238,7 +238,6 @@ export function KnowledgeBasePanel() {
     return bucket?.length === 1 ? bucket[0] : undefined;
   };
   const managedFor = (kb: KnowledgeBase): DiscoveredKB | undefined => {
-    if (kb.endpoint.kind !== 'http') return undefined;
     const entry = unambiguousAt(endpointKey(kb.endpoint.host, kb.endpoint.port));
     // Verification: an entry at my address that is a DIFFERENT knowledge base
     // is not mine to adopt — it is someone else standing where I connected.
@@ -253,7 +252,7 @@ export function KnowledgeBasePanel() {
   // keep every claimant visible so the stale record is surfaced, not swallowed.
   const adoptedEndpoints = new Set(
     knowledgeBases.flatMap(kb =>
-      kb.endpoint.kind === 'http' && managedFor(kb)
+      managedFor(kb)
         ? [endpointKey(kb.endpoint.host, kb.endpoint.port)]
         : []),
   );
@@ -333,11 +332,6 @@ export function KnowledgeBasePanel() {
     if (!kb) return;
     setReauthError(null);
     setReauthSubmitting(true);
-    if (kb.endpoint.kind !== 'http') {
-      setReauthError(`Re-auth is HTTP-only; KB endpoint kind "${kb.endpoint.kind}" is not supported here.`);
-      setReauthSubmitting(false);
-      return;
-    }
     try {
       const url = await semiont.beginSignIn({ target: kb.endpoint, redirectUri: redirectUri(), kbId });
       window.location.assign(url);
@@ -409,15 +403,9 @@ export function KnowledgeBasePanel() {
                     </button>
                   </div>
                   <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', paddingLeft: '1rem' }}>
-                    {kb.endpoint.kind === 'http'
-                      ? (
-                        <>
-                          <span>{`${kb.endpoint.host}:${kb.endpoint.port}`}</span>
-                          {' · '}
-                          <LastReadBranch lastRead={kb.lastRead} current={read?.kind === 'recorded'} t={t} locale={i18n.language} />
-                        </>
-                      )
-                      : `local:${kb.endpoint.kbId}`}
+                    <span>{`${kb.endpoint.host}:${kb.endpoint.port}`}</span>
+                    {' · '}
+                    <LastReadBranch lastRead={kb.lastRead} current={read?.kind === 'recorded'} t={t} locale={i18n.language} />
                   </span>
                   {read?.kind === 'conflict' && (
                     // The KB that answered is named by what it said of itself,

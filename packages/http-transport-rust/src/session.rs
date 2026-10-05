@@ -273,15 +273,7 @@ pub async fn sign_in_device(
     options: SignInDevice,
     on_code: impl FnOnce(DeviceCode),
 ) -> Result<SemiontSession, SignInError> {
-    let Some(target) = options.kb.endpoint.http().cloned() else {
-        return Err(SignInError::new(
-            SignInErrorCode::Discovery,
-            format!(
-                "The device grant needs an HTTP endpoint; this knowledge base's is \"{}\"",
-                options.kb.endpoint.kind()
-            ),
-        ));
-    };
+    let target = options.kb.endpoint.http().clone();
     let base_url = target
         .gateway_url()
         .map_err(|invalid| SignInError::new(SignInErrorCode::Discovery, invalid))?;
@@ -344,12 +336,7 @@ impl SessionFactory for HttpSessionFactory {
         let kb_id = options.kb.id.clone();
         let refused =
             |why: String| SessionError::new(SessionErrorCode::ConstructFailed, why, &kb_id);
-        let Some(endpoint) = options.kb.endpoint.http() else {
-            return Err(refused(format!(
-                "HTTP session factory cannot construct a session for endpoint kind \"{}\"",
-                options.kb.endpoint.kind()
-            )));
-        };
+        let endpoint = options.kb.endpoint.http();
         let base_url = endpoint.gateway_url().map_err(refused)?;
 
         let refresh = renewing_stored(

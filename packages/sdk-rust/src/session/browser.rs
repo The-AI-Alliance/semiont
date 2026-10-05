@@ -549,8 +549,6 @@ impl Drop for SemiontBrowser {
 fn same_place(one: &KbEndpoint, other: &KbEndpoint) -> bool {
     match (one, other) {
         (KbEndpoint::Http(one), KbEndpoint::Http(other)) => one.same_address(other),
-        (KbEndpoint::Local { kb_id: one }, KbEndpoint::Local { kb_id: other }) => one == other,
-        _ => false,
     }
 }
 

@@ -336,8 +336,7 @@ export class SemiontBrowser {
     };
     const kbs = this.kbs$.getValue();
     const atAddress = kbs.filter((kb) =>
-      kb.endpoint.kind === 'http'
-      && kb.endpoint.host === pending.target.host
+      kb.endpoint.host === pending.target.host
       && kb.endpoint.port === pending.target.port);
     // An address with several entries singles out no belief of its own.
     const believed = pending.kbId

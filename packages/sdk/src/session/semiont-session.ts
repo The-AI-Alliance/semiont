@@ -582,9 +582,6 @@ export class SemiontSession {
     onAuthFailed?: (reason: SessionEndReason) => void;
     onError?: (err: SemiontSessionError) => void;
   }): Promise<SemiontSession> {
-    if (opts.kb.endpoint.kind !== 'http') {
-      throw new Error(`The device grant needs an HTTP endpoint; this knowledge base's is "${opts.kb.endpoint.kind}"`);
-    }
     const { issuer, tokens } = await signInWithDeviceGrant({
       target: opts.kb.endpoint,
       onCode: opts.onCode,

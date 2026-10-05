@@ -17,7 +17,6 @@ import { baseUrl, type AccessToken } from '@semiont/core';
 import { SemiontClient } from '../client';
 import { coupledLastEventId } from '../cache-persister';
 import { SemiontSession, type UserInfo } from './semiont-session';
-import { SemiontSessionError } from './errors';
 import { kbGatewayUrl } from './storage';
 import { refreshStoredSession } from './oauth';
 import type { SessionFactory, SessionFactoryOptions } from './session-factory';
@@ -28,13 +27,6 @@ export function createHttpSessionFactory(): SessionFactory {
   return (opts: SessionFactoryOptions): SemiontSession => {
     const { kb, storage, signals, onError } = opts;
 
-    if (kb.endpoint.kind !== 'http') {
-      throw new SemiontSessionError(
-        'session.construct-failed',
-        `HTTP session factory cannot construct a session for endpoint kind "${kb.endpoint.kind}"`,
-        kb.id,
-      );
-    }
     const endpoint = kb.endpoint;
 
     /**

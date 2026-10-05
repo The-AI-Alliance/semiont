@@ -1,25 +1,9 @@
 /**
- * KnowledgeBase — a connection to a Semiont knowledge system.
+ * KnowledgeBase — a connection to a Semiont knowledge system, reached at a
+ * gateway over HTTP+SSE.
  *
- * The KB type itself is uniform. The transport-shape variation lives in
- * the nested `endpoint` field, which is a discriminated union:
- *
- *  - `endpoint.kind === 'http'`  — a remote gateway reached over HTTP+SSE.
- *                                  Carries `host`/`port`/`protocol`.
- *  - `endpoint.kind === 'local'` — a knowledge system reached through a
- *                                  transport with no wire. Carries an
- *                                  opaque `kbId` identifying the
- *                                  instance to the host process.
- *
- * Session lifecycle code (a `SemiontSession`, `SemiontBrowser`'s
- * activation) treats `KnowledgeBase` as uniform and never inspects
- * `endpoint`. Code that constructs transports or signs in at an issuer (the
- * `SessionFactory` passed to `SemiontBrowser`, `kbGatewayUrl` for HTTP URL
- * construction, the sign-in paths) inspects `endpoint.kind` and dispatches.
- *
- * Each KB has its own session, its own credentials (where applicable),
- * and its own JWT (HTTP only). The user is "authenticated against KB X" —
- * never globally authenticated.
+ * Each KB has its own session, its own credentials and its own JWT. The user
+ * is "authenticated against KB X" — never globally authenticated.
  */
 
 import type { KbDescription } from '@semiont/core';
@@ -40,7 +24,7 @@ import type { KbDescription } from '@semiont/core';
 export interface KbTarget {
   id: string;
   label: string;
-  endpoint: KbEndpoint;
+  endpoint: HttpEndpoint;
 }
 
 /**
@@ -91,19 +75,11 @@ export function kbRead(description: KbDescription, at: Date): KbRead {
   };
 }
 
-export type KbEndpoint = HttpEndpoint | LocalEndpoint;
-
 export interface HttpEndpoint {
   kind: 'http';
   host: string;
   port: number;
   protocol: 'http' | 'https';
-}
-
-export interface LocalEndpoint {
-  kind: 'local';
-  /** Opaque identifier for the KB instance, meaningful to the host process. */
-  kbId: string;
 }
 
 /**
@@ -145,9 +121,6 @@ export type KbSessionStatus = 'authenticated' | 'expired' | 'signed-out';
  *
  * UI hosts that have a structured form (host / port / protocol pickers)
  * already construct the literal directly — they don't need this helper.
- * Local-endpoint KBs construct the literal directly too; the local
- * endpoint shape (`{ kind: 'local', kbId }`) is one line and doesn't
- * earn a helper.
  */
 export function httpKb(opts: {
   id: string;

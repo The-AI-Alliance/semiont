@@ -1413,32 +1413,6 @@ async fn a_script_signs_in_by_the_device_grant_and_holds_a_ready_session() {
             revocation_endpoint: Some(format!("{}/revoke", world.issuer())),
         })
     );
-
-    let local = sign_in_device(
-        SignInDevice {
-            kb: KbTarget {
-                id: "in-process".to_owned(),
-                label: "Here".to_owned(),
-                endpoint: KbEndpoint::Local {
-                    kb_id: "here".to_owned(),
-                },
-            },
-            storage,
-            validate: false,
-            on_auth_failed: None,
-            on_error: None,
-            http: world.http.clone(),
-        },
-        |_| {},
-    )
-    .await;
-    assert_eq!(
-        local.err().map(|refused| refused.message),
-        Some(
-            "The device grant needs an HTTP endpoint; this knowledge base's is \"local\""
-                .to_owned()
-        )
-    );
 }
 
 // ── A registry over HTTP ────────────────────────────────────────────────
@@ -1522,36 +1496,6 @@ async fn renewals_asked_for_together_are_one_request_of_the_issuer() {
         [Some(renewed.clone()), Some(renewed.clone()), Some(renewed)]
     );
     assert_eq!(world.token_forms().len(), 1);
-    browser.close().await;
-}
-
-#[tokio::test]
-async fn a_registry_over_http_cannot_build_a_session_for_what_is_not_at_a_gateway() {
-    let world = World::start().await;
-    let storage = Arc::new(InMemorySessionStorage::new());
-    save_knowledge_bases(
-        storage.as_ref(),
-        &[KnowledgeBase {
-            endpoint: KbEndpoint::Local {
-                kb_id: "here".to_owned(),
-            },
-            ..registered(&world, "kb-local", DID_A)
-        }],
-    );
-    let browser = browser(&world, storage);
-    let mut errors = browser.errors();
-
-    let refused = tokio::time::timeout(Duration::from_secs(10), errors.next())
-        .await
-        .expect("the failure is said")
-        .expect("the browser lives")
-        .expect("no failure was missed");
-
-    assert_eq!(refused.code, SessionErrorCode::ConstructFailed);
-    assert_eq!(
-        refused.message,
-        "HTTP session factory cannot construct a session for endpoint kind \"local\""
-    );
     browser.close().await;
 }
 
