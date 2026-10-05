@@ -35,6 +35,10 @@ Other readers have other homes: building Semiont itself is
 [docs/operator](../operator/README.md), and the wire and the contracts every SDK
 is held to are [docs/protocol](../protocol/README.md).
 
+Before any of it you need a knowledge base to point at. The
+[Quick Start](./QUICK-START.md) gets one running on your machine: install the
+launcher, create a knowledge base, start it, sign in, and annotate a document.
+
 Five documents here, each with ONE job, and one contract in
 [docs/protocol](../protocol/README.md). They follow the classic four-quadrant split (how-to / reference /
 explanation / contract) plus one orientation doc; knowing a doc's quadrant
@@ -108,8 +112,9 @@ internals behind the last four.
 
 ## Reading order by audience
 
-**New to Semiont entirely** — [INTRODUCTION.md](./INTRODUCTION.md) first; it
-routes you to the right doc by goal.
+**New to Semiont entirely** — the [Quick Start](./QUICK-START.md) for a running
+knowledge base, then [INTRODUCTION.md](./INTRODUCTION.md); it routes you to the
+right doc by goal.
 
 **"I want to call the API from a script"** —
 the SDK's [README](../../packages/sdk/README.md) § Install & connect, then DEVELOPER-GUIDE recipes 1–10.

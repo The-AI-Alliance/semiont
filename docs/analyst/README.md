@@ -10,7 +10,7 @@ An analyst works in a knowledge base: reads, annotates, links, and reviews what 
 
 There are three ways to have it.
 
-**With a knowledge base you run.** `semiont start` starts the Browser with the rest of the stack, at `http://localhost:3000`. The [Quick Start](../../README.md#quick-start) covers this.
+**With a knowledge base you run.** `semiont start` starts the Browser with the rest of the stack, at `http://localhost:3000`. The [Quick Start](../builder/QUICK-START.md) covers this.
 
 **On its own, as a container.** To work in a knowledge base someone else runs, start only the Browser (substitute `docker` or `podman` for `container` as needed):
 

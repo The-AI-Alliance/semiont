@@ -37,7 +37,7 @@ corpus-generic and work on any corpus dropped into the same directory layout.
 
 ### Running one
 
-Install the launcher first: steps 0 to 2 of the [Quick Start](../README.md#quick-start),
+Install the launcher first: steps 0 to 2 of the [Quick Start](builder/QUICK-START.md),
 which also say where an Anthropic key goes. Then clone a knowledge base and start it.
 One command starts the whole stack, including the Semiont browser at http://localhost:3000:
 
