@@ -34,7 +34,7 @@ import { EventQuery } from '@semiont/event-sourcing';
 import type { PeopleView, ViewStorage } from '@semiont/event-sourcing';
 import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
-import type { WorkingTreeStore, AnchoredTextStore } from '@semiont/content';
+import { stagingFor, type WorkingTreeStore, type AnchoredTextStore } from '@semiont/content';
 import type { EventStoreReads } from './knowledge-base';
 import type { SmeltProgress } from './smelt-progress';
 import { readAnchoredText } from './read-anchored-text';
@@ -499,7 +499,7 @@ export class Browser {
       if (!domain) {
         throw new Error('The committed .semiont/config declares no [site] domain');
       }
-      const gitBranch = this.project.gitBranch();
+      const gitBranch = await stagingFor(this.project).currentBranch();
       this.eventBus.emit('browse:kb-result', {
         response: { name: this.project.name, domain, ...(gitBranch ? { gitBranch } : {}) },
       }, { correlationId });

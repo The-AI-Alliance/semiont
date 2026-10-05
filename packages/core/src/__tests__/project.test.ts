@@ -8,7 +8,6 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { execFileSync } from 'child_process';
 import { SemiontProject, SemiontState } from '../project';
 
 // SemiontState/SemiontProject derive their state tree from XDG_STATE_HOME, which
@@ -98,49 +97,6 @@ describe('SemiontProject', () => {
 
       // What is already gone is not an error to destroy again.
       await expect(project.destroy()).resolves.toBeUndefined();
-    });
-  });
-
-  describe('gitBranch()', () => {
-    it('returns the current branch in a git repo', async () => {
-      const dir = await makeTempDir();
-      dirs.push(dir);
-
-      // Init a git repo with a commit so HEAD exists
-      execFileSync('git', ['init', dir], { stdio: 'ignore' });
-      execFileSync('git', ['-C', dir, 'config', 'user.email', 'test@test.com'], { stdio: 'ignore' });
-      execFileSync('git', ['-C', dir, 'config', 'user.name', 'Test'], { stdio: 'ignore' });
-      await fs.mkdir(join(dir, '.semiont'), { recursive: true });
-      await fs.writeFile(join(dir, '.semiont', 'config'), '[project]\nname = "test"\n');
-      execFileSync('git', ['-C', dir, 'add', '.'], { stdio: 'ignore' });
-      execFileSync('git', ['-C', dir, 'commit', '-m', 'init', '--allow-empty'], { stdio: 'ignore' });
-
-      const project = new SemiontProject(dir, { anchoredTextDir: `${dir}/anchored-text` });
-      const branch = project.gitBranch();
-      expect(branch).toBeTruthy();
-      expect(typeof branch).toBe('string');
-    });
-
-    it('returns the correct branch name after checkout', async () => {
-      const dir = await makeTempDir();
-      dirs.push(dir);
-
-      execFileSync('git', ['init', dir], { stdio: 'ignore' });
-      execFileSync('git', ['-C', dir, 'config', 'user.email', 'test@test.com'], { stdio: 'ignore' });
-      execFileSync('git', ['-C', dir, 'config', 'user.name', 'Test'], { stdio: 'ignore' });
-      execFileSync('git', ['-C', dir, 'commit', '--allow-empty', '-m', 'init'], { stdio: 'ignore' });
-      execFileSync('git', ['-C', dir, 'checkout', '-b', 'feature-xyz'], { stdio: 'ignore' });
-
-      const project = new SemiontProject(dir, { anchoredTextDir: `${dir}/anchored-text` });
-      expect(project.gitBranch()).toBe('feature-xyz');
-    });
-
-    it('returns null for a non-git directory', async () => {
-      const dir = await makeTempDir();
-      dirs.push(dir);
-
-      const project = new SemiontProject(dir, { anchoredTextDir: `${dir}/anchored-text` });
-      expect(project.gitBranch()).toBeNull();
     });
   });
 

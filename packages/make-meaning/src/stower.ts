@@ -181,7 +181,7 @@ export class Stower {
 
       // Content is already on disk at storageUri (callers write before emitting).
       // Register verifies the file exists and validates the checksum.
-      const stored = await this.stores.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
+      const stored = await this.stores.content.register(event.storageUri, event.contentChecksum);
       const checksum = stored.checksum;
       const byteSize = event.byteSize;
 
@@ -283,7 +283,7 @@ export class Stower {
 
       // Same contract as create: the uploader wrote the bytes, register
       // verifies they are there and match the checksum.
-      const stored = await this.stores.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
+      const stored = await this.stores.content.register(event.storageUri, event.contentChecksum);
 
       // A clone is the cloner's own act — never job-fulfilling — so requester
       // and executor are the same party.
@@ -324,7 +324,7 @@ export class Stower {
     try {
       // Content is already on disk at storageUri (callers write before emitting).
       // register() verifies the file exists and validates the checksum.
-      await this.stores.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
+      await this.stores.content.register(event.storageUri, event.contentChecksum);
       await this.stores.eventStore.appendEvent({
         type: 'yield:updated',
         resourceId: event.resourceId,
@@ -362,7 +362,7 @@ export class Stower {
       throw new Error('yield:mv missing _userId (gateway injection)');
     }
     try {
-      await this.stores.content.move(event.fromUri, event.toUri, { noGit: event.noGit });
+      await this.stores.content.move(event.fromUri, event.toUri);
       await this.stores.eventStore.appendEvent({
         type: 'yield:moved',
         resourceId: rId,
@@ -570,7 +570,7 @@ export class Stower {
     }
     try {
       if (event.storageUri) {
-        await this.stores.content.remove(event.storageUri, { keepFile: event.keepFile, noGit: event.noGit });
+        await this.stores.content.remove(event.storageUri, { keepFile: event.keepFile });
       }
       await this.stores.eventStore.appendEvent({
         type: 'mark:archived',

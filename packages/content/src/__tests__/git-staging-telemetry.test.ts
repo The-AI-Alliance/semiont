@@ -22,7 +22,7 @@ import { promises as fs } from 'fs';
 import { execFileSync } from 'child_process';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { createStager } from '../git-staging';
+import { gitStaging } from '../git-staging';
 
 describe('staging telemetry', () => {
   let root: string;
@@ -30,45 +30,45 @@ describe('staging telemetry', () => {
   beforeEach(async () => {
     recordGitCommand.mockClear();
     recordGitStagingFailure.mockClear();
-    root = await fs.mkdtemp(join(tmpdir(), 'semiont-stager-tel-'));
+    root = await fs.mkdtemp(join(tmpdir(), 'semiont-staging-tel-'));
     execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' });
   });
 
   it('measures a successful invocation, labeled by subcommand', async () => {
     await fs.writeFile(join(root, 'a.txt'), 'x');
-    const stager = createStager(root, { flushMs: 5, maxWaitMs: 50 });
-    stager.add('a.txt');
-    await stager.flush();
+    const staging = gitStaging(root, { flushMs: 5, maxWaitMs: 50 });
+    staging.stage('a.txt');
+    await staging.flush();
 
     expect(recordGitCommand).toHaveBeenCalledTimes(1);
     const [command, ms] = recordGitCommand.mock.calls[0] as [string, number];
     expect(command).toBe('add');
     expect(ms).toBeGreaterThanOrEqual(0);
-    await stager.dispose();
+    await staging.dispose();
   });
 
   it('measures a FAILING invocation, and counts it as a staging failure by reason', async () => {
-    const stager = createStager(root, { flushMs: 5, maxWaitMs: 50 });
-    stager.add('does-not-exist.txt'); // pathspec matches nothing: git fails, always
+    const staging = gitStaging(root, { flushMs: 5, maxWaitMs: 50 });
+    staging.stage('does-not-exist.txt'); // pathspec matches nothing: git fails, always
 
     // The flush resolves: a failed stage is degraded service, reported through
     // the failure counter rather than to the caller.
-    await stager.flush();
+    await staging.flush();
 
     expect(recordGitCommand).toHaveBeenCalledTimes(1);
     expect(recordGitCommand).toHaveBeenCalledWith('add', expect.any(Number));
     expect(recordGitStagingFailure).toHaveBeenCalledTimes(1);
     expect(recordGitStagingFailure).toHaveBeenCalledWith('other');
-    await stager.dispose();
+    await staging.dispose();
   });
 
   it('one measurement per BATCH, not per path — the dedupe is visible here too', async () => {
     for (const n of ['a', 'b', 'c']) await fs.writeFile(join(root, `${n}.txt`), 'x');
-    const stager = createStager(root, { flushMs: 5, maxWaitMs: 50 });
-    for (const n of ['a', 'b', 'c']) stager.add(`${n}.txt`);
-    await stager.flush();
+    const staging = gitStaging(root, { flushMs: 5, maxWaitMs: 50 });
+    for (const n of ['a', 'b', 'c']) staging.stage(`${n}.txt`);
+    await staging.flush();
 
     expect(recordGitCommand).toHaveBeenCalledTimes(1);
-    await stager.dispose();
+    await staging.dispose();
   });
 });

@@ -125,8 +125,8 @@ export class ResourceOperations {
 
   /**
    * Create a resource from a clone token via EventBus → CloneTokenManager.
-   * The bytes are already stored (the Archivist's upload path, `noGit` — the
-   * Stower's register does the one `git add`, so git has a single writer);
+   * The bytes are already stored (the Archivist's upload path writes them
+   * unstaged — the Stower's register stages them, once);
    * the command carries storage coordinates only, because bytes never ride
    * the bus.
    */

@@ -2,12 +2,13 @@
  * Event Store Tests - Fast, Essential Coverage
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { EventStore } from '../event-store';
 import { EventQuery } from '../query/event-query';
 import { FilesystemViewStorage } from '../storage/view-storage';
 import { SemiontProject } from '@semiont/core/node';
-import { annotationId, resourceId, userId, EventBus } from '@semiont/core';
+import { stagingFor } from '@semiont/content';
+import { annotationId, resourceId, userId, EventBus, type Logger } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -242,5 +243,55 @@ describe('Event Store', () => {
         }),
       ]),
     );
+  });
+});
+
+/**
+ * Past boot, an append whose staging cannot work succeeds: staging is queued
+ * behind it. The event is recorded, its view is current and the fact is
+ * published; the batch that then fails is logged as a degradation.
+ */
+describe('EventStore where the config syncs git and the tree is not a checkout', () => {
+  let testDir: string;
+  let project: SemiontProject;
+  const logger: Logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn(() => logger) };
+
+  beforeAll(async () => {
+    testDir = join(tmpdir(), `semiont-test-unstaged-${uuidv4()}`);
+    await fs.mkdir(join(testDir, '.semiont'), { recursive: true });
+    await fs.writeFile(join(testDir, '.semiont', 'config'), '[project]\nname = "unstaged"\n\n[git]\nsync = true\n');
+    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
+  });
+
+  afterAll(async () => {
+    await stagingFor(project).dispose();
+    await project.destroy();
+    await fs.rm(testDir, { recursive: true, force: true });
+  });
+
+  it('records, materializes and publishes the event; the staging failure is logged, not returned', async () => {
+    await expect(stagingFor(project, { logger }).ready()).rejects.toThrow(/is not a git checkout/);
+    const viewStorage = new FilesystemViewStorage(project);
+    const eventBus = new EventBus();
+    const eventStore = new EventStore(project, testDir, viewStorage, eventBus);
+    const docId = resourceId('doc-unstaged');
+    const published: string[] = [];
+    eventBus.frames('yield:created').subscribe((frame) => published.push(frame.payload.id));
+
+    const stored = await eventStore.appendEvent({
+      type: 'yield:created',
+      userId: userId('did:web:test:users:user1'),
+      resourceId: docId,
+      version: 1,
+      payload: { name: 'Unstaged', format: 'text/plain' as const, contentChecksum: 'checksum1' as const },
+    });
+
+    expect((await eventStore.log.getEvents(docId)).map((event) => event.id)).toEqual([stored.id]);
+    expect((await viewStorage.get(docId))?.resource.name).toBe('Unstaged');
+    expect(published).toEqual([stored.id]);
+
+    await eventStore.log.storage.flushStaging();
+    expect(logger.error).toHaveBeenCalledWith(expect.stringMatching(/degraded/i), expect.objectContaining({ root: testDir }));
+    eventBus.destroy();
   });
 });

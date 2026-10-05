@@ -399,7 +399,7 @@ describe('Archivist sequence-ranged read path', () => {
     const SERVED = resourceId('res-served');
 
     beforeEach(async () => {
-      await new WorkingTreeStore(tp.project, mockLogger).store(Buffer.from(CONTENT), CONTENT_URI, { noGit: true });
+      await new WorkingTreeStore(tp.project, mockLogger).store(Buffer.from(CONTENT), CONTENT_URI);
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: SERVED,

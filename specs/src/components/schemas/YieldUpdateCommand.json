@@ -18,9 +18,6 @@
     },
     "byteSize": {
       "type": "integer"
-    },
-    "noGit": {
-      "type": "boolean"
     }
   },
   "required": [

@@ -62,7 +62,7 @@ describe('resolveRepresentation — every face agrees', () => {
     eventStore = createEventStore(tp.project, eventBus, mockLogger);
     content = new WorkingTreeStore(tp.project, mockLogger);
 
-    await content.store(Buffer.from(BODY), URI, { noGit: true });
+    await content.store(Buffer.from(BODY), URI);
     rid = makeResourceId('res-rep');
     await eventStore.appendEvent({
       type: 'yield:created',
@@ -136,7 +136,7 @@ describe('resolveRepresentation — every face agrees', () => {
 
   it('the store streams a read without buffering the whole file', async () => {
     const big = Buffer.alloc(3 * 1024 * 1024, 0x41);
-    await content.store(big, 'file://big.bin', { noGit: true });
+    await content.store(big, 'file://big.bin');
 
     const stream = content.retrieveStream('file://big.bin');
     let seen = 0;

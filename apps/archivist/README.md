@@ -36,9 +36,14 @@ as "the log does not justify this." Each reap is logged by resource id, with a c
 
 **Why these cannot be split.** Stower writes the events and projections Browser reads;
 separating them opens a cross-process read-after-write window over the same state. And git is
-single-writer — the working-tree store shells out to `git add`/`git mv`, so two processes on one
-index means `index.lock` contention, a hard failure rather than a retry. The Archivist owns the
-tree; every other writer passes `noGit: true`.
+single-writer — the Archivist's staging driver runs it, so two processes on one index means
+`index.lock` contention, a hard failure rather than a retry. The Archivist owns the tree and is
+the only process that stages into it.
+
+**A knowledge base need not be a git repository.** Without `[git] sync = true` in its committed
+config the Archivist runs no git, and reports no branch. A config that says `sync = true` over a
+tree that is not a git checkout stops the Archivist at boot, naming the tree and the two ways out:
+`git init`, or `sync = false`.
 
 ## What it owns on disk
 

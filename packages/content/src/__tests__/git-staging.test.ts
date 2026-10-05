@@ -18,7 +18,7 @@ import { promises as fs } from 'fs';
 import { execFileSync } from 'child_process';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { createStager } from '../git-staging';
+import { gitStaging } from '../git-staging';
 
 let root: string;
 const staged = (): string[] =>
@@ -31,84 +31,84 @@ const write = async (name: string, body = 'x') => {
 };
 
 beforeEach(async () => {
-  root = await fs.mkdtemp(join(tmpdir(), 'semiont-stager-'));
+  root = await fs.mkdtemp(join(tmpdir(), 'semiont-staging-'));
   execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' });
 });
 afterEach(async () => { await fs.rm(root, { recursive: true, force: true }); });
 
 describe('git staging queue', () => {
   it('does not stage synchronously — the caller is not blocked on git', async () => {
-    const stager = createStager(root, { flushMs: 50, maxWaitMs: 500 });
-    stager.add(await write('a.txt'));
+    const staging = gitStaging(root, { flushMs: 50, maxWaitMs: 500 });
+    staging.stage(await write('a.txt'));
 
     // Enqueueing returns before git has run.
     expect(staged()).toEqual([]);
 
-    await stager.flush();
+    await staging.flush();
     expect(staged()).toEqual(['a.txt']);
-    await stager.dispose();
+    await staging.dispose();
   });
 
   it('DEDUPES by path — 1,400 appends to one file stage it once', async () => {
-    const stager = createStager(root, { flushMs: 50, maxWaitMs: 500 });
+    const staging = gitStaging(root, { flushMs: 50, maxWaitMs: 500 });
     await write('events.jsonl');
-    for (let i = 0; i < 1400; i++) stager.add('events.jsonl');
+    for (let i = 0; i < 1400; i++) staging.stage('events.jsonl');
 
-    expect(stager.pending()).toBe(1);
-    await stager.flush();
+    expect(staging.pending()).toBe(1);
+    await staging.flush();
     expect(staged()).toEqual(['events.jsonl']);
-    await stager.dispose();
+    await staging.dispose();
   });
 
   it('batches distinct paths into one invocation', async () => {
-    const stager = createStager(root, { flushMs: 50, maxWaitMs: 500 });
-    for (const n of ['a.txt', 'b.txt', 'c.txt']) stager.add(await write(n));
+    const staging = gitStaging(root, { flushMs: 50, maxWaitMs: 500 });
+    for (const n of ['a.txt', 'b.txt', 'c.txt']) staging.stage(await write(n));
 
-    expect(stager.pending()).toBe(3);
-    await stager.flush();
+    expect(staging.pending()).toBe(3);
+    await staging.flush();
     expect(staged().sort()).toEqual(['a.txt', 'b.txt', 'c.txt']);
-    await stager.dispose();
+    await staging.dispose();
   });
 
   it('flushes on its own once idle — a human who never calls flush still sees the index', async () => {
-    const stager = createStager(root, { flushMs: 20, maxWaitMs: 500 });
-    stager.add(await write('idle.txt'));
+    const staging = gitStaging(root, { flushMs: 20, maxWaitMs: 500 });
+    staging.stage(await write('idle.txt'));
 
     await new Promise((r) => setTimeout(r, 120));
     expect(staged()).toEqual(['idle.txt']);
-    await stager.dispose();
+    await staging.dispose();
   });
 
   it('bounds staleness — a continuous stream cannot defer staging forever', async () => {
     // Pure debounce would let each new add reset the timer and never stage.
-    const stager = createStager(root, { flushMs: 1_000, maxWaitMs: 60 });
-    stager.add(await write('first.txt'));
+    const staging = gitStaging(root, { flushMs: 1_000, maxWaitMs: 60 });
+    staging.stage(await write('first.txt'));
     for (let i = 0; i < 6; i++) {
       await new Promise((r) => setTimeout(r, 20));
-      stager.add(await write(`n${i}.txt`));
+      staging.stage(await write(`n${i}.txt`));
     }
 
     await new Promise((r) => setTimeout(r, 80));
     expect(staged()).toContain('first.txt');
-    await stager.dispose();
+    await staging.dispose();
   });
 
   it('order-sensitive commands flush pending adds first, then run alone', async () => {
-    const stager = createStager(root, { flushMs: 1_000, maxWaitMs: 5_000 });
-    stager.add(await write('from.txt'));
+    const staging = gitStaging(root, { flushMs: 1_000, maxWaitMs: 5_000 });
+    staging.stage(await write('from.txt'));
 
     // `mv` must not overtake the `add` of the file it moves.
-    await stager.run(['mv', 'from.txt', 'to.txt']);
+    await staging.move('from.txt', 'to.txt');
 
     expect(staged()).toEqual(['to.txt']);
-    await stager.dispose();
+    await staging.dispose();
   });
 
   it('dispose drains — a stopped Archivist leaves nothing unstaged', async () => {
-    const stager = createStager(root, { flushMs: 10_000, maxWaitMs: 10_000 });
-    stager.add(await write('last.txt'));
+    const staging = gitStaging(root, { flushMs: 10_000, maxWaitMs: 10_000 });
+    staging.stage(await write('last.txt'));
 
-    await stager.dispose();
+    await staging.dispose();
     expect(staged()).toEqual(['last.txt']);
   });
 });
@@ -131,8 +131,8 @@ describe('index.lock contention', () => {
     process.on('unhandledRejection', onRejection);
     try {
       await fs.writeFile(lockPath(), '');
-      const stager = createStager(root, { flushMs: 10, maxWaitMs: 20 });
-      stager.add(await write('doomed.txt'));
+      const staging = gitStaging(root, { flushMs: 10, maxWaitMs: 20 });
+      staging.stage(await write('doomed.txt'));
       // Long enough for the debounce to fire and git to fail.
       await new Promise((r) => setTimeout(r, 400));
       expect(rejections).toEqual([]);
@@ -144,31 +144,31 @@ describe('index.lock contention', () => {
 
   it('a batch that lost the race is retried, not dropped', async () => {
     await fs.writeFile(lockPath(), '');
-    const stager = createStager(root, { flushMs: 10, maxWaitMs: 20 });
-    stager.add(await write('survivor.txt'));
+    const staging = gitStaging(root, { flushMs: 10, maxWaitMs: 20 });
+    staging.stage(await write('survivor.txt'));
     // First attempt fails against the held lock.
     await new Promise((r) => setTimeout(r, 120));
     // The external holder (a person, or another tool) finishes.
     await fs.rm(lockPath(), { force: true });
-    await stager.flush();
+    await staging.flush();
     // `drain()` clears `queued` BEFORE running git, so a merely-caught
     // rejection would drop this path forever and leave the index stale.
     expect(staged()).toContain('survivor.txt');
   });
 
   it('a PERMANENT staging failure degrades — it never rejects, so it can never be fatal', async () => {
-    const stager = createStager(root, { flushMs: 5, maxWaitMs: 20 });
-    stager.add('never-existed.txt'); // pathspec matches nothing: git fails, always
+    const staging = gitStaging(root, { flushMs: 5, maxWaitMs: 20 });
+    staging.stage('never-existed.txt'); // pathspec matches nothing: git fails, always
     // Staging the index is a convenience; the event log is the record. A
     // failure here is degraded service, and MUST NOT reach a caller as a
     // rejection — one missing `.catch` anywhere would be fatal.
-    await expect(stager.flush()).resolves.toBeUndefined();
-    await expect(stager.dispose()).resolves.toBeUndefined();
+    await expect(staging.flush()).resolves.toBeUndefined();
+    await expect(staging.dispose()).resolves.toBeUndefined();
   });
 
-  it('one repo gets ONE stager — callers cannot race each other', () => {
+  it('one repo gets ONE staging — callers cannot race each other', () => {
     // The content store and the event log each ask for one; two instances
     // would each serialize internally and neither against the other.
-    expect(createStager(root)).toBe(createStager(root));
+    expect(gitStaging(root)).toBe(gitStaging(root));
   });
 });

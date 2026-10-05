@@ -13,7 +13,7 @@ import { pipeline } from 'stream/promises';
 import path from 'path';
 import type { SemiontProject } from '@semiont/core/node';
 import type { Logger, StoredResource } from '@semiont/core';
-import { createStager, type Stager, type StagerOptions } from './git-staging.js';
+import { stagingFor, type Staging, type StagingOptions } from './staging.js';
 
 
 /** sha256 + byte count over a chunk stream — one definition for both write paths. */
@@ -36,42 +36,39 @@ function hashingTap() {
 
 export class WorkingTreeStore {
   private projectRoot: string;
-  private gitSync: boolean;
   private logger?: Logger;
 
-  private _stager?: Stager;
-  private readonly staging: StagerOptions;
+  private readonly project: Pick<SemiontProject, 'root' | 'gitSync'>;
+  private _staging?: Staging;
+  private readonly stagingOptions: StagingOptions;
 
   /** `staging` is policy — how stale the index may get is the caller's call. */
-  constructor(project: SemiontProject, logger?: Logger, staging: StagerOptions = {}) {
+  constructor(project: SemiontProject, logger?: Logger, staging: StagingOptions = {}) {
     this.projectRoot = project.root;
-    this.gitSync = project.gitSync;
+    this.project = project;
     this.logger = logger;
-    this.staging = staging;
+    this.stagingOptions = staging;
   }
 
-  /** Created on first use — importers of this package may never stage. */
-  private stager(): Stager {
-    if (!this._stager) this._stager = createStager(this.projectRoot, this.staging);
-    return this._stager;
+  /** The project's driver, obtained on first use — importers of this package may never stage. */
+  private staging(): Staging {
+    if (!this._staging) this._staging = stagingFor(this.project, this.stagingOptions);
+    return this._staging;
   }
 
   /** Stage everything pending now — for a caller that wants the index current. */
   flushStaging(): Promise<void> {
-    return this._stager ? this._stager.flush() : Promise.resolve();
+    return this._staging ? this._staging.flush() : Promise.resolve();
   }
 
   /** Drain and stop. A stopped process must leave nothing unstaged. */
   async dispose(): Promise<void> {
-    if (this._stager) await this._stager.dispose();
-  }
-
-  private shouldRunGit(noGit?: boolean): boolean {
-    return this.gitSync && !noGit;
+    if (this._staging) await this._staging.dispose();
   }
 
   /**
-   * Write bytes to the path storageUri names, whole or streamed.
+   * Write bytes to the path storageUri names, whole or streamed. Never
+   * staged here: `register` stages a file when the event naming it applies.
    *
    * Atomic: bytes land in a temp file and are renamed into place only once
    * complete and once `expectedChecksum`, when given, agrees. A mismatch or a
@@ -83,7 +80,7 @@ export class WorkingTreeStore {
   async store(
     content: Buffer | Readable,
     storageUri: string,
-    options?: { noGit?: boolean; expectedChecksum?: string },
+    options?: { expectedChecksum?: string },
   ): Promise<StoredResource> {
     const filePath = this.resolveUri(storageUri);
     const source = Buffer.isBuffer(content) ? Readable.from([content]) : content;
@@ -113,10 +110,6 @@ export class WorkingTreeStore {
       }
       await fs.rename(tempPath, filePath);
 
-      if (this.shouldRunGit(options?.noGit)) {
-        this.stager().add(filePath);
-      }
-
       this.logger?.info('Resource stored', { storageUri, checksum, byteSize });
 
       return {
@@ -136,7 +129,7 @@ export class WorkingTreeStore {
    *
    * @throws ChecksumMismatchError if expectedChecksum is given and disagrees
    */
-  async register(storageUri: string, expectedChecksum?: string, options?: { noGit?: boolean }): Promise<StoredResource> {
+  async register(storageUri: string, expectedChecksum?: string): Promise<StoredResource> {
     const filePath = this.resolveUri(storageUri);
 
     this.logger?.debug('Registering resource', { storageUri });
@@ -153,9 +146,7 @@ export class WorkingTreeStore {
       throw new ChecksumMismatchError(storageUri, expectedChecksum, checksum);
     }
 
-    if (this.shouldRunGit(options?.noGit)) {
-      this.stager().add(filePath);
-    }
+    this.staging().stage(filePath);
 
     const byteSize = tap.byteSize;
     this.logger?.info('Resource registered', { storageUri, checksum, byteSize });
@@ -189,8 +180,8 @@ export class WorkingTreeStore {
     }
   }
 
-  /** `git mv` when the project syncs git, `fs.rename` otherwise. */
-  async move(fromUri: string, toUri: string, options?: { noGit?: boolean }): Promise<void> {
+  /** Rename the file; what is staged follows it. */
+  async move(fromUri: string, toUri: string): Promise<void> {
     const fromPath = this.resolveUri(fromUri);
     const toPath = this.resolveUri(toUri);
 
@@ -198,48 +189,21 @@ export class WorkingTreeStore {
 
     await fs.mkdir(path.dirname(toPath), { recursive: true });
 
-    if (this.shouldRunGit(options?.noGit)) {
-      await this.stager().run(['mv', fromPath, toPath]);
-    } else {
-      await fs.rename(fromPath, toPath);
-    }
+    await this.staging().move(fromPath, toPath);
 
     this.logger?.info('Resource moved', { fromUri, toUri });
   }
 
-  /** @param options.keepFile - Drop from the index only; leave the file on disk. */
-  async remove(storageUri: string, options?: { noGit?: boolean; keepFile?: boolean }): Promise<void> {
+  /** @param options.keepFile - Unstage only; leave the file on disk. */
+  async remove(storageUri: string, options?: { keepFile?: boolean }): Promise<void> {
     const filePath = this.resolveUri(storageUri);
     const keepFile = options?.keepFile ?? false;
 
     this.logger?.debug('Removing resource', { storageUri, keepFile });
 
-    const useGit = this.shouldRunGit(options?.noGit);
+    await this.staging().remove(filePath, { keepFile });
 
-    if (useGit) {
-      const gitArgs = keepFile
-        ? ['rm', '--cached', filePath]
-        : ['rm', filePath];
-      await this.stager().run(gitArgs);
-      this.logger?.info('Resource removed', { storageUri, keepFile, git: true });
-      return;
-    }
-
-    if (keepFile) {
-      this.logger?.info('Resource removed from index (file kept on disk)', { storageUri });
-      return;
-    }
-
-    try {
-      await fs.unlink(filePath);
-      this.logger?.info('Resource removed', { storageUri });
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        this.logger?.warn('Resource file already absent', { storageUri });
-        return;
-      }
-      throw error;
-    }
+    this.logger?.info('Resource removed', { storageUri, keepFile });
   }
 
   resolveUri(storageUri: string): string {

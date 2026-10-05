@@ -35,10 +35,6 @@
     "parentResourceId": {
       "$ref": "./ResourceId.json",
       "description": "The resource this one is cloned FROM. Required: it is what makes this a clone rather than a creation."
-    },
-    "noGit": {
-      "type": "boolean",
-      "description": "The bytes were already written by the uploader; the Stower's register does the one `git add` on apply, so git has a single writer."
     }
   },
   "required": [

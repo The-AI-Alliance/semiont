@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execFileSync } from 'child_process';
 import { parse as parseToml } from 'smol-toml';
 import { isObject, isString } from './type-guards';
 
@@ -161,22 +160,6 @@ export class SemiontProject extends SemiontState {
     this.root = projectRoot;
     this.gitSync = SemiontProject.readGitSync(projectRoot);
     this.eventsDir = path.join(projectRoot, '.semiont', 'events');
-  }
-
-  /**
-   * Read the current git branch for the project root.
-   * Returns null if the project is not a git repo or git is not available.
-   */
-  gitBranch(): string | null {
-    try {
-      return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
-        cwd: this.root,
-        encoding: 'utf-8',
-        stdio: ['ignore', 'pipe', 'ignore'],
-      }).trim() || null;
-    } catch {
-      return null;
-    }
   }
 
   /**

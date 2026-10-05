@@ -3,6 +3,9 @@
  * the committed `.semiont/config` and the working tree it holds, and reads
  * both when asked: a `git checkout` restarts nothing and emits nothing, so an
  * answer kept from an earlier ask would name a branch the tree has left.
+ *
+ * The branch is reported only by a knowledge base that syncs git. One that
+ * does not runs no git at all, whether or not its tree is a checkout.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { execFileSync } from 'child_process';
@@ -10,6 +13,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { firstValueFrom, race, timer, map, take } from 'rxjs';
 import { EventBus, type Logger } from '@semiont/core';
+import { SemiontProject } from '@semiont/core/node';
 import { Browser, type BrowserReads } from '../browser';
 import type { MakeMeaningConfig } from '../config';
 import { createTestProject, type TestProject } from './helpers/test-project';
@@ -46,12 +50,31 @@ describe('browse:kb — the knowledge base describes itself', () => {
   let bus: EventBus;
   let browser: Browser;
 
+  const browserFor = async (project: SemiontProject) => {
+    browser = new Browser(READS, bus, project, CONFIG, CONFIG, createMockEmbeddingProvider(), mockLogger);
+    await browser.initialize();
+  };
+
   beforeEach(async () => {
     tp = await createTestProject('arxiv-kb');
     bus = new EventBus();
-    browser = new Browser(READS, bus, tp.project, CONFIG, CONFIG, createMockEmbeddingProvider(), mockLogger);
-    await browser.initialize();
+    await browserFor(tp.project);
   });
+
+  /** The same knowledge base, re-read after its committed config declares `[git] sync = true`. */
+  const syncGit = async () => {
+    await browser.stop();
+    await fs.appendFile(join(tp.project.root, '.semiont', 'config'), '[git]\nsync = true\n');
+    await browserFor(new SemiontProject(tp.project.root, { anchoredTextDir: tp.project.anchoredTextDir }));
+  };
+
+  const checkOut = (branch: string) => {
+    git('init');
+    git('config', 'user.email', 'test@test.com');
+    git('config', 'user.name', 'Test');
+    git('commit', '--allow-empty', '-m', 'init');
+    git('checkout', '-b', branch);
+  };
 
   afterEach(async () => {
     await browser.stop();
@@ -88,17 +111,37 @@ describe('browse:kb — the knowledge base describes itself', () => {
 
   it('answers the branch the tree is on when asked, not when first asked', async () => {
     await declareDomain();
-    git('init');
-    git('config', 'user.email', 'test@test.com');
-    git('config', 'user.name', 'Test');
-    git('commit', '--allow-empty', '-m', 'init');
-    git('checkout', '-b', 'feature-xyz');
+    await syncGit();
+    checkOut('feature-xyz');
 
     expect(await ask()).toMatchObject({ kind: 'result', payload: { response: { gitBranch: 'feature-xyz' } } });
 
     git('checkout', '-b', 'second-line');
 
     expect(await ask()).toMatchObject({ kind: 'result', payload: { response: { gitBranch: 'second-line' } } });
+  });
+
+  it('a knowledge base that does not sync git answers no branch, even in a git checkout', async () => {
+    await declareDomain();
+    checkOut('feature-xyz');
+
+    expect(await ask()).toEqual({
+      kind: 'result',
+      payload: { response: { name: 'arxiv-kb', domain: DOMAIN } },
+      replyTo: 'cid-kb',
+    });
+  });
+
+  it('a knowledge base whose config syncs git over a tree that is not a checkout fails the ask', async () => {
+    // The Archivist refuses this at boot. Should a tree stop being a checkout
+    // while it runs, the ask errors rather than answering as if no branch were
+    // the truth.
+    await declareDomain();
+    await syncGit();
+
+    const reply = await ask();
+    expect(reply).toMatchObject({ kind: 'failed', replyTo: 'cid-kb' });
+    expect(reply.payload).toMatchObject({ message: expect.stringMatching(/is not a git checkout/) });
   });
 
   it('refuses when the committed file declares no domain, rather than answering without one', async () => {

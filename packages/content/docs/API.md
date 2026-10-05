@@ -14,7 +14,7 @@ const project = new SemiontProject('/path/to/project', { anchoredTextDir: proces
 const store = new WorkingTreeStore(project, logger /* optional */);
 ```
 
-The store resolves `file://` URIs against the project root. When the project has `[git] sync = true` in `.semiont/config`, mutating operations also keep the git index up to date; each of them accepts `{ noGit: true }` to skip that for a single call.
+The store resolves `file://` URIs against the project root. When the project has `[git] sync = true` in `.semiont/config`, `register`, `move` and `remove` also keep the git index up to date.
 
 ### Storing Content
 
@@ -35,11 +35,11 @@ const stored = await store.store(
 // }
 ```
 
-Intermediate directories are created automatically. With git sync, a `git add` of the file is queued: staging is deferred and deduplicated, and `flushStaging()` stages what is pending.
+Intermediate directories are created automatically. `store` stages nothing: `register` stages the file.
 
 ### Registering Existing Files
 
-`register()` reads a file that is already on disk and returns its metadata. The Stower calls it when it records a resource. If `expectedChecksum` is provided and does not match, it throws `ChecksumMismatchError`, which carries the URI, the checksum expected and the one found.
+`register()` reads a file that is already on disk and returns its metadata. The Stower calls it when it records a resource. With git sync, the file is queued for staging: staging is deferred and deduplicated, and `flushStaging()` stages what is pending. If `expectedChecksum` is provided and does not match, it throws `ChecksumMismatchError`, which carries the URI, the checksum expected and the one found.
 
 ```typescript
 const registered = await store.register('file://docs/overview.md');
@@ -60,13 +60,13 @@ const text = buffer.toString('utf-8');
 ### Moving and Removing
 
 ```typescript
-// Rename/move (git mv with git sync, fs.rename otherwise)
+// Rename/move (staged with git sync)
 await store.move('file://docs/overview.md', 'file://docs/intro.md');
 
-// Delete (git rm with git sync, fs.unlink otherwise)
+// Delete (unstaged with git sync)
 await store.remove('file://docs/intro.md');
 
-// Remove from the git index but keep the file on disk (git rm --cached)
+// Unstage, but keep the file on disk
 await store.remove('file://docs/intro.md', { keepFile: true });
 ```
 

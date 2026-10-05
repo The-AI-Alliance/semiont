@@ -12,6 +12,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { Readable } from 'stream';
 import { SemiontProject } from '@semiont/core/node';
+import { stagingFor } from '../staging';
 import { WorkingTreeStore, ChecksumMismatchError } from '../working-tree-store';
 import { calculateChecksum } from '../checksum';
 
@@ -25,7 +26,7 @@ interface TestProject {
   cleanup: () => Promise<void>;
 }
 
-async function createProject(opts?: { gitSync?: boolean }): Promise<TestProject> {
+async function createProject(opts?: { gitSync?: boolean; checkout?: boolean }): Promise<TestProject> {
   const root = await fs.mkdtemp(join(tmpdir(), 'semiont-content-test-'));
   await fs.mkdir(join(root, '.semiont'), { recursive: true });
   const gitSection = opts?.gitSync ? '\n[git]\nsync = true\n' : '';
@@ -33,7 +34,7 @@ async function createProject(opts?: { gitSync?: boolean }): Promise<TestProject>
     join(root, '.semiont', 'config'),
     `[project]\nname = "working-tree-test"\n${gitSection}`
   );
-  if (opts?.gitSync) {
+  if (opts?.gitSync && opts.checkout !== false) {
     execFileSync('git', ['init'], { cwd: root });
   }
   const project = new SemiontProject(root, { anchoredTextDir: `${root}/anchored-text` });
@@ -227,7 +228,7 @@ describe('WorkingTreeStore', () => {
   describe('register verifies without materializing', () => {
     it('hashes a large file without reading it whole', async () => {
       const big = Buffer.alloc(3 * 1024 * 1024, 0x5a);
-      await store.store(big, 'file://verify/big.bin', { noGit: true });
+      await store.store(big, 'file://verify/big.bin');
 
       const readFileSpy = vi.spyOn(fs, 'readFile');
       try {
@@ -243,7 +244,7 @@ describe('WorkingTreeStore', () => {
     });
 
     it('still refuses a file whose bytes disagree with the expected checksum', async () => {
-      await store.store(Buffer.from('actual'), 'file://verify/mismatch.bin', { noGit: true });
+      await store.store(Buffer.from('actual'), 'file://verify/mismatch.bin');
 
       await expect(
         store.register('file://verify/mismatch.bin', calculateChecksum('claimed')),
@@ -476,25 +477,22 @@ describe('WorkingTreeStore with gitSync', () => {
     expect(project.gitSync).toBe(true);
   });
 
-  it('should stage stored files in the git index — after a flush', async () => {
-    await store.store(Buffer.from('staged'), 'file://docs/staged.md');
+  it('store writes and does not stage — register stages, when the event naming the file applies', async () => {
+    await store.store(Buffer.from('uploaded'), 'file://docs/uploaded.md');
+
+    // Flush first, so this proves store() left staging alone rather than
+    // merely proving staging had not happened yet — which deferral would
+    // make true of everything.
+    await store.flushStaging();
+    expect(stagedFiles(root)).not.toContain('docs/uploaded.md');
+
+    await store.register('file://docs/uploaded.md');
 
     // Staging is DEFERRED, off the event loop: the index is for a human
     // who commits by hand, so it must be current within seconds, not
-    // synchronously per write. `git-staging.test.ts` pins the other half of
-    // this contract — that it is NOT staged before the flush.
+    // synchronously per write.
     await store.flushStaging();
-    expect(stagedFiles(root)).toContain('docs/staged.md');
-  });
-
-  it('should skip staging with noGit', async () => {
-    await store.store(Buffer.from('unstaged'), 'file://docs/unstaged.md', { noGit: true });
-
-    // Flush first, so this proves noGit SKIPPED staging rather than merely
-    // proving staging had not happened yet — which deferral would make true
-    // of everything.
-    await store.flushStaging();
-    expect(stagedFiles(root)).not.toContain('docs/unstaged.md');
+    expect(stagedFiles(root)).toContain('docs/uploaded.md');
   });
 
   it('should stage registered files in the git index', async () => {
@@ -508,6 +506,7 @@ describe('WorkingTreeStore with gitSync', () => {
 
   it('should update the git index on move', async () => {
     await store.store(Buffer.from('mv me'), 'file://mv-from.txt');
+    await store.register('file://mv-from.txt');
 
     await store.move('file://mv-from.txt', 'file://mv-to.txt');
 
@@ -520,6 +519,7 @@ describe('WorkingTreeStore with gitSync', () => {
 
   it('should unstage but keep the file on disk with keepFile', async () => {
     await store.store(Buffer.from('cached only'), 'file://cached-only.txt');
+    await store.register('file://cached-only.txt');
     await store.flushStaging();
     expect(stagedFiles(root)).toContain('cached-only.txt');
 
@@ -528,5 +528,46 @@ describe('WorkingTreeStore with gitSync', () => {
     expect(stagedFiles(root)).not.toContain('cached-only.txt');
     const onDisk = await fs.readFile(join(root, 'cached-only.txt'), 'utf-8');
     expect(onDisk).toBe('cached only');
+  });
+});
+
+/**
+ * A knowledge base need not be a git repository — then its config does not say
+ * `[git] sync = true`. A config that does, over a tree that is not a checkout,
+ * is a contradiction the Archivist refuses at boot. Past boot no check is paid
+ * for: a move or a remove does its work and reports that it could not be
+ * staged; adopting a file only queues its staging, so it succeeds.
+ */
+describe('WorkingTreeStore with gitSync, where the tree is not a git checkout', () => {
+  let project: SemiontProject;
+  let root: string;
+  let cleanup: () => Promise<void>;
+  let store: WorkingTreeStore;
+  const REFUSED = /is not a git checkout/;
+
+  beforeAll(async () => {
+    ({ project, root, cleanup } = await createProject({ gitSync: true, checkout: false }));
+    store = new WorkingTreeStore(project);
+  });
+
+  afterAll(async () => {
+    await store.dispose();
+    await cleanup();
+  });
+
+  it('refuses at boot', async () => {
+    await expect(stagingFor(project).ready()).rejects.toThrow(REFUSED);
+  });
+
+  it('then adopts a file, and does a move and a remove while reporting they could not be staged', async () => {
+    await fs.writeFile(join(root, 'present.md'), 'already here');
+
+    expect((await store.register('file://present.md')).byteSize).toBe(12);
+
+    await expect(store.move('file://present.md', 'file://moved.md')).rejects.toThrow(REFUSED);
+    expect(await fs.readFile(join(root, 'moved.md'), 'utf-8')).toBe('already here');
+
+    await expect(store.remove('file://moved.md')).rejects.toThrow(REFUSED);
+    await expect(fs.stat(join(root, 'moved.md'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });

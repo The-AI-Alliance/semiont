@@ -61,9 +61,8 @@ export type {
   PdfFormField,
 } from './pdf-text-layer';
 
-// Deferred, deduped git staging, run off the event loop. The working tree is
-// this package's concern, and git is how that tree keeps history — so the
-// scheduling of `git add` lives here, beside the store that writes the files.
-// `@semiont/event-sourcing` uses it for the event log, which lives in the same
-// working tree.
-export { createStager, type Stager, type StagerOptions } from './git-staging.js';
+// Staging: recording the tree's changes where a person can commit them. The
+// interface is the job; git is the one technology behind it, deferred and
+// deduped off the event loop. `@semiont/event-sourcing` stages the event log
+// through the same driver, since the log lives in the same working tree.
+export { stagingFor, noStaging, type Staging, type StagingOptions } from './staging.js';
