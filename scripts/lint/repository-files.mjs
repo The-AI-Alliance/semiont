@@ -12,3 +12,19 @@ export function repositoryFiles(root) {
   const deleted = new Set(list('--deleted'));
   return [...new Set([...list('--cached'), ...list('--others', '--exclude-standard')])].filter((file) => !deleted.has(file)).sort();
 }
+
+/**
+ * Whether git ignores `file`, a path relative to `root`. An ignored file is
+ * one the repository says a build makes and the tree does not keep. The
+ * answer is the ignore rules', so it is the same whether or not the file
+ * exists on this machine.
+ */
+export function ignoredByGit(root, file) {
+  try {
+    execFileSync('git', ['check-ignore', '--quiet', '--', file], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch (error) {
+    if (error.status === 1) return false;
+    throw error;
+  }
+}

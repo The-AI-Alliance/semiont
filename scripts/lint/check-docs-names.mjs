@@ -21,7 +21,25 @@
  *   - bus channels: a quoted `namespace:name` in one of the bus's namespaces
  *     is a key of `EventMap`, and so is any channel passed to `emit`, `on`,
  *     `subscribe`, `stream` or `useEventSubscription(s)`;
- *   - repository paths, `npm run` scripts and relative links resolve.
+ *   - `npm run` scripts exist, and repository paths and relative links name
+ *     what the repository holds.
+ *
+ * WHAT THE REPOSITORY HOLDS is what git says it does (`repository-files.mjs`,
+ * as every lint here that asks): the files git tracks, and new ones it does
+ * not ignore. The disk is never asked whether a path or a link resolves. The
+ * disk also holds whatever this machine has built, so asking it gives one
+ * verdict here and another in CI.
+ *
+ * A file git ignores is one a build makes. A document may name one as a path
+ * where the manifest of the package it is in declares that the build produces
+ * it (`main`, `module`, `types`, `bin`, a target of `exports`): the place to
+ * find the server you just built. It may never link to one, since a reader of
+ * the repository cannot open it. A generated file no manifest declares is
+ * described by the committed source it is generated from.
+ *
+ * The documents read are the repository's too. Exported names are read from
+ * each package's source as built, generated modules included, so this gate
+ * runs after the build, as the doc-snippets gate does.
  *
  * THE ONE ESCAPE: a code fence whose info string includes `sketch` is not
  * checked. Use it for code that names what does not exist on purpose — a
@@ -29,13 +47,74 @@
  * Everything else a document shows is a claim about the tree.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
-import { join, dirname, relative, resolve, isAbsolute } from 'path';
+import { join, dirname, normalize, resolve, isAbsolute } from 'path';
 import { fileURLToPath } from 'url';
+import { repositoryFiles, ignoredByGit } from './repository-files.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (p) => readFileSync(p, 'utf8');
 
-// ── What the tree has ─────────────────────────────────────────────────────────
+// ── What the repository holds ─────────────────────────────────────────────────
+
+const TREE = new Set(repositoryFiles(ROOT));
+const TREE_DIRS = new Set();
+for (const file of TREE) for (let d = dirname(file); d !== '.'; d = dirname(d)) TREE_DIRS.add(d);
+
+/** The Markdown files directly in `dir`. */
+const markdownIn = (dir) => [...TREE].filter((f) => f.endsWith('.md') && dirname(f) === dir);
+
+/** The directory of the nearest manifest above `file`, or null when there is none. */
+function manifestDirOf(file) {
+  for (let d = dirname(file); ; d = dirname(d)) {
+    if (TREE.has(d === '.' ? 'package.json' : `${d}/package.json`)) return d;
+    if (d === '.') return null;
+  }
+}
+
+/** The files a package's manifest declares its build produces. */
+const builtMemo = new Map();
+function builtFiles(dir) {
+  if (builtMemo.has(dir)) return builtMemo.get(dir);
+  const declared = new Set();
+  builtMemo.set(dir, declared);
+  const j = JSON.parse(readFileSync(join(ROOT, dir, 'package.json'), 'utf8'));
+  const add = (v) => {
+    if (typeof v === 'string') declared.add(normalize(join(dir, v)));
+    else if (v && typeof v === 'object') Object.values(v).forEach(add);
+  };
+  [j.main, j.module, j.types, j.typings, j.bin, j.exports].forEach(add);
+  return declared;
+}
+
+/**
+ * How a repository-relative path stands: `held` by the repository, a `built`
+ * file its package's manifest declares, an `undeclared` one git ignores and
+ * nothing vouches for, or `absent`.
+ */
+const standingMemo = new Map();
+function standing(path) {
+  const p = normalize(path).replace(/\/$/, '');
+  if (standingMemo.has(p)) return standingMemo.get(p);
+  let is;
+  if (p === '.' || TREE.has(p) || TREE_DIRS.has(p)) is = 'held';
+  else if (p.startsWith('..')) is = 'outside';
+  else if (!ignoredByGit(ROOT, p)) is = 'absent';
+  else {
+    const dir = manifestDirOf(p);
+    is = dir !== null && builtFiles(dir).has(p) ? 'built' : 'undeclared';
+  }
+  standingMemo.set(p, is);
+  return is;
+}
+const WHY_NOT = {
+  absent: 'not in the repository',
+  outside: 'outside the repository',
+  undeclared: 'git ignores it, so a build makes it, and no package manifest declares it; name the committed source it is generated from',
+};
+/** Why none of `standings` is good enough for a path, worst last. */
+const why = (standings) => WHY_NOT[standings.includes('undeclared') ? 'undeclared' : standings.includes('outside') ? 'outside' : 'absent'];
+
+// ── What the packages export ──────────────────────────────────────────────────
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', '__tests__', 'coverage', '.claude']);
 function walk(dir, exts, out = []) {
@@ -103,9 +182,7 @@ function externalNames(spec) {
 }
 
 /** Every npm package under `packages/`, by the name it is imported under. */
-const NPM_PACKAGES = readdirSync(join(ROOT, 'packages'), { withFileTypes: true })
-  .filter((e) => e.isDirectory() && existsSync(join(ROOT, 'packages', e.name, 'package.json')))
-  .map((e) => e.name);
+const NPM_PACKAGES = [...TREE].filter((f) => /^packages\/[^/]+\/package\.json$/.test(f)).map((f) => f.split('/')[1]);
 const PACKAGE_SRC = Object.fromEntries(NPM_PACKAGES.map((dir) => [
   JSON.parse(read(join(ROOT, 'packages', dir, 'package.json'))).name,
   `packages/${dir}/src`,
@@ -172,28 +249,20 @@ for (const pj of [join(ROOT, 'package.json'),
 // ── What each document says ───────────────────────────────────────────────────
 
 /** The README of an app or a package, and the documents in its `docs` directory. */
-const ownDocs = (dir) => [
-  `${dir}/README.md`,
-  ...(existsSync(join(ROOT, dir, 'docs'))
-    ? readdirSync(join(ROOT, dir, 'docs')).filter((f) => f.endsWith('.md')).map((f) => `${dir}/docs/${f}`)
-    : []),
-];
+const ownDocs = (dir) => [`${dir}/README.md`, ...markdownIn(`${dir}/docs`)];
 
 const DOCS = [
-  ...readdirSync(join(ROOT, 'docs/builder')).filter((f) => f.endsWith('.md')).map((f) => `docs/builder/${f}`),
+  ...markdownIn('docs/builder'),
   'docs/builder/skills/README.md',
-  ...readdirSync(join(ROOT, 'docs/builder/skills'), { withFileTypes: true })
-    .filter((e) => e.isDirectory()).map((e) => `docs/builder/skills/${e.name}/SKILL.md`),
+  ...[...TREE].filter((f) => /^docs\/builder\/skills\/[^/]+\/SKILL\.md$/.test(f)),
   'README.md',
-  ...readdirSync(join(ROOT, 'docs/builder/react-ui')).filter((f) => f.endsWith('.md')).map((f) => `docs/builder/react-ui/${f}`),
+  ...markdownIn('docs/builder/react-ui'),
   'packages/README.md',
   ...NPM_PACKAGES.flatMap((dir) => ownDocs(`packages/${dir}`)),
   'apps/README.md',
-  ...readdirSync(join(ROOT, 'apps'), { withFileTypes: true })
-    .filter((e) => e.isDirectory() && existsSync(join(ROOT, 'apps', e.name, 'README.md')))
-    .flatMap((e) => ownDocs(`apps/${e.name}`)),
-  ...readdirSync(join(ROOT, 'docs/protocol')).filter((f) => f.endsWith('.md')).map((f) => `docs/protocol/${f}`),
-  ...readdirSync(join(ROOT, 'docs/protocol/flows')).filter((f) => f.endsWith('.md')).map((f) => `docs/protocol/flows/${f}`),
+  ...[...TREE].filter((f) => /^apps\/[^/]+\/README\.md$/.test(f)).flatMap((f) => ownDocs(dirname(f))),
+  ...markdownIn('docs/protocol'),
+  ...markdownIn('docs/protocol/flows'),
 ];
 
 /** Split a document into checked code, prose, and the line each piece starts on. */
@@ -289,12 +358,13 @@ for (const doc of DOCS) {
       // README's `docs/TESTING.md` is the one beside it. The react-ui builder
       // docs live under docs/builder and still name react-ui's files.
       const pkgRoot = doc.startsWith('docs/builder/react-ui/') ? 'packages/react-ui' : doc.match(/^(?:apps|packages)\/[^/]+/)?.[0];
-      const bases = [ROOT, ...(pkgRoot ? [join(ROOT, pkgRoot)] : [])];
-      if (!bases.some((base) => existsSync(join(base, m[1])))) report(doc, line, 'path', m[1]);
+      const standings = [m[1], ...(pkgRoot ? [join(pkgRoot, m[1])] : [])].map(standing);
+      if (!standings.some((is) => is === 'held' || is === 'built')) report(doc, line, 'path', `${m[1]} — ${why(standings)}`);
     }
     if (doc.startsWith('apps/browser')) {
       for (const m of t.matchAll(/(?:^|[\s`(['"])(src\/[\w.\-/[\]@]+\.[a-z]{2,5})(?=[\s`)'",:;]|$)/g)) {
-        if (!existsSync(join(ROOT, 'apps/browser', m[1]))) report(doc, line, 'path', m[1]);
+        const is = standing(join('apps/browser', m[1]));
+        if (is !== 'held') report(doc, line, 'path', `${m[1]} — ${why([is])}`);
       }
     }
   };
@@ -305,7 +375,8 @@ for (const doc of DOCS) {
       const target = m[1].split('#')[0];
       if (!target || /^[a-z]+:/i.test(target) || isAbsolute(target)) continue;
       let decoded = target; try { decoded = decodeURIComponent(target); } catch {}
-      if (!existsSync(join(dirname(abs), decoded))) report(doc, p.line, 'link', target);
+      const is = standing(join(dirname(doc), decoded));
+      if (is !== 'held') report(doc, p.line, 'link', `${target} — ${is === 'built' || is === 'undeclared' ? 'git ignores it, so a reader of the repository cannot open it' : why([is])}`);
     }
   }
 }
