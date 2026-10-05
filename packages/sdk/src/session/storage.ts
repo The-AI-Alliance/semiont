@@ -179,10 +179,15 @@ function isKnowledgeBase(entry: unknown): entry is KnowledgeBase {
   if (typeof e.did !== 'string') return false;
   const ep = e.endpoint as Record<string, unknown> | undefined;
   if (!ep || typeof ep !== 'object') return false;
-  return ep.kind === 'http'
-    && typeof ep.host === 'string'
-    && typeof ep.port === 'number'
-    && (ep.protocol === 'http' || ep.protocol === 'https');
+  if (ep.kind === 'http') {
+    return typeof ep.host === 'string'
+      && typeof ep.port === 'number'
+      && (ep.protocol === 'http' || ep.protocol === 'https');
+  }
+  if (ep.kind === 'local') {
+    return typeof ep.kbId === 'string';
+  }
+  return false;
 }
 
 /**
@@ -240,9 +245,11 @@ export function isValidHostname(host: string): boolean {
 }
 
 /**
- * Build the wire URL for a KB endpoint. It lives next to the KB list
- * machinery because the frontend Panel needs it for the auth round-trip
- * when adding a KB.
+ * Build the wire URL for an HTTP KB endpoint. HTTP-shaped helper —
+ * lives next to the KB list machinery because the frontend Panel needs
+ * it for the auth round-trip when adding a KB. Code that holds a
+ * uniform `KnowledgeBase` should not call this; it should hand the KB
+ * to a transport factory and let the factory inspect `endpoint.kind`.
  */
 export function kbGatewayUrl(endpoint: HttpEndpoint): string {
   if (!isValidHostname(endpoint.host)) {
