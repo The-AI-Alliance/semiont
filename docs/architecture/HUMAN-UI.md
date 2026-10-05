@@ -45,7 +45,7 @@ For working in the Browser (getting it, signing in, annotating, shortcuts, acces
 
 The SPA is internally a literal Model–View–StateUnit split:
 
-- **Model** — `@semiont/sdk` namespaces (frame, browse, mark, bind, gather, match, yield, beckon), typed RxJS Observables, per-key caches, and bus-driven invalidation.
+- **Model** — `@semiont/sdk` namespaces (yield, mark, bind and frame, which write; browse, match and gather, which read; beckon, which directs attention), typed RxJS Observables, per-key caches, and bus-driven invalidation.
 - **StateUnit** — one factory per flow that holds state (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`) plus page-level composite state units; pure RxJS, framework-agnostic, unit-testable without a renderer.
 - **View** — React components in `@semiont/react-ui` and `apps/browser`, reduced to three adapters (`useSessionStateUnit`, `useStateUnit`, `useObservable`) plus JSX. No component-owned fetching, caching, or subscription management.
 
