@@ -79,11 +79,10 @@ await makeMeaning.stop();
 
 ## Documentation
 
-- [Architecture](docs/architecture.md): each actor, the knowledge base's stores, the order things start in.
-- [API reference](docs/api-reference.md): what each actor answers, and the context modules.
-- [Scripting](docs/SCRIPTING.md) and [Examples](docs/examples.md): a knowledge base in your own process.
-- [Job workers](docs/job-workers.md): how the worker meets this package.
+- [Architecture](docs/architecture.md): what each actor answers, who a write is attributed to, the knowledge base's stores, the context modules, the order things start in.
+- [Scripting](docs/SCRIPTING.md): a knowledge base in your own process, and what such a process does not have.
 - [The actor model](../../docs/architecture/ACTOR-MODEL.md): the design this implements.
+- [Workers](../jobs/docs/Workers.md): the worker, in `@semiont/jobs`.
 
 ## License
 

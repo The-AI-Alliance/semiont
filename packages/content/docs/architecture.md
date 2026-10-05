@@ -1,92 +1,54 @@
-# Architecture
+# Content Architecture
 
-Design principles and architectural decisions behind @semiont/content.
+Why `@semiont/content` is shaped as it is. Each call is in the [API reference](API.md). The pipeline its text extraction belongs to, from bytes to a selector on a page, is [Anchoring](../../../docs/architecture/ANCHORING.md).
 
-## Design Principles
+## The working tree is the record of content
 
-### 1. The Working Tree Is the Source of Truth
-
-File content lives in the project working tree — ordinary files at ordinary paths, browsable with ordinary tools. The store does not copy bytes into a private blob directory; it reads and writes the files users see.
+A resource's content is an ordinary file at an ordinary path in the knowledge base's working tree, readable with ordinary tools. The store does not copy bytes into a directory of its own. It reads and writes the files a person sees.
 
 ```
-my-project/                  ← project root
-├── .semiont/                ← project config and event log
+my-knowledge-base/           ← the working tree
+├── .semiont/                ← configuration, and the event log
 └── docs/
     └── overview.md          ← "file://docs/overview.md"
 ```
 
-From [src/working-tree-store.ts](../src/working-tree-store.ts): `resolveUri()` maps `file://` URIs directly onto paths under the project root.
+## Named by URI, checked by checksum
 
-### 2. Identity by URI, Integrity by Checksum
+A resource's content is named by its `file://` URI, which stays the same when the content changes. A move is explicit (`move()`) and recorded as an event; it is never inferred. The SHA-256 of the content is taken on every write, and is what tells that a file on disk is still the one that was recorded.
 
-Resources are identified by their `file://` URI, which is stable across content changes. Moves are explicit (`move()`) and tracked by events, not inferred. SHA-256 checksums are recorded on every write and verified on demand:
+## Two ways bytes arrive
 
-```typescript
-// register() can verify a file hasn't changed since it was recorded
-await store.register('file://docs/overview.md', expectedChecksum);
-// throws ChecksumMismatchError on mismatch
-```
+The store separates the two by who has the bytes:
 
-This split matters: the event log references resources by URI (stable), while checksums detect divergence between the recorded state and the file on disk.
+- **`store(content, storageUri)`** writes them. The Archivist's upload path calls it, with the bytes a client sent.
+- **`register(storageUri, expectedChecksum?)`** reads a file that is already there and answers what it found. The Stower calls it when it records a resource, with the checksum the command carried, and a file that does not match is refused (`ChecksumMismatchError`).
 
-### 3. Two Write Paths
+Both answer the same `StoredResource`, so what is recorded does not depend on how the bytes came.
 
-The store distinguishes who has the bytes:
+## The store keeps git's index
 
-- **`store(content, storageUri)`** — the caller provides content and the file may not exist yet. This is the API/GUI/AI path.
-- **`register(storageUri, expectedChecksum?)`** — the file is already on disk (e.g. the user created it in their editor) and we just read, verify, and record it. This is the CLI path.
+With `[git] sync = true` in `.semiont/config`, a write is staged, a move is `git mv`, and a removal is `git rm`. The index is for people who commit by hand, so it has to be current within seconds, not after every change. One stager per repository (`createStager`) defers `git add`, drops repeats of a path that is already pending, and runs one command at a time, because git's index has one writer. A move or a removal waits for the adds queued before it.
 
-Both return the same `StoredResource` metadata, so downstream event creation is identical.
+`{ noGit: true }` skips staging for one call, for a caller that stages for itself.
 
-### 4. Git Integration, Opt-In and Per-Call Escapable
+## One process touches the tree
 
-When the project sets `[git] sync = true` in `.semiont/config`, mutating operations keep the git index in sync:
+In a running stack only the Archivist mounts the knowledge base. Every other service that needs a resource's bytes reads them from the Archivist, through `ContentReads`, which is the transport contract's byte read and nothing more. `archivistContentReads()` is that read over HTTP.
 
-| Operation | Git behavior |
-|-----------|--------------|
-| `store()`, `register()` | `git add` |
-| `move()` | `git mv` |
-| `remove()` | `git rm` (or `git rm --cached` with `keepFile`) |
+A service with no Archivist configured fails when it starts, not on its first read. A missing address is never a reason to read a tree locally: the point of one mount is that one process touches it.
 
-Every mutating method accepts `{ noGit: true }` for callers that manage staging themselves (e.g. bulk imports that stage once at the end). Without git sync, the store uses plain filesystem operations. Git commands go through one stager per repository (`createStager`), which defers and deduplicates `git add`, serializes every command, and runs each via `execFile` with an argument array — no shell interpolation.
+## Text that has to be derived
 
-### 5. Framework Independence
+Text decodes out of a text file. Out of a PDF it has to be derived, and how depends on what the document holds: a text layer is read directly, a scanned page is recognised by OCR, a table is rewritten as rows, and a form's values are folded in. `derivingExtractorFor` picks by what each page turns out to be.
 
-The package has no dependencies on web frameworks or HTTP libraries. It depends on `@semiont/core` for the `SemiontProject` and `Logger` types and the anchoring vocabulary (`AnchoredText`, `PdfTextItem`), on `pdfjs-dist` for PDF parsing and on `tesseract.js` for OCR. It runs anywhere Node runs: services, CLI, scripts, tests.
+- **No text is a named answer.** A document that gives none says why: it has no text layer, it is encrypted, it is corrupt, or it is too large.
+- **What is derived is kept.** Recognition is slow, and several services read the same document, so an outcome is stored by the checksum of the bytes it came from. That store is a cache: a miss costs time and nothing else, and a read of it never fails.
+- **One byte budget.** `MAX_PDF_BYTES` bounds what the extractor will read. The same bound is applied to what a generation writes, so Semiont does not create a resource its own extractor would decline.
+- **Geometry is in PDF points**, with the origin at the bottom left. The flip to pixels happens in the browser. The types and the arithmetic that read a page's geometry are [`@semiont/core`](../../core/README.md)'s, so the browser needs none of this package's parsers.
 
-In a running stack the store is instantiated once, by the Archivist's entry point in [@semiont/make-meaning](../../make-meaning/), which hands each actor the slice it uses. The in-process root's `createKnowledgeBase()` builds the same store as the `KnowledgeBase.content` field.
+## What it does not do
 
-## PDF Text-Layer Extraction
-
-The second half of the package extracts positioned text from native PDFs so annotations can be anchored to both character offsets and page geometry.
-
-- [src/extract-pdf-text-layer.ts](../src/extract-pdf-text-layer.ts) walks every page with pdfjs-dist's `getTextContent()`, concatenating runs into a single reading-order `text` string and recording each run's `[start, end)` character range plus its PDF-point geometry. Scanned/image-only PDFs (no text items) return `null`.
-- `locate`, in `@semiont/core`'s [pdf-anchoring.ts](../../core/src/pdf-anchoring.ts), answers the reverse question: given a character span of `text`, which rectangles on which pages does it cover? Overlapping runs are grouped by page, then into lines (runs whose baselines are within 2pt), producing one bounding rectangle per line.
-
-Server and browser split the coordinate work: everything here is in PDF point space with a bottom-left origin (the server has no canvas); the browser performs the Y-flip and scaling when rendering highlights. The shared `PdfCoordinate` type and the viewrect FragmentSelector codec live in `@semiont/core`.
-
-## Separation of Concerns
-
-```
-┌──────────────────────────────────────┐
-│            @semiont/content          │
-│                                      │
-│  WorkingTreeStore   PDF extraction   │
-│  files + git index  text layer + OCR │
-│                                      │
-│  checksum utils     content reads    │
-└──────────────────────────────────────┘
-        ▲
-        │ instantiated by
-┌──────────────────────────────────────┐
-│        @semiont/make-meaning         │
-│  the Archivist's composition root    │
-│  events, views, graph, vectors       │
-└──────────────────────────────────────┘
-```
-
-What this package deliberately does **not** do:
-
-- **No event sourcing** — recording *that* a resource was created/moved/removed is the event store's job; this package only touches bytes.
-- **No metadata persistence** — `StoredResource` is returned to the caller, who records it in events. The store keeps no database of its own.
-- **No HTTP serving** — the one HTTP caller here is `archivistContentReads`, which fetches bytes from the Archivist; the routes themselves belong to the Archivist and the gateway.
+- **It records nothing.** That a resource was created, moved or removed is the event log's to say. The store answers what it wrote, and the caller records it.
+- **It serves nothing.** The routes that upload and download content are the Archivist's and the gateway's.
+- **It does not decide which media types are admitted.** That registry, and `deriveStorageUri`, which names a file from a resource's name and type, are `@semiont/core`'s.

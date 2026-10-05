@@ -1,25 +1,12 @@
-# Graph Database API Reference
+# Graph API Reference
 
-## Overview
+How to make a graph store and query it. What the graph is for, and how it stays right, is [Architecture](ARCHITECTURE.md).
 
-The `@semiont/graph` package provides a unified interface for graph databases with support for multiple providers: Neo4j, AWS Neptune, JanusGraph, and in-memory.
+## The contract
 
-## GraphDatabase Interface
+Every store implements `GraphDatabase`, in [`src/interface.ts`](../src/interface.ts). That file is the reference for each method and its types. In outline it has: connecting; writing and reading resources and annotations, one at a time and in bulk; resolving a reference; what refers to a resource, and a resource's connections; statistics; and the entity-type collection.
 
-All implementations conform to the `GraphDatabase` interface defined in [src/interface.ts](../src/interface.ts). See [GraphInterface.md](./GraphInterface.md) for the full contract and type definitions.
-
-Method groups at a glance:
-
-- **Connection management** — `connect()`, `disconnect()`, `isConnected()`
-- **Resource operations** — `createResource()`, `getResource()`, `updateResource()`, `deleteResource()`, `listResources()`
-- **Annotation operations** — `createAnnotation()`, `getAnnotation()`, `updateAnnotation()`, `deleteAnnotation()`, `listAnnotations()`
-- **Highlights and references** — `getHighlights()`, `resolveReference()`, `getReferences()`, `getEntityReferences()`
-- **Relationship queries** — `getResourceAnnotations()`, `getResourceReferencedBy()`
-- **Graph traversal** — `getResourceConnections()`, `findPath()`
-- **Analytics** — `getEntityTypeStats()`, `getStats()`
-- **Bulk operations** — `batchCreateResources()`, `createAnnotations()`, `resolveReferences()`
-- **Tag collections** — `getEntityTypes()`, `addEntityType()`, `addEntityTypes()`
-- **Utility** — `generateId()`, `clearDatabase()`
+Its types are [`@semiont/core`](../../core/README.md)'s: a resource is a `ResourceDescriptor`, an annotation is an `Annotation`, and each is named by an id of its own kind.
 
 ## Factory
 
@@ -35,13 +22,13 @@ await closeGraphDatabase();
 
 `createGraphDatabase(config)` is the non-singleton variant; it takes the factory's own flat config (`{ type, neo4jUri, neo4jUsername, … }`) rather than a `GraphServiceConfig`, and instantiates without connecting.
 
-## Provider Implementations
+## The stores
 
-All implementations are exported from the package root. Drivers (`neo4j-driver`, `gremlin`) are optional peer dependencies, loaded dynamically on `connect()`.
+Each store is exported from the package root. A database's driver (`neo4j-driver`, `gremlin`) is an optional peer dependency, loaded when the store connects.
 
 ### Neo4j
 
-Native graph database with Cypher query language.
+In Cypher. It is the store a stack started by the launcher runs.
 
 ```typescript
 import { Neo4jGraphDatabase } from '@semiont/graph';
@@ -60,7 +47,7 @@ All four fields are required at connect time.
 
 ### AWS Neptune
 
-Managed graph database supporting Gremlin.
+In Gremlin.
 
 ```typescript
 import { NeptuneGraphDatabase } from '@semiont/graph';
@@ -78,7 +65,7 @@ If `endpoint` is omitted, the cluster endpoint is discovered at connect time via
 
 ### JanusGraph
 
-Distributed graph database with pluggable storage and index backends.
+In Gremlin.
 
 ```typescript
 import { JanusGraphDatabase } from '@semiont/graph';
@@ -95,9 +82,9 @@ await graph.connect();
 
 `host` and `port` are required at connect time.
 
-### In-Memory
+### In-memory
 
-JavaScript implementation for development and testing.
+The contract in one process's memory, for tests. The Weaver, the Archivist and the Librarian refuse it, because it could not be shared between them.
 
 ```typescript
 import { MemoryGraphDatabase } from '@semiont/graph';
@@ -106,28 +93,16 @@ const graph = new MemoryGraphDatabase();
 await graph.connect(); // No-op for memory
 ```
 
-## Data Model
+## What differs between stores
 
-The graph stores W3C-compliant types from `@semiont/core`.
+Callers are written to the contract and never ask which store they hold. Two things differ underneath:
 
-### Resource Vertex
+| | Neo4j | Neptune, JanusGraph | In-memory |
+|---|---|---|---|
+| A property that is a list | Stored as a list | Stored as a JSON string, parsed on the way out | A JavaScript array |
+| A link to a resource that is not in the graph yet | Makes a stub, filled in when the resource arrives | Needs the resource to be there | Needs no target: the link is part of the annotation |
 
-A `ResourceDescriptor` — JSON-LD metadata about a resource (`@context`, `@id`, `name`, `representations` required; plus `entityTypes`, `dateCreated`, `archived`, and other optional fields).
-
-### Annotation Vertex
-
-A W3C Web Annotation (`Annotation` from `@semiont/core`): `id`, `motivation`, `target` (source resource plus optional selector), optional `body`, `creator`, and `created`. In Neo4j, annotations also get a label derived from their motivation (e.g. `:Annotation:Linking`) for fast filtering.
-
-### Other Vertices
-
-- **EntityType** — one vertex per entity type tag, linked from annotations
-- **TagCollection** — append-only collections of known entity types
-
-### Edges
-
-- **BELONGS_TO** — Annotation → Resource it annotates (target source)
-- **REFERENCES** — Annotation → Resource it links to (if resolved)
-- **TAGGED_AS** — Annotation → EntityType
+The second row matters to whoever writes events to a store, and is explained in [Architecture](ARCHITECTURE.md#writes-that-take-any-order).
 
 ## Query Patterns
 
@@ -173,18 +148,3 @@ const connections = await graph.getResourceConnections(resourceId);
 // Paths between two resources (up to maxDepth hops)
 const paths = await graph.findPath(fromResourceId, toResourceId, 3);
 ```
-
-## Provider-Specific Features
-
-### Array Property Handling
-
-Different databases handle arrays differently:
-
-| Provider | Storage | Retrieval |
-|----------|---------|-----------|
-| Neo4j | Native arrays | Direct access |
-| Neptune | JSON strings | Parse after retrieval |
-| JanusGraph | JSON strings | Parse after retrieval |
-| Memory | JavaScript arrays | Direct access |
-
-This is internal to each implementation — the `GraphDatabase` interface always returns parsed values.

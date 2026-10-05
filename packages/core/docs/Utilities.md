@@ -1,18 +1,8 @@
-# Utility Functions Guide
+# Core Utilities
 
-Framework-agnostic utilities for working with W3C annotations, events, and resources. These utilities work in any JavaScript environment (Node.js, Browser, Deno, etc.) and have **zero React dependencies**.
+The small helpers of `@semiont/core`, each with a worked example: text encoding, the context around a span of text, anchoring an annotation to its text, SVG selectors, and reading a resource's description. The larger areas of the package are in the [API tour](API.md).
 
-## Table of Contents
-
-- [Text Encoding](#text-encoding)
-- [Text Context Extraction](#text-context-extraction)
-- [Render-Time Anchoring](#render-time-anchoring)
-- [SVG Utilities](#svg-utilities)
-- [Tag Schemas](#tag-schemas)
-- [Annotation Utilities](#annotation-utilities)
-- [Event Utilities](#event-utilities)
-- [Resource Utilities](#resource-utilities)
-- [Validation Utilities](#validation-utilities)
+All of them are plain functions in the main import, which runs in a browser as well as in Node.
 
 ## Text Encoding
 
@@ -304,58 +294,6 @@ console.log(nativeSvg);
 
 Image annotations must be stored using **native image coordinates**, not display coordinates. Otherwise, annotations will break when the image is displayed at different sizes.
 
-## Tag Schemas
-
-Structural-analysis frameworks for document classification. A `TagSchema` defines categories that passages can be classified into based on their structural role (e.g. IRAC for legal reasoning, IMRAD for scientific papers, Toulmin for argumentation).
-
-Tag schemas are **runtime-registered per knowledge base** via `frame.addTagSchema(...)` from the SDK. The `TagSchema` and `TagCategory` *types* are exported from `@semiont/core`; the schema *data* lives with the KB that uses it (typically a `src/tag-schemas.ts` module in the KB repo). See [`docs/builder/skills/semiont-tag/SKILL.md`](../../../docs/builder/skills/semiont-tag/SKILL.md) for the full protocol-level story.
-
-### Type Shape
-
-```typescript
-import type { TagSchema, TagCategory } from '@semiont/core';
-
-interface TagSchema {
-  id: string;
-  name: string;
-  description: string;
-  domain: string;        // free-form hint ('legal', 'scientific', 'general', or whatever the KB uses)
-  tags: TagCategory[];
-}
-
-interface TagCategory {
-  name: string;
-  description: string;
-  examples: string[];
-}
-```
-
-### Registering and enumerating
-
-```typescript
-import { SemiontSession, type TagSchema } from '@semiont/sdk';
-
-const session = await SemiontSession.signInDevice({ /* kb, storage, onCode */ });
-const semiont = session.client;
-
-// Register at runtime — idempotent (same content re-registered is silent)
-const SCHEMA: TagSchema = { id: 'my-schema', name: '...', /* ... */ };
-await semiont.frame.addTagSchema(SCHEMA);
-
-// Enumerate registered schemas (cached, refreshes on frame:tag-schema-added)
-const all = await semiont.browse.tagSchemas().fresh();
-```
-
-**Use Case:** Tag schemas enable AI-powered structural analysis of documents — `mark.assist(rid, 'tagging', { schemaId, categories })` detects which passages serve as Issue / Rule / Application / Conclusion in a legal brief, or Introduction / Methods / Results / Discussion in a research paper.
-
-## Annotation Utilities
-
-See the [core package README](../README.md) for annotation manipulation functions.
-
-## Event Utilities
-
-`getAnnotationIdFromEvent` returns the id of the annotation a stored event is about, and `isStoredEvent` is the type guard for a stored event. See the [core package README](../README.md) for the persisted event types.
-
 ## Resource Utilities
 
 Helper functions for working with W3C ResourceDescriptor objects.
@@ -422,51 +360,3 @@ const mediaType = getPrimaryMediaType(resource) || 'text/plain';
 const content = decodeRepresentation(buffer, mediaType);
 // Handles UTF-8, ISO-8859-1, Windows-1252, etc.
 ```
-
-See also the [core package README](../README.md) for complete documentation.
-
-## Validation Utilities
-
-See the [core package README](../README.md) for validation functions.
-
-## Type Safety
-
-All utilities use TypeScript interfaces for type safety:
-
-```typescript
-import type { TextPosition, Point, BoundingBox } from '@semiont/core';
-
-// TextPosition interface
-interface TextPosition {
-  start: number;
-  end: number;
-}
-
-// Point interface (for SVG)
-interface Point {
-  x: number;
-  y: number;
-}
-
-// BoundingBox interface
-interface BoundingBox {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-```
-
-## Framework Independence
-
-All utilities are **pure TypeScript functions** with zero dependencies on React, Vue, Angular, or any other framework. They work anywhere JavaScript runs:
-
-- ✅ Node.js (CLI tools, MCP servers)
-- ✅ Browser (React, Vue, vanilla JS)
-- ✅ Deno
-- ✅ Bun
-- ✅ Edge runtimes (Cloudflare Workers, Vercel Edge)
-
-## See Also
-
-- [README](../README.md) - Package overview

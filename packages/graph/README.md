@@ -57,17 +57,16 @@ const { resources } = await graph.listResources({ entityTypes: ['Person'] });
 ## What a change must keep
 
 - **The graph is derived.** Everything in it can be made again from the record, and the Weaver catches it up when it starts. It is never the source of truth, and nothing writes to it but the Weaver.
-- **Writes are idempotent and take any order.** Events for different resources reach the graph in no fixed order, so a write never assumes the thing it points at is there yet. [Eventual Consistency](docs/EVENTUAL-CONSISTENCY.md) is how.
+- **Writes are idempotent and take any order.** Events for different resources reach the graph in no fixed order, so a write never assumes the thing it points at is there yet. The Neo4j store is built that way, and [Architecture](docs/ARCHITECTURE.md#writes-that-take-any-order) says how. The Gremlin stores are not.
 - **Reading a single document needs no graph.** A resource, its annotations and their changes come from the record's views. The graph answers what crosses documents, and a reader degrades, rather than fails, when it lags.
 - **Callers never ask which database they hold.** They are written to `GraphDatabase`.
 - **A memory graph is for one process.** The Weaver, the Archivist and the Librarian refuse it, because it could not be shared between them.
 
 ## Documentation
 
-- [API reference](docs/API.md): the factory, each database's configuration, the data model and query patterns.
-- [GraphDatabase interface](docs/GraphInterface.md): the whole contract.
-- [Architecture](docs/ARCHITECTURE.md): the projection, and what works without it.
-- [Eventual Consistency](docs/EVENTUAL-CONSISTENCY.md): order-independent writes.
+- [Architecture](docs/ARCHITECTURE.md): what the graph is for, what it holds, writes that take any order, and what happens when it lags.
+- [API reference](docs/API.md): the factory, each store's configuration, what differs between stores, and query patterns.
+- [`src/interface.ts`](src/interface.ts): the whole contract.
 
 ## License
 

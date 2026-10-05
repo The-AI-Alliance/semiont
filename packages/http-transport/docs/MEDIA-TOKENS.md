@@ -30,7 +30,7 @@ const url = `${client.baseUrl}/api/resources/${resourceId}?token=${token}`;
 // Pass url to <img src>, pdfjsLib.getDocument({ url }), etc.
 ```
 
-`auth.mediaToken` calls `POST /api/tokens/media` with the resource ID and returns `{ token: string }`.
+`auth.mediaToken` calls `POST /api/tokens/media` with the resource ID and returns `{ token: string }`. `client.auth` is there on any client built over `HttpTransport`. The URL has to be absolute and has to carry `?token=`: a relative one resolves against the page's origin, not the gateway's.
 
 ## React hook
 
@@ -44,10 +44,10 @@ const { token, loading } = useMediaToken(client, resourceId);
 ```
 
 - The hook fetches a token on mount and then refreshes it every 4 minutes via `setInterval` — ahead of the 5-minute expiry. The 1-minute margin absorbs clock skew and request latency so a fetch in flight when the token rolls over still completes against a valid token.
-- The hook is per-resource
-- `token` is `undefined` while loading
+- One hook holds the token of one resource.
+- `token` is `undefined` while the first fetch is in flight, and when it failed.
 
-`ResourceViewerPage` in `@semiont/react-ui` calls this hook automatically for any resource whose media type renders as `'image'` or `'pdf'` (the `render` mode `capabilitiesOf` from `@semiont/core` reports). Callers of `ResourceViewerPage` do not need to manage media tokens directly.
+`ResourceViewerPage` in `@semiont/react-ui` calls this hook for any resource whose media type renders as `'image'` or `'pdf'` (the `render` mode `capabilitiesOf` from `@semiont/core` reports), and its download link calls it for every resource. Callers of `ResourceViewerPage` do not manage media tokens.
 
 ## Data flow for binary resources
 

@@ -122,6 +122,16 @@ The single write path to the Knowledge Base event log — no other code calls `e
 
 `job:report-progress` is ephemeral UI feedback — the Stower does not subscribe to it and nothing is persisted.
 
+#### Who a write is attributed to
+
+A write says nothing about who made it. The Stower derives an annotation's or a resource's `creator`, `generator` and `wasAttributedTo` from two identities the gateway verified, and `attribution()` in `@semiont/core` is the one place those fields are built (`lint:attribution` fails the build if a second appears):
+
+- **`creator`** is whoever asked for the work. For a write that cites no job, that is the writer. For one that cites a `jobId`, it is the DID that emitted the `job:create`, as the dispatcher recorded it on `job:assigned`. A payload that names a `creator` is refused.
+- **`generator`** is the writer, when the writer is software. A worker may send one to carry the model's parameters, but its identity has to be the writer's own. One that names anyone else is refused, and one left out is filled in from the writer.
+- **`wasAttributedTo`** is both, requester first, or one when they are the same agent.
+
+To check a write that cites a job, the Stower reads the `job:assigned` record for that job on the resource's own log. A job with no assignment there is refused, and so is a write by anyone but the job's recorded holder. A writer with the worker role that cites no job is refused too, on `mark:commit` and on `yield:create`: "no job, so self-initiated" is true of a person and of an autonomous agent, and a silent lie for a worker that forgot the field.
+
 ### Browser (Read Actor)
 
 **Implementation**: [src/browser.ts](../src/browser.ts)
@@ -243,25 +253,29 @@ The Knowledge Base is not an intelligent actor. It has no goals, preferences, or
 
 **Implementation**: [src/knowledge-base.ts](../src/knowledge-base.ts)
 
-```typescript
-export interface KnowledgeBase {
-  eventStore:     EventStore;        // Event Log (immutable append-only)
-  views:          ViewStorage;       // Materialized Views (fast reads)
-  content:        WorkingTreeStore;  // Content Store (working-tree files, URI-addressed)
-  anchoredText:   AnchoredTextStore; // Derived coordinate maps for recovered text
-  graph:          GraphDatabase;     // Graph (eventually consistent)
-  weaveProgress:  WeaveProgress;     // weave:applied fold — the graph-projection barrier
-  smeltProgress:  SmeltProgress;     // smelt:settled fold — the vector-projection barrier
-  vectors:        VectorStore;       // Vector index (Qdrant / memory) — mandatory
-  projectionsDir: string;
-}
-```
+| Member | What it is | From |
+|---|---|---|
+| `eventStore` | The event log: immutable, append-only, the record | [`@semiont/event-sourcing`](../../event-sourcing/README.md) |
+| `views` | The materialized views, written inside each append | `@semiont/event-sourcing` |
+| `content` | The working tree's files, by URI | [`@semiont/content`](../../content/README.md) |
+| `anchoredText` | Text derived from files that carry none, with its geometry | `@semiont/content` |
+| `graph` | The graph, eventually consistent | [`@semiont/graph`](../../graph/README.md) |
+| `vectors` | The vector index. Required | [`@semiont/vectors`](../../vectors/README.md) |
+| `weaveProgress` | The fold of `weave:applied`: the barrier a graph read waits at | here |
+| `smeltProgress` | The fold of `smelt:settled`: the barrier a vector read waits at | here |
+| `projectionsDir` | Where the system-wide projections are | |
 
 The `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options)` factory instantiates `FilesystemViewStorage`, `WorkingTreeStore` and the anchored-text store once, constructs the `WeaveProgress` and `SmeltProgress` folds, and (unless `options.skipRebuild`) rebuilds the materialized views from the event log. `options.vectorStore` is required — a KB without vector search is not a supported configuration. The graph is NOT rebuilt here — the standalone Weaver catches up from its checkpoint. Actors and context modules receive Pick-derived slices of this interface, which a full `KnowledgeBase` satisfies structurally — except the gather paths' slices, whose `content` and `anchoredText` in-process roots wrap around `kb`.
 
 ## Operations
 
 `AnnotationOperations` (here) and `ResourceOperations` (in `@semiont/core`) are thin facades over the bus: `ResourceOperations` awaits its reply through `busRequest`, `AnnotationOperations` emits its command and returns. Neither writes KB stores — the Stower handles persistence.
+
+| `AnnotationOperations` | |
+|---|---|
+| `createAnnotation` | Refuses a target whose media type cannot carry a coordinate, assembles the W3C annotation (body, target and `created`, no `creator`), emits `mark:create`, and returns what it assembled |
+| `updateAnnotationBody` | Reads the annotation from the views, emits `mark:update-body`, and returns the annotation with the operations applied |
+| `deleteAnnotation` | Checks that the resource's view holds the annotation, then emits `mark:delete` |
 
 ```
 ResourceOperations.createResource(input, { did: userId, roles: [] }, bus)
@@ -270,13 +284,28 @@ ResourceOperations.createResource(input, { did: userId, roles: [] }, bus)
       → matched on correlationId; resolves to the new ResourceId
 ```
 
-## Worker Architecture
+## Context modules
 
-Workers live in `@semiont/jobs`, not in this package. They run as a separate process, subscribe to the bus `job:queued` channel over SSE, and claim jobs via the `job:claim` request/response protocol — there is no polling loop. Workers are **not** actors — they claim and process jobs rather than subscribing to a reducer.
+The readers the actors are built from. Each is a class of static functions that takes the slice of the knowledge base it reads, so each can be called on its own.
 
-Workers emit `mark:commit` and the job lifecycle events (`job:start`, `job:report-progress`, `job:complete`, `job:fail`) on the bus via their session's transport. The Stower handles all persistence.
+| Function | Gives | Used by |
+|---|---|---|
+| `ResourceContext.getResourceMetadata` | A resource's descriptor from its view, or `null` | Browser, CloneTokenManager, both gather paths |
+| `ResourceContext.listResources` | A page of resources with `total`, the size of the whole match set, and `matchKind`. A `search` goes to the graph's lexical index, and a listing with none reads the views. When a lexical search's first page is empty, the vector index answers, and `matchKind` is `'semantic'` | Browser |
+| `ResourceContext.addContentPreviews` | The same resources, each with its content as text | Browser |
+| `ResourceContext.getResourceContent` | A resource's text. The media type decides where it comes from: decoded from its bytes, asked of the anchored text for a PDF, or `undefined` for a type with none | Both gather paths |
+| `AnnotationContext.getResourceAnnotations`, `getAllAnnotations`, `getAnnotation` | A resource's annotations from its view: the view with its version, the list alone, or one | Browser, `AnnotationOperations` |
+| `AnnotationContext.buildLLMContext` | The `GatheredContext` for an annotation: the passage and what surrounds it, the resource, `semanticContext` from the vector index, the graph neighbourhood, and a summary of how the passage relates to it when an inference client is given | Gatherer |
+| `LLMContext.getResourceContext` | The `GatheredContext` for a resource | Gatherer |
+| `GraphContext.buildKnowledgeGraph` | A resource's neighbourhood as a `KnowledgeGraph`: resources and annotations as typed nodes, typed directed edges, inbound citations included | Both gather paths |
 
-See [Job Workers](./job-workers.md) for details.
+The two gather paths do not take the working tree. Their `content` is a read by `ResourceId` (`ContentReads`) and their `anchoredText` is a read over the bus, so that the Librarian, which mounts nothing, runs the same code as a process that holds the stores.
+
+A gather waits for the projections it reads, within bounds. A graph read waits at `weaveProgress.whenApplied` for under a second. A resource gather waits at `smeltProgress.whenSettled` for up to `gather.settleTimeoutMs`. Past either bound the gather goes on without that part, and counts the degrade (`recordGatherDegrade`).
+
+## Workers
+
+Workers are not in this package and are not actors. They are [`@semiont/jobs`](../../jobs/README.md): a separate process that claims jobs from the dispatcher over the bus and commits what it produces with `mark:commit`, which the Stower answers once the annotations are in the log. [Workers](../../jobs/docs/Workers.md) describes the worker; [who a write is attributed to](#who-a-write-is-attributed-to) is the part this package decides.
 
 ## Initialization Order
 
@@ -303,25 +332,7 @@ In the split deployment no root builds a subset: each service's `*-main` compose
 
 All paths are resolved through `SemiontProject` (from `@semiont/core/node`) using XDG base directories. `project.stateDir` resolves to `$XDG_STATE_HOME/semiont/{project}/`; `XDG_STATE_HOME` has no default, and constructing a project without it throws.
 
-### Event Store
-
-Append-only log of domain events — the system of record, committed to version control:
-
-```
-.semiont/events/{shard}/{resourceId}/events-{seq}.jsonl
-```
-
-### View Storage
-
-Projections of current state rebuilt from events:
-
-```
-{stateDir}/resources/{shard}/{resourceId}.json
-```
-
-### Content Store
-
-Resources reference their content via `storageUri` (e.g. `file://README.md`). Semiont reads files where they live in the working tree.
+The event log is committed with the knowledge base, under `.semiont/events/`. The views are under `stateDir` and can be rebuilt from it. [Storage layout](../../event-sourcing/docs/STORAGE-LAYOUT.md) has both trees. A resource's content is the file its `storageUri` names in the working tree (`file://README.md`), read where it lives: [`@semiont/content`](../../content/docs/architecture.md).
 
 ## Why the Stower and the Browser share a process
 
@@ -340,5 +351,5 @@ This pattern (functional core, imperative shell) is shared with `@semiont/event-
 ## See Also
 
 - [ACTOR-MODEL.md](../../../docs/architecture/ACTOR-MODEL.md) — System-wide actor model
-- [API Reference](./api-reference.md) — Context modules and operations
-- [Job Workers](./job-workers.md) — Worker implementations in @semiont/jobs
+- [Scripting](./SCRIPTING.md) — A knowledge base in your own process
+- [Workers](../../jobs/docs/Workers.md) — The worker, in `@semiont/jobs`

@@ -4,9 +4,9 @@
 
 Modular packages for the Semiont platform. For the layered design, dependency graph, and architectural principles that organize them, see **[docs/architecture/PACKAGE-ARCHITECTURE.md](../docs/architecture/PACKAGE-ARCHITECTURE.md)**.
 
-## Published Packages
+## npm Packages
 
-An application installs [`@semiont/sdk`](./sdk/), and [`@semiont/react-ui`](./react-ui/) if it has a UI. [`@semiont/mcp-server`](./mcp-server/) is a tool in its own right. The rest are what Semiont's services are built from: each README says who uses the package and what a change to it must keep.
+An application installs [`@semiont/sdk`](./sdk/), and [`@semiont/react-ui`](./react-ui/) if it has a UI. [`@semiont/mcp-server`](./mcp-server/) is a tool in its own right, run from a checkout. The rest are what Semiont's services are built from: each README says who uses the package and what a change to it must keep.
 
 | Package | Version | Source | Description |
 | ------- | ------- | ------ | ----------- |
@@ -18,7 +18,7 @@ An application installs [`@semiont/sdk`](./sdk/), and [`@semiont/react-ui`](./re
 | [@semiont/inference](https://www.npmjs.com/package/@semiont/inference) | [![npm](https://img.shields.io/npm/v/@semiont/inference)](https://www.npmjs.com/package/@semiont/inference) | [inference](./inference/) | The model providers the services call, behind one interface: text and structured generation, discovered limits (Anthropic, Ollama) |
 | [@semiont/jobs](https://www.npmjs.com/package/@semiont/jobs) | [![npm](https://img.shields.io/npm/v/@semiont/jobs)](https://www.npmjs.com/package/@semiont/jobs) | [jobs](./jobs/) | The job worker: processors for each job type, the `worker-main` container entry point for `semiont-worker`, and the job-claim adapter |
 | [@semiont/make-meaning](https://www.npmjs.com/package/@semiont/make-meaning) | [![npm](https://img.shields.io/npm/v/@semiont/make-meaning)](https://www.npmjs.com/package/@semiont/make-meaning) | [make-meaning](./make-meaning/) | Knowledge-base actor implementations (Stower, Browser, CloneTokenManager, Gatherer, Matcher, Smelter, Weaver), the four container entry points they run under (`archivist-main`, `librarian-main`, `smelter-main`, `weaver-main`), and the `startMakeMeaning()` in-process root |
-| [@semiont/mcp-server](https://www.npmjs.com/package/@semiont/mcp-server) | - | [mcp-server](./mcp-server/) | Model Context Protocol server — exposes Semiont as an MCP tool for Claude Desktop and other MCP clients |
+| [@semiont/mcp-server](./mcp-server/) | Not on npm: built from a checkout | [mcp-server](./mcp-server/) | Model Context Protocol server: ten tools over a knowledge base, for Claude Desktop and other MCP clients |
 | [@semiont/observability](https://www.npmjs.com/package/@semiont/observability) | [![npm](https://img.shields.io/npm/v/@semiont/observability)](https://www.npmjs.com/package/@semiont/observability) | [observability](./observability/) | OpenTelemetry helpers for the TypeScript services and transports: `withSpan`, trace context across the bus, metric recorders, the process logger. No-op when no exporter is configured |
 | [@semiont/ontology](https://www.npmjs.com/package/@semiont/ontology) | [![npm](https://img.shields.io/npm/v/@semiont/ontology)](https://www.npmjs.com/package/@semiont/ontology) | [ontology](./ontology/) | The entity types a knowledge base starts with, and the readers of entity types and tags on an annotation |
 | [@semiont/react-ui](https://www.npmjs.com/package/@semiont/react-ui) | [![npm](https://img.shields.io/npm/v/@semiont/react-ui)](https://www.npmjs.com/package/@semiont/react-ui) | [react-ui](./react-ui/) | React components and hooks; `useStateUnit` / `useObservable` adapters over the SDK's state-unit layer |

@@ -55,11 +55,10 @@ Adding a job type starts in the spec, not here: [Workers](docs/Workers.md#adding
 
 ## Documentation
 
-- [Workers](docs/Workers.md): how a worker runs, where content comes from, how it emits, adding a job type.
-- [Job types](docs/JobTypes.md): each type's params, result and progress.
+- [Workers](docs/Workers.md): how a worker runs, where content comes from, how it emits, a worker written outside this package, adding a job type.
+- [Job types](docs/JobTypes.md): a job's states, the six types, and what each one's params, result and progress mean.
 - [Failure discipline](docs/FailureDiscipline.md): deadlines, budgets, subdivision, verification, classification, resumption.
-- [Types](docs/TYPES.md): the discriminated unions.
-- [Configuration](docs/Configuration.md) and [API](docs/API.md).
+- [The worker service](../../apps/worker/README.md): running it.
 
 ## License
 

@@ -287,7 +287,7 @@ import { loadTomlConfig, parseEnvironment, ConfigurationError } from '@semiont/c
 import type { EnvironmentConfig, ServicesConfig } from '@semiont/core';
 ```
 
-Filesystem-backed loading (`SemiontProject`, `loadEnvironmentConfig`) is in `@semiont/core/node` — see above.
+Loading from a filesystem is on the `@semiont/core/node` subpath, which a browser cannot import: `SemiontProject`, a knowledge base at a path, and `loadEnvironmentConfig`, which reads a person's `~/.semiontconfig` merged with the knowledge base's `.semiont/config`.
 
 ## Internal Types
 

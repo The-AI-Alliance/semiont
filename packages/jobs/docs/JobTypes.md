@@ -1,435 +1,131 @@
-# Job Types Guide
+# Job Types
 
-All job types, their parameters, and their result types. Jobs use discriminated unions based on status for type safety. Progress has one shape for every job type — see [Progress](#progress).
+What a job is in the worker: its state, the six types, and what each one's params, result and progress mean.
 
-**See also**: [Type System Guide](./TYPES.md) for discriminated union architecture and type narrowing patterns.
+The types themselves are in [`src/types.ts`](../src/types.ts). The job-type list, each result, the generation params and the progress shape are the spec's, generated into `@semiont/core`. This page says what the types cannot.
 
-## Job Type Enum
+## A job is its state
+
+A job is a union discriminated by `status`, so what it carries follows from the state it is in. Every state has `metadata` and `params`.
+
+| `status` | Also carries |
+|---|---|
+| `pending` | Nothing more |
+| `running` | `startedAt`, `progress` |
+| `complete` | `startedAt`, `completedAt`, `result` |
+| `failed` | `completedAt`, `error`, and `startedAt` when it had started |
+| `cancelled` | `completedAt`, and `startedAt` when it had started |
+
+`Job<P, R>` is that union for one type's params `P` and result `R`. Each job type is an alias of it, `AnyJob` is the union of the six, and `RunningAnyJob` is what a claim returns: a worker only ever holds a job that is running.
+
+Progress is not a type parameter. It has one shape for every job type, and a job that has just been claimed has reported none:
 
 ```typescript
-type JobType =
-  | 'reference-annotation'     // Entity reference detection
-  | 'generation'               // AI content generation
-  | 'highlight-annotation'     // Key passage highlighting
-  | 'assessment-annotation'    // Evaluative assessments
-  | 'comment-annotation'       // Explanatory comments
-  | 'tag-annotation'           // Structural role tagging
-```
+import { type AnyJob } from '@semiont/jobs';
 
-## Job Metadata
-
-All jobs share common metadata:
-
-```typescript
-interface JobMetadata {
-  id: JobId;
-  type: JobType;
-  userId: UserId;         // Who requested it — the verified DID, the job's only identity
-  created: string;        // ISO 8601
-  retryCount: number;
-  maxRetries: number;
-  completedUnits?: string[];  // Checkpoint: units already persisted (the entity types
-                              // of a reference-annotation job); written by the
-                              // dispatcher from job:checkpoint and job:fail, the
-                              // retry skips them
-  unitCursors?: Record<string, UnitCursor>;  // How far each unfinished unit got —
-                                             // a retry resumes mid-unit
+function describe(job: AnyJob): string {
+  switch (job.status) {
+    case 'pending':   return 'waiting';
+    case 'running':   return 'percentage' in job.progress ? `${job.progress.percentage}%` : 'started';
+    case 'complete':  return 'done';
+    case 'failed':    return job.error;
+    case 'cancelled': return 'cancelled';
+  }
 }
 ```
 
-`userId` is the job's only identity — the DID the gateway verified on the `job:create`. The dispatcher records it as the requester when it accepts a claim, and that record is what lets the knowledge base attribute a write citing this job; a worker never states it.
+`isPendingJob`, `isRunningJob`, `isCompleteJob`, `isFailedJob` and `isCancelledJob` narrow the same way.
 
-## Reference Annotation (`reference-annotation`)
+## Metadata
 
-Entity reference detection — finds named entities (people, organizations, locations) in a resource using AI inference.
+| Field | |
+|---|---|
+| `id`, `type`, `created` | The job, its type, and when it was created |
+| `userId` | Who asked for it: the DID the gateway verified on `job:create`. It is the only identity a job carries |
+| `retryCount`, `maxRetries` | The dispatcher sets `maxRetries` when it admits the job: 1 for the five annotation types, 0 for generation |
+| `completedUnits` | The units whose annotations are all committed. A retry skips them |
+| `unitCursors` | How far each unfinished unit got. A retry resumes each from there |
 
-**Parameters:**
+A worker never states who asked. The dispatcher records `userId` as the requester when it accepts a claim, and the knowledge base attributes a write that cites the job from that record.
 
-```typescript
-interface DetectionParams {
-  resourceId: ResourceId;
-  entityTypes: EntityType[];
-  includeDescriptiveReferences?: boolean;
-  language?: string;        // Annotation body locale (BCP-47)
-  sourceLanguage?: string;  // Source resource locale (BCP-47)
-}
-```
+Generation gets no retry because a second run is a different document, not a replay. An annotation pass reads the same content again, and resumes from its checkpoint.
 
-**Result:** `JobReferenceAnnotationResult` (from `@semiont/core`)
+## The six types
 
-```typescript
-interface JobReferenceAnnotationResult {
-  kind: 'reference-annotation';   // discriminant — every JobResult member carries one
-  totalFound: number;
-  totalEmitted: number;
-  errors: number;
-  underReportedPieces?: number;
-}
-```
+| `type` | Does | Params | Result | Units |
+|---|---|---|---|---|
+| `reference-annotation` | Finds mentions of entities | `DetectionParams` | `JobReferenceAnnotationResult` | One per entity type |
+| `highlight-annotation` | Highlights key passages | `HighlightDetectionParams` | `JobHighlightAnnotationResult` | One |
+| `comment-annotation` | Writes comments that explain | `CommentDetectionParams` | `JobCommentAnnotationResult` | One |
+| `assessment-annotation` | Writes assessments that evaluate | `AssessmentDetectionParams` | `JobAssessmentAnnotationResult` | One |
+| `tag-annotation` | Tags passages by their role in a schema | `TagDetectionParams` | `JobTagAnnotationResult` | One per category |
+| `generation` | Writes a new resource | `GenerationJobParams & { resourceId }` | `JobGenerationResult` | None |
 
-**Example:**
+A unit is the grain a job checkpoints at. Its name is the key of `unitCursors`, and a finished one is listed in `completedUnits`.
 
-```typescript
-import type { PendingJob, DetectionParams } from '@semiont/jobs';
-import { jobId, userId, resourceId, entityType } from '@semiont/core';
+Every result carries a `kind` equal to its job type. The annotation results count what was found and what was created; the two differ by what the deduper dropped. The reference result also counts errors, and the pieces whose extraction was accepted although it was flagged as under-reporting.
 
-const job: PendingJob<DetectionParams> = {
-  status: 'pending',
-  metadata: {
-    id: jobId('job-123'),
-    type: 'reference-annotation',
-    userId: userId('did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'),
-    created: new Date().toISOString(),
-    retryCount: 0,
-    maxRetries: 1,   // detection re-scans the same content — one self-heal retry
-  },
-  params: {
-    resourceId: resourceId('doc-456'),
-    entityTypes: ['Person', 'Organization', 'Location'].map(entityType),
-    includeDescriptiveReferences: true,
-  },
-};
-```
+## Annotation params
 
-## Generation (`generation`)
+Every annotation job names its `resourceId`. The rest:
 
-AI content generation — creates new resources from source material and prompts.
-
-**Parameters:** `GenerationJobParams`, generated from the OpenAPI spec into
-`@semiont/core` — one type shared by the SDK's `yield.fromContext(context,
-options)` surface and this worker, so the params bag is exactly *options + the
-gathered context*.
-
-```typescript
-interface GenerationJobParams {
-  title: string;                    // Required — title of the generated resource;
-                                    // also the LLM topic
-  storageUri: string;               // Required
-  context: GatheredContext;         // Required — grounds the prompt, and NAMES THE
-                                    // ANCHOR (see "Ids come from the focus" below)
-  prompt?: string;                  // Freeform refinement — rendered as an authoritative
-                                    // "Instruction:" line under the task framing
-  entityTypes?: string[];
-  language?: string;                // Generated-content locale, e.g., 'en-US'
-  sourceLanguage?: string;          // Source resource locale (BCP-47)
-  temperature?: number;
-  maxTokens?: number;               // Length only — never implies structure
-  outputMediaType?: SupportedMediaType; // Default text/markdown; text/markdown, text/plain and
-                                    // application/pdf are produced — anything else fails the job
-  task?: 'resource' | 'answer' | 'summary' | (string & {});
-                                    // Framing (what to produce). Unknown strings are used
-                                    // verbatim as the framing + a worker warn (loud degrade)
-  structure?: 'prose' | 'sections' | 'chat' | (string & {});
-                                    // Shape, subordinate to outputMediaType. Unknown strings
-                                    // become "Organize the output as: …" + warn. UNSET ⇒ no
-                                    // structure directive at all
-  cite?: boolean;                   // Inline citations: model emits [[<id>]] tokens; the worker
-                                    // strips them pre-upload and mints W3C linking annotations
-                                    // on the derived resource (hallucination-guarded against the
-                                    // embedded context ids). Off ⇒ resolver never runs
-}
-```
-
-**Ids come from the focus.** Generation params carry no `referenceId`, and the
-`job:create` envelope carries no `resourceId` — the context already names its
-anchor, so sending the ids beside it would encode the same fact twice and let
-the two disagree. The dispatcher derives the job's `resourceId` from
-`context.focus` (resource focus → `focus.resource`; annotation focus →
-`focus.sourceResource`) and rejects a caller-supplied id outright. In the
-worker, `referenceIdOf(job)` is the one derivation:
-
-| `context.focus.kind` | `referenceIdOf(job)` | what the worker does |
+| Param | On | |
 |---|---|---|
-| `annotation` | `focus.annotation.id` | uploads with `sourceAnnotationId` — the Stower auto-binds the triggering reference |
-| `resource` | `undefined` | mints a source→derived provenance reference instead |
+| `entityTypes` | reference | The entity types to look for |
+| `includeDescriptiveReferences` | reference | Also find mentions that are not names: "the senator", "she" |
+| `instructions` | highlight, comment, assessment | What the person asked for, in their words |
+| `density` | highlight, comment, assessment | A target count per 2000 words. With none, the instructions decide |
+| `tone` | comment, assessment | The voice of the text written. Each of the two has its own set |
+| `schema`, `categories` | tag | The whole tag schema, and the categories of it to tag |
+| `language` | all but highlight | The language annotation text is written in. BCP-47 |
+| `sourceLanguage` | all | The language of the resource being read. BCP-47 |
 
-The same helper serves every other jobType by passing their own
-`params.referenceId` through — detection echoes still carry one.
+**Two languages.** A German reader annotating an English document sends `language: 'de'` and `sourceLanguage: 'en'`. The first is stamped on each `TextualBody`; the second goes in the prompt so that the model reads the source correctly.
 
-The job the queue holds carries that stamped id: `GenerationJob` is
-`Job<GenerationJobParams & { resourceId: ResourceId }, JobGenerationResult>`.
+**A tag job carries its schema.** A caller names a schema by id. The dispatcher resolves it against the knowledge base's tag schemas when it creates the job and puts the whole schema in the params, so a worker never reads the registry.
 
-Generation reports exactly three progress frames: 5% `generating-resource`,
-95% `creating-resource`, and 100% `complete-generated` carrying required
-`truncated`.
+## Generation
 
-**Result:** `JobGenerationResult` (`components['schemas']['JobGenerationResult']` from `@semiont/core`).
-The worker states it on `job:complete`, once the upload has given the resource an id; the
-processor answers `truncated` and no result.
+`GenerationJobParams` is one type, shared with the SDK's `yield.fromContext(context, options)`: the params are the options plus the gathered context. `title`, `storageUri` and `context` are required.
 
-```typescript
-interface JobGenerationResult {
-  kind: 'generation';
-  resourceId: ResourceId;
-  resourceName: string;
-  truncated: boolean;   // true ⇒ the model stopped at the maxTokens ceiling —
-                        // the artifact is cut off, not complete. Never silent.
-}
-```
+| Param | |
+|---|---|
+| `title` | The new resource's title, and the topic the model is given |
+| `storageUri` | Where the content is written. The worker writes exactly there |
+| `context` | The gathered context the generation is grounded in. Its focus names the anchor |
+| `task` | What to produce: `resource`, `answer` or `summary`. Any other text is used as the framing itself, and the worker warns |
+| `prompt` | A refining instruction, given beside the task |
+| `structure` | How the output is shaped: `prose`, `sections` or `chat`. Any other text becomes an "organize the output as" line, and the worker warns. With none, there is no directive at all |
+| `outputMediaType` | `text/markdown` unless stated. A type the media-type registry does not mark `generatable` fails the job. There is no fallback |
+| `cite` | The model marks each claim with the id of what supports it. The worker checks each id against the context, removes the marks, and makes a linking annotation on the new resource for each |
+| `maxTokens` | Length only. It never implies structure |
+| `entityTypes`, `language`, `sourceLanguage`, `temperature` | The new resource's entity types, the two languages, and the sampling temperature |
 
-**Example:**
+**Ids come from the focus.** Generation params carry no `referenceId`, and `job:create` carries no `resourceId`. The context already names its anchor, and a second copy could disagree with it. The dispatcher derives the job's `resourceId` from `context.focus` and refuses one a caller supplies. In the worker, `referenceIdOf(job)` is the one derivation:
 
-```typescript
-import type { PendingJob } from '@semiont/jobs';
-import type { GenerationJobParams, ResourceId } from '@semiont/core';
+| `context.focus.kind` | `referenceIdOf(job)` | What the worker does |
+|---|---|---|
+| `annotation` | `focus.annotation.id` | Uploads with `sourceAnnotationId`, and the Stower binds that reference to the new resource |
+| `resource` | `undefined` | Makes a reference from the source to the new resource |
 
-const job: PendingJob<GenerationJobParams & { resourceId: ResourceId }> = {
-  status: 'pending',
-  metadata: {
-    id: jobId('job-789'),
-    type: 'generation',
-    userId: userId('did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'),
-    created: new Date().toISOString(),
-    retryCount: 0,
-    // Generation is non-idempotent — a retry re-rolls the LLM and produces
-    // different content, not a replay — so the dispatcher sets 0 here.
-    // Detection jobs re-scan the same content and keep one self-heal retry.
-    maxRetries: 0,
-  },
-  params: {
-    resourceId: resourceId('doc-456'),  // stamped by the dispatcher from context.focus
-    title: 'Article about Quantum Computing',
-    storageUri: 'file://generated/quantum-computing.md',
-    // The context carries the anchor. This one is annotation-focus, so the
-    // worker auto-binds the new resource to focus.annotation — no referenceId
-    // field, and no resourceId on the envelope that created this job.
-    context: {
-      focus: {
-        kind: 'annotation',
-        annotation: { /* W3C Annotation — its `id` is the auto-bind target */ },
-        sourceResource: { '@id': 'doc-456' /* … */ },
-      },
-      graph: { /* … */ },
-      metadata: { /* … */ },
-    },
-    prompt: 'Write a comprehensive overview',
-    language: 'en-US',
-  },
-};
-```
+**The result is built after the upload.** `processGenerationJob` returns the content, its title and format, the citations and `truncated`. The worker uploads the content, which gives the resource its id, and only then states `JobGenerationResult` on `job:complete`.
 
-## Highlight Annotation (`highlight-annotation`)
-
-Key passage highlighting — identifies passages that should be highlighted for emphasis.
-
-**Parameters:**
-
-```typescript
-interface HighlightDetectionParams {
-  resourceId: ResourceId;
-  instructions?: string;
-  density?: number;         // 1-15 highlights per 2000 words
-  sourceLanguage?: string;  // Source resource locale (BCP-47)
-}
-```
-
-**Result:** `JobHighlightAnnotationResult` (from `@semiont/core`)
-
-```typescript
-interface JobHighlightAnnotationResult {
-  kind: 'highlight-annotation';
-  highlightsFound: number;
-  highlightsCreated: number;
-}
-```
-
-**Example:**
-
-```typescript
-const job: PendingJob<HighlightDetectionParams> = {
-  status: 'pending',
-  metadata: {
-    id: jobId('job-111'),
-    type: 'highlight-annotation',
-    userId: userId('did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'),
-    created: new Date().toISOString(),
-    retryCount: 0,
-    maxRetries: 1,
-  },
-  params: {
-    resourceId: resourceId('doc-222'),
-    instructions: 'Highlight key findings and conclusions',
-    density: 5,
-  },
-};
-```
-
-## Assessment Annotation (`assessment-annotation`)
-
-Evaluative assessments — generates evaluative comments on content quality, accuracy, or style.
-
-**Parameters:**
-
-```typescript
-interface AssessmentDetectionParams {
-  resourceId: ResourceId;
-  instructions?: string;
-  tone?: 'analytical' | 'critical' | 'balanced' | 'constructive';
-  density?: number;         // 1-10 assessments per 2000 words
-  language?: string;        // Annotation body locale (BCP-47)
-  sourceLanguage?: string;  // Source resource locale (BCP-47)
-}
-```
-
-**Result:** `JobAssessmentAnnotationResult` (from `@semiont/core`)
-
-```typescript
-interface JobAssessmentAnnotationResult {
-  kind: 'assessment-annotation';
-  assessmentsFound: number;
-  assessmentsCreated: number;
-}
-```
-
-## Comment Annotation (`comment-annotation`)
-
-Explanatory comments — generates comments to help readers understand content.
-
-**Parameters:**
-
-```typescript
-interface CommentDetectionParams {
-  resourceId: ResourceId;
-  instructions?: string;
-  tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
-  density?: number;         // 2-12 comments per 2000 words
-  language?: string;        // Annotation body locale (BCP-47)
-  sourceLanguage?: string;  // Source resource locale (BCP-47)
-}
-```
-
-**Result:** `JobCommentAnnotationResult` (from `@semiont/core`)
-
-```typescript
-interface JobCommentAnnotationResult {
-  kind: 'comment-annotation';
-  commentsFound: number;
-  commentsCreated: number;
-}
-```
-
-## Tag Annotation (`tag-annotation`)
-
-Structural role tagging — identifies passages that serve structural roles (introduction, conclusion, methodology).
-
-**Parameters:**
-
-```typescript
-interface TagDetectionParams {
-  resourceId: ResourceId;
-  schema: TagSchema;        // Full schema object (e.g., legal-irac, scientific-imrad)
-  categories: string[];     // e.g., ['Issue', 'Rule', 'Application']
-  language?: string;        // Annotation body locale (BCP-47)
-  sourceLanguage?: string;  // Source resource locale (BCP-47)
-}
-```
-
-**Result:** `JobTagAnnotationResult` (from `@semiont/core`)
-
-```typescript
-interface JobTagAnnotationResult {
-  kind: 'tag-annotation';
-  tagsFound: number;
-  tagsCreated: number;
-  byCategory: Record<string, number>;
-}
-```
-
-**Example:**
-
-```typescript
-const job: PendingJob<TagDetectionParams> = {
-  status: 'pending',
-  metadata: {
-    id: jobId('job-777'),
-    type: 'tag-annotation',
-    userId: userId('did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'),
-    created: new Date().toISOString(),
-    retryCount: 0,
-    maxRetries: 1,
-  },
-  params: {
-    resourceId: resourceId('doc-888'),
-    schema: {
-      id: 'legal-irac',
-      name: 'IRAC',
-      description: 'Legal analysis structure',
-      domain: 'legal',
-      tags: [
-        { name: 'Issue', description: 'The legal question presented', examples: [] },
-        { name: 'Rule', description: 'The governing legal rule', examples: [] },
-        { name: 'Application', description: 'Application of rule to facts', examples: [] },
-        { name: 'Conclusion', description: 'The resulting conclusion', examples: [] },
-      ],
-    },
-    categories: ['Issue', 'Rule', 'Application', 'Conclusion'],
-  },
-};
-```
+**A cut-off result says so.** `truncated` is true when the model stopped at the `maxTokens` ceiling. It is required on the result and on the final progress report.
 
 ## Progress
 
-A running job's `progress` is `StoredProgress` — the spec's `JobRunning.progress`: the last `JobProgress` its worker reported with `job:report-progress`, or `{}` before the first report. One shape for every job type:
+A running job's `progress` is the last `JobProgress` its worker reported with `job:report-progress`, or `{}` before the first. `JobProgress` requires only `percentage`. Its `message` is a code with typed params (`loading`, `analyzing`, `detecting-entities`, `creating-annotations`, `complete-created` and the rest of the spec's `JobProgressMessage`), which each client renders in its own language.
 
-```typescript
-type StoredProgress = components['schemas']['JobStoredProgress'];
-// = JobProgress | Record<string, never>
-```
-
-`JobProgress` requires `percentage`. `message` is a coded `JobProgressMessage` (`loading`, `analyzing`, `detecting-entities`, `creating-annotations`, `complete-created`, …) that each client renders in its own language. The rest are reported by the flows they apply to:
+The other fields are reported by the flows they apply to:
 
 | Field | Reported by |
-|-------|-------------|
-| `current` / `processed` / `total` | `reference-annotation` (entity types), `tag-annotation` (categories) |
+|---|---|
+| `current`, `processed`, `total` | `reference-annotation` (entity types), `tag-annotation` (categories) |
 | `completedItems` | `reference-annotation`, `tag-annotation` |
-| `entitiesFound` / `entitiesEmitted` / `entitiesExpected` | `reference-annotation` |
-| `requestParams` | `reference-annotation` and the highlight / assessment / comment flows |
-| `annotationId` | any job attached to an annotation (generation from a reference) |
+| `entitiesFound`, `entitiesEmitted`, `entitiesExpected` | `reference-annotation` |
+| `requestParams` | `reference-annotation`, and the highlight, comment and assessment flows |
+| `annotationId` | Any job attached to an annotation, such as a generation from a reference |
 
-## Concrete Job Type Aliases
+Generation reports three times: 5% `generating-resource`, 95% `creating-resource`, and 100% `complete-generated` with `truncated`.
 
-```typescript
-type DetectionJob = Job<DetectionParams, JobReferenceAnnotationResult>;
-type GenerationJob = Job<GenerationJobParams & { resourceId: ResourceId }, JobGenerationResult>;
-type HighlightDetectionJob = Job<HighlightDetectionParams, JobHighlightAnnotationResult>;
-type AssessmentDetectionJob = Job<AssessmentDetectionParams, JobAssessmentAnnotationResult>;
-type CommentDetectionJob = Job<CommentDetectionParams, JobCommentAnnotationResult>;
-type TagDetectionJob = Job<TagDetectionParams, JobTagAnnotationResult>;
-
-type AnyJob = DetectionJob | GenerationJob | HighlightDetectionJob | AssessmentDetectionJob | CommentDetectionJob | TagDetectionJob;
-
-/** A job of any type, running: what a claim returns. */
-type RunningAnyJob = Extract<AnyJob, { status: 'running' }>;
-```
-
-## Type Safety
-
-### Status-Based Narrowing
-
-```typescript
-function processJob(job: AnyJob) {
-  if (job.status === 'running') {
-    console.log(job.progress);      // Available
-    // console.log(job.result);     // Compile error
-  }
-  if (job.status === 'complete') {
-    console.log(job.result);        // Available
-    // console.log(job.progress);   // Compile error
-  }
-}
-```
-
-### Combined Type Guards
-
-```typescript
-function isRunningGenerationJob(
-  job: AnyJob
-): job is Extract<GenerationJob, { status: 'running' }> {
-  return job.status === 'running' && job.metadata.type === 'generation';
-}
-
-if (isRunningGenerationJob(job)) {
-  console.log(job.params.title);       // GenerationJobParams & { resourceId }
-  console.log(job.params.resourceId);
-}
-```
+Each report replaces the last, so anything that describes the run rather than the moment is sent every time.

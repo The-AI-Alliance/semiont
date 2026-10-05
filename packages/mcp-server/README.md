@@ -2,64 +2,35 @@
 
 [![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+mcp-server%22)
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=mcp-server)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=mcp-server)
-[![npm version](https://img.shields.io/npm/v/@semiont/mcp-server.svg)](https://www.npmjs.com/package/@semiont/mcp-server)
-[![npm downloads](https://img.shields.io/npm/dm/@semiont/mcp-server.svg)](https://www.npmjs.com/package/@semiont/mcp-server)
-[![License](https://img.shields.io/npm/l/@semiont/mcp-server.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-This Model Context Protocol (MCP) server provides AI applications with access to the Semiont API using the common `@semiont/http-transport`.
+A [Model Context Protocol](https://modelcontextprotocol.io) server that gives an AI application ten tools over a Semiont knowledge base: read its resources and annotations, annotate, link, gather context, and create or generate resources. It runs beside the application, speaks MCP over stdio, and reaches a running stack's gateway as the person whose access token it is given.
 
-## Features
+## Tools
 
-Ten MCP tools, named by flow:
+Ten tools, named by the verb they carry out:
 
-- **browse** — read resources, their highlights, and their references
-- **mark** — create annotations, or have an LLM detect them
-- **bind** — link a reference annotation to its target resource
-- **gather** — assemble LLM context for an annotation
-- **yield** — create a resource from content, or generate one from an annotation
+- **browse**: read resources, their highlights and their references
+- **mark**: create an annotation, or have a model detect entity references
+- **bind**: link a reference annotation to its target resource
+- **gather**: assemble the context around an annotation
+- **yield**: create a resource from content, or generate one from an annotation
 
-See [Available tools](#available-tools) for each tool's parameters.
-
-## Architecture
-
-The MCP server uses the `@semiont/sdk` `SemiontClient` (over `@semiont/http-transport` HTTP transports) to communicate with the Semiont gateway:
-
-```typescript
-import { SemiontClient } from '@semiont/sdk';
-import { HttpTransport, HttpContentTransport } from '@semiont/http-transport';
-import { baseUrl, accessToken, type AccessToken } from '@semiont/core';
-import { BehaviorSubject } from 'rxjs';
-
-// HTTP transports carry the observable access token
-const token$ = new BehaviorSubject<AccessToken | null>(accessToken(SEMIONT_ACCESS_TOKEN));
-const transport = new HttpTransport({ baseUrl: baseUrl(SEMIONT_API_URL), token$ });
-const semiont = new SemiontClient(transport, new HttpContentTransport(transport), transport);
-
-// All handlers receive the client instance and call its verb namespaces
-async function browseResources(semiont: SemiontClient, args: any) {
-  const { resources } = await semiont.browse.resources({ limit: args.limit }).fresh();
-
-  return {
-    content: [{
-      type: 'text',
-      text: JSON.stringify(resources, null, 2),
-    }],
-  };
-}
-```
-
-**Key Benefits:**
-- **Type-Safe**: Full TypeScript types from OpenAPI specification
-- **Common Client**: The same `SemiontClient` every other SDK consumer uses
-- **No Duplication**: Reuses authentication, retry logic, and error handling
-- **Maintainable**: Changes to the API client benefit all consumers
+[Available tools](#available-tools) has each tool's parameters.
 
 ## Installation
 
+The server is not on npm. Build it from a checkout of this repository, after the packages it is built on. It is then `packages/mcp-server/dist/index.js`:
+
 ```bash
-cd packages/mcp-server
 npm install
-npm run build
+```
+
+```bash
+npm run build:packages
+```
+
+```bash
+npm run build --workspace=@semiont/mcp-server
 ```
 
 ## Authentication
@@ -241,7 +212,9 @@ Adding a tool takes three edits, all in `src/`:
 [`src/index.ts`](src/index.ts) and [`src/server.ts`](src/server.ts) are wiring only — config, transports, and the four
 request handlers — so none of the above touches them.
 
-Handlers call the client's verb namespaces — `semiont.browse.*`, `semiont.mark.*`,
+The server holds one [`@semiont/sdk`](../sdk/README.md) `SemiontClient` over
+[`@semiont/http-transport`](../http-transport/README.md), the same client every other
+SDK consumer uses. Handlers call its verb namespaces — `semiont.browse.*`, `semiont.mark.*`,
 and so on. They never construct HTTP requests: the transport, auth, and retry
 behaviour belong to the client. `McpClient` names the slice of `SemiontClient`
 the handlers use; widen it when a new handler needs another namespace method. If
@@ -284,3 +257,7 @@ flow-prefixed and snake_cased, e.g. `browse_resources`, not `browseResources`.
 - Access tokens are short-lived by design. This server holds one for its
   lifetime and does not renew it — restart it with a fresh token rather than
   reaching for a longer-lived credential.
+
+## License
+
+Apache-2.0

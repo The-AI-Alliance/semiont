@@ -63,9 +63,8 @@ await store.move(uri, 'file://docs/my-document.md');
 
 ## Documentation
 
-- [API reference](docs/API.md): the store, checksums, deriving text from a PDF, the anchored-text store.
-- [Architecture](docs/architecture.md): the design principles.
-- [Media types](docs/mime-types.md): which types are admitted, and where that is decided.
+- [Architecture](docs/architecture.md): why the package is shaped as it is.
+- [API reference](docs/API.md): the store, checksums, reading bytes without a mount, deriving text from a PDF, the anchored-text store.
 - [Anchoring](../../docs/architecture/ANCHORING.md): the pipeline this package's extraction sits in.
 
 ## License

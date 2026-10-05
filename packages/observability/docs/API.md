@@ -1,16 +1,18 @@
 # Observability API Reference
 
+How to start telemetry in a process, and each helper with an example. What the package is for, and what a change to it must keep, is in its [README](../README.md).
+
 ## The three tiers
 
 Semiont's observability is layered:
 
-- **Tier 1 — `busLog`** (in [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core)): a 5-op grep-friendly timeline at the `ITransport` contract layer (`EMIT`, `RECV`, `SSE`, `PUT`, `GET`). Off until switched on (`SEMIONT_BUS_LOG=1` in Node, `window.__SEMIONT_BUS_LOG__ = true` in the browser); one property read per call while off.
+- **Tier 1 — `busLog`** (in [`@semiont/core`](../../core/README.md)): a 5-op grep-friendly timeline at the `ITransport` contract layer (`EMIT`, `RECV`, `SSE`, `PUT`, `GET`). Off until switched on (`SEMIONT_BUS_LOG=1` in Node, `window.__SEMIONT_BUS_LOG__ = true` in the browser); one property read per call while off.
 - **Tier 2 — OpenTelemetry traces** (this package): spans, with W3C trace-context propagation across the bus's HTTP and SSE legs so a single user action produces one trace spanning Browser → gateway → worker → smelter.
 - **Tier 3 — metrics and log correlation** (this package): counters, histograms and gauges for the platform's hot paths, and the active span's `trace_id` / `span_id` on every structured log line.
 
 This package does not implement any platform domain logic; it provides the spanning helpers and metric recorders the rest of the codebase calls.
 
-## Quick start (Node)
+## Starting it in a Node process
 
 Initialize once at the process entry point, before any spanning code runs:
 
@@ -133,6 +135,8 @@ recordHandlerDuration('stower', 'mark:create', durationMs);
 recordJobOutcome('reference-annotation', 'completed', durationMs);
 recordInferenceUsage({ provider: 'ollama', model: 'gemma3:27b', durationMs, outcome: 'success', inputTokens: 412, outputTokens: 87 });
 ```
+
+The recorders above are four of many. Each says what it measures where it is defined, in [`src/index.ts`](../src/index.ts).
 
 ### Provider registration
 

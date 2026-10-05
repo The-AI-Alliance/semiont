@@ -1,18 +1,6 @@
 # Inference API Reference
 
-## Overview
-
-`@semiont/inference` provides provider-agnostic text generation. The package exports exactly:
-
-- `createInferenceClient` — factory selecting an implementation from config
-- `InferenceClient`, `InferenceLimits`, `InferenceResponse`, `StructuredResponse`, `ElementSchema`, `TokenUsage` — the interface types
-- `StructuredReadError` — thrown when a structured generation's response cannot be read
-- `InferenceClientConfig`, `InferenceClientType` — factory config types
-- `AnthropicInferenceClient`, `OllamaInferenceClient` — provider implementations
-- `MockInferenceClient` — scripted test double
-- `answerLimitsRequests`, `reportLimits`, `LIMITS_REPORT_BUDGET_MS`, `LimitsSource` — the limits report: how a service holding inference clients answers `job:limits-requested`, `gather:limits-requested` and `match:limits-requested` with each client's discovered `limits()`
-
-There is no application logic here (no prompt templates, parsing, retries, or context management) — that lives in `@semiont/make-meaning`.
+How each part of `@semiont/inference` behaves, and what each provider does to honour the contract. The contract itself is [`src/interface.ts`](../src/interface.ts), where every member says what it promises, and the factory's configuration is [`src/factory.ts`](../src/factory.ts). What the package is for is in its [README](../README.md).
 
 ## createInferenceClient
 
@@ -23,19 +11,7 @@ import type { Logger } from '@semiont/core';
 const client = createInferenceClient(config, logger);
 ```
 
-**Parameters:**
-- `config: InferenceClientConfig` — see below
-- `logger?: Logger` — optional structured logger from `@semiont/core`
-
-```typescript
-interface InferenceClientConfig {
-  type: 'anthropic' | 'ollama';
-  model: string;        // e.g. 'claude-sonnet-4-6', 'gemma2:9b'
-  apiKey?: string;      // anthropic only
-  endpoint?: string;    // provider URL
-  baseURL?: string;     // fallback when endpoint is not set
-}
-```
+`config` is an `InferenceClientConfig`: a `type` (`'anthropic'` or `'ollama'`), a `model`, an `apiKey` for Anthropic, and an `endpoint` when the provider is not at its usual address. `logger` is optional.
 
 **Throws:**
 - `type: 'anthropic'` with a missing or empty `apiKey`
@@ -43,73 +19,13 @@ interface InferenceClientConfig {
 
 The factory is synchronous and performs no I/O; the first network call happens on the first `limits()` or generation call.
 
-## InferenceClient
+## Generating text
 
-The contract every implementation satisfies:
-
-```typescript
-interface InferenceClient {
-  readonly type: string;     // 'anthropic' | 'ollama' | 'mock'
-  readonly modelId: string;  // configured model name
-
-  // Declared capabilities — consumers read these instead of switching on
-  // provider identity; every implementation must take a position (pinned):
-  readonly maxConcurrency: number;        // independent calls that gain from running concurrently
-  readonly verifyDetectionYield: boolean; // whether detection count-verifies extractions
-
-  limits(): Promise<InferenceLimits>;
-
-  generateText(
-    prompt: string,
-    maxTokens: number,
-    temperature: number,
-    signal?: AbortSignal
-  ): Promise<string>;
-
-  generateTextWithMetadata(
-    prompt: string,
-    maxTokens: number,
-    temperature: number,
-    signal?: AbortSignal
-  ): Promise<InferenceResponse>;
-
-  generateStructured<T>(
-    prompt: string,
-    maxTokens: number,
-    temperature: number,
-    elementSchema: ElementSchema,
-    signal?: AbortSignal
-  ): Promise<StructuredResponse<T>>;
-}
-
-interface InferenceResponse {
-  text: string;
-  stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence' | string;
-  usage?: TokenUsage;  // provider-reported token counts; absent = unreported, never zero-filled
-}
-
-interface TokenUsage {
-  inputTokens: number;
-  outputTokens: number;
-}
-```
-
-`generateText` is `generateTextWithMetadata` with the metadata dropped.
+`generateTextWithMetadata(prompt, maxTokens, temperature, signal?)` answers the text, the reason generation stopped, and the provider's own token counts when it reported them. `generateText` is the same call with all but the text dropped.
 
 **Cancellation** (`signal`, trailing optional on every generation method): aborting tears down the underlying transport — Ollama's `fetch`, or the Anthropic SDK request on both its paths, where the SDK also checks the signal between its internal retries — so a cancelled call rejects promptly (`AbortError` / `APIUserAbortError`) rather than surviving as a billed background request. Implementations must honor the signal; accepting and ignoring it is a defect (the mock rejects on an aborted signal for exactly this reason). `limits()` takes no signal — discovery is quick and isn't wrapped by any caller timeout.
 
-### InferenceLimits / limits()
-
-```typescript
-interface InferenceLimits {
-  contextTokens: number;         // context window in tokens
-  maxOutputTokens: number;       // max output tokens per generation
-  outputTokensPerHour?: number;  // provider's worst-case output-rate model,
-                                 // when it publishes one (Anthropic: 128_000)
-  acceptsTemperature?: boolean;  // whether the model takes a caller-supplied
-                                 // temperature; absent = no claim
-}
-```
+## Limits
 
 `limits()` publishes the provider's **actual** ceilings for the configured model, discovered from the provider itself — never hand-maintained constants. Semantics differ by provider shape:
 
@@ -120,19 +36,9 @@ interface InferenceLimits {
 
 Discovery is lazy (first call) and cached for the client's lifetime; a failed discovery is **not** cached, so the next call retries. `limits()` **throws** when the ceilings cannot be determined (unknown model, discovery endpoint unreachable) — fail-loud, never a guessed floor.
 
-### StructuredResponse / generateStructured
+## Structured generation
 
-```typescript
-type ElementSchema = Record<string, unknown>;  // raw JSON Schema for ONE array element
-
-interface StructuredResponse<T> {
-  items: T[];
-  stopReason: 'end_turn' | 'max_tokens' | 'stop_sequence' | string;
-  usage?: TokenUsage;
-}
-```
-
-`generateStructured` returns **parsed elements** — the JSON guarantee lives in the return type, not in a comment. There is no representable value meaning "here is some text I could not read": an implementation that cannot deliver the array **throws a typed `StructuredReadError`** (message `Structured response could not be read: …`, one class across all three implementations) carrying the provider's `stopReason` — because the cause classifies differently downstream: `max_tokens` means the JSON was cut off by the output budget (a retry of the same request truncates the same way — deterministic), anything else is model misbehavior a retry may fix. It is never coerced to `[]`: empty (`{ items: [] }`) is a legitimate, distinct outcome and is never conflated with a read failure — the conflation would silently discard real entities as a green empty job.
+`generateStructured(prompt, maxTokens, temperature, elementSchema, signal?)` takes the JSON Schema of one element and answers `{ items, stopReason, usage? }`. It returns **parsed elements** — the JSON guarantee lives in the return type, not in a comment. There is no representable value meaning "here is some text I could not read": an implementation that cannot deliver the array **throws a typed `StructuredReadError`** (message `Structured response could not be read: …`, one class across all three implementations) carrying the provider's `stopReason` — because the cause classifies differently downstream: `max_tokens` means the JSON was cut off by the output budget (a retry of the same request truncates the same way — deterministic), anything else is model misbehavior a retry may fix. It is never coerced to `[]`: empty (`{ items: [] }`) is a legitimate, distinct outcome and is never conflated with a read failure — the conflation would silently discard real entities as a green empty job.
 
 Provider mechanisms:
 
@@ -217,6 +123,12 @@ mock.calls[0];          // { prompt: 'hi', maxTokens: 100, temperature: 0, eleme
 mock.reset();           // clear calls, rewind to first response
 mock.setResponses(['new reply']); // replace the script
 ```
+
+## The limits report
+
+Only the services that hold a model credential can ask a provider what its model can do, so they tell everyone else. `answerLimitsRequests(bus, operation, clients, logger)` answers a limits request on the bus with the discovered `limits()` of each client it is given: the Worker on `job:limits-requested`, and the Librarian on `gather:limits-requested` and `match:limits-requested`. `reportLimits` is the report itself, for a caller with its own bus plumbing.
+
+A report never fails and never waits on a provider. A client whose discovery is refused, or takes longer than `LIMITS_REPORT_BUDGET_MS`, is left out of that reply. Its discovery carries on, so a later request reports it.
 
 ## Observability
 

@@ -5,7 +5,7 @@ Event sourcing data is split between **two directories** with different durabili
 - **Event log** (`<projectRoot>/.semiont/events/`) — durable, source of truth, staged into git on every append when `gitSync` is enabled
 - **Materialized views and projections** (`<stateDir>`, e.g. `$XDG_STATE_HOME/semiont/<project>/`) — ephemeral, derived state, safe to wipe
 
-The materialized layer is rebuildable from the event log at any time via `ViewManager.rebuildAll(eventLog)`, which the Archivist runs once at process start (`createKnowledgeBase` does the same for an in-process composition). See [Ephemerality and rebuild](#ephemerality-and-rebuild) below.
+The materialized layer is rebuildable from the event log at any time via `ViewManager.rebuildAll(eventLog)`, which the Archivist runs once at process start (`createKnowledgeBase` does the same for an in-process composition). See [Why two directories](#why-two-directories) below.
 
 ## Directory Structure
 
@@ -93,22 +93,12 @@ Maps `file://` URIs to resource IDs, enabling lookup of resources by their files
 
 One JSON file per URI at `storage-uri/<ab>/<cd>/<sha256-of-uri>.json`, each containing `{ uri, resourceId }`. The index is maintained solely by the ViewMaterializer: `yield:created` and `yield:cloned` (with a `storageUri`) write an entry, `yield:moved` removes the old URI's entry and writes the new one. Archive/unarchive leave entries in place — archived resources remain findable by URI.
 
-## Ephemerality and rebuild
+## Why two directories
 
-The split between `<projectRoot>/.semiont/events/` and `<stateDir>/` is deliberate:
+- **The event log** is the record. It is durable and append-only, and staged into git when `gitSync` is enabled. Nothing under `<stateDir>` holds anything that cannot be made again from these files.
+- **`<stateDir>`** is derived. `SemiontProject.destroy()` wipes it and so does `semiont clean`, and neither loses anything: `ViewManager.rebuildAll(eventLog)` writes the system projections, every resource view and the storage-uri index again when the Archivist next starts. How, and why that is the design, is in the [API reference](API.md#why-startup-rebuild-exists).
 
-- **Event log** is the **single source of truth**. It is durable and append-only, and staged into git when `gitSync` is enabled. Nothing in the materialized layer holds state that can't be reconstructed from these JSONL files.
-- **Materialized views and projections** under `<stateDir>` are **derived state**. They are a fast read model layered over the event log. The directory is ephemeral by design — `SemiontProject.destroy()` wipes it, `semiont clean` wipes it, dev cleanup wipes it. None of that loses data, because it can all be rebuilt.
-
-The rebuild step that makes "ephemeral" safe is `ViewManager.rebuildAll(eventLog)`, which the Archivist calls once at startup, before it serves a request. It walks every event in the log and writes:
-
-1. The system projections (`entitytypes.json`, `tagschemas.json`, `people.json`).
-2. Each resource view file under `resources/<ab>/<cd>/`.
-3. The storage-uri index entries.
-
-It is idempotent: existing files are overwritten, not appended. Running it on every startup is safe and is in fact the design — startup recovery + live incremental update is the same pattern used by the graph (`Weaver.catchUp()` + per-event consumer) and the vectors (`Smelter.reconcile()` + per-event smelter), giving all three derived read models the same lifecycle treatment.
-
-If you wipe `<stateDir>` manually for debugging, the next process restart will repopulate it. The `<projectRoot>/.semiont/events/` directory is the only thing you must not delete.
+`<projectRoot>/.semiont/events/` is the only directory here that must not be deleted.
 
 ## Integrity
 
