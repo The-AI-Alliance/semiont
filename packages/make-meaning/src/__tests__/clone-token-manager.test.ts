@@ -177,13 +177,13 @@ describe('CloneTokenManager format selection', () => {
         ),
       ).pipe(timeout(5000)),
     );
-    // The gateway's half of the clone wire shape: bytes are stored (noGit)
+    // The gateway's half of the clone wire shape: bytes are stored, unstaged,
     // BEFORE the command, which carries storage coordinates + the
     // SDK-derived clone format — never content.
     const kb = makeMeaning.knowledgeSystem.kb;
     const format = cloneFormat(sourceFormat);
     const cloneUri = deriveStorageUri(`clone-${fileCounter}`, format);
-    const stored = await kb.content.store(Buffer.from('edited clone content'), cloneUri, { noGit: true });
+    const stored = await kb.content.store(Buffer.from('edited clone content'), cloneUri);
     eventBus.emit('yield:clone-create', {
       token,
       name: `clone-${fileCounter}`,

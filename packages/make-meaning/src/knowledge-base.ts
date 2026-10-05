@@ -22,7 +22,7 @@
 
 import type { EventStore, EventLog, EventReadStorage, ViewMaterializer } from '@semiont/event-sourcing';
 import { FilesystemViewStorage, type ViewStorage } from '@semiont/event-sourcing';
-import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore, type ContentReads } from '@semiont/content';
+import { WorkingTreeStore, createAnchoredTextStore, stagingFor, type AnchoredTextStore, type ContentReads } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
 import type { SemiontProject } from '@semiont/core/node';
@@ -127,6 +127,9 @@ export async function createKnowledgeBase(
   logger: Logger,
   options: CreateKnowledgeBaseOptions,
 ): Promise<KnowledgeBase> {
+  // The same refusal the Archivist makes at boot: `[git] sync = true` over a
+  // tree git cannot stage into.
+  await stagingFor(project, { logger: logger.child({ component: 'staging' }) }).ready();
   const views = new FilesystemViewStorage(project, logger.child({ component: 'view-storage' }));
   const content = new WorkingTreeStore(
     project,

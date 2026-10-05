@@ -110,7 +110,7 @@ describe('Stower constructs from capability doubles', () => {
 
     const result = await ok;
     expect(result.response.resourceId).toBeTruthy();
-    expect(stores.content.register).toHaveBeenCalledWith('file:///tmp/doc.txt', 'sha-in', { noGit: undefined });
+    expect(stores.content.register).toHaveBeenCalledWith('file:///tmp/doc.txt', 'sha-in');
     expect(stores.eventStore.appendEvent).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'yield:created' }),
     );
@@ -145,7 +145,7 @@ describe('Stower constructs from capability doubles', () => {
 
     await vi.waitFor(() => {
       expect(failure).toBeUndefined();
-      expect(stores.content.move).toHaveBeenCalledWith(fromUri, 'file:///tmp/to.txt', { noGit: undefined });
+      expect(stores.content.move).toHaveBeenCalledWith(fromUri, 'file:///tmp/to.txt');
       expect(stores.eventStore.appendEvent).toHaveBeenCalledWith(
         expect.objectContaining({ type: 'yield:moved', resourceId: rid }),
       );
@@ -169,7 +169,7 @@ describe('Stower constructs from capability doubles', () => {
       keepFile: true, }, { correlationId });
 
     await ok;
-    expect(stores.content.remove).toHaveBeenCalledWith('file:///tmp/gone.txt', { keepFile: true, noGit: undefined });
+    expect(stores.content.remove).toHaveBeenCalledWith('file:///tmp/gone.txt', { keepFile: true });
     expect(stores.eventStore.appendEvent).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'mark:archived' }),
     );

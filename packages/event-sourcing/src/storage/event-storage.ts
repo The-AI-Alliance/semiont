@@ -20,7 +20,7 @@ import { SYSTEM_SCOPE } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import { jumpConsistentHash } from '@semiont/core';
-import { createStager, type Stager } from '@semiont/content';
+import { stagingFor, type Staging } from '@semiont/content';
 
 
 export interface EventStorageConfig {
@@ -63,20 +63,20 @@ export class EventStorage {
   private resourceSequences: Map<string, number> = new Map();
 
   /** Deferred, deduped staging: many appends to one file stage it once. */
-  private _stager?: Stager;
-  private stager(): Stager {
-    if (!this._stager) this._stager = createStager(this.project.root);
-    return this._stager;
+  private _staging?: Staging;
+  private staging(): Staging {
+    if (!this._staging) this._staging = stagingFor(this.project);
+    return this._staging;
   }
 
   /** Stage everything pending now. */
   flushStaging(): Promise<void> {
-    return this._stager ? this._stager.flush() : Promise.resolve();
+    return this._staging ? this._staging.flush() : Promise.resolve();
   }
 
   /** Drain and stop — a stopped process must leave nothing unstaged. */
   async disposeStaging(): Promise<void> {
-    if (this._stager) await this._stager.dispose();
+    if (this._staging) await this._staging.dispose();
   }
   // Per-resource current file cache: avoids fs.readdir() + countEventsInFile() on every append
   private currentFiles: Map<string, { path: string; eventCount: number }> = new Map();
@@ -149,10 +149,7 @@ export class EventStorage {
       const filePath = path.join(docPath, filename);
       await fs.writeFile(filePath, '', 'utf-8');
 
-      // Stage the new event stream directory in git
-      if (this.project.gitSync) {
-        this.stager().add(docPath);
-      }
+      this.staging().stage(docPath);
 
       // Initialize sequence number
       this.resourceSequences.set(resourceId, 0);
@@ -251,10 +248,7 @@ export class EventStorage {
     await fs.appendFile(targetPath, eventLine, 'utf-8');
     current.eventCount++;
 
-    // Stage the event log file in git index if configured
-    if (this.project.gitSync) {
-      this.stager().add(targetPath);
-    }
+    this.staging().stage(targetPath);
   }
 
   /**

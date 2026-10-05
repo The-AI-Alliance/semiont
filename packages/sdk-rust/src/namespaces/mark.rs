@@ -146,7 +146,6 @@ impl MarkNamespace {
                 resource_id: resource_id.clone(),
                 storage_uri: None,
                 keep_file: None,
-                no_git: None,
             })
             .await?;
         Ok(())

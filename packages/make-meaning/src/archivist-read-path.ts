@@ -25,7 +25,7 @@
  *   POST /resources                                 (the client's multipart
  *   upload, forwarded untouched, with the principal the gateway verified in
  *   `Semiont-Principal` and its roles in `Semiont-Roles`: the bytes are
- *   stored `noGit` at their storageUri and the resource is recorded — by the
+ *   stored, unstaged, at their storageUri and the resource is recorded — by the
  *   Stower, or the CloneTokenManager for an upload carrying a clone token —
  *   and the answer is its id: the Archivist records the upload as part of
  *   its byte write.)
@@ -248,7 +248,7 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
       }
       // Streamed from the parsed part: the store hashes as it writes, and the
       // record is asked only once the bytes are in place.
-      const stored = await content.store(Readable.fromWeb(file.stream()), upload.input.storageUri, { noGit: true });
+      const stored = await content.store(Readable.fromWeb(file.stream()), upload.input.storageUri);
       upload.input.contentChecksum = stored.checksum;
       upload.input.byteSize = stored.byteSize;
       try {

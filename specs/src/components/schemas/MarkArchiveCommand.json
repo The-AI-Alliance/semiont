@@ -15,9 +15,6 @@
     },
     "keepFile": {
       "type": "boolean"
-    },
-    "noGit": {
-      "type": "boolean"
     }
   },
   "required": [

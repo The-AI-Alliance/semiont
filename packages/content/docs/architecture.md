@@ -28,9 +28,15 @@ Both answer the same `StoredResource`, so what is recorded does not depend on ho
 
 ## The store keeps git's index
 
-With `[git] sync = true` in `.semiont/config`, a write is staged, a move is `git mv`, and a removal is `git rm`. The index is for people who commit by hand, so it has to be current within seconds, not after every change. One stager per repository (`createStager`) defers `git add`, drops repeats of a path that is already pending, and runs one command at a time, because git's index has one writer. A move or a removal waits for the adds queued before it.
+With `[git] sync = true` in `.semiont/config`, the store stages what it registers, moves and removes. The index is for people who commit by hand, so it has to be current within seconds, not after every change.
 
-`{ noGit: true }` skips staging for one call, for a caller that stages for itself.
+Staging goes through one interface, `Staging`, with two drivers: git, and none for a project that does not sync git. `stagingFor(project)` gives the one driver for a repository, shared by the content store and the event log. The git driver defers `git add`, drops repeats of a path that is already pending, and runs one command at a time, because git's index has one writer. A move or a removal waits for the adds queued before it.
+
+The driver moves or deletes the file itself, and then tells git. A file operation therefore happens or throws, whatever git knows of the file; only the staging is best-effort.
+
+A knowledge base need not be a git repository: without `[git] sync = true` it runs no git at all, and reports no branch. What is refused is the contradiction. A config that says `sync = true` over a tree that is not a git checkout stops the Archivist at boot (`Staging.ready()`), naming the tree and the two ways out. Past boot the driver pays for no check. If git stops working while the Archivist runs, the record is unaffected. Staging an adopted file or an appended event is queued behind the operation, so the operation succeeds, and the batch that fails is logged as an error (`Staging degraded`) and counted (`semiont.git.staging.failures`) for the operator. A move or a removal tells git itself: it moves or deletes the file and then reports that it could not be staged. Staging resumes as soon as git works again.
+
+`store` stages nothing. Uploaded bytes are staged by `register`, when the event that names them applies. Whether a project stages is its `[git] sync` setting, never one call's choice.
 
 ## One process touches the tree
 

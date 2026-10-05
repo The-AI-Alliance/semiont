@@ -4296,7 +4296,7 @@ type KbDescription struct {
 	// Domain The committed [site] domain: the knowledge base's permanent identity. Its did is 'did:web:' + this domain (kbDid in @semiont/core). It names WHICH knowledge base this is, not which running copy: a local clone and a codespace of one repo report the same domain, so use it to verify what you connected to, never to select among copies. A knowledge base that declares none is refused with browse:kb-failed.
 	Domain string `json:"domain"`
 
-	// GitBranch The working tree's current git branch. Absent when the tree is not a git checkout.
+	// GitBranch The working tree's current git branch. Absent when the knowledge base does not sync git (`[git] sync` in its committed config), and when its tree is not a git checkout.
 	GitBranch *string `json:"gitBranch,omitempty"`
 
 	// Name The committed [project] name, or the knowledge base directory's name when none is declared.
@@ -4364,7 +4364,6 @@ type MarkArchiveCommand struct {
 	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 	KeepFile         *bool   `json:"keepFile,omitempty"`
-	NoGit            *bool   `json:"noGit,omitempty"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`
@@ -5639,9 +5638,6 @@ type YieldClonePersistCommand struct {
 	Language *string       `json:"language,omitempty"`
 	Name     string        `json:"name"`
 
-	// NoGit The bytes were already written by the uploader; the Stower's register does the one `git add` on apply, so git has a single writer.
-	NoGit *bool `json:"noGit,omitempty"`
-
 	// ParentResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ParentResourceId ResourceId `json:"parentResourceId"`
 
@@ -5699,7 +5695,6 @@ type YieldCreateCommand struct {
 	JobId    *JobId  `json:"jobId,omitempty"`
 	Language *string `json:"language,omitempty"`
 	Name     string  `json:"name"`
-	NoGit    *bool   `json:"noGit,omitempty"`
 
 	// StorageUri The caller's instruction for WHERE the bytes are — not a copy of the stored fact. The stored location lives on the resource's primary Representation (`Representation.storageUri`), which is its single home; this field is the message that puts it there. Working-tree URI, only file:// is supported (e.g. file://docs/overview.md).
 	StorageUri string `json:"storageUri"`
@@ -5745,7 +5740,6 @@ type YieldMvCommand struct {
 	// UnderscoreUserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 	FromUri          string  `json:"fromUri"`
-	NoGit            *bool   `json:"noGit,omitempty"`
 	ToUri            string  `json:"toUri"`
 }
 
@@ -5755,7 +5749,6 @@ type YieldUpdateCommand struct {
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 	ByteSize         int     `json:"byteSize"`
 	ContentChecksum  string  `json:"contentChecksum"`
-	NoGit            *bool   `json:"noGit,omitempty"`
 
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId ResourceId `json:"resourceId"`

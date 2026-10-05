@@ -12,7 +12,7 @@
     },
     "gitBranch": {
       "type": "string",
-      "description": "The working tree's current git branch. Absent when the tree is not a git checkout."
+      "description": "The working tree's current git branch. Absent when the knowledge base does not sync git (`[git] sync` in its committed config), and when its tree is not a git checkout."
     }
   },
   "required": [

@@ -187,8 +187,8 @@ export class CloneTokenManager {
         return;
       }
 
-      // Bytes are already on disk — the Archivist's upload path stored them
-      // (noGit) before emitting this command, and the SDK applied the
+      // Bytes are already on disk — the Archivist's upload path stored them,
+      // unstaged, before emitting this command, and the SDK applied the
       // clone-format gate (core `cloneFormat`) when deriving the upload.
       // This actor contributes what only it knows: token validity and the
       // source's entity types.

@@ -11,9 +11,6 @@
     },
     "toUri": {
       "type": "string"
-    },
-    "noGit": {
-      "type": "boolean"
     }
   },
   "required": [

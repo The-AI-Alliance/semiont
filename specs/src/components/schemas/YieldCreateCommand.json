@@ -72,9 +72,6 @@
           }
         }
       ]
-    },
-    "noGit": {
-      "type": "boolean"
     }
   },
   "required": [

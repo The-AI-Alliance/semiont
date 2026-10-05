@@ -50,7 +50,7 @@ import {
 import { IssuerVerifier } from '@semiont/core/identity';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { createEventStore } from '@semiont/event-sourcing';
-import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore } from '@semiont/content';
+import { WorkingTreeStore, createAnchoredTextStore, stagingFor, type AnchoredTextStore } from '@semiont/content';
 import { getGraphDatabase } from '@semiont/graph';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
 import { Stower } from './stower';
@@ -164,6 +164,10 @@ async function main() {
 
   // ── The record: local, single-owner ────────────────────────────────
   const project = new SemiontProject(projectRoot, { anchoredTextDir });
+  // A config that says `[git] sync = true` over a tree git cannot stage into
+  // is refused here, before anything is rebuilt or served. A knowledge base
+  // that does not sync git runs no git, and this resolves at once.
+  await stagingFor(project, { logger: logger.child({ component: 'staging' }) }).ready();
   // The audience every token in this knowledge base is minted for: the KB's own
   // did:web-derived resource identity, from its committed [site] domain — read
   // here, where the file is mounted, and derived with the SAME function the
