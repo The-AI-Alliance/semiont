@@ -3,10 +3,6 @@
 
    This is the authoritative source for all select/dropdown styles.
    Usage: Apply .semiont-select to <select> elements.
-
-   Available modifiers:
-   - .semiont-select--small (reduced padding)
-   - .semiont-select--large (increased padding)
    ============================================ */
 
 /* Base Select Styling */
@@ -121,5 +117,3 @@
   outline-color: var(--semiont-color-primary-400);
   background-color: var(--semiont-color-primary-900);
 }
-
-/* Size Variants */

@@ -3,8 +3,8 @@
 # THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
 # published @semiont/make-meaning and runs `dist/librarian-main.js` out of it; the
 # source is packages/make-meaning/src/librarian-main.ts. Only the image
-# recipe lives here — the entrypoint stayed in its package deliberately, so
-# that moving it out would not have to promote ~18 of that package's
+# recipe lives here — the entrypoint lives in its package deliberately:
+# moving it out would promote ~18 of that package's
 # internals to public API just to satisfy a directory layout. If you change
 # the CMD, change it against that file.
 #
@@ -16,7 +16,7 @@
 # graph (neo4j-driver, a lazy peer of @semiont/graph, bundled explicitly) AND
 # Qdrant (the qdrant client @semiont/make-meaning already carries) AND an
 # embedding provider AND an inference client. It is NOT the git writer — no
-# git in this image (that is the Archivist, GATEWAY.md D4b).
+# git in this image (that is the Archivist).
 #
 # Base is node:24-alpine (not node:26): node 26's built-in undici breaks the
 # qdrant client's own undici, which @semiont/make-meaning can load transitively
@@ -72,8 +72,8 @@ USER semiont
 
 ENV NODE_ENV=production
 # No SEMIONT_ROOT and no SEMIONT_ANCHORED_TEXT_DIR — this image mounts no
-# piece of the KB tree (SINGLE-KB-MOUNT P1). The Librarian locates the views
-# it reads from the staged `[kb] name` under the shared state mount, and
+# piece of the KB tree; only the Archivist does. The Librarian locates the
+# views it reads from the staged `[kb] name` under the shared state mount, and
 # everything else reaches it over the wire.
 EXPOSE 24104
 

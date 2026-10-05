@@ -66,9 +66,9 @@ export class JobNamespace implements IJobNamespace {
   }
 
   async cancelByType(jobType: 'annotation' | 'generation'): Promise<number> {
-    // Confirmed write: cancels all PENDING jobs of the type (running jobs finish —
-    // there's no worker-kill channel) and resolves with the count. Rejects on a
-    // queue failure instead of swallowing it. A per-job cancel was never wired.
+    // Confirmed write: cancels all PENDING jobs of the type (running jobs finish:
+    // only `cancel(jobId)` stops one) and resolves with the count. Rejects on a
+    // queue failure instead of swallowing it.
     const { cancelled } = await busRequest(
       this.transport,
       'job:cancel-requested',
@@ -78,7 +78,7 @@ export class JobNamespace implements IJobNamespace {
   }
 
   /**
-   * Cancel ONE job by id (JOB-RESTART-SAFETY P5). Awaited like its category
+   * Cancel ONE job by id. Awaited like its category
    * sibling `cancelByType`, and resolves with what the queue did: a PENDING
    * job is cancelled outright; a RUNNING one is left to its worker, which
    * stops cooperatively at the next unit boundary and keeps its checkpoint
@@ -97,8 +97,8 @@ export class JobNamespace implements IJobNamespace {
   }
 
   cancelRequest(jobType: 'annotation' | 'generation'): void {
-    // Local emit: the batch-cancel widget fires this; a state unit subscribes and
-    // translates into individual cancels.
+    // Local emit: a progress widget's cancel control fires this. Nothing in the
+    // SDK subscribes to it; the call that cancels is `cancelByType`.
     this.bus.emit('job:cancel-requested', { jobType });
   }
 }

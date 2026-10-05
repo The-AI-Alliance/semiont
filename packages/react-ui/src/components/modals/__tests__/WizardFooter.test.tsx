@@ -1,10 +1,8 @@
 /**
- * WIZARD-NAVIGATION P1 — one dismissal, one retreat, one advance.
+ * The wizard footer — one dismissal, one retreat, one advance.
  *
- * The wizard used to offer four ways out of one step (corner ✕, Esc, backdrop, and a
- * footer `✕ Cancel`) and none at all on the step that starts the flow. D1 settled it:
- * the corner control plus Esc and backdrop are the dismissal, and the footer is purely
- * flow — where you came from, where you are going.
+ * The rule: the corner control plus Esc and backdrop are the dismissal, and the
+ * footer is purely flow — where you came from, where you are going.
  *
  * These assert STRUCTURE, never copy: labels arrive as props and will be revised.
  */
@@ -58,7 +56,7 @@ describe('WizardFooter', () => {
   });
 
   it('does not stretch its buttons to equal width', () => {
-    // `--flex` made retreat and advance read as peers. Retreat is chrome.
+    // `--flex` makes retreat and advance read as peers. Retreat is chrome.
     const { container } = render(
       <WizardFooter backLabel="Back" onBack={vi.fn()} primary={{ label: 'Go', type: 'button', onClick: vi.fn() }} />,
     );
@@ -139,7 +137,9 @@ const CONTEXT = {
   graph: { nodes: [], edges: [] },
 } as unknown as GatheredContext;
 
-describe('every step footer follows the grammar (A1, A2)', () => {
+// The grammar: no step renders a dismissal control in its footer, and every
+// step after the first renders exactly one Back and at most one primary.
+describe('every step footer follows the grammar', () => {
   it('ConfigureSearchStep', () => {
     const { container } = render(
       <ConfigureSearchStep
@@ -186,7 +186,7 @@ describe('every step footer follows the grammar (A1, A2)', () => {
     expect(labels.filter((l) => DISMISSAL.test(l))).toEqual([]);
   });
 
-  it('ConfigureGatherStep — first step of the resource-generate flow: advance only (GFR A5)', () => {
+  it('ConfigureGatherStep — top zone of the resource-generate stack: advance only', () => {
     const { container } = render(
       <ConfigureGatherStep onGather={vi.fn()} translations={GATHER_T} />,
     );
@@ -245,9 +245,9 @@ describe('the resolution chooser (GatherContextStep) — the named exception', (
     expect(buttons.map((b) => b.textContent ?? '').filter((l) => DISMISSAL.test(l))).toEqual([]);
   });
 
-  it('ellipses mark step-vs-act: the step-leading choices carry one, the acting one does not', () => {
-    // The "…" is component-owned markup, not translated copy: Search and
-    // Generate lead to another step; Compose acts immediately (navigates away).
+  it('ellipses are component-owned: Search and Generate carry one, Compose does not', () => {
+    // The "…" is component-owned markup, not translated copy. In
+    // `ReferenceWizardModal` all three choices lead to another step.
     const { container } = render(
       <GatherContextStep
         context={CONTEXT} contextLoading={false} contextError={null}
@@ -271,15 +271,15 @@ describe('the resolution chooser (GatherContextStep) — the named exception', (
 });
 
 // ─────────────────────────────────────────────────────────────────────
-// WIZARD-NAVIGATION P3 — the exits, pinned.
+// The exits, pinned.
 //
-// HeadlessUI already wires Esc and the backdrop to `onClose`; these are the
-// guard, not the fix. What they prevent is a later change that "improves" Esc
-// into a step-back, or that disables the way out while a request is in flight.
+// HeadlessUI wires Esc and the backdrop to `onClose`; these tests are the
+// guard. What they prevent is a change that "improves" Esc into a step-back,
+// or that disables the way out while a request is in flight.
 // ─────────────────────────────────────────────────────────────────────
-describe('the way out (A4, A5)', () => {
+describe('the way out', () => {
   it('a pending step never disables the corner control — only the footer', () => {
-    // D5: dismissal must survive a search that never returns. The footer's own
+    // Dismissal must survive a search that never returns. The footer's own
     // buttons DO disable (pressing Search twice is not a feature); the corner is
     // not the footer's to disable, which is why it does not live there.
     const { container } = render(
@@ -315,10 +315,10 @@ describe('the way out (A4, A5)', () => {
   });
 });
 
-describe('Back is lossless (A3)', () => {
+describe('Back is lossless', () => {
   it('the step reflects the wizard-owned draft, so remounting restores it', () => {
-    // The regression this replaces: `useState` inside the step meant stepping
-    // back unmounted it and every choice reverted to the default.
+    // With `useState` inside the step, stepping back would unmount it and
+    // every choice would revert to the default.
     const config = { limit: 20, useSemanticScoring: false };
     const { unmount } = render(
       <ConfigureSearchStep

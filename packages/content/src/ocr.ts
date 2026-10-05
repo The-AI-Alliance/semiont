@@ -4,8 +4,8 @@
  * Runs inline, on the caller's thread of control, deliberately: the Smelter's
  * lanes are per-resource and concurrent (`groupBy` + `mergeMap`), so a slow
  * page delays only its own resource, never the fast text resources it shares
- * a worker with. Extraction stays ephemeral — nothing is cached, and a
- * rebuild re-reads the pixels (SMELTER-MEDIA-TYPES Design §3/§5).
+ * a worker with. Recognition itself is pure — nothing is cached here; the
+ * store that spares a second read sits at `extract()`.
  *
  * Deterministic for a pinned engine: the same bytes yield the same text, so
  * re-running costs time and nothing else.
@@ -20,7 +20,7 @@ import { isObject, isString } from '@semiont/core';
  * `eng.traineddata.gz` tesseract.js would otherwise fetch from a CDN, and
  * exports the directory holding it.
  *
- * OCR is core (SMELTER-MEDIA-TYPES decision 8), so it must never reach the
+ * OCR is core, not a configurable option, so it must never reach the
  * network at runtime: an air-gapped worker has to be able to read a scan, and
  * a CDN outage must not silently turn scanned documents unreadable. Because
  * this is an ordinary dependency, `npm install` vendors it into the smelter

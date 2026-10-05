@@ -6,7 +6,7 @@ import type { SemiontSession } from '@semiont/sdk';
 
 /**
  * Construct a state unit whose lifetime is bound to a live `SemiontSession`
- * (.plans/SESSION-TYPED-FACTORIES.md — the session gate as API shape).
+ * (the session gate as API shape).
  *
  * Contract, in the order the KB-switch bug family demands it:
  * - one construction per live session, however often the component rerenders;

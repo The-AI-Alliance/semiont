@@ -1,7 +1,6 @@
 import { test, expect } from '../fixtures/auth';
 import type { Page } from '@playwright/test';
-import { SemiontClient, resourceId as ridBrand } from '@semiont/sdk';
-import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { resourceId as ridBrand } from '@semiont/sdk';
 
 import { openResourceByName } from '../fixtures/discover';
 import { signInSession } from '../fixtures/sdk-session';

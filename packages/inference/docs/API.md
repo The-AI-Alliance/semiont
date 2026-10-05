@@ -5,10 +5,12 @@
 `@semiont/inference` provides provider-agnostic text generation. The package exports exactly:
 
 - `createInferenceClient` — factory selecting an implementation from config
-- `InferenceClient`, `InferenceLimits`, `InferenceResponse`, `StructuredResponse`, `ElementSchema` — the interface types
+- `InferenceClient`, `InferenceLimits`, `InferenceResponse`, `StructuredResponse`, `ElementSchema`, `TokenUsage` — the interface types
+- `StructuredReadError` — thrown when a structured generation's response cannot be read
 - `InferenceClientConfig`, `InferenceClientType` — factory config types
 - `AnthropicInferenceClient`, `OllamaInferenceClient` — provider implementations
 - `MockInferenceClient` — scripted test double
+- `answerLimitsRequests`, `reportLimits`, `LIMITS_REPORT_BUDGET_MS`, `LimitsSource` — the limits report: how a service holding inference clients answers `job:limits-requested`, `gather:limits-requested` and `match:limits-requested` with each client's discovered `limits()`
 
 There is no application logic here (no prompt templates, parsing, retries, or context management) — that lives in `@semiont/make-meaning`.
 
@@ -39,7 +41,7 @@ interface InferenceClientConfig {
 - `type: 'anthropic'` with a missing or empty `apiKey`
 - an unsupported `type`
 
-The factory is synchronous and performs no I/O; the first network call happens on generation.
+The factory is synchronous and performs no I/O; the first network call happens on the first `limits()` or generation call.
 
 ## InferenceClient
 
@@ -104,6 +106,8 @@ interface InferenceLimits {
   maxOutputTokens: number;       // max output tokens per generation
   outputTokensPerHour?: number;  // provider's worst-case output-rate model,
                                  // when it publishes one (Anthropic: 128_000)
+  acceptsTemperature?: boolean;  // whether the model takes a caller-supplied
+                                 // temperature; absent = no claim
 }
 ```
 
@@ -112,7 +116,7 @@ interface InferenceLimits {
 - **Anthropic** (separate ceilings): `contextTokens` = maximum *input* tokens, `maxOutputTokens` = the output ceiling — both from the Models API (`models.retrieve`).
 - **Ollama** (shared window): input and output draw from one window, published as both fields — so `maxOutputTokens === contextTokens` signals a shared window to budget-derivation consumers.
 
-`outputTokensPerHour` is the one **duration** statement a provider surface makes: Anthropic's SDK projects a call's maximum duration as `max_tokens / rate` (the `calculateNonstreamingTimeout` constant, 128K/hour) and detection derives its duration-safe output budget from it. Absent for providers whose rates are unknowable a priori (Ollama — local hardware) — and absence does **not** mean no duration bound: the detection consumer applies its own conservative assumed floor rate instead, because an unbounded output budget turned model repetition loops into hour-long transient burns. Note the modeled rate is a ceiling estimate, not a floor: generation measured live at roughly half that rate (2026-09-02), which is why consumers spend only part of their call bound against it.
+`outputTokensPerHour` is the one **duration** statement a provider surface makes: Anthropic's SDK projects a call's maximum duration as `max_tokens / rate` (the `calculateNonstreamingTimeout` constant, 128K/hour) and detection derives its duration-safe output budget from it. Absent for providers whose rates are unknowable a priori (Ollama — local hardware) — and absence does **not** mean no duration bound: the detection consumer applies its own conservative assumed floor rate instead, because an unbounded output budget turns a model repetition loop into an hour-long transient burn. Note the modeled rate is a ceiling estimate, not a floor: generation measured live runs at roughly half that rate, which is why consumers spend only part of their call bound against it.
 
 Discovery is lazy (first call) and cached for the client's lifetime; a failed discovery is **not** cached, so the next call retries. `limits()` **throws** when the ceilings cannot be determined (unknown model, discovery endpoint unreachable) — fail-loud, never a guessed floor.
 
@@ -128,12 +132,12 @@ interface StructuredResponse<T> {
 }
 ```
 
-`generateStructured` returns **parsed elements** — the JSON guarantee lives in the return type, not in a comment. There is no representable value meaning "here is some text I could not read": an implementation that cannot deliver the array **throws a typed `StructuredReadError`** (message `Structured response could not be read: …`, one class across all three implementations) carrying the provider's `stopReason` — because the cause classifies differently downstream: `max_tokens` means the JSON was cut off by the output budget (a retry of the same request truncates the same way — deterministic), anything else is model misbehavior a retry may fix. It is never coerced to `[]`: empty (`{ items: [] }`) is a legitimate, distinct outcome and is never conflated with a read failure — the conflation is precisely what silently discarded 202 real entities as a green empty job (STRUCTURED-INFERENCE).
+`generateStructured` returns **parsed elements** — the JSON guarantee lives in the return type, not in a comment. There is no representable value meaning "here is some text I could not read": an implementation that cannot deliver the array **throws a typed `StructuredReadError`** (message `Structured response could not be read: …`, one class across all three implementations) carrying the provider's `stopReason` — because the cause classifies differently downstream: `max_tokens` means the JSON was cut off by the output budget (a retry of the same request truncates the same way — deterministic), anything else is model misbehavior a retry may fix. It is never coerced to `[]`: empty (`{ items: [] }`) is a legitimate, distinct outcome and is never conflated with a read failure — the conflation would silently discard real entities as a green empty job.
 
 Provider mechanisms:
 
 - **Ollama** uses grammar-constrained sampling: the request's `format` field carries `{ type: 'array', items: <elementSchema> }`, so generation itself is constrained. The response text is parsed here; a non-array parse throws.
-- **Anthropic** uses response-level structured output: `output_config.format` carries `{ type: 'array', items: <elementSchema> }` (array roots accepted on both live-config models — `.plans/spikes/output-config-array-root.md`), so the response **text is the schema-conforming JSON** and is parsed here. There is no tool-input accumulation step left for the SDK to hand over unparsed — the class of failure that discarded 202 entities is structurally gone; an unparseable or non-array response still throws, never coerces to `[]`. A capability gate refuses, before any request, when the Models API does not report `capabilities.structured_outputs.supported: true` — the error names the model and the `inference.model` TOML key that pins it.
+- **Anthropic** uses response-level structured output: `output_config.format` carries `{ type: 'array', items: <elementSchema> }` (array roots accepted on both live-config models), so the response **text is the schema-conforming JSON** and is parsed here. There is no tool-input accumulation step for the SDK to hand over unparsed; an unparseable or non-array response throws, never coerces to `[]`. A capability gate refuses, before any request, when the Models API does not report `capabilities.structured_outputs.supported: true` — the error names the model and the `inference.model` TOML key that pins it.
 
 `T` is a **caller assertion, not a runtime guarantee** — nothing verifies the element schema and `T` agree, and the type parameter is erased. Declare the schema and `T` adjacently at the call site, and keep per-element structural guards on the consuming side.
 
@@ -154,11 +158,11 @@ const client = new AnthropicInferenceClient(
 const response = await client.generateTextWithMetadata('Hello', 100, 0.7);
 ```
 
-Uses `@anthropic-ai/sdk`'s Messages API. Throws if the response contains no text content block (plain mode) or no `tool_use` block (JSON mode). SDK errors (rate limits, auth, network) propagate unchanged.
+Uses `@anthropic-ai/sdk`'s Messages API. Throws if the response contains no text content block, on the text and the structured path alike. SDK errors (rate limits, auth, network) propagate unchanged.
 
 Declared capabilities: `maxConcurrency: 4` (a hosted API whose per-account rate limit sits far above one job's usage — independent calls genuinely parallelize) and `verifyDetectionYield: true`.
 
-`limits()` discovers ceilings via the Models API (`models.retrieve(modelId)` → `max_input_tokens` / `max_tokens`); throws if either is absent. Requests whose `maxTokens` exceeds the SDK's non-streaming ceiling (≈21,333 output tokens — beyond it the SDK refuses non-streaming calls as likely to outlive its 10-minute timeout) are **streamed internally** and assembled via `finalMessage()`: same request shape, same response handling, no interface change.
+`limits()` discovers ceilings via the Models API (`models.retrieve(modelId)` → `max_input_tokens` / `max_tokens`); throws if either is absent. The same discovery sends one single-token request carrying a `temperature` to learn `acceptsTemperature`; for a model that refuses the parameter, the client omits it from every request. Requests whose `maxTokens` exceeds the SDK's non-streaming ceiling (≈21,333 output tokens — beyond it the SDK refuses non-streaming calls as likely to outlive its 10-minute timeout) are **streamed internally** and assembled via `finalMessage()`: same request shape, same response handling, no interface change.
 
 ## OllamaInferenceClient
 
@@ -192,7 +196,7 @@ Declared capabilities: `maxConcurrency: 1` (a local single model is hardware-bou
 - `Prompt (~N tokens) + output budget (M) exceed the '<model>' context window` before the request is sent
 - `Failed to discover model limits: /api/show returned <status>` / `/api/show reports no context length` from `limits()`
 - `Ollama API error (<status>): <body>` on non-2xx responses
-- `Empty response from Ollama` when the response body has no text
+- `StructuredReadError` (`response is empty`) when the response body has no text
 
 ## MockInferenceClient
 
@@ -208,7 +212,7 @@ const mock = new MockInferenceClient(
 );
 
 await mock.generateText('hi', 100, 0);
-mock.calls[0];          // { prompt: 'hi', maxTokens: 100, temperature: 0, options? }
+mock.calls[0];          // { prompt: 'hi', maxTokens: 100, temperature: 0, elementSchema? }
 
 mock.reset();           // clear calls, rewind to first response
 mock.setResponses(['new reply']); // replace the script
@@ -225,4 +229,4 @@ Every generation (success or failure) records a metric through `@semiont/observa
 
 ## Error Handling
 
-There are no custom error classes. Provider/SDK errors propagate unchanged; the only errors originated by this package are the factory config errors and the response-shape errors listed per implementation above. Retry policy is the caller's responsibility.
+`StructuredReadError` is the one custom error class. Provider/SDK errors propagate unchanged; the only errors originated by this package are the factory config errors and the response-shape errors listed per implementation above. Retry policy is the caller's responsibility.

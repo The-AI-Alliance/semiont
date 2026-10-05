@@ -2,10 +2,10 @@ import type { GatheredContext } from '@semiont/core';
 import { resourceId, annotationId } from '@semiont/core';
 
 /**
- * Minimal HONEST GatheredContext fixtures (YIELD-FROM-CONTEXT P2): every
- * field satisfies the generated types with no casts, keyed to the caller's
- * ids so derivation pins (`fromContext` extracts resourceId/referenceId from
- * the focus) compare against known values.
+ * Minimal HONEST GatheredContext fixtures: every field satisfies the
+ * generated types with no casts, keyed to the caller's ids so derivation
+ * pins (`fromContext` extracts resourceId/referenceId from the focus)
+ * compare against known values.
  */
 export function resourceContextFor(rid: string): GatheredContext {
   return {

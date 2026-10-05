@@ -15,7 +15,7 @@ import { uuidV4 } from './id-generation';
  * result channel's payload, or `void` for a result channel that carries no
  * `response` (a confirmed-write ack with no data). Inferred from the registry,
  * so callers never annotate `busRequest`'s return type. Relies on the reply-shape
- * standard — see .plans/REPLY-SHAPE-STANDARD.md.
+ * standard.
  */
 export type BusReply<Op extends BusOperationKey> =
   EventMap[(typeof BUS_OPERATIONS)[Op]['result'] & EventName] extends { response: infer R }
@@ -33,13 +33,12 @@ export type BusReply<Op extends BusOperationKey> =
  * connection, a local misconfiguration — which is why the two vocabularies stay
  * separate rather than collapsing into one.
  *
- * `bus.bad-payload` and `bus.forbidden` were removed (2026-09-13): zero
- * producers, zero consumers, and the HTTP-shaped facts they named already live
- * in `TransportErrorCode` with a real producer (`transportErrorCodeForStatus`).
- * A member nothing can emit promises a distinction the system cannot make.
- * `bus.unauthorized` left with them and returned 2026-09-22, the moment it had
- * a producer: the dispatcher refusing a `job:claim` from a caller without the
- * worker role.
+ * There is no `bus.bad-payload` or `bus.forbidden`: nothing produces either,
+ * and the HTTP-shaped facts they would name live in `TransportErrorCode` with
+ * a real producer (`transportErrorCodeForStatus`). A member nothing can emit
+ * promises a distinction the system cannot make. `bus.unauthorized` is a
+ * member because it has a producer: the dispatcher refusing a `job:claim`
+ * from a caller without the worker role.
  *
  * The mapping has one site, the table. Left unmapped, a consumer would reach
  * into `details.payload.code` and there would be two ways to ask the same
@@ -88,18 +87,16 @@ export class BusRequestError extends SemiontError {
 }
 
 /**
- * The reply channels — result, failure, and (for streaming operations)
- * progress — of every operation in `channels`, deduplicated. Entries that
- * are not operation request channels (broadcast signals, domain events)
- * contribute nothing.
+ * The reply channels — result and failure — of every operation in
+ * `channels`, deduplicated. Entries that are not operation request channels
+ * (broadcast signals, domain events) contribute nothing.
  *
  * This is THE derivation for a narrowed-subscription transport profile
  * (`HttpTransportConfig.channels`: subscribe exactly the reply channels of
  * the operations a process awaits) and for a service's outbound reply pump
  * (forward exactly the replies of the operations it answers). Restating a
- * reply channel by hand was the recurring unbridged-reply bug class.
+ * reply channel by hand is the unbridged-reply bug class.
  */
-
 export function replyChannelsFor(channels: readonly string[]): EventName[] {
   const out = new Set<EventName>();
   for (const ch of channels) {
@@ -129,18 +126,18 @@ export interface BusRequestPrimitive {
   ): Promise<number | undefined>;
   /**
    * The ENVELOPE view. `busRequest` matches a reply on `frame.correlationId`,
-   * which is why the key never needs to enter a channel's domain type
-   * (BUS-CARRIES-FRAMES P3). Required, not optional: every transport can
-   * answer it, and an optional member here would be one interface in two
-   * dialects — the compatibility layer D1a of CLIENT-SUBSCRIPTION-MANIFEST
-   * had to undo.
+   * which is why the key never needs to enter a channel's domain type.
+   * Required, not optional: every transport can answer it, and an optional
+   * member here would be one interface in two dialects — the
+   * capability-sniffing compatibility layer that a required `isSubscribed`
+   * exists to rule out.
    */
   frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>>;
   /** The payload view, DERIVED from `frames` so the two cannot disagree. */
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
   /**
    * Connection state of the stream that carries replies. Required, not
-   * optional (.plans/BUS-ATTACH-GATE.md D2): `busRequest` gates its emit on
+   * optional: `busRequest` gates its emit on
    * this — no correlated emit before the reply path exists. Implementers back
    * it with a `BehaviorSubject`, so the current state arrives synchronously
    * on subscribe; a transport that cannot lose replies (in-process) reports
@@ -148,8 +145,7 @@ export interface BusRequestPrimitive {
    */
   state$: Observable<ConnectionState>;
   /**
-   * Correlated-reply retention, client side (.plans/BUS-RESUMPTION.md
-   * Phase 2 / SDK-DEBT S1). `busRequest` registers its correlationId here
+   * Correlated-reply retention, client side. `busRequest` registers its correlationId here
    * BEFORE emitting and calls the returned disposer on every settle path;
    * a wire transport includes the currently-tracked ids as
    * `pendingReplies` in each subscribe body, so a reply published while
@@ -169,10 +165,10 @@ export interface BusRequestPrimitive {
    *
    * REQUIRED. An in-process transport answers `true` for every channel,
    * because it delivers every emit — that is the true answer, not a stub.
-   * It was optional until 2026-09-16, and the optionality was a
-   * compatibility layer: `busRequest` had to branch on whether the method
-   * existed, so the check ran or did not according to which implementation
-   * it held rather than according to what was true.
+   * An optional member would be a compatibility layer: `busRequest` would
+   * branch on whether the method exists, so the check would run or not
+   * according to which implementation it held rather than according to what
+   * is true.
    *
    * Answers for the GLOBAL subscription set only. Correlated replies always
    * ride global channels, so a scope-only subscription cannot deliver one —
@@ -201,16 +197,16 @@ function abandonment(signal: AbortSignal): Observable<never> {
  * The `operation` is a `BusOperationKey` (a request channel declared in
  * `BUS_OPERATIONS`); the matching `result`/`failure` reply channels are looked
  * up from the registry, so a caller cannot pass a mismatched or unbridged reply
- * pair — the recurring unbridged-reply bug class is unrepresentable. Every
+ * pair — the unbridged-reply bug class is unrepresentable. Every
  * registry reply derives into `BRIDGED_CHANNELS` (see bridged-channels.ts), so
- * the transport always subscribes to it (cf.
- * .plans/bugs/gather-resource-complete-not-bridged.md, where the `gather:resource-*`
- * pair shipped unbridged with no compile/runtime signal).
+ * a transport on the default channel set subscribes to it (an unbridged reply
+ * pair gives no compile/runtime signal).
  *
  * The return type is INFERRED from the registry (`BusReply<Op>` = the result
- * channel's `response` type, or `void`) — callers never annotate it. Every reply
- * is `{ correlationId, response: T }` (data) or `{ correlationId }` (void); see
- * .plans/REPLY-SHAPE-STANDARD.md. `busRequest` reads `e.response`.
+ * channel's `response` type, or `void`) — callers never annotate it. A result
+ * reply is a frame whose envelope carries the request's `correlationId` and
+ * whose payload is `{ response: T }` (data) or `{}` (void); `busRequest` matches
+ * on the envelope and reads `payload.response`.
  *
  * `signal` lets the caller ABANDON the request. Abandoned, it rejects with the
  * signal's reason, as an abortable API does, and that is all it does: what
@@ -288,7 +284,6 @@ export async function busRequest<Op extends BusOperationKey>(
     // throw rxjs `EmptyError`. An awaited caller then gets a clean
     // BusRequestError; an in-flight promise nobody is awaiting simply resolves,
     // so it can't surface as an unhandled rejection on dispose.
-    // See .plans/bugs/busrequest-emptyerror-on-dispose.md.
     defaultIfEmpty({
       ok: false as const,
       error: new BusRequestError(
@@ -305,20 +300,19 @@ export async function busRequest<Op extends BusOperationKey>(
   // It rejects on a timeout or an abandonment, and is read only where it is
   // awaited, at the tail. Every path that leaves before then — a closed bus, a
   // refused emit — leaves it rejected with nobody holding it, which a Node
-  // process treats as fatal (found by the liveness harness's reject-emit
-  // schedules, .plans/LIVENESS-AXIOMS.md P1). Marked handled once, here; the
-  // await at the tail still throws what it rejected with.
+  // process treats as fatal. Marked handled once, here; the await at the tail
+  // still throws what it rejected with.
   resultPromise.catch(() => {});
 
-  // ── Attach gate (.plans/BUS-ATTACH-GATE.md) ─────────────────────────────
-  // No correlated emit before the reply path exists: the measured failure was
-  // an emit accepted (202) and answered while the session's subscribe stream
-  // had not attached — the reply was published to nobody. Wait, inside the
-  // SAME deadline (the timeout operator above is already ticking — D4), for
-  // the transport to report the one deliverable state. D3 (amended
-  // 2026-07-29): only `'open'` delivers; `'degraded'` is a dropped stream by
-  // definition and waits like `connecting`/`reconnecting`. `'closed'` fails
-  // fast — a request against a closed bus should not burn a timeout.
+  // ── Attach gate ───────────────────────────────────────────────────────────
+  // No correlated emit before the reply path exists: an emit accepted (202)
+  // and answered while the session's subscribe stream has not attached
+  // publishes its reply to nobody. Wait, inside the SAME deadline (the
+  // timeout operator above is already ticking), for the transport to report
+  // the one deliverable state. Only `'open'` delivers;
+  // `'degraded'` is a dropped stream by definition and waits like
+  // `connecting`/`reconnecting`. `'closed'` fails fast — a request against a
+  // closed bus should not burn a timeout.
   const closedBeforeEmit = () =>
     new BusRequestError(`Bus closed before emit on ${operation}`, 'bus.closed', {
       channel: operation,
@@ -328,7 +322,7 @@ export async function busRequest<Op extends BusOperationKey>(
   // Synchronous fast path: `state$` is BehaviorSubject-backed (see the
   // interface contract), so the current state lands during subscribe. Already
   // `'open'` → fall straight through to the emit with zero added microtasks —
-  // the gate can only remove latency, never add it (D4).
+  // the gate can only remove latency, never add it.
   let currentState: ConnectionState | undefined;
   bus.state$.subscribe((s) => {
     currentState = s;
@@ -350,8 +344,8 @@ export async function busRequest<Op extends BusOperationKey>(
     const outcome = await Promise.race([
       gate,
       // Either settlement of the reply machinery means "stop waiting, never
-      // emit": its timeout rejecting `bus.timeout` at `timeoutMs` (the same
-      // moment it would fire today — D4), or its streams completing into the
+      // emit": its timeout rejecting `bus.timeout` at `timeoutMs` (one
+      // deadline, measured from the call), or its streams completing into the
       // `bus.closed` default above. The shared tail below carries it.
       resultPromise.then(
         () => 'settled' as const,
@@ -362,18 +356,18 @@ export async function busRequest<Op extends BusOperationKey>(
       throw closedBeforeEmit();
     }
     // 'open' → the one emit below. 'settled' → skip the emit; awaiting the
-    // reply at the tail rethrows its outcome. (D5 holds structurally either
-    // way: nothing subscribes to state$ past this point, so a flap after
-    // emission cannot re-emit.)
+    // reply at the tail rethrows its outcome. (Emit-exactly-once holds
+    // structurally either way: nothing subscribes to state$ past this point,
+    // so a flap after emission cannot re-emit.)
     emitAllowed = outcome === 'open';
   }
 
   // An emit rejection (e.g. /bus/emit 4xx) propagates to the caller.
   //
-  // Reply tracking (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1): register the
-  // cid BEFORE the emit — a reconnect body built while the emit is in flight
-  // must already carry it in `pendingReplies`, or a reply published in the
-  // old-connection-death → new-connection-open gap sits in the server's
+  // Reply tracking, the client side of correlated-reply retention: register
+  // the cid BEFORE the emit — a reconnect body built while the emit is in
+  // flight must already carry it in `pendingReplies`, or a reply published in
+  // the old-connection-death → new-connection-open gap sits in the server's
   // retention buffer unasked-for. Released on every settle path; the
   // never-emitted paths above (closed fast-fail, 'settled' race arm) never
   // reach this line, so they never track.

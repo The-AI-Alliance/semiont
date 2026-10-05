@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Cleanup script: remove resource event streams whose effective storageUri
- * points at a file that no longer exists on disk.
+ * points at a file that does not exist on disk.
  *
  * This happens when:
  *   - a file is deleted from the working tree without a compensating event

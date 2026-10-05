@@ -87,7 +87,7 @@ export interface VectorStore {
    * that shrinks to fewer chunks leaves no orphans. `contentChecksum` is
    * the checksum of the bytes the chunks were computed from; it is stamped
    * onto the points so reconciliation can detect stale-but-present
-   * resources (SMELTER-AXIOMS.md, S12). `entityTypes` is the resource's
+   * resources (smelter axiom S12). `entityTypes` is the resource's
    * entity-type set, stamped onto every point so `searchResources` can
    * discriminate by kind (e.g. exclude `['Question']` from recall).
    */
@@ -101,7 +101,7 @@ export interface VectorStore {
   upsertResourceVectors(resourceId: ResourceId, chunks: EmbeddingChunk[], contentChecksum: string, entityTypes: string[], machineRead?: boolean): Promise<void>;
   /**
    * Rewrite the `entityTypes` stamp on a resource's existing points —
-   * payload-only, no embedding involved (SMELTER-AXIOMS.md, S13: a tag edit
+   * payload-only, no embedding involved (smelter axiom S13: a tag edit
    * must never trigger an embedding call). No-op when the resource has no
    * points: the stamp rides the next embed.
    */

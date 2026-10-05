@@ -3,10 +3,10 @@
 Semiont implements the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/), a standard specification for creating, sharing, and managing annotations across the web.
 
 **Related Documentation:**
-- [W3C Selectors](./W3C-SELECTORS.md) - Text and image selector implementation
-- [Knowledge System](../system/KNOWLEDGE-SYSTEM.md) - How annotations flow through the event store, materialized views, and graph
+- [W3C Selectors](./W3C-SELECTORS.md) - Which selectors apply to text, PDFs and images
+- [Knowledge System](../architecture/KNOWLEDGE-SYSTEM.md) - How annotations flow through the event store, materialized views, and graph
 - [Semiont Protocol](./README.md) - The eight verbs and the bus these annotations travel on
-- [OpenAPI Specification](../../specs/openapi.json) - Machine-readable API contract
+- [OpenAPI Specification](../../specs/src/openapi.json) - Machine-readable API contract
 
 ## Table of Contents
 
@@ -79,11 +79,21 @@ Every W3C annotation has these required fields:
 
 ## Annotation Types
 
-Semiont uses three W3C motivations:
+Semiont uses five W3C motivations. Each decides what the annotation's body holds:
+
+| Motivation | Records | Body |
+|---|---|---|
+| `highlighting` | This passage matters | none |
+| `commenting` | A note on the passage | a `TextualBody` with `purpose: "commenting"` |
+| `assessing` | A judgement of the passage | a `TextualBody` holding the assessment |
+| `tagging` | The passage's role in a structure | a category (`purpose: "tagging"`) and the id of its tag schema (`purpose: "describing"`) |
+| `linking` | The passage refers to something | entity types (`purpose: "tagging"`), and once resolved, a `SpecificResource` |
+
+How each is created is in the [Mark](./flows/MARK.md) contract.
 
 ### 1. Highlighting (`motivation: "highlighting"`)
 
-Mark important text with a comment:
+A highlight is a motivation and a target. It carries no body:
 
 ```json
 {
@@ -105,12 +115,7 @@ Mark important text with a comment:
       }
     ]
   },
-  "body": {
-    "type": "TextualBody",
-    "value": "Famous equation from special relativity",
-    "purpose": "commenting",
-    "format": "text/plain"
-  },
+  "body": [],
   "creator": {
     "@type": "Person",
     "@id": "did:web:example.org:users:alice",
@@ -314,7 +319,7 @@ The `target` field describes what is being annotated. The resource is named by i
 
 ## Selectors
 
-Semiont uses W3C selector arrays combining position and quote selectors for robustness.
+A text annotation carries a selector array that combines a position and a quote. A PDF or an image is anchored by geometry instead: [W3C-SELECTORS.md](./W3C-SELECTORS.md) says which selectors apply to which media.
 
 ### TextPositionSelector
 
@@ -414,21 +419,10 @@ Semiont annotations are fully W3C-compliant and can be exported as standard JSON
 
 ### Standards Compliance
 
-- ✅ Full W3C Web Annotation Data Model compliance
-- ✅ JSON-LD context from `http://www.w3.org/ns/anno.jsonld`
-- ✅ Decentralized identifiers (DID:WEB) for every agent — people and software under one authority
-- ✅ `generator` field on AI-produced annotations (W3C §3.2.1)
-- ✅ `creator`, `generator` and `wasAttributedTo` derived from verified identities, never asserted
-- ✅ Content-addressed document IDs for federation-readiness
-- ✅ Interoperable with other W3C annotation tools
-
-### Export Formats
-
-Annotations can be exported in multiple formats:
-
-- **JSON-LD**: Standard W3C format (`.jsonld` files)
-- **JSON**: Without `@context` for simpler parsing
-- **Annotation Collection**: Multiple annotations in W3C AnnotationCollection format
+- The W3C Web Annotation Data Model, with the JSON-LD context `http://www.w3.org/ns/anno.jsonld`
+- Decentralized identifiers (`did:web`) for every agent: people and software under one authority
+- `generator` on every annotation software produced (W3C §3.2.1)
+- `creator`, `generator` and `wasAttributedTo` derived from verified identities, never asserted
 
 ## References
 

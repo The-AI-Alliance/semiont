@@ -1,15 +1,17 @@
 /**
- * JOB-RESTART-SAFETY P3 — annotation identity is content-addressed.
+ * Annotation identity is content-addressed.
  *
- * Every recovery path in this plan re-runs work that may already have
+ * Every job-recovery path re-runs work that may already have
  * persisted: the janitor re-queues an orphaned job, a checkpoint resumes a
  * partially-completed unit, a retry repeats a failed one. While ids were
- * `nanoid(21)` each of those minted duplicates — the ~1,516-annotation near-miss
- * in P1's log, and the hand-built `TYPES` list that worked around it.
+ * `nanoid(21)` each of those minted duplicates — one janitor-recovered job was
+ * heading for ~1,516 of them before it was killed, and a hand-built `TYPES`
+ * list worked around it.
  *
- * HD1 chose content-addressing over emission-time skip-if-equivalent because
- * the latter is circular with P6: a read-before-write consults the projection,
- * and P6 exists precisely because that sink can be down. So it fails exactly
+ * Content-addressing was chosen over emission-time skip-if-equivalent because
+ * the latter is circular with acknowledged persistence: a read-before-write
+ * consults the projection, and a unit waits for its commit to be acknowledged
+ * precisely because that sink can be down. So it fails exactly
  * when idempotency matters most.
  *
  * The identity contract: two annotations are the same annotation iff they say
@@ -55,7 +57,7 @@ describe('annotationIdFor — content-addressed annotation identity', () => {
     expect(annotationIdFor({ ...base, motivation: 'assessing' })).not.toBe(annotationIdFor(base));
   });
 
-  it('distinguishes different bodies on the same span — the collision HD1 named', () => {
+  it('distinguishes different bodies on the same span', () => {
     // Two comments on one span are two annotations. Hashing without the body
     // would silently collapse them into one.
     const other = { ...base, body: [{ type: 'TextualBody', value: 'a DIFFERENT remark', purpose: 'commenting' }] };
@@ -82,7 +84,7 @@ describe('annotationIdFor — content-addressed annotation identity', () => {
   //
   // `identifier-utils.test.ts` is deleted rather than adapted: its central
   // case asserted that two calls produce DIFFERENT ids, which is precisely the
-  // contract P3 reverses. Its two surviving assertions live here.
+  // contract content-addressing reverses. Its two surviving assertions live here.
 
   it('produces a URL-safe id — it lands in an annotation URI path segment', () => {
     expect(annotationIdFor(base)).toMatch(/^[A-Za-z0-9_-]+$/);

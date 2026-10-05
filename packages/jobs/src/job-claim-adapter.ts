@@ -2,12 +2,11 @@
  * Job Claim Adapter — worker-side job lifecycle glue on top of a
  * shared bus.
  *
- * Replaces the old `WorkerStateUnit`, which owned its own actor and
- * duplicated the SSE connection that `SemiontClient` already held.
  * Workers construct a `SemiontSession` normally (one actor, one
  * SSE connection) and use this adapter to attach job-claim behaviour
- * on top of the session's bus. It does **not** own the bus, has no HTTP
- * concerns, and has no modal state.
+ * on top of the session's bus, so the worker holds no second connection.
+ * It does **not** own the bus, has no HTTP concerns, and has no modal
+ * state.
  *
  * THE MODEL — a worker asks the queue at every moment it becomes idle,
  * and never otherwise. `job:claim` carries this worker's types; the
@@ -39,9 +38,9 @@
  * can never claim has nothing to do here and the launcher's preflight
  * names the repair.
  *
- * The queue drivers' 30 s re-announce tick survives as INSURANCE against a
- * lost wake-up on an idle worker — never as dispatch. A healthy stack never
- * sees it act.
+ * The queue drivers' 30 s re-announce tick is INSURANCE against a lost
+ * wake-up on an idle worker — never dispatch. A healthy stack never sees it
+ * act.
  *
  * The `bus` parameter is typed against the small `BusRequestPrimitive`
  * interface (from `@semiont/core`) so the adapter is transport-neutral.
@@ -74,25 +73,27 @@ export interface ActiveJob {
   resourceId: ResourceId;
   params: ClaimedJob['params'];
   /**
-   * Entity-type units earlier failed attempts fully emitted
-   * (ABANDONED-INFERENCE P2 checkpointed resume) — carried on the claimed
-   * record's metadata by `failJob`. The worker skips them, so a retry
-   * neither redoes nor duplicates completed work. Empty on first attempts.
+   * Entity-type units earlier attempts fully committed — the checkpoint a
+   * resume reads, carried on the claimed record's metadata, where the queue
+   * writes it from `job:checkpoint` and `job:fail`. The worker skips them, so
+   * a retry neither redoes nor duplicates completed work. Empty on first
+   * attempts.
    */
   completedUnits: string[];
   /**
-   * How far each UNFINISHED unit got on an earlier attempt
-   * (CHUNK-GRAIN-RESUME P2) — the grain `completedUnits` cannot express, and
-   * the only checkpoint a one-unit job can produce before it finishes. Empty
-   * on first attempts, and never overlapping `completedUnits`: a unit is
-   * either finished or partway, never both.
+   * How far each UNFINISHED unit got on an earlier attempt: the offset where
+   * its last committed chunk ended and the size that chunk was cut at — the
+   * grain `completedUnits` cannot express, and the only checkpoint a one-unit
+   * job can produce before it finishes. Empty on first attempts, and never
+   * overlapping `completedUnits`: a unit is either finished or partway,
+   * never both.
    */
   unitCursors: Record<string, UnitCursor>;
   /**
    * The claimed record's retry budget, carried so the worker can report
-   * `willRetry` on `job:fail` (JOB-RESTART-SAFETY P5). It is the same budget
-   * the queue re-reads at `failJob`, and only `failJob` changes it, so the
-   * two evaluations of `willRetryAfter` agree.
+   * `willRetry` on `job:fail`. It is the same budget the queue re-reads at
+   * `failJob`, and only `failJob` changes it, so the two evaluations of
+   * `willRetryAfter` agree.
    */
   retryCount: number;
   maxRetries: number;
@@ -122,9 +123,9 @@ export interface ClaimRefusal {
 }
 
 /**
- * Point-in-time liveness snapshot (WORKER-LIVENESS.md P1). The adapter
- * is the only component that sees every wake-up, claim, and finish,
- * so its snapshot is what `/health` reports and the stall watchdog reads.
+ * Point-in-time liveness snapshot. The adapter is the only component that
+ * sees every wake-up, claim, and finish, so its snapshot is what `/health`
+ * reports and the stall watchdog reads.
  *
  * `lastQueuedEventAt` is any `job:queued` received, matching or not. It
  * proves the transport delivered a broadcast, but on an idle stack with an
@@ -221,12 +222,13 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
   const iso = (t: number | null): string | null => (t === null ? null : new Date(t).toISOString());
 
   const claimNext = async (): Promise<ClaimOutcome> => {
-    // Ask for the next pending job of this worker's types (JOB-QUEUE-DRIVER
-    // P2). Same request/reply path as the SDK: busRequest mints the
-    // correlationId, matches the job:claimed / job:claim-failed reply by it,
-    // and returns the reply's `response` — the claimed job, as the spec types
-    // it. A reply is not checked on receipt: the dispatcher states it, and its
-    // conformance suite holds every frame it sends to the channel's schema.
+    // Ask for the next pending job of this worker's types: a claim names job
+    // types, never a job id. Same request/reply path as the SDK: busRequest
+    // mints the correlationId, matches the job:claimed / job:claim-failed reply
+    // by it, and returns the reply's `response` — the claimed job, as the spec
+    // types it. A reply is not checked on receipt: the dispatcher states it,
+    // and its conformance suite holds every frame it sends to the channel's
+    // schema.
     let claimed: ClaimedJob;
     try {
       claimed = await busRequest(bus, 'job:claim' satisfies JobClaimAwaits, { types: jobTypes }, 10_000);
@@ -304,8 +306,9 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       started = true;
 
       // `job:queued` is declared twice over, and both halves are load-bearing:
-      // as a bridged broadcast so the frame exists on the wire at all, and in
-      // `WORKER_CONSUMED_BROADCASTS` so this process's transport carries it.
+      // under `audience: declared` in the registry so the frame crosses the
+      // wire at all, and in `WORKER_CONSUMED_BROADCASTS` so this process's
+      // transport carries it.
       // The worker subscribes its manifest, not `BRIDGED_CHANNELS`.
       subscriptions.push(
         bus.stream('job:queued').subscribe((event) => {

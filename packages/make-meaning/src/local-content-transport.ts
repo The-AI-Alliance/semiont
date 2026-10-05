@@ -11,7 +11,7 @@
  * (byte retrieval). No network, no auth — local mode runs as a single
  * host-process identity.
  *
- * `putBinary` is intentionally not implemented in Phase 2: in-process
+ * `putBinary` is intentionally not implemented: in-process
  * resource creation is exercised through bus emits (mark/yield
  * namespaces), not multipart upload. If a future caller needs raw
  * binary upload from a local context, wire it through the same
@@ -90,10 +90,8 @@ export class LocalContentTransport implements IContentTransport {
   }
 
   /**
-   * The same resolution the wire path serves, buffered — local and hosted
-   * modes must answer identically, which they did not before
-   * SINGLE-KB-MOUNT P3: this resolved through `representations[].storageUri`,
-   * a field `ViewMaterializer` never writes, so every binary read here threw.
+   * The same resolution the wire path serves, buffered, so local and hosted
+   * modes answer identically.
    */
   private loadBinary(resourceId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }> {
     return workingTreeContentReads(this.kb.views, this.kb.content).getBinary(resourceId);
@@ -102,7 +100,8 @@ export class LocalContentTransport implements IContentTransport {
   /**
    * Assemble the resource's JSON-LD graph in-process from the KB — the local
    * realization of `IContentTransport.getResourceGraph` (symmetric with
-   * getBinary; SIMPLER-JSON-LD.md decision 7). Local mode has no auth.
+   * getBinary; the HTTP transport dereferences the `/jsonld` route for the
+   * same graph). Local mode has no auth.
    */
   async getResourceGraph(
     resourceId: ResourceId,

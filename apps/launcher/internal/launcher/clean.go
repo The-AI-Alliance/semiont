@@ -1,16 +1,16 @@
 package launcher
 
 // clean.go — `semiont clean`: remove one root's persistent local-stack
-// state (LAUNCHER-STATE.md). start persists postgres/qdrant/neo4j under
-// <dataDir>/roots/<key>; this command is the only way that data dies —
-// stop deliberately leaves it, and start's database image-mismatch refusal
-// names this command as the way out.
+// state. start persists postgres/qdrant/neo4j under <dataDir>/roots/<key>;
+// this command is the only way that data dies — stop deliberately leaves it,
+// and start's database image-mismatch refusal names this command as the way
+// out.
 //
 // An UNSCOPED clean also deletes every secret the launcher keeps for the root
-// (custody.go), through the store that keeps them (SECRETS-STORE P5): the
-// accounts the token-signing key's tokens name are in the postgres data going
-// away, so keeping it would preserve nothing. A --store clean targets one
-// subdir and leaves them.
+// (custody.go), through the store that keeps them: the accounts the
+// token-signing key's tokens name are in the postgres data going away, so
+// keeping it would preserve nothing. A --store clean targets one subdir and
+// leaves them.
 
 import (
 	"fmt"
@@ -238,7 +238,7 @@ func cleanRuntime(u *UI) (string, bool) {
 // cleanTarget resolves which root's state to clean. No --root: the same
 // cwd ladder start uses. --root: a path or registered basename first
 // (resolveRootArg), else a literal key with a dir under roots/ — the form
-// status prints for orphans, whose KB no longer resolves any other way.
+// status prints for orphans, whose KB resolves no other way.
 func cleanTarget(u *UI, rootArg string) (key, dir string, code int) {
 	d := dataDir()
 	if d == "" {

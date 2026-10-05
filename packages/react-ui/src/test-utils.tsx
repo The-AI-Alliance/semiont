@@ -9,7 +9,7 @@
  * `stubGateway`, `inMemoryContent`, `refuseUnscriptedOperation`. This module
  * only assembles them into React providers. Reach for the SDK's first; a
  * hand-rolled double here encodes its author's model of a contract the SDK
- * already owns, which is the mistake SDK-DEBT M1 was raised for.
+ * already owns, and a wrong belief encoded that way ships inside green tests.
  */
 
 import React, { ReactElement } from 'react';
@@ -28,10 +28,10 @@ import en from '../translations/en.json';
 
 /**
   * Every browser below is a REAL `SemiontBrowser` over the SDK's own
-  * in-memory doubles — no HTTP, no localhost, no network. Clients are still
-  * disposed at test end: a chain straddling teardown dies in the cache's B16
-  * disposed-guard rather than logging while the vitest worker's RPC closes
-  * (the `EnvironmentTeardownError` class CI hit). Registered at module scope:
+  * in-memory doubles — no HTTP, no localhost, no network. Clients are
+  * disposed at test end all the same: a chain straddling teardown dies in the
+  * cache's B16 disposed-guard rather than logging while the vitest worker's RPC
+  * closes (an `EnvironmentTeardownError`). Registered at module scope:
   * every file that imports test-utils — exactly the files that create
   * clients — gets the hook.
   */
@@ -60,7 +60,7 @@ function createTestBrowser(): SemiontBrowser {
   // construction concern lives in the factory"), so the double stops at the
   // transport layer and production code sees the production surface.
   // Both doubles refuse rather than invent: `stubGateway`'s ops reject by
-  // name, and `FaultyTransport` now refuses unscripted bus operations by
+  // name, and `FaultyTransport` refuses unscripted bus operations by
   // default — so a unit that reaches something the test never scripted fails
   // saying which one.
   const { session, client, storage } = createTestSession({ gateway: stubGateway() });

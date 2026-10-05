@@ -105,11 +105,10 @@ func captureOutput(t *testing.T, fn func()) (stdout, stderr string) {
 	return stdout, stderr
 }
 
-// custodyStoreContract: what every backend does (SECRETS-STORE P1b, P2). A
+// custodyStoreContract: what every backend does, files and 1Password alike. A
 // value put is got back; a name never put reads as nothing kept; names lists
 // what is kept; remove removes. And every operation is shown on the terminal
-// before it runs — the operation and the secret's name, never its value
-// (ruled 2026-09-29).
+// before it runs — the operation and the secret's name, never its value.
 func custodyStoreContract(t *testing.T, s custodyStore) {
 	t.Helper()
 	u := NewUI(false)
@@ -203,7 +202,7 @@ func TestOnePasswordCustodyStoreKeepsTheContract(t *testing.T) {
 }
 
 // One item per root, one concealed field per value: a skill reads a value
-// with `op read`, at the reference the store names (D2).
+// with `op read`, at the reference the store names.
 func TestOnePasswordCustodyStoreKeepsOneItemPerRoot(t *testing.T) {
 	withFakeOp(t)
 	u := NewUI(false)

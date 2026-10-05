@@ -1,19 +1,18 @@
 /**
  * Weaver Axioms — fast-check property suite.
  *
- * Spec and ledger: `.plans/WEAVER-AXIOMS.md`. Every axiom carries its FOPL
+ * Every axiom carries its FOPL
  * statement as a comment directly above the property so spec and test cannot
- * drift. Axioms the current code falsifies are `it.fails(...)`: the property
+ * drift. Axioms the code falsifies are `it.fails(...)`: the property
  * runs, is expected to fail, and the suite stays green. When a refactor makes
  * the behavior correct, `it.fails` errors ("expected to fail but passed") and
  * MUST be promoted to `it(...)` in the same diff.
  *
- * Vocabulary and generators: WEAVER-AXIOMS.md "Vocabulary". σ ranges over
- * well-formed histories (created precedes other ops per resource,
- * per-resource ascending sequence numbers); `foldModel(σ)` is the
- * independent oracle (identity + facets — archived flag, tag set,
- * annotation-id set, entity-type registry; annotation BODIES are outside
- * the v1 model, see W9-deep).
+ * Vocabulary and generators: σ ranges over well-formed histories (created
+ * precedes other ops per resource, per-resource ascending sequence
+ * numbers); `foldModel(σ)` is the independent oracle (identity + facets —
+ * archived flag, tag set, annotation-id set, entity-type registry;
+ * annotation BODIES are outside the v1 model, see W9-deep).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -43,7 +42,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // settle after resource marks reach parity, before dumping.
 const SETTLE_MS = 25;
 
-// ── Generators (see WEAVER-AXIOMS.md "Vocabulary") ──────────────────────────
+// ── Generators (the sorts the axioms range over) ────────────────────────────
 
 interface Catalog { rids: string[]; tags: string[] }
 
@@ -197,7 +196,7 @@ describe('W5 — rebuild ≡ replay', () => {
   // ∀ σ: RB(σ)|resources ≡ fold(σ)|resources — two roads, one graph.
   // Rebuild's only view of history is the browse responders, exactly as in
   // production. RESOURCE scope: the entity-type registry is excluded here
-  // and pinned RED below (W5-frames).
+  // and pinned below (W5-frames).
   it('W5: rebuildAll over the served log projects exactly the reference fold (resource scope)', async () => {
     await fc.assert(
       fc.asyncProperty(historyArb, async (history) => {
@@ -218,14 +217,13 @@ describe('W5 — rebuild ≡ replay', () => {
     );
   });
 
-  // ∀ σ: RB(σ) ≡ fold(σ) INCLUDING the entity-type registry. Was RED
-  // 2026-07-13 → 2026-07-18: `frame:entity-type-added` is a system event —
-  // it lives in no resource stream, so the per-resource replay can never
-  // restore it, while clearDatabase wiped the registry back to the ontology
-  // baseline. GREEN via the preserve-and-re-register arm (the ledgered
-  // alternative): rebuildAll captures the live-folded registry before the
-  // wipe and re-registers it after — the live registry is itself log-derived,
-  // and no weaver-readable stream exists to rebuild frames from.
+  // ∀ σ: RB(σ) ≡ fold(σ) INCLUDING the entity-type registry.
+  // `frame:entity-type-added` is a system event — it lives in no resource
+  // stream, so the per-resource replay can never restore it, while
+  // clearDatabase resets the registry to the ontology baseline. So
+  // rebuildAll captures the live-folded registry before the wipe and
+  // re-registers it after — the live registry is itself log-derived, and no
+  // weaver-readable stream exists to rebuild frames from.
   it('W5-frames: rebuild restores frame-added entity types', async () => {
     const rig = await buildWeaverRig();
     const history = [
@@ -494,8 +492,8 @@ describe('W9 — reconcile detects and heals out-of-band divergence', () => {
                 await rig.graph.updateResource(mkRid(rid), { entityTypes: ['OobPhantomTag'] });
                 break;
               case 'corrupt-annotation-content': {
-                // A stored property OUTSIDE the id set and the body — exactly
-                // what the old five-fact check could not see (GRAPH-DIVERGENCE-DEPTH).
+                // A stored property OUTSIDE the id set and the body — one a
+                // check of membership and bodies alone cannot see.
                 const anns = model.resources.get(rid)?.annotations ?? new Set<string>();
                 const [first] = anns;
                 if (!first) { mutated = false; break; }
@@ -535,12 +533,10 @@ describe('W9 — reconcile detects and heals out-of-band divergence', () => {
     );
   });
 
-  // Was RED (v1 boundary) → GREEN 2026-07-18, widened 2026-09-07: divergenceOf
-  // compared annotation BODIES canonically, which caught corruption in place
-  // where membership equality could not (#845 deep-equality checkbox). It now
-  // compares the WHOLE annotation against what the codec says the graph should
-  // hold, so this reads as 'annotation-content-mismatch' — body corruption is
-  // one case of it rather than the only one it can see.
+  // Membership equality cannot see corruption in place. divergenceOf compares
+  // the WHOLE annotation against what the codec says the graph should hold,
+  // so this reads as 'annotation-content-mismatch' — body corruption is one
+  // case of it rather than the only one it can see.
   it('W9-deep: reconcile detects in-place annotation body corruption', async () => {
     const rig = await buildWeaverRig();
     const rid = 'res-deep';
@@ -631,9 +627,9 @@ describe('W1 — per-resource mutual exclusion (pipeline path)', () => {
 
   // KNOWN false: heals (weave:rebuild, reconcile's rebuildResource) bypass
   // the pipeline lanes — a heal racing a live write on the same resource
-  // can stale-overwrite it (found deterministic shape: clear-then-replay
+  // can stale-overwrite it (the deterministic shape: clear-then-replay
   // drops a live event applied mid-rebuild, and the monotone mark still
-  // claims it). Flips when #845's "lane-clean heals" checkbox lands.
+  // claims it). Tracked as #845, "lane-clean heals".
   it.fails('W1-strict: a rebuild racing live traffic never loses the live write', async () => {
     const rid = 'res-race';
     const history = [
@@ -672,7 +668,7 @@ describe('W1 — per-resource mutual exclusion (pipeline path)', () => {
       await sleep(SETTLE_MS);
 
       const doc = await inner.getResource((await import('@semiont/core')).resourceId(rid));
-      // The live write must survive a racing heal — today it does not.
+      // The live write must survive a racing heal — it does not, hence `it.fails`.
       expect(doc?.entityTypes ?? []).toContain('LiveTag');
     } finally {
       stopServing();

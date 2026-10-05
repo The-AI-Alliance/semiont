@@ -1,3 +1,17 @@
+/**
+ * The ONE stall guard for generation streams: silence past the deadline
+ * cancels the job and raises a typed error, and no consumer of the stream
+ * keeps a timer of its own.
+ *
+ * The generation wire is exactly three frames (5 → 95 → 100), so the 5→95
+ * silence spans the entire inference call. The deadline therefore derives
+ * from the request's `maxTokens` — never a fixed constant — because the
+ * guard CANCELS server-side, and a mis-sized fixed default would destroy
+ * the longest legitimate runs. Consumers override per call with
+ * `GenerationOptions.stallDeadlineMs`, a client-only knob that is stripped
+ * before the wire.
+ */
+
 import {
   GENERATION_STALL_ASSUMED_TOKENS_COUNT,
   GENERATION_STALL_FLOOR_MS,
@@ -7,19 +21,7 @@ import {
 import type { JobErrorCode } from '@semiont/core';
 
 /**
- * The ONE stall guard for generation streams (FLOW-LIFECYCLE-CONVERGENCE D1).
- *
- * The generation wire is exactly three frames (5 → 95 → 100), so the 5→95
- * silence spans the entire inference call. The deadline therefore derives
- * from the request's `maxTokens` — never a fixed constant — because the
- * guard CANCELS server-side, and a mis-sized fixed default would destroy
- * the longest legitimate runs (D1a). Consumers override per call with
- * `GenerationOptions.stallDeadlineMs`, a client-only knob that is stripped
- * before the wire.
- */
-
-/**
- * The single derivation site (D1a): a floor, and a wait that grows with the
+ * The single derivation site: a floor, and a wait that grows with the
  * length asked for. The three numbers are specs/src/client/timing.json's, so
  * every SDK waits as long.
  */
@@ -30,9 +32,10 @@ export function deriveStallDeadlineMs(maxTokens: number | undefined): number {
 
 /**
  * Inter-event silence exceeded the deadline. By the time this reaches a
- * consumer the guard has already fired the server-side cancel
- * (`job:cancel-requested`, jobType `generation`). Consumers word their own
- * user-facing message — the SDK ships no copy.
+ * consumer the guard has already asked for the stalled job to be cancelled
+ * (`job:cancel-requested`, by its `jobId`) — unless no job was known yet,
+ * when `jobId` is null and there was nothing to cancel. Consumers word their
+ * own user-facing message — the SDK ships no copy.
  */
 export class GenerationStallError extends SemiontError {
   declare code: JobErrorCode;

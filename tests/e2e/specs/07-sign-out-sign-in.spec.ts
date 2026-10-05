@@ -5,13 +5,12 @@ import { E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
  * Smoke test: sign out, then sign back in against the same KB, and
  * confirm the fresh session's bus + SSE + client are wired correctly.
  *
- * Regression target (VMs-from-Session refactor, Stages B-C): the session
- * lifetime is owned by `SemiontBrowser.setActiveKb` — `signOut`
- * disposes the old `SemiontSession` (which closes its client, completes
+ * The session lifetime is owned by `SemiontBrowser.setActiveKb` —
+ * `signOut` disposes the `SemiontSession` (which closes its client, completes
  * its observables, and unsubscribes the SessionStorage listener), and
  * `signIn` constructs a fresh session with a new `SemiontClient`
  * that spins up its own EventBus and its own SSE ActorStateUnit. If any part
- * of the new session wiring regresses — `client.emit` routing to a
+ * of the new session wiring breaks — `client.emit` routing to a
  * dead bus, SSE not reconnecting on the new client, storage adapter
  * not writing the token — a post-sign-in action will silently fail
  * instead of round-tripping through the gateway.
@@ -20,8 +19,8 @@ import { E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
  * `bus.expectRequestResponse` on the second session, which is the
  * strongest signal that the dispose/reconstruct path is clean.
  *
- * The re-auth half goes through the issuer. Since identity moved out of
- * the gateway, the Browser has no password field to type into: a
+ * The re-auth half goes through the issuer. Identity is the issuer's, not
+ * the gateway's, so the Browser has no password field to type into: a
  * registered KB whose session ended offers one button back to where its
  * credentials live (`KnowledgeBasePanel.tsx` `handleReauth` →
  * `beginSignIn` → `window.location.assign`).
@@ -42,7 +41,7 @@ test.describe('sign out and sign back in', () => {
     await expect(signOutButton).toBeVisible({ timeout: 10_000 });
     await signOutButton.click();
 
-    // Sign-out landed: the KB is still registered, its session is not.
+    // Signed out: the KB is registered, its session is not.
     await expect(signOutButton).toBeHidden({ timeout: 10_000 });
 
     // Clicking a KB with no session opens the re-auth prompt rather than

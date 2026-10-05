@@ -1,9 +1,9 @@
 /**
- * B17 (LOCAL-STORAGE W1) — the persister hook on the cache primitive.
+ * B17 — the persister hook on the cache primitive.
  *
  * Contract under test:
- *  - load-on-construct: rehydrated entries are visible synchronously and an
- *    observe() of a rehydrated key issues NO fetch (the protocol-silence pin).
+ *  - load-on-construct: rehydrated entries are visible synchronously, and the
+ *    first observe() of a rehydrated key revalidates it once (B18).
  *  - save-on-mutation: debounced (default 50 ms); bursts coalesce to one save.
  *  - external change (cross-context): replaces the store; observers see it.
  *  - dispose: flushes a pending save synchronously, then goes inert (B16) —
@@ -42,11 +42,9 @@ describe('cache persistence (B17)', () => {
   });
 
   it('rehydrates on construction: value visible synchronously, then revalidated once (B18)', async () => {
-    // Declared behavior change 2026-07-24: this used to pin "NO fetch
-    // issued". Trusting a disk value indefinitely is what made a
-    // just-created annotation invisible after an immediate reload
-    // (.plans/bugs/annotation-lost-on-immediate-reload-after-create.md).
-    // B18 keeps the instant paint and adds the revalidation.
+    // Trusting a disk value indefinitely would leave a just-created
+    // annotation invisible after an immediate reload. B18 keeps the instant
+    // paint and adds the revalidation.
     const fetchFn = vi.fn(async () => 'fetched');
     const { persister } = spyPersister<string, string>(new Map([['k1', 'rehydrated']]));
 
@@ -187,7 +185,7 @@ describe('cache persistence (B17)', () => {
     expect(() => cache.dispose()).not.toThrow();
   });
 
-  it('without options, behavior is unchanged (no persister calls anywhere)', async () => {
+  it('without options, the cache is in-memory only (no persister calls anywhere)', async () => {
     const cache = createCache<string, string>(async () => 'v');
     cache.set('a', '1');
     expect(cache.get('a')).toBe('1');

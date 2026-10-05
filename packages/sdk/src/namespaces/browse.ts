@@ -143,11 +143,11 @@ export class BrowseNamespace implements IBrowseNamespace {
   // ── Caches, backed by the RxJS-native `Cache<K, V>` primitive ───────────
   //
   // Each cache encapsulates the BehaviorSubject store, in-flight guard,
-  // and per-key observable memoization that was previously open-coded
-  // here. Behavioral contract: `docs/protocol/CACHE-SEMANTICS.md`.
+  // and per-key observable memoization. Behavioral contract:
+  // `docs/protocol/CACHE-SEMANTICS.md`.
   //
-  // Public surface (`resource()`, `annotations()`, etc.) is unchanged;
-  // the caches are an implementation detail of this namespace.
+  // The caches are an implementation detail of this namespace; the public
+  // surface is `resource()`, `annotations()`, etc.
 
   private readonly resourceCache: Cache<ResourceId, ResourceDescriptor>;
   private readonly resourceListCache: Cache<string, ResourceList>;
@@ -155,9 +155,9 @@ export class BrowseNamespace implements IBrowseNamespace {
   /**
    * Annotation-detail cache keyed by `annotationId` only — the resourceId
    * is a routing hint for the gateway fetch, not an identity component.
-   * We track the most recent resourceId per annotationId in a side-map
-   * so `mark:delete-ok` (which carries only `annotationId`) can reach
-   * the right cache entry. Aligns with the pre-refactor semantics.
+   * The side-map holds the most recent resourceId per annotationId: the
+   * fetch names it in its request, and an event that names only a resource
+   * finds that resource's annotations through it.
    */
   private readonly annotationDetailCache: Cache<AnnotationId, Annotation>;
   private readonly annotationResources = new Map<AnnotationId, ResourceId>();
@@ -186,7 +186,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   private readonly annotationListObs = new Map<ResourceId, Observable<CacheState<Annotation[]>>>();
 
   /**
-   * Per-source memo for the scope-acquiring wrapper (#847 Phase 4), keyed by
+   * Per-source memo for the scope-acquiring wrapper, keyed by
    * the underlying (stable, per-key) cache observable so the wrapped
    * observable is itself stable per key — preserving B4/B11 referential
    * identity through to `CacheObservable.from`'s own memo.
@@ -196,7 +196,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   /**
    * Timeout passed to every `busRequest` this namespace issues. `undefined`
    * means `busRequest`'s default (30 s). Injectable so the liveness
-   * properties (`.plans/LIVENESS-AXIOMS.md`) can run the real composition on
+   * properties can run the real composition on
    * deterministic virtual time — the same knob `HttpTransportConfig.timeout`
    * provides at the HTTP layer.
    */
@@ -214,8 +214,8 @@ export class BrowseNamespace implements IBrowseNamespace {
   /**
    * Ask again for one key, as a row of the refresh table says to. Only a key
    * the cache knows (B20): an event about a key nothing has asked for has
-   * nothing to refresh, and refreshing it anyway cost every viewer a request
-   * per resource another principal imported. Each goes through its key's
+   * nothing to refresh, and refreshing it anyway costs every viewer a request
+   * per resource another principal imports. Each goes through its key's
    * window (B19). The public `invalidate*` methods stay immediate, and fetch
    * whatever the key holds (B8), for direct callers.
    */
@@ -253,7 +253,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       /**
        * B17 — opt into cache persistence through the environment's
        * SessionStorage adapter. keyPrefix is the KB id (cache data is
-       * KB-specific). Omitted = in-memory-only, today's behavior.
+       * KB-specific). Omitted = in-memory only.
        */
       cachePersistence?: { storage: SessionStorage; keyPrefix: string };
     },
@@ -261,9 +261,9 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.busTimeoutMs = options?.busTimeoutMs;
     this.invalidationWindows = new InvalidationWindows(options?.invalidationWindowMs ?? INVALIDATION_WINDOW_MS);
 
-    // The opt-in table (see .plans/LOCAL-STORAGE.md): small, first-paint
-    // caches persist; lists, event histories, and the collaborator
-    // directory stay in-memory.
+    // The opt-in table: the small, first-paint caches persist (a resource,
+    // its annotations, one annotation, the vocabulary); resource lists, event
+    // histories, referenced-by and the collaborator directory stay in-memory.
     const persistence = options?.cachePersistence;
     const persisted = <K, V>(name: string): { persister: CachePersister<K, V> } | undefined =>
       persistence
@@ -310,7 +310,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       // Brand the wire type (unbranded @id: string) to the SDK's ResourceDescriptor
       // (@id: ResourceId) at the boundary — same as resourceCache above. The
       // whole envelope is cached, not just the page: `matchKind` and the list
-      // it labels are one value (SEMANTIC-FALLBACK S10).
+      // it labels are one value (semantic fallback axiom S10).
       return { ...result, resources: result.resources as ResourceDescriptor[] };
     });
 
@@ -365,7 +365,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       // Entries pass through unreshaped: `{ agent, servesJobTypes? }` — the
-      // capability field is the point of the wrapper (COLLABORATOR-DIRECTORY P1).
+      // capability field is the point of the wrapper.
       return result.agents;
     });
 
@@ -410,7 +410,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   /**
    * Wrap a resource-scoped live query's source so that *subscribing* acquires
    * the resource's scope (via the transport's ref-counted
-   * `subscribeToResource`) and the last unsubscribe releases it (#847 Phase 4).
+   * `subscribeToResource`) and the last unsubscribe releases it.
    * Freshness follows observation: a `.subscribe()` keeps `rId`'s scoped
    * events flowing — so `mark:*` / entity-tag invalidations reach this cache —
    * with no separate `subscribeToResource` call from the consumer.
@@ -422,10 +422,8 @@ export class BrowseNamespace implements IBrowseNamespace {
    * Memoized per source so the wrapped observable is stable per key (B4/B11).
    * Each subscription calls `subscribeToResource(rId)`; the transport
    * ref-counts per resource, and DISTINCT resources COMPOSE onto the one SSE
-   * connection's subscription matrix (MULTI-RESOURCE-SCOPE) — N mounted
-   * loaders on N resources are all fully live. The single-scope contention
-   * state (and its `[browse SCOPE-CONTENTION]` degradation,
-   * starvation-fix P2.5) no longer exists: acquisition cannot fail.
+   * connection's subscription matrix — N mounted loaders on N resources are
+   * all fully live. Acquisition cannot fail.
    */
   private withScope<S>(rId: ResourceId, source: Observable<S>): Observable<S> {
     let scoped = this.scopedSources.get(source) as Observable<S> | undefined;
@@ -489,11 +487,11 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   /**
    * The KB's collaborator directory: its declared software agents (from the
-   * KB's worker/actor config, with `servesJobTypes` capabilities) and — once
-   * Persons land — its members. KB-wide singleton, cached for the client's
-   * lifetime; no membership-change event exists, so the only refresh triggers
-   * are the stream reopening after a drop (a gateway restart with a changed
-   * roster presents as one) and a fresh `await` (which always fetches).
+   * KB's worker/actor config, with `servesJobTypes` capabilities). Its
+   * members (Persons) are not listed. KB-wide singleton, cached for the
+   * client's lifetime; no membership-change event exists, so the only refresh
+   * triggers are the stream reopening after a drop (a gateway restart with a
+   * changed roster presents as one) and `.fresh()` (which always fetches).
    */
   agents(): CacheObservable<Collaborator[]> {
     return CacheObservable.from(this.collaborators$, async () => {
@@ -522,29 +520,23 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   /**
-   * Fetch the resource's JSON-LD metadata graph (descriptor + annotations +
-   * inbound entity references). One-shot, uncached, dereferenced via the
-   * transport's HTTP `/jsonld` face (bus-free) — the LD view an external
-   * linked-data client gets. See `.plans/SIMPLER-JSON-LD.md` §5.
-   */
-  /**
    * A resource's coordinate map — its recovered text plus the runs that index
-   * it — or `null` when none has been derived.
+   * it — a stored decline, or a named absence. Never `null`.
    *
-   * Sibling of `resourceGraph`: a derived, server-computed view fetched through
-   * the content transport, not the resource's bytes. Whole-resource, because a
+   * A derived, server-computed view, not the resource's bytes, asked over the
+   * bus (`browse:anchored-text-requested`). Whole-resource, because a
    * consumer analysing a document needs all of it, not whichever page is on
    * screen.
    *
-   * `null` is the common case and not an error. A native PDF is read in the
-   * browser by pdf.js and never needs this; a media type with no extractor
-   * never produces a map. Callers degrade — a PDF annotation drawn over an
+   * An absence is not an error, and its `kind` says whether to come back:
+   * `not-yet` (the Smelter has not settled this content; retry), `no-map`
+   * (the media type derives no geometry) or `unknown` (the resource has no
+   * content identity). Callers degrade — a PDF annotation drawn over an
    * unmapped page carries geometry with no quoted text.
    */
   async resourceAnchoredText(resourceId: ResourceId): Promise<AnchoredTextAnswer> {
     // A bus operation, not an HTTP route: the Archivist answers it and the
-    // reply arrives on the bridged result channel like every other reply
-    // (ANCHORED-TEXT-TO-SMELTER P3). The gateway's proxy hop is gone.
+    // reply arrives on the bridged result channel like every other reply.
     return busRequest(
       this.transport,
       'browse:anchored-text-requested',
@@ -554,17 +546,11 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   /**
-   * The same map, addressed by the **content checksum** of the bytes it
-   * derives from rather than by resource — the detection workers' read-through
-   * consult (ANCHORED-TEXT-TO-SMELTER D2). Barrier-free and index-free: no
-   * `views` resolution, no settle wait, because the caller already holds the
-   * bytes it hashed.
-   *
-   * `null` is a miss and means "extract it yourself"; a stored decline is
-   * served whole so a second pass runs neither parser nor engine. Read-only by
-   * design — the Smelter is the only writer of this store.
+   * Fetch the resource's JSON-LD metadata graph (descriptor + annotations +
+   * inbound entity references). One-shot, uncached, dereferenced via the
+   * transport's HTTP `/jsonld` face (bus-free) — the LD view an external
+   * linked-data client gets.
    */
-
   async resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse> {
     return this.content.getResourceGraph(resourceId);
   }
@@ -624,8 +610,8 @@ export class BrowseNamespace implements IBrowseNamespace {
    * `beckon.click()`: open it for everyone else.
    *
    * No `motivation` parameter — the id addresses exactly one annotation and
-   * the viewer derives the motivation from it (TOUR-CLICK D2). `anchorRect` is
-   * viewport geometry and stays a local-only extra; it never crosses a wire.
+   * the viewer derives the motivation from it. `anchorRect` is viewport
+   * geometry and stays a local-only extra; it never crosses a wire.
    */
   click(annotationId: AnnotationId, anchorRect?: AnchorRect): void {
     this.bus.emit('browse:click', { annotationId, ...(anchorRect ? { anchorRect } : {}) });
@@ -639,7 +625,8 @@ export class BrowseNamespace implements IBrowseNamespace {
     // REPORT, over the wire (the beckon:focus idiom): the viewer announces
     // arrival — however the user got here — so a remote listener (the tour
     // guide's `semiont listen`) can branch on it. Deliberately a different
-    // channel from the imperative `browse:resource-open` (GUIDED-TOUR D6).
+    // channel from the imperative `browse:resource-open`, so one viewer's
+    // own navigation cannot drive another's page.
     // Best-effort: a refused/failed emit (transport rejects on non-2xx and on
     // network failure) must not surface as an unhandled rejection.
     this.transport.emit('browse:resource-viewed', { resourceId }).catch(() => {});
@@ -692,8 +679,7 @@ export class BrowseNamespace implements IBrowseNamespace {
    * B17-Q (C1) — true when every persisted cache is quiet: no fetch in
    * flight, no debounced save pending. The session factory wires this as the
    * resumption-bookmark flush gate, making the persisted bookmark unable to
-   * lead the persisted content — the invariant spec 14 caught being violated
-   * (.plans/bugs/pdf-annotations-vanish-after-reload-stale-persisted-cache.md).
+   * lead the persisted content.
    */
   persistenceSettled(): boolean {
     return this.persistedCaches.every((cache) => !cache.persistencePending());

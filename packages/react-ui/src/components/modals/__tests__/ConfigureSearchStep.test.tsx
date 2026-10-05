@@ -1,5 +1,5 @@
 /**
- * The search step is CONTROLLED (WIZARD-NAVIGATION D3) — the wizard owns
+ * The search step is CONTROLLED — the wizard owns
  * `limit` and `useSemanticScoring` so stepping Back cannot discard them.
  *
  * That makes these tests about the contract rather than the widget: every edit
@@ -50,7 +50,7 @@ describe('ConfigureSearchStep', () => {
     expect(onConfigChange).toHaveBeenCalledWith({ limit: 10, useSemanticScoring: false });
   });
 
-  it('echoes the hint being steered by, and stays silent without one (GEP P1c, D8)', () => {
+  it('echoes the hint being steered by, and stays silent without one', () => {
     // The thing the hint steers goes invisible behind the step transition —
     // one quiet line keeps it visible and advertises that the hint did something.
     const { container, rerender } = render(

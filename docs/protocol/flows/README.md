@@ -1,43 +1,69 @@
-# Flows
+# The eight verbs
 
-The eight flows are verbs that actors perform. Each flow is a conversation between one or more intelligent actors and the knowledge base, mediated by the event bus. Flows are composable: a Marker Agent does mark + browse + beckon; a Generator Agent does yield + gather; a Curator does frame + browse to evolve and inspect the schema. New actor types can mix flows freely. The bus doesn't care who emits an event or who consumes it — only that the event conforms to the [event map](../../../packages/core/src/bus-protocol.ts).
+Every operation on a knowledge base belongs to one of eight verbs. Each is a conversation between a participant and the knowledge base, carried on the event bus. They fall into three groups, by what they do to the knowledge base:
 
-Frame is the schema-layer flow — it operates on the conceptual vocabulary the other seven flows are expressed in (entity types today, eventually tag schemas, relation/predicate types, ontology imports). The other seven flows operate on content; Frame operates on the schema layer that content is expressed in.
+**Writing verbs** add to the record.
 
-| Flow | Who does it | What happens |
-|------|-------------|-------------|
-| **[Browse](BROWSE.md)** | Reader, Analyst, Marker Agent | Route attention to panels, annotations, resources |
-| **[Bind](BIND.md)** | Analyst, Linker Agent, Matcher | Resolve references to concrete resources |
-| **[Yield](YIELD.md)** | Author, Generator Agent, Content Streams | Produce new resources in the knowledge base |
-| **[Mark](MARK.md)** | Analyst, Author, Marker Agent | Create W3C annotations on resources |
-| **[Frame](FRAME.md)** | Curator, Schema Agent, Admin | Define and evolve the KB's schema vocabulary |
-| **[Gather](GATHER.md)** | Generator Agent, Linker Agent, Gatherer | Assemble surrounding context for downstream use |
-| **[Match](MATCHER.md)** | Analyst, Linker Agent, Matcher | Retrieve and rank candidate resources for an entity reference |
-| **[Beckon](BECKON.md)** | Reader, Analyst, Marker Agent | Coordinate which annotation has visual attention |
+| Verb | Does | Who does it |
+|---|---|---|
+| **[Yield](YIELD.md)** | Brings a resource into the knowledge base: by upload, by generation, by cloning | Author, Generator, Feeder |
+| **[Mark](MARK.md)** | Annotates a passage or a region: a highlight, a comment, an assessment, a tag, a reference | Analyst, Author, Marker |
+| **[Bind](BIND.md)** | Says what a reference refers to | Analyst, Linker |
+| **[Frame](FRAME.md)** | Defines the vocabulary: entity types and tag schemas | Analyst, or an agent given the task |
 
-## How Flows Relate
+**Reading verbs** find and assemble what is already there. They leave nothing behind.
+
+| Verb | Does | Who does it |
+|---|---|---|
+| **[Browse](BROWSE.md)** | Reads resources, annotations, history and vocabulary | every participant |
+| **[Match](MATCH.md)** | Searches for what a reference could refer to, and ranks the candidates | Analyst, Linker |
+| **[Gather](GATHER.md)** | Assembles the context around an annotation or a resource | Analyst, Generator, Linker |
+
+**The attention-directing verb** writes nothing and reads nothing.
+
+| Verb | Does | Who does it |
+|---|---|---|
+| **[Beckon](BECKON.md)** | Points another participant at a passage, or opens a resource on their screen | Analyst, Marker, a guide |
+
+A participant mixes them freely. An agent that annotates uses Mark, Browse and Beckon. One that writes new resources uses Gather and Yield. The bus does not care who emits a frame, only that the frame is what its channel carries.
+
+## How they feed each other
 
 ```mermaid
 graph LR
-    FRAME["Frame"] -->|defines vocabulary| MARK["Mark"]
-    YIELD["Yield"] -->|creates resources| MARK
-    MARK -->|creates references| MATCH["Match"]
-    MATCH -->|finds candidates| BIND["Bind"]
-    BIND -->|resolves references| GATHER["Gather"]
-    GATHER -->|assembles context| YIELD
-    BROWSE["Browse"] -->|navigates to| BECKON["Beckon"]
+    subgraph WRITE ["writing"]
+        YIELD["Yield"]
+        MARK["Mark"]
+        BIND["Bind"]
+        FRAME["Frame"]
+    end
+    subgraph READ ["reading"]
+        BROWSE["Browse"]
+        MATCH["Match"]
+        GATHER["Gather"]
+    end
+    BECKON["Beckon"]
+
+    FRAME -->|vocabulary| MARK
+    YIELD -->|resources| MARK
+    MARK -->|references| GATHER
+    GATHER -->|context| MATCH
+    MATCH -->|candidates| BIND
+    GATHER -->|context| YIELD
+    BROWSE -->|what is there| BECKON
 ```
 
-**Frame** defines the conceptual vocabulary — what kinds of things exist (entity types, future tag schemas, relation types). **Yield** introduces content. **Mark** annotates it — highlights, assessments, comments, tags, entity references — drawing on the vocabulary Frame manages. **Match** searches for candidate resources when a reference is ambiguous. **Bind** resolves the reference to a concrete target. **Gather** assembles context around a focal annotation. That context feeds back into **Yield** to generate new resources, closing the loop. **Browse** and **Beckon** handle navigation and attention — directing the user (or agent) to the right place.
+**Frame** sets the vocabulary. **Yield** brings resources in. **Mark** annotates them, drawing on the vocabulary, and some of those annotations are references that refer to nothing yet. **Gather** assembles the context around a reference. **Match** searches with that context, and **Bind** attaches the candidate that was chosen. The same context can go to **Yield** instead, to generate the resource the reference is about, which closes the loop. **Browse** reads all of it, and **Beckon** shows another participant where to look.
 
-## Actor Roles
+## Who the participants are
 
-Actors fall into three categories:
+People and AI agents are the same kind of participant. They use the same verbs, emit the same frames, and produce the same annotations, and the record attributes each act to whoever did it. The roles in the tables above are the actor model's: see [the actor model](../../architecture/ACTOR-MODEL.md).
 
-- **Intelligent actors** — humans or AI agents that read, interpret, and annotate content
-- **Knowledge base actors** — Stower, Gatherer, Matcher, Browser, Smelter — reactive actors that mediate access to KB stores
-- **Content streams** — external sources (uploads, API ingestion, web fetches) that yield new resources
+Behind the bus, the knowledge base's own services answer: the archivist records writes and answers reads of the record, the librarian answers Gather and Match, and the dispatcher hands delegated work to workers. See [the knowledge system](../../architecture/KNOWLEDGE-SYSTEM.md).
 
-Human and AI actors are peers: they perform the same flows, produce the same events, and create the same W3C annotations. The system does not privilege one over the other.
+## What every verb shares
 
-See [Actor Model](../../system/ACTOR-MODEL.md) for the actor topology and [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) for the five reactive KB actors, or [EVENT-BUS.md](../EVENT-BUS.md) for the wire-level channel/payload conventions every flow uses.
+- The channels each verb uses, and what each carries, are declared in [`specs/src/bus/registry.json`](../../../specs/src/bus/registry.json). The registry marks every channel a client can emit as a write or a read, and the grouping above is that mark.
+- The methods an SDK gives each verb, and what each returns, are declared in [`specs/src/client/surface.json`](../../../specs/src/client/surface.json). Every SDK is held to it.
+- How frames are named, stamped with identity, correlated and delivered is in [the event-bus protocol](../EVENT-BUS.md).
+- Work an agent is delegated runs as a job: [Jobs](../JOBS.md).

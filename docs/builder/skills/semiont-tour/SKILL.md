@@ -185,22 +185,28 @@ State these to the user rather than letting them discover them mid-demo:
 - **Opening an annotation the viewer has not loaded does nothing.** It is a silent no-op, not
   an error — the viewer resolves the annotation by id and finds nothing. So open a resource
   before opening an annotation inside it, or accept that the cue may land nowhere.
-- **No annotation-level engagement reporting.** You can now *drive* a click, but you still
-  only see which **resources** they arrived at — not which annotations they read. The drive
-  and the report are asymmetric here, deliberately: `browse:resource-viewed` is the only
-  arrival signal.
+- **No annotation-level engagement reporting.** You can *drive* a click, but you only see
+  which **resources** they arrived at, not which annotations they read. The drive and the
+  report are asymmetric here, deliberately: `browse:resource-viewed` is the only arrival
+  signal.
 
 ## From TypeScript instead
 
-The SDK expresses every tour move through `beckon` — the wire drives — plus the arrival
-report:
+The SDK expresses every tour move through `beckon`, whose four drives go out on the wire, plus the
+arrival report:
 
 ```ts
-const n = await client.beckon.openResource(resourceId);   // → wire (browse:resource-open)
-await client.beckon.click(annotationId);                  // → wire (browse:click)
-await client.beckon.sparkleAll(annotationId);             // → wire (beckon:sparkle)
-await client.beckon.attention(resourceId, annotationId);  // → wire (beckon:focus)
-client.browse.resourceViewed(resourceId);                 // → wire (the report)
+import { annotationId } from '@semiont/sdk';
+
+const annId = annotationId('ann-thesis');
+
+const watching = await semiont.beckon.openResource(rId);  // browse:resource-open
+await semiont.beckon.click(annId);                        // browse:click
+await semiont.beckon.sparkleAll(annId);                   // beckon:sparkle
+await semiont.beckon.attention(rId, annId);               // beckon:focus
+semiont.browse.resourceViewed(rId);                       // browse:resource-viewed, the report
+
+if (watching === 0) console.error('Nobody is watching this knowledge base');
 ```
 
 The pairing is the rule worth remembering: **`browse.X()` does it for me, `beckon.X()` does

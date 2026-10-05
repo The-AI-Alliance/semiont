@@ -9,7 +9,7 @@ No npm is required on the host for local builds.
 |--------|---------|
 | `build.sh` | Install deps + build packages and apps |
 | `publish.sh` | Version stamp + stage + publish to a registry |
-| `publish-npm-apps.mjs` | Stage gateway/browser into `.npm-stage/` for publishing |
+| `publish-npm-apps.mjs` | Stage the Browser into `.npm-stage/` for publishing |
 | `image-tags.sh` | The image a service publishes to and its tags (version, `sha-<commit>`, optionally `latest`), for every job of `publish-service-images.yml` that names one |
 | `local-build.sh` | Host-side wrapper: start Verdaccio + build + publish in a container + build the `:local` service/browser images, fanned out to every container engine on the machine |
 | `verdaccio.yaml` | Verdaccio config for local registry (proxies non-@semiont packages to npmjs.com) |
@@ -40,11 +40,11 @@ who built — `CONTAINER_RUNTIME` picks the *build* engine only, and
 
 # 2. Run the full stack from your KB against the :local images
 cd /path/to/your-kb
-SEMIONT_VERSION=local semiont start
-echo password | semiont useradd --email admin@example.com
+SEMIONT_VERSION=local /path/to/semiont/apps/launcher/dist/semiont start
+/path/to/semiont/apps/launcher/dist/semiont useradd --email admin@example.com
 
 # 3. Iterate — edit code, rebuild only what changed:
-./scripts/ci/local-build.sh --package core,gateway --image gateway
+./scripts/ci/local-build.sh --package core,make-meaning --image archivist
 # Verdaccio restarts fresh each run; the publish step always publishes all
 # packages, and --image narrows which images are rebuilt.
 

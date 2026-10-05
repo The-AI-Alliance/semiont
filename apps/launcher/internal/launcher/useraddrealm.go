@@ -1,7 +1,7 @@
 package launcher
 
 // useraddrealm.go — `semiont useradd` against the stack on THIS machine,
-// through the launcher's own Keycloak admin client (WHO-RUNS-USERADD P3).
+// through the launcher's own Keycloak admin client.
 //
 // No container. The account lives at the issuer, the launcher already holds
 // the bootstrap admin credential for this root, and the realm's admin API is
@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 )
 
-// useraddOpts: what the flags mean once parsed. The launcher owns them now
+// useraddOpts: what the flags mean once parsed. The launcher owns them
 // rather than forwarding them to a second parser.
 type useraddOpts struct {
 	email    string

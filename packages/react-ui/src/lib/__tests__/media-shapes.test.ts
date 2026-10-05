@@ -36,17 +36,16 @@ describe('media-shapes', () => {
       expect(getSupportedShapes('text/html')).toEqual([]);
     });
 
-    // MEDIA-CAPABILITY-DISPATCH D5: the dispatch asks the registry, never a
-    // string prefix. These six image rows are storage tier — `anchoring:
-    // 'none'`, `render: 'none'` — so they draw nothing, however their type
-    // name begins.
+    // The dispatch asks the registry, never a string prefix. These six image
+    // rows are storage tier — `anchoring: 'none'`, `render: 'none'` — so they
+    // draw nothing, however their type name begins.
     it('returns no shapes for storage-tier image types — the registry, not the prefix, decides', () => {
       for (const t of ['image/gif', 'image/webp', 'image/svg+xml', 'image/bmp', 'image/tiff', 'image/x-icon']) {
         expect(getSupportedShapes(t)).toEqual([]);
       }
     });
 
-    it('returns no shapes on a registry miss — import leniency means stored types need not be members (D2)', () => {
+    it('returns no shapes on a registry miss — import leniency means stored types need not be members', () => {
       expect(getSupportedShapes('image/x-obscure-raster')).toEqual([]);
       expect(getSupportedShapes('application/x-nonesuch')).toEqual([]);
     });
@@ -96,19 +95,19 @@ describe('media-shapes', () => {
       expect(getSelectorType('text/html')).toBe('text');
     });
 
-    // The `image/svg+xml` case previously asserted 'svg' — that pin encoded
-    // the `startsWith('image/')` drift rather than the registry, which gives
-    // every storage-tier image `anchoring: 'none'`. There is no 'none' member
-    // of SelectorType, so they land on the catch-all; harmless, because
-    // getSupportedShapes answers [] for them and the write path refuses (P3).
-    it('does not claim svg for storage-tier image types (D5)', () => {
+    // 'svg' for `image/svg+xml` would encode a `startsWith('image/')` test
+    // rather than the registry, which gives every storage-tier image
+    // `anchoring: 'none'`. There is no 'none' member of SelectorType, so they
+    // land on the catch-all; harmless, because getSupportedShapes answers []
+    // for them and the write path refuses.
+    it('does not claim svg for storage-tier image types', () => {
       for (const t of ['image/gif', 'image/webp', 'image/svg+xml', 'image/bmp', 'image/tiff', 'image/x-icon']) {
         expect(getSelectorType(t)).not.toBe('svg');
         expect(getSelectorType(t)).toBe('text');
       }
     });
 
-    it('does not claim svg or fragment on a registry miss (D2)', () => {
+    it('does not claim svg or fragment on a registry miss', () => {
       expect(getSelectorType('image/x-obscure-raster')).toBe('text');
       expect(getSelectorType('application/x-nonesuch')).toBe('text');
     });

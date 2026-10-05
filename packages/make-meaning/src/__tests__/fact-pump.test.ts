@@ -1,23 +1,21 @@
 /**
- * ARCHIVIST-STAYS-UP P5 — the fact pump.
+ * The fact pump.
  *
  * The Archivist republishes every persisted event onto the gateway bus so
- * projectors see it live. That pump is the leading hypothesis for the
- * load-correlated heap growth in `bugs/absent-archivist-wedges-browse.md`:
- * it fills at Stower's append rate and drains at HTTP round trips, with no
- * bound and no number saying how far behind it is.
+ * projectors see it live. The pump fills at Stower's append rate and drains
+ * at HTTP round trips, with no bound: under load its backlog is heap the
+ * Archivist holds, up to its heap ceiling.
  *
- * These tests pin two properties it did not have:
+ * These tests pin two properties:
  *
  *   - the two emits for one event are CONCURRENT, not sequential — they are
  *     independent, and serialising them doubles drain time for nothing;
  *   - the backlog is OBSERVABLE, so "how far behind is the pump" is a number
  *     rather than an inference from RSS.
  *
- * What is deliberately NOT here: a bounded queue with a drop policy. The
- * plan's step 1 is to remove the need before designing for it — dropping
- * costs a projection that stays stale until its projector next restarts
- * (catch-up is a startup pass, verified in both `smelter-main` and
+ * What is deliberately NOT here: a bounded queue with a drop policy.
+ * Dropping costs a projection that stays stale until its projector next
+ * restarts (catch-up is a startup pass in both `smelter-main` and
  * `weaver-main`). Measure first; the gauge below is what makes that possible.
  */
 
@@ -54,12 +52,11 @@ const envelope = (seq: number) => ({
 });
 
 /**
- * Cast-free, and that is the point: retyping the pump made the old single
- * `as unknown as StoredEvent` fixture stop compiling, because it built one
- * `mark:added` whose `resourceId` came and went. The types say that cannot
- * happen — resource events REQUIRE a resourceId and only `frame:*` system
- * events lack one — so the scoped and unscoped cases need different channels.
- * The erased fixture had been hiding that for both.
+ * Cast-free, and that is the point: a single `as unknown as StoredEvent`
+ * fixture could build one `mark:added` whose `resourceId` comes and goes. The
+ * types say that cannot happen — resource events REQUIRE a resourceId and only
+ * `frame:*` system events lack one — so the scoped and unscoped cases need
+ * different channels.
  */
 function scopedFact(seq: number, rid: string): EventMap['mark:archived'] {
   return { ...envelope(seq), type: 'mark:archived', resourceId: makeResourceId(rid), payload: {} };
@@ -121,8 +118,7 @@ describe('fact pump', () => {
   });
 
   it('reports its backlog — how far behind the pump is, as a number', async () => {
-    // Without this the only symptom of a pump falling behind is RSS, which is
-    // why the growth in the bug report is still a hypothesis.
+    // Without this the only symptom of a pump falling behind is RSS.
     let release: (() => void) | undefined;
     const emit = vi.fn(() => new Promise<number>((res) => { release = () => res(1); }));
     const facts$ = new Subject<Fact>();
@@ -143,7 +139,7 @@ describe('fact pump', () => {
   });
 
   it('keeps events in order — a later fact never overtakes an earlier one', async () => {
-    // Guard on the concurrency change: parallelising the two emits of ONE
+    // The limit on that concurrency: parallelising the two emits of ONE
     // event must not parallelise events against each other.
     const seen: number[] = [];
     const emit = vi.fn(async (_c: unknown, payload: unknown) => {

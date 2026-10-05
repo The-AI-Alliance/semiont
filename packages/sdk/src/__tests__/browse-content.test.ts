@@ -1,5 +1,5 @@
 /**
- * SIMPLER-JSON-LD Phase 2 — content reads on the pure-pipe model.
+ * Content reads on the pure-pipe model.
  *
  * - `resourceContent` decodes with the *response's* charset (via
  *   `decodeWithCharset`), not a blind UTF-8 `TextDecoder`, and threads no
@@ -18,7 +18,7 @@ function inertTransport(): ITransport {
   return inMemoryTransport();
 }
 
-describe('browse content reads — pure pipe (SIMPLER-JSON-LD Phase 2)', () => {
+describe('browse content reads — pure pipe', () => {
   let bus: EventBus;
   afterEach(() => { bus?.destroy(); });
 

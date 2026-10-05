@@ -9,22 +9,20 @@
  *                                                                 bridged-channels.ts
  *   - persisted  — logged to the event store, replayable → `PersistedEventType`.
  *                                                                 persisted-events.ts
- *   - scoped     — delivered on a resource-scoped bus →
- *                  `RESOURCE_SCOPED_CHANNELS` (derived in @semiont/http-transport).
+ *   - scoped     — delivered per resource scope → `RESOURCE_SCOPED_CHANNELS`.
+ *                                                                 bridged-channels.ts
  *
- * The bugs that motivated these guards were all *cross-list* inconsistencies,
- * not within-list ones:
- *   - a reply channel missing from BRIDGED_CHANNELS → silent 30 s timeout
- *     (.plans/bugs/gather-resource-complete-not-bridged.md);
- *   - a channel in *both* BRIDGED and the scoped set → double delivery
- *     (.plans/bugs/BRIDGE-GAPS.md).
+ * The defects these guards exclude are *cross-list* inconsistencies, not
+ * within-list ones:
+ *   - a reply channel missing from BRIDGED_CHANNELS → silent 30 s timeout;
+ *   - a channel in *both* BRIDGED and the scoped set → double delivery.
  *
- * Each list is now guarded at compile time by an `as const satisfies
- * readonly EventName[]` clause (BRIDGED_CHANNELS, PERSISTED_EVENT_TYPES,
- * RESOURCE_BROADCAST_TYPES) or `satisfies Record<EventName, …>`
- * (CHANNEL_SCHEMAS) — so a typo'd or stale channel name is a build error. This
- * file pins the remaining invariants the type system can't express: array shape
- * (no duplicates) and cross-list set relations.
+ * Each declared list is guarded at compile time by a `satisfies` clause —
+ * `readonly EventName[]` (BRIDGED_BROADCASTS, RESOURCE_SCOPED_CHANNELS),
+ * `readonly PersistedEventType[]` (PERSISTED_EVENT_TYPES),
+ * `Record<EventName, …>` (CHANNEL_SCHEMAS) — so a typo'd or stale channel name
+ * is a build error. This file pins the remaining invariants the type system
+ * can't express: array shape (no duplicates) and cross-list set relations.
  *
  * NOT checked here: "every reply channel is bridged." A channel must be bridged
  * iff it has a *remote* (SSE/HttpTransport) consumer, which is encoded only in
@@ -32,8 +30,8 @@
  * to `BridgedChannel` at compile time. Reply-*named* channels whose only
  * consumers are in-process are correctly unbridged (e.g. `yield:move-failed`: the
  * CLI `mv` command has no remote SDK surface, so nothing remote awaits it), so a
- * name-based scan would be all false positives. Turning "is a remote reply" into
- * data is the Tier 1 operations-registry step.
+ * name-based scan would be all false positives. "Is a remote reply" is data in
+ * `BUS_OPERATIONS`, which the bridged set derives from.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -42,20 +40,17 @@ import { BUS_OPERATIONS } from '../bus-operations';
 import { PERSISTED_EVENT_TYPES } from '../persisted-events';
 
 /**
- * The Tier-1 migration safety net. `BRIDGED_CHANNELS` is now DERIVED from
- * `BUS_OPERATIONS` (every op's result/failure/progress) plus `BRIDGED_BROADCASTS`
- * — see .plans/BUS-OPERATIONS-REGISTRY.md. This frozen snapshot is the exact set
- * the old hand-list carried (minus the reaped dead `gather:annotation-finished`).
- * If an operation is ever missed or mistyped, the derived set diverges from this
- * snapshot and the test goes red — so no reply channel can silently drop. Edit
- * this snapshot ONLY for a deliberate, reviewed change to the bridged set.
+ * `BRIDGED_CHANNELS` is DERIVED from `BUS_OPERATIONS` (every op's
+ * result/failure) plus `BRIDGED_BROADCASTS`. This frozen snapshot is the set
+ * it must equal: if an operation is ever missed or mistyped, the derived set
+ * diverges from this snapshot and the test goes red — so no reply channel can
+ * silently drop. Edit this snapshot ONLY for a deliberate, reviewed change to
+ * the bridged set.
+ *
+ * `job:queued` is deliberately absent: its audience is `declared`, so it
+ * reaches only a client whose manifest names it — the worker
+ * (`WORKER_CONSUMED_BROADCASTS` in @semiont/jobs).
  */
-// SHRANK 2026-09-16 (WIRE-CROSSING-MODEL P1): `job:queued` left the
-// auto-subscribe set. The P0 audit found it had no SDK or UI consumer — every
-// browser subscribed it and none read it — while the worker, its only real
-// consumer, reaches it through `audience: declared` plus its own manifest.
-// A deliberate removal, which is exactly what this snapshot exists to make
-// someone type out.
 const FROZEN_BRIDGED = [
   'browse:resources-result', 'browse:resources-failed',
   'browse:resource-result', 'browse:resource-failed',
@@ -100,30 +95,31 @@ const FROZEN_BRIDGED = [
   'yield:clone-resource-result', 'yield:clone-resource-failed',
   'yield:clone-created', 'yield:clone-create-failed',
   'frame:entity-type-added', 'frame:tag-schema-added',
-  // CORRELATED-REPLY-ROUTING P4: the resource domain events, bridged so a
-  // NON-requesting client learns that a resource appeared, changed, was
-  // cloned or was renamed. They used to reach other clients only as a side
-  // effect of `yield:*-ok` reply fan-out; once replies became owner-routed
-  // (P3), a reply could no longer double as a broadcast.
+  // The resource domain events, bridged so a NON-requesting client learns
+  // that a resource appeared, changed, was cloned or was renamed. Replies are
+  // owner-routed (written only to the client that made the request), so a
+  // `yield:*-ok` reply cannot double as a broadcast.
   'yield:created', 'yield:updated', 'yield:cloned', 'yield:moved',
   'frame:entity-type-add-ok', 'frame:entity-type-add-failed',
   'frame:tag-schema-add-ok', 'frame:tag-schema-add-failed',
   'beckon:focus', 'beckon:sparkle',
   'bus:resume-gap',
-  // GUIDED-TOUR P2: the tour's imperative — domain intent, bridged so a
-  // launcher emit reaches every watching Browser (nav:* stays host-local, D1).
+  // The guided tour's imperative — domain intent, bridged so a launcher emit
+  // reaches every watching Browser (nav:* is framework routing and stays
+  // host-local).
   'browse:resource-open',
-  // GUIDED-TOUR P5: the tour's REPORT — the viewer announces arrival (by cue,
-  // link, back button, or typed URL) so the guide can branch on it. Never the
-  // channel P2/P3 drive with (D6: drive and report stay separate).
+  // The guided tour's REPORT — the viewer announces arrival (by cue, link,
+  // back button, or typed URL) so the guide can branch on it. Never the
+  // imperative `browse:resource-open`: drive and report stay separate, so one
+  // viewer's click cannot drive another's page.
   'browse:resource-viewed',
-  // GUIDED-TOUR P7: presence. SSE connection lifecycle, not login (D5) — a
+  // The guided tour's presence. SSE connection lifecycle, not login — a
   // token can be minted and never used, so what a tour needs is whether
   // anyone is WATCHING. Bridged because the watcher and the watcher's guide
   // are different processes.
   'session:joined',
   'session:left',
-  // TOUR-CLICK P1: the tour's fourth drive — OPEN an annotation (panel entry
+  // The guided tour's fourth drive — OPEN an annotation (panel entry
   // selected, then relayed to beckon:focus for the scroll), where focus only
   // points at one. Bridging is fan-IN only, so the eight in-browser
   // `browse.click()` emitters stay local exactly as `browse.openResource()`
@@ -136,10 +132,9 @@ describe('bus channel-classification invariants', () => {
     // A resource's own entity-type classification is a confirmed gateway write —
     // registered like its sibling metadata mutations (mark:delete/archive) so the
     // SDK's busRequest awaits the correlation-keyed reply and rejects on failure,
-    // NOT a fire-and-forget local emit whose failure has nowhere to go
-    // (.plans/bugs/BRIDGE-GAPS.md). Widened to a plain Record so this reads as a
-    // runtime registry assertion (RED before the operation is registered) rather
-    // than a compile error on a missing `as const` key.
+    // NOT a fire-and-forget local emit whose failure has nowhere to go.
+    // Widened to a plain Record so this reads as a runtime registry assertion
+    // rather than a compile error on a missing `as const` key.
     const ops = BUS_OPERATIONS as Record<string, { result: string; failure: string }>;
     expect(ops['mark:update-entity-types']).toEqual({
       result: 'mark:update-entity-types-ok',
@@ -159,38 +154,39 @@ describe('bus channel-classification invariants', () => {
     // twice — it maps `?channel=` entries 1:1 to subscriptions with no dedup —
     // so every event on it is delivered twice. The `BridgedChannel` *type*
     // can't catch this: a tuple with a repeated literal collapses in the
-    // `[number]` union. See .plans/bugs/BRIDGE-GAPS.md.
+    // `[number]` union.
     const dups = BRIDGED_CHANNELS.filter((c, i) => BRIDGED_CHANNELS.indexOf(c) !== i);
     expect(dups).toEqual([]);
   });
 
-  it('the only globally-bridged channels that are also persisted (scoped) are the KB-global frame:* events', () => {
-    // A channel in BOTH BRIDGED_CHANNELS and PERSISTED_EVENT_TYPES is delivered
-    // globally (bridged) *and* is a resource-scoped persisted event — the exact
-    // double-delivery shape from BRIDGE-GAPS.md. It is legitimate only for the
-    // KB-global schema events (every client wants them; no single resource owns
-    // them), which @semiont/http-transport excludes from its scoped
-    // subscription (enforced by that package's bus-invariants test).
+  it('the only channels both globally bridged and persisted are the KB-global frame:* and yield:* events', () => {
+    // A channel in BOTH BRIDGED_CHANNELS and PERSISTED_EVENT_TYPES is a recorded
+    // event every client hears on no scope. Delivered per resource scope as
+    // well, it would be forwarded once on each path under two different SSE
+    // ids, which dedup cannot collapse. It is legitimate only for KB-global
+    // events (every client wants them; no single resource owns them), which
+    // RESOURCE_SCOPED_CHANNELS must not hold (enforced by
+    // @semiont/http-transport's bus-invariants test).
     //
     // A NEW entry here is a conscious design decision, not an oversight: confirm
-    // the channel is genuinely KB-global, confirm http-transport still excludes
-    // it from RESOURCE_SCOPED_CHANNELS, then add it to the expected set below.
+    // the channel is genuinely KB-global, confirm it is absent from
+    // RESOURCE_SCOPED_CHANNELS, then add it to the expected set below.
     //
-    // The `yield:*` four were added deliberately (CORRELATED-REPLY-ROUTING
-    // P4), and the three confirmations that gate this list were made:
+    // The `yield:*` four are here deliberately, so a non-requesting client
+    // learns that a resource changed, and they pass the three confirmations
+    // that gate this list:
     //  1. KB-global? YES. Their consumer is the resource LIST cache, which is
     //     unscoped by construction (`resources()` never calls `withScope`) —
     //     and a CREATE cannot be scoped at all, since no client can hold a
     //     scope on a resource that does not exist yet. Scoped delivery
-    //     therefore could never have served this use case.
-    //  2. Still excluded from RESOURCE_SCOPED_CHANNELS? YES, by construction:
-    //     that set is `PERSISTED_EVENT_TYPES − BRIDGED_CHANNELS`, and
-    //     http-transport's own bus-invariants test enforces the exclusion.
+    //     therefore cannot serve this use case.
+    //  2. Absent from RESOURCE_SCOPED_CHANNELS? YES: the registry declares one
+    //     audience per channel and theirs is `everyone`, and http-transport's
+    //     own bus-invariants test enforces the exclusion.
     //  3. What it costs: broadcasts carry no Last-Event-ID replay, so a
     //     client disconnected across one of these misses the invalidation and
-    //     shows a stale list until its next fetch. Measured before choosing:
-    //     nothing consumed these four channels live, so no existing delivery
-    //     was lost — and this is the same property `frame:*` already has.
+    //     shows a stale list until its next fetch — the same property
+    //     `frame:*` has.
     const persisted = new Set<string>(PERSISTED_EVENT_TYPES);
     const overlap = BRIDGED_CHANNELS.filter((c) => persisted.has(c)).sort();
     expect(overlap).toEqual([

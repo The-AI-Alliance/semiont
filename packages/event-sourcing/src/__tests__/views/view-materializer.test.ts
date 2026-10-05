@@ -22,8 +22,6 @@ function createEventMetadata(sequenceNumber: number): EventMetadata {
   };
 }
 
-/** Create a flat StoredEvent from event fields and metadata */
-
 describe('ViewMaterializer', () => {
   let materializer: ViewMaterializer;
   let project: SemiontProject;
@@ -47,7 +45,7 @@ describe('ViewMaterializer', () => {
   });
 
   describe('materialize() - Full rebuild from events', () => {
-    it('should rebuild view from resource.created event', async () => {
+    it('should rebuild view from yield:created event', async () => {
       const rid = resourceId('doc1');
       const events: any[] = [
         {
@@ -72,13 +70,13 @@ describe('ViewMaterializer', () => {
 
       expect(view).not.toBeNull();
       expect(view?.resource.name).toBe('Test Document');
-      // Format is now in representations array, not as a direct field
+      // Format is in the representations array, not a direct field
       const reps = Array.isArray(view?.resource.representations) ? view.resource.representations : [view?.resource.representations];
       expect(reps[0]?.mediaType).toBe('text/plain');
       expect(reps[0]?.rel).toBe('original');
     });
 
-    it('should handle multiple representation.added events', async () => {
+    it('should add a derived representation beside the original on yield:representation-added', async () => {
       const rid = resourceId('doc1');
       const events: any[] = [
         {
@@ -127,15 +125,15 @@ describe('ViewMaterializer', () => {
       // We have original representation plus the added markdown representation
       expect(view?.resource.representations).toHaveLength(2);
       const reps = Array.isArray(view?.resource.representations) ? view.resource.representations : [view?.resource.representations];
-      // First is original from resource.created
+      // First is original from yield:created
       expect(reps[0]?.mediaType).toBe('text/plain');
       expect(reps[0]?.rel).toBe('original');
-      // Second is derived markdown from representation.added
+      // Second is derived markdown from yield:representation-added
       expect(reps[1]?.mediaType).toBe('text/markdown');
       expect(reps[1]?.rel).toBe('derived');
     });
 
-    it('should handle representation.added event', async () => {
+    it('should handle yield:representation-added event', async () => {
       const rid = resourceId('doc1');
       const events: any[] = [
         {
@@ -183,7 +181,7 @@ describe('ViewMaterializer', () => {
       expect(reps[0]?.checksum).toBe('checksum1');
     });
 
-    it('should handle representation.removed event', async () => {
+    it('should handle yield:representation-removed event', async () => {
       const rid = resourceId('doc1');
       const events: any[] = [
         {
@@ -243,7 +241,7 @@ describe('ViewMaterializer', () => {
       expect(view?.resource.representations).toHaveLength(0);
     });
 
-    it('should handle annotation.added event', async () => {
+    it('should handle mark:added event', async () => {
       const rid = resourceId('doc1');
       const events: any[] = [
         {
@@ -289,7 +287,7 @@ describe('ViewMaterializer', () => {
       expect(view?.annotations.annotations).toHaveLength(1);
     });
 
-    it('should handle annotation.body.updated event', async () => {
+    it('should handle mark:body-updated event', async () => {
       const rid = resourceId('doc1');
       const events: any[] = [
         {
@@ -361,8 +359,8 @@ describe('ViewMaterializer', () => {
     });
 
     it('replays add + remove (with purpose) to produce empty body', async () => {
-      // Regression guard: strict-purpose matching is the canonical case
-      // where the caller knows which body they're removing.
+      // Strict-purpose matching is the canonical case where the caller
+      // knows which body they're removing.
       const rid = resourceId('doc1');
       const events: any[] = [
         {
@@ -449,10 +447,9 @@ describe('ViewMaterializer', () => {
     });
 
     it('replays add + remove (without purpose) to produce empty body', async () => {
-      // The regression this fix was written for. Event 7 in the user's KB
-      // had a remove op with no `purpose` field; strict-purpose matching
-      // in findBodyItem silently failed, leaving the link in place forever.
-      // After the fix, purpose-less removes match by identity alone.
+      // A remove op may carry no `purpose` field. Strict-purpose matching
+      // in findBodyItem would silently fail on it, leaving the link in place
+      // forever; a purpose-less remove matches by identity alone.
       const rid = resourceId('doc1');
       const events: any[] = [
         {
@@ -539,7 +536,7 @@ describe('ViewMaterializer', () => {
       expect(view?.annotations.annotations[0].body).toEqual([]);
     });
 
-    it('should handle annotation.removed event', async () => {
+    it('should handle mark:removed event', async () => {
       const rid = resourceId('doc1');
       const events: any[] = [
         {
@@ -659,9 +656,9 @@ describe('ViewMaterializer', () => {
       expect(view?.resource.name).toBe('Test Document');
       expect(view?.resource.representations).toHaveLength(2);
       const reps = Array.isArray(view?.resource.representations) ? view.resource.representations : [view?.resource.representations];
-      // First is original from resource.created
+      // First is original from yield:created
       expect(reps[0]?.mediaType).toBe('text/plain');
-      // Second is derived PDF from representation.added
+      // Second is derived PDF from yield:representation-added
       expect(reps[1]?.mediaType).toBe('application/pdf');
     });
 
@@ -747,7 +744,7 @@ describe('ViewMaterializer', () => {
     //  - keep the file sorted by id for stable output
     //
     // These tests pin each of those — the conflict semantics are the
-    // load-bearing decision from .plans/TAG-SCHEMAS-GAP.md (Q2).
+    // load-bearing decision.
     const schemaA = (override: Record<string, unknown> = {}) => ({
       id: 'schema-a',
       name: 'Schema A',
@@ -815,8 +812,8 @@ describe('ViewMaterializer', () => {
     });
 
     it('replaces by id and logs a warning when re-registering with differing content', async () => {
-      // Most-recent-wins. The plan's Q2 decision: log a warning so
-      // operators see the overwrite.
+      // Most-recent-wins, with a warning logged so operators see the
+      // overwrite.
       const warn = vi.fn();
       const loggingMaterializer = new ViewMaterializer(
         viewStorage,
@@ -1013,7 +1010,7 @@ describe('ViewMaterializer', () => {
 
       const view = await materializer.materialize(events, rid);
 
-      // Original representation from resource.created is still there
+      // Original representation from yield:created is still there
       expect(view?.resource.representations).toHaveLength(1);
       const reps = Array.isArray(view?.resource.representations) ? view.resource.representations : [view?.resource.representations];
       expect(reps[0]?.mediaType).toBe('text/plain');
@@ -1061,7 +1058,7 @@ describe('ViewMaterializer', () => {
     });
   });
 
-  describe('wasAttributedTo is copied from the event, never re-derived (VERIFIED-PROVENANCE P2)', () => {
+  describe('wasAttributedTo is copied from the event, never re-derived', () => {
     // The Stower derives attribution at write time and carries it on the event.
     // The event's emitter here is the WORKER, while the carried attribution
     // names the requester too — a projection that re-derived from `userId`
@@ -1124,7 +1121,7 @@ describe('ViewMaterializer', () => {
       expect(view?.resource.wasAttributedTo).toEqual([REQUESTER, WORKER]);
     });
 
-    it('an event that predates derivation is attributed to its emitter alone, by the one function', async () => {
+    it('an event carrying no wasAttributedTo is attributed to its emitter alone, by the one function', async () => {
       const rid = resourceId('doc-legacy');
       const events: any[] = [
         {
@@ -1145,9 +1142,9 @@ describe('ViewMaterializer', () => {
     });
   });
 
-  describe('storageUri lives on the representation (STORAGE-URI-ONE-HOME P1)', () => {
+  describe('storageUri lives on the representation', () => {
     // A storage URI names where bytes live, and bytes are a fact about a
-    // rendition. The descriptor-level field is gone; the materializer writes
+    // rendition. The descriptor has no such field; the materializer writes
     // the URI into the representation it builds, and yield:moved relocates it
     // there. The descriptor object must NOT grow a shadow copy (one home).
     const URI = 'file://docs/note.md';
@@ -1405,9 +1402,9 @@ describe('ViewMaterializer', () => {
     });
 
     /**
-     * The reap. `rebuildAll` was upsert-only, so a log rewrite left views the
-     * log no longer justifies behind forever — and the weaver's catalog IS the
-     * views, so it healed ghosts on every boot.
+     * The reap. An upsert-only `rebuildAll` would leave views the log no
+     * longer justifies behind forever after a log rewrite — and the weaver's
+     * catalog IS the views, so it would heal ghosts on every boot.
      */
     describe('reaping views the log no longer justifies', () => {
       function seedView(rid: any, name: string) {
@@ -1443,7 +1440,7 @@ describe('ViewMaterializer', () => {
         await seedView(orphan, 'Ghost');
 
         // The id survives in the log index but its events are gone — the shape
-        // a prune leaves behind, and the one rebuildAll used to skip silently.
+        // a prune leaves behind.
         await materializer.rebuildAll(fakeEventSource({ [orphan as string]: [] }));
 
         expect(await viewStorage.exists(orphan)).toBe(false);

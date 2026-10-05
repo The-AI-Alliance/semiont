@@ -5,7 +5,7 @@
  * ViewMaterializer in response to `person:profiled` events, which the gateway
  * produces when a person ACTS, from the name it verified on their token.
  *
- * This is the read side of PERSON-PROFILE: provenance joins on the DID alone
+ * This is the read side of person profiles: provenance joins on the DID alone
  * and no artifact carries a name, so a reader resolves one here. That is what
  * makes a rename correct every artifact its subject ever wrote, instead of
  * leaving the old name frozen in each of them.
@@ -55,9 +55,9 @@ export async function readPeopleProjection(state: SemiontState): Promise<PeopleV
  * This is the ONE place a Person acquires a name (`didToAgent` deliberately
  * leaves it absent), which is what keeps the name resolvable to a single
  * source. It also OVERRIDES a stored name rather than only filling an absent
- * one: artifacts written before this existed carry the subject UUID where a
- * name belongs, and they must read correctly too — that is the whole benefit
- * of resolving on read rather than freezing at write.
+ * one: some stored artifacts carry the subject UUID where a name belongs,
+ * and they must read correctly too — that is the whole benefit of resolving
+ * on read rather than freezing at write.
  *
  * A DID with no profile is left unnamed. The knowledge base says what it
  * knows, and a client renders the absence however it likes.

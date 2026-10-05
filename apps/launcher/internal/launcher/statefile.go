@@ -17,7 +17,7 @@ import (
 // codespace stacks don't collide in the cloud, so many may run at once,
 // each forwarding its KB on its own local port (4000, else allocated above
 // it); local ports are the only contention point. stop and status compute their
-// work from these identifiers (falling back to the historical all-runtimes
+// work from these identifiers (falling back to the all-runtimes
 // name sweep only when no record exists). The record is belief, not ground
 // truth: status still verifies every claim against the runtime, gh, and
 // the health endpoints. Schema 2 single-stack files are migrated on read;
@@ -62,7 +62,7 @@ type StackState struct {
 	Stage     string    `json:"configStage,omitempty"`
 	Ports     []int     `json:"ports,omitempty"` // host ports this stack claimed — stop verifies their release
 	// Codespace: the placement facts a stack on a codespace has and a local
-	// one cannot. Its PRESENCE is the platform (D5) — there is no separate
+	// one cannot. Its PRESENCE is the platform — there is no separate
 	// platform field to keep in sync with it, and no local stack carrying
 	// four zeroed codespace fields for every reader to test one at a time.
 	Codespace *codespacePlacement     `json:"codespace,omitempty"`
@@ -77,8 +77,8 @@ type codespacePlacement struct {
 	Repo        string `json:"repo"`                  // owner/name slug (the user-facing identity)
 	ForwardPID  int    `json:"forwardPid,omitempty"`  // the detached `gh codespace ports forward`
 	ForwardPort int    `json:"forwardPort,omitempty"` // this stack's local KB port (4000, or allocated above)
-	// The issuer, forwarded <N>:<N> (CODESPACE-IDENTITY B4). 0 when the KB
-	// trusts an issuer the codespace does not run.
+	// The issuer's port, forwarded <N>:<N> — the same number on both ends.
+	// 0 when the KB trusts an issuer the codespace does not run.
 	KeycloakPort       int `json:"keycloakPort,omitempty"`
 	KeycloakForwardPID int `json:"keycloakForwardPid,omitempty"`
 }
@@ -136,9 +136,9 @@ type StackSet struct {
 	UpdatedAt time.Time              `json:"updatedAt"`
 	Launcher  string                 `json:"launcherVersion"`
 	Stacks    map[string]*StackState `json:"stacks"`
-	// Browser: the machine-level viewer, deliberately OUTSIDE every stack
-	// (BROWSER-LIFECYCLE.md): it serves any number of KBs, any start ensures
-	// it, and stopping a stack leaves it running.
+	// Browser: the machine-level viewer, deliberately OUTSIDE every stack:
+	// it serves any number of KBs, any start ensures it, and stopping a
+	// stack leaves it running.
 	Browser *ServiceState `json:"browser,omitempty"`
 	// unreadable: why the file on disk could not be understood, nil when it
 	// was (an ABSENT file included — no record is a clean, expected state).
@@ -206,8 +206,8 @@ func LoadStackSet() *StackSet {
 	}
 	// Legacy single-stack file (schema 2).
 	//
-	// Schema 1 is NOT read. It predates `provided`, marking host reuse with a
-	// `hostReuse` bool that no longer exists on the struct, so a schema-1
+	// Schema 1 is NOT read. It has no `provided`, marking host reuse with a
+	// `hostReuse` bool the struct does not carry, so a schema-1
 	// record would load with every service unclassified — and an unclassified
 	// entry is worse than no record at all: teardown would treat a host
 	// process as launcher-owned. Refusing to read it is therefore right;
@@ -307,7 +307,7 @@ func saveStackSet(ss *StackSet) {
 	ss.UpdatedAt = time.Now().UTC()
 	ss.Launcher = BuildVersion
 	// The Browser's discovery view rides every mutation — same single
-	// writer, same moments (BROWSER-KB-DISCOVERY.md lane 1).
+	// writer, same moments.
 	defer writeDiscovery(ss)
 	b, err := json.MarshalIndent(ss, "", "  ")
 	if err != nil {
@@ -326,7 +326,7 @@ func saveStackSet(ss *StackSet) {
 // saveStack upserts one stack into the collection.
 func saveStack(st *StackState) {
 	st.UpdatedAt = time.Now().UTC()
-	st.Schema = 0 // schema lives on the set now
+	st.Schema = 0 // schema lives on the set
 	ss := LoadStackSet()
 	ss.Stacks[stackKey(st)] = st
 	saveStackSet(ss)

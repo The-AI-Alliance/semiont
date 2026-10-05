@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Generation's terminal success. Deliberately generic — the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress (GENERATE-FROM-RESOURCE D7/D8). `truncated` qualifies the completion (D6): the same bit `JobGenerationResult.truncated` carries, so the two surfaces cannot drift.",
+  "description": "Generation's terminal success. Deliberately generic — the client already holds the title it typed, and the outcome (name + resource link) travels on job:complete, not on progress. `truncated` qualifies the completion: the same bit `JobGenerationResult.truncated` carries, so the two surfaces cannot drift.",
   "properties": {
     "code": {
       "type": "string",

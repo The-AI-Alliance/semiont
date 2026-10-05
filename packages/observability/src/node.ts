@@ -3,17 +3,19 @@
  * (`worker-main.ts`, `smelter-main.ts`, and the other sidecars').
  *
  * Configuration is via standard `OTEL_*` env vars:
- *   - `OTEL_SERVICE_NAME`           — service identity (e.g. `semiont-gateway`)
+ *   - `OTEL_SERVICE_NAME`           — service identity (e.g. `semiont-archivist`)
  *   - `OTEL_EXPORTER_OTLP_ENDPOINT` — collector endpoint (HTTP)
  *   - `OTEL_TRACES_SAMPLER`         — sampler (default: `parentbased_always_on`)
  *   - `OTEL_TRACES_SAMPLER_ARG`     — sampler ratio (default: `1.0`)
- *   - `OTEL_CONSOLE_EXPORTER=true`  — dev-only: emit spans + metrics to stderr
+ *   - `OTEL_METRICS_EXPORTER`       — `console` sends metrics to the process's output
+ *   - `OTEL_METRIC_EXPORT_INTERVAL` — metric export interval in ms (default: 30000)
+ *   - `OTEL_CONSOLE_EXPORTER=true`  — dev-only: emit spans + metrics to the process's output
  *   - `OTEL_SDK_DISABLED=true`      — skip initialization entirely
  *
  * **Off-by-default invariant**: with neither `OTEL_EXPORTER_OTLP_ENDPOINT`
  * nor `OTEL_CONSOLE_EXPORTER=true` set, this function is a no-op and the
  * `@opentelemetry/api` no-op tracer takes over. This avoids accidentally
- * flooding production stderr (and CloudWatch) when an operator deploys
+ * flooding production logs when an operator deploys
  * without configuring an exporter.
  *
  * Implementation note: this module wires `BasicTracerProvider` and
@@ -153,7 +155,8 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
 
   // Any observable gauge whose provider registered before this point parked
   // its builder rather than binding the no-op meter. The real meter exists
-  // now, so build them — this is what makes registration order irrelevant.
+  // from here on, so build them — this is what makes registration order
+  // irrelevant.
   materializeObservableGauges();
 
   // The cause-AGNOSTIC detector for a blocked process: it rises whether the
@@ -174,15 +177,16 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
       loopDelay.reset();
     });
 
-  // Heap (ARCHIVIST-STAYS-UP P4), on the SAME registration as lag rather than
+  // Heap, on the SAME registration as lag rather than
   // a second mechanism — they are read together when diagnosing a process
   // that stopped answering, and splitting them would mean two things to wire.
   //
-  // `limit` is the field that repays the effort: the Archivist died at
-  // ~1016 MB inside a 2048 MB container because V8's own default ceiling sits
-  // well under the container's. `used` alone cannot say how close to death a
-  // process is, and `limit` is what a configured --max-old-space-size changes
-  // — so this is also how that setting is VERIFIED rather than assumed.
+  // `limit` is the field that repays the effort: V8's own default ceiling
+  // sits well under the container's (~1016 MB inside a 2048 MB container),
+  // and that is where the process dies. `used` alone cannot say how close to
+  // death a process is, and `limit` is what a configured
+  // --max-old-space-size changes — so this is also how that setting is
+  // VERIFIED rather than assumed.
   runtimeMeter
     .createObservableGauge('semiont.runtime.heap', {
       description: "Process memory by kind. `limit` is V8's own ceiling, which is what the process dies at — not the container's allocation.",
@@ -213,11 +217,11 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
 
   // A fatal path must leave a RECORD, not just a stack trace on stdout.
   //
-  // Semantics are deliberately unchanged: Node treats an unhandled rejection
+  // Semantics are deliberately Node's own: it treats an unhandled rejection
   // and an uncaught exception as fatal, and so do we. Registering a listener
   // would normally SUPPRESS that, which is why each handler re-raises after
   // recording — swallowing here would convert a loud crash into a silent
-  // wedged process, which is strictly worse than the bug that motivated this.
+  // wedged process, which is strictly worse than an unrecorded crash.
   const fatal = (reason: string) => (err: unknown) => {
     const detail = err instanceof Error ? err.message : String(err);
     try {
@@ -244,8 +248,8 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
 }
 
 /**
- * Report the supervisor's restart count for this service
- * (GATEWAY-SUPERVISION F3). Call once, after `initObservabilityNode`.
+ * Report the supervisor's restart count for this service. Call once,
+ * after `initObservabilityNode`.
  *
  * `scripts/container/supervise.sh` is POSIX shell and cannot emit OTel, but it
  * writes one `starting <name>` line per life to a durable event log and

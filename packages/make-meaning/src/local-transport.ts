@@ -2,11 +2,9 @@
  * LocalTransport — `ITransport` onto an in-process make-meaning `EventBus`.
  *
  * It takes NO knowledge system. This is a bus transport: it publishes emits
- * onto the bus and bridges the reply channels back. It never touched a
- * `KnowledgeSystem` — the field that used to be here was declared and never
- * read, which made the transport look coupled to the monolith's shape when it
- * is coupled only to the bus. Whatever process hosts the actors on that bus
- * satisfies it.
+ * onto the bus and bridges the reply channels back. It is coupled only to the
+ * bus, never to the shape of what hosts the actors. Whatever process hosts
+ * the actors on that bus satisfies it.
  *
  * Bus-ownership pattern (see `docs/protocol/TRANSPORT-CONTRACT.md`):
  *   - The caller owns a make-meaning `EventBus` and passes it to both
@@ -74,12 +72,11 @@ export class LocalTransport implements ITransport {
   /**
    * Stream of `SemiontError` instances surfaced from transport-mediated
    * round-trips (typed-wire methods on this transport that fail). The
-   * in-process implementation does not currently surface errors through
-   * this stream — most failures here originate inside the make-meaning
-   * actors and surface through bus channels (correlation-ID failures via
+   * in-process implementation surfaces no errors through this stream —
+   * most failures here originate inside the make-meaning actors and
+   * surface through bus channels (correlation-ID failures via
    * `busRequest`). The Subject exists to satisfy the `ITransport`
-   * contract; future expansion (e.g. transport-level guard failures)
-   * can publish into it.
+   * contract.
    */
   readonly errors$: Observable<SemiontError> = this.errorsSubject.asObservable();
 

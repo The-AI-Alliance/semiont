@@ -1,13 +1,16 @@
 /**
- * DETECTION-RESULT-STREAMING P4, frontend half (RD5): the progress surface
- * shows found-of-~expected when the count-verifier has priced a denominator.
+ * The rendering half of detection's denominator: the progress surface shows
+ * found-of-~expected when the count-verifier has priced a denominator. (The
+ * jobs half puts `entitiesExpected`, the verifier's cumulative priced total,
+ * on progress frames beside `entitiesFound`.)
  *
  * The wire's absence discipline carries through to the render, in both
  * directions: `entitiesExpected` ABSENT means "no claim" (no verifying
  * provider, or nothing priced yet) — no tally renders and no denominator is
  * ever manufactured. `entitiesFound: 0` PRESENT is a real count — "0 of ~37"
- * is information, not an error state. And per Lane A, the copy comes from a
- * caller-supplied translator: no translator, no line, no English fallback.
+ * is information, not an error state. And like every string this widget
+ * renders, the copy comes from a caller-supplied translator: no translator,
+ * no line, no English fallback.
  */
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -38,7 +41,7 @@ const detecting = (over: Partial<JobProgress> = {}): JobProgress =>
     ...over,
   }) as JobProgress;
 
-describe('AssistProgress — the denominator tally (RD5)', () => {
+describe('AssistProgress — the denominator tally', () => {
   it('renders found of ~expected when the wire prices both', () => {
     render(
       <AssistProgress ended={false} dataType="reference" translations={T()}
@@ -66,7 +69,7 @@ describe('AssistProgress — the denominator tally (RD5)', () => {
     expect(screen.getByTestId(TALLY)).toHaveTextContent('tr.tally(0/37)');
   });
 
-  it('no tally translator, no line — flows without the copy render nothing (Lane A)', () => {
+  it('no tally translator, no line — flows without the copy render nothing', () => {
     render(
       <AssistProgress ended={false} dataType="highlight"
         translations={T({ tally: undefined })}

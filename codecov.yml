@@ -120,19 +120,13 @@ ignore:
   - "**/dist/**"
   - "**/build/**"
   - "**/coverage/**"
-  - "**/.next/**"
 
   # Config files
   - "**/*.config.ts"
   - "**/*.config.js"
-  - "**/jest.setup.ts"
 
   # Generated files
   - "**/generated/**"
-
-  # Examples and demos
-  - "**/examples/**"
-  - "**/demo/**"
 
   # Scripts
   - "scripts/**"

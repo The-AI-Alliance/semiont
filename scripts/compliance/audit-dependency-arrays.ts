@@ -1,6 +1,6 @@
 #!/usr/bin/env ts-node
 /**
- * Audit dependency arrays for compliance with ARCHITECTURE-TENETS.md
+ * Audit dependency arrays for compliance with scripts/compliance/docs/TENETS-REACT-UI.md
  *
  * Uses TypeScript Compiler API for precise AST analysis
  */
@@ -239,12 +239,12 @@ class DependencyArrayAuditor {
    */
   private analyzeEventNaming(eventName: string): { isColon: boolean, isHyphen: boolean } {
     // Correct pattern: namespace:event-name (colon for namespace, hyphen allowed in event name)
-    // Legacy pattern: namespace-event-name (hyphen used for namespacing instead of colon)
+    // Wrong pattern: namespace-event-name (hyphen used for namespacing instead of colon)
 
     // Check if event uses colon for namespacing
     const hasColon = eventName.includes(':');
 
-    // Only flag as legacy if hyphen is used for namespacing (no colon present)
+    // Only flag a hyphen used for namespacing (no colon present)
     // Hyphens within the event name part (after colon) are perfectly fine
     const isLegacyHyphenNamespace = !hasColon && eventName.includes('-');
 

@@ -1,22 +1,17 @@
 /**
- * B17 (LOCAL-STORAGE W3) + B18 — rehydration wired through BrowseNamespace.
+ * B17 + B18 — rehydration wired through BrowseNamespace.
  *
- * **Declared behavior change (2026-07-24).** This file used to pin
- * "protocol silence": a rehydrated key was served with NO
- * `browse:*-requested` at all. That contract WAS the defect behind
- * .plans/bugs/annotation-lost-on-immediate-reload-after-create.md — an
- * annotation created seconds before a reload is absent from the persisted
- * document, and silence meant nothing ever corrected it (measured: no
- * resumption bookmark exists at failure time, so replay cannot cover it
- * either). Trusting disk content was never sound; the parked
- * rehydrate-then-revalidate option is now the fix.
+ * A rehydrated key is NOT served in protocol silence. An annotation created
+ * seconds before a reload is absent from the persisted document, and with
+ * no `browse:*-requested` nothing would ever correct it (the resumption
+ * bookmark may not be persisted either, so replay cannot cover it). Disk
+ * content is stale until revalidated.
  *
- * What is pinned NOW: the persisted value is still delivered synchronously
- * (B17's actual win — instant paint, no `undefined` flash), AND exactly one
+ * What is pinned: the persisted value is delivered synchronously (B17's
+ * actual win — instant paint, no `pending` flash), AND exactly one
  * revalidation CHAIN follows per rehydrated key (B18) — one request, plus
- * B14's single bounded retry if it fails. An un-cached key
- * still requests as before. Construction without the persistence option is
- * byte-for-byte today's in-memory behavior.
+ * B14's single bounded retry if it fails. An un-cached key requests.
+ * Construction without the persistence option is in-memory only.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { map, firstValueFrom, filter, take } from 'rxjs';
@@ -64,7 +59,7 @@ describe('BrowseNamespace cache rehydration (B17)', () => {
     expect(emit).toHaveBeenCalledTimes(1);
     expect(emit.mock.calls[0]![0]).toBe('browse:resource-requested');
 
-    // An un-cached key still goes to the transport (unchanged).
+    // An un-cached key goes to the transport.
     browse.resource(makeResourceId('res-uncached')).pipe(take(1)).subscribe();
     expect(emit).toHaveBeenCalledTimes(2);
     expect(emit.mock.calls[1]![0]).toBe('browse:resource-requested');

@@ -5,27 +5,21 @@
 export { startMakeMeaning } from './service';
 export type { MakeMeaningService, MakeMeaningConfig } from './service';
 
-// The Archivist's HTTP surface. Exported so the gateway's pipe suite proves
-// its contract against a REAL Archivist rather than a fetch double — the
-// process boundary SINGLE-KB-MOUNT P3 introduces is exactly what that gate
-// has to cross.
-export { createArchivistServer } from './archivist-read-path';
-export type { ArchivistServerDeps } from './archivist-read-path';
-// Its address, and the byte read that rides it, live in `@semiont/content`:
-// the Worker needs them too, and `make-meaning` depends on `jobs`, so a
-// shared fact has to sit under both (SINGLE-KB-MOUNT P4).
+// The Archivist's address, and the byte read that rides it, live in
+// `@semiont/content`: the Worker needs them too, and `make-meaning` depends on
+// `jobs`, so a shared fact has to sit under both.
 export { makeMeaningConfigFrom, requireKBName } from './config';
 
 // Knowledge System
-export type { KnowledgeSystem, GatewayKnowledgeSystem } from './knowledge-system';
+export type { KnowledgeSystem } from './knowledge-system';
 export { stopKnowledgeSystem } from './knowledge-system';
 
 // Local transport (in-process ITransport / IContentTransport for the SemiontClient)
 export { LocalTransport, type LocalTransportConfig } from './local-transport';
 export { LocalContentTransport } from './local-content-transport';
-// In-process BusRequestPrimitive over a raw EventBus — gateway-internal
-// callers (e.g. the rebuild-graph CLI's weave:rebuild) share busRequest's
-// correlated request/reply path.
+// In-process BusRequestPrimitive over a raw EventBus — callers beside the
+// bus they ask (e.g. the entity-type bootstrap, the Archivist's recording
+// upload) share busRequest's correlated request/reply path.
 export { asBusRequestPrimitive } from './bus-request-local';
 
 // Bus command handlers — registered automatically by `startMakeMeaning`;
@@ -86,24 +80,13 @@ export type { AnchoredTextAsk } from './anchored-text-ask';
 export { AnnotationContext } from './annotation-context';
 export type { BuildContextOptions } from './annotation-context';
 export { GraphContext } from './graph-context';
-// The graph shape is the core/spec type `KnowledgeGraph` (`@semiont/core`);
-// make-meaning no longer defines local graph-shape twins.
+// The graph shape is the core/spec type `KnowledgeGraph` (`@semiont/core`).
 export { LLMContext } from './llm-context';
 export type { LLMContextOptions } from './llm-context';
 
-// Generation exports (context-building reads stay here; generateResourceFromTopic moved to @semiont/jobs)
+// Generation exports: the context-building reads. Topic generation
+// (`generateResourceFromTopic`) is in `@semiont/jobs`.
 export {
   generateResourceSummary,
   generateReferenceSuggestions,
 } from './generation/resource-generation';
-
-// Service bus wiring — exported so tests can compose what the entry points
-// compose (Tier 1/Tier 2 of the split-process coverage).
-export { attachServicePumps } from './service-pumps';
-export type { ServicePumpSpec, PumpTransport } from './service-pumps';
-export {
-  ARCHIVIST_INBOUND_CHANNELS,
-  ARCHIVIST_OUTBOUND_CHANNELS,
-  LIBRARIAN_INBOUND_CHANNELS,
-  LIBRARIAN_OUTBOUND_CHANNELS,
-} from './service-channels';

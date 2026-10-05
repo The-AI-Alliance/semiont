@@ -45,7 +45,8 @@ export const SMELTER_COMMAND_CHANNELS = ['smelt:rebuild-anchors'] as const;
 
 export interface SmelterFanIn {
   events$: Observable<SmelterEvent>;
-  /** `smelt:rebuild-anchors` commands (PERSIST-ANCHORS P0) — see the command-channel note above. */
+  /** `smelt:rebuild-anchors` commands, the operator's on-demand rebuild of
+   *  anchored-text artifacts — see the command-channel note above. */
   rebuildAnchors$: Observable<BusFrame<EventMap['smelt:rebuild-anchors']>>;
 }
 

@@ -1,13 +1,13 @@
 /**
- * Annotation lookup handlers — split along the EXTRACT-LIBRARIAN P3 cutover:
+ * Annotation lookup handlers — split by where each one's capabilities live:
  *
  * - `browse:annotation-context-requested` is a pure views+content read with
- *   no Gatherer. It registers wherever those capabilities live — the gateway
- *   and the standalone root.
+ *   no Gatherer. It registers wherever those capabilities live — the
+ *   Archivist and the standalone root.
  * - `gather:summary-requested` calls the Gatherer's inference path, so it
- *   follows the Gatherer (the Archivist's D2-i pattern): the standalone root
- *   and librarian-main register it beside their Gatherer; the gateway does
- *   NOT.
+ *   follows the Gatherer (as annotation assembly follows the Stower in the
+ *   Archivist): the standalone root and librarian-main register it beside
+ *   their Gatherer.
  */
 
 import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';

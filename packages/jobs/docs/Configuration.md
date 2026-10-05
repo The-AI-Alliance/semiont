@@ -15,9 +15,9 @@ Workers do not poll the queue. The worker process opens a `SemiontSession`, and 
 
 A job queued while every eligible worker is busy is claimed at the next settle. The dispatcher also re-announces pending jobs at every tick, which covers a wake-up lost in transit to an idle worker.
 
-Each worker process serves the `jobTypes` it is configured for — driven by the per-`(provider, model)` worker entries in `~/.semiontconfig`. Multiple job types that share an inference engine share one worker process (and one software-agent identity); different engines run as separate processes.
+Each agent serves the `jobTypes` it is configured for — driven by the per-`(provider, model)` worker entries in `~/.semiontconfig`. Multiple job types that share an inference engine share one agent (one software-agent identity, one session); different engines run as separate agents in the same worker process.
 
-`startWorkerProcess` is internal to the package — the `worker-main.ts` entry point calls it once per agent group:
+`startWorkerProcess` is internal to the package — `startAgentWorker` (`src/worker-runtime.ts`) calls it once per agent group:
 
 ```typescript
 const adapter = startWorkerProcess({
@@ -36,11 +36,11 @@ The worker process handles its own `SIGTERM`/`SIGINT` — disposing each agent's
 
 ### Health Checks
 
-The worker process exposes an HTTP `/health` endpoint (port `24100`) that reports the number of running agents:
+The worker process exposes an HTTP `/health` endpoint (port `24100`) that reports the number of running agents and each agent's vitals:
 
 ```bash
 curl -s http://localhost:24100/health
-# {"status":"ok","agents":2}
+# {"status":"ok","agents":2,"workers":[…]}
 ```
 
 ## Troubleshooting

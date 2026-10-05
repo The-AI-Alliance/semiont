@@ -4,8 +4,8 @@
  * credential. `fetch` is the gateway and the issuer both; nothing is mocked
  * inside the SDK.
  *
- * The case these exist for is the storm one browser tab made
- * (.plans/bugs/stale-sse-actor-401-loops-after-token-expiry.md): an issuer
+ * The case these exist for is the storm one browser tab made:
+ * an issuer
  * that goes on renewing a credential the gateway goes on refusing.
  */
 

@@ -13,7 +13,6 @@ interface PageLayoutProps {
   tHome: TranslateFn;
   children: React.ReactNode;
   className?: string;
-  showAuthLinks?: boolean;
 }
 
 export function PageLayout({
@@ -23,7 +22,6 @@ export function PageLayout({
   tHome,
   children,
   className = '',
-  showAuthLinks = true,
 }: PageLayoutProps) {
   return (
     <div className="semiont-page-layout">
@@ -34,7 +32,6 @@ export function PageLayout({
             routes={routes}
             t={tNav}
             tHome={tHome}
-            showAuthLinks={showAuthLinks}
             brandingLink="/"
             variant="embedded"
           />

@@ -1,6 +1,6 @@
 /**
  * `ResourceOperations` — the one statement of how a resource write maps onto
- * its channel's payload (GATEWAY-DEPENDS-ON-CORE-ONLY P1).
+ * its channel's payload.
  *
  * Imported from the package index, not the module, because the claim under
  * test is that core EXPORTS it: the gateway and make-meaning both derive from

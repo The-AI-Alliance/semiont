@@ -1,21 +1,20 @@
 /**
- * Regression tests for the two axes a `ResourceLoaderStateUnit` is bound to:
+ * Tests for the two axes a `ResourceLoaderStateUnit` is bound to:
  * the `:id` param and the live session.
  *
- * `useStateUnit` runs its factory exactly once at mount, and React Router
- * keeps `KnowledgeResourcePage` mounted across both a `:id` param change and
- * an `activeSession$` swap. So the loader has to be forced to rebuild by a
+ * `useSessionStateUnit` runs its factory exactly once per mount, and React
+ * Router keeps `KnowledgeResourcePage` mounted across both a `:id` param change
+ * and an `activeSession$` swap. So the loader has to be forced to rebuild by a
  * key that covers BOTH, or it stays bound to whatever it captured first.
  *
- * - `:id` axis — clicking between open-resource tabs changed the URL but not
- *   the content, because the factory never re-ran.
- * - session axis — switching KB (or re-authenticating, which reconstructs the
- *   session under an unchanged `kb.id`) left the loader holding a DISPOSED
- *   client, whose cache is inert by B16: no fetch, no emission, and the page
- *   sits on "Loading resource..." forever.
- *   See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+ * - `:id` axis — unkeyed, clicking between open-resource tabs changes the URL
+ *   but not the content, because the factory never re-runs.
+ * - session axis — unkeyed, switching KB (or re-authenticating, which
+ *   reconstructs the session under an unchanged `kb.id`) leaves the loader
+ *   holding a DISPOSED client, whose cache is inert by B16: no fetch, no
+ *   emission, and the page sits on "Loading resource..." forever.
  *
- * Fix: a thin outer wrapper reads the `:id` param and the session, gates
+ * A thin outer wrapper reads the `:id` param and the session, gates
  * render on the session, and keys the inner component on `${session.id}:${rId}`
  * so a change to either forces a remount.
  */
@@ -130,7 +129,7 @@ describe('KnowledgeResourcePage navigation', () => {
 
     // Simulate route-param change: params.id is now B, but React Router
     // keeps the component mounted (no unmount). Without the key-based
-    // remount fix, the factory would not re-run and the content would
+    // remount, the factory would not re-run and the content would
     // stay on A.
     mockedParamsId = 'B';
     act(() => { rerender(<KnowledgeResourcePage />); });
@@ -196,12 +195,10 @@ describe('KnowledgeResourcePage navigation', () => {
 
   it('renders not-found — and builds no state unit — when the :id param is absent', () => {
     // `App.tsx` declares `resource/:id`, so React Router cannot match this
-    // route without the param, and the page read it as `params?.id as string`
-    // on the strength of that. The cast made the assumption unchecked:
-    // `resourceId()` takes a `string` and calls `.includes('/')` on it
-    // immediately, so if the route pattern were ever renamed the page would
-    // throw a TypeError and white-screen rather than degrade. This pins the
-    // branch that lets the compiler prove the id is a string.
+    // route without the param. A cast (`params.id as string`) on the strength
+    // of that would leave the assumption unchecked if the route pattern were
+    // ever renamed. This pins the branch that lets the compiler prove the id
+    // is a string.
     mockedParamsId = undefined;
 
     render(<KnowledgeResourcePage />);
@@ -231,13 +228,13 @@ describe('KnowledgeResourcePage navigation', () => {
   it('leaves the KB-switch redirect to the switch INITIATOR, not to itself', () => {
     // This page cannot detect a KB switch: `KnowledgeLayout` gates <Outlet />
     // on a live session, so it is unmounted the instant `activeSession$` goes
-    // null and remounts fresh against the replacement. A latch here observed
-    // nothing and was dead in production while THIS test — which renders the
-    // page with no layout above it — passed. The behaviour now lives in
+    // null and remounts fresh against the replacement. A latch here would
+    // observe nothing in production, while a test that renders the page with
+    // no layout above it, as this one does, would pass. The redirect lives in
     // `KnowledgeBasePanel`, where the switch is initiated and the page is
     // still mounted; see its "switching KB away from a resource route" specs.
     //
-    // What this page still owes: rebuild against whatever session it is given,
+    // What this page owes: rebuild against whatever session it is given,
     // which the `${session.id}:${rId}` key provides and the pins above cover.
     mockedParamsId = 'A';
     render(<KnowledgeResourcePage />);

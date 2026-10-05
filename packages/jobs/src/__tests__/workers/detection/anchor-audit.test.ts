@@ -1,11 +1,11 @@
 /**
- * Anchor auditing (DETECTION-QUALITY-THROUGHPUT P5).
+ * Anchor auditing: the method that anchored each annotation is counted, so
+ * the degraded-anchor rate is a measured number.
  *
  * The mechanical selector-vs-source check is already a write-time invariant in
  * both annotation builders, so it cannot fail and auditing it would measure a
- * constant. The uncertain part is WHICH METHOD anchored a span — and that was
- * visible only as a log line, which is how 47 degraded anchors went unreviewed
- * after the 2026-09-03 run.
+ * constant. The uncertain part is WHICH METHOD anchored a span — and visible
+ * only as a log line, degraded anchors go unreviewed.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';

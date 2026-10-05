@@ -1,6 +1,5 @@
 /**
- * Executable enforcement of the liveness axioms — the runtime twin of
- * `.plans/LIVENESS-AXIOMS.md`, and the composition-level sibling of
+ * Executable enforcement of the liveness axioms, and the composition-level sibling of
  * `assertStateUnitAxioms` (state-unit-axioms.ts). Where the StateUnit axioms
  * make *per-unit* wrongness mechanically detectable, these make *silence*
  * detectable: every existing enforcement tier is safety (nothing wrong is
@@ -201,7 +200,7 @@ export async function assertLivenessAxioms(spec: LivenessAxiomSpec): Promise<voi
               // Swallow detection: the final issue of a logical request was
               // faulted, the composition had retry budget left but didn't use
               // it, and no output surfaced anything — the rejection went into
-              // a void (the pre-B14 `catch(() => {})`).
+              // a void (the `catch(() => {})` B14 rules out).
               if (lastFaulted && count <= retryBudget && outputs.length > 0 && !notified.some(Boolean)) {
                 throw new Error(
                   `L2: faulted request ⟨${key}⟩ was neither re-issued nor surfaced ` +
@@ -236,9 +235,9 @@ export async function assertLivenessAxioms(spec: LivenessAxiomSpec): Promise<voi
 /**
  * A connection-stream-shaped subject: something that accepts writes to the
  * live connection, can be told to transition (handover / reconnect / scope
- * change), and exposes the subscriber-facing output. P3 adapts the real
- * actor's mock-connection harness to this shape; the teeth tests drive
- * reconstructed pre-fix doubles.
+ * change), and exposes the subscriber-facing output. The http-transport
+ * actor's property suite adapts the real actor's mock-connection harness to
+ * this shape; the teeth tests drive deliberately-broken doubles.
  */
 export interface DeliverySubject {
   /** Write the event with this id to the currently-live connection. */

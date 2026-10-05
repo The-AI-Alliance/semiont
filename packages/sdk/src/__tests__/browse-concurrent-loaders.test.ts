@@ -1,19 +1,15 @@
 /**
- * N distinct-rid loaders on one client — the MULTI-RESOURCE-SCOPE acceptance
- * shape at the `BrowseNamespace` level, mimicking `useResourceLoader` per
- * chat message (one `resource(rid)` + one `annotations(rid)` live query per
- * loader).
+ * N distinct-rid loaders on one client — the acceptance shape for concurrent
+ * resource scopes on one connection, at the `BrowseNamespace` level,
+ * mimicking `useResourceLoader` per chat message (one `resource(rid)` + one
+ * `annotations(rid)` live query per loader).
  *
- * History: this file began as the starvation repro
- * (.plans/bugs/concurrent-browse-resource-starvation.md — pre-fix, loaders
- * 2..N hit the single-slot `subscribeToResource` throw and starved forever;
- * the interim P2.5 degraded them to unscoped observation). Both states are
- * gone: distinct resources COMPOSE, so the contract pinned here is stronger —
- * every loader acquires its OWN scope, every loader is FULLY live (its own
- * resource's broadcast invalidations reach it, and only it), and nothing
- * warns. Loaded-ness is judged on `ready` CacheState emissions (D1) — a
- * `pending` emission must never count as loaded, or starvation detection
- * goes vacuous.
+ * Distinct resources COMPOSE, so the contract pinned here is: every loader
+ * acquires its OWN scope, every loader is FULLY live (its own resource's
+ * broadcast invalidations reach it, and only it), and nothing warns. A
+ * single shared scope slot would starve every loader but the first.
+ * Loaded-ness is judged on `ready` CacheState emissions — a `pending`
+ * emission must never count as loaded, or starvation detection goes vacuous.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -36,8 +32,8 @@ const flush = () => new Promise<void>((r) => setTimeout(r, 0));
 
 /**
  * Fake transport with the COMPOSING `subscribeToResource` contract (mirrors
- * post-MULTI-RESOURCE-SCOPE HttpTransport: per-resource ref-counts, distinct
- * resources independent) and synchronous correlated replies. Tracks held
+ * HttpTransport: per-resource ref-counts, distinct resources independent)
+ * and synchronous correlated replies. Tracks held
  * scopes and a per-channel/per-rid request log so tests can assert scope
  * composition and invalidation fan-out. `failFirstResourceFetchFor` makes
  * the first `browse:resource-requested` emit for that rid reject — the B14
@@ -215,7 +211,7 @@ describe('N concurrent distinct-rid loaders — all scoped, all fully live', () 
     bus.destroy();
   });
 
-  it('unmount/remount keeps working (the old "permanent per key" symptom stays dead)', async () => {
+  it('unmount/remount keeps working: every remounted loader loads', async () => {
     const bus = new EventBus();
     const { transport } = makeComposingTransport();
     const browse = new BrowseNamespace(transport, bus, noopContent);

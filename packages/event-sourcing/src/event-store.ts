@@ -76,11 +76,11 @@ export class EventStore {
     // to widen or cast to hold it.
     const resourceId: ResourceId = event.resourceId || SYSTEM_SCOPE;
 
-    // Each stage is timed separately (ARCHIVIST-STAYS-UP P7). The useful
+    // Each stage is timed separately. The useful
     // question is never "was the append slow" but WHICH stage: `persist`
-    // includes a SYNCHRONOUS git add that blocks the event loop, and
-    // `materialize` does work proportional to the resource's annotation
-    // count — so one degrades with concurrency and the other with history.
+    // is the JSONL append — its `git add` is queued and runs off the event
+    // loop — while `materialize` does work proportional to the resource's
+    // annotation count, so it degrades with history.
     const timed = async <T>(stage: 'persist' | 'materialize' | 'enrich' | 'publish', run: () => Promise<T> | T): Promise<T> => {
       const started = performance.now();
       try {

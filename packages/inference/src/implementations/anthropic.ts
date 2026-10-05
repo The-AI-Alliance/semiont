@@ -11,9 +11,8 @@ import { ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, Str
 // projected past its 10-minute timeout. ONE constant, two derivations: the
 // streaming switch below, and `limits().outputTokensPerHour` — the single
 // duration statement this provider surface makes, which detection's
-// duration budget derives from (ABANDONED-INFERENCE P4). Invalidated if
-// the SDK revises its rate model: check calculateNonstreamingTimeout on
-// SDK upgrades.
+// duration budget derives from. Invalidated if the SDK revises its rate
+// model: check calculateNonstreamingTimeout on SDK upgrades.
 const OUTPUT_TOKENS_PER_HOUR = 128_000;
 
 // Above ~21,333 output tokens (the 10-minute projection) we stream
@@ -23,25 +22,23 @@ const NONSTREAMING_MAX_OUTPUT_TOKENS = Math.floor(OUTPUT_TOKENS_PER_HOUR / 6);
 
 // Structured generation rides `output_config.format` — response-level
 // structured output: the response TEXT is the schema-conforming JSON, with a
-// top-level ARRAY root (accepted on both live-config models — spike
-// 2026-08-06, `.plans/spikes/output-config-array-root.md`). This replaced
-// the pre-structured-outputs scaffolding: a forced `emit_json_array` tool
-// whose object-only input required an `items` wrapper and an unwrap — and
-// the unwrap was the exact line that silently coerced an unreadable payload
-// to `[]` (STRUCTURED-INFERENCE §Problem). There is no tool-input
-// accumulation step left for the SDK to hand over unparsed; the read path is
-// now the same parse-and-verify shape as Ollama's.
+// top-level ARRAY root (accepted on both live-config models). Not a forced
+// tool: a tool's object-only input needs an `items` wrapper and an unwrap,
+// and an unwrap that coerces an unreadable payload to `[]` leaves an
+// unreadable response indistinguishable from a model that found nothing.
+// With no tool-input accumulation step for the SDK to hand over unparsed,
+// the read path is the same parse-and-verify shape as Ollama's.
 
 /**
  * Everything discovery teaches us about the configured model: one Models API
  * call for ceilings and structured-output capability, plus one ~10-token
- * ACTIVE PROBE for sampling-parameter acceptance (SONNET-5-MIGRATION D2 —
- * the Models API publishes no sampling capability, measured 2026-09-25, so
- * acceptance is measured rather than tabled). `structuredOutputsSupported`
- * stays private to the `generateStructured` gate; `temperatureAccepted` is
- * ALSO exposed as `limits().acceptsTemperature`, because D3 gave it an
- * external consumer: the UI hides the Creativity slider on rejecting models,
- * which is what makes the client-side omission honest.
+ * ACTIVE PROBE for sampling-parameter acceptance (the Models API publishes
+ * no sampling capability, so acceptance is measured rather than tabled).
+ * `structuredOutputsSupported` stays private to the `generateStructured`
+ * gate; `temperatureAccepted` is ALSO exposed as
+ * `limits().acceptsTemperature`, because it has an external consumer: the
+ * UI hides the Creativity slider on rejecting models, which is what makes
+ * the client-side omission honest.
  */
 interface ModelDiscovery {
   limits: InferenceLimits;
@@ -57,18 +54,19 @@ interface ModelDiscovery {
 const TEMPERATURE_PROBE_MAX_TOKENS = 1;
 
 /**
- * Call-level retries, CHOSEN (RETRY-CLASSIFICATION P4) rather than inherited.
+ * Call-level retries, CHOSEN rather than inherited.
  *
- * Two is also SDK 0.123.0's default, and writing it down is the point: this was
- * the last site in that plan's census still running on a vendor default, and the
- * plan's finding is that unchosen defaults win silently. Pinned, a future SDK
- * bump cannot change our retry behavior without someone editing this line.
+ * Two is also SDK 0.123.0's default, and writing it down is the point: every
+ * site that decides retryability either consumes a named rule from core
+ * (`RETRY_RULES`) or states its own choice, and a vendor default is neither.
+ * Unchosen defaults win silently. Pinned, a future SDK bump cannot change our
+ * retry behavior without someone editing this line.
  *
  * Two is right here on measured grounds, not taste:
  * - **Fast failures cost almost nothing.** A 429, 409 or quick 5xx returns in
  *   seconds, so three attempts are seconds — and the SDK honors `retry-after`,
- *   which matters more now that entity types run concurrently
- *   (DETECTION-QUALITY-THROUGHPUT P6) and 429 is the expected pushback.
+ *   which matters because entity types run concurrently, up to
+ *   `maxConcurrency`, and 429 is the expected pushback.
  * - **Slow failures never reach the retries.** `boundedGenerateStructured` wraps
  *   the whole call in one 10-minute timer, and the SDK's own default timeout is
  *   also 10 minutes, so a hung call trips OUR bound during the first attempt.
@@ -88,14 +86,13 @@ const ANTHROPIC_MAX_RETRIES = 2;
 export class AnthropicInferenceClient implements InferenceClient {
   readonly type = 'anthropic' as const;
   // Hosted API: a single detection job uses a sliver of the account rate limit
-  // (measured 2026-09-04: ~1 request / 72 s, zero 429s at 4 concurrent types),
-  // so independent calls genuinely parallelize. Conservative until an 8-way run
-  // measures the next step (DETECTION-QUALITY-THROUGHPUT P6).
+  // (~1 request / 72 s, zero 429s at 4 concurrent types), so independent calls
+  // genuinely parallelize. Conservative: nothing above 4-way is measured.
   readonly maxConcurrency = 4;
-  // Universal for real providers (user ruling 2026-09-05): "no observed
-  // collapse" here was absence-of-looking, and the unexplained ~2× yield gap
-  // vs gemma on the same document is exactly what verification answers. The
-  // ~2× billed input is the accepted cost.
+  // Universal for real providers: "no observed collapse" here is
+  // absence-of-looking, and an unexplained ~2× yield gap vs gemma on the
+  // same document is exactly what verification answers. The ~2× billed
+  // input is the accepted cost.
   readonly verifyDetectionYield = true;
   readonly modelId: string;
   private client: Anthropic;
@@ -132,8 +129,8 @@ export class AnthropicInferenceClient implements InferenceClient {
     // The Models API publishes the actual ceilings AND capabilities per
     // model — no hand-maintained table to go stale when a new model ships,
     // and the API's own metadata outranks documentation prose when the two
-    // disagree (measured: the docs' supported-model list was stale while
-    // `capabilities.structured_outputs.supported` was correct).
+    // disagree (the docs' supported-model list can be stale while
+    // `capabilities.structured_outputs.supported` is correct).
     const info = await this.client.models.retrieve(this.modelId).catch((err: unknown) => {
       throw new Error(
         `Failed to discover model limits for '${this.modelId}' from the Models API`,
@@ -145,7 +142,7 @@ export class AnthropicInferenceClient implements InferenceClient {
     }
     // `capabilities` is not declared on the SDK's ModelInfo type — narrow
     // through the core guards rather than casting. Absent metadata reads as
-    // unsupported: the gate then refuses loudly (D4), never guesses.
+    // unsupported: the gate then refuses loudly, never guesses.
     const raw: unknown = info;
     const structuredOutputsSupported =
       isObject(raw) &&
@@ -167,11 +164,11 @@ export class AnthropicInferenceClient implements InferenceClient {
 
   /**
    * One tiny request carrying a non-default `temperature` answers whether
-   * this model accepts the parameter at all (spike 2026-09-25,
-   * `.plans/spikes/sonnet-5-temperature.md`: sonnet-5 refuses every
+   * this model accepts the parameter at all (sonnet-5 refuses every
    * non-default value on both request shapes — including the generation
-   * wizard's own 0.7 default — while the Models API says nothing). Runs once
-   * per model per process, cached on the same discovery record as limits.
+   * wizard's own 0.7 default — while the Models API says nothing). Runs
+   * once per model per process, cached on the same discovery record as
+   * limits.
    * The 400-shape match lives HERE, on the cold path, so no production
    * request ever string-matches an error message.
    */
@@ -210,8 +207,8 @@ export class AnthropicInferenceClient implements InferenceClient {
     // The signal rides the SDK's RequestOptions: an abort tears down the live
     // attempt AND is checked between the SDK's internal retries, so a
     // cancelled call cannot survive as a background zombie inside the SDK's
-    // own retry/backoff loop (ABANDONED-INFERENCE P0 caught one completing
-    // 24–34 minutes after abandonment). For visibility into those internal
+    // own retry/backoff loop (where one can complete 24–34 minutes
+    // after abandonment). For visibility into those internal
     // retries themselves, the SDK's ANTHROPIC_LOG=debug env knob logs every
     // attempt — nothing to re-implement here.
     if (params.max_tokens > NONSTREAMING_MAX_OUTPUT_TOKENS) {
@@ -234,10 +231,10 @@ export class AnthropicInferenceClient implements InferenceClient {
     });
 
     // Discovery decides whether `temperature` may ride: a rejecting model
-    // 400s on ANY non-default value (SONNET-5-MIGRATION P2), and the callers
-    // keep passing one — internal constants and the wire field alike — so
-    // the omission happens here, once, and is visible on
-    // `limits().acceptsTemperature` rather than silent.
+    // 400s on ANY non-default value, and the callers keep passing one —
+    // internal constants and the wire field alike — so the omission happens
+    // here, once, and is visible on `limits().acceptsTemperature` rather
+    // than silent.
     const { temperatureAccepted } = await this.discover();
     const params: Anthropic.MessageCreateParamsNonStreaming = {
       model: this.modelId,
@@ -289,10 +286,10 @@ export class AnthropicInferenceClient implements InferenceClient {
     elementSchema: ElementSchema,
     signal?: AbortSignal,
   ): Promise<StructuredResponse<T>> {
-    // Capability gate (D3/D4): model choice is deployment config, so the
+    // Capability gate: model choice is deployment config, so the
     // client asks the provider whether the configured model can honour
     // strictness — and REFUSES when it cannot. Silent fallback to
-    // unconstrained tool use is exactly the behaviour that turned 202 real
+    // unconstrained tool use is exactly the behaviour that turns real
     // entities into a green empty job. The discovery is the same cached
     // Models API call `limits()` uses; no extra round trip.
     const discovery = await this.discover();
@@ -318,8 +315,8 @@ export class AnthropicInferenceClient implements InferenceClient {
       model: this.modelId,
       max_tokens: maxTokens,
       // Same suppression as the text path: a rejecting model 400s on the
-      // structured shape identically (spike 2026-09-25). `discovery` is the
-      // record already fetched for the gate above.
+      // structured shape identically. `discovery` is the record already
+      // fetched for the gate above.
       ...(discovery.temperatureAccepted ? { temperature } : {}),
       messages: [{ role: 'user', content: prompt }],
       // Response-level structured output with an ARRAY root: the response
@@ -347,8 +344,8 @@ export class AnthropicInferenceClient implements InferenceClient {
 
     // Anything that does not read as an array is a THROW, never a coerced
     // `[]` — "we could not read the model" must never be conflated with
-    // "the model found nothing": that conflation is what silently discarded
-    // 202 real entities as a green empty result. A truncated (`max_tokens`)
+    // "the model found nothing": that conflation silently discards
+    // real entities as a green empty result. A truncated (`max_tokens`)
     // response surfaces here too, as unparseable JSON naming its stop_reason.
     let parsed: unknown;
     try {

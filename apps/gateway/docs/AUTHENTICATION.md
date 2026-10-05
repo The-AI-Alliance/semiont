@@ -2,7 +2,7 @@
 
 How the gateway authenticates a request, and where each part of it lives. For
 the whole bearer-only model — the issuer, sign-in, rotation — read the
-[System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md)
+[System Authentication Architecture](../../../docs/operator/administration/AUTHENTICATION.md)
 first; the `bearerAuth` and `mediaToken` schemes in
 [specs/src/openapi.json](../../../specs/src/openapi.json) are the contract.
 
@@ -32,8 +32,8 @@ first; the `bearerAuth` and `mediaToken` schemes in
 | Which token it is, and the principal it names | [src/principal.rs](../src/principal.rs) |
 | The issuer's keys: discovery, the key set, when it is fetched | [src/issuer.rs](../src/issuer.rs) |
 | The key ring, agent and media tokens | [src/tokens.rs](../src/tokens.rs) |
-| How a person and an agent are named | [src/identity.rs](../src/identity.rs), held to [specs/src/principals/cases.json](../../../specs/src/principals/cases.json) |
-| The role names | [src/roles.rs](../src/roles.rs), held to the launcher's and core's by `npm run lint:service-role` |
+| How a person and an agent are named | the `semiont` crate's [identity.rs](../../../packages/sdk-rust/src/identity.rs), held to [specs/src/principals/cases.json](../../../specs/src/principals/cases.json) |
+| The role names | the `semiont` crate's [roles.rs](../../../packages/sdk-rust/src/roles.rs), held to the launcher's and core's by `npm run lint:service-role` |
 
 A protected handler takes `Authenticated` (or `MediaOrBearer`), which runs
 before its body is read, so an unauthenticated request never reaches a parser.

@@ -422,7 +422,7 @@ describe('EventQuery', () => {
       await expect(query.queryEvents({} as any)).rejects.toThrow('resourceId is required');
     });
 
-    it('should handle resource with only resource.created', async () => {
+    it('should handle resource with only yield:created', async () => {
       const events = await query.getResourceEvents(resourceId('doc2'));
 
       expect(events).toHaveLength(1);

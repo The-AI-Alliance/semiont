@@ -1,7 +1,7 @@
 /**
  * OCR engine — vendoring and startup.
  *
- * OCR is core (SMELTER-MEDIA-TYPES decision 8), so the engine must run from
+ * OCR is core, not a configurable option, so the engine must run from
  * language data shipped inside the image, never fetched from a CDN at
  * runtime. These tests guard that: the data is on disk as an ordinary
  * dependency, and the worker starts from it. They exercise the real engine —
@@ -50,7 +50,7 @@ describe('recognizeImages', () => {
     });
 
     it('leaves no cached copy in the working directory', async () => {
-        // `cacheMethod: 'none'` — before this was set, tesseract.js wrote a
+        // `cacheMethod: 'none'` — without it tesseract.js writes a
         // 5 MB eng.traineddata into cwd on first use.
         await recognizeImages([image]);
         expect(fs.existsSync(path.join(process.cwd(), 'eng.traineddata'))).toBe(false);

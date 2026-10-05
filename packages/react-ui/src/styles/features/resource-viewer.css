@@ -92,7 +92,7 @@
   flex: 1; /* Take remaining space after toolbar */
   min-height: 0; /* Allow flexbox shrinking */
   overflow: auto; /* This becomes the scroll container */
-  padding: 0 1.5rem; /* Move padding from parent to scrollable content */
+  padding: 0 1.5rem; /* Padding on the scrollable content, not the parent */
 }
 
 /* ── Inline embed variant ────────────────────────────────────────────────────
@@ -346,7 +346,7 @@
 
 /* CodeMirrorRenderer Component */
 .semiont-codemirror {
-  /* Removed height: 100% - allow content to expand naturally */
+  /* No height: 100% — content expands naturally */
   overflow: hidden;
 }
 
@@ -368,14 +368,6 @@
 .semiont-codemirror .cm-line {
   padding: 0 1.5rem;
 }
-
-/* Shared View Patterns */
-
-/* Download Button Pattern */
-
-/* Focus styles for keyboard navigation */
-
-/* Remove focus for mouse users */
 
 /* Page Layout Classes */
 .semiont-page {
@@ -482,11 +474,6 @@
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Empty, loading and unsupported states
- *
- * These class names have been rendered by the views since the move off
- * Tailwind (#401) with no rules behind them, so each state drew as bare text
- * on the view background. Swept 2026-09-24 once the css-classes gate learned
- * to report markup that names no stylesheet.
  * ────────────────────────────────────────────────────────────────────────── */
 
 .semiont-annotate-view__empty,

@@ -6,7 +6,7 @@ import { createTomlConfigLoader, DEFAULT_ARCHIVIST_PORT } from './toml-loader.js
 import type { ConfigService } from '../generated/service-config-sections.js';
 import type { ArchivistServiceConfig, EnvironmentConfig } from './config.types.js';
 
-export { SemiontProject, SemiontState, stateDirFor } from '../project.js';
+export { SemiontProject, SemiontState } from '../project.js';
 
 const nodeTomlFileReader = {
   readIfExists: (filePath: string): string | null =>
@@ -56,40 +56,28 @@ export interface ArchivistAddressConfig {
  * are useless apart. Throws on either absence.
  *
  * Lives HERE, and not with the byte reads that ride it, because it is neither
- * a content concern nor a make-meaning one: it is a config value plus an
- * environment variable, which is exactly what this module already is. Putting
- * it in `@semiont/content` gave the gateway a runtime edge to a package it
- * otherwise touches only for types — and since that package is a
- * devDependency there, the bundler INLINED its PDF/OCR stack into an ESM
- * bundle and the process died at load on a CJS `require`.
+ * a content concern nor a make-meaning one: it is a config value plus a
+ * credential, and config is what this module already is.
  *
  * Absence fails loudly. A missing host or credential is a misconfiguration,
- * never a reason to fall back to reading a tree locally: the point of
- * SINGLE-KB-MOUNT is that exactly one process touches it.
+ * never a reason to fall back to reading a tree locally: the point is that
+ * exactly one process, the Archivist, touches it.
  *
  * Split in two on purpose. `archivistAddress` validates the configuration
  * SYNCHRONOUSLY, so a process with no Archivist address or no credential dies
  * at construction while an operator is watching rather than failing every read
  * quietly later. `archivistEndpoint` adds the token, which is inherently async.
  *
- * The credential is a TOKEN now, obtained from the issuer with this process's
- * own service account, rather than a shared static string read out of the
- * environment. The Archivist verifies it against the issuer's
- * published keys — it serves the event log and accepts byte writes, and a
- * string compared by equality was guarding both.
+ * The credential is a TOKEN, obtained from the issuer with this process's own
+ * service account. The Archivist verifies it against the issuer's published
+ * keys: it serves the event log and accepts byte writes, and the token guards
+ * both.
  *
- * The credential is a PARAMETER, and the issuer travels inside it. This used to
- * read `SEMIONT_OIDC_CLIENT_ID`/`_SECRET` from `process.env` and dig the issuer
- * out of `services.identity` — so the function's real dependency appeared
- * nowhere in its signature. Every field of the config was optional, a narrowed
- * config satisfied the type carrying none of what was needed, and the Librarian
- * shipped and died on its first Archivist read (`librarian-main.ts`). A caller
- * could also neither supply a credential, stub one, nor hold two.
- *
- * Every entry point in the system already reads that pair at its own boundary
- * and builds this object — six `*-main.ts` files do, and `serviceAccountToken`
- * has always taken it as an argument. This was the one place reaching back for
- * it mid-call.
+ * The credential is a PARAMETER, and the issuer travels inside it, so the
+ * function's whole dependency appears in its signature. Nothing here reads
+ * `process.env`: each entry point reads its service-account pair at its own
+ * boundary, builds the credential, and passes it in — which also lets a caller
+ * stub one, or hold two.
  */
 export function archivistAddress(
   config: ArchivistAddressConfig,

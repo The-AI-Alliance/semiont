@@ -6,44 +6,36 @@ user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
 ---
 
-You are helping implement the Semiont knowledge enrichment pipeline using `@semiont/sdk`. This pipeline transforms a document into a connected wiki: it detects entity mentions, links them to existing resources in the knowledge base, and generates new stub resources for anything that isn't there yet.
+You are helping a user turn a resource's mentions into a connected wiki with `@semiont/sdk`: detect the entities a document mentions, link each mention to the resource about that entity, and generate a resource for an entity the knowledge base does not have yet.
 
-This skill is the canonical implementation of the **Canonicalize mentions** archetype — it builds **Layer #3 (Canonical Nodes)** of the layered data model. Scattered mentions of the same entity (every "Prometheus" reference, every "U.S.C. § 552" citation, every "the property owner" descriptive reference) get clustered, matched against existing canonical resources, and either bound to the existing one or used to synthesize a new canonical resource. The output is a node in the KB's graph: a resource whose purpose is to *be referred to*. (For aggregate resources whose purpose is to *be read* — Investigations, PlotArcs, DoctrinalTraces — see [`semiont-aggregate`](../semiont-aggregate/SKILL.md) instead.)
+This skill builds the canonical-node layer of [the layered data model](../README.md#the-layers). Every mention of one entity ends up bound to one resource, whose purpose is to be referred to. For a resource whose purpose is to be read (an investigation, a plot arc, a doctrinal trace), see [`semiont-aggregate`](../semiont-aggregate/SKILL.md).
 
-The pipeline has five steps:
+The pipeline:
 
-1. **Mark** — detect entity references (`semiont.mark.assist`)
-2. **Gather** — fetch LLM context for each unresolved reference (`semiont.gather.annotation`)
-3. **Match** — search the KB using the gathered context (`semiont.match.search`)
-4. **Bind** — link the annotation to the best match (`semiont.bind.body`)
-5. **Yield** — if no confident match exists, generate a new resource and bind to it (`semiont.yield.fromContext` with the gathered annotation-focus context)
+1. **Mark**: detect entity references (`mark.assist` with motivation `linking`).
+2. **Browse**: list the references that are not bound yet (`browse.annotations`).
+3. **Gather**: assemble the context around one reference (`gather.annotation`).
+4. **Match**: search the knowledge base with that context (`match.search`).
+5. **Bind** or **yield**: link the reference to the best candidate (`bind.body`), or generate a resource from the context (`yield.fromContext`). The knowledge base binds the reference to a resource generated from its context.
 
-Steps 3-5 run per annotation in a loop. The threshold between "bind to existing" and "generate new" is configurable.
+Steps 3 to 5 run once for each unbound reference. The score that separates "bind" from "generate" is yours to set.
 
-## Prerequisite: declare the entity-type vocabulary
+## Before you start: declare the entity types
 
-The `entityTypes` parameter you pass to `mark.assist` (Step 1) and the entity types stamped on resources synthesized in Step 5 must already be in the KB's **published entity-type vocabulary** — declared via `semiont.frame.addEntityTypes([...])`. This is normally done once, at corpus ingest, by the [`semiont-ingest`](../semiont-ingest/SKILL.md) skill. Skipping the declaration "works" in the lenient sense (entity-type strings still get stamped on annotations and resources), but `browse.entityTypes()` will then return an accumulated drift instead of a coherent published set, and a stricter gateway would reject unknown types. Declare the vocabulary upfront.
-
-If you are running this pipeline on a corpus that wasn't ingested via `semiont-ingest`, declare the vocabulary explicitly before the first `mark.assist` call:
+The entity types you detect in step 1 and stamp on generated resources in step 5 must be in the knowledge base's vocabulary, declared with `frame.addEntityTypes`. A `linking` job or a generation that names a type nobody declared is refused: `Entity type not registered: <name>`. [`semiont-ingest`](../semiont-ingest/SKILL.md) normally declares them once, at ingest, and `browse.entityTypes()` lists what is declared.
 
 ```typescript
 await semiont.frame.addEntityTypes(['Location', 'Person', 'Organization', 'Concept']);
 ```
 
-## Client setup
+Adding a type that is already there changes nothing, so the call is safe to repeat.
 
-All steps share one client, reached through a session: `SemiontSession.signInDevice(...)` owns refresh, validation and storage, which a multi-step wiki build needs — the realm pins an access token to **five minutes**. Already hold an access token? `SemiontClient.fromHttp({ baseUrl, token })` skips the auth round-trip, but you then own refresh yourself.
+## Sign in
+
+`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. The session then keeps the token fresh. An access token is short-lived (five minutes from the Keycloak a launcher stack runs) and a wiki build runs longer than that, so use a session, not a bare client. Sign in once, use `session.client` for every call, and `await session.dispose()` when done.
 
 ```typescript
-import {
-  SemiontSession,
-  InMemorySessionStorage,
-  httpKb,
-  annotationId,
-  entityType,
-  resourceId,
-  type GatheredContext,
-} from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
 const session = await SemiontSession.signInDevice({
@@ -61,84 +53,102 @@ const session = await SemiontSession.signInDevice({
 const semiont = session.client;
 ```
 
-## Step 1 — Detect entity references (Mark)
+## Step 1: detect entity references
 
-`semiont.mark.assist(...)` handles SSE streaming, progress tracking, and timeout (180 s without progress) internally. The returned `StreamObservable` is awaitable directly — `await` resolves with the final progress event.
+`mark.assist` creates a job for the stack's worker and follows it to its end. Awaiting it resolves to the job's last event, the `complete` one, which carries the result. For `linking` the options must name at least one entity type; the worker runs one detection per type.
 
 ```typescript
+import { entityType, resourceId } from '@semiont/sdk';
+
 const rId = resourceId('doc-123');
 
-const markProgress = await semiont.mark.assist(rId, 'linking', {
+const done = await semiont.mark.assist(rId, 'linking', {
   entityTypes: [entityType('Location'), entityType('Person')],
 });
-console.log(`Detected ${markProgress.progress?.createdCount ?? 0} references`);
+
+const result = done.kind === 'complete' ? done.data.result : undefined;
+if (result?.kind === 'reference-annotation') {
+  console.log(`Created ${result.totalEmitted} of ${result.totalFound} references`);
+}
 ```
 
-## Step 2 — List unresolved references
+Set `includeDescriptiveReferences: true` to detect a description that names nobody ("the property owner", "her eldest son") as well as names.
 
-`semiont.browse.annotations(...)` returns a `CacheObservable` — `await` resolves with the loaded annotation list (skipping the initial `undefined` "loading" state).
+## Step 2: list the unbound references
+
+A detected reference has a body that names its entity type and nothing else. Binding adds a `SpecificResource` body, so a reference without one is unbound. `browse.annotations(...)` is a live query; `.fresh()` reads it once.
 
 ```typescript
-const annotations = await semiont.browse.annotations(rId);
+const annotations = await semiont.browse.annotations(rId).fresh();
 
-const unresolved = annotations.filter(
-  (ann) => ann.motivation === 'linking' &&
-           !ann.body?.some((b) => b.type === 'SpecificResource'),
-);
+const unbound = annotations.filter((ann) => {
+  const bodies = ann.body === undefined ? [] : Array.isArray(ann.body) ? ann.body : [ann.body];
+  return ann.motivation === 'linking' && !bodies.some((b) => b.type === 'SpecificResource');
+});
 
-console.log(`Found ${unresolved.length} unresolved references`);
+console.log(`${unbound.length} references to resolve`);
 ```
 
-## Steps 3-5 — Gather, match, bind or generate
+## Steps 3 to 5: gather, match, then bind or generate
 
-For each unresolved reference: gather context, match against the KB, and either bind to the best match (if confident) or generate a new resource and bind to that. Brand the annotation id once at the top of the loop and reuse `annId` everywhere — `gather.annotation`, `match.search`, and `bind.body` take a branded `AnnotationId`; `yield.fromContext` needs no ids at all — it derives them from the gathered context's focus.
+For one unbound reference: gather its context, match it against the knowledge base, and bind it to the best candidate if that candidate scores high enough. Otherwise generate a resource from the same context. `yield.fromContext` takes no ids: the gathered context says which reference it is about, and when the resource is created the knowledge base binds that reference to it. Do not bind it again.
 
 ```typescript
+import { annotationId, type Annotation, type ResourceId } from '@semiont/sdk';
+
 const MATCH_THRESHOLD = Number(process.env.MATCH_THRESHOLD ?? 30);
 
-for (const ann of unresolved) {
+async function resolveReference(rId: ResourceId, ann: Annotation, name: string): Promise<void> {
   const annId = annotationId(ann.id);
-  const selectedText = ann.target?.selector?.exact ?? '';
 
-  // Step 3 — Gather LLM context
-  const gatherComplete = await semiont.gather.annotation(rId, annId, { contextWindow: 2000 });
-  const context = gatherComplete.response as GatheredContext;
+  // Step 3: gather the context around the reference
+  const gathered = await semiont.gather.annotation(rId, annId, { contextWindow: 2000 });
+  const context = gathered.response;
 
-  // Step 4 — Match against the KB
-  const matchResult = await semiont.match.search(rId, annId, context, {
+  // Step 4: match it against the knowledge base
+  const matched = await semiont.match.search(rId, annId, context, {
     limit: 10,
     useSemanticScoring: true,
   });
-  const top = matchResult.response[0];
+  const top = matched.response[0];
 
   if (top && (top.score ?? 0) >= MATCH_THRESHOLD) {
-    // Step 5a — Bind to existing resource
+    // Step 5a: bind to the resource that exists
     await semiont.bind.body(rId, annId, [{
       op: 'add',
       item: { type: 'SpecificResource', source: top['@id'], purpose: 'linking' },
     }]);
-    console.log(`Bound "${selectedText}" -> ${top.name} (score ${top.score})`);
-  } else {
-    // Step 5b — Generate a new resource and bind
-    const yieldProgress = await semiont.yield.fromContext(context, {
-      title: selectedText,
-      storageUri: `file://generated/${selectedText.toLowerCase().replace(/\s+/g, '-')}.md`,
-    });
-    const newResourceId = yieldProgress.result?.resourceId;
-    if (!newResourceId) throw new Error('yield.fromContext did not return a resourceId');
-
-    await semiont.bind.body(rId, annId, [{
-      op: 'add',
-      item: { type: 'SpecificResource', source: newResourceId, purpose: 'linking' },
-    }]);
-    console.log(`Generated "${selectedText}" -> ${newResourceId}`);
+    console.log(`Bound "${name}" to ${top.name} (score ${top.score})`);
+    return;
   }
-}
 
-await session.dispose();
+  // Step 5b: generate a resource; the knowledge base binds the reference to it
+  const generated = await semiont.yield.fromContext(context, {
+    title: name,
+    storageUri: `file://generated/${name.toLowerCase().replace(/\s+/g, '-')}.md`,
+  });
+  const result = generated.kind === 'complete' ? generated.data.result : undefined;
+  if (result?.kind !== 'generation') throw new Error(`Nothing was generated for "${name}"`);
+  console.log(`Generated "${name}" as ${result.resourceId}`);
+}
 ```
 
-## Complete script skeleton
+`name` is the text the reference covers. For a text resource that is the annotation's `TextQuoteSelector`:
+
+```typescript
+import type { Annotation } from '@semiont/sdk';
+
+function quotedText(ann: Annotation): string {
+  const selector = typeof ann.target === 'string' ? undefined : ann.target.selector;
+  const selectors = selector === undefined ? [] : Array.isArray(selector) ? selector : [selector];
+  for (const s of selectors) {
+    if (s.type === 'TextQuoteSelector') return s.exact;
+  }
+  return '';
+}
+```
+
+## Complete script
 
 ```typescript
 import {
@@ -148,13 +158,27 @@ import {
   annotationId,
   entityType,
   resourceId,
-  type GatheredContext,
+  type Annotation,
 } from '@semiont/sdk';
 
 const MATCH_THRESHOLD = Number(process.env.MATCH_THRESHOLD ?? 30);
 const ENTITY_TYPES = (process.env.ENTITY_TYPES ?? 'Location')
   .split(',')
   .map((t) => entityType(t.trim()));
+
+function quotedText(ann: Annotation): string {
+  const selector = typeof ann.target === 'string' ? undefined : ann.target.selector;
+  const selectors = selector === undefined ? [] : Array.isArray(selector) ? selector : [selector];
+  for (const s of selectors) {
+    if (s.type === 'TextQuoteSelector') return s.exact;
+  }
+  return '';
+}
+
+function isUnbound(ann: Annotation): boolean {
+  const bodies = ann.body === undefined ? [] : Array.isArray(ann.body) ? ann.body : [ann.body];
+  return ann.motivation === 'linking' && !bodies.some((b) => b.type === 'SpecificResource');
+}
 
 async function runWikiPipeline(resourceIdStr: string): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
@@ -173,55 +197,49 @@ async function runWikiPipeline(resourceIdStr: string): Promise<void> {
   const semiont = session.client;
   const rId = resourceId(resourceIdStr);
 
-  // Step 1 — Detect entity references
-  console.log('Detecting entity references...');
-  await semiont.mark.assist(rId, 'linking', { entityTypes: ENTITY_TYPES });
+  try {
+    // Step 1: detect entity references
+    console.log('Detecting entity references...');
+    await semiont.mark.assist(rId, 'linking', { entityTypes: ENTITY_TYPES });
 
-  // Step 2 — Find unresolved references
-  const annotations = await semiont.browse.annotations(rId);
-  const unresolved = annotations.filter(
-    (ann) => ann.motivation === 'linking' &&
-             !ann.body?.some((b) => b.type === 'SpecificResource'),
-  );
-  console.log(`Found ${unresolved.length} unresolved references`);
+    // Step 2: list the unbound references
+    const unbound = (await semiont.browse.annotations(rId).fresh()).filter(isUnbound);
+    console.log(`${unbound.length} references to resolve`);
 
-  // Steps 3-5 — per annotation
-  for (const ann of unresolved) {
-    const annId = annotationId(ann.id);
-    const selectedText = ann.target?.selector?.exact ?? '';
+    // Steps 3 to 5, once for each
+    for (const ann of unbound) {
+      const annId = annotationId(ann.id);
+      const name = quotedText(ann);
 
-    const gatherComplete = await semiont.gather.annotation(rId, annId, { contextWindow: 2000 });
-    const context = gatherComplete.response as GatheredContext;
+      const gathered = await semiont.gather.annotation(rId, annId, { contextWindow: 2000 });
+      const context = gathered.response;
 
-    const matchResult = await semiont.match.search(rId, annId, context, {
-      limit: 10,
-      useSemanticScoring: true,
-    });
-    const top = matchResult.response[0];
-
-    if (top && (top.score ?? 0) >= MATCH_THRESHOLD) {
-      await semiont.bind.body(rId, annId, [{
-        op: 'add',
-        item: { type: 'SpecificResource', source: top['@id'], purpose: 'linking' },
-      }]);
-      console.log(`Bound "${selectedText}" -> ${top.name} (score ${top.score})`);
-    } else {
-      const yieldProgress = await semiont.yield.fromContext(context, {
-        title: selectedText,
-        storageUri: `file://generated/${selectedText.toLowerCase().replace(/\s+/g, '-')}.md`,
+      const matched = await semiont.match.search(rId, annId, context, {
+        limit: 10,
+        useSemanticScoring: true,
       });
-      const newResourceId = yieldProgress.result?.resourceId;
-      if (!newResourceId) throw new Error('yield.fromContext did not return a resourceId');
+      const top = matched.response[0];
 
-      await semiont.bind.body(rId, annId, [{
-        op: 'add',
-        item: { type: 'SpecificResource', source: newResourceId, purpose: 'linking' },
-      }]);
-      console.log(`Generated "${selectedText}" -> ${newResourceId}`);
+      if (top && (top.score ?? 0) >= MATCH_THRESHOLD) {
+        await semiont.bind.body(rId, annId, [{
+          op: 'add',
+          item: { type: 'SpecificResource', source: top['@id'], purpose: 'linking' },
+        }]);
+        console.log(`Bound "${name}" to ${top.name} (score ${top.score})`);
+        continue;
+      }
+
+      const generated = await semiont.yield.fromContext(context, {
+        title: name,
+        storageUri: `file://generated/${name.toLowerCase().replace(/\s+/g, '-')}.md`,
+      });
+      const result = generated.kind === 'complete' ? generated.data.result : undefined;
+      if (result?.kind !== 'generation') throw new Error(`Nothing was generated for "${name}"`);
+      console.log(`Generated "${name}" as ${result.resourceId}`);
     }
+  } finally {
+    await session.dispose();
   }
-
-  await session.dispose();
   console.log('Pipeline complete.');
 }
 
@@ -238,14 +256,14 @@ runWikiPipeline(target).catch((e) => {
 
 ## Guidance for the AI assistant
 
-- **Find the resource ID first** if the user gives a name: use `semiont.browse.resources({ search: '<name>' })` and pick from results.
-- **Entity types are a key parameter.** Ask which types to detect (Location, Person, Organization, Concept, etc.) or run once per type.
-- **The threshold is in Matcher score units, not 0-1.** The Matcher returns composite scores (name match alone can be 25 pts, entity type overlap up to ~35 pts, etc.). A threshold of 30 is selective; 15 is permissive. Set to 0 to always bind to the top result if one exists.
-- **`useSemanticScoring: true`** enables LLM batch-scoring of the top 20 candidates — adds up to 25 pts and improves precision significantly. Set to `false` if inference cost is a concern.
-- **Generated resources should be reviewed.** They are AI-generated stubs, not finished articles.
-- **Check results** with `semiont.browse.annotations(rId)` — filter for `motivation === 'linking'` and check which now have a `SpecificResource` body item.
-- **To run on multiple resources**, loop over results from `semiont.browse.resources()` and call `runWikiPipeline` per resource.
-- **If detection produces no annotations**, the document may not contain the requested entity types, or the format may not be supported (`text/plain` and `text/markdown` only; PDFs and images not yet supported).
-- **Timeout handling is built into the namespace methods.** `mark.assist` times out after 180 s without progress; `gather.annotation` completes on the `gather:complete` bus event; `yield.fromContext` handles 300 s-per-progress timeout and polling fallback. No manual timeout code is needed.
-- **Progress observability** — if a caller wants to watch progress during a long step, call `.subscribe(...)` on the returned `StreamObservable` instead of awaiting it. Each emission is a progress snapshot; the Observable completes on success and errors on failure. Awaiting yields the final emission only.
-- **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated, with codes like `bus.timeout` and `bus.rejected`). See [Error Handling in Usage.md](../../Usage.md#error-handling) for the full table.
+- **Find the resource id first** if the user gives a name: `await semiont.browse.resources({ search: '<name>' }).fresh()` and pick from `.resources`.
+- **Ask which entity types to detect** (Location, Person, Organization, Concept and so on). The worker runs one detection per type, so more types means a longer job.
+- **The threshold is in Matcher points, not a probability.** A candidate's score is a sum of points for the signals it matched: entity types in common, how well its name matches, how it is already connected to the source. 30 is selective and 15 is permissive. At 0 every reference binds to its top candidate, if it has one.
+- **`useSemanticScoring: true`** has a model score the top candidates against the passage, which improves precision and costs an inference call. Set it to `false` to rank on the structural signals alone.
+- **Review what was generated.** A generated resource is a first draft written by a model. Its result says `truncated: true` when the model ran out of tokens before it finished.
+- **Check results** with `await semiont.browse.annotations(rId).fresh()`: the `linking` annotations that now have a `SpecificResource` body are bound.
+- **To run on many resources**, loop over `(await semiont.browse.resources().fresh()).resources` and call the pipeline for each.
+- **If detection creates nothing**, the document may not mention the types you asked for. `mark.assist` reads Markdown, plain text, HTML, JSON and PDF. A resource with no text at all, such as an image, fails the job, and a document whose text could not be read completes with a `declined` result.
+- **Waiting.** `mark.assist` has no deadline: it follows its job to the end, asking for the job's status when the stream goes quiet. `yield.fromContext` gives up on a generation that says nothing for its stall deadline (two minutes, longer when `maxTokens` is large), asks for it to be cancelled, and rejects with `GenerationStallError`. Set `stallDeadlineMs` to wait longer.
+- **Progress.** To watch a job as it runs, call `.run(onEvent)` on the returned stream instead of awaiting it. It subscribes once and resolves to the last event. Do not await a call and also subscribe to it: the stream is cold, and that creates the job twice.
+- **Errors.** Every SDK throw extends `SemiontError`: catch it and route on its `code`. `BusRequestError` (a bus request, with a code such as `bus.timeout`) and `JobFailedError` narrow it. See [Error Handling](../../Usage.md#error-handling).

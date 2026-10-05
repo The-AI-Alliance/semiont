@@ -3,10 +3,11 @@ set -euo pipefail
 
 # Audit: every ```ts/```tsx/```typescript fence in the documented packages
 # type-checks against the BUILT packages, resolved through the exports map the
-# way that doc's reader resolves them (SAFE-DOCS). Doc rot fails CI instead of
-# waiting for a reader to paste a dead snippet. Two suites:
-#   - sdk: docs/builder and docs/protocol/CACHE-SEMANTICS.md plus the repo-root and packages/sdk READMEs.
-#   - ui:  docs/builder/react-ui, packages/react-ui/docs and apps/browser/docs plus their READMEs.
+# way that doc's reader resolves them. Doc rot fails CI instead of waiting for
+# a reader to paste a dead snippet. Three suites:
+#   - sdk:    docs/builder, docs/protocol and docs/protocol/flows, plus the repo-root and packages/sdk READMEs.
+#   - skills: the agent skills, docs/builder/skills/*/SKILL.md, and their README.
+#   - ui:     docs/builder/react-ui, packages/react-ui/docs and apps/browser/docs plus their READMEs.
 #
 # What green does NOT claim (do not oversell it):
 #   - Shape, not meaning: a method whose semantics changed under a stable
@@ -17,13 +18,13 @@ set -euo pipefail
 #   - Fences marked `sketch` are exempt (genuine pseudocode / display-only
 #     shapes); the run prints the exemption census — hold it flat or shrink it.
 #
-# POST-BUILD gate: requires dist for core/http-transport/sdk/react-ui/make-meaning and an
+# POST-BUILD gate: requires dist for core/http-transport/sdk/jobs/react-ui/make-meaning and an
 # installed workspace tree (the fixture at tests/doc-snippets).
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FIXTURE="$REPO_ROOT/tests/doc-snippets"
 
-for pkg in core http-transport sdk react-ui make-meaning; do
+for pkg in core http-transport sdk jobs react-ui make-meaning; do
   if [ ! -f "$REPO_ROOT/packages/$pkg/dist/index.d.ts" ]; then
     echo "❌ doc-snippets: packages/$pkg/dist is missing — run 'npm run build:packages' first (this is a post-build gate)."
     exit 1

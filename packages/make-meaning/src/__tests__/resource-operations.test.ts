@@ -112,7 +112,7 @@ describe('ResourceOperations', () => {
       expect(resId).toBeDefined();
     });
 
-    it('should emit resource.created event', async () => {
+    it('should emit yield:created event', async () => {
       const resId = await create(
         { name: 'Event Test Resource', content: Buffer.from('Event test content', 'utf-8'), format: 'text/plain', entityTypes: ['Person', 'Location'] },
         userId('did:web:test:users:user-1'),
@@ -234,7 +234,7 @@ describe('ResourceOperations', () => {
         // Generation is the software peer's act, so it is emitted AS that
         // peer: derivation binds a supplied generator to the executor's
         // identity and refuses a person claiming a model produced their own
-        // upload (VERIFIED-PROVENANCE P2).
+        // upload.
         { did: userId(generator['@id']), roles: [] },
         asBusRequestPrimitive(eventBus),
       );

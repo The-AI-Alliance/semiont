@@ -5,11 +5,11 @@
 // Why this exists, precisely: the drift gate next to it regenerates with the
 // same command and diffs the result. That is a SELF-CONSISTENCY check — if
 // the generation command itself drops schemas, both sides drop the same ones
-// and the gate reports green forever. That is exactly what happened:
-// oapi-codegen prunes components unreachable from an HTTP path by default,
-// so ~5,300 lines of bus payload schemas were silently missing from
-// client_gen.go while every check passed (2026-07-25). The Go compiler could
-// not notice either — an unused type that does not exist references nothing.
+// and the gate reports green forever. oapi-codegen does exactly that: it
+// prunes components unreachable from an HTTP path by default, which silently
+// leaves the bus payload schemas out of client_gen.go while every check
+// passes. The Go compiler cannot notice either — an unused type that does
+// not exist references nothing.
 //
 // A generator's characteristic failure is ABSENCE, and absence is only
 // visible against an independent count. Hence: spec says N, Go must have N.
@@ -34,7 +34,7 @@ if (schemas.length === 0) {
 // oapi-codegen emits `type <Name> …` for each schema. Names are used verbatim
 // (the spec already uses Go-friendly PascalCase); a schema whose name needs
 // mangling would show up here as missing, which is the right outcome — it
-// means the assumption no longer holds and someone must look.
+// means the assumption does not hold and someone must look.
 const missing = schemas.filter((name) => !new RegExp(`^type ${name}\\b`, 'm').test(go));
 
 if (missing.length > 0) {

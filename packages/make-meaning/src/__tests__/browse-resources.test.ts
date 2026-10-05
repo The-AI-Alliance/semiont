@@ -1,6 +1,6 @@
 /**
  * Listing resources survives an archivist that has not subscribed yet — the
- * startup race that left a KB with an empty graph behind a healthy `/health`.
+ * startup race that leaves a KB with an empty graph behind a healthy `/health`.
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -15,7 +15,7 @@ import { EMBEDDING_PROVIDER_RETRY, EMBED_ROUND_TRIP_TIMEOUT_MS } from '@semiont/
  * A bus whose reply to each page is scripted:
  *   - a page object → `browse:resources-result`
  *   - `null`        → the gateway's synthesized `code: 'peer-unavailable'`
- *   - `'refused'`   → an ordinary failure with no code (today's `bus.rejected`)
+ *   - `'refused'`   → an ordinary failure with no code (read as `bus.rejected`)
  */
 type ScriptedReply = { resources: unknown[]; total: number } | null | 'refused';
 
@@ -25,19 +25,17 @@ function scriptedBus(replies: ScriptedReply[]) {
   const result = new Subject<{ correlationId?: string; payload: Record<string, unknown> }>();
   let call = 0;
 
-  // Typed as `BusRequestPrimitive`, not cast to it. The `as unknown as`
-  // double-cast this replaces hid a missing member from `tsc` — when
-  // `isSubscribed` became required (2026-09-16) the compiler said nothing and
-  // five tests failed at runtime with `bus.isSubscribed is not a function`.
-  // A cast to make a double compile hides the next gap the same way.
+  // Typed as `BusRequestPrimitive`, not cast to it. An `as unknown as`
+  // double-cast hides a missing member from `tsc`: when the interface gains a
+  // required one the compiler says nothing and the tests fail at runtime with
+  // `bus.isSubscribed is not a function`.
   const bus: BusRequestPrimitive = {
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     // This double answers every channel from its scripted subjects.
     isSubscribed: () => true,
     trackReply: () => () => {},
     // The key arrives on the ENVELOPE and goes back on one, which is what a
-    // real responder does. It used to be read out of the payload and copied
-    // into the reply payload; the payload no longer carries it.
+    // real responder does; neither payload carries it.
     emit: vi.fn(async (_channel: unknown, payload: unknown, envelope?: { correlationId?: string }) => {
       emitted.push(payload as Record<string, unknown>);
       const correlationId = envelope?.correlationId;
@@ -106,9 +104,8 @@ describe('listAllResources', () => {
     const { bus } = scriptedBus(Array(20).fill(null));
 
     const rejects = expect(browseAllResources(bus, { limit: 50 })).rejects.toThrow(/No subscriber/);
-    // Driven off the policy, not a literal: RESOURCE_LISTING_RETRY's budget grew from 39s
-    // to ~6 min when it stopped borrowing STARTUP_FETCH_RETRY, and a hard-coded
-    // advance would have silently stopped exercising the give-up path.
+    // Driven off the policy, not a literal: a hard-coded advance shorter than
+    // RESOURCE_LISTING_RETRY's budget silently stops exercising the give-up path.
     await vi.advanceTimersByTimeAsync(retryBudgetMs(RESOURCE_LISTING_RETRY) * 2);
     await rejects;
   });

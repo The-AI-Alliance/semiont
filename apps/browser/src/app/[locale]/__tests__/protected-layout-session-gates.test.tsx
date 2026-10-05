@@ -1,22 +1,12 @@
 /**
  * The moderate layout gates its `<Outlet />` on a live session, the same way
- * the knowledge layout does.
+ * the knowledge layout does: no routed page renders while the session is
+ * null, and the page is remounted when a session is replaced.
  *
- * Nothing recorded that, yet it is load-bearing: the pages below it build
- * state units from `session!.client` in a mount-once factory
- * (`moderate/{entity-tags,linked-data}`),
- * so they are only safe because they never render without a session and are
- * remounted when one is replaced. A refactor that kept showing the chrome
- * while the session was null would hand every one of them a disposed client
- * — silently, since nothing would fail to compile.
- *
- * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
- *
- * NOTE (SESSION-TYPED-FACTORIES, landed 2026-07-29): the API now enforces what
- * this gate guards — factories take a `SemiontSession` and construction goes
- * through `useSessionStateUnit`, which builds nothing without a session. These
- * layout gates remain as defense in depth and UX (loading order), not as the
- * safety mechanism.
+ * The API enforces what this gate guards — state-unit factories take a
+ * `SemiontSession` and construction goes through `useSessionStateUnit`, which
+ * builds nothing without a session — so the gate is defense in depth and UX
+ * (loading order), not the safety mechanism.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act } from '@testing-library/react';
@@ -62,7 +52,7 @@ const harness = vi.hoisted(() => {
   const makeSession = (kbId = 'kb-a') => ({
     id: `session-${++seq}`,
     kb: { id: kbId, label: kbId },
-    user$: new BehaviorSubject<unknown>({ name: 'Ada', isModerator: true }),
+    user$: new BehaviorSubject<unknown>({ name: 'Ada' }),
   });
   const activeSession$ = new BehaviorSubject<any>(null);
   return { makeSession, activeSession$, browser: { activeSession$ } };

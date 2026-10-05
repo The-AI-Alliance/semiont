@@ -2,20 +2,18 @@ package launcher
 
 // importcmd.go — `semiont import`: the other half of export.
 //
-// It untars. That is the entire mechanism, and it is why the design question
-// that once made this the hard phase evaporated.
+// It untars. That is the entire mechanism.
 //
-// The 2026-07-09 ruling — "events are facts, commands are requests" — exists so
-// a restore never re-issues `mark:update-entity-types` and never re-subjects
-// restored history to the vocabulary gate. An earlier draft of this plan
-// carried a three-way fork over how Go could honour that: write the event log
-// directly (a large mirror of the event model), dial a local fact-append seam
-// (an API surface by another name), or keep import on the API.
+// "Events are facts, commands are requests": a restore must never re-issue
+// `mark:update-entity-types` and never re-subject restored history to the
+// vocabulary gate. An import that replayed would have to honour that by
+// writing the event log directly (a large mirror of the event model), dialing
+// a local fact-append seam (an API surface by another name), or staying on the
+// API.
 //
 // Untarring replays nothing. It puts bytes back. The constraint is satisfied by
-// construction, so the cheap design and the correct design turned out to be the
-// same one — no event-model mirror, no vocabulary gate, no cross-language
-// contract.
+// construction, so the cheap design and the correct design are the same one —
+// no event-model mirror, no vocabulary gate, no cross-language contract.
 //
 // Projections rebuild on first start, which is what they are for.
 
@@ -191,7 +189,7 @@ func extractArchive(archive, root string) (int, error) {
 		// The check must precede Clean(). `filepath.Clean("/"+name)` turns
 		// "../escaped.md" into "/escaped.md", which lands inside the root and
 		// passes any containment test — so a check written after it can never
-		// fire. (It was written that way first; the test caught it.)
+		// fire.
 		name := filepath.ToSlash(h.Name)
 		clean := path.Clean(name)
 		if path.IsAbs(name) || clean == ".." || strings.HasPrefix(clean, "../") {
@@ -239,7 +237,7 @@ func extractArchive(archive, root string) (int, error) {
 			// Checked, not dropped: Close FLUSHES, so a failure here means the
 			// restored file is TRUNCATED. Reporting success would hand back a
 			// KB with a short event log and no indication — the exact failure
-			// a restore exists to prevent. (Copilot.)
+			// a restore exists to prevent.
 			if cerr := out.Close(); cerr != nil {
 				return 0, fmt.Errorf("writing %s: %w", h.Name, cerr)
 			}

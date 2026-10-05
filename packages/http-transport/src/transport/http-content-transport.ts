@@ -104,7 +104,7 @@ export class HttpContentTransport implements IContentTransport {
       'content.get',
       async () => {
         // Pure pipe: no Accept header — the route serves the stored bytes
-        // verbatim with their real Content-Type (SIMPLER-JSON-LD.md).
+        // verbatim with their real Content-Type.
         const response = await this.transport.rawHttp.get(this.urlOf(resourceId), {
           headers: this.requestHeaders(options?.auth),
         });
@@ -143,8 +143,8 @@ export class HttpContentTransport implements IContentTransport {
 
   /**
    * Dereference the resource's JSON-LD graph over HTTP — the LD face an
-   * external linked-data client sees. Deliberately HTTP, not the bus
-   * (SIMPLER-JSON-LD.md §5).
+   * external linked-data client sees. Deliberately HTTP, not the bus: the
+   * JSON-LD panel shows exactly what such a client gets.
    */
   async getResourceGraph(
     resourceId: ResourceId,

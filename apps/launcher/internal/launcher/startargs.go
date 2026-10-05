@@ -3,12 +3,11 @@ package launcher
 // startargs.go — `semiont start`'s command line, turned into options or into
 // the refusal an operator sees.
 //
-// Split from Start (LAUNCHER-PACKAGE-BOUNDARIES P3), where it was 190 of 543
-// lines. These are RULES, not plumbing: which flags need a value, which
-// contradict each other, which apply only to one placement or one service. A
-// flag silently ignored is worse than one refused, which is why so many of
-// them exist — and until this split none could be asserted without running a
-// whole start.
+// Split from Start, where it was 190 of 543 lines. These are RULES, not
+// plumbing: which flags need a value, which contradict each other, which
+// apply only to one placement or one service. A flag silently ignored is
+// worse than one refused, which is why so many of them exist — and until this
+// split none could be asserted without running a whole start.
 //
 // Refusals are RETURNED, not printed. The caller owns the ui and the exit
 // code; this function owns the rules, and a returned string is a value a test

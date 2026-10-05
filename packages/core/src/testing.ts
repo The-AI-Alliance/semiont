@@ -10,11 +10,11 @@
  * composes this module across the existing dependency edge.
  *
  * The property-based AXIOM harnesses (`assertStateUnitAxioms`,
- * `assertLivenessAxioms`, `assertExactlyOnceDelivery`) moved to
+ * `assertLivenessAxioms`, `assertExactlyOnceDelivery`) live at
  * **`@semiont/core/testing/axioms`** — they need `fast-check`, an optional
- * peerDependency, and keeping them here made that optionality a lie for every
- * consumer of the double (SDK-TESTING-DOUBLE gap 7). Import them from the
- * subpath, and add `fast-check` to your devDependencies when you do.
+ * peerDependency, and keeping them here would make that optionality a lie for
+ * every consumer of the double. Import them from the subpath, and add
+ * `fast-check` to your devDependencies when you do.
  */
 
 export {

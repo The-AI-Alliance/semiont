@@ -193,7 +193,6 @@
     "statusConnected": "Підключено",
     "statusExpired": "Сеанс завершено",
     "statusSignedOut": "Вийшли",
-    "statusUnreachable": "Недоступно",
     "invalidHost": "Недійсне ім'я хоста",
     "discoveredTitle": "Знайдено на цьому комп'ютері",
     "managedBadge": "Керується лаунчером",

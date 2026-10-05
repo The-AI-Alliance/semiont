@@ -36,7 +36,7 @@ interface Props {
    *     → treated as "disconnected" (red dot, "Disconnected" label).
    *     `degraded` is the 3 s threshold at which the state machine
    *     decides the disconnect is sustained; this is the UI-banner
-   *     trigger the plan was designed around.
+   *     trigger.
    */
   state: ConnectionState;
   eventCount: number;
@@ -45,11 +45,11 @@ interface Props {
   /**
    * The KB's collaborator roster (`client.browse.agents()`, typically via
    * `useCollaborators`). Optional so hosts that never wire it — including
-   * external consumers of this package — render exactly as before.
+   * external consumers of this package — render without the roster section.
    *
    * Each entry's `limits` is absent whenever discovery could not answer *right
-   * now* (INFERENCE-LIMITS-EXPOSURE D3), so a missing ceiling is normal and
-   * shows as no ceiling rather than as an error.
+   * now*, so a missing ceiling is normal and shows as no ceiling rather than as
+   * an error.
    */
   collaborators?: Collaborator[];
 }

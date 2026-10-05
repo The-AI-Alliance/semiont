@@ -4,7 +4,7 @@ import type { GatheredContext } from '@semiont/core';
 
 export interface CorpusPaneTranslations {
   corpusPaneTitle: string;
-  /** Strategy-relevant empty state — emptiness is evidence (GEP D1). */
+  /** Strategy-relevant empty state — emptiness is evidence. */
   corpusEmpty: string;
   /** Label for the match's cosine score. */
   score: string;
@@ -20,15 +20,14 @@ export interface CorpusPaneProps {
 }
 
 /**
- * The corpus pane (GEP D4): latent knowledge — ranked `SemanticMatch` cards,
+ * The corpus pane: latent knowledge — ranked `SemanticMatch` cards,
  * read-only. THE datum for Search-vs-Generate ("does the KB already discuss
  * this?"). This is recall-at-gather evidence, not a preview of Search: the
  * matcher re-runs fresh (selected text + hint, scoring) and may rank
  * differently.
  *
- * Read-only for now by decision, not forever — when per-match actions arrive
- * they route through the footer's fork or a designed extension of it, never
- * ad-hoc buttons here.
+ * Read-only by decision: per-match actions belong to the footer's fork or a
+ * designed extension of it, never ad-hoc buttons here.
  */
 export function CorpusPane({ semanticContext, translations: t }: CorpusPaneProps) {
   // Descending by score, whatever order the wire delivered.
@@ -57,7 +56,7 @@ export function CorpusPane({ semanticContext, translations: t }: CorpusPaneProps
                   </span>
                 )}
                 {/* 0–1 cosine to two places — deliberately NOT the search step's
-                    raw render, which is a different scale (logged deviation). */}
+                    raw render, which is a different scale. */}
                 <span className="semiont-corpus__score">{t.score}: {m.score.toFixed(2)}</span>
               </div>
               <p className="semiont-corpus__snippet">{m.text}</p>

@@ -193,7 +193,7 @@ read the environment on its own behalf.
 
 ## Related Documentation
 
-- [Container Topology](../../../docs/system/CONTAINER-TOPOLOGY.md) - what runs where
+- [Container Topology](../../../docs/operator/CONTAINER-TOPOLOGY.md) - what runs where
 - [Dispatcher](../../dispatcher/README.md) - the job queue, which the gateway only relays
 - [AUTHENTICATION.md](AUTHENTICATION.md) - the identity plane
 - [TESTING.md](TESTING.md) - what checks the gateway

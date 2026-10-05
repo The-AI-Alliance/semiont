@@ -13,12 +13,11 @@ on the wire.
 The other capture fixtures see *protocol* failures (a `mark:create-failed`
 event, a span with `status=ERROR`). They don't see *browser* failures —
 React render exceptions, RxJS Subject recursion, parsing errors in a
-component's effect, anything that doesn't reach the wire. The hover
-investigation that motivated this fixture (a `RangeError: Maximum
-call stack size exceeded` in `Subject.next` triggered by a token-refresh
-401 cascading through a downstream subscriber) was invisible to every
-other capture mechanism — the symptom was visible only in the browser
-DevTools console.
+component's effect, anything that doesn't reach the wire. A `RangeError:
+Maximum call stack size exceeded` in `Subject.next`, triggered by a
+token-refresh 401 cascading through a downstream subscriber, is invisible
+to every other capture mechanism — the symptom is visible only in the
+browser DevTools console.
 
 Without `pageErrors`, that class of bug stays invisible to the e2e
 suite even when it fires during a test that's otherwise asserting on
@@ -109,7 +108,7 @@ and you'll need DevTools to map them back.
 
 ## Coverage gap this closes
 
-Before this fixture, a class of Browser bugs was invisible to e2e:
+Without this fixture, a class of Browser bugs is invisible to e2e:
 
 - **Render exceptions** in components that an error boundary swallows.
 - **RxJS Subject feedback loops** — a subscriber that synchronously
@@ -121,7 +120,7 @@ Before this fixture, a class of Browser bugs was invisible to e2e:
 
 The bus capture surfaces wire-level failures; jaeger surfaces
 cross-process span errors; the container log slicer surfaces
-gateway-side errors. None of them caught what was visible in the
+gateway-side errors. None of them catches what is visible in the
 DevTools console as a red error message. `pageErrors` does.
 
 ## Limitations

@@ -1,159 +1,51 @@
-# Beckon Flow
+# Beckon
 
-**Purpose**: Coordinate which resource or annotation has the user's attention. Hover, click, and navigation signals synchronize the document view, annotation panels, and visual effects so that humans and AI agents can direct focus to specific content.
+Beckon directs attention: it points another participant at a passage, or opens a resource on their screen. It is the one attention-directing verb. It writes nothing and reads nothing. It exists because other people and agents are in the knowledge base at the same time as you.
 
-**Related Documentation**:
-- [Browser Annotations](../../../apps/browser/docs/ANNOTATIONS.md) - UI patterns and component architecture
-- [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Document view and overlay rendering
-- [React UI Events](../../builder/react-ui/EVENTS.md) - Event bus architecture
-- [Keyboard Navigation](../../browser/KEYBOARD-NAV.md) - Keyboard-driven attention
+## Operations
 
-## Overview
+| SDK method | Returns | On the wire | Does on every other participant's viewer |
+|---|---|---|---|
+| `beckon.attention` | how many clients it reached | `beckon:focus` | Scrolls to an annotation |
+| `beckon.click` | how many clients it reached | `browse:click` | Opens an annotation |
+| `beckon.openResource` | how many clients it reached | `browse:resource-open` | Opens a resource |
+| `beckon.sparkleAll` | how many clients it reached | `beckon:sparkle` | Draws the eye to an annotation |
 
-The Beckon flow directs user focus to specific annotations or regions of interest. The application uses visual cues — toast notifications, sparkle animations, scroll-to positioning, highlight state — to signal where attention is needed next. AI agents surface suggested follow-ups, confidence flags, and items requiring human review; human collaborators respond to these cues by prioritizing what to examine next.
+Each is a frame sent with no reply awaited. The gateway relays it to every connected client.
 
-The Beckon flow is the coordination layer for user focus. When a human hovers over an annotation in the panel, the corresponding text lights up in the document — and vice versa. When an AI agent creates a new annotation, a sparkle animation draws the user's eye to it. All of this runs through a small set of events on the Browser event bus.
+## Rules
 
-Beckoning is ephemeral — it produces no persistent state and coordinates transient focus signals only. Within a browser session, it is purely a Browser concern operating on the local event bus. Cross-participant beckoning (via `semiont beckon` from the launcher or another agent) flows through the unified bus gateway (`POST /bus/emit` + `GET /bus/subscribe`), but remains stateless: signals are delivered if the participant is connected and silently dropped if not — same semantics as all other beckon events. The [Browse flow](./BROWSE.md) handles the routing of clicks and panel state changes.
+**Nothing is recorded.** A beckon is delivered to whoever is connected at that moment and dropped for everyone else. There is no queue and no retry.
 
-## Using the SDK
+**The count is not a confirmation.** Each drive resolves with the number of clients the gateway delivered it to, or with no count when the gateway keeps none. A client is a connection, not a pair of eyes: zero means nobody could have seen it, and any other number does not mean somebody did.
 
-Attention is primarily a Browser concern — in-browser hover/click
-signals coordinate through the local event bus without touching the
-gateway. The annotations that attention targets are fetched via the
-namespace API, and programmatic cross-participant beckoning goes
-through the `beckon` namespace:
+**There is no addressing.** A beckon reaches every client. The sender's own viewer receives it too.
+
+**Focus points; a click opens.** `beckon:focus` scrolls a viewer to an annotation and stops. `browse:click` opens it. A guide chooses between "notice this" and "read this".
+
+**`beckon:focus` may name a resource as a guard.** A viewer showing a different resource ignores it. It never moves a viewer to another resource: that is `browse:resource-open`. With no resource named, the viewer scrolls.
+
+**Presence is the consumer's to build.** Beckon delivers signals. It keeps no record of who is looking at what, and aggregates nothing. An application that wants "three people are here" builds it from these signals and its own state.
+
+## Example
 
 ```typescript
-import { firstValueFrom } from 'rxjs';
+const watching = await semiont.beckon.attention(resourceId, annotationId);
+if (watching === 0) console.warn('nobody is watching');
 
-// Fetch annotations for a resource (the targets of attention)
-const annotations = await firstValueFrom(
-  client.browse.annotations(resourceId),
-);
-
-// Programmatically direct attention — broadcasts across participants
-// via the bus gateway. Each wire drive resolves with the subscriber
-// count at dispatch (undefined when the gateway cannot count).
-await client.beckon.attention(resourceId, annotations[0].id);  // point at it
-await client.beckon.click(annotations[0].id);                  // OPEN it
-
-// Or, for local-only scroll (no broadcast), emit directly on the
-// workspace EventBus:
-eventBus.emit('beckon:focus', { annotationId: annotations[0].id });
+await semiont.beckon.openResource(resourceId);
+await semiont.beckon.sparkleAll(annotationId);
 ```
 
-## Events
+From the launcher: `semiont beckon <resourceId> --annotation <annotationId>`.
 
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `beckon:hover` | `{ annotationId: string \| null }` | Mouse entered/left an annotation element |
-| `browse:click` | `{ annotationId: string }` (+ local-only `anchorRect?`) | An annotation was clicked — **open** it (see Browse flow) |
-| `beckon:focus` | `{ annotationId?: string \| null; resourceId? }` | Scroll-to-annotation signal (relayed from click) |
-| `beckon:sparkle` | `{ annotationId: string }` | Trigger sparkle animation on an annotation |
+## Local signals
 
-**`beckon:focus.resourceId` is a guard, not navigation.** It names the resource
-the focus applies to; a viewer currently showing a different resource
-*deliberately ignores* the event rather than silently no-oping. Moving the
-viewer is [`browse:resource-open`](./BROWSE.md#cross-participant-navigation)'s
-job. The field is optional, and **absence still scrolls** — the in-app emitters
-(history panel, annotation list) omit it because they are already scoped to the
-open resource, so treating absent as "not mine" would silence all of them.
+`beckon.hover` and `beckon.sparkle` publish on the client's own bus and nowhere else: one viewer's own highlight when the pointer rests on an annotation, and its own sparkle on an annotation just created. How a viewer turns hovers and clicks into highlights and scrolling is react-ui's: see [annotation interaction](../../../packages/react-ui/docs/ANNOTATION-CLICK.md).
 
-**Focus points; a click opens.** `beckon:focus` scrolls the viewer to an
-annotation and stops. `browse:click` opens it — the annotations panel comes up
-with that entry selected, and this flow's relay then produces the scroll. Both
-are drivable from outside the page, so a guide chooses between "notice this"
-and "read this"; see
-[Cross-participant navigation](./BROWSE.md#cross-participant-navigation).
+## Where it is implemented
 
-Note the asymmetry with the guard above: a click carries no `resourceId`
-because its `annotationId` is **required** and already names one annotation on
-one resource. Focus's `annotationId` is optional — it can name a resource
-alone — which is what leaves `resourceId` something to guard.
-
-Panel state is not an event flow — see
-[Panel and sidebar state](./BROWSE.md#panel-and-sidebar-state) in the Browse
-flow.
-
-## Hover Coordination
-
-Hover events synchronize the annotation panel and the document view:
-
-1. Mouse enters annotation element (panel entry or document overlay)
-2. After a **150ms dwell** (debounced to suppress transient mouse movements), `beckon:hover` fires
-3. `createBeckonStateUnit` sets `hoveredAnnotationId` → both panel and document highlight the annotation
-4. `beckon:sparkle` fires → document overlay shows a brief sparkle animation
-5. On mouse leave, `beckon:hover` fires with `null` → highlights clear immediately (no delay)
-
-The dwell delay prevents visual noise when the mouse passes through annotations on its way to a button or scrollbar.
-
-Two forms are provided for emitting hover events:
-- **`useHoverEmitter(annotationId)`** — React hook returning `{ onMouseEnter, onMouseLeave }` props for panel entries
-- **`createHoverHandlers(emit, delayMs)`** — Plain factory for imperative contexts (CodeMirror, PDF canvas, annotation overlay)
-
-## Click → Focus Relay
-
-Click events relay through `beckon:focus` to scroll the document view:
-
-1. User clicks an annotation entry in the panel
-2. `browse:click` fires with `annotationId` (the motivation is derived from the annotation it names, not carried)
-3. `createBeckonStateUnit` relays as `beckon:focus`
-4. BrowseView subscribes to `beckon:focus` and scrolls the document to the annotation's position
-
-## Cross-Participant Beckoning
-
-`semiont beckon <resourceId> --annotation <annotationId>` from the launcher
-(or a programmatic call to `client.beckon.attention(...)`) delivers the
-same `beckon:focus` signal to everyone watching the workspace, through
-the unified bus gateway:
-
-1. Originator calls `client.beckon.attention(resourceId, annotationId)`, which
-   invokes `actor.emit('beckon:focus', ...)` → `POST /bus/emit`.
-2. Gateway emits the event on the in-process EventBus.
-3. Every connected `SemiontClient` has `beckon:focus` and
-   `beckon:sparkle` in its bus-subscription channel list; the gateway
-   broadcasts on these channels via `GET /bus/subscribe` (SSE).
-4. The client bridges the event into the local workspace EventBus —
-   same delivery path as an in-browser click relay.
-5. BrowseView scrolls + pulses; ResourceViewerPage triggers the sparkle
-   animation. The originator's own view responds too (their emit echoes
-   through the bus, which is the intended behaviour).
-
-If a participant is not connected, the signal is dropped. No queue, no
-retry — same ephemeral semantics as all other beckon events.
-
-## Presence Aggregation Is Consumer Territory
-
-The Beckon flow is a *substrate*, not a presence system. It delivers
-ephemeral signals — hover, focus, sparkle, click, panel-open — and
-that is the entire contract. There is no aggregation layer ("who is
-currently hovering this annotation"), no debounce beyond the 150ms
-dwell, no synthesis of cursor positions or per-user state, and no
-last-seen retention.
-
-A consumer that wants Liveblocks-style live-cursor-with-username, a
-"3 collaborators here" indicator, or any presence-as-a-feature view
-builds it on top of the beckon signals plus its own state aggregator —
-typically a small reducer that listens to `beckon:hover` events
-(carrying `_userId` from the gateway) and maintains a map of
-`userId → { annotationId, lastSeenAt }`. The protocol delivers the raw
-signals; the consumer decides the aggregation policy, retention
-window, and rendering.
-
-This split is deliberate. Presence semantics are domain-specific —
-"who is hovering" matters in a code review tool, "who has read this"
-matters in a knowledge base, "where is the cursor" matters in a live
-editor — and a one-size-fits-all aggregation layer in the protocol
-would push policy decisions onto every consumer regardless of fit. The
-ephemeral, fan-out-only contract is the substrate every presence
-system can be built on.
-
-## Implementation
-
-- **StateUnit**: [packages/sdk/src/state/flows/beckon-state-unit.ts](../../../packages/sdk/src/state/flows/beckon-state-unit.ts)
-- **Namespace**: [packages/sdk/src/namespaces/beckon.ts](../../../packages/sdk/src/namespaces/beckon.ts)
-- **Event definitions** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `BECKON FLOW` section
-- **Bus bridge (client)**: [packages/sdk/src/client.ts](../../../packages/sdk/src/client.ts) — `ACTOR_TO_LOCAL_BRIDGES`
-- **Launcher command**: [apps/launcher/internal/verbs/beckon.go](../../../apps/launcher/internal/verbs/beckon.go) — `semiont beckon`
-- **Bus gateway**: [apps/gateway/src/routes/bus.rs](../../../apps/gateway/src/routes/bus.rs) and [stream.rs](../../../apps/gateway/src/routes/stream.rs)
+- The SDK namespace: [packages/sdk/src/namespaces/beckon.ts](../../../packages/sdk/src/namespaces/beckon.ts)
+- The gateway's relay: [apps/gateway/src/routes/bus.rs](../../../apps/gateway/src/routes/bus.rs) and [stream.rs](../../../apps/gateway/src/routes/stream.rs)
+- The launcher verb: [apps/launcher/internal/verbs/beckon.go](../../../apps/launcher/internal/verbs/beckon.go)
+- The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

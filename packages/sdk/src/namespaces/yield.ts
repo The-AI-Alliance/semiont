@@ -119,12 +119,11 @@ export class YieldNamespace implements IYieldNamespace {
     context: GatheredContext,
     options: GenerationOptions,
   ): StreamObservable<YieldGenerationEvent> {
-    // The wire carries NO ids for generation (GENERATION-WIRE-CONTEXT D1) —
-    // the dispatcher derives them from the context's focus and rejects a
-    // caller-supplied value. The rid derived here is CLIENT-side only, for the
-    // poll-fallback's synthesized complete event (D4: JobStatusResponse has no
-    // resourceId). The guard stays: fail fast locally with the same message
-    // the dispatcher would send.
+    // The wire carries NO ids for generation — the dispatcher derives them
+    // from the context's focus and rejects a caller-supplied value. The rid
+    // derived here is CLIENT-side only, for the poll-fallback's synthesized
+    // complete event (JobStatusResponse has no resourceId). The guard stays:
+    // fail fast locally with the same message the dispatcher would send.
     const focus = context?.focus;
     const displayRid =
       focus?.kind === 'resource' && typeof focus.resource?.['@id'] === 'string'
@@ -139,9 +138,9 @@ export class YieldNamespace implements IYieldNamespace {
       );
     }
     // `stallDeadlineMs` is a CLIENT-only guard knob — stripped here so `params`
-    // stays exactly the WIRE's GenerationJobParams (GWC discipline: TS spreads
-    // bypass excess-property checks, so an unstripped field would silently
-    // ride `job:create`).
+    // stays exactly the WIRE's GenerationJobParams (TS spreads bypass
+    // excess-property checks, so an unstripped field would silently ride
+    // `job:create`).
     const { stallDeadlineMs, ...wireOptions } = options;
     const stallMs = stallDeadlineMs ?? deriveStallDeadlineMs(options.maxTokens);
     return this.runGeneration(displayRid, { ...wireOptions, context }, stallMs);
@@ -155,11 +154,12 @@ export class YieldNamespace implements IYieldNamespace {
    * `job:report-progress`/`job:complete`/`job:fail` lifecycle (with the status
    * poll that stands in for a frame the stream did not carry) as
    * `YieldGenerationEvent`s, resolving on the terminal `complete`.
+   *
+   * `resourceId` is CLIENT-side display only (the poll-synthesized complete
+   * event) — it is deliberately NOT sent on the wire. `stallMs` is the ONE
+   * stall guard: it lives in this producer so `await`, `.run()`, and the
+   * state unit's drive all share it.
    */
-  /** `resourceId` is CLIENT-side display only (the poll-synthesized complete
-   *  event, D4) — it is deliberately NOT sent on the wire. `stallMs` is the
-   *  ONE stall guard (FLOW-LIFECYCLE-CONVERGENCE D1): it lives in this
-   *  producer so `await`, `.run()`, and the state unit's drive all share it. */
   private runGeneration(
     resourceId: ResourceId,
     params: GenerationJobParams,
@@ -170,12 +170,11 @@ export class YieldNamespace implements IYieldNamespace {
       let stallTimer: ReturnType<typeof setTimeout> | null = null;
 
       // `job:report-progress`, `job:complete`, and `job:fail` reach us on the
-      // always-on global bridge — the worker dual-emits the resource-broadcast
-      // ones globally as well as scoped. We deliberately do NOT call
-      // `transport.subscribeToResource(resourceId)`: mutating the SSE channel
-      // set forces a reconnect on every generation, which dropped in-flight
-      // `browse.*` results in the reconnect gap. Symmetric with `mark.assist`.
-      // See Link 1 in .plans/SEMIONT-BUG-browse-annotations.md.
+      // always-on global bridge: the worker emits them to every client. We
+      // deliberately do NOT call `transport.subscribeToResource(resourceId)`:
+      // a resource's scope carries none of the three, and joining it can cost
+      // the HTTP transport a handoff to a second connection on every
+      // generation. Symmetric with `mark.assist`.
 
       const poll = new JobStatusPoll(
         this.transport,
@@ -229,13 +228,13 @@ export class YieldNamespace implements IYieldNamespace {
       // reads as final, so a worker that does not say cannot hang the stream.
       const terminalFail$ = fail$.pipe(filter((e) => e.willRetry !== true));
 
-      // The ONE stall guard (FLOW-LIFECYCLE-CONVERGENCE D1): armed at
-      // subscribe, re-armed on every event, cleared by any terminal. Firing
-      // asks for THAT job to be cancelled, by its id: a cancellation by
-      // category would end every pending generation, whoever asked for it.
-      // A pending job is cancelled outright; a running one is left to its
-      // worker. A job whose creation was never answered has no id, and there
-      // is nothing to cancel. Then the stream errors with the stall error.
+      // The ONE stall guard: armed at subscribe, re-armed on every event,
+      // cleared by any terminal. Firing asks for THAT job to be cancelled, by
+      // its id: a cancellation by category would end every pending
+      // generation, whoever asked for it. A pending job is cancelled
+      // outright; a running one is left to its worker. A job whose creation
+      // was never answered has no id, and there is nothing to cancel. Then
+      // the stream errors with the stall error.
       const armStall = () => {
         if (stallTimer) clearTimeout(stallTimer);
         stallTimer = setTimeout(() => {
@@ -332,11 +331,11 @@ export class YieldNamespace implements IYieldNamespace {
   }
 
   async createFromToken(options: CreateFromTokenOptions): Promise<{ resourceId: ResourceId }> {
-    // The clone's bytes ride the upload path, never the bus (EXTRACT-ARCHIVIST
-    // P3, D4a): fetch the source, apply the clone-format gate (authorable
-    // sources keep their base type, everything else falls back to text/plain),
-    // and put the bytes with the token — the gateway stores them and routes
-    // creation through `yield:clone-create`.
+    // The clone's bytes ride the upload path, never the bus: fetch the
+    // source, apply the clone-format gate (authorable sources keep their base
+    // type, everything else falls back to text/plain), and put the bytes with
+    // the token — the Archivist stores them and routes creation through
+    // `yield:clone-create`.
     const source = await this.fromToken(options.token);
     const format = cloneFormat(getPrimaryRepresentation(source)?.mediaType);
     const file = typeof Buffer !== 'undefined'

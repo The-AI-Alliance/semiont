@@ -2,15 +2,12 @@
  * The media-renderer registries must be reachable through `ResourceViewer` —
  * the documented consumer entry point.
  *
- * `BrowseView` has taken a `renderers` override since EMBEDDABLE-RESOURCE-VIEWER
- * step 3, and `AnnotateView` since 3b, but `ResourceViewer` forwarded neither.
- * A host importing it (what docs/ANNOTATIONS.md tells consumers to do, and what
- * the embeddable-surface packaging gate checks) therefore had no way to reach
- * the extension point: it would have to drop to `BrowseView` directly and
- * reimplement the browse/annotate switching `ResourceViewer` exists to provide.
- *
- * Started RED (tsc: no `browseRenderers` / `annotateRenderers` props).
- * See .plans/ANNOTATE-RENDERER-REGISTRY.md (D5)
+ * `BrowseView` and `AnnotateView` each take a `renderers` override, and
+ * `ResourceViewer` forwards both. Without that, a host importing it (what
+ * docs/ANNOTATIONS.md tells consumers to do, and what the embeddable-surface
+ * packaging gate checks) has no way to reach the extension point: it would
+ * have to drop to `BrowseView` directly and reimplement the browse/annotate
+ * switching `ResourceViewer` exists to provide.
  */
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
@@ -33,10 +30,7 @@ function fakeSession(): SemiontSession {
     client: {
       browse: { click: vi.fn() },
       beckon: { hover: vi.fn() },
-      mark: {
-        changeSelection: vi.fn(), changeClick: vi.fn(), changeShape: vi.fn(),
-        toggleMode: vi.fn(), request: vi.fn(),
-      },
+      mark: { request: vi.fn() },
     },
     subscribe: () => () => {},
   } as unknown as SemiontSession;

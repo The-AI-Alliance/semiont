@@ -1,8 +1,8 @@
 /**
  * The KB's software-agent roster, derived from the SAME config sections that
- * route work (COLLABORATOR-DIRECTORY D3): `workers.*` per job type plus
- * `actors.*`. This is the DECLARED roster — "who CAN work" — deliberately not
- * the auth upsert history ("who has worked") and not liveness/presence.
+ * route work: `workers.*` per job type plus `actors.*`. This is the DECLARED
+ * roster — "who CAN work" — deliberately not the auth upsert history ("who has
+ * worked") and not liveness/presence.
  *
  * Capabilities resolve through `resolveWorkerInference` — the same
  * specific→default resolution the workers apply — so the roster matches
@@ -14,8 +14,9 @@
  * SAME value `/api/tokens/agent` mints worker DIDs from. One value, one owner:
  * the roster consumes it verbatim and derives nothing from topology
  * (deriving from `publicURL`/connection URLs produced one logical agent
- * with two DIDs — .plans/bugs/agent-did-host-skew.md; the P5 attribution
- * cross-check arbitrates the equality).
+ * with two DIDs; the live-stack attribution cross-check — every `generator`
+ * stamped on a created annotation is a member of this roster — arbitrates
+ * the equality).
  */
 
 import { softwareToAgent } from '@semiont/core';
@@ -36,8 +37,7 @@ const JOB_TYPES = [
   'generation',
 ] as const satisfies readonly (JobType & keyof Omit<WorkerInferenceConfig, 'default'>)[];
 
-/** The roster's dedup key — with one domain per KB, this pair IS the DID
- *  (COLLABORATOR-DIRECTORY D4). */
+/** The roster's dedup key — with one domain per KB, this pair IS the DID. */
 const inferencePairKey = (provider: string, model: string): string => `${provider} ${model}`;
 
 /**

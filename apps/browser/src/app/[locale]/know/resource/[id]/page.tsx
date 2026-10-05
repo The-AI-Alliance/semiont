@@ -35,7 +35,6 @@ import type { SemiontResource } from '@semiont/react-ui';
  *    switch or a re-authentication, and a disposed cache is inert by B16:
  *    no fetch, no emission, "Loading resource..." forever. `kb.id` is not
  *    enough here; `signIn` rebuilds the session under an unchanged `kb.id`.
- *    See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
  *
  * Rendering is gated on a live session, so the inner component receives a
  * real one as a prop and can never read a session other than the one it is
@@ -59,9 +58,8 @@ export default function KnowledgeResourcePage() {
   // `KnowledgeLayout` gates `<Outlet />` on a live session, so this component
   // is unmounted the instant `activeSession$` goes null and remounts fresh
   // against the new KB — it never observes the transition it would need to
-  // detect. A previous attempt did exactly that and was dead in production
-  // while its unit test (which renders this page WITHOUT the layout) passed.
-  // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+  // detect. A unit test that renders this page WITHOUT the layout keeps it
+  // mounted across the switch, so a latch passes there and is dead in the app.
   if (!session) return <ResourceLoadingState />;
 
   return <KnowledgeResourcePageInner key={`${session.id}:${rId}`} session={session} rId={rId} />;

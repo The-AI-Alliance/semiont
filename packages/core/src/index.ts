@@ -50,8 +50,10 @@ export {
   SYSTEM_SCOPE,
 } from './identifiers';
 
-// The service-account role: one literal, and the predicate that reads it.
+// The service-account and worker roles, and the predicates that read them.
 export { SERVICE_ROLE, WORKER_ROLE, ROLES_CLAIM, hasServiceRole, hasWorkerRole } from './service-role';
+
+// Job storage names and the job-type census, generated from the spec.
 export {
   JOBS_STREAM,
   JOBS_SUBJECT_ROOT,
@@ -64,8 +66,6 @@ export {
   jobSubject,
   type JobCategory,
 } from './generated/job-storage';
-
-// Attribution: who a record is attributed to, as a chain rather than a choice.
 
 // Graph types
 export type {
@@ -103,10 +103,9 @@ export type {
   EventMap,
   EventName,
   EmittableChannel,
-  ResourceBroadcastType,
   AnchorRect,
 } from './bus-protocol';
-export { RESOURCE_BROADCAST_TYPES, ENRICHED_EVENT_TYPES, CHANNEL_SCHEMAS } from './bus-protocol';
+export { ENRICHED_EVENT_TYPES, CHANNEL_SCHEMAS } from './bus-protocol';
 export type { EnrichedEventType } from './bus-protocol';
 
 // Payload type aliases (OpenAPI schema shortcuts used across the codebase)
@@ -151,12 +150,12 @@ export { serializePerKey } from './serialize-per-key';
 // Bounded concurrency across callers (for a shared downstream: one local model
 // process, a rate-limited API). Sibling to serializePerKey, which bounds per key.
 export { boundedGate } from './bounded-gate';
+export type { BatchPolicy } from './bounded-gate';
 
 // Which failures are worth another attempt, per context — one catalog so the
 // contexts' disagreements are visible rather than distributed.
 export { RETRY_RULES } from './retry-rules';
 export type { RetryRule, RetryFacts } from './retry-rules';
-export type { BatchPolicy } from './bounded-gate';
 
 // Logger interface (framework-agnostic)
 export type { Logger } from './logger';
@@ -256,7 +255,7 @@ export type {
 // Channel set every concrete transport bridges into the client's bus.
 export { BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS, type BridgedChannel } from './bridged-channels';
 
-// Request/reply over the bus — the transport-neutral primitive (relocated from @semiont/sdk).
+// Request/reply over the bus — the transport-neutral primitive.
 export { busRequest, replyChannelsFor, relayedFailureCode, BusRequestError, type BusRequestPrimitive } from './bus-request';
 // The client's deadlines, retry budgets and stream cadence, generated from
 // specs/src/client/timing.json — the table every SDK generates from.
@@ -384,8 +383,6 @@ export type { Annotation, AnnotationCategory, CreateAnnotationInternal } from '.
 // Tag-schema type aliases (the schemas themselves are runtime-registered per KB)
 export type { TagSchema, TagCategory } from './tag-schemas';
 
-// Auth types
-
 // ID generation
 export { generateUuid, uuidV4 } from './id-generation';
 export { chunkText, cutChunk, estimateTokens, DEFAULT_CHUNKING_CONFIG } from './chunking';
@@ -444,18 +441,18 @@ export type {
   ServicePlatformConfig
 } from './config/config.types';
 
-// Knowledge-graph view derivation (CONTEXT-UNIFICATION P3) — pure fn over the KnowledgeGraph type,
+// Knowledge-graph view derivation — pure fn over the KnowledgeGraph type,
 // shared by @semiont/make-meaning (matcher) and @semiont/jobs (generation).
 export { deriveViews } from './knowledge-graph-views';
 export type { GraphViews } from './knowledge-graph-views';
 
 // Bounded retry with backoff — startup connections from long-running peers
-// (worker, smelter, weaver) to the KS.
+// to the gateway.
 export { retryWithBackoff, retryBudgetMs, equalJitter, withDeadline, isTransientFetchError, isRetryableRequestError, isPeerUnavailable, retryAfterMs, STARTUP_FETCH_RETRY } from './retry';
 export type { HttpStatusError, RetryPolicy, RetryAttemptInfo } from './retry';
 
 export { getShardPath, jumpConsistentHash } from './shard-utils';
 
 // Browser ↔ launcher KB discovery — the canonical served URL of the
-// launcher's discovery document (BROWSER-KB-DISCOVERY).
+// launcher's discovery document.
 export { DISCOVERY_URL_PATH } from './discovery';

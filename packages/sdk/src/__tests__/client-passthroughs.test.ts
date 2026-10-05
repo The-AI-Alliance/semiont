@@ -35,8 +35,8 @@ function makeMockTransport(): ITransport {
   // Built through `inMemoryTransport` and then overridden with the spies these
   // tests assert on. The overrides are typed as the interface's own members
   // (`vi.fn<ITransport['emit']>()`), not bare `vi.fn()` — a bare spy types as
-  // `Mock<Procedure>` and satisfies nothing, which is how this double drifted
-  // from the contract behind its cast.
+  // `Mock<Procedure>` and satisfies nothing, so it needs a cast, and a double
+  // behind a cast drifts from the contract.
   const state$ = new BehaviorSubject<ConnectionState>('open');
   return {
     ...inMemoryTransport({ state$ }),
@@ -88,12 +88,12 @@ describe('SemiontClient lifecycle + namespace routing', () => {
   // ── Bus disposal (A7-owned) ──────────────────────────────────────────────
   //
   // The client CONSTRUCTS its bus, so dispose() must destroy it (the
-  // A7-owned rule — same shape as BrowseNamespace's caches, B16). Pre-fix,
-  // the bus outlived the client: every subscriber stayed attached forever,
-  // silently receiving nothing (the L1 silence class), and my-chat's
-  // KB-reconnect loop leaked one bus per session cycle. Bus lifetime ==
+  // A7-owned rule — same shape as BrowseNamespace's caches, B16). A bus
+  // that outlives its client keeps every subscriber attached forever,
+  // silently receiving nothing (the L1 silence class), and a KB-reconnect
+  // loop leaks one bus per session cycle. Bus lifetime ==
   // client lifetime == session lifetime — no mid-session client swap exists
-  // (verified: `SemiontSession.client` is set only at construction).
+  // (`SemiontSession.client` is set only at construction).
   describe('bus disposal (A7-owned)', () => {
     test('dispose completes client.bus subscribers', () => {
       const events: string[] = [];
@@ -117,8 +117,8 @@ describe('SemiontClient lifecycle + namespace routing', () => {
     test('post-dispose bus access throws the destroyed-bus contract (loud, not silent)', () => {
       client.dispose();
       // Direct bus access and bus-emitting namespace methods alike: calling
-      // a disposed client is a bug, and it now says so — pre-fix it
-      // no-op'd into the leaked bus.
+      // a disposed client is a bug, and it says so rather than no-op'ing
+      // into a leaked bus.
       expect(() => client.bus.on('mark:submit')).toThrow(/destroyed bus/);
       expect(() => client.mark.cancelPending()).toThrow(/destroyed bus/);
     });
@@ -152,7 +152,7 @@ describe('SemiontClient lifecycle + namespace routing', () => {
   const testResourceId = resourceId('test-resource-id');
   const testAnnotationId = annotationId('test-annotation-id');
 
-  // ── SIMPLE-BUS gap #1: results without subscribeToResource ──────────────
+  // ── Results without subscribeToResource ─────────────────────────────────
   //
   // `match.search()` and `gather.annotation()` return Observables that
   // resolve from a globally-delivered (un-scoped) result event keyed on

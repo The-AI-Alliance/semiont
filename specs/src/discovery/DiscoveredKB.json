@@ -5,7 +5,7 @@
   "properties": {
     "host": {
       "type": "string",
-      "description": "Hostname the KB is reachable on from this machine (today always \"localhost\" \u2014 local stacks bind locally and codespace KBs arrive through a local port forward)"
+      "description": "Hostname the KB is reachable on from this machine (always \"localhost\" \u2014 local stacks bind locally and codespace KBs arrive through a local port forward)"
     },
     "port": {
       "type": "integer",

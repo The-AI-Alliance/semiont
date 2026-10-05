@@ -44,14 +44,14 @@ NEXT="$CURRENT"
 # than filtering silently, so a security bump that mattered can still be seen.
 # gh's --jq output is re-parsed by a second jq below, and a PR body containing a
 # raw control character makes that intermediate JSON unparseable — which silently
-# emptied the entire PR section on 0.5.38. Fetch raw JSON and filter locally, once.
+# empties the entire PR section. Fetch raw JSON and filter locally, once.
 PR_RAW="$(mktemp)"; PR_FILT="$(mktemp)"
 trap 'rm -f "$PR_RAW" "$PR_FILT"' EXIT
 #
-# gh itself fails intermittently on this query -- it printed "unexpected end of
-# JSON input" on 2026-09-28 and the script carried on, emitting a context file
-# with a correct header, a plans section and NO PRs. That is indistinguishable
-# from a quiet release. Retry, and refuse to write a partial window.
+# gh itself fails intermittently on this query ("unexpected end of JSON
+# input"). Carrying on would emit a context file with a correct header, a plans
+# section and NO PRs, which is indistinguishable from a quiet release. Retry,
+# and refuse to write a partial window.
 for attempt in 1 2 3; do
   gh pr list -R "$REPO" --state merged --limit 100 \
     --json number,title,author,mergedAt,url,body,files,mergeCommit > "$PR_RAW"
@@ -96,7 +96,7 @@ jq -r '
 
 if [ -d "$ROOT/.plans" ]; then
   # BSD find cannot parse an ISO8601 timestamp: `-newermt 2026-09-10T02:56:55Z`
-  # fails with "Can't parse date/time", and silencing that error turns nine
+  # fails with "Can't parse date/time", and silencing that error turns the
   # modified plans into a confident "none". Convert the timestamp once and
   # compare against a marker file, which every find accepts.
   MARKER="$(mktemp)"

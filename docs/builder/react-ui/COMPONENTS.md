@@ -210,7 +210,7 @@ import { PageLayout } from '@semiont/react-ui';
 </PageLayout>
 ```
 
-Also optional: `className`, `showAuthLinks`.
+Also optional: `className`.
 
 ### UnifiedHeader
 

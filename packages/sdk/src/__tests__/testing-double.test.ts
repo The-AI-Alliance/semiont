@@ -1,14 +1,11 @@
 /**
- * Acceptance for `@semiont/sdk/testing` (.plans/SDK-TESTING-DOUBLE.md, Phase 1).
+ * Acceptance for `@semiont/sdk/testing`.
  *
- * The acceptance spec is a deliberate replay of the week's first green-test
- * lie (SDK-DEBT M1): consumers testing against hand-rolled mocks shipped a
- * two-state model of a three-outcome contract. Here the same scenario runs
+ * The acceptance scenario is the one a hand-rolled mock gets wrong: a
+ * two-state model of a three-outcome contract. Here it runs
  * on the REAL cache and REAL busRequest over the scriptable transport —
  * no hand-rolled mock anywhere in this file. The cache's own breadcrumbs
- * ([cache RETRY] / [cache IDLE]) are asserted as proof the real path ran,
- * the same tell that exposed the original lie in
- * list-state.integration.test.ts.
+ * ([cache RETRY] / [cache IDLE]) are asserted as proof the real path ran.
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -20,10 +17,10 @@ afterEach(() => {
 });
 
 describe('createTestClient', () => {
-  it('L1 acceptance: entityTypes() through B14 exhaustion surfaces the B15 terminal error on the real cache', async () => {
+  it('acceptance: entityTypes() through B14 exhaustion surfaces the B15 `failed` state on the real cache', async () => {
     // Every reply dropped; the small busTimeoutMs (threaded client → browse)
     // keeps B14's chain in test time. First fetch times out → [cache RETRY]
-    // → retry times out → [cache IDLE] + B15 errors the observers.
+    // → retry times out → [cache IDLE] + B15: the observers see `failed`.
     const { client } = createTestClient({
       // The gateway ANSWERS (scripted here); the wire eats every reply. Both
       // halves matter: `drop-reply` still consumes the gateway's answer, so
@@ -45,7 +42,7 @@ describe('createTestClient', () => {
       { timeout: 2_000 },
     );
 
-    // Three-outcome contract, third outcome: failed is an EMISSION (D1) —
+    // Three-outcome contract, third outcome: failed is an EMISSION —
     // typed, in-stream, and the subscription stays alive.
     expect(states.some((s) => s.status === 'ready')).toBe(false);
     expect(

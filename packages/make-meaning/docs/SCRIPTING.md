@@ -15,8 +15,9 @@ Use `@semiont/make-meaning` directly in TypeScript scripts without requiring a r
 ```typescript
 #!/usr/bin/env tsx
 
-import { EventBus, createLogger } from '@semiont/core';
+import { EventBus } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
+import { createProcessLogger } from '@semiont/observability/process-logger';
 import { startMakeMeaning, type MakeMeaningConfig } from '@semiont/make-meaning';
 
 async function main() {
@@ -30,9 +31,10 @@ async function main() {
   const project = new SemiontProject(process.env.SEMIONT_ROOT!, {
     anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR!,
   });
-  const logger = createLogger('script');
+  const logger = createProcessLogger('script');
 
-  // Typically loaded from your project's environment JSON
+  // Hand-built here; `makeMeaningConfigFrom` derives the same shape from a
+  // config loaded with `loadEnvironmentConfig` (`@semiont/core/node`)
   const config: MakeMeaningConfig = {
     // The resource-gather settle bound (semanticContext read-your-writes
     // barrier). TOML deployments set it at
@@ -80,8 +82,12 @@ main().catch(console.error);
 
 ### Running
 
+`SemiontProject` composes the state tree (materialized views and projections) under `XDG_STATE_HOME`, which has no default.
+
 ```bash
 export SEMIONT_ROOT=/path/to/your/project
+export SEMIONT_ANCHORED_TEXT_DIR=/path/to/anchored-text
+export XDG_STATE_HOME=/path/to/state
 tsx scripts/your-script.ts
 ```
 
@@ -91,6 +97,7 @@ Content is written to the content store first; `createResource` then registers i
 
 ```typescript
 import { ResourceOperations, deriveStorageUri, userId } from '@semiont/core';
+import { asBusRequestPrimitive } from '@semiont/make-meaning';
 
 const kb = makeMeaning.knowledgeSystem.kb;
 const uri = deriveStorageUri('my-document', 'text/plain');
@@ -105,8 +112,8 @@ const rId = await ResourceOperations.createResource(
     format: 'text/plain',
     language: 'en',
   },
-  { did: userId('script-user'), roles: [] },
-  eventBus,
+  { did: userId('did:web:example.com:users:script-user'), roles: [] },
+  asBusRequestPrimitive(eventBus),
 );
 
 console.log(`Created: ${rId}`);
@@ -132,7 +139,8 @@ const resource = await ResourceContext.getResourceMetadata(resourceId, kb);
 // Get annotations
 const annotations = await AnnotationContext.getAllAnnotations(resourceId, kb);
 
-// Search resources via graph
+// Search resources via graph — whatever a Weaver has projected into the
+// configured graph: the Weaver is a standalone service, not started here
 const { resources: results } = await kb.graph.listResources({ search: 'query text', limit: 10 });
 
 // Get graph stats
@@ -143,7 +151,11 @@ console.log(`Total resources: ${stats.resourceCount}`);
 ## Batch Processing
 
 ```typescript
-const resourceIds = await makeMeaning.knowledgeSystem.kb.eventStore.log.getAllResourceIds();
+import { SYSTEM_SCOPE } from '@semiont/core';
+
+// The log also holds the system scope (vocabulary and people), which is no resource
+const resourceIds = (await makeMeaning.knowledgeSystem.kb.eventStore.log.getAllResourceIds())
+  .filter((rId) => rId !== SYSTEM_SCOPE);
 
 console.log(`Processing ${resourceIds.length} resources...`);
 
@@ -173,22 +185,28 @@ const session = await SemiontSession.signInDevice({
 });
 const semiont = session.client;
 
-// The SDK is RxJS-native, but its return values are PromiseLike — `await` works directly.
+// The SDK is RxJS-native. Streams and uploads are PromiseLike — `await` works directly;
+// a Browse live query is read once with `.fresh()`.
 
 // Browse resources
-const resource = await semiont.browse.resource(resourceId('doc-123'));
+const resource = await semiont.browse.resource(resourceId('doc-123')).fresh();
 const content = await semiont.browse.resourceContent(resourceId('doc-123'));
 const events = await semiont.browse.resourceEvents(resourceId('doc-123'));
 
 // Mark annotations / register entity types
-await semiont.mark.annotation({ /* CreateAnnotationInput: target, motivation, body */ });
+await semiont.mark.annotation({
+  motivation: 'highlighting',
+  target: { source: resourceId('doc-123'), selector: { type: 'TextQuoteSelector', exact: 'a passage' } },
+});
 await semiont.frame.addEntityType('Person');
 
 // Gather LLM context
 const { response: context } = await semiont.gather.annotation(resourceId('doc-123'), annotationId('ann-1'));
 
 // Bind references
-await semiont.bind.body(resourceId('doc-123'), annotationId('ann-1'), operations);
+await semiont.bind.body(resourceId('doc-123'), annotationId('ann-1'), [
+  { op: 'add', item: { type: 'SpecificResource', source: resourceId('doc-456'), purpose: 'linking' } },
+]);
 ```
 
 Use the context modules directly (`ResourceContext`, `AnnotationContext`, `GraphContext`) only when you need lower-level control.
@@ -198,20 +216,20 @@ Use the context modules directly (`ResourceContext`, `AnnotationContext`, `Graph
 | Aspect | SemiontClient (SDK) | Direct Context Modules |
 |--------|------------------|----------------------|
 | **Transport** | HTTP REST + SSE | Direct function calls |
-| **Authentication** | JWT tokens via `getToken` | Not needed |
+| **Authentication** | Sign-in at the knowledge base's issuer; the session keeps the token fresh | Not needed |
 | **Events** | Observable return types | EventBus subscriptions |
 | **Error handling** | HTTP status codes / Observable errors | Exceptions |
 | **Deployment** | Gateway server required | Standalone script |
-| **API surface** | Full (all 8 verbs + auth, admin) | Low-level KB access |
+| **API surface** | Full (all 8 verbs + job, auth, system) | Low-level KB access |
 
 ## Troubleshooting
 
-### "SEMIONT_ROOT environment variable is not set"
+### "XDG_STATE_HOME is not set"
 
-Set SEMIONT_ROOT before running:
+`SemiontProject` refuses to construct without a state tree. Set XDG_STATE_HOME before running:
 
 ```bash
-export SEMIONT_ROOT=/path/to/your/project
+export XDG_STATE_HOME=/path/to/state
 tsx scripts/your-script.ts
 ```
 

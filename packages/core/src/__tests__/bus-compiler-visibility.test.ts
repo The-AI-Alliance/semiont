@@ -1,27 +1,26 @@
 /**
- * RED (BUS-CARRIES-FRAMES P1): nothing blinds the compiler about the bus.
+ * Nothing blinds the compiler about the bus.
  *
- * D4 makes the compiler the migration worklist: `get()` is deleted and every
- * call site becomes a type error, which is exhaustive by construction in a way
- * grep and reading are not. That only holds while the compiler can SEE every
- * call site.
+ * The compiler is the worklist for a change to the bus's surface: delete a
+ * verb and every call site becomes a type error, which is exhaustive by
+ * construction in a way grep and reading are not. That only holds while the
+ * compiler can SEE every call site.
  *
  * An `any`-typed receiver is the hole: `(eventBus as any).get('x')` compiles
  * whatever `get`'s signature is — or whether it exists at all. A site behind
- * one is invisible to the worklist, survives the migration untouched, and
+ * one is invisible to the worklist, survives a migration untouched, and
  * fails at runtime instead.
  *
- * This is not hypothetical. On 2026-09-16 a required member added to
- * `ITransport` compiled clean across 30 cast doubles and failed 144 tests at
- * runtime, three of them only in CI — the same mechanism, one interface over.
+ * Cast test doubles are the same mechanism, one interface over: a required
+ * member added to `ITransport` compiles clean across every cast double and
+ * fails only at runtime.
  *
  * A THIRD mechanism this census cannot see, recorded so the next reader knows
  * the gate is not total: `require()` inside `vi.hoisted()` returns `any`, so a
- * real object obtained that way carries no type at all. That hid one
- * `bus.get(...)` in react-ui through the whole migration; it surfaced only
- * when the suite ran. A regex cannot distinguish it from any other untyped
- * value — running the suites is what catches it, which is why the plan's
- * Verify insists on suites and not typechecks.
+ * real object obtained that way carries no type at all. A regex cannot
+ * distinguish it from any other untyped value — running the suites is what
+ * catches it, which is why a bus change is verified by running the suites
+ * and not by typechecks alone.
  *
  * NOT banned: re-typing the RESULT of a typed call as another read-only type
  * (`bus.on(ch) as unknown as Observable<T>`). The call itself is still
@@ -53,9 +52,8 @@ const stripComments = (source: string) =>
  *   (bus as any).get(...)                       — an any receiver
  *   (bus.on(ch) as unknown as Subject<T>).next  — a read view re-typed WRITABLE
  *
- * The second was missed by the first version of this census and cost three
- * runtime failures in the sdk during the migration: `tsc` was clean and
- * `client.bus.on(...).next is not a function` only appeared under vitest.
+ * With the second, `tsc` is clean and `client.bus.on(...).next is not a
+ * function` appears only under vitest.
  */
 const BLINDED =
   /\(\s*[\w.]+\s+as\s+any\s*\)\s*\.\s*(get|scope|emit|on|frames)\s*\(|\.\s*(on|frames)\([^()]*\)\s*as\s+(?:unknown\s+as\s+)?(Subject|any|\{\s*next)/g;
@@ -65,17 +63,17 @@ describe('the compiler can see every bus call site', () => {
     const offenders: string[] = [];
     for (const file of sources(join(REPO, 'packages'))) {
       for (const m of stripComments(readFileSync(file, 'utf-8')).matchAll(BLINDED)) {
-        offenders.push(`${relative(REPO, file)} — .${m[1]}(`);
+        offenders.push(`${relative(REPO, file)} — ${m[0].trim()}`);
       }
     }
     for (const file of sources(join(REPO, 'apps'))) {
       for (const m of stripComments(readFileSync(file, 'utf-8')).matchAll(BLINDED)) {
-        offenders.push(`${relative(REPO, file)} — .${m[1]}(`);
+        offenders.push(`${relative(REPO, file)} — ${m[0].trim()}`);
       }
     }
     expect(
       offenders,
-      'an any-typed bus hides its call sites from the migration worklist',
+      'bus call sites the compiler cannot check: a verb on an any-typed receiver, or a read view re-typed writable',
     ).toEqual([]);
   });
 });

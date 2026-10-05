@@ -1,10 +1,10 @@
 /**
  * Type definitions for grouped annotation component props.
  *
- * These types help reduce props explosion by grouping related concerns:
- * - Annotations collection (4 props → 1)
- * - Event handlers (6+ props → grouped)
- * - UI state (multiple props → 1)
+ * Each type gathers one concern into a single prop:
+ * - Annotations collection
+ * - Event handlers
+ * - UI state
  */
 
 
@@ -12,7 +12,6 @@ import type { Annotation } from '@semiont/core';
 
 /**
  * Collection of all annotation types for a resource.
- * Replaces separate highlights, references, assessments, comments, tags props.
  */
 export interface AnnotationsCollection {
   highlights: Annotation[];

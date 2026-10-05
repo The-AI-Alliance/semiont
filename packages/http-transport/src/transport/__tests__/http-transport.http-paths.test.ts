@@ -5,7 +5,7 @@
  * gateway's routes expect. Mocks `ky` at the module boundary; no
  * SemiontClient involvement.
  *
- * Migrated from the pre-SDK-split `client.test.ts` (http-transport side):
+ * Covers:
  *   - Auth / status / health endpoints
  *   - Binary content (`HttpContentTransport.getBinary` + stream)
  *   - Multipart upload (`HttpContentTransport.putBinary`)
@@ -52,7 +52,7 @@ vi.mock('../actor-state-unit', async (importOriginal) => {
       return {
         stream: <T,>(channel: string) =>
           events$.pipe(filter((e) => e.channel === channel), map((e) => e.payload as T)),
-        // The bridge reads FRAMES now: the transport forwards the envelope
+        // The bridge reads FRAMES: the transport forwards the envelope
         // into the client bus, so a double that only answered `stream` would
         // let a key-dropping bridge pass.
         frames: <T,>(channel: string) =>
@@ -62,8 +62,8 @@ vi.mock('../actor-state-unit', async (importOriginal) => {
           ),
         emit: vi.fn(),
         state$: new BehaviorSubject<string>('open').asObservable(),
-        // Required by ActorStateUnit since SSE-AUTH-RESILIENCE P2; the
-        // transport bridges it into its own errors$ at construction (P4).
+        // Required by ActorStateUnit, where a refused connect surfaces; the
+        // transport bridges it into its own errors$ at construction.
         errors$: new Subject<unknown>().asObservable(),
         addChannels: actorHarness.addChannels,
         removeChannels: actorHarness.removeChannels,
@@ -418,7 +418,7 @@ describe('HttpTransport — HTTP wire shape', () => {
       expect(actorHarness.removeChannels.mock.calls.length - removeBefore).toBe(1);
     });
 
-    // ── MULTI-RESOURCE-SCOPE Step 6: distinct resources COMPOSE ──────────
+    // ── Distinct resources COMPOSE ───────────────────────────────────────
 
     test('different-resource subscriptions compose — no throw, independent per-scope lifecycles', () => {
       const otherResourceId = resourceId('other-resource');

@@ -19,11 +19,10 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
-// session is one stack's live credential: the stored tokens and the policy
+// Session is one stack's live credential: the stored tokens and the policy
 // that keeps them working. Every verb's wire call — bus or REST — runs under
-// authorized, so the renewal happens in one place. Before it did, only
-// `yield --upload` carried the retry, and every bus verb told the user to log
-// in again the moment a five-minute access token expired.
+// Authorized, so the renewal happens in one place and no verb tells the user
+// to log in again the moment a five-minute access token expires.
 type Session struct {
 	u     *UI
 	key   string // token/stack key: "local" or "codespace:<repo>"
@@ -139,7 +138,7 @@ func (s *Session) expired() bool {
 	return !s.entry.ExpiresAt.IsZero() && time.Now().After(s.entry.ExpiresAt)
 }
 
-// authorized runs one wire call under the session's access token and keeps
+// Authorized runs one wire call under the session's access token and keeps
 // it authorized: a token the store knows is expired is renewed BEFORE the
 // call, and a call the gateway answers with 401 earns one renewal and one
 // retry under the renewed token. Never more than one renewal per call — a
@@ -207,21 +206,21 @@ func RejectedFail(u *UI, verb string, rej *SessionRejected) int {
 }
 
 // VerbTarget is what every knowledge verb needs: which stack, its gateway
-// base URL, and a session that keeps itself authorized. One
-// place, because nine verbs asking the same questions nine different ways is
-// how they drift. Refusals are printed here with their fix-it lines; ok=false
-// means stop.
+// base URL, and a session that keeps itself authorized.
 type VerbTarget struct {
 	base string // gateway base URL (local record, or a codespace's forward)
 	sess *Session
 }
 
-// transport is the bus transport a verb talks through: the seam's client
+// Transport is the bus transport a verb talks through: the seam's client
 // under the session's renew-and-retry policy.
 func (t VerbTarget) Transport() bus.Transport {
 	return &sessionTransport{base: t.base, sess: t.sess}
 }
 
+// VerbSession resolves a verb's target in one place, because nine verbs asking
+// the same questions nine different ways is how they drift. Refusals are
+// printed here with their fix-it lines; ok=false means stop.
 func VerbSession(u *UI, verb, repo string, wantLocal bool) (VerbTarget, bool) {
 	ss := LoadStackSet()
 	target, ok := SelectVerbStack(u, verb, ss, repo, wantLocal)

@@ -193,7 +193,6 @@
     "statusConnected": "เชื่อมต่อแล้ว",
     "statusExpired": "เซสชันหมดอายุ",
     "statusSignedOut": "ออกจากระบบแล้ว",
-    "statusUnreachable": "เข้าถึงไม่ได้",
     "invalidHost": "ชื่อโฮสต์ไม่ถูกต้อง",
     "discoveredTitle": "พบในเครื่องนี้",
     "managedBadge": "จัดการโดย launcher",

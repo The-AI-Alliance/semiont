@@ -4,7 +4,7 @@
  * W3C Web Annotation: highlighting motivation
  *
  * This file defines all styles for highlight annotations
- * across text, panels, and image annotations.
+ * across text and panels.
  */
 
 /* ============================================
@@ -98,10 +98,6 @@
 }
 
 /* ============================================
-   Assist Section in Unified Panel
-   ============================================ */
-
-/* ============================================
    Button Styling
    ============================================ */
 .semiont-button[data-variant="assist"][data-type="highlight"] {
@@ -134,11 +130,3 @@
   outline: 2px solid var(--semiont-motivation-highlight-dark-primary);
   outline-offset: 2px;
 }
-
-/* ============================================
-   Image Annotation Overlays
-   ============================================ */
-
-/* ============================================
-   Highlight-specific Visual Elements
-   ============================================ */

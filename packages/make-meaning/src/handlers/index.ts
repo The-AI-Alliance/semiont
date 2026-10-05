@@ -4,10 +4,10 @@
  * `browse:annotation-context-requested`, `gather:summary-requested`) to the
  * underlying make-meaning pipeline (Stower, Browser, Gatherer).
  *
- * These ran in `apps/gateway` historically because the HTTP gateway was
- * the only consumer that needed them. They are not HTTP-specific — moving
- * them here means `LocalTransport` consumers (and any future transport)
- * get the same contract automatically.
+ * They are not transport-specific: each registers on the bus of the process
+ * that holds the actor it serves — all four in the in-process root
+ * (`registerBusHandlers`), three in the Archivist, the summary handler in the
+ * Librarian — so every transport's callers get the same contract.
  */
 
 import type { EventBus, EventMap, Logger } from '@semiont/core';
@@ -37,8 +37,7 @@ export const HANDLER_CHANNELS = [
   'mark:create-request', 'mark:added', 'mark:create-failed',
   // annotation-lookups
   'browse:annotation-context-requested', 'gather:summary-requested',
-  // bind-update-body — Archivist-resident now, but the in-process root still
-  // registers it, so it is listed here.
+  // bind-update-body
   'bind:update-body', 'mark:body-updated', 'mark:body-update-failed',
 ] as const satisfies readonly (keyof EventMap)[];
 

@@ -1,5 +1,5 @@
 /**
- * A1 anchor thread (HEADLESS-ANNOTATION-PANELS Phase 3) — image overlay pin.
+ * The click's anchor rectangle — image overlay pin.
  *
  * The overlay's shape elements own their on-screen geometry: a click passes
  * the element's viewport rect as browse.click's second argument so hosts can

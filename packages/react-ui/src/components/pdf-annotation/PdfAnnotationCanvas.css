@@ -29,12 +29,12 @@
 /* stylelint-enable semiont/accessibility */
 
 /*
- * The scrolling column (PDF-CONTINUOUS-SCROLL S1). Every page owns a slot so
- * the scrollbar reflects the whole document; only pages near the viewport are
- * mounted, and an unmounted slot holds its space with an estimated height set
- * inline. `max-height` is what makes this a scroll container at all — without
- * it the column grows to its content and the page scrolls instead, which
- * still works but defeats the windowing.
+ * The scrolling column. Every page owns a slot so the scrollbar reflects the
+ * whole document; only pages near the viewport are mounted, and an unmounted
+ * slot holds its space with an estimated height set inline. `max-height` is
+ * what makes this a scroll container at all — without it the column grows to
+ * its content and the page scrolls instead, which still works but defeats the
+ * windowing.
  */
 /*
  * Viewport = the pages plus their strip, side by side. The strip LEADS — it
@@ -276,7 +276,7 @@
   text-align: center;
 }
 
-/* D2: the Annotate gate's hint while the Smelter has not settled the map. */
+/* The Annotate gate's hint while the Smelter has not settled the map. */
 .semiont-pdf-annotation-canvas__map-pending {
   margin: 0.25rem auto;
   padding: 0.25rem 0.75rem;

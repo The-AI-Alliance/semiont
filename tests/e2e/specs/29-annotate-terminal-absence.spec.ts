@@ -1,17 +1,16 @@
 /**
  * A TERMINAL anchored-text absence still annotates — geometry-only, no hint.
  *
- * ANNOTATE-DEFERS-ON-NOT-YET D2: Annotate defers on `not-yet` **and only on
- * `not-yet`**. For terminal absences (`no-map`, `unknown`, a stored decline)
- * geometry-only annotation IS the feature — nothing better will ever exist for
- * that resource, and deferring would remove spatial annotation from image-like
- * media entirely.
+ * Annotate defers on `not-yet` **and only on `not-yet`**. For terminal
+ * absences (`no-map`, `unknown`, a stored decline) geometry-only annotation IS
+ * the feature — nothing better will ever exist for that resource, and
+ * deferring would remove spatial annotation from image-like media entirely.
  *
  * `Scanned Smoke PDF` is the terminal case with no race in it: the Smelter
  * stores `declined: no-text-layer` once, permanently, so the answer is settled
  * before this test ever opens the page. That is deliberate — the `not-yet` half
- * of P5 is a timing race against OCR and does not belong in a release gate
- * until a fixture exists that can lose that race reliably.
+ * is a timing race against OCR, and no fixture loses that race reliably, so it
+ * does not belong in a release gate.
  *
  * The canvas publishes its own state as `data-annotate-deferred`, so this
  * asserts the FLAG and the consequence, not just the consequence: a test that
@@ -57,7 +56,7 @@ test.describe('annotate on a terminal anchored-text absence', () => {
   }) => {
     await openScannedInAnnotateMode(page);
 
-    // D2, the flag itself: a stored decline is terminal, so nothing defers.
+    // The flag itself: a stored decline is terminal, so nothing defers.
     await expect(page.locator(CANVAS)).toHaveAttribute('data-annotate-deferred', 'false', {
       timeout: 15_000,
     });

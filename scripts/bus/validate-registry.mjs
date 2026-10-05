@@ -4,10 +4,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // Registry-level invariants for specs/src/bus/registry.json.
 //
-// The bus's classification rules used to live only in TypeScript, where
-// `satisfies` clauses caught violations at `tsc` time. They still do — but
-// only AFTER generation, pointing at a generated file rather than at the line
-// you actually typed, and only for the properties TypeScript can express.
+// TypeScript's `satisfies` clauses catch violations of the bus's
+// classification rules at `tsc` time — but only AFTER generation, pointing
+// at a generated file rather than at the line you actually typed, and only
+// for the properties TypeScript can express.
 // These assertions run at the source, in the language-neutral layer, so the
 // error names the registry entry and applies to every generated language.
 //
@@ -21,17 +21,15 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
  * editors that touch this file disagree about which to write: `JSON.stringify`
  * emits an em-dash as the literal character; Python's `json.dumps` escapes that
  * same character to the six ASCII bytes `\u2014`. Both round-trip losslessly, so
- * a one-line semantic change lands as a whole-file re-encoding. It happened on
- * PR #1127: a diff of +132/-65 whose real content was +68/-1 — roughly half
- * the lines were the same characters respelled.
+ * a one-line semantic change can land as a whole-file re-encoding, most of
+ * its diff the same characters respelled.
  *
  * That is not cosmetic here. This file is the bus AUTHORITY, the file two
  * concurrent branches are most likely to touch at once, and a re-encoding
  * conflicts on nearly every line while hiding the change under review.
  *
  * The canonical form is what `JSON.stringify(reg, null, 2)` produces, plus a
- * trailing newline: the repo's own generators are JS, and the committed file
- * already matches it byte-for-byte, so adopting it costs no diff.
+ * trailing newline: the repo's own generators are JS.
  */
 export function validateRegistryFormat(raw) {
   const canonical = `${JSON.stringify(JSON.parse(raw), null, 2)}\n`;
@@ -108,12 +106,9 @@ export function validateRegistry(reg) {
 
   // ── the two crossing axes: kind and audience ────────────────────────────
   //
-  // How a channel crosses the wire is DECLARED, never defaulted. The classes
-  // these replace were honest one at a time and dishonest as a set:
-  // `bridgedBroadcasts` meant both "crosses as fan-out" and "every default
-  // client auto-subscribes", `outboundCommands` held three shapes under one
-  // label, and `inProcess` said "never crosses" for channels delivered to
-  // browsers per resource scope every day.
+  // How a channel crosses the wire is DECLARED, never defaulted, and on two
+  // axes: one class for both would have to mean "crosses as fan-out" and
+  // "every default client auto-subscribes" at once.
   //
   // `kind` is the wire-crossing shape (operation | command | event) and is
   // spelled `kind` rather than `shape` because `channels[]` entries already
@@ -206,10 +201,10 @@ export function validateRegistry(reg) {
   // does not arise for them.
   //
   // Every member names one side and there is no default, because the gateway
-  // reads this to decide whether an emit was an ACT. A channel that fell
+  // reads this to decide whether an emit was an ACT, and it publishes a
+  // person's verified name when that person acts. A channel that fell
   // through would read as "not an act" and quietly stop the record from ever
-  // learning that person's name (PERSON-PROFILE D3) — the same silent shape
-  // as the direction fallthrough that starved every worker.
+  // learning that person's name.
   const emittable = new Set([...reg.operations.map((op) => op.request), ...(reg.kind?.command ?? [])]);
   const effectOf = new Map();
   for (const side of ['writes', 'reads']) {
@@ -253,18 +248,17 @@ export function validateRegistry(reg) {
   // ── a payload is stated in a form every language can read ───────────────
   // A channel says what it carries by its `shape`, and by the component
   // schema or stored event that shape names. Every SDK generates its payload
-  // type from that. The entry used to carry the TypeScript type as a `ts`
-  // string as well, and 34 `custom` channels carried nothing else, so no
-  // other language could type them.
+  // type from that; a payload stated only as a TypeScript type is one no
+  // other language can type.
   //
-  // `tsRefinement` is what remains of it: TypeScript narrowing a schema's
+  // `tsRefinement` is TypeScript narrowing a schema's
   // type (a branded id for a string, a DOM rectangle, a callback). It never
   // states the payload; the generated code holds each one to its schema's
   // type, so a refinement that is not a narrowing fails to compile.
   //
   // A stored event's payload is a schema too. Which payload belongs to which
-  // event, and which events belong to no resource (`system`), were a
-  // hand-written TypeScript catalog; they are the entry's now.
+  // event, and which events belong to no resource (`system`), are the entry's
+  // to say.
   const SHAPES = {
     schema: 'a component schema',
     envelope: '`{ response }` around a component schema',

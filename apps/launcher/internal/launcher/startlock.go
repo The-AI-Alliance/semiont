@@ -1,13 +1,12 @@
 package launcher
 
-// startlock.go — one `semiont start` per KB root at a time
-// (bugs/codespace-issuer-move-races-post-start.md P1).
+// startlock.go — one `semiont start` per KB root at a time.
 //
 // Two starts on one root interleave destructively: each one's preflight sweeps
 // containers the other is about to use, and each recreates what the other
-// removed. Live 2026-09-29, a codespace's post-start and the laptop's issuer
-// move did exactly that, and the stack ended half on each issuer port. The
-// second start now waits for the first, then runs its own whole sequence.
+// removed — a codespace's post-start against the laptop's issuer move leaves
+// the stack half on each issuer port. The second start waits for the first,
+// then runs its own whole sequence.
 //
 // A lock (filelock.go) on a file in the root's state dir: held for the
 // process's life and released by the kernel when it exits, crashes included,
@@ -24,8 +23,8 @@ import (
 )
 
 // startLockBudget bounds how long a start waits for another on the same root.
-// A fresh codespace's first start pulls several GB of models; ten minutes was
-// not enough live, so the bound is generous. It exists so a wedged start cannot
+// A fresh codespace's first start pulls several GB of models; ten minutes is
+// not enough, so the bound is generous. It exists so a wedged start cannot
 // hold a waiter forever.
 const startLockBudget = 30 * time.Minute
 

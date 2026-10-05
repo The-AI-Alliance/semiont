@@ -1,6 +1,7 @@
 package launcher
 
-// custodystore_op.go — the 1Password custody store (SECRETS-STORE P2).
+// custodystore_op.go — the 1Password custody store, a custodyBackend like the
+// file one.
 
 import (
 	"bytes"
@@ -12,9 +13,9 @@ import (
 )
 
 // opBackend: one 1Password Secure Note per KB root, in the vault the root's
-// store names, with one concealed field per custody name (SECRETS-STORE D2,
-// D6). The commands are the ones SECRETS-STORE's P0 probe ran against the
-// real CLI. Every value travels on stdin, never on the command line.
+// store names, with one concealed field per custody name. The commands are
+// the ones a probe of the real CLI ran and saw answered. Every value travels
+// on stdin, never on the command line.
 //
 // The item is read once and kept in memory, so a start costs one list and one
 // `item get` (0.6s), where twelve `op read`s took ~7s. A write re-reads it

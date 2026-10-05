@@ -1,10 +1,11 @@
 /**
- * Per-service transport channel sets (narrowed SSE subscription — the
- * worker-OOM fix, 2026-09-03, extended to the make-meaning services).
+ * Per-service transport channel sets — the narrowed SSE subscription of each
+ * make-meaning service.
  *
  * Each service's HttpTransport subscribes exactly what it consumes: the
  * smelter and weaver the reply channels of the operations they await, the
- * librarian and archivist their inbound request/signal rosters. These pins
+ * librarian and archivist their inbound request/signal rosters (the
+ * librarian's with the reply channels of the one read it awaits). These pins
  * are census gates: grow a roster (or add a `busRequest` call site) and the
  * exact-set assertion fails, forcing the subscription change to be
  * acknowledged here rather than drifting silently. The runtime backstop is
@@ -78,7 +79,7 @@ describe('librarian transport channels', () => {
     ]);
   });
 
-  it('subscribes no operation reply channel — the global reply fan-out that OOMed the worker', () => {
+  it('subscribes no operation reply channel — never the global reply fan-out', () => {
     for (const op of Object.values(BUS_OPERATIONS)) {
       expect(LIBRARIAN_INBOUND_CHANNELS).not.toContain(op.result);
       expect(LIBRARIAN_INBOUND_CHANNELS).not.toContain(op.failure);
@@ -95,7 +96,7 @@ describe('librarian transport channels', () => {
 describe('archivist transport channels', () => {
   it('subscribes exactly its inbound roster', () => {
     expect([...ARCHIVIST_INBOUND_CHANNELS].sort()).toEqual([
-      // The bind re-emit followed the Stower it drives (EXTRACT-JOBS D2).
+      // The bind re-emit registers beside the Stower it drives, so the exchange is local.
       'bind:update-body',
       'browse:agents-requested',
       'browse:anchored-text-requested',
@@ -137,7 +138,7 @@ describe('archivist transport channels', () => {
     ]);
   });
 
-  it('subscribes no operation reply channel — the global reply fan-out that OOMed the worker', () => {
+  it('subscribes no operation reply channel — never the global reply fan-out', () => {
     for (const op of Object.values(BUS_OPERATIONS)) {
       expect(ARCHIVIST_INBOUND_CHANNELS).not.toContain(op.result);
       expect(ARCHIVIST_INBOUND_CHANNELS).not.toContain(op.failure);
@@ -150,7 +151,7 @@ describe('archivist transport channels', () => {
     }
   });
 
-  it('the outbound pump carries the strays — replies whose operation is keyed under a gateway handler channel', () => {
+  it('the outbound pump carries the strays — replies no registered operation names', () => {
     for (const stray of ARCHIVIST_OUTBOUND_STRAYS) {
       expect(ARCHIVIST_OUTBOUND_CHANNELS).toContain(stray);
     }

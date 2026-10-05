@@ -1,6 +1,7 @@
 /**
- * SemiontBrowser — unit tests for the registry, D2 setActiveKb contract,
- * and open-resources CRUD. Mocks SemiontClient so no HTTP/SSE is needed.
+ * SemiontBrowser — unit tests for the registry, the setActiveKb disposal
+ * contract, and open-resources CRUD. Mocks SemiontClient so no HTTP/SSE is
+ * needed.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
@@ -15,18 +16,16 @@ vi.mock('../../client', async () => {
   const { Subject } = await import('rxjs');
   class MockSemiontApiClient {
     dispose = mockDispose;
-    actor = { state$: { subscribe: () => ({ unsubscribe: () => {} }) } };
-    eventBus = { get: () => ({ next: () => {}, subscribe: () => ({ unsubscribe: () => {} }) }) };
     // Mirrors the `ITransport` errors$ contract enough for the
     // SemiontBrowser → signals routing tests to push test errors through.
     transport = (() => {
       const errorsSubject = new Subject();
       return { errorsSubject, errors$: errorsSubject.asObservable() };
     })();
-    // TABS-REVALIDATE P3: validation reads descriptors through `browse`.
-    // `.fresh()` is the one-shot read (CACHE-CONTRACT D2 deleted the
-    // `await`able surface), and it REJECTS on failure — which is how a
-    // `not-found` verdict reaches the tab policy at all.
+    // Tab revalidation reads descriptors through `browse`. `.fresh()` is the
+    // one-shot read (a live query is not `await`able), and it REJECTS on
+    // failure — which is how a `not-found` verdict reaches the tab policy at
+    // all.
     // The identity check and sign-in read what the KB says of itself.
     browse = {
       resource: (id: string) => ({ fresh: () => mockResourceFresh(id) }),
@@ -114,7 +113,7 @@ beforeEach(() => {
     input instanceof Request && new URL(input.url).pathname === '/api/users/me'
       ? whoIs(input)
       : fetchMock(input instanceof Request ? input.url : input, init));
-  // Default: a read that gets no answer — D3's "no verdict", which leaves
+  // Default: a read that gets no answer — "no verdict", which leaves
   // state alone and hands off to the per-resource pass. Deliberately not a
   // matching answer: that would be per-KB, and a fixed one silently trips the
   // identity check the moment a test activates a different KB.
@@ -145,7 +144,7 @@ describe('SemiontBrowser — registry singleton', () => {
   });
 });
 
-describe('SemiontBrowser — identity token (D1)', () => {
+describe('SemiontBrowser — identity token', () => {
   it('setIdentityToken updates identityToken$', async () => {
     const browser = makeBrowser();
     expect(browser.identityToken$.getValue()).toBeNull();
@@ -176,13 +175,12 @@ describe('SemiontBrowser — KB list', () => {
   });
 
   it("round-trips a KB's did through registration and storage (identity survives a reload)", async () => {
-    // The did is what a client joins discovered KBs to connected ones on
-    // (.plans/KB-IDENTITY-VS-ADDRESS.md). It is captured once at auth time
-    // from the KB's own /api/status, so if registration or the storage
-    // round-trip dropped it the join would silently never match — the
-    // failure mode this whole plan exists to end. Pinned here because
-    // `isKnowledgeBase` validates required fields only: a future rewrite
-    // that normalizes entries could quietly strip optional identity.
+    // The did is what verifies that the copy reached at an address is the KB
+    // an entry names. It is read once, at sign-in, from what the KB says of
+    // itself (`browse.kb()`), and it is required: an entry that lost it in
+    // registration or in the storage round-trip would not load at all.
+    // Pinned here because `loadKnowledgeBases` rebuilds each entry field by
+    // field, and a field left out of that projection is gone after a reload.
     const DID = 'did:web:the-ai-alliance.github.io:semiont-caselaw-kb';
     const browser = makeBrowser();
     const kb = browser.addKb(
@@ -204,12 +202,12 @@ describe('SemiontBrowser — KB list', () => {
     await reloaded.dispose();
   });
 
-  it('drops a stored KB that predates the did requirement, rather than loading one without identity', async () => {
-    // Decision 8 made `did` required; entries persisted before it have none.
-    // Loading them would satisfy the type only by lying — the identity join
-    // would compare against `undefined` and silently never match. Per the
-    // storage stance (no back-compat layer) they drop and the user re-adds:
-    // a one-time list clear, in exchange for every loaded KB actually having
+  it('drops a stored KB that has no did, rather than loading one without identity', async () => {
+    // `did` is required. Loading an entry stored without one would satisfy
+    // the type only by lying — the identity join would compare against
+    // `undefined` and silently never match. The storage format has no
+    // back-compat layer, so such entries drop and the user re-adds: a
+    // one-time list clear, in exchange for every loaded KB actually having
     // the identity its type promises.
     storage.set(STORAGE_KEY, JSON.stringify([
       { id: 'legacy', label: 'Pre-did KB', email: 'a@example.com', endpoint: KB_A.endpoint },
@@ -267,7 +265,7 @@ describe('SemiontBrowser — KB list', () => {
   });
 });
 
-describe('SemiontBrowser — setActiveKb (D2 disposal contract)', () => {
+describe('SemiontBrowser — setActiveKb (disposal contract)', () => {
   it('emits null on activeSession$ BEFORE the new session is constructed', async () => {
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
     seedStoredSession(storage, KB_B.id, freshJwt(), 'r');
@@ -363,7 +361,7 @@ describe('SemiontBrowser — setActiveKb (D2 disposal contract)', () => {
 describe('SemiontBrowser — open resources (KB-scoped)', () => {
   // Tabs are per-KB state; the visible list is a projection of the ACTIVE,
   // CONNECTED KB (gate: activeSession$ non-null). Storage is the durable
-  // per-KB record; removeKb reaps it; the legacy flat key is ignored.
+  // per-KB record; removeKb reaps it; a flat `openDocuments` key is ignored.
 
   /** KB_A + KB_B registered with stored sessions; KB_A active and live. */
   async function makeConnectedBrowser() {
@@ -429,7 +427,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await browser.dispose();
   });
 
-  // ── TABS-REVALIDATE-ON-RESTORE P3 ──────────────────────────────────
+  // ── Restored tabs are revalidated ──────────────────────────────────
   // A tab is a claim about a KB, and a claim is checked against the KB.
   // The list projects immediately from storage; every entry is confirmed or
   // dropped once there is a session to ask.
@@ -464,7 +462,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await browser.dispose();
   });
 
-  it('KEEPS a tab whose check fails for any reason other than not-found (D2)', async () => {
+  it('KEEPS a tab whose check fails for any reason other than not-found', async () => {
     // The test that must never be weakened into "any failure removes". Wiping
     // tabs because the archivist was briefly down is worse than phantoms.
     seedTabs('peer', 'boom', 'slow');
@@ -483,7 +481,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await browser.dispose();
   });
 
-  it('refreshes a validated tab name and mediaType from the descriptor (D3)', async () => {
+  it('refreshes a validated tab name and mediaType from the descriptor', async () => {
     seedTabs('r1');
     mockResourceFresh.mockImplementation(async () => ({
       '@id': 'r1',
@@ -535,7 +533,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
   });
 
   it('a removal survives a sibling context\'s concurrent write, and the sibling tab survives too', async () => {
-    // The cross-tab case (D11). Another context writes the whole map while
+    // The cross-tab case. Another context writes the whole map while
     // validation is in flight; neither side may lose its change.
     seedTabs('gone', 'kept');
     let release: () => void = () => {};
@@ -564,9 +562,9 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await browser.dispose();
   });
 
-  it('two contexts each adding a tab do not lose one (D11 — older than this plan)', async () => {
-    // Nothing to do with validation: `mutateOpenResources` used to write from
-    // its in-memory copy, so whichever context wrote last erased the other.
+  it('two contexts each adding a tab do not lose one', async () => {
+    // Nothing to do with validation: were `mutateOpenResources` to write from
+    // its in-memory copy, whichever context wrote last would erase the other.
     const browser = await makeConnectedBrowser();
     browser.addOpenResource('mine', 'Mine');
 
@@ -583,7 +581,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await browser.dispose();
   });
 
-  // ── KB-IDENTITY-CHECKED-ON-ACTIVATION P1 ───────────────────────────
+  // ── KB identity is checked on activation ───────────────────────────
   // A registry entry claims a particular KB answers at a particular address.
   // Addresses get reused. The claim is checked once there is a session to ask
   // — and the did is read in ONE direction only: differs → act, matches →
@@ -604,7 +602,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
   const readMap = (key: string) =>
     JSON.parse(storage.get(key) ?? '{}') as Record<string, unknown>;
 
-  it('a KB reporting a DIFFERENT did voids that KB\'s tabs and last-viewed (D2)', async () => {
+  it('a KB reporting a DIFFERENT did voids that KB\'s tabs and last-viewed', async () => {
     seedKbScopedState();
     mockKb = async () => ({ name: 'Other KB', domain: 'someone-else.github.io:other-kb' });
 
@@ -613,7 +611,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
     expect(browser.openResources$.getValue()).toEqual([]);
     expect(browser.lastViewedResource$.getValue()).toBeNull();
-    // The tab list empties through the write funnel (D7), which maps a list to
+    // The tab list empties through the write funnel, which maps a list to
     // a list — so the key remains with an empty list. The last-viewed entry has
     // no funnel and is dropped outright. Both are "no claim about contents";
     // the shapes differ because the write paths do.
@@ -638,7 +636,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await browser.dispose();
   });
 
-  it('a matching did changes nothing — a match is not evidence about contents (D1)', async () => {
+  it('a matching did changes nothing — a match is not evidence about contents', async () => {
     seedKbScopedState();
     mockKb = async () => ({ name: KB_A.label, domain: 'example.github.io:kb-a' });
     const browser = await makeConnectedBrowser();
@@ -650,7 +648,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await browser.dispose();
   });
 
-  it('NO VERDICT is not a mismatch — three absences, three assertions (D3)', async () => {
+  it('NO VERDICT is not a mismatch — three absences, three assertions', async () => {
     // The guard that must never be weakened. Losing a user's tabs because the
     // gateway was briefly down is strictly worse than the phantoms this fixes.
     for (const [label, arrange] of [
@@ -673,7 +671,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     }
   });
 
-  it('leaves the registry entry exactly as the user wrote it (D4)', async () => {
+  it('leaves the registry entry exactly as the user wrote it', async () => {
     // Adopting the observed did would erase the only evidence a substitution
     // happened, and sign the user in to a KB they never chose under the name
     // of one they did. Re-registering is a deliberate act.
@@ -801,7 +799,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await browser.dispose();
   });
 
-  it('a mismatch stops the per-resource pass — those answers would be about the wrong KB (D5)', async () => {
+  it('a mismatch stops the per-resource pass — those answers would be about the wrong KB', async () => {
     seedKbScopedState();
     mockKb = async () => ({ name: 'Other KB', domain: 'someone-else.github.io:other-kb' });
 
@@ -814,17 +812,16 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
   });
 
   /**
-   * A transport-level 401 routes through REFRESH, never straight to the modal
-   * (found live 2026-09-14: an undismissable "Session Expired — HTTP 401"
-   * that survived hard reloads).
+   * A transport-level 401 routes through REFRESH, never straight to the modal.
    *
-   * The old wire raised the session-ended notice on any single
-   * `unauthorized` transport error. Two failure modes, both traps: a request
-   * losing the refresh race 401s while the session heals a beat later —
-   * modal over a healthy session, on every load; and a truly dead session
-   * hit the modal WITHOUT `clearStoredSession`, so every reload restored the
-   * corpse and re-armed it — and both modal buttons navigate, into the same
-   * loop. Routing into `session.refresh()` covers both: success is silence;
+   * Raising the session-ended notice on any single `unauthorized` transport
+   * error has two failure modes, both traps: a request losing the refresh
+   * race 401s while the session heals a beat later — modal over a healthy
+   * session, on every load; and a truly dead session reaches the modal
+   * WITHOUT `clearStoredSession`, so every reload restores the corpse and
+   * re-arms it — and both modal buttons navigate, into the same loop: an
+   * undismissable "Session Expired — HTTP 401" that survives hard reloads.
+   * Routing into `session.refresh()` covers both: success is silence;
    * exhaustion runs the session's own teardown — storage cleared, the modal
    * fired once with the session's own reason.
    */
@@ -867,10 +864,10 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     });
 
     it('a 401 with NO stored credentials is not an expiry: no modal, no teardown theater', async () => {
-      // The field loop of 2026-09-14, second act: activeKnowledgeBaseId
-      // persists forever, so every load activates the KB signed-out; the
-      // actor connects with a null token, 401s, and refresh() -- with
-      // NOTHING to refresh -- declared "session expired" anyway. You cannot
+      // activeKnowledgeBaseId persists forever, so every load activates the
+      // KB signed-out; the actor connects with a null token and 401s, and
+      // refresh() has NOTHING to refresh. Declaring "session expired" there
+      // would re-arm the modal on every load. You cannot
       // expire a session that never existed: the signed-out shell is the
       // correct and sufficient UX, and the modal must stay silent.
       storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
@@ -889,7 +886,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
       await browser.dispose();
     });
 
-    it("forbidden still routes to permission-denied, with the refusal's message as its detail", async () => {
+    it("forbidden routes to permission-denied, with the refusal's message as its detail", async () => {
       const browser = await makeConnectedBrowser();
       const signals = browser.activeSignals$.getValue()!;
 
@@ -963,7 +960,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await browser.dispose();
   });
 
-  it('ignores the legacy flat openDocuments key entirely', async () => {
+  it('ignores a flat openDocuments key entirely', async () => {
     storage.set('openDocuments', JSON.stringify([{ id: 'old', name: 'Old', openedAt: 1 }]));
     const browser = await makeConnectedBrowser();
     expect(browser.openResources$.getValue()).toEqual([]);
@@ -975,7 +972,6 @@ describe('SemiontBrowser — last viewed resource (KB-scoped)', () => {
   // "Which resource was I last looking at" is per-KB state, exactly like the
   // tabs it sits beside. Held globally it sends the /know landing redirect
   // into the PREVIOUS KB's resource after a switch — a guaranteed 404.
-  // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
 
   async function makeConnectedBrowser() {
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
@@ -1183,11 +1179,10 @@ describe('SemiontBrowser — performRefresh (the refresh grant at the issuer)', 
 });
 
 // ──────────────────────────────────────────────────────────────────────
-// Sign-in through the issuer a KB trusts (EXTERNAL-IDENTITY P4): the
-// browser discovers the issuer, hands the host a URL, and on return
-// exchanges the code, asks the KB who it is and who the user is, and
-// registers or re-authenticates. The issuer is a fetch stub; the KB is the
-// mocked client.
+// Sign-in through the issuer a KB trusts: the browser discovers the issuer,
+// hands the host a URL, and on return exchanges the code, asks the KB who it
+// is and who the user is, and registers or re-authenticates. The issuer is a
+// fetch stub; the KB is the mocked client.
 // ──────────────────────────────────────────────────────────────────────
 
 describe('SemiontBrowser — sign-in through the issuer', () => {
@@ -1241,8 +1236,8 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
     expect(outcome.kb).not.toHaveProperty('gitBranch');
     // Who signed in is the session's to report, read from the verified token.
     // A copy on the KB record would be a second answer to that question, and
-    // the one that goes stale — it is what showed a previous run's address on
-    // a card nobody had signed into.
+    // the one that goes stale: it would show an earlier sign-in's address on
+    // a card nobody has signed into.
     expect(outcome.kb).not.toHaveProperty('email');
     expect(outcome.expected).toBeUndefined();
     expect(browser.kbs$.getValue()).toHaveLength(1);
@@ -1281,10 +1276,10 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
 
     expect(outcome.kb.id).toBe(KB_A.id);
     expect(outcome.kb).toMatchObject({ label: 'KB A' });
-    // The seeded record carries `email: 'old@example.com'` from a release that
-    // cached one. It must not come back out: a stored address from whoever
-    // last used this browser is exactly what surfaced under a KB card as the
-    // account someone was about to sign in as.
+    // The seeded record carries `email: 'old@example.com'`, as one written by
+    // a release that cached it does. It must not come back out: a stored
+    // address from whoever last used this browser would surface under a KB
+    // card as the account someone is about to sign in as.
     expect(outcome.kb).not.toHaveProperty('email');
     expect(outcome.expected).toEqual({ did: KB_A.did, name: 'Old name' });
     expect(browser.kbs$.getValue()).toHaveLength(1);
@@ -1563,10 +1558,9 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
   });
 
   it('routes 401 from transport.errors$ through refresh; exhaustion tears the session down properly', async () => {
-    // Re-sourced 2026-09-14: this pinned the old direct wire (401 → modal,
-    // raw message, storage intact) — the exact behavior that produced an
-    // undismissable reload-surviving modal in the field. The APIError-shaped
-    // push stays; the contract it pins is now refresh-then-teardown.
+    // The contract pinned is refresh-then-teardown. A direct wire (401 →
+    // modal, raw message, storage intact) is an undismissable modal that
+    // survives reloads.
     const { APIError } = await import('@semiont/http-transport');
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));

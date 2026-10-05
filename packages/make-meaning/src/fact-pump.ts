@@ -1,27 +1,27 @@
 /**
  * The fact pump: every persisted event the Archivist appends is republished
- * onto the gateway bus so projectors see it live (EXTRACT-ARCHIVIST D5).
+ * onto the gateway bus, once global and once resource-scoped, so projectors
+ * and scoped clients see it live.
  *
- * Extracted from `archivist-main`'s composition root by ARCHIVIST-STAYS-UP P5.
- * It was three inline statements there, which meant the one component whose
- * backlog is the leading suspect for load-correlated heap growth
- * (`bugs/absent-archivist-wedges-browse.md`) could not be tested or measured
- * at all.
+ * A unit of its own, apart from `archivist-main`'s composition root, so it can
+ * be tested and measured: its backlog is the leading suspect for
+ * load-correlated heap growth, and an Archivist that reaches Node's default
+ * heap ceiling dies and leaves every browse request waiting with no reply.
  *
- * **Ordering is load-bearing and preserved.** Events drain one at a time, in
+ * **Ordering is load-bearing.** Events drain one at a time, in
  * arrival order, because a projector applying `mark:added` before the
  * `yield:created` it belongs to would materialize a view from an event whose
  * subject does not exist yet. Only the two emits WITHIN one event run
  * together — they are independent by construction, and serialising them
- * doubled the drain time per event for nothing.
+ * would double the drain time per event for nothing.
  *
- * **The backlog is deliberately unbounded, for now.** Bounding it means
+ * **The backlog is deliberately unbounded.** Bounding it means
  * choosing what to discard on overflow, and a discarded fact leaves that
  * projector stale until its NEXT RESTART — catch-up is a startup pass in both
  * `smelter-main` (`reconcile()`) and `weaver-main`, not a continuous repair.
- * A projection silently days out of date is the same class of defect as the
- * silent 202 this plan exists to remove. So: measure first. `depth()` is what
- * makes that possible; the policy follows the number, not the other way round.
+ * A projection silently days out of date is the same class of defect as a
+ * silent 202 for a request nobody will answer. `depth()` makes the backlog
+ * measurable; a bound follows from that number, not the other way round.
  */
 
 import { from, concatMap, tap, type Observable, type Subscription } from 'rxjs';

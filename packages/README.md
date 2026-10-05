@@ -2,7 +2,7 @@
 
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/branch/main/graph/badge.svg)](https://codecov.io/gh/The-AI-Alliance/semiont)
 
-Modular packages for the Semiont platform. For the layered design, dependency graph, and architectural principles that organize them, see **[docs/system/PACKAGE-ARCHITECTURE.md](../docs/system/PACKAGE-ARCHITECTURE.md)**.
+Modular packages for the Semiont platform. For the layered design, dependency graph, and architectural principles that organize them, see **[docs/architecture/PACKAGE-ARCHITECTURE.md](../docs/architecture/PACKAGE-ARCHITECTURE.md)**.
 
 ## Published Packages
 
@@ -25,7 +25,7 @@ Modular packages for the Semiont platform. For the layered design, dependency gr
 
 ## Getting Started
 
-See [Package Development Guide](./docs/DEVELOPMENT.md) for detailed development instructions, guidelines, and philosophy.
+To work on these packages, start at the contributor's [orientation](../docs/contributor/README.md): building and running a change, testing it, and [adding a package](../docs/contributor/README.md#adding-a-package).
 
 ## License
 

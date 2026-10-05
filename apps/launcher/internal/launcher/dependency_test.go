@@ -7,10 +7,9 @@ import (
 	"testing"
 )
 
-// LAUNCHER-SERVICE-MODEL P2. The start order used to be three lists that
-// disagreed: a call sequence in flowFullStart, a preflight sweep, a teardown
-// sweep, and a prose comment describing a fourth. There is now ONE order and
-// a set of edges it must respect.
+// Service dependencies are data: there is ONE start order and a set of edges
+// it must respect. The preflight and teardown sweeps derive from it, and
+// flowFullStart's call sequence is checked against it.
 
 // The edges are the contract; the order is one legal reading of it. This is
 // the test that says so, and the one that fails if somebody moves a role
@@ -56,7 +55,7 @@ func TestStartOrderIsExactlyTheDescriptorRoles(t *testing.T) {
 	}
 }
 
-// D4: the teardown order is never written down. It is this, and only this.
+// The teardown order is never written down. It is this, and only this.
 func TestTeardownIsTheStartWalkReversed(t *testing.T) {
 	if len(teardownOrder) != len(startOrder) {
 		t.Fatalf("teardown covers %d roles, the start walk %d", len(teardownOrder), len(startOrder))
@@ -68,11 +67,10 @@ func TestTeardownIsTheStartWalkReversed(t *testing.T) {
 	}
 }
 
-// The teardown order, spelled out. It is not what shipped before P2: the old
-// hand-written list tore the Archivist down FIRST, ahead of the weaver,
-// smelter and worker that dial it at every request — a list calling itself
-// "reverse start order" while putting a dependency ahead of its dependents.
-// Reversing the start walk cannot make that mistake.
+// The teardown order, spelled out. It is derived rather than hand-written: a
+// hand-written list can tear the Archivist down ahead of the weaver, smelter
+// and worker that dial it at every request — a dependency ahead of its
+// dependents. Reversing the start walk cannot make that mistake.
 func TestStopSweepDerivesTheTeardownOrder(t *testing.T) {
 	assertNames(t, "stopNames", stopNames, []string{
 		"semiont-weaver", "semiont-smelter", "semiont-worker",
@@ -93,9 +91,10 @@ func TestPreflightSweepDerivesTheTeardownOrder(t *testing.T) {
 	})
 }
 
-// A requirement is the subset of edges a config cannot leave unanswered
-// (O1). Today exactly one driver has one, and the refusal derivePlan raises
-// is rendered FROM it — so this is the only home for the sentence.
+// A requirement is the subset of edges a config cannot leave unanswered: a
+// driver requires a role the config declares, it never invents one. Exactly
+// one driver has one, and the refusal derivePlan raises is rendered FROM it —
+// so this is the only home for the sentence.
 func TestOnlyKeycloakRequiresARoleItCannotRunWithout(t *testing.T) {
 	var got []string
 	for _, d := range serviceDescriptors {
@@ -153,11 +152,11 @@ func TestOrderingEdgesDoNotRefuse(t *testing.T) {
 // in the exact order a real run would issue it. Each container maps back to
 // its role, and those roles must appear in startOrder's relative order.
 //
-// This is what keeps startOrder from becoming a fourth statement of the
-// order nobody checks — the failure mode P2 exists to end. It reaches into
-// the root package's testdata deliberately: the goldens are the only place
-// the flow's real sequence is written down. P4 makes the flow walk the list
-// directly and this test becomes a tautology worth deleting.
+// This is what keeps startOrder from becoming one more statement of the
+// order nobody checks — the failure mode one declared order exists to end.
+// It reaches into the root package's testdata deliberately: the goldens are
+// the only place the flow's real sequence is written down. Were the flow to
+// walk the list directly, this test would become a tautology worth deleting.
 func TestDryRunLaunchOrderFollowsTheDeclaredStartOrder(t *testing.T) {
 	for _, golden := range []string{
 		"start-dryrun-default.txt",
@@ -187,7 +186,7 @@ func TestDryRunLaunchOrderFollowsTheDeclaredStartOrder(t *testing.T) {
 		}
 		for i := 1; i < len(launched); i++ {
 			if startRank(launched[i-1]) >= startRank(launched[i]) {
-				t.Errorf("%s brings up %q before %q; the declared start order has them the other way round — the flow and the list disagree, which is the drift P2 removed",
+				t.Errorf("%s brings up %q before %q; the declared start order has them the other way round — the flow and the list disagree, which is the drift one declared order exists to end",
 					golden, launched[i-1], launched[i])
 			}
 		}
@@ -210,7 +209,7 @@ func TestEveryPlanRowNamesItsRole(t *testing.T) {
 	}
 }
 
-// The authority the code already draws, asserted rather than described: a
+// The authority the code draws, asserted rather than described: a
 // service we run is ours; a host Ollama may be configured within; an
 // external PostgreSQL and an issuer somebody else runs may only be watched.
 func TestAuthorityMatchesTheLinesTheCodeDraws(t *testing.T) {

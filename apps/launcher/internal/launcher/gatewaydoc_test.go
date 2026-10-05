@@ -217,9 +217,9 @@ func TestGatewayDocumentResolvesTheIssuerPort(t *testing.T) {
 }
 
 // An external daemon's credential is the config's reference, resolved by the
-// shared rule where the launcher itself needs the value (SECRET-DELIVERY P4,
-// D1 "A's resolver for ones it doesn't"): a launcher-run Keycloak dials an
-// external PostgreSQL with the resolved password, never the reference's text.
+// shared rule where the launcher itself needs the value: a launcher-run
+// Keycloak dials an external PostgreSQL with the resolved password, never the
+// reference's text.
 func TestExternalCredentialResolvesByTheSharedRule(t *testing.T) {
 	got, err := externalCredential("database.password", "${EXT_PG_PASSWORD}", []string{"--env", "EXT_PG_PASSWORD=pgsecret"})
 	if err != nil || got != "pgsecret" {

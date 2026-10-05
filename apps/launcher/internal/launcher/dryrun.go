@@ -16,8 +16,8 @@ func renderCmd(rt string, args ...string) string {
 }
 
 // renderStartPlan is the --dry-run output: the same full-start flow walked
-// in plan mode. This is the legibility replacement for reading the old bash —
-// and the extraction seam for the stack-parity gate. It takes the REAL kb
+// in plan mode. This is the legible account of what a start runs — and the
+// extraction seam for the stack-parity gate. It takes the REAL kb
 // root: paths derivable at plan time (the per-root state dir) print as
 // truth; the kb mount still renders "<kb-root>" via val(), the seam for
 // values the flow treats as runtime-scoped.

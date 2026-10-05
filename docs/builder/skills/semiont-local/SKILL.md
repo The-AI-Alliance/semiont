@@ -6,85 +6,91 @@ user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
 ---
 
-You are helping a user get Semiont running locally. The `semiont` launcher is a single static binary
-that drives their container runtime and pulls the published service images. No source checkout and no
-Node.js are required.
+You are helping a user get Semiont running on their own machine. The `semiont` launcher is a single static binary that drives their container runtime and pulls the published service images. It needs no source checkout and no Node.js.
 
-## Prerequisites
+## What they need
 
-- **Container runtime** — Apple Container, Docker, or Podman. Check with `container --version`,
-  `docker --version`, or `podman --version`.
-- **Homebrew** — to install the launcher.
-- **Inference** — either `ANTHROPIC_API_KEY` (cloud) or [Ollama](https://ollama.com/) (local, no key).
-
-No credentials to set by hand: `semiont start` generates and persists each service account's
-secret per KB root, and imports the matching clients into the realm on first boot.
+- **A container runtime**: Apple Container, Docker or Podman. The launcher detects which. Check with `container --version`, `docker --version` or `podman --version`.
+- **The launcher**: from Homebrew on macOS and Linux. On Windows, the [GitHub Release](https://github.com/The-AI-Alliance/semiont/releases) carries a zip holding `semiont.exe`; see [Semiont on Windows](../../../operator/platforms/WINDOWS.md).
+- **Inference**: an [Anthropic](https://www.anthropic.com/) key, or [Ollama](https://ollama.com/) for a model that runs on the machine and needs no key.
 
 ## Fastest path
 
 ```bash
 brew install the-ai-alliance/semiont/semiont
-
-# In a new directory: create a knowledge base
-semiont init
-
-# Pick an inference config and bring the stack up
-semiont start --list-configs
-semiont start --config anthropic
 ```
 
-Then open the URL `semiont start` prints. To use an existing KB instead of creating one, clone it and
-run `semiont start` from inside it.
+With Anthropic, register where the key comes from. The launcher stores the pointer, never the key, and reads it at every start. Exporting `ANTHROPIC_API_KEY` in the shell works too, and wins over a registered pointer.
+
+```bash
+semiont settings secret set ANTHROPIC_API_KEY op://YourVaultName/Anthropic/credential
+```
+
+Create a knowledge base in a new directory. `--domain` is its permanent identity, stamped into its event log, and has no default. Use `--inference ollama` for the local model.
+
+```bash
+mkdir my-kb && cd my-kb
+semiont init --yes --domain example.com:my-kb --inference anthropic
+```
+
+Start the stack, then create a person who can sign in:
+
+```bash
+semiont start
+```
+
+```bash
+semiont useradd --email you@example.com
+```
+
+`useradd` prompts for the password. Open **http://localhost:3000**: the Browser lists the knowledge bases the launcher runs, and signing in happens at the knowledge base's identity provider.
+
+To run a knowledge base that already exists, clone it and run `semiont start` from inside it.
+
+For the launcher's own verbs (`semiont browse`, `semiont mark`, `semiont yield --upload`), sign the launcher in once:
+
+```bash
+semiont login
+```
 
 ## Common operations
 
-All run from the knowledge-base directory:
+Run each from the knowledge base's directory.
 
-```bash
-semiont status                    # container state + per-service health
-semiont logs                      # follow service logs
-semiont logs --service gateway    # one service
-semiont stop                      # tear the stack down
-semiont clean                     # remove persistent stack state (Postgres/Qdrant/Neo4j)
-semiont useradd --email you@example.com --generate-password
-```
+| Command | What it does |
+|---|---|
+| `semiont status` | Each service's container state and health |
+| `semiont logs` | Follow the services' logs |
+| `semiont logs --service gateway` | One service's log |
+| `semiont stop` | Take the stack down; its data stays |
+| `semiont start --service gateway` | Restart one service |
+| `semiont start --dry-run` | Print what a start would run, and run nothing |
+| `semiont clean` | Delete the stack's stores; the knowledge base's own directory is untouched |
+| `semiont settings` | Every setting the launcher keeps, and where each came from |
 
-Run `semiont <command> --help` for a command's options, and `semiont --help` for the full verb list.
+`semiont --help` lists every verb, and `semiont <verb> --help` its options.
 
-## Service ports
+## Where things are
 
-| Service | URL |
-|---------|-----|
-| Browser | http://localhost:3000 |
-| Gateway API | http://localhost:4000 |
+| Address | What answers |
+|---|---|
+| http://localhost:3000 | The Browser, one for every knowledge base on the machine |
+| http://localhost:4000 | The knowledge base's gateway, which scripts and SDKs connect to |
 
-## Key file locations
+| Path in the knowledge base | Contents |
+|---|---|
+| `.semiont/config` | The knowledge base's name and its permanent `did:web` identity (committed) |
+| `.semiont/events/` | The event log, which is the record of the knowledge base (committed) |
+| `.semiont/semiontconfig/<name>.toml` | A stack configuration: inference, graph, vectors, identity (committed; `--config` selects one) |
 
-| Path | Contents |
-|------|----------|
-| `.semiont/config` | Project anchor: KB name and permanent `did:web` identity (committed) |
-| `.semiont/events/` | The event log — the system of record (committed) |
-| `.semiont/semiontconfig/<name>.toml` | Environment config: inference provider, database, graph/vector drivers (committed; `--config` selects one) |
-
-Service logs go to stdout (`semiont logs`); durable service data lives in container volumes the
-launcher manages.
+Everything derived from the event log (the database, the graph, the vectors, the job queue) is kept outside the knowledge base, in a directory the launcher keeps for it. `semiont status --verbose` lists those directories and their sizes. The secrets the launcher generates for a stack are kept there too, or in 1Password when `semiont settings secret-store` names a vault.
 
 ## Guidance for the AI assistant
 
-- **Check prerequisites first.** The most common failures are a missing container runtime, no
-  inference key, and a knowledge base whose config lacks a complete `[identity]` section
-  (`type`, `issuer`, `subjectClaim`) — the gateway and sidecars refuse to boot, naming the
-  missing key.
-- **`semiont status` is the diagnostic command.** If something isn't working after `start`, run it to
-  see which service is unhealthy, then `semiont logs --service <name>`.
-- **Config lives in the KB, at `.semiont/semiontconfig/<name>.toml`.** If inference or the database
-  isn't working, inspect the config the stack was started with first —
-  `semiont start --list-configs` shows the presets a KB ships. (`~/.semiontconfig` is only the path
-  that file is mounted at *inside* each container; there is no such file on the host to edit.)
-- **Restart after config changes** — `semiont stop && semiont start`. There is no separate provision
-  step.
-- **The KB directory is a git repo.** Resource files, `.semiont/config`, and `.semiont/events/` are
-  committed; secrets never are.
-- **Never suggest installing `semiont` from npm.** The `semiont` command comes from Homebrew only.
-  A long-deprecated npm package also installed a `semiont` bin; if `which semiont` does not resolve
-  to the brew copy, that leftover is shadowing the launcher.
+- **Check what they need first.** The usual failures are a container runtime that is not running, and an inference key the start cannot read.
+- **`semiont status` is the first diagnostic.** It names the service that is unhealthy; `semiont logs --service <name>` says why.
+- **Configuration is in the knowledge base**, at `.semiont/semiontconfig/<name>.toml`. `semiont start --list-configs` shows the ones it has. Inside a container the file is mounted at `~/.semiontconfig`; there is no such file on the host to edit.
+- **A change of configuration takes a restart**: `semiont stop`, then `semiont start`.
+- **The knowledge base is a git repository.** Its resources, `.semiont/config` and `.semiont/events/` are committed. Secrets never are.
+- **`semiont` comes from Homebrew or the GitHub Release, never from npm.** If `which semiont` resolves to an npm install, that copy is shadowing the launcher: uninstall it.
+- **Going further.** [Running a local stack](../../../operator/LOCAL-SEMIONT.md) covers ports, the Browser and local-network access; [Configuration](../../../operator/administration/CONFIGURATION.md) covers the config file; [Troubleshooting](../../../operator/administration/TROUBLESHOOTING.md) covers what goes wrong.

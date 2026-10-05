@@ -50,8 +50,7 @@ const tomlReader = {
   readIfExists: (p: string): string | null => existsSync(p) ? readFileSync(p, 'utf-8') : null,
 };
 // Environment resolved by the loader from `[defaults] environment`
-// (no project root here — global ~/.semiontconfig only). Was hardcoded 'local',
-// which read the wrong section for any non-local KB the container stages.
+// (no project root here — global ~/.semiontconfig only).
 const envConfig = createTomlConfigLoader(
   tomlReader,
   configPath,
@@ -97,10 +96,11 @@ if (!clientId || !clientSecret) {
 /** This process's account. The agent DIDs it buys are per (provider, model). */
 const credential = { issuer: issuerUrl, clientId, clientSecret };
 
-// Bytes come from the Archivist, not the gateway (SINGLE-KB-MOUNT P4).
-// Resolved at module scope so a worker with no Archivist address — or no
-// service-account credential to show it — dies here, while an operator is
-// watching, rather than failing every detection job for the life of the process.
+// Bytes come from the Archivist, not the gateway: the Archivist alone mounts
+// the knowledge base's tree. Resolved at module scope so a worker with no
+// Archivist address — or no service-account credential to show it — dies here,
+// while an operator is watching, rather than failing every detection job for
+// the life of the process.
 const contentReads = archivistContentReads(envConfig, credential);
 const healthPort = 24100;
 
@@ -152,7 +152,8 @@ async function main() {
   // Supervised, but with no writable /semiont-state: `supervise.sh` keeps its
   // event log in /tmp and exports the resolved path. That is enough for the
   // LIVE count — the container does not exit when the child restarts — and
-  // only surviving container teardown would need a mount (F2, declined).
+  // only surviving container teardown would need a mount, which was declined:
+  // the death record does not outlive the container.
   registerSupervisorRestartCount();
 
   logger.info('Starting agents', {

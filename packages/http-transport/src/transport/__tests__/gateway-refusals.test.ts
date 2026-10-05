@@ -1,11 +1,11 @@
 /**
- * A refused client backs off by the gateway's clock, not its own
- * (GATEWAY-LIMITS P5). A 429 or 503 from a limit carries `Retry-After`: an
- * emit refused 429 waits at least that long before its retry, and rejects
- * `rate-limited` with the wait once its budget is spent; a refused stream
- * connect waits at least that long before trying again; and reconnects asked
- * for while a connect is still in flight open one more stream, not one each —
- * the overlap a principal's stream limit counts stays bounded.
+ * A refused client backs off by the gateway's clock, not its own. A 429 or
+ * 503 from a limit carries `Retry-After`: an emit refused 429 waits at least
+ * that long before its retry, and rejects `rate-limited` with the wait once
+ * its budget is spent; a refused stream connect waits at least that long
+ * before trying again; and reconnects asked for while a connect is still in
+ * flight open one more stream, not one each — the overlap a principal's
+ * stream limit counts stays bounded.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createActorStateUnit } from '../actor-state-unit';

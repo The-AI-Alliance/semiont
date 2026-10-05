@@ -57,7 +57,7 @@
   color: var(--semiont-color-gray-600);
 }
 
-/* Dark mode status variants - Fixed to respect data-theme attribute */
+/* Dark mode status variants */
 [data-theme="dark"] .semiont-status-display[data-status="success"] {
   background-color: rgba(59, 130, 246, 0.1);
   color: var(--semiont-color-blue-300);
@@ -104,12 +104,12 @@
   animation: semiont-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Dark mode for UserMenuSkeleton - Fixed to respect data-theme attribute */
+/* Dark mode for UserMenuSkeleton */
 [data-theme="dark"] .semiont-user-menu-skeleton {
   background-color: var(--semiont-color-neutral-700);
 }
 
-/* ===== TIER 2 - CORE UI COMPONENTS ===== */
+/* ===== CORE UI COMPONENTS ===== */
 
 /* Toolbar Component */
 .semiont-toolbar {
@@ -118,12 +118,12 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem; /* gap-2 from main */
-  padding: 0.75rem 0; /* py-3 from main */
+  gap: 0.5rem; /* gap-2 */
+  padding: 0.75rem 0; /* py-3 */
   background-color: var(--semiont-bg-secondary);
   border-left: 1px solid var(--semiont-color-gray-200);
   flex-shrink: 0;
-  overflow: visible; /* FIXED: Don't clip toolbar buttons at top */
+  overflow: visible; /* Don't clip toolbar buttons at top */
 }
 
 .semiont-toolbar-button {
@@ -156,15 +156,15 @@
 }
 
 .semiont-toolbar-icon {
-  font-size: 1.5rem; /* 24px - was xl/1.25rem */
+  font-size: 1.5rem; /* 24px */
 }
 
 .semiont-toolbar-icon-large {
-  font-size: 1.875rem; /* 30px - was 2xl/1.5rem */
+  font-size: 1.875rem; /* 30px */
   font-weight: var(--semiont-font-bold);
 }
 
-/* Dark mode for Toolbar - Fixed to respect data-theme attribute */
+/* Dark mode for Toolbar */
 [data-theme="dark"] .semiont-toolbar {
   background-color: var(--semiont-bg-secondary);
   border-left-color: var(--semiont-color-gray-700);
@@ -209,7 +209,7 @@
   font-size: var(--semiont-text-xs);
 }
 
-/* Editing affordances (RESOURCE-TAGS-INLINE-EDITING) */
+/* Editing affordances: a remove control on each tag, and the add picker */
 .semiont-resource-tag__remove {
   display: inline-flex;
   align-items: center;
@@ -245,7 +245,7 @@
   margin-top: var(--semiont-spacing-xs);
 }
 
-/* Dark mode for ResourceTagsInline - Fixed to respect data-theme attribute */
+/* Dark mode for ResourceTagsInline */
 [data-theme="dark"] .semiont-resource-tags-inline {
   border-top-color: var(--semiont-color-neutral-700);
 }
@@ -432,8 +432,6 @@
 [data-theme="dark"] .semiont-async-error-retry:hover {
   color: var(--semiont-color-amber-300);
 }
-
-/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
 
 /* An editable tag carries a remove affordance; the base tag is read-only. */
 .semiont-resource-tag--editable {

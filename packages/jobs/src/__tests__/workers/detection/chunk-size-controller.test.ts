@@ -1,8 +1,7 @@
 /**
- * Adaptive chunk sizing (DETECTION-QUALITY-THROUGHPUT P2) — controller unit
- * tests. The plan's RED: grows on sparse output, backs off on dense/truncated,
- * never leaves [floor, ceiling], tracks a gradient rather than betting the run
- * on the first sample.
+ * Adaptive chunk sizing — controller unit tests. What is pinned: it grows on
+ * sparse output, backs off on dense/truncated, never leaves [floor, ceiling],
+ * and tracks a gradient rather than betting the run on the first sample.
  *
  * The controller steers ONE number — output utilization — and leans on
  * subdivision for the hard bounds, so these are all about that one steer.
@@ -77,7 +76,7 @@ describe('nextChunkSize', () => {
   it('holds when the provider reported no usage — absent is not zero', () => {
     // `usage` is optional on the inference interface and BOTH shipped clients
     // emit it conditionally. Reading its absence as zero output would put
-    // utilization at 0%%, i.e. below `growBelow`, i.e. grow — every chunk, all
+    // utilization at 0%, i.e. below `growBelow`, i.e. grow — every chunk, all
     // the way to the ceiling, having measured nothing at all. The sizer moves
     // on evidence or it does not move.
     expect(nextChunkSize({ truncated: false }, 1_000, BOUNDS)).toBe(1_000);

@@ -19,7 +19,7 @@
  * is one whose license field may not cover all it ships, and metadata cannot
  * say. NATIVE records what each such crate compiles in, read from its source;
  * a linked crate with `links` that NATIVE does not describe fails the check, and
- * so does an entry for a crate no longer linked.
+ * so does an entry for a crate that is not linked.
  *
  * Usage (the Rust CI job runs it), over a directory holding both:
  *   cargo metadata --format-version 1 --locked > <dir>/metadata.json

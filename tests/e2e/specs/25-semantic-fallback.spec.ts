@@ -1,18 +1,16 @@
 import { test, expect } from '@playwright/test';
 import { SemiontClient, resourceId as ridBrand } from '@semiont/sdk';
 import type { ResourceDescriptor } from '@semiont/core';
-import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
- * Live gate — SEMANTIC-FALLBACK.md: when a lexical search returns nothing, the
+ * Live gate — semantic fallback: when a lexical search returns nothing, the
  * server embeds the query once and answers from the vector index instead.
  *
  * Pure **SDK round-trip** (no browser), per the spec-15/18 pattern.
  *
- * That used to be forced: `matchKind` had no consumer, so a semantic answer was
- * indistinguishable from a lexical one and there was nothing rendered to
- * assert. **No longer true as of P3b** — `ResourceDiscoveryPage` renders a
+ * No browser by choice, not for want of something rendered:
+ * `ResourceDiscoveryPage` renders a
  * notice for a semantic result set, pinned by its own component test. What this
  * spec adds is the other half: that the label arriving over the real wire says
  * `semantic` for a semantic answer and `lexical` for a lexical one. A browser
@@ -31,16 +29,17 @@ import { signInSession } from '../fixtures/sdk-session';
  *   3. The answer survives the **whole wire** — Smelter → vector store →
  *      `ResourceContext.semanticFallback` → bus → HTTP → SDK.
  *   4. The **matched passage** reaches the caller as `content` (the honesty gap
- *      the plan closes: results advertise a content preview though lexical
+ *      the fallback closes: results advertise a content preview though lexical
  *      search never reads content).
  *
  * ── Why this is near-deterministic, not model-dependent ────────────────────
  *
- * **Lexical search is name-only** — `SEARCH_LIMIT = 20, filtered by name`
- * (`fixtures/discover.ts`; SEARCH-STORAGEURI.md §4 records that the content body
- * is never searched). So a query drawn from a resource's BODY, whose tokens
- * appear nowhere in its NAME, returns zero lexical hits by construction. Any
- * result at all can only have come from the fallback.
+ * **Lexical search never reads the body** — every term must appear in a
+ * resource's name, storage URI or entity types
+ * (`packages/graph/src/resource-query.ts`, which Neo4j expresses in Cypher).
+ * So a query drawn from a resource's BODY, whose tokens appear in none of
+ * those, returns zero lexical hits by construction. Any result at all can only
+ * have come from the fallback.
  *
  * That is what makes the assertion sound without `matchKind`: we are not asking
  * an embedding model to be clever, only to retrieve a passage that literally
@@ -52,35 +51,37 @@ import { signInSession } from '../fixtures/sdk-session';
  * - **S1 (a non-empty lexical result never embeds).** The assertion is an
  *   absence — `expect(embed).not.toHaveBeenCalled()` — which is exact under a
  *   mock and would need log-scraping here. It stays a unit test.
- * - **S3/S4 (vectors or provider absent → empty lexical page).** The branch is
- *   defensive and stays load-bearing until MANDATORY-EMBEDDING.md lands, but
- *   every real KB is deployed with a vector store, so there is no live
- *   configuration for an e2e to exercise.
+ * - **S3/S4 (vectors or provider absent → empty lexical page).** A vector
+ *   store and an embedding provider are mandatory — a config missing either
+ *   is refused — so the case cannot arise and there is no configuration for
+ *   an e2e to exercise.
  * - **The 0.6 floor's value.** Tuning is what the per-fallback score-distribution
  *   debug line is for; a test that pinned a threshold would have to change every
- *   time the floor is tuned, which is the opposite of what the plan wants.
+ *   time the floor is tuned, which defeats the point of a tunable floor.
  */
 
 /** Unique per run: the e2e KB persists, and seeding is not idempotent. */
 const STAMP = `${Date.now().toString(36)}`;
 
 /**
- * The name shares NO token with `BODY_QUERY` below — that disjointness is the
- * whole mechanism. Keep it topic-free if you edit it.
+ * The name shares NO token with `BODY_QUERY` below, and neither does the
+ * storage URI in `beforeAll` — that disjointness is the whole mechanism. Keep
+ * both topic-free if you edit them.
  */
 const RESOURCE_NAME = `Ledger Entry ${STAMP}`;
 
 /**
- * A phrase that appears verbatim in the body and nowhere in the name.
- * Lexical search (name-only) cannot match it; the vector index can.
+ * A phrase that appears verbatim in the body and nowhere in the name or the
+ * storage URI. Lexical search never reads the body, so it cannot match it; the
+ * vector index can.
  */
 const BODY_QUERY = 'chlorophyll absorbs light within the thylakoid membrane';
 
 /**
  * Leading boilerplate exists so T3 can prove `content` is the MATCHED PASSAGE
  * rather than the document's opening 200 characters. Same technique as spec
- * 21's #738 clip test: make the naive answer and the correct answer visibly
- * different, so a regression produces a failure rather than a coincidence.
+ * 21's clip test: make the naive answer and the correct answer visibly
+ * different, so a defect produces a failure rather than a coincidence.
  */
 const BOILERPLATE =
   'This record is filed for archival purposes. The remainder of this document is ' +
@@ -140,7 +141,7 @@ test.describe.serial('semantic fallback answers what lexical search cannot', () 
   /**
    * T2 — the lexical control, first because it is also the freshness gate.
    *
-   * If this fails, the resource never landed and T1's empty result would be
+   * If this fails, the resource never arrived and T1's empty result would be
    * indistinguishable from "the fallback is broken". Ordering makes the
    * diagnosis unambiguous rather than requiring a second debugging pass.
    */
@@ -159,28 +160,28 @@ test.describe.serial('semantic fallback answers what lexical search cannot', () 
   });
 
   /**
-   * T1 — the product claim. A query drawn from the body, sharing no token with
-   * any resource name, can only be answered by the fallback.
+   * T1 — the product claim. A query drawn from the body, whose tokens appear in
+   * no resource's name, storage URI or entity types, can only be answered by
+   * the fallback.
    */
   test('a body-only phrase returns the resource that discusses it', async () => {
     // Poll for THIS resource, not for a non-empty page.
     //
-    // `.length > 0` was the original predicate and it is a trap: the KB holds
+    // `.length > 0` as the predicate is a trap: the KB holds
     // other resources, the fallback returns its best matches for any query, so
     // "some result exists" is satisfied on the first attempt — before the
     // Smelter has indexed the resource this spec just created. The poll then
     // exits immediately and the assertion below fails on a document that would
-    // have been found a few seconds later. Measured 2026-08-15: failed in
-    // 128ms against a 120s budget that never ran.
+    // have been found a few seconds later.
     //
-    // The rule this cost us: a poll predicate must be the SAME condition as
+    // The rule: a poll predicate must be the SAME condition as
     // the assertion it is waiting for, or it is waiting for the wrong thing.
     await expect
       .poll(async () => (await semanticSearch(client)).some((r) => r['@id'] === rid), {
         timeout: INDEXING_TIMEOUT,
         message:
-          'a phrase present only in the BODY must retrieve the resource; lexical search is ' +
-          'name-only, so nothing but the semantic fallback could produce this hit',
+          'a phrase present only in the BODY must retrieve the resource; lexical search ' +
+          'never reads the body, so nothing but the semantic fallback could produce this hit',
       })
       .toBe(true);
 
@@ -190,7 +191,7 @@ test.describe.serial('semantic fallback answers what lexical search cannot', () 
   });
 
   /**
-   * T3 — the honesty gap the plan closes. `content` on a semantic hit is the
+   * T3 — the honesty gap the fallback closes. `content` on a semantic hit is the
    * passage that matched, not `addContentPreviews`' first-200-characters slice.
    */
   test('the content field carries the matched passage, not the opening preview', async () => {
@@ -213,10 +214,11 @@ test.describe.serial('semantic fallback answers what lexical search cannot', () 
   });
 
   /**
-   * T4 — the label, end to end (SEMANTIC-FALLBACK S11 / P3b). The UI's notice is
-   * only as honest as the value it renders, and every layer between the vector
-   * store and the SDK could mislabel it. Asserted in BOTH directions: a
-   * one-sided check passes against a producer hardcoding `'semantic'`.
+   * T4 — the label, end to end (axiom S11: a semantic result set renders
+   * distinguishably from a lexical one). The UI's notice is only as honest as
+   * the value it renders, and every layer between the vector store and the SDK
+   * could mislabel it. Asserted in BOTH directions: a one-sided check passes
+   * against a producer hardcoding `'semantic'`.
    */
   test('the answer is labelled by how it was produced', async () => {
     await expect

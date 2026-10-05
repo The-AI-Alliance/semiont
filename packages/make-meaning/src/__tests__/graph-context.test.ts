@@ -28,7 +28,7 @@ describe('GraphContext', () => {
     weaveProgress: mockWeaveProgress as KnowledgeGraphReads['weaveProgress'],
   };
 
-  describe('buildKnowledgeGraph (CONTEXT-UNIFICATION P2)', () => {
+  describe('buildKnowledgeGraph', () => {
     const mainDoc = { '@id': 'res-main', name: 'Main', entityTypes: ['Paper'] };
     const peerDoc = { '@id': 'res-peer', name: 'Peer', entityTypes: ['Author'] };
 
@@ -55,7 +55,7 @@ describe('GraphContext', () => {
       ).rejects.toThrow('Resource not found');
     });
 
-    it('includes annotation nodes, not just resources (D2)', async () => {
+    it('includes annotation nodes, not just resources', async () => {
       setup({
         annotations: [
           { id: 'ann-1', motivation: 'commenting', body: [] },
@@ -71,7 +71,7 @@ describe('GraphContext', () => {
       expect(graph.nodes.every((n) => n.type === 'resource' || n.type === 'annotation')).toBe(true);
     });
 
-    it('emits an inbound citation as its linking annotation: an embedded node anchored by annotation-of + cites (D12)', async () => {
+    it('emits an inbound citation as its linking annotation: an embedded node anchored by annotation-of + cites', async () => {
       const citing = { id: 'ann-cite', motivation: 'linking', target: { source: 'res-citing' }, body: [] };
       setup({
         referencedBy: [citing],
@@ -82,7 +82,7 @@ describe('GraphContext', () => {
 
       // citing resource is still a node...
       expect(graph.nodes.find((n) => n.id === 'res-citing')).toMatchObject({ type: 'resource', label: 'Citing Paper' });
-      // ...the linking annotation is the citation's graph presence, embedded whole (D11)...
+      // ...the linking annotation is the citation's graph presence, embedded whole...
       expect(graph.nodes.find((n) => n.id === 'ann-cite')).toMatchObject({ type: 'annotation', label: 'linking', annotation: citing });
       // ...anchored to its citing resource and to the focal resource
       expect(graph.edges).toContainEqual({ source: 'ann-cite', target: 'res-citing', type: 'annotation-of' });
@@ -113,13 +113,13 @@ describe('GraphContext', () => {
 
       expect(graph.nodes.find((n) => n.id === 'ann-sib')).toMatchObject({
         type: 'annotation',
-        annotation: { id: 'ann-sib', motivation: 'commenting' }, // embedded whole (D11)
+        annotation: { id: 'ann-sib', motivation: 'commenting' }, // embedded whole
       });
       expect(graph.edges).toContainEqual({ source: 'ann-sib', target: 'res-main', type: 'annotation-of' });
     });
   });
 
-  describe('projection-lag grace (GRAPH-PROJECTION-SYNC P1)', () => {
+  describe('projection-lag grace', () => {
     const mainDoc = { '@id': 'res-main', name: 'Main', entityTypes: [] };
 
     it('retries the graph read while the view has the resource, and succeeds once the Weaver catches up', async () => {
@@ -185,7 +185,7 @@ describe('GraphContext', () => {
     });
   });
 
-  describe('applied-offset barrier (GRAPH-PROJECTION-SYNC P2, D2 = push)', () => {
+  describe('applied-offset barrier', () => {
     const mainDoc = { '@id': 'res-main', name: 'Main', entityTypes: [] };
 
     it('awaits weave:applied parity and re-reads once — zero backoff polls', async () => {

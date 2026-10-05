@@ -1,15 +1,14 @@
 /**
- * P3 (RESOURCE-LEVEL-ANCHOR) — `mark.annotation` forwards a *selector-less*
- * (whole-resource) target into `mark:create-request` unchanged.
+ * A whole resource is a legal annotation target: `mark.annotation` forwards a
+ * *selector-less* (whole-resource) target into `mark:create-request` unchanged.
  *
- * The selector-required gate was removed in the schema (P1 — `CreateAnnotationRequest`
- * now `$ref`s `AnnotationTarget`, selector optional) and in core assembly (P2 —
- * `assembleAnnotation` no longer throws when no selector is present). `mark.annotation`
- * itself has no selector logic — it only reads `target.source` for routing and forwards
- * `request` verbatim — so this is a behavioral PIN that the relaxation reaches the SDK
- * emit path: no selector injected, none required. It also pins that a *selectored*
- * target still passes through unchanged, i.e. `mark.annotation` is selector-agnostic
- * both ways. (No SDK code change in P3; the type relaxation landed in P1.)
+ * A selector is optional in the schema (`CreateAnnotationRequest` `$ref`s
+ * `AnnotationTarget`) and in core assembly (`assembleAnnotation` accepts a target
+ * with no selector). `mark.annotation` itself has no selector logic — it only reads
+ * `target.source` for routing and forwards `request` verbatim — so this is a
+ * behavioral PIN that the optional selector holds on the SDK emit path: no selector
+ * injected, none required. It also pins that a *selectored* target passes through
+ * unchanged, i.e. `mark.annotation` is selector-agnostic both ways.
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
@@ -36,10 +35,9 @@ function makeTransport() {
     transport,
     // Replies are pushed through the SAME typed bus the transport streams
     // from, so a fixture that is not the channel's declared payload is a
-    // compile error rather than something the transport's cast used to hide.
-    // A push verb, not a handle. The old helper returned the channel's
-    // Subject so a test could write through it; `on` is read-only by design,
-    // and the write path is `emit`.
+    // compile error rather than something a cast on the transport hides.
+    // A push verb, not a handle: `on` is read-only by design, and the write
+    // path is `emit`.
     push: <K extends keyof EventMap>(channel: K, payload: EventMap[K], correlationId?: string) =>
       bus.emit(channel, payload, { correlationId }),
     getLastChannel: () => lastChannel,
@@ -84,7 +82,7 @@ describe('mark.annotation — selector-less (whole-resource) target', () => {
     expect(await promise).toEqual({ annotationId: 'ann-1' });
   });
 
-  it('still forwards a target WITH a selector unchanged (selector-agnostic both ways)', async () => {
+  it('forwards a target WITH a selector unchanged (selector-agnostic both ways)', async () => {
     const { mark, push, getLastPayload, getLastCorrelationId } = makeMark();
     const input: CreateAnnotationInput = {
       motivation: 'commenting',

@@ -8,8 +8,7 @@ import (
 )
 
 // No boot the launcher's goldens record puts a secret value on a container's
-// command line, where any process on the machine can read it with ps
-// (SECRET-DELIVERY P6, D3: "keep secret values off the command line"). A value
+// command line, where any process on the machine can read it with ps. A value
 // rides argv only when onCommandLine allows its name; every other value crosses
 // through the runtime's own environment.
 func TestGoldensCarryNoSecretValue(t *testing.T) {

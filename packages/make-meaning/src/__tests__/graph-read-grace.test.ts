@@ -1,14 +1,15 @@
 /**
- * resourceWithViewGrace Tests (bugs/graph-read-after-write-coverage.md, P1/P2)
+ * resourceWithViewGrace Tests
  *
  * The shared single-resource read-after-write grace for graph consumers:
  * graph-first, VIEW-fallback. When an id-keyed descriptor read misses the
  * graph but the resource exists in the view, the caller is racing the
  * Weaver's apply — and the view is the FRESHER projection, already holding
  * the full descriptor these call sites need. No waiting, no retry loops.
- * This is the "third instance" shared helper GRAPH-PROJECTION-SYNC
- * anticipated (its P1 retry stays exclusive to buildKnowledgeGraph, which
- * needs the node IN the graph for traversal).
+ * One helper is shared by every such hydration: the references reply's
+ * citers and the matcher's neighbourhood and semantic-match candidates. The
+ * bounded graph-read retry stays exclusive to buildKnowledgeGraph, which
+ * needs the node IN the graph for traversal.
  */
 
 import { describe, it, expect, vi } from 'vitest';

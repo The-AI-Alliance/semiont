@@ -50,7 +50,7 @@ async function browseResources(semiont: SemiontClient, args: any) {
 
 **Key Benefits:**
 - **Type-Safe**: Full TypeScript types from OpenAPI specification
-- **Common Client**: Same client used by demo scripts and other external consumers
+- **Common Client**: The same `SemiontClient` every other SDK consumer uses
 - **No Duplication**: Reuses authentication, retry logic, and error handling
 - **Maintainable**: Changes to the API client benefit all consumers
 
@@ -77,12 +77,14 @@ Both are required — the process exits at startup if either is missing.
 existing account, so a fresh stack needs one created first:
 
 ```bash
-semiont useradd --email you@example.com
-semiont login --email you@example.com     # password read from stdin
+semiont useradd --email you@example.com   # password read from stdin
+semiont login                             # prints a URL and a code to approve in a browser
 ```
 
-Both read the password from stdin — prompted with echo off on a terminal, or
-piped (`echo "$PASSWORD" | semiont login --email you@example.com`) for scripts.
+`useradd` reads the password from stdin — prompted with echo off on a terminal, or
+piped (`echo "$PASSWORD" | semiont useradd --email you@example.com`) for scripts.
+`login` takes no password: it runs the device grant at the knowledge base's
+issuer, and you approve the sign-in in a browser.
 
 The token lands in the launcher's state home, mode 0600:
 `~/Library/Application Support/semiont/tokens.json` on macOS,
@@ -102,7 +104,7 @@ export SEMIONT_ACCESS_TOKEN=$(python3 -c \
 holds a `SemiontClient` over a fixed token for the life of the process, so a
 long-running session stops working when the token expires and the process must
 be restarted with a fresh one. For the current access-token TTL, see
-[Authentication](../../docs/system/administration/AUTHENTICATION.md). For anything long-running, prefer a
+[Authentication](../../docs/operator/administration/AUTHENTICATION.md). For anything long-running, prefer a
 `SemiontSession` (`@semiont/sdk`), which refreshes; see
 [the SDK README](../sdk/README.md).
 
@@ -149,14 +151,11 @@ const transport = new StdioClientTransport({
 const client = new Client({ name: 'semiont-client', version: '1.0.0' }, { capabilities: {} });
 await client.connect(transport);
 
-const tools = await client.request({ method: 'tools/list' });
+const { tools } = await client.listTools();
 
-const result = await client.request({
-  method: 'tools/call',
-  params: {
-    name: 'browse_resources',
-    arguments: { search: 'ontology', limit: 5 },
-  },
+const result = await client.callTool({
+  name: 'browse_resources',
+  arguments: { search: 'ontology', limit: 5 },
 });
 
 console.log(result);
@@ -172,8 +171,8 @@ that fails answers the same way, with `isError` set.
 
 | Tool | Required | Optional |
 |---|---|---|
-| `browse_resource` — get a resource with its annotations and references | `id` | |
-| `browse_resources` — list resources | | `search`, `archived` (default `false`), `limit` (default `20`) |
+| `browse_resource` — get a resource's descriptor | `id` | |
+| `browse_resources` — list resources | | `search`, `archived` (default `false`), `limit` (default `50`) |
 | `browse_highlights` — highlighting annotations for a resource | `resourceId` | |
 | `browse_references` — linking annotations for a resource | `resourceId` | |
 
@@ -181,8 +180,8 @@ that fails answers the same way, with `isError` set.
 
 | Tool | Required | Optional |
 |---|---|---|
-| `mark_annotation` — create an annotation (highlight, comment, reference, tag) | `resourceId`, `selectionData` (`{offset, length, text}`) | `entityTypes` |
-| `mark_assist` — AI-assisted annotation: detect entities, highlights, assessments, comments, or tags | `resourceId` | `entityTypes`, `language`, `sourceLanguage` |
+| `mark_annotation` — create a highlight annotation, with each of `entityTypes` as a tagging body | `resourceId`, `selectionData` (`{offset, length, text}`) | `entityTypes` |
+| `mark_assist` — AI-assisted annotation: detect entity references | `resourceId` | `entityTypes`, `language`, `sourceLanguage` |
 
 `language` is a BCP-47 tag for what the LLM writes (stamped on `TextualBody.language`); `sourceLanguage` describes the source resource and feeds the prompt.
 
@@ -239,8 +238,8 @@ Adding a tool takes three edits, all in `src/`:
 2. The handler in [`src/handlers.ts`](src/handlers.ts), taking `(semiont: McpClient, args)` and returning `McpResult`
 3. A `case` in `callTool` (same file) routing the tool name to that handler
 
-[`src/index.ts`](src/index.ts) is wiring only — config, transports, and the four
-request handlers — so none of the above touches it.
+[`src/index.ts`](src/index.ts) and [`src/server.ts`](src/server.ts) are wiring only — config, transports, and the four
+request handlers — so none of the above touches them.
 
 Handlers call the client's verb namespaces — `semiont.browse.*`, `semiont.mark.*`,
 and so on. They never construct HTTP requests: the transport, auth, and retry

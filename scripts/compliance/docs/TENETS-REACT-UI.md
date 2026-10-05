@@ -244,34 +244,6 @@ cd packages/react-ui && ./scripts/generate-compliance-report.sh
 cd apps/browser && ./scripts/generate-compliance-report.sh
 ```
 
-**Current Status** (as of 2026-02-17):
-- React-UI: 100% compliant (318 symbols, 0 violations, 0 warnings)
-- Browser: 100% compliant (89 symbols, 0 violations)
-
----
-
-## Historical Context
-
-### Evolution of Patterns
-
-**Original Problem** (Pre-compliance):
-- Components passed inline callbacks to hooks
-- Callback props appeared directly in dependency arrays
-- Event subscriptions used inline arrow functions
-- Effect churn caused performance issues and complexity
-
-**Solution Applied**:
-- Introduced ref pattern for callback props
-- Extracted inline handlers to `useCallback`
-- Documented `eventBus` singleton rule
-- Built automated compliance tooling
-
-**Result**:
-- Zero architecture violations across 407 total symbols (318 react-ui + 89 browser)
-- Render-props container pattern fully removed; replaced by direct hook calls
-- Clean, predictable React hooks patterns
-- Automated enforcement prevents regressions
-
 ---
 
 ## Related Documentation

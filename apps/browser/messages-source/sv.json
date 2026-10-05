@@ -193,7 +193,6 @@
     "statusConnected": "Ansluten",
     "statusExpired": "Session utgången",
     "statusSignedOut": "Utloggad",
-    "statusUnreachable": "Onåbar",
     "invalidHost": "Ogiltigt värdnamn",
     "discoveredTitle": "Hittades på den här datorn",
     "managedBadge": "Hanteras av launcher",

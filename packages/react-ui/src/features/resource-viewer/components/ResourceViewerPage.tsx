@@ -118,7 +118,7 @@ export interface ResourceViewerPageProps {
   /**
    * Media-renderer overrides, forwarded to `ResourceViewer`. Present at this
    * tier too so a host embedding the whole page — not just the viewer — can
-   * still swap a renderer. See .plans/ANNOTATE-RENDERER-REGISTRY.md (D5)
+   * still swap a renderer.
    */
   browseRenderers?: BrowseMediaRenderers;
   annotateRenderers?: AnnotateMediaRenderers;
@@ -127,7 +127,7 @@ export interface ResourceViewerPageProps {
 /**
  * ResourceViewerPage - Main component
  *
- * Uses hooks directly (NO containers, NO render props, NO ResourceViewerPageContent wrapper)
+ * Uses hooks directly (NO containers, NO render props, NO content wrapper)
  *
  * @emits nav:push - Navigate to a resource or filtered view
  * @emits beckon:sparkle - Trigger sparkle animation on an annotation
@@ -203,9 +203,9 @@ export function ResourceViewerPage({
   // reading BrowseView and AnnotateView take.
   const resourceMediaType = getPrimaryMediaType(resource) || 'text/plain';
 
-  // Toolbar prefs: the POLICY layer (TOOLBAR-PREFS-AS-PROPS). The page owns the
-  // Browser's global-toolbar UX — shared values, localStorage persistence — and
-  // feeds the viewer its controlled props; the components hold no pref state policy.
+  // Toolbar prefs: the POLICY layer. The page owns the Browser's global-toolbar
+  // UX — shared values, localStorage persistence — and feeds the viewer its
+  // controlled props; the components hold no pref state policy.
   const toolbarPrefs = useToolbarPrefs(getSelectorType(resourceMediaType));
   const annotateMode = toolbarPrefs.annotateMode;
   const contentSource = CONTENT_SOURCE[capabilitiesOf(resourceMediaType)?.render ?? 'none'];
@@ -238,8 +238,8 @@ export function ResourceViewerPage({
 
   // Composite state unit — owns all flow VMs, wizard state, annotations, entity types
   const browseStateUnit = useShellStateUnit();
-  // Session-typed + session-keyed (SESSION-TYPED-FACTORIES.md): no `!`, no
-  // construction without a session, dispose-first rebuild on session swap.
+  // Session-typed + session-keyed: no `!`, no construction without a session,
+  // dispose-first rebuild on session swap.
   const stateUnit = useSessionStateUnit(
     session ?? undefined,
     (s) => createResourceViewerPageStateUnit(s, rUri, locale, browseStateUnit),
@@ -252,7 +252,7 @@ export function ResourceViewerPage({
   const entityTypesError = useObservable(stateUnit?.entityTypes.error$) ?? null;
   // Three states, not two: a terminally failed list has no value EITHER, so
   // deriving "loading" from `undefined` leaves a dead request spinning for
-  // ever. See .plans/PANEL-FAILURE-STATES.md
+  // ever.
   const referencedBy = useObservable(stateUnit?.referencedBy.value$) ?? [];
   const referencedByLoading = useObservable(stateUnit?.referencedBy.loading$) ?? true;
   const referencedByError = useObservable(stateUnit?.referencedBy.error$) ?? null;
@@ -271,11 +271,11 @@ export function ResourceViewerPage({
   const isGenerating = useObservable(stateUnit?.yield.isGenerating$) ?? false;
   const generationOutcome = useObservable(stateUnit?.yield.outcome$) ?? null;
 
-  // GENERATION-ARRIVAL P2: a completion witnessed on this page reveals the
-  // derivation edge the worker minted — the annotations panel opens on
-  // References, scrolls to the provenance reference, and its sparkle is
-  // re-armed (the mark:added glow burned its window unseen). Never navigates
-  // (A2); a held outcome on remount stays quiet (D6, inside the hook).
+  // A completion witnessed on this page reveals the derivation edge the worker
+  // minted — the annotations panel opens on References, scrolls to the
+  // provenance reference, and its sparkle is re-armed (the mark:added glow
+  // burned its window unseen). Never navigates; a held outcome on remount
+  // stays quiet (inside the hook).
   const handleGenerationArrival = useCallback((annId: AnnotationId) => {
     browser.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annId, motivation: 'linking' });
     triggerSparkleAnimation(annId);
@@ -285,8 +285,8 @@ export function ResourceViewerPage({
   const gatherContext = useObservable(stateUnit?.gather.context$) ?? null;
   const gatherLoading = useObservable(stateUnit?.gather.loading$) ?? false;
   const gatherError = useObservable(stateUnit?.gather.error$) ?? null;
-  // Resource-gather slots (FLOW-LIFECYCLE-CONVERGENCE D2a: separate from the
-  // annotation slots above — the two gathers can be live at once).
+  // Resource-gather slots (separate from the annotation slots above — the two
+  // gathers can be live at once).
   const resourceGatherContext = useObservable(stateUnit?.gather.resourceContext$) ?? null;
   const resourceGatherLoading = useObservable(stateUnit?.gather.resourceLoading$) ?? false;
   const resourceGatherError = useObservable(stateUnit?.gather.resourceError$) ?? null;
@@ -304,16 +304,17 @@ export function ResourceViewerPage({
 
   const handleWizardGenerateSubmit = useCallback((referenceId: AnnotationId, config: GenerationConfig) => {
     clearSparkle(referenceId);
-    // D8: forwarded by spread in ONE place, so a knob added to the form is
+    // Forwarded by spread in ONE place, so a knob added to the form is
     // never dropped on the way to the wire. `sourceLanguage` is the viewed
     // resource's language — a page fact the form cannot know.
     stateUnit?.yield.generate(config.context, toGenerationOptions(config, getLanguage(resource)));
   }, [stateUnit, clearSparkle, resource]);
 
-  // Resource-generate flow (GENERATE-FROM-BUTTON): drive the SAME yield progress$
-  // the annotation path uses so the full `AssistProgress` widget shows — NOT a
-  // toast. Both paths are one `generate(context, options)` now: the context's
-  // focus.kind (resource here, annotation above) decides the shape.
+  // Resource-generate flow, from the Generate button: drive the SAME yield
+  // progress$ the annotation path uses so the full `AssistProgress` widget
+  // shows — NOT a toast. Both paths are one `generate(context, options)`:
+  // the context's focus.kind (resource here, annotation above) decides the
+  // shape.
   const handleResourceGenerateSubmit = useCallback((_resourceId: string, config: GenerationConfig) => {
     stateUnit?.yield.generate(config.context, toGenerationOptions(config, getLanguage(resource)));
   }, [stateUnit, resource]);
@@ -332,10 +333,10 @@ export function ResourceViewerPage({
     }
   }, [rUri, semiont, showSuccess, showError]);
 
-  // COMPOSE-IN-MODAL P3: create-and-link, in place. The old flow stashed the
-  // context in sessionStorage and navigated to the compose page; the modal
-  // already holds the context, so the side-channel dies with the mode.
-  // Text-only by design — uploads stay on the standalone compose page.
+  // The wizard's compose handler: create-and-link, in place. The modal
+  // already holds the context, so nothing is stashed in sessionStorage and
+  // nothing navigates to the compose page. Text-only by design — uploads stay
+  // on the standalone compose page.
   const handleWizardComposeSubmit = useCallback(async (referenceId: AnnotationId, params: ComposeParams) => {
     if (!semiont) throw new Error('No active session');
     try {
@@ -394,7 +395,7 @@ export function ResourceViewerPage({
 
   // Domain events flow through the bus gateway (ActorStateUnit → local EventBus).
   // BrowseNamespace cache invalidation handles annotation/resource updates.
-  // Resource-scoped freshness follows observation (#847): subscribing to the
+  // Resource-scoped freshness follows observation: subscribing to the
   // resource's `browse.*` live queries acquires its scope (which bridges scoped
   // domain events into the local EventBus) and releases it on teardown.
 
@@ -440,10 +441,10 @@ export function ResourceViewerPage({
     triggerSparkleAnimation(stored.payload.annotation.id);
   }, [triggerSparkleAnimation]);
 
-  // RESOLUTION-SPARKLE D2: a reference resolving — Compose, Search → Link, a
-  // Generate job landing, or a remote collaborator — is a body update whose
-  // operations add a linking SpecificResource. Exactly that sparkles; an unlink
-  // (remove) or an entity-tag body change stays dark.
+  // A reference resolving — Compose, Search → Link, a Generate job landing, or
+  // a remote collaborator — is a body update whose operations add a linking
+  // SpecificResource. Exactly that sparkles; an unlink (remove) or an
+  // entity-tag body change stays dark.
   const handleAnnotationBodyUpdated = useCallback((stored: EventMap['mark:body-updated']) => {
     const resolves = stored.payload.operations.some(
       (op) => op.op === 'add' && op.item.type === 'SpecificResource' && op.item.purpose === 'linking',
@@ -501,7 +502,7 @@ export function ResourceViewerPage({
 
   // Report the arrival on the wire (browse:resource-viewed) — same
   // load-complete condition the announcement uses, so "viewed" means the
-  // view is actually on screen (GUIDED-TOUR P5, D6).
+  // view is actually on screen.
   useResourceViewedReport(rUri, contentLoaded);
 
   // Derived state
@@ -515,7 +516,7 @@ export function ResourceViewerPage({
   // Combine resource with content
   const resourceWithContent = { ...resource, content };
 
-  // Handlers for AnnotationHistory (legacy event-based interaction)
+  // Handlers for AnnotationHistory
   const handleEventHover = useCallback((id: AnnotationId | null) => {
     if (id) {
       session?.client.beckon.sparkle(id);
@@ -523,11 +524,10 @@ export function ResourceViewerPage({
   }, [session]);
 
   // Clicking a history row reveals that annotation in the content. HistoryEvent
-  // renders these rows as buttons labelled "View annotation", so this used to be
-  // a focusable, screen-reader-announced control wired to a no-op.
-  // `beckon:focus` is the existing "scroll to and highlight" contract rather
-  // than a new prop chain — BrowseView already subscribed to it, AnnotateView
-  // now does too. See .plans/ASSIST-SURFACE-WARTS.md Lane D.
+  // renders these rows as buttons labelled "View annotation" — focusable,
+  // screen-reader-announced controls, so the click must do what the label says.
+  // `beckon:focus` is the "scroll to and highlight" contract, used rather than
+  // a prop chain — BrowseView and AnnotateView both subscribe to it.
   const handleEventClick = useCallback((id: AnnotationId | null) => {
     if (id) {
       stateUnit?.beckon.focus(id);
@@ -689,9 +689,9 @@ export function ResourceViewerPage({
                 wasDerivedFrom={resource.wasDerivedFrom}
                 generator={resource.generator as components['schemas']['Agent'] | components['schemas']['Agent'][] | undefined}
                 onGenerate={() => setGenerateOpen(true)}
-                // The panel is generation's progress surface (GENERATE-FROM-
-                // RESOURCE D7); no annotationId ⇒ a resource-gen job — the
-                // annotation path's frame renders in the reference wizard.
+                // The panel is generation's progress surface; no annotationId
+                // ⇒ a resource-gen job — the annotation path's frame renders
+                // in the reference wizard.
                 isGenerating={isGenerating}
                 generationProgress={
                   generationProgress && !generationProgress.annotationId ? generationProgress : null
@@ -801,14 +801,14 @@ export function ResourceViewerPage({
         }}
       />
 
-      {/* Resource-generate flow (GENERATE-FROM-BUTTON) */}
+      {/* Resource-generate flow, opened by the Generate button */}
       <ResourceGenerateModal
         {...(generationAgent ? { generationAgent } : {})}
         isOpen={generateOpen}
         onClose={() => setGenerateOpen(false)}
         resourceId={rUri}
-        // Seed the proposed title from the source resource's name (GFR D4/A4);
-        // the field stays editable and required.
+        // Seed the proposed title from the source resource's name; the field
+        // stays editable and required.
         defaultTitle={resource.name}
         defaultFolder={folderOf(getStorageUri(resource))}
         locale={locale}

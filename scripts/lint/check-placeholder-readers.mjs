@@ -3,14 +3,13 @@
  * A `${VAR}` in a KB's config has one meaning, and two resolvers hold it: the
  * TypeScript loader (`resolveEnvVars`) and the Go launcher (`resolveRefs`),
  * both bound to specs/src/config-placeholders/cases.json. A third reader is how
- * the rule forks: `evaluateEnvPlaceholders` ran a second pass over values the
- * loader had already resolved, and threw on a password containing `${…}`
- * (SECRET-DELIVERY F4). It had itself been hoisted from a private copy, so a
- * reader outside the table had appeared twice.
+ * the rule forks: a second pass over values the loader has already resolved
+ * throws on a password containing `${…}`, which after the one resolution pass
+ * is simply the value.
  *
  * This census finds every place source code spells the syntax — a regex
  * escape `\$\{`, a class `[$]`, or the literal string `"${"` — and fails on any
- * site not listed below with its role. A listed site that is no longer there
+ * site not listed below with its role. A listed site that is not there
  * fails too: an allowlist that outlives its sites stops describing the tree.
  *
  * Scanned: every tracked TypeScript, JavaScript, Go and Rust file, comments
@@ -39,9 +38,6 @@ const ALLOWED = {
   ],
   'scripts/lint/check-css-classes-live.js': [
     'finds interpolations in JavaScript template literals — not a config placeholder',
-  ],
-  'scripts/diag/sonnet5-temperature-spike.mjs': [
-    'a diagnostic spike refusing an unresolved apiKey — never runs in a service',
   ],
 };
 

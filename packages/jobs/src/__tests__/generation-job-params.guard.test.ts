@@ -4,15 +4,15 @@ import { isGenerationJobParams, resourceId } from '@semiont/core';
 import { processGenerationJob } from '../processors';
 
 /**
- * YIELD-FROM-CONTEXT P1: the generation params boundary is ONE type, shared.
+ * The generation params boundary is ONE type, shared.
  *
  * The wire schema (`GenerationJobParams` in specs) generates the core type; the
- * worker narrows `job.params` through `isGenerationJobParams` instead of
- * `as GenerationParams`; and the processor's parameter IS the generated type —
- * pinned below with `expectTypeOf`, so the sdk (write side) and the worker
- * (read side) can no longer drift a field apart silently.
+ * worker narrows `job.params` through `isGenerationJobParams` rather than a
+ * cast; and the processor's parameter IS the generated type — pinned below
+ * with `expectTypeOf`, so the sdk (write side) and the worker (read side)
+ * cannot drift a field apart silently.
  *
- * RED before P1 lands: the generated type and the guard don't exist.
+ * Without the generated type and the guard, nothing here compiles.
  */
 
 // Minimal HONEST context — every field satisfies the generated type with no
@@ -69,10 +69,10 @@ describe('isGenerationJobParams (the worker-side boundary guard)', () => {
     expect(isGenerationJobParams(noContext)).toBe(false);
   });
 
-  it('rejects an EMPTY storageUri or title — required means non-empty (D9/D9b)', () => {
-    // The boundary the worker actually depends on. Without this, deleting the
-    // worker's `||` fallback (D9) would write to a bare `file://` — trading a
-    // silent substitution for a silent corruption.
+  it('rejects an EMPTY storageUri or title — required means non-empty', () => {
+    // The boundary the worker actually depends on: it has no `||` fallback for
+    // an empty storageUri, so without this it would write to a bare `file://`
+    // — trading a silent substitution for a silent corruption.
     expect(isGenerationJobParams({ ...VALID, storageUri: '' })).toBe(false);
     expect(isGenerationJobParams({ ...VALID, title: '' })).toBe(false);
   });

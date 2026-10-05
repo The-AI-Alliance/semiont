@@ -1,25 +1,23 @@
 package launcher
 
-// custody.go — the secrets the launcher MINTS and KEEPS
-// (LAUNCHER-SERVICE-MODEL D8).
+// custody.go — the secrets the launcher MINTS and KEEPS.
 //
-// Two mechanisms shared the word "secret", and they are opposites:
+// Two mechanisms share the word "secret", and they are opposites:
 //
 //   - CUSTODY, here. A value the launcher generates once per root and keeps
-//     in its own 0600 file. It MUST outlive the stack, because regenerating
-//     it invalidates every token already issued — which is how a fresh key
-//     per start once surfaced as `Invalid token signature`, with jobs hung in
-//     Yielding forever and nothing anywhere saying the key had changed.
+//     in the root's store (custodystore.go; a 0600 file by default). It MUST
+//     outlive the stack, because regenerating it invalidates every token
+//     already issued — a fresh key per start surfaces as `Invalid token
+//     signature`, with jobs hung in Yielding forever and nothing anywhere
+//     saying the key has changed.
 //   - RESOLUTION, in resolution.go. A value the launcher never has. The
 //     config declares a POINTER; a provider answers it at start; the value
 //     lives in memory for one process and is written nowhere.
 //
-// The platform question (D8): custody's provider is the local filesystem,
-// because the launcher only ever mints for a LOCAL stack. A codespace stack
-// mints nothing here — the codespace's own launcher mints its credentials,
-// on its own filesystem. An `aws` platform would put these in
-// Secrets Manager; there is no second provider to write until there is a
-// second platform that needs one.
+// The platform question: the launcher only ever mints for a LOCAL stack, so
+// custody is kept by this machine's store. A codespace stack mints nothing
+// here — the codespace's own launcher mints its credentials, on its own
+// filesystem.
 
 import (
 	"crypto/rand"
@@ -45,7 +43,7 @@ import (
 //
 // Exporting one of these yourself is a different thing and still works: the
 // launcher's own process reads the environment first, which is how a
-// JWT_SECRET rotation ring is handed over (JWT-SECRET-ROTATION.md).
+// JWT_SECRET rotation ring is handed over (loadOrCreateJWTSecret).
 func custodyOwned(name string) bool {
 	switch name {
 	case "JWT_SECRET", "KC_BOOTSTRAP_ADMIN_PASSWORD", "SEMIONT_OIDC_CLIENT_SECRET":
@@ -54,19 +52,19 @@ func custodyOwned(name string) bool {
 	return daemonCredentialVar(name) || strings.HasPrefix(name, "SEMIONT_OIDC_CLIENT_SECRET_")
 }
 
-// daemonPasswords: the daemons the launcher runs and keeps a password for
-// (SECRET-DELIVERY P4, D1 RULED: "B for daemons the launcher runs"). Each is
-// generated once per root and kept, because a data directory keeps the
+// daemonPasswords: the daemons the launcher runs and keeps a password for —
+// such a daemon's credential comes from custody, never from the config. Each
+// is generated once per root and kept, because a data directory keeps the
 // password it was initialized with. The variable names are the launcher's,
-// machine-wide (ruled 2026-09-29: "names are fine") — `semiont settings secret`
-// registrations are machine-wide while a daemon's presence is per-KB config,
-// so no config may borrow one. The custody names are also the files under
-// roots/<key>/ where KB skills that connect to a daemon directly are told to
-// read its password (FLEET-P4-DAEMON-PASSWORDS): keep them stable.
+// machine-wide — `semiont settings secret` registrations are machine-wide
+// while a daemon's presence is per-KB config, so no config may borrow one.
+// The custody names are also the files under roots/<key>/ where KB skills
+// that connect to a daemon directly are told to read its password: keep them
+// stable.
 var daemonPasswords = map[string]struct {
 	env, custody, display string
 	// kept: the daemon writes the password into its store at initialization,
-	// so a store with data and no kept password predates custody.
+	// so a store with data and no kept password holds one the launcher lacks.
 	kept bool
 }{
 	"graph":     {"NEO4J_PASSWORD", "neo4j-password", "Neo4j", true},
@@ -94,7 +92,7 @@ func daemonCredentialVar(name string) bool {
 // loadOrCreateDaemonPassword: the kept password of a daemon the launcher runs
 // for this root, generated and persisted on first use. A store that already
 // holds data with no kept password was initialized with one the launcher does
-// not have — the old literal from a config, or custody lost with the store
+// not have — a literal from a config, or custody lost with the store
 // kept — and a daemon started over it rejects every login, so that refuses,
 // naming the clean. It never wipes a store itself.
 func loadOrCreateDaemonPassword(u *UI, root, role string) (string, bool) {
@@ -168,27 +166,24 @@ const (
 // $JWT_SECRET, else the persisted per-root secret, else a freshly generated one
 // that is persisted before use.
 //
-// Per-ROOT, and PERSISTED — the two properties that matter, both learned the
-// hard way. The secret signs tokens for users who live in this root's postgres
-// store, so it shares their lifecycle (a full `semiont clean` removes the state
-// dir and takes this with it, which is correct: the users went too). And
-// persistence is what the retired CLI's generate-on-boot lacked once it ran
-// inside a container — a fresh secret per start silently invalidates every
-// token already issued, surfacing as `Invalid token signature` and jobs that
-// hang in Yielding forever rather than as an error anyone can read.
+// Per-ROOT, and PERSISTED — the two properties that matter. The secret signs
+// tokens for users who live in this root's postgres store, so it shares their
+// lifecycle (a full `semiont clean` removes the state dir and takes this with
+// it, which is correct: the users went too). And a fresh secret per start
+// silently invalidates every token already issued, surfacing as `Invalid
+// token signature` and jobs that hang in Yielding forever rather than as an
+// error anyone can read.
 //
-// The retired shared worker secret was the contrast: regenerated per start,
-// because every consumer was a container started in that same run and nothing
-// outlived it. Tokens DO outlive the stack, which is why this one is persisted —
-// and why the per-service issuer credentials are too, since the realm that
-// honours them is written once, on first boot.
+// Tokens outlive the stack, which is why this one is persisted — and why the
+// per-service issuer credentials are too, since the realm that honours them
+// is written once, on first boot.
 func loadOrCreateJWTSecret(u *UI, root string) (string, bool) {
 	if s := os.Getenv("JWT_SECRET"); s != "" {
 		// The gateway reads this as an ordered RING: the first value signs,
 		// every value verifies, so `<new>,<old>` keeps outstanding tokens
-		// working across a deliberate rotation (JWT-SECRET-ROTATION.md). The
-		// launcher only carries it — splitting is the gateway's business, and
-		// re-joining a parsed ring here could only introduce a difference.
+		// working across a deliberate rotation. The launcher only carries it —
+		// splitting is the gateway's business, and re-joining a parsed ring
+		// here could only introduce a difference.
 		//
 		// Validate each MEMBER though. The gateway refuses to boot on a short
 		// one, and a whole-string length check happily passes "<valid>,short"
@@ -233,9 +228,9 @@ func loadOrCreateJWTSecret(u *UI, root string) (string, bool) {
 		return "", false
 	}
 	// Say so loudly. A silently regenerated key invalidates every token already
-	// issued, and the incident that produced this whole plan looked exactly
-	// like an ordinary start — jobs wedged in Yielding, no line anywhere saying
-	// the key had changed underneath them.
+	// issued, and the result looks exactly like an ordinary start — jobs
+	// wedged in Yielding, no line anywhere saying the key has changed
+	// underneath them.
 	u.Log("Token-signing key: %s", u.Dim(jwtProvenance("generated and kept", 1)))
 	return secret, true
 }

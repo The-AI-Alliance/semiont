@@ -1,10 +1,11 @@
 /**
  * People Projection Reader Tests
  *
- * The read side of PERSON-PROFILE. Mirrors `tag-schemas-reader.test.ts`:
- * reading an existing projection, the missing-file case, and — the
- * load-bearing one — the round trip from a bus command through the Stower,
- * the event store and the materializer to what the reader serves back.
+ * The read side of a person's recorded name. Mirrors
+ * `tag-schemas-reader.test.ts`: reading an existing projection, the
+ * missing-file case, and — the load-bearing one — the round trip from a bus
+ * command through the Stower, the event store and the materializer to what
+ * the reader serves back.
  *
  * The properties this pins are the ones the design rests on: a rename
  * REPLACES rather than accumulates (so a reader sees the current name, and a
@@ -81,10 +82,10 @@ describe('People Projection Reader', () => {
       });
     });
 
-    it('OVERRIDES a stored name — an artifact written before this existed reads correctly', () => {
-      // The whole benefit of resolving on read: artifacts written when
-      // didToAgent filled the subject carry a UUID where a name belongs, and
-      // there is nothing to backfill because nothing is authoritative there.
+    it('OVERRIDES a stored name — an artifact carrying a UUID where a name belongs reads correctly', () => {
+      // The whole benefit of resolving on read: some stored artifacts carry
+      // the subject UUID where a name belongs, and there is nothing to
+      // backfill because nothing is authoritative there.
       const old = { creator: { '@type': 'Person', '@id': ALICE, name: '59523dd4-a0e3-4c1c-8c2d-7fcbe3d789dd' } };
 
       expect(resolvePersonNames(old, people).creator.name).toBe('Adam Pingel');

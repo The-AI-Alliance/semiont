@@ -1,7 +1,8 @@
 /**
  * Resource Generation
  *
- * Generates markdown resources from topics using AI inference.
+ * Generates resource content from a topic using AI inference: markdown, plain
+ * text, or Typst source (which the worker compiles to PDF), by `outputMediaType`.
  */
 
 import { getLocaleEnglishName, deriveViews } from '@semiont/core';
@@ -14,17 +15,17 @@ function getLanguageName(locale: string): string {
   return getLocaleEnglishName(locale) || locale;
 }
 
-// Prompt-embedding caps — bound the context fed to the model (CONTEXT-IDENTIFIERS
-// D4: named constants; promote to caller-tunable options only if a consumer
-// actually hits the wall). A fact past these bounds never reaches the model.
+// Prompt-embedding caps — bound the context fed to the model. Named constants;
+// promote to caller-tunable options only if a consumer actually hits the wall.
+// A fact past these bounds never reaches the model.
 const RESOURCE_CONTENT_CAP = 4000;
 const SEMANTIC_MATCH_LIMIT = 3;
 const SEMANTIC_MATCH_CHARS = 240;
 
 /**
  * Model-visible identifier handle for an embedded excerpt — the ONE bracket
- * convention across all context sections (CONTEXT-IDENTIFIERS D1/D2): resource id
- * always, annotation id as a suffix when the excerpt is annotation-derived.
+ * convention across all context sections: resource id always, annotation id
+ * as a suffix when the excerpt is annotation-derived.
  */
 function idLabel(resourceId: string, annotationId?: string): string {
   return `[${resourceId}${annotationId ? `/${annotationId}` : ''}]`;
@@ -97,9 +98,9 @@ export async function generateResourceFromTopic(
 
   // ── Context sections — switch on the unified GatheredContext focus ─────────
   // Annotation focus drives the annotation + selected-passage sections; resource
-  // focus drives a minimal resource anchor (the full grounding — summary,
-  // suggestedReferences, content — is YIELD-FROM-RESOURCE Gap B). The graph and
-  // semantic sections are shared base, rendered for either focus.
+  // focus drives the resource section, grounded in the gathered resource's
+  // summary, suggested references and content. The graph and semantic sections
+  // are shared base, rendered for either focus.
   let annotationSection = '';
   let contextSection = '';
   let resourceSection = '';
@@ -107,10 +108,10 @@ export async function generateResourceFromTopic(
 
   if (context) {
     const { focus } = context;
-    // The focal resource's id — equal to the id `buildKnowledgeGraph` (P3) anchored
+    // The focal resource's id — equal to the id `buildKnowledgeGraph` anchored
     // the graph's main node on, so `deriveViews` resolves edges. Read directly off
     // the descriptor (a plain string on the generated type); there is no event id to
-    // thread here as the matcher had.
+    // thread here.
     const mainResourceId =
       focus.kind === 'annotation'
         ? focus.sourceResource['@id']
@@ -208,7 +209,6 @@ ${after ? `${after}...` : ''}
   // Capped and truncated to bound prompt cost (see the named caps above); the
   // gather step pre-filters to ≤10 matches above a 0.5 cosine threshold. Each
   // passage carries its source id so the model can attribute what it uses.
-  // See .plans/SEMANTIC-CONTEXT-RAG.md + .plans/CONTEXT-IDENTIFIERS.md.
   let semanticContextSection = '';
   const similar = context?.semanticContext?.similar ?? [];
   if (similar.length > 0) {
@@ -227,9 +227,9 @@ ${after ? `${after}...` : ''}
     semanticContextSection = `\n\nRelated passages from the knowledge base:\n${lines.join('\n')}${ocrNote}`;
   }
 
-  // ── Task framing (YIELD-STRUCTURE D1): canonical tasks map to tested framings;
-  // an unknown task string is used VERBATIM as the framing instruction (loud
-  // degrade — warn, never a silent fallback to 'resource').
+  // ── Task framing: canonical tasks map to tested framings; an unknown task
+  // string is used VERBATIM as the framing instruction (loud degrade — warn,
+  // never a silent fallback to 'resource').
   let leadLine: string;
   if (task === 'resource') {
     leadLine = `Generate a concise, informative resource about "${topic}".`;
@@ -242,14 +242,14 @@ ${after ? `${after}...` : ''}
     leadLine = `${task}\nTopic: "${topic}"`;
   }
 
-  // ── Structure directive (YIELD-STRUCTURE D2/D4): emitted ONLY when the caller
-  // sets one — unset means no directive at all (the task framing and the model
-  // determine shape). Never derived from the token budget: maxTokens is length
-  // only. The forced `# Title` heading exists only under canonical 'sections'.
+  // ── Structure directive: emitted ONLY when the caller sets one — unset means
+  // no directive at all (the task framing and the model determine shape). Never
+  // derived from the token budget: maxTokens is length only. The forced
+  // `# Title` heading exists only under canonical 'sections'.
   const isPlainText = outputMediaType === 'text/plain';
-  // PDF output means the model authors Typst source (Q1, direct Typst); the
-  // worker compiles it. The prompt therefore teaches Typst syntax, and the
-  // markdown scaffolding never applies.
+  // PDF output means the model authors Typst source directly; the worker
+  // compiles it. The prompt therefore teaches Typst syntax, and the markdown
+  // scaffolding never applies.
   const isPdf = outputMediaType === 'application/pdf';
   let structureRequirement = '';
   let titleRequirement = '';
@@ -271,10 +271,10 @@ ${after ? `${after}...` : ''}
     structureRequirement = `\n- Organize the output as: ${structure}`;
   }
 
-  // Citation instruction (INLINE-CITATIONS): ask the model to emit [[<id>]]
-  // transport tokens next to each claim, citing only ids the context embedding
-  // shows. The worker strips the tokens and reconciles them into linking
-  // annotations — they never reach the stored content.
+  // Citation instruction: ask the model to emit [[<id>]] transport tokens next
+  // to each claim, citing only ids the context embedding shows. The worker
+  // strips the tokens and reconciles them into linking annotations — they
+  // never reach the stored content.
   const citeRequirement = cite
     ? '\n- Ground every claim in the provided context. Immediately after each claim, cite its source by emitting [[<id>]], where <id> is an id shown in square brackets in the context above (for a passage labeled [abc], emit [[abc]]). Cite only ids that appear in the context.'
     : '';
@@ -289,9 +289,9 @@ ${after ? `${after}...` : ''}
       : `- Use markdown formatting
 - Write the response as markdown`;
 
-  // Compile-repair context (PDF-GENERATION P3): the previous Typst source
-  // failed to compile; the legible compiler diagnostics go back to the model
-  // as an authoritative instruction to fix and re-emit the full document.
+  // Compile-repair context: the previous Typst source failed to compile; the
+  // legible compiler diagnostics go back to the model as an authoritative
+  // instruction to fix and re-emit the full document.
   const repairSection = repair
     ? `\n\nYour previous attempt failed to compile. Fix the error and return the complete corrected document — full source, not a diff.
 Compile error:
@@ -300,8 +300,8 @@ Previous source:
 ${repair.source}`
     : '';
 
-  // The caller's prompt is an authoritative leading Instruction (YIELD-STRUCTURE D3),
-  // not background "additional context" — task = what to produce, prompt = how.
+  // The caller's prompt is an authoritative leading Instruction, not background
+  // "additional context" — task = what to produce, prompt = how.
   const prompt = `${leadLine}
 ${userPrompt ? `Instruction: ${userPrompt}` : ''}${repairSection}
 ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}${annotationSection}${contextSection}${resourceSection}${graphSection}${semanticContextSection}${sourceLanguageInstruction}${languageInstruction}
@@ -311,9 +311,9 @@ Requirements:
 - Be factual and informative${structureRequirement}${titleRequirement}${citeRequirement}
 ${formatRequirements}`;
 
-  // Simple parser - just use the response directly as markdown
+  // The response is the content as-is, in whichever format was asked for
   const parseResponse = (response: string): { title: string; content: string } => {
-    // Clean up any markdown code fences if present
+    // Strip a code fence if the model wrapped the content in one
     let content = response.trim();
     if (content.startsWith('```markdown') || content.startsWith('```md') || content.startsWith('```typst')) {
       content = content.slice(content.indexOf('\n') + 1);
@@ -355,7 +355,7 @@ ${formatRequirements}`;
   });
 
   // The provider's stopReason collapses to one protocol-owned bit HERE and
-  // nowhere else (GENERATE-FROM-RESOURCE D6): 'max_tokens' means the artifact
-  // is cut off, not complete; every other reason is a natural stop.
+  // nowhere else: 'max_tokens' means the artifact is cut off, not complete;
+  // every other reason is a natural stop.
   return { ...result, truncated: response.stopReason === 'max_tokens' };
 }

@@ -7,7 +7,7 @@ export default defineConfig({
   // check mark. Drop this line temporarily when you want the size column.
   silent: true,
   // Two test-only subpaths, split so the optional `fast-check` peer is really
-  // optional (SDK-TESTING-DOUBLE gap 7):
+  // optional:
   //   `src/testing.ts`        → `@semiont/core/testing`        — doubles, fc-FREE
   //   `src/testing/axioms.ts` → `@semiont/core/testing/axioms` — needs fc
   // `fast-check` is externalized either way (consumers provide it), and neither

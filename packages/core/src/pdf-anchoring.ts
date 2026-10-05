@@ -51,17 +51,17 @@ export interface AnchoredText {
 
 /**
  * The full outcome of text extraction for one representation — the record
- * the anchored-text store holds and the wire serves (PERSIST-ANCHORS
- * decision D1): an `AnchoredText` plus its provenance (`method`, `pdfClass`,
- * `ocrConfidence`, `unreadPages`), or a named decline. `AnchoredText` stays
- * the anchoring vocabulary; this is the stored/served record. Aliased from
- * the generated spec type so the wire shape has exactly one authority.
+ * the anchored-text store holds and the wire serves: an `AnchoredText` plus
+ * its provenance (`method`, `pdfClass`, `ocrConfidence`, `unreadPages`), or a
+ * named decline. `AnchoredText` stays the anchoring vocabulary; this is the
+ * stored/served record. Aliased from the generated spec type so the wire
+ * shape has exactly one authority.
  */
 export type ExtractionOutcome = components['schemas']['ExtractionOutcome'];
 
 /**
  * What a READER gets when it asks for a resource's map: the map, a stored
- * decline, or a named absence (SMELTER-OWNS-OCR P1).
+ * decline, or a named absence.
  *
  * Deliberately wider than `ExtractionOutcome`, which is what the store HOLDS and
  * what an extractor RETURNS — neither of which can ever be "not yet". Widening
@@ -136,7 +136,7 @@ export function anchorRuns(runs: PdfTextRun[], page: number): AnchoredText {
 /**
  * Items whose baseline Y is within this many PDF points are treated as being on
  * the same line. Tuned for ~12pt body text; revisit for documents with large or
- * variable font sizes (Phase 4 / #738).
+ * variable font sizes (deferred hardening, #738).
  */
 const SAME_LINE_THRESHOLD_PT = 2;
 
@@ -170,11 +170,11 @@ export function locate(
         const lines = groupItemsByLine(pageItems, SAME_LINE_THRESHOLD_PT);
         // Compute one bounding rectangle per line and add it to rects.
         // Boundary items that extend past [start, end) are clipped by character
-        // fraction (PDF-GENERATION P4): renderers like Typst emit ONE item per
-        // line, so without clipping a mid-line phrase would bound the whole
-        // line. Proportional interpolation is the measured fallback — exact
-        // glyph metrics need the operator-list route (open question 2) and can
-        // replace this arithmetic without changing the shape.
+        // fraction: renderers like Typst emit ONE item per line, so without
+        // clipping a mid-line phrase would bound the whole line. Proportional
+        // interpolation is the measured fallback — exact glyph metrics need
+        // the operator-list route, an open refinement, and can replace this
+        // arithmetic without changing the shape.
         for (const lineItems of lines) {
             const edges = lineItems.map(i => {
                 const chars = i.end - i.start;
@@ -200,8 +200,7 @@ export function locate(
  * The inverse of `locate`: given a rectangle, returns the text under it.
  *
  * A hand-drawn PDF rectangle otherwise carries no quoted text at all, so every
- * panel that quotes an annotation shows it blank
- * (.plans/PDF-MANUAL-ANNOTATION-TEXT.md).
+ * panel that quotes an annotation shows it blank.
  *
  * `rect` is in the same PDF-point, bottom-left-origin space as `PdfTextItem`,
  * so a canvas drag rectangle passes straight in. A run counts as covered when

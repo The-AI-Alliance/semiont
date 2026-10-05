@@ -1,5 +1,5 @@
 /**
- * Event handler logic extracted from CodeMirrorRenderer
+ * Event handler logic for CodeMirrorRenderer
  *
  * These functions handle click and hover interactions on annotations
  * and widgets within the CodeMirror editor. They operate on plain DOM

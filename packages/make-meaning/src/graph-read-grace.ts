@@ -1,6 +1,5 @@
 /**
- * Single-resource read-after-write grace for graph consumers
- * (bugs/graph-read-after-write-coverage.md).
+ * Single-resource read-after-write grace for graph consumers.
  *
  * Graph-first, VIEW-fallback: when an id-keyed `kb.graph.getResource` read
  * misses (or the store hiccups) but the resource exists in the view, the
@@ -10,8 +9,8 @@
  * candidate loop would multiply into seconds, while the fallback is one
  * read of a projection that is already correct.
  *
- * This is the "third instance" shared helper GRAPH-PROJECTION-SYNC
- * anticipated. It deliberately does NOT replace `buildKnowledgeGraph`'s
+ * This is the one shared helper for graph reads that only hydrate a
+ * resource by id. It deliberately does NOT replace `buildKnowledgeGraph`'s
  * barrier + bounded retry: traversal needs the node IN the graph — a
  * fallback descriptor cannot serve edges.
  *

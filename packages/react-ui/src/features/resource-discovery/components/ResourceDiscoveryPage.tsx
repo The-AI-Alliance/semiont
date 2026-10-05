@@ -23,7 +23,6 @@ export interface ResourceDiscoveryPageProps {
   /**
    * The recent-resources load failed terminally (B15). Without it, "loading"
    * derived from an absent value never resolves and this route freezes.
-   * See .plans/PANEL-FAILURE-STATES.md
    */
   recentError?: Error | null;
   onRetryRecent?: () => void;
@@ -35,7 +34,7 @@ export interface ResourceDiscoveryPageProps {
    * no-query view where `recent` renders and no label describes it.
    *
    * Optional so hosts that never wire it — including external consumers —
-   * render exactly as before (SEMANTIC-FALLBACK P3b).
+   * render exactly as before.
    */
   searchMatchKind?: 'lexical' | 'semantic';
 
@@ -244,13 +243,13 @@ export function ResourceDiscoveryPage({
               }
             </h3>
 
-            {/* Decision 3: label it, minimally. Someone who searches "kitten"
-                and gets documents about cats otherwise has no way to know why,
-                and an unexplained answer is a worse trust outcome than the
-                empty page this replaced. Only ever appears where the
-                alternative was that empty page (S5), so it never competes with
-                a better answer. `aria-live` because the results it explains
-                arrive without any control being activated. */}
+            {/* Label it, minimally. Someone who searches "kitten" and gets
+                documents about cats otherwise has no way to know why, and an
+                unexplained answer is a worse trust outcome than the empty page
+                this replaced. Only ever appears where the alternative was that
+                empty page, so it never competes with a better answer.
+                `aria-live` because the results it explains arrive without any
+                control being activated. */}
             {hasSearchQuery && searchMatchKind === 'semantic' && searchDocuments.length > 0 && (
               <p
                 className="semiont-card__documents-note"

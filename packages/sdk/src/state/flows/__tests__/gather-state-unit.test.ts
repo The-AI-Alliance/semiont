@@ -95,7 +95,7 @@ describe('createGatherStateUnit', () => {
   });
 
   it('sets context when the Observable emits a completion (response IS the GatheredContext)', () => {
-    // P2b collapse: gather:complete carries a bare GatheredContext on `response`, not response.context.
+    // gather:complete carries a bare GatheredContext on `response`, not response.context.
     const mockContext = {
       focus: { kind: 'annotation', annotation: { id: 'ann-1' }, sourceResource: {} },
       graph: { nodes: [], edges: [] },
@@ -221,7 +221,7 @@ describe('createGatherStateUnit', () => {
   });
 });
 
-// ── Resource gather (FLOW-LIFECYCLE-CONVERGENCE P2, D2/D2a) ────────────────
+// ── Resource gather ────────────────────────────────────────────────────────
 // Separate slots: the two gathers can be live at once, and one BehaviorSubject
 // cannot represent both — one fact per observable.
 
@@ -296,7 +296,7 @@ describe('GatherStateUnit — resource gather', () => {
   it("concurrent annotation and resource gathers do not disturb each other's slots", async () => {
     // Annotation gather in-flight (subject never responds) while the resource
     // gather starts and finishes — the wizard-closed-mid-load / Generate-open
-    // case D2a exists for.
+    // case the separate slots exist for.
     const annotationStream = new Subject();
     const d = deferred<GatheredContext>();
     tc = withBothGathers(vi.fn(() => annotationStream.asObservable()), vi.fn(() => d.promise));

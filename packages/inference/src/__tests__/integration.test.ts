@@ -212,9 +212,10 @@ describe('@semiont/inference - integration', () => {
   });
 
   describe('MockInferenceClient honors AbortSignal (no accept-and-drop)', () => {
-    // The A1 trap: an adapter that accepts the signal and ignores it is worse
-    // than one that lacks it, because cancellation tests pass against it while
-    // proving nothing. The mock must behave like a real adapter here.
+    // The accept-and-drop trap: an adapter that accepts the signal and ignores
+    // it is worse than one that lacks it, because cancellation tests pass
+    // against it while proving nothing. The mock must behave like a real
+    // adapter here.
     it('rejects with AbortError when called with an already-aborted signal', async () => {
       const controller = new AbortController();
       controller.abort();

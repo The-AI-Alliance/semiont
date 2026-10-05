@@ -59,23 +59,22 @@ describe('@semiont/inference - createInferenceClient', () => {
   });
 });
 
-// ── Detection-consumption capabilities (OLLAMA-DETECTION-TESTING, ruled
-// 2026-09-05) ─────────────────────────────────────────────────────────────
+// ── Detection-consumption capabilities ───────────────────────────────────
 //
 // @semiont/jobs is written in terms of the InferenceClient contract and does
-// NO provider-specific switching (user architecture ruling): whatever varies
-// by provider is DECLARED here, per implementation, like `maxConcurrency`.
-// These pin the declarations so a new provider must take a position and an
-// edit to one is deliberate.
+// NO provider-specific switching: whatever varies by provider is DECLARED
+// here, per implementation, like `maxConcurrency`. These pin the
+// declarations so a new provider must take a position and an edit to one is
+// deliberate.
 import { AnthropicInferenceClient, OllamaInferenceClient, MockInferenceClient } from '../index';
 
 describe('per-provider detection capabilities', () => {
-  it('every REAL provider count-verifies detection yield — Anthropic included (user ruling 2026-09-05)', () => {
-    // The verifier was first scoped to where collapse was MEASURED (local
-    // models). Overruled: unverified completeness is not a savings — "no
-    // observed collapse on Anthropic" was absence-of-looking, and a ~2×
-    // Person-yield discrepancy between sonnet and gemma on the same document
-    // stands unexplained. The extra billed input is the accepted cost.
+  it('every REAL provider count-verifies detection yield — Anthropic included', () => {
+    // Not scoped to where collapse is MEASURED (local models): unverified
+    // completeness is not a savings — "no observed collapse on Anthropic" is
+    // absence-of-looking, and a ~2× Person-yield discrepancy between sonnet
+    // and gemma on the same document stands unexplained. The extra billed
+    // input is the accepted cost.
     expect(new AnthropicInferenceClient('key', 'model').verifyDetectionYield).toBe(true);
     expect(new OllamaInferenceClient('model').verifyDetectionYield).toBe(true);
   });

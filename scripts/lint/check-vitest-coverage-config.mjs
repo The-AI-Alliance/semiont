@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 /**
- * Coverage reporters, excludes and provider are one decision, and fifteen
- * files used to restate a subset of it.
+ * Coverage reporters, excludes and provider are one decision, stated once.
  *
  * `vitest.shared.config.ts` says what a coverage run emits. A package that
  * does not derive from it inherits vitest's defaults instead — `text, html,
  * clover, json`, none of which the CI upload reads. The result is not an
  * error: `test:coverage` passes, the upload finds no `lcov.info`, the step
  * swallows it, and the package is simply absent from the coverage everyone
- * reads. Twelve of sixteen packages were in that state until this gate.
+ * reads.
  *
  * So: every workspace that declares `test:coverage` must have a vitest config,
  * and that config must derive from the shared one. Nothing here checks what a
@@ -19,8 +18,7 @@
  * teeth beyond tidiness: `mergeConfig` CONCATENATES arrays, so a local
  * reporter list does not override the shared one, it appends to it. The
  * reporters silently run twice. Re-declaring the list is also precisely the
- * mirror this gate exists to collapse — it would be the drift coming back
- * wearing a merge.
+ * mirror this gate exists to prevent.
  *
  * A workspace that cannot be read is a FAILURE, not a pass.
  */

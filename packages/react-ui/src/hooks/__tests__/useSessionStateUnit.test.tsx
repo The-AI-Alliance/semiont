@@ -1,6 +1,5 @@
 /**
- * useSessionStateUnit — the session gate as API shape
- * (.plans/SESSION-TYPED-FACTORIES.md, Phase 1).
+ * useSessionStateUnit — the session gate as API shape.
  *
  * The unit's lifetime is keyed on SESSION identity: one construction per
  * live session, disposal strictly before the successor's factory runs (the
@@ -10,8 +9,8 @@
  * of inside `!`-asserted factories (the auth/welcome production crash).
  *
  * Sessions here are REAL `SemiontSession`s over the scriptable transport
- * (`@semiont/sdk/testing` — no hand-rolled session mock; SDK-TESTING-DOUBLE
- * gap 5 exists for exactly this file's benefit).
+ * (`@semiont/sdk/testing` — no hand-rolled session mock; its session entry
+ * point exists for exactly this file's benefit).
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';

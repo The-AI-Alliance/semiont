@@ -8,10 +8,10 @@ import type { GenerationOptions, YieldGenerationEvent } from '../../namespaces/t
 type JobProgress = components['schemas']['JobProgress'];
 
 /**
- * What a finished generation produced, held for the terminal display
- * (GENERATE-FROM-RESOURCE D8). Sourced from `job:complete` — the broadcast,
- * emitted after citations attach — never from a progress event, which is
- * mid-run and carries no result.
+ * What a finished generation produced, held for the terminal display.
+ * Sourced from `job:complete` — the broadcast, emitted after citations
+ * attach — never from a progress event, which is mid-run and carries no
+ * result.
  */
 export interface YieldOutcome {
   resourceId: ResourceId;
@@ -20,8 +20,7 @@ export interface YieldOutcome {
    * The run stopped at the maxTokens ceiling — the artifact is cut off, not
    * complete. Mirrors `JobGenerationResult.truncated` so the terminal frame
    * derives its sentence from the OUTCOME rather than the final progress
-   * frame, whose fire-and-forget emit can lose the race with `job:complete`
-   * (GENERATION-ARRIVAL D5).
+   * frame, whose fire-and-forget emit can lose the race with `job:complete`.
    */
   truncated: boolean;
 }
@@ -77,11 +76,11 @@ export function createYieldStateUnit(
   // the cold stream ONCE — the state unit owns that single subscription (pushed
   // to `subs`, torn down on dispose). Callers observe `progress$`/`isGenerating$`;
   // they never get the stream back (a second subscription would re-fire the job —
-  // the A2 cold-stream double-fire), which is why the public methods return `void`.
+  // the cold-stream double-fire), which is why the public methods return `void`.
   // No timer of its own: the stall guard lives in the stream's producer
-  // (`runGeneration`), shared with every other consumption — A1 of
-  // FLOW-LIFECYCLE-CONVERGENCE. A stall arrives here as a plain stream
-  // error (GenerationStallError), handled below like any other.
+  // (`runGeneration`), shared with every other consumption — there is
+  // exactly one. A stall arrives here as a plain stream error
+  // (GenerationStallError), handled below like any other.
   const drive = (gen$: StreamObservable<YieldGenerationEvent>): void => {
     const genSub = gen$.subscribe({
       next: (e) => {
@@ -90,9 +89,9 @@ export function createYieldStateUnit(
           progress$.next(e.data);
           isGenerating$.next(true);
         }
-        // The `complete` event is `job:complete` — the union discriminates
-        // (WIRE-UNION-DISCRIMINANTS D1), so the result names its own kind and
-        // narrows without a cast. Held for the terminal frame's link (D8).
+        // The `complete` event is `job:complete` — the union discriminates,
+        // so the result names its own kind and narrows without a cast. Held
+        // for the terminal frame's link.
         if (e.kind === 'complete' && e.data.result?.kind === 'generation') {
           outcome$.next({
             resourceId: e.data.result.resourceId,
@@ -102,10 +101,8 @@ export function createYieldStateUnit(
         }
       },
       complete: () => {
-        // The finished display STAYS until dismissed (CLEAN-PROGRESS D1) —
-        // `isGenerating$` going false is what flips it to its ended form.
-        // It used to clear itself after 2 s, which is a different ending from
-        // the assist path's 5 s, in the same component.
+        // The finished display STAYS until dismissed — `isGenerating$` going
+        // false is what flips it to its ended form.
         isGenerating$.next(false);
       },
       error: (error: unknown) => {

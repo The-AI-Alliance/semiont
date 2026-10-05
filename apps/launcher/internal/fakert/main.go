@@ -1,6 +1,6 @@
 // fakert is the hermetic test double for every external command the launcher
-// runs: the container runtimes (container / docker / podman) plus git, and
-// what the launcher asks about ports and processes — lsof, ps and pgrep, or
+// runs: the container runtimes (container / docker / podman), git, gh and op,
+// and what the launcher asks about ports and processes — lsof, ps and pgrep, or
 // netstat and tasklist on Windows. The test harness puts this one binary
 // under each of those names on a private PATH — tests never touch a real
 // runtime (mutating commands are never test-run; this binary exists so that
@@ -20,6 +20,10 @@
 //	FAKERT_NSLOOKUP          "ok" makes the host-alias probe succeed
 //	FAKERT_GATEWAY           default-gateway probe output (default 192.168.64.1)
 //	FAKERT_OLLAMA_REACHABLE  "1" makes the busybox wget probe of :11434 succeed
+//	FAKERT_OLLAMA_TAGS       models the fake Ollama already has (comma separated)
+//	FAKERT_OLLAMA_UNLISTABLE  /api/tags fails — "unknown", which must not pull
+//	FAKERT_OLLAMA_PULL_FAILS  /api/pull answers with an error
+//	FAKERT_SKIP_SERVE        host ports to leave unbound (crashed-after-start containers)
 //	FAKERT_RUN_HOLD          a container name, whose `run -d` parks, or a codespace name, whose
 //	                         `semiont start` over ssh parks, until FAKERT_DIR/release-<name> exists,
 //	                         after writing FAKERT_DIR/holding-<name> — a start held mid-flight
@@ -36,8 +40,9 @@
 //	                         `container system status` reports the apiserver down
 //
 // A detached `run -d ... -p A:B` spawns this binary in __serve mode listening
-// on every published host port (HTTP 200 to any path, which also satisfies
-// plain TCP dials) — that is how health gates open without a real stack.
+// on every published host port: it answers the routes that container serves,
+// 404s the rest, and satisfies plain TCP dials — that is how health gates open
+// without a real stack.
 package main
 
 import (
@@ -161,33 +166,9 @@ func git(args []string) {
 	os.Exit(64)
 }
 
-// ghCmd fakes the GitHub CLI for the codespace flows. Scripted via:
-//
-//	FAKERT_GH_SCOPES        auth-status scopes list (default "'codespace', 'repo'")
-//	FAKERT_GH_AUTH_FAIL     `gh auth status` fails (not logged in)
-//	FAKERT_GH_SECRET_404    the ANTHROPIC_API_KEY secret does not exist
-//	FAKERT_GH_SECRET_REPOS  JSON body for …/secrets/…/repositories (default: empty selection)
-//	FAKERT_GH_CS_LIST       JSON array for `codespace list` (default [])
-//	FAKERT_GH_CS_NAME       name printed by `codespace create` (default "fake-cs-1")
-//	FAKERT_GH_CREATE_FAILS  N leading 503 failures before create succeeds (cursor file)
-//	FAKERT_GH_SSH_FAIL      ssh fails with the no-sshd error
-//	FAKERT_GH_SSH_FAIL_FIRST  ssh fails for the first n attempts, then works
-//	FAKERT_GH_HOOKS_FAIL    the devcontainer lifecycle command fails (stack never comes up)
-//	FAKERT_GH_ADMIN         admin.json content for `ssh -- cat .devcontainer/admin.json`
-//	FAKERT_GH_KBCONFIG      .semiont/config content for `ssh -- cat .semiont/config`
-//	FAKERT_GH_CS_SHUTTING_DOWN_LISTS  the first n `codespace list` calls report a Shutdown
-//	                        codespace as ShuttingDown — a stop GitHub has not finished
-//	FAKERT_GH_CS_KEYCLOAK_PORT  the port the codespace's Keycloak starts on (default 8080;
-//	                        an ssh `KEYCLOAK_PORT=<n> semiont start` moves it)
-//	FAKERT_GH_CS_ISSUER     an issuer the codespace does NOT run, advertised instead
-//	FAKERT_OLLAMA_TAGS      models the fake Ollama already has (comma separated)
-//	FAKERT_OLLAMA_UNLISTABLE  /api/tags fails — "unknown", which must not pull
-//	FAKERT_OLLAMA_PULL_FAILS  /api/pull answers with an error
-//	FAKERT_SKIP_SERVE       host ports to leave unbound (crashed-after-start containers)
-//
 // remoteDown reports whether the codespace's KB is still unreachable. With
-// FAKERT_REMOTE_READY_AFTER=n the nth ssh probe is the first to succeed, so a
-// test can model a stack that comes up partway through the wait.
+// FAKERT_REMOTE_READY_AFTER=n the nth readiness probe is the first to succeed,
+// so a test can model a stack that comes up partway through the wait.
 func remoteDown() bool {
 	if os.Getenv("FAKERT_REMOTE_DOWN") != "" {
 		return true
@@ -203,7 +184,7 @@ func remoteDown() bool {
 	return remoteProbeCount() < n
 }
 
-// remoteProbeCount reads the ssh-probe tally without incrementing it.
+// remoteProbeCount reads the readiness-probe tally without incrementing it.
 func remoteProbeCount() int {
 	dir := os.Getenv("FAKERT_DIR")
 	if dir == "" {
@@ -217,7 +198,8 @@ func remoteProbeCount() int {
 	return n
 }
 
-// bumpRemoteProbe records one ssh readiness probe and returns the new tally.
+// bumpRemoteProbe records one readiness probe — an ssh probe or a forward
+// attempt — and returns the new tally.
 func bumpRemoteProbe() int {
 	dir := os.Getenv("FAKERT_DIR")
 	if dir == "" {
@@ -228,7 +210,8 @@ func bumpRemoteProbe() int {
 	return n
 }
 
-// sshFailFirst / bumpSSHAttempt model sshd arriving late on a fresh create.
+// sshFailFirst is how many leading ssh attempts fail: sshd arriving late on a
+// fresh create.
 func sshFailFirst() int {
 	n, _ := strconv.Atoi(os.Getenv("FAKERT_GH_SSH_FAIL_FIRST"))
 	return n
@@ -241,19 +224,6 @@ func bumpCounter(name string) int {
 		return 0
 	}
 	p := filepath.Join(dir, name)
-	b, _ := os.ReadFile(p)
-	n, _ := strconv.Atoi(strings.TrimSpace(string(b)))
-	n++
-	_ = os.WriteFile(p, []byte(strconv.Itoa(n)), 0o644)
-	return n
-}
-
-func bumpSSHAttempt() int {
-	dir := os.Getenv("FAKERT_DIR")
-	if dir == "" {
-		return 0
-	}
-	p := filepath.Join(dir, "ssh-attempts")
 	b, _ := os.ReadFile(p)
 	n, _ := strconv.Atoi(strings.TrimSpace(string(b)))
 	n++
@@ -295,8 +265,8 @@ func codespaceArg(args []string) string {
 	return ""
 }
 
-// codespaceKeycloakPort: the port a codespace's Keycloak is on now — where an
-// ssh rerun moved it, else where it started.
+// codespaceKeycloakPort: the port a codespace's Keycloak is on — where an ssh
+// rerun moved it, else where it started.
 func codespaceKeycloakPort(name string) string {
 	if dir := os.Getenv("FAKERT_DIR"); dir != "" {
 		if b, err := os.ReadFile(filepath.Join(dir, "cs-keycloak-port-"+name)); err == nil {
@@ -309,9 +279,24 @@ func codespaceKeycloakPort(name string) string {
 	return "8080"
 }
 
-// `codespace ports forward A:B …` binds the LOCAL port and parks (the fake
-// dev tunnel), writing a serve pidfile so killServes reaps it — unless the
-// remote is down, in which case it dies on first contact like the real thing.
+// ghCmd fakes the GitHub CLI for the codespace flows. Scripted via:
+//
+//	FAKERT_GH_SCOPES        auth-status scopes list (default "'codespace', 'repo'")
+//	FAKERT_GH_AUTH_FAIL     `gh auth status` fails (not logged in)
+//	FAKERT_GH_SECRET_404    the ANTHROPIC_API_KEY secret does not exist
+//	FAKERT_GH_SECRET_REPOS  JSON body for …/secrets/…/repositories (default: empty selection)
+//	FAKERT_GH_CS_LIST       JSON array for `codespace list` (default [])
+//	FAKERT_GH_CS_NAME       name printed by `codespace create` (default "fake-cs-1")
+//	FAKERT_GH_CREATE_FAILS  N leading 503 failures before create succeeds (cursor file)
+//	FAKERT_GH_SSH_FAIL      ssh fails with the no-sshd error
+//	FAKERT_GH_SSH_FAIL_FIRST  ssh fails for the first n attempts, then works
+//	FAKERT_GH_HOOKS_FAIL    the devcontainer lifecycle command fails (stack never comes up)
+//	FAKERT_GH_KBCONFIG      .semiont/config content for `ssh -- cat .semiont/config`
+//	FAKERT_GH_CS_SHUTTING_DOWN_LISTS  the first n `codespace list` calls report a Shutdown
+//	                        codespace as ShuttingDown — a stop GitHub has not finished
+//	FAKERT_GH_CS_KEYCLOAK_PORT  the port the codespace's Keycloak starts on (default 8080;
+//	                        an ssh `KEYCLOAK_PORT=<n> semiont start` moves it)
+//	FAKERT_GH_CS_ISSUER     an issuer the codespace does NOT run, advertised instead
 func ghCmd(args []string) {
 	joined := strings.Join(args, " ")
 	switch {
@@ -328,9 +313,9 @@ func ghCmd(args []string) {
 		fmt.Println("  ✓ Logged in to github.com")
 		fmt.Println("  - Token scopes: " + scopes)
 	case len(args) >= 2 && args[0] == "api" && strings.Contains(args[1], "/codespaces/machines"):
-		// Shape mirrors the real endpoint (captured 2026-07-20). The default
-		// is what a hostRequirements-declaring KB actually offers: GitHub
-		// filters the 2-core class out.
+		// Shape mirrors the real endpoint. The default is what a
+		// hostRequirements-declaring KB actually offers: GitHub filters the
+		// 2-core class out.
 		body := os.Getenv("FAKERT_GH_MACHINES")
 		switch body {
 		case "ERROR":
@@ -350,9 +335,10 @@ func ghCmd(args []string) {
 		}
 		fmt.Println("fakeuser")
 	case len(args) >= 2 && args[0] == "api" && strings.Contains(args[1], "/settings/billing/usage"):
-		// The Tier 2 payload, shaped exactly like the 2026-07-20 capture:
-		// month buckets, per-repo (bare name), quota-as-discount, and a
-		// non-codespaces product that must be filtered out.
+		// The usage report `status --billing` shows, shaped exactly like
+		// the real endpoint's: month buckets, per-repo (bare name),
+		// quota-as-discount, and a non-codespaces product that must be
+		// filtered out.
 		if os.Getenv("FAKERT_GH_BILLING_NOSCOPE") != "" {
 			fmt.Fprintln(os.Stderr, "gh: This API operation needs the \"user\" scope (HTTP 403)")
 			os.Exit(1)
@@ -367,11 +353,11 @@ func ghCmd(args []string) {
 		}
 		fmt.Println(body)
 	case len(args) >= 2 && args[0] == "api" && args[1] == "/user/codespaces":
-		// The cost-facts endpoint (CODESPACE-COSTS Tier 1): machine size,
-		// last_used_at (= when last STARTED; verified 2026-07-20),
-		// retention expiry, idle timeout. Every fake codespace reports the
-		// same premiumLinux shape; last_used_at is now-2h30s so "up 2h"
-		// renders deterministically (the 30s absorbs test runtime).
+		// The cost-facts endpoint, which status and the start summary
+		// read: machine size, last_used_at (= when last STARTED), retention
+		// expiry, idle timeout. Every fake codespace reports the same
+		// premiumLinux shape; last_used_at is 2h30s before the call so
+		// "up 2h" renders deterministically (the 30s absorbs test runtime).
 		var entries []string
 		for _, cs := range createdCodespaceNames() {
 			entries = append(entries, `{"name":"`+cs+`","machine":{"name":"premiumLinux","cpus":8,"memory_in_bytes":34359738368},`+
@@ -418,9 +404,8 @@ func ghCodespace(args []string, joined string) {
 		if body == "" {
 			body = "[" + strings.Join(createdCodespaces(), ",") + "]"
 		}
-		// A stop GitHub is still carrying out: Shutdown reads as ShuttingDown
-		// for the first n lists (live 2026-09-29, the state a start right
-		// after a stop meets).
+		// A stop GitHub has not finished: Shutdown reads as ShuttingDown for
+		// the first n lists, the state a start right after a stop meets.
 		if n, _ := strconv.Atoi(os.Getenv("FAKERT_GH_CS_SHUTTING_DOWN_LISTS")); n > 0 && bumpCounter("cs-list-count") <= n {
 			body = strings.ReplaceAll(body, `"state":"Shutdown"`, `"state":"ShuttingDown"`)
 		}
@@ -455,14 +440,13 @@ func ghCodespace(args []string, joined string) {
 		// forward: bind host ports, park like a dev tunnel. Pidfile so the
 		// harness's killServes reaps the parked process between tests.
 		// Real gh takes <codespacePort>:<localPort> and listens on the
-		// LOCAL one. Modelling this correctly is what would have caught the
-		// reversed-argument bug found live on 2026-07-20.
+		// LOCAL one; the fake does too, so a launcher that reverses the
+		// pair fails here.
 		//
 		// FAKERT_GH_FORWARD_SICK: the tunnel is bound but the stack behind
 		// it answers 503 (gateway still warming). FAKERT_GH_FORWARD_DIES_
-		// AFTER_MS: the forward process exits after that delay — the
-		// mid-wait death observed live on 2026-07-23 (pid went defunct
-		// while the KB was healthy in the codespace).
+		// AFTER_MS: the forward process exits after that delay — a forward
+		// that dies mid-wait while the KB is healthy in the codespace.
 		if ms := os.Getenv("FAKERT_GH_FORWARD_DIES_AFTER_MS"); ms != "" {
 			if n, err := strconv.Atoi(ms); err == nil {
 				go func() {
@@ -472,22 +456,21 @@ func ghCodespace(args []string, joined string) {
 			}
 		}
 		// FAKERT_REMOTE_DOWN / FAKERT_REMOTE_READY_AFTER: the REMOTE side is
-		// not listening yet. This is the behaviour that made a fresh create
-		// unusable live on 2026-07-27, and the fake could not express it: a
-		// real `gh codespace ports forward` binds locally straight away, then
-		// EXITS the first time a local connection cannot be opened through to
-		// the remote port —
+		// not listening yet. A real `gh codespace ports forward` binds locally
+		// straight away, then EXITS the first time a local connection cannot
+		// be opened through to the remote port —
 		//
 		//   ssh: rejected: connect failed (Connection refused)
 		//
 		// so any probe through the tunnel while the stack is still coming up
-		// destroys the tunnel. The old fake bound and parked unconditionally,
-		// which is why every test agreed a forward that binds is a forward
-		// that works.
+		// destroys the tunnel. A fake that bound and parked unconditionally
+		// would have every test agree a forward that binds is a forward that
+		// works.
 		// A forward attempt is a readiness probe too — the launcher may have no
 		// ssh to ask, and then this is the ONLY way it can learn the stack is
-		// up. Counting only ssh probes made a stack that comes up "after n
-		// probes" unreachable on that path, and the retry loop ran forever.
+		// up. Counting only ssh probes would leave a stack that comes up "after
+		// n probes" unreachable on that path, with the retry loop running
+		// forever.
 		bumpRemoteProbe()
 		if remoteDown() {
 			// The pidfile is what makes the fake `ps` report this process as
@@ -538,7 +521,8 @@ func ghCodespace(args []string, joined string) {
 		}
 		// A codespace forward carries the KB's GATEWAY, so it serves the
 		// gateway's routes — the forward is a tunnel, not a service. Any
-		// other remote port is the issuer (CODESPACE-IDENTITY B4).
+		// other remote port is the issuer: each KB's Keycloak has a port
+		// of its own, forwarded with the same number on both ends.
 		if forwardRemotePort(args) != "4000" {
 			serve("semiont-keycloak", ports)
 			return
@@ -560,7 +544,7 @@ func ghCodespace(args []string, joined string) {
 		fmt.Println("2026-01-01 00:00:01.000Z: Pulling semiont-gateway:latest")
 		// FAKERT_GH_HOOKS_FAIL: the devcontainer's lifecycle command failed —
 		// the stack will never come up, so waiting is pointless. Shaped like
-		// the live 2026-07-27 log: the CAUSE (a service refusing to boot)
+		// a real creation log: the CAUSE (a service refusing to boot)
 		// several lines above the devcontainer's own announcement, which is
 		// why the launcher must print the run-up and not just the marker.
 		if os.Getenv("FAKERT_GH_HOOKS_FAIL") != "" {
@@ -605,7 +589,7 @@ func ghCodespace(args []string, joined string) {
 		// fails for the first n attempts and then works — sshd coming up
 		// during a fresh create, which is the case that must NOT be mistaken
 		// for a codespace that will never answer.
-		if os.Getenv("FAKERT_GH_SSH_FAIL") != "" || bumpSSHAttempt() <= sshFailFirst() {
+		if os.Getenv("FAKERT_GH_SSH_FAIL") != "" || bumpCounter("ssh-attempts") <= sshFailFirst() {
 			fmt.Fprintln(os.Stderr, "failed to start SSH server")
 			os.Exit(1)
 		}
@@ -619,20 +603,14 @@ func ghCodespace(args []string, joined string) {
 					recordState(args[i+1], "Available")
 				}
 			}
-		case strings.Contains(joined, "admin.json"):
-			body := os.Getenv("FAKERT_GH_ADMIN")
-			if body == "" {
-				body = `{"email":"admin@example.com","password":"fake-admin-pw"}`
-			}
-			fmt.Println(body)
 		case strings.Contains(joined, "SEMIONT_KB_READY"):
 			// The readiness probe that does NOT go through the tunnel — the
 			// only way to ask "is the stack up?" without destroying the
 			// forward while it is still coming up. Each call is tallied so a
 			// test can say "ready on the nth probe".
-			// The launcher's probe is `curl … && echo READY || echo WAIT`, so
-			// the sentinel — not the exit code — is the answer. A vanished
-			// sentinel is how it detects that ssh itself failed.
+			// The launcher's probe is `semiont status … && echo READY ||
+			// echo WAIT`, so the sentinel — not the exit code — is the answer.
+			// A vanished sentinel is how it detects that ssh itself failed.
 			bumpRemoteProbe()
 			if remoteDown() {
 				fmt.Println("SEMIONT_KB_WAIT")
@@ -656,7 +634,7 @@ func ghCodespace(args []string, joined string) {
 			fmt.Println(body)
 		case strings.Contains(joined, "semiont start"):
 			// The codespace's own launcher, rerun with the issuer on a new
-			// port: it records it, and the gateway advertises it from now on.
+			// port: it records it, and the gateway advertises it afterwards.
 			// Held, it is the window in which the laptop's allocated port can
 			// be taken by something else.
 			holdIfNamed(codespaceArg(args))
@@ -752,10 +730,10 @@ func lsof(args []string) {
 	// FIDELITY: with nothing scripted, answer for REAL. A port something is
 	// actually listening on must read as BUSY — real lsof sees it, and the
 	// launcher trusts lsof for both its port preflight and KB-port
-	// allocation. An env-only fake reported "free" for a held port, so the
-	// launcher handed out a port that could not bind: the forward died
-	// instantly and the start failed 30s later blaming the tunnel (CI run
-	// 30143820210). A fake that lies about the world hides real bugs.
+	// allocation. An env-only fake reports "free" for a held port, so the
+	// launcher hands out a port that cannot bind: the forward dies
+	// instantly and the start fails 30s later blaming the tunnel. A fake
+	// that lies about the world hides real bugs.
 	// Probe by BINDING, not dialing: bindability is the question the
 	// launcher is really asking, and a dial can report "free" for a port
 	// that is held but not accepting (backlog exhausted, filtered).
@@ -768,8 +746,8 @@ func lsof(args []string) {
 
 // opCmd fakes the 1Password CLI. Resolution calls `op read op://<path>`; the
 // launcher's 1Password custody store calls the `item` commands, shaped as the
-// real CLI answered them in SECRETS-STORE's P0 probe (op 2.33.1): items live
-// in FAKERT_DIR/op-items.json, values arrive on stdin, never argv.
+// real CLI (op 2.33.1) answers them: items live in
+// FAKERT_DIR/op-items.json, values arrive on stdin, never argv.
 // FAKERT_OP_FAIL fails every command, as a denied authorization does;
 // FAKERT_OP_VALUE overrides a read of a path no item answers; FAKERT_OP_VAULTS
 // (comma-separated) names the vaults that exist, every vault when unset.
@@ -1078,9 +1056,9 @@ func runtimeCmd(base string, args []string) {
 	if len(args) == 0 {
 		os.Exit(64)
 	}
-	// Daemon-down persona (measured on Apple container 0.11.0 with the
-	// apiserver off): `container system status` names the condition and
-	// exits 1; every other command dies with an XPC connection error.
+	// Daemon-down persona (Apple container 0.11.0 with the apiserver off):
+	// `container system status` names the condition and exits 1; every
+	// other command dies with an XPC connection error.
 	if os.Getenv("FAKERT_DAEMON_DOWN") == "1" {
 		if base == "container" && args[0] == "system" {
 			fmt.Fprintln(os.Stderr, "apiserver is not running and not registered with launchd")
@@ -1140,7 +1118,7 @@ func runtimeCmd(base string, args []string) {
 		// Two callers, two questions:
 		//
 		//   list / ps            "which runtime is the stack on?" — answered by
-		//                        FAKERT_STACK_RUNTIME, as before.
+		//                        FAKERT_STACK_RUNTIME.
 		//   list -a / ps -a      "which semiont containers EXIST here?" — the
 		//                        teardown's question. Answered from
 		//                        FAKERT_STATE_<svc>, the same source `inspect`
@@ -1308,9 +1286,9 @@ func run(args []string) {
 	// NAME-HOLDING: real runtimes refuse `run --name X` while a container
 	// named X exists IN ANY STATE — stopped included (no --rm keeps them).
 	// A scripted container (FAKERT_STATE_<svc>) holds its name until an
-	// explicit `rm` records a removal marker. This fidelity gap once let a
-	// stop-without-rm restart path pass hermetically and fail live
-	// (Copilot review, PR #1064).
+	// explicit `rm` records a removal marker. Without that, a
+	// stop-without-rm restart path passes hermetically and fails against a
+	// real runtime.
 	if name != "" && scriptedAlive(name) {
 		fmt.Fprintf(os.Stderr, "Error: the container name %q is already in use\n", name)
 		os.Exit(125)
@@ -1338,8 +1316,8 @@ func run(args []string) {
 			os.Exit(64)
 		}
 		// The container NAME rides along: a fake service answers the route
-		// its image declares and 404s the rest (FAKE-RUNTIME-FIDELITY P1),
-		// and the name is how it knows which image it is.
+		// its image declares and 404s the rest, and the name is how it
+		// knows which image it is.
 		// Where the child reports whether it is serving: a loopback
 		// listener, which every system can hand a child the address of. An
 		// inherited pipe would do on two of the three.
@@ -1465,10 +1443,6 @@ func createdCodespaceNames() []string {
 	return out
 }
 
-// applyWakes reports a woken codespace as Available regardless of the
-// scripted initial state — a stopped codespace that something connected to
-// really does come back, and a fake that never transitions would let the
-// launcher wait forever (it did, until this was added).
 // recordState appends a state transition for a codespace. The file is an
 // ordered log, not a set: stop-then-wake and wake-then-stop must differ.
 func recordState(name, state string) {
@@ -1484,7 +1458,9 @@ func recordState(name, state string) {
 	f.Close()
 }
 
-// applyStateEvents replays that log over a listing, last write winning.
+// applyStateEvents replays that log over a listing, last write winning, so a
+// woken codespace lists as Available whatever state the test scripted: a fake
+// that never transitions would let the launcher wait forever.
 func applyStateEvents(body string) string {
 	dir := os.Getenv("FAKERT_DIR")
 	if dir == "" {
@@ -1536,8 +1512,8 @@ func handleName(arg string) string {
 }
 
 func busybox(args []string, joined string) {
-	// A daemon that answers but cannot run a container yet (live 2026-09-29:
-	// dockerd eight seconds old on a codespace resume).
+	// A daemon that answers but cannot run a container yet: dockerd a few
+	// seconds old on a codespace resume.
 	if n, _ := strconv.Atoi(os.Getenv("FAKERT_BUSYBOX_FAIL_FIRST")); n > 0 && bumpCounter("busybox-runs") <= n {
 		fmt.Fprintln(os.Stderr, "docker: Error response from daemon: failed to set up container networking: network bridge not found")
 		os.Exit(125)
@@ -1597,15 +1573,13 @@ func busybox(args []string, joined string) {
 	}
 }
 
-// killServe reaps the port listener for a named container, reporting whether
-// one existed.
 // The fake bus is a BROADCAST, like the real one: every open subscription
-// receives every event on a channel it subscribed to. The first version
-// handed each emitted request to exactly one stream, so a flow with two
-// concurrent subscriptions (yield --delegate: one for job:* lifecycle, one
-// inside the request/reply helper) lost its reply to the wrong stream and
-// timed out. A fake with different delivery semantics than the real bus
-// tests a protocol nobody implements.
+// receives every event on a channel it subscribed to. Handing each emitted
+// request to exactly one stream would make a flow with two concurrent
+// subscriptions (yield --delegate: one for job:* lifecycle, one inside the
+// request/reply helper) lose its reply to the wrong stream and time out. A
+// fake with different delivery semantics than the real bus tests a protocol
+// nobody implements.
 type busSub struct {
 	channels map[string]bool
 	out      chan busFrame
@@ -1644,7 +1618,6 @@ func busUnsubscribe(target *busSub) {
 	}
 }
 
-// busPublish fans one event out to every subscriber listening for it.
 // busSubscriberCount reports how many live subscriptions cover a channel —
 // the fake's answer to the real gateway's observer count.
 func busSubscriberCount(channel string) int {
@@ -1670,8 +1643,9 @@ var fakeJobResults = map[string]map[string]any{
 	"tag-annotation":        {"kind": "tag-annotation", "tagsFound": 6, "tagsCreated": 6, "byCategory": map[string]any{"rule": 4, "issue": 2}},
 }
 
-// busPublish emits one frame. corrID rides the ENVELOPE beside the channel,
-// which is where the real gateway puts it (routes/bus.ts writes
+// busPublish fans one frame out to every subscriber listening on its channel.
+// corrID rides the ENVELOPE beside the channel, which is where the real
+// gateway puts it (apps/gateway/src/routes/stream.rs writes
 // `{channel, correlationId, payload}`) and where the Go client reads it.
 // Job lifecycle events pass "" — they are keyed by jobId, not by the
 // correlation key of the request that created the job.
@@ -1751,8 +1725,8 @@ var busScripted = map[string]bool{
 //
 // The second source is the one a restart depends on: a launcher that starts a
 // stack and then starts it again must find its own containers to tear them
-// down. Before the teardown asked (it fired stop/rm blindly), so the gap was
-// invisible; now that it asks, an incomplete answer becomes a name collision.
+// down. The teardown asks what exists rather than firing stop/rm blindly, so
+// an incomplete answer becomes a name collision.
 //
 // Sorted, so the argv goldens are stable.
 func existingContainers() []string {
@@ -1783,6 +1757,8 @@ func existingContainers() []string {
 	return out
 }
 
+// killServe reaps the port listener for a named container, reporting whether
+// one existed.
 func killServe(name string) bool {
 	dir := os.Getenv("FAKERT_DIR")
 	if dir == "" {
@@ -1801,11 +1777,10 @@ func killServe(name string) bool {
 		}
 	}
 	// FIDELITY: a real `stop` does not return until the container is stopped
-	// and its published ports are RELEASED. Returning early let the
-	// launcher's very next port check still see the dying listener —
-	// invisible while the fake lsof was env-only, a flake the moment it told
-	// the truth. Waiting on the PORTS (not the pid) avoids depending on who
-	// reaps an orphaned serve.
+	// and its published ports are RELEASED. Returning early would let the
+	// launcher's very next port check see the dying listener, because the
+	// fake lsof answers for real. Waiting on the PORTS (not the pid) avoids
+	// depending on who reaps an orphaned serve.
 	if len(lines) > 1 {
 		for _, p := range strings.Fields(lines[1]) {
 			deadline := time.Now().Add(3 * time.Second)
@@ -1832,8 +1807,6 @@ func killServe(name string) bool {
 	return true
 }
 
-// serve listens on every given port, answering 200 to any HTTP request; the
-// open listener also satisfies the launcher's raw TCP dial (postgres phase 1).
 // devicePolls counts token-endpoint polls of the device grant, so the first
 // FAKERT_DEVICE_PENDING of them can answer authorization_pending; bearerUses
 // counts presentations of each bearer, so a token can be accepted once (at
@@ -1874,30 +1847,31 @@ func unsignedJWT(claims map[string]any) string {
 
 // servedRoutes: does this container answer that path? Everything else 404s.
 //
-// TWO SOURCES, and neither of them is the launcher (FAKE-RUNTIME-FIDELITY
-// D2). A fake taught by the code under test agrees with it about a wrong
-// route as happily as a right one.
+// TWO SOURCES, and neither of them is the launcher. A fake taught by the
+// code under test agrees with it about a wrong route as happily as a right
+// one.
 //
 //   - Semiont's own services: read from the IMAGE, which declares its health
 //     route as its HEALTHCHECK and its entrypoint's probe. That is the thing
 //     that actually runs.
 //   - Third-party servers: their own facts, which no file in this repo owns.
-//     Each is DATED (D4) — a belief about an upstream, to be re-checked when
-//     the pinned version moves, not a convention we may change.
+//     Each is a belief about an upstream, to be re-checked when the pinned
+//     version moves, not a convention we may change.
 //
 // Paths the handler already models explicitly (the issuer's realm endpoints,
 // the gateway's bus and token routes, Ollama's API) are reached before this
 // and are not repeated here.
 //
-// KNOWN GAP, measured and not closed here: this predicate is per-CONTAINER,
-// but the handler above it is not — the issuer's realm routes still answer
-// on every port, so a request to the gateway's port for a Keycloak path
-// succeeds. Real stacks put those on different origins, which is the whole
-// subject of BROWSER-SIGNIN-ORIGIN. Closing it belongs with the realm
-// round-trip (P3).
+// KNOWN GAP: this predicate is per-CONTAINER, but the handler above it is
+// not — the issuer's realm routes answer on every port, so a request to the
+// gateway's port for a Keycloak path succeeds. Real stacks put those on
+// different origins, and a sign-in crosses them: the realm must list the
+// Browser's origin or the token exchange fails CORS. Closing it belongs with
+// a fake issuer that reads the realm document the launcher stages (its
+// clients, their redirect URIs and web origins).
 func servedRoutes(container string) (func(string) bool, error) {
-	// Third-party health routes, captured 2026-09-24 against the versions
-	// pinned in the launcher's descriptor set.
+	// Third-party health routes, as served by the versions pinned in the
+	// launcher's descriptor set.
 	exact := func(paths ...string) func(string) bool {
 		set := map[string]bool{}
 		for _, p := range paths {
@@ -1922,8 +1896,8 @@ func servedRoutes(container string) (func(string) bool, error) {
 		// Keycloak serves a root document for EVERY realm it holds, which is
 		// what the launcher's readiness wait reads — it does not know which
 		// realm a config named, and must not ask the launcher. Whether the
-		// realm the launcher staged is the one that exists is P3's question,
-		// and needs the staged document.
+		// realm the launcher staged is the one that exists is another
+		// question, and needs the staged document.
 		return func(p string) bool {
 			rest, ok := strings.CutPrefix(p, "/realms/")
 			return ok && rest != "" && !strings.Contains(rest, "/")
@@ -1944,6 +1918,9 @@ func servedRoutes(container string) (func(string) bool, error) {
 	return exact(p), nil
 }
 
+// serve listens on every given port and answers as container does until the
+// process is killed: the paths serveOn models, the routes servedRoutes names,
+// and 404 for the rest.
 func serve(container string, ports []string) {
 	routes, err := servedRoutes(container)
 	if err != nil {
@@ -1962,8 +1939,8 @@ func serve(container string, ports []string) {
 // the address the parent listens on for it, whether it is serving: "bound"
 // once every port listens, "unbound <port>" when one is taken, "error <why>"
 // when it cannot start at all. The parent returns only for a container that
-// is really serving, as a runtime does; before, it dialed the ports, and a
-// port another process held answered for a listener that had already exited.
+// is really serving, as a runtime does; were it to dial the ports instead, a
+// port another process holds would answer for a listener that has exited.
 func serveDetached(reportTo, container string, ports []string) {
 	ready, err := net.DialTimeout("tcp", reportTo, 10*time.Second)
 	if err != nil {
@@ -2024,7 +2001,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 				//   FAKERT_MISSING_CLIENT=id  the realm has no such client (401 invalid_client)
 				//   FAKERT_NO_DEVICE_GRANT=id that client may not use the device grant
 				//   FAKERT_PIN_REDIRECT_PORT=1 the realm pins loopback redirects to :3000,
-				//                             like one imported before RFC 8252 §7.3 was honoured
+				//                             refusing the any-port loopback of RFC 8252 §7.3
 				origin := "http://" + r.Host
 				issuer := origin + "/realms/semiont"
 				advertised := issuer
@@ -2076,10 +2053,10 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					// The realm the launcher provisions has the IMPLICIT flow
 					// disabled, and a realm with it disabled refuses
 					// response_type=token rather than serving the login page.
-					// Answering 200 to every response_type made this fake
-					// describe a realm that leaks bearer tokens in redirect
-					// fragments — which the identity preflight then correctly
-					// refused to start. The insecure realm has unit coverage
+					// Answering 200 to every response_type would describe a
+					// realm that leaks bearer tokens in redirect fragments —
+					// which the identity preflight correctly refuses to
+					// start. The insecure realm has unit coverage
 					// (stubPublicIssuer{implicitOn: true}); this fake models
 					// the one the launcher actually creates.
 					if q.Get("response_type") == "token" {
@@ -2180,7 +2157,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						// Every service client carries the service role; the worker
 						// client ALSO carries the worker role, mirroring the realm's
 						// grant so a worker's agent-token mint gets the capability
-						// (EXTRACT-JOBS P0). Held to the same literal by
+						// to claim jobs. Held to the same literal by
 						// lint:service-role.
 						roles := []string{"semiont-service"}
 						if r.PostForm.Get("client_id") == "semiont-worker" {
@@ -2249,8 +2226,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					}
 					// The real UserResponse: a DID and the facts the token
 					// carried. No row id, no provider, no role flags — the
-					// gateway stopped answering with any of those when the
-					// user table went.
+					// gateway answers with none of those.
 					_ = json.NewEncoder(w).Encode(map[string]any{
 						"did":   "did:web:example.com:users:admin@example.com",
 						"email": "admin@example.com", "name": nil, "image": nil,
@@ -2366,16 +2342,16 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						w.WriteHeader(401)
 						return
 					}
-					// POST subscription matrix (MULTI-RESOURCE-SCOPE); the GET
-					// query form is gone. Delivery here stays flat by channel —
-					// this fake never scope-gates, same as before.
-					// ClientID is REQUIRED on the real route
-					// (CORRELATED-REPLY-ROUTING D5) and this fake is the
-					// SERVER half of the pair, so it PARSES the field rather
-					// than minting one. It stays contract-true by refusing a
-					// subscribe without it, exactly as the gateway will —
-					// otherwise a client regression passes the launcher tests
-					// and surfaces at the P3 cutover.
+					// POST subscription matrix — one connection subscribing
+					// to any number of resource scopes. Delivery here is flat
+					// by channel — this fake never scope-gates.
+					// ClientID is REQUIRED on the real route — it is the
+					// address a correlated reply is routed to — and this fake
+					// is the SERVER half of the pair, so it PARSES the field
+					// rather than minting one. It stays contract-true by
+					// refusing a subscribe without it, exactly as the gateway
+					// does — otherwise a client that omits it passes the launcher
+					// tests and surfaces only against a real gateway.
 					var matrix struct {
 						Global   []string `json:"global"`
 						ClientID string   `json:"clientId"`
@@ -2488,7 +2464,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					}
 					_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
 				default:
-					// P1: no catch-all. A path this service does not serve
+					// No catch-all. A path this service does not serve
 					// is a 404, which is what a wrong probe deserves and
 					// what makes it indistinguishable from a service that is
 					// down — because that is what it is.

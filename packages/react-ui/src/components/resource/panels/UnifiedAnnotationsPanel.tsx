@@ -31,13 +31,8 @@ interface PendingAnnotation {
 const TAB_ORDER: TabKey[] = ['statistics', 'reference', 'highlight', 'assessment', 'comment', 'tag'];
 
 /**
- * Simplified UnifiedAnnotationsPanel using event-driven architecture
- *
- * Key simplifications:
- * - Single annotations array (grouped internally by motivation)
- * - Single focusedAnnotationId (motivation-agnostic)
- * - Hover state managed via event bus (no props needed)
- * - All operations managed via event bus (no callback props)
+ * The annotations side panel: a statistics tab plus one tab per annotator,
+ * all fed from a single annotations array grouped internally by motivation.
  */
 interface UnifiedAnnotationsPanelProps {
   /** Session carrying the client and event bus; null renders inert. */
@@ -52,7 +47,6 @@ interface UnifiedAnnotationsPanelProps {
    * The annotations load failed terminally (B15). Every tab here derives from
    * the one `annotations` array, so without this the panel presents an empty
    * array as fact — "no highlights" for a resource that may be full of them.
-   * See .plans/PANEL-FAILURE-STATES.md
    */
   annotationsError?: Error | null;
   onRetryAnnotations?: () => void;
@@ -78,7 +72,7 @@ interface UnifiedAnnotationsPanelProps {
   entityTypesError?: Error | null;
   referencedByError?: Error | null;
   onRetryReferencedBy?: () => void;
-  /** Annotations currently sparkling (recently created or resolved) — RESOLUTION-SPARKLE D6. */
+  /** Annotations currently sparkling (recently created or resolved); their reference entries glow. */
   sparkleAnnotationIds?: Set<string>;
 
   // Resource context — threaded to every per-motivation panel, which stamps it

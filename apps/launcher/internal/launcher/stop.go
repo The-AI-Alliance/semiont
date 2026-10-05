@@ -42,15 +42,14 @@ targets a codespace stack, --runtime targets the local one.
 // order — the start walk reversed, so nothing spends teardown alive with its
 // upstream already gone.
 //
-// `browser` is the one exemption: the Browser is not a stack member
-// (BROWSER-LIFECYCLE.md), so a bare stop leaves the viewer running
-// (announced) and `stop --service browser` is its explicit off-switch. That
-// exemption, and the one name this sweep has beyond the start preflight
-// (semiont-ollama, which start handles in its own section), are gated by
-// descriptor_census_test.go.
+// `browser` is the one exemption: the Browser is not a stack member, so a
+// bare stop leaves the viewer running (announced) and `stop --service
+// browser` is its explicit off-switch. That exemption, and the one name this
+// sweep has beyond the start preflight (semiont-ollama, which start handles
+// in its own section), are gated by descriptor_census_test.go.
 var stopNames = sweepNames("browser")
 
-// Stop implements `semiont stop` — the port of the fleet's stop.sh.
+// Stop implements `semiont stop`.
 func Stop(args []string) int {
 	u := NewUI(false)
 	runtime := ""
@@ -112,9 +111,8 @@ func Stop(args []string) int {
 		}
 		// Sweep BOTH the recorded ID and the stable name: a stale ID
 		// (container recreated outside this record) would no-op while the
-		// name still runs — an off-switch that doesn't switch off (Copilot
-		// review, PR #1064). Idempotent; the name pass is free when the ID
-		// already got it.
+		// name still runs — an off-switch that doesn't switch off.
+		// Idempotent; the name pass is free when the ID already got it.
 		handles := []string{"semiont-browser"}
 		if b != nil && b.ID != "" {
 			handles = []string{b.ID, "semiont-browser"}
@@ -177,7 +175,7 @@ func Stop(args []string) int {
 	// stack and what identifiers it reported — stop computes its work from
 	// those instead of a blind every-runtime name sweep. An explicit
 	// --runtime overrides; no record (older launcher, other machine) falls
-	// back to the historical sweep.
+	// back to that sweep.
 	ss := LoadStackSet()
 	cs := codespaceStacks(ss)
 	st := ss.Stacks["local"]
@@ -200,7 +198,7 @@ func Stop(args []string) int {
 		// stack this clone's origin names when no local stack exists.
 		// Anything less certain still refuses: stop doesn't guess, but it
 		// also must not demand --runtime container from a user standing in
-		// the exact clone whose stack is up (observed 2026-07-20).
+		// the exact clone whose stack is up.
 		root := CwdKBRoot()
 		localHere := st != nil && st.KBRoot != "" && st.KBRoot == root
 		if !localHere {
@@ -213,8 +211,8 @@ func Stop(args []string) int {
 					return stopCodespace(u, c, service, del, dryRun)
 				}
 			}
-			// The menu repeats what was asked: a --delete menu that dropped the
-			// flag sent people to a plain stop of a codespace GitHub had
+			// The menu repeats what was asked: a --delete menu that drops the
+			// flag sends people to a plain stop of a codespace GitHub has
 			// already reaped. The local stack is no --delete target at all.
 			u.Fail("Multiple stacks are recorded — say which:")
 			if st != nil && !del {
@@ -367,8 +365,8 @@ func Stop(args []string) int {
 		return 0
 	}
 
-	// stop-then-rm: under Apple Container a stopped --rm container persists
-	// (the next `run --name` would fail with "already exists"), so rm makes
+	// stop-then-rm: the containers run without --rm, so a stopped one keeps its
+	// name (the next `run --name` would fail with "already exists"); rm makes
 	// this idempotent across all three states: running, stopped, absent.
 	u.Log("Sweeping %d container(s) across %s %s", len(targets),
 		strings.Join(runtimes, ", "), u.Dim("(stop+rm each; exact commands: semiont stop --dry-run)"))
@@ -431,8 +429,8 @@ func Stop(args []string) int {
 	// the recorded stack (or no record exists): with an explicit --runtime
 	// that mismatches the record, the REAL stack may still be running — its
 	// staged configs are live mounts (deleting them under a running gateway
-	// is the measured Apple-container failure this staging exists to
-	// prevent), and its record still describes reality.
+	// is the Apple-container failure this staging exists to prevent), and
+	// its record still describes reality.
 	if st != nil && !useState {
 		u.Warn("Recorded stack (under %s) left untouched — staged configs and stack.json kept.", st.Runtime)
 		fmt.Printf("Swept %s only. Run semiont stop (without --runtime) to tear down the recorded stack.\n", strings.Join(runtimes, ", "))
@@ -470,10 +468,10 @@ func Stop(args []string) int {
 
 // fiatPorts: the launcher-owned ports every stack claims regardless of
 // config — the release-verification fallback when no record captured the
-// stack's exact claims (older launcher's record, name-sweep path). 3000 is
-// absent: the Browser is not a stack member and its port is not the
-// stack's to verify.
-var fiatPorts = []int{24100, 24101, 24102, 24103, 24104, 4318, 24110, 16686, 14318, 9090, 4222}
+// stack's exact claims (older launcher's record, name-sweep path): a full
+// start's launcher-fiat claims, then the broker's. 3000 is absent: the
+// Browser is not a stack member and its port is not the stack's to verify.
+var fiatPorts = portNumbers(append(fiatPortNeeds(true), stackPortNeeds("messaging")...))
 
 // verifyPortsReleased: stop's job isn't done until the ports are actually
 // free — runtimes release published ports asynchronously (Apple container's

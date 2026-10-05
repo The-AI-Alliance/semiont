@@ -2,9 +2,10 @@ import { annotationId, resourceId } from '@semiont/core';
 import type { GatheredContext, GenerationJobParams } from '@semiont/core';
 
 /**
- * Minimal HONEST fixtures for the generation params contract (YIELD-FROM-
- * CONTEXT P1): every field satisfies the generated types with no casts, so
- * these break loudly if the schema's required sets move.
+ * Minimal HONEST fixtures for the generation params contract, the one
+ * spec-generated type the sdk and the worker share: every field satisfies
+ * the generated types with no casts, so these break loudly if the schema's
+ * required sets move.
  *
  * `GEN_REQUIRED` is the wire's required trio; spread it FIRST and override:
  * `{ ...GEN_REQUIRED, title: 'T' }`.

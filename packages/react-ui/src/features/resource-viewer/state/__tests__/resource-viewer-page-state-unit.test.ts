@@ -185,10 +185,6 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
   // terminal failure as an RxJS error (B15) once the B14 retry is exhausted
   // with nothing stored — and a key that failed has no value either, so a
   // (value | not-yet) model reports a dead request as an eternal spinner.
-  // Two panels do exactly that today: ReferencesPanel via
-  // `referencedByLoading = raw === undefined`, and AnnotationHistory via
-  // `loading = eventsData === undefined`.
-  // See .plans/PANEL-FAILURE-STATES.md
 
   /**
    * One case per cache-backed list. Each builds its OWN correctly-typed
@@ -275,7 +271,7 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
   });
 
   it('retry() clears the error, re-enters loading, and re-subscribes so a fresh attempt can succeed', async () => {
-    // D1/D3: failure is an EMISSION and recovery is a fresh SUBSCRIPTION —
+    // Failure is an EMISSION and recovery is a fresh SUBSCRIPTION —
     // retry() re-attaches, and the new subscription's chain delivers.
     const attempts: Array<BehaviorSubject<unknown>> = [];
     const tc = makeTestSession({

@@ -1,8 +1,8 @@
 /**
- * The session layer as an OAuth public client (EXTERNAL-IDENTITY P4): issuer
- * discovery from a KB's resource metadata, the authorization-code grant with
- * PKCE, the device grant, refresh, and revocation — against a fetch stub,
- * with the issuer's answers scripted per case. Nothing here names a vendor.
+ * The session layer as an OAuth public client: issuer discovery from a KB's
+ * resource metadata, the authorization-code grant with PKCE, the device
+ * grant, refresh, and revocation — against a fetch stub, with the issuer's
+ * answers scripted per case. Nothing here names a vendor.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HTTP_REQUEST_TIMEOUT_MS, REFRESH_RETRY } from '@semiont/core';
@@ -235,14 +235,14 @@ describe('refresh and revocation', () => {
       .rejects.toThrow(/invalid_grant: revoked/);
   });
 
-  // ── REFRESH-FAILURE-TRANSIENT-VS-TERMINAL P2 ─────────────────────────
+  // ── A refusal is terminal; an outage is retried ──────────────────────
   // `refreshStoredSession` answered `null` for every failure, and its caller
   // treats `null` as terminal — so a lost packet ended the session exactly
   // like a revocation. The issuer's answer is the verdict; its absence is not.
   //
-  // The retry lives HERE and not in the session on purpose: SSE-AUTH-RESILIENCE
-  // P0 settled that a session terminates on `null`, and rejected retry-on-throw
-  // with "Retry belongs in the callback, which owns the HTTP call."
+  // The retry lives HERE and not in the session on purpose: a session
+  // terminates on `null`, and on a thrown refresh exactly as on `null`,
+  // because retry belongs in the callback, which owns the HTTP call.
 
   describe('refreshStoredSession separates a refusal from an outage', () => {
     const KB = 'kb-alpha';
@@ -313,8 +313,9 @@ describe('refresh and revocation', () => {
     });
 
     it('exhausts a bounded budget and then gives up, rather than retrying forever', async () => {
-      // The answer to SSE-AUTH-RESILIENCE's objection: an invisible zombie
-      // session is worse than a visible re-login, so the budget must END.
+      // The answer to the objection to retrying before terminating: an
+      // invisible zombie session is worse than a visible re-login, so the
+      // budget must END.
       fetchMock.mockImplementation(async () => reply(undefined, 503));
       const storage = seeded();
 
@@ -325,7 +326,7 @@ describe('refresh and revocation', () => {
     });
   });
 
-  describe('a failed renewal says WHY, and how hard it tried (D4)', () => {
+  describe('a failed renewal says WHY, and how hard it tried', () => {
     const KB = 'kb-alpha';
     function seeded() {
       const storage = new InMemorySessionStorage();
@@ -337,9 +338,9 @@ describe('refresh and revocation', () => {
     }
 
     // Returning `null` discards the reason: `tryRefresh` carries a cause only
-    // from a THROW. SSE-AUTH-RESILIENCE made throw and null equivalent at the
-    // session precisely so the informative one could be used — so a failure
-    // throws, and only "nothing is stored" answers null.
+    // from a THROW. Throw and null are equivalent at the session precisely
+    // so the informative one can be used — so a failure throws, and only
+    // "nothing is stored" answers null.
 
     it('throws the issuer\'s own words on a refusal', async () => {
       fetchMock.mockImplementation(async () => reply({ error: 'invalid_grant', error_description: 'revoked' }, 400));

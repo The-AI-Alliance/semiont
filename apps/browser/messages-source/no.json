@@ -193,7 +193,6 @@
     "statusConnected": "Tilkoblet",
     "statusExpired": "Økt utløpt",
     "statusSignedOut": "Logget ut",
-    "statusUnreachable": "Ikke tilgjengelig",
     "invalidHost": "Ugyldig vertsnavn",
     "discoveredTitle": "Funnet på denne maskinen",
     "managedBadge": "Administrert av launcher",

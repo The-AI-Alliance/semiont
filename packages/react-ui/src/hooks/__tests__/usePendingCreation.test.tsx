@@ -1,17 +1,15 @@
 /**
- * HEADLESS-CREATION-SEAM — usePendingCreation, the consuming half of the
- * capture/policy split.
+ * usePendingCreation, the consuming half of the viewer's capture/policy
+ * split.
  *
  * The viewer captures and emits source-scoped mark:requested; this hook is the
  * exported primitive that CLAIMS them: one event, one owner
  * (enabled && source === resourceId), replace-on-reselect, no creation/UI/toast
  * inside. Resolution chrome stays host-side.
  *
- * Session-first (not the ask's literal `client:` param): the sanctioned
- * generic-channel subscription is `session.subscribe` (client.bus is
- * audit-forbidden outside the SDK), and chat's reference hook is session-first.
- *
- * Started RED (the hook doesn't exist) and GREEN once the seam lands.
+ * Session-first, not a `client:` param: the sanctioned generic-channel
+ * subscription is `session.subscribe` (client.bus is audit-forbidden outside
+ * the SDK), and chat's reference hook is session-first.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, fireEvent, within, act } from '@testing-library/react';

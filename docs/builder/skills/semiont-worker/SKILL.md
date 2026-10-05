@@ -1,311 +1,282 @@
 ---
 name: semiont-worker
-description: Build a job-claim worker daemon — claim jobs from the queue, process them, and emit lifecycle events. Cross-package wiring with @semiont/sdk + @semiont/jobs + @semiont/http-transport + @semiont/observability.
+description: Build a job-claim worker daemon — claim jobs from the queue, process them, and emit lifecycle events. Cross-package wiring with @semiont/sdk, @semiont/core and @semiont/jobs.
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
 ---
 
-You are helping a user build a job-claim worker — a long-running daemon that claims jobs of a given type from the Semiont queue, processes each one, and emits the unified `job:*` lifecycle so other participants (the UI, ops dashboards, an originating CLI command) see progress and outcomes in real time.
+You are helping a user build a worker: a daemon that claims jobs from a Semiont knowledge base's queue, does each one, and reports the job's lifecycle so that whoever asked for it, and anyone watching, sees its progress and its outcome.
 
-This is the daemon shape that matches `semiont-worker` and `semiont-smelter` containers. If your daemon should *react to bus events* rather than *claim queued work*, the [`semiont-session`](../semiont-session/SKILL.md) skill is the right starting point — it covers `session.subscribe(channel, handler)` for arbitrary channels.
+It is the shape of Semiont's own `semiont-worker` service. A daemon that reacts to bus events instead of claiming queued work is a watcher, which is [`semiont-session`](../semiont-session/SKILL.md).
 
-## When to reach for this skill
+## When to build one
 
-A job-claim worker is right when:
+- The work is one of the job types the knowledge base queues: `highlight-annotation`, `comment-annotation`, `assessment-annotation`, `reference-annotation`, `tag-annotation` or `generation`. A worker of your own serves one or more of them with your own logic or your own model. Jobs are created with `job:create`, which is what `mark.assist` and `yield.fromContext` send.
+- Each job must run once, however many workers are up. A claim is atomic: of any number of simultaneous claims, exactly one wins each pending job.
 
-- The work is a discrete, parameterized task that should run *exactly once* across a pool of identical workers (highlight detection, reference linking, summary generation, etc.).
-- The knowledge base's dispatcher queues that job type — it holds the queue and answers the `job:*` channels ([JOBS.md](../../../protocol/JOBS.md)). Jobs are enqueued with `job:create` (`client.mark.assist` and `client.yield.fromContext` for Semiont's own types) and watched or cancelled through `client.job`.
-- Multiple workers may be running concurrently and each job must go to exactly one of them: a claim is atomic, and of any number of simultaneous claims exactly one wins each pending job.
+The dispatcher holds the queue and answers the `job:*` channels. [JOBS.md](../../../protocol/JOBS.md) is the contract.
 
-If the work is "react to every event of type X across every resource," that's a watcher daemon — use `semiont-session`.
+## The lifecycle a worker reports
 
-## The four lifecycle events
-
-Every job claimed by a worker emits the same four events on the bus, regardless of job type:
-
-| Event | When | Purpose |
+| Channel | When | What happens to it |
 |---|---|---|
-| `job:start` | Worker has claimed the job and is beginning work | Persisted by Stower; subscribers (UI, dashboards) flip to "running" |
-| `job:report-progress` | Optional, repeated; ephemeral | Progress percentage + stage; not persisted |
-| `job:complete` | Successful exit | Persisted; payload carries the `result` object |
-| `job:fail` | Throwing exit | Persisted; payload carries the error message |
+| `job:start` | The job is claimed and work begins | Recorded; viewers of the resource see the job running |
+| `job:report-progress` | As often as there is something to say | Passed on, not recorded |
+| `job:complete` | The work is done | Recorded, with the job's `result`; the dispatcher concludes the job |
+| `job:fail` | The work failed | Recorded, with the error; the dispatcher retries the job if its budget allows |
 
-Annotation-scoped jobs (e.g. generation triggered by a reference) carry the source `annotationId` through every payload so the UI can attach visual feedback to that annotation. Resource-scoped jobs (bulk detection scanning a whole resource) leave `annotationId` unset.
+Emit all four with no scope. The dispatcher and the archivist hear them on the global subscription, the caller that created the job picks its own out by `jobId`, and a resource's viewers pick theirs out by `resourceId`. A lifecycle event emitted on a resource's scope reaches none of them, and the job stays `running`.
 
-Every lifecycle event is emitted **globally** — never with a resource scope. `job:complete` and `job:fail` reach every client: the dispatcher applies them to the queue by `jobId`, the caller that created the job filters by `jobId`, and a resource's viewers filter by `resourceId`. `job:start` reaches the Stower, which records it as `job:started` for the resource's viewers.
+Two more channels go to the dispatcher: `job:checkpoint` records the units a job has finished, so a retry resumes instead of starting over, and `job:cancel` confirms that the worker stopped a job whose cancellation was requested on `job:cancel-requested`.
 
-Two more channels go to the dispatcher alone: `job:checkpoint` (record finished units as they finish, so a retry resumes rather than restarts) and `job:cancel` (confirm that you stopped a job whose cancellation was requested). Their semantics, and what the dispatcher does with each lifecycle event, are in [JOBS.md](../../../protocol/JOBS.md).
+## Who a worker is
 
-## Setup
+A worker does not sign in as a person. It has two identities, obtained in two steps:
 
-A worker needs a `SemiontSession` (long-running token refresh + lifecycle), a cast of `session.client.transport` to `HttpTransport` (to reach its actor, the `BusRequestPrimitive` the adapter consumes), the `createJobClaimAdapter` from `@semiont/jobs`, and a process logger from `@semiont/observability`.
+1. **The process**: a service account at the knowledge base's issuer, proved with the OAuth client-credentials grant. Its client id and secret are `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, the same variables Semiont's own services read.
+2. **The agent**: the process exchanges its issuer token at the gateway's `POST /api/tokens/agent` for an agent token, naming the model it works with. The agent's DID is what the work is attributed to. One process may hold several, one for each model.
 
-Workers are inherently HTTP-bound today — local in-process workers don't make sense as a deployment shape. The cast names the seam.
-
-```typescript
-import {
-  SemiontSession,
-  InMemorySessionStorage,
-  type KnowledgeBase,
-} from '@semiont/sdk';
-import { HttpTransport } from '@semiont/http-transport';
-import { createJobClaimAdapter, type ActiveJob } from '@semiont/jobs';
-import { createProcessLogger } from '@semiont/observability/process-logger';
-
-const logger = createProcessLogger('my-worker');
-
-const apiUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
-const apiUrlObj = new URL(apiUrl);
-
-const kb: KnowledgeBase = {
-  id: 'my-worker',                              // unique storage key per worker
-  label: 'My job worker',
-  did: 'did:web:my-kb.example',                 // the KB's own identity, as it reports it
-  endpoint: {
-    kind: 'http',
-    host: apiUrlObj.hostname,
-    port: Number(apiUrlObj.port || (apiUrlObj.protocol === 'https:' ? 443 : 80)),
-    protocol: apiUrlObj.protocol.replace(':', '') as 'http' | 'https',
-  },
-};
-
-// A daemon does NOT sign in as a person. There is nobody at a browser to
-// approve a device grant, so it authenticates as ITSELF — a service account at
-// the knowledge base's issuer — and then exchanges that for a software-agent
-// identity. Two different identities on purpose: the credential is the
-// PROCESS, the agent DID is the WORK. One worker holds several agent
-// identities at once when a deployment binds different job types to different
-// models, so they could never have been the same thing.
-//
-// Step 1: prove who this process is (standard OIDC client credentials — any
-// library, or a plain form POST to the issuer's token endpoint).
-const issuerToken = await clientCredentialsToken({
-  issuer: process.env.SEMIONT_OIDC_ISSUER!,
-  clientId: process.env.SEMIONT_OIDC_CLIENT_ID!,
-  clientSecret: process.env.SEMIONT_OIDC_CLIENT_SECRET!,
-});
-
-// Step 2: buy the agent identity this worker's output is attributed to. The
-// gateway refuses unless the token carries `semiont-service` in a flat `roles`
-// claim — see the gateway's agent minter. The client must ALSO carry
-// `semiont-worker`: the gateway stamps that role onto the agent token, and the
-// dispatcher refuses every `job:claim` without it. A worker that is not the
-// deployment's own is admitted by granting its client the role at the issuer.
-const res = await fetch(`${apiUrl}/api/tokens/agent`, {
-  method: 'POST',
-  headers: { authorization: `Bearer ${issuerToken}`, 'content-type': 'application/json' },
-  body: JSON.stringify({ provider: 'anthropic', model: 'claude-sonnet-5' }),
-});
-const { token, did } = await res.json() as { token: string; did: string };
-logger.info('authenticated', { as: did });
-
-// The agent token lives an hour and has no refresh — its lifetime IS its
-// revocation window, because no account exists anywhere to disable. Supply a
-// `refresh` that repeats the two steps above.
-const session = SemiontSession.fromHttp({
-  kb,
-  storage: new InMemorySessionStorage(),
-  baseUrl: apiUrl,
-  token,
-  refresh: async () => (await mintAgentToken()).token,
-  onError: (err) => logger.error('session error', { code: err.code, message: err.message }),
-});
-
-// The adapter consumes a BusRequestPrimitive (from @semiont/core), and
-// HttpTransport.actor is one. The cast is the documented seam between
-// transport-neutral worker code and HTTP-only deployment.
-const httpTransport = session.client.transport as HttpTransport;
-
-const adapter = createJobClaimAdapter({
-  bus: httpTransport.actor,
-  jobTypes: ['highlight-annotation'],   // subscribe to one or more job types
-});
-```
-
-## Claiming and processing jobs
-
-`adapter.start()` pulls: it claims once the transport is open, again after every `completeJob()` / `failJob()`, on a matching `job:queued` while parked, and on every reconnect — and parks when the dispatcher answers `none-pending`. `job:queued` is a wake-up, not a reservation; the claim's `types` is what the dispatcher matches. Subscribe to `adapter.activeJob$` and dispatch, and subscribe to `adapter.refused$` to learn about a claim refused for any reason other than an empty queue — `bus.unauthorized` means this credential can never claim, and the right response is to exit so the operator sees it:
+The service account needs two roles at the issuer: `semiont-service`, which lets it buy an agent token, and `semiont-worker`, which the gateway stamps on the agent token and without which the dispatcher refuses every claim. Granting those roles to its client is how an operator admits a worker that is not one of the stack's own.
 
 ```typescript
-adapter.activeJob$.subscribe((job) => {
-  if (!job) return;   // null between active jobs
-  logger.info('claimed job', { jobId: job.jobId, type: job.type, resourceId: job.resourceId });
-  void handleJob(job).catch((err) => {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error('job failed', { jobId: job.jobId, error: message });
-    // The adapter caller emits job:fail and calls failJob;
-    // see `handleJob` below for the canonical pattern.
-  });
-});
+import { discoverIssuer, type HttpEndpoint } from '@semiont/sdk';
+import { serviceAccountToken, isObject, isString } from '@semiont/core';
 
-adapter.start();
-```
-
-First, one derivation for the anchoring annotation. Your own job types define
-their own params, so define this for the types you claim — and note that
-Semiont's built-in `generation` jobs deliberately carry no `referenceId`: the
-gathered context's `focus` is authoritative, and the `job:create` dispatcher
-rejects a params bag that tries to say otherwise.
-
-```typescript
-function anchorOf(job: ActiveJob): string | undefined {
-  if (job.type === 'generation') {
-    const focus = (job.params.context as { focus?: {
-      kind?: string;
-      annotation?: { id?: string };
-    } } | undefined)?.focus;
-    return focus?.kind === 'annotation' ? focus.annotation?.id : undefined;
+async function mintAgentToken(endpoint: HttpEndpoint, gatewayUrl: string): Promise<{ token: string; did: string }> {
+  const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
+  const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required');
   }
-  // Your own job types: read whatever field you defined.
-  return typeof job.params.referenceId === 'string' ? job.params.referenceId : undefined;
+
+  // Step 1: the process proves who it is. The knowledge base names its issuer.
+  const { issuer } = await discoverIssuer(endpoint);
+  const serviceToken = await serviceAccountToken({ issuer, clientId, clientSecret });
+
+  // Step 2: it buys the agent identity its work is attributed to.
+  const response = await fetch(`${gatewayUrl}/api/tokens/agent`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${serviceToken}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ provider: 'ollama', model: 'gemma3:4b' }),
+  });
+  if (!response.ok) throw new Error(`The gateway refused the agent token: ${response.status}`);
+
+  const minted: unknown = await response.json();
+  if (!isObject(minted) || !isString(minted.token) || !isString(minted.did)) {
+    throw new Error('The gateway answered without a token');
+  }
+  return { token: minted.token, did: minted.did };
 }
 ```
 
-Then, inside `handleJob`, emit lifecycle events on the same transport, do the work, then complete or fail:
+An agent token lives an hour and has no refresh token. The session renews it by running both steps again.
+
+## Claiming jobs
+
+`createJobClaimAdapter` from `@semiont/jobs` runs the claim protocol on the session's connection: give it `session.client.transport` as its `bus`. It pulls: it claims when the connection opens, again each time a job settles, on a matching `job:queued` while idle, and on every reconnect, and it parks when the dispatcher answers that nothing is pending. `job:queued` is a wake-up, not a reservation.
+
+- `adapter.activeJob$` emits each claimed job, and `null` between jobs.
+- `adapter.refused$` emits a claim the dispatcher refused for a reason other than an empty queue. `bus.unauthorized` means this credential can never claim: exit, so the operator sees it.
+- `adapter.completeJob()` and `adapter.failJob(jobId, message)` settle the job in hand and pull the next.
+
+## Doing a job
+
+Emit `job:start`, do the work, then emit `job:complete` with the result its job type reports, or `job:fail`.
 
 ```typescript
-async function handleJob(job: ActiveJob): Promise<void> {
-  const { jobId, type, resourceId } = job;
-  // Annotation-scoped jobs carry the anchoring annotation through every
-  // lifecycle payload. WHERE that id lives is per-jobType, so derive it once
-  // rather than reaching into params at each emit. Semiont's own `generation`
-  // jobs carry NO referenceId — their anchor is the gathered context's focus.
-  //
-  // No `userId`: the gateway stamps `_userId` from your token onto everything
-  // you emit, and who REQUESTED the job is the knowledge base's to derive
-  // from the job you cite — not yours to say.
-  const annotationId = anchorOf(job);
-  const lifecycleBase = {
-    resourceId, jobId, jobType: type,
-    ...(annotationId ? { annotationId } : {}),
-  };
+import type { SemiontSession } from '@semiont/sdk';
+import type { ActiveJob, JobClaimAdapter } from '@semiont/jobs';
 
-  await session.client.transport.emit('job:start', lifecycleBase);
+/** Your work. A highlight job reports how many passages it found and how many it wrote. */
+type Work = (session: SemiontSession, job: ActiveJob) => Promise<{ found: number; created: number }>;
 
+async function runJob(session: SemiontSession, adapter: JobClaimAdapter, job: ActiveJob, work: Work): Promise<void> {
+  const { transport } = session.client;
+  // Nothing here says who the job is for. The gateway stamps this worker's
+  // identity on every emit, and the knowledge base derives who asked from the job.
+  const base = { resourceId: job.resourceId, jobId: job.jobId, jobType: job.type };
+
+  await transport.emit('job:start', base);
   try {
-    // Optional: stream progress to UI / dashboards.
-    await session.client.transport.emit('job:report-progress', {
-      ...lifecycleBase,
-      percentage: 0,
-      progress: { stage: 'starting', percentage: 0, message: 'Beginning work' },
+    await transport.emit('job:report-progress', {
+      ...base,
+      percentage: 10,
+      progress: { percentage: 10, message: { code: 'analyzing' } },
     });
 
-    // ── Your work here ──
-    const result = await doTheWork(job);
+    const { found, created } = await work(session, job);
 
-    // Global, like every lifecycle emit: the dispatcher concludes the job by
-    // `jobId`. A resource-scoped emit would never reach it.
-    await session.client.transport.emit('job:complete', { ...lifecycleBase, result });
-
+    await transport.emit('job:complete', {
+      ...base,
+      result: { kind: 'highlight-annotation', highlightsFound: found, highlightsCreated: created },
+    });
     adapter.completeJob();
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await session.client.transport.emit('job:fail', { ...lifecycleBase, error: message });
-    adapter.failJob(jobId, message);
-    throw err;
+    const error = err instanceof Error ? err.message : String(err);
+    await transport.emit('job:fail', { ...base, error });
+    adapter.failJob(job.jobId, error);
   }
 }
 ```
 
-Pass no scope — `transport.emit`'s third argument — on any lifecycle emit. A resource-scoped emit reaches only clients joined to that resource's scope for that channel, and neither the dispatcher nor the Stower is: a scoped `job:complete` or `job:fail` leaves the job `running` in the queue and records nothing in the log.
+A progress message is a code, not a sentence: each client renders it in its reader's language. The codes are in [`JobProgressMessage`](../../../../specs/src/components/schemas/JobProgressMessage.json).
 
-## Pre-built processors
+A `job:fail` may say `willRetry: true` when the queue will run the job again. Without it, whoever is following the job treats the failure as final.
 
-For the standard job types (`highlight-annotation`, `comment-annotation`, `assessment-annotation`, `reference-annotation`, `tag-annotation`, `generation`), `@semiont/jobs` ships extracted, transport-agnostic processors:
+## Writing what a job produces
+
+A worker reads the resource through the same client as any script: `session.client.browse.resourceContent(job.resourceId)` for its text, `job.params` for what the caller asked.
+
+It writes annotations with `mark:commit`: one batch, answered only when every annotation is in the event log, and citing the job it fulfils. The knowledge base derives who the annotations are for from that job, so the batch says what produced them (`generator`) and never who asked. A batch that names a `creator` is refused, and so is one from a worker that cites no job.
+
+```typescript
+import { busRequest, type BusRequestPrimitive } from '@semiont/core';
+import type { Annotation } from '@semiont/sdk';
+import type { ActiveJob } from '@semiont/jobs';
+
+async function commit(bus: BusRequestPrimitive, job: ActiveJob, annotations: Annotation[]): Promise<void> {
+  if (annotations.length === 0) return;
+  await busRequest(bus, 'mark:commit', { resourceId: job.resourceId, annotations, jobId: job.jobId });
+}
+```
+
+Pass `session.client.transport` as `bus`. Give each annotation a deterministic id, so that committing a batch again after a retry changes nothing. `buildTextAnnotation` in [`packages/jobs/src/processors.ts`](../../../../packages/jobs/src/processors.ts) is how Semiont's worker builds one.
+
+`@semiont/jobs` also exports the processors Semiont's worker runs: `processHighlightJob`, `processCommentJob`, `processAssessmentJob`, `processReferenceJob`, `processTagJob` and `processGenerationJob`. Each takes the text, an inference client, the job's params and callbacks for progress and for committing each chunk, and returns the job's result. Use them to serve a job type with a different model and the same logic. Their signatures are in [the jobs API reference](../../../../packages/jobs/docs/API.md#processors).
+
+## Complete worker
 
 ```typescript
 import {
-  processHighlightJob,
-  processCommentJob,
-  processAssessmentJob,
-  processReferenceJob,
-  processTagJob,
-  processGenerationJob,
-  type OnProgress,
-} from '@semiont/jobs';
+  SemiontSession, InMemorySessionStorage, discoverIssuer, type HttpEndpoint,
+} from '@semiont/sdk';
+import { serviceAccountToken, isObject, isString } from '@semiont/core';
+import { createJobClaimAdapter, type ActiveJob } from '@semiont/jobs';
 
-const onProgress: OnProgress = (percentage, message, stage, extra) => {
-  void session.client.transport.emit('job:report-progress', {
-    ...lifecycleBase,
-    percentage,
-    progress: { stage, percentage, message, ...(extra ?? {}) },
-  });
+const gatewayUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
+const url = new URL(gatewayUrl);
+const endpoint: HttpEndpoint = {
+  kind: 'http',
+  host: url.hostname,
+  port: Number(url.port || 4000),
+  protocol: url.protocol === 'https:' ? 'https' : 'http',
 };
 
-const content = await session.client.browse.resourceContent(resourceId);
+async function mintAgentToken(): Promise<{ token: string; did: string }> {
+  const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
+  const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required');
+  }
+  const { issuer } = await discoverIssuer(endpoint);
+  const serviceToken = await serviceAccountToken({ issuer, clientId, clientSecret });
 
-// `buildAnnotation(motivation, match, body?)` shapes each finding into a W3C
-// annotation: body, target, and `generator` — this agent, with the model's
-// parameters. Nothing else about identity: `creator` and `wasAttributedTo`
-// are the knowledge base's to derive, from the job you hold and the identity
-// the gateway verified on your commit. A payload carrying `creator` is refused.
-const { result } = await processHighlightJob(
-  content, inferenceClient, job.params, buildAnnotation, onProgress,
-  // Each chunk's annotations, committed as they are found, citing the job.
-  // The reply — `mark:commit-ok` or `mark:commit-failed` — is where a refusal
-  // (no `jobId`, a job you do not hold, an asserted `creator`) surfaces.
-  async (annotations) => {
-    await session.client.transport.emit('mark:commit', { resourceId, annotations, jobId });
-  },
-);
+  const response = await fetch(`${gatewayUrl}/api/tokens/agent`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${serviceToken}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ provider: 'ollama', model: 'gemma3:4b' }),
+  });
+  if (!response.ok) throw new Error(`The gateway refused the agent token: ${response.status}`);
 
-await session.client.transport.emit('job:complete', { ...lifecycleBase, result });
-adapter.completeJob();
-```
+  const minted: unknown = await response.json();
+  if (!isObject(minted) || !isString(minted.token) || !isString(minted.did)) {
+    throw new Error('The gateway answered without a token');
+  }
+  return { token: minted.token, did: minted.did };
+}
 
-`processHighlightJob` and friends take an `InferenceClient` (from `@semiont/inference`) plus the job's params, do the LLM work, and return ready-to-emit annotations + a typed result. They're transport-agnostic — your worker chooses how to deliver the events.
+/** Your work: read the resource, find the passages, commit them. */
+async function highlight(session: SemiontSession, job: ActiveJob): Promise<{ found: number; created: number }> {
+  const text = await session.client.browse.resourceContent(job.resourceId);
+  console.log(`job ${job.jobId}: ${text.length} characters to read`);
+  return { found: 0, created: 0 };
+}
 
-If your worker is doing custom work that doesn't match the standard job shapes, write your own processor — the lifecycle protocol (`job:start` → `job:report-progress` → `job:complete` | `job:fail`) is what matters, not the processor implementation.
+async function main(): Promise<void> {
+  const agent = await mintAgentToken();
+  console.log(`working as ${agent.did}`);
 
-## Bus debugging
+  const session = SemiontSession.fromHttp({
+    kb: { id: 'my-worker', label: 'My job worker', endpoint },
+    storage: new InMemorySessionStorage(),
+    baseUrl: gatewayUrl,
+    token: agent.token,
+    refresh: async () => (await mintAgentToken()).token,
+    onError: (err) => console.error('session error:', err.code, err.message),
+  });
+  await session.ready;
 
-Set `SEMIONT_BUS_LOG=1` to log every transport-level event (`EMIT`, `RECV`, `SSE`, `PUT`, `GET`) as a single grep-friendly line on stdout. This is the fastest way to confirm that:
+  // The claim protocol runs on the session's own connection.
+  const { transport } = session.client;
+  const adapter = createJobClaimAdapter({ bus: transport, jobTypes: ['highlight-annotation'] });
 
-- `job:claim` is being emitted on `start()` — the worker asks without waiting for an announcement, so a silent worker that emitted no claim never called `start()` or the transport never opened. `job:queued` arriving is the wake-up, not the claim.
-- Your `job:start` / `job:complete` emits are reaching the gateway.
-- The correlation IDs line up between request and response.
+  adapter.refused$.subscribe((refusal) => {
+    console.error(`claim refused (${refusal.code}): ${refusal.message}`);
+    if (refusal.code === 'bus.unauthorized') process.exit(1);
+  });
 
-See [`tests/e2e/docs/bus-logging.md`](../../../../tests/e2e/docs/bus-logging.md) for the full guide. Tier 2 OpenTelemetry spans add a `trace=` suffix to every line when `OTEL_EXPORTER_OTLP_ENDPOINT` is configured, so the grep timeline correlates with the trace UI.
+  adapter.activeJob$.subscribe((job) => {
+    if (!job) return;   // null between jobs
+    const base = { resourceId: job.resourceId, jobId: job.jobId, jobType: job.type };
 
-For runtime SSE health, subscribe to `httpTransport.state$`:
+    (async () => {
+      await transport.emit('job:start', base);
+      try {
+        const { found, created } = await highlight(session, job);
+        await transport.emit('job:complete', {
+          ...base,
+          result: { kind: 'highlight-annotation', highlightsFound: found, highlightsCreated: created },
+        });
+        adapter.completeJob();
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        await transport.emit('job:fail', { ...base, error });
+        adapter.failJob(job.jobId, error);
+      }
+    })().catch((err) => console.error(`job ${job.jobId}: could not report its outcome:`, err));
+  });
 
-```typescript
-import type { ConnectionState } from '@semiont/core';
+  adapter.start();
 
-httpTransport.state$.subscribe((state: ConnectionState) => {
-  // 'initial' | 'connecting' | 'open' | 'reconnecting' | 'degraded' | 'closed'
-  logger.info('transport state', { state });
+  async function shutdown(): Promise<void> {
+    adapter.dispose();
+    await session.dispose();
+    process.exit(0);
+  }
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
 });
 ```
 
-`degraded` is the threshold to surface in a status endpoint — it means the SSE has been reconnecting for >`DEGRADED_THRESHOLD_MS` and isn't a brief mount-churn cycle.
+Let a job in hand finish before shutting down, or fail it deliberately with `job:fail` and `adapter.failJob(jobId, 'shutdown')`. A job abandoned mid-run stays `running` until the dispatcher's sweep finds it with no progress or checkpoint for 30 minutes, and then re-queues it if its retry budget allows ([JOBS.md](../../../protocol/JOBS.md#periodic-work)).
 
-**Every claim answered with `job:claim-failed` saying the caller is not a worker** means the minting client lacks the `semiont-worker` role, so the agent token carries no worker capability. The refusal now carries `code: unauthorized`, promoted to `bus.unauthorized` on `refused$`; the shipped worker exits on it so the supervisor restarts it with the reason in the log, and a daemon built from this skill should do the same. A realm imported before that role existed has exactly this shape; `semiont start` refuses it by name and `semiont identity sync` repairs the client's roles mapper.
+## When a worker does nothing
 
-## Graceful shutdown
+Set `SEMIONT_BUS_LOG=1` in the worker's environment. Every emit, reply and stream frame is then logged as one line, and the claim protocol can be read off the log:
+
+- **No `job:claim` at all**: `adapter.start()` was never called, or the connection never opened. Watch the connection with `session.streamState$`.
+- **Every claim answered `job:claim-failed`, saying the caller is not a worker**: the service account lacks the `semiont-worker` role, so the agent token carries no worker capability. `refused$` reports it as `bus.unauthorized`. On a launcher stack, `semiont identity sync` repairs the roles of the stack's own clients.
+- **Claims answered with nothing pending**: the worker is healthy and the queue has no job of its types.
 
 ```typescript
-async function shutdown() {
-  adapter.dispose();             // cancels SSE subscription, completes activeJob$
-  await session.dispose();       // cancels refresh timer, disposes the client
-  process.exit(0);
-}
-
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+session.streamState$.subscribe((state) => console.log(`connection: ${state}`));
 ```
 
-If your worker is mid-job at shutdown time, the in-flight call should be allowed to finish (or be deliberately failed with a `job:fail` and `adapter.failJob(jobId, 'shutdown')`) before `dispose()`. Otherwise the job stays `running` until the dispatcher's dead-worker sweep finds it with no progress or checkpoint for 30 minutes, then re-queues it if its retry budget allows and fails it otherwise ([JOBS.md](../../../protocol/JOBS.md#periodic-work)).
+`degraded` means the stream has been reconnecting for more than three seconds, which is the state worth reporting from a health endpoint.
 
 ## Guidance for the AI assistant
 
-- **Pick the right skill for the daemon shape.** Job-claim workers use this skill; bus-event watchers use `semiont-session`. Both can run side by side, but the wiring is different.
-- **`HttpTransport` cast is intentional.** Workers are HTTP-bound. The transport cast (`session.client.transport as HttpTransport`) names the seam — don't try to abstract it; an in-process worker would pass a different `BusRequestPrimitive`.
-- **Always emit the four lifecycle events.** UI consumers and dashboards filter by `jobType` and (optionally) `annotationId`. Skipping `job:start` or `job:complete` makes the UI think the job is stuck.
-- **Emit every lifecycle event globally.** Never pass a scope to `transport.emit` for `job:*`: the dispatcher and the Stower subscribe globally, and a scoped `job:complete` or `job:fail` reaches neither.
-- **Use the pre-built processors when possible.** `processHighlightJob`, `processCommentJob`, `processAssessmentJob`, `processReferenceJob`, `processTagJob`, and `processGenerationJob` from `@semiont/jobs` cover the six standard job shapes. Custom processors are fine; just keep the lifecycle protocol intact.
-- **`createProcessLogger` populates trace IDs automatically.** When OTel is initialized and a span is active, every log line gets `trace_id` / `span_id` fields — Tier 3 correlation between `tail -f` and the trace UI. Use it instead of `console.log`.
-- **Set `SEMIONT_BUS_LOG=1` first** when debugging a worker that's silently doing nothing. The most common causes are `adapter.start()` never being called (no `job:claim` on the wire at all), the cast to `HttpTransport.actor` being wrong, or every claim being refused — read `refused$`.
-- **Errors split by surface.** Per-call rejections from namespace methods extend `SemiontError` — narrow to `APIError` (HTTP) or `BusRequestError` (bus-mediated) when needed. Asynchronous session-fatal errors (`session.auth-failed`, `session.refresh-exhausted`, `session.credential-refused`) arrive on `SemiontBrowser.error$`; subscribe in long-running workers. See [Error Handling in Usage.md](../../Usage.md#error-handling).
-- **For the production worker reference**, see [`packages/jobs/src/worker-main.ts`](../../../../packages/jobs/src/worker-main.ts) — the standalone container entry point. It signs in as its own service account (`SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`), exchanges that for its agent token, and keeps a per-job-type inference client map; the skill above is the user-authored equivalent.
+- **Worker or watcher.** A worker claims queued jobs. A watcher reacts to events and is [`semiont-session`](../semiont-session/SKILL.md). One process can be both.
+- **Report all four lifecycle events, with no scope.** A job with no `job:start` looks stuck, and one with no `job:complete` or `job:fail` is stuck until the dispatcher's sweep.
+- **Settle every job.** Each claimed job ends in `adapter.completeJob()` or `adapter.failJob(...)`. The adapter holds one job at a time and pulls the next only when the one in hand settles.
+- **Exit on `bus.unauthorized`.** A credential that cannot claim will never be able to. A crash the operator can see is better than a worker that idles forever.
+- **Never state who a job is for.** Not in a lifecycle event and not in what the worker writes. The knowledge base derives it from the job.
+- **Use Semiont's processors when the logic is Semiont's.** Write your own when the logic is the point.
+- **The reference implementation** is Semiont's own worker: [`worker-main.ts`](../../../../packages/jobs/src/worker-main.ts) for the process, [`worker-runtime.ts`](../../../../packages/jobs/src/worker-runtime.ts) for identity and the session, and [`worker-process.ts`](../../../../packages/jobs/src/worker-process.ts) for checkpoints, cancellation and what it does when a commit's acknowledgement is lost.
+- **Errors.** A call rejects with a `SemiontError`: catch it and route on its `code`. A failure of the session itself arrives at `onError` as a `SemiontSessionError`. See [Error Handling](../../Usage.md#error-handling).

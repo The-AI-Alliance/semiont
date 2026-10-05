@@ -39,7 +39,7 @@ function mockClient(overrides: {
       resources: (filters: BrowseFilters = {}) => {
         resourceCalls.push(filters);
         return asStates(resourcesFn(filters).asObservable().pipe(
-          // Arrays get the list envelope `resources()` now emits; explicit
+          // Arrays get the list envelope `resources()` emits; explicit
           // status objects (B15 fixtures) and `undefined` pass through.
           map((v) => (Array.isArray(v) ? { resources: v, total: v.length, offset: 0, limit: 20, matchKind: overrides.matchKind ?? 'lexical' } : v)),
         ));
@@ -51,11 +51,11 @@ function mockClient(overrides: {
   return { client, resourceCalls };
 }
 
-describe('createDiscoverStateUnit — search match kind (SEMANTIC-FALLBACK P3b)', () => {
-  // S10 is tier-agnostic: the label and the resources it describes must arrive
-  // as ONE value. Exposing `matchKind$` as a second observable beside
-  // `state$.results` would satisfy the component and still let a render pair
-  // this query's label with the previous query's list.
+describe('createDiscoverStateUnit — search match kind', () => {
+  // Semantic-fallback axiom S10 is tier-agnostic: the label and the resources
+  // it describes must arrive as ONE value. Exposing `matchKind$` as a second
+  // observable beside `state$.results` would satisfy the component and still
+  // let a render pair this query's label with the previous query's list.
   it('emits matchKind in the SAME value as the results it labels', async () => {
     vi.useFakeTimers();
     try {
@@ -327,10 +327,8 @@ describe('DiscoverStateUnit — StateUnit axioms', () => {
 });
 
 describe('createDiscoverStateUnit — terminal load failure', () => {
-  // `isLoadingRecent$` was `recent$.pipe(map(r => r === undefined))`, so a
-  // terminally failed list (B15) — which has no value either — left
-  // /know/discover spinning for ever. Same defect as the References and
-  // History panels. See .plans/PANEL-FAILURE-STATES.md
+  // A terminally failed list (B15) has no value either, so a `loading$` that
+  // is only "no value yet" would leave /know/discover spinning for ever.
 
   it('recent: stops loading and surfaces the reason instead of spinning for ever', async () => {
     const resources$ = new BehaviorSubject<unknown[] | undefined>(undefined);

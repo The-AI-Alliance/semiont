@@ -5,12 +5,10 @@
  * `GET /api/resources/:id` is the browser-facing alias of the pipe, and it
  * exists only as an auth affordance for `<img>`, PDF.js and download links: a
  * plain `<a download href>` sends neither an Authorization header nor a cookie,
- * so the alias takes bearer + `?token=` only. Both views shipped a bare
- * `/api/resources/${id}` — tokenless, so a 401, AND relative, so under
- * bring-your-own-session embedding it resolves against the HOST app's origin
- * rather than the gateway's.
- *
- * Started RED (both hrefs were `/api/resources/res-1`).
+ * so the alias takes bearer + `?token=` only. A bare `/api/resources/${id}`
+ * href is tokenless, so a 401, AND relative, so under bring-your-own-session
+ * embedding it resolves against the HOST app's origin rather than the
+ * gateway's.
  */
 import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi } from 'vitest';

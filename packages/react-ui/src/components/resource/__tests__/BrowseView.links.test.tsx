@@ -1,13 +1,13 @@
 /**
- * EMBEDDABLE-VIEWER-COMPLETION Phase 2 — content-link delegation.
+ * Content-link delegation.
  *
  * A content link (`<a href>` rendered inside the resource content) must be
  * intercepted: the viewer `preventDefault`s (never navigates on its own — an
  * embedded/Electron security requirement) and delegates to `onLinkClick({href,
  * event})`. With no handler, the click is still cancelled (nothing happens).
  *
- * Started RED (no `onLinkClick` prop) and GREEN once Phase 2 lands. Real
- * react-markdown (not the mock) so the `<a>` is a genuine rendered content link.
+ * Real react-markdown (not the mock) so the `<a>` is a genuine rendered
+ * content link.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -29,7 +29,7 @@ function fakeSession(): SemiontSession {
 
 const MD = 'see [the link](https://example.test/x) here';
 
-describe('BrowseView — content link delegation (Phase 2)', () => {
+describe('BrowseView — content link delegation', () => {
   it('intercepts a content <a> click: preventDefault + onLinkClick(href)', () => {
     const onLinkClick = vi.fn();
     render(

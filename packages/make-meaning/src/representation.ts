@@ -1,24 +1,20 @@
 /**
  * Where a resource's bytes are, and what type they are — decided ONCE.
  *
- * This join — `resourceId → view → storageUri + mediaType → bytes` — was
- * written out five times before SINGLE-KB-MOUNT P3, and the copies disagreed:
- * three different fallbacks for an absent media type, and two different
- * opinions about which field holds the URI. One copy was simply wrong —
- * `LocalContentTransport` resolved through `representations[].storageUri`,
- * which `ViewMaterializer` never writes, so binary reads threw for every
- * resource in local mode and nothing noticed.
+ * This join — `resourceId → view → storageUri + mediaType → bytes` — is
+ * decided in this one place: written out per caller, the copies drift apart
+ * on the fallback for an absent media type and on which field holds the URI.
  *
- * Every face now derives from here: the Archivist's HTTP content endpoint,
+ * Every face derives from here: the Archivist's HTTP content endpoint,
  * the in-process `ContentReads.getBinary`, the local transport, and the
- * preview paths. A sixth caller adds a call, never a second resolution.
+ * preview paths. A new caller adds a call, never a second resolution.
  */
 
 import { getPrimaryRepresentation, type ResourceDescriptor, type ResourceId } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 // The failure is `@semiont/content`'s: the Archivist's HTTP client raises the
 // same one for the same fact, and a caller must not be able to tell which
-// side of the wire it came from (SINGLE-KB-MOUNT P4).
+// side of the wire it came from.
 import { RepresentationMissing, type WorkingTreeStore } from '@semiont/content';
 import type { Readable } from 'stream';
 
@@ -32,15 +28,14 @@ export interface RepresentationSource {
  * The descriptor half of the decision, for callers that already hold one.
  *
  * URI and mediaType come from the same object: the primary representation is
- * `storageUri`'s ONE home (STORAGE-URI-ONE-HOME P1 — bytes are a fact about a
- * rendition, and `ViewMaterializer` writes the URI there on `yield:created`
- * and relocates it on `yield:moved`). The old descriptor-level field, and the
- * octet-stream fallback for the URI-without-representation mismatch it made
- * possible, are gone — the mismatch is no longer representable.
+ * `storageUri`'s ONE home (bytes are a fact about a rendition, and
+ * `ViewMaterializer` writes the URI there on `yield:created` and relocates
+ * it on `yield:moved`). The descriptor has no URI field of its own, so a URI
+ * without a representation is not representable and no media-type fallback
+ * exists for it.
  *
  * `null` means "no bytes", which is a fact about the resource and not an
- * error — a primary representation without a URI is the has-content signal
- * every caller used before, kept.
+ * error — a primary representation without a URI is the no-content signal.
  */
 export function representationSource(resource: ResourceDescriptor | undefined): RepresentationSource | null {
   const primary = getPrimaryRepresentation(resource);
@@ -59,8 +54,8 @@ export interface RepresentationReads {
 /**
  * The whole resolution: a resource's bytes as a stream, with their stored
  * media type. Streams rather than buffers because the Archivist serves
- * content for every reader in the fleet (D7), so its memory must be bounded
- * by the chunk and not by the largest representation anyone asks for.
+ * content for every reader in the fleet, so its memory must be bounded by
+ * the chunk and not by the largest representation anyone asks for.
  *
  * Throws `RepresentationMissing` when the view or the URI is absent — the two
  * cases are distinguished because clients see two different messages. A file

@@ -1,18 +1,16 @@
 #!/usr/bin/env node
 /**
- * Every name the Browser's and react-ui's documents use exists in the tree.
+ * Every name the builder's, the Browser's, react-ui's and the protocol's documents use exists in the tree.
  *
- * Documents restate the code by hand and nothing kept the two in step. When
- * this gate was written, a census of these documents found 139 names that
- * resolved to nothing: a routing guide for a `RoutingProvider` and `useRouting`
- * that did not exist, examples calling `client.emit`, `client.on` and
- * `client.bus.get` after all three were gone, imports of deleted modals and
- * hooks, a performance guide whose every command was missing from
- * `package.json`, and tests pointing at files deleted months before. A reader
- * copying any of them got an error, and nothing said the document was wrong.
+ * Documents restate the code by hand, and this gate is what keeps the two in
+ * step. Without it a document can import an export or call a client method
+ * that does not exist, give a command missing from `package.json` or point at
+ * a file that is not there: a reader copying any of them gets an error, and
+ * nothing says the document is wrong.
  *
- * Checked in `docs/builder/react-ui`, `packages/react-ui/docs`, `packages/react-ui/README.md`,
- * `apps/browser/docs` and `apps/browser/README.md`:
+ * Checked in `docs/builder` (the guides, the skills and `react-ui`), `packages/sdk/README.md`,
+ * the root `README.md`, `packages/react-ui/docs`, `packages/react-ui/README.md`,
+ * `apps/browser/docs`, `apps/browser/README.md`, `docs/protocol` and `docs/protocol/flows`:
  *
  *   - imports from `@semiont/*`: each name is exported by that package (a
  *     wildcard re-export of another package counts, read from its types);
@@ -52,12 +50,14 @@ function walk(dir, exts, out = []) {
 
 const EXPORT_DEF = /export\s+(?:declare\s+)?(?:default\s+)?(?:async\s+)?(?:function\*?|const|let|var|class|interface|type|enum|abstract\s+class|namespace)\s+([A-Za-z_$][\w$]*)/g;
 const EXPORT_LIST = /export\s+(?:type\s+)?\{([^}]*)\}/g;
+const COMMENT = /\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
 const EXPORT_STAR = /export\s+\*\s+(?:as\s+([A-Za-z_$][\w$]*)\s+)?from\s+['"]([^'"]+)['"]/g;
 
 function namesIn(text, names, stars) {
   for (const m of text.matchAll(EXPORT_DEF)) names.add(m[1]);
   for (const m of text.matchAll(EXPORT_LIST)) {
-    for (const part of m[1].split(',')) {
+    // A list may carry comments between its names; they are not names.
+    for (const part of m[1].replace(COMMENT, '').split(',')) {
       const n = part.trim().replace(/^type\s+/, '').split(/\s+as\s+/).pop().trim();
       if (n) names.add(n);
     }
@@ -170,11 +170,19 @@ for (const pj of [join(ROOT, 'package.json'),
 // ── What each document says ───────────────────────────────────────────────────
 
 const DOCS = [
+  ...readdirSync(join(ROOT, 'docs/builder')).filter((f) => f.endsWith('.md')).map((f) => `docs/builder/${f}`),
+  'docs/builder/skills/README.md',
+  ...readdirSync(join(ROOT, 'docs/builder/skills'), { withFileTypes: true })
+    .filter((e) => e.isDirectory()).map((e) => `docs/builder/skills/${e.name}/SKILL.md`),
+  'packages/sdk/README.md',
+  'README.md',
   ...readdirSync(join(ROOT, 'docs/builder/react-ui')).filter((f) => f.endsWith('.md')).map((f) => `docs/builder/react-ui/${f}`),
   ...readdirSync(join(ROOT, 'packages/react-ui/docs')).filter((f) => f.endsWith('.md')).map((f) => `packages/react-ui/docs/${f}`),
   'packages/react-ui/README.md',
   ...readdirSync(join(ROOT, 'apps/browser/docs')).filter((f) => f.endsWith('.md')).map((f) => `apps/browser/docs/${f}`),
   'apps/browser/README.md',
+  ...readdirSync(join(ROOT, 'docs/protocol')).filter((f) => f.endsWith('.md')).map((f) => `docs/protocol/${f}`),
+  ...readdirSync(join(ROOT, 'docs/protocol/flows')).filter((f) => f.endsWith('.md')).map((f) => `docs/protocol/flows/${f}`),
 ];
 
 /** Split a document into checked code, prose, and the line each piece starts on. */

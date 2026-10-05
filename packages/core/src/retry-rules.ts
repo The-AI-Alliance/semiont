@@ -84,10 +84,11 @@ const job: RetryRule = {
     'The price of a wrong "transient" is a re-pay, not a corrupted write — which is what ' +
     'makes the wider answer affordable here and not at boot. Two facts, both settled ' +
     '2026-09-12, say how affordable: a 5xx arriving at a job has ALREADY failed three ' +
-    'times at the call (the inference client retries twice, pinned deliberately — ' +
-    'RETRY-CLASSIFICATION P4), so this is a considered second chance rather than a ' +
-    'hair-trigger; and since CHUNK-GRAIN-RESUME the re-pay is about ONE CHUNK, not the ' +
-    'whole prefix it used to be (~26 min on the 1958 document). Both push the same way. ' +
+    'times at the call (the inference client retries twice, a count chosen explicitly ' +
+    'rather than inherited from the vendor SDK), so this is a considered second chance ' +
+    'rather than a hair-trigger; and since a retried job resumes mid-unit from its ' +
+    'checkpointed cursor, the re-pay is about ONE CHUNK, not the whole prefix it used ' +
+    'to be (~26 min on the 1958 document). Both push the same way. ' +
     'If either changes — the client stops retrying, or resume stops working — this rule ' +
     'is the line to revisit.',
   retryable: ({ status }) =>

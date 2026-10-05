@@ -309,7 +309,7 @@ describe('PdfAnnotationCanvas', () => {
     });
   });
 
-  test('passes the annotation rect as browse.click second argument (A1 anchor)', async () => {
+  test('passes the annotation rect as browse.click second argument', async () => {
     const click = vi.fn();
     const session = {
       client: { browse: { click }, beckon: { hover: vi.fn() } },
@@ -368,7 +368,7 @@ describe('PdfAnnotationCanvas', () => {
   });
 
   test('drawing-path hit-test emits browse.click with the annotation viewport rect', async () => {
-    // A1 anchor: in drawing mode, a sub-10px click on an existing annotation
+    // In drawing mode, a sub-10px click on an existing annotation
     // goes through the mouse-up hit-test, which owns the PDF→display
     // coordinate transform. Expected rect computed with the same lib
     // functions the component uses (scale is 1: display 612×792 == page).
@@ -482,9 +482,8 @@ describe('PdfAnnotationCanvas', () => {
     return request;
   }
 
-  // The manual-annotation capture gap (.plans/PDF-MANUAL-ANNOTATION-TEXT.md):
-  // a hand-drawn rectangle stored geometry and nothing else, so every panel
-  // that quotes an annotation showed it blank.
+  // A hand-drawn rectangle that stores geometry and nothing else shows blank
+  // in every panel that quotes an annotation.
   test('a drawn rectangle carries the text it was drawn around', async () => {
     // The "Hello world" line in canvas space: PDF y=700..712 flips to
     // canvas y=80..92 on a 792pt page. Drag a box a little larger than it.
@@ -525,7 +524,7 @@ describe('PdfAnnotationCanvas', () => {
     expect(selector[0].type).toBe('FragmentSelector');
   });
 
-  // Phase 2 of .plans/PDF-MANUAL-ANNOTATION-TEXT.md. A scanned page has no text
+  // A scanned page has no text
   // in the browser, but the server derived one at ingest and serves it through
   // `browse.resourceAnchoredText`. Same `AnchoredText` shape either way, so
   // `textUnder` and the drag handler do not branch — only the source does.
@@ -583,9 +582,9 @@ describe('PdfAnnotationCanvas', () => {
     ]);
   });
 
-  // PERSIST-ANCHORS P4. The server map is WHOLE-RESOURCE — one artifact
+  // The server map is WHOLE-RESOURCE — one artifact
   // covering every page — so fetching it from inside the per-page load
-  // effect refetched and re-decoded the entire document's geometry on every
+  // effect would refetch and re-decode the entire document's geometry on every
   // page turn. On a 400-page scan that is the difference between one decode
   // and one per interaction.
   test('the whole-resource map is fetched once per document, not once per page-turn', async () => {
@@ -640,7 +639,7 @@ describe('PdfAnnotationCanvas', () => {
 
   test('a scanned page with no server map carries geometry only', async () => {
     // Class B: pdf.js returns no runs, so the browser cannot do the job and
-    // the annotation stays geometry-only pending async enrichment (Phase 2).
+    // the annotation stays geometry-only pending async enrichment.
     vi.mocked(loadPdfDocument).mockResolvedValueOnce({
       numPages: 3,
       getPage: vi.fn().mockResolvedValue(mockPage([])),
@@ -695,10 +694,10 @@ describe('PdfAnnotationCanvas', () => {
     }
   });
 
-  // PDF-CONTINUOUS-SCROLL S1. Browse mode scrolls: every page has a slot so
+  // Browse mode scrolls: every page has a slot so
   // the scrollbar is honest about the document's length, but only a window of
   // pages is MOUNTED — unmounting is what releases a page's raster, so the
-  // window IS the memory budget (D2).
+  // window IS the memory budget.
   describe('scroll layout (browse mode)', () => {
     const scannedDoc = () =>
       vi.mocked(loadPdfDocument).mockResolvedValueOnce({
@@ -759,9 +758,9 @@ describe('PdfAnnotationCanvas', () => {
     test('a re-render does not re-register the slots with the observers', async () => {
       // A real IntersectionObserver answers every observe() — a re-observe
       // after unobserve included — with a fresh notification. Re-registering
-      // the slots on each commit therefore closed a loop: notification →
-      // state → render → re-register → notification. Measured in Chromium on
-      // an idle 30-page document: 120 commits/s, 7,200 observe() calls/s.
+      // the slots on each commit therefore closes a loop: notification →
+      // state → render → re-register → notification. In Chromium on an idle
+      // 30-page document that is 120 commits/s, 7,200 observe() calls/s.
       // This stub does not notify on observe(), so the loop cannot show here;
       // the re-registration that feeds it can.
       const io = stubIntersectionObserver();
@@ -785,9 +784,9 @@ describe('PdfAnnotationCanvas', () => {
       expect(io.observeCalls()).toBe(registrations);
     });
 
-    test('still fetches the whole-resource map once, across many mounted pages (P4)', async () => {
-      // P4's invariant has to survive the move from one shared page-load
-      // effect into N independent page views.
+    test('still fetches the whole-resource map once, across many mounted pages', async () => {
+      // The fetch-once invariant holds across N independent page views, not
+      // only within one page's load effect.
       const io = stubIntersectionObserver();
       scannedDoc();
 
@@ -821,10 +820,10 @@ describe('PdfAnnotationCanvas', () => {
     });
 
     test('a slot keeps its reserved height when its page mounts', async () => {
-      // S1b. Releasing the reservation on mount is what made the column's
-      // total height change on every scroll — the scrollbar jumped and
-      // resized under the cursor. The reservation must survive mounting so
-      // the column's geometry never depends on which pages are mounted.
+      // Releasing the reservation on mount makes the column's total height
+      // change on every scroll — the scrollbar jumps and resizes under the
+      // cursor. The reservation must survive mounting so the column's
+      // geometry never depends on which pages are mounted.
       const io = stubIntersectionObserver();
       scannedDoc();
 
@@ -858,7 +857,7 @@ describe('PdfAnnotationCanvas', () => {
     });
 
     test('a rectangle drawn on a scrolled page carries THAT page number', async () => {
-      // S2. The drag lives in the page view, so page identity comes from the
+      // The drag lives in the page view, so page identity comes from the
       // component that owns the pixels rather than from a shared `pageNumber`
       // — the invariant that makes a column safe to draw on at all.
       const io = stubIntersectionObserver();
@@ -902,7 +901,7 @@ describe('PdfAnnotationCanvas', () => {
     });
 
     test('annotate mode scrolls too — the primary mode is not left on the pager', async () => {
-      // The registries are the seam: both now ask for the column.
+      // The registries are the seam: both ask for the column.
       const io = stubIntersectionObserver();
       scannedDoc();
 
@@ -925,12 +924,12 @@ describe('PdfAnnotationCanvas', () => {
         .toHaveAttribute('data-drawing-mode', 'rectangle');
     });
 
-    // S4. A strip of proportional rectangles — one per page, current
+    // A strip of proportional rectangles — one per page, current
     // highlighted, click to jump. Deliberately NOT thumbnails: it needs no
-    // rasterization, only the page count and the aspect ratio S1b already
-    // measures, so it costs nothing next to the document itself. It answers
-    // "where am I in this document", which neither the pager nor the
-    // scrollbar does.
+    // rasterization, only the page count and the aspect ratio the slot
+    // reservation already uses, so it costs nothing next to the document
+    // itself. It answers "where am I in this document", which neither the
+    // pager nor the scrollbar does.
     test('renders one strip rectangle per page, marking the current one', async () => {
       const io = stubIntersectionObserver();
       scannedDoc();
@@ -960,10 +959,10 @@ describe('PdfAnnotationCanvas', () => {
       // nearest scroller is the window, a lie inside an inner-scrolled panel:
       // there the strip's scrollport extends below the panel's clip, and
       // `scrollIntoView({block:'nearest'})` considers a tick in that hidden
-      // band already in view — the active page vanished when it crossed the
-      // strip's bottom (never the top, whose edges coincide). Measured live:
-      // strip scrollport 126→846 vs panel 126→639. The fix sizes the
-      // scrollport to the scroller that actually clips it.
+      // band already in view — the active page vanishes when it crosses the
+      // strip's bottom (never the top, whose edges coincide); e.g. a strip
+      // scrollport of 126→846 inside a panel of 126→639. So the scrollport is
+      // sized to the scroller that actually clips it.
       const io = stubIntersectionObserver();
       scannedDoc();
 
@@ -1016,7 +1015,7 @@ describe('PdfAnnotationCanvas', () => {
       expect(scrollIntoView).toHaveBeenCalled();
     });
 
-    // S1a. Arrow keys step pages. The guards are the substance: a viewer that
+    // Arrow keys step pages. The guards are the substance: a viewer that
     // steals arrow keys from a text field is worse than one with no shortcut.
     test('PageUp/PageDown step pages; Up/Down are left to scroll', async () => {
       // The convention every mainstream viewer follows (Preview, Chrome's PDF
@@ -1101,9 +1100,9 @@ describe('PdfAnnotationCanvas', () => {
     });
 
     test('focus follows the current page when the strip owns focus', async () => {
-      // Reported: click a page in the strip, then arrow away — the focus ring
-      // stays behind on the clicked rectangle while the current-page marker
-      // moves, so two rectangles claim to be "here". (The ring only appears
+      // Click a page in the strip, then arrow away: a focus ring that stays
+      // behind on the clicked rectangle while the current-page marker moves
+      // leaves two rectangles claiming to be "here". (The ring only appears
       // after the arrow press because that is when the browser switches to
       // keyboard modality and the clicked button starts matching
       // :focus-visible.) Focus must travel with the current page — but ONLY
@@ -1168,8 +1167,8 @@ describe('PdfAnnotationCanvas', () => {
     test('the strip runs along the same axis as the scrolling, beside the column', async () => {
       // Pages scroll vertically, so a horizontal strip reads across a
       // direction the document does not move in. The strip's axis follows the
-      // scroll axis — which is also what makes horizontal scrolling (a later
-      // phase) a change of one value rather than a second layout.
+      // scroll axis — which is also what would make horizontal scrolling a
+      // change of one value rather than a second layout.
       const io = stubIntersectionObserver();
       scannedDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
@@ -1235,10 +1234,10 @@ describe('PdfAnnotationCanvas', () => {
 
 
     test('the column does not add a second scrollbar inside the scrolling pane', async () => {
-      // The strip and a nested column scrollbar were two controls for one
+      // The strip and a nested column scrollbar would be two controls for one
       // movement. The pane the viewer sits in already scrolls (flex: 1;
       // min-height: 0), so the column must not declare a viewport-relative
-      // height of its own — that is what produced scroll-within-scroll.
+      // height of its own — that produces scroll-within-scroll.
       const io = stubIntersectionObserver();
       scannedDoc();
       vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
@@ -1292,10 +1291,10 @@ describe('PdfAnnotationCanvas', () => {
     });
 
     test('paged navigation does not carry one page\'s state onto the next', async () => {
-      // In the paged layout a single PdfPageView is reused as `pageNumber`
-      // changes, so its state survives the switch: the previous page's raster
-      // shows briefly under the new page's overlay, a drag could quote the
-      // previous page's text, and a load failure sticks forever because
+      // A single PdfPageView reused in the paged layout as `pageNumber`
+      // changes would keep its state across the switch: the previous page's
+      // raster shows briefly under the new page's overlay, a drag could quote
+      // the previous page's text, and a load failure sticks forever because
       // nothing clears it. Each page is a different thing and must mount as one.
       // Reject by PAGE, not by call order: the parent also calls getPage(1)
       // to measure the document's shape, so a `...Once` rejection would be
@@ -1420,9 +1419,8 @@ describe('PdfAnnotationCanvas', () => {
     });
   });
 
-  // PDF-CONTINUOUS-SCROLL S3. The viewer chrome was the last hardcoded-English
-  // surface in this component: Previous/Next, the page indicator, and both
-  // failure lines. The mock translation manager echoes "<namespace>.<key>",
+  // The viewer chrome is translated: Previous/Next, the page indicator, and
+  // both failure lines. The mock translation manager echoes "<namespace>.<key>",
   // so asserting the echo proves the string came from translations rather
   // than from a literal that happens to read the same in English.
   describe('viewer chrome', () => {

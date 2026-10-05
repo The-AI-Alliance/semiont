@@ -199,8 +199,8 @@ func Yield(args []string) int {
 			root = launcher.CwdKBRoot()
 		}
 		if root == "" {
-			// A legacy record can lack KBRoot; refuse plainly rather than
-			// let the path check babble about a KB root named "".
+			// A record can lack KBRoot; refuse plainly rather than let the
+			// path check babble about a KB root named "".
 			u.Fail("Cannot determine the KB root (the stack record predates root tracking, and the current directory is not inside a KB clone).")
 			fmt.Fprintln(os.Stderr, "  Run yield from inside the KB clone, or set SEMIONT_ROOT.")
 			return 1
@@ -356,8 +356,8 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string
 	ctx := context.Background()
 	resourceID := positional[0]
 
-	// Gather the grounding context first — generation without it is the
-	// thin-context failure mode the npm CLI documents.
+	// Gather the grounding context first: a generation job requires it, and
+	// its focus names the resource or annotation the generation is about.
 	var gathered any
 	if len(positional) == 2 {
 		reply, err := cli.Request(ctx, "gather:requested", semiont.GatherAnnotationRequest{
@@ -375,8 +375,8 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string
 	} else {
 		req := semiont.GatherResourceRequest{ResourceId: resourceID}
 		// Depth and maxResources are required by the schema. Left at Go's
-		// zero, the librarian asked Qdrant for `limit: 0` and every delegate
-		// died in this gather with a bare "Unprocessable Entity".
+		// zero, the librarian asks Qdrant for `limit: 0` and the delegate
+		// dies in this gather with a bare "Unprocessable Entity".
 		req.Options.Depth = gatherDefaultDepth
 		req.Options.MaxResources = gatherDefaultMaxResources
 		req.Options.IncludeContent = true
@@ -405,10 +405,10 @@ func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string
 		}
 	}
 
-	// The CONTEXT carries the ids now. For jobType generation the dispatcher
+	// The CONTEXT carries the ids. For jobType generation the dispatcher
 	// derives resourceId from params.context.focus and rejects a caller-supplied
-	// one; referenceId left the params schema entirely and the worker derives it
-	// the same way. So the envelope's ResourceId stays nil here — sending what we
+	// one; the params schema has no referenceId, and the worker derives it the
+	// same way. So the envelope's ResourceId stays nil here — sending what we
 	// know would be rejected, and the focus is authoritative anyway. The gather
 	// above is what puts the right focus in the context: annotation-focused with
 	// two positionals, resource-focused with one.

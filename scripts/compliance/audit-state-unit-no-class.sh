@@ -8,7 +8,7 @@ set -euo pipefail
 # The runtime A1 axiom enforces this per-unit at test time
 # (`Object.getPrototypeOf(unit) === Object.prototype`); this is the static
 # complement, catching an intentional `class` declaration even if it returns a
-# plain object. See `.plans/STATE-UNIT-AXIOMS.md`.
+# plain object.
 #
 # Scope: `*-state-unit.ts` factories + the core `state-unit.ts` interface file.
 # Allowlist: empty (no class declarations expected in any state-unit file).

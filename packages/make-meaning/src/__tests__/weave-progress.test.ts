@@ -1,11 +1,11 @@
 /**
- * WeaveProgress Tests (GRAPH-PROJECTION-SYNC P2, D2 = push)
+ * WeaveProgress Tests
  *
- * The gateway-local fold of `weave:applied` signals. `whenApplied` is the
+ * The process-local fold of `weave:applied` signals. `whenApplied` is the
  * applied-offset barrier: it resolves as soon as the Weaver's applied
  * sequence for a resource reaches the requested one, event-driven — no
  * polling quantum — and rejects with a distinct error on the bounded
- * timeout so callers can fall back to the Phase 1 retry floor.
+ * timeout so callers can fall back to the bounded-retry floor.
  */
 
 import { describe, it, expect, vi } from 'vitest';

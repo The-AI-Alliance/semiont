@@ -193,7 +193,6 @@
     "statusConnected": "Forbundet",
     "statusExpired": "Session udløbet",
     "statusSignedOut": "Logget ud",
-    "statusUnreachable": "Utilgængelig",
     "invalidHost": "Ugyldigt værtsnavn",
     "discoveredTitle": "Fundet på denne maskine",
     "managedBadge": "Administreret af launcher",

@@ -106,8 +106,6 @@ textarea:disabled,
   color: var(--semiont-color-gray-300) !important;
 }
 
-/* Status indicators - ensure sufficient contrast */
-
 /* Links - ensure sufficient contrast */
 a,
 
@@ -188,10 +186,6 @@ a:visited,
   [disabled] {
     opacity: 0.8 !important;
   }
-
-  /* Stronger focus indicators (already handled in focus.css) */
-
-  /* Pure black/white for maximum contrast */
 }
 
 /* ========================================
@@ -292,8 +286,6 @@ pre,
   background-color: var(--semiont-color-gray-800) !important;
   color: var(--semiont-color-gray-100) !important;
 }
-
-/* Tooltips - high contrast for readability */
 
 /* ========================================
    Utility Classes for Manual Overrides

@@ -1,7 +1,7 @@
 /**
- * GENERATE-FROM-BUTTON P1 — the GatheredContext display renders a resource focus.
+ * The GatheredContext display renders a resource focus.
  *
- * ContextSummary's graph views are focus-agnostic; GatherContextStep gains a
+ * ContextSummary's graph views are focus-agnostic; GatherContextStep shows a
  * resource-focus strip and hides the annotation-only controls (hint + the
  * Bind/Generate/Compose footer) for a resource focus.
  */
@@ -27,7 +27,7 @@ const t = {
   score: 'Score',
 };
 
-/** Post-P3 wire shape: resourceName required, entityTypes/machineRead optional. */
+/** SemanticMatch wire shape: resourceName required, entityTypes/machineRead optional. */
 const MATCHES = [
   { text: 'a middling passage', resourceId: 'r-mid', resourceName: 'Middling Doc', score: 0.55 },
   { text: 'the best passage', resourceId: 'r-best', resourceName: 'Best Doc', score: 0.91,
@@ -43,7 +43,10 @@ function withSemantic(ctx: GatheredContext, over: Record<string, unknown> = {}):
   } as unknown as GatheredContext;
 }
 
-/** The annotation-wizard controls travel as ONE optional group (GFR D2). */
+/**
+ * The annotation-wizard controls travel as ONE optional group, which a
+ * display-only caller omits.
+ */
 const annotate = {
   userHint: '',
   onUserHintChange: () => {},
@@ -137,8 +140,8 @@ describe('GatheredContext display — resource focus', () => {
     expect(container.textContent).toContain('Strategy');
   });
 
-  it('the quotation is contiguous prose — nothing interleaved, no monospace (GEP P1a, D6/D7)', () => {
-    // The live bug: chips injected between `text` and `after` rendered
+  it('the quotation is contiguous prose — nothing interleaved, no monospace', () => {
+    // Chips injected between `text` and `after` would render
     // "Black Hawk [Person] [linking]'s band." — metadata interrupting the
     // quotation it describes, mid-possessive.
     const { container } = render(
@@ -153,11 +156,11 @@ describe('GatheredContext display — resource focus', () => {
     const quote = container.querySelector('.semiont-gather__source-context');
     expect(quote).not.toBeNull();
     expect(quote!.textContent).toBe('a term b'); // before + text + after, verbatim
-    // D7: quoted document prose, not code.
+    // Quoted document prose, not code.
     expect(quote!.querySelector('[style*="monospace"]')).toBeNull();
   });
 
-  it('metadata sits on the label row; the span WEARS its motivation (GEP P1b, D6)', () => {
+  it('metadata sits on the label row; the span WEARS its motivation', () => {
     const { container } = render(
       <GatherContextStep
         context={annotationContextWithTypes()}
@@ -179,25 +182,26 @@ describe('GatheredContext display — resource focus', () => {
     expect(chips.filter((c) => c.textContent === 'linking')).toEqual([]);
     // — the selected span carries the viewer's own class for the motivation
     // (the registry's applied name; the motivation stylesheets declare it as a
-    // synonym of `semiont-motivation-reference`), with the hand-rolled inline
-    // highlight gone.
+    // synonym of `semiont-motivation-reference`), with no inline highlight
+    // style of its own.
     const span = strip.querySelector('.annotation-reference') as HTMLElement | null;
     expect(span).not.toBeNull();
     expect(span!.textContent).toBe('term');
     expect(span!.style.backgroundColor).toBe('');
 
     // Exactly ONE motivation-classed element: the context can place only the
-    // focal annotation, and the strip must not show more (D6 boundary).
+    // focal annotation, and the strip must not show more — it borrows the
+    // viewer's styles, never its data sources.
     const motivated = strip.querySelectorAll(
       '.annotation-reference, .annotation-highlight, .annotation-comment, .annotation-assessment, .annotation-tag',
     );
     expect(motivated).toHaveLength(1);
   });
 
-  it('suggestedReferences render as a prose list, never chips (GFR A3)', () => {
+  it('suggestedReferences render as a prose list, never chips', () => {
     // The live values are full research prompts — sentences. The chip vocabulary
     // stays for tokens (entity types, categories, counts); a pill that wraps
-    // across three lines is not a pill (GENERATE-FROM-RESOURCE D3).
+    // across three lines is not a pill.
     const { container } = render(
       <GatherContextStep
         context={resourceContext()}
@@ -216,9 +220,9 @@ describe('GatheredContext display — resource focus', () => {
     expect(chipTexts).not.toContain('Suggested Topic');
   });
 
-  // ── GEP P2 — the evidence panes ─────────────────────────────────────────────
+  // ── The evidence panes ──────────────────────────────────────────────────────
 
-  it('the graph pane shows its title and the inferred summary as prose header (P2)', () => {
+  it('the graph pane shows its title and the inferred summary as prose header', () => {
     const { container } = render(
       <GatherContextStep
         context={withSemantic(resourceContext())}
@@ -231,7 +235,7 @@ describe('GatheredContext display — resource focus', () => {
     expect(pane!.textContent).toContain('Cedar County sits inside the Black Hawk Purchase.');
   });
 
-  it('the corpus pane ranks match cards by descending score, named and marked (P2, D4)', () => {
+  it('the corpus pane ranks match cards by descending score, named and marked', () => {
     const { container } = render(
       <GatherContextStep
         context={withSemantic(resourceContext())}
@@ -243,9 +247,9 @@ describe('GatheredContext display — resource focus', () => {
     // Descending by score, whatever order the wire delivered.
     expect(cards.map((c) => c.querySelector('.semiont-corpus__source')!.textContent))
       .toEqual(['Best Doc', 'Middling Doc', 'Weak Doc']);
-    // The card names its source (D9's required field), shows the snippet, and
-    // formats the 0–1 cosine to two places (logged deviation — the search step's
-    // raw render is a different scale).
+    // The card names its source (`resourceName`, required on every match),
+    // shows the snippet, and formats the 0–1 cosine to two places (the search
+    // step's raw render is a different scale).
     expect(cards[0]!.textContent).toContain('the best passage');
     expect(cards[0]!.textContent).toContain('0.91');
     // Match-level entityTypes are tokens — chips on the card.
@@ -255,7 +259,7 @@ describe('GatheredContext display — resource focus', () => {
     expect(cards[1]!.textContent).not.toContain('OCR');
   });
 
-  it('the exclusion receipt renders when present, and only then (P2, D4)', () => {
+  it('the exclusion receipt renders when present, and only then', () => {
     const { container, rerender } = render(
       <GatherContextStep
         context={withSemantic(resourceContext())}
@@ -274,7 +278,7 @@ describe('GatheredContext display — resource focus', () => {
     expect(container.querySelector('.semiont-corpus__receipt')).toBeNull();
   });
 
-  it('emptiness is evidence: each pane renders its empty-state copy (P2, D1)', () => {
+  it('emptiness is evidence: each pane renders its empty-state copy', () => {
     // resourceContext() has no semanticContext and a graph whose views resolve
     // to a connection — so build a truly empty context for both panes.
     const empty = {
@@ -290,7 +294,7 @@ describe('GatheredContext display — resource focus', () => {
       .toContain('Nothing similar in the corpus.');
   });
 
-  it('the hint sits OUTSIDE the pane grid, full width above the footer (P2, D5)', () => {
+  it('the hint sits OUTSIDE the pane grid, full width above the footer', () => {
     const { container } = render(
       <GatherContextStep
         context={annotationContext()}
@@ -304,8 +308,8 @@ describe('GatheredContext display — resource focus', () => {
     expect(container.querySelector('.semiont-gather__hint-row')).not.toBeNull();
   });
 
-  // ── GEP P4 — the graph pane's body is an actual graph ───────────────────────
-  // Post-P3 topology: a citation is its linking ANNOTATION (annotation-of → the
+  // ── The graph pane's body is an actual graph ────────────────────────────────
+  // The topology: a citation is its linking ANNOTATION (annotation-of → the
   // citing resource, cites → the focal one); siblings are annotations ON the
   // focal resource. The viz draws the derived neighborhood: focal + peers +
   // citers + siblings; the citation's intermediary annotation collapses into
@@ -350,24 +354,24 @@ describe('GatheredContext display — resource focus', () => {
     );
   }
 
-  it('draws the neighborhood as SVG — the interim lists are gone (P4, D3)', () => {
+  it('draws the neighborhood as SVG, with no lists', () => {
     const { container } = renderViz();
     const pane = container.querySelector('.semiont-gather-pane--graph')!;
     expect(pane.querySelector('svg')).not.toBeNull();
     // focal + peer + citer + sibling; the citing annotation collapses into its edge
     expect(pane.querySelectorAll('.semiont-graph__node')).toHaveLength(4);
     expect(pane.querySelectorAll('.semiont-graph__edge')).toHaveLength(3);
-    expect(pane.querySelector('ul')).toBeNull(); // replaced, not joined
+    expect(pane.querySelector('ul')).toBeNull(); // no list beside the graph
   });
 
-  it('the focal node is visually distinct, and there is exactly one (P4)', () => {
+  it('the focal node is visually distinct, and there is exactly one', () => {
     const { container } = renderViz();
     const focal = container.querySelectorAll('.semiont-graph__node--focal');
     expect(focal).toHaveLength(1);
     expect(focal[0]!.textContent).toContain('My Resource');
   });
 
-  it('siblings are labeled by their quoted text — motivation and note stay in hover (P4, D11)', () => {
+  it('siblings are labeled by their quoted text — motivation and note stay in hover', () => {
     // A node that just says "linking" is uninterpretable; the annotation's
     // identity is the text it wraps (TextQuoteSelector.exact, on the embedded
     // W3C annotation). Motivation is conveyed by the node's styling and hover.
@@ -420,7 +424,7 @@ describe('GatheredContext display — resource focus', () => {
     expect(node.querySelector('text')!.textContent).toBe('Resource link');
   });
 
-  it('layout is deterministic — same context, same positions (P4, D3)', () => {
+  it('layout is deterministic — same context, same positions', () => {
     const positions = () => {
       const { container, unmount } = renderViz();
       const snap = Array.from(container.querySelectorAll('.semiont-graph__node rect'))
@@ -498,7 +502,7 @@ describe('GatheredContext display — resource focus', () => {
       expect(svg.getAttribute('viewBox')!.startsWith('0 0 628 ')).toBe(true);
     });
 
-    it('the floating cited-line caption is gone — the drawn citer nodes ARE the count', () => {
+    it('there is no floating cited-line caption — the drawn citer nodes ARE the count', () => {
       const { container } = renderViz();
       const pane = container.querySelector('.semiont-gather-pane--graph')!;
       expect(container.querySelector('[data-node-id="res-3"]')).not.toBeNull(); // citer drawn
@@ -507,10 +511,10 @@ describe('GatheredContext display — resource focus', () => {
     });
   });
 
-  it('an annotation focus WITHOUT the annotate group renders display-only (GFR A2)', () => {
+  it('an annotation focus WITHOUT the annotate group renders display-only', () => {
     // The resolution controls belong to the caller that can serve them. A
     // display-only caller must never get a hint textarea wired to nothing —
-    // which is what the old always-on gate produced for an annotation focus.
+    // which is what an always-on gate would produce for an annotation focus.
     const { container } = render(
       <GatherContextStep
         context={annotationContext()}
@@ -537,7 +541,7 @@ function annotationContext(): GatheredContext {
   } as unknown as GatheredContext;
 }
 
-/** Same annotation focus, with anchor entity types — the GEP P1 chip fixtures. */
+/** Same annotation focus, with anchor entity types — the chip fixtures. */
 function annotationContextWithTypes(): GatheredContext {
   const ctx = annotationContext() as GatheredContext & { metadata: { entityTypes?: string[] } };
   ctx.metadata = { entityTypes: ['Topic'] };

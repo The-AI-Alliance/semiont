@@ -18,11 +18,11 @@ import { slicedEmbed } from './sliced-batch';
  * process and a rate-limited cloud API with a request-size ceiling have no
  * honest common value.
  *
- * Both values are STATED GUESSES, accepted as such (user, 2026-09-10), because
- * nothing in this repo records Voyage's published limits:
+ * Both values are STATED GUESSES, accepted as such, because nothing in this
+ * repo records Voyage's published limits:
  *
- * `sliceSize: 128` — carried over from the measured Ollama anchor (~73 texts/s
- *   => ~1.75 s per round trip) for want of a Voyage measurement. Voyage is the
+ * `sliceSize: 128` — the measured Ollama anchor (~73 texts/s => ~1.75 s per
+ *   round trip) for want of a Voyage measurement. Voyage is the
  *   provider that also has a REQUEST-SIZE ceiling, so this is the value most
  *   likely to need correcting. Invalidated by Voyage's published per-request
  *   maximum, if it is lower.

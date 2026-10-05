@@ -1,5 +1,5 @@
 /**
- * Archivist Main — standalone entry point (EXTRACT-ARCHIVIST P2a)
+ * Archivist Main — standalone entry point
  *
  * The service that keeps the system of record. Runs the three actors that
  * own the file-backed state — `Stower` (accessions: events + projections),
@@ -16,16 +16,15 @@
  * bridges everything the transport receives; both rosters live in
  * `service-channels.ts`:
  *   in  — ARCHIVIST_INBOUND_CHANNELS (the actors' rosters, each pinned to
- *         its actor's real subscriptions by a census gate, plus
- *         `smelt:settled` for the anchored-text barrier fold), which is also
- *         the transport's whole SSE subscription — never the full bridged
- *         set; SSE frames are pushed onto the local bus the actors
- *         subscribe to.
+ *         its actor's real subscriptions by a census gate, plus the
+ *         handlers' request channels and `smelt:settled` for the
+ *         anchored-text barrier fold), which is also the transport's whole
+ *         SSE subscription — never the full bridged set; SSE frames are
+ *         pushed onto the local bus the actors subscribe to.
  *   out — ARCHIVIST_OUTBOUND_CHANNELS: every reply channel DERIVED from
- *         BUS_OPERATIONS over the inbound set, plus the strays whose
- *         operations are keyed under gateway handler channels
- *         (ARCHIVIST_OUTBOUND_STRAYS). Requests and replies never overlap,
- *         so nothing echoes.
+ *         BUS_OPERATIONS over the inbound set, plus the strays no
+ *         registered operation names (ARCHIVIST_OUTBOUND_STRAYS). Requests
+ *         and replies never overlap, so nothing echoes.
  *
  * Environment variables:
  *   SEMIONT_ROOT              — project root (the KB directory). Required.
@@ -129,7 +128,7 @@ if (!clientId || !clientSecret) {
 const credential = { issuer: issuerUrl, clientId, clientSecret };
 const skipRebuild = process.env.SEMIONT_SKIP_REBUILD === 'true';
 
-/** Claimed as a portNeed in the launcher (P2b): worker 24100, smelter 24101, weaver 24102. */
+/** Claimed as a portNeed in the launcher: worker 24100, smelter 24101, weaver 24102. */
 const healthPort = 24103;
 
 import { registerFactPumpDepthProvider } from '@semiont/observability';
@@ -137,8 +136,6 @@ import { createProcessLogger } from '@semiont/observability/process-logger';
 import { startAgentSession } from './agent-session';
 import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
 const logger = createProcessLogger('archivist');
-
-// ── Auth ─────────────────────────────────────────────────────────────
 
 // ── Main ─────────────────────────────────────────────────────────────
 
@@ -182,27 +179,26 @@ async function main() {
   if (!skipRebuild) {
     // The Browser reads views, so they must be populated before any request
     // is served — same startup contract as createKnowledgeBase. The
-    // Archivist is the ONE rebuild owner (D6): the gateway never rebuilds,
-    // it reads this stateDir.
+    // Archivist is the ONE rebuild owner: no reader rebuilds, the Librarian
+    // reads this stateDir.
     logger.info('Rebuilding materialized views from the event log');
     await eventStore.views.rebuildAll(eventStore.log);
   }
   const views = eventStore.viewStorage;
-  // Annotation enrichment rides this process's append path (P3): published
+  // Annotation enrichment rides this process's append path: published
   // facts carry their annotation, and the forwarded copies below carry it too.
   wireEnrichment(eventStore, { views });
   const content = new WorkingTreeStore(project, logger.child({ component: 'working-tree-store' }));
-  // Read-only from construction (ANCHORED-TEXT-TO-SMELTER D5): this process
-  // shares the directory with the store's single writer, so the narrowing —
-  // not mere abstinence — is what keeps single-writer true. Widening this
-  // type is the regression, not a refactor.
+  // Read-only from construction: this process shares the directory with
+  // the store's single writer, the Smelter, so the narrowing — not mere
+  // abstinence — is what keeps single-writer true. Widening this type
+  // breaks that; it is not a refactor.
   const anchoredText: Pick<AnchoredTextStore, 'read'> = createAnchoredTextStore(anchoredTextDir, logger.child({ component: 'anchored-text-store' }));
   const smeltProgress = createSmeltProgress(localBus);
 
   logger.info('Connecting to graph database', { type: graphConfig.type });
-  // Bounded, like the gateway's connects have been since 2026-07-20 and unlike
-  // this main until now: an unbounded await on a dependency that is not up leaves
-  // the container hung and unhealthy, where `restart: on-failure` only rescues a
+  // Bounded: an unbounded await on a dependency that is not up leaves the
+  // container hung and unhealthy, where `restart: on-failure` only rescues a
   // process that EXITS. The vector store gets the deadline as a signal because
   // creating a collection retries while the embedding model warms up — this stops
   // that retry rather than abandoning it mid-flight.
@@ -245,22 +241,22 @@ async function main() {
   );
   await cloneTokenManager.initialize();
 
-  // The fact-consumers follow the facts (P3, D2 i): annotation-assembly
-  // subscribes to the mark:added this process's Stower publishes, and its
-  // mark:create-ok/-failed replies ride the outbound pump like every reply.
+  // The fact-consumers follow the facts, so no fact crosses a process
+  // boundary as an emit: annotation-assembly subscribes to the mark:added
+  // this process's Stower publishes, and its mark:create-ok/-failed replies
+  // ride the outbound pump like every reply.
   registerAnnotationAssemblyHandler(localBus, { views }, logger);
 
-  // Same rule again (EXTRACT-JOBS D2): the bind re-emit only translates
-  // `bind:update-body` into `mark:update-body` and matches the Stower's reply
-  // back. With the Stower here, the whole exchange is local; in the gateway it
-  // crossed the wire twice to reach a handler in this process.
+  // Same rule again: the bind re-emit only translates `bind:update-body`
+  // into `mark:update-body` and matches the Stower's reply back. With the
+  // Stower here, that whole exchange is local: only `bind:update-body` and
+  // its reply cross the wire.
   registerBindUpdateBodyHandler(localBus, logger);
 
-  // The annotation-context read follows the same rule (D5): it is a
-  // views+content read, and this is the process that holds both. It sat on
-  // the gateway only because "the gateway is the byte path" — a premise D1
-  // reversed. Here the byte read is the same in-process resolution the HTTP
-  // face serves, rather than a hop back to whoever holds the mount.
+  // The annotation-context read follows the same rule: it is a views+content
+  // read, and this is the process that holds both. Its byte read is the same
+  // in-process resolution the HTTP face serves, with no hop to reach the
+  // mount.
   // Derived text rides the same bus read everywhere; here our own Browser
   // answers on the local bus.
   registerAnnotationContextHandler(
@@ -274,10 +270,10 @@ async function main() {
   );
 
   // Vocabulary bootstrap emits frame:add-entity-type for missing defaults —
-  // handled by our own Stower, in-process, no cross-service boot race (P3).
+  // handled by our own Stower, in-process, no cross-service boot race.
   await bootstrapEntityTypes(localBus, eventStore, logger.child({ component: 'entity-types-bootstrap' }));
 
-  // The entity-type warm (was gateway index.ts): getEntityTypes() lazily runs
+  // The entity-type warm: getEntityTypes() lazily runs
   // initializeTagCollections(), which merges DEFAULT_ENTITY_TYPES into the
   // Neo4j TagCollection and persists it. Seed-and-warm, not a dead read.
   const entityTypes = await graphDb.getEntityTypes();
@@ -288,10 +284,10 @@ async function main() {
     baseUrl: makeBaseUrl(baseUrl),
     token$: session.token$,
     tokenRefresher: session.refresh,
-    // Exactly the inbound roster — never the full bridged set, whose global
-    // reply fan-out is the worker-OOM failure mode. This process awaits no
-    // wire replies (busRequest's isSubscribed gate fails fast if one is ever
-    // added without growing the roster), so inbound IS the subscription.
+    // Exactly the inbound roster — never the full bridged set (see
+    // service-channels.ts). This process awaits no wire replies (busRequest's
+    // isSubscribed gate fails fast if one is ever added without growing the
+    // roster), so inbound IS the subscription.
     channels: ARCHIVIST_INBOUND_CHANNELS,
   });
 
@@ -304,26 +300,25 @@ async function main() {
     logger,
   });
 
-  // ── The fact pump (P3, D5): persisted events ride the bus ──────────
+  // ── The fact pump: persisted events ride the bus ───────────────────
   // Every append publishes an (enriched) StoredEvent on this process's bus;
   // the pump emits each one to the gateway via the ordinary /bus/emit —
-  // persisted channels are registered there (validate: null), and channel
-  // authz is deferred wholesale (CHANNEL-AUTHZ.md). Emitted twice, exactly
-  // as in-process appendEvent published: once global (the Smelter's and
-  // Weaver's unscoped subscriptions), once resource-scoped (clients'
-  // per-resource feeds, whose SSE frames carry the resumable p-<scope>-<seq>
-  // ids). A fact that fails after the transport's retries is logged loudly
-  // and NOT retried further — the D1 replay path and the projectors'
-  // catch-up/reconcile passes exist for exactly that gap.
+  // persisted channels are registered there (validate: null), and the
+  // gateway applies no channel-level authorization, so any authenticated
+  // principal may emit on them. Emitted twice, exactly as appendEvent
+  // publishes in-process: once global (the Smelter's and Weaver's unscoped
+  // subscriptions), once resource-scoped (clients' per-resource feeds, whose
+  // SSE frames carry the resumable p-<scope>-<seq> ids). A fact that fails
+  // after the transport's retries is logged loudly and NOT retried further —
+  // the sequence-ranged replay read and the projectors' catch-up/reconcile
+  // passes exist for exactly that gap.
   //
-  // EXTRACTED to `fact-pump.ts` by ARCHIVIST-STAYS-UP P5, so the component
-  // whose backlog is the leading suspect for load-correlated heap growth can
-  // be tested and measured at all. Two things changed there, and the
-  // distinction matters: events still drain ONE AT A TIME IN ORDER (projections
-  // assume per-resource order), but the two emits WITHIN one event now run
-  // together — they address different scopes and have no ordering relation,
-  // so serialising them only doubled the drain time. `depth()` is published as
-  // a gauge: an unbounded backlog with no number is how this went undiagnosed.
+  // The pump is its own module (`fact-pump.ts`) so that the component whose
+  // backlog is the leading suspect for load-correlated heap growth can be
+  // tested and measured. Events drain ONE AT A TIME IN ORDER (projections
+  // assume per-resource order); the two emits WITHIN one event run together —
+  // they address different scopes and have no ordering relation. `depth()` is
+  // published as a gauge, so an unbounded backlog has a number.
   const factPump = createFactPump(
     merge(...PERSISTED_EVENT_TYPES.map((type) => localBus.on(type))),
     { emit: (channel, payload, scope) => httpTransport.emit(channel, payload, { scope }), logger },
@@ -333,7 +328,7 @@ async function main() {
 
   logger.info('Bus pumps attached', { inbound: ARCHIVIST_INBOUND_CHANNELS.length, outbound: outbound.length, facts: PERSISTED_EVENT_TYPES.length });
 
-  // ── The HTTP surface: health, the D1 read path, bytes, descriptions ──
+  // ── The HTTP surface: health, event replay, bytes, descriptions ──────
   // The recording upload and the description ask the actors beside them on
   // this process's own bus: the Stower (or the CloneTokenManager) records,
   // the Browser describes.
@@ -354,9 +349,9 @@ async function main() {
       upload.kind === 'clone'
         ? ResourceOperations.createFromCloneToken(upload.input, upload.emitter.did, actors)
         : ResourceOperations.createResource(upload.input, upload.emitter, actors),
-    // The Archivist verifies its OWN callers now. It serves the event log and
-    // accepts byte writes, so it is the one place in the stack where a shared
-    // static string was guarding the most valuable thing in it.
+    // The Archivist verifies its OWN callers. It serves the event log and
+    // accepts byte writes — the most valuable things in the stack — so each
+    // caller's issuer token is verified here, never a shared static string.
     verifier: new IssuerVerifier({ issuer: issuerUrl, audience: kbResource(kbDomain) }),
     health: () => ({
       status: 'ok',

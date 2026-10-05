@@ -31,17 +31,6 @@ export type { MakeMeaningConfig } from './config';
 
 export interface MakeMeaningService {
   knowledgeSystem: KnowledgeSystem;
-  /**
-   * The one SemiontProject this root is serving — the same instance the
-   * KnowledgeSystem and the bus handlers were built from.
-   *
-   * Exposed so request handlers reach for it instead of improvising their own
-   * from `config._metadata`. Two of them used to do exactly that, casting an
-   * underscore-prefixed field twice per request to rebuild a project that
-   * already existed a few frames up — and a project rebuilt that way is
-   * missing everything the entry point supplied it with.
-   */
-  project:         SemiontProject;
   stop:            () => Promise<void>;
 }
 
@@ -52,10 +41,9 @@ export interface MakeMeaningService {
  *
  * Docker's `restart: on-failure` only rescues a process that EXITS; an unbounded
  * await on a slow dependency hangs forever and the container sits unhealthy.
- * Observed on a Codespaces resume (2026-07-20): all ten containers restart at
- * once and `depends_on` does not apply — it governs `compose up`, not
- * daemon-driven restarts — so connects can reach Neo4j/Qdrant/Ollama before they
- * are listening.
+ * On a Codespaces resume every container restarts at once and `depends_on`
+ * does not apply — it governs `compose up`, not daemon-driven restarts — so
+ * connects can reach Neo4j/Qdrant/Ollama before they are listening.
  *
  * 60s is this fleet's answer, not a general one, which is why it lives here and
  * `withDeadline` lives in core. It can be raced by work that retries — the
@@ -71,11 +59,10 @@ export const RESTART_HINT =
   'to be slow when every service restarts at once.';
 
 /**
- * Connect the shared stores both composition roots need: graph, event store,
- * vectors + embedding, and the KnowledgeBase bundle. Whether views REBUILD
- * here is the root's call — the standalone root owns its record and rebuilds;
- * the gateway root never does (D6: the Archivist owns rebuild + incremental,
- * the gateway reads the shared stateDir).
+ * Connect the shared stores both composition roots in this file need: graph,
+ * event store, vectors + embedding, and the KnowledgeBase bundle. Whether
+ * views REBUILD here is the root's call: each passes its caller's
+ * `skipRebuild`, and without it the views rebuild from the event log.
  */
 async function connectStores(
   project: SemiontProject,
@@ -86,19 +73,17 @@ async function connectStores(
 ) {
   const graphConfig = config.services!.graph!;
   // Each connect is announced before it is attempted: when one of them does
-  // hang, the last line in the log names the culprit. Diagnosing the
-  // 2026-07-20 hang took a live investigation precisely because these three
-  // steps were silent.
+  // hang, the last line in the log names the culprit.
   logger.info('Connecting to graph database', { type: graphConfig.type });
   const graphDb = await withDeadline('Graph database', STARTUP_CONNECT_TIMEOUT_MS,
     () => getGraphDatabase(graphConfig), RESTART_HINT);
   const eventStore = createEventStoreCore(project, eventBus, logger.child({ component: 'event-store' }));
 
-  // The vector pair is mandatory and explicitly configured (MANDATORY-
-  // EMBEDDING D0+D1): construction is unconditional — the config NAMES the
-  // store and the provider, or the type (and the TOML loader before it)
-  // already refused. No fallback path exists; a `memory` choice is an
-  // informed one and announces its rebuild-on-restart cost below.
+  // The vector pair is mandatory and explicitly configured: construction
+  // is unconditional — the config NAMES the store and the provider, or the
+  // type (and the TOML loader before it) already refused. No fallback path
+  // exists; a `memory` choice is an informed one and announces its
+  // rebuild-on-restart cost below.
   const vectorsConfig = config.services.vectors;
   const embeddingConfig = config.services.embedding;
   const { createVectorStore, createEmbeddingProvider } = await import('@semiont/vectors');
@@ -133,8 +118,8 @@ async function connectStores(
     // L4 breadcrumb: the named cost of the named choice — this index lives
     // in process memory and the Smelter's reconcile re-embeds the whole KB
     // from the event log on every restart.
-    // No `dimensions` here on purpose: logging it would resolve the thunk and
-    // reinstate the eager provider probe this breadcrumb sits next to.
+    // No `dimensions` here on purpose: logging it would resolve the thunk,
+    // which is the eager provider probe the thunk exists to avoid.
     logger.info('memory vector store: the index rebuilds from the event log on every restart (reconcile re-embeds)');
   }
   logger.info('Vector search initialized', {
@@ -172,8 +157,8 @@ async function createKnowledgeSystemFromConfig(
   await bootstrapEntityTypes(eventBus, eventStore, logger.child({ component: 'entity-types-bootstrap' }));
 
   const gatherer = new Gatherer(
-    // The content capability is ResourceId-keyed (D-CONTENT b); in-process
-    // it wraps this root's own working tree behind the transport shape.
+    // The content capability is ResourceId-keyed; in-process it wraps this
+    // root's own working tree behind the transport shape.
     {
       ...kb,
       content: workingTreeContentReads(kb.views, kb.content),
@@ -214,21 +199,20 @@ export function assertMakeMeaningConfig(config: MakeMeaningConfig): void {
     throw new Error('services.graph is required for make-meaning service');
   }
 
-  // A4 nesting (SMELTER-INDEX-SYNC): the gather's worst-case read-barrier
-  // spend — the settle bound plus the graph barrier budget — must degrade
-  // gracefully BEFORE the job-worker stall watchdog fails fast; a barrier
-  // that outlives the watchdog gets the worker killed instead of a thin
-  // context. Enforced here because both bounds are visible at this
-  // composition root; tighter EXTERNAL watchdogs (e.g. my-chat's 90s
-  // generation stall) are not importable and remain documented on the
-  // config field.
+  // Watchdog nesting: the gather's worst-case read-barrier spend — the
+  // settle bound plus the graph barrier budget — must degrade gracefully
+  // BEFORE the job-worker stall watchdog fails fast; a barrier that outlives
+  // the watchdog gets the worker killed instead of a thin context. Enforced
+  // here because both bounds are visible at this composition root; tighter
+  // EXTERNAL watchdogs (e.g. my-chat's 90s generation stall) are not
+  // importable and remain documented on the config field.
   if (!Number.isFinite(config.gather.settleTimeoutMs) || config.gather.settleTimeoutMs <= 0) {
     throw new Error(`gather.settleTimeoutMs must be a positive number of milliseconds, got ${config.gather.settleTimeoutMs}`);
   }
   if (config.gather.settleTimeoutMs + GRAPH_BARRIER_BUDGET_MS >= STALL_THRESHOLD_MS) {
     throw new Error(
       `gather.settleTimeoutMs (${config.gather.settleTimeoutMs}ms) plus the graph barrier budget (${GRAPH_BARRIER_BUDGET_MS}ms) ` +
-      `must nest inside the job-worker stall watchdog (${STALL_THRESHOLD_MS}ms) — lower settleTimeoutMs (A4)`,
+      `must nest inside the job-worker stall watchdog (${STALL_THRESHOLD_MS}ms) — lower settleTimeoutMs`,
     );
   }
 }
@@ -236,8 +220,9 @@ export function assertMakeMeaningConfig(config: MakeMeaningConfig): void {
 /**
  * The in-process composition root: every access actor and handler on one
  * caller-owned bus, for `LocalTransport` consumers — the SDK test seam and
- * embedding. Production composes the same actors as extracted services
- * (archivist-main, librarian-main); this second root is supported, not legacy.
+ * embedding. Production composes the same actors as separate services
+ * (archivist-main, librarian-main); this second root is supported in its own
+ * right.
  * It runs no jobs: the job queue and the `job:*` channels are the
  * dispatcher's (apps/dispatcher), and a script that runs jobs runs the stack.
  */
@@ -262,7 +247,6 @@ export async function startMakeMeaning(
 
   return {
     knowledgeSystem,
-    project,
     stop: async () => {
       logger.info('Stopping Make-Meaning service');
       await knowledgeSystem.stop();
@@ -271,7 +255,7 @@ export async function startMakeMeaning(
   };
 }
 
-// ─── Record-maintenance composition root (JOB-QUEUE-DRIVER follow-up) ─────────
+// ─── Record-maintenance composition root ──────────────────────────────────────
 
 /**
  * The event log this root connects, plus its teardown. NOT a
@@ -308,6 +292,7 @@ export async function connectRecord(
     stop: async () => {
       logger.info('Disconnecting make-meaning record');
       kb.weaveProgress.dispose();
+      kb.smeltProgress.dispose();
       await kb.graph.disconnect();
     },
   };

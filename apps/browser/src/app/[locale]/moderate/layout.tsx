@@ -58,6 +58,6 @@ function ModerateLayoutBody() {
 
 export default function ModerateLayout() {
   // AuthShell is mounted by the parent ProtectedLayout in App.tsx so it
-  // survives navigation between know/, admin/, and moderate/ sections.
+  // survives navigation between the know/ and moderate/ sections.
   return <ModerateLayoutBody />;
 }

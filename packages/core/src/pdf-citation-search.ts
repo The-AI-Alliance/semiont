@@ -1,9 +1,8 @@
 /**
- * Two-stage citation search over an extracted PDF text layer
- * (PDF-GENERATION P4).
+ * Two-stage citation search over an extracted PDF text layer.
  *
  * A citation's `exact` claim text comes from the authored source; the rendered
- * text layer diverges from it in exactly two measured ways (the P0 spike):
+ * text layer diverges from it in exactly two ways, measured on Typst output:
  * line breaks (`anchorRuns` joins runs with " \n") and hyphenation (soft
  * hyphens are DROPPED — a hyphenated word yields its two halves with no hyphen
  * character anywhere).

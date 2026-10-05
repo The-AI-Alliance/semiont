@@ -52,11 +52,11 @@ export function getLanguage(resource: ResourceDescriptor | undefined): string | 
 }
 
 /**
- * Get the storage URI from the primary representation — the field's ONE home
- * (STORAGE-URI-ONE-HOME): bytes are a fact about a rendition, so their
- * location lives on the Representation, never on the descriptor. This is the
- * accessor every descriptor-holding read goes through; `undefined` means the
- * resource has no stored bytes.
+ * Get the storage URI from the primary representation — the field's ONE
+ * home: bytes are a fact about a rendition, so their location lives on the
+ * Representation, never on the descriptor. This is the accessor every
+ * descriptor-holding read goes through; `undefined` means the resource has no
+ * stored bytes.
  *
  * @param resource - ResourceDescriptor
  * @returns Storage URI or undefined
@@ -167,14 +167,14 @@ export function getNodeEncoding(charset: string): BufferEncoding {
  * ```
  */
 export function decodeRepresentation(buffer: Buffer, mediaType: string): string {
-  // The chokepoint gate (bugs/gather-ships-raw-pdf-bytes P1): decoding is
-  // only legitimate for media whose bytes ARE its text — not for derived-text
-  // media (the anchored-text read answers those) and not for media with no
-  // text at all. A PDF reaching this function used to become megabytes of
-  // mojibake; refusing here means no caller — present or future — can decode
-  // bytes that were never text, which is why this gate supersedes a caller
-  // census. Category, not mechanism: a new strategy declares its side in
-  // core's exhaustive category maps and this gate follows automatically.
+  // The chokepoint gate: decoding is only legitimate for media whose bytes
+  // ARE its text — not for derived-text media (the anchored-text read answers
+  // those) and not for media with no text at all. A PDF decoded here would
+  // become megabytes of mojibake; refusing means no caller — present or
+  // future — can decode bytes that were never text, which is why this gate
+  // supersedes a caller census. Category, not mechanism: a
+  // new strategy declares its side in core's exhaustive category maps and
+  // this gate follows automatically.
   const source = textSourceOf(mediaType);
   if (derivesTextOf(mediaType) || source === 'none') {
     throw new Error(

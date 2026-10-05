@@ -3,9 +3,9 @@
  * CLI Tool: Rebuild the Graph from Events
  *
  * Emits `weave:rebuild` to the RUNNING stack's bus — the standalone Weaver
- * (WEAVER-ISOLATION D3/D4) clears and replays the graph projection from the
- * event log. Proves that events are the source of truth and the graph is a
- * projection. Requires the gateway and weaver to be running.
+ * clears and replays the graph projection from the event log. Proves that
+ * events are the source of truth and the graph is a projection. Requires the
+ * gateway and weaver to be running.
  *
  * Lives beside the record's owner (the Archivist): a checkout-run operator
  * tool, never an image binary. It is a pure network peer — bus in, bus out.
@@ -44,8 +44,7 @@ async function rebuildGraph(rId?: string) {
     readIfExists: (p: string): string | null => existsSync(p) ? readFileSync(p, 'utf-8') : null,
   };
   // Environment resolved by the loader from `[defaults] environment`
-  // (no project root here — global ~/.semiontconfig only). Was hardcoded 'local',
-  // which read the wrong section for any non-local KB.
+  // (no project root here — global ~/.semiontconfig only).
   const envConfig = createTomlConfigLoader(tomlReader, configPath, process.env)(null);
 
   const gatewayPublicURL = envConfig.services?.gateway?.publicURL;
@@ -104,9 +103,7 @@ async function rebuildGraph(rId?: string) {
 }
 
 // Parse command line arguments: [resourceId]
-const args = process.argv.slice(2);
-const envFlagIdx = args.indexOf('--environment');
-const rId = args.find((_, i) => i !== envFlagIdx && i !== envFlagIdx + 1);
+const [rId] = process.argv.slice(2);
 
 rebuildGraph(rId)
   .catch(err => {

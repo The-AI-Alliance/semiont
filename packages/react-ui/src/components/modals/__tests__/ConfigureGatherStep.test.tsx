@@ -1,9 +1,9 @@
 /**
- * GENERATE-FROM-BUTTON P2/P4 — the gather-options form.
+ * The gather-options form of the resource-generate flow.
  *
  * Pure presentational form (no providers): it owns the gather config in local
  * state and emits a `ResourceGatherConfig` on submit. The `children` slot hosts
- * the Phase-4 exclusion multi-select.
+ * the entity-type exclusion multi-select.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -47,9 +47,9 @@ describe('ConfigureGatherStep', () => {
     expect(onGather).toHaveBeenCalledWith({ includeContent: false, includeSummary: false, depth: 4, maxResources: 25 });
   });
 
-  it('the footer is the wizard footer: advance only, no dismissal, no flex (GFR A5)', () => {
+  it('the footer is the wizard footer: advance only, no dismissal, no flex', () => {
     // Dismissal lives on the modal's corner ✕/Esc/backdrop, never in a step
-    // footer (WIZARD-NAVIGATION D1); this is the first step, so no retreat either.
+    // footer; this is the first step, so no retreat either.
     const { container } = render(<ConfigureGatherStep onGather={vi.fn()} translations={t} />);
     const footer = container.querySelector('.semiont-modal__actions--wizard');
     expect(footer).not.toBeNull();

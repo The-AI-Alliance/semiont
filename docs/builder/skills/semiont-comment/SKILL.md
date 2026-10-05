@@ -6,24 +6,24 @@ user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
 ---
 
-You are helping a user add commenting annotations to a Semiont resource. Comments are conversational annotations attached to specific passages — editorial suggestions, questions for the author, clarifications for readers, or observations that don't fit assessment or highlighting.
+You are helping a user add commenting annotations to a Semiont resource. A comment is attached to a passage and says something about it: an editorial suggestion, a question for the author, a clarification for readers, or an observation that is neither an assessment nor a highlight.
 
-This skill builds **Layer #2 (Annotations)** of the layered data model — `commenting`-motivation annotations are first-class queryable spans whose body is the comment text.
+This skill works in the annotation layer of [the layered data model](../README.md#the-layers). A `commenting` annotation is a span anyone can query, and its body is the comment's text.
 
 ## Two modes
 
-**Delegate (AI-assisted)** — `mark.assist` with motivation `commenting` runs the editorial pass autonomously across the document. Use this for systematic editorial review.
+**Delegate.** `mark.assist` with motivation `commenting` has the worker read the whole resource and comment on it. Use it for a systematic editorial review.
 
-**Manual** — explicit `mark.annotation` with a `commenting` body item. Use this for a specific comment on a specific passage.
+**Manual.** `mark.annotation` writes one comment on a passage you name. Use it when the user knows what to say and where.
 
-## Client setup
+## Sign in
 
-`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password ever passes through the script. It then owns the token lifecycle — the realm pins an access token to **five minutes**, so a session (not a bare client) is what keeps a script working past that. Construct once at the top and reuse `session.client` for every verb call; `await session.dispose()` when done.
+`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. The session then keeps the token fresh. An access token is short-lived (five minutes from the Keycloak a launcher stack runs), so a session, not a bare client, is what keeps a script working past that. Sign in once, use `session.client` for every call, and `await session.dispose()` when done.
 
-Already hold an access token (cached from a prior auth, or supplied by an embedding host)? `SemiontClient.fromHttp({ baseUrl, token })` skips the auth round-trip — but you then own refresh yourself.
+A script that already holds an access token can use `SemiontClient.fromHttp({ baseUrl, token })` and skip the sign-in, but then nothing renews the token.
 
 ```typescript
-import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
 const session = await SemiontSession.signInDevice({
@@ -41,37 +41,52 @@ const session = await SemiontSession.signInDevice({
 const semiont = session.client;
 ```
 
-## Delegate (AI-assisted)
+## Delegate
 
-`semiont.mark.assist(...)` returns a `StreamObservable<MarkAssistProgress>` — an Observable that's also awaitable. `await` resolves with the final progress payload once the job completes.
+`semiont.mark.assist(...)` creates a job for the stack's worker and follows it to its end. It returns a `StreamObservable<MarkAssistEvent>`, and each event has a `kind`:
+
+- `progress`: the worker's report, with a `percentage`.
+- `failed`: one attempt failed and the queue is running the job again.
+- `complete`: the job's end, with its `result`.
+
+Awaiting the call resolves to the last event, which is the `complete` one.
 
 ```typescript
+import { resourceId } from '@semiont/sdk';
+
 const rId = resourceId('doc-123');
 
-const progress = await semiont.mark.assist(rId, 'commenting', {
+const done = await semiont.mark.assist(rId, 'commenting', {
   tone: 'conversational',
   instructions: 'Suggest edits to improve clarity and ask questions where the reasoning is unclear',
   density: 5,
 });
 
-console.log(`Created ${progress.progress?.createdCount ?? 0} comments`);
+const result = done.kind === 'complete' ? done.data.result : undefined;
+if (result?.kind === 'comment-annotation') {
+  console.log(`Created ${result.commentsCreated} of ${result.commentsFound} comments`);
+} else if (result?.kind === 'declined') {
+  console.log(`The resource's text could not be read: ${result.reason}`);
+}
 
 await session.dispose();
 ```
 
-The namespace method handles SSE streaming, timeout (180 s without progress), and polling fallback internally.
-
-To observe intermediate progress (e.g. for a progress bar), subscribe directly instead of awaiting:
+To watch progress as well, call `.run(onEvent)`. It subscribes once and resolves to the same last event:
 
 ```typescript
-semiont.mark.assist(rId, 'commenting', { density: 5 }).subscribe({
-  next: (p) => console.log(`progress ${p.progress?.percentage ?? 0}%`),
-  complete: () => console.log('done'),
-  error: (e) => console.error(e),
+const done = await semiont.mark.assist(rId, 'commenting', { density: 5 }).run((event) => {
+  if (event.kind === 'progress') console.log(`${event.data.percentage}%`);
 });
 ```
 
+Consume one call one way. The stream is cold, so awaiting a call and also subscribing to it creates the job twice.
+
+The call has no deadline of its own. If the job says nothing for ten seconds, the SDK asks for the job's status and keeps asking until the job ends, so a dropped connection does not lose the result. A job that fails for good rejects with `JobFailedError`, and a cancelled one with `JobCancelledError`.
+
 ## Manual
+
+The comment's text is a body whose purpose is `commenting`.
 
 ```typescript
 await semiont.mark.annotation({
@@ -87,13 +102,13 @@ await semiont.mark.annotation({
   motivation: 'commenting',
   body: [{
     type: 'TextualBody',
-    value: 'Consider reordering this paragraph — the conclusion appears before the supporting evidence.',
+    value: 'Consider reordering this paragraph: the conclusion appears before the supporting evidence.',
     purpose: 'commenting',
   }],
 });
 ```
 
-## Complete script skeleton
+## Complete script
 
 ```typescript
 import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
@@ -113,17 +128,23 @@ async function comment(resourceIdStr: string): Promise<void> {
     },
   });
   const semiont = session.client;
-  const rId = resourceId(resourceIdStr);
 
-  const progress = await semiont.mark.assist(rId, 'commenting', {
-    tone: process.env.COMMENT_TONE ?? 'conversational',
-    instructions: process.env.COMMENT_INSTRUCTIONS ??
-      'Suggest edits to improve clarity and ask questions where the reasoning is unclear',
-    density: Number(process.env.COMMENT_DENSITY ?? 5),
-  });
+  try {
+    const done = await semiont.mark.assist(resourceId(resourceIdStr), 'commenting', {
+      tone: process.env.COMMENT_TONE ?? 'conversational',
+      instructions: process.env.COMMENT_INSTRUCTIONS ?? 'Suggest edits to improve clarity and ask questions where the reasoning is unclear',
+      density: Number(process.env.COMMENT_DENSITY ?? 5),
+    });
 
-  console.log(`Created ${progress.progress?.createdCount ?? 0} comments`);
-  await session.dispose();
+    const result = done.kind === 'complete' ? done.data.result : undefined;
+    if (result?.kind === 'comment-annotation') {
+      console.log(`Created ${result.commentsCreated} of ${result.commentsFound} comments`);
+    } else if (result?.kind === 'declined') {
+      console.log(`The resource's text could not be read: ${result.reason}`);
+    }
+  } finally {
+    await session.dispose();
+  }
 }
 
 const target = process.argv[2];
@@ -139,16 +160,16 @@ comment(target).catch((e) => {
 
 ## Guidance for the AI assistant
 
-- **Ask who the comments are for.** Comments can be addressed to the author ("you should clarify..."), to readers ("note that..."), or to collaborators ("this contradicts section 3"). The `instructions` parameter sets the audience and purpose.
-- **Tone selection by use case** (default: `conversational`):
-  - `scholarly` — peer review, academic manuscripts, formal reports
-  - `explanatory` — onboarding docs, user-facing content, tutorials
-  - `conversational` — collaborative drafts, editorial passes, general documents
-  - `technical` — API docs, specs, engineering documents
-- **Density for comments** (2-12). Start at 4-6 for a moderate editorial pass. High density (8-12) is appropriate for detailed line editing of short documents.
-- **Only `text/plain` and `text/markdown` resources are supported** for `mark.assist`. PDFs and images are not yet supported.
-- **Distinguish from assessments and tags.** Comments are for dialogue and editorial improvement. Assessments flag objective risks or errors. Tags classify against a controlled vocabulary. Use `commenting` when the goal is to help the author revise or help readers understand; use `assessing` when the goal is to flag a problem; use `tagging` when the goal is to apply a controlled-vocabulary classification.
-- **Manual mode is for specific targeted feedback.** When the user knows exactly what they want to say about a specific passage, manual mode is faster and more precise than running delegate.
-- **Check results** with `semiont.browse.annotations(rId)` — filter for `motivation === 'commenting'`.
-- **CLI shortcut.** The `semiont` launcher (see [apps/launcher](../../../../apps/launcher/README.md)) exposes these operations as verbs for one-off invocations. The SDK is primary; the launcher is a convenience for ad-hoc work.
-- **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated, with codes like `bus.timeout`). See [Error Handling in Usage.md](../../Usage.md#error-handling).
+- **Ask who the comments are for.** A comment can address the author ("you should clarify…"), readers ("note that…") or collaborators ("this contradicts section 3"). `instructions` sets the audience and the purpose.
+- **Choose a tone.** The four written for comments:
+  - `scholarly`: peer review, academic manuscripts, formal reports
+  - `explanatory`: onboarding material, tutorials, writing for end users
+  - `conversational`: collaborative drafts and editorial passes
+  - `technical`: API documentation, specifications, engineering documents
+- **Density** is the number of comments to aim for in each 2,000 words; the Browser offers 2 to 12. Start at 4 to 6 for a moderate editorial pass. 8 to 12 suits line editing of a short document.
+- **Comment, assessment or tag.** A comment helps the author revise or a reader understand. An assessment flags a problem. A tag classifies against a controlled vocabulary.
+- **What `mark.assist` can read.** A resource with text: Markdown, plain text, HTML, JSON, or a PDF. A resource with no text at all, such as an image, fails the job. A document whose text could not be read (an encrypted or damaged PDF, or one that yields no text) completes with a `declined` result and a reason code.
+- **Check results** with `await semiont.browse.annotations(rId).fresh()`, filtered for `motivation === 'commenting'`.
+- **Manual mode is for targeted feedback.** When the user knows what to say about one passage, writing it by hand is faster and more exact than a job.
+- **From the command line.** `semiont mark --delegate <resourceId> --motivation commenting` runs the same job from the [launcher](../../../../apps/launcher/README.md#delegating-to-the-stack), with `--instructions`, `--density` and `--tone`. Use it for a one-off; write a script when the work repeats.
+- **Errors.** Every SDK throw extends `SemiontError`: catch it and route on its `code`. `BusRequestError` (a bus request, with a code such as `bus.timeout`) and `JobFailedError` narrow it. See [Error Handling](../../Usage.md#error-handling).

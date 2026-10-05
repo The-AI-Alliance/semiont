@@ -4,39 +4,33 @@
  * answer: is each class defined in ONE file, is it rendered by any markup, and
  * — the reverse — does each class the markup renders actually HAVE any CSS?
  *
- * The third was added 2026-09-24 after `/auth/error` was found rendering as
- * unstyled text on the page background, very nearly invisible in dark mode.
- * `AuthErrorDisplay` had referred to seven classes that existed in no
- * stylesheet since #401 moved this package off Tailwind — eight months, with a
- * green build the whole time, because a gate that only looks for CSS nobody
- * renders is blind to markup nobody styles. 87 more such classes were found
- * alongside it.
+ * The third is not optional: a gate that only looks for CSS nobody renders is
+ * blind to markup nobody styles, and a component whose classes exist in no
+ * stylesheet renders as unstyled text on the page background — very nearly
+ * invisible in dark mode — under a green build.
  *
- * BOTH ARE ENFORCED AGAINST A BASELINE, not against zero. The first run found
- * debt this plan did not create: 36 classes with a bare rule in two files, and
+ * ALL ARE ENFORCED AGAINST A BASELINE, not against zero. The baseline holds
+ * the debt the tree carries: classes with a bare rule in two files, and
  * ~400 styled classes with no literal render site (the utility layers, the
  * motion overrides, the panel patterns). Some of that is genuinely dead, some is
  * host-facing — `styles/base/utilities.css` exists for consuming apps — and
- * telling them apart is a sweep of its own, recorded in
- * `.plans/CLEAN-PROGRESS.md`.
+ * telling them apart is a sweep of its own.
  *
  * So the baseline freezes what exists and the gate fails on anything NEW, plus
  * on anything that got fixed without being removed from the baseline (so the
  * debt list can only shrink). Allowlisting 400 classes to claim a green gate
- * would have been theatre; blocking the build on a sweep nobody has scheduled
- * would have been worse.
+ * would be theatre; blocking the build on a sweep nobody has scheduled
+ * would be worse.
  *
  * WHY THIS IS NOT A STYLELINT RULE. Stylelint lints one file at a time. "Defined
  * twice" spans files, and "rendered nowhere" spans languages — the answer lives
- * in TSX. Neither question is visible from inside a single stylesheet, which is
- * how `.semiont-panel-progress` came to be styled in two files while no
- * component had rendered it for months, and how `.semiont-progress-bar` ended
- * up defined in three (CLEAN-PROGRESS C4).
+ * in TSX. Neither question is visible from inside a single stylesheet: a class
+ * can be styled in two files while no component renders it.
  *
  * WHY IT MATTERS. A duplicate definition means every change has to be made N
  * times, and whichever copy you miss silently wins or loses on import order.
  * A rule for a class nobody renders is dead weight that still gets read,
- * maintained, and — as happened here — dutifully given a dark-theme variant.
+ * maintained, and dutifully given a dark-theme variant.
  *
  * Class names built by concatenation (`semiont-${kind}-badge`) cannot be seen
  * by a grep, so a class is also considered live if its literal prefix appears
@@ -56,10 +50,10 @@ const ALLOWLIST = new Map([
 ]);
 
 /**
- * Debt this gate found on its first run, recorded so it can fail on REGRESSIONS
- * today instead of waiting for a sweep that would have to land all at once.
+ * The debt the tree carries, recorded so the gate can fail on anything NEW
+ * without waiting for a sweep that would have to be done all at once.
  * Nothing may be added to this file: a new duplicate or a new dead class fails
- * the build. Entries come OUT as the sweep proceeds (.plans/CLEAN-PROGRESS.md).
+ * the build. Entries only come OUT.
  */
 const BASELINE_PATH = path.join(__dirname, 'css-classes-baseline.json');
 const baseline = fs.existsSync(BASELINE_PATH)
@@ -91,7 +85,7 @@ function scan(source, file) {
   // Comments first: a section banner sitting above `@media` ends up in the same
   // selector-head buffer, and `'/* … */ @media'.startsWith('@')` is false — so
   // an unstripped comment silently turns a whole conditional layer into
-  // "definitions". That mistake cost this gate 21 false positives.
+  // "definitions".
   const css = source.replace(/\/\*[\s\S]*?\*\//g, ' ');
   let depth = 0, atDepth = null, i = 0, buf = '';
   while (i < css.length) {
@@ -302,7 +296,6 @@ console.log(
 if (duplicated.length || unrendered.length || unstyled.length) {
   console.log(
     `   carrying ${duplicated.length} duplicated + ${unrendered.length} unrendered + ` +
-    `${unstyled.length} unstyled from the baseline — run with --debt to list, ` +
-    'see .plans/CLEAN-PROGRESS.md',
+    `${unstyled.length} unstyled from the baseline — run with --debt to list`,
   );
 }

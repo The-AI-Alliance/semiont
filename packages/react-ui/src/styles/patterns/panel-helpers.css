@@ -1,15 +1,12 @@
 /* ============================================
-   Panels - Legacy Compatibility & Common Styles
+   Panels - Common Styles
 
-   This file contains remaining panel-related styles that
-   don't fit into specific panel files or are truly shared
-   across multiple panels.
+   Panel-related styles that don't fit into specific panel
+   files or are shared across multiple panels.
 
-   Most panel-specific styles have been moved to:
+   Panel-specific styles are in:
    - panels-base.css (base panel structure)
    - panels/*.css (individual panel styles)
-   (panel-sections.css was deleted 2026-09-24: every rule in it targeted a
-   class no markup rendered.)
    ============================================ */
 
 /* ============================================
@@ -33,6 +30,3 @@
   display: flex;
   gap: 0.5rem;
 }
-
-/* Panel Button Layouts (kept for backward compatibility) */
-

@@ -1,162 +1,51 @@
-# Role-Based Access Control (RBAC)
+# Roles
 
-## Current State
+What a caller's role decides in Semiont, which is very little. For how callers are authenticated, and how tokens are issued, verified and revoked, see the operator's [Authentication](../operator/administration/AUTHENTICATION.md).
 
-Semiont authenticates every caller at a trusted issuer and recognizes exactly one
-authorization decision on the gateway: **authenticated, or not**. A refusal is
-always **401**. No gateway route returns 403, because no gateway route consults a
-role to decide access.
+## One decision: authenticated, or not
 
-### The one role that is enforced
+The gateway makes one authorization decision for every request: the caller's token verifies, or the answer is **401**. No gateway route returns 403, because no gateway route consults a role to decide whether a person may do something.
 
-| Role | Claim | What it gates |
-|------|-------|---------------|
-| **`semiont-service`** | a flat `roles` array on the token | `POST /api/tokens/agent`, and the Archivist's read path |
+- **Every authenticated person can read and write everything** in the knowledge base. There is no permission per resource, per annotation or per person.
+- **There are no human roles.** The principal the gateway builds from a person's token carries no role, flag or group that any route reads.
+- **Admission is the issuer's.** Who may sign in is decided where tokens are minted. The gateway admits every subject whose token verifies, and keeps no list of its own.
 
-It marks a **service account** — a sidecar process, not a person. A caller
-holding it may exchange its own issuer token for a software-agent token, and may
-read through the Archivist. It grants nothing else, and no human account carries
-it.
+Four operations are public: `GET /`, `GET /api/health`, `GET /api/openapi.json` and `GET /.well-known/oauth-protected-resource`. The spec is the authority: an operation declaring `security: []` is public, and the [gateway conformance suite](../../tests/conformance/gateway/README.md) fails if any other answers an unauthenticated caller with anything but 401.
 
-The claim is a flat array of strings under `roles`, deliberately **not**
-Keycloak's nested `realm_access.roles`. Nothing in the verification path carries
-a vendor name, so an operator federating a different issuer maps their own groups
-into the same claim. It is checked in
-[`principal.rs`](../../apps/gateway/src/principal.rs) and
-[`archivist-read-path.ts`](../../packages/make-meaning/src/archivist-read-path.ts).
+## Two roles, both for services
 
-### There are no human roles
+A role is a string in a flat `roles` array at the top level of a token. It is deliberately not Keycloak's nested `realm_access.roles`: nothing in verification carries a vendor's name, so an issuer of any kind maps its own groups into this claim.
 
-The gateway reads no role, flag, or group to decide what a person may do. The
-[`Principal`](../../apps/gateway/src/principal.rs) built from a verified
-token carries no role field at all.
-
-Admin and moderator **realm** roles are a deferred decision, not pending work.
-Nothing in Semiont is waiting on them.
-
-### Access levels
-
-- **Public**: `GET /`, `GET /api/health`, `GET /.well-known/oauth-protected-resource`, and
-  `GET /api/openapi.json`, the OpenAPI document
-- **Authenticated**: everything else — resources, annotations, entity types, search,
-  graph queries, status, and the bus
-- **Service account**: `POST /api/tokens/agent` and the Archivist read path additionally
-  require the `semiont-service` role above
-
-The OpenAPI spec is the single source of truth for which routes are public: an
-operation declaring `security: []` is public, and the
-[gateway conformance suite](../../tests/conformance/gateway/README.md) fails if any
-other declared operation answers an unauthenticated caller with anything but 401,
-or a public one challenges.
-
-### What this means in practice
-
-- **All authenticated people can see and edit all content.** There is no
-  per-resource, per-annotation, or per-user access control.
-- **The gateway has no administration surface.** Accounts are created, disabled,
-  and assigned roles at the knowledge base's identity provider.
-- **Admission is the issuer's.** The gateway admits every subject whose token
-  verifies. It keeps no allowlist and no per-user enable flag, because a second
-  answer to "may this person sign in" can only disagree with the first — and only
-  the issuer's answer can stop a token being minted at all.
-
-### What's NOT implemented
-
-- Per-resource or per-annotation access control
-- Visibility restrictions (private/shared/public resources)
-- Team or group-based permissions
-- Human roles of any kind on the gateway
-- Access control lists (ACLs)
-
-Semiont recognizes that content-level access control is essential for
-multi-tenant and enterprise deployments. This is planned for future releases.
-
-## Authentication
-
-Semiont is a **resource server**. It mints no human credential, holds no
-password, and runs no sign-in flow.
-
-### How a caller obtains a token
-
-| Caller | Grant | Where |
+| Role | Marks | What it permits |
 |---|---|---|
-| A person in a browser | authorization code + PKCE | at the issuer |
-| A script or the CLI | device authorization grant | at the issuer |
-| A sidecar process | client credentials | at the issuer, as its own service account |
+| `semiont-service` | A service account: one of Semiont's own processes, not a person | Exchanging its issuer token for an agent token at `POST /api/tokens/agent`, and reading through the archivist |
+| `semiont-worker` | A principal that may run jobs | Claiming a job: the dispatcher admits a `job:claim` only from a token that carries it |
 
-Which issuer a knowledge base trusts is named in its `[identity]` configuration
-and published at `GET /.well-known/oauth-protected-resource` (RFC 9728). There
-are no OAuth client secrets in the gateway's environment, and no provider is
-configured here — federating Google, GitHub, an enterprise SAML IdP, or anything
-else is the issuer's business, not Semiont's.
+Every one of Semiont's services carries `semiont-service`, so it proves a caller is a service and nothing finer. `semiont-worker` is a separate grant, made only to workers.
 
-### Sessions and revocation
+**A worker is authorized by the role, not by which client it is.** That is what lets a worker that is not the deployment's own take part: the operator grants its client the role at the issuer, and nothing else changes.
 
-Access tokens are short-lived and minted by the issuer; the gateway validates
-them against the issuer's published keys on every protected request. TTLs are in
-[Authentication](../system/administration/AUTHENTICATION.md).
+**The gateway stamps roles; a client never sets them.** On every emit the gateway clears whatever `_roles` the payload carried and writes the verified token's. A service that reads `_roles` reads what the gateway verified. See [identity on the bus](EVENT-BUS.md#identity-_userid-and-_roles-are-gateway-stamped).
 
-- **Refresh** happens at the **issuer's** token endpoint, not here. The SDK wires
-  it automatically for sessions it created (`refreshAtIssuer` in
-  [`oauth.ts`](../../packages/sdk/src/session/oauth.ts)). The gateway has no
-  refresh endpoint.
-- **Signing out** clears the stored tokens and revokes the **refresh** token at
-  the issuer (RFC 7009, best-effort — an unreachable issuer must not trap someone
-  in a session they asked to end). The access token in hand stays valid until it
-  expires; its lifetime is that window.
-- **Disabling an account** at the issuer stops new tokens immediately and stops
-  the refresh grant, so the holder cannot mint a replacement.
+**A role is an authorization fact, never provenance.** It is read when a request is admitted and is not recorded. What the record keeps about who did something is their DID.
 
-There is no server-side session, no token-version epoch, and no gateway logout
-route. Nothing the gateway stores has to be invalidated, because the gateway
-stores nothing about a caller.
+## What a role changes about limits
 
-## Roadmap
+Every principal is limited in how many streams it holds and how fast it emits. A role changes the coefficient, not the rule: the two service roles are unlimited where a person has a baseline. The numbers are declared in the spec, on the operations they apply to: see [Limits](TRANSPORT-HTTP.md#limits).
 
-### Content-Level Access Control (Future)
+## What a worker's role obliges
 
-- Per-resource visibility (private, shared, public)
-- Team/group-based permissions
-- Fine-grained annotation permissions
-- Roles the gateway actually consults, with configurable permission sets
+A principal with the worker role acts on someone else's behalf, so its writes must say whose:
 
-### Enterprise Features (Future)
+- A worker's `mark:commit` or resource creation must cite the job it is for.
+- The job must be one that worker holds.
+- The knowledge base then attributes the result to whoever asked for the job, with the worker's model as the generator.
 
-- Audit logging UI
-- Temporary/time-limited permissions
-- API key management with scoped access
+A write from a worker that cites no job, or a job it does not hold, is refused.
 
-Enterprise SSO is not on this list: it is available today, because the issuer
-owns sign-in. Point a knowledge base at a realm federated to your IdP.
+## Where it is implemented
 
-## Security Recommendations
-
-Until content-level access control is implemented:
-
-1. **Issuer admission**: the issuer decides who may authenticate. Restrict
-   registration and domain admission there.
-2. **Network security**: deploy behind a firewall or VPN if sensitive data is involved.
-3. **Environment isolation**: use separate deployments for user groups with
-   different trust levels.
-4. **Treat every authenticated user as a full-access user**, because that is what
-   the gateway does.
-
-## For Developers
-
-### Middleware pattern
-
-There is one gate, applied per router:
-
-```typescript
-resourcesRouter.use('/api/resources/*', authMiddleware);
-```
-
-`authMiddleware` verifies the bearer token, resolves the principal, and answers
-401 when it cannot. A route that needs a narrower audience than "any
-authenticated caller" needs a new gate, declared in the spec first; the
-[gateway conformance suite](../../tests/conformance/gateway/README.md) then
-probes it.
-
----
-
-Last Updated: September 2026
+- The role names and how a claim is read: [packages/core/src/service-role.ts](../../packages/core/src/service-role.ts) and the Rust SDK's [roles.rs](../../packages/sdk-rust/src/roles.rs), held to one literal by `npm run lint:service-role`
+- The gateway's principal: [apps/gateway/src/principal.rs](../../apps/gateway/src/principal.rs)
+- The archivist's read path: [packages/make-meaning/src/archivist-read-path.ts](../../packages/make-meaning/src/archivist-read-path.ts)
+- The dispatcher's claim check: [apps/dispatcher/handlers/src/handlers.rs](../../apps/dispatcher/handlers/src/handlers.rs)

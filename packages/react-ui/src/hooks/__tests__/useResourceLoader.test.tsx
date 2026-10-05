@@ -1,12 +1,10 @@
 /**
- * EMBEDDABLE-RESOURCE-VIEWER step 2 — useResourceLoader.
+ * useResourceLoader — the embeddable viewer's standalone loader.
  *
  * A standalone loader: given a bare client, it fetches the resource + its
  * annotations (grouped into an AnnotationsCollection) and reports loading/error —
  * no page, no composite state unit, no providers. The lightweight alternative to
  * ResourceViewerPage that a bring-your-own-session host can feed into ResourceViewer.
- *
- * Started RED (the hook does not exist) and GREEN once step 2 lands.
  */
 import { describe, it, expect } from 'vitest';
 import { asStates } from '../../__tests__/test-client';
@@ -19,7 +17,7 @@ import { useResourceLoader } from '../useResourceLoader';
 const RES = { '@id': 'res-1', name: 'Doc' };
 
 function makeClient(resource$: BehaviorSubject<unknown>, annotations$: BehaviorSubject<unknown>): SemiontClient {
-  // D1: hooks consume CacheState — the value-typed fixtures adapt at the seam.
+  // Hooks consume CacheState — the value-typed fixtures adapt at the seam.
   return {
     browse: {
       resource: () => asStates(resource$),

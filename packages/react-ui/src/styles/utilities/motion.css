@@ -117,14 +117,6 @@
 }
 
 /* ========================================
-   Motion Utility Classes
-   ======================================== */
-
-/* Safe transitions that respect user preferences */
-
-/* Animation classes */
-
-/* ========================================
    Reduced Motion Support
    ======================================== */
 
@@ -132,7 +124,6 @@
  * When users prefer reduced motion:
  * - Remove all animations
  * - Reduce transition durations to instant or very fast
- * - Keep essential transitions for usability
  */
 
 @media (prefers-reduced-motion: reduce) {
@@ -145,28 +136,7 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-
-  /* Keep essential opacity transitions for usability */
-
-  /* Disable transform animations completely */
-
-  /* Override specific animations to be instant */
-
-  /* Stop infinite animations */
-
-  /* Ensure spinners are still visible but static */
-
-  /* Replace shimmer with static loading state */
 }
-
-/* ========================================
-   Motion-Safe Utilities
-   ======================================== */
-
-/**
- * Use these classes when motion is essential to functionality
- * They will only apply when motion is NOT reduced
- */
 
 /* ========================================
    Component-Specific Motion Overrides
@@ -200,15 +170,11 @@
     transition: opacity 0.01ms !important;
   }
 
-  /* Tooltips - instant show/hide */
-
   /* Accordions/Collapsibles - instant expand/collapse */
   .semiont-collapsible {
     transition: none !important;
     animation: none !important;
   }
-
-  /* Tabs - instant switching */
 
   /* Dropdowns - instant open/close */
   .semiont-dropdown {

@@ -1,6 +1,7 @@
 package launcher
 
-// EXPORT-VIA-LAUNCHER P4, in process.
+// `semiont export`, in process: the durable KB directory as a plain tar.gz,
+// with nothing derived and, by default, no .git.
 //
 // The pins are on what the archive CONTAINS and — more importantly — what it
 // does not. Inclusions are easy to get right and easy to notice; a silently
@@ -38,7 +39,8 @@ func fakeKB(t *testing.T) string {
 	write(".semiont/config", "[project]\nname = \"testkb\"\n\n[site]\ndomain = \"example.org\"\n")
 	write(".semiont/events/res-1/events-000001.jsonl", `{"type":"yield:created"}`+"\n")
 	write(".semiont/events/__system__/events-000001.jsonl", `{"type":"frame:entity-type-added"}`+"\n")
-	// The file-edit history. Excluded by D6 — the event log is the KB's history.
+	// The file-edit history. Excluded by default — the event log is the KB's
+	// history.
 	write(".git/HEAD", "ref: refs/heads/main\n")
 	write(".git/objects/ab/cdef", "binary-ish\n")
 	return root
@@ -90,9 +92,10 @@ func TestExportCarriesTheDurableKBAndExcludesGit(t *testing.T) {
 			t.Errorf("archive is missing %q; it holds:\n%s", want, got)
 		}
 	}
-	// D6's default. Not "fewer .git entries" — none, including the directory.
+	// The default excludes .git. Not "fewer .git entries" — none, including
+	// the directory.
 	if strings.Contains(got, ".git/") || strings.Contains(got, "\n.git\n") {
-		t.Errorf("archive carries .git by default — D6 excludes it:\n%s", got)
+		t.Errorf("archive carries .git by default — only --with-git includes it:\n%s", got)
 	}
 }
 

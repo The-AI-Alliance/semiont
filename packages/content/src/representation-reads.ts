@@ -7,17 +7,17 @@
  * graph. `@semiont/make-meaning` holds the Archivist itself and satisfies
  * `ContentReads` in-process from the working tree; `@semiont/jobs` holds the
  * Worker and can only reach the record over the wire. make-meaning depends on
- * jobs, so anything both need has to sit under both (SINGLE-KB-MOUNT P4).
+ * jobs, so anything both need has to sit under both.
  *
  * Where the Archivist IS lives in `@semiont/core/node` (`archivistEndpoint`),
- * not here: an address is a config value plus an environment variable, and
- * the gateway needs it without needing a byte reader. One resolution, shared
- * with the gateway's own proxying — the address and the secret are deployment
- * facts, and a second copy of either is a second thing to get wrong.
+ * not here: an address is a config value plus a credential, which is what
+ * that module resolves. One resolution — the address and the credential are
+ * deployment facts, and a second copy of either is a second thing to get
+ * wrong.
  *
  * Absence fails loudly. A missing host or secret is a misconfiguration, never
- * a reason to fall back to reading a tree locally — the point of
- * SINGLE-KB-MOUNT is that exactly one process touches it.
+ * a reason to fall back to reading a tree locally — the point of the single
+ * KB mount is that exactly one process, the Archivist, touches the tree.
  */
 
 import type { IContentTransport, ResourceId } from '@semiont/core';
@@ -40,8 +40,7 @@ export class RepresentationMissing extends Error {
   constructor(readonly resourceId: string, readonly reason: MissingReason) {
     // NAMES THE RESOURCE. The client-visible wording is the gateway's, built
     // from `reason` — so this message is free to be diagnostic, and must be:
-    // an operator reading a log needs to know which resource, which is what
-    // the pre-collapse message gave them.
+    // an operator reading a log needs to know which resource.
     super(
       reason === 'resource'
         ? `Resource not found: ${resourceId}`
@@ -53,7 +52,8 @@ export class RepresentationMissing extends Error {
 
 /**
  * `ContentReads` against the Archivist — how a fleet process that holds no KB
- * mount reads bytes (SINGLE-KB-MOUNT P4).
+ * mount reads bytes: the Smelter, Worker and Librarian fetch them from the
+ * Archivist over HTTP rather than through the gateway.
  *
  * The address resolves HERE, at construction, not per read: a process with no
  * Archivist configured must die while an operator is watching it boot, rather
@@ -75,8 +75,8 @@ export function archivistContentReads(
 
   return {
     getBinary: async (resourceId: ResourceId) => {
-      // Resolved per read, not once at construction: the credential is a token
-      // now, and one held for the life of the process would expire in it. The
+      // Resolved per read, not once at construction: the credential is a
+      // token, and one held for the life of the process would expire in it. The
       // issuer round trip is not per read — `serviceAccountToken` keeps the
       // token until shortly before the lifetime the grant reported.
       const { base, headers } = await archivistEndpoint(config, credential);

@@ -15,7 +15,7 @@ echo "⚛️  Checking React Hooks ordering..."
 npx tsx "$COMPLIANCE_DIR/audit-hooks-ordering.ts"
 echo ""
 
-# EventBus/SSE architecture check (detects legacy callback patterns)
+# EventBus/SSE architecture check (detects callback-based SSE patterns)
 echo "🔌 Checking EventBus/SSE architecture..."
 npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/packages/react-ui/src" || echo "⚠️  EventBus/SSE violations found in react-ui"
 npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/apps/browser/src" || echo "⚠️  EventBus/SSE violations found in browser"
@@ -56,17 +56,17 @@ bash "$COMPLIANCE_DIR/audit-mock-targets.sh"
 bash "$COMPLIANCE_DIR/audit-supervision.sh"
 echo ""
 
-# Weaver structural invariants (WEAVER-AXIOMS.md G1–G5)
-echo "🕸️  Checking Weaver invariants (no event-store/fs, standalone-only, single mark/signal writer, channel↔fold sync)..."
+# Weaver structural invariants (G1–G6)
+echo "🕸️  Checking Weaver invariants (no event-store/fs, standalone-only, single mark/signal writer, channel↔fold sync, codec-derived divergence)..."
 bash "$COMPLIANCE_DIR/audit-weaver-invariants.sh"
 echo ""
-# One annotation codec for all four graph stores (GRAPH-ANNOTATION-CODEC A1/A5)
+# One annotation codec for all four graph stores (codec axioms A1/A5)
 echo "🗺️  Checking the graph annotation codec (single envelope, no manufactured values)..."
 bash "$COMPLIANCE_DIR/audit-graph-annotation-codec.sh"
 bash "$COMPLIANCE_DIR/audit-spec-validator.sh"
 echo ""
 
-# SDK doc snippets compile against dist (SAFE-DOCS; post-build — FAILS if dist is
+# SDK doc snippets compile against dist (post-build — FAILS if dist is
 # missing, since a gate that silently skips proves nothing; run build:packages first)
 echo "📚 Checking sdk doc snippets..."
 bash "$COMPLIANCE_DIR/audit-doc-snippets.sh"

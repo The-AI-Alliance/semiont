@@ -62,12 +62,12 @@ describe('@semiont/core - annotation-utils', () => {
       expect(findBodyItem(body as any, target)).toBe(3);
     });
 
-    // ── Purpose semantics (the regression guards) ─────────────────────────
+    // ── Purpose semantics ─────────────────────────────────────────────────
 
     it('matches regardless of purpose when target omits purpose', () => {
-      // Guards against the original bug: event 7 of the user's KB had a
-      // remove op with no `purpose` field. With strict purpose equality the
-      // match would silently fail and the link would never be removed.
+      // A stored remove op may carry no `purpose` field. With strict purpose
+      // equality the match would silently fail and the link would never be
+      // removed.
       const body: BodyItem[] = [
         { type: 'SpecificResource', source: resourceId('res-x'), purpose: 'linking' },
       ];

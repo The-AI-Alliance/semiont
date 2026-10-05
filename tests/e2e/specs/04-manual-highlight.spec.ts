@@ -5,9 +5,8 @@ import { openResourceByName } from '../fixtures/discover';
  * Smoke test: manual highlight annotation round-trips through the full
  * bus-gateway + persistence pipeline and survives a reload.
  *
- * Regression target: the earlier `mark:create-request`-scoped-to-resource
- * bug and the `mark:create-ok` optimistic-emit bug. If this test passes,
- * the full chain is working: selection → mark:requested → pendingAnnotation
+ * If this test passes, the full chain is working:
+ * selection → mark:requested → pendingAnnotation
  * → mark:submit → client.mark.annotation → actor.emit(mark:create-request)
  * → annotation-assembly handler → mark:create → Stower appendEvent →
  * mark:added domain event → SSE → BrowseNamespace cache invalidation →
@@ -20,11 +19,6 @@ test.describe('manual highlight', () => {
     // the page-rail viewer instead and `.cm-content` never appears. Discover
     // is newest-first, so "first card" silently means "whatever was added to
     // this KB most recently", which is a coin flip on media type.
-    //
-    // Measured 2026-08-06: a 28-page PDF uploaded to the KB became the newest
-    // resource and specs 04, 05 and 09 all failed at `.cm-content` with
-    // `element(s) not found` — reading as a product regression in manual
-    // annotation, which was fine the whole time.
     await openResourceByName(page, 'Quantum Computing Primer');
 
     // Baseline: how many highlights are already present? (Fixtures may
@@ -66,8 +60,8 @@ test.describe('manual highlight', () => {
 
     // Select a slice of text inside CodeMirror's content area. We use
     // the DOM Selection API and then fire mouseup so AnnotateView's
-    // listener picks the selection up (see AnnotateView.tsx mouseup
-    // handler at the time of writing).
+    // listener picks the selection up (see AnnotateView.tsx's mouseup
+    // handler).
     //
     // The selection window is adaptive: we aim for roughly the middle
     // of the content, but fall back to shorter spans when a seeded
@@ -126,9 +120,9 @@ test.describe('manual highlight', () => {
     // HighlightPanel auto-submits when `pendingAnnotation.motivation ===
     // 'highlighting'` → mark-state-unit calls client.mark.annotation() → actor
     // emits `mark:create-request` → gateway assembly+stower → mark:create-ok
-    // with matching cid. This is the chain that the earlier scope bug
-    // (emit routed to dead subject) and the optimistic-ack bug (mark:
-    // create-ok fired before persistence) both broke.
+    // with matching cid. This is the chain that a scope bug (emit routed
+    // to a dead subject) or an optimistic ack (mark:create-ok fired before
+    // persistence) breaks.
     await bus.expectRequestResponse('mark:create-request', 'mark:create-ok', 30_000);
 
     // UI-level confirmation: the highlight is rendered somewhere in

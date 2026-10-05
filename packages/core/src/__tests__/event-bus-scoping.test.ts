@@ -14,7 +14,7 @@ describe('EventBus scoping', () => {
     eventBus = new EventBus();
   });
 
-  it('creates isolated scopes with separate subject instances', () => {
+  it('creates isolated scopes', () => {
     const resource1 = eventBus.scope(resourceId('resource-1'));
     const resource2 = eventBus.scope(resourceId('resource-2'));
 
@@ -65,10 +65,8 @@ describe('EventBus scoping', () => {
   it('maintains type safety across scopes', () => {
     const resourceScope = eventBus.scope(resourceId('resource-1'));
 
-    // One name for reading and writing was the old shape: `get()` handed back
-    // a Subject, so a holder could do both and nothing said which it meant.
-    // The verbs separate them, and the payload stays typed either way — which
-    // is what this test is actually about.
+    // The verbs separate reading from writing, and the payload stays typed
+    // either way — which is what this test is about.
     const events: unknown[] = [];
     resourceScope.on('mark:create-ok').subscribe(e => {
       expect(e.response.annotationId).toBeDefined();

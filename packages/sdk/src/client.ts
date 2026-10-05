@@ -53,10 +53,10 @@ export {
 
 export class SemiontClient {
   /**
-   * The wire-facing transport. Owns bus actor, HTTP, auth, admin, exchange,
-   * system. Exposed for advanced consumers (workers, custom job adapters)
-   * that need raw `transport.emit(channel, payload, scope)` access. Ordinary
-   * consumers go through typed namespace methods.
+   * The wire-facing transport: the bus primitives, resource scopes, and the
+   * connection's state and errors. Exposed for advanced consumers (workers,
+   * custom job adapters) that need raw `transport.emit(channel, payload,
+   * envelope)` access. Ordinary consumers go through typed namespace methods.
    */
   readonly transport: ITransport;
   /** Binary I/O transport. */
@@ -74,11 +74,11 @@ export class SemiontClient {
   //
   // The first nine namespaces are bus-driven and always present. `frame`
   // is the schema-layer flow's surface (eighth flow); the other eight are
-  // content-layer flows plus `job`. `auth` and `admin` are gateway-ops
+  // content-layer flows plus `job`. `auth` and `system` are gateway-ops
   // namespaces — they're only constructed when the caller passes an
   // `IGatewayOperations` instance to the constructor. A `SemiontClient`
   // over a transport-only setup (e.g. `LocalTransport`) has
-  // `auth === undefined` / `admin === undefined`.
+  // `auth === undefined` / `system === undefined`.
   public readonly frame: FrameNamespace;
   public readonly browse: BrowseNamespace;
   public readonly mark: MarkNamespace;
@@ -104,7 +104,7 @@ export class SemiontClient {
    * (e.g. for tests or to subscribe to arbitrary channels), they read it
    * back via `client.bus`.
    *
-   * `gateway` is optional. When provided, the `auth` and `admin`
+   * `gateway` is optional. When provided, the `auth` and `system`
    * namespaces are constructed against it; when omitted, they're
    * `undefined`. For HTTP setups this is conventionally the same
    * `HttpTransport` instance that's also passed as `transport` (HTTP
@@ -122,9 +122,10 @@ export class SemiontClient {
       cachePersistence?: { storage: SessionStorage; keyPrefix: string };
       /**
        * `busRequest` timeout for the browse caches — threads through to
-       * `BrowseNamespace`'s deterministic-time knob (LIVENESS-AXIOMS P2a).
-       * Production omits it (30 s default); `@semiont/sdk/testing` passes
-       * small values so B14/B15 chains run in test time.
+       * `BrowseNamespace`'s deterministic-time knob, there so the liveness
+       * property suite can control time. Production omits it (30 s
+       * default); `@semiont/sdk/testing` passes small values so B14/B15
+       * chains run in test time.
        */
       busTimeoutMs?: number;
       /**
@@ -170,7 +171,7 @@ export class SemiontClient {
     this.system = gateway ? new SystemNamespace(gateway) : undefined;
   }
 
-  /** Transport-level connection state. HTTP reflects SSE health; local is always 'connected'. */
+  /** Transport-level connection state. HTTP reflects SSE health; local is `'open'` until disposed. */
   get state$() {
     return this.transport.state$;
   }
@@ -185,12 +186,12 @@ export class SemiontClient {
     this.content.dispose();
     // Bus last (A7-owned: this client constructed it): everything upstream
     // is already quiet — browse detached its handlers, the transport's SSE
-    // fan-in is down — so destroying now completes every remaining
+    // fan-in is down — so destroying it completes every remaining
     // subscriber cleanly (session.subscribe closures, host code holding
-    // client.bus). Without this, the bus outlived the client and every
-    // subscriber stayed attached forever, silently receiving nothing — one
+    // client.bus). Without this, the bus outlives the client and every
+    // subscriber stays attached forever, silently receiving nothing — one
     // leaked bus per session cycle under a reconnect loop. Post-dispose
-    // bus access — any bus-emitting namespace method — now throws
+    // bus access — any bus-emitting namespace method — throws
     // `destroyed bus` instead of no-op'ing into the leak: calling a
     // disposed client is a bug, and it says so.
     this.bus.destroy();

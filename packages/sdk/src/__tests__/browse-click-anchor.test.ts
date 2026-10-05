@@ -1,5 +1,5 @@
 /**
- * A1 anchor thread — the `browse.click` payload contract.
+ * The click's anchor rectangle — the `browse.click` payload contract.
  *
  * The anchorRect is a runtime-only enrichment: present exactly when the
  * emitter passed geometry, and never present as an `undefined`-valued key

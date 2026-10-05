@@ -2,8 +2,10 @@
 /**
  * CLI Tool: Rebuild Annotation Projections from Events
  *
- * Rebuilds materialized views from Event Store event streams.
- * Proves that events are the source of truth.
+ * Rebuilds every materialized view from Event Store event streams.
+ * Proves that events are the source of truth. Given a resourceId, it also
+ * reports that resource's rebuilt view, and fails if the log holds no events
+ * for it.
  *
  * Lives beside the record's owner (the Archivist): a checkout-run operator
  * tool over the event log, never an image binary.
@@ -27,8 +29,7 @@ async function rebuildProjections(rId?: string, environment?: string) {
     throw new Error('SEMIONT_ROOT environment variable is not set');
   }
   // environment: an explicit --environment flag, else the loader resolves it from
-  // `[defaults] environment`. No local 'development' default — that disagreed with
-  // the gateway's 'local' and hid the wrong-section load.
+  // `[defaults] environment`. No default is chosen here.
   const config = loadEnvironmentConfig(projectRoot, { environment });
 
   logger.info('Rebuilding annotation projections from events');
@@ -46,17 +47,17 @@ async function rebuildProjections(rId?: string, environment?: string) {
     );
   }
 
-  // Connect the record for read + re-materialize. This tool dispatches no
-  // jobs, so it uses the queue-free record root — never opening a broker
-  // consumer that would split the live gateway's deliveries (JOB-QUEUE-DRIVER
-  // ruling M).
-  const record = await connectRecord(new SemiontProject(projectRoot, { anchoredTextDir }), makeMeaningConfigFrom(config), eventBus, logger);
+  // Connecting the record IS the rebuild: the record root re-materializes
+  // every view from the event log before it returns, and builds no actors and
+  // no bus handlers. Asked for outright, so SEMIONT_SKIP_REBUILD cannot turn
+  // this tool into a no-op.
+  const record = await connectRecord(new SemiontProject(projectRoot, { anchoredTextDir }), makeMeaningConfigFrom(config), eventBus, logger, { skipRebuild: false });
   const { eventStore } = record;
   const query = new EventQuery(eventStore.log.storage);
 
   if (rId) {
-    // Rebuild single resource
-    logger.info('Rebuilding projection for resource', { resourceId: rId });
+    // Report one resource's view, as the rebuild above left it
+    logger.info('Reading rebuilt projection for resource', { resourceId: rId });
 
     const events = await query.getResourceEvents(makeResourceId(rId));
     if (events.length === 0) {
@@ -66,7 +67,8 @@ async function rebuildProjections(rId?: string, environment?: string) {
 
     logger.info('Found events for resource', { resourceId: rId, eventCount: events.length });
 
-    // Rebuild projection
+    // `materialize` answers the stored view when one exists, which after the
+    // rebuild above is the one it just wrote.
     const stored = await eventStore.views.materializer.materialize(events, makeResourceId(rId));
     if (!stored) {
       logger.error('Failed to build projection', { resourceId: rId });
@@ -83,17 +85,7 @@ async function rebuildProjections(rId?: string, environment?: string) {
     });
 
   } else {
-    // Rebuild all projections
-    logger.info('Rebuilding all projections');
-    logger.info('Note: This scans all event shards - may take time for large datasets');
-
-    // TODO: Implement full directory scan across all shards
-    // For now, show usage message
-    logger.info('To rebuild all projections, you need to:');
-    logger.info(`1. Scan all event shards in <projectRoot>/.semiont/events/`);
-    logger.info('2. For each resource found, call eventStore.materializer.materialize(resourceId)');
-    logger.info('3. Views are automatically saved to ViewStorage');
-    logger.info('For now, rebuild individual resources by ID');
+    logger.info('All projections rebuilt from the event log');
   }
 
   // Shutdown
@@ -107,7 +99,8 @@ async function rebuildProjections(rId?: string, environment?: string) {
 const args = process.argv.slice(2);
 const envFlagIdx = args.indexOf('--environment');
 const envArg = envFlagIdx !== -1 ? args[envFlagIdx + 1] : undefined;
-const rId = args.find((_, i) => i !== envFlagIdx && i !== envFlagIdx + 1);
+// The first argument that is neither the flag nor its value.
+const rId = args.find((_, i) => envFlagIdx === -1 || (i !== envFlagIdx && i !== envFlagIdx + 1));
 
 rebuildProjections(rId, envArg)
   .catch(err => {

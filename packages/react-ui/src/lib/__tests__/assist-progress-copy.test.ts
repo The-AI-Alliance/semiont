@@ -1,5 +1,5 @@
 /**
- * The one wire→copy mapping (ASSIST-PROGRESS-CONSOLIDATION P3).
+ * The one wire→copy mapping: each progress code to its localized text.
  *
  * Two things are pinned here, and the second is the interesting one.
  *
@@ -39,7 +39,7 @@ const ALL: Array<{ message: JobProgressMessage; key: string }> = [
   { message: { code: 'generating-resource' }, key: 'codeGeneratingResource' },
   { message: { code: 'creating-resource' }, key: 'codeCreatingResource' },
   { message: { code: 'complete-generated', truncated: false }, key: 'codeCompleteGenerated' },
-  // D6: a run cut off at the maxTokens ceiling completes, but never silently.
+  // A run cut off at the maxTokens ceiling completes, but never silently.
   { message: { code: 'complete-generated', truncated: true }, key: 'codeCompleteGeneratedTruncated' },
   { message: { code: 'detecting-entities', entityType: 'Person' }, key: 'codeDetectingEntities' },
   { message: { code: 'creating-annotations', count: 3 }, key: 'codeCreatingAnnotations' },
@@ -121,7 +121,7 @@ describe('assistSubjectCopy', () => {
     expect(calls.map((c) => c.key)).toContain('subject');
   });
 
-  it('localizes the KIND and never leaks the wire code (A5b)', () => {
+  it('localizes the KIND and never leaks the wire code', () => {
     // "Person" is an entity type and the line should say so — but "entity-type"
     // is a wire token, and a user reading a Japanese UI must never see it.
     for (const [current, key] of [

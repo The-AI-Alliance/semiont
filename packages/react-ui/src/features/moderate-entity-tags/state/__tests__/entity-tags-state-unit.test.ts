@@ -118,11 +118,10 @@ describe('EntityTagsStateUnit — StateUnit axioms', () => {
 });
 
 describe('createEntityTagsStateUnit — terminal load failure', () => {
-  // `isLoading$` was `raw$.pipe(map(e => e === undefined))` and
-  // moderate/entity-tags/page.tsx returns a full-page loading screen off it,
-  // so a failed load froze the route. The existing `error$` is the ADD-tag
-  // error and is deliberately left alone.
-  // See .plans/PANEL-FAILURE-STATES.md
+  // moderate/entity-tags/page.tsx returns a full-page loading screen off
+  // `entityTypes.loading$`, so a loading flag that is only "no value yet"
+  // would freeze the route on a failed load. `error$` is the ADD-tag error;
+  // the load failure surfaces on `entityTypes.error$`.
 
   it('stops loading and surfaces the load failure, distinct from the add-tag error', async () => {
     const entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);

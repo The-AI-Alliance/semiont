@@ -1,14 +1,10 @@
 /**
- * Shared form and icon rules that the auth surfaces introduced and other
- * features now depend on.
+ * Icon rules, `.sr-only`, and the auth error display.
  *
- * The auth-specific rules that used to live here (`.semiont-auth__*`, the
- * sign-in/sign-up wrappers, the URL-probe field) went with the forms they
- * styled: a knowledge base trusts an issuer and the Browser sends the user
- * there, so no component in this package collects a credential any more.
- * What is left is generic and is kept here only because moving it is a
- * separate change: the icon rules, and `.sr-only`, which a dozen components
- * render.
+ * No sign-in or sign-up form is styled here: a knowledge base trusts an
+ * issuer and the Browser sends the user there, so no component in this
+ * package collects a credential. The icon rules and `.sr-only`, which a
+ * dozen components render, are generic despite the file they live in.
  */
 
 /* Icon styles */
@@ -40,13 +36,7 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
- * Auth error display
- *
- * `AuthErrorDisplay` has rendered these class names since #401 moved
- * @semiont/react-ui off Tailwind, but the CSS was never written — so every
- * `/auth/error` page has rendered as unstyled text on the page background,
- * which in dark mode is very nearly invisible. The `lint:css-classes` gate
- * could not see it: it looks for CSS nobody renders, not markup with no CSS.
+ * Auth error display — the classes `AuthErrorDisplay` renders.
  * ────────────────────────────────────────────────────────────────────────── */
 
 .semiont-auth-error-display {

@@ -193,7 +193,6 @@
     "statusConnected": "Συνδεδεμένο",
     "statusExpired": "Η συνεδρία έληξε",
     "statusSignedOut": "Αποσυνδεδεμένο",
-    "statusUnreachable": "Μη προσβάσιμο",
     "invalidHost": "Μη έγκυρο όνομα κεντρικού υπολογιστή",
     "discoveredTitle": "Βρέθηκε σε αυτόν τον υπολογιστή",
     "managedBadge": "Διαχειρίζεται από τον launcher",

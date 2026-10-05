@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Audit: Weaver structural invariants G1–G5 (WEAVER-AXIOMS.md "Design
-# constraints"). These are the invariants that hold by construction and
-# cannot be expressed as runtime properties — the static complement of the
-# weaver-axioms.test.ts suite.
+# Audit: Weaver structural invariants G1–G6. These are the invariants that
+# hold by construction and cannot be expressed as runtime properties — the
+# static complement of the weaver-axioms.test.ts suite.
 #
 # G1  weaver.ts has no event-store or fs attachment (history via browse:* only)
 # G2  the Weaver is standalone-only (constructed in weaver-main + tests only)
@@ -44,7 +43,7 @@ fi
 G2=$(grep -rn "new Weaver(" packages apps --include='*.ts' 2>/dev/null \
   | grep -vE "/node_modules/|/dist/|/__tests__/|weaver-main\.ts" || true)
 if [ -n "$G2" ]; then
-  echo "❌ G2: the Weaver is standalone-only (D4) — constructed in weaver-main.ts and tests, nowhere else:"
+  echo "❌ G2: the Weaver is standalone-only — constructed in weaver-main.ts and tests, nowhere else:"
   echo "$G2"
   FAIL=1
 fi
@@ -79,7 +78,7 @@ CASES=$(grep -oE "case '(yield|mark|frame):[a-z-]+'" "$WEAVER" \
   | grep -oE "'[a-z]+:[a-z-]+'" | tr -d "'" | sort -u)
 if [ "$CHANNELS" != "$CASES" ]; then
   echo "❌ G5: WEAVER_CHANNELS and the applyEventToGraph switch have drifted"
-  echo "   (the smelter-misses-unarchive bug class — a subscribed channel with no fold, or a fold no one feeds):"
+  echo "   (the channel-set drift bug class — a subscribed channel with no fold, or a fold no one feeds):"
   echo "   channels only: $(comm -23 <(echo "$CHANNELS") <(echo "$CASES") | tr '\n' ' ')"
   echo "   cases only:    $(comm -13 <(echo "$CHANNELS") <(echo "$CASES") | tr '\n' ' ')"
   FAIL=1
@@ -88,15 +87,14 @@ fi
 # ---------------------------------------------------------------------------
 # G6: the divergence check derives its comparison from the codec.
 #
-# `divergenceOf` used to compare five hand-picked facts while the codec wrote a
-# dozen, so anything outside that list could go wrong unseen — the body check
-# was added for exactly that reason, and only for bodies. The comparison is now
-# `intendedGraphAnnotation`, which scopes itself to whatever the encoder writes
-# and follows it when it changes. A field list restated here is a mirror with
-# nothing keeping it in sync, which is what this gate exists to prevent.
+# `divergenceOf` compares against `intendedGraphAnnotation`, which scopes
+# itself to whatever the encoder writes and follows it when it changes. A
+# hand-picked field list lets anything outside it go wrong unseen: it is a
+# mirror with nothing keeping it in sync, which is what this gate exists to
+# prevent.
 # ---------------------------------------------------------------------------
 if ! grep -q "intendedGraphAnnotation" "$WEAVER"; then
-  echo "❌ G6: divergenceOf no longer compares against the codec's intendedGraphAnnotation."
+  echo "❌ G6: divergenceOf does not compare against the codec's intendedGraphAnnotation."
   echo "   A hand-written list of fields to compare is a restatement of a shape"
   echo "   the codec owns — derive it, do not retype it."
   FAIL=1

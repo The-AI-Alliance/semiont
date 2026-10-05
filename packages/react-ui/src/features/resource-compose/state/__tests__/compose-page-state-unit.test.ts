@@ -129,7 +129,6 @@ describe('ComposePageStateUnit — StateUnit axioms', () => {
 describe('createComposePageStateUnit — entity types load failure', () => {
   // Lower severity than the two hangs: compose defaults to an empty picker,
   // which misrepresents a failed load as "this KB has no entity types".
-  // See .plans/PANEL-FAILURE-STATES.md
 
   it('surfaces the failure rather than presenting an empty picker as fact', async () => {
     const entityTypes$ = new BehaviorSubject<string[] | undefined>(undefined);

@@ -25,11 +25,11 @@ func configFreeService(svc string) bool {
 // sweep is a teardown, so it runs in teardown order — dependents first.
 //
 // `inference` is exempt: flowOllama removes semiont-ollama itself, ahead of
-// its host probe, for both walks (--service inference has no preflight). `browser` is exempt because the
-// Browser is not a stack member (BROWSER-LIFECYCLE.md) — its keep-or-refresh
-// lifecycle lives in flowBrowser, and the preflight must not sweep a viewer
-// the user keeps open across stacks. Both exemptions are gated by
-// descriptor_census_test.go.
+// its host probe, for both walks (--service inference has no preflight).
+// `browser` is exempt because the Browser is not a stack member — its
+// keep-or-refresh lifecycle lives in flowBrowser, and the preflight must not
+// sweep a viewer the user keeps open across stacks. Both exemptions are gated
+// by descriptor_census_test.go.
 var preflightNames = sweepNames("browser", "inference")
 
 type startOptions struct {
@@ -39,7 +39,7 @@ type startOptions struct {
 	cleanOllama bool
 	// platform is where the stack lives; runtime is how a container is run
 	// on it, and only `local` has one. `--runtime codespace` sets the first,
-	// every other value the second (D5).
+	// every other value the second.
 	platform     platform
 	runtime      string
 	observe      bool
@@ -156,7 +156,7 @@ Examples:
   semiont start --list-configs
 `, roleListWrapped(78, "                        "), setVarHint(systemName(), "ANTHROPIC_API_KEY", "<your-key>"))
 
-// Start implements `semiont start` — the port of the fleet's start.sh.
+// Start implements `semiont start`.
 func Start(args []string) int {
 	opts, usage, errMsg := parseStart(args)
 	u := NewUI(false)
@@ -196,11 +196,11 @@ func Start(args []string) int {
 		// STANDING IN A KB CLONE IS AN EXPLICIT LOCAL CONTEXT — never flip a
 		// bare start to the cloud from inside one.
 		//
-		// This branch used to require only "no local record", which `stop`
-		// creates by design: it forgets the local stack. So the sequence the
-		// launcher itself prescribes — stop --runtime container, then start —
-		// silently became a codespace start, killed the local stack in its
-		// preflight, and woke a paid cloud machine (observed 2026-07-20).
+		// "No local record" alone cannot decide it: `stop` creates that by
+		// design, forgetting the local stack. The sequence the launcher itself
+		// prescribes — stop --runtime container, then start — would silently
+		// become a codespace start, kill the local stack in its preflight,
+		// and wake a paid cloud machine.
 		// The convenience this serves is resuming a codespace from ANYWHERE;
 		// a directory that resolves to a KB root is the one place it must not
 		// apply.
@@ -228,15 +228,13 @@ func Start(args []string) int {
 
 	// Resolve the KB root: SEMIONT_ROOT override (strict), else walk up from
 	// cwd for .semiont/ — deliberately after arg parsing so --help works
-	// anywhere. Only flows that read the config need a root at all; only
-	// flows that mount /kb (full start, --service gateway) must additionally
-	// be a git clone — the gateway versions the event log via git. A
-	// --service target that touches neither (infra, browser) runs from
-	// anywhere: "just the browser" needs no clone at all.
-	// Everything except browser and traces is config-driven now: infra
-	// roles need the config to know their OBLIGATION (provided / external /
-	// host-process / absent), so they need the KB root too. browser (absent
-	// from the config) and traces (launcher-owned) keep the no-clone freedom.
+	// anywhere. Only flows that read the config need a root at all, and for
+	// a full start, --service archivist and --service gateway that root must
+	// additionally be a git clone (requireGitClone, below). The config-free
+	// targets (configFreeService) run from anywhere: "just the browser" needs
+	// no clone at all. Every other target is config-driven: infra roles need
+	// the config to know their OBLIGATION (provided / external /
+	// host-process / absent), so they need the KB root too.
 	configNeeded := opts.service == "" || !configFreeService(opts.service)
 	rootNeeded := configNeeded
 	root := ""
@@ -254,10 +252,12 @@ func Start(args []string) int {
 			fmt.Fprintln(os.Stderr, "  cd into a KB clone, or set SEMIONT_ROOT / pass --root.")
 			return 1
 		}
-		// The /kb-mount invariant: services that mount the clone require a
-		// real git clone. The Archivist most of all — it is the git
-		// single-writer (D4b), so handing it a non-clone would fail at the
-		// first `git add` rather than here, with a worse message.
+		// The git-clone invariant: the Archivist mounts the clone at /kb and
+		// is the git single-writer. In a non-clone each `git add` it runs
+		// fails and only a counter records it, so the refusal is made here,
+		// with instructions. A gateway start is held to it as well, though
+		// the gateway mounts no part of the KB and its start reads nothing
+		// from git.
 		if opts.service == "" || opts.service == "gateway" || opts.service == "archivist" {
 			if !requireGitClone(u, root) {
 				return 1
@@ -379,8 +379,8 @@ func Start(args []string) int {
 	// an EXPLICIT mismatch on a non-dry-run refuses rather than orphan the
 	// recorded stack — start's preflight would erase its record and delete
 	// staged configs out from under its live mounts. A record whose runtime
-	// is no longer installed is stale (that stack cannot be running) and
-	// doesn't bind anything.
+	// is not installed is stale (that stack cannot be running) and doesn't
+	// bind anything.
 	if recSt := loadLocalState(); recSt != nil && recSt.Runtime != "" && recSt.Runtime != rt && onPath(recSt.Runtime) {
 		if opts.runtime == "" {
 			rt = recSt.Runtime
@@ -497,7 +497,7 @@ func Start(args []string) int {
 		val := envVal
 		if val == "" {
 			if ref, ok := secrets[v]; ok && custodyOwned(v) {
-				// Registered before the refusal existed, or hand-edited.
+				// A registration under a name custody owns.
 				// Resolving it would answer a provider prompt and then
 				// discard the answer, since custody appends its own value
 				// after this one.
@@ -595,12 +595,7 @@ func image(svc, version string) string {
 	return fmt.Sprintf("%s/semiont-%s:%s", imageRegistry, svc, version)
 }
 
-// collectorConfig: the OTel Collector's config — launcher-owned, not the
-// KB's (LOCAL-METRICS D4). `traces` says whether Jaeger is running: without
-// it the traces pipeline ends in `nop`, so services export identically and
-// the collector accepts and discards. Every component here is in the CORE
-// collector image (`components` on 0.137.0); contrib is not needed.
-// prometheusConfig: launcher-owned, like the collector's (LOCAL-METRICS D4).
+// prometheusConfig: launcher-owned, like the collector's.
 // One live value: the collector's readout, which Prometheus scrapes — the
 // pull model is why adding this backend changes no service and no collector.
 func prometheusConfig(addr string) string {
@@ -622,6 +617,11 @@ func prometheusArgs(stage string) []string {
 		descriptorFor("metrics", "prometheus").image}
 }
 
+// collectorConfig: the OTel Collector's config — launcher-owned, not the
+// KB's. `traces` says whether Jaeger is running: without it the traces
+// pipeline ends in `nop`, so services export identically and the collector
+// accepts and discards. Every component here is in the CORE collector image
+// (`components` on 0.137.0); contrib is not needed.
 func collectorConfig(addr string, traces bool) string {
 	tracesExporter := "nop"
 	tracesNote := "  # No Jaeger this run: traces are accepted and discarded.\n  nop: {}"
@@ -669,29 +669,31 @@ func tracesArgs() []string {
 		"-p", "16686:16686", "-p", "14318:4318", descriptorFor("traces", "jaeger").image}
 }
 
-// gatewayArgs: the gateway takes the four dependency hosts but must NOT
-// receive the gateway-host vars (publicURL derives from them; see the DID/site.domain
-// history before ever changing this). Admin seeding deliberately does NOT ride
-// in here — `semiont useradd` administers the realm itself, so no admin
-// password ever sits in the container's inspectable env.
-// jwt is the token-signing key — gateway-only, deliberately not in sidecarArgs:
-// the sidecars present agent tokens the gateway minted and never sign anything.
 // kbMountTarget is where the KB clone lands inside the ARCHIVIST container —
-// the only container that mounts it (SINGLE-KB-MOUNT, the whole plan's point).
-// The value is HALF of an agreement: the archivist image declares
+// the only container that mounts it: every other service reaches the KB's
+// bytes and identity through the Archivist or from staged config. The value
+// is HALF of an agreement: the archivist image declares
 // `ENV SEMIONT_ROOT=/kb`, and nothing at compile time makes the two match.
 // TestContainerPathsMatchTheImage is what makes them match.
 const kbMountTarget = "/kb"
 
-// gatewayArgs: the gateway mounts NO piece of the knowledge base (P6). It
+// gatewayArgs: the gateway mounts NO piece of the knowledge base. It
 // reaches bytes and the record over HTTP through the Archivist, and is
 // configured by one document the launcher writes resolved (gatewaydoc.go) —
-// the KB's committed identity, the addresses, the issuer — mounted where its
-// config copy used to be. Resolved means no ${VAR} is left for it to expand,
-// so it gets none of the dependency hosts the sidecars do. What is left is
-// that document, the state mount its supervisor keeps its events on, its
-// secrets, and the user's variables (the document names its broker
+// the KB's committed identity, the addresses, the issuer — mounted at the
+// path its image passes to `--config`. Resolved means no ${VAR} is left for
+// it to expand, so it is handed no *_HOST variable: not even the gateway-host
+// pair the Node services get (gatewayHostEnv), which leaves a
+// ${GATEWAY_HOST:-…} in its publicURL on its default (gatewayVars). What is
+// left is that document, the state mount its supervisor keeps its events on,
+// its secrets, and the user's variables (the document names its broker
 // credentials by variable).
+//
+// jwt is the token-signing key — gateway-only, deliberately not in
+// sidecarArgs: the sidecars present agent tokens the gateway minted and never
+// sign anything. No admin password rides in here: `semiont useradd`
+// administers the realm itself, so none sits in the container's inspectable
+// env.
 func gatewayArgs(stage, rt, addr, clientSecret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-gateway", // no --rm: see providedRunArgs
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", semiontDescriptor("gateway").mem,
@@ -715,11 +717,12 @@ func gatewayArgs(stage, rt, addr, clientSecret, jwt, version string, port int, u
 // gatewayHostEnv injects the gateway's address under BOTH spellings.
 //
 // A KB's TOML interpolates one of them into the gateway's publicURL, and which
-// one depends on whether that repo has migrated to `[gateway]` — a fact this
-// binary cannot observe. Injecting only the new name would leave an unmigrated
-// KB's `${BACKEND_HOST:-localhost}` falling back to `localhost`, which inside a
-// container means every sidecar dials ITSELF: a wrong-but-plausible value that
-// fails far from its cause. Injecting both costs one argv pair and cannot.
+// one depends on whether that repo's config spells the section `[gateway]` or
+// `[backend]` — a fact this binary cannot observe. Injecting only GATEWAY_HOST
+// would leave a `[backend]` KB's `${BACKEND_HOST:-localhost}` falling back to
+// `localhost`, which inside a container means every sidecar dials ITSELF: a
+// wrong-but-plausible value that fails far from its cause. Injecting both
+// costs one argv pair and cannot.
 //
 // Retires with the [backend] section alias — see resolveGatewaySection.
 // Defined once because three call sites spelling the same pair is three chances
@@ -728,12 +731,12 @@ func gatewayHostEnv(addr string) []string {
 	return []string{"--env", "GATEWAY_HOST=" + addr, "--env", "BACKEND_HOST=" + addr}
 }
 
-// superviseEnv is the per-run supervision opt-in (ORCHESTRATOR-NATIVE-IMAGES
-// D3): boot.sh wraps the image CMD in the shared supervisor only when this is
-// set. Local placement is the one place with no orchestrator restart policy,
-// so every service builder passes it; user manifests never do — their
-// platform restarts. Defined once because five call sites spelling the
-// same pair is five chances to update four of them.
+// superviseEnv is the per-run supervision opt-in: boot.sh wraps the image
+// CMD in the shared supervisor only when this is set. Local placement is the
+// one place with no orchestrator restart policy, so every service builder
+// passes it; user manifests never do — their platform restarts. Defined once
+// because five call sites spelling the same pair is five chances to update
+// four of them.
 func superviseEnv() []string {
 	return []string{"--env", "SEMIONT_SUPERVISE=1"}
 }
@@ -760,16 +763,16 @@ func sidecarArgs(svc string, port int, stage, rt, addr string, clientSecret, ver
 	return append(a, image(svc, version))
 }
 
-// browserArgs: the Browser publishes on the chosen host port (default
-// 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
-// may move — it's absent from the config and nothing in the stack dials it.
-// archivistArgs: the Archivist owns the file-backed record, so its mount
-// shape is the GATEWAY's minus the database — the KB root read-write (it is
-// the git single-writer, D4b), the anchored-text store, and a staged config
-// copy. Its staged config states every address it dials, so its environment
-// carries none. Deliberately NO JWT_SECRET: it signs nothing. It
-// authenticates as its own service account at the issuer, and admits callers by
-// verifying theirs (the same fact D1's read path relies on).
+// archivistArgs: the Archivist owns the file-backed record, and its mounts
+// are the record's — the KB root read-write at kbMountTarget (it is the git
+// single-writer), its staged config copy, and the stores flowArchivist
+// passes as state: the anchored-text store it answers reads from and the
+// state tree it writes the views to. Its staged config carries the addresses
+// the launcher places (stagedServiceConfig); the gateway's it resolves from
+// the gateway-host pair (gatewayHostEnv). Deliberately NO JWT_SECRET: it
+// signs nothing. It authenticates as its own service account at the issuer,
+// and admits callers by verifying theirs (the same fact the gateway's event
+// read from it relies on).
 func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("archivist").mem, "--publish", "24103:24103",
@@ -790,12 +793,13 @@ func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version string,
 
 // librarianArgs: the Librarian (Matcher — search and match) reads everything
 // and writes nothing durable, and its mounts say so: NO piece of the KB tree
-// (SINGLE-KB-MOUNT P1 — it locates the Archivist's views from the staged
-// [kb] name, see stagedServiceConfig), just the shared state tree (D6 reader) and
-// its staged config, which states every address it dials as a literal — the
-// Archivist's among them (it reads bytes from the record directly,
-// SINGLE-KB-MOUNT P4). NO JWT_SECRET, and nothing dials this service; it dials
-// the gateway for the bus and the Archivist for bytes.
+// (it locates the Archivist's views from the staged [kb] name, see
+// stagedServiceConfig), just the shared state tree (as a reader of what the
+// Archivist writes) and its staged config, which states the addresses the
+// launcher places as literals — the Archivist's among them (it reads bytes
+// from the record directly); the gateway's it resolves from the gateway-host
+// pair (gatewayHostEnv). NO JWT_SECRET, and nothing dials this service; it
+// dials the gateway for the bus and the Archivist for bytes.
 func librarianArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("librarian").mem, "--publish", "24104:24104",
@@ -813,13 +817,13 @@ func librarianArgs(stage, rt, addr string, clientSecret, version string, userEnv
 	return append(a, image("librarian", version))
 }
 
-// dispatcherArgs: the Dispatcher is a CONTROL PLANE (EXTRACT-JOBS D5) — it owns
-// the job queue and answers job:* lifecycle commands, and content bytes and
-// annotations never flow through it. No KB tree, no state mount, no graph. It
-// reads a resolved configuration document (dispatcherdoc.go) at the path its
-// image passes to `--config`, so it is handed no *_HOST variables: the
-// document carries every address already. It keeps the issuer's host entry,
-// because it signs in at the issuer by name.
+// dispatcherArgs: the Dispatcher is a CONTROL PLANE — it owns the job queue
+// and answers job:* lifecycle commands, and content bytes and annotations
+// never flow through it. No KB tree, no state mount, no graph. It reads a
+// resolved configuration document (dispatcherdoc.go) at the path its image
+// passes to `--config`, so it is handed no *_HOST variables: the document
+// carries every address already. It keeps the issuer's host entry, because it
+// signs in at the issuer by name.
 func dispatcherArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--name", "semiont-dispatcher", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("dispatcher").mem, "--publish", "24105:24105",
@@ -834,13 +838,15 @@ func dispatcherArgs(stage, rt, addr string, clientSecret, version string, userEn
 	return append(a, image("dispatcher", version))
 }
 
+// browserArgs: the Browser publishes on the chosen host port (default
+// 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
+// may move — it's absent from the config and nothing in the stack dials it.
 func browserArgs(version string, port int) []string {
 	a := []string{"run", "-d", "--name", "semiont-browser", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("browser").mem, "--publish", fmt.Sprintf("%d:3000", port)}
-	// The Browser's KB-discovery view (BROWSER-KB-DISCOVERY.md lane 1): a
-	// read-only DIRECTORY mount (Apple container cannot single-file mount).
-	// Inert until the Browser image serves /discovery — a dormant feature
-	// whose activation record is the plan.
+	// The Browser's KB-discovery view: a read-only DIRECTORY mount (Apple
+	// container cannot single-file mount), which the Browser image's server
+	// serves under /discovery.
 	if dir := StateDir(); dir != "" {
 		a = append(a, "-v", filepath.Join(dir, "discovery")+":/discovery:ro")
 	}
@@ -848,13 +854,13 @@ func browserArgs(version string, port int) []string {
 	return append(a, image("browser", version))
 }
 
-// browserPort: the Browser's host port — --port, else 3000.
 // defaultBrowserPort: where the launcher starts the Browser unless `--port`
 // says otherwise. Named because the realm registers an origin for it and the
 // preflight probes that origin — three places agreeing on one number, rather
 // than three places each spelling it out.
 const defaultBrowserPort = 3000
 
+// browserPort: the Browser's host port — --port, else defaultBrowserPort.
 func browserPort(opts startOptions) int {
 	if opts.port != 0 {
 		return opts.port
@@ -875,14 +881,12 @@ func pullArgs(rt, img string) []string {
 	return []string{"pull", img}
 }
 
-// browser is absent: the Browser pulls its own image inside flowBrowser,
-// and only when actually (re)starting — a kept Browser costs no pull.
-// sidecarSpecs: the three make-meaning sidecars, in start order.
 type sidecarSpec struct {
 	svc, label, noun string
 	port             int
 }
 
+// sidecarSpecs: the three make-meaning sidecars, in start order.
 var sidecarSpecs = []sidecarSpec{
 	{"worker", "Worker pool", "Worker Pool", 24100},
 	{"smelter", "Smelter", "Smelter", 24101},
@@ -923,8 +927,8 @@ func runStart(u *UI, rt, version, root, configFile string, opts startOptions, us
 	fmt.Println("  Semiont KB         http://localhost:4000")
 	neo4jLogin := ""
 	if g := plan.Roles["graph"]; g.Presence == presenceLauncher {
-		// The password is the launcher's (SECRET-DELIVERY P4): say where it is
-		// kept, never print it.
+		// The password is the launcher's: say where it is kept, never print
+		// it.
 		store, _ := custodyFor(u, root)
 		neo4jLogin = u.Dim("(user " + g.User + "; password kept at " + store.where(daemonPasswords["graph"].custody) + ")")
 	}
@@ -1008,7 +1012,7 @@ const identityHostName = "keycloak.localhost"
 // identityHostName whatever the probe answered — the Browser is never promised
 // the host address there: the alias resolves only inside containers, and in
 // docker-in-docker (a codespace) the probe falls back to a bridge gateway on
-// another machine (172.17.0.1, live 2026-09-28).
+// another machine (172.17.0.1).
 func identityHost(rt, addr string) string {
 	if rt == "docker" || rt == "podman" {
 		return identityHostName
@@ -1069,15 +1073,14 @@ const portSettleBudget = 3 * time.Second
 
 // settlePorts waits for ports we JUST tore something off to actually come free.
 //
-// It replaces a flat `time.Sleep(time.Second)` that ran after every teardown.
-// That sleep was both too long (a runtime that released instantly still paid a
-// second — and it was ~65% of the launcher test suite's runtime) and too short
-// (a loaded machine could need longer, and the port check that followed would
-// fail with a conflict message naming our own dying container).
+// A condition, not a flat sleep after every teardown: a fixed second is both
+// too long (a runtime that releases instantly pays it anyway) and too short (a
+// loaded machine can need longer, and the port check that follows would fail
+// with a conflict message naming our own dying container).
 //
-// It deliberately does NOT decide anything. The caller's requirePortFree still
+// It deliberately does NOT decide anything. The caller's requirePortFree
 // delivers the verdict and the "held by <pid> (<comm>)" message, so a port held
-// by a FOREIGN process is still refused promptly instead of being waited out.
+// by a FOREIGN process is refused promptly instead of being waited out.
 func settlePorts(ports ...int) {
 	deadline := time.Now().Add(portSettleBudget)
 	t0 := time.Now()
@@ -1099,7 +1102,7 @@ func settlePorts(ports ...int) {
 // requirePortFree fails when a TCP port is already held, naming the offending
 // process(es). By this point every semiont-* container has been swept under
 // every installed runtime, so a holder is provably foreign — the launcher never
-// signals it; killing it is the user's call, per incident.
+// signals it; killing it is the user's call, each time.
 func requirePortFree(u *UI, port int, service string) bool {
 	pids := listenersOn(port)
 	if len(pids) == 0 {
@@ -1123,12 +1126,12 @@ func describeProcs(pids []string) string {
 	return strings.Join(procs, ", ")
 }
 
-// refuseDaemonCredentialNames: the daemon-credential names are the launcher's
-// (SECRET-DELIVERY P4). A config may not reference one where it is read — `semiont settings secret`
+// refuseDaemonCredentialNames: the daemon-credential names are the launcher's.
+// A config may not reference one where it is read — `semiont settings secret`
 // registrations are machine-wide, so a name cannot be the launcher's in one KB
 // and the user's in another — and an exported one is refused, not honoured,
-// for a daemon the launcher runs (ruled 2026-09-29: "refuse exported daemon
-// passwords"): it could only disagree with the store it was meant for.
+// for a daemon the launcher runs: it could only disagree with the store it was
+// meant for.
 func refuseDaemonCredentialNames(refs configRefs, plan *launchPlan, config string) error {
 	required, optional := refs.read("")
 	for _, name := range append(required, optional...) {

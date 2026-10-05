@@ -1,22 +1,17 @@
 /**
- * STRUCTURED-INFERENCE — pin the read-failure contract (Phases 1–3, 5).
+ * Structured generation — pin the read-failure contract.
  *
- * The original defect: the JSON-mode unwrap collapsed "we could not read the
- * model" into "the model found nothing" (`Array.isArray(items) ? items : []`)
- * — 202 real entities discarded as a green empty job when one unescaped OCR
- * backslash broke the SDK's tool-input parse.
+ * "We could not read the model" must never collapse into "the model found
+ * nothing": a coercion like `Array.isArray(items) ? items : []` discards real
+ * entities as a green empty job when one unescaped OCR backslash breaks the
+ * parse.
  *
- * `generateStructured` makes unreadable a THROW, distinct from empty, and
- * Phase 5 removed the tool-input accumulation step entirely: structured
- * output now rides `output_config.format` with an ARRAY root (spike
- * 2026-08-06), so the response text IS the JSON and the read path is
- * parse-and-verify. These tests pin the contract across that mechanism:
- * unreadable → throw ("could not be read"); empty → `{ items: [] }`;
- * incapable model → config-actionable refusal before any request.
- *
- * (History: written as Phase 1's declared RED against the tool-use
- * mechanism; fixtures moved from tool_use blocks to text blocks when Phase 5
- * deleted the tool. The assertions never changed.)
+ * `generateStructured` makes unreadable a THROW, distinct from empty.
+ * Structured output rides `output_config.format` with an ARRAY root, so the
+ * response text IS the JSON and the read path is parse-and-verify. These
+ * tests pin the contract across that mechanism: unreadable → throw ("could
+ * not be read"); empty → `{ items: [] }`; incapable model →
+ * config-actionable refusal before any request.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -75,9 +70,9 @@ describe('AnthropicInferenceClient.generateStructured — unreadable is a throw,
   });
 
   it('throws when the response text is not valid JSON (the invalid-escape shape, shrunk)', async () => {
-    // The live payload's head: an OCR backslash the serializer failed to
-    // escape, truncated mid-stream. Under the old unwrap this class of
-    // unreadable payload became "[]" + job:complete.
+    // An OCR backslash the serializer failed to escape, truncated
+    // mid-stream. Coerced rather than thrown, this class of unreadable
+    // payload would become "[]" + job:complete.
     createMock.mockResolvedValue(
       textResponse('[{"exact":"\\Villiam Crookes","entityType":"Person"},{"exact":"'),
     );
@@ -100,7 +95,7 @@ describe('AnthropicInferenceClient.generateStructured — unreadable is a throw,
   });
 
   it('returns { items: [] } for a well-formed empty array — empty survives as a distinct outcome', async () => {
-    // The test that keeps the fix honest: "the model found nothing" is a
+    // The other half of the contract: "the model found nothing" is a
     // legitimate success and must NOT become a throw.
     createMock.mockResolvedValue(textResponse('[]'));
 
@@ -120,8 +115,8 @@ describe('AnthropicInferenceClient.generateStructured — output_config + capabi
   });
 
   it('refuses, before any request is issued, when the model does not support structured outputs', async () => {
-    // D4: no silent degradation. Unconstrained generation IS the behaviour
-    // that turned 202 entities into a green empty job — a model that cannot
+    // No silent degradation. Unconstrained generation IS the behaviour
+    // that turns real entities into a green empty job — a model that cannot
     // honour the schema gets a loud, config-actionable error, not a quiet
     // fallback.
     retrieveMock.mockResolvedValue({
@@ -155,7 +150,7 @@ describe('AnthropicInferenceClient.generateStructured — output_config + capabi
     expect(req.tools).toBeUndefined();
     expect(req.tool_choice).toBeUndefined();
     // The schema is the caller's element schema under an ARRAY root — the
-    // spike-established shape that made the items wrapper deletable.
+    // measured-accepted shape, which needs no items wrapper.
     expect(req.output_config.format.type).toBe('json_schema');
     expect(req.output_config.format.schema).toEqual({ type: 'array', items: PERSON_ELEMENT });
     // No prefill: the request must not carry an assistant turn.

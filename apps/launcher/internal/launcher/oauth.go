@@ -101,8 +101,6 @@ type tokenResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
-// deviceLogin runs the device authorization grant: ask the issuer for a code,
-// tell the user where to enter it, poll the token endpoint at the issuer's
 // promptToOpen shows the one-time code and, on a terminal, offers to open the
 // issuer's page.
 //
@@ -117,7 +115,7 @@ type tokenResponse struct {
 //
 // Nothing is opened when stdin is not a terminal. `semiont login` runs from
 // scripts, and a CI box either has no browser or should not be sent to one —
-// there the output is what it always was, and the poll starts immediately.
+// there nothing is asked, and the poll starts immediately.
 func promptToOpen(u *UI, da deviceAuthorization, where string, expires time.Duration) {
 	valid := u.Dim("(valid " + expires.Round(time.Second).String() + ")")
 	u.Log("Your one-time code: %s %s", u.Bold(da.UserCode), valid)
@@ -146,8 +144,8 @@ func promptToOpen(u *UI, da deviceAuthorization, where string, expires time.Dura
 //
 // `os.Stdin.Stat()` and `ModeCharDevice` is the usual shorthand and it is
 // wrong here: `/dev/null` is a character device, so a CI step — whose stdin is
-// commonly /dev/null — reads as interactive under it, and this prompted a
-// runner that has no browser. term.IsTerminal asks the real question: it
+// commonly /dev/null — reads as interactive under it, and this would prompt
+// a runner that has no browser. term.IsTerminal asks the real question: it
 // succeeds only on a terminal, on every system.
 func stdinIsTerminal() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
@@ -175,6 +173,8 @@ func openBrowser(url string) error {
 	return exec.Command(argv[0], argv[1:]...).Start()
 }
 
+// deviceLogin runs the device authorization grant: ask the issuer for a code,
+// tell the user where to enter it, poll the token endpoint at the issuer's
 // interval until approval, denial, or expiry.
 func deviceLogin(ctx context.Context, u *UI, ep issuerEndpoints) (tokenResponse, error) {
 	var da deviceAuthorization
@@ -239,7 +239,7 @@ func deviceLogin(ctx context.Context, u *UI, ep issuerEndpoints) (tokenResponse,
 }
 
 // refreshTokens: the refresh grant. An issuer may rotate the refresh token;
-// the response carries whichever is now current.
+// the response carries whichever is current.
 func refreshTokens(ctx context.Context, tokenEndpoint, refreshToken string) (tokenResponse, error) {
 	var tr tokenResponse
 	status, err := postForm(ctx, tokenEndpoint, url.Values{

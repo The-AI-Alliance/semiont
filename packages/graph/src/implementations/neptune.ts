@@ -412,7 +412,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
    * vertex per call, so it is O(N) in the size of the KB rather than in the
    * size of the result. Neo4j is the production path and pushes the whole
    * query — filter, rank, page — into Cypher; Neptune and JanusGraph are not
-   * deployment targets today. If either becomes one at scale, the fix is a
+   * deployment targets. If either becomes one at scale, the fix is a
    * Gremlin rank expression (`choose` over `toLower`, engine-version
    * permitting), not a return to per-gateway search semantics.
    */
@@ -908,8 +908,8 @@ export class NeptuneGraphDatabase implements GraphDatabase {
             // Vertex (Resource)
             resources.push(vertexToResource(element));
           } else {
-            // Edge - skip for now as we're using vertex-based annotations
-            // We'd need to query for annotations between resources
+            // Edge - skipped: annotations are vertices, so filling them in
+            // would need a query for annotations between resources
           }
         }
 
@@ -1073,12 +1073,6 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       this.logger?.error('Failed to resolve references in Neptune', { error });
       throw error;
     }
-  }
-  
-  async detectAnnotations(_resourceId: ResourceId): Promise<Annotation[]> {
-    // This would use AI/ML to detect annotations in a resource
-    // For now, return empty array as a placeholder
-    return [];
   }
   
   // Tag Collections - stored as special vertices in the graph

@@ -4,10 +4,9 @@
  *
  * The conformance suite pins the codec's two halves against each store's
  * decode path. This pins the seam between them: that a store applies the bag
- * verbatim in its own dialect and adds nothing of its own. That is where the
- * `selector: '{}'` was minted — not in the codec, but in three hand-written
- * write paths that each decided what a selector was called and what it
- * defaulted to.
+ * verbatim in its own dialect and adds nothing of its own. A hand-written
+ * write path that decides for itself what a selector is called and what it
+ * defaults to is where a `selector: '{}'` gets minted — outside the codec.
  *
  * The drivers are fakes, so what is under test is the store's own code, not a
  * database. Edge creation (BELONGS_TO/REFERENCES/TAGGED_AS) and connection
@@ -117,8 +116,8 @@ function neo4jStore(): { db: Neo4jGraphDatabase; recorded: Recorded[] } {
       if (!params.props) return { records: [] };
 
       // The annotation write is `SET a = $props` — the codec's string, stored as
-      // written and read back verbatim. It used to re-set `created` as a native
-      // temporal, whose toString() reformatted the value on the way out.
+      // written and read back verbatim. Re-setting `created` as a native
+      // temporal would reformat the value on the way out, via its toString().
       return { records: [{ get: (key: string) => (key === 'a' ? { properties: props } : []) }] };
     },
     close: async () => {},
@@ -173,9 +172,9 @@ describe('neo4j write path', () => {
     await db.createAnnotation(HIGHLIGHT);
     await db.listAnnotations({ type: 'highlight' });
 
-    // The bug this closes: every store's filter asked for 'TextualBody' while
-    // every store wrote 'SpecificResource', so the highlight filter matched
-    // nothing. Both sides read the same derivation now.
+    // A filter asking for 'TextualBody' while the write stores
+    // 'SpecificResource' matches no highlight. Both sides read the same
+    // derivation.
     const query = recorded[1]!;
     expect(query.cypher).toContain('a.type = $type');
     expect(query.params.type).toBe(recorded[0]!.props.type);
@@ -342,7 +341,7 @@ describe.each(GREMLIN_STORES)('%s write path', (_name, makeStore) => {
     expect(getStorageUri(read!)).toBeUndefined();
   });
 
-  it('persists BOTH properties of a selector update — neptune used to write only the quoted text', async () => {
+  it('persists BOTH properties of a selector update — the selector and its quoted text', async () => {
     const { db, written } = makeStore();
     await db.createAnnotation(SOURCE_ONLY);
 

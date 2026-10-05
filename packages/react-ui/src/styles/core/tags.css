@@ -12,11 +12,6 @@
    - Small gray tag: .semiont-tag.semiont-tag--secondary.semiont-tag--small
    - Compact rounded tag: .semiont-tag.semiont-tag--compact.semiont-tag--rounded-sm
    - Info tag with border: .semiont-tag.semiont-tag--info
-
-   Compatibility Mappings (use base classes above instead):
-   - .semiont-resource-card__tag → .semiont-tag.semiont-tag--secondary.semiont-tag--compact.semiont-tag--rounded-sm
-   - .semiont-entity-tags__tag → .semiont-tag.semiont-tag--info.semiont-tag--rounded-md
-   - .semiont-tagging-panel__tag → .semiont-tag
    ============================================ */
 
 /* Tags Container */
@@ -56,14 +51,6 @@
   color: var(--semiont-color-gray-300);
 }
 
-/* Clickable Tag */
-
-/* Tag with Remove Button */
-
-/* Tag Icon */
-
-/* Large Tag Variant */
-
 /* Small Tag Variant */
 .semiont-tag--small {
   padding: calc(var(--semiont-panel-padding-xs) * 0.5) calc(var(--semiont-panel-padding-xs) * 1.5);
@@ -97,5 +84,3 @@
   color: var(--semiont-color-blue-300);
   border-color: var(--semiont-color-blue-800);
 }
-
-/* Outlined Tag Variant */

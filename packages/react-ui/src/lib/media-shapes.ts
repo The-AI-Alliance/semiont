@@ -73,7 +73,7 @@ export function isShapeSupported(
  * by character offset, storage-tier rows and registry misses because
  * `SelectorType` has no "not annotatable" member. That catch-all is harmless
  * rather than a claim: `getSupportedShapes` offers those types no shapes, and
- * the write path refuses them outright (MEDIA-CAPABILITY-DISPATCH D6).
+ * the write path refuses them outright.
  *
  * @param mediaType - MIME type of the resource
  * @returns Selector type (fragment, svg, or text)

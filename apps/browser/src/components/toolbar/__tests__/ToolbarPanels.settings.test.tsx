@@ -1,15 +1,11 @@
 /**
  * ToolbarPanels owns APPLYING the settings its panel emits.
  *
- * Theme and Line Numbers were applied by per-route subscriptions — eleven
- * copies — and the signed-out knowledge layout never got one, so both
- * controls were visibly dead when signed out (the two chronic e2e reds in
- * 13-settings-panel.spec.ts). Locale never had the problem because its
- * handler lives HERE, in the component that is mounted wherever the panel
- * renders. This pins the hoist: the panel being mounted and the panel
- * working are the same condition.
- *
- * See .plans/bugs/settings-theme-and-line-numbers-inert-when-signed-out.md
+ * The Theme, Line Numbers and Locale handlers live HERE, in the component
+ * that is mounted wherever the panel renders, so the panel being mounted and
+ * the panel working are the same condition. A per-route subscription leaves
+ * a control dead on any route without one, the signed-out knowledge layout
+ * among them.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
@@ -50,6 +46,18 @@ vi.mock('@semiont/react-ui', async () => {
 });
 
 import { ToolbarPanels } from '../ToolbarPanels';
+import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
+
+const keyboardShortcuts = { openKeyboardHelp: vi.fn() };
+
+/** ToolbarPanels as the app mounts it: inside the keyboard-shortcuts context. */
+function renderPanels() {
+  return render(
+    <KeyboardShortcutsContext.Provider value={keyboardShortcuts}>
+      <ToolbarPanels activePanel={null} theme="system" />
+    </KeyboardShortcutsContext.Provider>,
+  );
+}
 
 describe('ToolbarPanels — settings application lives with the panel', () => {
   beforeEach(() => {
@@ -59,7 +67,7 @@ describe('ToolbarPanels — settings application lives with the panel', () => {
   });
 
   it('applies settings:theme-changed itself, so the control works wherever the panel renders', () => {
-    render(<ToolbarPanels activePanel={null} theme="system" />);
+    renderPanels();
 
     expect(captured.subs).not.toBeNull();
     const handler = captured.subs!['settings:theme-changed'];
@@ -70,7 +78,7 @@ describe('ToolbarPanels — settings application lives with the panel', () => {
   });
 
   it('applies settings:line-numbers-toggled itself', () => {
-    render(<ToolbarPanels activePanel={null} theme="system" />);
+    renderPanels();
 
     const handler = captured.subs!['settings:line-numbers-toggled'];
     expect(handler).toBeDefined();
@@ -79,14 +87,14 @@ describe('ToolbarPanels — settings application lives with the panel', () => {
     expect(spies.toggleLineNumbers).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the locale handler registered — the control that always worked must not regress', () => {
-    render(<ToolbarPanels activePanel={null} theme="system" />);
+  it('registers the locale handler alongside the other two', () => {
+    renderPanels();
 
     expect(captured.subs!['settings:locale-changed']).toBeDefined();
   });
 
   it('subscribes even with no panel open — settings apply regardless of panel visibility', () => {
-    render(<ToolbarPanels activePanel={null} theme="system" />);
+    renderPanels();
 
     // The component renders null for activePanel=null, but the hooks above
     // the early return must still have registered the handlers.

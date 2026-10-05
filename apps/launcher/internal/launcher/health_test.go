@@ -2,16 +2,12 @@ package launcher
 
 import "testing"
 
-// The health endpoint had three homes that disagreed: `statusServices` (17
-// literals with hardcoded ports), `serviceEndpoint` (15 cases, missing the
-// archivist, librarian and dispatcher entirely), and literals inside the
-// sidecar flows. Status probed NATS on 4222 whatever the config said.
-//
-// The literals below are what each of those homes said, frozen. They are the
-// evidence that one derivation reproduces all three — not a fourth home.
+// healthEndpoint is the one home for the URL a start gates on and status
+// reports. The literals below pin what it derives, with a plan and without
+// one — they are not a second home.
 
-// What `statusServices` said, for a report with no record to read a driver
-// from. This is the static half: no plan, so no config-owned port.
+// The status report, with no record to read a driver from. This is the
+// static half: no plan, so no config-owned port.
 func TestHealthEndpointReproducesTheStatusRoster(t *testing.T) {
 	for _, c := range []struct{ role, want string }{
 		{"worker", "http://localhost:24100/health"},
@@ -38,8 +34,8 @@ func TestHealthEndpointReproducesTheStatusRoster(t *testing.T) {
 	}
 }
 
-// What `serviceEndpoint` said, for a stack whose config is known. The ports
-// here are the defaults, so the two homes agreed — until a config moved one.
+// The start gates, for a stack whose config is known. The ports here are the
+// defaults, so they agree with the static half.
 func TestHealthEndpointReproducesTheStartGates(t *testing.T) {
 	plan := &launchPlan{
 		GatewayPort: 4000,
@@ -66,8 +62,6 @@ func TestHealthEndpointReproducesTheStartGates(t *testing.T) {
 		{"vectors", "qdrant", "http://localhost:6333/readyz"},
 		{"inference", "ollama", "http://localhost:11434/api/version"},
 		{"database", "postgres", "tcp:localhost:5432"},
-		// The three `serviceEndpoint` never had a case for: it returned ""
-		// for them, and each flow carried its own literal instead.
 		{"archivist", driverSemiont, "http://localhost:24103/health"},
 		{"librarian", driverSemiont, "http://localhost:24104/health"},
 		{"dispatcher", driverSemiont, "http://localhost:24105/health"},
@@ -81,9 +75,8 @@ func TestHealthEndpointReproducesTheStartGates(t *testing.T) {
 	}
 }
 
-// The defect the collapse fixes, and the reason it is worth doing: a config
-// that moves a port must be probed at the port it moved to. Every one of
-// these was hardcoded in `statusServices`.
+// The reason there is one derivation: a config that changes a port must be
+// probed at the port it names, which a hardcoded copy cannot do.
 func TestHealthEndpointFollowsAConfigThatMovesAPort(t *testing.T) {
 	plan := &launchPlan{
 		GatewayPort: 4400,
@@ -102,7 +95,7 @@ func TestHealthEndpointFollowsAConfigThatMovesAPort(t *testing.T) {
 		{"gateway", driverSemiont, "http://localhost:4400/api/health"},
 	} {
 		if got := healthEndpoint(c.role, c.driver, plan); got != c.want {
-			t.Errorf("%s moved its port: %q, want %q — this is what three hardcoded copies could not do", c.role, got, c.want)
+			t.Errorf("%s moved its port: %q, want %q — the probe must follow the config's port", c.role, got, c.want)
 		}
 	}
 }

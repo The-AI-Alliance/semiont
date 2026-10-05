@@ -7,7 +7,7 @@
  * - Error handling
  * - Lifecycle (stop)
  *
- * CONTEXT-UNIFICATION P4: the matcher reads the unified `GatheredContext` — `focus.annotation`
+ * The matcher reads the unified `GatheredContext` — `focus.annotation`
  * for the anchor, and the flattened views (connections, citedByCount) are derived from the shared
  * `graph` via core `deriveViews`. Fixtures build a `KnowledgeGraph` (via `buildGraph`) so the
  * derivation reproduces the connection/citation signals the scorer reads.
@@ -48,7 +48,7 @@ const testSourceResource: AnnotationFocus['sourceResource'] = {
  * `deriveViews(graph, MAIN_ID)` reproduces the flattened signals the scorer reads:
  * - `connections`: main→peer edges (peer resource nodes), carrying `bidirectional`.
  * - `citedBy`/`citedByCount`: inbound `citation` edges. A citer in `citedByMissing` is an edge
- *   with NO node — a missing-view citer (still counted, per P4 (ii)=A).
+ *   with NO node — a missing-view citer (still counted: the views report the graph as it is).
  * - `siblingEntityTypes`: annotation nodes attached to the resource.
  */
 function buildGraph(opts: {
@@ -66,7 +66,7 @@ function buildGraph(opts: {
     nodes.push({ id: resourceId(c.resourceId), type: 'resource', label: c.resourceName, entityTypes: c.entityTypes });
     edges.push({ source: MAIN_ID, target: c.resourceId, type: 'related', bidirectional: c.bidirectional ?? false });
   }
-  // D12: a citation is its linking annotation — an embedded annotation node
+  // A citation is its linking annotation — an embedded annotation node
   // anchored by annotation-of → citing resource and cites → main.
   const w3c = (id: string, source: string, motivation: 'linking' | 'commenting') => ({
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
@@ -453,9 +453,9 @@ describe('Matcher', () => {
     });
 
     it('hydrates a graph-lagging neighborhood candidate from the view instead of dropping it', async () => {
-      // graph-read-after-write-coverage.md P2: the connection endpoint was
-      // just created — its node isn't woven yet, but the view (the fresher
-      // projection) has the descriptor. The candidate must not be dropped.
+      // The connection endpoint was just created — its node isn't woven yet,
+      // but the view (the fresher projection) has the descriptor. The
+      // candidate must not be dropped.
       mockSearchFn2.mockResolvedValue([]);
       mockGetResource.mockResolvedValue(null); // graph lags for everyone
       mockViewGet.mockImplementation((id: any) =>
@@ -485,9 +485,8 @@ describe('Matcher', () => {
     });
 
     it('hydrates a graph-lagging semantic candidate from the view instead of dropping it', async () => {
-      // Post-GREEN pin (added after the "is this done?" review — the code
-      // path was fixed alongside the neighborhood loop; this pins it
-      // independently rather than by call-shape similarity).
+      // Pins the semantic lane independently of the neighborhood loop above,
+      // rather than by call-shape similarity.
       const localBus = new EventBus();
       const viewGet = vi.fn().mockImplementation((id: unknown) =>
         String(id) === 'res-sem'
@@ -519,16 +518,16 @@ describe('Matcher', () => {
       }
     });
 
-    it('counts missing-view citers in citedByCount (P4 (ii)=A delta)', async () => {
+    it('counts missing-view citers in citedByCount', async () => {
       // The focal resource is cited by two resources; one citer's node is absent
-      // from the graph (its view is missing). Per (ii)=A, `deriveViews` reports the
+      // from the graph (its view is missing). `deriveViews` reports the
       // graph as-is — it counts the missing-view citer — so `citedByCount` reflects
-      // the full reference history, NOT the old precomputed map that dropped it.
+      // the full reference history.
       //
       // Gamma is a neighborhood-only candidate with no name/entity/recency signal, so
       // its score is exactly: connected (+10) + citedBy boost (min(citedByCount*2, 15)).
-      // citedByCount = 2 → +4 → 14. The OLD behavior would have dropped the missing-view
-      // citer (citedByCount = 1 → +2 → 12); pinning 14 documents the intended rise.
+      // citedByCount = 2 → +4 → 14. Dropping the missing-view citer would give
+      // citedByCount = 1 → +2 → 12.
       mockSearchFn2.mockResolvedValue([]);
       mockGetResource.mockImplementation((id: ResourceId) => {
         if (id === resourceId('res-c')) return Promise.resolve({ '@id': 'res-c', name: 'Gamma' });

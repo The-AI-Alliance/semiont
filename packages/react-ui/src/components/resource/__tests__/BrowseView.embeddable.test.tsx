@@ -1,12 +1,11 @@
 /**
- * EMBEDDABLE-RESOURCE-VIEWER step 1a — BrowseView renders provider-free.
+ * The embeddable viewer — BrowseView renders provider-free.
  *
  * BrowseView takes its `session` + `sparkleAnnotationIds` as props (not
  * `useSemiont()` / `useResourceAnnotations()`), and subscribes to session-scoped
  * beckon events via `session.subscribe`. `AnnotateToolbar` is mocked here — its
- * own provider decoupling is step 1b — so this spec isolates BrowseView's body.
- *
- * Started RED (tsc: no `session` prop) and GREEN once step 1a lands.
+ * own provider-freedom is pinned in AnnotateView.embeddable.test.tsx — so this
+ * spec isolates BrowseView's body.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -15,8 +14,8 @@ import type { SemiontSession } from '@semiont/sdk';
 import { BrowseView } from '../BrowseView';
 import { resourceId } from '@semiont/core';
 
-// AnnotateToolbar still calls useSemiont() (step 1b) — stub it out so this spec
-// exercises only BrowseView's own provider-freedom.
+// AnnotateToolbar is stubbed out so this spec exercises only BrowseView's own
+// provider-freedom.
 vi.mock('../../annotation/AnnotateToolbar', () => ({ AnnotateToolbar: () => null }));
 vi.mock('react-markdown', () => ({ default: ({ children }: { children: string }) => <div>{children}</div> }));
 vi.mock('remark-gfm', () => ({ default: () => ({}) }));

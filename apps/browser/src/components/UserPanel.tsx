@@ -20,9 +20,9 @@ export function UserPanel() {
   const session = useObservable(semiont.activeSession$);
   const user = useObservable(session?.user$) ?? null;
   const activeKnowledgeBase = session?.kb ?? null;
-  const displayName = user?.name ?? user?.email?.split('@')[0] ?? t('user');
+  const displayName = user?.name ?? t('user');
   const avatarUrl = user?.image ?? null;
-  const userDomain = user?.domain || user?.email?.split('@')[1];
+  const userDomain = user?.domain;
   const [imageError, setImageError] = useState(false);
   const { timeRemaining } = useSessionExpiry();
   const sessionTimeFormatted = formatTime(timeRemaining);
@@ -110,7 +110,6 @@ export function UserPanel() {
  * Rendered only where a session is guaranteed. `UserPanel` itself renders
  * inside `ToolbarPanels`, which the unauthenticated knowledge layout also
  * mounts — there `activeSession$` is null and there is nothing to sign out of.
- * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
  *
  * Signing out is one call: the browser forgets the stored session and revokes
  * the refresh token at the issuer. The gateway has no part in it — it never
@@ -121,9 +120,7 @@ function SignOutButton({ session, label }: { session: SemiontSession; label: str
   const router = useRouter();
 
   const handleSignOut = async () => {
-    if (session.kb) {
-      await semiont.signOut(session.kb.id);
-    }
+    await semiont.signOut(session.kb.id);
     router.push('/');
   };
 

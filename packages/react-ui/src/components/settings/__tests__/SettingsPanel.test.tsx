@@ -84,8 +84,7 @@ describe('SettingsPanel', () => {
       // toggleLineNumbers → the switch must flip. The apply step happens in
       // a DIFFERENT component, so the switch can only flip if all
       // useLineNumbers consumers share one value. A prop-fed switch over a
-      // per-caller useState is how e2e 13:77/:134/:189 went red.
-      // See .plans/bugs/line-numbers-toggle-desynced-by-hoist.md
+      // per-caller useState never flips.
       function OtherConsumer() {
         const { toggleLineNumbers } = useLineNumbers();
         return <button data-testid="other-consumer" onClick={toggleLineNumbers} />;
@@ -215,13 +214,7 @@ describe('SettingsPanel', () => {
     });
   });
 
-  /**
-   * The footer was deleted; Settings absorbed the three items worth keeping
-   * (the policy links were dropped outright). These pin that they arrived —
-   * a relocation that silently lost one of them would otherwise look like a
-   * clean deletion.
-   */
-  describe('About block (absorbed from the deleted footer)', () => {
+  describe('About block', () => {
     it('names the app, its tagline and the running version', () => {
       renderWithProviders(<SettingsPanel {...defaultProps} />);
 

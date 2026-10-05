@@ -21,7 +21,7 @@
  * `semiont-service` (SERVICE_ROLE): the floor every service client carries — the
  * gateway gates `/api/tokens/agent` on it and the Archivist gates its read path.
  * `semiont-worker` (WORKER_ROLE): the grant only the worker client carries — the
- * dispatcher authorizes a `job:claim` by it (EXTRACT-JOBS P0).
+ * dispatcher authorizes a `job:claim` by it.
  *
  * The spec names roles too: a limit on a principal states a coefficient per
  * role (`x-semiont-limits`, `roles`). A role named there that is none of these

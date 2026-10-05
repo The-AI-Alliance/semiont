@@ -2,7 +2,7 @@
 /**
  * Audit EventBus/SSE Architecture Compliance
  *
- * Detects legacy callback-based SSE patterns that violate EventBus-native architecture.
+ * Detects callback-based SSE patterns that violate EventBus-native architecture.
  *
  * Checks:
  * 1. No callback properties in SSE options (onProgress, onComplete, onError)

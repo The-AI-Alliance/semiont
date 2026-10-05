@@ -48,20 +48,20 @@ When the project sets `[git] sync = true` in `.semiont/config`, mutating operati
 | `move()` | `git mv` |
 | `remove()` | `git rm` (or `git rm --cached` with `keepFile`) |
 
-Every method accepts `{ noGit: true }` for callers that manage staging themselves (e.g. bulk imports that stage once at the end). Without git sync, the store uses plain filesystem operations. Git commands run via `execFileSync` with argument arrays — no shell interpolation.
+Every mutating method accepts `{ noGit: true }` for callers that manage staging themselves (e.g. bulk imports that stage once at the end). Without git sync, the store uses plain filesystem operations. Git commands go through one stager per repository (`createStager`), which defers and deduplicates `git add`, serializes every command, and runs each via `execFile` with an argument array — no shell interpolation.
 
 ### 5. Framework Independence
 
-The package has no dependencies on web frameworks or HTTP libraries. It depends on `@semiont/core` for the `SemiontProject` and `Logger` types and the media-type registry (`MEDIA_TYPES`, `SupportedMediaType`), and on `pdfjs-dist` for PDF parsing. It runs anywhere Node runs: gateway, CLI, scripts, tests.
+The package has no dependencies on web frameworks or HTTP libraries. It depends on `@semiont/core` for the `SemiontProject` and `Logger` types and the anchoring vocabulary (`AnchoredText`, `PdfTextItem`), on `pdfjs-dist` for PDF parsing and on `tesseract.js` for OCR. It runs anywhere Node runs: services, CLI, scripts, tests.
 
-In production the store is instantiated once by [@semiont/make-meaning](../../make-meaning/)'s `createKnowledgeBase()` and shared via the `KnowledgeBase.content` field.
+In a running stack the store is instantiated once, by the Archivist's entry point in [@semiont/make-meaning](../../make-meaning/), which hands each actor the slice it uses. The in-process root's `createKnowledgeBase()` builds the same store as the `KnowledgeBase.content` field.
 
 ## PDF Text-Layer Extraction
 
 The second half of the package extracts positioned text from native PDFs so annotations can be anchored to both character offsets and page geometry.
 
 - [src/extract-pdf-text-layer.ts](../src/extract-pdf-text-layer.ts) walks every page with pdfjs-dist's `getTextContent()`, concatenating runs into a single reading-order `text` string and recording each run's `[start, end)` character range plus its PDF-point geometry. Scanned/image-only PDFs (no text items) return `null`.
-- [src/locate.ts](../src/locate.ts) answers the reverse question: given a character span of `text`, which rectangles on which pages does it cover? Overlapping runs are grouped by page, then into lines (runs whose baselines are within 2pt), producing one bounding rectangle per line.
+- `locate`, in `@semiont/core`'s [pdf-anchoring.ts](../../core/src/pdf-anchoring.ts), answers the reverse question: given a character span of `text`, which rectangles on which pages does it cover? Overlapping runs are grouped by page, then into lines (runs whose baselines are within 2pt), producing one bounding rectangle per line.
 
 Server and browser split the coordinate work: everything here is in PDF point space with a bottom-left origin (the server has no canvas); the browser performs the Y-flip and scaling when rendering highlights. The shared `PdfCoordinate` type and the viewrect FragmentSelector codec live in `@semiont/core`.
 
@@ -71,16 +71,16 @@ Server and browser split the coordinate work: everything here is in PDF point sp
 ┌──────────────────────────────────────┐
 │            @semiont/content          │
 │                                      │
-│  WorkingTreeStore   PDF text layer   │
-│  files + git index  extract + locate │
+│  WorkingTreeStore   PDF extraction   │
+│  files + git index  text layer + OCR │
 │                                      │
-│  checksum utils     storage URIs     │
+│  checksum utils     content reads    │
 └──────────────────────────────────────┘
         ▲
         │ instantiated by
 ┌──────────────────────────────────────┐
 │        @semiont/make-meaning         │
-│  createKnowledgeBase() → kb.content  │
+│  the Archivist's composition root    │
 │  events, views, graph, vectors       │
 └──────────────────────────────────────┘
 ```
@@ -89,4 +89,4 @@ What this package deliberately does **not** do:
 
 - **No event sourcing** — recording *that* a resource was created/moved/removed is the event store's job; this package only touches bytes.
 - **No metadata persistence** — `StoredResource` is returned to the caller, who records it in events. The store keeps no database of its own.
-- **No HTTP** — transport belongs to the gateway and `@semiont/http-transport`.
+- **No HTTP serving** — the one HTTP caller here is `archivistContentReads`, which fetches bytes from the Archivist; the routes themselves belong to the Archivist and the gateway.

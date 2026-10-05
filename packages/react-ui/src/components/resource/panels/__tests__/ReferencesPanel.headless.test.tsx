@@ -1,15 +1,12 @@
 /**
- * HEADLESS-ANNOTATION-PANELS Phase 1 (B2) — keystone: the panel family mounts
- * provider-free with a session PROP.
+ * Keystone: the annotation panel family mounts provider-free with a session
+ * PROP.
  *
  * ReferencesPanel rendered with a fake session prop and NO SemiontProvider /
- * routing contexts (Link/routes are already props; translations fall back to
- * bundled English): lists a reference annotation, and an entry click reaches
- * session.client.browse.click — the same interaction the Browser gets, no
- * provider anywhere.
- *
- * Started RED (the family reads useSemiont() — provider crash; no session
- * prop) and GREEN once B2 lands.
+ * routing contexts (Link/routes are props; translations come from the English
+ * TranslationProvider the test mounts): lists a reference annotation, and an
+ * entry click reaches session.client.browse.click — the same interaction the
+ * Browser gets, no session provider anywhere.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
@@ -86,8 +83,7 @@ describe('ReferencesPanel — headless (session prop, no session provider)', () 
 
   describe('incoming references — terminal load failure', () => {
     // `referencedByLoading` alone cannot distinguish "still in flight" from
-    // "dead" (B15), so the panel used to render "Loading..." for ever.
-    // See .plans/PANEL-FAILURE-STATES.md
+    // "dead" (B15): a panel reading only it renders "Loading..." for ever.
 
     type PanelProps = React.ComponentProps<typeof ReferencesPanel>;
     const base = (): PanelProps => {
@@ -150,7 +146,7 @@ describe('ReferencesPanel — headless (session prop, no session provider)', () 
   describe('entity types — terminal load failure', () => {
     // The picker's empty branch says "no entity types", which is a claim about
     // the knowledge base. On a failed load it is false — the KB may have
-    // plenty. See .plans/PANEL-FAILURE-STATES.md
+    // plenty.
 
     it('does not present a failed entity-type load as "none exist"', () => {
       const { session } = fakeSession();

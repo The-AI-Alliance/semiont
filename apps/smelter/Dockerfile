@@ -3,8 +3,8 @@
 # THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
 # published @semiont/make-meaning and runs `dist/smelter-main.js` out of it; the
 # source is packages/make-meaning/src/smelter-main.ts. Only the image
-# recipe lives here — the entrypoint stayed in its package deliberately, so
-# that moving it out would not have to promote ~18 of that package's
+# recipe lives here — the entrypoint lives in its package deliberately:
+# moving it out would promote ~18 of that package's
 # internals to public API just to satisfy a directory layout. If you change
 # the CMD, change it against that file.
 #
@@ -69,11 +69,11 @@ USER semiont
 
 ENV NODE_ENV=production
 # Where this deployment keeps the anchored-text store. The Smelter DERIVES
-# these artifacts and holds the store directly (ANCHORED-TEXT-TO-SMELTER P1),
-# owning its stamp since P5 — so the path it reads must match the path the
-# launcher mounts onto. `smelter-main` refuses to boot without it rather than
-# defaulting: a default would write a full OCR pass per representation into a
-# directory nobody mounted, lose it on the next stop, and re-derive forever.
+# these artifacts, holds the store directly and is the writer whose image
+# stamps it — so the path it reads must match the path the launcher mounts onto.
+# `smelter-main` refuses to boot without it rather than defaulting: a default
+# would write a full OCR pass per representation into a directory nobody
+# mounted, lose it on the next stop, and re-derive forever.
 ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
 EXPOSE 24101
 

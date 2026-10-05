@@ -50,7 +50,7 @@ export type Refines<Schema, Refined extends Schema> = Refined;
  * stamped by the gateway from the token at `emit`. Who *requested* the work
  * and what *produced* it are not fields here — they are derived by joining
  * this event to the job it cites, whose own events carry their own verified
- * emitters (VERIFIED-PROVENANCE).
+ * emitters.
  *
  * `timestamp` is for humans. Ordering is `metadata.sequenceNumber`'s.
  */

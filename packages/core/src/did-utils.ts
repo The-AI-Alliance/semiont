@@ -9,9 +9,9 @@
  *
  * `<domain>` is the deployment's `[site] domain` — one identity, with its
  * people and software peers named beneath it. A person's `<subject>` is the
- * value of the issuer claim `[identity] subjectClaim` selects, URI-encoded
- * (VERIFIED-PROVENANCE P5): which claim is declared per deployment, never
- * inferred here, and the person's email is a fact about them, not their name.
+ * value of the issuer claim `[identity] subjectClaim` selects, URI-encoded:
+ * which claim is declared per deployment, never inferred here, and the
+ * person's email is a fact about them, not their name.
  *
  * `didToAgent` is the inverse: parse the DID, recognize whether the
  * subject is a person or a software peer, and return a typed Agent.
@@ -38,7 +38,7 @@ type Agent = components['schemas']['Agent'];
  * mints the identical string in Go (`kbconfig.go` `didWeb()`), and the two
  * MUST agree byte-for-byte: the Browser joins discovered KBs to connected
  * ones on this value, and a mismatch fails silently — looking implemented
- * while never matching (.plans/KB-IDENTITY-VS-ADDRESS.md).
+ * while never matching.
  *
  * A KB has no did when it declares no domain; identity is declared, never
  * defaulted or inferred from an address.
@@ -50,8 +50,8 @@ export function kbDid(domain: string): string {
 /**
  * The knowledge base's RESOURCE identifier: its did:web rendered as the https
  * URL that DID method resolves to, and the single value a token's `aud` must
- * carry (EXTERNAL-IDENTITY). `did:web` turns the colon path into a slash path,
- * so `did:web:example.github.io:my-kb` identifies
+ * carry. `did:web` turns the colon path into a slash path, so
+ * `did:web:example.github.io:my-kb` identifies
  * `https://example.github.io/my-kb`.
  *
  * This is an IDENTIFIER, not an address. Nothing dereferences it, and it does
@@ -115,35 +115,7 @@ export function softwareToAgent(software: {
 }
 
 /**
- * Parse a DID:WEB string into a typed Agent.
- *
- * Recognizes:
- *   did:web:<host>:users:<subject>         → Person  (no name: the DID does not carry one)
- *   did:web:<host>:agents:<provider>:<model> → Software (provider + model)
- *
- * Anything else falls back to a Person with the trailing segment as
- * `name`. This is the read-side inverse of `userToDid`/`agentToDid`.
- *
- * **`@id` is emitted only when the input is URI-shaped**, because every Agent
- * branch declares it `format: "uri"` and `@id` is required by none of them. A
- * non-URI value fails all three branches of the `oneOf`, and wire validation is
- * per-PAYLOAD — so one bad Agent rejects an entire `browse:resources-result`,
- * denying a reply about every resource in it. Measured 2026-09-09: one resource
- * carrying a raw CUID from pre-DID events (2026-03-26) made an unfiltered listing
- * of nine permanently unreturnable.
- *
- * This is a deliberate TOLERANCE, not a compatibility shim — it carries no
- * version check, no legacy branch, no second code path. It is one function
- * declining to assert an identifier it cannot vouch for. It is also a waypoint:
- * `userId` is declared `{"type":"string"}` with "DID of the user" in a
- * DESCRIPTION that nothing enforces, and the sequence out of here is (1) clean the
- * legacy values, (2) constrain `userId` in `StoredEventResponse.json`, (3) delete
- * this tolerance as unreachable. Do not delete it before step 2: the log is
- * append-only and the offending records cannot be edited away, so a strict reader
- * today would convert a partial failure into a total one.
- */
-/**
- * Who a record is attributed to — derived, never asserted (VERIFIED-PROVENANCE P2).
+ * Who a record is attributed to — derived, never asserted.
  *
  * `requester` is the DID of whoever asked for the work: the emitter of the
  * `job:create` a write cites, as the dispatcher recorded it on `job:assigned`;
@@ -194,12 +166,40 @@ export function attribution(chain: { requester: string; executor: string; genera
   return generator !== undefined ? { creator, generator, wasAttributedTo } : { creator, wasAttributedTo };
 }
 
+/**
+ * Parse a DID:WEB string into a typed Agent.
+ *
+ * Recognizes:
+ *   did:web:<host>:users:<subject>         → Person  (no name: the DID does not carry one)
+ *   did:web:<host>:agents:<provider>:<model> → Software (provider + model)
+ *
+ * Anything else falls back to a Person with the trailing segment as
+ * `name`. This is the read-side inverse of `userToDid`/`agentToDid`.
+ *
+ * **`@id` is emitted only when the input is URI-shaped**, because every Agent
+ * branch declares it `format: "uri"` and `@id` is required by none of them. A
+ * non-URI value fails all three branches of the `oneOf`, and wire validation is
+ * per-PAYLOAD — so one bad Agent rejects an entire `browse:resources-result`,
+ * denying a reply about every resource in it: one resource whose events carry a
+ * raw CUID instead of a DID makes an unfiltered listing permanently
+ * unreturnable.
+ *
+ * This is a deliberate TOLERANCE, not a compatibility shim — it carries no
+ * version check, no legacy branch, no second code path. It is one function
+ * declining to assert an identifier it cannot vouch for. It is also a waypoint:
+ * `userId` is declared `{"type":"string"}` with "DID of the user" in a
+ * DESCRIPTION that nothing enforces, and the sequence out of here is (1) clean the
+ * non-DID values, (2) constrain `userId` in `StoredEventResponse.json`, (3) delete
+ * this tolerance as unreachable. Do not delete it before step 2: the log is
+ * append-only and the offending records cannot be edited away, so a strict reader
+ * would convert a partial failure into a total one.
+ */
 export function didToAgent(did: string | undefined | null): Agent {
   if (!did) {
-    // No `'unknown'` fabrication. `@id` is optional in every branch, so a missing
-    // identifier reads as missing — and the old placeholder was strictly worse
-    // than absence: it invented a value AND was itself not a URI, so it broke the
-    // wire on the way past.
+    // No placeholder `@id`. It is optional in every branch, so a missing
+    // identifier reads as missing — and a placeholder is strictly worse than
+    // absence: it invents a value AND, not being a URI, breaks the wire on the
+    // way past.
     return { '@type': 'Person', name: 'unknown' };
   }
   const parts = did.split(':');
@@ -213,7 +213,7 @@ export function didToAgent(did: string | undefined | null): Agent {
    * An absolute URI, as `format: "uri"` accepts it: a scheme, a colon, and at
    * least one non-space character after it. Pinned against Ajv's own answer by
    * the round-trip test — `did:` and `a:` are schemes with nothing following and
-   * Ajv rejects both, which a bare `/:/ ` check would have let through.
+   * Ajv rejects both, which a bare `/:/ ` check would let through.
    */
   const uriShaped = (value: string): boolean => /^[A-Za-z][A-Za-z0-9+.-]*:\S/.test(value);
   /** Spread into the result so a non-URI omits the key entirely. */
@@ -233,12 +233,12 @@ export function didToAgent(did: string | undefined | null): Agent {
 
   if (usersIdx >= 0 && usersIdx === parts.length - 2) {
     // NO NAME. The subject is a stable opaque identifier (the issuer's
-    // `sub`), so naming a Person after it printed "By 59523dd4-a0e3-…" on
+    // `sub`), so naming a Person after it prints "By 59523dd4-a0e3-…" on
     // every artifact — a manufactured value the next reader cannot tell from
     // a real name. What a person is called is a fact ABOUT this identity,
-    // recorded once per change and resolved when a record is READ
-    // (PERSON-PROFILE); absence here is what lets that resolution be the one
-    // place a Person acquires a name.
+    // recorded once per change and resolved when a record is READ; absence
+    // here is what lets that resolution be the one place a Person acquires a
+    // name.
     return {
       '@type': 'Person',
       ...identity,

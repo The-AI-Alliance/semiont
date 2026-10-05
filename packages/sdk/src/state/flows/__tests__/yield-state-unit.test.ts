@@ -44,7 +44,7 @@ function withYield(fromContextFn: ReturnType<typeof vi.fn>): TestClient {
 }
 
 // All lifecycle flows through the `client.yield.fromContext` Observable —
-// yield-state-unit no longer subscribes to bus channels directly. Tests drive
+// yield-state-unit subscribes to no bus channel directly. Tests drive
 // lifecycle by `next`/`complete`/`error`-ing the mocked Observable that
 // `fromContext` returns.
 describe('createYieldStateUnit', () => {
@@ -79,9 +79,9 @@ describe('createYieldStateUnit', () => {
     stateUnit.dispose();
   });
 
-  // GENERATION-OUTPUT-FORMAT P1: the unit's options ARE the namespace's
-  // (`GenerationOptions`), so every knob the wire carries reaches
-  // `fromContext` untouched — no per-field restatement to fall behind.
+  // The unit's options ARE the namespace's (`GenerationOptions`), so every
+  // knob the wire carries reaches `fromContext` untouched — no per-field
+  // restatement to fall behind.
 
   it('forwards outputMediaType — and every other generation knob — untouched', () => {
     const fromContextFn = vi.fn(() => new Observable(() => {}));
@@ -189,8 +189,7 @@ describe('createYieldStateUnit', () => {
     expect(gen[gen.length - 1]).toBe(false);
     expect(prog[prog.length - 1]).not.toBeNull();
 
-    // CLEAN-PROGRESS D1: no 2 s timer, and no 5 s one either — the two flows
-    // had different endings in the same component. Dismissal is explicit.
+    // A finished run stays: no timer dismisses it. Dismissal is explicit.
     vi.advanceTimersByTime(60_000);
     expect(prog[prog.length - 1]).not.toBeNull();
 
@@ -254,14 +253,14 @@ describe('createYieldStateUnit', () => {
     stateUnit.dispose();
   });
 
-  // The unit's own 300s timer is GONE (FLOW-LIFECYCLE-CONVERGENCE A1): the
-  // one stall guard lives in `runGeneration`'s producer, so it cannot be
-  // exercised through this file's mocked `fromContext`. Its behavior — stall
-  // → server-side cancel → typed error → display cleared — is pinned at the
-  // stream level in `namespaces/__tests__/generation-stall.test.ts`,
-  // including the unit's drive path over the REAL namespace.
+  // The unit has no timer of its own: the one stall guard lives in
+  // `runGeneration`'s producer, so it cannot be exercised through this
+  // file's mocked `fromContext`. Its behavior — stall → server-side cancel →
+  // typed error → display cleared — is pinned at the stream level in
+  // `namespaces/__tests__/generation-stall.test.ts`, including the unit's
+  // drive path over the REAL namespace.
 
-  // ── The outcome (GENERATE-FROM-RESOURCE P2, D8) ─────────────────────────────
+  // ── The outcome ─────────────────────────────────────────────────────────────
   // The link's fields come from `job:complete` — the broadcast, after citations
   // attach — which the driven stream already delivers as its `complete`-kind
   // event. The unit holds them so the terminal frame can render a link long
@@ -296,7 +295,7 @@ describe('createYieldStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('outcome$ carries the truncated bit — the terminal frame derives its sentence from the OUTCOME, not the racing final progress frame (GENERATION-ARRIVAL D5)', () => {
+  it('outcome$ carries the truncated bit — the terminal frame derives its sentence from the OUTCOME, not the racing final progress frame', () => {
     const progressSubject = new Subject<YieldGenerationEvent>();
     tc = withYield(vi.fn(() => progressSubject.asObservable()));
     const stateUnit = createYieldStateUnit(tc.client, 'en');
@@ -386,7 +385,7 @@ describe('YieldStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
     const opts = { title: 'T', storageUri: 'file://x' };
     // Gateway stub errors synchronously: drive()'s error path runs (no throw) and
-    // the timeout() timer is cleared on the sync error, so no timers leak across runs.
+    // the unit holds no timer, so none leaks across runs.
     const stub = () => new Observable((s) => s.error(new Error('axiom-stub')));
     assertStateUnitAxioms({
       setup: () => {

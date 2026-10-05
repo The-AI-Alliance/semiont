@@ -17,7 +17,7 @@ import { openResourceByName } from '../fixtures/discover';
  *     `purpose: 'tagging'` — or NO body at all when no type is picked. See
  *     ReferencesPanel.handleCreateReference for the exact payload shape.
  *
- * Regression targets:
+ * Guards against:
  *   - the reference-creation path breaking without the highlight path also
  *     breaking (e.g. if the tag selector chip stops feeding
  *     `pendingEntityTypes` into the mark:submit body, the UI appears to work
@@ -26,8 +26,7 @@ import { openResourceByName } from '../fixtures/discover';
  *     but `MarkSubmitEvent.body` is `minItems: 1`, so an empty selection must
  *     OMIT `body` rather than send `[]`. Sending `[]` 400s at `/bus/emit`, and
  *     `mark.submit` is fire-and-forget — so the failure is silent and the
- *     button simply looks inert. That shipped, and survived, precisely because
- *     the only test here picked a type. Found live 2026-08-24.
+ *     button simply looks inert. A test that picks a type cannot see it.
  *
  * Requires the seeded KB to have ≥1 entity type defined; the resource
  * must have at least 2 characters of selectable text.
@@ -36,9 +35,8 @@ import { openResourceByName } from '../fixtures/discover';
 // A NAMED text seed — see 04 for why "first card" is not safe here.
 // CodeMirror mounts only for text-bearing resources, and Discover's
 // newest-first order makes the first card's media type incidental.
-// Deliberately the same seed as 04: these two shared a resource under the
-// old first-card lookup, and spec 09 hunts for the unresolved references
-// this test leaves behind.
+// Deliberately the same seed as 04: spec 09 hunts for the unresolved
+// references this test leaves behind.
 const SEED = 'Quantum Computing Primer';
 
 /**
@@ -191,9 +189,9 @@ test.describe('manual reference', () => {
 
     await createReference(page);
 
-    // The whole point. With `body: []` this never arrived: `/bus/emit`
-    // answered 400 ("must NOT have fewer than 1 items") and the fire-and-forget
-    // submit swallowed it, so the only visible symptom was nothing happening.
+    // The whole point. With `body: []` this never arrives: `/bus/emit`
+    // answers 400 ("must NOT have fewer than 1 items") and the fire-and-forget
+    // submit swallows it, so the only visible symptom is nothing happening.
     await bus.expectRequestResponse('mark:create-request', 'mark:create-ok', 30_000);
 
     await expect

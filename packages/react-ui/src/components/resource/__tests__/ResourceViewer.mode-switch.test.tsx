@@ -4,10 +4,9 @@
  * These tests ensure that switching between Browse and Annotate modes
  * doesn't cause React Hook ordering violations.
  *
- * Bug: Previously had 3 separate useEventSubscriptions() calls causing
- * "Rendered more hooks than during the previous render" error.
- *
- * Fix: Combined all event subscriptions into a single useEventSubscriptions() call.
+ * ResourceViewer makes all its event subscriptions in a single
+ * useSessionEventSubscriptions() call, so a mode switch cannot raise
+ * "Rendered more hooks than during the previous render".
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -19,11 +18,10 @@ import { TranslationProvider } from '../../../contexts/TranslationContext';
 import { ResourceAnnotationsProvider } from '../../../contexts/ResourceAnnotationsContext';
 import type { ResourceDescriptor as SemiontResource, ResourceId } from '@semiont/core';
 
-// ResourceViewer now takes its session as a prop; its children (BrowseView /
-// AnnotateView) and ResourceAnnotationsContext still resolve the client via
-// useSemiont(). Mock useSemiont to emit a minimal session carrying a stub
-// client with the methods those children touch. The session also
-// exposes `on` and `emit` stubs so useEventSubscription(s) don't explode.
+// ResourceViewer takes its session as a prop; ResourceAnnotationsContext
+// resolves the client via useSemiont(). Mock useSemiont to emit a minimal
+// session carrying a stub client with the methods it touches. The session
+// also exposes `on` and `emit` stubs so useEventSubscription(s) don't explode.
 const stubClient = {
   browse: { invalidateAnnotationList: vi.fn() },
   markAnnotation: vi.fn(),

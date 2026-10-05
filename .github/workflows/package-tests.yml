@@ -45,7 +45,7 @@ jobs:
       - name: Install dependencies
         run: npm ci --include=optional
 
-      # The JetStream conformance suite (JOB-QUEUE-DRIVER P1) runs against a
+      # The JetStream job-queue driver's conformance suite runs against a
       # real nats-server spawned from PATH — a mocked broker would prove
       # nothing about claim atomicity, CAS merges, or redelivery.
       - name: Install nats-server (jobs only)

@@ -1,27 +1,24 @@
 /**
- * Regression: a one-shot `await` of a Browse live-query must REJECT when the
- * underlying bus request fails — it must not hang forever.
+ * Regression: a one-shot `.fresh()` read of a Browse live query must REJECT
+ * when the underlying bus request fails — it must not hang forever.
  *
- * Root cause (see .plans/SEMIONT-BUG-browse-annotations.md, "Link 3"): the
- * cache primitive's `doFetch` swallows fetch failures (CACHE-SEMANTICS B6 —
- * "fetch failure leaves the previous state intact") so that live-query
- * *subscribers* keep their stale value / stay in the loading state. That is
- * correct for the subscribe path. But the *await* path
- * (`CacheObservable.then` = first-non-undefined emission) then never sees a
- * value and never rejects — so `await client.browse.annotations(rId)` hangs
- * indefinitely when the result is lost on the wire, instead of surfacing the
- * `bus.timeout` / `bus.rejected` the busRequest already produced.
+ * Root cause: the cache primitive's subscribe path (`runFetchSWR`) swallows
+ * fetch failures (CACHE-SEMANTICS B6 — "fetch failure leaves the previous
+ * state intact") so that live-query *subscribers* keep their stale value /
+ * stay `pending`. That is correct for the subscribe path. But a one-shot read
+ * that only waited on the stream for its first value never saw one and never
+ * rejected — so it hung indefinitely when the result was lost on the wire,
+ * instead of surfacing the `bus.timeout` / `bus.rejected` the busRequest
+ * already produced.
  *
  * The contract this pins:
- *   1. `await` of a Browse read REJECTS when the underlying fetch fails.
- *   2. `.subscribe(...)` of the same read sees `undefined` (loading) through
- *      the B14 retry chain — and when the chain EXHAUSTS on a key with no
- *      cached value, the subscriber is ERRORED (B15) rather than left on
- *      `undefined` forever. (Pre-B15 this file pinned "never errored"; the
- *      liveness axioms showed that to be L1's forbidden fourth state for
- *      value-less keys — see
- *      .plans/bugs/valueless-key-terminal-failure-starves-observers.md.
- *      Keys WITH a stale value keep B6 stale-beats-error: never errored.)
+ *   1. `.fresh()` on a Browse read REJECTS when the underlying fetch fails.
+ *   2. `.subscribe(...)` of the same read sees `pending` through the B14
+ *      retry chain — and when the chain EXHAUSTS on a key with no cached
+ *      value, the key's state becomes `failed`, an EMISSION carrying the
+ *      error (B15), rather than `pending` forever. The stream itself never
+ *      errors. Keys WITH a stale value keep B6 stale-beats-error: never
+ *      `failed`.
  *
  * No gateway: a fake transport drives `busRequest` to a deterministic
  * failure-channel rejection.
@@ -75,7 +72,7 @@ const noopContent = {
   dispose: () => {},
 } as unknown as IContentTransport;
 
-describe('browse read — await semantics on fetch failure (Link 3)', () => {
+describe('browse read — await semantics on fetch failure', () => {
   let bus: EventBus;
   let browse: BrowseNamespace;
   let setOnEmit: ReturnType<typeof makeFakeTransport>['setOnEmit'];
@@ -104,8 +101,8 @@ describe('browse read — await semantics on fetch failure (Link 3)', () => {
   });
 
   it('.fresh() rejects when the bus request fails (does not hang)', async () => {
-    // Today the cache swallows the rejection → the await hangs → 'hung' (RED).
-    // After the fix the await rejects → 'rejected' (GREEN).
+    // A read that waited on the swallowed rejection would hang → 'hung'.
+    // `.fresh()` rejects → 'rejected'.
     const outcome = await Promise.race([
       browse.annotations(rId).fresh().then(() => 'resolved', () => 'rejected'),
       delay(250).then(() => 'hung'),
@@ -114,7 +111,7 @@ describe('browse read — await semantics on fetch failure (Link 3)', () => {
     expect(outcome).toBe('rejected');
   });
 
-  it('subscribe on a value-less key: pending through the retry chain, then a failed emission on exhaustion (B15/D1)', async () => {
+  it('subscribe on a value-less key: pending through the retry chain, then a failed emission on exhaustion (B15)', async () => {
     const states: Array<{ status: string; error?: Error }> = [];
     const sub = browse.annotations(rId).subscribe((s) => states.push(s));
 
@@ -123,7 +120,7 @@ describe('browse read — await semantics on fetch failure (Link 3)', () => {
 
     // No value ever emitted (the store was never written — that half of B6
     // stands): pending, then the exhausted chain's terminal failure as a
-    // `failed` EMISSION (B15/D1) — carrying the bus rejection, not silence.
+    // `failed` EMISSION (B15) — carrying the bus rejection, not silence.
     expect(states.map((s) => s.status)).toEqual(['pending', 'failed']);
     expect((states[1] as { error: Error }).error.message).toContain('boom');
   });

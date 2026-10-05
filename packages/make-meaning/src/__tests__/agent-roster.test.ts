@@ -3,11 +3,11 @@
  * `[site] domain`, the SAME value `/api/tokens/agent` mints worker DIDs from —
  * never from service topology (`publicURL`) or any connection vantage.
  *
- * Pins Lane B of .plans/bugs/agent-did-host-skew.md (Option 1): three
- * processes derived "the KB's domain" from three vantage points, and spec
- * 18's attribution loop caught the roster and the worker-stamped `generator`
- * disagreeing on the host of one logical agent. One value, one owner: the
- * roster consumes the committed domain; it derives nothing.
+ * What it pins: a process that derives "the KB's domain" from its own vantage
+ * point can disagree with another on the host of one logical agent — the
+ * roster against the worker-stamped `generator`, which spec 18's attribution
+ * loop compares. One value, one owner: the roster consumes the committed
+ * domain; it derives nothing.
  */
 import { describe, it, expect } from 'vitest';
 import { loadTomlConfig } from '@semiont/core';
@@ -17,11 +17,10 @@ import { rosterConfigFrom, type MakeMeaningConfig } from '../config';
 const WORKERS = { default: { type: 'anthropic' as const, model: 'claude-haiku-4-5' } };
 
 describe('deriveAgentRoster — DID domain is the committed [site] domain (the mint), never topology', () => {
-  it('mints did:web:<domain> — the host-skew pin (topology no longer exists to mint from)', () => {
-    // Pre-fix, the roster minted from services.gateway.publicURL's hostname
-    // (→ did:web:localhost while identity said kb.example). That field is
-    // deleted from MakeMeaningConfig — the skew is now unrepresentable, and
-    // this pins the one remaining source.
+  it('mints did:web:<domain> — the host-skew pin (the config holds no topology to mint from)', () => {
+    // MakeMeaningConfig carries no gateway publicURL, so a roster minted from
+    // its hostname (→ did:web:localhost while identity says kb.example) is
+    // unrepresentable; this pins the one source.
     const config: MakeMeaningConfig = {
       services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
       gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
@@ -61,11 +60,11 @@ describe('deriveAgentRoster — DID domain is the committed [site] domain (the m
   });
 });
 
-// The archivist lists the roster and holds no inference credential (ruled
-// 2026-09-29: "The worker and the librarian are the only two images that
-// should get inference secrets"). It derives the roster from the keyless
-// role maps, and the result is the roster the credentialed config derives:
-// the same agents, the same job types, the same inheritance.
+// The archivist lists the roster and holds no inference credential: the
+// worker and the librarian are the only two images that get inference
+// secrets. It derives the roster from the keyless role maps, and the result
+// is the roster the credentialed config derives: the same agents, the same
+// job types, the same inheritance.
 describe('the archivist derives the roster without [inference]', () => {
   const TOML = `
 [environments.local.identity]

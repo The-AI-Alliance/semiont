@@ -21,11 +21,10 @@ type BodyPurpose = components['schemas']['BodyPurpose'];
  * omits it, the matcher ignores purpose and matches on identity alone.
  *
  * Callers SHOULD provide `purpose` when they know it (e.g., the bind flow
- * always unlinks a `purpose: 'linking'` body) so that future multi-purpose
- * annotations continue to disambiguate correctly. Leaving `purpose`
- * unspecified matches whichever purpose comes first in the body — which is
- * fine today because Semiont annotations currently have at most one body
- * item per (type, source/value) pair.
+ * always unlinks a `purpose: 'linking'` body) so that multi-purpose
+ * annotations disambiguate correctly. Leaving `purpose` unspecified matches
+ * whichever purpose comes first in the body — which is safe only while an
+ * annotation has at most one body item per (type, source/value) pair.
  */
 export type BodyItemIdentity =
   | { type: 'SpecificResource'; source: string; purpose?: BodyPurpose }
@@ -69,7 +68,7 @@ export function findBodyItem(
 
     // Purpose match — ONLY if the caller specified one. Omitted purpose
     // means "any purpose on this identity", which is what the bind-flow
-    // unlinker wants today.
+    // unlinker wants.
     if (identity.purpose !== undefined) {
       const itemPurpose = (item as { purpose?: unknown }).purpose;
       if (itemPurpose !== identity.purpose) continue;

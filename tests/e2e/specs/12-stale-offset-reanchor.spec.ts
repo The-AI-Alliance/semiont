@@ -1,10 +1,8 @@
 import { test, expect } from '../fixtures/auth';
-import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
-import { SemiontClient } from '@semiont/sdk';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
- * Render-time verbatim re-anchoring (ROBUST-RENDER.md).
+ * Render-time verbatim re-anchoring.
  *
  * The annotation's two W3C selectors can disagree when the offset goes
  * stale — content shifted after the annotation was written — but the

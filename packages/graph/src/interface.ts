@@ -18,10 +18,10 @@ const MUTABLE_RESOURCE_FACETS = new Set<string>(['archived', 'entityTypes']);
 
 /**
  * Resources are immutable apart from two facets: archival state, and entity
- * tags (mutable since the controlled-vocabulary decision — the Weaver folds
- * `mark:archived`/`mark:unarchived` and `mark:entity-tag-added`/`-removed`
- * through `updateResource`). Every implementation validates its input with
- * this one guard so the mutability contract cannot drift per gateway.
+ * tags (the Weaver folds `mark:archived`/`mark:unarchived` and
+ * `mark:entity-tag-added`/`-removed` through `updateResource`). Every
+ * implementation validates its input with this one guard so the mutability
+ * contract cannot drift per gateway.
  */
 export function assertMutableResourceUpdate(input: UpdateResourceInput): void {
   const keys = Object.keys(input);
@@ -102,9 +102,6 @@ export interface GraphDatabase {
   createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]>;
   resolveReferences(inputs: { annotationId: AnnotationId; source: ResourceId }[]): Promise<Annotation[]>;
 
-  // Auto-detection
-  detectAnnotations(resourceId: ResourceId): Promise<Annotation[]>;
-  
   // Tag Collections
   getEntityTypes(): Promise<string[]>;
   addEntityType(tag: string): Promise<void>;

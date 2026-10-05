@@ -6,20 +6,20 @@ user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
 ---
 
-You are helping a user ingest a corpus into a Semiont knowledge base. This is the foundation operation every KB starts with: declare the published entity-type vocabulary, then upload the source files as Resources. After ingest, the corpus is queryable via `browse.resources(...)` and ready for the detection / canonicalization / aggregation passes that build the rest of the KB's layered data model.
+You are helping a user ingest a corpus into a Semiont knowledge base. Every knowledge base starts here: declare the vocabulary of entity types, then make each source file a resource. After ingest the corpus can be browsed, and the detection, canonicalization and aggregation skills have something to work on.
 
-This skill builds **Layer #1 (Primary Material)** — the ground truth that every subsequent layer points back to. Without it, nothing else moves.
+This skill builds the primary-material layer of [the layered data model](../README.md#the-layers): the documents every later layer points back to.
 
 ## Two operations, in order
 
-1. **Declare the vocabulary** via `semiont.frame.addEntityTypes([...])`. This publishes the KB's entity-type set on the `frame:add-entity-type` channel; downstream `browse.entityTypes()` queries see a coherent vocabulary instead of an accumulating set of strings stamped implicitly. The list is a per-KB constant, declared once at the top of the ingest script.
-2. **Upload the corpus** via `semiont.yield.resource({...}) × N`. One call per source file. Each Resource carries a `format` (media type), `entityTypes` (its kind), `name` (display label), `storageUri` (a stable identifier — `file://...` or another scheme), and a `file` body (a Buffer of the content).
+1. **Declare the vocabulary** with `semiont.frame.addEntityTypes([...])`. The list belongs to the knowledge base, and the ingest script is where it is written down.
+2. **Upload the corpus** with `semiont.yield.resource({...})`, once for each file. A resource has a `name` (what people see), a `format` (its media type), `entityTypes` (what kind of document it is), a `storageUri` (where its file lives in the knowledge base's working tree) and a `file` (its bytes).
 
-Both operations are idempotent on the schema side (declaring an already-declared entity type is a no-op) but **not** on the resource side (re-running creates duplicate resources unless the script de-dupes by name or storageUri first).
+Declaring an entity type that is already declared changes nothing. Uploading is not like that: nothing in an upload checks whether its file is already a resource, so a script that runs twice must skip what is there. The complete script below does.
 
-## Client setup
+## Sign in
 
-`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant; it owns the token lifecycle, which matters because the realm pins an access token to **five minutes** and an ingest can outrun that. Construct once and reuse `session.client` for both `frame` and `yield` calls; `await session.dispose()` when done.
+`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. The session then keeps the token fresh. An access token is short-lived (five minutes from the Keycloak a launcher stack runs) and an ingest can run longer, so use a session, not a bare client. Sign in once, use `session.client` for every call, and `await session.dispose()` when done.
 
 ```typescript
 import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
@@ -40,41 +40,25 @@ const session = await SemiontSession.signInDevice({
 const semiont = session.client;
 ```
 
-## Step 1 — Declare the entity-type vocabulary
+## Step 1: declare the entity types
 
-The vocabulary is **every entity type the KB will use across all of its skills**, not just the resource-level types from this ingest. Detection skills (linking / assessing / commenting / tagging) attach entity-type tags as annotation body values; aggregator skills synthesize new entity-type-bearing resources. Declaring everything upfront is what makes the schema layer a published artifact rather than implicit.
+Declare every entity type any skill in the knowledge base will use, not only the kinds of document this ingest uploads. Detection skills name entity types on the references they create, and aggregating skills stamp them on the resources they compose. A detection or generation job that names a type nobody declared is refused, and `browse.entityTypes()`, where the Browser and other skills read the vocabulary, lists only what was declared.
 
 ```typescript
 const KB_ENTITY_TYPES = [
-  // Resource-level types (used by yield.resource calls in this skill)
-  'Case',
-  'JudicialOpinion',
-  'StateCourt',
-  'SupremeCourt',
-  // Detection-pass entity types (used downstream by mark.assist)
-  'Person',
-  'Judge',
-  'Plaintiff',
-  'Defendant',
-  'Counsel',
-  // Synthesized aggregate types (used downstream by yield.resource composing markdown)
-  'Party',
-  'PrecedentGraph',
-  'SubsequentTreatment',
-  'DoctrinalTrace',
-  'Aggregate',
-  // ... etc.
+  // What the uploaded documents are
+  'Case', 'JudicialOpinion', 'StateCourt', 'SupremeCourt',
+  // What detection will look for
+  'Person', 'Judge', 'Plaintiff', 'Defendant', 'Counsel',
+  // What later skills will compose
+  'Party', 'PrecedentGraph', 'SubsequentTreatment', 'DoctrinalTrace', 'Aggregate',
 ];
 
 await semiont.frame.addEntityTypes(KB_ENTITY_TYPES);
-console.log(`Declared ${KB_ENTITY_TYPES.length} entity types via frame.`);
+console.log(`Declared ${KB_ENTITY_TYPES.length} entity types`);
 ```
 
-Centralizing the list at the top of the ingest script — and keeping it as the single source of truth — is the discipline that makes future skills know what vocabulary they can operate against.
-
-## Step 2 — Upload the corpus
-
-For each source file:
+## Step 2: upload the corpus
 
 ```typescript
 import { readFileSync } from 'node:fs';
@@ -84,80 +68,43 @@ const file = {
   name: 'State v. Smith (2018)',
   format: 'text/markdown',
   entityTypes: ['Case', 'JudicialOpinion', 'StateCourt'],
-  storageUri: 'file://corpus/case-001.md',
 };
 
-const buffer = readFileSync(file.path);
 const { resourceId } = await semiont.yield.resource({
   name: file.name,
-  file: buffer,
+  file: readFileSync(file.path),
   format: file.format,
   entityTypes: file.entityTypes,
-  storageUri: file.storageUri,
+  storageUri: `file://${file.path}`,
 });
 
-console.log(`+ ${file.path} → ${resourceId}`);
+console.log(`+ ${file.path} is ${resourceId}`);
 ```
 
-The `format` controls what downstream skills can do: `text/markdown` and `text/plain` resources are eligible for `mark.assist` (model-driven detection); `application/pdf` and other binary formats are cataloged but not yet text-analyzable. The `entityTypes` are the resource's kinds — they classify the resource for `browse.resources({ entityType: ... })` queries and for any skill that needs to filter the corpus by document kind.
+`storageUri` is `file://` followed by the file's path in the knowledge base's working tree. The upload puts the bytes there, so a corpus that is already in the repository keeps its paths. The event an upload appends under `.semiont/events/` is the record of the resource: commit it with the file.
 
-## Complete script skeleton
+`format` decides what later skills can do with the resource. `mark.assist` reads Markdown, plain text, HTML, JSON and PDF, and an image can be annotated by hand. [Media Types](../../../architecture/MEDIA-TYPES.md) has the whole table.
+
+`entityTypes` say what kind of document a resource is. `browse.resources({ entityType })` filters on them, and so does every skill that works on one kind of document.
+
+## Complete script
+
+Run it from the knowledge base's root. It uploads the Markdown and text files in `corpus/` and skips the ones that are already resources.
 
 ```typescript
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { extname, join, relative } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { extname } from 'node:path';
 
 import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
-// === The KB's published entity-type vocabulary ===
 const KB_ENTITY_TYPES = [
-  // Resource-level
-  'Case',
-  'JudicialOpinion',
-  'StateCourt',
-  'SupremeCourt',
-  // Detection-pass entity types (used by downstream mark.assist skills)
-  'Person',
-  'Judge',
-  'Plaintiff',
-  'Defendant',
-  'Counsel',
-  // Synthesized aggregate types (used by downstream aggregator skills)
-  'Party',
-  'PrecedentGraph',
-  'SubsequentTreatment',
-  'Aggregate',
+  'Case', 'JudicialOpinion', 'StateCourt', 'SupremeCourt',
+  'Person', 'Judge', 'Plaintiff', 'Defendant', 'Counsel',
+  'Party', 'PrecedentGraph', 'SubsequentTreatment', 'Aggregate',
 ];
 
-interface CorpusFile {
-  path: string;
-  name: string;
-  format: string;
-  entityTypes: string[];
-  storageUri: string;
-}
-
-function discoverCorpus(repoRoot: string): CorpusFile[] {
-  // Replace this with your corpus's actual layout. The pattern shown walks a
-  // single subdirectory of markdown files; a real ingest typically classifies
-  // files by directory + filename heuristics.
-  const dir = join(repoRoot, 'corpus');
-  const out: CorpusFile[] = [];
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
-    if (!statSync(full).isFile()) continue;
-    const ext = extname(entry).toLowerCase();
-    if (ext !== '.md' && ext !== '.txt') continue;
-    out.push({
-      path: relative(repoRoot, full),
-      name: entry.replace(/\.(md|txt)$/, '').replace(/[_-]/g, ' '),
-      format: ext === '.md' ? 'text/markdown' : 'text/plain',
-      entityTypes: ['Case', 'JudicialOpinion', 'StateCourt'],
-      storageUri: `file://${relative(repoRoot, full)}`,
-    });
-  }
-  return out;
-}
+const CORPUS_DIR = 'corpus';
+const FORMATS: Record<string, string> = { '.md': 'text/markdown', '.txt': 'text/plain' };
 
 async function ingest(): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
@@ -175,36 +122,42 @@ async function ingest(): Promise<void> {
   });
   const semiont = session.client;
 
-  // Step 1 — declare the vocabulary
-  console.log(`Declaring ${KB_ENTITY_TYPES.length} entity types via frame...`);
-  await semiont.frame.addEntityTypes(KB_ENTITY_TYPES);
+  try {
+    // Step 1: declare the vocabulary
+    await semiont.frame.addEntityTypes(KB_ENTITY_TYPES);
+    console.log(`Declared ${KB_ENTITY_TYPES.length} entity types`);
 
-  // Step 2 — discover and upload
-  const files = discoverCorpus(process.cwd());
-  console.log(`Discovered ${files.length} corpus file(s).`);
+    // Step 2: upload each file that is not a resource yet
+    const listing = await semiont.browse.files(CORPUS_DIR);
+    let created = 0;
+    let failed = 0;
 
-  let created = 0;
-  let failed = 0;
-  for (const file of files) {
-    try {
-      const buffer = readFileSync(file.path);
-      const { resourceId } = await semiont.yield.resource({
-        name: file.name,
-        file: buffer,
-        format: file.format,
-        entityTypes: file.entityTypes,
-        storageUri: file.storageUri,
-      });
-      created++;
-      console.log(`  + ${file.path} → ${resourceId}`);
-    } catch (e) {
-      failed++;
-      console.warn(`  ! ${file.path} failed: ${(e as Error).message}`);
+    for (const entry of listing.entries) {
+      if (entry.type !== 'file' || entry.tracked) continue;
+      const format = FORMATS[extname(entry.name).toLowerCase()];
+      if (!format) continue;
+
+      try {
+        const { resourceId } = await semiont.yield.resource({
+          name: entry.name.replace(/\.(md|txt)$/, '').replace(/[_-]/g, ' '),
+          file: readFileSync(entry.path),
+          format,
+          // Classify by your corpus's own layout: a directory, a filename pattern.
+          entityTypes: ['Case', 'JudicialOpinion', 'StateCourt'],
+          storageUri: `file://${entry.path}`,
+        });
+        created++;
+        console.log(`  + ${entry.path} is ${resourceId}`);
+      } catch (e) {
+        failed++;
+        console.warn(`  ! ${entry.path} failed:`, e);
+      }
     }
-  }
 
-  console.log(`Done. ${created} resources created, ${failed} failed.`);
-  await session.dispose();
+    console.log(`Done. ${created} resources created, ${failed} failed.`);
+  } finally {
+    await session.dispose();
+  }
 }
 
 ingest().catch((e) => {
@@ -213,16 +166,14 @@ ingest().catch((e) => {
 });
 ```
 
+`browse.files(dir)` lists a directory of the knowledge base's working tree. A file that is already a resource has `tracked: true` and carries its `resourceId`.
+
 ## Guidance for the AI assistant
 
-- **Declare the vocabulary upfront.** Skipping `frame.addEntityTypes` and just stamping entity-type strings on resources / annotations as you go "works" in the lenient sense — the strings get attached. But `browse.entityTypes()` then returns an accumulated drift instead of a coherent published set. Declare the full vocabulary in a `KB_ENTITY_TYPES` constant at the top of the ingest script.
-- **The vocabulary is per-KB, not per-skill.** Include every entity type any skill in the KB will use — resource-level types, detection-pass entity types, synthesized-aggregate types. The ingest script is the natural single source of truth for the published set.
-- **Re-running creates duplicate resources.** This skill does not deduplicate. To re-ingest cleanly, restart the gateway stack, or query existing resources via `browse.resources({ search: '<name>' })` and skip ones already present.
-- **Classify carefully by entity type.** A markdown contract should be `entityTypes: ['Contract']` not `['Document']`; a judicial opinion should be `['Case', 'JudicialOpinion', 'StateCourt']` not just `['Case']`. Downstream skills filter the corpus by these tags; ambiguous classification at ingest produces ambiguous queries later.
-- **PDFs are cataloged, not analyzed.** A resource with `format: 'application/pdf'` is queryable via `browse.resources(...)` but cannot be the target of `mark.assist`. PDF-to-markdown conversion is a separate operation; if the user needs body-content analysis on PDFs, ingest a markdown sibling alongside the PDF.
-- **Choose a `storageUri` that stays put.** Use `file://<path>` for files in the repo, or
-  another scheme for content from external sources. Nothing rewrites it behind you — the
-  value is maintained across moves (`yield:moved` relocates it) — so reusing the same URI
-  across re-runs is what lets other skills trace a resource back to its origin. It lands on
-  the resource's primary representation; read it back with `getStorageUri(resource)`.
-- **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated). See [Error Handling in Usage.md](../../Usage.md#error-handling).
+- **Declare the vocabulary first, and all of it.** Put every entity type the knowledge base's skills will use in one `KB_ENTITY_TYPES` list in the ingest script: the kinds of document, what detection looks for, what aggregates are stamped with.
+- **Skip what is already a resource.** An upload does not check. `browse.files(dir)` says which files are tracked.
+- **Classify precisely.** A contract is `['Contract']`, not `['Document']`. A judicial opinion is `['Case', 'JudicialOpinion', 'StateCourt']`, not `['Case']`. Later skills select documents by these types, and a vague type at ingest is a vague query later.
+- **Keep the corpus in the knowledge base's repository.** `storageUri` is a path in its working tree, and the resource's content is the file at that path.
+- **PDFs are first-class.** A PDF's text is extracted when it is ingested, and `mark.assist` reads it. An encrypted or damaged PDF is still a resource, and a job over it completes with a `declined` result.
+- **From the command line.** `semiont yield --upload <file>` makes one file under the knowledge base's root a resource, and `semiont frame --entity-type <name>` declares a type. Use them for a handful of files; write the script for a corpus.
+- **Errors.** Every SDK throw extends `SemiontError`: catch it and route on its `code`. See [Error Handling](../../Usage.md#error-handling).

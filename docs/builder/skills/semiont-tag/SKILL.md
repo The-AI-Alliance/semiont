@@ -6,31 +6,25 @@ user-invocable: true
 allowed-tools: Bash, Read, Write, Glob, Grep
 ---
 
-You are helping a user apply **tagging annotations** to a Semiont resource. The `tagging` motivation is reserved for **structural-analysis classification** — applying a registered schema like IRAC (Issue / Rule / Application / Conclusion), IMRAD (Introduction / Methods / Results / Discussion), or Toulmin (Claim / Evidence / Warrant / Counterargument / Rebuttal) to identify the structural role each passage plays in a document.
+You are helping a user add tagging annotations to a Semiont resource. The `tagging` motivation classifies a passage by the role it plays in a document's structure, against a registered schema: IRAC (Issue, Rule, Application, Conclusion), IMRAD (Introduction, Methods, Results, Discussion), Toulmin (Claim, Evidence, Warrant, Counterargument, Rebuttal), or one the knowledge base defines.
 
-This skill builds **Layer #2 (Annotations)** of the layered data model. Tagged annotations are queryable spans whose body carries the schema id (as a `classifying`-purpose `TextualBody`) plus the chosen category. Downstream aggregator skills (see [`semiont-aggregate`](../semiont-aggregate/SKILL.md)) walk these annotations to build structural overviews — *all the Rule paragraphs across the corpus*, *every Methods section in the literature review*.
+This skill works in the annotation layer of [the layered data model](../README.md#the-layers). A tag is a span anyone can query, and its body names the schema and the category. An aggregating skill such as [`semiont-aggregate`](../semiont-aggregate/SKILL.md) walks tags to build a structural overview: every Rule paragraph in a corpus, every Methods section in a literature review.
 
-## When to use this skill (vs. *vocabulary classification* via `linking`)
+## Tagging, or classifying with entity types
 
-Two body-level shapes look similar but should not be confused:
+Two things look alike and are not the same.
 
-- **Structural-analysis tagging (this skill).** The vocabulary is a *registered schema* — fixed, broadly-applicable, with categories that carry methodology-bound semantics (descriptions, examples). The categories are not user-defined per-corpus; they're defined by a research-methods framework. Use motivation `tagging`, pass `schemaId` and `categories`. The KB owns the schema definitions and registers them at runtime via `frame.addTagSchema(...)`.
-- **Vocabulary classification.** The "tag" is a flat enum the corpus declares for itself — theme labels (open-vocabulary), role tags (`Plaintiff`, `Defendant`, `Counsel`). Use motivation `linking` with `entityTypes`, declared via `frame.addEntityTypes` per KB. The annotation is technically a linking annotation; the body's tagging-purpose `TextualBody` carries the chosen value. See [`semiont-wiki`](../semiont-wiki/SKILL.md) for the linking-annotation pattern; the *Vocabulary classification* example below shows how to use it for flat enums.
+- **Tagging against a schema (this skill).** The vocabulary is a registered schema whose categories come from a method of analysis and carry a description and examples. Use motivation `tagging` with `schemaId` and `categories`. The knowledge base registers the schema with `frame.addTagSchema`.
+- **Classifying with entity types.** The vocabulary is a flat list the corpus declares for itself: theme labels, or role names such as `Plaintiff`, `Defendant` and `Counsel`. Use motivation `linking` with `entityTypes`, declared with `frame.addEntityTypes`. The annotation is a reference, and its body names the entity type. See [Classifying with entity types](#classifying-with-entity-types) below, and [`semiont-wiki`](../semiont-wiki/SKILL.md) for what references are for.
 
-The decision test: **does the vocabulary correspond to a published research-methods framework with category-level semantics?** IRAC yes (it's been the standard frame for legal analysis for decades). Theme labels no (they're discovered per corpus). Role tags no (they're entity-type subtypes).
+The test: does the vocabulary come from a published framework whose categories mean something on their own? IRAC does. Theme labels are discovered in one corpus. Role names are kinds of entity.
 
-## Prerequisite (structural-analysis tagging only): the schema must be registered
+## Sign in
 
-Tag schemas are runtime-registered per KB. The dispatcher resolves `schemaId` → full `TagSchema` against the KB's `__system__` projection at job-creation time; if the schema isn't registered, `mark.assist(..., 'tagging', { schemaId, ... })` rejects synchronously with `Tag schema not registered: <schemaId>`. You can:
-
-- Register the schema in this script via `await semiont.frame.addTagSchema(SCHEMA)` before calling `mark.assist`. Idempotent — re-runs with identical content are silent at the projection layer. This is the recommended pattern: each skill self-registers the schema(s) it uses.
-- Rely on a prior `register-tag-schemas` skill run to have populated the KB's projection. The semiont-* demo KBs each ship a `skills/register-tag-schemas/` for one-time bootstrap.
-- For vocabulary classifications that don't deserve a registered schema, use the linking shape (see below) instead of `tagging`.
-
-## Client setup
+`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password passes through the script. The session then keeps the token fresh. An access token is short-lived (five minutes from the Keycloak a launcher stack runs), so a session, not a bare client, is what keeps a script working past that. Sign in once, use `session.client` for every call, and `await session.dispose()` when done.
 
 ```typescript
-import { SemiontSession, InMemorySessionStorage, httpKb, type TagSchema, resourceId } from '@semiont/sdk';
+import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
 const session = await SemiontSession.signInDevice({
@@ -48,85 +42,77 @@ const session = await SemiontSession.signInDevice({
 const semiont = session.client;
 ```
 
-## Structural-analysis tagging (motivation `tagging`)
+## Tag against a schema
 
-Define the schema in your KB (typically in `src/tag-schemas.ts`), register it at startup, then call `mark.assist`:
+A tag schema belongs to the knowledge base that uses it. Write it as a `TagSchema` in the knowledge base's own source, register it, then run the job. A `tagging` job names its schema by id, and the stack refuses one whose schema is not registered (`Tag schema not registered: <id>`), so register first. Registering identical content again changes nothing, which makes it safe for every script to register the schemas it uses.
 
 ```typescript
-import { LEGAL_IRAC_SCHEMA } from '../../src/tag-schemas.js';
+import { resourceId, type TagSchema } from '@semiont/sdk';
 
-// Register the schema (idempotent — silent on identical re-registration).
+const LEGAL_IRAC_SCHEMA: TagSchema = {
+  id: 'legal-irac',
+  name: 'Legal Analysis (IRAC)',
+  description: 'Issue / Rule / Application / Conclusion framework for legal reasoning',
+  domain: 'legal',
+  tags: [
+    { name: 'Issue',       description: 'The legal question to be resolved',   examples: ['What must the court decide?'] },
+    { name: 'Rule',        description: 'The relevant law or legal principle', examples: ['What law applies?'] },
+    { name: 'Application', description: 'How the rule applies to the facts',   examples: ['How does the law apply here?'] },
+    { name: 'Conclusion',  description: 'The resolution',                      examples: ['What is the holding?'] },
+  ],
+};
+
 await semiont.frame.addTagSchema(LEGAL_IRAC_SCHEMA);
 
 const rId = resourceId('opinion-citizens-united');
 
-// Apply the IRAC schema to a judicial opinion
-const progress = await semiont.mark.assist(rId, 'tagging', {
+const done = await semiont.mark.assist(rId, 'tagging', {
   schemaId: LEGAL_IRAC_SCHEMA.id,
   categories: LEGAL_IRAC_SCHEMA.tags.map((t) => t.name),
 });
 
-console.log(`Created ${progress.progress?.createdCount ?? 0} IRAC tags`);
+const result = done.kind === 'complete' ? done.data.result : undefined;
+if (result?.kind === 'tag-annotation') {
+  console.log(`Created ${result.tagsCreated} of ${result.tagsFound} tags`, result.byCategory);
+}
 
 await session.dispose();
 ```
 
-The dispatcher resolves the `schemaId` against the KB's projection, embeds the full `TagSchema` in the worker's job params, and validates each `categories` entry against the schema's `tags`. Each resulting annotation gets a body containing:
+The worker reads the document once for each category, with that category's `description` and `examples` in its prompt, so the schema is the instruction. A category the schema does not have fails the job.
 
-- A `TextualBody` with `purpose: 'classifying'` and `value: schemaId` — identifies which schema applied.
-- A `TextualBody` with `purpose: 'tagging'` and `value: <categoryName>` — the chosen category for this span.
+Each tag's body has two items:
 
-Downstream skills can query for *every IRAC-Rule annotation across the corpus* via `browse.annotations` filtered on motivation + body shape.
+- A `TextualBody` with `purpose: 'tagging'` whose value is the category.
+- A `TextualBody` with `purpose: 'classifying'` whose value is the schema's id.
 
-## Defining a new tag schema
+## Classifying with entity types
 
-Author the schema directly in your KB's `src/tag-schemas.ts`:
-
-```typescript
-import type { TagSchema } from '@semiont/sdk';
-
-export const LEGAL_CITATION_TREATMENT_SCHEMA: TagSchema = {
-  id: 'legal-citation-treatment',
-  name: 'Citation Treatment',
-  description: 'Citator-style classification of how a citing case treats the cited case',
-  domain: 'legal',
-  tags: [
-    {
-      name: 'positive',
-      description: 'The citing case relies on, follows, applies, or extends the cited case',
-      examples: ['The court relied on Roe v. Wade in reaching its conclusion.'],
-    },
-    // ... more categories
-  ],
-};
-```
-
-Register at runtime via `frame.addTagSchema(...)` from any script that uses it. The schema's per-category `description` and `examples` get fed into the worker's prompt automatically — no separate `instructions` block required.
-
-## Vocabulary classification (motivation `linking`)
-
-For flat enums that aren't a structural-analysis schema — theme labels, role tags — use motivation `linking` with `entityTypes` listing the vocabulary. Declare the vocabulary via `frame.addEntityTypes` so it's queryable as part of the published entity-type set.
+For a flat list that is not a schema, declare it as entity types and detect references to them. Declare first: a job that names an undeclared type is refused. Detection runs once for each type.
 
 ```typescript
-// Declare the vocabulary as part of the KB's entity-type set.
+import { entityType } from '@semiont/sdk';
+
 const ROLES = ['Plaintiff', 'Defendant', 'Counsel'];
 await semiont.frame.addEntityTypes(ROLES);
 
-// Run the classification pass — motivation `linking`, entityTypes carrying the vocabulary.
-const progress = await semiont.mark.assist(rId, 'linking', {
+const done = await semiont.mark.assist(rId, 'linking', {
   entityTypes: ROLES.map(entityType),
-  instructions: `Tag each named party with their role in the action.`,
 });
+
+const result = done.kind === 'complete' ? done.data.result : undefined;
+if (result?.kind === 'reference-annotation') {
+  console.log(`Created ${result.totalEmitted} of ${result.totalFound} references`);
+}
 ```
 
-Each resulting annotation has motivation `linking` and a body containing a `TextualBody` with `purpose: 'tagging'` and the chosen value. Downstream skills query for *every annotation tagged 'Defendant'* by walking linking annotations and inspecting the entity-type tagging body.
+Each annotation has motivation `linking` and a body with one `TextualBody` whose `purpose` is `tagging` and whose value is the entity type. It gains a `SpecificResource` body when someone binds it to a resource.
 
 ## Manual
 
-For one-off targeted classification, use `mark.annotation` directly. For genuine `tagging` motivation, the body needs the schema-id `classifying` body plus the category:
+To write one tag by hand, give `mark.annotation` the same two-item body the worker writes:
 
 ```typescript
-// Manual structural-analysis tag (IRAC):
 await semiont.mark.annotation({
   target: {
     source: rId,
@@ -139,26 +125,44 @@ await semiont.mark.annotation({
   },
   motivation: 'tagging',
   body: [
-    { type: 'TextualBody', purpose: 'classifying', value: 'legal-irac' },
     { type: 'TextualBody', purpose: 'tagging', value: 'Rule' },
-  ],
-});
-
-// Manual vocabulary-classification tag (role):
-await semiont.mark.annotation({
-  target: { source: rId, selector: { type: 'TextQuoteSelector', exact: '...' } },
-  motivation: 'linking',
-  body: [
-    { type: 'TextualBody', purpose: 'tagging', value: 'Defendant' },
+    { type: 'TextualBody', purpose: 'classifying', value: 'legal-irac' },
   ],
 });
 ```
 
-## Complete script skeleton (structural-analysis IRAC)
+And one entity-type classification:
 
 ```typescript
-import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
-import { LEGAL_IRAC_SCHEMA } from '../../src/tag-schemas.js';
+await semiont.mark.annotation({
+  target: {
+    source: rId,
+    selector: { type: 'TextQuoteSelector', exact: 'Acme Holdings LLC' },
+  },
+  motivation: 'linking',
+  body: [{ type: 'TextualBody', purpose: 'tagging', value: 'Defendant' }],
+});
+```
+
+## Complete script
+
+```typescript
+import {
+  SemiontSession, InMemorySessionStorage, httpKb, resourceId, type TagSchema,
+} from '@semiont/sdk';
+
+const LEGAL_IRAC_SCHEMA: TagSchema = {
+  id: 'legal-irac',
+  name: 'Legal Analysis (IRAC)',
+  description: 'Issue / Rule / Application / Conclusion framework for legal reasoning',
+  domain: 'legal',
+  tags: [
+    { name: 'Issue',       description: 'The legal question to be resolved',   examples: ['What must the court decide?'] },
+    { name: 'Rule',        description: 'The relevant law or legal principle', examples: ['What law applies?'] },
+    { name: 'Application', description: 'How the rule applies to the facts',   examples: ['How does the law apply here?'] },
+    { name: 'Conclusion',  description: 'The resolution',                      examples: ['What is the holding?'] },
+  ],
+};
 
 async function tagIRAC(resourceIdStr: string): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
@@ -176,18 +180,23 @@ async function tagIRAC(resourceIdStr: string): Promise<void> {
   });
   const semiont = session.client;
 
-  // Self-register the schema. Idempotent.
-  await semiont.frame.addTagSchema(LEGAL_IRAC_SCHEMA);
+  try {
+    await semiont.frame.addTagSchema(LEGAL_IRAC_SCHEMA);
 
-  const rId = resourceId(resourceIdStr);
+    const done = await semiont.mark.assist(resourceId(resourceIdStr), 'tagging', {
+      schemaId: LEGAL_IRAC_SCHEMA.id,
+      categories: LEGAL_IRAC_SCHEMA.tags.map((t) => t.name),
+    });
 
-  const progress = await semiont.mark.assist(rId, 'tagging', {
-    schemaId: LEGAL_IRAC_SCHEMA.id,
-    categories: LEGAL_IRAC_SCHEMA.tags.map((t) => t.name),
-  });
-
-  console.log(`Created ${progress.progress?.createdCount ?? 0} IRAC tags`);
-  await session.dispose();
+    const result = done.kind === 'complete' ? done.data.result : undefined;
+    if (result?.kind === 'tag-annotation') {
+      console.log(`Created ${result.tagsCreated} of ${result.tagsFound} tags`, result.byCategory);
+    } else if (result?.kind === 'declined') {
+      console.log(`The resource's text could not be read: ${result.reason}`);
+    }
+  } finally {
+    await session.dispose();
+  }
 }
 
 const target = process.argv[2];
@@ -203,16 +212,13 @@ tagIRAC(target).catch((e) => {
 
 ## Guidance for the AI assistant
 
-- **First decide which shape applies.** Before writing the skill, ask: *is the vocabulary a structural-analysis schema (IRAC / IMRAD / Toulmin / similar) with methodology-bound category semantics, or is it a flat per-corpus enum?* Only the first uses motivation `tagging` with `schemaId` + `categories`. The second uses motivation `linking` with `entityTypes`.
-- **Schemas live with the KB that uses them.** Author the `TagSchema` literal in the KB's `src/tag-schemas.ts`. Don't try to add it to the SDK or to `@semiont/ontology` — neither owns schema data anymore.
-- **Self-register at the top of the skill.** `await semiont.frame.addTagSchema(THE_SCHEMA)` before any `mark.assist(..., 'tagging', ...)` call. Idempotent — re-runs are silent if the schema content is identical.
-- **The dispatcher rejects unknown schemaIds synchronously.** Calling `mark.assist(..., 'tagging', { schemaId: 'foo', categories: [...] })` against a KB that hasn't registered `'foo'` throws `Tag schema not registered: foo` at job-creation time. Verify your skill's schema-registration call runs before `mark.assist`.
-- **For vocabulary classifications, use `linking` + `entityTypes`.** Theme labels, role-tag enums, period themes, controlled-vocabulary anything that isn't methodology-bound. Declare the vocabulary via `frame.addEntityTypes`. The annotation is a linking annotation; its body's `tagging`-purpose `TextualBody` carries the value.
-- **Open-vocabulary themes are linking, not tagging.** When the model picks tag values itself (e.g., recurring themes from a literary corpus), the schema is unknown until after the run. This is the linking shape with `entityTypes` declared after the run via `frame.addEntityTypes` — *not* genuine `tagging`, which would require the categories upfront.
-- **Resulting annotation body shape.**
-  - Genuine tagging: `[{ type: 'TextualBody', purpose: 'classifying', value: '<schemaId>' }, { type: 'TextualBody', purpose: 'tagging', value: '<category>' }]`. The classifying body identifies which schema; the tagging body carries the category.
-  - Vocabulary linking: `[{ type: 'TextualBody', purpose: 'tagging', value: '<vocab-value>' }]` (and possibly a `SpecificResource` body if the linking annotation also resolves to a canonical node).
-- **Tags feed `semiont-aggregate`.** Whether tagging or vocabulary-linking, a downstream aggregator walks these annotations and rolls them up into deliverables (a SubsequentTreatment report, a per-document IRAC structural overview, a Theme resource per distinct theme value).
-- **Only `text/plain` and `text/markdown` resources are supported** for `mark.assist`. PDFs and images are not yet supported.
-- **Check results** with `semiont.browse.annotations(rId)` — for tagging filter on `motivation === 'tagging'` and inspect the `classifying` body; for linking-as-tagging filter on `motivation === 'linking'` and the `tagging`-purpose body value. To list which schemas a KB has registered, use `await semiont.browse.tagSchemas()` (cached per session, refreshes on `frame:tag-schema-added`).
-- **Errors** — every SDK throw extends `SemiontError` (re-exported from `@semiont/sdk`). Catch on it broadly, or narrow to `APIError` (HTTP, with `status`) or `BusRequestError` (bus-mediated). See [Error Handling in Usage.md](../../Usage.md#error-handling).
+- **Decide which shape applies first.** A schema with categories from a method of analysis is `tagging` with `schemaId` and `categories`. A flat list the corpus defines is `linking` with `entityTypes`.
+- **A schema lives with the knowledge base that uses it.** Write the `TagSchema` in the knowledge base's own source. Neither the SDK nor `@semiont/ontology` ships schemas.
+- **Register before you tag.** `await semiont.frame.addTagSchema(schema)` before any `mark.assist(..., 'tagging', ...)`. `await semiont.browse.tagSchemas().fresh()` lists what a knowledge base has registered.
+- **Themes the model discovers are entity types, not tags.** A `tagging` job needs its categories before it runs. When the values are only known afterwards, declare them with `frame.addEntityTypes` and classify with `linking`.
+- **Neither job takes `instructions`.** A `tagging` job is instructed by the schema's descriptions and examples, and a `linking` job by the entity types it is given. To steer a tagging pass, edit the schema.
+- **Tags feed aggregates.** [`semiont-aggregate`](../semiont-aggregate/SKILL.md) rolls tags up into a deliverable: a report of how later cases treated a precedent, a document's IRAC outline, a resource for each theme.
+- **What `mark.assist` can read.** A resource with text: Markdown, plain text, HTML, JSON, or a PDF. A resource with no text at all, such as an image, fails the job. A document whose text could not be read completes with a `declined` result and a reason code.
+- **Check results** with `await semiont.browse.annotations(rId).fresh()`. A tag has `motivation === 'tagging'` and a `classifying` body naming its schema. An entity-type classification has `motivation === 'linking'` and a `tagging` body naming its type.
+- **From the command line.** `semiont mark --delegate <resourceId> --motivation tagging --schema <id> --category <name>` runs the same job from the [launcher](../../../../apps/launcher/README.md#delegating-to-the-stack), and `semiont browse --tag-schemas` lists the schemas.
+- **Errors.** Every SDK throw extends `SemiontError`: catch it and route on its `code`. `BusRequestError` (a bus request, with a code such as `bus.timeout`) and `JobFailedError` narrow it. See [Error Handling](../../Usage.md#error-handling).

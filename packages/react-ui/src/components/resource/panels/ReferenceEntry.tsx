@@ -22,7 +22,7 @@ interface ReferenceEntryProps {
   onOpenResource?: (resourceId: ResourceId) => void;
   annotateMode?: boolean;
   isGenerating?: boolean;
-  /** The reference just got attention-worthy (created or resolved) — glow the icon (RESOLUTION-SPARKLE D6). */
+  /** The reference just got attention-worthy (created or resolved) — glow the icon, like its document span. */
   sparkle?: boolean;
   ref?: Ref<HTMLDivElement>;
 }
@@ -54,8 +54,8 @@ export function ReferenceEntry({
   const annotationType = hasFragmentSelector ? 'Fragment annotation' : hasSvgSelector ? 'Image annotation' : 'Annotation';
 
   // The link target's name and media type are the TARGET resource's facts,
-  // read from that resource through the SDK's cache where they are displayed
-  // (ANNOTATIONS-STAY-W3C D3) — the annotation itself stays exactly W3C.
+  // read from that resource through the SDK's cache where they are displayed —
+  // the annotation itself stays exactly W3C.
   // `browse.resource` is stable per id (cache + scope wrappers memoize), so
   // subscribing straight off the render read is safe; `failed` is an emission,
   // never a stream error, so `readyValue` covers every unresolved state. A
@@ -160,8 +160,8 @@ export function ReferenceEntry({
                   derivation (the shape generation mints — the vocabulary
                   deliberately has no 'deriving' purpose). Keyed off the fact
                   bind wrote, not off the target's name having loaded: the
-                  name arrives asynchronously now, and a headline keyed on it
-                  would flicker (ANNOTATIONS-STAY-W3C D4). */}
+                  name arrives asynchronously, and a headline keyed on it
+                  would flicker. */}
               {!selector && isResolved ? t('derived') : annotationType}
             </div>
           )}

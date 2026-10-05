@@ -17,7 +17,7 @@
  *
  * The materializer's I/O shell is tested separately in
  * `view-materializer.test.ts` — that suite confirms read→reduce→write
- * still works at the file-system layer. This file owns conditions on
+ * works at the file-system layer. This file owns conditions on
  * the reducer logic itself.
  */
 

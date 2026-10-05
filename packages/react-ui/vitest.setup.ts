@@ -31,11 +31,11 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).DOMMatrix) {
 }
 
 // jsdom does not implement Element.prototype.scrollIntoView AT ALL — the
-// property is undefined, with no descriptor. Tests that need to observe
-// scrolling therefore could not `vi.spyOn` it and had to assign the prototype
-// directly, which nothing restores: the clobbered method then leaked to every
+// property is undefined, with no descriptor. A test that needs to observe
+// scrolling therefore cannot `vi.spyOn` it and has to assign the prototype
+// directly, which nothing restores: the clobbered method then leaks to every
 // later test in the file. Defining a no-op here gives `vi.spyOn` something to
-// attach to, so those tests become ordinary restorable spies.
+// attach to, so those tests are ordinary restorable spies.
 if (typeof globalThis !== 'undefined' && (globalThis as any).Element) {
   const ElementCtor = (globalThis as any).Element;
   if (typeof ElementCtor.prototype.scrollIntoView !== 'function') {
@@ -90,14 +90,9 @@ afterEach(() => {
 // This refuses one loudly and names the URL, rather than letting it fail
 // against a server that is not there.
 //
-// It replaced a never-settling stub that silently absorbed every request: the
-// interim tier-1 fix from
-// `.plans/bugs/panels-tests-b14-tail-races-vitest-teardown.md`, whose own
-// acceptance criterion was its deletion once test-utils stopped composing a
-// real HttpTransport. That happened 2026-09-23
-// (.plans/TEST-UTILS-IN-MEMORY-TRANSPORT.md); throwing is safe now only
-// because the suite makes no requests at all — a rejecting stub would
-// otherwise re-trigger the B14 fail→log→retry→log chain that races vitest's
+// Throwing is safe only because the suite makes no requests at all:
+// test-utils composes no real HttpTransport, and under one a rejecting stub
+// would re-trigger the B14 fail→log→retry→log chain that races vitest's
 // worker teardown.
 const refuseNetwork: typeof fetch = (input) => {
   const url =

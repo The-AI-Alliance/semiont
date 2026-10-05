@@ -12,7 +12,7 @@ How the Semiont Browser is shipped and run.
 on **port 3000** and its entrypoint is a plain `node node_modules/@semiont/browser/server.js` — no
 CLI involved.
 
-Image build and publication: [administration/IMAGES.md](../../../docs/system/administration/IMAGES.md).
+Image build and publication: [administration/IMAGES.md](../../../docs/operator/administration/IMAGES.md).
 
 ## Running it
 
@@ -25,7 +25,7 @@ semiont stop --service browser      # the explicit off-switch
 ```
 
 Pin a version with `SEMIONT_VERSION`. See [apps/launcher](../../launcher/README.md) and
-[administration/DEPLOYMENT.md](../../../docs/system/administration/DEPLOYMENT.md).
+[administration/DEPLOYMENT.md](../../../docs/operator/administration/DEPLOYMENT.md).
 
 ## Local development
 
@@ -34,8 +34,8 @@ For iterating on the Browser itself, run it from source rather than the image �
 
 ## Running it elsewhere
 
-Any container platform can schedule the image (ECS Fargate, Kubernetes, a VM with Docker). Nothing
-here does it for you. Browser-specific considerations:
+Any container platform can schedule the image: Kubernetes, OpenShift, a cloud's container service, or a
+machine with Docker. Nothing here does it for you. Browser-specific considerations:
 
 - **It needs to reach the gateway.** The browser app discovers KBs by host/port; the gateway must be
   reachable from the *user's browser*, not merely from inside the cluster.
@@ -43,11 +43,11 @@ here does it for you. Browser-specific considerations:
 - **No server-side session state** — the Browser is a static SPA served by a small Node server;
   auth is bearer-token, held in the browser. It scales horizontally without sticky sessions.
 
-Fuller checklist: [platforms/AWS.md](../../../docs/system/platforms/AWS.md).
+The full list of what a platform provides: [Deploying Semiont](../../../docs/operator/administration/DEPLOYMENT.md#your-own-platform).
 
 ## Related Documentation
 
 - [DEVELOPMENT.md](./DEVELOPMENT.md) — local development
-- [administration/DEPLOYMENT.md](../../../docs/system/administration/DEPLOYMENT.md) — stack deployment
-- [administration/IMAGES.md](../../../docs/system/administration/IMAGES.md) — image build/publish
-- [CONTAINER-TOPOLOGY.md](../../../docs/system/CONTAINER-TOPOLOGY.md) — what runs where
+- [administration/DEPLOYMENT.md](../../../docs/operator/administration/DEPLOYMENT.md) — stack deployment
+- [administration/IMAGES.md](../../../docs/operator/administration/IMAGES.md) — image build/publish
+- [CONTAINER-TOPOLOGY.md](../../../docs/operator/CONTAINER-TOPOLOGY.md) — what runs where

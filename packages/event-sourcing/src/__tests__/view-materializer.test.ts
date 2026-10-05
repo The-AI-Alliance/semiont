@@ -57,7 +57,7 @@ describe('ViewMaterializer', () => {
   }
 
   describe('Full Projection Rebuild', () => {
-    it('should build projection from resource.created event', async () => {
+    it('should build projection from yield:created event', async () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
@@ -85,7 +85,7 @@ describe('ViewMaterializer', () => {
       expect(view!.annotations.annotations).toHaveLength(0);
     });
 
-    it('should apply resource.archived event', async () => {
+    it('should apply mark:archived event', async () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
@@ -103,7 +103,7 @@ describe('ViewMaterializer', () => {
       expect(view!.annotations.version).toBe(2);
     });
 
-    it('should apply resource.unarchived event', async () => {
+    it('should apply mark:unarchived event', async () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
@@ -125,7 +125,7 @@ describe('ViewMaterializer', () => {
       expect(view!.annotations.version).toBe(3);
     });
 
-    it('should apply entitytag.added event', async () => {
+    it('should apply mark:entity-tag-added event', async () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
@@ -147,7 +147,7 @@ describe('ViewMaterializer', () => {
       expect(view!.annotations.version).toBe(3);
     });
 
-    it('should apply entitytag.removed event', async () => {
+    it('should apply mark:entity-tag-removed event', async () => {
       const events = [
         createStoredEvent({
           type: 'yield:created',
@@ -165,16 +165,16 @@ describe('ViewMaterializer', () => {
       expect(view!.annotations.version).toBe(2);
     });
 
-    // JOB-RESTART-SAFETY P6: at-least-once is a property of the network, not a
+    // At-least-once is a property of the network, not a
     // bug to be prevented upstream. A worker that commits a unit and loses the
     // acknowledgement in transit MUST retry, and the retry re-sends facts that
-    // already landed — the append succeeded before the ack was lost, so no
-    // pre-append check can stop it. P3 made annotation ids deterministic so
+    // are already in the log — the append succeeded before the ack was lost, so
+    // no pre-append check can stop it. Annotation ids are content-addressed so
     // that repeat is recognizable; this fold is what makes it harmless.
     //
-    // It is also what the projection doctrine already required: a view is a
+    // It is also what the projection doctrine requires: a view is a
     // derivation of the log, so it must answer "annotation X exists", never
-    // "X was written twice". The previous blind push made the view depend on
+    // "X was written twice". A blind push would make the view depend on
     // how many times a fact was recorded rather than on what the facts mean.
     it('folds a repeated mark:added by id — a retried commit yields ONE annotation', async () => {
       const annotation = {
@@ -201,7 +201,7 @@ describe('ViewMaterializer', () => {
       expect(view!.annotations.annotations[0]?.id).toBe('anno-retried');
     });
 
-    it('a repeat does not resurrect an annotation that was removed after it', async () => {
+    it('a mark:added after a mark:removed re-creates the annotation', async () => {
       // Ordering still decides. The fold must not treat "already seen" as
       // "ignore forever" — a remove between two appends is a later fact, and
       // the second append legitimately re-creates.
@@ -228,17 +228,17 @@ describe('ViewMaterializer', () => {
       expect(view!.annotations.annotations).toHaveLength(1);
     });
 
-    // The repeat is NOT byte-identical, which is exactly what the previous
-    // last-write-wins fold assumed. `created` is stamped at EMISSION
+    // The repeat is NOT byte-identical, which is exactly what a
+    // last-write-wins fold would assume. `created` is stamped at EMISSION
     // (`processors.ts`, `new Date().toISOString()`) and is deliberately not an
-    // identity input — P3 excluded it so a recovery re-emitting at a different
+    // identity input — it is excluded so a recovery re-emitting at a different
     // time from a different process still collides. So a retry always arrives
-    // with a FRESH timestamp, and taking the newer payload silently advanced
-    // `created` to the recovery time.
+    // with a FRESH timestamp, and taking the newer payload would silently
+    // advance `created` to the recovery time.
     //
     // This view is read by consumers (e.g. `make-meaning/annotation-context.ts`),
     // and it must answer when the annotation was MADE, not when a retry
-    // happened to re-send it. Scope, measured: the graph projection is NOT
+    // happened to re-send it. The graph projection is NOT
     // affected — it mints its own write time in `buildAnnotation` and the
     // worker's stamp never reaches it.
     it('a repeat does not advance created — the first append is when the annotation was made', async () => {
@@ -267,7 +267,7 @@ describe('ViewMaterializer', () => {
       expect(view!.annotations.annotations[0]?.created).toBe(firstCreated);
     });
 
-    it('should apply annotation.added event', async () => {
+    it('should apply mark:added event', async () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
@@ -312,7 +312,7 @@ describe('ViewMaterializer', () => {
       expect(view!.annotations.version).toBe(2);
     });
 
-    it('should apply annotation.removed event', async () => {
+    it('should apply mark:removed event', async () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
@@ -344,7 +344,7 @@ describe('ViewMaterializer', () => {
       expect(view!.annotations.version).toBe(3);
     });
 
-    it('should apply annotation.body.updated event - add operation', async () => {
+    it('should apply mark:body-updated event - add operation', async () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
@@ -388,7 +388,7 @@ describe('ViewMaterializer', () => {
       expect(view!.annotations.version).toBe(3);
     });
 
-    it('should apply annotation.body.updated event - remove operation', async () => {
+    it('should apply mark:body-updated event - remove operation', async () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
@@ -434,7 +434,7 @@ describe('ViewMaterializer', () => {
       });
     });
 
-    it('should apply annotation.body.updated event - replace operation', async () => {
+    it('should apply mark:body-updated event - replace operation', async () => {
       const annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
@@ -675,7 +675,7 @@ describe('ViewMaterializer', () => {
 
       const view = await projector.materialize(events, resourceId('doc1'));
 
-      // Should apply resource.created first (sequence 1), then annotation.added (sequence 2)
+      // Should apply yield:created first (sequence 1), then mark:added (sequence 2)
       expect(view!.resource.name).toBe('Test');
       expect(view!.annotations.annotations).toHaveLength(1);
       expect(view!.annotations.version).toBe(2);

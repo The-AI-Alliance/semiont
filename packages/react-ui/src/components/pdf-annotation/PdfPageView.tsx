@@ -57,7 +57,7 @@ interface PdfPageViewProps {
   hoverDelayMs: number;
   /** The document-wide server map, fetched once per resource by the parent. */
   fetchResourceAnchored: () => Promise<AnchoredText | null>;
-  /** Re-resolve trigger: a retry landed the map (P4). */
+  /** Re-resolve trigger: bumped when a retry lands the map. */
   anchoredEpoch: number;
 }
 
@@ -116,9 +116,8 @@ export function PdfPageView({
      * Never rejects, which is what lets the render run alongside it: quoting
      * is the optional half of loading a page, so a failure here degrades to
      * geometry-only rather than reaching the caller's error path. It is also
-     * the only reason `Promise.all` below is safe — a rejection from either
-     * side would leave the other promise dangling, and only the render can
-     * reject.
+     * the only reason starting it un-awaited below is safe — a failed render
+     * leaves this promise dangling, and only the render can reject.
      */
     async function resolveAnchored(page: Awaited<ReturnType<typeof doc.getPage>>): Promise<AnchoredText | null> {
       try {
@@ -137,11 +136,10 @@ export function PdfPageView({
         //
         // `null` is the ordinary answer for a document that has no map and
         // never will; a failure is equally non-fatal. Either way the
-        // annotation ships with geometry only, which is what shipped before
-        // this existed. The served record is the full extraction outcome
-        // (PERSIST-ANCHORS D1); a stored decline means extraction ran and
-        // found nothing to anchor — for this canvas the same degradation as
-        // no map at all.
+        // annotation ships with geometry only. The served record is the full
+        // extraction outcome; a stored decline means extraction ran and found
+        // nothing to anchor — for this canvas the same degradation as no map
+        // at all.
         return await fetchResourceAnchored();
       } catch {
         return null;
@@ -159,10 +157,10 @@ export function PdfPageView({
 
         // Anchoring and rendering are independent, and only one of them the
         // reader is waiting on. They start together, and the image is set the
-        // moment the render resolves — a `Promise.all` here once put the
+        // moment the render resolves — a `Promise.all` here would put the
         // OPTIONAL half (the anchored map, a network fetch on exactly the
         // scanned documents that need it most) in front of the pixels, so a
-        // slow or unanswered map request held a finished render off the
+        // slow or unanswered map request would hold a finished render off the
         // screen. The map lands whenever it lands; anchoring "never rejects"
         // covers its failures, and only the render can reach the catch below.
         const anchoredPromise = resolveAnchored(page);
@@ -188,7 +186,7 @@ export function PdfPageView({
     };
     // `anchoredEpoch` is deliberately a dep: a retry that lands the map
     // re-resolves this page, so the first annotation after the flip carries
-    // its quote (ANNOTATE-DEFERS-ON-NOT-YET P4).
+    // its quote.
   }, [doc, pageNumber, scale, fetchResourceAnchored, anchoredEpoch]);
 
   // Update display dimensions on resize
@@ -279,7 +277,8 @@ export function PdfPageView({
       // This was a click, not a drag - check if we clicked an existing annotation
       if (existingAnnotations.length > 0) {
         // The hit-test owns the coordinate transform — capture the hit
-        // annotation's viewport rect for the emission below (A1 anchor).
+        // annotation's viewport rect for the emission below, where it rides
+        // the click as its anchor.
         let hitRect: AnchorRect | undefined;
         const hit = rectsForPage(existingAnnotations, pageNumber).find(r => {
           const rect = pdfToCanvasCoordinates(r.coord, pageDimensions.height, 1.0);

@@ -1,5 +1,5 @@
 {
-  "description": "The full outcome of text extraction for one representation — the record the anchored-text store holds and the wire serves (PERSIST-ANCHORS decision D1). Discriminated on `kind` (WIRE-UNION-DISCRIMINANTS P5c/D6): 'extracted' — the anchored text with its provenance; 'declined' — a named decline. ocrConfidence is extraction quality for operators, deliberately not anchor confidence.",
+  "description": "The full outcome of text extraction for one representation — the record the anchored-text store holds and the wire serves. Discriminated on `kind`: 'extracted' — the anchored text with its provenance; 'declined' — a named decline. ocrConfidence is extraction quality for operators, deliberately not anchor confidence.",
   "oneOf": [
     {
       "$ref": "./ExtractedText.json"

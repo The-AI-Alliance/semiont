@@ -41,7 +41,7 @@ describe('MemoryVectorStore', () => {
     it('carries the machine-read stamp back out of search', async () => {
       // Provenance for text no human or native extractor produced: OCR read it
       // off pixels. Nothing downstream can recompute that — the chunk reaches
-      // its consumers (today, LLM prompts) with no document attached — so the
+      // its consumers (LLM prompts) with no document attached — so the
       // projection that carries the text carries the fact.
       const vec = await embedding.embed('recovered from a scan');
       await store.upsertResourceVectors('res-scan' as ResourceId, [

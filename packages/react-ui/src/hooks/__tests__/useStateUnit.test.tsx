@@ -8,11 +8,10 @@
  * `key={someId}` on a wrapping component). Without that, the state unit is
  * built with the initial value and never reflects later changes.
  *
- * A real bug hit this behaviour: `KnowledgeResourcePage` read `rId`
- * from route params and passed it into `useStateUnit`'s factory.
- * Because React Router reuses the same component instance across
- * `:id` param changes, the state unit stayed bound to the first resource id
- * and the page displayed stale content.
+ * The case to watch is a page that reads an id from route params and
+ * passes it into `useStateUnit`'s factory. React Router reuses the same
+ * component instance across `:id` param changes, so the state unit stays
+ * bound to the first resource id and the page displays stale content.
  */
 
 import { describe, it, expect, vi, type Mock } from 'vitest';
@@ -51,10 +50,9 @@ describe('useStateUnit', () => {
   });
 
   it('does NOT re-run the factory when a closed-over value changes — latent-bug guard', () => {
-    // This is the bug signature of the resource-navigation issue: if a
-    // caller writes `useStateUnit(() => makeStateUnit(props.rId))` and rId
-    // changes, the state unit is NOT recreated. The hook has no deps array.
-    // Callers must use a key'd wrapper to force remount.
+    // If a caller writes `useStateUnit(() => makeStateUnit(props.rId))` and
+    // rId changes, the state unit is NOT recreated. The hook has no deps
+    // array. Callers must use a key'd wrapper to force remount.
     let rId = 'res-A';
     const factory = vi.fn(() => makeStateUnit(rId));
     const { result, rerender } = renderHook(() => useStateUnit(factory));

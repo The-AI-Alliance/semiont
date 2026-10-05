@@ -1,5 +1,5 @@
 /**
- * Pure logic extracted from CodeMirrorRenderer
+ * Pure logic for CodeMirrorRenderer
  *
  * These functions have zero dependency on CodeMirror's DOM or React.
  * They handle position conversion, tooltip generation, and decoration metadata.
@@ -117,7 +117,7 @@ export function getAnnotationDecorationMeta(
 ): AnnotationDecorationMeta {
   const baseClassName = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation))?.className || 'annotation-highlight';
   // Mark low-confidence anchors with an extra class so CSS can render the
-  // dotted-underline / translucent affordance from the design plan.
+  // dotted-underline / translucent affordance.
   const lowConfidenceClass =
     segment?.confidence && segment.confidence !== 'high' ? ' annotation-low-confidence' : '';
   const className = `${baseClassName}${isNew ? ' annotation-sparkle' : ''}${lowConfidenceClass}`;

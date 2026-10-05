@@ -1,11 +1,10 @@
 /**
- * ASSIST-SURFACE-WARTS Lane D — in-content scroll on `beckon:focus`.
+ * In-content scroll on `beckon:focus`.
  *
- * `beckon:focus` is the established "scroll to and highlight this annotation"
- * contract; BrowseView has subscribed to it all along. AnnotateView did not,
- * so the same event scrolled the content in browse mode and did nothing in
- * annotate mode. With the history panel now producing the event, that asymmetry
- * becomes user-visible: the same click works or doesn't depending on the mode.
+ * `beckon:focus` is the "scroll to and highlight this annotation" contract,
+ * and BrowseView and AnnotateView both subscribe to it. The history panel
+ * produces the event, so a view that ignored it would make the same click
+ * work or not depending on the mode.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom';
@@ -58,14 +57,14 @@ describe('AnnotateView — beckon:focus scrolls the content', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
-// GUIDED-TOUR P6 (D7) — `resourceId` is a GUARD, not navigation.
+// `resourceId` on `beckon:focus` is a GUARD, not navigation.
 //
-// The schema now says so out loud: "it names the resource this focus applies
+// The schema says so out loud: "it names the resource this focus applies
 // to, and a viewer currently showing a different resource ignores the event".
-// Without the comparison the field was decorative — a guide beckoning a
-// reference in doc B scrolled every participant's doc A.
+// Without the comparison the field is decorative — a guide beckoning a
+// reference in doc B scrolls every participant's doc A.
 // ─────────────────────────────────────────────────────────────────────
-describe('AnnotateView — beckon:focus is guarded by resourceId (P6/D7)', () => {
+describe('AnnotateView — beckon:focus is guarded by resourceId', () => {
   beforeEach(() => { scrollSpy.mockClear(); });
 
   const renderAt = (resourceUri: string) => {

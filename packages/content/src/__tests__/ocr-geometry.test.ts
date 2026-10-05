@@ -1,5 +1,5 @@
 /**
- * OCR word boxes → PDF points (#739).
+ * OCR word boxes → PDF points.
  *
  * Pixel space is top-left origin; PDF space is bottom-left. The composition is
  * pixel → unit square → placement matrix, so rotation and non-uniform scale

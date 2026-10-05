@@ -7,17 +7,6 @@ import (
 	"testing"
 )
 
-// The gateway/backend section alias, pinned row for row.
-//
-// packages/core/src/__tests__/config/toml-loader.test.ts pins these SAME four
-// rows against the TypeScript loader. The two lanes parse the file
-// independently and share no schema, so this pair of blocks is the only thing
-// keeping them from drifting. Change one, change the other.
-//
-// Note the lanes are NOT symmetric in what they read: Go takes platform+port,
-// TypeScript also takes publicURL (confgen writes it and the launcher never
-// reads it back). The four PRESENCE rows below are what must match — not the
-// field sets.
 func writeConfigTOML(t *testing.T, body string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -30,6 +19,15 @@ func writeConfigTOML(t *testing.T, body string) string {
 
 const aliasHead = "[defaults]\nenvironment = \"local\"\n\n"
 
+// The gateway/backend section alias, pinned row for row.
+//
+// packages/core/src/__tests__/config/toml-loader.test.ts pins these SAME four
+// rows against the TypeScript loader. The two lanes parse the file
+// independently and share no schema, so this pair of blocks is the only thing
+// keeping them from drifting. Change one, change the other.
+//
+// What must match is the four PRESENCE rows below, not the fields each lane
+// reads out of the section.
 func TestGatewaySectionAlias(t *testing.T) {
 	t.Run("row 1 — gateway only: used", func(t *testing.T) {
 		p := writeConfigTOML(t, aliasHead+"[environments.local.gateway]\nplatform = \"posix\"\nport = 3001\n")

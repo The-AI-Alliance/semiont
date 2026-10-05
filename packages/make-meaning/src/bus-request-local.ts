@@ -7,12 +7,13 @@ import type { BusEnvelope, ConnectionState, EventBus, EventMap, BusRequestPrimit
  * smelter's) consume: this adapter inside a process, the HTTP actor across
  * the gateway.
  *
- * It lets in-process callers (bootstrap, event replay, linked-data import) use
- * the same confirmed request/reply path as the SDK —
+ * It lets in-process callers (the entity-type bootstrap, the clone persist,
+ * the Archivist's recording upload, the anchored-text ask) use the same
+ * confirmed request/reply path as the SDK —
  * `busRequest(asBusRequestPrimitive(eventBus), …)` — instead of hand-rolled
  * `race(domain-event, *-failed, timeout)` blocks. The reply is matched by
- * `correlationId`, so concurrent in-process writes can't cross-match (the
- * latent bug in the old domain-event `race`).
+ * `correlationId`, so concurrent in-process writes can't cross-match, as a
+ * race on the bare domain event would.
  */
 export function asBusRequestPrimitive(eventBus: EventBus): BusRequestPrimitive {
   return {
@@ -42,7 +43,7 @@ export function asBusRequestPrimitive(eventBus: EventBus): BusRequestPrimitive {
     // outage, so there is none to ask for again.
     trackReply: () => () => {},
     // In-process delivery is synchronous — no attach window, so `'open'` is
-    // the true state (.plans/BUS-ATTACH-GATE.md). A destroyed bus throws at
+    // the true state. A destroyed bus throws at
     // `eventBus.on()` before the gate could matter. Published read-only
     // (X1): the subject's mutators must not leak to consumers.
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),

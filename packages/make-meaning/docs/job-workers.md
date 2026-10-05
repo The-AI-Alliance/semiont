@@ -4,7 +4,7 @@ Annotation and generation workers live in **[@semiont/jobs](../../jobs/README.md
 
 ## Overview
 
-Workers run in a separate **worker process** (the worker pool — [worker-main.ts](../../jobs/src/worker-main.ts) → [startAgentWorker](../../jobs/src/worker-runtime.ts) → [startWorkerProcess](../../jobs/src/worker-process.ts)). The process claims pending jobs over the bus through a `JobClaimAdapter`, which pulls whenever the worker is idle (start, settle, a matching wake-up, reconnect) rather than running a timer and emits `mark:create` commands on the bus when it produces annotations. Generated resource *content* never travels on the bus — the generation path uploads it via `session.client.yield.resource()` and the gateway emits `yield:create` internally. Every bus emit goes through a `SemiontSession` (`session.client.transport.emit(...)`), so the worker is an ordinary bus participant authenticated as a software agent.
+Workers run in a separate **worker process** (the worker pool — [worker-main.ts](../../jobs/src/worker-main.ts) → [startAgentWorker](../../jobs/src/worker-runtime.ts) → [startWorkerProcess](../../jobs/src/worker-process.ts)). The process claims pending jobs over the bus through a `JobClaimAdapter`, which pulls whenever the worker is idle (start, settle, a matching wake-up, reconnect) rather than running a timer, and commits the annotations it produces with `mark:commit` on the bus. Generated resource *content* never travels on the bus — the generation path uploads it via `session.client.yield.resource()`; the gateway forwards the upload to the Archivist, which stores the bytes and emits `yield:create` on its own bus. Every bus emit goes through a `SemiontSession` (`session.client.transport.emit(...)`), so the worker is an ordinary bus participant authenticated as a software agent.
 
 A job created while every eligible worker was busy is not lost, and needs no re-announcement to be found: each worker pulls the moment its current job settles. The queue's 30-second tick re-announces pending jobs as insurance against a wake-up lost in transit to an *idle* worker — the one case pull cannot cover, since an idle worker has nothing to settle. On a healthy stack it never acts.
 
@@ -46,10 +46,12 @@ async function processHighlightJob(
   params: HighlightDetectionParams,
   buildAnnotation: BuildAnnotation,  // media-appropriate (motivation, match, body?) → Annotation
   onProgress: OnProgress,
-): Promise<ProcessorResult<HighlightDetectionResult>>  // { result }; annotations go out per chunk
+  onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,  // the durability write
+  resumeCursors?: Record<string, UnitCursor>,  // where earlier attempts left each unit
+): Promise<ProcessorResult<JobHighlightAnnotationResult>>  // { result }; annotations go out per chunk
 ```
 
-`buildAnnotation` comes from [`prepareDetection`](../../jobs/src/workers/detection/prepare-detection.ts): character-offset anchoring for plain text, page-geometry anchoring when the extraction carries positioned runs (PDFs). Processors stay media-agnostic — they see `.text` and the builder, never a layer or a media type. `processReferenceJob` additionally takes a `logger`. `processGenerationJob` differs — it returns synthesized content rather than annotations:
+`buildAnnotation` comes from [`prepareDetection`](../../jobs/src/workers/detection/prepare-detection.ts): character-offset anchoring for plain text, page-geometry anchoring when the extraction carries positioned runs (PDFs). Processors stay media-agnostic — they see `.text` and the builder, never a layer or a media type. `processReferenceJob` additionally takes a `logger`, an `onUnitComplete` checkpoint callback and an optional `AbortSignal`. `processGenerationJob` differs — it returns synthesized content rather than annotations:
 
 ```typescript
 async function processGenerationJob(
@@ -63,7 +65,7 @@ async function processGenerationJob(
   title: string;
   format: SupportedMediaType;
   citations: GenerationCitation[];    // only under `cite`
-  result: GenerationResult;
+  truncated: boolean;
 }>
 ```
 
@@ -75,7 +77,7 @@ The worker process emits commands on the bus through its session; the Stower sub
 
 ### Annotation Creation
 
-The processor returns a W3C `Annotation` carrying body, target, `created` and `generator` — and nothing about who asked for it. The worker process commits a batch with `mark:commit`, citing the job it holds:
+The processor produces W3C `Annotation`s carrying body, target, `created` and `generator` — and nothing about who asked for them. The worker process commits a batch with `mark:commit`, citing the job it holds:
 
 ```typescript
 await busRequest(actor, 'mark:commit', { resourceId, annotations, jobId });
@@ -117,14 +119,14 @@ const adapter = startWorkerProcess({
   jobTypes: group.jobTypes,
   inferenceClient: group.client,
   generator,
-  anchoredTextStore: anchoredTextStoreOverTransport(content, logger),  // extraction cache (PERSIST-ANCHORS)
+  contentReads,  // byte reads, for decode-path media only
   logger,
 });
 ```
 
-Before dispatching a detection job, the worker process fetches the resource descriptor through its session (`session.client.browse.resource(resourceId).fresh()`), then `prepareDetection` fetches the bytes (`session.client.browse.resourceRepresentation(resourceId)`) and gets text from them. It never reads KB storage directly.
+Before dispatching a detection job, the worker process fetches the resource descriptor through its session (`session.client.browse.resource(resourceId).fresh()`), then `prepareDetection` resolves the text the media type calls for. For decode-path media it reads the bytes from the Archivist through the injected `contentReads` and decodes them. For geometry-bearing media (PDF) it fetches no bytes and runs no OCR: it consults the Smelter's anchored text (`session.client.browse.resourceAnchoredText(resourceId)`). It never reads KB storage directly.
 
-**How it gets that text depends on whether the bytes carry any** (READ-VS-EXTRACT). Those are two operations, not one, and they no longer share a registry:
+**How the text is obtained depends on whether the bytes carry any**. Those are two operations, not one, and they share no registry:
 
 - **Decoding** — a charset-aware `Buffer → string` for text media. Microseconds, deterministic, no artifact to persist, and anyone holding bytes can do it. It is `decodeRepresentation` in `@semiont/core`, called directly.
 - **Deriving** — parsing a PDF, OCR-ing it when there is no text layer. Minutes, non-deterministic across engine versions, and it produces exactly one canonical artifact. Reached through `derivingExtractorFor(mediaType)` in `@semiont/content`, and **callable only with the store that persists its output** — which is why the Smelter owns it.

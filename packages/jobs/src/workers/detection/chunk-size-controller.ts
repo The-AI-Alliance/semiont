@@ -1,5 +1,5 @@
 /**
- * Adaptive chunk sizing (DETECTION-QUALITY-THROUGHPUT P2) — the sizing RULE.
+ * Adaptive chunk sizing — the sizing RULE.
  *
  * `deriveDetectionBudget` picks ONE input size for every document from provider
  * limits alone. It cannot see the document, so it is sized for a worst-case
@@ -14,15 +14,15 @@
  * halved-and-retried, a chunk that outruns the guillotine times out and is
  * halved-and-retried. So the sizer does not model truncation or duration; it
  * only keeps chunks in a band that uses the budget well, and the net below it
- * forgives an overshoot. `bounds.ceiling` is therefore the WINDOW fit, not either
+ * forgives an overshoot. That safety net is why this is a step rule and not a
+ * control loop. It is also why `bounds.ceiling` is the WINDOW fit, not either
  * derived input size: on a shared window both of those come back at exactly the
- * density guess this function exists to replace, leaving nothing to grow into. That safety net is why this is a step rule and not a
- * control loop (user direction, 2026-09-04: keep it simple).
+ * density guess this function exists to replace, leaving nothing to grow into.
  *
  * "Maximize, don't predict": the only thing that grows a chunk is a MEASURED
- * under-use of the budget. No document statistic, no a-priori density model
- * (#1121's ban). Re-evaluated every chunk, so it tracks a gradient (sparse
- * intro → dense index) rather than betting the run on the first sample.
+ * under-use of the budget. No document statistic, no a-priori density model.
+ * Re-evaluated every chunk, so it tracks a gradient (sparse intro → dense
+ * index) rather than betting the run on the first sample.
  *
  * Pure and feedback-only — unit-testable in isolation. The loop that applies it is
  * `runAdaptiveChunks` in `detection-chunking.ts`, which both detection paths drive:
@@ -34,14 +34,14 @@
 /** What one chunk's call produced — the minimum the sizer needs. Duration and
  * input are NOT here: the guillotine and truncation are the hard bounds, both
  * backstopped by subdivision, so utilization is the only signal that sizing
- * acts on. (P1 telemetry records the fuller picture separately.) */
+ * acts on. (Per-call telemetry records the fuller picture separately.) */
 export interface CallOutcome {
   /** Provider-reported output tokens for the chunk, ABSENT when the provider
    * reported none.
    *
    * Absent is not zero. `usage` is optional on the inference interface and both
    * real clients emit it conditionally, so a run against a provider that stays
-   * silent would read as "this chunk produced nothing", i.e. 0%% of the budget,
+   * silent would read as "this chunk produced nothing", i.e. 0% of the budget,
    * i.e. grow — every chunk, to the ceiling, on no evidence whatsoever. That is
    * the precise inverse of "maximize, don't predict". Unmeasured holds. */
   outputTokens?: number;
@@ -72,11 +72,10 @@ export interface SizingBounds {
  *
  * That future changes where a `ChunkSizingPolicy` comes FROM — provider config,
  * a settings surface — not the sizing function, which already takes it as a
- * value, nor the caller's shape. There is exactly ONE today, the default below.
- * No config system, no env var, no per-provider map yet: just a single named
- * home, so when the need is real there is one obvious thing to make configurable
- * and one obvious place to select it (the caller holds the `InferenceClient`,
- * hence the provider).
+ * value, nor the caller's shape. There is exactly ONE, the default below. No
+ * config system, no env var, no per-provider map: just a single named home, so
+ * there is one obvious thing to make configurable and one obvious place to
+ * select it (the caller holds the `InferenceClient`, hence the provider).
  */
 export interface ChunkSizingPolicy {
   /** Below this fraction of the output budget, the chunk left room — grow. */
@@ -91,7 +90,7 @@ export interface ChunkSizingPolicy {
   shrinkFactor: number;
 }
 
-/** The one policy in effect today. Coarse on purpose — subdivision forgives a
+/** The one policy in effect. Coarse on purpose — subdivision forgives a
  * wrong guess — and every value is a candidate for the tunable surface above. */
 export const DEFAULT_CHUNK_SIZING_POLICY: ChunkSizingPolicy = {
   growBelow: 0.5,
@@ -109,8 +108,9 @@ function clamp(value: number, lo: number, hi: number): number {
  *
  * A truncated chunk, or one whose output filled more than `shrinkAbove` of the
  * budget, eases the next chunk down; one that used less than `growBelow` grows
- * it; in between — or with nothing measured at all — hold. Always clamped to `[floor, ceiling]`. That is the whole
- * rule — the hard bounds are subdivision's job, not this function's.
+ * it; in between — or with nothing measured at all — hold. Always clamped to
+ * `[floor, ceiling]`. That is the whole rule — the hard bounds are
+ * subdivision's job, not this function's.
  */
 export function nextChunkSize(
   outcome: CallOutcome,

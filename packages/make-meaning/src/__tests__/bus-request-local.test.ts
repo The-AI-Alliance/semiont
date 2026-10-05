@@ -51,7 +51,7 @@ describe('asBusRequestPrimitive', () => {
     await expect(emitted).rejects.toThrow(/destroyed bus/);
   });
 
-  // RED (CLIENT-SUBSCRIPTION-MANIFEST P1, D1) — every transport ANSWERS.
+  // Every transport ANSWERS.
   //
   // `isSubscribed` is not optional. The question it asks — "does this
   // transport's receive path deliver `channel`?" — has a true answer for

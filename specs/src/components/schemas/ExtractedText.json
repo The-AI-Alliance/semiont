@@ -1,5 +1,5 @@
 {
-  "description": "A successful extraction: the anchored text plus its provenance (WIRE-UNION-DISCRIMINANTS P5c named this member; PERSIST-ANCHORS D1 made it the stored record).",
+  "description": "A successful extraction: the anchored text plus its provenance. The 'extracted' member of ExtractionOutcome, the record the anchored-text store holds.",
   "allOf": [
     {
       "$ref": "./AnchoredText.json"
@@ -12,7 +12,7 @@
           "enum": [
             "extracted"
           ],
-          "description": "Discriminant — both ExtractionOutcome members carry `kind`, single-valued (D6: category here, detail in `method`)."
+          "description": "Discriminant — both ExtractionOutcome members carry `kind`, single-valued: the category here, the detail in `method`."
         },
         "method": {
           "type": "string",

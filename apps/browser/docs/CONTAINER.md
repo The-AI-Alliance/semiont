@@ -44,13 +44,13 @@ Knowledge-base connections are made **in the running app, by the user**:
 
 1. Open the Browser in a browser and add a knowledge base (protocol, host,
    port) from the connection panel.
-2. Sign in with email/password for that KB. The SDK (`@semiont/sdk`)
-   authenticates against the KB and stores a per-KB access + refresh token
-   pair in the browser's `localStorage`.
+2. Sign in at the issuer that KB trusts: the Browser sends you there and
+   finishes on its own callback route. The SDK (`@semiont/sdk`) stores a
+   per-KB access + refresh token pair in the browser's `localStorage`.
 3. The SPA then talks to that KB origin **directly from the browser** —
-   auth, admin, and content over HTTP routes; domain traffic over the event
-   bus (`POST /bus/emit`, `GET /bus/subscribe` SSE). Access tokens refresh
-   automatically before they expire.
+   who you are, media tokens and content over HTTP routes; domain traffic
+   over the event bus (`POST /bus/emit`, `GET /bus/subscribe` SSE). The SDK
+   renews the access token at the issuer before it expires.
 
 Multiple knowledge bases can be configured side by side, and connections
 persist across page reloads. The gateway allows cross-origin requests from
@@ -204,7 +204,7 @@ Users' knowledge-base tokens exist only in their own browsers' `localStorage`
 
 ### Secret Rotation
 
-The Browser contains no secrets. All sensitive credentials (OAuth client secrets, JWT signing keys) live in the gateway container. Rotate them there.
+The Browser contains no secrets. The gateway's signing key and its service-account credential live in the gateway container. Rotate them there.
 
 ## Troubleshooting
 
@@ -234,9 +234,10 @@ select `https` when adding the KB.
 
 **Problem**: A previously connected KB drops to signed-out.
 
-**Cause**: The refresh token expired, or the gateway's JWT signing secret
-changed (for example, a gateway restart that regenerated `JWT_SECRET`),
-which invalidates every issued token.
+**Cause**: The issuer would not renew the session: the refresh token
+expired or was revoked, or the account was disabled there. The gateway's
+`JWT_SECRET` plays no part. It signs agent and media tokens, never a
+person's.
 
 **Solution**: Sign in to that KB again from the connection panel.
 
@@ -296,8 +297,8 @@ knowledge bases as the user has added.
 
 - [Deployment Guide](./DEPLOYMENT.md) - Deployment workflows and strategies
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
-- [Container Topology](../../../docs/system/CONTAINER-TOPOLOGY.md) - Multi-container deployment architecture
-- [Container Images](../../../docs/system/administration/IMAGES.md) - All published images and the gateway npm-distribution model
+- [Container Topology](../../../docs/operator/CONTAINER-TOPOLOGY.md) - Multi-container deployment architecture
+- [Container Images](../../../docs/operator/administration/IMAGES.md) - All published images and the gateway npm-distribution model
 
 ## Support
 

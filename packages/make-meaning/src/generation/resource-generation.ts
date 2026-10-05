@@ -39,11 +39,11 @@ Write a 2-3 sentence summary that captures the key points and would help someone
 /**
  * Generate smart suggestions for a reference.
  *
- * Named parameters, deliberately (bugs/gather-ships-raw-pdf-bytes P2): two
- * positional `string`s let a caller splice an entire document into the
- * TITLE slot with tsc silent — which is exactly what happened. `title` is a
- * name; `stub` is optional short placeholder content and is bounded here so
- * no caller can turn the prompt into a document.
+ * Named parameters, deliberately: two positional `string`s let a caller
+ * splice an entire document into the TITLE slot with tsc silent — which is
+ * exactly what happened. `title` is a name; `stub` is optional short
+ * placeholder content and is bounded here so no caller can turn the prompt
+ * into a document.
  */
 const STUB_BOUND_CHARS = 500;
 

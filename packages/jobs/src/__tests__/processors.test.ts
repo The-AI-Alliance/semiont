@@ -45,10 +45,9 @@ vi.mock('../workers/generation/typst-compiler', async (importOriginal) => ({
   compileTypst: vi.fn(),
 }));
 
-// No `@semiont/event-sourcing` mock: annotation ids are content-addressed
-// (JOB-RESTART-SAFETY P3), so the real function is already deterministic. The
-// mock existed only to buy that determinism, and keeping it would hide the
-// identity these builders now compute — which is the thing worth exercising.
+// No `@semiont/event-sourcing` mock: annotation ids are content-addressed, so
+// the real function is deterministic, and a mock would hide the identity
+// these builders compute — which is the thing worth exercising.
 
 // No `@semiont/core` mock — these tests exercise the real `reconcileSelector`
 // against synthetic content. The processor's `buildTextAnnotation` invariant
@@ -82,10 +81,10 @@ const GENERATOR: Agent = {
   model: 'test',
 };
 
-// The detection processors now take a media-agnostic `buildAnnotation`; for
+// The detection processors take a media-agnostic `buildAnnotation`; for
 // these text-detection tests it is `buildTextAnnotation` curried with the
-// resource + attribution context (exactly what the processors used to do
-// internally). Attribution shape is exercised through this closure.
+// resource + attribution context. Attribution shape is exercised through
+// this closure.
 const textBuild = (content: string): BuildAnnotation =>
   (motivation, match, body) => buildTextAnnotation(content, RID, GENERATOR, motivation, match, body);
 
@@ -109,7 +108,7 @@ const pdfBuild = (layer: PdfTextLayer): BuildAnnotation =>
   (motivation, match, body) => buildPdfAnnotation(layer, RID, GENERATOR, motivation, match, body);
 
 // The concurrency the fake provider advertises — detection reads it off the
-// client now (a real provider hard-codes its own), so tests set it here.
+// client (a real provider hard-codes its own), so tests set it here.
 const TEST_MAX_CONCURRENCY = 4;
 function makeInferenceClient(): InferenceClient {
   return {
@@ -184,7 +183,7 @@ describe('processHighlightJob', () => {
     );
   });
 
-  it('says what produced each annotation and nothing about who asked — creator is derived downstream (VERIFIED-PROVENANCE P2)', async () => {
+  it('says what produced each annotation and nothing about who asked — creator is derived downstream', async () => {
     // The worker holds the job and knows the requester, and must not say so:
     // `creator` and `wasAttributedTo` are derived by the Stower from the
     // cited job's own events, and a payload carrying them is refused. The
@@ -210,7 +209,7 @@ describe('processHighlightJob', () => {
   });
 
   it('keeps distinct PDF highlights (dedupe must not key on an absent TextPositionSelector)', async () => {
-    // Regression: PDF annotations carry no TextPositionSelector, so a dedupe
+    // PDF annotations carry no TextPositionSelector, so a dedupe
     // key built only from position offsets degrades to `highlighting|?|?|null`
     // and collapses every bodiless PDF highlight to one. Two distinct spans
     // must survive as two annotations, anchored by FragmentSelector geometry.
@@ -255,9 +254,8 @@ describe('processCommentJob', () => {
     expect(result.annotations).toHaveLength(1);
     expect((result.annotations[0] as any).motivation).toBe('commenting');
     // Canonical commenting body — single-item array of TextualBody with
-    // format + language. Do not drop format/language; the pre-#651
-    // CommentAnnotationWorker emitted them and consumers may rely on
-    // them for rendering.
+    // format + language. Do not drop format/language; consumers may rely
+    // on them for rendering.
     expect((result.annotations[0] as any).body).toEqual([
       { type: 'TextualBody', value: 'interesting point', purpose: 'commenting', format: 'text/plain', language: 'en' },
     ]);
@@ -283,9 +281,8 @@ describe('processAssessmentJob', () => {
     expect(result.annotations).toHaveLength(1);
     expect((result.annotations[0] as any).motivation).toBe('assessing');
     // Canonical assessing body — a single AnnotationBody object (not an
-    // array), purpose aligned to motivation. Matches the pre-#651
-    // AssessmentAnnotationWorker and the majority of persisted
-    // assessments. Do not flip to array or to purpose='describing' —
+    // array), purpose aligned to motivation. Matches the majority of
+    // persisted assessments. Do not flip to array or to purpose='describing' —
     // either change loses signal or breaks readers that access
     // `body.value` directly on the object.
     expect((result.annotations[0] as any).body).toEqual({
@@ -333,12 +330,11 @@ describe('processReferenceJob', () => {
     expect(outcome.result).toEqual({ kind: 'reference-annotation', totalFound: 2, totalEmitted: 2, errors: 0 });
   });
 
-  // ── P6: entity types run concurrently (DETECTION-QUALITY-THROUGHPUT) ──
+  // ── Entity types run concurrently ─────────────────────────────────────
   //
-  // The sequential per-type loop was the 9×-sequential grind. These pin that
-  // types now run bounded-concurrent: every type still commits exactly once and
-  // reports its own found/persisted, order-independent, and no more than
-  // DETECTION_TYPE_CONCURRENCY are ever in flight.
+  // These pin that types run bounded-concurrent: every type commits exactly
+  // once and reports its own found/persisted, order-independent, and no more
+  // than the provider's `maxConcurrency` are ever in flight.
 
   it('runs multiple entity types and commits each exactly once', async () => {
     // Each type returns its own entity (verbatim in the content so anchoring holds).
@@ -393,7 +389,7 @@ describe('processReferenceJob', () => {
   it('runs SEQUENTIALLY when the provider advertises maxConcurrency 1 (the Ollama case)', async () => {
     // A local single-model server gets no aggregate speedup from concurrent
     // requests and pays KV-cache memory for them, so its client advertises 1 —
-    // and detection must then never overlap calls, exactly as before P6.
+    // and detection must then never overlap calls.
     const content = 'x '.repeat(50);
     let inFlight = 0, maxInFlight = 0;
     vi.mocked(extractEntities).mockImplementation(async () => {
@@ -480,32 +476,29 @@ describe('processReferenceJob', () => {
       onUnitComplete,
     );
 
-    // Legitimately-empty is a completed unit (A3 v) — a retry must skip it.
+    // Legitimately-empty is a completed unit — a retry must skip it.
     expect(onUnitComplete).toHaveBeenCalledExactlyOnceWith('Location');
     expect(outcome.result).toEqual({ kind: 'reference-annotation', totalFound: 0, totalEmitted: 0, errors: 0 });
   });
 });
 
-// ── JOB-RESTART-SAFETY P6: the unit gates on the COMMIT, not on the emit ────
+// ── The unit gates on the COMMIT, not on the emit ───────────────────────────
 //
-// `onUnitComplete` is the durability seam. Before P6 the worker's version of it
-// emitted `mark:create` fire-and-forget and returned, so a down Archivist lost
-// the unit silently and a flapping one hung the worker forever. It now awaits a
-// `mark:commit` acknowledgement, which means a rejecting sink must stop the
-// unit from counting — and a recovering one must let it through.
+// `onChunkComplete` is the durability seam. Fire-and-forget (`mark:create`),
+// it would lose the unit silently on a down Archivist; the worker's version
+// awaits a `mark:commit` acknowledgement, which means a rejecting sink must
+// stop the unit from counting — and a recovering one must let it through.
 //
 // Tested here rather than at the worker because this is where "counts anywhere"
 // is decided: the loop awaits the callback BEFORE touching totals, completed
 // items, or the checkpoint list.
-describe('processReferenceJob — unit completion gates on the commit (P6)', () => {
+describe('processReferenceJob — unit completion gates on the commit', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  // DETECTION-QUALITY-THROUGHPUT P1. The baseline's headline number — "Person
-  // 935 found / 844 persisted" — had to be reconstructed by reading logs,
-  // because the per-unit result reported only what the model PROPOSED. The gap
-  // is dedupe plus the commit ack, and it is the yield every sizing decision is
-  // judged against, so it belongs on the result rather than in an operator's
-  // head.
+  // Detection reports its yield: what the model PROPOSED against what
+  // persisted. The gap is dedupe plus the commit ack, and it is the yield
+  // every sizing decision is judged against, so it belongs on the result
+  // rather than in an operator's head.
   it('reports found AND persisted per unit — the gap between them is the yield', async () => {
     // Three proposals, two distinct spans: the duplicate collapses in dedupe,
     // so found and persisted must differ here or the test proves nothing.
@@ -555,10 +548,10 @@ describe('processReferenceJob — unit completion gates on the commit (P6)', () 
       onChunkComplete,
     )).rejects.toThrow(/sink down/);
 
-    // The point of the phase: an un-acked chunk must NOT let the unit
-    // checkpoint. Swallowing here is what turned an Archivist outage into
-    // silent data loss — the unit would advance, the checkpoint would record
-    // it, and a resume would skip work that never persisted.
+    // An un-acked chunk must NOT let the unit checkpoint. Swallowing here
+    // turns an Archivist outage into silent data loss — the unit would
+    // advance, the checkpoint would record it, and a resume would skip work
+    // that never persisted.
     expect(onChunkComplete).toHaveBeenCalledTimes(1);
     expect(onUnitComplete).not.toHaveBeenCalled();
   });
@@ -660,26 +653,26 @@ describe('processGenerationJob', () => {
     expect(new TextDecoder().decode(result.content)).toContain('Generated resource');
     expect(result.title).toBe('Initial');
     expect(result.format).toBe('text/markdown');
-    // A natural stop reports truncated: false — required, never absent (P3a/D6:
-    // the producer always knows; structure expresses it).
+    // A natural stop reports truncated: false — required, never absent (the
+    // producer always knows; structure expresses it).
     expect(result.truncated).toBe(false);
     // Honest lifecycle: generation has exactly two real transitions — the LLM
     // call starting, and content finalized / creation beginning. No 'fetching'
-    // stage (it labeled zero work; context arrives pre-gathered in params).
+    // stage: context arrives pre-gathered in params.
     // Percentages approximate the share of expected wall-clock complete at each
     // transition: inference dominates, so its start is ~5 and its end ~95.
-    // The producer owns terminality (GENERATE-FROM-RESOURCE P1/D1): the run
-    // ends with a terminal code at 100, like every annotation flow — without
-    // it, the client's last frame forever says 95% "creating".
+    // The producer owns terminality: the run ends with a terminal code at 100,
+    // like every annotation flow — without it, the client's last frame forever
+    // says 95% "creating".
     expect(progress).toHaveBeenCalledTimes(3);
     expect(progress).toHaveBeenNthCalledWith(1, 5, { code: 'generating-resource' });
     expect(progress).toHaveBeenNthCalledWith(2, 95, { code: 'creating-resource' });
     expect(progress).toHaveBeenNthCalledWith(3, 100, { code: 'complete-generated', truncated: false });
   });
 
-  it('a max_tokens stop reports truncated on the terminal event AND the result (P3a)', async () => {
-    // N7: the worker KNOWS the artifact was cut off and used to tell nobody.
-    // The bit rides both surfaces — the event (the frame P3b renders) and the
+  it('a max_tokens stop reports truncated on the terminal event AND the result', async () => {
+    // The worker KNOWS the artifact was cut off, and says so: the bit rides
+    // both surfaces — the event (the frame the client renders) and the
     // result (the record).
     vi.mocked(generateResourceFromTopic).mockResolvedValue({
       content: 'Cut off mid-sen',
@@ -701,7 +694,7 @@ describe('processGenerationJob', () => {
 
 });
 
-describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () => {
+describe('processGenerationJob — inline citations', () => {
   // The resolver runs inside processGenerationJob: parse [[<id>]] transport
   // tokens from the generated content, validate each against the ids actually
   // present in the embedded context (hallucination guard), STRIP the tokens
@@ -797,7 +790,7 @@ describe('processGenerationJob — inline citations (INLINE-CITATIONS P1)', () =
   });
 });
 
-describe('processGenerationJob — byte return (PDF-GENERATION P1)', () => {
+describe('processGenerationJob — byte return', () => {
   // The artifact is bytes. Text is an encoding of them — one shape for every
   // output media type, so a string can never travel mislabeled as a binary
   // format. The sole consumer (worker upload) already does Buffer.from().
@@ -811,7 +804,7 @@ describe('processGenerationJob — byte return (PDF-GENERATION P1)', () => {
   });
 });
 
-describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)', () => {
+describe('processGenerationJob — PDF generation via Typst', () => {
   beforeEach(() => {
     vi.mocked(compileTypst).mockReset();
     vi.mocked(generateResourceFromTopic).mockReset();
@@ -833,12 +826,12 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
     expect(compileTypst).toHaveBeenCalledWith('= Title\nBody.');
     expect(r.content).toBe(pdf);
     expect(r.format).toBe('application/pdf');
-    // Terminal honesty (GENERATE-FROM-RESOURCE P1): the PDF path ends like
-    // every other flow — a terminal code at 100, never a dangling 95.
+    // Terminal honesty: the PDF path ends like every other flow — a terminal
+    // code at 100, never a dangling 95.
     expect(progress.mock.calls.at(-1)).toEqual([100, { code: 'complete-generated', truncated: false }]);
   });
 
-  it('a truncated source that still compiles carries the truncated flag (P3a)', async () => {
+  it('a truncated source that still compiles carries the truncated flag', async () => {
     // Truncation that happens to land at a syntactic boundary compiles fine —
     // the artifact is still incomplete, and the bit still travels.
     vi.mocked(generateResourceFromTopic).mockResolvedValue({ content: '= Title\nCut off', title: 'T', truncated: true });
@@ -857,7 +850,7 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
     expect(progress.mock.calls.at(-1)).toEqual([100, { code: 'complete-generated', truncated: true }]);
   });
 
-  it('a truncated source that fails to compile fails FAST, naming the ceiling — no repairs (P3a)', async () => {
+  it('a truncated source that fails to compile fails FAST, naming the ceiling — no repairs', async () => {
     // Repair cannot restore content that was never generated: the source is
     // cut off, not wrong, and every repair regenerates under the same ceiling.
     // Burning the repair budget here would end in an error naming a compile
@@ -915,7 +908,7 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
     expect(generateResourceFromTopic).toHaveBeenCalledTimes(1 + MAX_COMPILE_REPAIRS);
   });
 
-  it('cite with application/pdf strips tokens BEFORE compile and carries citations (P4)', async () => {
+  it('cite with application/pdf strips tokens BEFORE compile and carries citations', async () => {
     // Tokens must never render into the PDF; the claim `exact` strings travel
     // to the worker, which anchors them by page geometry after extraction.
     const CITE_PDF_CONTEXT = {
@@ -952,8 +945,8 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
   });
 });
 
-describe('processGenerationJob — output bound (PDF-GENERATION P5)', () => {
-  // Symmetric with #1124's extraction byte budget, and deliberately the SAME
+describe('processGenerationJob — output bound', () => {
+  // Symmetric with the extraction byte budget, and deliberately the SAME
   // threshold: a generated artifact larger than what extraction accepts would
   // be a resource our own Smelter declines as 'too-large'. Tested by the
   // numbers — the judgment doesn't require materializing 200 MB (the same
@@ -997,11 +990,11 @@ describe('annotation attribution composition', () => {
   beforeEach(() => vi.clearAllMocks());
 
   // Who asked (`creator`) and the responsible parties (`wasAttributedTo`) are
-  // no longer the worker's to say: the Stower derives both from the cited job
-  // (VERIFIED-PROVENANCE P2). The former tests of that here now live at the
-  // layer that decides it — `attribution()` in @semiont/core and the Stower's
-  // job-citation suite. What survives here is the one fact the worker DOES
-  // state, on every motivation: what produced the annotation.
+  // not the worker's to say: the Stower derives both from the cited job, and
+  // that is tested at the layer that decides it — `attribution()` in
+  // @semiont/core and the Stower's job-citation suite. Pinned here is the one
+  // fact the worker DOES state, on every motivation: what produced the
+  // annotation.
 
   it('states what produced it — and nothing about who asked — across every motivation', async () => {
     vi.mocked(AnnotationDetection.detectComments).mockImplementation(inOneChunk([
@@ -1168,7 +1161,7 @@ describe('locale threading', () => {
 
       expect(AnnotationDetection.detectHighlights).toHaveBeenCalledWith(
         'content', client, undefined, undefined, 'fr',
-        expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        expect.any(Function), // chunk-boundary progress heartbeat
         undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
       );
@@ -1185,7 +1178,7 @@ describe('locale threading', () => {
 
       expect(AnnotationDetection.detectComments).toHaveBeenCalledWith(
         'content', client, undefined, undefined, undefined, 'de', 'fr',
-        expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        expect.any(Function), // chunk-boundary progress heartbeat
         undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
       );
@@ -1202,7 +1195,7 @@ describe('locale threading', () => {
 
       expect(AnnotationDetection.detectAssessments).toHaveBeenCalledWith(
         'content', client, undefined, undefined, undefined, 'es', 'pt',
-        expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        expect.any(Function), // chunk-boundary progress heartbeat
         undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
       );
@@ -1238,11 +1231,11 @@ describe('locale threading', () => {
         { resourceId: RID, schema: SCHEMA_1, categories: ['Issue'], sourceLanguage: 'fr' },
         textBuild('content'), vi.fn(), onChunkComplete));
 
-      // Worker now receives the full schema (resolved by the dispatcher),
+      // The worker receives the full schema (resolved by the dispatcher),
       // not a schemaId.
       expect(AnnotationDetection.detectTags).toHaveBeenCalledWith(
         'content', client, SCHEMA_1, 'Issue', 'fr',
-        expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        expect.any(Function), // chunk-boundary progress heartbeat
         undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
       );
@@ -1257,7 +1250,7 @@ describe('locale threading', () => {
 
       expect(AnnotationDetection.detectHighlights).toHaveBeenCalledWith(
         'content', client, undefined, undefined, undefined,
-        expect.any(Function), // chunk-boundary progress heartbeat (Phase 3b)
+        expect.any(Function), // chunk-boundary progress heartbeat
         undefined,            // resume cursor — absent on a first attempt
         expect.any(Function), // chunk-results emission
       );
@@ -1284,9 +1277,8 @@ describe('locale threading', () => {
 
       // Positional signature: topic, entityTypes, client, logger, prompt, locale,
       // context, temperature, maxTokens, sourceLanguage, outputMediaType, task, structure, cite.
-      // Context is no longer optional on the wire (GenerationJobParams
-      // required trio) — the fixture context threads through where the
-      // all-optional era pinned `undefined`.
+      // Context is required on the wire (GenerationJobParams required
+      // trio), so the fixture context threads through.
       expect(generateResourceFromTopic).toHaveBeenCalledWith(
         'Topic', [], client, LOGGER, undefined, 'de', GEN_REQUIRED.context,
         undefined, undefined, 'fr', 'text/markdown', undefined, undefined, undefined,
@@ -1418,9 +1410,9 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
   });
 
   it('tag: overlapping LLM prefix is replaced with a source-extracted prefix', async () => {
-    // The motivating bug pattern — LLM emits a prefix that overlaps the
-    // start of exact. Reconciler must repair: anchor `exact` in the
-    // source, extract a fresh prefix that no longer overlaps.
+    // The LLM emits a prefix that overlaps the start of exact. Reconciler
+    // must repair: anchor `exact` in the source, extract a fresh prefix
+    // that does not overlap.
     const exact = 'The question for decision';
     const content = `Kenison, C.J.\n${exact} by this appeal.`;
     vi.mocked(AnnotationDetection.detectTags).mockImplementation((async (...args: unknown[]) => {
@@ -1493,7 +1485,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
 
   it('comment: multi-occurrence ambiguity with non-matching context falls back to first occurrence', async () => {
     // Content has three occurrences of 'foo'. Without offsets the LLM
-    // can no longer hint; prefix/suffix that don't match anywhere yields
+    // cannot hint; prefix/suffix that don't match anywhere yields
     // first-of-many, which is the first occurrence.
     const content = 'X foo Y foo Z foo W'; // foo at 2, 8, 14
     vi.mocked(AnnotationDetection.detectComments).mockImplementation((async (...args: unknown[]) => {
@@ -1557,7 +1549,7 @@ describe('Layer 2: worker-parser integration via real reconcileSelector', () => 
 //
 // Multiple LLM entries for a repeated phrase, reconciled independently,
 // can all land on the same span via reconcileSelector's first-of-many
-// fallback. dedupeAnnotations (applied identically in every processor)
+// fallback. The span deduper (one decider for every processor)
 // collapses identical events (same motivation + span + body) to one,
 // while keeping same-span/different-body annotations distinct.
 
@@ -1659,14 +1651,13 @@ describe('annotation de-duplication', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
-// ASSIST-PROGRESS-CONSOLIDATION P2 (A6, producer half): a progress event
-// carries a CODE plus typed params, never a prose sentence. The gateway
-// reports what happened; each client renders it in the user's language.
+// The producer half of one rule: a progress event carries a CODE plus typed
+// params, never a prose sentence. The gateway reports what happened; each
+// client renders it in the user's language.
 //
-// Pinned at the PROCESSOR call, deliberately: P1 already severed prose at
-// the wire (`worker-process.ts` drops the argument), so a wire-level
-// assertion would pass today without a single producer changing. The
-// processors are where the English literals still live.
+// Pinned at the PROCESSOR call, deliberately: the processors are where an
+// English literal would be written. The wire half — the worker forwarding
+// the code — is pinned in the worker-process suite.
 // ─────────────────────────────────────────────────────────────────────
 
 /** Every message a processor emitted, in order. */
@@ -1679,7 +1670,7 @@ function extrasFrom(progress: ReturnType<typeof vi.fn>): Array<Record<string, un
   return progress.mock.calls.map(call => call[2]);
 }
 
-describe('progress messages are codes, not prose (A6)', () => {
+describe('progress messages are codes, not prose', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('highlight: loading → analyzing → creating-annotations → complete-created', async () => {
@@ -1743,7 +1734,7 @@ describe('progress messages are codes, not prose (A6)', () => {
 
   it('NO processor emits a prose sentence — the census is the enum, and tsc is its enforcement', async () => {
     // The sweeping guard: whatever a processor reports, it is an object with
-    // a `code`. A string here is the defect this phase exists to remove.
+    // a `code`. A string here is the defect.
     const content = 'A critical finding.';
     vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
       { exact: 'critical', start: 2, end: 10 },
@@ -1774,8 +1765,7 @@ describe('progress messages are codes, not prose (A6)', () => {
 //
 // The client's `progress$` REPLACES its value on each event, so a field
 // describing the RUN (not the moment) must ride EVERY event — sent once, it
-// flashes at 10% and vanishes. The comment flow showed "Marking…" and nothing
-// else for the rest of the run because of exactly that.
+// flashes at 10% and vanishes.
 // ─────────────────────────────────────────────────────────────────────
 describe('request parameters ride every event', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -1858,14 +1848,14 @@ describe('request parameters ride every event', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
-// CLEAN-PROGRESS Lane B — one vocabulary for "what is in flight".
+// One vocabulary for "what is in flight".
 //
 // Reference and tag iterate the same way over a user-chosen list, so they
 // report the same shape: `current: {kind, value}` + `processed` + `total`.
 // `kind` is a wire CODE the client localizes; `value` is KB data (an entity
 // type, a category) shown verbatim.
 // ─────────────────────────────────────────────────────────────────────
-describe('what is in flight is reported one way (CLEAN-PROGRESS A4/A5)', () => {
+describe('what is in flight is reported one way', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('reference: the entity type rides `current`, kind-tagged, with its position', async () => {
@@ -1889,9 +1879,9 @@ describe('what is in flight is reported one way (CLEAN-PROGRESS A4/A5)', () => {
     });
   });
 
-  it('tag: the category rides the SAME field, kind-tagged — tags get a subject at last', async () => {
-    // processTagJob already loops per category; it just never said so. This is
-    // the parity gap Copilot flagged on #1179, now a one-field change.
+  it('tag: the category rides the SAME field, kind-tagged', async () => {
+    // processTagJob loops per category, and says so the way reference says
+    // its entity type.
     const content = 'Issue: the duty of care.';
     vi.mocked(AnnotationDetection.detectTags).mockImplementation(inOneChunk([
       { exact: 'duty of care', start: 11, end: 23, category: 'Issue' },
@@ -1912,9 +1902,8 @@ describe('what is in flight is reported one way (CLEAN-PROGRESS A4/A5)', () => {
     });
   });
 
-  it('no producer emits the old flow-specific field names', async () => {
-    // The whole point: one vocabulary. A reappearance of any of these is the
-    // regression this lane exists to prevent.
+  it('no producer emits flow-specific field names', async () => {
+    // The whole point: one vocabulary.
     vi.mocked(extractEntities).mockImplementation(inOneChunk([
       { exact: 'Paris', entityType: 'Location' } as never,
     ]));
@@ -1933,11 +1922,11 @@ describe('what is in flight is reported one way (CLEAN-PROGRESS A4/A5)', () => {
   });
 });
 
-// ── Checkpointed resume (A3) ──────────────────────────────────────────
+// ── Checkpointed resume ───────────────────────────────────────────────
 // A unit either completed — every chunk committed, its checkpoint fired —
 // or it contributes nothing.
 
-describe('processReferenceJob — unit commits (A3)', () => {
+describe('processReferenceJob — unit commits', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('checkpoints each completed unit — including empty ones — and stops at the failing unit', async () => {
@@ -1948,7 +1937,7 @@ describe('processReferenceJob — unit commits (A3)', () => {
         await onChunkResults?.(items as never, { next: 1_000, size: 250 });
         return items as never;
       }
-      if (t === 'Date') { await onChunkResults?.([] as never, { next: 1_000, size: 250 }); return [] as never; } // legitimately-empty unit (RED v)
+      if (t === 'Date') { await onChunkResults?.([] as never, { next: 1_000, size: 250 }); return [] as never; } // legitimately-empty unit
       throw new Error('Location stalled');
     });
 
@@ -2141,12 +2130,12 @@ describe('under-report verdicts on the terminal surface', () => {
 
   // ── the terminal record describes the DOCUMENT, not one attempt ─────────
   //
-  // `totalFound` is documented as "Total entities found", and before this a
-  // retry reported only the chunks it happened to run: measured at 19 where the
-  // document yielded 25. The landed unit-grain retry had the same defect at
-  // coarser grain — every skipped unit's counts simply vanished. The tallies
-  // ride the checkpoint (HD3, user 2026-09-12) precisely so a resumed attempt
-  // can continue the count instead of restarting it.
+  // `totalFound` is documented as "Total entities found", so a retry that
+  // reported only the chunks it happened to run would under-state it (19
+  // where the document yields 25). The tallies ride the checkpoint precisely
+  // so a resumed attempt can continue the count instead of restarting it.
+  // Units an earlier attempt COMPLETED carry no cursor, so their counts are
+  // missing from the total — the same gap at coarser grain.
   describe('resumed tallies', () => {
     it('seeds the unit counters from the checkpoint so the result covers the whole document', async () => {
       vi.mocked(extractEntities).mockImplementation((async (...args: unknown[]) => {
@@ -2213,14 +2202,14 @@ describe('under-report verdicts on the terminal surface', () => {
     });
   });
 
-  // ── the unit → cursor lookup (CHUNK-GRAIN-RESUME P3) ────────────────────
+  // ── the unit → cursor lookup ────────────────────────────────────────────
   //
   // The processors are where a job's units get their NAMES — an entity type
   // here, a category for tags, the motivation for the other three — so they are
   // the only place the checkpoint's key can be matched to the run that has to
   // consume it. A wrong or missing key is silent: the unit simply starts at the
   // top and the retry re-pays for everything, with nothing in the record to say
-  // a resume was even attempted. (Mutating the lookup away left every other
+  // a resume was even attempted. (Mutating the lookup away leaves every other
   // suite green, which is why these exist.)
   describe('resume cursors reach the right unit', () => {
     it('processHighlightJob hands its motivation\'s cursor to the detector', async () => {
@@ -2334,7 +2323,7 @@ describe('under-report verdicts on the terminal surface', () => {
   });
 });
 
-// The denominator (RD5): the count-verifier's expectation, cumulative on the
+// The denominator: the count-verifier's expectation, cumulative on the
 // progress surface, so the UI can draw "69 of ~290". Absent without a
 // verifying provider — no claim, not zero.
 describe('entitiesExpected on the progress surface', () => {
@@ -2370,9 +2359,9 @@ describe('entitiesExpected on the progress surface', () => {
   });
 
   it('the numerator advances at the same grain as the denominator', async () => {
-    // Copilot's PR-1337 finding: expected grew per chunk while found waited
-    // for the unit — "0 of ~37" for an entire single-type run, annotations
-    // painting all the while. Found and emitted must move as chunks COMMIT.
+    // If expected grows per chunk while found waits for the unit, a
+    // single-type run reads "0 of ~37" throughout, annotations painting all
+    // the while. Found and emitted must move as chunks COMMIT.
     vi.mocked(extractEntities).mockImplementation(async (...args: unknown[]) => {
       const onCounted = args[8] as (c: number) => void;
       const onChunkResults = args[10] as (i: unknown[]) => Promise<void>;
@@ -2416,11 +2405,11 @@ describe('entitiesExpected on the progress surface', () => {
   });
 });
 
-// P0 for the 26-minute-attempt bug: a whole-job retry re-emitted from chunk 1
-// and left 164 exact duplicates (identical `exact` at identical `start`).
-// Content-addressed ids (JOB-RESTART-SAFETY P3) should have made that a no-op.
-// These pin the id contract at the emit site, which discriminates "the hash
-// input varies" from "something downstream appends anyway".
+// A whole-job retry re-emits from chunk 1, and content-addressed ids make
+// that a no-op — unless the hash input varies between attempts, which leaves
+// exact duplicates (identical `exact` at identical `start`). These pin the id
+// contract at the emit site, which discriminates "the hash input varies"
+// from "something downstream appends anyway".
 describe('re-running a unit emits the SAME annotation ids', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
@@ -2451,8 +2440,7 @@ describe('re-running a unit emits the SAME annotation ids', () => {
   it('the id is stable across a differing bodyLanguage default', async () => {
     // `unresolvedBody` carries `language: params.language ?? 'en'` and the body
     // IS hashed. If a retry ever resolved that default differently, ids would
-    // diverge and both dedupe layers would fail together — the shape that best
-    // fits the measured duplicates.
+    // diverge and both dedupe layers would fail together.
     const committed: string[][] = [];
     for (const language of [undefined, 'en']) {
       const got: string[] = [];

@@ -1,16 +1,15 @@
 /**
  * When the proactive refresh fires, derived from the token itself.
  *
- * The margin used to be a constant — `REFRESH_BEFORE_EXP_MS`, five minutes —
- * subtracted from `exp`. That was correct for as long as this client's tokens
- * came from a gateway minting hour-long ones. Moving identity to Keycloak
- * brought a realm whose `accessTokenLifespan` is also exactly five minutes, so
+ * A constant margin — `REFRESH_BEFORE_EXP_MS`, five minutes — subtracted from
+ * `exp` is correct only while tokens outlive it. A Keycloak realm's default
+ * `accessTokenLifespan` is also exactly five minutes, which gives
  * `exp - margin === iat`: a moment always in the past, a delay always `0`, and
- * a refresh that immediately scheduled another. Measured on an idle signed-in
- * page: 1418 successful `POST /token` in ten seconds.
+ * a refresh that immediately schedules another — 1418 successful
+ * `POST /token` in ten seconds on an idle signed-in page.
  *
- * The margin is now a fraction of the token's OWN lifetime, so it cannot equal
- * the quantity it is subtracted from — no issuer's lifetime can reproduce the
+ * The margin is a fraction of the token's OWN lifetime, so it cannot equal
+ * the quantity it is subtracted from — no issuer's lifetime can produce the
  * loop, including issuers Semiont does not run and cannot configure.
  */
 
@@ -35,8 +34,8 @@ function token(lifetimeSec: number, opts: { iat?: boolean; ageSec?: number } = {
 
 describe('refreshDelayMs — the margin is a fraction of the lifetime', () => {
   it('a 300s token — the exact collision — schedules a real delay, not zero', () => {
-    // The regression, stated as arithmetic. Keycloak's default lifespan and
-    // the old constant are both 300s, so the old rule produced exactly 0.
+    // The collision, stated as arithmetic. Keycloak's default lifespan and
+    // `REFRESH_BEFORE_EXP_MS` are both 300s, so a constant margin gives exactly 0.
     const delay = refreshDelayMs(token(300), NOW);
     expect(delay).toBe(150_000);
   });
@@ -70,10 +69,9 @@ describe('refreshDelayMs — the margin is a fraction of the lifetime', () => {
     expect(refreshDelayMs(token(5), NOW)).toBe(MIN_REFRESH_DELAY_MS);
   });
 
-  it('a long-lived token keeps the five-minute margin — the behaviour that was always right', () => {
+  it('a long-lived token keeps the five-minute margin', () => {
     // An hour-long token: the constant is much smaller than half the lifetime,
-    // so it still governs and the refresh lands 55 minutes out, exactly as it
-    // did when the gateway minted these.
+    // so it governs and the refresh lands 55 minutes out.
     expect(refreshDelayMs(token(3600), NOW)).toBe(3600_000 - REFRESH_BEFORE_EXP_MS);
   });
 
@@ -85,7 +83,7 @@ describe('refreshDelayMs — the margin is a fraction of the lifetime', () => {
 describe('refreshDelayMs — the floor', () => {
   it('a token already past its refresh point waits the floor, never zero', () => {
     // A session restored from storage with seconds left. One refresh is right;
-    // a zero-delay timer that reschedules itself is the loop again.
+    // a zero-delay timer that reschedules itself is a refresh loop.
     const delay = refreshDelayMs(token(300, { ageSec: 299 }), NOW);
     expect(delay).toBe(MIN_REFRESH_DELAY_MS);
   });
@@ -110,12 +108,12 @@ describe('refreshDelayMs — what it does without a full claim set', () => {
   });
 });
 
-describe('the margin can never again reach the lifetime it is subtracted from', () => {
-  it('gates the cross-package relationship the collision came from', () => {
+describe('the margin can never reach the lifetime it is subtracted from', () => {
+  it('gates the cross-package relationship the collision comes from', () => {
     // `REFRESH_BEFORE_EXP_MS` (here) and the launcher's
     // `keycloakAccessTokenLifespan` (300s) are two hand-written numbers in
-    // different packages that must relate, and nothing failed when they
-    // stopped relating. This cannot import the launcher's — and for an
+    // different packages that must relate, and nothing fails when they
+    // stop relating. This cannot import the launcher's — and for an
     // external issuer it is not ours at all — so the relationship is gated
     // where it can be: against the token, for every lifetime that matters.
     const REALM_LIFESPAN_SEC = 300;
@@ -130,15 +128,15 @@ describe('the margin can never again reach the lifetime it is subtracted from', 
 describe('JWT payloads are base64URL, which is not base64', () => {
   // `atob` implements base64 strictly and throws `InvalidCharacterError` on
   // `-` and `_` — the two characters base64url substitutes for `+` and `/`.
-  // Pure-ASCII payloads rarely produce them, which is why this survived; a
-  // non-ASCII `name` claim produces them often (measured: 2 of 8 sample
+  // Pure-ASCII payloads rarely produce them, so a bare `atob` appears to
+  // work; a non-ASCII `name` claim produces them often (2 of 8 sample
   // names, including "Zoë Fauré"). It is deterministic per user, so an
   // affected account hits it on every token it is ever issued.
   //
   // The damage is not a missing refresh. `isJwtExpired` answers TRUE when the
-  // parse fails, and it gates startup (`semiont-session.ts:202`) and the KB
-  // panel's status (`semiont-browser.ts:378`) — so a valid session reads as
-  // expired, forever, for those users.
+  // parse fails, and it gates startup (`SemiontSession`) and the KB panel's
+  // status (`SemiontBrowser.getKbSessionStatus`) — so under a bare `atob` a
+  // valid session reads as expired, forever, for those users.
 
   /** A token whose payload really does contain base64url's substitutions. */
   function base64UrlToken(iat = 1_700_000_000, exp = 1_700_000_300): string {

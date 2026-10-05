@@ -10,33 +10,29 @@ import { expect, type Page } from '@playwright/test';
  * ones — and each is newer than every seed. So the seeds march down the list and
  * fall off the end partway through a full run.
  *
- * That failed in the least helpful way possible: a spec that passes alone fails
+ * That fails in the least helpful way possible: a spec that passes alone fails
  * in the suite, at `expect(card).toBeVisible()`, reporting `element(s) not found`
  * for a resource that is present, visible, and one search away. It reads as a
- * product regression in whatever the spec was actually testing. Measured
- * 2026-08-06: specs 20/22/23 failed exactly this way on a *fresh, empty* KB while
- * passing in isolation, and the position in the run was the only variable —
- * spec 14 (early) passed, specs 20/22/23 (late) did not, and spec 24 passed
- * because its seed is the newest of the PDFs and had not yet fallen off.
+ * product defect in whatever the spec is actually testing, on a *fresh, empty*
+ * KB too, and the position in the run is the only variable.
  *
  * Searching sidesteps the window entirely: the query goes to the server
- * (`SEARCH_LIMIT = 20`, filtered by name), so the answer does not depend on how
- * many resources the suite happened to create beforehand. It is also what the
- * search box is for, which makes it the more honest gesture to be testing.
+ * (`SEARCH_LIMIT = 20`, matched on name, storage URI and entity types), so the
+ * answer does not depend on how many resources the suite happened to create
+ * beforehand. It is also what the search box is for, which makes it the more
+ * honest gesture to be testing.
  *
  * **A `.first()` card lookup is only safe when the spec is genuinely indifferent
- * to WHICH resource it gets — including its media type.** An earlier revision of
- * this note said generic `.first()` lookups "do NOT need this"; that was wrong,
- * and it cost a debugging cycle on 2026-08-06. Specs 04, 05 and 09 took the
- * first card and then waited for `.cm-content`, which mounts only for
- * text-bearing resources. A 28-page PDF uploaded to the KB became the newest
- * resource, Discover put it first, and all three failed with `element(s) not
- * found` — indistinguishable from a real regression in manual annotation.
+ * to WHICH resource it gets — including its media type.** A spec that takes
+ * the first card and then waits for `.cm-content`, which mounts only for
+ * text-bearing resources, fails with `element(s) not found` once a PDF is the
+ * newest resource and Discover puts it first — indistinguishable from a real
+ * defect in manual annotation.
  *
  * So the rule is about the assertion, not the window: if a spec asserts anything
  * that only holds for a particular KIND of resource (CodeMirror for text, the
  * page rail for PDFs), it must name the resource it wants. Specs 02 and 03 are
- * still fine on `.first()` because they only assert that *something* opens.
+ * fine on `.first()` because they only assert that *something* opens.
  */
 export async function openResourceByName(page: Page, name: string): Promise<void> {
   await page.goto('/en/know/discover');

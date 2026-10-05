@@ -40,10 +40,9 @@ func (f *fakeGateway) server(t *testing.T) *httptest.Server {
 		w.WriteHeader(http.StatusAccepted)
 	})
 	mux.HandleFunc("/bus/subscribe", func(w http.ResponseWriter, r *http.Request) {
-		// The real route is POST-only with a JSON subscription matrix
-		// (MULTI-RESOURCE-SCOPE) — the GET query form 404s, an empty
-		// matrix 400s. Enforcing that here keeps this fake honest about
-		// the wire the client must speak.
+		// The real route is POST-only with a JSON subscription matrix — the
+		// GET query form 404s, an empty matrix 400s. Enforcing that here
+		// keeps this fake honest about the wire the client must speak.
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -64,10 +63,11 @@ func (f *fakeGateway) server(t *testing.T) *httptest.Server {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		// CORRELATED-REPLY-ROUTING D5: clientId is REQUIRED on subscribe, and
-		// the real gateway 400s without it. The fake refuses too, so a Go
-		// client that forgets the field fails here rather than at the P3
-		// cutover as "this client silently receives nothing".
+		// clientId is REQUIRED on subscribe, and the real gateway 400s
+		// without it: a correlated reply is written only to the client that
+		// made the request, so a client with no routing address would
+		// silently receive nothing. The fake refuses too, so a Go client
+		// that forgets the field fails here.
 		if matrix.ClientID == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -113,9 +113,9 @@ func (f *fakeGateway) lastEmit(t *testing.T) map[string]any {
 }
 
 // frame builds one SSE frame in the gateway's shape: the correlation key
-// rides the ENVELOPE beside the channel (routes/bus.ts writes
-// `{channel, correlationId, payload}`), never inside the payload. Pass "" for
-// a plain event — one that answers no request.
+// rides the ENVELOPE beside the channel (apps/gateway/src/routes/stream.rs
+// writes `{channel, correlationId, payload}`), never inside the payload. Pass
+// "" for a plain event — one that answers no request.
 func frame(channel, cid string, payload map[string]any) string {
 	env := map[string]any{"channel": channel, "payload": payload}
 	if cid != "" {
@@ -330,7 +330,8 @@ func TestReadSSEParsesFrames(t *testing.T) {
 	}
 }
 
-// CORRELATED-REPLY-ROUTING P2 — the routing address, Go side.
+// The routing address for correlated replies, Go side: each Client mints
+// one clientId and sends it on every subscribe and every emit.
 
 func TestSubscribeAndEmitCarryOneClientID(t *testing.T) {
 	f := newFakeGateway()
@@ -394,8 +395,8 @@ func TestTwoClientsAreTwoAddresses(t *testing.T) {
 	}
 }
 
-// A limit's refusal says when to come back (Retry-After, GATEWAY-LIMITS P5);
-// the client never retries on its own, so it hands the wait to its caller.
+// A limit's refusal says when to come back (Retry-After); the client never
+// retries on its own, so it hands the wait to its caller.
 func TestARefusalCarriesTheGatewaysRetryAfter(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

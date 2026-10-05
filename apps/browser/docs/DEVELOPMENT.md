@@ -1,7 +1,5 @@
 # Browser Development Guide
 
-**Last Updated**: 2026-03-29
-
 Complete guide to local development workflows, common tasks, debugging, and troubleshooting for the Semiont Browser.
 
 ## Table of Contents
@@ -386,7 +384,7 @@ Environment variables are configured automatically based on your environment con
 
 ### Authentication Issues
 - Check browser dev tools Network tab
-- Confirm requests carry an `Authorization: Bearer <jwt>` header — the access token lives in JS memory (held by the SDK session), not in a cookie
+- Confirm requests carry an `Authorization: Bearer <jwt>` header — the SDK session attaches the access token; it is never a cookie
 - Check `/api/users/me` — it answers with the caller's DID, which is the name every event is attributed to
 - Verify gateway is running and accessible
 
@@ -428,7 +426,7 @@ Environment variables are configured automatically based on your environment con
 
 **Solutions**:
 - Check the **issuer's** logs, not the gateway's — the gateway is never contacted for a sign-in that fails, so a failed sign-in leaves no trace in its logs
-- Confirm the SDK session captured an access token after sign-in — it's held in JS memory and sent as `Authorization: Bearer`, not set as a cookie
+- Confirm the sign-in was stored: `localStorage` holds the access and refresh pair under `semiont.session.<kb id>`. The access token is sent as `Authorization: Bearer`, never set as a cookie
 - Check `/api/users/me` returns the expected DID
 - Ensure the redirect URI registered on the issuer's browser client matches where the app actually runs. There is no gateway callback route; PKCE returns to the app
 
@@ -598,11 +596,10 @@ For detailed styling guidelines, see the [Style Guide](./style-guide.md).
 - [Accessibility](./ACCESSIBILITY.md) - WCAG 2.1 AA implementation patterns
 
 ### System Documentation
-- [System Documentation](../../../docs/system/README.md) - Overall platform
+- [Architecture](../../../docs/architecture/README.md) - Overall platform
 - [Gateway README](../../gateway/README.md) - Gateway API
 - [Launcher README](../../launcher/README.md) - `semiont` launcher usage
 
 ---
 
-**Last Updated**: 2026-03-29
 **For Questions**: See [System Documentation](../../../docs/) or file an issue

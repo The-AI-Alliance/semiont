@@ -19,7 +19,7 @@ import { baseUrl } from '@semiont/core';
 
 const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/') });
 // HttpTransport implements both ITransport and IGatewayOperations; passing it
-// third enables the `auth` / `admin` namespaces.
+// third enables the `auth` / `system` namespaces.
 const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 ```
 
@@ -32,31 +32,32 @@ pools that wire bespoke `tokenRefresher` / `BehaviorSubject` token sources.
 ```ts
 import {
   HttpTransport,
+  currentUserOf,
   HttpContentTransport,
   type HttpTransportConfig,
   type TokenRefresher,
   APIError,
-  // SSE-actor machinery used by SDK adapters; not application code:
+  // SSE-actor machinery used by worker-side adapters; not application code:
   createActorStateUnit,
   type ActorStateUnit,
   type ActorStateUnitOptions,
 } from '@semiont/http-transport';
 ```
 
-That's the entire surface. Everything else moved out:
+That's the entire surface. Everything else lives elsewhere:
 
 - **`ITransport`, `IContentTransport`, `BRIDGED_CHANNELS`, `ConnectionState`,
-  response/progress types** live in [`@semiont/core`](../core/).
+  `busRequest`, response/progress types** live in [`@semiont/core`](../core/).
 - **`SemiontClient`, namespaces, `SemiontSession`, `SemiontBrowser`,
-  state units, `bus-request`, `cache`** live in [`@semiont/sdk`](../sdk/).
+  state units, `cache`** live in [`@semiont/sdk`](../sdk/).
 
 ## Behavioral contract
 
 The guarantees every `ITransport` implementation must honor — including
 `HttpTransport` — are documented in
 [`docs/protocol/TRANSPORT-CONTRACT.md`](../../docs/protocol/TRANSPORT-CONTRACT.md).
-HTTP-specific guarantees (the `/bus/emit` gateway, SSE reconnect, `Last-Event-ID`
-replay, etc.) live in
+HTTP-specific guarantees (the `/bus/emit` gateway, SSE reconnect, per-scope
+`lastEventId` replay, etc.) live in
 [`docs/protocol/TRANSPORT-HTTP.md`](../../docs/protocol/TRANSPORT-HTTP.md).
 
 ## Writing a new transport

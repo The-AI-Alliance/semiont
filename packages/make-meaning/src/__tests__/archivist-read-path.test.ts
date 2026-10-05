@@ -1,11 +1,11 @@
 /**
- * EXTRACT-ARCHIVIST P2a — the D1 sequence-ranged read path.
+ * The Archivist's sequence-ranged event read path.
  *
- * This extraction takes the event store out of the gateway's process, which
- * breaks `/bus/subscribe`'s `Last-Event-ID` replay (bus.ts reads the log
- * in-process). D1 (settled 2026-08-27): a dedicated read path on the
- * Archivist, one narrow call — the events for one resource from one
- * sequence — mirroring `queryEvents(rId, { fromSequence })` exactly.
+ * The Archivist runs as its own service, so the event store is outside the
+ * gateway's process and `/bus/subscribe`'s `lastEventId` replay cannot read
+ * the log in-process. It reads through a dedicated path on the Archivist, one
+ * narrow call — the events for one resource from one sequence — mirroring
+ * `queryEvents(rId, { fromSequence })` exactly.
  *
  * The reconnect gate lives here because the failure is SILENT: a gateway
  * that cannot replay degrades to a gap event, invisible to any typecheck.
@@ -87,7 +87,7 @@ afterEach(() => {
   expect(offSpec.splice(0)).toEqual([]);
 });
 
-describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
+describe('Archivist sequence-ranged read path', () => {
   /** What `describe` answers, by resource id; absent means no such resource. */
   let descriptions: Map<string, GetResourceResponse>;
   /** Every upload the server asked to record, and how the record answers. */
@@ -158,7 +158,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
 
   it('replays events from a sequence — a reconnecting subscriber gets replay, not a gap', async () => {
     // The gateway's reconnect shape: a client held sequence 3, so the
-    // gateway asks from 3 + 1 (bus.ts passes fromSequence: parsed.sequence + 1).
+    // gateway asks from 3 + 1 (its replay passes `fromSequence = sequence + 1`).
     const res = await fetch(`${baseUrl}/events/${encodeURIComponent(String(rid))}?fromSequence=4`, {
       headers: { authorization: `Bearer ${SERVICE_TOKEN}` },
     });
@@ -206,11 +206,11 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
   });
 
   /**
-   * The recording upload (GATEWAY-SIMPLIFY P3, S3): the gateway forwards a
-   * client's multipart upload untouched, naming the principal it verified,
-   * and the Archivist — the KB tree's one writer — stores the bytes and
-   * records the resource in one call, answering the new id. The gateway no
-   * longer parses the upload or makes a bus request of its own.
+   * The recording upload: the gateway forwards a client's multipart upload
+   * untouched, naming the principal it verified, and the Archivist — the KB
+   * tree's one writer — stores the bytes and records the resource in one
+   * call, answering the new id. The gateway neither parses the upload nor
+   * makes a bus request of its own.
    */
   describe('POST /resources — store and record an upload', () => {
     const BYTES = '# Uploaded\n';
@@ -357,9 +357,9 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
   });
 
   /**
-   * The linked-data description (GATEWAY-SIMPLIFY P3, S2): the target of the
-   * `Link: rel="describedby"` header on every content response, served here
-   * so the gateway proxies it as it proxies bytes.
+   * The linked-data description: the target of the `Link: rel="describedby"`
+   * header on every content response, served here so the gateway proxies it
+   * as it proxies bytes and makes no bus request for it.
    */
   describe('GET /resources/:id/jsonld — the description', () => {
     const DESCRIPTION: GetResourceResponse = {
@@ -388,12 +388,12 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
   });
 
   /**
-   * SINGLE-KB-MOUNT P3 — the Archivist serves bytes. Addressed by resourceId,
-   * because that is the key the one resolution takes and the key
-   * `IContentTransport.getBinary` will bring in P4; the caller never converts
-   * to a tree address only to have this side convert back.
+   * The Archivist serves bytes. Addressed by resourceId, because that is the
+   * key the one resolution of `resourceId → (bytes, mediaType)` takes and the
+   * key `IContentTransport.getBinary` brings; the caller never converts to a
+   * tree address only to have this side convert back.
    */
-  describe('GET /resources/:id/content (SINGLE-KB-MOUNT P3)', () => {
+  describe('GET /resources/:id/content', () => {
     const CONTENT = '# Served by the Archivist\n';
     const CONTENT_URI = 'file://docs/served.md';
     const SERVED = resourceId('res-served');
@@ -460,10 +460,11 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       }
     });
 
-    // The CLIENT of the route above (SINGLE-KB-MOUNT P4). Driven against the
-    // live server rather than a mock: this pair is the whole point of the two
+    // The CLIENT of the route above: the Smelter, Worker and Librarian read
+    // bytes straight from the Archivist with it. Driven against the live
+    // server rather than a mock: this pair is the whole point of the two
     // halves living in one package, and a mock would let either side drift.
-    describe('archivistContentReads (SINGLE-KB-MOUNT P4)', () => {
+    describe('archivistContentReads', () => {
       /**
        * A minimal issuer: discovery and a token endpoint that hands out the
        * one token the stub verifier accepts. Stood up for real rather than
@@ -494,9 +495,8 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
         await new Promise<void>((resolve, reject) => issuer.close((e) => (e ? reject(e) : resolve())));
       });
 
-      // A credential the test supplies itself — which it could not do while
-      // `archivistAddress` read one out of `process.env`. Built on demand
-      // because `issuerUrl` is assigned by a hook, not at describe time.
+      // A credential the test supplies itself. Built on demand because
+      // `issuerUrl` is assigned by a hook, not at describe time.
       const testCredential = () => ({ issuer: issuerUrl, clientId: 'semiont-test', clientSecret: 'test-secret' });
 
       const addressOf = (url: string): ArchivistAddressConfig => {
@@ -539,11 +539,10 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       });
 
       it('takes the credential from its caller, so a test can supply its own', () => {
-        // This is the property that was missing. The function used to read
-        // SEMIONT_OIDC_CLIENT_ID/_SECRET out of `process.env` mid-call, so a
-        // caller could neither supply a credential, stub one, nor hold two —
-        // and a narrowed config satisfied the type carrying none of what the
-        // function needed, which is exactly how the Librarian shipped broken.
+        // The credential is an argument, never read out of `process.env`
+        // mid-call: a caller can supply one, stub one, or hold two, and a
+        // narrowed config cannot satisfy the type while carrying none of
+        // what the function needs.
         const reads = archivistContentReads(addressOf(baseUrl), {
           issuer: issuerUrl, clientId: 'a-different-client', clientSecret: 'a-different-secret',
         });

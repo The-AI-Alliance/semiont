@@ -11,15 +11,12 @@
  * remove that protection.
  *
  * It is NOT sufficient on its own: the page remounts against the new
- * session while the URL still names the previous KB's resource, which is
- * the actual defect fixed in
- * .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+ * session while the URL still names the previous KB's resource.
  *
- * NOTE (SESSION-TYPED-FACTORIES, landed 2026-07-29): the API now enforces what
- * this gate guards — factories take a `SemiontSession` and construction goes
- * through `useSessionStateUnit`, which builds nothing without a session. These
- * layout gates remain as defense in depth and UX (loading order), not as the
- * safety mechanism.
+ * The API enforces what this gate guards — factories take a `SemiontSession`
+ * and construction goes through `useSessionStateUnit`, which builds nothing
+ * without a session — so the layout gates are defense in depth and UX
+ * (loading order), not the safety mechanism.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act } from '@testing-library/react';
@@ -67,7 +64,7 @@ const harness = vi.hoisted(() => {
     id: `session-${++seq}`,
     kb: { id: kbId, label: kbId },
     token$: new BehaviorSubject<string | null>('tok'),
-    streamState$: new BehaviorSubject('connected'),
+    streamState$: new BehaviorSubject('open'),
   });
   const activeSession$ = new BehaviorSubject<any>(null);
   const activeKbId$ = new BehaviorSubject<string | null>(null);

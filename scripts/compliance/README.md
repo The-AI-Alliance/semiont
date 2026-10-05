@@ -96,7 +96,7 @@ npx tsx scripts/compliance/batch-audit.ts <src-dir> <symbols-json>
 
 **Dual-mode input**:
 - **JSON mode**: Reads `symbols.json` from `discover-symbols.ts`
-- **Markdown mode**: Can also parse legacy hand-maintained markdown inventories
+- **Markdown mode**: Can also parse a hand-maintained markdown table of symbols
 
 **Checks performed**:
 1. EventBus dependency violations (global singleton in deps)
@@ -303,22 +303,21 @@ npx tsx "$AUDIT" "$SRC_DIR" "$SYMBOLS_FILE" > "$REPORT_FILE"
 echo "📊 Compliance report generated: $REPORT_FILE"
 ```
 
-2. Make executable, and ignore the symbols file:
+2. Make executable:
 ```bash
 chmod +x apps/my-app/scripts/generate-compliance-report.sh
-echo "apps/my-app/scripts/symbols.json" >> .gitignore
 ```
 
-**Do NOT add a `.gitignore` line for the report.** Reports go in `.compliance/`,
-which is already ignored as a directory — enumerating each output by hand is how
-two of the four reports ended up untracked-but-unignored at the repo root.
+**Do NOT add a `.gitignore` line for the symbols file or the report.** `.gitignore`
+ignores `**/scripts/symbols.json` and the `.compliance/` directory, so neither
+needs a line of its own.
 
 ### Adding New Compliance Rules
 
 1. Edit `scripts/compliance/audit-dependency-arrays.ts`
 2. Add detection logic in the AST analysis section
 3. Update output in the reporting section
-4. Document the new rule in `docs/ARCHITECTURE-TENETS.md`
+4. Document the new rule in `scripts/compliance/docs/TENETS-REACT-UI.md`
 
 ## Troubleshooting
 
@@ -352,7 +351,6 @@ two of the four reports ended up untracked-but-unignored at the repo root.
 
 **Update when adding new workspaces**:
 - ✅ Add thin wrapper script in workspace
-- ✅ Update `.gitignore` with new generated files
 
 ## References
 

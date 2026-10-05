@@ -21,10 +21,9 @@
  *                           to the Playwright report.
  *
  * Limitations:
- *   - Browser doesn't currently emit OTel spans by default — the
+ *   - Browser doesn't emit OTel spans by default — the
  *     captured trace prefixes are mostly gateway-originated. The
- *     fixture still queries the browser service in case it's added
- *     later.
+ *     fixture queries the browser service for a build that does.
  *   - Trace-id prefixes have a small chance of collision (8 hex = 32
  *     bits, so within a single test window collisions are unlikely
  *     but not impossible). We surface every trace whose ID starts

@@ -20,8 +20,8 @@ cargo add semiont-http-transport --features sign-in    # the transport over a ga
 ```
 
 Other readers have other homes: building Semiont itself is
-[docs/development](../development/README.md), running it is
-[docs/system](../system/README.md), and the wire and the contracts every SDK
+[docs/contributor](../contributor/README.md), running it is
+[docs/operator](../operator/README.md), and the wire and the contracts every SDK
 is held to are [docs/protocol](../protocol/README.md).
 
 Five documents here, each with ONE job, and one contract in
@@ -34,12 +34,13 @@ tells you what belongs in it — and what to reject in review.
 | [INTRODUCTION.md](./INTRODUCTION.md) | **Orientation** (read first) | The builder's mental model: the three core ideas, the contract→SDKs→bindings stack, live data, a one-page chat turn, the testing ethos, and the build-vs-adopt case for teams shipping with AI coding tools. No recipes, no reference. |
 | [DEVELOPER-GUIDE.md](./DEVELOPER-GUIDE.md) | **How-to** (and the de-facto tutorial) | Task-ordered recipes: connect → ingest → enrich → gather → generate → annotate → react live → test → tear down. Short prose + the exact lines. |
 | [Usage.md](./Usage.md) | **Reference** | The per-namespace surface: every method family, options, return shapes, error vocabulary, bus debugging. |
-| [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) | **Explanation** | Why the surface is shaped this way: RxJS substrate, the four return shapes, thenable streams vs `.fresh()` live queries, the three paths to the bus. |
-| [STATE-UNITS.md](./STATE-UNITS.md) | **Explanation + conventions** | The state-unit pattern (factory closure, RxJS surface, dispose lifecycle, session-typed factories) and the enforced axioms behind it. |
+| [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) | **Explanation** | Why the surface is shaped this way: the seven return shapes every SDK shares, then how TypeScript and Rust each render them, and the three paths to the bus. |
+| [STATE-UNITS.md](./STATE-UNITS.md) | **Explanation + conventions** | The state-unit pattern: what every state unit keeps, in any language, how TypeScript and Rust each write one, and how the rules are enforced. |
 | [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) | **Contract** | The live-query cache's numbered behavioral contract: `CacheState` emissions, SWR, bounded retry, failure-as-emission, disposal, persistence. Tests cite these numbers. |
 
-[`skills/`](./skills/) holds the agent skill packs: one ready-made definition per
-task, for agentic coding assistants.
+[`skills/`](./skills/README.md) holds the agent skill packs: one ready-made definition per
+task, for agentic coding assistants, following the layers a knowledge base is built in.
+Their code is compile-checked like the rest.
 
 ## React: embedding `@semiont/react-ui`
 
@@ -58,8 +59,7 @@ components. Install and setup are in the package's
 | [INTERNATIONALIZATION.md](./react-ui/INTERNATIONALIZATION.md) | `TranslationProvider`, with the built-in locales or your own. |
 | [ACCESSIBILITY.md](./react-ui/ACCESSIBILITY.md) | What the components provide for WCAG 2.1 AA, and the hooks. |
 | [FAVICON.md](./react-ui/FAVICON.md) | The branded favicon set. |
-| [CSS-SOURCE-MAPS.md](./react-ui/CSS-SOURCE-MAPS.md) | Debugging the pre-built CSS. |
-| [STYLES.md](./react-ui/STYLES.md) | Importing the styles, the design tokens, and the classes the components use. |
+| [STYLES.md](./react-ui/STYLES.md) | Importing the styles, debugging them, the design tokens, and the classes the components use. |
 | [SESSION.md](./react-ui/SESSION.md) | The session classes, the two buses, and the provider and hooks. |
 | [EVENTS.md](./react-ui/EVENTS.md) | Subscribing and emitting from React, and reading the wire log. |
 | [TESTING.md](./react-ui/TESTING.md) | The test utilities and how to test with them. |
@@ -76,14 +76,13 @@ internals behind the last four.
   a new **design rationale** goes in REACTIVE-MODEL or STATE-UNITS; a new
   **cache behavior** gets a B-number in CACHE-SEMANTICS *and* a test citing
   it. If a change doesn't fit one home, it's probably two changes.
-- Contract docs (CACHE-SEMANTICS, and the protocol docs below) carry
-  **revision logs** — behavior changes append a dated entry.
 - **Code fences are compile-checked.** Every ` ```ts `/` ```tsx `/
-  ` ```typescript ` fence in these docs is extracted and type-checked against
+  ` ```typescript ` fence in these docs, the skills included, is extracted and type-checked against
   the built packages (plus an await-thenable pass) by
   `scripts/compliance/audit-doc-snippets.sh` — CI fails on snippet rot. Names
   a snippet doesn't define come from the ambient prelude at
-  [`tests/doc-snippets/prelude.ts`](../../tests/doc-snippets/prelude.ts); extend the prelude
+  [`tests/doc-snippets/prelude.ts`](../../tests/doc-snippets/prelude.ts) (the skills have
+  their own, `prelude-skills.ts`); extend the prelude
   rather than adding boilerplate to a snippet. Mark a fence ` ```ts sketch `
   ONLY for genuine pseudocode or display-only shapes — exemptions are counted
   and the census should hold flat or shrink.
@@ -142,6 +141,7 @@ taught once in [INTRODUCTION](./INTRODUCTION.md) and specified in the docs
 above. It is deliberately NOT restated here: a map that also teaches is a map
 that drifts from the docs it maps.
 
-The canonical order for the eight verbs, used in
-[`docs/protocol/flows/`](../protocol/flows/) and everywhere that
-lists them: **browse · bind · yield · mark · frame · gather · match · beckon**.
+The eight verbs are always listed in three groups, as in
+[`docs/protocol/flows/`](../protocol/flows/README.md): four that write
+(**yield · mark · bind · frame**), three that read (**browse · match · gather**),
+and one that directs attention (**beckon**).

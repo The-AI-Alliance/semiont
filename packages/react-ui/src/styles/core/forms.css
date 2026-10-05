@@ -36,7 +36,7 @@
 }
 
 /* Note: Form control styles (.semiont-input, .semiont-textarea, .semiont-select, .semiont-checkbox)
-   are now defined in dedicated core files:
+   are defined in dedicated core files:
    - core/inputs.css
    - core/textareas.css
    - core/selects.css
@@ -98,8 +98,6 @@
   text-align: right;
 }
 
-/* Fieldset and legend */
-
 /* Note: Disabled states for form controls are defined in their respective core files */
 
 /* Panel form elements */
@@ -134,7 +132,6 @@
   border-top-color: var(--semiont-color-gray-700);
 }
 
-/* Language selector dropdown */
 /* ============================================
    Assist Section Form Fields (single-dash BEM variant)
    Used in AssistSection component
@@ -180,7 +177,7 @@
 }
 
 /* Note: Basic form controls (.semiont-textarea, .semiont-select, .semiont-checkbox)
-   are now defined in /styles/core/ as they are fundamental UI elements.
+   are defined in /styles/core/ as they are fundamental UI elements.
    See: core/textareas.css, core/selects.css, core/checkboxes.css */
 
 /* Inline row — lays out multiple fields side by side */
@@ -196,7 +193,6 @@
   flex-shrink: 0;
 }
 
-/* Grow modifier — field takes remaining space */
 /* A slider column: flexible, but a 0-to-1 range gains nothing past ~26rem —
    uncapped it stretches into a band and drags the row's other columns apart. */
 .semiont-form__field--slider {
@@ -212,10 +208,10 @@
   margin-left: auto;
 }
 
-/* Narrow modifier — fixed compact width for short numeric inputs */
-/* Sized by content with a floor, not a fixed box: a fixed 5.5rem wrapped
-   labels like "Max resources" onto two lines, which stretched that column
-   and knocked the row's inputs out of alignment. */
+/* Narrow modifier — a compact column for short numeric inputs. Sized by
+   content with a floor, not a fixed box: a fixed 5.5rem wraps labels like
+   "Max resources" onto two lines, which stretches that column and knocks
+   the row's inputs out of alignment. */
 .semiont-form__field--narrow {
   width: auto;
   min-width: 5.5rem;
@@ -225,8 +221,6 @@
 .semiont-form__field--inline > .semiont-form__label {
   white-space: nowrap;
 }
-
-/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
 
 /* A form tall enough to need its own scroll rather than growing its dialog. */
 .semiont-form--scrollable {

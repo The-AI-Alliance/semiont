@@ -1,26 +1,21 @@
 /**
  * One in-memory `ITransport`, built through a typed signature with NO cast.
  *
- * Every transport double in this package used to be a hand-rolled object
- * literal behind `as unknown as ITransport` — 17 files, 25 doubles, each
- * restating the same interface slightly differently. The cast suppressed a
- * check the code was already asking for (those factories declared
- * `: ITransport` as their return type), and what it hid was not hypothetical:
- * removing it from ONE of them surfaced a bare `string` where the contract
- * wants the branded `BaseUrl`, an `emit` returning `Promise<void>` where the
- * contract returns the SUBSCRIBER COUNT, and `Observable<unknown>` where the
- * contract is `Observable<EventMap[K]>` — the per-channel typing
- * WORKER-BUS-TYPED-BY-CHANNEL exists to establish.
+ * A hand-rolled object literal behind `as unknown as ITransport` suppresses
+ * the check its own `: ITransport` return type asks for, and what a cast
+ * hides is not hypothetical: a bare `string` where the contract wants the
+ * branded `BaseUrl`, an `emit` returning `Promise<void>` where the contract
+ * returns the SUBSCRIBER COUNT, and `Observable<unknown>` where the contract
+ * is `Observable<EventMap[K]>` — the per-channel typing that derives a
+ * payload's type from its channel name.
  *
- * The cost of that came due on 2026-09-16: `isSubscribed` became a required
- * member, all 25 doubles still compiled, and 139 tests here failed at RUNTIME
- * instead. In react-ui the same gap surfaced as an empty entity-type list,
- * because the `TypeError` was swallowed by the SWR cache's retry-then-idle
- * path and nothing named the cause.
+ * A cast also defers a new required member to RUNTIME: every double behind
+ * one compiles without it, and its tests fail when they run — or the
+ * `TypeError` is swallowed by the SWR cache's retry-then-idle path and
+ * surfaces as an empty list, with nothing naming the cause.
  *
  * Constructed through this helper, the next required member is one compile
- * error in one file. Follows the pattern established by react-ui's
- * `inMemoryTransport` (PR #1384).
+ * error in one file.
  *
  * `isSubscribed` answers `true` honestly rather than as a stub: `stream()`
  * returns the bus subject for whatever channel is asked, so this transport
@@ -107,9 +102,8 @@ export function inMemoryTransport(options: InMemoryTransportOptions = {}): ITran
  * Each member is a spy TYPED as the interface's own method, so a test can
  * assert it was called while the compiler still checks the signature. Written
  * as `vi.fn<IGatewayOperations[K]>()` rather than a bare `vi.fn()` because the
- * bare form types as `Mock<Procedure>` and satisfies nothing — which is how
- * these doubles drifted from the contract behind their cast in the first
- * place.
+ * bare form types as `Mock<Procedure>` and satisfies nothing, so it needs a
+ * cast, and a double behind a cast drifts from the contract.
  */
 export function gatewayOperationSpies(
   overrides: Partial<IGatewayOperations> = {},

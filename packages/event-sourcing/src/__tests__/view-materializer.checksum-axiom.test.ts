@@ -3,23 +3,23 @@
  * bytes, the primary representation's `checksum` identifies the bytes the
  * resource actually has.
  *
- * One home, maintained on every path — the answer STORAGE-URI-ONE-HOME gave
- * for the sibling field, applied here. `ResourceDescriptor.currentChecksum`
- * used to be a second home: written on created/updated, never on cloned, and
- * read by nothing. The field readers DO use — the representation's — was
- * written on create and then never again.
+ * One home, maintained on every path — the rule the sibling field
+ * `storageUri` follows (it lives only on the primary representation, never on
+ * the descriptor), applied here. A second home on the descriptor would be
+ * one more field to keep in step, and two fields cannot be kept in step by
+ * convention.
  *
- * The consequence was live, not theoretical
- * (.plans/bugs/anchored-text-stale-primary-checksum.md): the anchored-text
+ * What rests on it: the anchored-text
  * read keys off `getPrimaryRepresentation(...).checksum`, while the Smelter
- * files geometry under the checksum of the bytes it actually read. From the
- * first update onward the two disagreed, so the read either served
- * coordinates for content the resource no longer had, or stalled the full
- * settle timeout and reported "no map" for a document that had one.
+ * files geometry under the checksum of the bytes it actually read. If an
+ * update leaves the representation's checksum stale the two disagree, and
+ * the read either serves coordinates for content the resource does not
+ * have, or stalls the full settle timeout and reports "no map" for a
+ * document that has one.
  *
  * An axiom rather than three separate cases: what must hold is a property of
- * every byte-changing path, and a per-case test is exactly what let the
- * update path be written without it.
+ * every byte-changing path, and a per-case test lets one path be written
+ * without it.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -113,9 +113,9 @@ describe('ViewMaterializer — the content-checksum axiom', () => {
     expect(await primaryChecksumAfter([cloned('C1', 1)])).toBe('C1');
   });
 
-  it('holds after an update — the case that was broken', async () => {
-    // Before the fix this returned C1: the update wrote a different field and
-    // left the representation carrying the ORIGINAL bytes' identity.
+  it('holds after an update', async () => {
+    // An update that left the representation alone would return C1 here:
+    // the ORIGINAL bytes' identity.
     expect(await primaryChecksumAfter([created('C1', 1), updated('C2', 2)])).toBe('C2');
   });
 
@@ -147,9 +147,9 @@ describe('ViewMaterializer — the content-checksum axiom', () => {
   });
 
   it('has no second home to disagree with', async () => {
-    // `currentChecksum` is deleted from the schema. Its return — under any
-    // name — reintroduces exactly this bug, because two fields cannot be kept
-    // in step by convention.
+    // The descriptor carries no `currentChecksum`. A second home — under
+    // any name — would have to be kept in step with the representation's by
+    // convention, which two fields cannot be.
     const view = await viewAfter([created('C1', 1), updated('C2', 2)]);
     expect(view.resource).not.toHaveProperty('currentChecksum');
   });

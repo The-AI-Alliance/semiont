@@ -2,12 +2,12 @@
  * The chunk→resource max-sim merge, as a unit.
  *
  * Three callers fold chunk-level hits into one entry per resource: both
- * `searchByResource` implementations (qdrant, memory) and — once
- * SEMANTIC-FALLBACK P2 lands — the fallback's fold over raw `searchResources`
- * output, which maps one-to-one with no dedup. Three copies of one merge is the
- * redundancy the house rules forbid, so the fold lives here and they all call it.
+ * `searchByResource` implementations (qdrant, memory) and the semantic
+ * search fallback's fold over raw `searchResources` output, which maps
+ * one-to-one with no dedup. One decision lives in one place — three copies
+ * of one merge would drift — so the fold lives here and they all call it.
  *
- * The invariant under test is SEMANTIC-FALLBACK axiom S7: one entry per
+ * The invariant under test is semantic-fallback axiom S7: one entry per
  * resource, however many chunks matched. The two ways to get that wrong are
  * keeping the *first* hit seen or averaging the chunks' scores — both are
  * plausible-looking folds, and both destroy the "peak relevance" property

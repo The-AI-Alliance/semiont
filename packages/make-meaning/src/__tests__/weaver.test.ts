@@ -83,7 +83,6 @@ function createMockGraphDb(): GraphDatabase {
     batchCreateResources: vi.fn().mockResolvedValue([]),
     createAnnotations: vi.fn().mockResolvedValue([]),
     resolveReferences: vi.fn().mockResolvedValue([]),
-    detectAnnotations: vi.fn().mockResolvedValue([]),
     getEntityTypes: vi.fn().mockResolvedValue([]),
     addEntityType: vi.fn().mockResolvedValue(undefined),
     addEntityTypes: vi.fn().mockResolvedValue(undefined),
@@ -183,11 +182,11 @@ describe('Weaver', () => {
     stopServing = null;
   });
 
-  // STORAGE-URI-ONE-HOME D1/D6: the weaver builds its OWN descriptor from the
-  // event before handing it to the graph — a third construction site that P1's
-  // census missed, because `additionalProperties: true` lets a top-level
-  // storageUri typecheck and then read back undefined. The P2 live gate caught
-  // it only after a full rebuild wrote 57 nulls.
+  // A storage URI's one home is the primary representation, and the weaver
+  // builds its OWN descriptor from the event before handing it to the graph —
+  // a construction site of its own, and one the types do not guard:
+  // `additionalProperties: true` lets a top-level storageUri typecheck and
+  // then read back undefined.
   describe('descriptor handed to the graph', () => {
     it('puts storageUri on the primary representation, never at the top level', async () => {
       const docId = resourceId(`storage-uri-home-${Date.now()}`);
@@ -254,7 +253,7 @@ describe('Weaver', () => {
       expect(graphDb.createResource).toHaveBeenCalledTimes(1);
     });
 
-    it('should skip irrelevant events like job.started', async () => {
+    it('should skip irrelevant events like job:started', async () => {
       const docId = resourceId(`filter-irrelevant-${Date.now()}`);
 
       // First create the resource so the stream is initialized
@@ -289,7 +288,7 @@ describe('Weaver', () => {
   });
 
   describe('event application', () => {
-    it('should handle resource.created', async () => {
+    it('should handle yield:created', async () => {
       const docId = resourceId(`apply-created-${Date.now()}`);
 
       await eventStore.appendEvent({
@@ -308,7 +307,7 @@ describe('Weaver', () => {
       expect(arg['@id']).toContain(docId);
     });
 
-    it('should handle resource.archived', async () => {
+    it('should handle mark:archived', async () => {
       const docId = resourceId(`apply-archived-${Date.now()}`);
 
       await eventStore.appendEvent({
@@ -337,7 +336,7 @@ describe('Weaver', () => {
       );
     });
 
-    it('should handle resource.unarchived', async () => {
+    it('should handle mark:unarchived', async () => {
       const docId = resourceId(`apply-unarchived-${Date.now()}`);
 
       await eventStore.appendEvent({
@@ -366,7 +365,7 @@ describe('Weaver', () => {
       );
     });
 
-    it('should handle annotation.added', async () => {
+    it('should handle mark:added', async () => {
       const docId = resourceId(`apply-ann-added-${Date.now()}`);
 
       await eventStore.appendEvent({
@@ -411,7 +410,7 @@ describe('Weaver', () => {
       expect(arg.creator).toBeDefined(); // Added from event userId
     });
 
-    it('should handle annotation.removed', async () => {
+    it('should handle mark:removed', async () => {
       const docId = resourceId(`apply-ann-removed-${Date.now()}`);
 
       await eventStore.appendEvent({
@@ -440,7 +439,7 @@ describe('Weaver', () => {
       );
     });
 
-    it('should handle annotation.body.updated', async () => {
+    it('should handle mark:body-updated', async () => {
       const docId = resourceId(`apply-body-updated-${Date.now()}`);
 
       await eventStore.appendEvent({
@@ -485,7 +484,7 @@ describe('Weaver', () => {
       expect(updateArg.body).toHaveLength(2);
     });
 
-    it('should handle entitytag.added', async () => {
+    it('should handle mark:entity-tag-added', async () => {
       const docId = resourceId(`apply-entitytag-${Date.now()}`);
 
       await eventStore.appendEvent({
@@ -525,7 +524,7 @@ describe('Weaver', () => {
       expect(updateArg.entityTypes).toContain('note');
     });
 
-    it('should handle entitytag.removed', async () => {
+    it('should handle mark:entity-tag-removed', async () => {
       const docId = resourceId(`apply-entitytag-rm-${Date.now()}`);
 
       await eventStore.appendEvent({
@@ -565,8 +564,8 @@ describe('Weaver', () => {
 
     // The -added fold must be idempotent per event, mirroring the view
     // materializer's includes-guard — duplicate adds must not diverge the
-    // graph from the view (bugs/weaver-entity-tag-add-not-idempotent.md).
-    it('entitytag.added for a tag the graph doc already has leaves a single copy', async () => {
+    // graph from the view.
+    it('mark:entity-tag-added for a tag the graph doc already has leaves a single copy', async () => {
       const docId = resourceId(`apply-entitytag-dup-${Date.now()}`);
 
       await eventStore.appendEvent({
@@ -599,7 +598,7 @@ describe('Weaver', () => {
       expect(graphDb.updateResource).not.toHaveBeenCalled();
     });
 
-    it('the same entitytag.added delivered twice leaves a single copy', async () => {
+    it('the same mark:entity-tag-added delivered twice leaves a single copy', async () => {
       const docId = resourceId(`apply-entitytag-redeliver-${Date.now()}`);
 
       await eventStore.appendEvent({
@@ -650,7 +649,7 @@ describe('Weaver', () => {
       expect(graphDb.updateResource).toHaveBeenCalledTimes(1);
     });
 
-    it('should handle entitytype.added (system event, no resourceId)', async () => {
+    it('should handle frame:entity-type-added (system event, no resourceId)', async () => {
       await eventStore.appendEvent({
         type: 'frame:entity-type-added',
         userId: userId('did:web:test:users:user1'),
@@ -664,8 +663,8 @@ describe('Weaver', () => {
     });
   });
 
-  describe('unknown events', () => {
-    it('should log warning for unknown event types and not throw', async () => {
+  describe('events outside the fan-in', () => {
+    it('should apply nothing for an event type the fan-in does not carry', async () => {
       const docId = resourceId(`unknown-type-${Date.now()}`);
 
       await eventStore.appendEvent({
@@ -677,9 +676,8 @@ describe('Weaver', () => {
       });
       await tick();
 
-      // The pre-filter should skip unknown event types entirely,
-      // so applyEventToGraph is never called for them.
-      // This test verifies the filter works — no graph methods called.
+      // The fan-in subscribes WEAVER_CHANNELS only, so an event of any
+      // other type never reaches applyEventToGraph: no graph methods called.
       vi.clearAllMocks();
 
       await eventStore.appendEvent({
@@ -744,7 +742,7 @@ describe('Weaver', () => {
   });
 
   describe('burst batching', () => {
-    it('should batch multiple annotation.added events via createAnnotations', async () => {
+    it('applies every mark:added of a burst exactly once, singly or batched', async () => {
       const docId = resourceId(`burst-batch-${Date.now()}`);
 
       // Create the resource first and wait for full cycle
@@ -758,7 +756,7 @@ describe('Weaver', () => {
       await tick();
       vi.clearAllMocks();
 
-      // Rapidly emit multiple annotation.added events (simulating bulk inference)
+      // Rapidly append multiple mark:added events (simulating bulk inference)
       for (let i = 0; i < 5; i++) {
         await eventStore.appendEvent({
           type: 'mark:added',
@@ -787,13 +785,11 @@ describe('Weaver', () => {
 
       await tick(500);
 
-      // First annotation passes through immediately via createAnnotation (leading edge)
-      // Remaining 4 should be batched via createAnnotations
+      // The leading event passes through createAnnotation; the rest arrive
+      // singly or in createAnnotations batches, depending on how the appends
+      // fall against the burst window.
       const singleCalls = (graphDb.createAnnotation as ReturnType<typeof vi.fn>).mock.calls.length;
-      const batchCalls = (graphDb.createAnnotations as ReturnType<typeof vi.fn>).mock.calls.length;
 
-      // At minimum: 1 single (leading edge) + 1 batch call for the rest
-      expect(singleCalls + batchCalls).toBeGreaterThanOrEqual(1);
       // Total annotations processed = single calls + sum of batch sizes
       const batchSizes = (graphDb.createAnnotations as ReturnType<typeof vi.fn>).mock.calls
         .map((call: any[]) => (call[0] as any[]).length);
@@ -854,18 +850,18 @@ describe('Weaver', () => {
 
       expect(metrics.subscriptions).toBe(1); // One injected source stream — channel fan-in (9) lives in weaverFanIn
       expect(metrics.pipelineActive).toBe(true);
-      // A count, deliberately not the map — the full per-resource map made
-      // /health an O(resources) payload (#845 scalability wart).
+      // A count, deliberately not the map — the full per-resource map would
+      // make /health an O(resources) payload.
       expect(typeof metrics.resourcesTracked).toBe('number');
     });
   });
 
-  describe('duplicate-delivery idempotency (WEAVER-ISOLATION P1)', () => {
-    // At-least-once delivery (SSE reconnect with Last-Event-ID replay after
-    // the split) means every fold must tolerate the same StoredEvent arriving
-    // twice. These specs push identical events straight onto the bus — the
-    // redelivery shape — against a REAL memory graph so state, not call
-    // counts alone, is the oracle.
+  describe('duplicate-delivery idempotency', () => {
+    // At-least-once delivery (SSE reconnect with `lastEventId` replay) means
+    // every fold must tolerate the same StoredEvent arriving twice. These
+    // specs push identical events straight onto the bus — the redelivery
+    // shape — against a REAL memory graph so state, not call counts alone,
+    // is the oracle.
     let seq = 0;
     const nextSeq = () => ++seq;
 
@@ -1011,7 +1007,7 @@ describe('Weaver', () => {
       expect(body).toHaveLength(1);
     });
 
-    it('mark:entity-tag-added twice → tag applied once (#974 pin)', async () => {
+    it('mark:entity-tag-added twice → tag applied once', async () => {
       await deliver(createdEvent('dup-tag'));
 
       const e = stored('mark:entity-tag-added', 'dup-tag', { entityType: 'DupTag' });
@@ -1044,7 +1040,7 @@ describe('Weaver', () => {
     });
   });
 
-  describe('checkpointed catch-up + weave:rebuild (WEAVER-ISOLATION P3)', () => {
+  describe('checkpointed catch-up + weave:rebuild', () => {
     // Catch-up rides EXISTING read channels: resources discovered via
     // browse:resources-requested, gap events fetched via
     // browse:events-requested (full StoredEvents), filtered client-side by
@@ -1133,7 +1129,7 @@ describe('Weaver', () => {
       await tick();
 
       // Rebuild reads history over the bus — the Weaver has no event-store
-      // attachment (P4); these responders are its only view of the log.
+      // attachment; these responders are its only view of the log.
       serveBrowseReads([rid]);
       const clearSpy = vi.spyOn(graphDb, 'clearDatabase');
       await busRequest(asBusRequestPrimitive(coreEventBus), 'weave:rebuild', {});
@@ -1167,12 +1163,12 @@ describe('Weaver', () => {
       expect((await graphDb.getResource(resourceId(rid)))?.name).toBe('Rebuilt One');
     });
 
-    // ANNOTATION-CREATED-AUTHORITY, the end-to-end proof. `rebuildResource`
-    // DELETES before it replays (neo4j: DETACH DELETE d, a), so the fold's
-    // "skip ids the graph already holds" guard finds nothing and re-creates
-    // every annotation. A store that stamps its own clock therefore collapses
-    // every annotation's authored `created` to the rebuild moment — on every
-    // reconcile heal, not just an empty-graph rebuild.
+    // An annotation's `created` is its authored moment: the end-to-end proof.
+    // `rebuildResource` DELETES before it replays (neo4j: DETACH DELETE d, a),
+    // so the fold's "skip ids the graph already holds" guard finds nothing and
+    // re-creates every annotation. A store that stamps its own clock therefore
+    // collapses every annotation's authored `created` to the rebuild moment —
+    // on every reconcile heal, not just an empty-graph rebuild.
     it('a rebuild preserves each annotation\'s AUTHORED created, rather than restamping it', async () => {
       await consumer.stop();
       graphDb = new MemoryGraphDatabase();
@@ -1213,7 +1209,7 @@ describe('Weaver', () => {
     });
   });
 
-  describe('completeness accounting + reconcile (#845)', () => {
+  describe('completeness accounting + reconcile', () => {
     // The projection must never silently under-materialize: witnessed apply
     // failures are counted and hold the checkpoint back (so catch-up
     // revisits them), rebuilds that dropped events reply FAILED instead of
@@ -1374,12 +1370,11 @@ describe('Weaver', () => {
       expect((await graphDb.getResource(resourceId(rid)))?.name).toBe('Healed');
     });
 
-    // VIEW-LOG-RECONCILIATION P1. A catalogued resource whose log holds nothing
-    // is an ORPHANED VIEW — someone rewrote history and the views projection
-    // was never invalidated. Healing it replays zero events and writes nothing,
-    // so the same divergence returns on the next boot, forever. Reporting that
-    // as a heal is what let the condition run unnoticed on the template KB for
-    // an unknown number of boots (bugs/weaver-fatal-429-and-phantom-view-heal-wave).
+    // A catalogued resource whose log holds nothing is an ORPHANED VIEW —
+    // someone rewrote history and the views projection was never invalidated.
+    // Healing it replays zero events and writes nothing, so the same
+    // divergence returns on the next boot, forever. Reporting that as a heal
+    // lets the condition run unnoticed, boot after boot.
     it('reports a catalogued resource with no events as an orphan, not a heal', async () => {
       await consumer.stop();
       graphDb = new MemoryGraphDatabase();
@@ -1396,7 +1391,7 @@ describe('Weaver', () => {
       expect(summary.healed).toBe(0);
       expect(summary.healFailures).toBe(0);
 
-      // The operator is the mechanism now — `clean --store state` is the
+      // The operator is the mechanism — `clean --store state` is the
       // repair, and the breadcrumb has to say so or nobody knows to run it.
       const orphanWarn = vi.mocked(mockLogger.warn).mock.calls.find(
         ([msg]) => typeof msg === 'string' && msg.includes('orphaned view'),
@@ -1405,10 +1400,10 @@ describe('Weaver', () => {
       expect(JSON.stringify(orphanWarn)).toContain('clean --store state');
     });
 
-    // GRAPH-DIVERGENCE-DEPTH P1. `divergenceOf` compared five hand-picked facts
-    // while the codec writes a dozen, so anything outside that list could go
-    // wrong unseen. The comparison is now against what the CODEC says the graph
-    // should hold — not against the view, which the graph is not a copy of.
+    // A comparison of hand-picked facts lets anything outside its list go
+    // wrong unseen. `divergenceOf` compares against what the CODEC says the
+    // graph should hold — not against the view, which the graph is not a copy
+    // of.
     const viewAnn = (over: Record<string, unknown> = {}) => ({
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       type: 'Annotation' as const,
@@ -1433,7 +1428,7 @@ describe('Weaver', () => {
       await tick();
     };
 
-    it('reports divergence on a stored property outside the old five-fact list', async () => {
+    it('reports divergence on a stored property other than the id set and the bodies', async () => {
       await consumer.stop();
       graphDb = new MemoryGraphDatabase();
       consumer = await wireWeaver(graphDb);
@@ -1442,8 +1437,8 @@ describe('Weaver', () => {
       await seedOneAnnotation(rid);
 
       // Same id, same body — the graph's annotation is source-only, and the log
-      // says it should carry a selector. The old check compared the id SET and
-      // the bodies, so it called this clean. (Deliberately not `creator`: the
+      // says it should carry a selector. A check of the id SET and the bodies
+      // alone would call this clean. (Deliberately not `creator`: the
       // fold derives that from the event, so it is held out — see divergenceOf.)
       serveBrowseReads([rid], {
         [rid]: [{ ...viewAnn(),

@@ -18,7 +18,7 @@
   text-transform: uppercase;
   letter-spacing: -0.025em;
   line-height: 1;
-  margin-bottom: 1.5rem; /* mb-6 from main */
+  margin-bottom: 1.5rem; /* mb-6 */
 }
 
 /* Remove margin when tagline is not shown */
@@ -50,7 +50,7 @@
 
   /* Increase spacing on larger screens */
   .semiont-branding-title {
-    margin-bottom: 2rem; /* sm:mb-8 from main */
+    margin-bottom: 2rem; /* sm:mb-8 */
   }
 
   /* Remove margin when tagline is not shown (override for larger screens) */
@@ -127,5 +127,3 @@
     transform: translateY(0);
   }
 }
-
-/* Annotate Toolbar */

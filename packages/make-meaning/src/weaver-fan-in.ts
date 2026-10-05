@@ -1,5 +1,5 @@
 /**
- * The Weaver's domain-event fan-in (WEAVER-ISOLATION P2).
+ * The Weaver's domain-event fan-in.
  *
  * Merges the nine graph-relevant channels of a bus into a single
  * `StoredEvent`-typed `events$` stream, with the command channel beside it.
@@ -31,7 +31,7 @@ export const WEAVER_COMMAND_CHANNELS = ['weave:rebuild'] as const;
 
 export interface WeaverFanIn {
   events$: Observable<StoredEvent>;
-  /** `weave:rebuild` commands (WEAVER-ISOLATION D3) — never mixed into the fold. */
+  /** `weave:rebuild` commands — never mixed into the fold. */
   rebuilds$: Observable<BusFrame<EventMap['weave:rebuild']>>;
 }
 

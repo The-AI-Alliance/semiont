@@ -2,9 +2,9 @@
  * The broker going away under a running gateway: a stream open across the
  * outage carries on without reconnecting — the gateway reconnects on its own
  * — and an emit made while it is down is refused, never accepted and lost (docs/protocol/
- * TRANSPORT-HTTP.md § POST /bus/emit; docs/system/administration/
- * TROUBLESHOOTING.md § Commands hang, or real-time updates stop, on a NATS
- * stack). A broker that comes back refusing the gateway's credentials is not
+ * TRANSPORT-HTTP.md § POST /bus/emit; docs/operator/administration/
+ * TROUBLESHOOTING.md § Commands fail, or real-time updates stop). A broker
+ * that comes back refusing the gateway's credentials is not
  * recovered from, and every emit after it is refused. NATS only.
  */
 import { randomUUID } from 'node:crypto';

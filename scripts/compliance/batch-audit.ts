@@ -4,7 +4,7 @@
  *
  * Supports two input formats:
  * 1. JSON format (from discover-symbols.ts)
- * 2. Markdown table format (legacy)
+ * 2. Markdown table format
  *
  * Usage:
  *   npx tsx batch-audit.ts <root-dir> <inventory-file>
@@ -232,7 +232,7 @@ function analyzeAndFormat(
     };
   }
 
-  // Determine status based on issues (Phase 7 logic)
+  // Determine status based on issues
   let status = '✅';
 
   // Determine if this is a component (not a hook)

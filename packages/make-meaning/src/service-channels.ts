@@ -2,19 +2,19 @@
  * Per-service bus channel rosters for the standalone make-meaning entry
  * points (smelter, weaver, librarian, archivist).
  *
- * Reply channels are global fan-out on the gateway, so a transport that
- * subscribes the full `BRIDGED_CHANNELS` receives every OTHER client's reply
- * traffic too — measured at ~85 multi-MB `browse:annotations-result`
- * frames/min during the 2026-09-03 worker OOM, all parsed and dropped by
- * correlation-id filtering. Each service's transport subscribes exactly what
- * that service consumes instead (the worker-runtime precedent,
- * `WORKER_AWAITED_OPERATIONS` in `@semiont/jobs`):
+ * Each service's transport subscribes exactly what that service consumes
+ * (the worker-runtime precedent, `WORKER_AWAITED_OPERATIONS` in
+ * `@semiont/jobs`), never the full `BRIDGED_CHANNELS`: a transport
+ * subscribed to the full set receives and parses every broadcast frame on
+ * channels its service never reads, only to drop it. (Replies are not
+ * broadcast — the gateway delivers a reply only to its requester:
+ * docs/protocol/TRANSPORT-CONTRACT.md.)
  *
  *   - The SMELTER and WEAVER await `busRequest` replies (embed/catch-up/
  *     reconcile reads), so their transports carry the reply channels DERIVED
- *     from `BUS_OPERATIONS` over the operations they await; their
- *     domain-event channels are added by their actor state units at
- *     `start()`.
+ *     from `BUS_OPERATIONS` over the operations they await, beside the
+ *     domain-event and command channels their fan-ins read
+ *     (`SMELTER_MANIFEST`, `WEAVER_MANIFEST`).
  *   - The LIBRARIAN answers operations AND awaits one read (the anchored-text
  *     ask behind gather's text dispatcher), so its transport carries its
  *     inbound roster plus that operation's reply channels.
@@ -28,10 +28,8 @@
  * census beside each list: every awaiting site declares its operation next to
  * the call (a `*Awaits` alias, `satisfies`-tied to the literal), and a drift
  * between a list and its declarations fails COMPILATION with the operation
- * named (the worker-runtime pattern — .plans/WORKER-ANCHORED-TEXT-CHANNEL.md,
- * whose subject was exactly such an omission killing every PDF detection
- * job). `busRequest`'s `isSubscribed` probe remains the runtime backstop for
- * an await nobody declared.
+ * named (the worker-runtime pattern). `busRequest`'s `isSubscribed` probe is
+ * the runtime backstop for an await nobody declared.
  */
 
 import { replyChannelsFor, type BusOperationKey, type EventMap } from '@semiont/core';
@@ -61,7 +59,7 @@ export const SMELTER_AWAITED_OPERATIONS = [
   'browse:resources-requested',
 ] as const satisfies readonly BusOperationKey[];
 
-/** The Smelter transport's global SSE channel set. */
+/** The reply channels in the Smelter transport's subscription (`SMELTER_MANIFEST`). */
 export const SMELTER_REPLY_CHANNELS: readonly (keyof EventMap)[] =
   replyChannelsFor(SMELTER_AWAITED_OPERATIONS);
 
@@ -86,7 +84,7 @@ export const WEAVER_AWAITED_OPERATIONS = [
   'browse:annotations-requested',
 ] as const satisfies readonly BusOperationKey[];
 
-/** The Weaver transport's global SSE channel set. */
+/** The reply channels in the Weaver transport's subscription (`WEAVER_MANIFEST`). */
 export const WEAVER_REPLY_CHANNELS: readonly (keyof EventMap)[] =
   replyChannelsFor(WEAVER_AWAITED_OPERATIONS);
 
@@ -110,8 +108,8 @@ export const weaverAwaitCensus: [WeaverAwaitCensusDrift] extends [never]
  * SIGNALS the local folds consume (`weave:applied` for the graph grace,
  * `smelt:settled` for the settle barrier). Signals have no BUS_OPERATIONS
  * entries, so the outbound derivation ignores them and nothing echoes. The
- * Librarian awaits no wire replies, so this inbound set IS its transport's
- * whole global subscription.
+ * Librarian's transport subscribes this set plus `LIBRARIAN_REPLY_CHANNELS`
+ * below, the replies to the one read it awaits.
  */
 export const LIBRARIAN_INBOUND_CHANNELS = [
   ...MATCHER_CHANNELS,
@@ -127,8 +125,8 @@ export const LIBRARIAN_OUTBOUND_CHANNELS: readonly (keyof EventMap)[] =
 
 /**
  * The operations the Librarian awaits replies to: the anchored-text ask
- * behind gather's text dispatcher (bugs/gather-ships-raw-pdf-bytes P1 —
- * derived text for `pdf-text-layer` media, answered by the Archivist).
+ * behind gather's text dispatcher (derived text for `pdf-text-layer` media,
+ * answered by the Archivist).
  */
 export const LIBRARIAN_AWAITED_OPERATIONS = [
   'browse:anchored-text-requested',
@@ -153,8 +151,8 @@ export const librarianAwaitCensus: [LibrarianAwaitCensusDrift] extends [never]
  * Everything the actors subscribe to (each roster pinned by a census gate),
  * plus the smelt barrier's fold input, plus `mark:create-request` —
  * annotation-assembly registers beside the Stower whose `mark:added` facts
- * it consumes (EXTRACT-ARCHIVIST P3, D2 i). The Archivist awaits no wire
- * replies, so this inbound set IS its transport's whole global subscription.
+ * it consumes. The Archivist awaits no wire replies, so this inbound set IS
+ * its transport's whole global subscription.
  */
 export const ARCHIVIST_INBOUND_CHANNELS = [
   ...STOWER_CHANNELS,
@@ -162,31 +160,23 @@ export const ARCHIVIST_INBOUND_CHANNELS = [
   ...CLONE_TOKEN_CHANNELS,
   'mark:create-request',
   'smelt:settled',
-  // The annotation-context read moved here with the bytes (SINGLE-KB-MOUNT D5).
+  // The annotation-context read registers beside the bytes it reads.
   'browse:annotation-context-requested',
-  // The bind re-emit followed the Stower it drives (EXTRACT-JOBS D2). Its
-  // replies are DERIVED from here — `bind:update-body` is a registered
-  // operation, so `replyChannelsFor` picks up bind:body-updated /
-  // bind:body-update-failed without a hand-written entry.
+  // The bind re-emit registers beside the Stower it drives. Its replies are
+  // DERIVED from here — `bind:update-body` is a registered operation, so
+  // `replyChannelsFor` picks up bind:body-updated / bind:body-update-failed
+  // without a hand-written entry.
   'bind:update-body',
 ] as const satisfies readonly (keyof EventMap)[];
 
 /**
- * Reply channels the Archivist emits for operations whose REGISTRY KEY is a
- * gateway-handler channel, not one of our inbound channels — so the
- * BUS_OPERATIONS derivation cannot see them. Each is named with its owner;
- * anything else belongs in the derivation, never here.
+ * Reply channels the Archivist forwards that the BUS_OPERATIONS derivation
+ * cannot see, because no registered operation names them as its result or
+ * failure. Each is named with its owner; anything else belongs in the
+ * derivation, never here.
  */
 export const ARCHIVIST_OUTBOUND_STRAYS = [
-  // `mark:body-update-failed` stood here while the bind handler lived in the
-  // gateway: the Stower raises it, and its only consumer was off-process, so it
-  // had to be pumped out by hand (no operation is keyed `mark:update-body`, so
-  // the derivation cannot see it). EXTRACT-JOBS D2 moved that consumer here, so
-  // the whole mark:update-body exchange is now local and the frame never leaves.
-  // The list is shorter because traffic became local, not because the
-  // derivation grew — `mark:body-updated` still reaches clients, via the fact
-  // pump, being a persisted event.
-  'yield:move-failed',       // yield:mv has no registered operation; failure is direct-subscribed
+  'yield:move-failed',       // the Stower's failure answer to `yield:mv`, which has no registered operation
 ] as const satisfies readonly (keyof EventMap)[];
 
 /** Every reply channel the Archivist's outbound pump forwards — the derivation over the inbound set, plus the strays. */

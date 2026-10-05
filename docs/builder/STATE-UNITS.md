@@ -120,7 +120,7 @@ Six things in this code recur in every state unit:
 
 1. **Factory function, not class.** The "instance" is a closure capturing private state.
    And note the parameter: **session-scoped factories take a `SemiontSession`, not a
-   bare `SemiontClient`** (2026-07-29). A client can be
+   bare `SemiontClient`**. A client can be
    disposed and replaced under a live unit on a KB switch; the session is the stable
    identity, and destructuring `client` inside the factory pins the unit to the client
    it was built for — exchange callbacks and subscriptions then capture that session by
@@ -229,7 +229,7 @@ A few specific shapes are wrong and worth calling out:
 
 **No `Promise<T>` on long-running operations.** If the operation has progress events plus a final value plus a "loading" state, return a `StreamObservable<T>`, `CacheObservable<T>`, or `UploadObservable` — not `Promise<T>`. Promise plus Observable on the same conceptual operation breaks the four-shape return-type discipline. (See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md).)
 
-**No `Promise<void>` for fire-and-forget signals.** When a method's only purpose is to emit on the bus and return — `beckon.hover`, `mark.changeShape`, `bind.initiate` — the return type is `void`, not `Promise<void>`. `Promise<void>` implies an ack ("the operation completed"); collaboration signals don't have one; they fan out and the caller doesn't wait. The honest type documents the semantics.
+**No `Promise<void>` for fire-and-forget signals.** When a method's only purpose is to emit on the bus and return — `beckon.hover`, `mark.request`, `bind.initiate` — the return type is `void`, not `Promise<void>`. `Promise<void>` implies an ack ("the operation completed"); collaboration signals don't have one; they fan out and the caller doesn't wait. The honest type documents the semantics.
 
 **Don't expose the same state both via the bus and via a state-unit field.** If `markStateUnit.progress$` exists, consumers shouldn't also reach for `client.bus.on('job:report-progress')`. Two paths to the same value invites consumers to subscribe to both, then needs synchronization, then needs invariants, then breaks.
 
@@ -268,7 +268,7 @@ Five enforcement tiers:
 | **Static compliance** — CI grep (`scripts/compliance/`, run by `architecture-compliance.yml`) | bash + grep | **A1-static** no `class` in state-unit files · **X3-static** no module-scoped mutable state · **X5** no fire-and-forget `Promise<void>` in SDK namespaces · **session-typed factories** — no `!`-asserted factory args; `useStateUnit` confined to the shell allowlist | X3, as a test that fails any `static` item |
 | **Conventions** — code review only | — | **A3-interior** internal state in Subjects · **X2** no `Promise<T>` on long-running ops · **X6** no dual bus+field exposure of the same state | — |
 
-Every state unit's test carries an `assertStateUnitAxioms({...})` block — all 18 units across `@semiont/sdk`, `@semiont/http-transport`, `@semiont/make-meaning`, and `@semiont/react-ui`. (The one remaining gap: there is no meta-check yet that every *new* factory adds a block. The Rust crate has that check: its `tests/census.rs` fails a unit with no axiom test.)
+Every state unit's test carries an `assertStateUnitAxioms({...})` block — all 18 units across `@semiont/sdk`, `@semiont/http-transport`, `@semiont/make-meaning`, and `@semiont/react-ui`. (One gap: no meta-check makes every *new* factory add a block. The Rust crate has that check: `packages/sdk-rust/tests/census.rs` fails a unit with no axiom test.)
 
 ### Rule reference
 
@@ -278,13 +278,13 @@ Every state unit's test carries an `assertStateUnitAxioms({...})` block — all 
 - **A5 / A5b — dispose is idempotent and total; methods are inert afterward.** *Both SDKs.*
 - **A6 — every owned Subject completes on dispose** (pre-dispose subscribers see `complete`; post-dispose subscriptions are inert). *Both SDKs.*
 - **A7-passed / A7-owned — compose by parameter.** Never dispose an injected dependency; always dispose a child you constructed internally. *Both SDKs.*
-- **X5 — fire-and-forget signals return `void`, not `Promise<void>`.** A thin regression speed-bump: the SDK already complies, and the script's allowlist holds the genuinely-awaiting acks (`delete`, `logout`, `addEntityType`, …). *TypeScript only: the rule is about `Promise<void>`.*
+- **X5 — fire-and-forget signals return `void`, not `Promise<void>`.** A thin regression speed-bump: the SDK complies, and the script's allowlist holds the genuinely-awaiting acks (`delete`, `logout`, `addEntityType`, …). *TypeScript only: the rule is about `Promise<void>`.*
 - **A3-interior / X2 / X6 — review only.** Internal state held in Subjects, no `Promise<T>` on operations that have progress + a final value, and no exposing the same state on both the bus and a unit field — these resist a cheap static check and are caught in review. *TypeScript.*
 
 ### Deferred enforcement
 
 - **AST static checks (A2-static / A4-static / X1-static)** — that every `$`-suffixed field on a `XxxStateUnit` interface is typed `Observable<T>`, every Observable field is `readonly`, and no `Subject<T>` appears in an interface field position. These need the TypeScript compiler API (or ts-morph), not grep; deferred until review is shown to miss them.
-- **A6-deep** — today's A6 attaches *k* subscribers then disposes; the deep version would generate random `subscribe / emit / unsubscribe / dispose` sequences and assert completion plus no post-unsubscribe emission. Deferred until a subscribe/unsubscribe-race bug slips past the shallow version.
+- **A6-deep** — A6 attaches *k* subscribers then disposes; the deep version would generate random `subscribe / emit / unsubscribe / dispose` sequences and assert completion plus no post-unsubscribe emission. Deferred until a subscribe/unsubscribe-race bug slips past the shallow version.
 
 ## Why "state unit" and not "view-model"
 

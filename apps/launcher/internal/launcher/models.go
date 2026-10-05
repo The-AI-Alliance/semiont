@@ -95,9 +95,9 @@ func printModels(u *UI, models []servedModel, facts modelFacts, remote map[strin
 	// Install state and ceiling both follow the MODEL's provider, never the
 	// row's driver: a config can point its workers at Anthropic while one job
 	// type runs on Ollama, and the inference row then lists Claude under a
-	// driver of "ollama". Keyed off the driver, Claude was reported MISSING
-	// with advice to `ollama pull claude-…` (observed 2026-07-20), and shown
-	// no ceiling although its key holder reported one (2026-09-29).
+	// driver of "ollama". Keyed off the driver, Claude would be reported
+	// MISSING with advice to `ollama pull claude-…`, and shown no ceiling
+	// although its key holder reports one.
 	ceiling := func(m servedModel) string {
 		l, found := ceilings[ceilingKey(m.Provider, m.Model)]
 		if !found {
@@ -105,9 +105,9 @@ func printModels(u *UI, models []servedModel, facts modelFacts, remote map[strin
 		}
 		return ceilingCell(l)
 	}
-	// The name column fits the longest model in THIS list — fixed 24 made
+	// The name column fits the longest model in THIS list — a fixed 24 makes
 	// every longer name (claude-sonnet-4-5-20250929) push its own line's
-	// status over by its own overflow, so nothing lined up.
+	// status over by its own overflow, so nothing lines up.
 	w := 24
 	for _, sm := range models {
 		if len(sm.Model) > w {

@@ -1,17 +1,17 @@
 /**
  * WeaverCheckpoint — the Weaver's persisted per-resource applied-sequence
- * map (WEAVER-ISOLATION P3, D1 = checkpointed replay).
+ * map.
  *
  * `catchUp()` seeds `lastProcessed` from it and replays only the gap;
  * `noteApplied` marks it dirty and the Weaver flushes on an interval and
  * on stop. Losing the file is safe by construction: the next catch-up
  * degrades to a full replay through the pipeline, which the idempotent
- * folds (P1) absorb — the checkpoint is an optimization, never a
- * correctness input. A checkpoint AHEAD of the log (restore rewound
- * history) is detected per resource and answered with a rebuild.
+ * folds absorb — the checkpoint is an optimization, never a correctness
+ * input. A checkpoint AHEAD of the log (restore rewound history) is
+ * detected per resource and answered with a rebuild.
  *
- * Lives in the project stateDir in-process; a container volume path once
- * the Weaver runs standalone (P4).
+ * The standalone Weaver keeps it in its container's ephemeral tmp (see
+ * `weaver-main`).
  */
 
 import { promises as fs } from 'fs';

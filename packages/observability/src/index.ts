@@ -1,33 +1,38 @@
 /**
  * @semiont/observability — public API.
  *
- * Universal surface (works in Node + browser). For SDK *initialization*,
- * import from `@semiont/observability/node` or `/web` at the process entry
- * point. Everything else uses this module.
+ * Universal surface (works in Node + browser). A Node process initializes
+ * the SDK from `@semiont/observability/node` at its entry point; the Browser
+ * initializes its own tracer (`apps/browser/src/lib/tracing.ts`). Everything
+ * else uses this module.
  *
- * Tier 2 of `.plans/OBSERVABILITY.md`. The public surface:
+ * Tiers 2 and 3 of the observability design: traces and their propagation
+ * (Tier 2), metrics and log correlation (Tier 3). The public surface:
  *
  *   - `withSpan(name, fn, options?)` — wrap an async block in a span;
  *     `options` carries `kind` and `attrs`.
  *   - `withActorSpan(actor, channel, fn, extraAttrs?)` — consumer-span
  *     wrapper for bus-event handlers, with handler-duration recording.
- *   - `injectTraceparent(payload)` / `extractTraceparent(payload)` — W3C
- *     trace-context propagation across the SSE channel (the bus payload
- *     gets a `_trace?: { traceparent }` sibling to `correlationId`).
+ *   - `extractTraceparent(payload)` — W3C trace-context propagation across
+ *     the SSE channel (a bus frame the gateway relays carries a
+ *     `_trace?: { traceparent }` field).
  *   - `withTraceparent(carrier, fn)` — run `fn` with the incoming
  *     traceparent as the parent context.
- *   - `getActiveTraceparent()` — read the active span's traceparent for
- *     manual propagation (e.g. attaching to a fetch header or SSE field).
+ *   - `getActiveTraceparent()` — read the active span's traceparent, for
+ *     an outbound request's `traceparent` header.
  *   - `getLogTraceContext()` — active `trace_id` / `span_id` for log-line
  *     correlation.
- *   - Metric recorders (`recordBusSent`, `recordHandlerDuration`,
- *     `recordJobOutcome`, `recordSubscriberConnect` / `Disconnect`,
- *     `recordInferenceUsage`) and gauge providers
- *     (`registerVectorIndexSizeProvider`, `registerFactPumpDepthProvider`).
+ *   - Metric recorders (`record*`) and observable-gauge providers
+ *     (`register*Provider`); each says what it measures at its definition.
+ *   - `materializeObservableGauges` and `registerProcessLifetimeMetrics`,
+ *     which `initObservabilityNode` calls.
+ *   - `TraceCarrier`, the type of the `_trace` field; and `SpanKind`,
+ *     `SpanStatusCode`, `Attributes` and `Span`, re-exported from
+ *     `@opentelemetry/api`.
  *
  * No-op when no exporter is configured: `@opentelemetry/api`'s default
- * tracer is a no-op, so `withSpan` is essentially free until
- * `initObservability*()` runs.
+ * tracer and meter are no-ops, so `withSpan` and the recorders are
+ * essentially free until the process initializes an SDK.
  */
 
 import {
@@ -44,7 +49,6 @@ import {
   type Histogram,
   type ObservableGauge,
   type Span,
-  type UpDownCounter,
 } from '@opentelemetry/api';
 import { setBusLogTraceIdProvider } from '@semiont/core';
 
@@ -99,7 +103,7 @@ export async function withSpan<T>(
 const TRACE_FIELD = '_trace';
 
 /**
- * Sibling of `correlationId` on bus payloads. Lives on the SSE event body
+ * The `_trace` field of a bus payload. Lives on the SSE event body
  * because SSE has no header trailer; the SDK strips it before delivering
  * the payload to subscribers. Additive — payloads without `_trace` parse
  * unchanged.
@@ -123,19 +127,6 @@ export function getActiveTraceparent(): TraceCarrier | undefined {
   return carrier['tracestate']
     ? { traceparent, tracestate: carrier['tracestate'] }
     : { traceparent };
-}
-
-/**
- * Attach the active span's trace-context to a payload object as
- * `_trace`. No-op when no span is active. Returns the same object
- * reference for chaining.
- */
-export function injectTraceparent<T extends Record<string, unknown>>(payload: T): T {
-  const carrier = getActiveTraceparent();
-  if (carrier) {
-    (payload as Record<string, unknown>)[TRACE_FIELD] = carrier;
-  }
-  return payload;
 }
 
 /**
@@ -181,9 +172,9 @@ export function withTraceparent<T>(
  * `withSpan` calls across handler bodies.
  *
  * The span's parent is the active context at the time the handler
- * fires — which is the `bus.dispatch:<channel>` span on the gateway
- * (Subject.next runs synchronously inside the dispatch span), or the
- * `bus.emit:<channel>` span when an actor emits to itself.
+ * fires — which is the `bus.recv:<channel>` span when the frame arrived
+ * over SSE (the read loop delivers synchronously inside it), or the
+ * `bus.emit:<channel>` span when the emit was made in the same process.
  */
 export async function withActorSpan<T>(
   actor: string,
@@ -210,7 +201,7 @@ export async function withActorSpan<T>(
 
 /**
  * Read the active span's `trace_id` / `span_id` for log-line correlation.
- * Tier 3 of `.plans/OBSERVABILITY.md`. Each structured log line gets
+ * Tier 3 of the observability design. Each structured log line gets
  * tagged with these so a log query in CloudWatch / Loki / Datadog can
  * jump to the trace in Tempo / Jaeger / X-Ray.
  *
@@ -231,6 +222,9 @@ const METER_NAME = 'semiont';
 
 const meter = () => metrics.getMeter(METER_NAME);
 
+/** Builders of the gauges registered before a real meter exists, by instrument name. */
+const pendingGauges = new Map<string, () => void>();
+
 /**
  * Build an observable gauge now, or as soon as a real meter exists.
  *
@@ -242,19 +236,18 @@ const meter = () => metrics.getMeter(METER_NAME);
  * globally, and that no-op never upgrades. A gauge built from it accepts the
  * callback, reports success, and exports nothing for the life of the process.
  *
- * That silence is indistinguishable from a healthy idle metric, which is how
- * the gateway's `semiont.bus.correlation.size` went missing from the
- * collector's readout while its code read as correct.
+ * That silence is indistinguishable from a healthy idle metric: a gauge such
+ * as the Smelter's `semiont.vector.index.size` is missing from the
+ * collector's readout while its code reads as correct.
  *
  * Registration order is the wrong thing to police, because a process with no
  * exporter configured has a no-op meter legitimately and forever — that is
  * this package's documented contract, not a mistake to refuse. So order is
- * made not to matter: an early registration parks its builder here and
- * `materializeObservableGauges()` runs it once init installs the real meter.
- * Keyed by instrument name, so registering twice before init builds once.
+ * made not to matter: an early registration parks its builder in
+ * `pendingGauges` and `materializeObservableGauges()` runs it once init
+ * installs the real meter. Keyed by instrument name, so registering twice
+ * before init builds once.
  */
-const pendingGauges = new Map<string, () => void>();
-
 function buildGauge(instrument: string, build: () => void): void {
   if (meter() === createNoopMeter()) {
     pendingGauges.set(instrument, build);
@@ -266,8 +259,8 @@ function buildGauge(instrument: string, build: () => void): void {
 
 /**
  * Create the gauges whose providers registered before the SDK came up.
- * Called by `initObservability*` once the global MeterProvider is installed —
- * nothing else should need it.
+ * Called by `initObservabilityNode` once the global MeterProvider is
+ * installed — nothing else should need it.
  */
 export function materializeObservableGauges(): void {
   const waiting = [...pendingGauges.values()];
@@ -276,11 +269,6 @@ export function materializeObservableGauges(): void {
 }
 
 let _busSentCounter: Counter | undefined;
-let _replySuppressedCounter: Counter | undefined;
-let _resumeGapCounter: Counter | undefined;
-let _unanswerableCounter: Counter | undefined;
-let _correlationRegistryGauge: ObservableGauge | undefined;
-let _correlationRegistryProvider: (() => CorrelationRegistrySnapshot) | undefined;
 let _handlerDurationHistogram: Histogram | undefined;
 let _jobOutcomeCounter: Counter | undefined;
 let _jobDurationHistogram: Histogram | undefined;
@@ -288,7 +276,6 @@ let _gatherDegradeCounter: Counter | undefined;
 let _inferenceCallsCounter: Counter | undefined;
 let _inferenceTokensCounter: Counter | undefined;
 let _inferenceDurationHistogram: Histogram | undefined;
-let _sseSubscribers: UpDownCounter | undefined;
 let _vectorIndexSizeGauge: ObservableGauge | undefined;
 let _factPumpDepthGauge: ObservableGauge | undefined;
 let _factPumpDepthProvider: (() => number) | undefined;
@@ -360,105 +347,6 @@ function inferenceDurationHistogram(): Histogram {
   return _inferenceDurationHistogram;
 }
 
-function sseSubscribersCounter(): UpDownCounter {
-  if (!_sseSubscribers) {
-    _sseSubscribers = meter().createUpDownCounter('semiont.sse.subscribers', {
-      description: 'Active SSE subscribers',
-    });
-  }
-  return _sseSubscribers;
-}
-
-function replySuppressedCounter(): Counter {
-  if (!_replySuppressedCounter) {
-    _replySuppressedCounter = meter().createCounter('semiont.bus.reply.suppressed', {
-      description: 'Correlated replies withheld from a non-owning subscriber',
-    });
-  }
-  return _replySuppressedCounter;
-}
-
-/**
- * A correlated reply was withheld from a subscriber that does not own its
- * correlationId (CORRELATED-REPLY-ROUTING P5).
- *
- * Counts ONLY that case. A frame with no correlationId is a shape violation
- * (warned, not counted), and a cid nobody claimed is the structural in-process
- * case that fires constantly — counting either would drown the signal this
- * metric exists to show: the fan-out amplification the delivery filter removes.
- */
-export function recordReplySuppressed(channel: string): void {
-  replySuppressedCounter().add(1, { 'bus.channel': channel });
-}
-
-function resumeGapCounter(): Counter {
-  if (!_resumeGapCounter) {
-    _resumeGapCounter = meter().createCounter('semiont.bus.resume_gap', {
-      description: 'SSE resumes that degraded to a gap because replay was unavailable',
-    });
-  }
-  return _resumeGapCounter;
-}
-
-/**
- * An SSE resume could not be served and the client was told to fall back to
- * cache. This degradation is CORRECT by design and therefore silent — which is
- * exactly why it needs a number. A rising rate means clients are losing
- * history, and nothing else in the stack says so.
- */
-export function recordResumeGap(reason: string): void {
-  resumeGapCounter().add(1, { 'bus.resume_gap.reason': reason });
-}
-
-function unanswerableCounter(): Counter {
-  if (!_unanswerableCounter) {
-    _unanswerableCounter = meter().createCounter('semiont.bus.unanswerable', {
-      description: 'Request emits that reached zero subscribers and were failed at the gateway',
-    });
-  }
-  return _unanswerableCounter;
-}
-
-/**
- * A request-shaped emit reached no subscriber, so the gateway synthesized its
- * mapped failure (ARCHIVIST-STAYS-UP P3). By channel, this is the absence rate
- * of the service that answers it — the difference between "it went down once"
- * and "it is flapping."
- */
-export function recordUnanswerableRequest(channel: string): void {
-  unanswerableCounter().add(1, { 'bus.channel': channel });
-}
-
-/** Claims held by a gateway's correlation registry, with the ceiling they are
- *  measured against. The ceiling is reported rather than left to the reader: a
- *  count alone cannot say whether the registry is idle or one request from
- *  refusing, and a reader that hard-codes it is restating a number the
- *  registry owns. Retained replies are not here: they live in the broker. */
-export interface CorrelationRegistrySnapshot {
-  claims: number;
-  claimsMax: number;
-}
-
-/** Register a callback returning the gateway's correlation-registry occupancy. */
-export function registerCorrelationRegistryProvider(
-  provider: () => CorrelationRegistrySnapshot,
-): void {
-  _correlationRegistryProvider = provider;
-  if (!_correlationRegistryGauge) {
-    buildGauge('semiont.bus.correlation.size', () => {
-      _correlationRegistryGauge = meter().createObservableGauge('semiont.bus.correlation.size', {
-        description: 'Correlation registry occupancy: live claims',
-      });
-      _correlationRegistryGauge.addCallback((observer) => {
-        if (!_correlationRegistryProvider) return;
-        const snap = _correlationRegistryProvider();
-        observer.observe(snap.claims, { 'correlation.kind': 'claims' });
-        observer.observe(snap.claimsMax, { 'correlation.kind': 'claims_max' });
-      });
-    });
-  }
-}
-
 /**
  * Count an emit a client sent (`semiont.bus.sent`,
  * specs/src/sdk-telemetry/telemetry.json). Called at every transport `emit`
@@ -498,11 +386,11 @@ function appendStageHistogram(): Histogram {
 }
 
 /**
- * Record one stage of `EventStore.appendEvent` (ARCHIVIST-STAYS-UP P7).
+ * Record one stage of `EventStore.appendEvent`.
  *
- * The append path is the one operation only the Archivist can perform, and it
- * was entirely dark: reads had `recordHandlerDuration` and the bus had its own
- * counters, while writes had nothing. Stage-labeled because the useful
+ * The append path is the one operation only the Archivist can perform. Reads
+ * have `recordHandlerDuration` and the bus has its own counters; this is
+ * what writes have. Stage-labeled because the useful
  * question is never "was the append slow" but WHICH PART — and `materialize`
  * in particular does work proportional to a resource's annotation count, so it
  * degrades with history rather than with load.
@@ -536,7 +424,7 @@ export function recordGitCommand(command: string, durationMs: number): void {
 function gatherDegradeCounter(): Counter {
   if (!_gatherDegradeCounter) {
     _gatherDegradeCounter = meter().createCounter('semiont.gather.degraded', {
-      description: 'Gathers that degraded because an eventually-consistent projection did not catch up within its read barrier (vectors: absent semanticContext; graph: projection-lag failure). Labeled by projection.',
+      description: 'Gathers that shipped degraded, by cause: vectors (the settle barrier timed out, semanticContext absent), graph (projection lag), suggestions (the inference garnish failed). Labeled by projection.',
     });
   }
   return _gatherDegradeCounter;
@@ -555,31 +443,14 @@ export function recordGatherDegrade(projection: 'graph' | 'vectors' | 'suggestio
   gatherDegradeCounter().add(1, { projection });
 }
 
-/** Increment the SSE subscriber gauge — call on `/bus/subscribe` open. */
-export function recordSubscriberConnect(): void {
-  sseSubscribersCounter().add(1);
-}
-
-/** Decrement on disconnect. Pair with `recordSubscriberConnect`. */
-export function recordSubscriberDisconnect(): void {
-  sseSubscribersCounter().add(-1);
-}
-
-/**
- * Register a callback that returns the current vector-index size
- * (point count). Async to allow remote queries (Qdrant). Polled at
- * the metric-collection interval.
- */
 /**
  * Register the Archivist's fact-pump backlog — facts appended to the record
  * but not yet republished onto the bus.
  *
  * At rest this is zero. A value that climbs and does not come back means the
- * pump is outrunning its transport, which is the leading hypothesis for the
- * load-correlated heap growth in `bugs/absent-archivist-wedges-browse.md`
- * (ARCHIVIST-STAYS-UP P5). The backlog is deliberately unbounded today, so
- * this number is the only thing standing between "the pump is behind" and an
- * OOM whose cause is inferred from RSS after the fact.
+ * pump is outrunning its transport. The backlog is deliberately unbounded,
+ * so this number is the only thing standing between "the pump is behind"
+ * and an OOM whose cause is inferred from RSS after the fact.
  */
 export function registerFactPumpDepthProvider(provider: () => number): void {
   _factPumpDepthProvider = provider;
@@ -613,13 +484,13 @@ export function recordGitStagingFailure(reason: 'index-lock' | 'other'): void {
 }
 
 /**
- * Process lifetime telemetry (ARCHIVIST-GIT-STAGER-CRASH).
+ * Process lifetime telemetry.
  *
  * A supervised process that dies and comes back is INVISIBLE in logs unless
  * someone greps for boot lines, and every request in flight when it died looks
- * to its caller like a hang. On 2026-09-08 that cost a multi-hour hunt through
- * search, qdrant, neo4j and the SSE transport for a crash loop that one metric
- * would have named immediately.
+ * to its caller like a hang. A crash loop — the Archivist dying on a lost
+ * race for git's index.lock, say — then reads as a fault in search, qdrant,
+ * neo4j or the SSE transport, where one metric names it immediately.
  *
  * `start_time` is the diagnostic, not uptime: a CHANGE in it is unambiguous
  * proof of a restart, and uptime is derivable from it.
@@ -630,7 +501,7 @@ let _restartCountGauge: ObservableGauge | undefined;
 let _restartCountProvider: (() => Promise<number | undefined> | number | undefined) | undefined;
 let _abnormalExitCounter: Counter | undefined;
 
-/** Register `semiont.process.start_time`. Called by `initObservability*`. */
+/** Register `semiont.process.start_time`. Called by `initObservabilityNode`. */
 export function registerProcessLifetimeMetrics(): void {
   if (_processStartTimeGauge) return;
   buildGauge('semiont.process.start_time', () => {
@@ -698,6 +569,11 @@ export function recordAbnormalTermination(reason: string, detail?: string): void
   }
 }
 
+/**
+ * Register a callback that returns the current vector-index size
+ * (point count). Async to allow remote queries (Qdrant). Polled at
+ * the metric-collection interval.
+ */
 export function registerVectorIndexSizeProvider(
   provider: () => Promise<number> | number,
 ): void {
@@ -796,19 +672,20 @@ function detectionTokensHistogram(): Histogram {
 }
 
 /**
- * Record one detection model call (DETECTION-QUALITY-THROUGHPUT P1).
+ * Record one detection model call.
  *
  * The adapters already record provider/model/duration/tokens for every
  * inference call. What they cannot know is the detection shape around it:
  * which motivation asked, how big the piece was, how many annotations came
  * back, how deep subdivision had descended, and whether this was the floor
- * re-roll. Those are the facts that distinguish a healthy call from a
+ * re-roll. Those are the facts that distinguish a healthy call from an
  * expensive descent, and without them a slow detection run is one
  * undifferentiated number.
  *
  * FAILED attempts are recorded too, and that is the point: the calls paid for
- * and thrown away during a descent are exactly the cost later phases exist to
- * avoid, so a record only of successes would hide the thing being optimized.
+ * and thrown away during a descent are exactly the cost adaptive chunk sizing
+ * exists to avoid, so a record only of successes would hide the thing being
+ * optimized.
  *
  * Tokens are the PROVIDER's counts, passed through — never estimated. Absent
  * means the provider did not report them.
@@ -852,7 +729,7 @@ function anchorOutcomeCounter(): Counter {
 }
 
 /**
- * Record how one annotation got anchored (DETECTION-QUALITY-THROUGHPUT P5).
+ * Record how one annotation got anchored.
  *
  * The selector-vs-source check is already a WRITE-TIME INVARIANT — both
  * `buildTextAnnotation` and `buildPdfAnnotation` throw on a selector that does
@@ -862,10 +739,9 @@ function anchorOutcomeCounter(): Counter {
  * What is genuinely uncertain is which anchoring METHOD got there. An `exact`
  * the model quoted verbatim and that appears once is certain; one resolved by
  * `first-of-many` (several occurrences, no usable context) or `fuzzy-match`
- * picked a plausible occurrence and may have picked wrong. Those were visible
- * only as log warnings — countable by a human reading worker output, which is
- * how 47 of them went unreviewed. As a rate they are the precision number that
- * sits beside the yield numbers.
+ * picked a plausible occurrence and may have picked wrong. Log warnings
+ * alone leave those countable only by a human reading worker output; as a
+ * rate they are the precision number that sits beside the yield numbers.
  */
 export function recordAnchorOutcome(label: string, method: string): void {
   anchorOutcomeCounter().add(1, { 'detection.label': label, 'anchor.method': method });

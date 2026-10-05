@@ -25,8 +25,6 @@
   color: var(--semiont-color-gray-300);
 }
 
-/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
-
 .semiont-loading-state-compose,
 .semiont-loading-state-resource {
   display: flex;

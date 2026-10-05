@@ -2,10 +2,10 @@
  * The retry taxonomy: one place where every "is this worth another attempt"
  * answer is visible beside the others.
  *
- * The defect is not that contexts disagree — a `500` mid-job is worth another
- * attempt where the same `500` in a boot pass replays whatever broke it. It is
- * that today two sites carry an argument, two carry a bare list, and no reader of
- * either can see that the other exists.
+ * That contexts disagree is not a defect — a `500` mid-job is worth another
+ * attempt where the same `500` in a boot pass replays whatever broke it. The
+ * defect is answers scattered across sites, where no reader of one can see
+ * that the others exist.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -13,11 +13,10 @@ import { RETRY_RULES } from '../retry-rules';
 
 describe('RETRY_RULES', () => {
   it('gives one 500 two answers, from one taxonomy', () => {
-    // The whole plan as a single assertion. Today these two answers live in
-    // different packages and neither knows the other exists: core excludes 500
-    // on the record ("an unclassified server fault is not a promise to recover"),
-    // while jobs retries it because the alternative is discarding a 26-minute
-    // attempt over one fault.
+    // The whole taxonomy as a single assertion. The two answers are two rules
+    // of one record: boot excludes 500 on the record ("an unclassified server
+    // fault is not a promise to recover"), while job retries it because the
+    // alternative is discarding a long-running attempt over one fault.
     expect(RETRY_RULES.boot.retryable({ status: 500 })).toBe(false);
     expect(RETRY_RULES.job.retryable({ status: 500 })).toBe(true);
   });
@@ -33,8 +32,8 @@ describe('RETRY_RULES', () => {
   });
 
   it('every rule carries a name and a rationale', () => {
-    // Catches OMISSION, which is the real failure mode here — sites 3, 4 and 6
-    // all answered by default rather than by choice. It cannot catch a lazy
+    // Catches OMISSION, which is the real failure mode here — a site that
+    // answers by default rather than by choice. It cannot catch a lazy
     // rationale, and does not claim to: there is no source to check one against.
     for (const rule of Object.values(RETRY_RULES)) {
       expect(rule.name).toMatch(/\S/);
@@ -50,9 +49,10 @@ describe('RETRY_RULES', () => {
   });
 
   describe('the refresh rule separates a refusal from an outage', () => {
-    // REFRESH-FAILURE-TRANSIENT-VS-TERMINAL. A token refresh had one answer for
-    // every failure — `catch { return null }` — and the caller treats null as
-    // terminal, so a lost packet ended the session exactly like a revocation.
+    // A session ends when the issuer refuses its credential, not when the
+    // network is unreliable. With one answer for every failure —
+    // `catch { return null }` — and a caller that treats null as terminal, a
+    // lost packet ends the session exactly like a revocation.
 
     it('a refused grant is terminal, on the first answer', () => {
       // RFC 6749 §5.2: a revoked, expired or already-rotated refresh token comes
@@ -96,7 +96,7 @@ describe('RETRY_RULES', () => {
 
   describe('the transport rule keys on method as well as status', () => {
     // The dimension a ReadonlySet<number> cannot express, and the reason the
-    // taxonomy is not typed as one. P3 consumes this.
+    // taxonomy is not typed as one. The transport's retry gate consumes this.
     it('retries a 401 on any method — the request was rejected, not processed', () => {
       expect(RETRY_RULES.transport.retryable({ status: 401, method: 'POST' })).toBe(true);
       expect(RETRY_RULES.transport.retryable({ status: 401, method: 'GET' })).toBe(true);
@@ -126,9 +126,10 @@ describe('RETRY_RULES', () => {
     });
   });
 
-  it('leaves the existing predicates answering exactly as they did', async () => {
-    // This phase is additive on purpose: behavior moves in P2/P3, so a
-    // regression there cannot be mistaken for a taxonomy bug.
+  it('isRetryableRequestError retries 429, 503 and 504, and neither a 4xx refusal nor a 500', async () => {
+    // The predicate's status half derives from the boot rule. Pinned by status
+    // here, so a fault in the job classifier or the transport's retry gate
+    // cannot be mistaken for a taxonomy bug.
     const { isRetryableRequestError } = await import('../retry');
     for (const status of [429, 503, 504]) {
       expect(isRetryableRequestError(Object.assign(new Error('x'), { status }))).toBe(true);

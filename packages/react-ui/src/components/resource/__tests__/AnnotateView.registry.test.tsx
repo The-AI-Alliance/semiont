@@ -1,13 +1,10 @@
 /**
- * ANNOTATE-RENDERER-REGISTRY — the annotate path's overridable media registry,
- * symmetric to EMBEDDABLE-RESOURCE-VIEWER step 3's browse registry.
+ * The annotate path's overridable media registry, symmetric to the browse
+ * path's.
  *
- * A host that brings its own PDF stack can already replace the read-only
- * renderer via `BrowseView`'s `renderers` prop; without the same seam here it
- * ends up running two PDF engines depending on which mode the user is in.
- *
- * Started RED (tsc: no `renderers` prop on AnnotateView).
- * See .plans/ANNOTATE-RENDERER-REGISTRY.md
+ * A host that brings its own PDF stack can replace the read-only renderer via
+ * `BrowseView`'s `renderers` prop; without the same seam here it ends up
+ * running two PDF engines depending on which mode the user is in.
  */
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
@@ -40,10 +37,7 @@ const uiState: AnnotationUIState = {
 function fakeSession(): SemiontSession {
   return {
     client: {
-      mark: {
-        changeSelection: vi.fn(), changeClick: vi.fn(), changeShape: vi.fn(),
-        toggleMode: vi.fn(), request: vi.fn(),
-      },
+      mark: { request: vi.fn() },
     },
     subscribe: () => () => {},
   } as unknown as SemiontSession;
@@ -104,8 +98,8 @@ describe('AnnotateView — media-renderer registry', () => {
   });
 
   it('renders one toolbar and one content shell, whatever the render mode', () => {
-    // The collapse this plan is really about: three branches used to repeat
-    // the wrapper, the toolbar block and the content div verbatim.
+    // What the registry buys: the wrapper, the toolbar block and the content
+    // div exist once, not once per render-mode branch.
     for (const mimeType of ['text/plain', 'application/pdf', 'image/png']) {
       const { container, unmount } = renderInEnglish(<AnnotateView {...base(mimeType)} />);
       expect(container.querySelectorAll('.semiont-annotate-view')).toHaveLength(1);

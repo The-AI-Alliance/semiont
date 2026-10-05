@@ -31,8 +31,7 @@
  * (via the checksum stamped onto every resource upsert), and tag-stamp
  * freshness (payload-only restamps; tag edits change no bytes) — and
  * enqueues `smelt:*` work items through the same mailbox as live events, so
- * per-resource ordering holds across the two paths (axioms S1/S2/S11/S12/S13
- * in `.plans/SMELTER-AXIOMS.md`).
+ * per-resource ordering holds across the two paths (axioms S1/S2/S11/S12/S13).
  */
 
 import { Observable, Subject, Subscription, from } from 'rxjs';
@@ -58,15 +57,14 @@ import type { SmelterEvent } from './smelter-fan-in';
  * the operations this module awaits over the wire. The `satisfies` at each
  * call site keeps a declaration and its operation from drifting; the census
  * beside the list fails COMPILATION naming the operation when the list and
- * these declarations disagree (the worker-runtime pattern —
- * .plans/WORKER-ANCHORED-TEXT-CHANNEL.md P3).
+ * these declarations disagree (the worker-runtime pattern).
  */
 export type SmelterResourceReadAwaits = 'browse:resource-requested';
 export type SmelterAnnotationsReadAwaits = 'browse:annotations-requested';
 export type SmelterCatalogPageAwaits = typeof RESOURCES_CHANNEL;
 
 // Media dispatch is core's, keyed by the media type's `TextSource`
-// strategy (`.plans/SMELTER-MEDIA-TYPES.md`, narrowed by READ-VS-EXTRACT P2).
+// strategy.
 // 'none' declines — settle skipped, reason 'no-extractor' — so binary types
 // never decode to mojibake. 'decode' is core's charset-aware
 // `decodeRepresentation` (RFC 2046 text/* fallback included), called directly;
@@ -89,13 +87,13 @@ export interface ReconcileSummary {
   /** Tag-only drift healed by payload restamps — never embedding calls (S13). */
   resourcesRestamped: number;
   /** Lost anchored-text artifacts re-derived by re-extraction — never
-   *  embedding calls (PERSIST-ANCHORS P0, the third drift class). */
+   *  embedding calls (reconcile's third drift class). */
   resourcesReanchored: number;
   resourceVectorsDeleted: number;
   annotationsEmbedded: number;
   annotationVectorsDeleted: number;
-  /** Live resources whose media type has an extractor — the coverage
-   *  denominator (SMELTER-MEDIA-TYPES extraction-coverage). */
+  /** Live resources whose media type has an extractor — the denominator
+   *  of extraction coverage, how much of the corpus semantic search sees. */
   resourcesEligible: number;
   /** Resources with vectors after the drain — the coverage numerator;
    *  eligible − indexed is the decline gap. */
@@ -111,7 +109,7 @@ export type ReconcileState =
 /**
  * Burst-buffer timings for the event pipeline. Required — `smelter-main`
  * passes production values (50/100/200); test harnesses pass ~1ms values so
- * property suites run at generator speed. See `.plans/SMELTER-AXIOMS.md` (D4).
+ * property suites run at generator speed.
  */
 export interface SmelterTiming {
   burstWindowMs: number;
@@ -121,8 +119,8 @@ export interface SmelterTiming {
 
 /**
  * Reconcile-planner work items — enqueued through the same mailbox as wire
- * events. Distinct `smelt:*` types make forged domain events unrepresentable
- * (`.plans/SMELTER-AXIOMS.md`, D1). The two annotation items carry the body
+ * events. Distinct `smelt:*` types make forged domain events unrepresentable.
+ * The two annotation items carry the body
  * TYPE of the domain event they stand in for, so one handler reading
  * `event.payload.annotation` or `.annotationId` is correct for the live event
  * and the planned item alike — the two cannot diverge in shape.
@@ -167,20 +165,20 @@ const WORK_ITEM_TYPES = {
 function isWorkItem(input: SmelterInput): input is SmelterWorkItem {
   // An exact list, not a prefix match: `smelt:settled` is the Smelter's
   // OUTBOUND decision signal (never a mailbox input) and must not read as
-  // work (SMELTER-INDEX-SYNC A1). `hasOwn`, so an inherited key never matches.
+  // work. `hasOwn`, so an inherited key never matches.
   return Object.hasOwn(WORK_ITEM_TYPES, input.type);
 }
 
-/**
- * Outcome of a content fetch on the embed path. `skipped` carries the
- * checksum of the bytes inspected so the settled signal stays content-keyed
- * (SMELTER-INDEX-SYNC D2); `unavailable` is a transient failure and MUST NOT
- * settle — an error is not a decision (A2).
- */
 /** The decline vocabulary of the settled signal — derived from the wire
  *  type so the bus registry stays the single source of truth. */
 type SkipReason = NonNullable<EventMap['smelt:settled']['reason']>;
 
+/**
+ * Outcome of a content fetch on the embed path. `skipped` carries the
+ * checksum of the bytes inspected so the settled signal stays content-keyed;
+ * `unavailable` is a transient failure and MUST NOT settle — an error is not
+ * a decision (axiom S14).
+ */
 type FetchedContent =
   | { kind: 'text'; text: string; checksum: string; machineRead: boolean }
   | { kind: 'skipped'; checksum: string; contentType: string; reason: SkipReason }
@@ -196,8 +194,8 @@ const CONCLUDED: unique symbol = Symbol('smelter.concluded');
  * `prepareEmbed` must return either this or a ready record, and only `conclude`
  * — which logs the decision — can produce one. So a new way to decline indexing
  * cannot be written silently: a bare `return;` fails to compile, and a
- * hand-built `{ kind: 'concluded' }` lacks the brand
- * (bugs/smelter-skip-and-fail-decisions-are-invisible.md).
+ * hand-built `{ kind: 'concluded' }` lacks the brand (a skip that leaves no
+ * log line lets a whole book vanish from indexing unseen).
  */
 interface Concluded {
   readonly kind: 'concluded';
@@ -280,12 +278,12 @@ export class Smelter {
      *  Archivist's client in the fleet, the working tree in-process. */
     private content: ContentReads,
     /**
-     * The anchored-text store, held DIRECTLY (ANCHORED-TEXT-TO-SMELTER P1).
+     * The anchored-text store, held DIRECTLY.
      *
-     * It used to be built here over the content transport, which put the
-     * gateway between this process and an artifact it produces itself. The
-     * Smelter now owns the store on its own mount and is the only writer;
-     * every read of it moved to the Archivist's bus channels.
+     * The caller builds it on the Smelter's own mount (`smelter-main`, from
+     * `SEMIONT_ANCHORED_TEXT_DIR`), so nothing stands between this process
+     * and an artifact it produces itself. The Smelter is the only writer;
+     * every other reader asks the Browser, on `browse:anchored-text-requested`.
      */
     private anchoredStore: AnchoredTextStore,
     private bus: BusRequestPrimitive,
@@ -510,11 +508,11 @@ export class Smelter {
 
   /**
    * Re-derive a lost anchored-text artifact from the resource's current
-   * bytes (PERSIST-ANCHORS P0, the third drift class). Extraction is the
-   * cost here — the vectors are already correct, so this NEVER calls the
-   * embedding provider, the vector store, or the settled signal: the index
-   * decision was already made and announced at its checksum; only the map
-   * is missing. Name the work for what it does (the S13 discipline).
+   * bytes (reconcile's third drift class). Extraction is the cost here —
+   * the vectors are already correct, so this NEVER calls the embedding
+   * provider, the vector store, or the settled signal: the index decision
+   * was already made and announced at its checksum; only the map is
+   * missing. Name the work for what it does (the S13 discipline).
    *
    * The publish is STRICT, unlike the embed path's best-effort side
    * publish: here the artifact IS the job, so a store failure must throw —
@@ -532,7 +530,7 @@ export class Smelter {
       this.logger.info('Re-anchor found no geometry-capable extractor', { resourceId: rid, contentType });
       return;
     }
-    // The artifact's key is the checksum of the bytes just read (P1b) — never
+    // The artifact's key is the checksum of the bytes just read — never
     // the catalog's claim, so a byte change racing this re-derivation files
     // the map under the bytes it actually describes. The cache is passed so
     // a racing rebuild's duplicate becomes a hit instead of a second OCR
@@ -552,16 +550,15 @@ export class Smelter {
       return;
     }
     // The whole outcome, provenance included — the stored record IS the
-    // extraction outcome (PERSIST-ANCHORS D1); narrowing to { text, items }
-    // here would strip method/pdfClass/ocrConfidence on every rebuild.
+    // extraction outcome; narrowing to { text, items } here would strip
+    // method/pdfClass/ocrConfidence on every rebuild.
     //
-    // STRICT, deliberately, and kept through P2c (the P2b flag's resolution):
-    // the seam above already wrote this outcome best-effort and silently —
-    // the store's rule — but here the artifact IS the job, and the rebuild
-    // command's partial-failure accounting needs a throw to count. The
-    // double-write is idempotent (same bytes, same STAMP, atomic rename ⇒
-    // byte-identical), so strictness costs one redundant write and buys an
-    // honest `smelt:rebuild-anchors-failed`.
+    // STRICT, deliberately: the seam above already wrote this outcome
+    // best-effort and silently — the store's rule — but here the artifact IS
+    // the job, and the rebuild command's partial-failure accounting needs a
+    // throw to count. The double-write is idempotent (same bytes, same STAMP,
+    // atomic rename ⇒ byte-identical), so strictness costs one redundant
+    // write and buys an honest `smelt:rebuild-anchors-failed`.
     await this.anchoredStore.write(checksum, { ...extracted, items: extracted.items });
     this.logger.info('Re-anchored resource', { resourceId: rid, checksum, items: extracted.items.length });
   }
@@ -585,26 +582,26 @@ export class Smelter {
   private async fetchEmbeddableText(resourceId: string): Promise<FetchedContent> {
     try {
       // The stored representation's bytes, untouched — the content route is a
-      // pure pipe now (no negotiation), so getBinary returns exactly the bytes
+      // pure pipe (no negotiation), so getBinary returns exactly the bytes
       // the catalog's checksum was computed from (S12; the route-side half is
-      // the gateway's resource-raw-mode lemma test). The checksum is computed
-      // before the media gate so `skipped` decisions stay content-keyed (D2).
+      // the Archivist read path's stored-bytes-verbatim test). The checksum is
+      // computed before the media gate so `skipped` decisions stay content-keyed.
       const { data, contentType } = await this.content.getBinary(makeResourceId(resourceId));
       const bytes = Buffer.from(data);
       const checksum = calculateChecksum(bytes);
       // The only site that wants text by EITHER route, so it is the only site
-       // that branches (READ-VS-EXTRACT P2). Deriving is expensive, stores a
-       // canonical artifact, and is reachable only here and in `reanchorResource`
-       // because both hold the store; decoding is a pure function over bytes.
+      // that branches. Deriving is expensive, stores a canonical artifact,
+      // and is reachable only here and in `reanchorResource` because both
+      // hold the store; decoding is a pure function over bytes.
       const extractor = derivingExtractorFor(contentType);
       if (!extractor && textSourceOf(contentType) === 'none') {
         return { kind: 'skipped', checksum, contentType, reason: 'no-extractor' };
       }
-      // The cache seam (PERSIST-ANCHORS P2c, decision C): derivation consults
-      // the artifact store for this exact byte content and, on a miss, the
-      // seam itself stores whatever it concluded — success with provenance,
-      // or the decline. The write moved INTO extract() with D1, which is why
-      // there is no publish call in this method anymore: exactly one place
+      // The cache seam: derivation consults the artifact store for this
+      // exact byte content and, on a miss, the seam itself stores whatever it
+      // concluded — success with provenance, or the decline. The stored
+      // record is the whole extraction outcome, so the write lives INSIDE
+      // extract() and this method makes no publish call: exactly one place
       // writes exactly one artifact, and this is not it.
       const extracted: ExtractedText | ExtractionDecline = extractor
         ? await extractor.extract(bytes, contentType, { key: checksum, store: this.anchoredStore })
@@ -648,10 +645,9 @@ export class Smelter {
   }
 
   /**
-   * The Smelter's single outbound signal (SMELTER-AXIOMS D3 as amended by
-   * SMELTER-INDEX-SYNC): a per-resource decision report for the barrier
-   * fold. Best-effort — waiters degrade to their bounded timeout; a signal
-   * failure must never fail the embed.
+   * The Smelter's single outbound signal: a per-resource decision report
+   * for the barrier fold. Best-effort — waiters degrade to their bounded
+   * timeout; a signal failure must never fail the embed.
    */
   private async emitSettled(resourceId: string, contentChecksum: string, outcome: 'indexed' | 'skipped', reason?: SkipReason): Promise<void> {
     try {
@@ -746,7 +742,7 @@ export class Smelter {
       await this.emitSettled(rid, fetched.checksum, 'skipped', fetched.reason);
       this.reconcileOutcomes?.set(rid, { kind: 'skipped', reason: fetched.reason });
     } else {
-      // Transient (A2): no settle, no store change. Settling 'skipped' would
+      // Transient: no settle, no store change. Settling 'skipped' would
       // tell a barrier waiter the map will never exist, which is false — it
       // degrades to its bounded timeout instead, and a retry finds the store.
       this.logger.warn('Smelter could not read resource content', { resourceId: rid, error: errField(fetched.error) });
@@ -769,7 +765,8 @@ export class Smelter {
    * Restore what `handleResourceArchived` deleted, from CURRENT state: the
    * resource's vectors (media-gated, full-replace) and its current exact-text
    * annotations — the same catalog read `reconcile()` uses, so the live path
-   * and a restart agree (bugs/smelter-misses-unarchive.md).
+   * and a restart agree (an unarchive that restored nothing would leave the
+   * resource out of vector search until the next restart).
    */
   private async handleResourceUnarchived(event: SmelterInput): Promise<void> {
     const rid = event.resourceId;
@@ -938,9 +935,7 @@ export class Smelter {
         this.vectorStore.listResourceStamps(),
         this.vectorStore.listAnnotationIds(),
         // The artifact store's would-hit keys — one bulk read, never a probe
-        // per resource (PERSIST-ANCHORS P0). Keys are resource ids today;
-        // P1 rekeys the store by content checksum and this lookup moves
-        // with it.
+        // per resource. Keys are content checksums.
         this.anchoredStore.list().then((keys) => new Set(keys)),
       ]);
       const resources = await this.listAllResources();
@@ -963,9 +958,9 @@ export class Smelter {
         if (!indexed) {
           work.push({ type: 'smelt:embed', resourceId: rid, payload: {} });
         } else if (catalog.checksum !== undefined && indexed.contentChecksum !== catalog.checksum) {
-          // Stale-but-present content: indexed from earlier bytes (or from a
-          // pre-stamp deployment, where the stamp reads as undefined) —
-          // re-embed (S12). The fresh embed re-reads the tags too.
+          // Stale-but-present content: indexed from earlier bytes (or with
+          // no stamp at all, which reads as undefined) — re-embed (S12).
+          // The fresh embed re-reads the tags too.
           work.push({ type: 'smelt:embed', resourceId: rid, payload: {} });
         } else if (!sameStringSet(indexed.entityTypes, catalog.entityTypes)) {
           // Content current, tags drifted: tag edits change no bytes, so the
@@ -973,17 +968,18 @@ export class Smelter {
           // never an embedding call.
           work.push({ type: 'smelt:restamp', resourceId: rid, payload: {} });
         }
-        // Third drift class (PERSIST-ANCHORS P0), deliberately NOT in the
-        // else-if chain: tag drift and a lost artifact can co-occur, and
-        // each work item heals its own half. Indexed at the current checksum
-        // means embed/re-embed will not run (those paths re-publish the
-        // artifact as a side effect); a geometry-capable extractor means an
-        // artifact SHOULD exist; an absent key means it was lost — the store
-        // is container-transient today, and a publish can fail silently.
-        // A catalog without a checksum cannot claim "current", so it never
-        // plans re-anchoring — the stamp diff owns that resource's fate.
-        // The store is checksum-keyed (P1b), so presence is asked by the
-        // catalog's checksum — the identity of the bytes — not the rid.
+        // Third drift class — a lost anchored-text artifact — deliberately
+        // NOT in the else-if chain: tag drift and a lost artifact can
+        // co-occur, and each work item heals its own half. Indexed at the
+        // current checksum means embed/re-embed will not run (those paths
+        // re-publish the artifact as a side effect); a geometry-capable
+        // extractor means an artifact SHOULD exist; an absent key means it
+        // was lost — the launcher clears the store when the Smelter's image
+        // changes, and a publish can fail silently. A catalog without a
+        // checksum cannot claim "current", so it never plans re-anchoring —
+        // the stamp diff owns that resource's fate. The store is
+        // checksum-keyed, so presence is asked by the catalog's checksum —
+        // the identity of the bytes — not the rid.
         if (indexed && catalog.checksum !== undefined
             && indexed.contentChecksum === catalog.checksum
             && catalog.yieldsGeometry && !anchoredKeys.has(catalog.checksum)) {
@@ -1091,15 +1087,14 @@ export class Smelter {
 
   /**
    * `smelt:rebuild-anchors` — the operator's explicit re-derivation of
-   * anchored-text artifacts (PERSIST-ANCHORS P0), shaped after
-   * `weave:rebuild`: optionally scoped, strictly serialized (concatMap on
-   * the command stream + the drain chain), correlated ok/failed replies,
-   * and partial completion FAILS — a rebuild that quietly skipped resources
-   * would present exactly like a document with no text, which is the #845
-   * failure mode wearing different clothes.
+   * anchored-text artifacts, shaped after `weave:rebuild`: optionally
+   * scoped, strictly serialized (concatMap on the command stream + the
+   * drain chain), correlated ok/failed replies, and partial completion
+   * FAILS — a rebuild that quietly skipped resources would present exactly
+   * like a document with no text.
    *
    * Never destructive: nothing is deleted first, stale entries are simply
-   * overwritten (the W5-frames lesson — a rebuild that clears before it
+   * overwritten (as in W5-frames — a rebuild that clears before it
    * re-derives turns a partial failure into a loss). Re-anchoring makes
    * zero embedding calls; work items ride the normal per-resource lanes,
    * so a rebuild can never interleave with live processing of the same
@@ -1146,10 +1141,8 @@ export class Smelter {
    * whether the media type's extractor derives geometry (whether an
    * anchored-text artifact should exist). Both answers are core's, keyed by the
    * media type's strategy: embeddable ⇔ the type has any text-reading strategy
-   * at all, and geometry ⇔ that strategy derives it. Until READ-VS-EXTRACT P2
-   * embeddability was asked as `EXTRACTORS[strategy] !== null` — true, but a
-   * second statement of `strategy !== 'none'`, answered by resolving an
-   * implementation to learn a fact about a media type.
+   * at all, and geometry ⇔ that strategy derives it — facts about a media
+   * type, asked of the type and never by resolving an implementation.
    * Shared by `reconcile()` and the `smelt:rebuild-anchors` planner.
    */
   private classifyEmbeddable(
@@ -1170,10 +1163,10 @@ export class Smelter {
     return embeddable;
   }
 
-  /** Page through `browse:resources-requested` until the catalog is exhausted. */
-  /** Shared with the weaver since 2026-09-09 — see `browse-resources.ts` for why the
-   *  retry lives at the page rather than around the pass. `archived: false` is
-   *  the smelter's own filter and the one difference between the two loops. */
+  /** Page through `browse:resources-requested` until the catalog is
+   *  exhausted. Shared with the weaver — see `browse-resources.ts` for why
+   *  the retry lives at the page rather than around the pass.
+   *  `archived: false` is the smelter's own filter; the weaver passes none. */
   private listAllResources(): Promise<ResourceDescriptor[]> {
     return browseAllResources(this.bus, { limit: Smelter.RECONCILE_PAGE_SIZE, archived: false });
   }

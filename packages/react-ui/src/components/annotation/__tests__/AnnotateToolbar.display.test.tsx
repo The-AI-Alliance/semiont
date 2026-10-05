@@ -1,14 +1,12 @@
 /**
- * EMBEDDABLE-VIEWER-COMPLETION Phase 3 — Annotate Bar display forms.
+ * Annotate Bar display forms.
  *
  * Behavior is mostly fixed (the bar IS the annotation capability); the host
  * gets freedom over its display form. `compact` is a display-only variant:
  * icon-only, tight, chromeless — the functional groups stay present and wired.
  * BrowseView's `inline` embed shows the compact bar automatically. Theming
- * (semiont-* classes + CSS vars) and labels (i18n) already exist — no new API
- * for those.
- *
- * Started RED (no `compact` prop) and GREEN once Phase 3 lands.
+ * (semiont-* classes + CSS vars) and labels (i18n) have their own mechanisms —
+ * `compact` adds no API for those.
  */
 import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi } from 'vitest';
@@ -42,7 +40,7 @@ const toolbarProps = {
   session: null,
 };
 
-describe('Annotate Bar display forms (Phase 3)', () => {
+describe('Annotate Bar display forms', () => {
   it('`compact` adds the display modifier; default does not', () => {
     const { container: normal } = renderInEnglish(<AnnotateToolbar {...toolbarProps} />);
     expect(normal.querySelector('.semiont-annotate-toolbar')).not.toHaveClass('semiont-annotate-toolbar--compact');
@@ -53,7 +51,7 @@ describe('Annotate Bar display forms (Phase 3)', () => {
 
   it('compact is display-only: the functional groups are still present', () => {
     renderInEnglish(<AnnotateToolbar {...toolbarProps} compact />);
-    // Groups render with their aria labels (default-English translations, no provider).
+    // Groups render with their aria labels (the English translations `renderInEnglish` mounts).
     expect(screen.getByLabelText(/mode/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/click/i)).toBeInTheDocument();
   });

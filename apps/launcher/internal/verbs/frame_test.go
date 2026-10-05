@@ -11,11 +11,11 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
 )
 
-// `semiont frame`, in process (SDK-GO-TRANSPORT P2). These were black-box
-// tests: build the binary, `start` a fake stack, `login`, then run the verb
-// against fakert's HTTP server — ~3 s each to observe two requests. The verb's
-// behaviour is entirely about WHAT it sends and WHEN it stops, which the
-// transport seam exposes directly.
+// `semiont frame`, in process against the fake transport. These were
+// black-box tests: build the binary, `start` a fake stack, `login`, then run
+// the verb against fakert's HTTP server — ~3 s each to observe two requests.
+// The verb's behaviour is entirely about WHAT it sends and WHEN it stops,
+// which the transport seam exposes directly.
 //
 // What is deliberately NOT covered here, and stays end-to-end: that the built
 // binary speaks HTTP the gateway understands. One wire test per verb family

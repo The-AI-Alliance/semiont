@@ -5,40 +5,27 @@ This directory contains GitHub Actions workflows and automation configuration fo
 ## 🔄 Workflows
 
 ### Security Tests (`security-tests.yml`)
-**Primary security testing workflow** that runs on every push and PR:
+Runs on every push and pull request to `main` and `develop`. Its three jobs are
+required status checks, so the workflow carries no `paths:` filter.
 
-**Browser Security Testing**:
-- ✅ Runs comprehensive security test suites
-- ✅ Builds and starts the application
-- ✅ Verifies admin routes return 200 (not 307 redirects)
-- ✅ Confirms no admin content leakage in unauthorized responses
-- ✅ Validates proper "Access Denied" messages
-- ✅ Checks for sensitive data patterns in responses
+**Browser** (`browser-security`):
+- Runs `npm run test:security` (the session gates, the locale layout, validation) and `npm run test:coverage` in `apps/browser`
+- Builds the Browser, serves it, and probes `/moderate` and its sub-routes: each answers 200 with the SPA shell
+- Fails if the shell carries moderation content or a secret-shaped string
 
-**Gateway Security Testing**:
-- ✅ Tests API authentication enforcement
-- ✅ Verifies admin endpoints require proper authorization
-- ✅ Confirms error responses don't leak sensitive data
-- ✅ Validates proper JSON error formats
-- ✅ Uses test PostgreSQL database
+**Gateway** (`gateway-security`):
+- Builds the gateway and starts it on a configuration document written for the run
+- `/api/status` and `/api/resources/does-not-exist` answer 401 with no credential and to a token that does not verify
+- The 401 body is the JSON error shape, and carries no secret, stack trace or source path
 
-**Security Verification Checks**:
-```bash
-# Browser verification
-curl -I http://localhost:3000/admin  # Must return 200, not 307
-curl -s http://localhost:3000/admin | grep -i "admin\|dashboard"  # Must return empty
-
-# Gateway verification  
-curl http://localhost:3001/api/status  # Must return 401
-curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must return 401
-```
+These are probes of two routes. What a running gateway owes on every operation
+the spec declares is the gateway conformance suite's to check (the
+`gateway-conformance` job of `ci.yml`).
 
 ### Continuous Integration (`ci.yml`)
-**General testing and building workflow**:
-- Browser: Tests, linting, type-checking, building
-- Gateway (Rust): formatting, clippy, the shared-table runners, the crate licence gate, and the conformance suite against the built binary
-- CDK: Infrastructure tests and synthesis
-- Scripts: TypeScript compilation and validation
+The Browser's suite, the Rust workspace's checks, the three conformance suites,
+the package build, generated-code drift and the launcher's suites. Each job is
+listed in [Testing](../docs/contributor/TESTING.md#continuous-integration).
 
 ### Gateway Crate Advisories (`gateway-advisories.yml`)
 **The Rust workspace's crates against RustSec's advisory database**:
@@ -50,8 +37,8 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must
 ### CodeQL Analysis (`codeql-analysis.yml`)
 **Automated security code scanning**:
 - Runs on push, PR, and weekly schedule
-- Analyzes JavaScript/TypeScript code for security vulnerabilities
-- Uses enhanced security queries for better coverage
+- Analyzes the TypeScript, Go and Rust code
+- Runs the `security-and-quality` query suite
 - Uploads results to GitHub Security tab
 
 ## 🔧 Configuration Files
@@ -66,20 +53,18 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must
 - `npm run lint:dependabot` (Architecture Compliance) fails when a tracked manifest has no entry, or an entry names a directory with none
 
 ### CodeQL Config (`codeql/codeql-config.yml`)
-**Enhanced security analysis configuration**:
-- Security-extended and security-and-quality queries
-- Focuses on source code directories, excludes test files
-- Custom query filters for security-relevant findings
+**The analysis configuration**:
+- The `security-and-quality` queries, which include `security-extended`
+- Scans the source directories of the apps and packages; excludes tests and build output
+- Query filters keep findings tagged for security, reliability, correctness and maintainability
 
 ## 📋 Templates
 
 ### Pull Request Template (`pull_request_template.md`)
-**Comprehensive PR checklist** with security focus:
-- **Security Checklist**: Authentication, authorization, information disclosure
-- **Testing Requirements**: Security tests, manual verification
-- **Admin Route Security**: Specific checks for admin functionality  
-- **API Security**: Gateway endpoint protection verification
-- **Reviewer Guidelines**: Security review requirements
+What a pull request states: the type of change, the areas changed, the suites
+run, breaking changes and documentation. Its Security section applies to a
+change that touches the gateway's routes, token handling or the Browser's
+session code.
 
 ## 🚀 Workflow Triggers
 
@@ -87,8 +72,7 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must
 ```yaml
 # Runs on:
 - push: [main, develop]
-- pull_request: [main, develop]  
-- paths: apps/browser/**, apps/gateway/**
+- pull_request: [main, develop]
 - workflow_dispatch: # Manual trigger
 ```
 
@@ -120,14 +104,12 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must
 ## 🛡️ Security Workflow Details
 
 ### Environment Setup
-Both Browser and gateway security tests use:
-- **Node.js 24**
-- **Environment Variables**: only what the code actually reads
-- **Dependency Caching**: npm cache for faster builds
+- **Browser job**: Node.js 24, with the npm cache
+- **Gateway job**: the Rust toolchain `rust-toolchain.toml` pins, with the cargo cache
 
-No database service. The gateway holds no database, so nothing here provisions
-one, and there are no OAuth client credentials: people authenticate at the
-knowledge base's issuer, never at the gateway.
+Neither job starts a database or an issuer. The gateway holds no database, and
+people authenticate at the knowledge base's issuer, never at the gateway; the
+probes send no valid token, so no issuer has to answer.
 
 ### Test Environment Variables
 ```bash
@@ -136,6 +118,8 @@ NODE_OPTIONS=--max-old-space-size=4096
 
 # Gateway
 JWT_SECRET=test-secret-key-for-testing-32char   # the gateway refuses a key under 32 characters
+SEMIONT_OIDC_CLIENT_ID=semiont-gateway          # the gateway's own service account; boot refuses without it
+SEMIONT_OIDC_CLIENT_SECRET=test-gateway-client-secret
 ```
 
 ### Security Verification Commands
@@ -149,37 +133,33 @@ The workflows run these security checks:
 status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/moderate)
 
 response=$(curl -s http://localhost:3000/moderate)
-echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|DELETE|admin@"
+echo "$response" | grep -qE "sk-ant-[A-Za-z0-9_-]+|eyJ[A-Za-z0-9_-]{10,}\.eyJ"
 ```
-
-There is no `/admin` probe: the admin section is deleted. A shell probe against
-a route that no longer exists passes for the wrong reason — it reads a 404 as a
-refusal — so it was removed rather than left to go green on nothing.
 
 **Gateway API Security**:
 ```bash
 # Test authentication requirement
-curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/status  # Must be 401
+curl -s -o /dev/null -w "%{http_code}" http://localhost:4000/api/status  # Must be 401
 
-# Test invalid token handling  
-curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must be 401
+# Test invalid token handling
+curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer invalid-token" http://localhost:4000/api/status  # Must be 401
 
 # Check error response format
-response=$(curl -s http://localhost:3001/api/status)
+response=$(curl -s http://localhost:4000/api/status)
 echo "$response" | grep -q '"error".*"Unauthorized"'
 ```
 
 ## 📊 Security Reporting
 
 ### Workflow Status
-Each security workflow generates a detailed status report:
-- ✅ **PASSED**: All security checks successful
-- ❌ **FAILED**: Security vulnerabilities detected
+The `security-report` job writes a summary of the two jobs above:
+- ✅ **PASSED**: every check in the job passed, listed by what it checked
+- ❌ **FAILED**: a step of the job failed; its log says which
 
 ### Coverage Reports
-- **Test Coverage**: Uploaded to Codecov with security test focus
+- **Test Coverage**: the Browser's coverage, uploaded to Codecov under the `browser` flag
 - **Security Findings**: CodeQL results available in Security tab
-- **Workflow Summary**: Detailed results in GitHub Actions summary
+- **Workflow Summary**: the report above, in the GitHub Actions summary
 
 ### Failure Handling
 If security tests fail:
@@ -197,14 +177,7 @@ If security tests fail:
    cargo build --release -p semiont-gateway && (cd tests/conformance && npm run test:gateway)
    ```
 
-2. **Check admin route behavior** manually:
-   ```bash
-   npm run dev  # Start development server
-   curl -I http://localhost:3000/admin  # Should be 200, not 307
-   ```
-
-3. **Review security checklist** in PR template
-4. **Test with different user roles** (unauthenticated, non-admin, admin)
+2. **Complete the Security section** of the PR template when the change touches the gateway's routes, token handling or the Browser's session code
 
 ### For Reviewers
 1. **Verify all security tests pass** in CI

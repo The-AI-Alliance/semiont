@@ -4,7 +4,7 @@
  * W3C Web Annotation: assessing motivation
  *
  * This file defines all styles for assessment annotations
- * across text, panels, and image annotations.
+ * across text and panels.
  */
 
 /* ============================================
@@ -117,10 +117,6 @@
 }
 
 /* ============================================
-   Assist Section in Unified Panel
-   ============================================ */
-
-/* ============================================
    Annotation Prompt (Pending State)
    ============================================ */
 .semiont-annotation-prompt[data-type="assessment"] {
@@ -180,26 +176,4 @@
 [data-theme="dark"] .semiont-button[data-variant="assist"][data-type="assessment"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-assessment-dark-primary);
   outline-offset: 2px;
-}
-
-/* ============================================
-   Image Annotation Overlays
-   ============================================ */
-
-/* ============================================
-   Assessment-specific Visual Elements
-   ============================================ */
-
-/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
-
-.semiont-annotation-prompt__title {
-  margin: 0 0 0.25rem;
-  font-size: var(--semiont-text-sm);
-  color: var(--semiont-text-primary);
-}
-
-.semiont-annotation-prompt__text {
-  margin: 0;
-  font-size: var(--semiont-text-sm);
-  color: var(--semiont-text-secondary);
 }

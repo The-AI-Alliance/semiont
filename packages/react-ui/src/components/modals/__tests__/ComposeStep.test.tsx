@@ -1,13 +1,13 @@
 /**
- * COMPOSE-IN-MODAL P1 — the compose strategy's form, as a pure step.
+ * The compose strategy's form, as a pure step.
  *
  * The from-reference slice of the compose page, lifted: name, save location,
  * entity types (read-only tags when the reference fixed them, picker
  * otherwise), language, and the editor. Deliberately NONE of the page's
  * upload/format/encoding machinery — the fences reference mode already
  * proved are here as absence pins. The draft is CONTROLLED by the host
- * (WIZARD-NAVIGATION D3: stepping Back must not discard typed work), and
- * the evidence display is the host's job (plan A3: no context redux here).
+ * (stepping Back must not discard typed work), and the evidence display is
+ * the host's job (the step renders no context of its own).
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -77,7 +77,7 @@ describe('ComposeStep — the from-reference slice, and nothing else', () => {
     expect(screen.getByLabelText(T.language)).toBeInTheDocument();
   });
 
-  it('edits flow through onDraftChange — the host owns the draft (D3)', () => {
+  it('edits flow through onDraftChange — the host owns the draft', () => {
     const { onDraftChange } = renderStep();
     fireEvent.change(screen.getByLabelText(T.resourceTitle), { target: { value: 'Black Hawk (Sauk)' } });
     expect(onDraftChange).toHaveBeenCalledWith({ name: 'Black Hawk (Sauk)' });
@@ -85,7 +85,7 @@ describe('ComposeStep — the from-reference slice, and nothing else', () => {
     expect(onDraftChange).toHaveBeenCalledWith({ content: 'A Sauk leader.' });
   });
 
-  it('reference-fixed entity types render as read-only tags, not a picker (D6)', () => {
+  it('reference-fixed entity types render as read-only tags, not a picker', () => {
     renderStep(); // referenceEntityTypes: ['Person']
     expect(screen.getByText('Person')).toBeInTheDocument();
     // No toggling: the types were chosen when the reference was created.
@@ -93,7 +93,7 @@ describe('ComposeStep — the from-reference slice, and nothing else', () => {
     expect(screen.queryByRole('button', { name: /Topic/ })).not.toBeInTheDocument();
   });
 
-  it('an empty reference set falls back to the picker over the owner-supplied options (D6)', () => {
+  it('an empty reference set falls back to the picker over the owner-supplied options', () => {
     const { onDraftChange } = renderStep({ referenceEntityTypes: [] });
     const topic = screen.getByRole('button', { name: /Topic/ });
     fireEvent.click(topic);
@@ -108,7 +108,7 @@ describe('ComposeStep — the from-reference slice, and nothing else', () => {
     expect(container.querySelector('#charset-select')).toBeNull();
   });
 
-  it('renders no context of its own — the evidence is host-stacked (A3)', () => {
+  it('renders no context of its own — the evidence is host-stacked', () => {
     const { container } = renderStep();
     expect(container.querySelector('.semiont-gather-pane')).toBeNull();
     expect(container.querySelector('.semiont-gather__outer')).toBeNull();
@@ -127,7 +127,7 @@ describe('ComposeStep — the from-reference slice, and nothing else', () => {
     });
   });
 
-  it('the footer is a wizard footer: Back + Create, pending while in flight, re-enabled on rejection (A4)', async () => {
+  it('the footer is a wizard footer: Back + Create, pending while in flight, re-enabled on rejection', async () => {
     let reject!: (e: Error) => void;
     const onCompose = vi.fn(() => new Promise<void>((_, r) => { reject = r; }));
     const { container } = renderStep({ onCompose });
@@ -140,7 +140,7 @@ describe('ComposeStep — the from-reference slice, and nothing else', () => {
     expect(await screen.findByRole('button', { name: T.createAndLink })).toBeEnabled();
   });
 
-  it('Back is the only retreat and dismissal never lives in the footer (A4)', () => {
+  it('Back is the only retreat and dismissal never lives in the footer', () => {
     const { container, onBack } = renderStep();
     const footerButtons = Array.from(
       container.querySelectorAll('.semiont-modal__actions button'),

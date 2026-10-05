@@ -1,11 +1,11 @@
 /**
- * EMBEDDABLE-VIEWER-COMPLETION Phase 0 — regression: the browse `text` default
- * renders markdown as **formatted prose**, not raw source.
+ * The browse `text` default renders markdown as **formatted prose**, not raw
+ * source.
  *
  * The other BrowseView suites mock `react-markdown` away for simplicity, so
- * nothing currently pins that the default text renderer actually *formats*
- * markdown. This spec uses the real renderer and guards against a regression to
- * raw/source rendering.
+ * none of them pins that the default text renderer actually *formats*
+ * markdown. This spec uses the real renderer and guards against raw/source
+ * rendering.
  */
 import { resourceId } from '@semiont/core';
 import { describe, it, expect } from 'vitest';
@@ -15,7 +15,7 @@ import { TextBrowseRenderer, defaultBrowseRenderers } from '../browse-renderers'
 
 const base = { mimeType: 'text/markdown', resourceUri: resourceId('res-1'), annotations: [] };
 
-describe('browse-renderers — markdown-as-prose (Phase 0 regression)', () => {
+describe('browse-renderers — markdown-as-prose', () => {
   it('TextBrowseRenderer is the default `text` renderer', () => {
     expect(defaultBrowseRenderers.text).toBe(TextBrowseRenderer);
   });

@@ -1,7 +1,12 @@
 package launcher
 
-// discovery.go — lane 1 of BROWSER-KB-DISCOVERY.md: publish the launcher's
-// KB view where the Browser can read it.
+// discovery.go — the launcher's half of KB discovery: publish the launcher's
+// KB view where the Browser can read it. <StateDir>/discovery/kbs.json is an
+// EXPORT VIEW regenerated on every stack mutation (saveStackSet is the single
+// writer), and the Browser container mounts the directory read-only at
+// /discovery. Never stack.json itself — that file is launcher-private (PIDs,
+// staging paths) — and never a secret or credential: endpoints only, login
+// stays the Browser's per-KB business.
 //
 // SCHEMA AUTHORITY: specs/src/discovery/DiscoveryDocument.json (and
 // DiscoveredKB.json) — the multi-language contract of record: a standalone
@@ -14,12 +19,7 @@ package launcher
 // regenerate both sides. version is the compatibility gate: consumers must
 // ignore documents they do not understand.
 
-//go:generate sh -c "cd ../../../.. && container run --rm -v $(pwd):/w -w /w golang:1.25 go run github.com/atombender/go-jsonschema@v0.23.1 -p launcher --tags json --struct-name-from-title --capitalization KB -o apps/launcher/internal/launcher/discovery_types_gen.go specs/src/discovery/DiscoveryDocument.json" <StateDir>/discovery/kbs.json is an
-// EXPORT VIEW regenerated on every stack mutation (saveStackSet is the single
-// writer), and the Browser container mounts the directory read-only at
-// /discovery. Never stack.json itself — that file is launcher-private (PIDs,
-// staging paths) — and never a secret or credential: endpoints only, login
-// stays the Browser's per-KB business.
+//go:generate sh -c "cd ../../../.. && container run --rm -v $(pwd):/w -w /w golang:1.25 go run github.com/atombender/go-jsonschema@v0.23.1 -p launcher --tags json --struct-name-from-title --capitalization KB -o apps/launcher/internal/launcher/discovery_types_gen.go specs/src/discovery/DiscoveryDocument.json"
 
 import (
 	"encoding/json"
@@ -42,13 +42,13 @@ func writeDiscovery(ss *StackSet) {
 		}
 		return &v
 	}
-	// AT MOST ONE ENTRY PER ADDRESS (KB-IDENTITY-VS-ADDRESS P1). An entry is a
-	// promise about what lives at a `host:port`, and only one process can bind
-	// a port — so two entries claiming one address means at most one promise
-	// is true. A consumer cannot repair that from the outside: it has an
-	// address, and an address cannot say which KB is which. Live 2026-07-24,
-	// two entries claimed localhost:4000 and the Browser rendered the user's
-	// own KB under the other repo's name.
+	// AT MOST ONE ENTRY PER ADDRESS. An entry is a promise about what lives at
+	// a `host:port`, and only one process can bind a port — so two entries
+	// claiming one address means at most one promise is true. A consumer
+	// cannot repair that from the outside: it has an address, and an address
+	// cannot say which KB is which. With two entries claiming
+	// localhost:4000, the Browser renders the user's own KB under the other
+	// repo's name.
 	//
 	// The local stack is published first and wins the address: `start`
 	// verified the port was free and its containers bound it, which is the
@@ -58,7 +58,7 @@ func writeDiscovery(ss *StackSet) {
 	// published at all. `start` refuses a KB that declares no [site] domain,
 	// which is where a user gets a fix-it they can act on; these guards are
 	// the last resort that keeps a malformed document off disk if a record
-	// predating that rule is still in the set.
+	// without one is in the set.
 	claimed := map[int]bool{}
 	kbs := []DiscoveredKB{}
 	if st := ss.Stacks["local"]; st != nil && st.KBDid != "" {
@@ -82,14 +82,15 @@ func writeDiscovery(ss *StackSet) {
 		}
 		if c.KBDid == "" {
 			// A remote KB the launcher cannot identify. Unlike the local case
-			// there is no config here to fix, so this cannot be a refusal —
-			// see the plan's open question on codespace enforcement.
+			// there is no config here to fix, so this cannot be a refusal and
+			// the entry is dropped. Whether a start should warn about it, or
+			// refuse after all, is an open question.
 			continue
 		}
-		// A forward that no longer runs is an address nothing answers.
+		// A forward that is not running is an address nothing answers.
 		// dropCollidingForwards zeroes the PID when it kills a forward the
 		// local stack needs but KEEPS the port, so the record that resolved a
-		// collision is exactly the record that used to be republished as live.
+		// collision is exactly the one that must not be republished as live.
 		// forwardProcAlive, not forwardAlive: the question is whether OUR
 		// forward still exists, and dialing the port would answer "yes" for
 		// whoever else took it — the confusion this whole rule exists to end.

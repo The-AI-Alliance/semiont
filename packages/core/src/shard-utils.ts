@@ -4,10 +4,9 @@
  * Shared utilities for consistent sharding across all storage layers —
  * the event log and view storage (@semiont/event-sourcing) and the
  * anchored-text store (@semiont/content) all lay files out as
- * `{ab}/{cd}/<key>` through `getShardPath`. Hoisted here (PERSIST-ANCHORS
- * P1a) so both importers share one implementation: a second sharding
- * implementation is how two trees end up disagreeing about where
- * something lives.
+ * `{ab}/{cd}/<key>` through `getShardPath`. Hoisted here so both importers
+ * share one implementation: a second sharding implementation is how two
+ * trees end up disagreeing about where something lives.
  *
  * Pure string/number math — no node dependencies — so it is safe on
  * core's browser-facing root export.

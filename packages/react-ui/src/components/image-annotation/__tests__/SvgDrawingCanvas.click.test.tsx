@@ -1,5 +1,5 @@
 /**
- * A1 anchor thread — image canvas drawing-path hit-test pin.
+ * Click anchor rect — image canvas drawing-path hit-test pin.
  *
  * In drawing mode, a sub-10px "click" on an existing annotation goes through
  * the mouse-up hit-test (not the overlay's element handlers): the hit-test

@@ -1,16 +1,14 @@
 /**
- * SINGLE-KB-MOUNT P3 — the ONE resolution of `resourceId → (bytes, mediaType)`.
+ * The ONE resolution of `resourceId → (bytes, mediaType)`.
  *
- * Before this phase the join was written out five times (the plan's table),
- * with three different answers to "what type is this when the record doesn't
- * say" and two different opinions about which field holds the URI. One of the
- * five was already wrong: `LocalContentTransport.loadBinary` read
- * `representations[].storageUri`, which `ViewMaterializer` never writes — so
- * `getBinary` threw for every resource in local mode, uncaught because nothing
- * exercised it.
+ * Copies of this join disagree: about "what type is this when the record
+ * doesn't say", and about which field holds the URI. A reader that resolves
+ * through a field the materializer does not write throws for every resource.
+ * `representations[].storageUri` is the URI's one home — `ViewMaterializer`
+ * writes it there.
  *
- * These tests pin the collapse: one decision, one fallback, and every face
- * agreeing — asserted against real storage, because the bug that hid here was
+ * These tests pin that: one decision, one fallback, and every face agreeing —
+ * asserted against real storage, because the defect guarded against is
  * exactly a disagreement between a view's shape and a reader's assumption.
  */
 
@@ -35,9 +33,8 @@ const URI = 'file://docs/note.md';
 
 describe('representationSource — the one decision', () => {
   it('reads URI and mediaType together from the primary representation — the one home', () => {
-    // STORAGE-URI-ONE-HOME P1: the URI lives where the bytes' other facts
-    // live. No descriptor-level field, so no URI/mediaType mismatch case and
-    // no fallback for it.
+    // The URI lives where the bytes' other facts live. No descriptor-level
+    // field, so no URI/mediaType mismatch case and no fallback for it.
     const resource = {
       representations: [{ mediaType: 'text/markdown', checksum: 'abc', storageUri: URI }],
     } as unknown as ResourceDescriptor;
@@ -121,14 +118,13 @@ describe('resolveRepresentation — every face agrees', () => {
     expect(contentType).toBe('text/markdown');
   });
 
-  it('LocalContentTransport.getBinary works — it read a field nobody writes', async () => {
-    // The bug the collapse fixes: `loadBinary` resolved through
-    // `getPrimaryRepresentation(...).storageUri`, which ViewMaterializer never
-    // populates, so this threw for EVERY resource in local mode.
+  it('LocalContentTransport.getBinary is a face of the same call', async () => {
+    // Local mode resolves through the shared decision too: a resolution of
+    // its own, reading a field the materializer does not write, would throw
+    // for EVERY resource in local mode.
     const { LocalContentTransport } = await import('../local-content-transport');
-    // Still a cast, but a far smaller lie: a two-field stand-in for a
-    // KnowledgeBase, which is all `getBinary` reads. It used to have to stand
-    // in for a whole KnowledgeSystem — five actors this code never touches.
+    // A cast, but a small lie: a two-field stand-in for a KnowledgeBase,
+    // which is all `getBinary` reads.
     const transport = new LocalContentTransport(
       { views: eventStore.viewStorage, content } as never,
     );

@@ -5,11 +5,10 @@ import { openResourceByName } from '../fixtures/discover';
  * Smoke test: hovering an annotation fires `beckon:hover` on the bus
  * and BeckonStateUnit reacts by firing `beckon:sparkle`.
  *
- * Regression target (VMs-from-Session Stage D): `createBeckonStateUnit` was
- * migrated from `(eventBus)` to `(client)`, and its internal wiring moved with
- * it — today it observes through `client.bus.on('beckon:hover').subscribe(...)`
+ * `createBeckonStateUnit` takes the client,
+ * observes through `client.bus.on('beckon:hover').subscribe(...)`
  * and reacts with `client.bus.emit('beckon:sparkle', ...)`. If the factory's
- * internal bus wiring regressed, the hover would still fire `beckon:hover`
+ * internal bus wiring broke, the hover would still fire `beckon:hover`
  * (because the component emits it itself, through
  * `session.client.beckon.hover`) but the state unit would never see it and
  * the `beckon:sparkle` reaction would be silent. Observing both events on the
@@ -17,9 +16,8 @@ import { openResourceByName } from '../fixtures/discover';
  * emitting to.
  *
  * Self-setup: this spec creates its own annotation if the chosen
- * resource has none. Previously it depended on specs 04/05 having run
- * first and created annotations in the lex-ordering window. Self-setup
- * removes that ordering coupling — the spec runs cleanly in isolation.
+ * resource has none, so it does not depend on specs 04/05 having run
+ * first — the spec runs cleanly in isolation.
  *
  * Resource choice: pinned to a seeded TEXT resource by name. The self-setup
  * needs CodeMirror + prose, so Discover's first card (a PDF or a generated
@@ -28,15 +26,13 @@ import { openResourceByName } from '../fixtures/discover';
  */
 test.describe('hover → beckon', () => {
   test('hovering an annotation fires beckon:hover and BeckonStateUnit fires beckon:sparkle', async ({ signedInPage: page, bus }) => {
-    // Open a TEXT resource, pinned BY NAME. Taking Discover's first card
-    // was data-order-dependent and is the source of cross-session flakes:
-    // Discover is newest-first, the seed adds two PDFs, and specs 09/16
-    // push freshly generated resources to the top — so `.first()` could
+    // Open a TEXT resource, pinned BY NAME. Discover's first card is
+    // data-order-dependent and a source of cross-session flakes:
+    // Discover is newest-first, the seed adds PDFs, and specs 09/16
+    // push freshly generated resources to the top — so `.first()` can
     // land on a PDF, where the self-setup below has no `.cm-content` to
-    // select in and never fires `mark:create-request` (observed on 0.5.18:
-    // a 30 s timeout on that emit, passing on re-run once ordering moved).
-    // `.first()` still narrows the duplicate seeds the non-idempotent
-    // seeder accumulates — same pattern specs 14/20 use to pin their PDF.
+    // select in and never fires `mark:create-request`. Specs 14/20 pin
+    // their PDF the same way.
     // Either the resource already has an annotation in BrowseView (a prior
     // spec left one) or we create one ourselves below.
     await openResourceByName(page, 'Quantum Computing Primer');
@@ -89,9 +85,9 @@ test.describe('hover → beckon', () => {
       //
       // Strategy: skip past the first paragraph break (`\n\n`) and
       // select 10 chars of body text. The seeded text fixtures are plain
-      // prose in `\n\n`-separated paragraphs (no markdown header today —
+      // prose in `\n\n`-separated paragraphs (no markdown header —
       // see scripts/seed.ts), so this lands inside the SECOND paragraph.
-      // Skipping the first block is deliberate and still load-bearing: it
+      // Skipping the first block is deliberate and load-bearing: it
       // keeps the selection off any leading header a future fixture might
       // add, which the renderer consumes and which would yield a
       // persisted-but-invisible annotation.
@@ -157,7 +153,7 @@ test.describe('hover → beckon', () => {
       await page.getByRole('menuitem', { name: /^browse$/i }).click();
     }
 
-    // Either way (pre-existing or just-created), there's now a
+    // Either way (pre-existing or just-created), there's a
     // `[data-annotation-id]` in BrowseView. Wait for it to render.
     await expect(annLocator).toBeVisible({ timeout: 15_000 });
 
@@ -169,11 +165,11 @@ test.describe('hover → beckon', () => {
     await annLocator.hover();
 
     // BeckonStateUnit chain: `beckon:hover` emitted → state unit
-    // subscribes via `client.stream('beckon:hover')` → on non-null
+    // subscribes via `client.bus.on('beckon:hover')` → on non-null
     // annotationId, emits `beckon:sparkle`. Both should appear on the
     // bus. If only `beckon:hover` is observed, the state unit isn't
     // subscribed to the same bus the component is emitting on
-    // (regression target — see header).
+    // (see header).
     await bus.waitForEmit('beckon:hover', { timeout: 5_000 });
     await bus.waitForEmit('beckon:sparkle', { timeout: 5_000 });
   });

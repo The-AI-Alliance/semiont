@@ -5,7 +5,7 @@ package launcher
 // Deployment topology is the launcher's to know, never the KB config's to
 // declare. A knowledge base's config says WHAT it needs: a graph, a vector
 // store, an embedding model, an issuer. WHERE those listen on this machine
-// today is a fact of the start that placed them. So:
+// is a fact of the start that placed them. So:
 //
 //   - A daemon is the launcher's to run and to place unless its section says
 //     `platform = "external"`. Its section states no address: loadConfig
@@ -158,17 +158,16 @@ func resolveTopology(v any, vars map[string]string) any {
 // service reads:
 //
 //   - every address the launcher places, as a literal (vars);
-//   - the credential references of the daemons the launcher runs
-//     (SECRET-DELIVERY P4) — a [graph] reader names ${NEO4J_PASSWORD}, a [jobs]
-//     reader the broker pair; the values reach the service as the variables its
-//     sections name (envFor);
+//   - the credential references of the daemons the launcher runs — a [graph]
+//     reader names ${NEO4J_PASSWORD}, a [jobs] reader the broker pair; the
+//     values reach the service as the variables its sections name (envFor);
 //   - for a service that dials the Archivist, its address, from the
 //     descriptor's port;
 //   - for a service that describes a KB tree it does not mount, a top-level
-//     [kb] with the KB's committed name and domain (SINGLE-KB-MOUNT D4). The
-//     domain is omitted when the KB declares none, so the consumer's refusal
-//     still fires: staging a fabricated identity is the one thing worse than
-//     failing loudly.
+//     [kb] with the KB's committed name and domain. The domain is omitted
+//     when the KB declares none, so the consumer's refusal still fires:
+//     staging a fabricated identity is the one thing worse than failing
+//     loudly.
 //
 // A hand-written section wins: an address, an [archivist] or a [kb] the config
 // states is an operator describing what the launcher cannot see. A section the

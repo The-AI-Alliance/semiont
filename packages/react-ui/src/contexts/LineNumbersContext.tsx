@@ -11,11 +11,10 @@ interface LineNumbersContextValue {
 // Context-backed like ThemeContext, and for the same reason: the Settings
 // panel's toggle is APPLIED by a bus subscriber in a different component
 // than the switch that displays it. As a plain per-caller useState, the
-// subscriber mutated its private copy while the switch rendered another,
-// and the toggle flipped nothing anywhere (e2e 13:77/:134/:189).
+// subscriber would mutate its private copy while the switch rendered
+// another, and the toggle would flip nothing anywhere.
 // localStorage is persistence only — the initial read and the write on
 // toggle — never the sharing mechanism.
-// See .plans/bugs/line-numbers-toggle-desynced-by-hoist.md
 const LineNumbersContext = createContext<LineNumbersContextValue | null>(null);
 
 export function LineNumbersProvider({ children }: { children: ReactNode }) {

@@ -54,8 +54,8 @@ const (
 
 // The default subscription is the GENERATED broadcast set
 // (packages/sdk-go/bus/bridged_gen.go, from specs/src/bus/registry.json) —
-// the same list the TypeScript side derives. It used to be hand-copied here,
-// which is precisely the drift the registry exists to prevent.
+// the same list the TypeScript side derives. A hand-copied list here would be
+// precisely the drift the registry exists to prevent.
 
 func Listen(args []string) int {
 	u := launcher.NewUI(false)
@@ -120,10 +120,10 @@ func Listen(args []string) int {
 
 	// Resource names, fetched ONCE before the stream opens. Not per event: a
 	// lookup is a correlated Request, which opens its own SSE connection, and
-	// since presence landed (P7) every connection publishes session:joined/left
-	// — so inline resolution would make this console generate the churn it is
-	// meant to report. One request up front, then never again; ids the prefetch
-	// misses render as ids.
+	// every connection publishes session:joined/left — so inline resolution
+	// would make this console generate the churn it is meant to report. One
+	// request up front, then never again; ids the prefetch misses render as
+	// ids.
 	render := newListenRenderer(prefetchResourceNames(cli))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -146,7 +146,7 @@ func Listen(args []string) int {
 	u.Log("Listening to %s %s", where, u.Dim("(Ctrl-C to stop)"))
 	// INBOUND ONLY. The guide's own cues (`browse --browser`, `beckon`) are not
 	// echoed back on this stream, and silence where a cue should appear must not
-	// read as "the cue never landed" — so say it once, up front, rather than
+	// read as "the cue never arrived" — so say it once, up front, rather than
 	// letting the absence speak.
 	if !asJSON {
 		u.Log("%s", u.Dim("Shows events RECEIVED from this KB — your own beckon/browse cues are not echoed here."))

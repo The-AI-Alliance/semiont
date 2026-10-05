@@ -1,14 +1,13 @@
 package launcher
 
-// inittemplate.go — LAUNCHER-BIRTH P4: the explicit template-copy paths.
+// inittemplate.go — `semiont init`'s explicit template-copy paths.
 // The mechanism is a shallow `git clone` (git is already a launcher
 // requirement; there is no listing API over raw fetches, and a clone is an
 // atomic ref) — or a local directory used directly, which is also the
-// hermetic test seam. Two hard rules, both from the ratified decisions:
-// identity (.semiont/config) is NEVER copied — init's own is already
-// written — and every copied semiontconfig passes the SAME derivePlan vet
-// as generated ones, with the WHOLE init refusing pre-write on the first
-// failure (no partial trees).
+// hermetic test seam. Two hard rules: identity (.semiont/config) is NEVER
+// copied — init's own is already written — and every copied semiontconfig
+// passes the SAME derivePlan vet as generated ones, with the WHOLE init
+// refusing pre-write on the first failure (no partial trees).
 
 import (
 	"fmt"
@@ -34,7 +33,7 @@ func materializeTemplate(u *UI, src, ref string) (dir string, cleanup func(), ok
 		return "", nil, false
 	}
 	// `--` before positionals: a src beginning with "-" would otherwise be
-	// read as a git option (option injection) — Copilot review, PR #1065.
+	// read as a git option (option injection).
 	args := []string{"clone", "--depth", "1", "--branch", ref, "--", src, tmp}
 	u.Log("Fetching template %s", u.Dim("(git "+strings.Join(args, " ")+")"))
 	if out, err := captureBoth("git", args...); err != nil {
@@ -66,8 +65,7 @@ func copyTemplateConfigs(u *UI, root, tplDir string) bool {
 			continue
 		}
 		// Refuse symlinks: a template (or local dir) could symlink a .toml
-		// at an arbitrary local path, reading it into the newborn KB
-		// (Copilot review, PR #1065).
+		// at an arbitrary local path, reading it into the newborn KB.
 		if e.Type()&os.ModeSymlink != 0 {
 			rollback()
 			u.Fail("Template config %s is a symlink — refusing (a symlinked config could read arbitrary local files).", e.Name())
@@ -158,7 +156,7 @@ func rewriteDevcontainerName(b []byte, kbName string) []byte {
 		return b
 	}
 	// JSON-escape: a --name (or dir basename) with a quote or backslash would
-	// otherwise produce invalid JSON/JSONC (Copilot review, PR #1065).
+	// otherwise produce invalid JSON/JSONC.
 	// strconv.Quote yields a full quoted string, so drop the surrounding
 	// quotes we already have in the splice.
 	escaped := strconv.Quote(kbName)

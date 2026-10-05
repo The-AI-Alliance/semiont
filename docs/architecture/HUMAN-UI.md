@@ -1,0 +1,63 @@
+# Human UI
+
+How human actors connect to the event bus. This page covers the Semiont Browser SPA, the state-unit split that organizes its code, and the multi-KB session model.
+
+For the actor categories that drive the UI (Reader, Analyst, Author), see [ACTOR-MODEL.md](ACTOR-MODEL.md). For the cross-process bus contract that the SPA uses (and that workers + smelter share), see [CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md). For the reactive KB actors the SPA's events drive, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md).
+
+## SPA Architecture
+
+```mermaid
+graph TB
+    HUMAN["Human Actor<br/>(Reader, Analyst, Author)"] -->|browser| FE
+
+    subgraph ui ["Human UI"]
+        subgraph spa ["SPA (static)"]
+            FE["React UI"]
+            API["SDK Client<br/>(RxJS)"]
+            FE -->|RxJS| API
+        end
+
+        BUS1["Event Bus 1"]
+        BUS2["Event Bus 2"]
+        BUSN["Event Bus N"]
+
+        API -->|"REST + SSE"| BUS1
+        API -->|"REST + SSE"| BUS2
+        API -->|"REST + SSE"| BUSN
+    end
+
+    classDef actor fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
+    classDef ui fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
+    classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
+    classDef client fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
+
+    class HUMAN actor
+    class FE ui
+    class API client
+    class BUS1,BUS2,BUSN bus
+```
+
+Human actors interact through the **Semiont Browser** — the `apps/browser` single-page app (Vite + React), packaged as the `ghcr.io/the-ai-alliance/semiont-browser` container image. A user connects to one or more Knowledge Bases (each a separate gateway); DOM interactions become bus commands through the same `/bus/emit` + `/bus/subscribe` endpoints every other Semiont actor uses. Because it's a static SPA, it can equivalently be served from any file server or CDN — the container is the deployment-ready packaging for the "download and run" path.
+
+For working in the Browser (getting it, signing in, annotating, shortcuts, accessibility), see **[../analyst/](../analyst/)**.
+
+## State-unit split
+
+The SPA is internally a literal Model–View–StateUnit split:
+
+- **Model** — `@semiont/sdk` namespaces (frame, browse, mark, bind, gather, match, yield, beckon), typed RxJS Observables, per-key caches, and bus-driven invalidation.
+- **StateUnit** — one factory per flow that holds state (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`) plus page-level composite state units; pure RxJS, framework-agnostic, unit-testable without a renderer.
+- **View** — React components in `@semiont/react-ui` and `apps/browser`, reduced to three adapters (`useSessionStateUnit`, `useStateUnit`, `useObservable`) plus JSX. No component-owned fetching, caching, or subscription management.
+
+The state unit layer is what makes the same SDK that drives the browser also drive the MCP server and the job worker — neither has a renderer, but both consume the same Model + StateUnit layer. See **[../../docs/builder/Usage.md](../builder/Usage.md)** for the SDK surface.
+
+## Multi-KB sessions
+
+A Semiont Browser instance registers multiple knowledge bases — each a separate gateway with its own stored credentials, its own tabs, and its own resource state — but holds exactly **one live `SemiontSession` at a time: the active KB's**. Switching KBs disposes the current session (and with it the event-bus connection) before constructing the next; `SemiontBrowser.setActiveKb` documents the disposal contract. An inactive KB exists as persisted per-KB state only — its auth status (signed-out / expired / authenticated) is computed from its stored token without any session or connection existing. Per-KB authentication and the session lifecycle live in `SemiontSession` (defined in `@semiont/sdk`), the same abstraction workers and the smelter use.
+
+Storage adapters thread the same `SemiontSession` through every host environment:
+
+- **`WebBrowserStorage`** (`@semiont/react-ui`) — localStorage in the SPA, with cross-tab sync.
+- **`InMemorySessionStorage`** (`@semiont/sdk`) — for workers, the smelter, scripts and tests.
+
+`SemiontClient` exposes namespace methods (e.g. `client.browse.resource(...)`, `client.mark.annotation(...)`) over the bus; the namespaces are the consumer surface, and `client.bus` and `client.transport` are the advanced one beneath it ([REACTIVE-MODEL § Three paths to the bus](../builder/REACTIVE-MODEL.md#three-paths-to-the-bus)). The full session lifecycle — sign-in, refresh, expiry, cross-tab sync — is documented in [SemiontSession's source](../../packages/sdk/src/session/semiont-session.ts) and the [long-running session skill](../builder/skills/semiont-session/SKILL.md).

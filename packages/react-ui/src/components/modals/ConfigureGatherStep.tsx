@@ -20,15 +20,15 @@ export interface ConfigureGatherStepProps {
     maxResources: string;
     gather: string;
   };
-  /** Slot for the exclusion multi-select (GENERATE-FROM-BUTTON Phase 4). */
+  /** Slot for the exclusion multi-select, presented before the gather runs. */
   children?: React.ReactNode;
 }
 
 /**
- * First step of the resource-generate flow: pick the gather options before
+ * Top zone of the resource-generate stack: pick the gather options before
  * `gather.resource` runs. The `children` slot hosts the entity-type exclusion
- * multi-select (Phase 4). Dismissal is the modal's corner ✕/Esc/backdrop
- * (WIZARD-NAVIGATION D1), so the footer carries the advance alone.
+ * multi-select. Dismissal is the modal's corner ✕/Esc/backdrop, so the footer
+ * carries the Gather action alone.
  */
 export function ConfigureGatherStep({ onGather, translations: t, children }: ConfigureGatherStepProps) {
   const [includeContent, setIncludeContent] = useState(true);
@@ -85,7 +85,7 @@ export function ConfigureGatherStep({ onGather, translations: t, children }: Con
         </div>
       </div>
 
-      {/* Exclusion multi-select slot (Phase 4) */}
+      {/* Exclusion multi-select slot */}
       {children}
 
       <WizardFooter primary={{ label: t.gather, type: 'submit' }} />

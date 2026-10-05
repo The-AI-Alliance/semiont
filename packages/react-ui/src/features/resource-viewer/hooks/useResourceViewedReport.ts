@@ -4,7 +4,8 @@ import { useSemiont } from '../../../session/SemiontProvider';
 import { useObservable } from '../../../hooks/useObservable';
 
 /**
- * Report a resource arrival on `browse:resource-viewed` — GUIDED-TOUR P5 (D6).
+ * Report a resource arrival on `browse:resource-viewed`, so a remote guide can
+ * branch on where the participant went.
  *
  * Fires exactly once per arrival, when the resource has finished loading —
  * however the user got here: a followed cue, an in-app link, the back button,
@@ -13,15 +14,14 @@ import { useObservable } from '../../../hooks/useObservable';
  * re-render never re-reports; arriving at a different resource does.
  *
  * This is the REPORT half of the tour protocol. The imperative half is
- * `browse:resource-open`; they must never share a channel (D6 — the driver
- * would hear its own commands, and one viewer's click would steer another's
- * page).
+ * `browse:resource-open`; they must never share a channel (the driver would
+ * hear its own commands, and one viewer's click would steer another's page).
  */
 export function useResourceViewedReport(rid: ResourceId, loaded: boolean): void {
   const semiont = useSemiont();
   const session = useObservable(semiont.activeSession$);
-  // Brand once at the boundary (BRAND-UPSTREAM): the caller already holds a
-  // ResourceId; this hook never re-brands.
+  // Brand once at the boundary: the caller already holds a ResourceId; this
+  // hook never re-brands.
   const reported = useRef<ResourceId | null>(null);
 
   useEffect(() => {

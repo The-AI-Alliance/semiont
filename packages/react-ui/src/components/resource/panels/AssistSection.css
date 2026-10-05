@@ -1,13 +1,13 @@
 /**
- * Detection Widget Component Styles
+ * AssistSection Component Styles
  *
- * Shared styles for AI-powered detection sections across all motivation panels.
+ * Shared styles for AI-powered assist sections across all motivation panels.
  * Each panel (highlight, comment, assessment, tag, reference) uses data-type
  * attribute for motivation-specific theming.
  */
 
 /* ============================================
-   Base Detection Widget Container
+   Base Assist Widget Container
    ============================================ */
 
 .semiont-assist-widget {
@@ -123,19 +123,13 @@
 }
 
 /* ============================================
-   Detection Log (Completed Results)
+   Assist Progress Display
    ============================================ */
 
-/* ============================================
-   Detection Progress Display
-   ============================================ */
-
-/* ── Assist progress: TWO containers, not five ──────────────────────────────
-   The widget was `.semiont-assist-widget` > `.semiont-annotation-progress` >
-   `__params` > `__message`, each with its own border, padding and tint — four
-   nested boxes around one sentence of status. The outer `.semiont-assist-widget`
-   (above) already provides the card; this provides the status region inside it.
-   ASSIST-PROGRESS-CONSOLIDATION P3. */
+/* ── Assist progress: TWO containers ────────────────────────────────────────
+   The outer `.semiont-assist-widget` (above) provides the card; this provides
+   the status region inside it. A border, padding and tint on each nested
+   element would put a stack of boxes around one sentence of status. */
 .semiont-assist-progress {
   display: flex;
   flex-direction: column;
@@ -176,10 +170,10 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* D8: the finished run's artifact, offered as a link. */
-/* The finished run's artifact — the ended frame's primary affordance
-   (GENERATION-ARRIVAL P1, D3's fallback): a button-shaped invitation to open
-   what was made, not an underlined footnote beside the bar. */
+/* The finished run's artifact, offered as a link — the ended frame's primary
+   affordance. Completion reveals the new reference rather than navigating to
+   the new resource, so this is the way there: a button-shaped invitation to
+   open what was made, not an underlined footnote beside the bar. */
 .semiont-assist-progress__outcome {
   align-self: stretch;
   padding: 0.5rem 0.75rem;
@@ -286,22 +280,14 @@
   border-color: var(--semiont-color-blue-600);
 }
 
-/* ============================================
-   Detection Progress Message - Motivation Colors
-   ============================================ */
-
-/* Highlight - Yellow */
-
 /*
  * The progress bar. `AssistProgress` is its only consumer in the whole
- * package, so it lives here rather than in `styles/core/` — it was defined in
- * three files while nothing else rendered it (CLEAN-PROGRESS D4). If a second
+ * package, so it lives here rather than in `styles/core/`. If a second
  * consumer ever appears, promoting these rules to core is a move, not a copy.
  *
  * The track is NOT `--semiont-bg-secondary`: that is exactly
- * `.semiont-assist-widget`'s own background, so the track went invisible inside
- * the card and the fill floated with nothing to measure it against (spotted in
- * live testing, 2026-08-12).
+ * `.semiont-assist-widget`'s own background, so the track would go invisible
+ * inside the card and the fill would float with nothing to measure it against.
  */
 .semiont-progress-bar {
   width: 100%;
@@ -324,8 +310,6 @@
 [data-theme="dark"] .semiont-progress-bar__fill {
   background-color: var(--semiont-color-primary-400);
 }
-
-/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
 
 /* One parameter row inside the params list. */
 .semiont-assist-progress__param {

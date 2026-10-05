@@ -403,7 +403,7 @@
 }
 
 /* ============================================
-   Dark Mode Support - Fixed to respect data-theme attribute
+   Dark Mode Support
    ============================================ */
 
 /* Manual dark mode override */
@@ -477,8 +477,8 @@
   color: var(--semiont-color-white);
 }
 
-/* Hover lifts. The dark active state is primary-600, so hovering to 700 sank
-   it — the opposite of the sibling .semiont-panel-button:hover above. */
+/* Hover lifts. The dark active state is primary-600, so hovering to 700 would
+   sink it — the opposite of the sibling .semiont-panel-button:hover above. */
 [data-theme="dark"] .semiont-panel-button-active:hover {
   background-color: var(--semiont-color-primary-500);
 }
@@ -528,7 +528,7 @@
   border-color: var(--semiont-color-primary-400);
 }
 
-/* Generating state pulse — reuses reference-button-pulse keyframes */
+/* Generating state pulse */
 .semiont-button--primary[data-generating="true"] {
   animation: semiont-button-pulse 1.5s ease-in-out infinite;
 }
@@ -736,12 +736,6 @@
 [data-theme="dark"] .semiont-session-box {
   background-color: var(--semiont-color-neutral-800);
 }
-
-/* ============================================
-   User Menu Dropdown
-   ============================================ */
-
-/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
 
 /* The spinner SVG's two halves: a faint full ring, and the arc that turns.
    The rotation lives on the svg, so these only carry the contrast. */

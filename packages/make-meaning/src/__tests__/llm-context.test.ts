@@ -37,7 +37,7 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
-// getResourceContext returns a unified GatheredContext with focus.kind:'resource' (CONTEXT-UNIFICATION P3).
+// getResourceContext returns a unified GatheredContext with focus.kind:'resource'.
 function resFocus(ctx: GatheredContext) {
   if (ctx.focus.kind !== 'resource') throw new Error('expected resource focus');
   return ctx.focus;
@@ -133,7 +133,7 @@ describe('LLM Context', () => {
     testResourceId = resId;
 
     // Populate graph database (required by GraphContext)
-    // Construct a minimal ResourceDescriptor since createResource now returns only ResourceId
+    // Construct a minimal ResourceDescriptor: `create` returns only the ResourceId
     await graphDb.createResource({
       '@context': 'https://www.w3.org/ns/anno.jsonld',
       '@id': resId,
@@ -382,7 +382,7 @@ describe('LLM Context', () => {
     });
   });
 
-  describe('reference suggestions (bugs/gather-ships-raw-pdf-bytes P2+P3)', () => {
+  describe('reference suggestions', () => {
     it('generates suggestions when summary is requested and content available', async () => {
       mockClient.setResponses([
         'Summary',
@@ -402,7 +402,7 @@ describe('LLM Context', () => {
       expect(Array.isArray(resFocus(result).suggestedReferences)).toBe(true);
     });
 
-    it('P2: the suggestion prompt gets the resource NAME in the title slot, never the content', async () => {
+    it('the suggestion prompt gets the resource NAME in the title slot, never the content', async () => {
       mockClient.setResponses(['Summary', 'Ref 1\nRef 2']);
       const spy = vi.spyOn(mockClient, 'generateText');
 
@@ -425,7 +425,7 @@ describe('LLM Context', () => {
       spy.mockRestore();
     });
 
-    it('P3: gather is a read — no inference call at all unless includeSummary is set', async () => {
+    it('gather is a read — no inference call at all unless includeSummary is set', async () => {
       const spy = vi.spyOn(mockClient, 'generateText');
 
       const result = await LLMContext.getResourceContext(
@@ -443,7 +443,7 @@ describe('LLM Context', () => {
       spy.mockRestore();
     });
 
-    it('P3: a throwing garnish degrades — the gather still returns graph and metadata', async () => {
+    it('a throwing garnish degrades — the gather still returns graph and metadata', async () => {
       const spy = vi.spyOn(mockClient, 'generateText').mockRejectedValue(new Error('inference down'));
 
       const result = await LLMContext.getResourceContext(
@@ -477,7 +477,7 @@ describe('LLM Context', () => {
   });
 
   describe('options handling', () => {
-    it('should cap related-resource content by maxResources (a view concern, Q2=C)', async () => {
+    it('should cap related-resource content by maxResources (a view concern)', async () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 5, includeContent: true, includeSummary: false },
@@ -564,7 +564,7 @@ describe('LLM Context', () => {
     });
   });
 
-  describe('semantic context (EXCLUDE-VECTORS Phase 2b)', () => {
+  describe('semantic context', () => {
     // The fake vector store returns this pool from searchByResource, applying
     // the excludeEntityTypes filter itself (the real store's job — already
     // tested in @semiont/vectors). Here we verify getResourceContext forwards
@@ -575,8 +575,8 @@ describe('LLM Context', () => {
     ];
     const baseOpts = { depth: 1, maxResources: 5, includeContent: false, includeSummary: false };
 
-    // Views for the pool's sources — resourceName resolves through them (P3/D9),
-    // and a source with no view is dropped, never id-labeled.
+    // Views for the pool's sources — resourceName resolves through them, and
+    // a source with no view is dropped, never id-labeled.
     const POOL_VIEWS: Record<string, any> = {
       'r-answer': { resource: { '@id': 'r-answer', name: 'A Prior Answer' } },
       'r-question': { resource: { '@id': 'r-question', name: 'A Prior Question' } },
@@ -596,13 +596,13 @@ describe('LLM Context', () => {
       };
     }
 
-    it('populates semanticContext from searchByResource, each match named via its view (P3/D9)', async () => {
+    it('populates semanticContext from searchByResource, each match named via its view', async () => {
       const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kbWithVectors(), mockClient, 15_000, mockLogger);
       expect(ctx.semanticContext?.similar.map((s) => s.resourceId).sort()).toEqual(['r-answer', 'r-question']);
       expect(ctx.semanticContext?.similar.map((s) => s.resourceName).sort()).toEqual(['A Prior Answer', 'A Prior Question']);
     });
 
-    it('drops a match whose source resource has no view — no nameless cards (P3/D9)', async () => {
+    it('drops a match whose source resource has no view — no nameless cards', async () => {
       const ghost = { id: 'r-ghost#0', score: 0.95, resourceId: 'r-ghost', text: 'from a vanished resource', entityTypes: [] };
       const ctx = await LLMContext.getResourceContext(resourceId(testResourceId), baseOpts, kbWithVectors(undefined, [ghost]), mockClient, 15_000, mockLogger);
       expect(ctx.semanticContext?.similar.map((s) => s.resourceId).sort()).toEqual(['r-answer', 'r-question']);
@@ -634,15 +634,15 @@ describe('LLM Context', () => {
     });
   });
 
-  describe('semanticContext read-your-writes barrier (SMELTER-INDEX-SYNC P2)', () => {
+  describe('semanticContext read-your-writes barrier', () => {
     const baseOpts = { depth: 1, maxResources: 5, includeContent: false, includeSummary: false };
-    // The settle bound is explicit test policy (D5: config-owned, threaded as
+    // The settle bound is explicit test policy (config-owned, threaded as
     // a plain argument). Small and REAL — these paths never wait it out
-    // (event-driven settle / skip / probe), and a regression fails fast
+    // (event-driven settle / skip / probe), and a broken path fails fast
     // instead of hanging a production-scale bound.
     const SETTLE_MS = 1_000;
     const hit = [{ id: 'r-sim#0', score: 0.9, resourceId: 'r-sim', text: 'similar text', entityTypes: [] }];
-    // The focal resource's content generation — what the barrier waits on (D2).
+    // The focal resource's content generation — what the barrier waits on.
     const TEST_CHECKSUM = calculateChecksum('This is test content for LLM context building.');
 
     // A vector store that has no focal vectors until the "Smelter" applies,
@@ -653,7 +653,7 @@ describe('LLM Context', () => {
       const lagged: ResourceGatherReads = {
         ...kb,
         smeltProgress: createSmeltProgress(progressBus),
-        // The hit's source must resolve to a named view (P3/D9) or the match drops.
+        // The hit's source must resolve to a named view or the match drops.
         views: { get: async (id: any) => (String(id) === 'r-sim' ? { resource: { '@id': 'r-sim', name: 'Similar Doc' } } : kb.views.get(id)) } as any,
         vectors: { searchByResource } as unknown as ResourceGatherReads['vectors'],
       };
@@ -697,10 +697,9 @@ describe('LLM Context', () => {
       };
 
       // Real timers, tiny real bound: the settle timeout is explicit test
-      // policy now (D5 — config-owned, threaded as a plain argument), so no
-      // fake-clock choreography exists to fight scheduling weather. This
-      // retires the coverage-fragile advancement loop for good (main CI run
-      // 29622765997 — see the SMELTER-INDEX-SYNC log).
+      // policy (config-owned, threaded as a plain argument), so there is no
+      // fake-clock choreography to fight scheduling weather — a timer
+      // advancement loop is fragile under coverage.
       const ctx = await LLMContext.getResourceContext(
         resourceId(testResourceId), baseOpts, lagged, mockClient, 250, degradeLogger,
       );

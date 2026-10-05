@@ -4,13 +4,12 @@
  *
  * Every store keeps its own dialect (Cypher parameters, Gremlin
  * `.property()` chains, a Map) and its own way of flattening what the driver
- * hands back into a property bag. What none of them owns any more is the
+ * hands back into a property bag. What none of them owns is the
  * SHAPE: the W3C envelope, which fields are required, how a selector is
  * serialized, how the body array is reconstructed from entity tags and a
- * linking source. Those lived in three near-verbatim copies that disagreed
- * in four places, and each disagreement was a bug — a resource-level
- * annotation came back carrying `selector: {}`, which is not a legal
- * selector, and a motivation-less row was silently relabelled `'linking'`.
+ * linking source. A copy per store drifts, and each disagreement is a bug —
+ * a resource-level annotation coming back with `selector: {}`, which is not
+ * a legal selector, or a motivation-less row silently relabelled `'linking'`.
  *
  * The codec manufactures nothing. Absence is stored as absence and read back
  * as absence, in both directions.
@@ -22,7 +21,7 @@ import { getEntityTypes } from '@semiont/ontology';
 import type { Annotation, AnnotationCategory, CreateAnnotationInternal } from '@semiont/core';
 
 /**
- * A store's property bag, flattened. Producing this is the store's job (D3):
+ * A store's property bag, flattened. Producing this is the store's job:
  * neo4j unwraps `node.properties` and its native temporals, the Gremlin
  * stores unwrap `[{value}]` lists. What the values MEAN is the codec's.
  */
@@ -35,8 +34,8 @@ type AnnotationBody = NonNullable<Annotation['body']>;
 /**
  * The stored `type` property, which the category filters match on. It
  * restates the motivation, so it is derived from it here and nowhere else —
- * the three filters that used to hand-write the same mapping had drifted
- * into asking for a value no store ever wrote.
+ * a filter that hand-writes the mapping can drift into asking for a value
+ * no store writes.
  */
 export function storedAnnotationType(motivation: Annotation['motivation']): string {
   return motivation === 'highlighting' ? 'TextualBody' : 'SpecificResource';
@@ -51,9 +50,9 @@ export function motivationForCategory(category: AnnotationCategory): Annotation[
  * Mint the annotation a create request describes.
  *
  * `created` comes from the input, which carries the AUTHORED moment from the
- * event. It used to be a second parameter, and every store passed
- * `new Date().toISOString()` into it — so the graph stamped its own write time
- * and a rebuild collapsed every annotation to the rebuild moment.
+ * event. A store stamping `new Date().toISOString()` instead would record the
+ * graph's own write time, and a rebuild would collapse every annotation to
+ * the rebuild moment.
  */
 export function buildAnnotation(input: CreateAnnotationInternal): Annotation {
   const annotation: Annotation = {
@@ -116,9 +115,9 @@ export function encodeSelector(selector: AnnotationSelector): Record<string, str
  * store resolved separately.
  *
  * A field the properties do not carry is omitted, never invented: a
- * source-only target (legal since RESOURCE-LEVEL-ANCHOR) comes back with no
- * `selector`, and a row missing a required field fails loudly by name rather
- * than acquiring a default.
+ * source-only target (legal: a whole resource is a first-class annotation
+ * target) comes back with no `selector`, and a row missing a required field
+ * fails loudly by name rather than acquiring a default.
  */
 export function decodeAnnotation(props: AnnotationProperties, entityTypes: string[] = []): Annotation {
   const id = props.id;
@@ -173,11 +172,11 @@ export function decodeAnnotation(props: AnnotationProperties, entityTypes: strin
 }
 
 /**
- * Rows written before RESOURCE-LEVEL-ANCHOR reached the stores hold `'{}'`
- * where a resource-level annotation has no selector at all. `{}` satisfies no
- * branch of the selector union, so it fails validation on the first round
- * trip through a validated channel — reading it back as absent is what makes
- * those rows harmless without a migration.
+ * A stored row may hold `'{}'` where a resource-level annotation has no
+ * selector at all — the encoder writes none, but such rows exist. `{}`
+ * satisfies no branch of the selector union, so it fails validation on the
+ * first round trip through a validated channel — reading it back as absent
+ * is what makes those rows harmless without a migration.
  */
 function decodeSelector(raw: string | undefined): AnnotationSelector | undefined {
   if (!raw) return undefined;

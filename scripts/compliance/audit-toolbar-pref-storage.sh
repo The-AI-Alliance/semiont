@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Audit Toolbar-Pref Storage Compliance (TOOLBAR-PREFS-AS-PROPS)
+# Audit Toolbar-Pref Storage Compliance
 #
 # Toolbar preferences (mode, click action, selection motivation, shape) are
 # React state flowing through controlled props. Their localStorage persistence
@@ -31,7 +31,7 @@ VIOLATIONS=$(grep -rEn "$PATTERN" \
   || true)
 
 if [ -n "$VIOLATIONS" ]; then
-  echo "❌ Toolbar-pref storage outside the policy layer (see .plans/TOOLBAR-PREFS-AS-PROPS.md):"
+  echo "❌ Toolbar-pref storage outside the policy layer:"
   echo ""
   echo "$VIOLATIONS"
   echo ""

@@ -51,8 +51,7 @@
   border-left-color: var(--semiont-color-primary-400);
 }
 
-/* Removed responsive adjustments to maintain consistency across all panels */
-/* About — the footer's survivors, absorbed into Settings. */
+/* About — the product name, tagline, version and links. */
 .semiont-settings-panel__about {
   border-top: 1px solid var(--semiont-border-primary);
   padding-top: 0.75rem;

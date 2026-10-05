@@ -1,15 +1,14 @@
 /**
- * CACHE-CONTRACT Phases 2–3 — the target contract (.plans/CACHE-CONTRACT.md,
- * D2/D3 settled 2026-07-29).
+ * The cache accessor contract.
  *
- * D3 (Phase 2): accessors are LAZY (fetch on first subscribe, never at call
- * time — safe to call from render) and uniformly memoized (per-key identity
- * for the withScope-wrapped accessors too; the un-scoped ones were already
- * stable and stay pinned by entity-types-flow's B4 test).
+ * Accessors are LAZY (fetch on first subscribe, never at call time — safe to
+ * call from render) and uniformly memoized (per-key identity for the
+ * withScope-wrapped accessors too; the un-scoped ones are pinned by
+ * entity-types-flow's B4 test).
  *
- * D2 (Phase 3): the thenable is dead; one-shot reads are explicit —
- * `.fresh()` carries the #847 re-read-reflects-writes semantics (fresh
- * fetch, rejects on failure, shares in-flight fetches).
+ * One-shot reads are explicit: a live query is not thenable, and `.fresh()`
+ * carries the re-read-reflects-writes semantics (fresh fetch, rejects on
+ * failure, shares in-flight fetches).
  *
  * Everything runs on the real client over the scriptable transport;
  * `transport.requestLog` is the effect meter.
@@ -35,7 +34,7 @@ const RESPONSES = (op: string): unknown => {
   }
 };
 
-describe('D3 — lazy: the fetch belongs to the first subscription, not the call', () => {
+describe('lazy: the fetch belongs to the first subscription, not the call', () => {
   it('calling an accessor issues NO request; first subscribe issues exactly one', async () => {
     const { client, transport } = createTestClient({ transport: { makeResponse: RESPONSES } });
 
@@ -74,13 +73,11 @@ describe('D3 — lazy: the fetch belongs to the first subscription, not the call
   });
 });
 
-describe('D3 — uniform identity: per-key, including the withScope-wrapped accessors', () => {
+describe('uniform identity: per-key, including the withScope-wrapped accessors', () => {
   it('resource()/annotations()/referencedBy()/events() return the SAME observable per key', () => {
-    // Calibration history: SDK-DEBT L3 claimed scoped accessors were fresh
-    // per call; two recon passes "corrected" it in opposite directions; the
-    // Phase-1 pin measured the truth — withScope memoizes per-source
-    // (`scopedSources`, #847 Phase 4), so identity was ALREADY uniform and
-    // Phase 2 changed only laziness. This test is the standing measurement.
+    // withScope memoizes per-source (`scopedSources`), so identity is
+    // uniform across scoped and un-scoped accessors, and laziness does not
+    // change it. This test is the standing measurement.
     const { client } = createTestClient({ transport: { makeResponse: RESPONSES } });
     const rid = makeResourceId('res-1');
     const other = makeResourceId('res-2');
@@ -96,8 +93,8 @@ describe('D3 — uniform identity: per-key, including the withScope-wrapped acce
   });
 });
 
-describe('D2 — .fresh(): the explicit one-shot read (Phase 3)', () => {
-  it('fresh() fetches even when the cache is warm, and resolves the value (#847)', async () => {
+describe('.fresh(): the explicit one-shot read', () => {
+  it('fresh() fetches even when the cache is warm, and resolves the value', async () => {
     const { client, transport } = createTestClient({ transport: { makeResponse: RESPONSES } });
 
     const sub = client.browse.entityTypes().subscribe(() => {});
@@ -121,11 +118,11 @@ describe('D2 — .fresh(): the explicit one-shot read (Phase 3)', () => {
     client.dispose();
   });
 
-  it('the thenable is DEAD: awaiting a live query no longer compiles', async () => {
+  it('a live query is not thenable: awaiting one does not compile', async () => {
     const { client } = createTestClient({ transport: { makeResponse: RESPONSES } });
 
-    // The Phase 3 tripwire — compile-time only, deliberately never invoked:
-    // if CacheObservable ever grows a `then` again, the @ts-expect-error
+    // The tripwire — compile-time only, deliberately never invoked:
+    // if CacheObservable grows a `then`, the @ts-expect-error
     // becomes UNUSED and tsc fails the build.
     const tripwire = () => {
       // @ts-expect-error — CacheObservable is not thenable; use .fresh()
@@ -137,7 +134,7 @@ describe('D2 — .fresh(): the explicit one-shot read (Phase 3)', () => {
   });
 });
 
-describe('D1 — the discriminated emission: pending | ready | failed (Phase 4)', () => {
+describe('the discriminated emission: pending | ready | failed', () => {
   it('cold key: pending, then ready — the three-outcome truth is in the type', async () => {
     const { client } = createTestClient({ transport: { makeResponse: RESPONSES } });
 
@@ -197,7 +194,7 @@ describe('D1 — the discriminated emission: pending | ready | failed (Phase 4)'
     warn.mockRestore();
   });
 
-  it('a late subscriber after failure recovers: pending → ready (D3 restated)', async () => {
+  it('a late subscriber after failure recovers: pending → ready', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { client, transport } = createTestClient({
       transport: { schedule: [{ kind: 'reject-emit' }, { kind: 'reject-emit' }, { kind: 'deliver' }], makeResponse: RESPONSES },

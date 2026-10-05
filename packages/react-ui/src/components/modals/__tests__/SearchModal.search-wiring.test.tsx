@@ -7,7 +7,7 @@
  * loading state) is covered by search-pipeline.test.ts and not duplicated
  * here.
  *
- * Mocks HeadlessUI to dodge the jsdom OOM that prevents the older
+ * Mocks HeadlessUI to dodge the jsdom OOM that prevents the unmocked
  * SearchModal.* test files from running.
  */
 
@@ -35,7 +35,7 @@ vi.mock('@headlessui/react', () => ({
 // Mock the http-transport Observable surface
 const browseResourcesSubject = new BehaviorSubject<any[] | undefined>(undefined);
 const browseResourcesMock = vi.fn(() => asStates(browseResourcesSubject.asObservable().pipe(
-  // Arrays get the list envelope `resources()` now emits; `undefined`
+  // Arrays get the list envelope `resources()` emits; `undefined`
   // passes through as the pending state.
   map((v) => (Array.isArray(v) ? { resources: v, total: v.length, offset: 0, limit: 20, matchKind: 'lexical' } : v)),
 )));

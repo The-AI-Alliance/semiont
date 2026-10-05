@@ -65,7 +65,7 @@ describe('renderAgentLabel', () => {
 
   describe('Legacy and degraded shapes', () => {
     it('renders the stored `name` for legacy SoftwareAgent shape (graceful fallback)', () => {
-      // Pre-migration generator with @type='SoftwareAgent' and concatenated name
+      // A stored generator with @type='SoftwareAgent' and a concatenated name
       const legacy = {
         '@type': 'SoftwareAgent',
         name: 'worker-pool / ollama gemma4:26b',

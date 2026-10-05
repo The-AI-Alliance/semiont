@@ -1,9 +1,9 @@
 /**
  * textUnder — the inverse of locate(): given a rectangle, what text is under it.
  *
- * Drives the manual-annotation capture gap (.plans/PDF-MANUAL-ANNOTATION-TEXT.md):
- * a hand-drawn PDF rectangle currently stores geometry with no quoted text, so
- * every panel that quotes an annotation shows a blank entry.
+ * Closes the manual-annotation capture gap: without it a hand-drawn PDF
+ * rectangle stores geometry with no quoted text, and every panel that quotes
+ * an annotation shows a blank entry.
  *
  * Fixtures are synthetic AnchoredText rather than real PDFs. The rules under
  * test are pure geometry-and-offset arithmetic; a real fixture would add
@@ -70,7 +70,7 @@ describe('textUnder', () => {
 
   it('returns empty string over blank space', () => {
     // Never an empty-string TextQuoteSelector: the caller drops the quote when
-    // this is '' (PDF-MANUAL-ANNOTATION-TEXT, To settle 3).
+    // this is ''.
     expect(textUnder(LAYER, { page: 1, x: 72, y: 400, width: 100, height: 20 }))
       .toBe('');
   });

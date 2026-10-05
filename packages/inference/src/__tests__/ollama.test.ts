@@ -13,7 +13,7 @@ function stubLogger(): Logger {
   return logger;
 }
 
-// Ollama generate calls now consult /api/show first (limits discovery), so
+// Ollama generate calls consult /api/show first (limits discovery), so
 // every fetch mock routes by URL: show → model metadata, generate → canned
 // completion.
 
@@ -111,7 +111,7 @@ describe('OllamaInferenceClient - limits() discovery', () => {
   });
 });
 
-describe('OllamaInferenceClient - cancellation threads to the transport (ABANDONED-INFERENCE P1)', () => {
+describe('OllamaInferenceClient - cancellation threads to the transport', () => {
   it('passes the AbortSignal into the generate fetch', async () => {
     const fetchMock = stubRoutedFetch();
     const controller = new AbortController();
@@ -125,10 +125,9 @@ describe('OllamaInferenceClient - cancellation threads to the transport (ABANDON
   });
 });
 
-describe('OllamaInferenceClient - temperature is unconditional (SONNET-5-MIGRATION P1, Ollama pin)', () => {
-  // Ollama's mechanism is unchanged by the Anthropic suppression work: it
-  // always forwards temperature, and it declares acceptance on limits() so
-  // the same UI channel reads true here.
+describe('OllamaInferenceClient - temperature is unconditional', () => {
+  // Ollama suppresses nothing: it always forwards temperature, and it
+  // declares acceptance on limits() so the same UI channel reads true here.
   it('always forwards temperature and declares acceptsTemperature: true', async () => {
     const fetchMock = stubRoutedFetch();
 
@@ -141,7 +140,7 @@ describe('OllamaInferenceClient - temperature is unconditional (SONNET-5-MIGRATI
   });
 });
 
-describe('OllamaInferenceClient - generate owns its transport (OLLAMA-DETECTION-TESTING P3.5)', () => {
+describe('OllamaInferenceClient - generate owns its transport', () => {
   it('sends generate through the unbounded dispatcher and leaves show on platform defaults', async () => {
     const fetchMock = stubRoutedFetch();
 
@@ -171,9 +170,9 @@ describe('OllamaInferenceClient - managed num_ctx', () => {
     expect(generateCalls).toHaveLength(1);
     const body = requestBody(generateCalls[0]);
 
-    // num_predict unchanged; num_ctx new — at least estimate + maxTokens
-    // (today the model's default window silently clips large prompts),
-    // never above the discovered window.
+    // num_predict is the caller's budget; num_ctx is at least estimate +
+    // maxTokens (without it the model's default window silently clips large
+    // prompts), never above the discovered window.
     expect(body.options.num_predict).toBe(500);
     expect(body.options.num_ctx).toBeGreaterThanOrEqual(1500);
     expect(body.options.num_ctx).toBeLessThanOrEqual(8192);
@@ -205,18 +204,18 @@ describe('OllamaInferenceClient - grammar-constrained structured path', () => {
     const res = await client.generateStructured('p', 100, 0, ELEMENT);
 
     const body = requestBody(callsTo(fetchMock, '/api/generate')[0]);
-    // Grammar-constrained sampling, now element-typed: the schema constrains
-    // generation itself — strictly stronger than the old bare `items: {}`.
+    // Grammar-constrained sampling, element-typed: the schema constrains
+    // generation itself — strictly stronger than a bare `items: {}`.
     expect(body.format).toEqual({ type: 'array', items: ELEMENT });
     expect(res.items).toEqual([{ exact: 'Paris' }]);
   });
 
-  // OLLAMA-DETECTION-TESTING P1: the live gemma4:26b failure (2026-09-03) —
-  // 6,858 chars of unparseable output with `done_reason` ABSENT. These pin the
-  // vocabulary token at its origin: an absent done_reason maps to exactly
-  // 'unknown', and that string rides the StructuredReadError downstream, where
-  // classification (retryable) and subdivision (none today) key off it.
-  it("maps an ABSENT done_reason to exactly 'unknown' on the thrown StructuredReadError (the live failure shape)", async () => {
+  // Unparseable output with `done_reason` ABSENT — a shape gemma4:26b
+  // produces. These pin the vocabulary token at its origin: an absent
+  // done_reason maps to exactly 'unknown', and that string rides the
+  // StructuredReadError downstream, where classification (retryable) and
+  // subdivision (none) key off it.
+  it("maps an ABSENT done_reason to exactly 'unknown' on the thrown StructuredReadError", async () => {
     stubRoutedFetch({
       generate: { body: { response: 'entity: Cedar County ("the Society'.repeat(200), done: true } },
     });
@@ -240,12 +239,12 @@ describe('OllamaInferenceClient - grammar-constrained structured path', () => {
     ).rejects.toMatchObject({ name: 'StructuredReadError', stopReason: 'max_tokens' });
   });
 
-  // F11(a), OLLAMA-DETECTION-TESTING P2: a thinking model can burn the entire
-  // output budget on hidden reasoning before its first response character
-  // (measured live, gpt-oss:120b-cloud 2026-09-05) — the response arrives
-  // EMPTY with done_reason 'length'. Truncated-to-nothing is still truncation:
-  // it must carry the stop reason so it classifies deterministic and
-  // subdivides, not vanish into an unrecognized-retryable mystery error.
+  // A thinking model can burn the entire output budget on hidden reasoning
+  // before its first response character (measured on gpt-oss:120b-cloud)
+  // — the response arrives EMPTY with done_reason 'length'.
+  // Truncated-to-nothing is still truncation: it must carry the stop reason
+  // so it classifies deterministic and subdivides, not vanish into an
+  // unrecognized-retryable mystery error.
   it("throws StructuredReadError with stopReason 'max_tokens' when the response is empty and done_reason is 'length'", async () => {
     stubRoutedFetch({
       generate: { body: { response: '', done: true, done_reason: 'length' } },
@@ -268,10 +267,10 @@ describe('OllamaInferenceClient - grammar-constrained structured path', () => {
     ).rejects.toMatchObject({ name: 'StructuredReadError', stopReason: 'unknown' });
   });
 
-  // F11(b)/(d): cloud models ignore `think: false` — hidden reasoning happens
-  // anyway, bills anyway, and inflates eval_count (outputTokens) with tokens
-  // that never reach the response. The adapter cannot prevent it, so it must
-  // make it visible: one warn per affected call, carrying the thinking size.
+  // Cloud models ignore `think: false` — hidden reasoning happens anyway,
+  // bills anyway, and inflates eval_count (outputTokens) with tokens that
+  // never reach the response. The adapter cannot prevent it, so it must make
+  // it visible: one warn per affected call, carrying the thinking size.
   it('warns when a response carries hidden thinking despite think:false', async () => {
     stubRoutedFetch({
       generate: { body: { response: '[]', done: true, done_reason: 'stop', thinking: 'x'.repeat(500) } },

@@ -3,8 +3,8 @@
 # THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
 # published @semiont/make-meaning and runs `dist/archivist-main.js` out of it; the
 # source is packages/make-meaning/src/archivist-main.ts. Only the image
-# recipe lives here — the entrypoint stayed in its package deliberately, so
-# that moving it out would not have to promote ~18 of that package's
+# recipe lives here — the entrypoint lives in its package deliberately:
+# moving it out would promote ~18 of that package's
 # internals to public API just to satisfy a directory layout. If you change
 # the CMD, change it against that file.
 #
@@ -13,9 +13,8 @@
 # The Archivist is a separate image from the shared @semiont/make-meaning
 # package, like smelter and weaver — separate because their dependency
 # footprints differ. The Archivist's Browser serves `browse:referenced-by`
-# from the graph (one call site, browser.ts — a settled decision, see
-# .plans/EXTRACT-ARCHIVIST.md), so neo4j-driver is bundled here like the
-# weaver's. It never dials Qdrant directly beyond the vector SEARCH the
+# from the graph (one call site, browser.ts), so neo4j-driver is bundled
+# here like the weaver's. It never dials Qdrant directly beyond the vector SEARCH the
 # qdrant client in @semiont/make-meaning already carries — no extra install.
 #
 # Base is node:24-alpine (not node:26): node 26's built-in undici breaks the
@@ -43,11 +42,11 @@ RUN apk upgrade --no-cache
 
 # The Archivist shells out to git: WorkingTreeStore's register/move/remove and
 # the event store's appends all `git add` under the project root — this is the
-# single git writer (GATEWAY.md D4b). smelter/weaver carry no git; this image
-# must. Same as the gateway image: when the mounted KB is owned by a host UID
-# that differs from the in-container semiont user (UID 1001), git's
-# CVE-2022-24765 dubious-ownership check refuses to operate — --system writes
-# /etc/gitconfig, applied to all users including semiont.
+# single git writer. smelter/weaver carry no git; this image must. Same as the
+# gateway image: when the mounted KB is owned by a host UID that differs from
+# the in-container semiont user (UID 1001), git's CVE-2022-24765
+# dubious-ownership check refuses to operate — --system writes /etc/gitconfig,
+# applied to all users including semiont.
 RUN apk add --no-cache git && \
     git config --system --add safe.directory /kb
 
@@ -82,21 +81,19 @@ COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 USER semiont
 
 ENV NODE_ENV=production
-# The container-side paths are constants of the image, declared here the way
-# the gateway image declares them (see rootstate.go's anchored-text comment):
-# the launcher mounts host dirs AT these targets and passes no path env.
+# The container-side paths are constants of the image, declared here: the
+# launcher mounts host dirs AT these targets and passes no path env.
 ENV SEMIONT_ROOT=/kb
 ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
 
-# ── Heap ceiling (ARCHIVIST-STAYS-UP P4) ─────────────────────────────────
+# ── Heap ceiling ─────────────────────────────────────────────────────────
 # WHY THIS EXISTS, because a bare number here is unreadable in a year:
 #
-# On 2026-09-03 this process died with "JavaScript heap out of memory" at
-# ~1016 MB while the container was allotted 2048 MB — it never came close to
-# the container's limit. V8 derives its own default old-space ceiling from
-# visible memory and lands well under the cgroup allocation, so roughly half
-# the memory the fleet pays for was unreachable. See
-# .plans/bugs/absent-archivist-wedges-browse.md.
+# V8 derives its own default old-space ceiling from visible memory and lands
+# well under the cgroup allocation: allotted 2048 MB, this process dies with
+# "JavaScript heap out of memory" at ~1016 MB, nowhere near the container's
+# limit, so without a ceiling of its own roughly half the memory the fleet
+# pays for is unreachable.
 #
 # 1536 leaves ~512 MB under the container's 2G for everything OUTSIDE the JS
 # heap: RSS overhead, Buffers, the git subprocesses this image shells out to,
@@ -105,18 +102,20 @@ ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
 # process is shot rather than given the chance to throw and log.
 #
 # ⚠️ THIS NUMBER IS PAIRED with the archivist's `mem` in
-# apps/launcher/internal/launcher/service.go. Changing either without the
+# apps/launcher/internal/launcher/descriptors.go. Changing either without the
 # other silently re-opens the gap this closes. That pairing wants a gate —
-# see ARCHIVIST-STAYS-UP P2, which already cross-checks Dockerfile
-# declarations against launcher facts.
+# its natural home is the launcher test that already cross-checks each
+# service's Dockerfile declarations against launcher facts
+# (TestServiceHealthPortsAgreeAcrossAllHomes).
 #
 # Applies to EVERY node invocation in the container, which is intended: the
-# CMD is supervise.sh, and the child it spawns is the process that needs the
-# ceiling. The HEALTHCHECK's `node -e` inherits it too and does not care.
+# CMD is the process that needs the ceiling, whether boot.sh runs it directly
+# or under supervise.sh. The HEALTHCHECK's `node -e` inherits it too and does
+# not care.
 #
 # VERIFY IT TOOK EFFECT: the `semiont.runtime.heap{heap.stat="limit"}` gauge
 # reports V8's actual ceiling at runtime. A cap that was set but not applied
-# shows up there as the old default — assume nothing.
+# shows up there as V8's own default — assume nothing.
 ENV NODE_OPTIONS=--max-old-space-size=1536
 
 EXPOSE 24103

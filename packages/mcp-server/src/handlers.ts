@@ -41,8 +41,8 @@ export type McpResult = { content: Array<{ type: 'text'; text: string }>; isErro
  * unchanged. Naming the slice keeps the dependency honest — this is the whole
  * of the SDK surface the MCP server touches — and lets tests supply a stub
  * without casting. Return types are the loosest thing the handlers actually
- * rely on (`{ fresh(): Promise<T> }` for one-shot reads — CACHE-CONTRACT D2,
- * the thenable is dead — `Observable` where they pipe), so a stub returns a
+ * rely on (`{ fresh(): Promise<T> }` for one-shot reads — cache observables
+ * are not thenable — `Observable` where they pipe), so a stub returns a
  * `{ fresh }` handle or `of(...)`.
  */
 export interface McpClient {
@@ -77,13 +77,8 @@ export interface McpClient {
 /**
  * `gather.annotation` awaits to a `GatherAnnotationComplete` envelope whose
  * `response` carries the context. The envelope itself is not a
- * `GatheredContext`.
- *
- * This used to guard `'response' in final`, because the awaited type was
- * `GatherProgress | GatherAnnotationComplete` and a progress frame carried no
- * response. The progress channel was removed 2026-09-17 (nothing had ever
- * emitted it), the union collapsed, and `response` is required on what
- * remains — so the guard could no longer fire.
+ * `GatheredContext`. `response` is required on it, so there is nothing to
+ * guard.
  */
 function gatheredContext(final: GatherAnnotationComplete): GatheredContext {
   return final.response;
@@ -149,11 +144,12 @@ export async function browseReferences(semiont: McpClient, args: any): Promise<M
  * What an assist job reported, as one sentence.
  *
  * Switches on `kind` rather than probing for whichever count field happens to be
- * present (WIRE-UNION-DISCRIMINANTS D1/D5). Exhaustiveness is the point: an eighth
- * `JobResult` member fails to compile here (TS2366 — no ending return statement)
- * instead of silently counting zero, which is what the old cast-and-probe did.
- * That is also why there is no `default`: it would answer for the new member and
- * take the compile error with it.
+ * present: every `JobResult` member carries that single-valued discriminant, so
+ * narrowing takes no cast. Exhaustiveness is the point: an eighth `JobResult`
+ * member fails to compile here (TS2366 — no ending return statement) instead of
+ * silently counting zero, which is what a cast-and-probe does. That is also
+ * why there is no `default`: it would answer for the new member and take the
+ * compile error with it.
  */
 function assistOutcome(result: JobResult | undefined): string {
   const found = (n: number) => `Detection complete. Found ${n} entities.`;

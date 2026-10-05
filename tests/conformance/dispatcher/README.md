@@ -6,7 +6,7 @@ at the health port. It checks what they do against the job protocol as
 [docs/protocol/JOBS.md](../../../docs/protocol/JOBS.md) states it, and against
 the schemas `specs/` gives every channel. It imports nothing from the
 dispatcher: the one line that names an implementation is `DISPATCHER_COMMAND`
-in [harness/paths.ts](../harness/paths.ts), today the Rust binary
+in [harness/paths.ts](../harness/paths.ts): the Rust binary
 `target/release/semiont-dispatcher`.
 
 ## The world around a dispatcher

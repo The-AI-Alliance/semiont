@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `@semiont/graph` package provides a unified interface for graph databases with support for multiple gateways: Neo4j, AWS Neptune, JanusGraph, and in-memory.
+The `@semiont/graph` package provides a unified interface for graph databases with support for multiple providers: Neo4j, AWS Neptune, JanusGraph, and in-memory.
 
 ## GraphDatabase Interface
 
@@ -33,7 +33,7 @@ const graph = await getGraphDatabase(graphConfig);
 await closeGraphDatabase();
 ```
 
-`createGraphDatabase(config)` is the non-singleton variant; it instantiates without connecting.
+`createGraphDatabase(config)` is the non-singleton variant; it takes the factory's own flat config (`{ type, neo4jUri, neo4jUsername, … }`) rather than a `GraphServiceConfig`, and instantiates without connecting.
 
 ## Provider Implementations
 
@@ -78,7 +78,7 @@ If `endpoint` is omitted, the cluster endpoint is discovered at connect time via
 
 ### JanusGraph
 
-Distributed graph database with pluggable gateways.
+Distributed graph database with pluggable storage and index backends.
 
 ```typescript
 import { JanusGraphDatabase } from '@semiont/graph';
@@ -116,7 +116,7 @@ A `ResourceDescriptor` — JSON-LD metadata about a resource (`@context`, `@id`,
 
 ### Annotation Vertex
 
-A W3C Web Annotation (`Annotation` from `@semiont/core`): `id`, `motivation`, `target` (source resource plus optional selector), optional `body`, and `creator`. In Neo4j, annotations also get a label derived from their motivation (e.g. `:Annotation:Linking`) for fast filtering.
+A W3C Web Annotation (`Annotation` from `@semiont/core`): `id`, `motivation`, `target` (source resource plus optional selector), optional `body`, `creator`, and `created`. In Neo4j, annotations also get a label derived from their motivation (e.g. `:Annotation:Linking`) for fast filtering.
 
 ### Other Vertices
 
@@ -156,7 +156,7 @@ const { resources, total } = await graph.listResources({
 });
 
 // Search. Every term must match the name, the storageUri or an entity type;
-// results rank exact name matches first, then prefix, then any-term-in-name,
+// results rank exact name matches first, then prefix, then every-term-in-name,
 // then matches the path or a tag had to complete.
 const { resources: matches } = await graph.listResources({
   search: 'Ada Lovelace',

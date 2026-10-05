@@ -1,10 +1,10 @@
 /**
- * rectsForPage axioms (#735) — the pure partition that distributes an annotation's
+ * rectsForPage axioms — the pure partition that distributes an annotation's
  * FragmentSelectors into per-page rects. Geometry (each coord → canvas pixels) is
  * covered separately by the pdf-coordinates transform axioms + the core codec axioms.
  *
- * The only producer of multi-selector PDF annotations is AI detection (#736), which
- * doesn't exist yet — so these synthetic fixtures stand in for it.
+ * The producer of multi-selector PDF annotations is AI detection (one
+ * FragmentSelector per line); these synthetic fixtures stand in for it.
  */
 import { describe, it, expect } from 'vitest';
 import * as fc from 'fast-check';
@@ -46,7 +46,7 @@ function build(doc: ReadonlyArray<ReadonlyArray<Sel>>): Annotation[] {
 const keysOn = (anns: Annotation[], page: number): string[] =>
   rectsForPage(anns, page).map(r => `${r.annId}:${r.selectorIndex}`);
 
-describe('rectsForPage (#735 multi-rect partition)', () => {
+describe('rectsForPage (multi-rect partition)', () => {
   it('completeness: every FragmentSelector renders exactly once across all pages', () => {
     fc.assert(fc.property(docArb, doc => {
       const anns = build(doc);

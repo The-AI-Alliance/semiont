@@ -13,10 +13,10 @@ export interface IssuerVerifierOptions {
 /**
  * Verifies tokens from one OIDC issuer against the keys that issuer publishes.
  *
- * Lives in core rather than in the gateway because the gateway is no longer the
- * only verifier: the Archivist authenticates its own callers, and two copies of
- * a verifier is exactly how two services come to disagree about which tokens
- * are acceptable.
+ * Lives in core so that every TypeScript service that authenticates its own
+ * callers verifies the same way — the Archivist does. Two copies of a verifier
+ * is exactly how two services come to disagree about which tokens are
+ * acceptable.
  *
  * Reachable ONLY as `@semiont/core/identity`. That subpath is what keeps `jose`
  * out of the browser bundle — a bundler includes what is imported, and nothing
@@ -35,7 +35,7 @@ export class IssuerVerifier {
     return this.options.issuer;
   }
 
-  /** What a token's `aud` must carry for this gateway to accept it. */
+  /** What a token's `aud` must carry for this verifier to accept it. */
   get audience(): string {
     return this.options.audience;
   }

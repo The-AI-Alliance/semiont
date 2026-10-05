@@ -1,6 +1,6 @@
 # Favicon Assets
 
-The `@semiont/react-ui` package includes a complete set of Semiont-branded favicons in multiple formats.
+`@semiont/react-ui` ships a set of Semiont-branded favicons, and a component that renders the mark inline.
 
 ## Available Files
 
@@ -9,6 +9,7 @@ All favicon files are available in `node_modules/@semiont/react-ui/public/favico
 - **favicon.ico** - Multi-resolution icon (16x16, 32x32, 48x48)
 - **favicon.svg** - Scalable vector format
 - **favicon-16x16.png**, **favicon-32x32.png** - Standard sizes
+- **favicon-48x48.png**, **favicon-64x64.png**, **favicon-96x96.png**, **favicon-128x128.png** - Larger sizes
 - **apple-touch-icon.png** - 180x180 for iOS devices
 - **android-chrome-192x192.png**, **android-chrome-512x512.png** - Android icons
 - **site.webmanifest** - PWA manifest file
@@ -109,26 +110,3 @@ interface SemiontFaviconProps {
   background?: boolean; // Include dark background. Default: true
 }
 ```
-
-## Regenerating Favicons
-
-To regenerate the favicon files from the source SVG:
-
-1. Navigate to the react-ui package
-2. Run the generation script:
-   ```bash
-   cd packages/react-ui
-   python scripts/generate-favicons.py
-   ```
-
-The script requires Python with the following packages:
-- `cairosvg` - For SVG to PNG conversion
-- `Pillow` - For image processing and ICO generation
-
-## Design Specifications
-
-- **Letter**: Capital "S" from "SEMIONT"
-- **Font**: Orbitron (bold weight)
-- **Colors**: Cyan to blue gradient (#00FFFF to #0080FF)
-- **Background**: Dark (#1a1a1a)
-- **Style**: Futuristic, geometric, consistent with Semiont branding

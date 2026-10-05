@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-// LAUNCHER-PACKAGE-BOUNDARIES P3. The flag rules — which flags need a value,
-// which contradict, which apply only to a placement or a service — were 190 of
-// Start's 543 lines, reachable only by running a whole start. They decide
-// whether an operator is understood or refused, and nothing could assert them
-// directly.
+// The flag rules live in parseStart, which returns its refusals rather than
+// printing them. Those rules — which flags need a value, which contradict,
+// which apply only to a placement or a service — were 190 of Start's 543
+// lines, reachable only by running a whole start. They decide whether an
+// operator is understood or refused, and nothing could assert them directly.
 func TestParseStartDefaults(t *testing.T) {
 	opts, usage, msg := parseStart(nil)
 	if usage || msg != "" {

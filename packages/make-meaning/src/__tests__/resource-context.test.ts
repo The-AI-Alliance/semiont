@@ -55,9 +55,9 @@ describe('ResourceContext', () => {
     };
   });
 
-  // Every listResources caller supplies the fallback deps (MANDATORY-EMBEDDING
-  // P3 made the pair required). Tests not about the fallback pass an inert bag;
-  // the fallback's own axioms below build theirs per-case.
+  // Every listResources caller supplies the fallback deps (the vector store
+  // and embedding provider are required). Tests not about the fallback pass an
+  // inert bag; the fallback's own axioms below build theirs per-case.
   const inertSemantic = () => ({
     embeddingProvider: { embed: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]) } as any,
     semanticFloor: 0.6,
@@ -441,14 +441,10 @@ describe('ResourceContext', () => {
     });
 
   });
-  // ── SEMANTIC-FALLBACK P2 — axioms S1–S6, S8 ──────────────────────────────
-  // The ledger in .plans/SEMANTIC-FALLBACK.md is the source of truth. These
-  // landed as test.fails (all seven observed red — `matchKind` did not exist
-  // on ResourceContext's result) and flipped to test() with the fallback in
-  // the same change. Every case asserts `matchKind` because S1/S8's
-  // embed-absence halves would pass vacuously on their own — the plan's own
-  // caveat.
-  describe('semantic fallback — axioms (SEMANTIC-FALLBACK P2)', () => {
+  // ── Semantic fallback — axioms S1–S6, S8 ─────────────────────────────────
+  // Every case asserts `matchKind` because S1/S8's embed-absence halves would
+  // pass vacuously on their own.
+  describe('semantic fallback — axioms', () => {
     const FLOOR = 0.6;
     const doc = (id: string, name = id): ResourceDescriptor => ({
       '@context': 'https://schema.org/',
@@ -502,11 +498,10 @@ describe('ResourceContext', () => {
       expect((result.resources[0] as { content?: string }).content).toBe('the passage that matched');
     });
 
-    // S3/S4 (vectors unconfigured / provider absent → empty lexical, labelled
-    // lexical) retired 2026-08-12: MANDATORY-EMBEDDING P3 made the pair
-    // required at the type level, so their premise is unrepresentable.
-    // Reciprocal entries live in both plans' ledgers. S5 survives — mandatory
-    // is not the same as always up.
+    // No S3/S4 (vectors unconfigured / provider absent → empty lexical,
+    // labelled lexical): the vector store and embedding provider are required
+    // at the type level, so their premise is unrepresentable. S5 stands —
+    // mandatory is not the same as always up.
 
     test('S5: a throwing embed degrades to the empty lexical result, logged — never an error', async () => {
       mockGraph.listResources.mockResolvedValue({ resources: [], total: 0 });
@@ -549,10 +544,9 @@ describe('ResourceContext', () => {
   });
 });
 
-// The text-source dispatcher (bugs/gather-ships-raw-pdf-bytes P1): the media
-// type decides where text comes from. Binary is never toString'd; absent
-// means absent, never ''.
-describe('getResourceContent — text source dispatcher (P1)', () => {
+// The text-source dispatcher: the media type decides where text comes from.
+// Binary is never toString'd; absent means absent, never ''.
+describe('getResourceContent — text source dispatcher', () => {
   type ContentReads2 = Parameters<typeof ResourceContext.getResourceContent>[1];
 
   const doc = (): ResourceDescriptor => ({
@@ -594,7 +588,7 @@ describe('getResourceContent — text source dispatcher (P1)', () => {
     expect(decodeRepresentation).not.toHaveBeenCalled();
   });
 
-  test('decode media decodes exactly as before — the anchored ask is never consulted', async () => {
+  test('decode media decodes its bytes — the anchored ask is never consulted', async () => {
     primaryRep('text/markdown');
     (decodeRepresentation as ReturnType<typeof vi.fn>).mockReturnValue('DECODED TEXT');
     const { kb, getBinary, ask } = reads();

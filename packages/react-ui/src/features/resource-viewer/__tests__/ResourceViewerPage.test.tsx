@@ -141,7 +141,7 @@ vi.mock('@/components/toolbar/ToolbarPanels', () => ({
   ToolbarPanels: ({ children }: any) => <div data-testid="toolbar-panels">{children}</div>,
 }));
 
-// Create mock props matching the current ResourceViewerPageProps
+// Create mock props matching ResourceViewerPageProps
 const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): ResourceViewerPageProps => ({
   resource: {
     '@context': 'https://www.w3.org/ns/anno.jsonld',
@@ -187,12 +187,12 @@ const renderWithProviders = (ui: React.ReactElement) => {
 };
 
 describe('ResourceViewerPage — outcome toasts reach the user', () => {
-  // The decline/success toast was dropped for EVERY resource:
-  // `useOutcomeToasts(resource.id as string)` read a property
-  // `ResourceDescriptor` does not declare (it carries `@id`). The descriptor's
-  // open index signature made the access legal and the `as string` silenced its
-  // `unknown` type, so the hook's `event.resourceId !== resourceId` guard
-  // compared a real id against `undefined` and returned early every time.
+  // `useOutcomeToasts(resource.id as string)` would drop the decline/success
+  // toast for EVERY resource: `ResourceDescriptor` declares no `id` (it
+  // carries `@id`). Its open index signature makes the access legal and an
+  // `as string` silences its `unknown` type, so the hook's
+  // `event.resourceId !== resourceId` guard compares a real id against
+  // `undefined` and returns early every time.
   it('subscribes with the resource id, not a property the descriptor lacks', () => {
     outcomeToastsCalls.length = 0;
     renderWithProviders(<ResourceViewerPage {...createMockProps()} />);
@@ -203,7 +203,7 @@ describe('ResourceViewerPage — outcome toasts reach the user', () => {
   });
 });
 
-// RESOLUTION-SPARKLE D2: a reference resolving — from ANY strategy, local or
+// A reference resolving — from ANY strategy, local or
 // remote — arrives as mark:body-updated with a linking-add operation, and the
 // page turns exactly that into a sparkle. The harness mocks
 // useEventSubscriptions, so the pin drives the captured handler directly.
@@ -239,7 +239,7 @@ describe('ResourceViewerPage — resolution sparkles', () => {
     expect(sparkleContext.triggerSparkleAnimation).toHaveBeenCalledWith('ann-7');
   });
 
-  it('unlink (remove-only operations) stays dark — A2', () => {
+  it('unlink (remove-only operations) stays dark', () => {
     const handler = renderAndGetHandler();
 
     handler?.(bodyUpdated([
@@ -338,11 +338,10 @@ describe('ResourceViewerPage', () => {
     });
 
     it('clicking a history event focuses that annotation in the content', () => {
-      // ASSIST-SURFACE-WARTS Lane D. `handleEventClick` used to be a no-op with
-      // a stale comment, while HistoryEvent still rendered a focusable button
-      // labelled "View annotation" — a promise to screen-reader users that
-      // nothing kept. `beckon:focus` is the existing "scroll to and highlight"
-      // contract (BrowseView already subscribes); this makes the page a producer.
+      // HistoryEvent renders a focusable button labelled "View annotation" —
+      // a promise to screen-reader users that a no-op `handleEventClick`
+      // would break. `beckon:focus` is the "scroll to and highlight" contract
+      // (BrowseView subscribes); the page is a producer.
       localStorage.setItem('activeToolbarPanel', 'history');
       capturedHistory.props = null;
       const props = createMockProps();
@@ -414,9 +413,8 @@ describe('ResourceViewerPage', () => {
     });
 
     it('shows archived badge when the toolbar prefs hold annotate mode', () => {
-      // Mode is a toolbar PREF now (TOOLBAR-PREFS-AS-PROPS): the page's
-      // useToolbarPrefs() policy layer initializes from the persisted key and
-      // feeds the viewer controlled props — no mark:mode-toggled bus event.
+      // Mode is a toolbar PREF: the page's useToolbarPrefs() policy layer
+      // initializes from the persisted key and feeds the viewer controlled props.
       localStorage.setItem('annotateMode', 'true');
       localStorage.setItem('activeToolbarPanel', 'annotations');
 

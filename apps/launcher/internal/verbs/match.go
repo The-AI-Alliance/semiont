@@ -1,8 +1,8 @@
 package verbs
 
 // match.go — `semiont match`: find candidate resources an annotation could
-// bind to. Two bus exchanges, in the order the npm CLI uses: gather the
-// annotation's context first, then hand that context to the scored search.
+// bind to. Two bus exchanges, in order: gather the annotation's context
+// first, then hand that context to the scored search.
 // The gather is not an optimization — match:search-requested REQUIRES a
 // context payload, so skipping it would just be a rejected request.
 

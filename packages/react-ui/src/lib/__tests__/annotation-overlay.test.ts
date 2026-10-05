@@ -346,10 +346,10 @@ describe('applyHighlights', () => {
   });
 
   it('renders exact geometry for identical stacked annotations', () => {
-    // The regression shape: repeated annotation of the same passage. The
-    // Range-based predecessor let the first wrap corrupt the ranges of the
-    // rest — later annotations collapsed to empty spans or swallowed whole
-    // paragraphs. Offsets cannot be corrupted by DOM mutation.
+    // Repeated annotation of the same passage. Resolving to DOM Ranges would
+    // let the first wrap corrupt the ranges of the rest — later annotations
+    // collapse to empty spans or swallow whole paragraphs. Offsets cannot be
+    // corrupted by DOM mutation.
     const container = createContainer('<p>Zeus was the king of the gods.</p>');
 
     overlay('Zeus was the king of the gods.', container, [

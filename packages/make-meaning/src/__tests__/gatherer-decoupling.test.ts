@@ -1,15 +1,14 @@
 /**
- * EXTRACT-LIBRARIAN P2 — the decoupling proof for `Gatherer`.
+ * The decoupling proof for `Gatherer`.
  *
  * The Gatherer constructs from narrow capability doubles. `KnowledgeBase`
  * appears nowhere in this file — that absence IS the test: if the actor can
  * be built and exercised without the god-object, it is decoupled.
  *
- * The capability shape is the whole Gatherer-path surface, measured
- * 2026-08-28 (the union of buildLLMContext + getResourceContext +
- * generateAnnotationSummary, transitively through buildKnowledgeGraph):
- * views.get · content.retrieve · five graph reads · two vector searches ·
- * the weave and smelt progress folds.
+ * The capability shape is the whole Gatherer-path surface (the union of
+ * buildLLMContext + getResourceContext + generateAnnotationSummary,
+ * transitively through buildKnowledgeGraph): views.get · content.retrieve ·
+ * five graph reads · two vector searches · the weave and smelt progress folds.
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
@@ -73,7 +72,7 @@ function makeStores(overrides: Partial<GathererStores> = {}): GathererStores {
   };
 }
 
-describe('Gatherer decoupling (EXTRACT-LIBRARIAN P2)', () => {
+describe('Gatherer decoupling', () => {
   let gatherer: Gatherer | undefined;
   let eventBus: EventBus;
 
@@ -150,7 +149,7 @@ describe('Gatherer decoupling (EXTRACT-LIBRARIAN P2)', () => {
 
 // ── Channel roster census gate ────────────────────────────────────────────────
 //
-// librarian-main (P3) derives its SSE subscription from the exported
+// librarian-main derives its SSE subscription from the exported
 // GATHERER_CHANNELS roster. This gate pins the roster to the actor's ACTUAL
 // subscriptions: add a subscription without growing the roster (or vice
 // versa) and the gate fails — the mirror cannot drift silently.

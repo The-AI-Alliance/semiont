@@ -1,15 +1,15 @@
 /**
  * `embedBatch` slices, and the timeout bounds ONE round trip.
  *
- * The defect: a flat 15 s deadline covered a whole resource's batch. The smelter
- * hands `embedBatch` every chunk of a resource, so a 721-page book went out as
- * ~1,100 texts in one HTTP request under one `AbortSignal.timeout` — and the
- * timeout did not scale with the work. Measured: three books at ~1,100 chunks;
- * one squeaked in at 15.1 s, two failed at exactly 15 s on every retry, forever,
- * because the batch geometry never changes.
+ * The smelter hands `embedBatch` every chunk of a resource, so unsliced a
+ * 721-page book goes out as ~1,100 texts in one HTTP request under one
+ * `AbortSignal.timeout` — a flat 15 s deadline that does not scale with the
+ * work. Measured: ~1,100 chunks in one request take about 15 s, and a book
+ * that misses the deadline misses it on every retry, forever, because the
+ * batch geometry never changes.
  *
- * So the fix is not a bigger number: it is making the thing the timeout bounds be
- * something it can honestly bound. Slicing alone would be a half-fix, though —
+ * So the answer is not a bigger number: it is making the thing the timeout bounds
+ * be something it can honestly bound. Slicing alone would be half of it, though —
  * more requests with no ceiling on how many are in flight — so each provider also
  * declares its own concurrency and every round trip acquires from one gate held
  * on the provider INSTANCE. A limit inside a call would be multiplied by the
@@ -57,12 +57,11 @@ const providers = [
   },
 ] as const;
 
-// RED 6: the same table runs against both providers. Fixing one and not the
-// other leaves the ceiling in place for the provider that ALSO has a
+// The same table runs against both providers. Slicing one and not the
+// other would leave the ceiling in place for the provider that ALSO has a
 // request-size limit.
 describe.each(providers)('$name', ({ policy, make, reply }) => {
   it('issues ceil(N/sliceSize) calls, each carrying at most sliceSize texts', async () => {
-    // RED 1 — geometry. Today: one call carrying all N.
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) =>
       reply(JSON.parse(String(init.body)).input));
     vi.stubGlobal('fetch', fetchMock);
@@ -79,7 +78,7 @@ describe.each(providers)('$name', ({ policy, make, reply }) => {
   });
 
   it('preserves input order across slices', async () => {
-    // RED 3 — the smelter maps embeddings back to chunks POSITIONALLY, so a
+    // The smelter maps embeddings back to chunks POSITIONALLY, so a
     // reordering is silent corruption rather than an error. The stub encodes
     // each input's length in its vector, so the mapping is checkable.
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) =>
@@ -96,9 +95,9 @@ describe.each(providers)('$name', ({ policy, make, reply }) => {
   });
 
   it('a batch far larger than one timeout still succeeds when each slice is fast', async () => {
-    // RED 2 — the bug, stated as a test: 1,130 chunks must not fail merely
-    // because 1,130 chunks take longer in aggregate than one round trip's budget.
-    // Every slice here is fast; only the SUM exceeds a single deadline.
+    // 1,130 chunks must not fail merely because 1,130 chunks take longer in
+    // aggregate than one round trip's budget. Every slice here is fast; only
+    // the SUM exceeds a single deadline.
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) =>
       reply(JSON.parse(String(init.body)).input));
     vi.stubGlobal('fetch', fetchMock);
@@ -137,7 +136,7 @@ describe.each(providers)('$name', ({ policy, make, reply }) => {
   });
 
   it('a failing slice rejects, naming the slice and the range it covered', async () => {
-    // RED 4 — for DIAGNOSIS, not resume: indexing stays all-or-nothing per
+    // For DIAGNOSIS, not resume: indexing stays all-or-nothing per
     // resource (a partially-indexed resource reads as fresh to reconcile and
     // would never heal). The failure should still say which slice died.
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
@@ -158,9 +157,9 @@ describe.each(providers)('$name', ({ policy, make, reply }) => {
   });
 
   it('creates each round trip\'s deadline AFTER acquiring, not at enqueue', async () => {
-    // RED 5 — the invisible regression. If the AbortSignal is built when the
-    // slice is queued rather than when it runs, a slice that waited behind
-    // others inherits a budget already half spent, and the original cliff is
+    // The invisible failure. If the AbortSignal is built when the slice is
+    // queued rather than when it runs, a slice that waited behind others
+    // inherits a budget already half spent, and the whole-batch cliff is
     // rebuilt one layer up. Proved structurally rather than by waiting 15 s:
     // signals must be created SERIALLY, interleaved with the fetches, not all
     // up front. (Meaningful at concurrency 1; at higher concurrency the first
@@ -189,7 +188,7 @@ describe.each(providers)('$name', ({ policy, make, reply }) => {
   });
 
   it('embed() of a single text goes through the same gated path', async () => {
-    // D3 — every round trip acquires or the cap leaks. `measureDimensions`
+    // Every round trip acquires or the cap leaks. `measureDimensions`
     // probes through `embed`, so gating this covers the probe too.
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) =>
       reply(JSON.parse(String(init.body)).input));

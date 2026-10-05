@@ -2,8 +2,8 @@
  * @semiont/sdk
  *
  * The Semiont SDK — `SemiontClient`, the verb-oriented namespaces, the
- * per-tab session layer, the flow state machines and worker adapters,
- * and the supporting helpers (`bus-request`, `cache`).
+ * per-KB session layer, the flow state machines, and the supporting
+ * helpers (the `cache` primitive, KB discovery).
  *
  * Transport-agnostic: `SemiontClient` consumes the `ITransport` /
  * `IContentTransport` contracts from `@semiont/core`. The HTTP adapters
@@ -12,11 +12,10 @@
  * (e.g. `LocalTransport` from `@semiont/make-meaning`) are constructed
  * by the caller from their own package.
  *
- * Transport-specific error classes (`APIError` from `@semiont/http-transport`)
- * are NOT re-exported. Catch on `SemiontError` (exported below) and route
- * on `err.code`; reach for the transport-specific class only when you're
- * already in HTTP-aware code and import it from `@semiont/http-transport`
- * directly.
+ * `APIError`, the HTTP transport's error class, is re-exported with the
+ * adapters. Catch on `SemiontError` (exported below) and route on
+ * `err.code`; reach for the transport-specific class only when you're
+ * already in HTTP-aware code.
  *
  * ```ts
  * import { SemiontClient, HttpTransport, HttpContentTransport } from '@semiont/sdk';
@@ -32,8 +31,9 @@
 // SemiontClient + the convenience HTTP-adapter re-exports.
 export * from './client';
 
-// Thenable Observable subclasses — let scripts `await` namespace-method
-// results directly without `lastValueFrom`/`firstValueFrom` wrappers.
+// The Observable subclasses namespace methods return. The stream and the
+// upload are thenable, so scripts `await` them without `lastValueFrom`;
+// the cache one is not, and its one-shot read is `.fresh()`.
 export { StreamObservable, CacheObservable, UploadObservable, type UploadProgress } from './awaitable';
 
 // The SWR cache primitive behind every `browse.*` live query. Exported so
@@ -48,7 +48,7 @@ export { createCache, isReady, readyValue, type CacheState, type Cache } from '.
 // consumers catch every SDK error from one package.
 
 // Verb-oriented namespace API. Frame is the schema-layer flow's surface;
-// the others are content-layer flows + job/auth/admin.
+// the others are content-layer flows + job/auth/system.
 export { FrameNamespace } from './namespaces/frame';
 export { BrowseNamespace } from './namespaces/browse';
 export { MarkNamespace } from './namespaces/mark';
@@ -93,7 +93,7 @@ export type {
   IContentTransport,
   ITransport,
   // The state-unit contract — the pattern every layer's factories implement
-  // (docs/STATE-UNITS.md); it lives in core so layers below the sdk share it.
+  // (docs/builder/STATE-UNITS.md); it lives in core so layers below the sdk share it.
   StateUnit,
   // Transport-neutral error-code vocabulary (route on `error.code`).
   TransportErrorCode,
@@ -118,7 +118,7 @@ export {
 } from '@semiont/core';
 
 // Session layer — per-KB sessions, app-level browser, storage adapter,
-// error surface, notify module for out-of-React callers.
+// error surface, modal signals.
 export { SemiontSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';
 export { SemiontBrowser, type SemiontBrowserConfig, type SignInOutcome, type KbReadVerdict } from './session/semiont-browser';
 export {
@@ -177,7 +177,7 @@ export {
   type StoredSession,
 } from './session/storage';
 
-// State units — flow state machines, worker adapters, RxJS substrate.
+// State units — flow state machines and their RxJS substrate.
 // None presume a UI: they're consumed by browser apps, terminals,
 // daemons, and AI agents alike. See docs/builder/STATE-UNITS.md.
 export * from './state';
@@ -189,11 +189,10 @@ export * from './state';
 // back, which is a plain Observable.
 export { firstValueFrom, lastValueFrom } from 'rxjs';
 
-// Browser ↔ launcher KB discovery (BROWSER-KB-DISCOVERY P3): the domain
-// layer over the launcher's published export view — one validator, typed
-// absent-vs-managed state, and the poll/diff subscription. IO-abstracted:
-// httpDiscovery for the served mount, textDiscovery for any consumer-owned
-// byte source (no fs in the sdk).
+// Browser ↔ launcher KB discovery: the domain layer over the launcher's
+// published export view — one validator, typed absent-vs-managed state, and
+// the poll/diff subscription. IO-abstracted: httpDiscovery for the served
+// mount, textDiscovery for any consumer-owned byte source (no fs in the sdk).
 export {
   parseDiscoveryDocument,
   httpDiscovery,

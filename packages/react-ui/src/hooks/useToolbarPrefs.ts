@@ -20,13 +20,13 @@ export interface ToolbarPrefs {
 }
 
 /**
- * The POLICY layer for toolbar preferences (TOOLBAR-PREFS-AS-PROPS): one shared,
- * localStorage-persisted prefs state — the Semiont Browser's global-toolbar UX,
- * relocated from inside the components to a visible page-layer hook. Feed the
- * returned values/setters to every viewer you compose (as its controlled props)
- * and they stay in lockstep and survive remounts. The components themselves hold
- * no persistence and no cross-instance sync; this hook is the one legitimate home
- * for both. Keys are the historical ones, so existing users' prefs carry over.
+ * The POLICY layer for toolbar preferences: one shared, localStorage-persisted
+ * prefs state — the Semiont Browser's global-toolbar UX, relocated from inside
+ * the components to a visible page-layer hook. Feed the returned values/setters
+ * to every viewer you compose (as its controlled props) and they stay in
+ * lockstep and survive remounts. The components themselves hold no persistence
+ * and no cross-instance sync; this hook is the one legitimate home for both.
+ * Keys are the historical ones, so existing users' prefs carry over.
  *
  * `selectorType` scopes the SHAPE pref exactly as before: per selector type
  * (persisted only for 'svg'; 'fragment' is always rectangle).

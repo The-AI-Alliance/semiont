@@ -2,9 +2,6 @@
  * Semiont React UI - Main Stylesheet
  *
  * This is the entry point for all styles.
- * CLEANED UP: Only imports files that actually exist with real content.
- *
- * Total CSS: ~8,700 lines properly modularized (down from 25,000+ lines of cruft)
  */
 
 /* Design Tokens */
@@ -35,7 +32,7 @@
 @import './motivations/motivation-comment.css';
 @import './motivations/motivation-tag.css';
 
-/* Keep remaining panel styles if any */
+/* Panels */
 @import './panels/history-panel.css';
 @import './panels/user-panel.css';
 

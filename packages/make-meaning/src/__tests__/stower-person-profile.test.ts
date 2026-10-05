@@ -1,5 +1,5 @@
 /**
- * The log records what a person is CALLED, once per change (PERSON-PROFILE).
+ * The log records what a person is CALLED, once per change.
  *
  * The gateway emits `person:profile` beside the `_userId` it stamps, so the
  * name is as verified as the DID. The Stower's whole job here is to keep the

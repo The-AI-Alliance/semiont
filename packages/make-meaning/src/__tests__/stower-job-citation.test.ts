@@ -1,7 +1,7 @@
 /**
  * A write that fulfils a job cites it, and everything the record says about
  * who requested and who produced it is DERIVED from the log — never taken
- * from the emitter (VERIFIED-PROVENANCE P1/P2).
+ * from the emitter.
  *
  * The join is local. The dispatcher's `job:assigned` (holder + requester) and
  * the worker's write both land on the same resource's log, so the Stower
@@ -129,7 +129,7 @@ describe('a write that fulfils a job cites it, and its provenance is derived fro
       expect(store.markAddedIds()).toEqual(['a1']);
     });
 
-    it('accepts an agent without the worker role citing no job — autonomous work (row 5)', async () => {
+    it('accepts an agent without the worker role citing no job — autonomous work', async () => {
       await commit({ _userId: WORKER_AGENT });
 
       expect(failed).toEqual([]);

@@ -25,7 +25,6 @@ export type DrawingMode = 'rectangle' | 'circle' | 'polygon' | null;
  * distinguish the modes — AnnotateView passes `drawingMode={null}` whenever no
  * motivation is selected, so keying layout on it would flip a reader between
  * scrolling and paged views as they picked up and put down a tool.
- * See .plans/PDF-CONTINUOUS-SCROLL.md D3.
  */
 export type PageLayout = 'paged' | 'scroll';
 
@@ -45,8 +44,8 @@ const STRIP_PAGE_WIDTH = 30;
  * strip runs parallel to it. A strip that ran across the scroll direction
  * would read as a control for a movement the document does not make.
  *
- * Constant today because scrolling is vertical. The horizontal-scrolling
- * setting turns this into a value read from preferences — both consumers
+ * Constant, because scrolling is vertical only. A horizontal-scrolling
+ * setting would make this a value read from preferences — both consumers
  * follow automatically, which is the point of routing them through one name.
  */
 const SCROLL_AXIS: 'vertical' | 'horizontal' = 'vertical';
@@ -112,9 +111,8 @@ export function PdfAnnotationCanvas({
    * Page 1's shape, for reserving space in slots that have not mounted yet:
    * its aspect ratio and its raster width. NOT its raster height — the image
    * renders under `max-width: 100%; height: auto`, so its displayed height
-   * depends on the column's width, and reserving raster pixels made the
-   * column's height lurch on every mount (S1b).
-   * See .plans/PDF-CONTINUOUS-SCROLL.md D4 + S1b.
+   * depends on the column's width, and reserving raster pixels would make
+   * the column's height lurch on every mount.
    */
   const [pageShape, setPageShape] = useState<{ aspect: number; rasterWidth: number } | null>(null);
   /** Measured inner width of the column — the other half of the reservation. */
@@ -149,8 +147,9 @@ export function PdfAnnotationCanvas({
         setNumPages(doc.numPages);
         setIsLoading(false);
 
-        // One extra getPage, for slot sizing (D4). Failure is not fatal:
-        // unsized slots still scroll, just less faithfully.
+        // One extra getPage, for slot sizing: every slot takes page 1's
+        // shape. Failure is not fatal: unsized slots still scroll, just less
+        // faithfully.
         try {
           const first = await doc.getPage(1);
           if (cancelled) return;
@@ -180,23 +179,23 @@ export function PdfAnnotationCanvas({
 
   /**
    * The server-derived map, fetched once per document rather than once per
-   * page (PERSIST-ANCHORS P4). The map is WHOLE-RESOURCE — one artifact
-   * covering every page — so re-reading it per page meant a full refetch and
-   * re-decode on every page turn; on a 400-page scan that is one decode per
-   * interaction instead of one per document. Living on the parent is also
-   * what lets a scrolling column mount many pages against a single fetch.
+   * page. The map is WHOLE-RESOURCE — one artifact covering every page — so
+   * re-reading it per page would mean a full refetch and re-decode on every page
+   * turn; on a 400-page scan that is one decode per interaction instead of one
+   * per document. Living on the parent is also what lets a scrolling column
+   * mount many pages against a single fetch.
    *
    * The cache holds the in-flight promise so concurrent page loads share one
    * fetch. TERMINAL answers cache — "no map", "unknown" and a stored decline
    * are definitive — but the wire names retryability in the kind itself
-   * (AnchoredTextAbsent, ANNOTATE-DEFERS-ON-NOT-YET P1/D4): `not-yet` means
-   * the Smelter has not settled this content generation and the caller should
-   * come back, so it clears the entry the way a transport failure always has.
-   * Pinning it was how a scan opened mid-smelt stayed mapless for the whole
-   * mount — every annotation drawn on it permanently mute.
+   * (AnchoredTextAbsent): `not-yet` means the Smelter has not settled this
+   * content generation and the caller should come back, so it clears the entry
+   * the way a transport failure does. Pinning it would leave a scan opened
+   * mid-smelt mapless for the whole mount — every annotation drawn on it
+   * permanently mute.
    *
    * The settled kind rides on the cache entry: the answer, not just the map,
-   * is the parent's fact (P2 lifts it into state to gate Annotate).
+   * is the parent's fact (it is held in state, where it gates Annotate).
    */
   const { anchoredEpoch, annotateDeferred, fetchResourceAnchored } =
     useAnchoredText(session, resourceUri);
@@ -331,7 +330,7 @@ export function PdfAnnotationCanvas({
     : pageNumber;
 
   /**
-   * Left/Right step pages (S1a).
+   * Left/Right step pages.
    *
    * Bound to the window rather than a focusable wrapper so it works without
    * the reader hunting for the viewer's focus — but that reach is exactly why
@@ -372,8 +371,8 @@ export function PdfAnnotationCanvas({
   // The strip's CSS scrollport ceiling is 100vh — right when the nearest
   // scroller is the window, a lie inside an inner-scrolled panel: the sticky
   // strip then extends below the panel's clip, and `nearest` (below) considers
-  // a tick in that hidden band already in view, so the active page vanished
-  // whenever it crossed the strip's bottom (never the top, whose edges
+  // a tick in that hidden band already in view, so the active page vanishes
+  // whenever it crosses the strip's bottom (never the top, whose edges
   // coincide). Size the scrollport to the scroller that actually clips it;
   // with no such scroller the CSS ceiling stands.
   useEffect(() => {
@@ -484,7 +483,7 @@ export function PdfAnnotationCanvas({
               data-page={page}
               className="semiont-pdf-annotation-canvas__slot"
               // min-height, and applied whether or not the page is mounted:
-              // releasing it on mount is what made the scrollbar jump. `min`
+              // releasing it on mount would make the scrollbar jump. `min`
               // rather than a fixed height so a page that renders slightly
               // taller expands instead of clipping.
               style={slotHeight ? { minHeight: slotHeight } : undefined}

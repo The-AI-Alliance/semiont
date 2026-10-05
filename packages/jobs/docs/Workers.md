@@ -1,6 +1,6 @@
 # Workers Guide
 
-A worker is a standalone process that serves a single software-agent identity and turns queued jobs into Knowledge Base events. It opens an authenticated session, serves a set of job types, and — whenever it is idle — claims the next pending job of those types, reads the resource, runs a **processor**, and emits the results.
+A worker serves a single software-agent identity and turns queued jobs into Knowledge Base events; the worker host process runs one for each inference engine it is configured with. It opens an authenticated session, serves a set of job types, and — whenever it is idle — claims the next pending job of those types, reads the resource, runs a **processor**, and emits the results.
 
 Workers are **not** actors. They don't subscribe to a reducer; they claim jobs over the bus and dispatch by job type. But they emit the same EventBus commands as any other caller in the system. The **Stower** actor (in `@semiont/make-meaning`) handles all persistence to the Knowledge Base — a worker never writes to storage directly.
 
@@ -14,7 +14,8 @@ The moving parts:
 
 | File | Role |
 |------|------|
-| `src/worker-main.ts` | Standalone entry point. Reads `~/.semiontconfig`, groups job types by `(provider, model)`, authenticates each agent, and starts one worker process per agent group. |
+| `src/worker-main.ts` | Standalone entry point. Reads `~/.semiontconfig`, groups job types by `(provider, model)`, and starts one agent worker per group, all in its own process. |
+| `src/worker-runtime.ts` | `startAgentWorker(options)` — authenticates one agent, opens its session, and calls `startWorkerProcess`. |
 | `src/worker-process.ts` | `startWorkerProcess(config)` — claims jobs via the `JobClaimAdapter`, then `handleJobInner` dispatches by `jobType` to the right processor, commits annotations in acknowledged batches (`mark:commit`), and emits the lifecycle events. |
 | `src/processors.ts` | The `process*Job` functions. Content + inference + params in, `{ result }` out; annotations go out through the `onChunkComplete` callback as they are produced. No bus, no queue, no I/O except calling inference. |
 | `src/workers/annotation-detection.ts` | `AnnotationDetection` — the LLM detection logic the annotation processors call (`detectHighlights`, `detectComments`, `detectAssessments`, `detectTags`). |
@@ -22,10 +23,10 @@ The moving parts:
 
 ## How a Worker Runs
 
-`worker-main.ts` is the host. For each distinct `(inferenceProvider, model)` configured under `[environments.<env>.workers]` in `~/.semiontconfig`, it:
+`worker-main.ts` is the host. For each distinct `(inferenceProvider, model)` configured under `[environments.<env>.workers]` in `~/.semiontconfig`, it calls `startAgentWorker` (`src/worker-runtime.ts`), which:
 
 1. Authenticates at the knowledge base's issuer as its own service account (`SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`), then exchanges that token for this agent's at `/api/tokens/agent`.
-2. Builds a `generator` — a W3C `Software` agent record — with `softwareToAgent({ domain, provider, model })`. This is sent as each annotation's `generator`; the knowledge base checks its identity against the verified emitter and derives `creator` and `wasAttributedTo` itself, from the job the write cites.
+2. Builds a `generator` — a W3C `Software` agent record — with `didToAgent(did)`, from the DID that exchange minted. This is sent as each annotation's `generator`; the knowledge base checks its identity against the verified emitter and derives `creator` and `wasAttributedTo` itself, from the job the write cites.
 3. Opens a `SemiontSession` (`@semiont/sdk`) authenticated *as that agent*, so every event the worker emits attributes to the agent at the bus seat.
 4. Calls `startWorkerProcess`:
 
@@ -33,7 +34,7 @@ The moving parts:
 const adapter = startWorkerProcess({
   session,                 // SemiontSession, authenticated as this agent
   jobTypes: group.jobTypes,// the job types this agent's engine serves
-  inferenceClient,         // the (provider, model) inference client
+  inferenceClient: group.client, // the (provider, model) inference client
   generator,               // the Software agent record
   contentReads,            // resource bytes for detection, read from the Archivist
   logger,
@@ -55,7 +56,7 @@ A claim the dispatcher refuses for any reason other than an empty queue arrives 
 | `assessment-annotation` | `processAssessmentJob` | `{ result }` (annotations committed per chunk) |
 | `reference-annotation` | `processReferenceJob` | `{ result }` (annotations committed per chunk) |
 | `tag-annotation` | `processTagJob` | `{ result }` (annotations committed per chunk) |
-| `generation` | `processGenerationJob` | `{ content, title, format, citations, result }` |
+| `generation` | `processGenerationJob` | `{ content, title, format, citations, truncated }` |
 
 The highlight, comment, assessment, and tag processors share one signature shape:
 
@@ -75,9 +76,9 @@ process<X>Job(
 
 Two things a processor does **not** do. It never returns annotations for the caller to write —
 each chunk is committed through `onChunkComplete` as it is produced, so a retry resumes from
-the cursor rather than re-running the job (CHUNK-GRAIN-RESUME). And it never sees a user
-identity: an annotation states what produced it, and who *requested* it is derived by the
-knowledge base from the job the commit cites (VERIFIED-PROVENANCE).
+the cursor rather than re-running the job. And it never sees a user identity: an annotation
+states what produced it, and who *requested* it is derived by the knowledge base from the job
+the commit cites.
 
 `ProcessorResult<R>` is `{ result: R }`. The annotations a processor commits are W3C Web Annotation objects shaped by the `buildAnnotation` closure it is handed — `buildTextAnnotation` for text, `buildPdfAnnotation` for geometry-bearing media. The text builder enforces a write-time invariant (`content.substring(start, end) === exact`) so a mis-anchored selector throws loudly instead of corrupting the KB.
 
@@ -123,7 +124,7 @@ Workers emit lifecycle and annotation commands directly on the session's transpo
 
 - `job:start` — once, when the job is picked up.
 - `job:report-progress` — driven by the processor's `onProgress` callback. The dispatcher stores it as the running job's `progress` and the UI renders it; Stower ignores it.
-- `mark:commit` — one **awaited batch per unit of work**: `{ resourceId, annotations }`. This is a `busRequest`, not a fire-and-forget emit — it resolves only after the Stower has appended every annotation to the event log, and only then does the unit count as complete. A job type that minted annotations without waiting for this acknowledgement would silently lose them whenever the persistence sink was down; a census test (`worker-process.test.ts`, "no job type persists without an acknowledgement") fails on any job type that tries.
+- `mark:commit` — one **awaited batch per unit of work**: `{ resourceId, annotations, jobId }`. This is a `busRequest`, not a fire-and-forget emit — it resolves only after the Stower has appended every annotation to the event log, and only then does the unit count as complete. A job type that minted annotations without waiting for this acknowledgement would silently lose them whenever the persistence sink was down; a census test (`worker-process.test.ts`, "no job type persists without an acknowledgement") fails on any job type that tries.
 - `job:checkpoint` — after each committed chunk, carrying the completed units and each unfinished unit's cursor, so a crashed worker's retry resumes instead of re-paying.
 - `job:complete` — once, with the processor's `result`, **after** the final commit resolved.
 - `job:fail` — on error, with the message, the `failureClass`, and `willRetry`.
@@ -136,14 +137,10 @@ Suppose you want a `summary-annotation` job. Three edits, no new classes:
 
 ### 1. Add the `JobType`
 
-In `src/types.ts`, extend the union and the `JOB_TYPES` set, and add the params type alongside the existing ones. The spec owns the rest: add the type to `specs/src/components/schemas/JobType.json`, place it in a category in `specs/src/jobs/storage.json`, and add its result schema (with a single-valued `kind`) to the `JobResult` union; the result type is then generated into `@semiont/core`. There is no progress type to add — every job reports `JobProgress`. A new progress message, or a new `kind` on `complete-created`, is a spec change plus client copy.
+In `src/types.ts`, add the params type alongside the existing ones. The spec owns the rest: add the type to `specs/src/components/schemas/JobType.json` (`JobType` and `JOB_TYPES` in `@semiont/core` are generated from it), place it in a category in `specs/src/jobs/storage.json`, and add its result schema (with a single-valued `kind`) to the `JobResult` union; the result type is then generated into `@semiont/core`. There is no progress type to add — every job reports `JobProgress`. A new progress message, or a new `kind` on `complete-created`, is a spec change plus client copy.
 
 ```typescript
-export type JobType =
-  | 'reference-annotation' | 'generation' | 'highlight-annotation'
-  | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation'
-  | 'summary-annotation';
-
+// src/types.ts:
 export interface SummaryDetectionParams {
   resourceId: ResourceId;
   instructions?: string;
@@ -151,6 +148,11 @@ export interface SummaryDetectionParams {
 }
 
 // Generated from the spec into @semiont/core:
+type JobType =
+  | 'reference-annotation' | 'generation' | 'highlight-annotation'
+  | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation'
+  | 'summary-annotation';
+
 interface JobSummaryAnnotationResult {
   kind: 'summary-annotation';
   summariesFound: number;
@@ -184,8 +186,8 @@ export async function processSummaryJob(
   const bodyLanguage = params.language ?? 'en';
   const dedupe = makeSpanDeduper();
   const annotations = dedupe(summaries.map((s) =>
-    buildAnnotation('summarizing', s, [
-      { type: 'TextualBody', value: s.summary, purpose: 'summarizing', format: 'text/plain', language: bodyLanguage },
+    buildAnnotation('commenting', s, [
+      { type: 'TextualBody', value: s.summary, purpose: 'commenting', format: 'text/plain', language: bodyLanguage },
     ]),
   ));
 
@@ -228,7 +230,7 @@ In `src/worker-process.ts`, add a branch to `handleJobInner`. The branch hands t
 }
 ```
 
-Finally, add `'summary-annotation'` to `ALL_JOB_TYPES` in `src/worker-main.ts` so the host actually subscribes to it, and take a position in the persistence census (`worker-process.test.ts`, `JOB_TYPE_COVERAGE` — typed total over `JobType`, so forgetting is a compile error): either an `exercise` entry proving your type commits before completing, or a `coveredBy` pointer to where that is pinned instead. That's the whole extension path — no base class, no lifecycle methods to override.
+The host needs no edit: `src/worker-main.ts` groups every member of `JOB_TYPES`, so it serves the type once the spec lists it. Finally, take a position in the persistence census (`worker-process.test.ts`, `JOB_TYPE_COVERAGE` — typed total over `JobType`, so forgetting is a compile error): either an `exercise` entry proving your type commits before completing, or a `coveredBy` pointer to where that is pinned instead. That's the whole extension path — no base class, no lifecycle methods to override.
 
 > Generation jobs follow a different tail: alongside its committed annotations (provenance on the source resource, citations on the derived one — two commits, keyed by resource), the branch uploads the generated content via `session.client.yield.resource(...)` and reports the new `resourceId` on `job:complete`. Mirror an annotation branch unless you're producing a new resource.
 
@@ -256,7 +258,7 @@ emit job:fail  →  adapter.failJob(jobId, message)
 
 The subscription in `startWorkerProcess` wraps `handleJob` in a `.catch` that emits `job:fail` and calls `adapter.failJob`, so any throw from your processor surfaces as a clean failure. `handleJob` also records an OpenTelemetry span (`job:<type>`) and a job-outcome metric around each run — you get that for free by living inside `handleJobInner`.
 
-At the dispatcher, `job:fail` feeds a retry-or-fail path: the job is re-queued (and re-announced) while `retryCount < maxRetries` — unless the worker classified the failure `deterministic` (truncation at the subdivision floor, unsupported media, non-throttle 4xx), in which case it fails for good at once rather than paying for a retry that cannot succeed. The event's `completedUnits` and `unitCursors` are merged into job metadata so the retry resumes. Your `onProgress` calls double as a heartbeat — a running job that reports nothing within the dispatcher's window is presumed orphaned and recovered the same way, so call `onProgress` at meaningful stages rather than never.
+At the dispatcher, `job:fail` feeds a retry-or-fail path: the job is re-queued (and re-announced) while `retryCount < maxRetries` — unless the worker classified the failure `deterministic` (truncation at the subdivision floor, unsupported media, a 4xx other than 408 or 429), in which case it fails for good at once rather than paying for a retry that cannot succeed. The event's `completedUnits` and `unitCursors` are merged into job metadata so the retry resumes. Your `onProgress` calls double as a heartbeat — a running job that reports nothing within the dispatcher's window is presumed orphaned and recovered the same way, so call `onProgress` at meaningful stages rather than never.
 
 ## Reporting Progress
 
@@ -282,11 +284,11 @@ The message vocabulary is the spec's `JobProgressMessage`; each client renders t
 
 ## Testing a Processor
 
-Because processors are pure, you test them with no bus, no session, and no queue. Mock `AnnotationDetection` (the LLM call), feed in content that actually contains your spans (the `buildTextAnnotation` invariant checks `content.substring(start, end) === exact`), and assert on the returned annotations and the `onProgress` calls:
+Because processors are pure, you test them with no bus, no session, and no queue. Mock `AnnotationDetection` (the LLM call), feed in content that actually contains your spans (the `buildTextAnnotation` invariant checks `content.substring(start, end) === exact`), and assert on the committed annotations and the `onProgress` calls:
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
-import { resourceId, type components } from '@semiont/core';
+import { resourceId, type Annotation, type components } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 
 type Agent = components['schemas']['Agent'];
@@ -307,7 +309,7 @@ const GENERATOR: Agent = {
 const inferenceClient = { generateText: vi.fn() } as unknown as InferenceClient;
 
 describe('processSummaryJob', () => {
-  it('produces summarizing annotations and reports progress', async () => {
+  it('produces commenting annotations and reports progress', async () => {
     const content = 'an important passage worth summarizing.';
     vi.mocked(AnnotationDetection.detectSummaries).mockResolvedValue([
       { exact: 'important passage', start: 3, end: 20, summary: 'a key point' },
@@ -324,7 +326,7 @@ describe('processSummaryJob', () => {
 
     expect(committed).toHaveLength(1);
     expect(committed[0]).toMatchObject({
-      motivation: 'summarizing',
+      motivation: 'commenting',
       target: expect.objectContaining({ source: RID }),
     });
     expect(result).toEqual({ kind: 'summary-annotation', summariesFound: 1, summariesCreated: 1 });

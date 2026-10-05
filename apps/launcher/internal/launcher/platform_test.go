@@ -6,14 +6,13 @@ import (
 	"testing"
 )
 
-// LAUNCHER-SERVICE-MODEL P3. "codespace" used to be one of the values of
-// `Runtime`, beside container, docker and podman — so every reader of that
-// field had to know that one of the runtimes was not a runtime, and the
-// launcher refused each local-only flag by hand against that string.
+// Platform is its own type. "codespace" is not a value of `Runtime`, beside
+// container, docker and podman: as one, every reader of that field would have
+// to know that one of the runtimes is not a runtime.
 
-// The refusals are the platform axis showing through the flag parser. They
-// key off the platform now; every message and every accepted combination is
-// unchanged, which is what start_args_test.go asserts.
+// The refusals are the platform axis showing through the flag parser: they
+// key off the platform. start_args_test.go pins every message and every
+// accepted combination.
 func TestRuntimeFlagSplitsPlatformFromRuntime(t *testing.T) {
 	opts, usage, refusal := parseStart([]string{"--runtime", "codespace", "--repo", "o/n"})
 	if usage || refusal != "" {
@@ -79,9 +78,9 @@ func TestLocalRecordCarriesNoCodespaceFields(t *testing.T) {
 	}
 }
 
-// The word "codespace" must not come back as a runtime value. This is the
-// gate on the split: a new comparison against that string, anywhere a
-// runtime is meant, is the conflation returning.
+// The word "codespace" is never a runtime value. This is the gate on the
+// split: a comparison against that string, anywhere a runtime is meant,
+// conflates the two.
 func TestNoRuntimeValueIsCodespace(t *testing.T) {
 	for _, rt := range []string{"container", "docker", "podman"} {
 		if p, isPlatform := runtimeFlagPlatform(rt); isPlatform {

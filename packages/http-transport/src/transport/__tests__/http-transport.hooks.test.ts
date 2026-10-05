@@ -7,8 +7,7 @@
  * + thrown) and the `afterResponse` passthrough uncovered.
  *
  * These tests capture the `hooks` object passed into `ky.create` and invoke the
- * hooks directly. Added alongside the ky 1 -> 2 migration, which moved every
- * hook to a single state-object argument.
+ * hooks directly, each with the single state-object argument ky 2 hands a hook.
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
@@ -197,7 +196,7 @@ describe('HttpTransport ky hooks', () => {
   });
 });
 
-// ── RETRY-CLASSIFICATION P3: shouldRetry is the retry gate ──────────────
+// ── shouldRetry is the retry gate ───────────────────────────────────────
 // ky's `methods`/`statusCodes` are ANDed independently — there is no
 // per-status method list, so "the widened methods apply to 401 only" cannot
 // be said with them. `shouldRetry` says it instead, deriving from
@@ -245,7 +244,7 @@ describe('HttpTransport shouldRetry — the transport retry rule', () => {
 
   test('a POST that got a 502 is NOT retried — the upload case that bites', () => {
     // `POST /resources` mints a fresh UUID in the Stower, so a duplicate
-    // writes a second resource the caller never learns about (P0 row 8).
+    // writes a second resource the caller never learns about.
     expect(verdict('POST', 502)).toBe(false);
   });
 
@@ -255,7 +254,7 @@ describe('HttpTransport shouldRetry — the transport retry rule', () => {
     expect(verdict('POST', 401)).toBeUndefined();
   });
 
-  test('a GET that got a 504 is still retried — the fix must not over-narrow', () => {
+  test('a GET that got a 504 is retried — the gate must not over-narrow', () => {
     expect(verdict('GET', 504)).toBeUndefined();
   });
 
@@ -347,7 +346,7 @@ describe('HttpTransport beforeRetry — refresh only, once a retry is confirmed'
   });
 });
 
-// ── SSE-AUTH-RESILIENCE P4: the actor→transport errors$ bridge ──────────
+// ── The actor→transport errors$ bridge ──────────────────────────────────
 // A refused SSE connect is an HTTP failure like any other, so it belongs on
 // the transport's contract `errors$` stream — not only on the actor's. This
 // pin drives a REAL actor connect (global fetch is stubbed by the mock-conn

@@ -144,7 +144,7 @@ func TestWriteVettedConfigRefusesUnstartable(t *testing.T) {
 // presence being in the generated bridged set. Pinned here rather than trusted:
 // the set is generated from registry.json, and a channel silently dropping out
 // of it would leave the tour blocking forever on a stream that can never
-// produce an event (GUIDED-TOUR P7).
+// produce an event.
 func TestPresenceChannelsAreSubscribable(t *testing.T) {
 	for _, ch := range []bus.Channel{bus.SessionJoined, bus.SessionLeft} {
 		if !bus.Bridged(ch) {

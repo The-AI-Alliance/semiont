@@ -1,15 +1,14 @@
 /**
  * `@semiont/core/testing/axioms` — the property-based axiom harnesses.
  *
- * Split from `@semiont/core/testing` (SDK-TESTING-DOUBLE gap 7, 2026-07-29) so
- * that `fast-check` — declared an OPTIONAL peerDependency — is only loaded by
- * consumers who actually run the axioms. Before the split, `dist/testing.js`
- * was one bundle whose axiom modules did a top-level `import * as fc`, so
- * importing ANYTHING from `/testing` (including transitively, via
- * `@semiont/sdk/testing` → `createTestSession`) pulled fast-check at import
- * time. npm does not install optional peers, so the first out-of-monorepo
- * consumer's test run died with `Cannot find package 'fast-check'`. The
- * optionality is real now: the double's entry never touches fc.
+ * A separate entry from `@semiont/core/testing` so that `fast-check` —
+ * declared an OPTIONAL peerDependency — is only loaded by consumers who
+ * actually run the axioms. The axiom modules do a top-level `import * as fc`;
+ * bundled with the doubles, importing ANYTHING from `/testing` (including
+ * transitively, via `@semiont/sdk/testing` → `createTestSession`) would pull
+ * fast-check at import time, and npm does not install optional peers, so an
+ * out-of-monorepo consumer's test run would die with
+ * `Cannot find package 'fast-check'`. The double's entry never touches fc.
  *
  * Importing this module REQUIRES `fast-check` in your devDependencies.
  * Test doubles with no fast-check requirement — `FaultyTransport` and its

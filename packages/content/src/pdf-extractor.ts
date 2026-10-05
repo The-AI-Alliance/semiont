@@ -1,5 +1,5 @@
 /**
- * PDF extractor — the 'pdf-text-layer' strategy (SMELTER-MEDIA-TYPES).
+ * PDF extractor — the 'pdf-text-layer' strategy.
  *
  * Wraps the shared `extractPdfTextLayer` reader (detection's other consumer)
  * and turns a PDF into text plus the geometry that indexes it, by class:
@@ -11,9 +11,8 @@
  *   E forms               → AcroForm values folded in, anchored to widgets
  *   F/G encrypted, corrupt → declined by name, from the parser error
  *
- * Everything runs inline. OCR was originally planned off the hot path, but
- * the Smelter's lanes are per-resource and concurrent, so a slow page delays
- * only its own resource — see SMELTER-MEDIA-TYPES Design §4 (revised).
+ * Everything runs inline, OCR included: the Smelter's lanes are per-resource
+ * and concurrent, so a slow page delays only its own resource.
  */
 
 import { isObject, type PdfTextItem } from '@semiont/core';
@@ -43,10 +42,9 @@ interface OcrPageResult {
  * inside pdf.js. Chosen to sit above real corpora (a few hundred pages of
  * scanned FOIA material runs tens of megabytes) while still being a ceiling.
  *
- * A starting point, not a measured optimum — revisit against a real corpus
- * (SMELTER-MEDIA-TYPES, live-testing follow-up). The per-image budget in
- * `pdf-page-images` guards the decoded side, which is where the unbounded
- * growth actually lives.
+ * A starting point, not a measured optimum — revisit against a real corpus.
+ * The per-image budget in `pdf-page-images` guards the decoded side, which is
+ * where the unbounded growth actually lives.
  */
 export const MAX_PDF_BYTES = 200 * 1024 * 1024;
 
@@ -83,9 +81,9 @@ async function ocrPages(
   content: Buffer,
   pageNumbers?: number[],
 ): Promise<OcrPageResult> {
-  // Pure recognition since PERSIST-ANCHORS P2b: the caching seam lives at
-  // `extract()`, which stores and serves the FINISHED outcome. This function
-  // neither consults nor writes the store — it reads pixels.
+  // Pure recognition: the caching seam lives at `extract()`, which stores
+  // and serves the FINISHED outcome. This function neither consults nor
+  // writes the store — it reads pixels.
   const imagesByPage = await extractPageImages(content, pageNumbers);
   if (imagesByPage.size === 0) return { text: '', items: [], confidences: [] };
 
@@ -214,17 +212,17 @@ export const pdfExtractor: TextExtractor = {
   // ('pdf-text-layer' → true) rather than here; this comment records the
   // behavior the census gate holds core's answer to.
   async extract(content, _mediaType, cache) {
-    // The seam (PERSIST-ANCHORS D1/P2b): consult the store for the FINISHED
-    // outcome before anything runs — byte gate, native parse, image decode
-    // and OCR are all part of the stored answer, classification included.
-    // The pre-P2b seam skipped only Tesseract, on the argument that the
-    // text-layer parse "has to run either way" — true on a miss, false on a
-    // hit. A hit is returned WHOLE, which is sound because the outcome is a
-    // pure function of the bytes, the key IS the bytes' identity (the
-    // caller's producer-supplied checksum — P1b/P1c), and STAMP covers the
-    // code that did the deriving. Declines are first-class hits: "we read
-    // this and there was nothing" costs a full recognition pass to discover,
-    // so the negative is precisely the result worth keeping.
+    // The seam: consult the store for the FINISHED outcome before anything
+    // runs — byte gate, native parse, image decode and OCR are all part of
+    // the stored answer, classification included. A seam at the OCR boundary
+    // would skip only Tesseract, and the text-layer parse "has to run either
+    // way" only on a miss, never on a hit. A hit is returned WHOLE, which is
+    // sound because the outcome is a pure function of the bytes, the key IS
+    // the bytes' identity (the checksum each caller, producer or reader,
+    // computes from the bytes it holds), and STAMP covers the code that did
+    // the deriving. Declines are first-class hits: "we read this and there
+    // was nothing" costs a full recognition pass to discover, so the negative
+    // is precisely the result worth keeping.
     const hit = await cache.store.read(cache.key);
     if (hit) return hit;
 
@@ -232,12 +230,10 @@ export const pdfExtractor: TextExtractor = {
 
     // Store failures stay silent — the store may make things faster, never
     // make them fail. The path that must insist on a write is the smelter's
-    // re-anchor publish (P0), not this seam.
+    // re-anchor publish, not this seam.
     //
     // The catch is HERE rather than inside the store: `write` throws, so this
-    // is where "best-effort" is chosen, by the seam that wants it. Previously
-    // the store swallowed for every caller and this comment described a
-    // property it did not own.
+    // is where "best-effort" is chosen, by the seam that wants it.
     try {
       if (outcome.kind === 'declined') await cache.store.write(cache.key, outcome);
       else if (outcome.items) await cache.store.write(cache.key, { ...outcome, items: outcome.items });
@@ -262,8 +258,8 @@ async function extractPdf(content: Buffer): Promise<ExtractedText | ExtractionDe
       return { kind: 'declined', declined: classifyPdfError(error) };
     }
     // Class B — no text operators anywhere: the characters exist only as
-    // pixels, so read them. 'no-text-layer' now means OCR genuinely came up
-    // empty, not that we never tried.
+    // pixels, so read them. 'no-text-layer' means OCR genuinely came up
+    // empty, not that it was never tried.
     if (!layer) {
       const ocr = await ocrPages(content);
       if (!ocr.text) return { kind: 'declined', declined: 'no-text-layer' };
@@ -288,7 +284,7 @@ async function extractPdf(content: Buffer): Promise<ExtractedText | ExtractionDe
 
     // A page with no text-showing operators is scanned: its characters exist
     // only as pixels. Report those pages rather than dropping them silently —
-    // the document embeds what it can now, and this is the list OCR works
+    // the document embeds what it can, and this is the list OCR works
     // from. 'C' (hybrid) replaces the plain-prose label only; a form or table
     // keeps its own class, and carries the gap just the same.
     const unreadPages = layer.pages.filter((page) => !page.hasTextLayer).map((page) => page.pageNumber);
@@ -296,10 +292,9 @@ async function extractPdf(content: Buffer): Promise<ExtractedText | ExtractionDe
 
     // Class C — read the scanned pages and append what OCR recovers. Appended
     // rather than spliced into reading order, so the items already computed
-    // for the native pages keep pointing at the right characters; OCR text
-    // carries no geometry of its own this phase (mapping pixel boxes back to
-    // page points needs the image's placement transform — #739's critical
-    // path, not embedding's).
+    // for the native pages keep pointing at the right characters. The OCR'd
+    // words carry page geometry of their own: `ocrPages` anchors each one
+    // through the matrix that placed its image.
     const recovered = await ocrPages(content, unreadPages);
     const readPages = new Set(recovered.items.map((item) => item.page));
     const stillUnread = unreadPages.filter((page) => !readPages.has(page));

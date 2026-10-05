@@ -4,8 +4,8 @@
  * Assembles resource context from view storage and content store.
  * Graph queries go through GraphContext — with one deliberate exception:
  * `listResources`' search path runs inside the graph engine, and its
- * semantic fallback (SEMANTIC-FALLBACK) reads the vector index. Both are
- * single-index reads; anything that FUSES sources belongs to the Matcher.
+ * semantic fallback reads the vector index. Both are single-index reads;
+ * anything that FUSES sources belongs to the Matcher.
  */
 
 import { decodeRepresentation, derivesTextOf, getResourceEntityTypes, getResourceId, textSourceOf } from '@semiont/core';
@@ -20,9 +20,9 @@ import { resourceWithViewGrace } from './graph-read-grace';
 
 import type { ResourceDescriptor } from '@semiont/core';
 
-/** What the listing paths read (EXTRACT-ARCHIVIST P1): lexical search in
- *  the graph, unsearched listings from views, the semantic fallback in the
- *  vector index — plus `resourceWithViewGrace`'s graph-first hydration. */
+/** What the listing paths read: lexical search in the graph, unsearched
+ *  listings from views, the semantic fallback in the vector index — plus
+ *  `resourceWithViewGrace`'s graph-first hydration. */
 export interface ListResourcesReads {
   views: Pick<ViewStorage, 'get' | 'getAll'>;
   graph: Pick<GraphDatabase, 'listResources' | 'getResource'>;
@@ -43,11 +43,11 @@ export interface ListResourcesResult {
   /** Size of the whole match set, not of the returned page. */
   total: number;
   /**
-   * Which kind of answer this is (SEMANTIC-FALLBACK): 'lexical' for the
-   * graph/view paths (including an honestly-empty page), 'semantic' when an
-   * empty lexical search was answered from the vector index. REQUIRED — an
-   * optional discriminator defaulting to lexical would let a missing value
-   * silently read as lexical.
+   * Which kind of answer this is: 'lexical' for the graph/view paths
+   * (including an honestly-empty page), 'semantic' when an empty lexical
+   * search was answered from the vector index. REQUIRED — an optional
+   * discriminator defaulting to lexical would let a missing value silently
+   * read as lexical.
    */
   matchKind: 'lexical' | 'semantic';
 }
@@ -55,11 +55,9 @@ export interface ListResourcesResult {
 /**
  * What the semantic fallback needs, passed as plain arguments (the
  * buildContext idiom — providers are parameters, not fields). Both the
- * provider and `kb.vectors` are mandatory (MANDATORY-EMBEDDING D0; the old
- * unconfigured branches — SEMANTIC-FALLBACK S3/S4 — were deliberately
- * retired with that change). What still degrades is FAILURE: a throwing
- * embed yields the empty lexical page (S5), because mandatory does not
- * mean always up.
+ * provider and `kb.vectors` are mandatory, so there is no unconfigured
+ * branch. What degrades is FAILURE: a throwing embed yields the empty
+ * lexical page (axiom S5), because mandatory does not mean always up.
  */
 export interface SemanticFallbackDeps {
   embeddingProvider: EmbeddingProvider;
@@ -114,10 +112,9 @@ export class ResourceContext {
     const search = rawSearch?.trim() || undefined;
 
     if (search) {
-      // Set-shaped graph read — eventually consistent BY DESIGN
-      // (graph-read-after-write-coverage.md, mechanism (d)): no key to
-      // await, human-timescale browse; a just-created resource appears in
-      // search after the Weaver's ~tens-of-ms apply.
+      // Set-shaped graph read — eventually consistent BY DESIGN: no key
+      // to await, human-timescale browse; a just-created resource appears
+      // in search after the Weaver's ~tens-of-ms apply.
       const lexical = await kb.graph.listResources({
         search,
         archived,
@@ -143,19 +140,19 @@ export class ResourceContext {
   }
 
   /**
-   * Answer an empty lexical search from the vector index (SEMANTIC-FALLBACK):
+   * Answer an empty lexical search from the vector index:
    * embed the query once, fold chunk hits per resource, floor them, and label
    * the answer 'semantic' so the UI can say "no title matches, but these
    * documents discuss it".
    *
-   * Degradation is the contract (axioms S3–S5): unconfigured vectors, an
-   * absent provider, or ANY failure inside the fallback yields the same
-   * empty page the caller already had, labelled 'lexical' — a broken
-   * fallback must never turn a working empty search into an error.
+   * Degradation is the contract (axiom S5): ANY failure inside the
+   * fallback yields the same empty page the caller already had, labelled
+   * 'lexical' — a broken fallback must never turn a working empty search
+   * into an error.
    *
    * The floor is applied HERE rather than passed as `scoreThreshold`, so the
    * below-floor hits exist to be counted — the debug line is the evidence
-   * decision #1's guessed 0.6 gets tuned from.
+   * the guessed 0.6 floor gets tuned from.
    */
   private static async semanticFallback(
     search: string,
@@ -170,7 +167,7 @@ export class ResourceContext {
       const hits = await kb.vectors.searchResources(embedding, { limit: limit * SEMANTIC_OVER_FETCH });
       const merged = mergeByResource(hits);
       const aboveFloor = merged.filter((h) => h.score >= semantic.semanticFloor);
-      // The tuning evidence (decision #1) — one line per fallback.
+      // The floor's tuning evidence — one line per fallback.
       semantic.logger.debug('[search FALLBACK] semantic score distribution', {
         chunkHits: hits.length,
         resources: merged.length,
@@ -212,10 +209,9 @@ export class ResourceContext {
       resources.map(async (doc) => {
         try {
           // The descriptors are already in hand, so this takes the descriptor
-          // half of the one resolution rather than re-reading the view
-          // (SINGLE-KB-MOUNT P3). Previews exist only for decode media: a
-          // binary row used to preview 200 chars of mojibake
-          // (bugs/gather-ships-raw-pdf-bytes P1 census).
+          // half of the one resolution rather than re-reading the view.
+          // Previews exist only for decode media: a binary row would
+          // preview 200 chars of mojibake.
           const source = representationSource(doc);
           if (source && !derivesTextOf(source.mediaType) && textSourceOf(source.mediaType) !== 'none') {
             const contentBuffer = await kb.content.retrieve(source.storageUri);
@@ -232,12 +228,12 @@ export class ResourceContext {
 
   /**
    * Get full content for a resource, as TEXT — the read-side dispatcher
-   * (bugs/gather-ships-raw-pdf-bytes P1): the media type decides where the
-   * text comes from, exactly as it decides who may derive it
-   * (SMELTER-OWNS-OCR).
+   * (utf-8-decoding a PDF's raw bytes would ship them to inference as
+   * text): the media type decides where the text comes from, exactly as
+   * it decides who may derive it.
    *
-   * - `decode`         — the bytes ARE the text: fetch (ResourceId-keyed,
-   *                      D-CONTENT b) and charset-decode.
+   * - `decode`         — the bytes ARE the text: fetch (ResourceId-keyed)
+   *                      and charset-decode.
    * - derived (`derivesTextOf`) — the text is the Smelter's artifact: the
    *                      anchored-text read answers, and its classified
    *                      absences (`not-yet`, `no-map`, `unknown`, a stored

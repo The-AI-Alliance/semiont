@@ -43,8 +43,6 @@
   font-size: var(--semiont-text-sm);
 }
 
-/* Panel Content */
-
 /* Panel Footer */
 .semiont-panel-footer {
   padding: 1rem;
@@ -181,8 +179,6 @@
   color: var(--semiont-text-tertiary);
 }
 
-/* Panel List (modifier class style - legacy) */
-
 /* Panel Item */
 .semiont-panel-item {
   padding: 0.75rem;
@@ -238,8 +234,6 @@
   margin: 1rem 0;
 }
 
-/* Panel Actions */
-
 /* Login form pulsing border for first-launch nudge */
 @keyframes semiont-pulse-border {
   0%, 100% { border-color: var(--semiont-color-primary-300); }
@@ -251,8 +245,6 @@
   border-radius: var(--semiont-panel-border-radius);
   animation: semiont-pulse-border 2s ease-in-out infinite;
 }
-
-/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
 
 /* A text-weight action inside panel body copy — "retry", "show more" — which
    must read as a control without taking a button's visual weight. */

@@ -12,16 +12,16 @@
  * Markdown renders once (cached by React.memo). Annotation changes only touch
  * the overlay spans — no markdown re-parse, no AST walk.
  *
- * The application step deliberately never uses live DOM Ranges. A previous
- * implementation resolved every annotation to a Range up front and then wrapped
- * them one `surroundContents` at a time. Each wrap is a DOM mutation, and DOM
- * mutations re-target every OTHER still-live Range: overlapping annotations —
- * the normal result of repeated annotation on the same passage — had their
+ * The application step deliberately never uses live DOM Ranges. Resolving
+ * every annotation to a Range up front and wrapping them one `surroundContents`
+ * at a time fails on overlap: each wrap is a DOM mutation, and DOM mutations
+ * re-target every OTHER still-live Range, so overlapping annotations — the
+ * normal result of repeated annotation on the same passage — have their
  * ranges collapsed or inflated by earlier wraps, painting whole paragraphs and
- * fragmenting text nodes so hard that 36 annotations produced 2,554 wraps and
- * a 10-second main-thread freeze (measured 2026-08-28, e2e specs 08/09).
- * Working in offset space against the pristine text-node index makes overlap
- * geometry exact, and costs one `replaceChild` per annotated text node.
+ * fragmenting text nodes so hard that 36 annotations produce 2,554 wraps and
+ * a 10-second main-thread freeze. Working in offset space against the pristine
+ * text-node index makes overlap geometry exact, and costs one `replaceChild`
+ * per annotated text node.
  */
 
 import { getTextPositionSelector, getTargetSelector, getExactText, getBodySource } from '@semiont/core';
@@ -158,7 +158,7 @@ export function resolveAnnotationSpans(
  * innermost, so `closest('[data-annotation-id]')` resolves to it (interactive
  * types — references, comments, tags — are listed after plain highlights).
  * An annotation cut by segment or node boundaries yields sibling spans
- * sharing its data-annotation-id, as the Range-based predecessor also did.
+ * sharing its data-annotation-id.
  *
  * Complexity: O(textNodes × spans) comparisons, O(annotated nodes) mutations.
  */

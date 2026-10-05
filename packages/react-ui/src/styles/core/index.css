@@ -33,11 +33,11 @@
 /* Forms - Form field wrappers and layout structures */
 @import './forms.css';
 
-/* Badges - Status and role indicators (Admin, Active, etc.) */
+/* Badges - A pulse keyframes rule */
 @import './badges.css';
 
 /* Tags - Content labels and metadata */
 @import './tags.css';
 
-/* Status indicators - Online/offline/busy dots */
+/* Indicators - Pulse keyframes and the session timer */
 @import './indicators.css';

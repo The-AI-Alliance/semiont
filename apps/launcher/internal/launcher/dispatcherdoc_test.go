@@ -154,7 +154,7 @@ func TestDispatcherDocumentIsWhereTheImageLooks(t *testing.T) {
 	}
 	for _, unread := range []string{"GATEWAY_HOST", "BACKEND_HOST", "NATS_HOST", "KEYCLOAK_HOST", ".semiontconfig"} {
 		if strings.Contains(args, unread) {
-			t.Errorf("the dispatcher is handed %s, which it no longer reads:\n%s", unread, args)
+			t.Errorf("the dispatcher is handed %s, which it does not read:\n%s", unread, args)
 		}
 	}
 

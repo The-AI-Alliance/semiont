@@ -1,12 +1,12 @@
 /**
- * Spec validators — GRAPH-ANNOTATION-CODEC P4 (D8 = generate).
+ * Spec validators, generated from the OpenAPI bundle.
  *
- * There is exactly one ajv-over-the-spec validator in the repo. It used to live
- * in `apps/gateway`, where `/bus/emit` could reach it and nothing else could;
- * make-meaning's P3 teeth need the same one, and a second setup would
- * hand-restate its semantics (3.0 `nullable` → draft-07, the
- * `example`/`discriminator` allowlist, `coerceTypes`, formats) — a drift in any
- * of them yields a teeth test that cannot bite.
+ * There is exactly one ajv-over-the-spec validator in the repo, in core where
+ * every package can reach it: make-meaning's test that a gathered context
+ * validates against the spec needs it, and a second setup would hand-restate
+ * its semantics (3.0 `nullable` → draft-07, the `example`/`discriminator`
+ * allowlist, `coerceTypes`, formats) — a drift in any of them yields a teeth
+ * test that cannot bite.
  *
  * Generated at build time over every component schema, so the validators and
  * the `components['schemas']` types come from one bundle and cannot disagree.
@@ -34,7 +34,7 @@ describe('generated spec validators', () => {
     expect(formatErrors(validate.errors)).toBe('root: unknown property password');
   });
 
-  it('validates a discriminated union member — the shape that broke /bus/emit', () => {
+  it('validates a discriminated union member', () => {
     // `discriminator` is allowlisted as annotation-only, so the sibling oneOf
     // stays the validation authority (OpenAPI's own semantics for it).
     expect(validators.AnnotationBody({
@@ -46,11 +46,10 @@ describe('generated spec validators', () => {
 
   it('validates the OpenAPI 3.0 nullable-$ref idiom (nullable beside allOf)', () => {
     // Several schemas use it. Left unconverted, Ajv refuses the schema outright
-    // — which is now a build failure rather than a 500 on first use.
+    // — a build failure rather than a 500 on first use.
     //
-    // Exemplar moved off `BrowseAnchoredTextResult` (SMELTER-OWNS-OCR P1): its
-    // `response` stopped being nullable, so it no longer exercises this idiom.
-    // `GetAnnotationResponse` still does, on two properties.
+    // `GetAnnotationResponse` is the exemplar: it uses the idiom on two
+    // properties.
     expect(validators.GetAnnotationResponse({
       annotation: { '@context': 'http://www.w3.org/ns/anno.jsonld', type: 'Annotation', id: 'ann-1', motivation: 'linking', created: '2026-01-01T00:00:00.000Z', target: { type: 'SpecificResource', source: 'res-1' } },
       resource: null,
@@ -60,10 +59,10 @@ describe('generated spec validators', () => {
   });
 
   it('the anchored-text reply is a discriminated union with NO null member', () => {
-    // SMELTER-OWNS-OCR P1: absence is named, so a reader can tell "not yet"
-    // from "never". Ajv is the check that the widened `oneOf` actually admits
-    // the new members and rejects the old null — the generated TS types would
-    // agree with a wrong schema, since both derive from it.
+    // Absence is named, so a reader can tell "not yet" from "never". Ajv is
+    // the check that the `oneOf` actually admits the absence members and
+    // rejects null — the generated TS types would agree with a wrong
+    // schema, since both derive from it.
     expect(validators.BrowseAnchoredTextResult({
       correlationId: 'c-1',
       response: { kind: 'declined', declined: 'no-text-layer' },

@@ -1,13 +1,12 @@
 /**
- * RED (BUS-ROUTING-DECLARED P2, D6): the bus carries FRAMES, and offers three
- * verbs rather than a Subject.
+ * The bus carries FRAMES, and offers three verbs rather than a Subject.
  *
- * `get(channel)` handed out a raw `Subject<EventMap[K]>`. Two things followed
- * from that. Routing metadata had nowhere to live except inside the domain
- * payload, which is why `correlationId` was declared in 71 payload schemas and
- * echoed by hand in nine handlers (zero today). And nothing distinguished publishing from
- * observing: every holder could write, read and pipe the same object, so the
- * conflation stayed invisible.
+ * Handing out a raw `Subject<EventMap[K]>` has two consequences. Routing
+ * metadata has nowhere to live except inside the domain payload, so
+ * `correlationId` is declared in payload schemas and echoed by hand in
+ * handlers. And nothing distinguishes publishing from observing: every
+ * holder can write, read and pipe the same object, so the conflation stays
+ * invisible.
  *
  * Three verbs, each answering one question:
  *   emit(channel, payload, envelope?)  -- the only write path
@@ -77,15 +76,15 @@ describe('EventBus carries frames and offers verbs', () => {
 
   test('no Subject escapes: there is one write path, and it is emit', () => {
     const bus = new EventBus();
-    // `get` is deleted, not retyped. A caller holding a Subject could write,
-    // read and pipe the same object, which is what let the payload/envelope
-    // conflation stay invisible.
+    // There is no `get`. A caller holding a Subject could write, read and
+    // pipe the same object, which keeps a payload/envelope conflation
+    // invisible.
     expect((bus as unknown as Record<string, unknown>).get).toBeUndefined();
     const observable = bus.on(CH) as unknown as Record<string, unknown>;
     expect(observable.next, 'on() must not hand back a writable surface').toBeUndefined();
   });
 
-  describe('scope rides the envelope too, and isolation survives the move', () => {
+  describe('scope rides the envelope too, and scopes stay isolated', () => {
     test('a scoped subscriber sees its own scope only', () => {
       const bus = new EventBus();
       const scoped: unknown[] = [];
@@ -99,7 +98,7 @@ describe('EventBus carries frames and offers verbs', () => {
     });
 
     test('an UNSCOPED subscriber does not see scoped emissions', () => {
-      // Separate subjects gave this for free; a filtered view must state it.
+      // Separate subjects would give this for free; a filtered view must state it.
       const bus = new EventBus();
       const unscoped: unknown[] = [];
       bus.on(CH).subscribe((p) => unscoped.push(p));
@@ -111,11 +110,10 @@ describe('EventBus carries frames and offers verbs', () => {
     });
 
     test('the scope is ON the frame, not in the channel name', () => {
-      // As first written this asserted the GLOBAL `frames()` could see a
-      // scoped frame and read its scope — which contradicts the isolation
-      // test above. It cannot be both. Isolation wins: the global view is
-      // global. What the field buys is that a scoped reader sees the scope
-      // as data instead of having to parse it back out of a channel key.
+      // The GLOBAL `frames()` does not see a scoped frame — that would
+      // contradict the isolation test above; the global view is global.
+      // What the field buys is that a scoped reader sees the scope as data
+      // instead of having to parse it back out of a channel key.
       const bus = new EventBus();
       const frames: Array<{ scope?: string }> = [];
       bus.scope(resourceId('res-1')).frames(CH).subscribe((f) => frames.push(f));

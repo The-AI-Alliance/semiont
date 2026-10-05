@@ -5,8 +5,7 @@
  * and where every item points into it. Both producers must use it: the server
  * extractor (@semiont/content, whole document) and the browser canvas
  * (react-ui, one page at drag time). If they diverged, `textUnder` would return
- * a different quote for the same rectangle depending on which side captured it
- * — the exact failure class .plans/PDF-MANUAL-ANNOTATION-TEXT.md exists to fix.
+ * a different quote for the same rectangle depending on which side captured it.
  *
  * Input is structural, not pdf.js's `TextItem`: core takes no dependency on
  * pdfjs-dist. Each producer filters marked-content items at its own boundary

@@ -55,10 +55,10 @@ export interface ChannelAttrs {
    * other and the generator refuses — there is no default.
    *
    * The gateway reads this to decide when the record learns a person's name:
-   * a `_userId` stamp is NOT the test, because a read carries one too
-   * (PERSON-PROFILE D3). Someone who signs in and only browses is never
-   * named, and the profile publish rate is the WRITE rate rather than the
-   * emit rate — orders of magnitude apart.
+   * a `_userId` stamp is NOT the test, because a read carries one too.
+   * Someone who signs in and only browses is never named, and the profile
+   * publish rate is the WRITE rate rather than the emit rate — orders of
+   * magnitude apart.
    */
   readonly writes?: boolean;
   /** Absent exactly when the channel never crosses the wire (`in-process`). */

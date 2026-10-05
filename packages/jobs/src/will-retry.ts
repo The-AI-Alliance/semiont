@@ -3,8 +3,8 @@ import type { JobMetadata } from './types';
 /**
  * Will this failure be re-queued for another attempt?
  *
- * ONE decision site, deliberately (JOB-RESTART-SAFETY P5). Two places need
- * the answer and they must never disagree:
+ * ONE decision site, deliberately. Two places need the answer and they must
+ * never disagree:
  *
  *  - the dispatcher's queue acts on it — re-queue or write the terminal
  *    record (apps/dispatcher/handlers, `will_retry_after`);

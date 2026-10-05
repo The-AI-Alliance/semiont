@@ -42,8 +42,7 @@ import type { TagSchema } from '@semiont/core';
  * chunk boundary (the count advances) AND periodically while one inference
  * call is in flight (the count repeats — liveness, not progress). Progress is
  * the worker's liveness heartbeat AND the client's inter-emission timeout
- * signal, so a silent single-chunk run kills a healthy job
- * (DETECTION-HEARTBEAT).
+ * signal, so a silent single-chunk run kills a healthy job.
  */
 async function detectInChunks<T>(
   client: InferenceClient,
@@ -53,6 +52,10 @@ async function detectInChunks<T>(
   elementSchema: ElementSchema,
   parse: (items: unknown[]) => T[],
   onActivity?: (consumedChars: number, totalChars: number) => void,
+  /** Where an earlier attempt left this unit: a partway unit resumes at its
+   * recorded offset instead of the top. Before the callback below, which
+   * stays last. */
+  resume?: UnitCursor,
   /**
    * This chunk's parsed matches, awaited before the loop continues: the
    * caller commits them, and the loop must not run ahead of durability.
@@ -61,11 +64,8 @@ async function detectInChunks<T>(
    *
    * `cursor` is where the run stands once this chunk is committed — handed over
    * WITH the results so a caller cannot record a position it has not made
-   * durable (CHUNK-GRAIN-RESUME P2).
+   * durable.
    */
-  /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3).
-   * Before the callback below, which stays last. */
-  resume?: UnitCursor,
   onChunkResults?: (parsed: T[], cursor: ChunkCursor) => Promise<void>,
 ): Promise<T[]> {
   const limits = await client.limits();
@@ -126,8 +126,7 @@ export class AnnotationDetection {
     language?: string,
     sourceLanguage?: string,
     onActivity?: (consumedChars: number, totalChars: number) => void,
-    /** This chunk's matches, as the chunk completes. */
-    /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3). */
+    /** Where an earlier attempt left this unit. */
     resume?: UnitCursor,
     /** This chunk's matches, as the chunk completes. Kept LAST. */
     onChunkResults?: (matches: CommentMatch[], cursor: ChunkCursor) => Promise<void>,
@@ -157,8 +156,7 @@ export class AnnotationDetection {
     density?: number,
     sourceLanguage?: string,
     onActivity?: (consumedChars: number, totalChars: number) => void,
-    /** This chunk's matches, as the chunk completes. */
-    /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3). */
+    /** Where an earlier attempt left this unit. */
     resume?: UnitCursor,
     /** This chunk's matches, as the chunk completes. Kept LAST. */
     onChunkResults?: (matches: HighlightMatch[], cursor: ChunkCursor) => Promise<void>,
@@ -190,8 +188,7 @@ export class AnnotationDetection {
     language?: string,
     sourceLanguage?: string,
     onActivity?: (consumedChars: number, totalChars: number) => void,
-    /** This chunk's matches, as the chunk completes. */
-    /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3). */
+    /** Where an earlier attempt left this unit. */
     resume?: UnitCursor,
     /** This chunk's matches, as the chunk completes. Kept LAST. */
     onChunkResults?: (matches: AssessmentMatch[], cursor: ChunkCursor) => Promise<void>,
@@ -226,14 +223,14 @@ export class AnnotationDetection {
     category: string,
     sourceLanguage?: string,
     onActivity?: (consumedChars: number, totalChars: number) => void,
-    /**
-     * This chunk's matches, ANCHORED before they leave: `parse` here yields
-     * raw tags, so this path runs `validateTagOffsets` per chunk — a per-item
-     * anchor against the full document, so partitioning changes nothing.
-     */
-    /** Where an earlier attempt left this unit (CHUNK-GRAIN-RESUME P3). */
+    /** Where an earlier attempt left this unit. */
     resume?: UnitCursor,
-    /** This chunk's matches, as the chunk completes. Kept LAST. */
+    /**
+     * This chunk's matches, as the chunk completes, ANCHORED before they
+     * leave: `parse` here yields raw tags, so this path runs
+     * `validateTagOffsets` per chunk — a per-item anchor against the full
+     * document, so partitioning changes nothing. Kept LAST.
+     */
     onChunkResults?: (matches: TagMatch[], cursor: ChunkCursor) => Promise<void>,
   ): Promise<TagMatch[]> {
     const categoryInfo = schema.tags.find((t) => t.name === category);

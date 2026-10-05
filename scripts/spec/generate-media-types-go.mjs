@@ -6,7 +6,7 @@
 //   packages/sdk-go/mediatypes/registry_gen.go   the rows, in the registry's
 //                                                order, and its aliases
 //
-// Go reads the registry for one thing today: the media type a file's
+// Go reads the registry for one thing: the media type a file's
 // extension names (`mediatypes.ForExtension`). So a row carries its media
 // type and extension, and nothing no Go code reads.
 //

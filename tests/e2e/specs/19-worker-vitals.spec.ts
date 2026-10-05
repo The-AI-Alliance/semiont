@@ -1,21 +1,19 @@
 import { test, expect } from '@playwright/test';
-import { SemiontClient } from '@semiont/sdk';
-import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
+import { GATEWAY_URL } from '../playwright.config';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
- * Smoke test — WORKER-LIVENESS.md P1/T0: the worker's `/health` vitals
- * against a live stack. Pure **HTTP + SDK round-trip** (no browser), per
- * the spec-15/18 pattern.
+ * Smoke test: the worker's `/health` vitals against a live stack. Pure
+ * **HTTP + SDK round-trip** (no browser), per the spec-15/18 pattern.
  *
- * Why this exists: the original worker hang (G2) was *invisible* because
- * `/health` served a static `{status: 'ok', agents: N}` regardless of
- * whether the claim loop was moving. P1 enriched the payload with
- * per-agent vitals so a stalled worker is visible, not just alive. This
+ * Why this exists: a `/health` that serves a static
+ * `{status: 'ok', agents: N}` regardless of whether the claim loop is
+ * moving makes a hung worker *invisible*. The payload carries per-agent
+ * vitals so a stalled worker is visible, not just alive. This
  * spec pins that payload as a cross-process **contract** — the consumers
  * (image HEALTHCHECK, compose `service_healthy`, `semiont start` waits, and any
  * operator's `curl :24100/health`) live outside the jobs package, so unit
- * tests on `buildHealthPayload` can't catch a regression in the
+ * tests on `buildHealthPayload` can't catch a break in the
  * worker-main shell wiring that serves it. The payload shape is
  * deliberately re-declared here rather than imported from
  * `@semiont/jobs`: importing the producer's type would make the shape
@@ -24,8 +22,8 @@ import { signInSession } from '../fixtures/sdk-session';
  * What it pins:
  *
  * 1. **Freshness gate.** `workers[]` must be present AT ALL. A stack
- *    predating WORKER-LIVENESS P1 (semiont-worker < 0.5.13) serves the
- *    old static body — an environment verdict ("rebuild the stack"), not
+ *    predating the vitals (semiont-worker < 0.5.13) serves a
+ *    static body — an environment verdict ("rebuild the stack"), not
  *    a feature verdict, and the distinctive error below says so.
  * 2. **Payload contract.** `status: 'ok'`, `agents` counts `workers[]`,
  *    and every entry carries identity (`provider`/`model`/`did`/
@@ -34,7 +32,7 @@ import { signInSession } from '../fixtures/sdk-session';
  *    `lastActivityAt` as ISO timestamps or honest nulls, `activeJob`,
  *    `jobsCompleted`). No secret material (the vitals are built beside
  *    the resolved inference config, which holds API keys).
- * 3. **The lifecycle (T0's short half).** One real assist advances the
+ * 3. **The lifecycle.** One real assist advances the
  *    serving agent's vitals: `jobsCompleted` increments, `lastClaimAt`/
  *    `lastFinishedAt` populate with claim ≤ finish, and `activeJob`
  *    returns to null. Timestamp comparisons stay *within* the worker's
@@ -45,7 +43,7 @@ import { signInSession } from '../fixtures/sdk-session';
  *
  * Deliberately NOT pinned here: which agent serves which job type
  * (spec 18 owns the routing function), and the stall watchdog / restart
- * chain (P3/P4 — killing a worker mid-job is not a smoke test).
+ * chain (killing a worker mid-job is not a smoke test).
  *
  * Self-seeding: creates its own resource for the assist pass. Slow: the
  * lifecycle leg waits on a real LLM highlight pass (spec-06/11 class).
@@ -117,9 +115,8 @@ test.describe('worker vitals (/health)', () => {
     if (!Array.isArray(baseline.workers)) {
       throw new Error(
         `STACK FRESHNESS GATE: ${WORKER_HEALTH_URL} has no workers[] — the running ` +
-          `semiont-worker predates WORKER-LIVENESS P1 (< 0.5.13) and still serves the ` +
-          `static {status, agents} body. Rebuild/redeploy before judging vitals. ` +
-          `(WORKER-LIVENESS.md P1 gate.)`,
+          `semiont-worker predates the /health vitals (< 0.5.13) and still serves the ` +
+          `static {status, agents} body. Rebuild/redeploy before judging vitals.`,
       );
     }
 

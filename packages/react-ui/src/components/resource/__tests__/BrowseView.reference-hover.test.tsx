@@ -1,5 +1,5 @@
 /**
- * EMBEDDABLE-VIEWER-COMPLETION Phase 2b — `onReferenceHover`.
+ * `onReferenceHover` — the host's reference-hover callback.
  *
  * Hovering a RESOLVED reference span fires `onReferenceHover({annotation,
  * referent, anchorRect})` once — after the viewer's dwell AND the referent's
@@ -7,7 +7,6 @@
  * before the descriptor resolves cancels (no fire, and no stray null); leaving
  * after a fire sends `null`; the beckon:hover panel-highlight emit is untouched.
  *
- * Started RED (no `onReferenceHover` prop) and GREEN once Phase 2b lands.
  * Test mechanics mirror BrowseView.test.tsx: mock target with `closest()`,
  * fake timers for the dwell, a BehaviorSubject standing in for the cached
  * `browse.resource` observable so the test controls resolve timing.
@@ -87,7 +86,7 @@ function setup(onReferenceHover?: (h: unknown) => void) {
   return { content, referent$, beckonHover, browseResource, hoverTarget };
 }
 
-describe('BrowseView — onReferenceHover (Phase 2b)', () => {
+describe('BrowseView — onReferenceHover', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 

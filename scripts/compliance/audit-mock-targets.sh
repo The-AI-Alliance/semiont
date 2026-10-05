@@ -9,17 +9,13 @@ set -euo pipefail
 # there looking deliberate, and the real module loads anyway. Nothing fails, so
 # nothing tells you.
 #
-# It has happened twice, in both directions:
+# It happens in two directions:
 #
-#   - Modules deleted out from under their mocks. `../db`,
-#     `../../validation/schemas` and `../../config` were mocked in three
-#     gateway tests long after the gateway stopped having them (removed
-#     2026-09-19). Each still implied a dependency this process had dropped.
-#   - A mock addressed from the wrong directory. JsonLdPanel's test mocked
-#     `../../../lib/codemirror-json-theme`, copying the specifier from the
-#     COMPONENT — but a vi.mock path resolves against the file that writes it,
-#     and the test sits one level deeper in `__tests__/`. It pointed at
-#     `src/components/lib/`, which has never existed.
+#   - A module deleted out from under its mock. The mock goes on implying a
+#     dependency the process has dropped.
+#   - A mock addressed from the wrong directory: a specifier copied from the
+#     COMPONENT into its test — but a vi.mock path resolves against the file
+#     that writes it, and a test in `__tests__/` sits one level deeper.
 #
 # Scope: RELATIVE specifiers only. A bare specifier ('@semiont/make-meaning',
 # 'node:fs') resolves through node_modules or tsconfig paths — a different

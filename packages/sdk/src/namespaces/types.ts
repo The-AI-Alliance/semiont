@@ -2,21 +2,24 @@
  * Verb Namespace Interfaces
  *
  * These interfaces define the public API of `@semiont/sdk`, organized by
- * the 7 domain flows (Browse, Mark, Bind, Gather, Match, Yield, Beckon)
- * plus infrastructure namespaces (Frame, Job, Auth, System).
+ * the eight flows (Browse, Mark, Bind, Gather, Match, Yield, Beckon, Frame)
+ * plus the `job`, `auth` and `system` namespaces.
  *
- * Each namespace maps 1:1 to a flow. Each flow maps to a clear actor on
- * the gateway. The frontend calls `client.mark.annotation()` and the
- * client handles HTTP, auth, SSE, and caching internally.
+ * Each flow has one namespace. The frontend calls
+ * `client.mark.annotation()` and the client handles HTTP, auth, SSE, and
+ * caching internally.
  *
  * Return type conventions:
  * - Browse live queries → `CacheObservable<T>` (bus-driven, cached;
  *   subscribe yields `CacheState<T>`, `.fresh()` is the one-shot read)
  * - Browse one-shot reads → `Promise<T>` (fetch once, no cache)
- * - Commands (mark, bind, yield.resource) → `Promise<T>` (atomic ops)
- * - Long-running ops (gather, match, yield.fromContext, mark.assist)
- *   → `StreamObservable<T>` (progress + result; subscribe yields every
- *   emit, await yields the last one)
+ * - Commands (mark, bind, frame) and gather.resource → `Promise<T>`
+ *   (resolve on the reply, reject on failure)
+ * - Upload (yield.resource) → `UploadObservable` (the upload's phases;
+ *   await yields `{ resourceId }`)
+ * - Long-running ops (gather.annotation, match.search, yield.fromContext,
+ *   mark.assist) → `StreamObservable<T>` (subscribe yields every emit,
+ *   await yields the last one)
  * - Ephemeral signals, local (beckon.hover/sparkle, browse.click, …) → `void`
  * - Wire drives at other participants (beckon.attention/click/openResource/
  *   sparkleAll) → `Promise<number | undefined>`: the /bus/emit subscriber
@@ -115,11 +118,11 @@ export interface GenerationOptions {
   temperature?: number;
   maxTokens?: number;
   /**
-   * Per-call override for the generation stall guard's deadline
-   * (FLOW-LIFECYCLE-CONVERGENCE D1a). CLIENT-only: stripped before the wire.
-   * When unset, the deadline derives from `maxTokens` — see
-   * `deriveStallDeadlineMs`. On firing, the SDK cancels the job
-   * (`job:cancel-requested`) and errors with `GenerationStallError`.
+   * Per-call override for the generation stall guard's deadline.
+   * CLIENT-only: stripped before the wire. When unset, the deadline derives
+   * from `maxTokens` — see `deriveStallDeadlineMs`. On firing, the SDK
+   * cancels the job (`job:cancel-requested`) and errors with
+   * `GenerationStallError`.
    */
   stallDeadlineMs?: number;
   /**
@@ -189,18 +192,13 @@ export type AnnotationHistoryResponse = components['schemas']['GetAnnotationHist
 export type User = components['schemas']['UserResponse'];
 
 // ── Progress types for long-running Observable operations ───────────────────
+//
+// `gather.annotation()` emits exactly one value: the assembled context. No
+// gather progress channel exists, so it has no progress type.
 
 /**
- * `gather.annotation()` emits exactly one value: the assembled context. It was
- * `GatherProgress | GatherAnnotationComplete` while a progress channel was
- * declared — that channel was removed 2026-09-17, having never been emitted by
- * anything, so the union had one inhabitant and the name promised a stream
- * that did not exist.
- */
-
-/**
- * Progress emitted by match.search() Observable.
- * Emits the final MatchSearchResult (no intermediate progress events currently).
+ * What the match.search() Observable emits: the final MatchSearchResult.
+ * There are no intermediate progress events.
  */
 export type MatchSearchProgress = MatchSearchResult;
 
@@ -221,10 +219,10 @@ export type MarkAssistProgress = JobProgress;
 export type MarkAssistEvent =
   | { kind: 'progress'; data: MarkAssistProgress }
   /**
-   * A failure the queue will retry (JOB-RESTART-SAFETY P5). The run is NOT
+   * A failure the queue will retry. The run is NOT
    * over: a fresh attempt follows and this stream stays open until a terminal
-   * arrives. A TERMINAL failure is not this event — it errors the stream, as
-   * it always has. Render it as a setback, not an ending.
+   * arrives. A TERMINAL failure is not this event — it errors the stream.
+   * Render it as a setback, not an ending.
    */
   | { kind: 'failed'; data: components['schemas']['JobFailCommand'] }
   | { kind: 'complete'; data: components['schemas']['JobCompleteCommand'] };
@@ -243,6 +241,18 @@ export type YieldGenerationEvent =
 // ── Namespace interfaces ────────────────────────────────────────────────────
 
 /**
+ * What `browse.resources()` emits: the full list-reply envelope, not just the
+ * page of descriptors. `matchKind` labels how the answer was produced —
+ * `'lexical'` (title/metadata matching) or `'semantic'` (the empty-lexical
+ * vector fallback) — and it arrives WITH the resources it describes as one
+ * value, so a consumer can never pair the label with a different query's
+ * list (semantic fallback axiom S10).
+ */
+export type ResourceList = Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {
+  resources: ResourceDescriptor[];
+};
+
+/**
  * Browse — reads from materialized views
  *
  * Live queries return Observables that emit initial state and re-emit
@@ -251,19 +261,6 @@ export type YieldGenerationEvent =
  * Gateway actor: Browser (context classes)
  * Event prefix: browse:*
  */
-
-/**
- * What `browse.resources()` emits: the full list-reply envelope, not just the
- * page of descriptors. `matchKind` labels how the answer was produced —
- * `'lexical'` (title/metadata matching) or `'semantic'` (the empty-lexical
- * vector fallback) — and it arrives WITH the resources it describes as one
- * value, so a consumer can never pair the label with a different query's
- * list (SEMANTIC-FALLBACK S10).
- */
-export type ResourceList = Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {
-  resources: ResourceDescriptor[];
-};
-
 export interface BrowseNamespace {
   // Live queries (Observable — bus gateway driven, cached in BehaviorSubject)
   resource(resourceId: ResourceId): CacheObservable<ResourceDescriptor>;
@@ -274,10 +271,10 @@ export interface BrowseNamespace {
   tagSchemas(): CacheObservable<TagSchema[]>;
   /**
    * The KB's collaborator directory — declared software agents (with
-   * `servesJobTypes` capabilities) plus, when Persons land, its members —
+   * `servesJobTypes` capabilities), not its members (Persons) —
    * with each model's limits as the services holding its inference
    * credentials report them. KB-wide singleton; cached for the client
-   * lifetime, refreshed on `bus:resume-gap`.
+   * lifetime, asked again when the stream reopens after a drop.
    */
   agents(): CacheObservable<Collaborator[]>;
   referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]>;
@@ -286,12 +283,9 @@ export interface BrowseNamespace {
   // One-shot reads (Promise — no caching, no live update)
   resourceContent(resourceId: ResourceId): Promise<string>;
   resourceGraph(resourceId: ResourceId): Promise<GetResourceResponse>;
-  /** The resource's coordinate map, or null when none has been derived. */
-  /** Never null — absence is named, so a caller can tell "not yet" from
-   *  "never" (SMELTER-OWNS-OCR P1). */
+  /** The resource's coordinate map. Never null — absence is named, so a
+   *  caller can tell "not yet" from "never". */
   resourceAnchoredText(resourceId: ResourceId): Promise<AnchoredTextAnswer>;
-  /** Checksum-addressed consult of the same store — barrier-free, read-only
-   *  (ANCHORED-TEXT-TO-SMELTER D2). `null` means "extract it yourself". */
   resourceRepresentation(resourceId: ResourceId): Promise<{ data: ArrayBuffer; contentType: string }>;
   resourceRepresentationStream(resourceId: ResourceId): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;
   resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]>;
@@ -317,18 +311,16 @@ export interface BrowseNamespace {
  * Frame — schema-layer flow (the eighth flow).
  *
  * Frame operates on the KB's conceptual vocabulary — what *kinds* of
- * things exist (entity types) and, in the future, what taxonomies are
- * recognized (tag schemas), what relations are typed (predicate types),
- * and how schemas are imported (ontology I/O). The other seven flows
- * (yield, mark, match, bind, gather, browse, beckon) operate on
- * content; Frame operates on the schema layer that content is expressed
- * in.
+ * things exist (entity types) and what taxonomies are recognized (tag
+ * schemas). Typed relations (predicate types) and schema import (ontology
+ * I/O) are not part of it. The other seven flows (yield, mark, match,
+ * bind, gather, browse, beckon) operate on content; Frame operates on the
+ * schema layer that content is expressed in.
  *
- * MVP scope is small: entity-type vocabulary writes only. Live reads of
- * the entity-type vocabulary stay on Browse (`browse.entityTypes()` is
- * a `CacheObservable<string[]>` consumed by 8+ call sites). Frame owns
- * writes; Browse owns reads — the same asymmetry that already holds for
- * resources and annotations.
+ * Vocabulary writes only. Live reads of the vocabulary are on Browse
+ * (`browse.entityTypes()`, `browse.tagSchemas()`). Frame owns writes;
+ * Browse owns reads — the same asymmetry that holds for resources and
+ * annotations.
  *
  * Gateway actor: Stower
  * Event prefix: frame:*
@@ -355,8 +347,8 @@ export interface FrameNamespace {
 /**
  * Mark — annotation CRUD, AI assist, resource lifecycle
  *
- * Commands return Promises that resolve on HTTP acceptance (202).
- * Results appear on browse Observables via bus gateway.
+ * Commands return Promises that resolve on the confirming reply and
+ * reject on failure. Results appear on browse Observables via bus gateway.
  * assist() returns an Observable for long-running progress.
  *
  * Gateway actor: Stower
@@ -396,10 +388,10 @@ export interface MarkNamespace {
   /** Fire-and-forget variant of `assist` — mark-state-unit orchestrates the call and its progress Observable. */
   requestAssist(motivation: Motivation, options: MarkAssistOptions, correlationId?: string): void;
 
-  /** Submit the currently pending annotation with its selector and optional body. */
+  /** Submit the pending annotation with its selector and optional body. */
   submit(input: components['schemas']['MarkSubmitEvent']): void;
 
-  /** Cancel the currently pending annotation (if any). */
+  /** Cancel the pending annotation (if any). */
   cancelPending(): void;
 
   /** Dismiss the in-progress AI-assist widget. */
@@ -416,9 +408,9 @@ export interface MarkNamespace {
 /**
  * Bind — reference linking
  *
- * The simplest namespace. One method. The result (updated annotation
- * with resolved reference) arrives on browse.annotations() via the
- * enriched mark:body-updated event.
+ * One command, `body()`, and two UI signals. The result (updated
+ * annotation with resolved reference) arrives on browse.annotations() via
+ * the enriched mark:body-updated event.
  *
  * Gateway actor: Stower (via mark:update-body)
  * Event prefix: mark:body-updated (shares mark event pipeline)
@@ -436,8 +428,9 @@ export interface BindNamespace {
 /**
  * Gather — context assembly
  *
- * Long-running (LLM calls + graph traversal). Returns Observables
- * that emit progress then the gathered context.
+ * Long-running (LLM calls + graph traversal). `annotation()` returns an
+ * Observable that emits its result once and completes; `resource()`
+ * returns a Promise of the gathered context.
  *
  * Gateway actor: Gatherer
  * Event prefix: gather:*
@@ -466,8 +459,8 @@ export interface GatherNamespace {
 /**
  * Match — search and ranking
  *
- * Long-running (semantic search, optional LLM scoring). Returns
- * Observable with progress then results.
+ * Long-running (semantic search, optional LLM scoring). `search()`
+ * returns an Observable that emits the results once and completes.
  *
  * Gateway actor: Matcher
  * Event prefix: match:*
@@ -487,7 +480,7 @@ export interface MatchNamespace {
 /**
  * Yield — resource creation
  *
- * resource() is synchronous file upload (Promise).
+ * resource() is file upload (an awaitable Observable of its phases).
  * fromContext() is long-running LLM generation (Observable).
  *
  * Gateway actor: Stower + generation worker
@@ -496,8 +489,7 @@ export interface MatchNamespace {
 export interface YieldNamespace {
   // File upload. Returns an `UploadObservable` — subscribers see the full
   // `UploadProgress` lifecycle (started → finished); awaiting resolves to
-  // `{ resourceId }` directly (the awaited shape is unchanged from before
-  // Phase 18 — `await client.yield.resource(...)` keeps working as-is).
+  // `{ resourceId }` directly.
   resource(data: CreateResourceInput): UploadObservable;
 
   // Grounded generation (long-running, LLM-based — yields progress, then a
@@ -523,11 +515,11 @@ export interface YieldNamespace {
 /**
  * Beckon — attention coordination
  *
- * Fire-and-forget. Ephemeral presence signal delivered via the
- * attention-stream to other participants.
+ * Ephemeral signals; nothing is recorded. The gateway relays a wire drive
+ * to every connected client; a local signal stays on this client's bus.
  *
- * Gateway actor: (frontend relay via attention-stream)
- * Event prefix: beckon:*
+ * Gateway actor: none (the gateway relays the frame)
+ * Event prefix: beckon:* (and browse:click, browse:resource-open)
  */
 export interface BeckonNamespace {
   // Wire drives — beckon OTHER participants (guided-tour moves). Each
@@ -561,7 +553,7 @@ export interface JobNamespace {
   /** Cancel ONE job by id; resolves with the count the queue acted on. */
   cancel(jobId: JobId): Promise<number>;
 
-  /** UI signal: cancel all active jobs of a given type (e.g. "annotation"). */
+  /** UI signal, local bus only: a viewer asks for the jobs of a type (e.g. "annotation") to be cancelled. `cancelByType` is the call that cancels. */
   cancelRequest(jobType: 'annotation' | 'generation'): void;
 }
 

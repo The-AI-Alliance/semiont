@@ -56,7 +56,7 @@ export function CollapsibleResourceNavigation({
   const t = useTranslations('CollapsibleResourceNavigation');
   const semiont = useSemiont();
 
-  // Use translations from context, with fallback to props for backward compatibility
+  // A translation passed as a prop overrides the one from context
   const mergedTranslations = {
     title: translations?.title || t('title'),
     collapseSidebar: translations?.collapseSidebar || t('collapseSidebar'),

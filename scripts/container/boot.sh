@@ -1,7 +1,7 @@
 #!/bin/sh
-# boot.sh — the shared image entrypoint, exec'd by tini as PID 1
-# (ORCHESTRATOR-NATIVE-IMAGES D1/D3). The image CMD arrives as "$@" — the
-# single statement of what this image runs, in both modes (D4).
+# boot.sh — the shared image entrypoint, exec'd by tini as PID 1, so orphaned
+# processes are reaped in both modes. The image CMD arrives as "$@" — the
+# single statement of what this image runs, in both modes.
 #
 # SEMIONT_SUPERVISE (set by the launcher, for local placement only) chooses
 # per RUN: non-empty wraps the command in the shared supervisor; unset runs

@@ -6,9 +6,9 @@ package verbs
 // renews it. A verb whose request the gateway answers with 401 must renew the
 // session at the issuer, retry ONCE under the renewed token, and save the
 // rotation — and must send the user back to `semiont login` only when that
-// renewal itself fails. Observed before this existed: a five-minute access
-// token, and a `browse` at minute six printed "the session was rejected" with
-// no refresh attempted; only `yield --upload` carried the retry.
+// renewal itself fails. Without that, a five-minute access token means a
+// `browse` at minute six prints "the session was rejected" with no refresh
+// attempted.
 //
 // In process, through the transport seam: the fakes are keyed by TOKEN, so
 // which token reached the wire, and in what order, is the assertion. The

@@ -8,11 +8,10 @@ import (
 )
 
 // The creation-log window renders the codespace's creation log, which is
-// full of multi-byte runes and CR-rewritten progress lines (compose's, on the
-// first live run). These pin the two
-// display bugs the first live run surfaced (LAUNCHER session 2026-07-23):
-// byte-sliced truncation broke a rune in half (─────? …), and \n-only
-// splitting stitched CR fragments into mega-lines.
+// full of multi-byte runes and CR-rewritten progress lines (compose's). These
+// pin its two display rules: truncation cuts on a rune boundary, because a
+// byte slice breaks a rune in half (─────? …), and lines split on CR as well
+// as \n, because \n-only splitting stitches CR fragments into mega-lines.
 
 func TestTruncateLineRuneSafe(t *testing.T) {
 	rule := strings.Repeat("─", 60) // 3 bytes per rune: byte-slicing would cut mid-rune
@@ -48,10 +47,8 @@ func TestSplitCRLines(t *testing.T) {
 	}
 }
 
-// SHARED classifier for "what state is this codespace in", extracted because
-// three call sites decided it independently and only status got it right
-// (#1058 fixed status alone; ensure/wait/stop kept the old confusion —
-// .plans/bugs/codespace-record-outlives-github-retention.md). Absence from a
+// SHARED classifier for "what state is this codespace in": status, ensure,
+// wait and stop all decide it here, so they cannot disagree. Absence from a
 // SUCCESSFUL list is a state ("deleted"); only a failed or impossible query
 // is "unqueryable". The distinction is the whole point: one justifies
 // forgetting a record, the other never does.

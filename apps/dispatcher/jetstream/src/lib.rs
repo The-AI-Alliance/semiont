@@ -62,7 +62,6 @@ fn failed(what: &str, error: impl std::fmt::Display) -> QueueError {
     QueueError(format!("{what}: {error}"))
 }
 
-/// The subject a job of this type is published on.
 /// A stored value as the record it is, or why it is not one.
 fn decode(id: &str, stored: &[u8]) -> Result<JobRecord, QueueError> {
     serde_json::from_slice(stored).map_err(|e| failed(&format!("job {id}'s record"), e))
@@ -86,6 +85,7 @@ fn scanned(id: &str, stored: &[u8]) -> Option<JobRecord> {
     }
 }
 
+/// The subject a job of this type is published on.
 fn subject(job_type: JobType) -> String {
     let name = wire_name(job_type);
     let category = JOB_CATEGORIES

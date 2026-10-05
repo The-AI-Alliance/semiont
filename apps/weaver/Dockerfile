@@ -3,8 +3,8 @@
 # THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
 # published @semiont/make-meaning and runs `dist/weaver-main.js` out of it; the
 # source is packages/make-meaning/src/weaver-main.ts. Only the image
-# recipe lives here — the entrypoint stayed in its package deliberately, so
-# that moving it out would not have to promote ~18 of that package's
+# recipe lives here — the entrypoint lives in its package deliberately:
+# moving it out would promote ~18 of that package's
 # internals to public API just to satisfy a directory layout. If you change
 # the CMD, change it against that file.
 #

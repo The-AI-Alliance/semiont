@@ -193,7 +193,6 @@
     "statusConnected": "जुड़ा हुआ",
     "statusExpired": "सत्र समाप्त",
     "statusSignedOut": "साइन आउट",
-    "statusUnreachable": "अनुपलब्ध",
     "invalidHost": "अमान्य होस्टनाम",
     "discoveredTitle": "इस मशीन पर मिला",
     "managedBadge": "लॉन्चर द्वारा प्रबंधित",

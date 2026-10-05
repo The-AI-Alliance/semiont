@@ -193,7 +193,6 @@
     "statusConnected": "Połączono",
     "statusExpired": "Sesja wygasła",
     "statusSignedOut": "Wylogowano",
-    "statusUnreachable": "Niedostępny",
     "invalidHost": "Nieprawidłowa nazwa hosta",
     "discoveredTitle": "Znaleziono na tym komputerze",
     "managedBadge": "Zarządzane przez launcher",

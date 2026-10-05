@@ -265,8 +265,7 @@ function getThemeAwareTokens() {
  * Such a rule IS dark-theme-aware: that is the entire purpose of the semantic
  * token layer. Demanding a `[data-theme="dark"]` variant for it produces a
  * copy of the declaration with the identical value — a rule that provably
- * changes nothing, added only to satisfy a linter. 121 of those had already
- * accumulated in react-ui before this check learned the difference.
+ * changes nothing, added only to satisfy a linter.
  *
  * The check still bites where dark mode actually breaks: raw palette tokens
  * (`--semiont-color-primary-500` is one fixed hue in both themes) and

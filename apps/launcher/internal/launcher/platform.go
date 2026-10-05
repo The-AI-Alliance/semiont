@@ -1,6 +1,6 @@
 package launcher
 
-// platform.go — the substrate a stack lives on (LAUNCHER-SERVICE-MODEL D5).
+// platform.go — the substrate a stack lives on.
 //
 // A platform determines the MECHANISM by which a service comes to exist, and
 // it may itself require provisioning before any service can exist on it at
@@ -11,10 +11,10 @@ package launcher
 // parameter of that mechanism rather than a choice about where the stack
 // lives. Only `local` has one.
 //
-// This used to be a value inside `Runtime`, which meant every reader of that
-// field had to know that one of the runtimes was not a runtime — and the
-// launcher then had to refuse, by hand and one flag at a time, every local
-// knob that a codespace start cannot honour.
+// As a value inside `Runtime` it would make every reader of that field know
+// that one of the runtimes is not a runtime — and the launcher refuse, by
+// hand and one flag at a time, every local knob that a codespace start cannot
+// honour.
 type platform string
 
 const (
@@ -30,7 +30,7 @@ const (
 // runtimeFlagPlatform: the `--runtime` spellings that name a PLATFORM rather
 // than a container runtime. The flag keeps one name for both because that is
 // what users type; the two meanings part company here, once, instead of at
-// every site that used to compare a runtime against "codespace".
+// every site that would compare a runtime against "codespace".
 func runtimeFlagPlatform(v string) (platform, bool) {
 	if v == string(platformCodespace) {
 		return platformCodespace, true

@@ -2,7 +2,6 @@
  * References Panel Component Styles
  *
  * Styles for reference entries and incoming references.
- * Detection widget styles have been moved to components/detection-widget.css
  */
 
 /* Reference Item */
@@ -169,42 +168,6 @@
 }
 
 /* ============================================
-   Reference Action Buttons
-   ============================================ */
-
-/* Primary variant - for main actions like Generate, Open */
-
-/* Secondary variant - for supporting actions like Find, Create, Unlink */
-
-/* Generating state animation - sparkle pulses and glows */
-
-@keyframes semiont-reference-button-pulse {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 0 8px 2px rgba(59, 130, 246, 0.5);
-  }
-  50% {
-    transform: scale(1.15);
-    box-shadow: 0 0 16px 4px rgba(59, 130, 246, 0.8);
-  }
-}
-
-@keyframes semiont-reference-button-pulse-dark {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 0 8px 2px rgba(96, 165, 250, 0.6);
-  }
-  50% {
-    transform: scale(1.15);
-    box-shadow: 0 0 16px 4px rgba(96, 165, 250, 0.9);
-  }
-}
-
-/* Size variants */
-
-/* Disabled state */
-
-/* ============================================
    Reference Annotation Creation Prompt
    ============================================ */
 
@@ -328,8 +291,6 @@
     outline-width: 3px;
   }
 }
-
-/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
 
 /* An incoming reference points AT this resource; the arrow direction is the
    only thing distinguishing it from an outgoing one in the same list. */

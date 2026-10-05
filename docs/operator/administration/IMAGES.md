@@ -1,0 +1,154 @@
+# Container Images
+
+The container images this repository publishes, how they are tagged, and how to verify one before you run it. What each service does and needs is in [the service catalog](../services/OVERVIEW.md).
+
+## Overview
+
+Eight images are published to GitHub Container Registry, as `ghcr.io/the-ai-alliance/<image>`, for `linux/amd64` and `linux/arm64`:
+
+`semiont-gateway`, `semiont-dispatcher`, `semiont-archivist`, `semiont-librarian`, `semiont-worker`, `semiont-smelter`, `semiont-weaver` and `semiont-browser`.
+
+**Configuration is given at run time, never built in.** No image contains anything about a knowledge base, so one verified image serves every knowledge base, and a knowledge base's repository builds no image of its own. The launcher pulls `ghcr.io/the-ai-alliance/semiont-<service>:<version>`, with `latest` unless `SEMIONT_VERSION` names another, and mounts each service's configuration into it.
+
+---
+
+## semiont-browser
+
+[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-browser)
+
+The Semiont Browser: a single-page app served by a small static-file server.
+
+**Pull image:**
+```bash
+docker pull ghcr.io/the-ai-alliance/semiont-browser:latest
+```
+
+**Environment variables:** `PORT` only (default `3000`). The container holds
+no knowledge-base configuration and mounts none: the app connects to knowledge
+bases from the person's web browser (see [HUMAN-UI.md](../../architecture/HUMAN-UI.md)).
+
+**Documentation:** [apps/browser/README.md](../../../apps/browser/README.md)
+
+**Source:** [apps/browser/](../../../apps/browser/)
+
+**Dockerfile:** [apps/browser/Dockerfile](../../../apps/browser/Dockerfile)
+
+**Workflow:** [.github/workflows/publish-browser.yml](../../../.github/workflows/publish-browser.yml)
+
+---
+
+## The service images
+
+[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/orgs/The-AI-Alliance/packages?repo_name=semiont)
+
+Five are Node. Each installs the published `@semiont/*` npm packages at the image's own version, so an image's version is always the npm version it carries. The four that carry `@semiont/make-meaning` run on `node:24-alpine`; the worker and the Browser run on `node:26-alpine`.
+
+Two are Rust: the gateway and the dispatcher. Each image compiles its binary from the commit it is published from and ships it on `alpine`, with no source and no toolchain, and builds or fetches nothing when it starts.
+
+| Image | Built from | Dockerfile |
+|---|---|---|
+| `semiont-gateway` | Rust, `apps/gateway` | [apps/gateway/Dockerfile](../../../apps/gateway/Dockerfile) |
+| `semiont-dispatcher` | Rust, `apps/dispatcher` | [apps/dispatcher/Dockerfile](../../../apps/dispatcher/Dockerfile) |
+| `semiont-archivist` | `@semiont/make-meaning` | [apps/archivist/Dockerfile](../../../apps/archivist/Dockerfile) |
+| `semiont-librarian` | `@semiont/make-meaning` | [apps/librarian/Dockerfile](../../../apps/librarian/Dockerfile) |
+| `semiont-smelter` | `@semiont/make-meaning` | [apps/smelter/Dockerfile](../../../apps/smelter/Dockerfile) |
+| `semiont-weaver` | `@semiont/make-meaning` | [apps/weaver/Dockerfile](../../../apps/weaver/Dockerfile) |
+| `semiont-worker` | `@semiont/jobs` | [apps/worker/Dockerfile](../../../apps/worker/Dockerfile) |
+
+Each one's port, configuration and dependencies are in [the service catalog](../services/OVERVIEW.md).
+
+The Browser has its own workflow, [publish-browser.yml](../../../.github/workflows/publish-browser.yml); the seven services share [publish-service-images.yml](../../../.github/workflows/publish-service-images.yml). How a release is published is in the contributor's [Release Process](../../contributor/RELEASE.md), and building all eight from a checkout is in [Local Development](../../contributor/LOCAL-DEVELOPMENT.md).
+
+---
+
+## Versioning
+
+Every image carries the same version, the one in [`version.json`](../../../version.json), and gets these tags:
+
+- **The version**, such as `<version>` for a release or `<version>-build.<n>` for a development build.
+- **The commit**: `sha-<commit>`, the short SHA the image was built from.
+- **`latest`**, moved to a release when it is promoted. It is what the launcher runs unless `SEMIONT_VERSION` names a version.
+
+A tag can be moved; a digest cannot. To pin exactly what you verified, reference the image by digest.
+
+---
+
+## Supply-Chain Verification
+
+Every image published to GHCR — the Browser and all seven service
+images — carries two cryptographic attestations stored as OCI
+artifacts alongside the image:
+
+- **Build provenance** — SLSA-style attestation tying the image
+  digest to the GitHub Actions workflow run, commit SHA, and
+  workflow inputs. Signed via Sigstore using a short-lived
+  certificate issued by Fulcio against the workflow's OIDC token.
+- **SBOM** (Software Bill of Materials) — SPDX 2.3 listing of all
+  OS packages and language libraries in the image, generated by
+  Trivy at build time and signed the same way.
+
+Each image is also scanned by Trivy for `HIGH` and `CRITICAL`
+vulnerabilities before it is pushed. A finding that has a fix available
+fails the publish, so such an image never reaches the registry. The
+service images pass a licence policy as well.
+
+### Verify the image you pulled
+
+Requires the [GitHub CLI](https://cli.github.com/). No keys to
+manage — verification uses Sigstore's transparency log.
+
+```bash
+# <image> is any of: semiont-browser, semiont-gateway, semiont-archivist,
+# semiont-librarian, semiont-worker, semiont-smelter, semiont-weaver,
+# semiont-dispatcher
+gh attestation verify \
+  oci://ghcr.io/the-ai-alliance/<image>:VERSION \
+  --owner The-AI-Alliance
+```
+
+A successful verification confirms:
+
+1. The image digest you pulled matches the digest the workflow
+   built and pushed.
+2. The image was built from `The-AI-Alliance/semiont` at a specific
+   commit, by its publish workflow, with the inputs recorded in
+   the attestation.
+3. The signing certificate was issued by Sigstore's Fulcio CA to
+   that workflow's OIDC identity.
+
+If verification fails, **do not run the image** — it has been
+tampered with, was published outside the official workflow, or the
+attestations were stripped.
+
+### Inspecting the SBOM
+
+The SBOM attestation is itself an OCI artifact. To download and
+inspect:
+
+```bash
+gh attestation download \
+  oci://ghcr.io/the-ai-alliance/<image>:VERSION \
+  --owner The-AI-Alliance \
+  --predicate-type https://spdx.dev/Document
+```
+
+The downloaded JSON lists every package in the image with version,
+license, and supplier — useful for vulnerability triage when a CVE
+lands and you need to know whether your running image contains the
+affected package.
+
+---
+
+## Registry Links
+
+- **Container images:** https://github.com/orgs/The-AI-Alliance/packages?repo_name=semiont
+- **GitHub Releases:** https://github.com/The-AI-Alliance/semiont/releases
+
+---
+
+## Support
+
+For issues related to container images:
+- **Bug reports:** https://github.com/The-AI-Alliance/semiont/issues
+- **Security issues:** See [SECURITY.md](./SECURITY.md)
+- **General questions:** https://github.com/The-AI-Alliance/semiont/discussions

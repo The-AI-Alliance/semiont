@@ -107,7 +107,7 @@ clears them.
 
 **The heap ceiling is explicit, and paired.** The image sets
 `NODE_OPTIONS=--max-old-space-size=1536` against a 2 GB container allocation. Without it V8
-picks its own default, which lands well under the cgroup limit — this process once died at
+picks its own default, which lands well under the cgroup limit — the process dies at
 ~1016 MB inside 2048 MB, with half the memory it was allotted unreachable. The 1536/2048 pair
 must move together: raising the cap to the container's full allocation trades a catchable V8
 heap error for an uncatchable cgroup kill. `semiont.runtime.heap{heap.stat="limit"}` reports the
@@ -123,4 +123,4 @@ that ordering enforceable.
 - [`@semiont/make-meaning`](../../packages/make-meaning/) — the actors and this entry point
 - [Librarian](../librarian/) — the deliberate pair: the Archivist holds the record and answers
   *"what is there?"*; the Librarian searches it and answers *"what is relevant?"*
-- [Knowledge System](../../docs/system/KNOWLEDGE-SYSTEM.md) — the event-store architecture
+- [Knowledge System](../../docs/architecture/KNOWLEDGE-SYSTEM.md) — the event-store architecture

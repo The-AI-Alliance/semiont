@@ -8,8 +8,6 @@
  * (e2e 13:77 / :134 / :189). Theme survived the identical hoist because
  * `useTheme` is context-backed. These pins hold `useLineNumbers` to the
  * same contract.
- *
- * See .plans/bugs/line-numbers-toggle-desynced-by-hoist.md
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';

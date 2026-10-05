@@ -1,10 +1,11 @@
 /**
- * pdfExtractor — Phase 1 (SMELTER-MEDIA-TYPES.md, #744).
+ * pdfExtractor — a PDF's text by class, or a named decline.
  *
- * The 'pdf-text-layer' registry slot: class A (native text layer) extracts
- * through the shared `extractPdfTextLayer` reader; every other class
- * declines with its name — 'no-text-layer' (B, scanned), 'encrypted' (F),
- * 'corrupt' (G). Fixtures are the generator's (vitest globalSetup).
+ * The deriving extractor for 'application/pdf': class A (native text layer)
+ * extracts through the shared `extractPdfTextLayer` reader; C (hybrid), D
+ * (table) and E (form) extract in their own shapes; the rest decline by
+ * name — 'no-text-layer' (B, a scan OCR reads nothing from), 'encrypted'
+ * (F), 'corrupt' (G). Fixtures are the generator's (vitest globalSetup).
  */
 
 import path from 'path';
@@ -15,8 +16,8 @@ import { extractPdfTextLayer } from '../extract-pdf-text-layer';
 import { derivingExtractorFor } from '../text-extractor';
 import type { AnchoredTextStore } from '../anchored-text-store';
 
-/** Deriving requires the store (READ-VS-EXTRACT P2); these cases are about the
- *  extraction itself, so the store is a black hole that keeps nothing. */
+/** Deriving requires the store that persists what it derives; these cases are
+ *  about the extraction itself, so the store is a black hole that keeps nothing. */
 const NO_CACHE = { key: 'test', store: { read: async () => undefined, write: async () => {} } as unknown as AnchoredTextStore };
 import { classifyPdfError } from '../pdf-extractor';
 
@@ -26,8 +27,8 @@ const readFixture = (name: string): Buffer => fs.readFileSync(path.join(FIXTURES
 
 const KNOWN_PHRASE = 'known phrase from fixture';
 
-describe('pdfExtractor (Phase 1 registry slot)', () => {
-    it("fills the 'pdf-text-layer' slot", () => {
+describe('pdfExtractor (the deriving extractor for application/pdf)', () => {
+    it('is what derivingExtractorFor returns for application/pdf', () => {
         expect(derivingExtractorFor('application/pdf')).not.toBeNull();
     });
 
@@ -60,7 +61,7 @@ describe('pdfExtractor (Phase 1 registry slot)', () => {
     });
 });
 
-describe('class C — hybrid native/scanned routing (Phase 3)', () => {
+describe('class C — hybrid native/scanned routing', () => {
     const extract = async (fixture: string) => {
         const ex = derivingExtractorFor('application/pdf');
         expect(ex).not.toBeNull();
@@ -72,7 +73,7 @@ describe('class C — hybrid native/scanned routing (Phase 3)', () => {
         if (out.kind === 'declined') throw new Error(`unexpected decline: ${out.declined}`);
         expect(out.pdfClass).toBe('C');
         expect(out.unreadPages).toEqual([2]);
-        // Partial coverage still yields what it can — page 1 embeds today.
+        // Partial coverage still yields what it can — page 1 embeds.
         expect(out.text).toContain('native page text');
     });
 
@@ -93,7 +94,7 @@ describe('class C — hybrid native/scanned routing (Phase 3)', () => {
     });
 });
 
-describe('class D — table structure (Phase 2)', () => {
+describe('class D — table structure', () => {
     const extract = async (fixture: string) => {
         const ex = derivingExtractorFor('application/pdf');
         expect(ex).not.toBeNull();
@@ -124,7 +125,7 @@ describe('class D — table structure (Phase 2)', () => {
     });
 
     // Precision over recall: a false table scrambles content, a miss merely
-    // falls back to Phase 1 behavior. Prose must never be read as a grid.
+    // falls back to plain text-layer reading. Prose must never be read as a grid.
     it('falls back to class A for single-column prose', async () => {
         const out = await extract('multi-line.pdf');
         expect(out.pdfClass).toBe('A');
@@ -138,7 +139,7 @@ describe('class D — table structure (Phase 2)', () => {
     });
 });
 
-describe('class E — AcroForm field values (Phase 2)', () => {
+describe('class E — AcroForm field values', () => {
     const extract = async (fixture: string) => {
         const ex = derivingExtractorFor('application/pdf');
         expect(ex).not.toBeNull();

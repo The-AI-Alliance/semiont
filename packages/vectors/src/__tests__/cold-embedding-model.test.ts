@@ -2,20 +2,20 @@
  * A cold embedding-model cache is retryable, not fatal.
  *
  * On the first boot of a fresh KB, the three services that call
- * `createVectorStore` — archivist, librarian, smelter — raced Ollama's
- * `nomic-embed-text` pull and died on its 404. Measured 3/4/5 restarts across two
- * codespaces, and the archivist's flapping is separately what strands
- * `semiont-worker` in `Created` forever. The process was choosing to die over a
- * condition that heals itself in under a minute.
+ * `createVectorStore` — archivist, librarian, smelter — race Ollama's
+ * `nomic-embed-text` pull, and dying on its 404 costs them 3/4/5 restarts
+ * (measured); the archivist's flapping is separately what strands
+ * `semiont-worker` in `Created` forever. A process must not choose to die over
+ * a condition that heals itself in under a minute.
  *
- * Three adjacent decisions on this path are RIGHT and are deliberately untouched
- * — each looks like the bug and is not:
+ * Three adjacent decisions on this path are RIGHT and deliberate — each looks
+ * like a defect and is not:
  *   - `ensureCollection` resolves `dimensions()` only when it must CREATE a
  *     collection, so a warm KB never contacts the provider at boot;
  *   - `measureDimensions` probes the model instead of consulting a table;
  *   - `dimensions()` refuses to cache a failure.
- * The gap is narrower than any of them: nothing on the path could CLASSIFY a cold
- * model cache, because the status lived only inside a message string.
+ * What the path needs is narrower than any of them: a way to CLASSIFY a cold
+ * model cache, which a status living only inside a message string cannot give.
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -35,10 +35,9 @@ const embedding = (width: number) =>
 
 describe('the failure carries its status as structure, not prose', () => {
   it('Ollama embed() rejects with a typed error exposing status and body', async () => {
-    // The whole reason the condition was unclassifiable: `throw new Error(
-    // \`Ollama embed error ${status}: ${body}\`)` put the status in the text and
-    // nowhere else, so any caller wanting to branch had to match a substring —
-    // the mirror this codebase refuses elsewhere.
+    // A plain `throw new Error(\`Ollama embed error ${status}: ${body}\`)`
+    // would put the status in the text and nowhere else, so any caller
+    // wanting to branch would have to match a substring.
     vi.stubGlobal('fetch', vi.fn(async () => notPulled()));
     const provider = new OllamaEmbeddingProvider({ model: 'nomic-embed-text' });
 
@@ -74,7 +73,7 @@ describe('the failure carries its status as structure, not prose', () => {
 
 describe('isColdModelError', () => {
   it('accepts a 404 from an embedding provider — the model is not pulled YET', () => {
-    // The case `isTransientFetchError`'s reasoning did not anticipate. Its
+    // The case `isTransientFetchError` deliberately does not cover. Its
     // exclusion of HTTP-level failures is right for a gateway 401 ("the server is
     // up and rejected us") and wrong here: the server is up, the RESOURCE is not
     // there yet, and it will be.
@@ -98,7 +97,7 @@ describe('isColdModelError', () => {
 
 describe('dimension discovery survives a cold cache', () => {
   // Fake timers drive the backoff sleeps — they are ordinary `setTimeout`s — so
-  // the ~39s STARTUP_FETCH_RETRY budget costs nothing here and needs no
+  // the EMBEDDING_PROVIDER_RETRY budget costs nothing here and needs no
   // test-only parameter widening `resolveDimensions`' signature.
   afterEach(() => { vi.useRealTimers(); });
 
@@ -119,10 +118,10 @@ describe('dimension discovery survives a cold cache', () => {
   });
 
   it('still fails when the model never arrives, naming BOTH live possibilities', async () => {
-    // Bounded by design. A typo'd model name now fails after the policy instead
+    // Bounded by design. A typo'd model name fails after the policy instead
     // of instantly — the price of not distinguishing "not pulled yet" from "never
     // will be" over one 404. The final message is what makes that price
-    // diagnosable: today's text implies only the first possibility.
+    // diagnosable: it must not imply only the first possibility.
     vi.useFakeTimers();
     vi.stubGlobal('fetch', vi.fn(async () => notPulled()));
 
@@ -136,8 +135,8 @@ describe('dimension discovery survives a cold cache', () => {
   });
 
   it('does NOT retry a non-cold failure — fail-fast is preserved', async () => {
-    // A retry that never gives up would trade this bug for a worse one, and a
-    // 401 from a cloud provider will not become a 200 by waiting.
+    // A retry that never gives up is worse than none, and a 401 from a cloud
+    // provider will not become a 200 by waiting.
     vi.useFakeTimers();
     const fetchMock = vi.fn(async () => new Response('bad key', { status: 401 }));
     vi.stubGlobal('fetch', fetchMock);

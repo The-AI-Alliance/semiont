@@ -54,7 +54,7 @@ export interface ResourceGenerateModalTranslations {
   outputFormat: string;
   formatExtensionMismatch: string;
   generate: string;
-  // DiscardPrompt (GATHER-AT-THE-TOP P1)
+  // DiscardPrompt — shown when a draft with typed text is dismissed
   discardDraftPrompt: string;
   discardDraft: string;
   keepEditing: string;
@@ -64,14 +64,14 @@ export interface ResourceGenerateModalProps {
   /**
    * Roster entry serving `generation`, forwarded to ConfigureGenerationStep so
    * the max-length control is bounded by the model's real output ceiling.
-   * Optional: absent means today's default bounds (INFERENCE-LIMITS-EXPOSURE D3).
+   * Optional: absent means the default bounds, never an error.
    */
   generationAgent?: Collaborator;
   isOpen: boolean;
   onClose: () => void;
   resourceId: string;
   defaultTitle: string;
-  /** Folder of the source resource, so the artifact lands beside it (D11). */
+  /** Folder of the source resource, so the artifact lands beside it. */
   defaultFolder?: string;
   locale: string;
   /**
@@ -89,8 +89,7 @@ export interface ResourceGenerateModalProps {
    * Resource-gather state, verbatim from the SDK's gather unit slots
    * (`gather.resourceContext$` / `resourceLoading$` / `resourceError$`) — the
    * page reads the observables and threads them here, the same shape the
-   * reference wizard has always had (FLOW-LIFECYCLE-CONVERGENCE D3/A6). The
-   * modal renders this state; it never owns it.
+   * reference wizard takes. The modal renders this state; it never owns it.
    */
   gatherContext: GatheredContext | null;
   gatherLoading: boolean;
@@ -105,7 +104,7 @@ export interface ResourceGenerateModalProps {
 }
 
 /**
- * Resource-generate flow (GENERATE-FROM-BUTTON, folded by GATHER-AT-THE-TOP):
+ * Resource-generate flow, opened by the Resource Info panel's Generate button:
  * one composite stack in a single scroll pane — the gather controls at the
  * top, the gathered `GatheredContext` below them once gather fires, and the
  * generation params beneath the evidence once context arrives. Re-gathering
@@ -130,8 +129,9 @@ export function ResourceGenerateModal({
   translations: t,
   generationAgent,
 }: ResourceGenerateModalProps) {
-  // Same draft ownership as the wizard (WIZARD-NAVIGATION D3): the step is
-  // controlled, so stepping back through this modal keeps what was typed.
+  // Same draft ownership as the wizard: the step is controlled and this modal
+  // holds its draft, so what was typed outlives the step itself, which is
+  // mounted only while there is gathered context.
   const freshDraft = (): GenerationDraft => freshGenerationDraft(defaultTitle, locale);
   const [generationDraft, setGenerationDraft] = useState<GenerationDraft>(freshDraft);
 
@@ -148,13 +148,13 @@ export function ResourceGenerateModal({
   // Supplied by the owner, which already tracks the list with its failure
   // state. Fetching it here could only model (value | not-yet), so a failed
   // load would render an empty exclusion picker as though the KB had no
-  // entity types. See .plans/PANEL-FAILURE-STATES.md
+  // entity types.
   const [excludeEntityTypes, setExcludeEntityTypes] = useState<string[]>([]);
 
-  // Reset to the first step ON OPENING — and re-seed the draft, because
+  // Reset to the un-gathered stack ON OPENING — and re-seed the draft, because
   // `defaultTitle` is the source resource's name and loads asynchronously: the
-  // useState initializer ran at mount, which for the real page was before the
-  // name existed (GFR A4). Guarded to the false→true transition so a name
+  // useState initializer runs at mount, which on the real page is before the
+  // name exists. Guarded to the false→true transition so a name
   // arriving mid-flow cannot clobber what the user has typed.
   const wasOpen = useRef(false);
   // The dirty baseline is what was SEEDED, not the live prop: defaultTitle
@@ -193,10 +193,10 @@ export function ResourceGenerateModal({
     onClose();
   }, [onGenerateSubmit, resourceId, onClose]);
 
-  // D4/D5 (GATHER-AT-THE-TOP P1): typed text must not die with a dismissed
-  // modal. Toggles, depth, and exclusion picks are cheap to redo and never
-  // nag. Generate's completion path above bypasses this — the guard protects
-  // dismissal, not completion.
+  // The dirty guard: typed text must not die with a dismissed modal. Toggles,
+  // depth, and exclusion picks are cheap to redo and never nag. Generate's
+  // completion path above bypasses this — the guard protects dismissal, not
+  // completion.
   const draftDirty =
     generationDraft.title !== seededTitle.current ||
     generationDraft.storagePath.trim() !== '' ||

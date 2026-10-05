@@ -6,13 +6,14 @@ import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import { WizardFooter } from './WizardFooter';
 
 /**
- * COMPOSE-IN-MODAL P1 — the compose strategy's form, as a pure step.
+ * The compose strategy's form, as a pure step.
  *
  * The from-reference slice of the compose page, lifted: name, save location,
  * entity types, language, editor. Deliberately none of the page's
  * upload/format/encoding machinery (the modal composes text; uploads stay on
- * the standalone page — plan non-goal). The draft is CONTROLLED by the host
- * (WIZARD-NAVIGATION D3), and the evidence display is the host's job (A3).
+ * the standalone page). The draft is CONTROLLED by the host, so stepping Back
+ * never discards typed work, and the evidence display is the host's job: this
+ * step renders no context of its own.
  */
 
 export interface ComposeDraft {
@@ -20,7 +21,7 @@ export interface ComposeDraft {
   /** Bare working-tree path; the file:// prefix is applied at submit. */
   storagePath: string;
   content: string;
-  /** Picked types — consulted only when the reference fixed none (D6). */
+  /** Picked types — consulted only when the reference fixed none. */
   entityTypes: string[];
   language: string;
 }
@@ -39,12 +40,12 @@ export interface ComposeStepProps {
   onDraftChange: (patch: Partial<ComposeDraft>) => void;
   /**
    * Folder of the resource being composed FROM, so the new file lands beside
-   * its source (D11). Compose is always `text/markdown`, so the proposal's
+   * its source. Compose is always `text/markdown`, so the proposal's
    * extension is fixed.
    */
   defaultFolder?: string;
   /** Entity types fixed when the reference was created — read-only tags when
-   *  non-empty (D6): they are not this step's to change. */
+   *  non-empty: they are not this step's to change. */
   referenceEntityTypes: string[];
   /** Picker vocabulary when the reference fixed none. Owner-supplied, so a
    *  failed load cannot surface as an empty vocabulary. */
@@ -80,8 +81,8 @@ export function ComposeStep({
   onCompose,
   translations: t,
 }: ComposeStepProps) {
-  // D11 — the Save location starts filled and follows the title until the
-  // user takes it over; `pathTouched` is derived (see ConfigureGenerationStep),
+  // The Save location starts filled and follows the title until the user
+  // takes it over; `pathTouched` is derived (see ConfigureGenerationStep),
   // so clearing the field restores the proposal. Compose writes markdown.
   const pathTouched = draft.storagePath !== '';
   const effectivePath = pathTouched

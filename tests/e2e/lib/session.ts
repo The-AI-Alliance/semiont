@@ -14,11 +14,10 @@
  * here needs the Browser app to be running, and no test-only client exists
  * at the issuer.
  *
- * A session rather than a bare client (SSE-AUTH-RESILIENCE P5): the access
- * token lives minutes, and a seed run or a long spec outlives that; the
- * session renews it at the issuer. `InMemorySessionStorage` because these
- * processes want no persistence: each run signs in fresh and takes nothing
- * with it.
+ * A session rather than a bare client: the access token lives minutes, and a
+ * seed run or a long spec outlives that; the session renews it at the issuer.
+ * `InMemorySessionStorage` because these processes want no persistence: each
+ * run signs in fresh and takes nothing with it.
  */
 
 import { chromium } from '@playwright/test';

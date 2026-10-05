@@ -82,8 +82,7 @@ because it silently returned early.
 
 Prefer role + accessible name over CSS classes or text. When that
 isn't enough (e.g. a raw input with only a `placeholder`), fall back
-to `getByPlaceholder`. There's no `data-testid` convention yet — that
-would be a reasonable follow-up together with a selector audit.
+to `getByPlaceholder`. There's no `data-testid` convention.
 
 If a test fails because "the button isn't visible", it's usually one of:
 

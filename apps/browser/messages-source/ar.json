@@ -193,7 +193,6 @@
     "statusConnected": "متصل",
     "statusExpired": "انتهت صلاحية الجلسة",
     "statusSignedOut": "تم تسجيل الخروج",
-    "statusUnreachable": "غير قابل للوصول",
     "invalidHost": "اسم مضيف غير صالح",
     "discoveredTitle": "موجود على هذا الجهاز",
     "managedBadge": "مُدار بواسطة المُشغِّل",

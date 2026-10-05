@@ -2,11 +2,9 @@
 
 package launcher
 
-import (
-	"encoding/json"
-	"fmt"
-	"reflect"
-)
+import "encoding/json"
+import "fmt"
+import "reflect"
 
 // One knowledge base the Semiont launcher manages on this machine, as published in
 // the discovery document (see DiscoveryDocument). Endpoints and identity only —
@@ -24,9 +22,8 @@ type DiscoveredKB struct {
 	// copy.
 	Did string `json:"did"`
 
-	// Hostname the KB is reachable on from this machine (today always "localhost" —
-	// local stacks bind locally and codespace KBs arrive through a local port
-	// forward)
+	// Hostname the KB is reachable on from this machine (always "localhost" — local
+	// stacks bind locally and codespace KBs arrive through a local port forward)
 	Host string `json:"host"`
 
 	// The agent that owns this entry's lifecycle (the launcher writes
@@ -112,13 +109,12 @@ func (j *DiscoveredKB) UnmarshalJSON(value []byte) error {
 }
 
 // The launcher's KB discovery document — the schema authority for
-// <StateDir>/discovery/kbs.json, which the semiont launcher (Go, apps/launcher)
+// <stateDir>/discovery/kbs.json, which the semiont launcher (Go, apps/launcher)
 // regenerates on every stack mutation and the Browser container mounts read-only
 // at /discovery. NOT an API endpoint: a static document fetched same-origin by
 // browsers (via the Browser's static server) or read from disk by local Node
 // consumers. An empty kbs list is meaningful ("the launcher manages nothing right
-// now") and distinct from an absent file. Design record:
-// .plans/BROWSER-KB-DISCOVERY.md.
+// now") and distinct from an absent file.
 type DiscoveryDocument struct {
 	// Every KB the launcher currently manages, local and forwarded
 	Kbs []DiscoveredKB `json:"kbs"`

@@ -204,7 +204,7 @@ observation), and the last unsubscribe releases it. The client
 exposes no explicit channel-extension call; SSE scope is acquired
 purely by observing the live queries.
 
-## Gotchas learned the hard way
+## Gotchas
 
 - **Wrong-bus emit is silent.** If `panel:toggle` were emitted on
   the session client instead of the browser shell, the toolbar

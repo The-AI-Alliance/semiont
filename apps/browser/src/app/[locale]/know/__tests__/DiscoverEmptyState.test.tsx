@@ -1,5 +1,5 @@
 /**
- * BROWSER-KB-DISCOVERY follow-up — the /know empty state knows about
+ * Launcher KB discovery — the /know empty state knows about
  * launcher-discovered KBs: with zero registered KBs but a launcher managing
  * some, it says so and points at the panel instead of only linking docs.
  */

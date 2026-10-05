@@ -74,7 +74,7 @@ function levenshteinDistance(str1: string, str2: string): number {
  * match — counting char-by-char with `normalizeText(singleChar)` is
  * wrong, because a lone whitespace char trims to `''` (contributing 0)
  * while in a full-string normalize it collapses to a single space
- * (contributing 1). That discrepancy shifted recovered offsets by the
+ * (contributing 1). That discrepancy shifts recovered offsets by the
  * number of whitespace runs before the match.
  */
 export interface ContentCache {

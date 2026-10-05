@@ -1,6 +1,5 @@
 /**
- * Table reconstruction from PDF text-layer geometry (SMELTER-MEDIA-TYPES
- * class D).
+ * Table reconstruction from PDF text-layer geometry (PDF class D).
  *
  * A PDF has no table structure — only positioned text runs. Read in reading
  * order a grid's cells interleave, so a row's values scatter across chunks
@@ -12,7 +11,7 @@
  * already have.
  *
  * PRECISION OVER RECALL. A false positive scrambles prose into a fake table;
- * a false negative merely falls back to class A, which is Phase 1 behavior.
+ * a false negative merely falls back to class A, plain text-layer reading.
  * So detection demands a strict, regular grid — every row the same cell
  * count, every column aligned — and declines everything else.
  */

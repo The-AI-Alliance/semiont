@@ -23,7 +23,7 @@ export default function EntityTagsPageWrapper() {
   const entityTypes = useObservable(stateUnit?.entityTypes.value$) ?? [];
   const isLoading = useObservable(stateUnit?.entityTypes.loading$) ?? true;
   // A terminally failed load is not still loading. Distinct from `error`
-  // below, which is the ADD-tag error. See .plans/PANEL-FAILURE-STATES.md
+  // below, which is the ADD-tag error.
   const loadError = useObservable(stateUnit?.entityTypes.error$) ?? null;
   const newTag = useObservable(stateUnit?.newTag$) ?? '';
   const error = useObservable(stateUnit?.error$) ?? '';

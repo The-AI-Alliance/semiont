@@ -193,7 +193,6 @@
     "statusConnected": "接続済み",
     "statusExpired": "セッション期限切れ",
     "statusSignedOut": "サインアウト済み",
-    "statusUnreachable": "到達不能",
     "invalidHost": "無効なホスト名",
     "discoveredTitle": "このマシンで見つかりました",
     "managedBadge": "ランチャーで管理",

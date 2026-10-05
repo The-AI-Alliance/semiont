@@ -2,7 +2,7 @@
 
 The gateway logs structured lines to stdout, which is the container's contract:
 `semiont logs` reads the runtime's stream, and anything that ships logs reads
-the same. Its code is [src/logging.rs](../src/logging.rs).
+the same. Its code is `semiont-observability`'s [logging.rs](../../../packages/observability-rust/src/logging.rs).
 
 ## Level and format
 
@@ -23,7 +23,7 @@ stderr, so stdout stays one format.
   gateway's lines.
 - `trace_id` and `span_id` — when a trace is active and an OpenTelemetry
   exporter is configured, so a line leads to its trace
-  ([OBSERVABILITY.md](../../../docs/system/administration/OBSERVABILITY.md)).
+  ([OBSERVABILITY.md](../../../docs/operator/administration/OBSERVABILITY.md)).
 - `component` — for lines from a subsystem: `bus`, `signal`,
   `archivist-client`, `event-loop-monitor`.
 

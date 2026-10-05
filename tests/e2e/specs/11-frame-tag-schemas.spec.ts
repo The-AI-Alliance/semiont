@@ -1,20 +1,18 @@
 import { test, expect } from '../fixtures/auth';
-import { GATEWAY_URL, E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
-import { SemiontClient, resourceId as ridBrand, type TagSchema } from '@semiont/sdk';
+import { resourceId as ridBrand, type TagSchema } from '@semiont/sdk';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
  * Smoke test: the Frame flow's tag-schema runtime registry surface
- * end-to-end. Exercises the architecture put in place by the
- * TAG-SCHEMAS-GAP work — schemas are now per-KB runtime-registered
- * (no build-time `TAG_SCHEMAS` constant); the `mark.assist` dispatcher
- * resolves `schemaId` against the projection at job-creation time and
- * embeds the full `TagSchema` in the worker's params.
+ * end-to-end. The architecture it exercises: schemas are per-KB
+ * runtime-registered (no build-time `TAG_SCHEMAS` constant); the
+ * `mark.assist` dispatcher resolves `schemaId` against the projection at
+ * job-creation time and embeds the full `TagSchema` in the worker's params.
  *
  * Four things are exercised end-to-end:
  *
  * 1. **Registration round-trip.** `client.frame.addTagSchema(SCHEMA)`
- *    emits `frame:add-tag-schema`; the gateway's Stower persists a
+ *    emits `frame:add-tag-schema`; the Archivist's Stower persists a
  *    `frame:tag-schema-added` domain event on the `__system__` stream
  *    and broadcasts it (a bridged channel — see
  *    `packages/core/src/bridged-channels.ts`). The signed-in test
@@ -27,11 +25,10 @@ import { signInSession } from '../fixtures/sdk-session';
  *
  * 3. **Dispatcher rejects unregistered schema.** `mark.assist` with a
  *    `schemaId` not in the projection must reject synchronously with
- *    `Tag schema not registered: <id>`. This is the failure mode
- *    introduced by Stage 2's worker/dispatcher migration: the worker
- *    no longer has a build-time fallback, so an unknown schemaId is
- *    a synchronous-at-job-creation error rather than a worker-time
- *    "Invalid tag schema".
+ *    `Tag schema not registered: <id>`. The dispatcher does the schema
+ *    lookup and the worker has no build-time fallback, so an
+ *    unknown schemaId is a synchronous-at-job-creation error rather
+ *    than a worker-time "Invalid tag schema".
  *
  * 4. **Tagging applies.** `mark.assist(rid, 'tagging', { schemaId,
  *    categories })` against a registered schema runs the LLM tagging
@@ -42,26 +39,26 @@ import { signInSession } from '../fixtures/sdk-session';
  *    check that the dispatcher correctly resolved `schemaId` →
  *    `TagSchema` and that the worker used the embedded schema.
  *
- * Regression targets:
+ * What a failure means:
  *
- * - **Bridge regression** — the test page never receives
+ * - **Bridge** — the test page never receives
  *   `frame:tag-schema-added` even though `frame.addTagSchema` succeeded
- *   on the SDK side. Means `'frame:tag-schema-added'` was dropped from
+ *   on the SDK side. Means `'frame:tag-schema-added'` is missing from
  *   `BRIDGED_CHANNELS` or the gateway isn't fanning the system event
  *   to SSE subscribers.
- * - **Materialization regression** — the projection file isn't being
+ * - **Materialization** — the projection file isn't being
  *   written, so `browse.tagSchemas()` doesn't surface the registration.
  *   `ViewMaterializer.materializeTagSchemas` or `ViewManager.materializeSystem`
  *   would be the culprit.
- * - **Dispatcher fallback regression** — `mark.assist` against an
+ * - **Dispatcher fallback** — `mark.assist` against an
  *   unknown schemaId silently succeeds. Means the dispatcher is
- *   either consulting a stale build-time registry (Stage 2 incomplete)
- *   or the projection lookup is hiding errors.
- * - **Worker schema-embedding regression** — annotations land but
+ *   either consulting a stale build-time registry or the projection
+ *   lookup is hiding errors.
+ * - **Worker schema-embedding** — annotations arrive but
  *   without the `classifying` body, or with the wrong schemaId in
  *   that body. Means the dispatcher isn't embedding the resolved
  *   `TagSchema` in `TagDetectionParams`, or the processor isn't
- *   reading `params.schema.id` (the post-Stage-2 shape).
+ *   reading `params.schema.id` (the schema the dispatcher embedded).
  *
  * Uses a stable schema id so re-runs are silent at the projection
  * layer — the materializer's most-recent-wins semantics treat
@@ -140,8 +137,8 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       // The schema must appear in browse.tagSchemas(). The cache
       // backing this method invalidates on `frame:tag-schema-added`,
       // so the await will refetch.
-      // CACHE-CONTRACT D2: cache reads are no longer awaitable — `.fresh()` is
-      // the explicit one-shot network read (rejects on failure). Awaiting the
+      // Cache reads are not awaitable — `.fresh()` is the explicit
+      // one-shot network read (rejects on failure). Awaiting the
       // CacheObservable itself silently yields the observable, not the value.
       const schemas = await client.browse.tagSchemas().fresh();
       const found = schemas.find((s) => s.id === E2E_TAG_SCHEMA.id);
@@ -156,9 +153,9 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       // ── Phase 3: dispatcher rejects unknown schemaId ──────────────
       //
       // mark.assist against a schemaId that isn't in the projection
-      // must reject synchronously. This is the post-Stage-2 contract:
-      // the dispatcher resolves schemaId → TagSchema at job-creation
-      // time, so an unknown id surfaces as a synchronous BusRequestError
+      // must reject synchronously. The contract: the dispatcher
+      // resolves schemaId → TagSchema at job-creation time, so an
+      // unknown id surfaces as a synchronous BusRequestError
       // (job:create-failed) rather than a worker-time "Invalid tag
       // schema" exception.
       //
@@ -214,8 +211,7 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       // dispatcher embeds the full TagSchema in TagDetectionParams,
       // and the processor stamps `params.schema.id` into the
       // classifying body — so the value here is load-bearing proof
-      // that the post-Stage-2 worker pipeline used the embedded
-      // schema.
+      // that the worker pipeline used the embedded schema.
       const ann = ours[0]!;
       const bodies = Array.isArray(ann.body) ? ann.body : ann.body ? [ann.body] : [];
       const classifyingBody = bodies.find(

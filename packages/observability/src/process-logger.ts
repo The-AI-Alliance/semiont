@@ -1,8 +1,8 @@
 /**
  * Process-level structured logger for Node entry points.
  *
- * Used by long-lived Node processes (gateway, workers, smelter) that
- * want JSON-structured stdout with active-span trace correlation. The
+ * Used by the TypeScript services' entry points and the rebuild CLIs,
+ * which want JSON-structured stdout with active-span trace correlation. The
  * `trace_id` / `span_id` fields are populated from the current OTel
  * span context via `getLogTraceContext` — this is the same Tier 3
  * correlation that lets a grep through stdout line up with the trace
@@ -17,7 +17,7 @@
  */
 
 import winston from 'winston';
-import type { Logger, components } from '@semiont/core';
+import type { Logger } from '@semiont/core';
 import { getLogTraceContext } from './index.js';
 
 const traceContextFormat = winston.format((info) => {
@@ -29,18 +29,9 @@ const traceContextFormat = winston.format((info) => {
   return info;
 })();
 
-/**
- * A service configured by a document passes its `logLevel` and `logFormat`,
- * which then govern; every other process reads `LOG_LEVEL` and `LOG_FORMAT`.
- */
-export interface ProcessLogSettings {
-  level: components['schemas']['LogLevel'];
-  format: components['schemas']['LogFormat'];
-}
-
-export function createProcessLogger(component: string, settings?: ProcessLogSettings): Logger {
-  const level = settings?.level ?? process.env.LOG_LEVEL ?? 'info';
-  const simple = settings ? settings.format === 'simple' : process.env.LOG_FORMAT === 'simple';
+export function createProcessLogger(component: string): Logger {
+  const level = process.env.LOG_LEVEL ?? 'info';
+  const simple = process.env.LOG_FORMAT === 'simple';
   const format = simple
     ? winston.format.combine(
         winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),

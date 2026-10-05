@@ -13,10 +13,10 @@ import (
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
-// The realm's ACCOUNT surface (WHO-RUNS-USERADD P2). `identitysync.go` already
-// reconciles clients, mappers and realm settings; these four calls are the rest
-// of what `semiont useradd` needs, so the launcher administers the realm
-// through one client instead of exec-ing a second one written in TypeScript.
+// The realm's ACCOUNT surface. `identitysync.go` reconciles clients,
+// mappers and realm settings; these four calls are the rest of what `semiont
+// useradd` needs, so the launcher administers the realm through one client
+// instead of exec-ing a second one written in TypeScript.
 //
 // A stub, for the reason the sync tests give: what is asserted is the request
 // this code makes, and a real Keycloak cannot be made to hold a particular
@@ -234,9 +234,10 @@ func TestUserCallsReportARefusedPut(t *testing.T) {
 	_ = fmt.Sprint(s.requests)
 }
 
-// The flag decision tree (WHO-RUNS-USERADD P3), against a stub realm. What an
-// operator gets wrong is which flag they needed, so each refusal is pinned by
-// the message it gives rather than by its exit code alone.
+// The flag decision tree `semiont useradd` applies through the admin client,
+// against a stub realm. What an operator gets wrong is which flag they needed,
+// so each refusal is pinned by the message it gives rather than by its exit
+// code alone.
 
 func applyAgainst(t *testing.T, s *stubUsers, o useraddOpts, password string) int {
 	t.Helper()
@@ -312,9 +313,8 @@ func TestUseraddInactiveCreatesDisabled(t *testing.T) {
 }
 
 // --generate-password: the launcher that administers the realm makes the
-// password, sets it, and shows it once. Found live 2026-09-29: the flag was
-// parsed and never read, so every such call refused with "Password required"
-// (bugs/useradd-generate-password-is-ignored.md).
+// password, sets it, and shows it once. A flag parsed and never read would
+// refuse every such call with "Password required".
 func TestUseraddGeneratesAPasswordForACreate(t *testing.T) {
 	s := newStubUsers(t, "semiont", []map[string]any{})
 	code := 0

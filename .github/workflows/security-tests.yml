@@ -4,7 +4,7 @@ name: Security Tests
 # checks: a path-filtered workflow never runs on an unrelated PR, so its checks
 # are never reported, and GitHub treats a required check that never reports as
 # permanently *pending* — the PR is unmergeable with no failing check to point
-# at. That silently blocked every packages/-only PR (#1165).
+# at. A filter silently blocks every PR that touches only paths outside it.
 on:
   push:
     branches: [ main, develop ]
@@ -91,8 +91,8 @@ jobs:
           fi
           echo "✅ No server-rendered moderation content in SPA shell"
 
-          # Test 4: Verify no sensitive data patterns
-          if echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|DELETE|admin@"; then
+          # Test 4: Verify the shell carries no inference API key and no token
+          if echo "$response" | grep -qE "sk-ant-[A-Za-z0-9_-]+|eyJ[A-Za-z0-9_-]{10,}\.eyJ"; then
             echo "❌ SECURITY FAILURE: Sensitive data patterns found in response!"
             exit 1
           fi
@@ -116,8 +116,8 @@ jobs:
           if [ ! -z "$APP_PID" ]; then
             kill $APP_PID || true
           fi
-          # Kill any remaining Node.js processes
-          pkill -f "node.*server.js" || true
+          # npm start runs `vite preview`; kill it if the npm wrapper left it behind
+          pkill -f "vite preview" || true
 
       - name: Upload test coverage
         uses: codecov/codecov-action@v7.1.1
@@ -188,7 +188,7 @@ jobs:
           export SEMIONT_OIDC_CLIENT_ID=semiont-gateway
           export SEMIONT_OIDC_CLIENT_SECRET=test-gateway-client-secret
 
-          echo "Starting gateway in the ci environment..."
+          echo "Starting the gateway..."
           nohup ../../target/release/semiont-gateway --config "$RUNNER_TEMP/gateway.json" > gateway.log 2>&1 &
           APP_PID=$!
           echo "GATEWAY_PID=$APP_PID" >> $GITHUB_ENV
@@ -203,7 +203,7 @@ jobs:
             exit 1
           fi
 
-          # Try to curl the health endpoint (ci.json uses port 4000)
+          # Try to curl the health endpoint (the document above sets port 4000)
           echo "Attempting to connect to gateway health endpoint..."
           for i in {1..30}; do
             if curl -f -v http://localhost:4000/api/health 2>&1; then
@@ -259,7 +259,7 @@ jobs:
 
           # Test 2: Verify error responses don't leak sensitive data
           response=$(curl -s http://localhost:4000/api/status)
-          if echo "$response" | grep -qE "postgresql://|secret|jwt.*key|password|database.*connection|stack.*trace|\.(js|rs):[0-9]+"; then
+          if echo "$response" | grep -qE "secret|jwt.*key|password|stack.*trace|panicked at|\.rs:[0-9]+"; then
             echo "❌ SECURITY FAILURE: Sensitive data leaked in API error response!"
             echo "Response: $response"
             exit 1
@@ -297,39 +297,34 @@ jobs:
           
           if [ "${{ needs.browser-security.result }}" == "success" ]; then
             echo "✅ **Browser Security Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
-            echo "- SPA shell serves correctly for the moderate route" >> $GITHUB_STEP_SUMMARY
-            echo "- No server-rendered privileged content in SPA shell" >> $GITHUB_STEP_SUMMARY
-            echo "- No sensitive data patterns in responses" >> $GITHUB_STEP_SUMMARY
-            echo "- Client-side auth guards verified by unit tests" >> $GITHUB_STEP_SUMMARY
+            echo "- The session gates, the locale layout and validation pass (\`npm run test:security\`)" >> $GITHUB_STEP_SUMMARY
+            echo "- The built Browser answers the moderate routes with the SPA shell" >> $GITHUB_STEP_SUMMARY
+            echo "- The shell carries no moderation content and no secret-shaped string" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Browser Security Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
-            echo "- **CRITICAL**: Security vulnerabilities detected!" >> $GITHUB_STEP_SUMMARY
+            echo "- A step of the job failed; its log says which" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ "${{ needs.gateway-security.result }}" == "success" ]; then
             echo "✅ **Gateway Security Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
-            echo "- API authentication enforced" >> $GITHUB_STEP_SUMMARY
-            echo "- Admin endpoints properly protected" >> $GITHUB_STEP_SUMMARY
-            echo "- Password authentication secure (no email enumeration)" >> $GITHUB_STEP_SUMMARY
-            echo "- SQL injection protection verified" >> $GITHUB_STEP_SUMMARY
-            echo "- No sensitive data leakage" >> $GITHUB_STEP_SUMMARY
+            echo "- \`/api/status\` and \`/api/resources/{id}\` answer 401 with no credential and to a token that does not verify" >> $GITHUB_STEP_SUMMARY
+            echo "- The 401 body is the JSON error shape" >> $GITHUB_STEP_SUMMARY
+            echo "- The 401 body carries no secret, stack trace or source path" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Gateway Security Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
-            echo "- **CRITICAL**: API security vulnerabilities detected!" >> $GITHUB_STEP_SUMMARY
+            echo "- A step of the job failed; its log says which" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ "${{ needs.browser-security.result }}" == "success" ] && [ "${{ needs.gateway-security.result }}" == "success" ]; then
             echo "🎉 **Overall Status**: ALL SECURITY CHECKS PASSED" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "The application is secure and ready for deployment." >> $GITHUB_STEP_SUMMARY
           else
-            echo "🚨 **Overall Status**: SECURITY FAILURES DETECTED" >> $GITHUB_STEP_SUMMARY
+            echo "🚨 **Overall Status**: A SECURITY CHECK FAILED" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**DO NOT MERGE** - Fix security issues before proceeding." >> $GITHUB_STEP_SUMMARY
+            echo "**DO NOT MERGE** until both jobs pass." >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Fail if security tests failed

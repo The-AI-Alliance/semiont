@@ -2,17 +2,15 @@
  * Tests for the interpolation every translation manager shares: react-ui's
  * built-in managers and the Browser's i18next-backed one.
  *
- * Two regression-guard suites:
+ * The two syntaxes a translation can carry:
  *
- * 1. Double-brace parameter substitution — covers the bug surfaced in the
- *    Settings panel where the manager used a single-brace regex
- *    (`\{paramKey\}`) against translations that use double braces
- *    (`{{paramKey}}`), producing artifacts like `Using {Light} mode`.
+ * 1. Double-brace parameter substitution — translations use double braces
+ *    (`{{paramKey}}`); a single-brace regex (`\{paramKey\}`) run against
+ *    them produces artifacts like `Using {Light} mode`.
  *
- * 2. ICU plural format — covers the bug surfaced in the References panel
- *    where the manager didn't process plural syntax at all, rendering
- *    the literal `{count, plural, =0 {…} =1 {…} other {# categories
- *    selected}}` to the page.
+ * 2. ICU plural format — plural syntax is resolved, never rendered to the
+ *    page as the literal `{count, plural, =0 {…} =1 {…} other {# categories
+ *    selected}}`.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -50,12 +48,12 @@ describe('interpolateTranslation — double-brace parameter substitution', () =>
     ).toBe('200ms delay');
   });
 
-  it('does NOT match single-brace placeholders (regression guard for the original bug)', () => {
+  it('does NOT match single-brace placeholders', () => {
     // Translations standardize on double braces. If a template uses single
     // braces by mistake, the engine leaves them alone — fail loud rather
-    // than silently re-interpret. The Settings-panel bug was the engine
-    // matching a SUBSET of double braces with a single-brace regex; we
-    // pin the opposite shape too: single-brace input is left untouched.
+    // than silently re-interpret. A single-brace regex matches a SUBSET of
+    // double braces; this pins the opposite shape too: single-brace input
+    // is left untouched.
     expect(
       interpolateTranslation('Using {mode} mode', { mode: 'Light' }, 'en')
     ).toBe('Using {mode} mode');
@@ -84,9 +82,8 @@ describe('interpolateTranslation — double-brace parameter substitution', () =>
 });
 
 describe('interpolateTranslation — ICU MessageFormat plural syntax', () => {
-  // The exact template that surfaced the bug in the References (Tags)
-  // panel — left in verbatim so a future reader can match it against
-  // the screenshot if this regresses again.
+  // The TaggingPanel's `categoriesSelected` template from
+  // translations/en.json, verbatim.
   const TAG_COUNT_TEMPLATE =
     '{count, plural, =0 {No categories selected} =1 {1 category selected} other {# categories selected}}';
 

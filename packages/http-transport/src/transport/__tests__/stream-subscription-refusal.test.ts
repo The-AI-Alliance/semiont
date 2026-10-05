@@ -1,13 +1,12 @@
 /**
- * RED (CLIENT-SUBSCRIPTION-MANIFEST P1, D1): a stream outside the
- * subscription set throws at the call, not never.
+ * A stream outside the subscription set throws at the call, not never.
  *
- * `busRequest` already refuses an unsubscribed REPLY channel
- * (`bus.unsubscribed`, core `bus-request.ts`), because a timed-out reply was
- * once this bug. A plain `stream()` has no such guard: on 2026-09-16 a
- * worker's `stream('job:queued')` returned a healthy-looking observable that
- * could never fire, every worker sat idle, and the only tell was
- * `lastQueuedEventAt: null` on /health. Nothing threw; nothing logged.
+ * `busRequest` refuses an unsubscribed REPLY channel (`bus.unsubscribed`,
+ * core `bus-request.ts`) rather than let the reply time out. A plain
+ * `stream()` has the same guard: without it a worker's
+ * `stream('job:queued')` returns a healthy-looking observable that can
+ * never fire, the worker sits idle, and the only tell is
+ * `lastQueuedEventAt: null` on /health. Nothing throws; nothing logs.
  *
  * The contract asserted here: on a transport that HAS a subscription set,
  * consuming a channel outside it fails AT THE CALL, naming the channel.
@@ -35,8 +34,7 @@ describe('stream() refuses a channel outside the subscription set', () => {
     });
     actor.start();
 
-    // The 2026-09-16 outage, expressed: the frame is on the broker, this
-    // connection will never carry it.
+    // The frame is on the broker; this connection will never carry it.
     let thrown: unknown;
     try {
       actor.stream('job:queued');
@@ -49,8 +47,8 @@ describe('stream() refuses a channel outside the subscription set', () => {
     );
     const error = thrown as BusRequestError;
     expect(error.code).toBe('bus.unsubscribed');
-    // Naming the channel is the whole point: the outage's cost was that
-    // nothing said which channel was missing.
+    // Naming the channel is the whole point: a silent stream does not say
+    // which channel is missing.
     expect(error.message).toContain('job:queued');
     expect(error.details).toMatchObject({ channel: 'job:queued' });
 
@@ -90,9 +88,10 @@ describe('stream() refuses a channel outside the subscription set', () => {
     expect(() => actor.stream('job:queued')).toThrow();
     actor.addChannels(['job:queued']);
     // The refusal reads the CURRENT set. Asserting this pins the check
-    // against the live set rather than a constructor-time copy — P2 deletes
-    // the widening call sites, and a frozen-at-build check would pass that
-    // refactor while breaking anything still widening.
+    // against the live set rather than a constructor-time copy — each
+    // client declares its whole channel set at construction, and a
+    // frozen-at-build check would pass that arrangement while breaking
+    // anything that widens afterwards.
     expect(() => actor.stream('job:queued')).not.toThrow();
 
     actor.dispose();
@@ -113,14 +112,14 @@ describe('stream() refuses a channel outside the subscription set', () => {
     // any scope is joined: `HttpTransport.bridgeInto` subscribes every
     // scopable channel up front so frames flow the moment a scope arrives,
     // and asking the live scope entries would refuse the bridge its own
-    // subscription (8 http-transport tests, measured 2026-09-16).
+    // subscription.
     const scoped = RESOURCE_SCOPED_CHANNELS.find(
       (c) => !(BRIDGED_CHANNELS as readonly string[]).includes(c),
     );
     if (!scoped) throw new Error('fixture assumes at least one scope-only channel exists');
     expect(PERSISTED_EVENT_TYPES as readonly string[]).toContain(scoped);
 
-    // No scope joined yet — the bridge's case, and the one that broke.
+    // No scope joined yet — the bridge's case.
     expect(() => actor.stream(scoped)).not.toThrow();
 
     actor.addChannels([scoped], resourceId('res-1'));

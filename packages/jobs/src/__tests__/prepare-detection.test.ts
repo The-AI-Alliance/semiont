@@ -1,32 +1,30 @@
 /**
- * prepareDetection (#736, rewritten for #739) — the media axis and the
+ * prepareDetection — the media axis and the
  * `buildAnnotation` closures it returns.
  *
- * Detection now reads through the SAME extractor registry the Smelter embeds
- * from, so these tests drive the real registry wherever they can: a text
- * resource decodes for real, and only the PDF slot is stubbed — this suite
- * is the dispatch layer. The cache seam inside the REAL pdf extractor is
- * covered by the sibling `prepare-detection.cache.test.ts` (PERSIST-ANCHORS
- * P2d), which is why every call here passes an always-miss store. The
- * wiring being proven is that the anchoring model follows the GEOMETRY, not
- * the media type — positioned runs anchor by viewrect, their absence
- * anchors by character offset in that same text.
+ * Detection reads a resource by the SAME media-type text source the Smelter
+ * embeds from, so these tests drive the real route wherever they can: a text
+ * resource decodes for real, and only the PDF route is stubbed — this suite
+ * is the dispatch layer. That route is the Smelter consult: a geometry-bearing
+ * type's text and geometry come from the Smelter's anchored text, so this
+ * worker holds no store and extracts nothing itself. The wiring being proven
+ * is that the anchoring model follows the GEOMETRY, not the media type —
+ * positioned runs anchor by viewrect, their absence anchors by character
+ * offset in that same text.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { resourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { PdfTextItem } from '@semiont/core';
 
-// No `@semiont/content` mock. Since READ-VS-EXTRACT P2 this seam imports nothing
-// from it that runs — deriving is reachable only through `derivingExtractorFor`
-// and callable only with an `AnchoredTextStore`, which this worker does not have.
-// The `pdfExtract` spy that used to prove "the worker did not OCR" had no target
-// left; the `getBinary` assertions below prove the same thing observably, and
-// better: no bytes fetched is no derivation possible.
-// No `@semiont/event-sourcing` mock: annotation ids are content-addressed
-// (JOB-RESTART-SAFETY P3), so the real function is already deterministic. The
-// mock existed only to buy that determinism, and keeping it would hide the
-// identity these builders now compute — which is the thing worth exercising.
+// No `@semiont/content` mock. This seam imports nothing from it that runs —
+// deriving is reachable only through `derivingExtractorFor` and callable only
+// with an `AnchoredTextStore`, which this worker does not have.
+// The `getBinary` assertions below prove "the worker did not OCR" observably:
+// no bytes fetched is no derivation possible.
+// No `@semiont/event-sourcing` mock: annotation ids are content-addressed, so
+// the real function is deterministic, and a mock would hide the identity
+// these builders compute — which is the thing worth exercising.
 
 import type { ContentReads } from '@semiont/content';
 import { prepareDetection } from '../workers/detection/prepare-detection';
@@ -52,9 +50,9 @@ const PDF_ITEMS: PdfTextItem[] = [
 
 /**
  * The byte read, serving `text`. A plain `ContentReads` rather than a
- * hollowed-out session: since SINGLE-KB-MOUNT P4 the seam takes the read it
- * actually wants, so the double needs no cast to claim it is something
- * larger.
+ * hollowed-out session: the worker reads bytes straight from the Archivist,
+ * so the seam takes the read it actually wants and the double needs no cast
+ * to claim it is something larger.
  */
 function fakeReads(text = 'alpha beta gamma') {
   const bytes = new TextEncoder().encode(text);
@@ -65,8 +63,8 @@ function fakeReads(text = 'alpha beta gamma') {
   return { reads, getBinary };
 }
 
-/** The geometry consult (SMELTER-OWNS-OCR P2) — a spy over
- * `browse.resourceAnchoredText`. Default: a settled map. */
+/** The geometry consult, where a geometry-bearing type's detection text comes
+ * from — a spy over `browse.resourceAnchoredText`. Default: a settled map. */
 function fakeConsult(answer: unknown = { kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'pdf-text-layer' }) {
   const consult = vi.fn(async () => answer as never);
   return { consult };
@@ -110,9 +108,10 @@ describe('prepareDetection', () => {
   // ── GEOMETRY-bearing: consult the Smelter, never fetch or OCR ────────────
 
   it('PDF: text comes from the CONSULT with its geometry, and getBinary is NOT called', async () => {
-    // The headline of SMELTER-OWNS-OCR P2: a geometry type reads canonical text
-    // from the Smelter. Assert on the CALL, not the result — a fetch whose bytes
-    // are discarded still downloads 39 MB, and an OCR pass still burns the CPU.
+    // The headline: the Smelter owns OCR, so a geometry type reads canonical
+    // text from the Smelter. Assert on the CALL, not the result — a fetch whose
+    // bytes are discarded still downloads 39 MB, and an OCR pass still burns
+    // the CPU.
     const { reads, getBinary } = fakeReads();
     const { consult } = fakeConsult({ kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'pdf-text-layer' });
 
@@ -131,7 +130,7 @@ describe('prepareDetection', () => {
   });
 
   it('a class A PDF takes the consult path too — the rule is yieldsGeometryOf, not "is it a scan"', async () => {
-    // A class-A carve-out would reintroduce a second producer for an operation
+    // A class-A carve-out would introduce a second producer for an operation
     // that is merely *probably* deterministic. The consult, not the pdfClass,
     // decides.
     const { reads, getBinary } = fakeReads();
@@ -150,7 +149,7 @@ describe('prepareDetection', () => {
     expect(await prepareDetection('application/pdf', reads, RID, GENERATOR, consult))
       .toEqual({ declined: 'not-yet' });
     // No fallback extraction: a local OCR pass that runs and is discarded still
-    // burns the CPU this plan exists to stop duplicating.
+    // burns the CPU the consult exists to stop duplicating.
     expect(getBinary).not.toHaveBeenCalled();
   });
 
@@ -182,7 +181,7 @@ describe('prepareDetection', () => {
       .toEqual({ declined: 'empty' });
   });
 
-  // ── media-type gate, unchanged ──────────────────────────────────────────
+  // ── media-type gate ─────────────────────────────────────────────────────
 
   it("declines 'no-extractor' for a media type that can never yield text", async () => {
     const { reads, getBinary } = fakeReads();

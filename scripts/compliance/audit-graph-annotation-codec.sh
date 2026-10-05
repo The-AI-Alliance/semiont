@@ -3,12 +3,11 @@ set -euo pipefail
 
 # Audit the graph annotation codec's two axioms.
 #
-# `packages/graph` has four store implementations. They used to carry four
-# near-verbatim copies of the annotation↔properties shape, which drifted:
-# a missing selector threw in neo4j, became `{}` in janusgraph and neptune;
-# a missing motivation threw in neo4j and silently became `'linking'` in the
-# other two. One event log, four different annotations. The `{}` reached the
-# wire and 400'd the wizard's Search leg.
+# `packages/graph` has four store implementations. Four near-verbatim copies
+# of the annotation↔properties shape drift: a missing selector throws in one
+# and becomes `{}` in another; a missing motivation throws in one and silently
+# becomes `'linking'` in another. One event log, four different annotations,
+# and the `{}` reaches the wire.
 #
 # A1 — exactly one module decides that shape. No W3C envelope is built inside
 #      an implementation file.
@@ -17,14 +16,11 @@ set -euo pipefail
 #      value the next reader cannot tell from a real one.
 #
 #      A5 covers what the implementations HAND the codec, not just the codec
-#      body. `created` satisfied A5's letter and broke its spirit one call
-#      frame up: all four stores minted `new Date().toISOString()` and passed
-#      it in, so the codec faithfully stored a manufactured value. Because
-#      `rebuildResource` deletes before it replays, that restamped every
-#      annotation on every reconcile heal. See
-#      .plans/ANNOTATION-CREATED-AUTHORITY.md.
-#
-# See .plans/GRAPH-ANNOTATION-CODEC.md.
+#      body. A store that mints `new Date().toISOString()` for `created` and
+#      passes it in satisfies A5's letter and breaks its spirit one call frame
+#      up: the codec faithfully stores a manufactured value. Because
+#      `rebuildResource` deletes before it replays, that restamps every
+#      annotation on every reconcile heal.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 IMPLEMENTATIONS="$REPO_ROOT/packages/graph/src/implementations"
@@ -45,8 +41,8 @@ if envelope=$(grep -rn "anno\.jsonld" "$IMPLEMENTATIONS" 2>/dev/null); then
   violations=$((violations + 1))
 fi
 
-# The selector's serialization is the codec's too — this is the exact
-# expression that minted the `'{}'` rows, in four places.
+# The selector's serialization is the codec's too — this is the
+# expression that mints `'{}'` rows.
 if minted=$(grep -rn "JSON\.stringify([^)]*|| *{}" "$IMPLEMENTATIONS" 2>/dev/null); then
   echo ""
   echo "❌ A1: an implementation is serializing a selector with a manufactured default."
@@ -77,9 +73,9 @@ fi
 # than silently permitted: unlike `created` it appears in no event, no core
 # type and no spec, so there is no authored value being overwritten — it is
 # bookkeeping the graph invents, which a rebuild loses outright. Whether it
-# should be derived from the resolve event or declared ephemeral is
-# GRAPH-DIVERGENCE-DEPTH's open question; when that is settled, this exclusion
-# is either deleted or given a reason that outlives the question.
+# should be derived from the resolve event or declared ephemeral is an open
+# question about the graph's content model; when that is settled, this
+# exclusion is either deleted or given a reason that outlives the question.
 if stamped=$(grep -rnE "new Date\(\)" "$IMPLEMENTATIONS" 2>/dev/null | grep -v "resolvedAt"); then
   echo ""
   echo "❌ A5: an implementation is minting a timestamp of its own."
@@ -96,5 +92,5 @@ if [ "$violations" -eq 0 ]; then
 fi
 
 echo ""
-echo "Found $violations violation(s). See .plans/GRAPH-ANNOTATION-CODEC.md."
+echo "Found $violations violation(s)."
 exit 1

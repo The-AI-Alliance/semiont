@@ -3,10 +3,6 @@
 
    This is the authoritative source for all textarea styles.
    Usage: Apply .semiont-textarea to <textarea> elements.
-
-   Available modifiers:
-   - .semiont-textarea--small (reduced padding)
-   - .semiont-textarea--large (increased padding)
    ============================================ */
 
 /* Base Textarea Styling */
@@ -95,10 +91,6 @@
 [data-theme="dark"] .semiont-textarea:disabled {
   background-color: var(--semiont-color-gray-800);
 }
-
-/* Size Variants */
-
-/* Resize Options */
 
 /* Placeholder */
 .semiont-textarea::placeholder {

@@ -1,5 +1,5 @@
 /**
- * Tests for the UI-signal wrapper methods (CLIENT-CLEANUP).
+ * Tests for the UI-signal wrapper methods.
  * Each wrapper is a one-line typed sugar over `bus.emit(channel, payload)`
  * (local-bus emit). The tests lock in the wrapper→channel mapping so future
  * refactors can't silently change which channel a method routes to, nor
@@ -92,15 +92,16 @@ describe('UI signal wrappers', () => {
       browse.click(AID);
 
       // No motivation: the id addresses exactly one annotation, and the viewer
-      // derives the motivation from the annotation it names (TOUR-CLICK D2).
-      // Carrying it too would state one fact twice on a wire that also carries
-      // the id it comes from.
+      // derives the motivation from the annotation it names. Carrying it too
+      // would state one fact twice on a wire that also carries the id it
+      // comes from.
       expect(spy).toHaveBeenCalledExactlyOnceWith('browse:click', {
         annotationId: AID,
       });
-      // NEVER the wire: browse:click is bridged (TOUR-CLICK P1), so a transport
-      // emit here would broadcast this viewer's own click to every participant
-      // — the D6 feedback loop. The wire path is `beckon.click()`.
+      // NEVER the wire: browse:click is bridged, so a transport emit here
+      // would broadcast this viewer's own click to every participant — one
+      // viewer's click driving every other page. The wire path is
+      // `beckon.click()`.
       expect(transport.emit).not.toHaveBeenCalled();
     });
   });
@@ -117,19 +118,19 @@ describe('UI signal wrappers', () => {
       expect(spy).toHaveBeenCalledExactlyOnceWith('browse:resource-open', {
         resourceId: RID,
       });
-      // NEVER the wire: `browse:resource-open` is bridged (GUIDED-TOUR P2),
-      // so a transport emit here would broadcast this viewer's own click to
-      // every participant — the D6 feedback loop. The wire path is
-      // `beckon.openResource()` (SDK-REMOTE-SIGNALS).
+      // NEVER the wire: `browse:resource-open` is bridged, so a transport
+      // emit here would broadcast this viewer's own click to every
+      // participant — one viewer's click driving every other page. The wire
+      // path is `beckon.openResource()`.
       expect(transport.emit).not.toHaveBeenCalled();
     });
   });
 
   describe('browse.resourceViewed', () => {
     it('emits browse:resource-viewed over the TRANSPORT (wire) — the tour report, not a local signal', () => {
-      // D6 (GUIDED-TOUR): the viewer REPORTS arrival so a remote guide can
-      // branch on it. A local-bus emit would never leave the page; the
-      // beckon:focus idiom (transport.emit) is the wire path.
+      // The viewer REPORTS arrival so a remote guide can branch on it. A
+      // local-bus emit would never leave the page; the beckon:focus idiom
+      // (transport.emit) is the wire path.
       const bus = new EventBus();
       const transport = makeMockTransport();
       const browse = new BrowseNamespace(transport, bus, makeMockContent());
@@ -179,7 +180,7 @@ describe('UI signal wrappers', () => {
     });
   });
 
-  // ── SDK-REMOTE-SIGNALS P2: the beckon wire drives ───────────────────────
+  // ── The beckon wire drives ──────────────────────────────────────────────
   // These drive OTHER participants (the guided-tour moves) and resolve with
   // the subscriber count from /bus/emit (absent when unknown; ITransport.emit).
 

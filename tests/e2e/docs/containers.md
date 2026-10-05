@@ -119,8 +119,7 @@ stable across restarts. See
 
 The container invocation must use a tag matching the installed
 `@playwright/test`. Derive it (`PW=$(node -p "require('./node_modules/@playwright/test/package.json').version")`)
-rather than hardcoding — this page previously named `v1.61.0-noble` while the
-lockfile carried 1.62.0. If `npm install` upgrades the library, pull the
+rather than hardcoding. If `npm install` upgrades the library, pull the
 matching image:
 
 ```sh

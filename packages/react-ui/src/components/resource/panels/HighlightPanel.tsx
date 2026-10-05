@@ -122,7 +122,7 @@ export function HighlightPanel({
   }, [hoveredAnnotationId]);
 
   // Subscribe to click events - update focused state
-  // Event handler for annotation clicks (extracted to avoid inline arrow function)
+  // Event handler for annotation clicks (a named callback rather than an inline arrow function)
   const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
     setFocusedAnnotationId(annotationId);
     setTimeout(() => setFocusedAnnotationId(null), 3000);

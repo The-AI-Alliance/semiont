@@ -3,8 +3,7 @@
  * Minimal static file server for the Semiont frontend SPA.
  * Serves the Vite-built dist/ directory with SPA fallback (all routes → index.html),
  * plus the launcher's KB discovery document under /discovery/* — served or 404,
- * NEVER the SPA fallback (a 200 index.html would be indistinguishable from data;
- * see .plans/BROWSER-KB-DISCOVERY.md L2a).
+ * NEVER the SPA fallback (a 200 index.html would be indistinguishable from data).
  *
  * Environment variables:
  *   PORT - port to listen on (default: 3000)
@@ -133,8 +132,9 @@ if (require.main === module) {
   const server = http.createServer(createHandler({
     // dist/ is a sibling of this file in the published package
     distDir: path.join(__dirname, 'dist'),
-    // The launcher's read-only mount (see BROWSER-KB-DISCOVERY L1); absent
-    // outside the container, so the prefix just 404s ("absent").
+    // The launcher's read-only mount, where it writes the discovery document
+    // of the KBs it manages on every stack change; absent outside the
+    // container, so the prefix just 404s ("absent").
     discoveryDir: '/discovery',
   }));
 

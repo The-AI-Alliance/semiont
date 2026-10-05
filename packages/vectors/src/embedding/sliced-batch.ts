@@ -1,26 +1,28 @@
 /**
  * Slice a batch into round trips, bound each one, and keep them in order.
  *
- * Both providers had the same defect and must get the same fix, so the fix lives
- * once: `ollama.ts` and `voyage.ts` supply only what genuinely differs — their
- * policy values and how to post one slice — and agree on the rest by
- * construction rather than by two people remembering the same shape.
+ * Both providers need the same slicing, so it lives once: `ollama.ts` and
+ * `voyage.ts` supply only what genuinely differs — their policy values and how
+ * to post one slice — and agree on the rest by construction rather than by two
+ * people remembering the same shape.
  *
  * Three properties this owns, each of which is silent when wrong:
  *
  *  - **Order.** The smelter maps embeddings back to chunks positionally
- *    (`smelter.ts:617`), so a reordering corrupts the index without erroring.
- *    `Promise.all` preserves array order regardless of completion order.
+ *    (`embedResource`, `batchResourceCreated` and `batchAnnotationAdded` in
+ *    make-meaning's `smelter.ts` index the result by input position), so a
+ *    reordering corrupts the index without erroring. `Promise.all` preserves
+ *    array order regardless of completion order.
  *  - **The deadline is per round trip.** `post` builds its own `AbortSignal`
  *    INSIDE the gated thunk, so a slice that queued behind others still gets a
- *    whole budget. Hoisting that signal out would rebuild the original cliff one
- *    layer up, invisibly — the timeout would start ticking while the slice was
- *    still waiting for a slot.
+ *    whole budget. Hoisting that signal out would rebuild the whole-batch
+ *    cliff one layer up, invisibly — the timeout would start ticking while the
+ *    slice was still waiting for a slot.
  *  - **Failure says where.** A rejecting slice carries the index and the range it
  *    covered. That is for DIAGNOSIS: indexing stays all-or-nothing per resource,
  *    because a partially-indexed resource reads as fresh to reconcile
- *    (`smelter.ts:861` compares the stamp's checksum, which the landed chunks
- *    carry correctly) and would therefore never heal.
+ *    (`Smelter.reconcile` compares the stamp's checksum, which the landed
+ *    chunks carry correctly) and would therefore never heal.
  *
  * Every slice is submitted at once; the gate — held on the provider INSTANCE, so
  * it is shared with every other caller — decides how many actually run.

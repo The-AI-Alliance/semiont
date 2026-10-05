@@ -13,8 +13,7 @@
  * doing both on the same `StreamObservable`/`UploadObservable` fires the
  * underlying job/upload *twice* (`.then` calls `lastValueFrom`, which
  * subscribes again). To get progress *and* the terminal result from a single
- * execution, use `.run(onNext)`. A hot/multicast redesign that removes the
- * footgun is proposed in `.plans/MULTICAST-JOB-TRIGGERS.md`.
+ * execution, use `.run(onNext)`.
  *
  * `.pipe(...)` returns a plain `Observable<T>` (RxJS doesn't propagate
  * subclasses through `pipe`). Once you compose, you've explicitly entered
@@ -92,19 +91,18 @@ export class CacheObservable<T> extends Observable<CacheState<T>> {
   /**
    * Optional one-shot fresh-fetch action backing `.fresh()`. When present,
    * `fresh()` resolves to a freshly fetched value and rejects on fetch
-   * failure — so a re-read reflects writes (#847). `.subscribe(...)` never
+   * failure — so a re-read reflects writes. `.subscribe(...)` never
    * uses it: it keeps the stale-while-revalidate cached view over `source`.
    */
   private fetchFresh?: () => Promise<T>;
 
   /**
-   * Explicit one-shot read (CACHE-CONTRACT D2, settled 2026-07-29): a FRESH
-   * network fetch that updates the store (subscribers see it too), resolves
-   * with the value, and REJECTS on failure — the caller owns retry policy
-   * (B14 boundary 1). This replaces the deleted `PromiseLike` surface:
-   * `await client.browse.x(...)` no longer compiles, so a refactor that
-   * wraps a call site in `async` can never again silently convert a cache
-   * read into a network round trip.
+   * Explicit one-shot read: a FRESH network fetch that updates the store
+   * (subscribers see it too), resolves with the value, and REJECTS on
+   * failure — the caller owns retry policy (B14 boundary 1). The class is
+   * deliberately not `PromiseLike`: `await client.browse.x(...)` does not
+   * compile, so a refactor that wraps a call site in `async` cannot
+   * silently convert a cache read into a network round trip.
    */
   fresh(): Promise<T> {
     if (this.fetchFresh) {
@@ -130,7 +128,7 @@ export class CacheObservable<T> extends Observable<CacheState<T>> {
    *
    * `fetchFresh`, when supplied, backs `.fresh()`: it resolves to a freshly
    * fetched value (rejecting on failure), so a one-shot read reflects writes
-   * without a scoped subscription (#847). `.subscribe(...)` consumers keep
+   * without a scoped subscription. `.subscribe(...)` consumers keep
    * the SWR view over `source`.
    *
    * Memoizes on source identity: passing the same `source` returns the same
@@ -173,8 +171,8 @@ export type UploadProgress =
  * Specialized `StreamObservable` for `yield.resource`. Subscribers see the
  * full `UploadProgress` event sequence (started → optional progress → finished).
  * Awaiting resolves specifically to `{ resourceId }` extracted from the
- * `'finished'` event — preserving the pre-Phase-18 awaited shape so existing
- * `await client.yield.resource(...)` callers don't need to narrow the union.
+ * `'finished'` event, so `await client.yield.resource(...)` callers don't
+ * need to narrow the union.
  */
 export class UploadObservable extends Observable<UploadProgress> implements PromiseLike<{ resourceId: ResourceId }> {
   then<R1 = { resourceId: ResourceId }, R2 = never>(

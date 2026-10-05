@@ -3,20 +3,17 @@ set -euo pipefail
 
 # Audit A6 — exactly one ajv-over-the-spec validator, and it is generated.
 #
-# There used to be one hand-configured Ajv setup, in `apps/gateway`, which
-# only the gateway could reach. make-meaning needed the same validation for
-# its consumer teeth, and writing a second setup would have hand-restated the
-# first's semantics — the OpenAPI-3.0 `nullable`→draft-07 conversion, the
+# More than one package validates against the spec, and a hand-configured
+# Ajv setup in each would restate the others' semantics — the OpenAPI-3.0
+# `nullable`→draft-07 conversion, the
 # `example`/`discriminator` keyword allowlist, `coerceTypes`, `addFormats`.
-# A drift in any one of them yields a FALSE GREEN: a validation that passes
+# A drift in any one of them yields a FALSE PASS: a validation that passes
 # because the two setups disagree, not because the payload is right.
 #
 # A6 — no package configures Ajv against the OpenAPI spec. The validators are
 #      generated from `specs/openapi.json` into `@semiont/core/openapi` by
 #      scripts/spec/generate-validators.mjs, which is the only place that may
 #      construct an Ajv instance over spec schemas.
-#
-# See .plans/GRAPH-ANNOTATION-CODEC.md (P4, D8 = generate).
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GENERATOR="scripts/spec/generate-validators.mjs"

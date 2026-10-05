@@ -1,9 +1,9 @@
 /**
  * HttpTransport — the HTTP/SSE implementation of ITransport.
  *
- * Phase 1 of TRANSPORT-ABSTRACTION. Owns everything that crosses the wire
- * in remote mode: the bus actor (SSE + POST /bus/emit), auth/admin/exchange/
- * system HTTP endpoints, and connection-state plumbing.
+ * The remote half of a transport-agnostic client. Owns everything that
+ * crosses the wire in remote mode: the bus actor (SSE + POST /bus/emit),
+ * auth/admin/exchange/system HTTP endpoints, and connection-state plumbing.
  *
  * Does NOT own the local coordination bus — that lives on `SemiontClient`.
  * `bridgeInto(bus)` wires SSE-received events into the caller-supplied bus
@@ -42,8 +42,6 @@ import type { BusEnvelope, BusFrame } from '@semiont/core';
 
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
 
-// ── Channel constants (mirror client.ts) ────────────────────────────────
-
 export type TokenRefresher = () => Promise<string | null>;
 
 export interface HttpTransportConfig {
@@ -68,10 +66,7 @@ export interface HttpTransportConfig {
    * full `BRIDGED_CHANNELS` — a full client must receive every operation's
    * reply channel, or its `busRequest`s time out. A narrow-profile process
    * (the worker) passes exactly the reply channels for the operations it
-   * awaits: reply channels are global fan-out on the gateway, so a full
-   * subscription receives every OTHER client's replies too — measured at
-   * ~85 multi-MB `browse:annotations-result` frames/min during the
-   * 2026-09-03 worker OOM, all parsed and dropped by cid filtering.
+   * awaits, and is sent no frame on any other global channel.
    * A `busRequest` on an operation whose replies are outside this set
    * fails fast with `bus.unsubscribed` (see `BusRequestPrimitive`).
    */
@@ -163,7 +158,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   private disposed = false;
 
   /**
-   * Per-resource subscription ref-counts (MULTI-RESOURCE-SCOPE). Distinct
+   * Per-resource subscription ref-counts. Distinct
    * resources COMPOSE — each key's first subscribe adds its scoped channels
    * to the actor's matrix, its last release removes them; keys are fully
    * independent. Local fan-out for scoped channels is a SINGLETON wired in
@@ -188,7 +183,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     // Retry policy: when a refresher is configured, a 401 earns one attempt
     // after refreshing the token — on ANY method, since the request was
     // rejected rather than processed. Otherwise use the plain `retry` number,
-    // which leaves ky's own defaults in place (they never retried POST).
+    // which leaves ky's own defaults in place (they never retry POST).
     //
     // **`methods`/`statusCodes` are a superset PRE-FILTER, not the decision.**
     // ky ANDs them independently, so they cannot express "the widened methods
@@ -258,15 +253,14 @@ export class HttpTransport implements ITransport, IGatewayOperations {
 
                 // A 401 earns its retry only if a fresh credential arrives.
                 // Without one, repeating the request just gets rejected
-                // again, so the caller should have the 401 now.
+                // again, so the caller should have the 401 at once.
                 //
                 // Stop by RETHROWING, never with `ky.stop`: `stop` resolves
                 // the caller's promise with `undefined`, after which the
                 // `.json()` shortcut dereferences nothing and the caller
                 // catches a TypeError instead of the auth failure. A
                 // rethrown original keeps ky's request-error path, so
-                // `beforeError` still runs and callers see the `APIError`
-                // they have always seen.
+                // `beforeError` runs and callers see the `APIError`.
                 let newToken: string | null;
                 try {
                   newToken = await tokenRefresher();
@@ -327,10 +321,8 @@ export class HttpTransport implements ITransport, IGatewayOperations {
 
   // ── Lazy actor construction + per-channel fan-in to bridges ───────────
   //
-  // `actor` is exposed so the legacy `SemiontClient` can keep `.actor`
-  // pointing at the same ActorStateUnit during the transport-abstraction
-  // migration. Once SemiontClient is removed, this should be made
-  // private again — external callers should use emit/on/stream/state$.
+  // `actor` is public for the processes that attach to the ActorStateUnit
+  // itself; other callers use emit/on/stream/state$.
 
   get actor(): ActorStateUnit {
     if (!this._actor) {
@@ -346,23 +338,22 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         ...(this.config.lingerMs !== undefined ? { lingerMs: this.config.lingerMs } : {}),
         ...(this.config.emitRetry !== undefined ? { emitRetry: this.config.emitRetry } : {}),
         ...(this.config.seenEventIdsCount !== undefined ? { seenEventIdsCount: this.config.seenEventIdsCount } : {}),
-        // The SAME hook the ky beforeRetry path uses (SSE-AUTH-RESILIENCE
-        // P4, D2) — the SSE connect path refreshes once before parking
-        // `unauthenticated`, and no second refresh mechanism exists.
+        // The SAME hook the ky beforeRetry path uses — the SSE connect path
+        // refreshes once before parking `unauthenticated`, and no second
+        // refresh mechanism exists.
         ...(this.config.tokenRefresher ? { tokenRefresher: this.config.tokenRefresher } : {}),
       });
       // Refused connects surface on the transport's contract stream too —
       // an SSE subscribe IS an HTTP request, refused as an `APIError` like
-      // any other (SSE-AUTH-RESILIENCE P4, closing P2's deferred bridge
-      // question).
+      // any other.
       this._actor.errors$.subscribe((e) => this.errorsSubject.next(e));
       // One fan-in per channel, wired once for the actor's lifetime — the
       // globally-subscribed set AND the resource-scoped set (disjoint by the
       // bus-invariants guard). Scoped events only arrive for scopes in the
       // actor's matrix (gateway-authoritative filtering), so an always-on
       // scoped fan-in delivers nothing while no scope is held — and exactly
-      // ONCE per event however many scopes are held (the per-scope
-      // bridge-subs design would have duplicated delivery N×).
+      // ONCE per event however many scopes are held (a bridge
+      // subscription per scope would duplicate delivery N×).
       //
       // `relayFrames` owns the hop itself (envelope carried, scope not). The
       // sink fans out to `this.bridges`, which `bridgeInto` appends to after
@@ -375,7 +366,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
           },
         },
         [...globalChannels, ...RESOURCE_SCOPED_CHANNELS],
-        // `EventBus.emit` is synchronous, so this never fires today; it is the
+        // `EventBus.emit` is synchronous, so this never fires; it is the
         // honest answer rather than an omission the relay has to guard against.
         (channel, error) => this.logger?.error('Bridge relay failed', { channel, error }),
       );
@@ -466,11 +457,12 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   }
 
   /**
-   * Correlated-reply retention, client side (BUS-RESUMPTION Phase 2 /
-   * SDK-DEBT S1): `busRequest` registers its cid here before emitting;
-   * the actor carries the tracked set as `pendingReplies` on every
-   * subscribe body, so a reply published while the connection was down
-   * replays from the server's retention buffer on reconnect.
+   * Correlated-reply retention, client side (see
+   * `docs/protocol/TRANSPORT-HTTP.md`): `busRequest` registers its cid
+   * here before emitting; the actor carries the tracked set as
+   * `pendingReplies` on every subscribe body, so a reply published while
+   * the connection was down replays from the server's retention buffer on
+   * reconnect instead of being lost.
    */
   trackReply(correlationId: string): () => void {
     return this.actor.trackReply(correlationId);
@@ -492,9 +484,9 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     this.disposed = true;
     this.scopeRefCounts.clear();
     // The disposed actor is kept, and built first if nothing ever touched it:
-    // a caller arriving later must find a closed bus. Dropping it let the
-    // getter build a fresh one that nothing would ever start, and a request
-    // waited out its whole timeout on a stream that could not open.
+    // a caller arriving later must find a closed bus. Dropping it would let
+    // the getter build a fresh one that nothing would ever start, and a
+    // request would wait out its whole timeout on a stream that cannot open.
     this.actor.dispose();
     this.errorsSubject.complete();
   }
@@ -548,23 +540,19 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     }).json();
   }
 
-  // ── Internal: ky accessor for legacy passthroughs (temporary) ─────────
+  // ── Internal: ky accessor for the content transport ───────────────────
 
   /**
-   * Temporary escape hatch for the ongoing transport migration: namespaces
-   * that still need to issue ad-hoc HTTP calls (e.g. legacy browse/mark
-   * HTTP fallbacks) can borrow the configured `ky` instance here. Will be
-   * deleted once all namespaces route through bus channels or through
-   * typed methods on this transport.
+   * The configured `ky` instance. `HttpContentTransport` issues its content
+   * requests through it, so they pass through the same hooks.
    */
   get rawHttp(): KyInstance {
     return this.http;
   }
 
   /**
-   * Current access token (synchronously read from the BehaviorSubject).
-   * Used by content-transport and legacy namespace HTTP fallbacks that
-   * need to pass `auth: token` through some code paths.
+   * The access token (synchronously read from the BehaviorSubject). Used by
+   * the content transport, which sets its own `Authorization` header.
    */
   getToken(): AccessToken | undefined {
     return this.token$.getValue() ?? undefined;

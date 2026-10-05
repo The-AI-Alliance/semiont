@@ -195,19 +195,13 @@ For implementation details:
 
 ## Decomposition Notes
 
-The spec was decomposed into modular files on 2024-11-06 using Redocly:
+The spec is kept as modular files, bundled with Redocly:
 
 **Why decomposed?**
 - **Maintainability**: Easier to edit individual endpoints/schemas
 - **Collaboration**: Reduced merge conflicts
 - **Organization**: Logical file structure mirrors API
 - **Tooling**: Better IDE support for smaller files
-
-**Migration from monolithic spec:**
-```bash
-# One-time split operation (already done)
-npx redocly split specs/openapi.json --outDir specs/src
-```
 
 **Important**: The `components` section in [src/openapi.json](src/openapi.json) must list ALL schemas with `$ref` entries, even if not directly referenced by paths. This ensures transitive dependencies (schemas referenced by other schemas) are included in the bundle.
 
@@ -241,7 +235,7 @@ Generated from `npm run openapi:stats`:
 ## Related Documentation
 
 - [Root README](../README.md) - Project overview
-- [System Documentation](../docs/system/README.md) - System architecture index
+- [Architecture](../docs/architecture/README.md) - System architecture index
 - [Gateway README](../apps/gateway/README.md) - Gateway implementation
 - [@semiont/http-transport](../packages/http-transport/README.md) - HTTP + SSE wire adapters
 - [@semiont/sdk](../packages/sdk/README.md) - The TypeScript client built over them

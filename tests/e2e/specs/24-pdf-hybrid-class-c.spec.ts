@@ -17,8 +17,8 @@ import { openResourceByName } from '../fixtures/discover';
  * reported in both directions. Mocking the engine is what lets those tests
  * assert recovered text at all, and that is the right place for it. What no unit
  * test reaches is the same document travelling the real path: smelted at ingest,
- * served to a browser, rendered, annotated. Every seeded PDF before this one was
- * class A (typed) or a class B scan that declines; none carried a hybrid.
+ * served to a browser, rendered, annotated. Every other seeded PDF is
+ * class A (typed) or a class B scan; none carries a hybrid.
  *
  * **Why nothing here asserts recognized text.** The fixture's second page is a
  * raster of dark bars, not rendered glyphs. A synthetic bitmap is not a typeface
@@ -101,7 +101,7 @@ test.describe('a hybrid PDF (typed page + scanned page)', () => {
     // The payoff, and the class-C-specific part: the quote comes from the NATIVE
     // text layer of a document that also holds OCR'd content. If appending had
     // shifted native offsets, this quote would be wrong or empty even though the
-    // rectangle landed in the right place.
+    // rectangle is in the right place.
     await expect(page.locator('.semiont-unified-panel')).toBeVisible({ timeout: 10_000 });
     await expect
       .poll(

@@ -1,12 +1,11 @@
 package verbs
 
-// listen_render.go — the human half of `semiont listen` (GUIDED-TOUR P9).
+// listen_render.go — the human half of `semiont listen`.
 //
-// `listen` began as a debug tap: one line per event, whatever identifier the
-// payload happened to carry. That is enough to follow a job and not enough to
-// read a room. A tour guide watches this stream to decide whether the
-// participant is engaging, which makes the rendering a deliverable rather than
-// a diagnostic.
+// One line per event, with whatever identifier the payload happens to carry,
+// is enough to follow a job and not enough to read a room. A tour guide
+// watches this stream to decide whether the participant is engaging, which
+// makes the rendering a deliverable rather than a diagnostic.
 //
 // Three things a guide needs that the raw stream does not give:
 //
@@ -14,16 +13,16 @@ package verbs
 //     knows their tour by title. Names are prefetched ONCE at startup (see
 //     prefetchResourceNames) rather than resolved per event: a per-event lookup
 //     is a correlated bus Request, which opens its own SSE connection — and
-//     since P7, every SSE connection publishes session:joined/left. Resolving
-//     names inline would make the console generate the very presence churn it
-//     is trying to report.
+//     every SSE connection publishes session:joined/left. Resolving names
+//     inline would make the console generate the very presence churn it is
+//     trying to report.
 //   - PRESENCE as state. session:joined/left are events; "who is here now" is
 //     a number. Kept by connectionId, never by participant: one person with two
 //     tabs is two connections, and a map keyed on the DID would report one
-//     viewer for two and none when the duplicate closed.
+//     viewer for two and none when the duplicate closes.
 //   - HONESTY about what is missing. The stream is inbound only — the guide's
 //     own cues are not echoed back — so the header says so rather than letting
-//     silence read as "the cue never landed".
+//     silence read as "the cue never arrived".
 //
 // `--json` is deliberately untouched by all of this: scripts parse it, and a
 // human rendering that leaked into the machine one would break them.

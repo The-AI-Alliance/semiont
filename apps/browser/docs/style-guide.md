@@ -167,11 +167,7 @@ const [isOn, setIsOn] = useState(false);
 ### Range Sliders
 ```tsx
 // From core/sliders.css
-<>
-  <input type="range" className="semiont-slider" min="0" max="100" />
-  {/* Small variant */}
-  <input type="range" className="semiont-slider semiont-slider--small" />
-</>
+<input type="range" className="semiont-slider" min="0" max="100" />
 ```
 
 ### Tags
@@ -180,15 +176,6 @@ const [isOn, setIsOn] = useState(false);
 <>
   <span className="semiont-tag">Category</span>
   <span className="semiont-tag semiont-tag--secondary">Secondary</span>
-</>
-```
-
-### Status Indicators
-```tsx
-// From core/indicators.css
-<>
-  <span className="semiont-indicator semiont-indicator--online"></span>
-  <span className="semiont-indicator semiont-indicator--busy"></span>
 </>
 ```
 
@@ -501,14 +488,6 @@ The component uses the Orbitron font for "SEMIONT" and includes:
 4. **Accessibility:** Include proper ARIA labels and keyboard navigation support
 5. **Dark Mode:** Always include both light and dark mode styles
 6. **Transitions:** Use `transition-all duration-300` for smooth hover effects
-
-## Migration Notes
-
-When migrating components:
-1. **Check @semiont/react-ui first:** See if the component exists in the UI library
-2. **Use semantic classes:** If using react-ui components, rely on their semantic CSS
-3. **Add utility classes carefully:** Only add Tailwind utilities for spacing/layout, not core styling
-4. **Test dark mode:** Switch the theme and check the component in both; `data-theme="dark"` drives react-ui's styles and Tailwind's `dark:` utilities alike
 
 ## Importing Styles
 

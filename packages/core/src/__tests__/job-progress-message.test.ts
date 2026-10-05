@@ -1,6 +1,6 @@
 /**
  * A6 (type half): a progress event carries a code and typed params, never a
- * prose sentence (.plans/ASSIST-PROGRESS-CONSOLIDATION.md). The wire schema is
+ * prose sentence. The wire schema is
  * the contract; this pin fails to compile if `JobProgress.message` regresses
  * to a free string, and if the code vocabulary loses a census-derived member.
  */
@@ -21,7 +21,8 @@ describe('JobProgress message shape (A6, type half)', () => {
     const detecting: Message = { code: 'detecting-entities', entityType: 'Person' };
     const creating: Message = { code: 'creating-annotations', count: 3 };
     const done: Message = { code: 'complete-created', count: 3, kind: 'highlight' };
-    // Generation's terminal success — generic plus the truncation bit (GENERATE-FROM-RESOURCE P1/D7, P3a/D6).
+    // Generation's terminal success — generic (no name field: the client holds
+    // the title it typed) plus the truncation bit.
     const generated: Message = { code: 'complete-generated', truncated: false };
     expect([bare, detecting, creating, done, generated].every((m) => typeof m === 'object')).toBe(true);
   });

@@ -60,9 +60,6 @@ export interface GraphDatabase {
   createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]>;
   resolveReferences(inputs: { annotationId: AnnotationId; source: ResourceId }[]): Promise<Annotation[]>;
 
-  // Auto-detection
-  detectAnnotations(resourceId: ResourceId): Promise<Annotation[]>;
-
   // Tag Collections
   getEntityTypes(): Promise<string[]>;
   addEntityType(tag: string): Promise<void>;
@@ -80,8 +77,8 @@ The interface uses types from `@semiont/core`:
 
 - `ResourceDescriptor` - W3C Web Annotation Data Model resource
 - `Annotation` - W3C Web Annotation
-- `ResourceId` - Branded type for resource IDs (bare UUIDs)
-- `AnnotationId` - Branded type for annotation IDs (bare UUIDs)
+- `ResourceId` - Branded type for resource IDs (1 to 128 letters, digits, `_` and `-`; not a URI)
+- `AnnotationId` - Branded type for annotation IDs (same rule as `ResourceId`)
 - `ResourceFilter` - Filtering options for resources
 - `UpdateResourceInput` - Fields allowed for resource updates
 - `CreateAnnotationInternal` - Internal annotation creation input

@@ -121,8 +121,8 @@ function DropdownGroup({
 
 /**
  * Toolbar for annotation controls with mode, selection, click, and shape options.
- * Purely presentational (TOOLBAR-PREFS-AS-PROPS): renders the given values for the
- * given `parts` and reports choices via the on*Change callbacks — no bus, no storage.
+ * Purely presentational: renders the given values for the given `parts` and
+ * reports choices via the on*Change callbacks — no bus, no storage.
  */
 export function AnnotateToolbar({
   selectedMotivation,

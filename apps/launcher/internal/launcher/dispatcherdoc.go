@@ -60,7 +60,7 @@ func dispatcherNamedVars(env *envConfig) []string {
 
 // dispatcherVars: what a ${VAR} in the dispatcher's settings resolves against —
 // the gateway's set, plus the gateway's own host, which the dispatcher dials,
-// set last as a sidecar's has always been (gatewayHostEnv follows the user's
+// set last as a sidecar's is (gatewayHostEnv follows the user's
 // variables). The gateway's resolver omits it on purpose (gatewayVars): copied
 // as it is, a ${GATEWAY_HOST:-localhost} in the dispatcher's gateway URL would
 // resolve to the dispatcher's own container.
@@ -94,8 +94,8 @@ func dispatcherDocument(env *envConfig, rt, addr string, issuerPort int, userEnv
 		return nil, err
 	}
 	if brokerRun {
-		// The broker the launcher runs has the pair it keeps
-		// (SECRET-DELIVERY P4); the dispatcher is handed both.
+		// The broker the launcher runs has the pair the launcher generates
+		// and keeps; the dispatcher is handed both.
 		user, password := "NATS_USER", daemonPasswords["messaging"].env
 		doc.Queue.UserEnv, doc.Queue.PasswordEnv = &user, &password
 	} else {

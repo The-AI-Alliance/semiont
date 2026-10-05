@@ -73,7 +73,7 @@ export function isDefined<T>(value: T | null | undefined): value is T {
 }
 
 /**
- * Boundary guard for `job:create` generation params (YIELD-FROM-CONTEXT P1).
+ * Boundary guard for `job:create` generation params.
  *
  * Checks the REQUIRED trio the schema declares (`title`, `storageUri`,
  * `context`) plus basic shape — deliberately NOT a full schema validation
@@ -86,43 +86,16 @@ export function isGenerationJobParams(
   value: unknown,
 ): value is import('./payload-types').GenerationJobParams {
   if (!isObject(value)) return false;
-  // Non-empty, not merely present (GENERATION-OUTPUT-FORMAT D9/D9b): the
-  // worker has no fallback, so `storageUri: ''` would write to a bare
-  // `file://` and `title: ''` would name the resource nothing. This guard is
-  // the ONLY runtime enforcement — `JobCreateCommand.params` is
-  // `additionalProperties: true`, so /bus/emit's generated validator never
-  // sees these fields.
+  // Non-empty, not merely present: the worker has no fallback, so
+  // `storageUri: ''` would write to a bare `file://` and `title: ''` would
+  // name the resource nothing. This guard is the ONLY runtime enforcement —
+  // `JobCreateCommand.params` is `additionalProperties: true`, so /bus/emit's
+  // generated validator never sees these fields.
   return (
     typeof value.title === 'string' && value.title.length > 0
     && typeof value.storageUri === 'string' && value.storageUri.length > 0
     && isObject(value.context)
   );
-}
-
-/**
- * Boundary guard for a `GatheredContext` whose type history was severed —
- * today that is exactly one place: the wizard stashes the context in
- * `sessionStorage` on the way to the compose page, which reads it back and
- * `JSON.parse`s it.
- *
- * Checks what consumers actually dereference rather than the whole schema:
- * `focus` (every view branches on `focus.kind`) and `graph.nodes` / `graph.edges`,
- * which `deriveViews` maps over without a guard. Both are `required` in
- * `GatheredContext.json` / `KnowledgeGraph.json`, so this is dead code for every
- * well-typed caller — the price of a trust boundary, same as
- * `isGenerationJobParams` above.
- *
- * The failure it prevents is not cosmetic: `deriveViews` runs during render, so a
- * stale stash (a tab held open across a deploy) throws inside React rather than
- * degrading, unmounting the flow to the nearest error boundary.
- */
-export function isGatheredContext(
-  value: unknown,
-): value is import('./payload-types').GatheredContext {
-  if (!isObject(value)) return false;
-  if (!isObject(value.focus)) return false;
-  if (!isObject(value.graph)) return false;
-  return isArray(value.graph.nodes) && isArray(value.graph.edges);
 }
 
 /**

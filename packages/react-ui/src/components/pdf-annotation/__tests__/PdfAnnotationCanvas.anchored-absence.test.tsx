@@ -1,12 +1,12 @@
 /**
- * ANNOTATE-DEFERS-ON-NOT-YET P1: the viewer keeps the wire's three-way absence.
+ * The viewer keeps the wire's three-way absence.
  *
  * `AnchoredTextAnswer` names retryability in the kind itself — `not-yet` means
  * the Smelter has not settled this content generation and the caller should
- * come back; `no-map`, `unknown` and `declined` are definitive. The parent's
- * per-document cache treated ALL of them as definitive, so a scan opened
- * mid-smelt stayed mapless for the whole mount: every annotation drawn on it
- * permanently mute, even after the map landed.
+ * come back; `no-map`, `unknown` and `declined` are definitive. A per-document
+ * cache that treats ALL of them as definitive leaves a scan opened mid-smelt
+ * mapless for the whole mount: every annotation drawn on it permanently mute,
+ * even once the map exists.
  *
  * Driven through page navigation: each page load asks the parent for the map,
  * so "the cache does not pin `not-yet`" is observable as one ask PER LOAD,
@@ -99,7 +99,7 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
   });
 
   /**
-   * P2/D2: Annotate defers on `not-yet` — and ONLY on `not-yet`. An annotation
+   * Annotate defers on `not-yet` — and ONLY on `not-yet`. An annotation
    * drawn before the map lands is permanently mute (its quote is captured at
    * creation), so waiting buys strictly better annotations. For the terminal
    * absences geometry-only IS the feature, and nothing is deferred.
@@ -176,7 +176,7 @@ describe('PdfAnnotationCanvas — the anchored cache honors retryability', () =>
       await waitFor(() => expect(vi.mocked(renderPdfPageToDataUrl)).toHaveBeenCalledTimes(1));
       await waitFor(() => expect(root()).toHaveAttribute('data-annotate-deferred', 'true'));
 
-      // P1 made `not-yet` re-askable; the next page load gets the map.
+      // `not-yet` is re-askable; the next page load gets the map.
       await user.click(screen.getByRole('button', { name: /next/i }));
       await waitFor(() => expect(root()).toHaveAttribute('data-annotate-deferred', 'false'));
       expect(hint()).not.toBeInTheDocument();

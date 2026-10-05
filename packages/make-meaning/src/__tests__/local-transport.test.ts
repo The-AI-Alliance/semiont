@@ -39,7 +39,7 @@ stubEmbeddingProbeFetch();
 
 const SETTLE_MS = 5_000;
 
-// D1: live queries emit CacheState — settle on ready and unwrap.
+// Live queries emit CacheState — settle on ready and unwrap.
 
 const silentLogger: Logger = {
   debug: vi.fn(),
@@ -189,7 +189,7 @@ describe('SemiontClient over LocalTransport', () => {
 
     it('returns the seeded resource graph via browse.resourceGraph(id)', async () => {
       // Exercises LocalContentTransport.getResourceGraph → assembleResourceGraph:
-      // the in-process realization of the /jsonld face (SIMPLER-JSON-LD Phase 2).
+      // the in-process realization of the /jsonld face.
       const h = await bootHarness();
       try {
         const id = await h.seedResource({ name: 'doc', content: 'body' });
@@ -223,14 +223,11 @@ describe('SemiontClient over LocalTransport', () => {
         ).pipe(take(1));
         const observed = firstValueFrom(failed$);
 
-        // B15 pin (CACHE-SEMANTICS / LIVENESS-AXIOMS): cache-backed observables
-        // can ERROR — a value-less key whose B14 retry exhausts pushes the
-        // terminal failure to observers. Without this handler, the push (which
-        // can land post-dispose as `bus.closed` when the retry straddles
-        // teardown) reaches RxJS reportUnhandledError and fails CI with all
-        // tests green (PR #946, run 28754440662). Same pin class as the sdk
-        // suite's pre-B15 handler-less subscriptions (LIVENESS-AXIOMS B15 log).
-        h.client.browse.resource(makeResourceId('does-not-exist')).subscribe({ error: () => {} });
+        // Subscribing is what issues the fetch. The key's terminal failure is
+        // its `failed` state — an emission, never a stream error (B15,
+        // CACHE-SEMANTICS) — and a retry that straddles teardown dies quietly
+        // (B16), so the subscription needs no error handler.
+        h.client.browse.resource(makeResourceId('does-not-exist')).subscribe();
 
         const ev = await observed;
         expect(ev.message).toBeTruthy();

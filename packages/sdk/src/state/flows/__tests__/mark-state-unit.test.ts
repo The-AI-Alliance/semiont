@@ -114,8 +114,9 @@ describe('createMarkStateUnit', () => {
   });
 
   it('does NOT clear pendingAnnotation when someone ELSE\'s create is replied to', () => {
-    // The clobber this replaced. `MarkCreateOk` is `{ response: { annotationId } }`
-    // — no resourceId — so a viewer could not tell its own reply from another's.
+    // `MarkCreateOk` is `{ response: { annotationId } }` — no resourceId — so a
+    // viewer cannot tell its own reply from another's, and clearing on it
+    // would clobber another viewer's composer.
     //
     // The emit below IS the transport: `transport.bridgeInto(client.bus)` puts
     // every wire reply on this bus, whichever viewer or host flow caused it.
@@ -153,8 +154,9 @@ describe('createMarkStateUnit', () => {
     // asserted here: it is the wire reply to this call's own busRequest, and
     // `transport.bridgeInto` delivers it — this harness has no transport, so
     // asserting it here could only ever be observing a local echo. What the UI
-    // actually depends on is covered by 'clears pendingAnnotation on
-    // mark:create-ok', which feeds the frame the way the transport does.
+    // actually depends on is covered by "does NOT clear pendingAnnotation when
+    // someone ELSE's create is replied to", which feeds the frame the way the
+    // transport does.
     await vi.waitFor(() => expect(annotationFn).toHaveBeenCalledOnce());
     expect(annotationFn).toHaveBeenCalledWith({
       motivation: 'highlighting',
@@ -262,9 +264,9 @@ describe('createMarkStateUnit', () => {
   });
 
   it('KEEPS a finished run on screen — no timer takes the result away', () => {
-    // CLEAN-PROGRESS D1. This used to clear itself after 5 s (and the generation
-    // flow after 2 s: one component, two endings). The result line is the one
-    // thing in the run worth reading, so it stays until the user dismisses it.
+    // A finished run is never dismissed by a timer. The result line is the
+    // one thing in the run worth reading, so it stays until the user
+    // dismisses it.
     vi.useFakeTimers();
     const progressSubject = new Subject();
     const assistFn = vi.fn(() => progressSubject.asObservable());
@@ -308,11 +310,11 @@ describe('createMarkStateUnit', () => {
   });
 
   it('HOLDS a silent assist after 180s — the job is still running, so the client must not forget it', () => {
-    // DETECTION-HEARTBEAT Phase B. Silence is not failure: the worker keeps
-    // processing after the client stops hearing (proven live 2026-08-07 — a
-    // job that "timed out" in the UI persisted 221 annotations). Dropping
-    // assistingMotivation$ told the user the assist was over while it was
-    // still running, and left nothing to resolve when it finished.
+    // Silence is not failure: the worker keeps processing after the client
+    // stops hearing (a job that "times out" in the UI can go on to persist
+    // its annotations — 221, in one measured run). Dropping
+    // assistingMotivation$ would tell the user the assist is over while it
+    // is running, and leave nothing to resolve when it finishes.
     vi.useFakeTimers();
     const assistFn = vi.fn(() => new Observable(() => {}));
     tc = withMark({ assist: assistFn });
@@ -452,7 +454,7 @@ describe('MarkStateUnit — StateUnit axioms', () => {
     });
   });
 
-  // ── Multi-mounted units (MARK-REQUESTED-RESOURCE-SCOPE) ──────
+  // ── Multi-mounted units ──────────────────────────────────────
   // N viewers on ONE session mount N units bound to N resources. The events
   // carry their source resource id and each unit handles only its own —
   // without this, one submit creates N annotations on N different resources.
@@ -495,8 +497,8 @@ describe('MarkStateUnit — StateUnit axioms', () => {
         body: [{ type: 'TextualBody', value: 'hi' }],
       } as any);
 
-      // Both handlers run in the same tick today (bus-wide subscribe): the
-      // double-create is visible immediately; after the fix exactly one call.
+      // Both handlers run in the same tick (bus-wide subscribe), so a
+      // double-create would be visible immediately; exactly one call is made.
       await vi.waitFor(() => expect(annotationFn).toHaveBeenCalled());
       expect(annotationFn).toHaveBeenCalledTimes(1);
       expect(annotationFn).toHaveBeenCalledWith(expect.objectContaining({

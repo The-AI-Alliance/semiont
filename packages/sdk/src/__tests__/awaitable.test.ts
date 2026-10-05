@@ -1,12 +1,12 @@
 /**
- * Tests for the thenable Observable subclasses (`StreamObservable<T>`,
+ * Tests for the Observable subclasses (`StreamObservable<T>`,
  * `CacheObservable<T>`).
  *
  * The contract:
  *   - `StreamObservable.then` resolves to the LAST emitted value on completion
  *     (mirrors `lastValueFrom`); errors reject the await.
- *   - `CacheObservable.then` resolves to the FIRST non-undefined emission
- *     (skips loading state); errors reject the await.
+ *   - `CacheObservable.fresh()` resolves to the FIRST `ready` value
+ *     (skips `pending`); errors reject it.
  *   - `.subscribe(...)` continues to deliver every emission as a plain
  *     Observable would.
  *   - `.pipe(...)` returns a plain `Observable<T>` — thenability is by design
@@ -63,7 +63,7 @@ describe('StreamObservable', () => {
     expect(completed).toBe(true);
   });
 
-  it('pipe returns a plain Observable (no longer thenable)', () => {
+  it('pipe returns a plain Observable (not thenable)', () => {
     const stream = new StreamObservable<number>((subscriber) => {
       subscriber.next(1);
       subscriber.complete();
@@ -88,7 +88,7 @@ describe('StreamObservable', () => {
 });
 
 describe('CacheObservable', () => {
-  it('fresh() (no fetch action) skips initial undefined and resolves to the first defined value', async () => {
+  it('fresh() (no fetch action) skips pending and resolves to the first ready value', async () => {
     const cache = new CacheObservable<string>((subscriber) => {
       subscriber.next({ status: 'pending' });
       subscriber.next({ status: 'pending' });
@@ -128,7 +128,7 @@ describe('CacheObservable', () => {
     expect(seen).toEqual(['pending', 'ready:value']);
   });
 
-  it('pipe returns a plain Observable (no longer thenable)', () => {
+  it('pipe returns a plain Observable (not thenable)', () => {
     const cache = new CacheObservable<number>((subscriber) => {
       subscriber.next({ status: 'ready', value: 1 });
     });
@@ -150,7 +150,7 @@ describe('CacheObservable', () => {
 });
 
 describe('StreamObservable.run', () => {
-  it('subscribes the producer exactly ONCE — progress via callback, terminal via the promise (A2 fix)', async () => {
+  it('subscribes the producer exactly ONCE — progress via callback, terminal via the promise', async () => {
     let subscribeCount = 0;
     const stream = new StreamObservable<string>((subscriber) => {
       subscribeCount += 1;
@@ -180,10 +180,10 @@ describe('StreamObservable.run', () => {
     await expect(stream.run(() => {})).rejects.toThrow();
   });
 
-  it('characterizes the A2 footgun: subscribe + await fires a COLD producer TWICE', async () => {
-    // The trap `run()` exists to avoid. Pinned so the MULTICAST-JOB-TRIGGERS
-    // redesign (which would make this 1) is a deliberate, tested flip — not a
-    // silent behavior change.
+  it('characterizes the cold-stream footgun: subscribe + await fires a COLD producer TWICE', async () => {
+    // The trap `run()` exists to avoid. Pinned so a multicast redesign of the
+    // job-triggering observables (which would make this 1) is a deliberate,
+    // tested flip — not a silent behavior change.
     let subscribeCount = 0;
     const stream = new StreamObservable<number>((subscriber) => {
       subscribeCount += 1;

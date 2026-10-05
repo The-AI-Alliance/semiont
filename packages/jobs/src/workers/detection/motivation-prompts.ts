@@ -2,7 +2,6 @@
  * Prompt builders for annotation detection motivations
  *
  * Provides static methods to build AI prompts for each Web Annotation motivation type.
- * Extracted from worker implementations to centralize prompt logic.
  *
  * Locale handling: builders take two optional BCP-47 tags. `language` is the
  * locale the *generated body text* should be written in (sourced from the user's
@@ -300,7 +299,8 @@ Example format:
   /**
    * Build a prompt for detecting structural tags
    *
-   * @param content - The full text content to analyze (NOT truncated for structural analysis)
+   * @param content - The text content to analyze — a chunk sized by the
+   *   caller from derived provider limits; NEVER re-truncated here
    * @param category - The specific category to detect
    * @param schemaName - Human-readable schema name
    * @param schemaDescription - Schema description

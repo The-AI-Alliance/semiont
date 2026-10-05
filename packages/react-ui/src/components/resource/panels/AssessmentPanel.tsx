@@ -145,7 +145,7 @@ export function AssessmentPanel({
     if (pendingAnnotation) {
       // Body is optional for assessments. When the user typed text,
       // emit a single TextualBody (matching the worker's output and
-      // the majority of historical persisted assessments). When they
+      // the majority of persisted assessments). When they
       // didn't, omit body entirely — motivation:'assessing' on a
       // target is a valid empty-content assessment.
       const trimmed = newAssessmentText.trim();
@@ -178,7 +178,7 @@ export function AssessmentPanel({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [pendingAnnotation, session]);
 
-  // Event handler for annotation clicks (extracted to avoid inline arrow function)
+  // Event handler for annotation clicks (a named callback rather than an inline arrow function)
   const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
     setFocusedAnnotationId(annotationId);
     setTimeout(() => setFocusedAnnotationId(null), 3000);

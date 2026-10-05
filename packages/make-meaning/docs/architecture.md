@@ -1,10 +1,10 @@
 # Architecture
 
-`@semiont/make-meaning` implements the actor model from [ACTOR-MODEL.md](../../../docs/system/ACTOR-MODEL.md).
+`@semiont/make-meaning` implements the actor model from [ACTOR-MODEL.md](../../../docs/architecture/ACTOR-MODEL.md).
 
 ## Actor Model
 
-The package owns the **Knowledge Base** and the seven actors that serve it, in two categories: five **access actors** (Stower, Browser, Gatherer, Matcher, CloneTokenManager) mediate every read and write, and two **projection pipelines** (Weaver, Smelter) follow the event log to keep the eventually-consistent read models (graph, vectors) in sync. All communication flows through the **EventBus** — actors subscribe via RxJS pipelines and expose no public business methods: `initialize()` and `stop()`, plus a startup recovery entry point on the pipelines (`rebuildAll()` / `reconcile()`).
+The package owns the **Knowledge Base** and the seven actors that serve it, in two categories: five **access actors** (Stower, Browser, Gatherer, Matcher, CloneTokenManager) mediate every read and write, and two **projection pipelines** (Weaver, Smelter) follow the event log to keep the eventually-consistent read models (graph, vectors) in sync. All communication flows through the **EventBus** — actors subscribe via RxJS pipelines and expose no public business methods: `initialize()` and `stop()`, plus a startup recovery entry point on the pipelines (`Weaver.catchUp()` / `Smelter.reconcile()`).
 
 The third derived read model — the materialized views — is **not** pipeline-maintained: the EventStore's `ViewManager` materializes views synchronously inside `appendEvent()`, giving bus subscribers a read-your-writes guarantee.
 
@@ -13,16 +13,15 @@ The third derived read model — the materialized views — is **not** pipeline-
 The package has one composition root and four standalone service entry points:
 
 - **`startMakeMeaning()`** — the standalone root: runs all five access actors in-process against local stores.
-- **Archivist** (`archivist-main`) — the service that keeps the system of record: runs Stower, Browser and CloneTokenManager against local stores (event log, views, working tree, anchored text), plus the annotation-assembly handler, the entity-type bootstrap and the startup view rebuild. It serves no bytes — the gateway is the content server.
-- **Librarian** (`librarian-main`) — the reference desk: runs the LLM-bound actors, Matcher and Gatherer, plus the gather-summary handler. It reads views from the shared stateDir the Archivist materializes into, bytes over `HttpContentTransport`, and runs the weave/smelt progress folds locally off the bus signals. It appends nothing, serves no bytes, and owns no store.
+- **Archivist** (`archivist-main`) — the service that keeps the system of record: runs Stower, Browser and CloneTokenManager against local stores (event log, views, working tree, anchored text), plus the annotation-assembly, annotation-context and bind-update-body handlers, the entity-type bootstrap and the startup view rebuild. Its HTTP surface stores and serves the KB's bytes — the gateway proxies external content requests to it, and internal readers dial it directly.
+- **Librarian** (`librarian-main`) — the reference desk: runs the LLM-bound actors, Matcher and Gatherer, plus the gather-summary handler. It reads views from the shared stateDir the Archivist materializes into, bytes from the Archivist (`archivistContentReads` in `@semiont/content`), and runs the weave/smelt progress folds locally off the bus signals. It appends nothing, serves no bytes, and owns no store.
 - **Weaver** (`weaver-main`) and **Smelter** (`smelter-main`) — the projection pipelines, each its own process in every arrangement.
 
-Each actor's constructor takes a Pick-derived **capability slice** (`StowerStores`, `BrowserReads`, `GathererStores`, `MatcherStores`, `CloneTokenStores`) naming exactly the store operations it uses; a full `KnowledgeBase` satisfies every slice structurally. Each actor's inbound channel roster is exported beside it (`STOWER_CHANNELS`, `BROWSER_CHANNELS`, …) and pinned to its real subscriptions by a census gate in the decoupling tests.
+Each actor's constructor takes a Pick-derived **capability slice** (`StowerStores`, `BrowserReads`, `GathererStores`, `MatcherStores`, `CloneTokenStores`) naming exactly the store operations it uses; a full `KnowledgeBase` satisfies every slice but `GathererStores` structurally (its `content` and `anchoredText` are a ResourceId-keyed byte read and a bus read, not the stores). Each actor's inbound channel roster is exported beside it (`STOWER_CHANNELS`, `BROWSER_CHANNELS`, …) and pinned to its real subscriptions by a census gate in the decoupling tests.
 
 ```mermaid
 graph TB
-    Routes["Gateway Routes"] -->|commands| BUS["Event Bus"]
-    Workers["Job Workers"] -->|commands| BUS
+    Workers["Job Workers"] -->|commands| BUS["Event Bus"]
     EBC["SemiontClient"] -->|commands| BUS
 
     BUS -->|"yield:create, yield:update, yield:mv,<br/>mark:create, mark:commit, mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>frame:add-entity-type, frame:add-tag-schema,<br/>mark:update-entity-types,<br/>job:start, job:assign, job:complete, job:fail"| STOWER["Stower"]
@@ -34,7 +33,7 @@ graph TB
     BUS -->|"yield:clone-*"| CTM["CloneTokenManager"]
 
     STOWER -->|append| EVENTLOG
-    STOWER -->|store| CONTENT
+    STOWER -->|register| CONTENT
 
     subgraph kb ["Knowledge Base"]
         subgraph sor ["System of Record"]
@@ -68,7 +67,7 @@ graph TB
     SMELTER -->|embed & index| VECTORS
 
     CTM -->|query| VIEWS
-    CTM -->|read| CONTENT
+    CTM -->|"existence check"| CONTENT
 
     STOWER -->|"yield:create-ok, yield:update-ok,<br/>mark:delete-ok,<br/>*-failed replies"| BUS
     EVENTLOG -->|"domain events republished:<br/>yield:created, mark:added, ..."| BUS
@@ -85,7 +84,7 @@ graph TB
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
     class STOWER,BROWSER,GATHERER,MATCHER,SMELTER,WEAVER,CTM worker
-    class Routes,Workers,EBC caller
+    class Workers,EBC caller
 ```
 
 ## Actors
@@ -101,16 +100,19 @@ The single write path to the Knowledge Base event log — no other code calls `e
 | Command | Domain Event | Reply Event |
 |---------|-------------|-------------|
 | `yield:create` | `yield:created` (content registered in content store) | `yield:create-ok` / `yield:create-failed` |
+| `yield:clone-persist` | `yield:cloned` (content registered in content store) | `yield:clone-persist-ok` / `yield:clone-persist-failed` |
 | `yield:update` | `yield:updated` | `yield:update-ok` / `yield:update-failed` |
 | `yield:mv` | `yield:moved` | `yield:move-failed` on error |
 | `mark:create` | `mark:added` | `mark:create-failed` on error |
+| `mark:commit` | `mark:added`, one per annotation the resource does not already hold | `mark:commit-ok` / `mark:commit-failed` |
 | `mark:delete` | `mark:removed` | `mark:delete-ok` / `mark:delete-failed` |
 | `mark:update-body` | `mark:body-updated` | `mark:body-update-failed` on error |
-| `mark:archive` | `mark:archived` | `mark:archive-failed` on error |
-| `mark:unarchive` | `mark:unarchived` | `mark:unarchive-failed` on error |
-| `frame:add-entity-type` | `frame:entity-type-added` | `frame:entity-type-add-failed` on error |
-| `frame:add-tag-schema` | `frame:tag-schema-added` | `frame:tag-schema-add-failed` on error |
-| `mark:update-entity-types` | `mark:entity-tag-added` / `mark:entity-tag-removed` | `mark:update-entity-types-failed` on error |
+| `mark:archive` | `mark:archived` | `mark:archive-ok` / `mark:archive-failed` |
+| `mark:unarchive` | `mark:unarchived` | `mark:unarchive-ok` / `mark:unarchive-failed` |
+| `frame:add-entity-type` | `frame:entity-type-added` | `frame:entity-type-add-ok` / `frame:entity-type-add-failed` |
+| `frame:add-tag-schema` | `frame:tag-schema-added` | `frame:tag-schema-add-ok` / `frame:tag-schema-add-failed` |
+| `mark:update-entity-types` | `mark:entity-tag-added` / `mark:entity-tag-removed` | `mark:update-entity-types-ok` / `mark:update-entity-types-failed` |
+| `person:profile` | `person:profiled`, when the name differs from the one recorded | — |
 | `job:start` | `job:started` | — |
 | `job:assign` | `job:assigned` | — |
 | `job:complete` | `job:completed` | — |
@@ -140,7 +142,7 @@ The read actor for the Knowledge Base. Handles deterministic, fact-based queries
 | `browse:referenced-by-requested` | Graph referenced-by lookup + resource metadata | `browse:referenced-by-result` / `browse:referenced-by-failed` |
 | `browse:entity-types-requested` | `readEntityTypesProjection()` | `browse:entity-types-result` / `browse:entity-types-failed` |
 | `browse:tag-schemas-requested` | Tag-schema projection read | `browse:tag-schemas-result` / `browse:tag-schemas-failed` |
-| `browse:agents-requested` | `deriveAgentRoster()` — the KB's declared software agents from the workers/actors inference config (COLLABORATOR-DIRECTORY) | `browse:agents-result` / `browse:agents-failed` |
+| `browse:agents-requested` | `deriveAgentRoster()` — the KB's declared software agents from the workers/actors inference config | `browse:agents-result` / `browse:agents-failed` |
 | `browse:kb-requested` | `SemiontProject` — the committed `[project] name` and `[site] domain`, and the working tree's git branch, read at each request | `browse:kb-result` / `browse:kb-failed` |
 | `browse:directory-requested` | Filesystem directory listing merged with KB metadata | `browse:directory-result` / `browse:directory-failed` |
 
@@ -152,15 +154,15 @@ Both actors can find resources by name; the question is what kind of question is
 
 - **Match handles a recommendation.** Multiple candidate sources, composite scoring against `GatheredContext`, optional LLM blending. "Given this annotation, this passage, and this graph neighborhood, what are the most relevant resources to bind?" That's not a query — it's a ranked judgment.
 
-The same primitive (`kb.graph.listResources({ search })`) is used by both actors today. That's fine: the difference is what each actor *does with the result*. Browse returns it ranked and paged. Match treats it as one of four candidate sources and runs it through structural + semantic scoring.
+The same primitive (`kb.graph.listResources({ search })`) is used by both actors. That's fine: the difference is what each actor *does with the result*. Browse returns it ranked and paged. Match treats it as one of four candidate sources and runs it through structural + semantic scoring.
 
-The rule: **if the answer could be a single query against a single index, it's Browse. If it needs to fuse multiple sources or score against context, it's Match.** The boundary is *fusion*, not *modality*: the semantic fallback (SEMANTIC-FALLBACK — an empty lexical search answered from the vector index, labelled `matchKind: 'semantic'`) is one query against one index, fuses nothing, scores against no `GatheredContext`, and calls no LLM, so it lives in Browse and the transport surface stays `browse.resources({ search })`. What would genuinely move to the Matcher — and `match.search(...)` — is *blended* recall: fusing a lexical rank with a cosine score, or boosting either against context. That fusion is the Matcher's composite scorer's job, and it remains out of scope for Browse.
+The rule: **if the answer could be a single query against a single index, it's Browse. If it needs to fuse multiple sources or score against context, it's Match.** The boundary is *fusion*, not *modality*: the semantic fallback (an empty lexical search answered from the vector index, labelled `matchKind: 'semantic'`) is one query against one index, fuses nothing, scores against no `GatheredContext`, and calls no LLM, so it lives in Browse and the transport surface stays `browse.resources({ search })`. What would genuinely move to the Matcher — and `match.search(...)` — is *blended* recall: fusing a lexical rank with a cosine score, or boosting either against context. That fusion is the Matcher's composite scorer's job, and it remains out of scope for Browse.
 
 ### Gatherer (Context Assembly Actor)
 
 **Implementation**: [src/gatherer.ts](../src/gatherer.ts)
 
-Assembles `GatheredContext` for downstream actors (Matcher, generation workers). Pulls together passage context, graph neighborhood, vector semantic recall, and optionally an LLM-generated relationship summary into a single rich context object that other actors score against. Runs in the Librarian service; its `GathererStores` slice reads content through the ResourceId-keyed `ContentReads` contract, so the standalone service fetches bytes over `HttpContentTransport` while in-process roots wrap their own working tree.
+Assembles `GatheredContext` for downstream actors (Matcher, generation workers). Pulls together passage context, graph neighborhood, vector semantic recall, and optionally an LLM-generated relationship summary into a single rich context object that other actors score against. Runs in the Librarian service; its `GathererStores` slice reads content through the ResourceId-keyed `ContentReads` contract, so the standalone service fetches bytes from the Archivist (`archivistContentReads`) while in-process roots wrap their own working tree.
 
 **Pipeline**: `gather:*` events use `groupBy(resourceId)` + `concatMap` for per-resource isolation and ordering.
 
@@ -168,6 +170,8 @@ Assembles `GatheredContext` for downstream actors (Matcher, generation workers).
 |--------------|---------|-------------|
 | `gather:requested` | `AnnotationContext.buildLLMContext(kb, inferenceClient)` — passage + graph + vector semantic search + optional inference summary | `gather:complete` / `gather:failed` |
 | `gather:resource-requested` | `LLMContext.getResourceContext(kb)` | `gather:resource-complete` / `gather:resource-failed` |
+
+It also answers `gather:limits-requested` with the inference limits of its model (`gather:limits-result` / `gather:limits-failed`).
 
 ### Matcher (Search/Link Actor)
 
@@ -178,6 +182,8 @@ Searches KB stores to resolve entity references and discover relationships. `mat
 | Request Event | Handler | Result Event |
 |--------------|---------|-------------|
 | `match:search-requested` | Context-driven search over four candidate sources | `match:search-results` / `match:search-failed` |
+
+It also answers `match:limits-requested` with the inference limits of its model (`match:limits-result` / `match:limits-failed`).
 
 Referenced-by lookups are a deterministic single-index query and live on the Browser (`browse:referenced-by-requested`), not the Matcher.
 
@@ -211,13 +217,13 @@ weaverFanIn(bus).events$ (9 channels, StoredEvents)
           → Batch: processBatch() → batchCreateResources / createAnnotations
 ```
 
-Every apply advances a per-resource high-water mark and emits a `weave:applied` signal; the gateway's `WeaveProgress` fold (`kb.weaveProgress`) turns those into the `whenApplied` barrier the gatherer's graph reads use. At startup the Weaver runs a **checkpointed catch-up**: it discovers resources via `browse:resources-requested`, fetches gap events via `browse:events-requested` (its ONLY view of history — it has no event-store attachment), and replays them through the normal pipeline; a checkpoint ahead of the log (restore) triggers a per-resource rebuild. Full rebuilds are the `weave:rebuild` bus command — so a wiped graph volume recovers by command or by wiping the checkpoint and restarting.
+Every apply advances a per-resource high-water mark and emits a `weave:applied` signal; each graph-reading process keeps its own `WeaveProgress` fold (the Librarian's, or `kb.weaveProgress` in the in-process root), which turns those into the `whenApplied` barrier the gatherer's graph reads use. At startup the Weaver runs a **checkpointed catch-up**: it discovers resources via `browse:resources-requested`, fetches gap events via `browse:events-requested` (its ONLY view of history — it has no event-store attachment), and replays them through the normal pipeline; a checkpoint ahead of the log (restore) triggers a per-resource rebuild. Full rebuilds are the `weave:rebuild` bus command — so a wiped graph volume recovers by command or by wiping the checkpoint and restarting.
 
 ### Smelter (Projection Pipeline, standalone process)
 
 **Implementation**: [src/smelter.ts](../src/smelter.ts), entry point [src/smelter-main.ts](../src/smelter-main.ts)
 
-The Smelter is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`smelterFanIn`](../src/smelter-fan-in.ts) fan-in. It reads content bytes over `HttpContentTransport` (the gateway's byte path), chunks them, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). Like the Weaver, it processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call. Every settled decision emits a `smelt:settled` signal; the gateway's `SmeltProgress` fold (`kb.smeltProgress`) turns those into the `whenSettled` barrier the resource-gather path uses.
+The Smelter is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`smelterFanIn`](../src/smelter-fan-in.ts) fan-in. It reads content bytes from the Archivist (`archivistContentReads` in `@semiont/content`), chunks them, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). Like the Weaver, it processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call. Every settled decision emits a `smelt:settled` signal; each reading process keeps its own `SmeltProgress` fold (the Archivist's, the Librarian's, or `kb.smeltProgress` in the in-process root), which turns those into the `whenSettled` barrier the resource-gather and anchored-text reads use.
 
 | Domain Event | Handler |
 |--------------|---------|
@@ -251,11 +257,11 @@ export interface KnowledgeBase {
 }
 ```
 
-The `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options)` factory instantiates `FilesystemViewStorage`, `WorkingTreeStore` and the anchored-text store once, constructs the `WeaveProgress` and `SmeltProgress` folds, and (unless `options.skipRebuild`) rebuilds the materialized views from the event log. `options.vectorStore` is required — a KB without vector search is not a supported configuration. The graph is NOT rebuilt here — the standalone Weaver catches up from its checkpoint. Actors and context modules receive Pick-derived slices of this interface, which a full `KnowledgeBase` satisfies structurally.
+The `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options)` factory instantiates `FilesystemViewStorage`, `WorkingTreeStore` and the anchored-text store once, constructs the `WeaveProgress` and `SmeltProgress` folds, and (unless `options.skipRebuild`) rebuilds the materialized views from the event log. `options.vectorStore` is required — a KB without vector search is not a supported configuration. The graph is NOT rebuilt here — the standalone Weaver catches up from its checkpoint. Actors and context modules receive Pick-derived slices of this interface, which a full `KnowledgeBase` satisfies structurally — except the gather paths' slices, whose `content` and `anchoredText` in-process roots wrap around `kb`.
 
 ## Operations
 
-`AnnotationOperations` (here) and `ResourceOperations` (in `@semiont/core`) are thin facades over `busRequest`. They do not access KB stores directly — the Stower handles persistence.
+`AnnotationOperations` (here) and `ResourceOperations` (in `@semiont/core`) are thin facades over the bus: `ResourceOperations` awaits its reply through `busRequest`, `AnnotationOperations` emits its command and returns. Neither writes KB stores — the Stower handles persistence.
 
 ```
 ResourceOperations.createResource(input, { did: userId, roles: [] }, bus)
@@ -268,7 +274,7 @@ ResourceOperations.createResource(input, { did: userId, roles: [] }, bus)
 
 Workers live in `@semiont/jobs`, not in this package. They run as a separate process, subscribe to the bus `job:queued` channel over SSE, and claim jobs via the `job:claim` request/response protocol — there is no polling loop. Workers are **not** actors — they claim and process jobs rather than subscribing to a reducer.
 
-Workers emit `mark:create` and the job lifecycle events (`job:start`, `job:report-progress`, `job:complete`, `job:fail`) on the bus via their session's transport. The Stower handles all persistence.
+Workers emit `mark:commit` and the job lifecycle events (`job:start`, `job:report-progress`, `job:complete`, `job:fail`) on the bus via their session's transport. The Stower handles all persistence.
 
 See [Job Workers](./job-workers.md) for details.
 
@@ -276,27 +282,26 @@ See [Job Workers](./job-workers.md) for details.
 
 `startMakeMeaning()` initializes components in dependency order:
 
-1. JobQueue (with the inline `job:status-requested` subscription)
-2. GraphDatabase
-3. EventStore (with EventBus integration)
-4. EmbeddingProvider + VectorStore *(mandatory — Qdrant or memory, from `@semiont/vectors`; each connect is bounded by the 60s startup timeout so the container restart policy can retry)*
-5. **KnowledgeBase** (groups the stores; constructs the WeaveProgress and SmeltProgress folds; rebuilds views unless `skipRebuild` — the graph belongs to the standalone Weaver)
-6. Event enrichment wiring (`wireEnrichment`)
-7. **Stower** (must start before reader actors — it handles writes they depend on)
-8. Entity type bootstrap (emits via EventBus, Stower persists)
-9. **Gatherer** (context assembly, vector semantic search; gets its own InferenceClient and the `gather.settleTimeoutMs` barrier bound)
-10. **Matcher** (candidate search, vector semantic search, composite scoring; gets its own InferenceClient)
-11. **Browser** (browse reads, entity type and tag-schema listing, directory browse; gets the limits-discovery pool and the embedding provider)
-12. **CloneTokenManager** (clone token lifecycle)
-13. Bus command handlers (`registerBusHandlers` — request-channel translators)
+1. GraphDatabase
+2. EventStore (with EventBus integration)
+3. EmbeddingProvider + VectorStore *(mandatory — Qdrant or memory, from `@semiont/vectors`; each connect is bounded by the 60s startup timeout so the container restart policy can retry)*
+4. **KnowledgeBase** (groups the stores; constructs the WeaveProgress and SmeltProgress folds; rebuilds views unless `skipRebuild` — the graph belongs to the standalone Weaver)
+5. Event enrichment wiring (`wireEnrichment`)
+6. **Stower** (must start before reader actors — it handles writes they depend on)
+7. Entity type bootstrap (emits via EventBus, Stower persists)
+8. **Gatherer** (context assembly, vector semantic search; gets its own InferenceClient and the `gather.settleTimeoutMs` barrier bound)
+9. **Matcher** (candidate search, vector semantic search, composite scoring; gets its own InferenceClient)
+10. **Browser** (browse reads, entity type and tag-schema listing, directory browse; gets the role roster and the embedding provider)
+11. **CloneTokenManager** (clone token lifecycle)
+12. Bus command handlers (`registerBusHandlers` — request-channel translators)
 
-Not started here: the **Weaver** and **Smelter** (standalone processes via `@semiont/make-meaning/weaver-main` / `smelter-main`) and the **job workers** (worker process in `@semiont/jobs`).
+Not started here: the **Weaver** and **Smelter** (standalone processes via `@semiont/make-meaning/weaver-main` / `smelter-main`), the **job queue** (the dispatcher's) and the **job workers** (worker process in `@semiont/jobs`).
 
-In the split deployment no root builds a subset: each service's `*-main` composes exactly what it owns, and the gateway composes nothing from this package — it verifies, validates and routes. The handlers moved beside the actors they call: annotation-assembly to the Archivist, gather-summary to the Librarian, and the `job:*` set to the dispatcher with the queue.
+In the split deployment no root builds a subset: each service's `*-main` composes exactly what it owns, and the gateway composes nothing from this package — it verifies, validates and routes. The handlers sit beside the actors they call: annotation-assembly, annotation-context and bind-update-body in the Archivist, gather-summary in the Librarian; the `job:*` set is the dispatcher's, with the queue.
 
 ## Storage Architecture
 
-All paths are resolved through `SemiontProject` (from `@semiont/core/node`) using XDG base directories. `project.stateDir` resolves to `$XDG_STATE_HOME/semiont/{project}/` (default: `~/.local/state/semiont/{project}/`).
+All paths are resolved through `SemiontProject` (from `@semiont/core/node`) using XDG base directories. `project.stateDir` resolves to `$XDG_STATE_HOME/semiont/{project}/`; `XDG_STATE_HOME` has no default, and constructing a project without it throws.
 
 ### Event Store
 
@@ -311,21 +316,15 @@ Append-only log of domain events — the system of record, committed to version 
 Projections of current state rebuilt from events:
 
 ```
-{stateDir}/views/{shard}/{resourceId}.json
+{stateDir}/resources/{shard}/{resourceId}.json
 ```
 
-### Job Queue
-
-Filesystem-based with atomic state transitions via file moves:
-
-```
-{stateDir}/jobs/{pending,running,complete,failed,cancelled}/{job-id}.json
-```
+### Content Store
 
 Resources reference their content via `storageUri` (e.g. `file://README.md`). Semiont reads files where they live in the working tree.
 
 ## See Also
 
-- [ACTOR-MODEL.md](../../../docs/system/ACTOR-MODEL.md) — System-wide actor model
+- [ACTOR-MODEL.md](../../../docs/architecture/ACTOR-MODEL.md) — System-wide actor model
 - [API Reference](./api-reference.md) — Context modules and operations
 - [Job Workers](./job-workers.md) — Worker implementations in @semiont/jobs

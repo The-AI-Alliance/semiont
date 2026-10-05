@@ -1,11 +1,12 @@
 /**
- * Knowledge-graph view derivation (CONTEXT-UNIFICATION P3, Q1=A).
+ * Knowledge-graph view derivation: the flattened neighborhood views are derived from the graph,
+ * not kept as separately built intermediates.
  *
  * A pure function over the core `KnowledgeGraph` type, so both `@semiont/make-meaning` (the matcher)
  * and `@semiont/jobs` (the generation prompt builder) can share one derivation. `buildKnowledgeGraph`
  * — which queries the graph DB — stays in make-meaning; this only transforms an already-built graph.
  *
- * Reports the graph as-is (Option A): missing-view citers are kept (the citing annotation reflects a
+ * Reports the graph as-is: missing-view citers are kept (the citing annotation reflects a
  * real reference event; its resource label falls back to the raw id). A citation is its linking
  * ANNOTATION: an annotation node with `annotation-of` → the citing resource and `cites` → the focal
  * resource — so citedBy resolves through that pair, deduped per citing resource (several citations

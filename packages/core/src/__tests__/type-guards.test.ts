@@ -10,7 +10,6 @@ import {
   isUndefined,
   isNullish,
   isDefined,
-  isGatheredContext,
   isGenerationJobParams,
   isReportedJobResult,
 } from '../type-guards';
@@ -226,7 +225,7 @@ describe('isGenerationJobParams', () => {
     expect(isGenerationJobParams({ ...VALID, context: 42 })).toBe(false);
   });
 
-  it('required means NON-EMPTY — an empty string is not a home or a name (D9/D9b)', () => {
+  it('required means NON-EMPTY — an empty string is not a home or a name', () => {
     // The worker has no fallback: an empty storageUri would write to a bare
     // `file://`, and an empty title would name the resource nothing. Both are
     // silent corruption, so the guard is where they stop — it is the only
@@ -237,39 +236,13 @@ describe('isGenerationJobParams', () => {
   });
 });
 
-describe('isGatheredContext', () => {
-  const valid = {
-    focus: { kind: 'annotation', annotation: {}, sourceResource: {} },
-    graph: { nodes: [], edges: [] },
-    metadata: {},
-  };
-
-  it('accepts what the gather flow actually returns', () => {
-    expect(isGatheredContext(valid)).toBe(true);
+describe('isReportedJobResult', () => {
+  it('accepts a result its worker reported', () => {
+    expect(isReportedJobResult({ kind: 'highlight-annotation', highlightsFound: 1, highlightsCreated: 1 })).toBe(true);
   });
 
-  it('rejects a context whose graph has no node/edge arrays', () => {
-    // The shape that reached `deriveViews` and threw during render: a stale
-    // sessionStorage stash written by an older build.
-    expect(isGatheredContext({ ...valid, graph: {} })).toBe(false);
-    expect(isGatheredContext({ ...valid, graph: { nodes: [] } })).toBe(false);
-    expect(isGatheredContext({ focus: valid.focus, metadata: {} })).toBe(false);
-  });
-
-  it('rejects the shapes a severed JSON.parse can produce', () => {
-    for (const value of [null, undefined, 'a string', 42, [], { focus: 'not an object' }]) {
-      expect(isGatheredContext(value)).toBe(false);
-    }
-  });
-
-  describe('isReportedJobResult', () => {
-    it('accepts a result its worker reported', () => {
-      expect(isReportedJobResult({ kind: 'highlight-annotation', highlightsFound: 1, highlightsCreated: 1 })).toBe(true);
-    });
-
-    it('refuses the empty result a job completed without one is stored with, and an absent one', () => {
-      expect(isReportedJobResult({})).toBe(false);
-      expect(isReportedJobResult(undefined)).toBe(false);
-    });
+  it('refuses the empty result a job completed without one is stored with, and an absent one', () => {
+    expect(isReportedJobResult({})).toBe(false);
+    expect(isReportedJobResult(undefined)).toBe(false);
   });
 });

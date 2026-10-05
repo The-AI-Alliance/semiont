@@ -18,7 +18,7 @@ const readFixture = (name: string): Uint8Array =>
   new Uint8Array(fs.readFileSync(path.join(FIXTURES, name)));
 
 describe('locate', () => {
-    // #734 gate — the coordinate round-trip spike. A known fixture word's
+    // The coordinate round-trip. A known fixture word's
     // PDF-point geometry, run through the canonical Y-flip, must land on the
     // expected canvas pixels. The flip MUST mirror react-ui's
     // pdfToCanvasCoordinates (canvasY = pageHeight - y - height); content must
@@ -42,7 +42,7 @@ describe('locate', () => {
         expect(canvasY).toBeCloseTo(EXPECTED_CANVAS_Y);
     });
 
-    // The content→core handoff that #736's buildPdfAnnotation depends on:
+    // The content→core handoff that buildPdfAnnotation depends on:
     // locate() emits PDF-point geometry, the core viewrect codec serializes it to
     // an RFC 3778 page=N&viewrect=... value and reads it back unchanged.
     it('round-trips locate() geometry through the core viewrect codec', async () => {
@@ -90,7 +90,7 @@ describe('locate', () => {
     });
     
     it('documents known imperfect reading order for multi-column PDFs', async () => {
-        // Multi-column reading order is a known limitation (Phase 4 / #738): pdf.js
+        // Multi-column reading order is a known limitation (#738): pdf.js
         // yields one column fully before the other, so true row-wise reading order
         // across columns is not preserved. Assert the (imperfect) current order
         // explicitly rather than snapshotting an opaque blob.
@@ -109,7 +109,7 @@ describe('locate', () => {
         for (let i = 1; i < positions.length; i++) {
             expect(positions[i]).toBeGreaterThan(positions[i - 1]);
         }
-        // ...and adjacent lines no longer glue across the seam (the #6 fix).
+        // ...and adjacent lines do not glue across the seam.
         expect(layer.text).not.toContain('oneleft');
         expect(layer.text).not.toContain('tworight');
     });

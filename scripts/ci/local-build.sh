@@ -60,10 +60,9 @@ RT=$(detect_runtime)
 
 # --- Go toolchain (derived, not restated) ---
 #
-# The Go version is a fact apps/launcher/go.mod owns. Every workflow already
-# derives it (actions/setup-go's go-version-file); this script was the one place
-# it was hand-copied, in four spots. That mattered: the whole reason go.mod pins
-# the PATCH is so the scan and the build agree on one compiler, and a local build
+# The Go version is a fact apps/launcher/go.mod owns. Every workflow derives
+# it (actions/setup-go's go-version-file), and so does this script: go.mod pins
+# the PATCH so the scan and the build agree on one compiler, and a local build
 # silently using a different one defeats exactly that.
 #
 # No fallback. A missing toolchain line fails here rather than quietly selecting
@@ -110,9 +109,8 @@ trap verdaccio_cleanup ERR INT TERM
 # the lockfile an install regenerates *from* those rewritten manifests.
 #
 # One list, used by the pre-run snapshot, the dirtiness check and the restore.
-# It was previously spelled out at all three sites and the lockfile was missing
-# from every one of them, so a local build reverted each package.json and left
-# package-lock.json holding the stamped versions — silently turning
+# The lockfile belongs in it: a restore without it reverts each package.json
+# and leaves package-lock.json holding the stamped versions — silently turning
 # `"@semiont/core": "*"` into a concrete pin in the working tree.
 STAMPED_PATHS=(
   version.json
@@ -237,7 +235,7 @@ done
 
 # --- Drift gates (FIRST: they are the most common failure, and they need only
 # the repo plus a container — failing here costs seconds, not the ten minutes
-# of package and image builds that used to run before them) ---
+# of package and image builds that follow) ---
 
 if [[ "$IMAGES_ONLY" != true ]]; then
 
@@ -295,26 +293,25 @@ fi
 
 step "Checking packages/sdk-go/client_gen.go against specs/openapi.json..."
 # Both Go caches are PER-CONSUMER (-build suffix), not shared with other
-# container consumers (agent sessions, the pre-commit hook). The old shared
-# /tmp/semiont-gomodcache was corrupted three times by concurrent container
-# VMs extracting into it — Go's cache locking is flock, which does not hold
-# across VM boundaries over virtiofs — and a truncated extraction is trusted
+# container consumers (agent sessions, the pre-commit hook). Concurrent
+# container VMs extracting into one shared module cache corrupt it — Go's
+# cache locking is flock, which does not hold across VM boundaries over
+# virtiofs — and a truncated extraction is trusted
 # forever ("cannot embed directory ... contains no embeddable files").
 # This script cannot run concurrently with itself (port 4873), so a private
-# cache is effectively serial, and the class is gone rather than patched.
+# cache is effectively serial.
 GOCACHE_DIR=/tmp/semiont-gocache-build
 # The MODULE cache is persisted too, not just the build cache. Without it every
-# run re-downloads the whole oapi-codegen tree (~100 MB, 21 modules), which is
-# why a DNS blip could take this gate down. (/tmp, not $TMPDIR: Apple Container
+# run re-downloads the whole oapi-codegen tree (~100 MB, 21 modules), which
+# lets a DNS blip take this gate down. (/tmp, not $TMPDIR: Apple Container
 # cannot sustain mounts from /var/folders. Go writes the module cache
 # read-only, so `chmod -R u+w` before removing it by hand.)
 GOMODCACHE_DIR=/tmp/semiont-gomodcache-build
 mkdir -p "$GOCACHE_DIR" "$GOMODCACHE_DIR"
-# One-time seed from the legacy shared cache's download dir (a pure
-# content-addressed store — safe to copy, never to share live), so the first
-# -build run costs a local copy instead of a 100 MB re-fetch. The legacy dir
-# is frozen: nothing writes it any more, and it can be deleted once every
-# consumer has seeded.
+# One-time seed from the shared /tmp/semiont-gomodcache's download dir, where
+# one exists (a pure content-addressed store — safe to copy, never to share
+# live), so the first -build run costs a local copy instead of a 100 MB
+# re-fetch. Nothing writes that directory.
 if [[ ! -d "$GOMODCACHE_DIR/cache/download" && -d /tmp/semiont-gomodcache/cache/download ]]; then
   step "Seeding the module cache from the legacy shared downloads (one-time local copy)..."
   mkdir -p "$GOMODCACHE_DIR/cache"
@@ -322,17 +319,17 @@ if [[ ! -d "$GOMODCACHE_DIR/cache/download" && -d /tmp/semiont-gomodcache/cache/
 fi
 # Caching alone is not enough: `go run <pkg>@<version>` resolves the version
 # against the proxy on EVERY run — including a deprecation lookup — so a
-# populated cache still needed the network. Pointing GOPROXY at the cache's own
+# populated cache alone needs the network. Pointing GOPROXY at the cache's own
 # download dir (a valid module proxy) serves the pinned generator locally and
-# falls through to the network only on a miss. Measured both ways: warm cache
-# succeeds with the network proxies removed entirely; a cold cache still
-# populates through the fallback.
+# falls through to the network only on a miss: a warm cache succeeds with the
+# network proxies removed entirely, and a cold cache populates through the
+# fallback.
 GOPROXY_CACHED='file:///go/pkg/mod/cache/download,https://proxy.golang.org,direct'
 
 # Generation and comparison report SEPARATELY. Collapsing them into one `&&`
-# made every generator failure — a DNS blip fetching oapi-codegen, an
+# makes every generator failure — a DNS blip fetching oapi-codegen, an
 # unreadable spec, a container that never started — print "the OpenAPI spec
-# changed without regenerating the Go client": a specific cause the gate had
+# changed without regenerating the Go client": a specific cause the gate has
 # not established, and one that sends the reader to regenerate a file that was
 # never stale. Ignorance is not a finding.
 # The corrupt-cache signature, in ONE place: the retry below and the diagnosis
@@ -377,8 +374,7 @@ purge_modcache_extractions() {
 
 run_drift_check
 
-# Self-heal, once. This failure has cost four builds, and its remedy was already
-# written out in full below — a message telling someone to run two commands the
+# Self-heal, once: a message telling someone to run two commands the
 # script can run itself is a manual step pretending to be a diagnosis. Retried
 # ONLY on the corrupt-cache signature and ONLY when the generator failed to run
 # (3): a STALE client (4) is a real verdict about the spec, and re-running it on
@@ -422,14 +418,14 @@ case "$DRIFT_RC" in
     # mid-extraction leaves a partial tree that no amount of network fixes; Go
     # re-extracts from the downloads offline once the bad tree is gone.
     # `cannot embed` / `no embeddable files` is the shape a TRUNCATED extraction
-    # produces, and it was missing here until it cost a diagnosis (2026-08-24).
+    # produces.
     # Go has two embed failures and they read nothing alike: a pattern matching
     # nothing says "no matching files found", while a directory that survived
     # with its subdirectories but none of its files says "cannot embed directory
     # X: contains no embeddable files". The second is precisely the corrupt-cache
     # signature — the tree is THERE, so Go trusts it and never re-extracts, and
-    # every retry fails identically. Matching only the first sent the reader to
-    # the network branch below to wait out a network that was already working.
+    # every retry fails identically. Matching only the first would send the
+    # reader to the network branch below to wait out a network that is working.
     if grep -qiE "$CORRUPT_CACHE_RE" "$DRIFT_LOG"; then
       echo -e "  ${BOLD}Cause: a corrupt Go module cache, not the network.${RESET} A previous run was"
       echo -e "  interrupted mid-extraction and left a partial module tree."
@@ -537,10 +533,9 @@ else
   cp "$SCRIPT_DIR/verdaccio.yaml" "$VERDACCIO_CONF/config.yaml"
   # The verdaccio image runs as its own user (uid 10001), and mktemp makes both
   # dirs 0700 for the user running this script. Where a runtime enforces
-  # ownership on bind mounts — docker and podman on Linux — the registry could
-  # neither read its config nor write its storage ("config file does not exist
-  # or not reachable"). Apple container's shares do not enforce it, which is why
-  # only a Linux runner showed it.
+  # ownership on bind mounts — docker and podman on Linux — the registry can
+  # then neither read its config nor write its storage ("config file does not
+  # exist or not reachable"). Apple container's shares do not enforce it.
   chmod 0755 "$VERDACCIO_CONF"
   chmod 0777 "$VERDACCIO_STORAGE"
   echo "  Container name: $VERDACCIO_NAME"
@@ -553,9 +548,9 @@ else
   # --memory is EXPLICIT for the same reason the launcher sets it on every
   # service: the silent default is the worst value. Apple container gives 1G,
   # and three concurrent image builds pulling tarballs through this registry
-  # while it proxies large packages from upstream killed it there
-  # (2026-09-03: builds died with ECONNRESET, verdaccio's log just stops
-  # mid-fetch with no shutdown line).
+  # while it proxies large packages from upstream kill it there: builds die
+  # with ECONNRESET, and verdaccio's log just stops mid-fetch with no shutdown
+  # line.
   $RT run -d \
     --name "$VERDACCIO_NAME" \
     --memory 4G \
@@ -690,7 +685,7 @@ BUILD_REGISTRY="http://$HOST_ADDR:4873"
 
 banner "CONTAINER IMAGES"
 
-# --- Image fan-out targets (see .plans/LOCAL-BUILD-IMAGE-FANOUT.md) ---
+# --- Image fan-out targets ---
 #
 # The :local images land in $RT's image store, invisible to every other
 # engine — a KB started with a different --runtime then fails with
@@ -698,9 +693,9 @@ banner "CONTAINER IMAGES"
 # built image into every OTHER responsive runtime. A fan-out failure is a
 # warning, not a build failure (the primary store is intact).
 #
-# File-based transfer only: P0 measured that `container image save` cannot
-# stream (`-o -` writes a literal file named "-"; /dev/stdout truncates the
-# archive), so pipe-less save→load via a temp file is the portable shape.
+# File-based transfer only: `container image save` cannot stream (`-o -`
+# writes a literal file named "-"; /dev/stdout truncates the archive), so
+# pipe-less save→load via a temp file is the portable shape.
 # An installed-but-unresponsive engine (e.g. Docker Desktop not running)
 # warns once here and is skipped; an absent engine is silently ignored.
 FANOUT_RTS=""
@@ -722,7 +717,7 @@ TMP_DIR="${TMPDIR:-/tmp}"; TMP_DIR="${TMP_DIR%/}"
 
 # Copies every :local image into each OTHER responsive runtime. Loops runtime
 # OUTSIDE image so the happy path is one line per destination rather than one
-# per image — a per-image ✓ said the same thing seven times. Failures stay
+# per image — a per-image ✓ says the same thing seven times. Failures stay
 # per-image, because that is when you need to know WHICH.
 #
 # `image save` prints the tag it wrote; without the redirect that echo lands
@@ -759,13 +754,13 @@ fanout_all() {
 # rebuild (explicit wins, and it also refreshes the recorded signature). The
 # @semiont/* set is DERIVED from the Dockerfile text, not restated here.
 #
-# The closure is the whole point, and it was missing until 2026-09-25. Each
+# The closure is the whole point. Each
 # sidecar installs ONE package (`npm install -g @semiont/jobs`) and inherits
 # six more through it, all pinned "*" so they resolve to latest at install
-# time. Signing only the named package meant a fix landing in @semiont/inference
-# left @semiont/jobs byte-identical, the signature matched, and all six sidecars
-# skipped — while a rebuild would have picked the fix up. The build was correct
-# about the package it watched and wrong about the image it produced.
+# time. Signing only the named package would let a fix landing in
+# @semiont/inference leave @semiont/jobs byte-identical, the signature match,
+# and all six sidecars skip — while a rebuild would pick the fix up: correct
+# about the package it watches and wrong about the image it produces.
 IMAGE_STATE="${XDG_CACHE_HOME:-$HOME/.cache}/semiont/local-build-images.json"
 mkdir -p "$(dirname "$IMAGE_STATE")"
 
@@ -865,15 +860,15 @@ done
 if [[ ${#BUILD_IMGS[@]} -eq 0 ]]; then
   ok "All images unchanged — nothing to build"
 else
-  # The per-build log path was on every "Building" line and was ~90 characters
-  # of noise on the happy path; a failure tails its own log, and this glob is
-  # how you watch one live.
+  # The per-build log path is ~90 characters of noise on a "Building" line on
+  # the happy path; a failure tails its own log, and this glob is how you
+  # watch one live.
   step "Building ${#BUILD_IMGS[@]} image(s), 3 at a time ${DIM}(logs: $TMP_DIR/semiont-build-*)${RESET}"
   # `container build` creates the singleton `buildkit` builder LAZILY, so three
   # builds launched together race to create it and two die with "container
   # already exists: buildkit". It only bites when the builder is absent — i.e.
-  # straight after a prune, which is exactly when a full rebuild is run
-  # (2026-09-03). Create it once, serially, before the batch.
+  # straight after a prune, which is exactly when a full rebuild is run.
+  # Create it once, serially, before the batch.
   if [[ "$RT" == "container" ]] && ! $RT ls -a 2>/dev/null | grep -qE "^buildkit[[:space:]]"; then
     step "Starting the buildkit builder ${DIM}(absent — parallel builds would race to create it)${RESET}"
     $RT builder start >/dev/null 2>&1 || warn "could not pre-start the buildkit builder — builds may race"
@@ -901,8 +896,8 @@ stop_builds() {
   done
 }
 # A cold npm install inside these builds runs for MINUTES with nothing on
-# stdout, and --no-cache means every run pays it. Twice (2026-09-03) that
-# silence was read as a hang. Name what is still in flight every 30s so a
+# stdout, and --no-cache means every run pays it. That silence reads as a
+# hang. Name what is still in flight every 30s so a
 # slow build is distinguishable from a stopped one without going to `ps`.
 beat=$(date +%s)
 while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
@@ -935,9 +930,9 @@ while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
     next=$((next + 1))
   done
   # Reap in COMPLETION order, not start order. Waiting on the first build
-  # first means a hung build hides the others: on 2026-09-03 two builds failed
-  # in 15s against a dead registry and a third hung on npm's retry backoff, so
-  # the run looked stuck for 11 minutes with the real errors already on disk.
+  # first means a hung build hides the others: two builds fail in seconds
+  # against a dead registry, a third hangs on npm's retry backoff, and the run
+  # looks stuck for minutes with the real errors already on disk.
   # bash 3.2 has no `wait -n`, so poll with kill -0 and reap whoever finishes.
   for j in "${!PIDS[@]}"; do
     [ "${DONE[$j]}" -eq 1 ] && continue
@@ -992,8 +987,8 @@ fanout_all
 # Every run writes a fresh layer set into every store it reaches, and nothing
 # ever reclaims them: :local is a mutable tag, so yesterday's image is not
 # deleted, just untagged and invisible. Neither engine volunteers the number,
-# so report it here — measured 2026-08-28, a few weeks of runs had reached 83
-# images under `container` and 118 / 77 GB under docker. Reporting only; a
+# so report it here: a few weeks of runs reach 83 images under `container`
+# and 118 images / 77 GB under docker. Reporting only; a
 # failure here must never fail a build that already succeeded.
 store_report() {
   local rt="$1" line

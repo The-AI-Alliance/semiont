@@ -16,7 +16,7 @@ The `semiont` launcher is a single static binary — no npm, no Node.js:
 brew install the-ai-alliance/semiont/semiont
 ```
 
-Homebrew serves macOS and Linux. On Windows, the [GitHub Release](https://github.com/The-AI-Alliance/semiont/releases) carries a zip holding `semiont.exe` — see [Semiont on Windows](docs/system/platforms/WINDOWS.md).
+Homebrew serves macOS and Linux. On Windows, the [GitHub Release](https://github.com/The-AI-Alliance/semiont/releases) carries a zip holding `semiont.exe` — see [Semiont on Windows](docs/operator/platforms/WINDOWS.md).
 
 ### 2. Configure Settings
 
@@ -81,7 +81,7 @@ semiont login          # approve in a browser; only tokens come back
 
 No password reaches the launcher, and the session renews itself; `semiont logout` ends it. It is the CLI's own session — an SDK app signs in separately.
 
-For local-network access notes, supply-chain verification, and the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, see **[docs/browser/](docs/browser/README.md)**.
+For local-network access notes, supply-chain verification, and the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, see **[docs/analyst/](docs/analyst/README.md)**.
 
 ### 7. Ingest content
 
@@ -108,9 +108,9 @@ semiont mark --delegate <resourceId> --motivation linking --entity-type Concept
 ## Automate
 
 Everything the Semiont browser does travels over one event bus, spoken as
-**[eight verbs](docs/protocol/flows/README.md)**: browse, bind, yield, mark,
-frame, gather, match, beckon. You have been speaking them already — `semiont yield`
-was one. The launcher speaks all eight (`semiont browse --help`, and so on), and so does
+**[eight verbs](docs/protocol/flows/README.md)**: four that write (yield, mark,
+bind, frame), three that read (browse, match, gather), and one that directs
+attention (beckon). You have been speaking them already — `semiont yield` was one. The launcher speaks all eight (`semiont browse --help`, and so on), and so does
 your code.
 
 The Semiont SDK is how your code speaks the same bus — a type-safe client whose namespaces are those eight verbs. It comes in **[TypeScript](packages/sdk/README.md)** (`@semiont/sdk`) and **[Rust](packages/sdk-rust/README.md)** ([`semiont`](https://crates.io/crates/semiont)), full peers held to the same [conformance suite](tests/conformance/sdk/README.md). Your app never calls the gateway's HTTP API directly; the SDK is the boundary.
@@ -154,8 +154,8 @@ knowledge bases and the empty [template](https://github.com/The-AI-Alliance/semi
 
 New here? The SDK's **[INTRODUCTION](docs/builder/INTRODUCTION.md)** is the orientation chapter — read it first, then the **[Developer Guide](docs/builder/DEVELOPER-GUIDE.md)** to build, with **[Usage](docs/builder/Usage.md)** open as the reference.
 
-- **[Development docs](docs/development/README.md)** — codebase layout, build status badges, Codespaces shortcut, where to read next.
-- **[System architecture](docs/system/README.md)** — actor model, knowledge system, container topology, package architecture.
+- **[Development docs](docs/contributor/README.md)** — codebase layout, build status badges, Codespaces shortcut, where to read next.
+- **[System architecture](docs/architecture/README.md)** — actor model, knowledge system, container topology, package architecture.
 - **[Browser development](apps/browser/docs/DEVELOPMENT.md)** — running the Browser from source against a stack.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — branch/PR workflow, commit conventions, platform-contribution playbook.
 

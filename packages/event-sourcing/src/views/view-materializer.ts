@@ -4,7 +4,7 @@
  * Materializes resource views from events:
  * - Full view materialization from scratch
  * - Incremental view updates
- * - System-level views (entity types, tag schemas)
+ * - System-level views (entity types, tag schemas, people)
  */
 
 import { promises as fs } from 'fs';
@@ -105,7 +105,8 @@ export class ViewMaterializer {
       this.applyEventToAnnotations(view.annotations, event);
       view.annotations.version++;
       view.annotations.updatedAt = event.timestamp;
-      // Parity stamp for the graph-projection barrier (GRAPH-PROJECTION-SYNC).
+      // Parity stamp for the graph-projection barrier, which holds a graph
+      // read until the Weaver has applied this sequence.
       // Monotonic: an out-of-order apply never regresses the stamp.
       view.lastSequence = Math.max(view.lastSequence ?? 0, event.metadata.sequenceNumber);
     }
@@ -122,7 +123,7 @@ export class ViewMaterializer {
    * Update the storage-uri index in response to an event.
    *
    * Only yield:created / yield:cloned (with storageUri), and yield:moved,
-   * need index changes. resource.archived / unarchived do NOT modify it.
+   * need index changes. mark:archived / mark:unarchived do NOT modify it.
    */
   private async materializeStorageUriIndex(resourceId: ResourceId, event: PersistedEvent): Promise<void> {
     const projectionsDir = path.join(this.config.basePath, 'projections');
@@ -171,7 +172,7 @@ export class ViewMaterializer {
 
     const view: ResourceView = { resource, annotations };
     if (events.length > 0) {
-      // Parity stamp for the graph-projection barrier (GRAPH-PROJECTION-SYNC).
+      // Parity stamp for the graph-projection barrier.
       view.lastSequence = events[events.length - 1].metadata.sequenceNumber;
     }
     return view;
@@ -186,17 +187,17 @@ export class ViewMaterializer {
         resource.name = event.payload.name;
         resource.entityTypes = event.payload.entityTypes || [];
         resource.dateCreated = event.timestamp;
-        // Derived at write time and carried on the event (VERIFIED-PROVENANCE
-        // P2); the projection copies, never constructs. An event written before
-        // derivation existed carries none: its emitter was its only party, and
-        // the one function says exactly that.
+        // Derived at write time, from the verified emitter and the job the
+        // write cites, and carried on the event; the projection copies, never
+        // constructs. An event that carries none has its emitter as its
+        // only party, and the one function says exactly that.
         resource.wasAttributedTo = event.payload.wasAttributedTo !== undefined
           ? event.payload.wasAttributedTo
           : attribution({ requester: event.userId, executor: event.userId }).wasAttributedTo;
 
         // Create representation from format and checksum. The storage URI
         // lives here — on the rendition whose bytes it locates — and nowhere
-        // else (STORAGE-URI-ONE-HOME); absent when the resource has no bytes.
+        // else; absent when the resource has no bytes.
         if (!resource.representations) resource.representations = [];
         const reps = Array.isArray(resource.representations) ? resource.representations : [resource.representations];
         reps.push({
@@ -220,8 +221,8 @@ export class ViewMaterializer {
         resource.entityTypes = event.payload.entityTypes || [];
         resource.dateCreated = event.timestamp;
         resource.sourceResourceId = event.payload.parentResourceId;
-        // As for yield:created: copied from the event, derived once for
-        // events that predate derivation.
+        // As for yield:created: copied from the event, derived here for an
+        // event that carries none.
         resource.wasAttributedTo = event.payload.wasAttributedTo !== undefined
           ? event.payload.wasAttributedTo
           : attribution({ requester: event.userId, executor: event.userId }).wasAttributedTo;
@@ -245,13 +246,11 @@ export class ViewMaterializer {
         // `yield:moved` re-stamps their location. The checksum has one home —
         // the rendition it identifies — and this is the event that changes it.
         //
-        // This used to write a second field (`resource.currentChecksum`) and
-        // leave the representation untouched, so every reader keyed off a
-        // checksum that was correct only until the first update. The
-        // anchored-text read then looked for geometry under the ORIGINAL
-        // bytes' key and either served coordinates for content the resource no
-        // longer had, or stalled the full settle timeout and reported no map
-        // for a document that had one.
+        // Readers key off this checksum. Left untouched here it would be
+        // correct only until the first update: the anchored-text read would
+        // look for geometry under the ORIGINAL bytes' key and either serve
+        // coordinates for content the resource does not have, or stall the
+        // full settle timeout and report no map for a document that has one.
         const updated = getPrimaryRepresentation(resource);
         if (updated) {
           updated.checksum = event.payload.contentChecksum;
@@ -353,34 +352,34 @@ export class ViewMaterializer {
   private applyEventToAnnotations(annotations: ResourceAnnotations, event: PersistedEvent): void {
     switch (event.type) {
       case 'mark:added': {
-        // Idempotent by annotation id (JOB-RESTART-SAFETY P6). At-least-once
+        // Idempotent by annotation id. At-least-once
         // delivery is a property of the network: a worker whose commit was
         // appended but whose acknowledgement was lost MUST retry, and no
         // pre-append check can prevent the repeat because the append already
-        // succeeded. P3's deterministic ids make the repeat recognizable; this
+        // succeeded. Content-addressed ids make the repeat recognizable; this
         // makes it harmless.
         //
         // It is also what a projection owes the log it derives from — the view
         // answers "annotation X exists", never "X was written twice". A blind
-        // push made the view depend on how many times a fact was recorded.
+        // push would make the view depend on how many times a fact is recorded.
         // Ordering still decides: a `mark:removed` between two appends drops
         // the annotation, and the later append re-creates it (a genuinely new
         // fact, which is why it correctly takes the new payload).
         //
         // FIRST write wins, and that is load-bearing rather than arbitrary. A
         // repeat is NOT byte-identical: `created` is stamped at emission and
-        // was deliberately excluded from the id (P3), so a recovery re-sends
+        // is deliberately excluded from the id, so a recovery re-sends
         // the same annotation with a fresh timestamp. Taking the newer payload
-        // advanced `created` to the recovery time, so this view reported when
-        // a retry happened rather than when the annotation was made — a
-        // projection answering a question about its own delivery history
-        // instead of about the facts it derives from. (The graph projection is
-        // unaffected: it mints its own write time in `buildAnnotation` and
-        // never sees this stamp.) Nothing else CAN differ: the id hashes
-        // resourceId +
-        // motivation + anchor + body, so a same-id re-append carries the same
-        // identity-bearing content by construction. Last-write-wins therefore
-        // had no reachable upside and this one real cost.
+        // would advance `created` to the recovery time, so this view would
+        // report when a retry happened rather than when the annotation was
+        // made — a projection answering a question about its own delivery
+        // history instead of about the facts it derives from. (The graph
+        // projection is unaffected: it mints its own write time in
+        // `buildAnnotation` and never sees this stamp.) Nothing else CAN
+        // differ: the id hashes resourceId + motivation + anchor + body, so a
+        // same-id re-append carries the same identity-bearing content by
+        // construction. Last-write-wins therefore has no reachable upside and
+        // this one real cost.
         const incoming = event.payload.annotation;
         if (!annotations.annotations.some((a: Annotation) => a.id === incoming.id)) {
           annotations.annotations.push(incoming);
@@ -462,17 +461,16 @@ export class ViewMaterializer {
    * Walk every event stream in the event log and materialize the corresponding
    * view from scratch. Idempotent: existing view files are overwritten.
    *
-   * Mirrors Weaver.rebuildAll() and Smelter.rebuildAll() — this is the
-   * recovery path that makes the ephemeral stateDir safe to wipe. The live
-   * append path (EventStore.appendEvent → materializeIncremental /
-   * materializeEntityTypes / materializeTagSchemas) is unchanged and runs in
-   * addition.
+   * Mirrors Weaver.rebuildAll() — this is the recovery path that makes the
+   * ephemeral stateDir safe to wipe. The live append path
+   * (EventStore.appendEvent → materializeIncremental / materializeEntityTypes
+   * / materializeTagSchemas / materializePeople) runs in addition.
    */
   async rebuildAll(eventLog: RebuildEventSource): Promise<void> {
     this.logger?.info('[ViewMaterializer] Rebuilding all materialized views from event log');
 
-    // Pass 1: __system__ events — produces system projections
-    // (entitytypes.json, tagschemas.json; future system projections plug in here)
+    // Pass 1: __system__ events — produces the system projections
+    // (entitytypes.json, tagschemas.json, people.json)
     const systemEvents = await eventLog.getEvents(SYSTEM_SCOPE);
     this.logger?.info('[ViewMaterializer] Replaying system events', { count: systemEvents.length });
     for (const event of systemEvents) {
@@ -626,7 +624,7 @@ export class ViewMaterializer {
   }
 
   /**
-   * Materialize the people view — System-level view (PERSON-PROFILE).
+   * Materialize the people view — System-level view.
    *
    * I/O shell around the pure {@link applyPersonProfiled} reducer, the same
    * read-reduce-write as its two siblings. What it holds is who a DID belongs

@@ -9,8 +9,8 @@
  *
  *   ITransport          — bus primitives + lifecycle. Universal: every
  *                         concrete transport implements this.
- *   IGatewayOperations  — auth, admin, and system endpoints.
- *                         HTTP-shaped today; an in-process transport may
+ *   IGatewayOperations  — auth and system endpoints.
+ *                         HTTP-shaped; an in-process transport may
  *                         implement none, some, or a different set.
  *                         Optional on `SemiontClient` — passed only when
  *                         the host has a gateway that supports them.
@@ -63,8 +63,8 @@ type GetResourceResponse = components['schemas']['GetResourceResponse'];
  *                     trying. No network activity; recovers on its own
  *                     when a usable credential appears (a re-login, a
  *                     session refresh). The refusal itself surfaces on
- *                     the transport's error stream (SSE-AUTH-RESILIENCE
- *                     D3/D6a — one state for both answers)
+ *                     the transport's error stream; one state covers
+ *                     both "no credential yet" and "credential refused"
  *   closed          ─ stop()/dispose() called; terminal
  */
 export type ConnectionState =
@@ -109,18 +109,16 @@ export interface ITransport {
    * belong in a channel's domain type. `scope`, when set, marks the emit as
    * a resource-scoped broadcast, delivered only to subscribers attached to
    * that resource's scope; `correlationId` pairs a reply with its request.
-   * It was a bare `resourceScope` until BUS-CARRIES-FRAMES P3, which is why
-   * one routing fact travelled as a positional argument while its sibling
-   * had to be smuggled inside the payload.
    *
    * Resolves with the number of subscribers the emit reached
-   * (`/bus/emit` responds `{subscribers: n}`; GUIDED-TOUR P1), or with
-   * `undefined` when there is no count — a gateway on a broker signal plane,
-   * which cannot count and omits `subscribers`, an unreadable body, or an
-   * in-process transport where the question does not apply. The absence is
-   * carried through as an absence: an uncounted emit must stay
-   * distinguishable from a genuine empty room, and a number standing in for
-   * "unknown" would compare, add and print as a count.
+   * (`/bus/emit` responds `{subscribers: n}`, so a signal that reached an
+   * empty room is visible to its caller), or with `undefined` when there is
+   * no count — a gateway on a broker signal plane, which cannot count and
+   * omits `subscribers`, an unreadable body, or an in-process transport where
+   * the question does not apply. The absence is carried through as an
+   * absence: an uncounted emit must stay distinguishable from a genuine empty
+   * room, and a number standing in for "unknown" would compare, add and print
+   * as a count.
    */
   emit<K extends keyof EventMap>(
     channel: K,
@@ -140,10 +138,10 @@ export interface ITransport {
    *
    * SDK-internal: this is the scope primitive the SDK's resource-scoped
    * `browse.*` live queries drive on subscribe/teardown (freshness follows
-   * observation; #847) — it is not part of the application-facing surface.
-   * Distinct resources COMPOSE (`.plans/MULTI-RESOURCE-SCOPE.md`): each
-   * resource's subscriptions are ref-counted independently, and one client
-   * may hold many resource scopes at once on its single connection.
+   * observation) — it is not part of the application-facing surface.
+   * Distinct resources COMPOSE: each resource's subscriptions are
+   * ref-counted independently, and one client may hold many resource scopes
+   * at once on its single connection.
    */
   subscribeToResource(resourceId: ResourceId): () => void;
 
@@ -165,7 +163,7 @@ export interface ITransport {
    * from construction onward (no connection to lose).
    *
    * Load-bearing beyond UI: `busRequest` gates its emit on this
-   * (`BusRequestPrimitive.state$`, .plans/BUS-ATTACH-GATE.md) — no
+   * (`BusRequestPrimitive.state$`) — no
    * correlated emit before the reply path exists. Implementers back it
    * with a `BehaviorSubject` so the current state arrives synchronously
    * on subscribe.
@@ -173,14 +171,13 @@ export interface ITransport {
   readonly state$: Observable<ConnectionState>;
 
   /**
-   * Correlated-reply retention, client side (BUS-RESUMPTION Phase 2 /
-   * SDK-DEBT S1). `busRequest` registers its correlationId here before
-   * emitting and releases on settle; a wire transport includes the
-   * tracked set as `pendingReplies` on each subscribe body so a reply
-   * published while the connection was down replays from the server's
-   * retention buffer. Required of every transport: one that cannot lose a
-   * reply (in-process) has nothing to track and returns a disposer that does
-   * nothing, which is its true answer.
+   * Correlated-reply retention, client side. `busRequest` registers its
+   * correlationId here before emitting and releases on settle; a wire
+   * transport includes the tracked set as `pendingReplies` on each subscribe
+   * body so a reply published while the connection was down replays from the
+   * server's retention buffer. Required of every transport: one that cannot
+   * lose a reply (in-process) has nothing to track and returns a disposer
+   * that does nothing, which is its true answer.
    */
   trackReply(correlationId: string): () => void;
 
@@ -218,7 +215,7 @@ export interface ITransport {
 // ── IGatewayOperations ──────────────────────────────────────────────────
 
 /**
- * Auth, admin, and system endpoints. HTTP-shaped today —
+ * Auth and system endpoints. HTTP-shaped —
  * `HttpTransport` implements both this and `ITransport`; the
  * `SemiontClient` constructor takes a `IGatewayOperations` argument
  * separately from the bus transport so non-HTTP transports
@@ -260,10 +257,9 @@ export interface PutBinaryRequest {
   jobId?: string;
   isDraft?: boolean;
   /**
-   * Clone provenance (EXTRACT-ARCHIVIST P3): when set, the gateway stores
-   * the bytes and routes creation through `yield:clone-create` — the
-   * CloneTokenManager validates the token and inherits source metadata.
-   * Bytes never ride the bus (D4a).
+   * Clone provenance: when set, the Archivist stores the bytes and routes
+   * creation through `yield:clone-create` — the CloneTokenManager validates
+   * the token and inherits source metadata. Bytes never ride the bus.
    */
   cloneToken?: string;
   /** Clone-only: archive the source resource after a successful clone. */
@@ -316,7 +312,6 @@ export interface IContentTransport {
    * inbound entity references). The HTTP transport dereferences
    * `GET /resources/:id/jsonld` (the LD face an external linked-data client
    * sees); in-process transports assemble it from their `KnowledgeSystem`.
-   * See `.plans/SIMPLER-JSON-LD.md` §5 / decision 7.
    */
   getResourceGraph(
     resourceId: ResourceId,

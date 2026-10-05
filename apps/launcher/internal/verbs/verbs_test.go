@@ -10,14 +10,14 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
 )
 
-// The knowledge verbs, in process (SDK-GO-TRANSPORT P2).
+// The knowledge verbs, in process against the fake transport.
 //
-// Each of these was a black-box test: build the binary, `start` a fake stack,
-// `login`, run the verb against fakert's HTTP server — ~3 s to observe one
-// request. What they actually assert is what the verb SENDS and what it PRINTS,
-// both of which the transport seam exposes directly.
+// What these assert is what the verb SENDS and what it PRINTS, both of which
+// the transport seam exposes directly. The black-box route — build the binary,
+// `start` a fake stack, `login`, run the verb against fakert's HTTP server —
+// takes ~3 s to observe one request.
 //
-// One test per verb family stays end-to-end in launcher_test.go, marked WIRE
+// One test per verb family is end-to-end in launcher_test.go, marked WIRE
 // SMOKE TEST. Those prove the built binary speaks HTTP a real server
 // understands; a family tested only against a double can agree with a bug in
 // our own client.
@@ -65,8 +65,8 @@ func TestBrowseBrowserSignalsWithoutReadingInProcess(t *testing.T) {
 	defer restore()
 	// Stated, not defaulted: a fresh fake's emit is uncounted, which prints a
 	// different line. One subscriber is a room with someone in it — the
-	// EMPTY room is now a refusal with its own probe, and belongs to the
-	// BROWSER-HANDOFF tests rather than here.
+	// EMPTY room is a refusal with its own probe, and belongs to
+	// browse_browser_test.go.
 	fake.Counted(1)
 
 	out := harness.CaptureStdout(t, func() {
@@ -113,7 +113,7 @@ func TestBrowseBrowserRefusalsInProcess(t *testing.T) {
 	}
 }
 
-// ── browse --annotation --browser: the fourth tour move (TOUR-CLICK P4) ──
+// ── browse --annotation --browser: the fourth tour move ──────────────────
 
 // The click drive: an annotation id is the WHOLE address, so the emit carries
 // it and nothing else, and the verb signals without also reading.
@@ -132,8 +132,8 @@ func TestBrowseAnnotationDrivesAClick(t *testing.T) {
 	}
 	payload := bustest.JSON(fake.Emits[0].Payload)
 	harness.MustContainAll(t, "emit payload", payload, `"annotationId":"ann-9"`)
-	// D2/D3: the id determines the resource, so neither field rides along. A
-	// motivation here would be the denormalization the schema was trimmed of.
+	// The id determines the resource, so neither field rides along. A motivation
+	// here would be a denormalization the schema does not carry.
 	for _, gone := range []string{"resourceId", "motivation"} {
 		if strings.Contains(payload, gone) {
 			t.Errorf("payload carries %q, which the wire dropped: %s", gone, payload)
@@ -177,8 +177,8 @@ func TestBrowseAnnotationRefusals(t *testing.T) {
 		// rather than reporting a generic conflict.
 		{"with --annotations", []string{"res-42", "--annotation", "ann-9", "--browser", "--annotations"},
 			[]string{"--annotation", "--annotations", "plural"}},
-		// Option (c): the click form takes no resourceId, and silently
-		// ignoring one would leave the driver keeping two ids consistent.
+		// The click form takes no resourceId, and silently ignoring one
+		// would leave the driver keeping two ids consistent.
 		{"with a resourceId", []string{"res-42", "--annotation", "ann-9", "--browser"},
 			[]string{"--annotation", "drop the resourceId"}},
 		// It names a remote act; there is no local rendering it could mean.
@@ -234,8 +234,8 @@ func TestBeckonSparkleEmitsSparkleNotFocusInProcess(t *testing.T) {
 	if fake.Emits[0].Channel != bus.BeckonSparkle {
 		t.Errorf("channel = %q, want %q", fake.Emits[0].Channel, bus.BeckonSparkle)
 	}
-	// Emitting BOTH would scroll-fight exactly as before, which is the thing
-	// this flag exists to avoid.
+	// Emitting BOTH would scroll-fight, which is the thing this flag exists
+	// to avoid.
 	for _, e := range fake.Emits {
 		if e.Channel == bus.BeckonFocus {
 			t.Errorf("--sparkle also emitted focus, the scroll-fight it exists to avoid")

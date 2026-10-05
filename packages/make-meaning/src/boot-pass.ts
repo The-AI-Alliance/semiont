@@ -1,6 +1,6 @@
 /**
  * Running a projector's startup repair pass without letting it kill the
- * projector (SIDECAR-BOOT-RESILIENCE P3).
+ * projector.
  *
  * The weaver (catch-up, reconcile) and the smelter (reconcile) each repair a
  * derived store they OWN — bringing a graph projection or a vector index back in
@@ -8,23 +8,23 @@
  * which is why the librarian has none: it is a reader, owns nothing derived, and
  * has nothing to bring back.
  *
- * Both mains used to rethrow a failed pass into the catch-all around `main()`,
- * which exits. Under no restart policy that means gone until a human notices, and
- * one 429 from the gateway was enough (2026-09-07). P1/P2 made the underlying emit
- * retry, which narrows the window; this decides what happens at the end of it.
+ * A failed pass rethrown into the catch-all around `main()` exits the process.
+ * Under no restart policy that means gone until a human notices, and one 429
+ * from the gateway is enough. The underlying emit retries a retryable refusal,
+ * which narrows the window; this decides what happens at the end of it.
  *
- * **D4: a failed repair pass is a DATA condition, not a reason to die**, and not a
+ * **A failed repair pass is a DATA condition, not a reason to die**, and not a
  * health verdict either — `/health` means "can I reach what I need, and are my
  * expected processes running?", under which "did catch-up succeed at boot?" is
- * neither. Two supports worth keeping: it is a boot-time fact that would be
- * reported forever as a current state, and the old fatality guarded only the ~30 s
- * boot window anyway — a subscription that drops silently an hour later leaves the
- * same stale graph with `/health` still saying `ok`.
+ * neither. Two supports: it is a boot-time fact that would be reported forever
+ * as a current state, and dying on it would guard only the ~30 s boot window
+ * anyway — a subscription that drops silently an hour later leaves the same
+ * stale graph with `/health` saying `ok`.
  *
- * **The cost, accepted deliberately:** a dead container was a crude staleness
- * alarm and nothing replaces it yet. The `logger.error` here is therefore the only
- * operator-visible signal that a pass failed, until D5 makes `/health` compute
- * what it claims. Do not quiet it.
+ * **The cost, accepted deliberately:** a dead container is a crude staleness
+ * alarm and nothing stands in for it. The `logger.error` here is therefore the
+ * only alarm that a pass failed — `/health` carries the failed phase and
+ * answers `ok` all the same. Do not quiet it.
  *
  * Shared rather than inlined twice so the two mains cannot drift into two
  * different answers about what surviving a failed pass means.

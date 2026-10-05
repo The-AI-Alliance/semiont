@@ -4,7 +4,8 @@
  * Extension-mapping coverage lives with the registry in the media-types
  * tests; this file covers name-slugging, URI assembly, and the folder
  * arithmetic the compose and generation forms do with the result.
- * Moved here with the function (GENERATION-OUTPUT-FORMAT D10).
+ * Moved here with the function, which lives in core so a browser form can
+ * compute it.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -74,7 +75,7 @@ describe('folderOf — where a form proposes to save, read off the source', () =
   });
 });
 
-describe('proposeStoragePath — the Save location a form proposes (D11)', () => {
+describe('proposeStoragePath — the Save location a form proposes', () => {
   it('names the file for the title, beside the source', () => {
     expect(proposeStoragePath('notes', 'Q3 Report', 'text/markdown')).toBe('notes/q3-report.md');
   });
@@ -84,8 +85,9 @@ describe('proposeStoragePath — the Save location a form proposes (D11)', () =>
   });
 
   it('rewrites the extension when the format changes', () => {
-    // This is what keeps D7's mismatch refusal unreachable while the path is
-    // untouched: the proposal owns the whole filename, extension included.
+    // This is what keeps the form's refusal of an extension that disagrees
+    // with the format unreachable while the path is untouched: the proposal
+    // owns the whole filename, extension included.
     expect(proposeStoragePath('notes', 'Q3 Report', 'application/pdf')).toBe('notes/q3-report.pdf');
     expect(proposeStoragePath('notes', 'Q3 Report', 'text/plain')).toBe('notes/q3-report.txt');
   });

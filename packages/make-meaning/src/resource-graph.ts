@@ -5,7 +5,6 @@
  * Shared by the bus handler (`browse:resource-requested`, in `browser.ts`) and
  * `LocalContentTransport.getResourceGraph`, so the in-process face and the
  * HTTP `/resources/:id/jsonld` face return identical shapes.
- * See `.plans/SIMPLER-JSON-LD.md` (Phase 2, decision 7).
  */
 
 import type { Annotation, ResourceDescriptor, ResourceId } from '@semiont/core';

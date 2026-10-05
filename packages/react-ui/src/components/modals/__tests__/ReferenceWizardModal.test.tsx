@@ -1,22 +1,20 @@
 /**
- * The wizard's own logic, which had no test file at all.
+ * The wizard's own logic.
  *
- * What is pinned here is the part that has already been wrong twice:
+ * What is pinned here:
  *
  * 1. **The Hint's PLACEMENT.** `GatheredContext.json` puts it at
  *    `focus.userHint` ("a hint to supplement or replace the selected text for
- *    search and generation"). Search and compose each built `{ ...context,
- *    userHint }` inline — a TOP-LEVEL key the schema does not define — and
- *    generation received the raw context and dropped it entirely. So it was
- *    misplaced on two paths and missing on the third, and nothing failed.
+ *    search and generation"). A strategy that builds `{ ...context, userHint }`
+ *    inline sets a TOP-LEVEL key the schema does not define, and one handed
+ *    the raw context drops the hint entirely — and neither fails on its own.
  * 2. **That all three strategies get the SAME object.** One `contextWithHint`
- *    now feeds compose, search and generation; a future strategy that reaches
- *    for the raw `context` prop is the regression these tests catch.
+ *    feeds compose, search and generation; a strategy that reaches for the
+ *    raw `context` prop is what these tests catch.
  *
- * Also pinned: reopening the modal resets the drafts. WIZARD-NAVIGATION D3 made
- * Back lossless by hoisting step config into the wizard, and the flip side of
- * "the modal remembers" is that a NEW run must not inherit the last one's
- * settings.
+ * Also pinned: reopening the modal resets the drafts. Back is lossless because
+ * step config is hoisted into the wizard, and the flip side of "the modal
+ * remembers" is that a NEW run must not inherit the last one's settings.
  */
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
@@ -126,14 +124,14 @@ async function typeHint(text: string) {
 describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.userHint', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
-  it('the gather panel carries the widened class (GEP P2, D2)', () => {
+  it('the gather panel carries the widened class', () => {
     const { baseElement } = renderWizard();
     const panel = baseElement.querySelector('.semiont-search-modal__panel--gather');
     expect(panel).not.toBeNull();
     expect(panel!.className).toContain('semiont-search-modal__panel--wide');
   });
 
-  it('the typed hint stays visible after stepping into configure-search (GEP P1c, D8)', async () => {
+  it('the typed hint stays visible after stepping into configure-search', async () => {
     // The thing being steered must not vanish while you steer it.
     const { baseElement } = renderWizard();
     await typeHint('the ancient city');
@@ -143,10 +141,10 @@ describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.use
     expect(echo!.textContent).toContain('the ancient city');
   });
 
-  it('compose is a step now — choosing it navigates nowhere (COMPOSE-IN-MODAL D1)', async () => {
-    // The old flow stashed the context in sessionStorage and navigated to the
-    // compose page; both are gone. Choosing ✍️ Compose unfolds the compose
-    // form below the evidence like the other strategies.
+  it('compose is a step — choosing it navigates nowhere', async () => {
+    // Choosing ✍️ Compose unfolds the compose form below the evidence like the
+    // other strategies: nothing is stashed in sessionStorage and nothing
+    // navigates to the compose page.
     renderWizard();
     await userEvent.click(screen.getByText(new RegExp(T.compose)));
     expect(screen.getByRole('button', { name: T.createAndLink })).toBeInTheDocument(); // the compose form is open
@@ -166,7 +164,7 @@ describe('ReferenceWizardModal — the Hint reaches every strategy, at focus.use
     expect(arg.context).not.toHaveProperty('userHint');
   });
 
-  it('generation gets it too — the path that used to drop it silently', async () => {
+  it('generation gets it too', async () => {
     renderWizard();
     await typeHint('focus on hydrology');
     await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
@@ -210,8 +208,8 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
 
   it('search-results keeps the evidence and the collapsed band above the results', async () => {
     // Same grammar as the configure steps — the results replace the FORM
-    // region, not the evidence. The step itself is pure results now (D10
-    // amended); the host stacks the full display above it.
+    // region, not the evidence. The step itself is pure results; the host
+    // stacks the full display above it.
     const { client, baseElement } = renderWizard();
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));
@@ -246,9 +244,9 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
     expect(footer!.textContent).toContain(`✨ ${T.generate}`);
     expect(footer!.querySelectorAll('button')).toHaveLength(0);
     // The echo is a receipt LINE, not a control row: label and value share
-    // the --echo band, and the chooser's button-row wrapper is gone — the
-    // value must never sit where controls sit (it wore a control's costume:
-    // inherited base size + link blue).
+    // the --echo band, and the chooser's button-row wrapper is absent — the
+    // value must never sit where controls sit (there it wears a control's
+    // costume: inherited base size + link blue).
     expect(footer!.className).toContain('semiont-gather__footer--echo');
     expect(footer!.querySelector('.semiont-gather__actions')).toBeNull();
     expect(footer!.querySelector('.semiont-gather__chosen-strategy')).not.toBeNull();
@@ -258,8 +256,8 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
 
     // ONE scroll pane for the whole step: evidence and parameters scroll
     // together, the form in full at the bottom, the evidence tucking up under
-    // the modal top. An independently-scrollable form inside the stack is what
-    // squeezed the parameters out of view.
+    // the modal top. An independently-scrollable form inside the stack
+    // squeezes the parameters out of view.
     const scroll = baseElement.querySelector('.semiont-wizard__step-scroll');
     expect(scroll).not.toBeNull();
     expect(scroll!.querySelector('.semiont-gather__outer')).not.toBeNull();
@@ -269,7 +267,7 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
   });
 });
 
-describe('ReferenceWizardModal — compose is the fourth in-modal strategy (COMPOSE-IN-MODAL P2)', () => {
+describe('ReferenceWizardModal — compose is the fourth in-modal strategy', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   async function enterCompose() {
@@ -294,7 +292,7 @@ describe('ReferenceWizardModal — compose is the fourth in-modal strategy (COMP
     expect(scroll!.querySelector('form.semiont-form')).not.toBeNull();
   });
 
-  it('the draft survives Back and re-entry (WIZARD-NAVIGATION D3)', async () => {
+  it('the draft survives Back and re-entry', async () => {
     renderWizard();
     await enterCompose();
     fireEvent.change(screen.getByTestId('code-editor'), { target: { value: 'A Sauk leader.' } });
@@ -335,9 +333,9 @@ describe('ReferenceWizardModal — compose is the fourth in-modal strategy (COMP
     expect(await screen.findByRole('button', { name: T.createAndLink })).toBeEnabled();
   });
 
-  // D4: a modal dies on ✕/Escape/backdrop; a non-empty draft must not die
+  // A modal dies on ✕/Escape/backdrop; a non-empty draft must not die
   // with it. The guard is an INLINE prompt — never window.confirm — and the
-  // footer stays dismissal-free (A4).
+  // footer stays dismissal-free.
   it('dismissing a dirty draft asks first; Keep editing stays, Discard closes', async () => {
     const { onClose } = renderWizard();
     await enterCompose();
@@ -365,11 +363,11 @@ describe('ReferenceWizardModal — compose is the fourth in-modal strategy (COMP
   });
 });
 
-// GATHER-AT-THE-TOP P1: the dirty guard widens. D4 — dirtiness is
-// step-independent (typed work guards dismissal wherever the user currently
-// is); D5 — typed text only (title beyond seed, save location, instructions,
-// content). The generation draft gets the same protection compose has.
-describe('ReferenceWizardModal — the dirty guard widens (GATHER-AT-THE-TOP D4/D5)', () => {
+// The dirty guard is wizard-wide. Dirtiness is step-independent (typed work
+// guards dismissal whichever step the user is on) and covers typed text only
+// (title beyond seed, save location, instructions, content). The generation
+// draft gets the same protection compose has.
+describe('ReferenceWizardModal — the dirty guard is wizard-wide', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it('a typed generation draft guards dismissal', async () => {
@@ -412,7 +410,7 @@ describe('ReferenceWizardModal — the dirty guard widens (GATHER-AT-THE-TOP D4/
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('a compose draft still guards after stepping Back to the evidence — D4 kills the step gate', async () => {
+  it('a compose draft still guards after stepping Back to the evidence — dirtiness is step-independent', async () => {
     const { onClose } = renderWizard();
     await userEvent.click(screen.getByText(new RegExp(T.compose)));
     fireEvent.change(screen.getByTestId('code-editor'), { target: { value: 'typed work' } });
@@ -477,7 +475,7 @@ describe('ReferenceWizardModal — the gather skeleton', () => {
   });
 });
 
-describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () => {
+describe('ReferenceWizardModal — a new run starts clean (the flip side of lossless Back)', () => {
   it('reopening resets the hint and the step', async () => {
     const { rerender } = renderWizard();
     await typeHint('first attempt');
@@ -494,7 +492,7 @@ describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () =>
     rerender(<ReferenceWizardModal {...props} />);
     rerender(<ReferenceWizardModal {...props} isOpen />);
 
-    // Back is lossless WITHIN a run (D3); a new run inherits nothing.
+    // Back is lossless WITHIN a run; a new run inherits nothing.
     expect(screen.getByPlaceholderText(T.userHintPlaceholder)).toHaveValue('');
     expect(screen.getByRole('button', { name: `🔍 ${T.search}…` })).toBeInTheDocument(); // back on the gather step
   });
@@ -510,7 +508,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
 
     // The results step is entered by the REPLY, not by the click — the wizard
     // sits on the configure step until the bus answers (which is why dismissal
-    // must stay available; see the A5 pin in WizardFooter.test).
+    // must stay available; see 'the way out' in WizardFooter.test).
     client.bus.emit('match:search-results', {
       referenceId: 'ann-1',
       // `ResourceDescriptor` is JSON-LD: the identifier is `@id`, and the
@@ -526,10 +524,9 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
   });
 
   it('a search failure over the bus settles the spinner and surfaces the error — no eternal "Searching…"', async () => {
-    // The measured hang (.plans/bugs/match-search-hangs-on-neo4j-datetime-annotations.md):
-    // /bus/emit 400s the request, the match machinery publishes
-    // match:search-failed — and the wizard listened only for results, so the
-    // failure fired into an empty room while the button spun forever.
+    // When /bus/emit 400s the request, the match machinery publishes
+    // match:search-failed. A wizard listening only for results lets the
+    // failure fire into an empty room while the button spins forever.
     const { client } = renderWizard();
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));
@@ -584,7 +581,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
   it('generation submits the step\'s config against this annotation, then closes', async () => {
     const { onGenerateSubmit, onClose } = renderWizard();
     await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
-    // The field arrives PRE-FILLED with the proposal now (D11). Overriding it
+    // The field arrives PRE-FILLED with the proposal. Overriding it
     // is select-all-then-type, which the DOM delivers as ONE change carrying
     // the replacement — `clear()` then `type()` would instead empty the field
     // (restoring the proposal, by design) and append to it.
@@ -596,7 +593,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     expect(onGenerateSubmit).toHaveBeenCalledTimes(1);
     expect(onGenerateSubmit.mock.calls[0]![0]).toBe('ann-1');
     expect(onGenerateSubmit.mock.calls[0]![1].title).toBe('Caspian Sea');
-    // D8/D2: the payload names the URI what it is, and carries the default
+    // The payload names the URI what it is, and carries the default
     // format explicitly rather than leaving the worker to assume it.
     expect(onGenerateSubmit.mock.calls[0]![1]).toMatchObject({
       storageUri: 'file://generated/out.md',
@@ -605,7 +602,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('the annotation flow can choose a format too — one control, both hosts (D4)', async () => {
+  it('the annotation flow can choose a format too — one control, both hosts', async () => {
     const { onGenerateSubmit } = renderWizard();
     await userEvent.click(screen.getByRole('button', { name: `✨ ${T.generate}…` }));
     await userEvent.type(screen.getByLabelText(/Save location/i), 'generated/out.pdf');

@@ -13,22 +13,22 @@
  *     view: it triggers a fetch on first subscription for a missing key,
  *     dedup-joins any concurrent fetch, then emits the stored value and
  *     re-emits on invalidation.
- *   - `fetch(key)` (the one-shot await path) forces a fresh fetch, so a
- *     re-read reflects writes rather than serving the memo.
+ *   - `fetch(key)` (the one-shot path, behind `.fresh()`) forces a fresh
+ *     fetch, so a re-read reflects writes rather than serving the memo.
  *
  * Shape:
  *   - `observe(key)`: Observable<CacheState<V>> — subscribe path (SWR).
  *   - `fetch(key)`: force a fresh fetch (bypassing the memo), update the
  *     store (so subscribers see it too), and resolve with the value —
  *     rejecting if the fetch fails. Concurrent calls for the same key share
- *     one in-flight fetch. Backs the one-shot `await` path.
+ *     one in-flight fetch. Backs `CacheObservable.fresh()`.
  *   - `invalidate(key)`: stale-while-revalidate — keeps the current value
  *     visible to observers, clears the in-flight guard, starts a fresh
  *     fetch. Recovers an orphaned fetch (SSE torn down, response lost).
  *   - `remove(key, gone)`: the entity is gone (B13a): the value is dropped and
  *     the key is `failed` with `gone`, for every observer. No refetch.
  *   - `set(key, value)`: write-through without a fetch (B13b).
- *   - `invalidateAll()`: per-key SWR refetch of every currently-cached entry.
+ *   - `invalidateAll()`: per-key SWR refetch of every key the cache knows.
  *   - `dispose()`: terminal and inert (B16) — completes every per-key
  *     observable (subscribers detach cleanly) and stuns all later acts:
  *     no fetch, retry, breadcrumb, or B15 failure may land after disposal,
@@ -46,9 +46,9 @@
  *   - Terminal failure of a VALUE-LESS key is its state (B15): when the B14
  *     retry also fails and there is no cached value to serve, the key is
  *     `failed`, for every observer of it, instead of `pending` forever —
- *     L1's forbidden fourth state (.plans/LIVENESS-AXIOMS.md; found by the
- *     P2 property suite). Retriable: the next subscribe, invalidate() or
- *     set() clears it. Keys WITH a value keep B6 stale-beats-error.
+ *     L1's forbidden fourth state. Retriable: the next subscribe,
+ *     invalidate() or set() clears it. Keys WITH a value keep B6
+ *     stale-beats-error.
  */
 
 import { BusRequestError } from '@semiont/core';
@@ -78,14 +78,13 @@ export interface CachePersister<K, V> {
 }
 
 /**
- * The three-outcome truth of a cache read (CACHE-CONTRACT D1, settled
- * 2026-07-29): pending (nothing to show yet), ready (a value — possibly
- * stale-while-revalidating, B7), or failed (B15 exhaustion of a value-less
- * key). `failed` is an EMISSION, not a stream death: the observable never
- * errors and never terminates on failure, so a subscription survives the
- * full pending → failed → (resubscribe) → pending → ready life cycle. A
- * two-state consumer no longer compiles — which is the point (SDK-DEBT L1:
- * nine call sites shipped against the hidden third outcome).
+ * The three-outcome truth of a cache read: pending (nothing to show yet),
+ * ready (a value — possibly stale-while-revalidating, B7), or failed (B15
+ * exhaustion of a value-less key). `failed` is an EMISSION, not a stream
+ * death: the observable never errors and never terminates on failure, so a
+ * subscription survives the full pending → failed → (resubscribe) →
+ * pending → ready life cycle. A two-state consumer does not compile — which
+ * is the point: the third outcome cannot be overlooked.
  */
 export type CacheState<T> =
   | { status: 'pending' }
@@ -93,13 +92,12 @@ export type CacheState<T> =
   | { status: 'failed'; error: Error };
 
 /** Type guard for the settled-with-value state — the paved path for
- * `pipe(filter(isReady), map((s) => s.value))`, replacing the old
- * `filter((v) => v !== undefined)` idiom. */
+ * `pipe(filter(isReady), map((s) => s.value))`. */
 export const isReady = <T,>(s: CacheState<T>): s is { status: 'ready'; value: T } =>
   s.status === 'ready';
 
-/** Value-or-undefined projection for call sites that want the old shape
- * EXPLICITLY (the type still forces the choice at the boundary). */
+/** Value-or-undefined projection for call sites that want that shape
+ * EXPLICITLY (the type forces the choice at the boundary). */
 export const readyValue = <T,>(s: CacheState<T>): T | undefined =>
   s.status === 'ready' ? s.value : undefined;
 
@@ -164,7 +162,7 @@ export interface Cache<K, V> {
 export function createCache<K, V>(
   fetchFn: (key: K) => Promise<V>,
   options?: {
-    /** B17 — persistence seam. Omitted = today's in-memory-only behavior. */
+    /** B17 — persistence seam. Omitted = in-memory only. */
     persister?: CachePersister<K, V>;
     /** Debounce window for persister.save. Default 50 ms. */
     saveDebounceMs?: number;
@@ -178,11 +176,10 @@ export function createCache<K, V>(
    * B18 — keys restored from the persister that have NOT been revalidated
    * this session. A value read off disk is *stale-until-revalidated*: unlike
    * a value this session fetched, nothing guarantees it reflects server
-   * truth. Treating the two alike is what made an annotation created
-   * seconds before a reload invisible — the persisted document predated it,
-   * `observe()` saw a populated store and issued no request, and no replay
-   * could help (at failure time no resumption bookmark exists at all).
-   * See .plans/bugs/annotation-lost-on-immediate-reload-after-create.md.
+   * truth. Treating the two alike makes an annotation created seconds
+   * before a reload invisible — the persisted document predates it,
+   * `observe()` sees a populated store and issues no request, and no replay
+   * helps (the B17-Q gate may be holding the bookmark, so none is persisted).
    */
   const rehydrated = new Set<K>(initialEntries.keys());
   /** In-flight fetch promise per key — dedups concurrent fetches (B3). */
@@ -203,7 +200,7 @@ export function createCache<K, V>(
    * also fails and the store holds nothing to serve. It is STATE, held here
    * beside the store, so a key's `CacheState` is a function of the two and
    * every observer of the key holds the same one. An observer ARRIVING at a
-   * failed key clears the failure and starts a fresh chain (D3 subscribe-time
+   * failed key clears the failure and starts a fresh chain (subscribe-time
    * recovery), which returns the key to `pending` for everyone. Also cleared
    * by invalidate()/set()/remove() and by any fetch success, so the failed
    * state is always retriable.
@@ -281,7 +278,7 @@ export function createCache<K, V>(
    */
   const runFetch = (key: K): Promise<V> => {
     // B18 — a fetch is under way for this key from SOME path (observe's
-    // revalidation, invalidate, or the await path), so it is no longer
+    // revalidation, invalidate, or the await path), so it stops being
     // merely restored-from-disk. Cleared before the dedup return: joining an
     // in-flight fetch counts as revalidating too.
     rehydrated.delete(key);
@@ -316,16 +313,16 @@ export function createCache<K, V>(
 
   /**
    * Fetch driver for the swallowed SWR paths (observe / invalidate): retry
-   * once on failure (B14), then go idle.
+   * once on failure (B14), then go idle — as `failed`, when the key holds no
+   * value (B15).
    *
-   * The motivating failure is a lost one-shot reply — the busRequest timed
-   * out because its SSE result raced a connection swap
-   * (.plans/bugs/concurrent-browse-resource-starvation.md). Without a retry,
+   * The failure this covers is a lost one-shot reply — a busRequest times
+   * out because its SSE result raced a connection swap. Without a retry,
    * every subscriber of a never-loaded key starves silently until some future
-   * observe()/invalidate() happens to act. Failures stay invisible to
-   * subscribers (B6); the retry joins any fetch another caller started in the
-   * meantime (B3), and an exhausted key is left idle-empty so the next
-   * observe()/invalidate() starts a fresh chain. The `fetch`/await path never
+   * observe()/invalidate() happens to act. A key that holds a value keeps
+   * showing it through a failure (B6); the retry joins any fetch another
+   * caller started in the meantime (B3), and the next observe()/invalidate()
+   * of an exhausted key starts a fresh chain. The `fetch`/await path never
    * comes through here — its caller sees the rejection and owns retry policy.
    */
   const runFetchSWR = (key: K): void => {
@@ -333,11 +330,9 @@ export function createCache<K, V>(
     void runFetch(key).catch((firstErr: unknown) => {
       // B16: teardown straddled the attempt — no retry, no breadcrumb noise.
       if (disposed) return;
-      // Always-on breadcrumb: the pre-B14 version of this path swallowed the
-      // failure with zero trace, which is how lost replies starved silently
-      // (.plans/bugs/concurrent-browse-resource-starvation.md). Not deduped —
-      // a spamming retry line means fetches are failing repeatedly, which is
-      // itself the signal.
+      // Always-on breadcrumb: a failure swallowed with zero trace is how lost
+      // replies starve silently. Not deduped — a spamming retry line means
+      // fetches are failing repeatedly, which is itself the signal.
       // eslint-disable-next-line no-console
       console.warn(
         `[cache RETRY] SWR fetch failed for key ${String(key)}; re-issuing once (B14):`,
@@ -385,17 +380,16 @@ export function createCache<K, V>(
             return b.status === 'pending';
           }),
         );
-        // D3 (CACHE-CONTRACT, settled 2026-07-29): the fetch decision runs
-        // per SUBSCRIPTION, not per accessor call — calling an accessor is
-        // pure (render-safe); the effect belongs to the observer that will
-        // see its outcome. Every branch is idempotent under concurrent
-        // subscribers (`inflight`, marker deletion), so N subscribers cost
-        // one chain, same as before.
+        // The fetch decision runs per SUBSCRIPTION, not per accessor call —
+        // calling an accessor is pure (render-safe); the effect belongs to
+        // the observer that will see its outcome. Every branch is idempotent
+        // under concurrent subscribers (`inflight`, marker deletion), so N
+        // subscribers cost one chain.
         obs = new Observable<CacheState<V>>((subscriber) => {
           if (disposed) {
             // B16: the store is completed, so the inner observable completes
             // subscribers immediately — just don't issue a fetch for a
-            // client that no longer exists.
+            // disposed client.
           } else if (failures$.value.has(key)) {
             // B15 recovery: an observer ARRIVING at a failed key clears the
             // failure and starts a fresh attempt chain, so a remount recovers
@@ -408,7 +402,7 @@ export function createCache<K, V>(
           } else if (rehydrated.has(key)) {
             // B18 — first observation of a restored-from-disk value: serve it
             // immediately (it is already in the store, so subscribers paint
-            // with no `undefined` flash — B17's actual win is preserved) AND
+            // with no `pending` flash — B17's actual win is preserved) AND
             // revalidate in the background, rendering the fresher on arrival.
             // `runFetch` clears the mark, so this costs at most one
             // revalidation CHAIN per rehydrated key per session — one

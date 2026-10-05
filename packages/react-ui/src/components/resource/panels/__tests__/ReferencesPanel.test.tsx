@@ -69,8 +69,8 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       cancel: 'Cancel',
       createReference: 'Create Reference',
       annotating: 'Annotating...',
-      // CLEAN-PROGRESS D3: the widget's own strings come from the
-      // AssistProgress namespace now, not from this panel's.
+      // The widget's own strings come from the
+      // AssistProgress namespace, not from this panel's.
       inProgress: 'Annotating...',
       complete: 'Annotation complete!',
       failed: 'Annotation failed',
@@ -120,7 +120,7 @@ describe('ReferencesPanel Component', () => {
     vi.restoreAllMocks();
   });
 
-  // RESOLUTION-SPARKLE D6: the panel threads the host's sparkle set down to
+  // The panel threads the host's sparkle set down to
   // the entries — exactly the ids in the set glow, nothing else.
   describe('Resolution sparkle threading', () => {
     const linkingReference = (id: string): Annotation => ({
@@ -184,7 +184,7 @@ describe('ReferencesPanel Component', () => {
   // Entity types are optional on a reference, but `MarkSubmitEvent.body` is
   // `minItems: 1` — so "no types selected" must OMIT body, not send `[]`.
   // Sending `[]` 400s at /bus/emit, and `mark.submit` is fire-and-forget, so
-  // the failure is silent: the button looks inert. Found live 2026-08-24.
+  // the failure is silent: the button looks inert.
   describe('Create Reference payload', () => {
     const pendingLinking = {
       motivation: 'linking' as const,
@@ -494,10 +494,10 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('renders the entity log with the SAME markup the progress display uses', () => {
-      // ASSIST-SURFACE-WARTS Lane B: this form-side log and AssistProgress's
-      // completed-entity log are the same concept. They had two class families
-      // (semiont-assist-widget__log* here, semiont-annotation-log* there) one
-      // panel apart — one concept, one markup.
+      // This form-side log and AssistProgress's completed-entity log are the
+      // same concept, so both use the semiont-annotation-log* classes and
+      // neither has a semiont-assist-widget__log* family of its own — one
+      // concept, one markup.
       const { container, rerender } = renderWithEventBus(
         <ReferencesPanel
           {...panelProps()}
@@ -665,7 +665,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       // Should not show any log items. Terminal progress (dismissable) is
-      // shown instead of the form — the AssistShell normalization (#7); the
+      // shown instead of the form — the AssistShell normalization; the
       // form returns once progress clears.
       expect(screen.queryByText('✓')).not.toBeInTheDocument();
       expect(screen.queryByText('Select entity types')).not.toBeInTheDocument();
@@ -866,7 +866,7 @@ describe('ReferencesPanel Component', () => {
     it('should have title without emoji', () => {
       renderWithEventBus(<ReferencesPanel {...panelProps()} />);
 
-      // The emoji is no longer in the title (it's only in the tab now)
+      // The emoji is not in the title (it is only in the tab)
       const title = screen.getByRole('heading', { level: 2 });
       expect(title.textContent).not.toContain('🔵');
       expect(title.textContent).toContain('title');

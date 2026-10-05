@@ -1,13 +1,11 @@
 // Generate standalone Ajv validators for every schema in the bundled OpenAPI
-// spec — GRAPH-ANNOTATION-CODEC P4, D8 = generate.
+// spec: one validator, generated at build time, serves both bus and route
+// validation.
 //
 // WHY BUILD TIME. Ajv's `addSchema` does NOT compile; compilation is deferred
-// to the first `validateSchema` call. A schema Ajv cannot compile therefore
-// became a 500 on EVERY request through that schema, valid payloads included —
-// which is how a `discriminator` added to AnnotationBody.json broke
-// `POST /bus/emit` for `mark:create` (PR #1189). Compiling here moves that
-// failure to the build, and retires the eager-compile test that existed only
-// to catch it in CI.
+// to the first `validateSchema` call. A schema Ajv cannot compile is therefore
+// a 500 on EVERY request through that schema, valid payloads included.
+// Compiling here moves that failure to the build.
 //
 // WHY EVERY SCHEMA, not the bus registry's `validate` set. That field masters a
 // different question — which CHANNELS are enforced at emit — and it keeps doing
@@ -37,7 +35,7 @@ const OUT_DIR = resolve(ROOT, 'packages/core/src/generated');
 // (ajv-formats' format table, ajv's ucs2length) are emitted as `require()`
 // whatever it is set to. A `require` inside an ESM file is unbundlable:
 // esbuild replaces it with a dynamic-require shim that throws at runtime, so
-// the built dist failed while vitest (which runs the source) passed. As CJS
+// the built dist fails while vitest (which runs the source) passes. As CJS
 // the same requires bundle statically.
 const OUT_JS = resolve(OUT_DIR, 'openapi-validators.cjs');
 const OUT_DTS = resolve(OUT_DIR, 'openapi-validators.d.cts');
@@ -51,7 +49,7 @@ const BANNER = `// ⚠ GENERATED FILE — do not edit.
  * OpenAPI 3.0 `nullable` → JSON Schema draft-07, which Ajv speaks.
  *
  * Two idioms, and BOTH are load-bearing — a generator missing either fails on
- * schemas that validate correctly today:
+ * valid schemas:
  *   - `nullable` beside a string `type` → `type: [original, 'null']`
  *   - `nullable` beside `allOf` → `anyOf: [{type:'null'}, <the rest>]`. This is
  *     3.0's only way to express a nullable `$ref` (a bare `$ref` takes no

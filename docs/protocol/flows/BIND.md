@@ -1,173 +1,31 @@
-# Bind Flow
+# Bind
 
-**Purpose**: Link reference annotations to existing resources or create new ones. When an annotation with motivation `linking` is created (by a human or AI agent), the Bind flow lets a collaborator review gathered context, then search for an existing resource to link it to, or navigate to the compose page to create a new one manually.
+Bind says what a reference refers to. A reference is an annotation with the motivation `linking`: it marks a mention of something, such as a person or a place. Binding attaches the resource the mention is about. It is one of the four writing verbs, with [Yield](YIELD.md), [Mark](MARK.md) and [Frame](FRAME.md).
 
-**Related Documentation**:
-- [W3C Web Annotation Data Model](../W3C-WEB-ANNOTATION.md) - Reference annotation and SpecificResource body structure
-- [Knowledge System](../../system/KNOWLEDGE-SYSTEM.md) - Event store and annotation body updates
-- [Mark Flow](./MARK.md) - How reference annotations are created
-- [Gather Flow](./GATHER.md) - Context assembly (used by Bind before search)
-- [Yield Flow](./YIELD.md) - AI-powered resource generation (alternative to manual resolution)
+Finding what a reference could refer to is reading, and belongs to [Gather](GATHER.md) and [Match](MATCH.md). Bind is the write that follows.
 
-## Overview
+## Operations
 
-The Bind flow resolves ambiguous references to specific resources. A detected entity mention such as "John Smith" is linked to the correct resource in the knowledge base, converting an unresolved annotation into a concrete cross-document link. AI agents perform entity linking, coreference resolution, and grounding (hallucination — binding to a nonexistent referent — is the primary failure mode). Human collaborators verify and confirm matches by cross-checking records and disambiguating between candidate entities.
+| SDK method | Returns | On the wire | Answered by |
+|---|---|---|---|
+| `bind.body` | nothing; it resolves when the change is recorded | `bind:update-body` | the archivist |
 
-A reference annotation (motivation: `linking`) identifies an entity mention in a document — a person, place, concept, etc. Initially unresolved, it contains only entity type tags in its body. Binding adds a `SpecificResource` body item that links the annotation to a concrete resource.
+`bind.body` takes a resource, an annotation, and a list of operations on the annotation's body:
 
-Resolution can happen in two ways:
-1. **Link to existing resource** — Search for and select a resource already in the system
-2. **Create new resource** — Navigate to the compose page with pre-filled parameters, or use the [Yield flow](./YIELD.md) to have an AI agent create the resource
+| Operation | Does |
+|---|---|
+| `add` | Adds an item |
+| `remove` | Removes the first item equal to the one given |
+| `replace` | Replaces `oldItem` with `newItem` |
 
-Both paths result in an `mark:body-updated` event that adds the `SpecificResource` link.
+## What it records
 
-## Using the SDK
+Bind has no event of its own. A body change is recorded as [`mark:body-updated`](MARK.md#what-it-records), and delivered to the clients viewing that resource with the annotation as it stands afterwards. A client holding the annotation updates it in place, with no second request.
 
-Resolve a reference annotation by adding a `SpecificResource` link to
-its body. The `bind` namespace issues a confirmed write over `busRequest`:
-`bind.body(...)` emits `bind:update-body`, the gateway handler forwards
-to `mark:update-body`, matches the persisted outcome by `correlationId`,
-and replies on `bind:body-updated` / `bind:body-update-failed`. The SDK
-awaits that real outcome and throws on failure. Persisting the body change
-also broadcasts the enriched `mark:body-updated` event to everyone viewing
-the resource.
+## A reference, before and after
 
-```typescript
-// Link a reference annotation to an existing resource
-await client.bind.body(resourceId, annotationId, [{
-  op: 'add',
-  item: {
-    type: 'SpecificResource',
-    source: 'resource://target-doc-789',
-    purpose: 'linking',
-  },
-}]);
+Unbound, a reference's body holds only the entity types of what it mentions:
 
-// Unlink — remove the SpecificResource body item
-await client.bind.body(resourceId, annotationId, [{
-  op: 'remove',
-  item: {
-    type: 'SpecificResource',
-    source: 'resource://target-doc-789',
-    purpose: 'linking',
-  },
-}]);
-```
-
-## Events
-
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `bind:initiate` | `{ annotationId, resourceId, defaultTitle, entityTypes }` | Local coordination signal: opens the wizard / signals a bind workflow should start (not the body-write channel). |
-| `match:search-requested` | `{ correlationId, referenceId, context, limit?, useSemanticScoring? }` | Search for binding candidates using gathered context |
-| `match:search-results` | `{ correlationId, referenceId, response }` | Scored search results from Matcher |
-| `match:search-failed` | `{ correlationId, referenceId, error }` | Search failed |
-| `browse:referenced-by-requested` | `{ correlationId, resourceId, motivation? }` | Query which annotations reference a resource |
-| `browse:referenced-by-result` | `{ correlationId, response }` | Referenced-by results |
-| `bind:update-body` | `{ correlationId, annotationId, resourceId, operations }` | `client.bind.body()` emits this via `busRequest`; the handler forwards to `mark:update-body` and matches the persisted outcome by `correlationId`. |
-| `bind:body-updated` | `{ correlationId }` | Confirmed-write ack (void reply); `busRequest` resolves on it. |
-| `bind:body-update-failed` | `{ correlationId } & CommandError` | Body update failed; `busRequest` rejects on it. |
-
-## Resolution Workflow
-
-### Link to Existing Resource (Wizard)
-
-The Bind path runs through a multi-step wizard (`ReferenceWizardModal`). A single 🕸️🧙 button on any unresolved reference opens it. The wizard first displays the gathered context (passage, entity types, graph neighborhood), then offers three resolution strategies: **Bind** (search for an existing resource via the Matcher), **Generate** (AI-create a new resource via the Yield flow), or **Compose** (navigate to the compose page with context pre-loaded). Choosing Bind advances to a search configuration step — max results (1/5/10/20) and a semantic scoring toggle — before running the Matcher search.
-
-```
-User clicks 🕸️🧙 wizard button on unresolved reference
-    |
-bind:initiate fires with { annotationId, resourceId, defaultTitle, entityTypes }
-    |
-ResourceViewerPage emits gather:requested on EventBus
-    |
-Gatherer assembles GatheredContext (passage + graph neighborhood)
-    |
-gather:complete → Wizard shows gathered context (Step 1)
-    |
-User clicks "Bind" → Configure Search (Step 2A)
-    |
-User submits search → match:search-requested emitted via /bus/emit with { correlationId, context, limit, useSemanticScoring }
-    |
-Matcher runs context-driven search (structural scoring + optional inference scoring)
-    |
-match:search-results → Wizard shows scored candidates (Step 3A)
-    |
-User clicks "Link" on a result
-    |
-client.bind.body(...) → bind:update-body emitted via busRequest (awaits reply)
-    |
-gateway handler forwards to mark:update-body, persists mark:body-updated event,
-materializes view, replies bind:body-updated (correlationId-matched)
-    |
-EventStore enrichment attaches post-materialization annotation,
-publishes on scoped EventBus → /bus/subscribe → Browser ActorStateUnit
-    |
-BrowseNamespace.updateAnnotationInPlace writes the annotation into the cached Observable
-    |
-useObservable re-renders → ReferenceEntry recomputes isBodyResolved → 🔗
-```
-
-### How the link icon flip works
-
-The `mark:body-updated` event delivered through the bus gateway carries the post-materialization annotation (attached by the event store enrichment callback). The `BrowseNamespace`'s EventBus subscriber writes it directly into the cached Observable via `updateAnnotationInPlace` — no HTTP refetch needed. This is the single delivery path for all annotation mutations: locally-initiated binds and remote mutations from other participants all arrive the same way. See [`EVENT-BUS.md`](../EVENT-BUS.md) for the bus protocol.
-
-### Context-Driven Search
-
-When `match:search-requested` includes a `context` field (a `GatheredContext`), the Matcher uses multi-source candidate retrieval and composite scoring:
-
-**Candidate Sources**:
-1. Name match — direct text search against resource names
-2. Entity type filtered — resources sharing entity types with the annotation
-3. Graph neighborhood — resources connected to the source resource
-
-**Structural Scoring Signals**:
-- Entity type overlap (Jaccard similarity + IDF weighting)
-- Bidirectional links (mutual connections score higher)
-- Citation weight (how many annotations reference the candidate)
-- Name match quality
-- Recency
-- Multi-source bonus (candidates found via multiple retrieval paths)
-
-**Inference Scoring** (when `InferenceClient` is available):
-- Top 20 candidates are batch-scored by LLM for semantic relevance
-- The LLM receives the passage text, entity types, and candidate names
-- Returns 0–1 relevance scores that blend with structural scores
-- Graceful degradation — if inference fails, structural scores are used alone
-
-### Create New Resource (Compose via Wizard)
-
-```
-User clicks 🕸️🧙 wizard button → Step 1 shows context → User clicks "Compose"
-    |
-GatheredContext stored in sessionStorage
-    |
-Navigate to /know/compose?annotationUri=...&name=...&entityTypes=...
-    |
-User composes and saves the new resource
-    |
-mark:body-updated event links the reference
-```
-
-### Unlinking
-
-Resolution is reversible. A user can remove a link via `client.bind.body()` with an `op: 'remove'` operation, returning the reference to its unresolved state.
-
-### Concurrent Binds
-
-Two participants binding the same annotation at nearly the same instant produce two `mark:update-body` events that arrive at `EventStore.appendEvent` ([packages/event-sourcing/src/event-store.ts](../../../packages/event-sourcing/src/event-store.ts)) in some order. Each is persisted to the event log; view materialization replays them through `applyBodyOperations` ([packages/core/src/annotation-assembly.ts](../../../packages/core/src/annotation-assembly.ts)) in arrival order, and each operation runs against the body produced by the previous event — not against the body the originator saw when they issued the command. Both writes succeed; there is no version field, no `If-Match` precondition, no rejection of stale writes.
-
-The semantics this produces, by operation type:
-
-- **`add`** is keyed by deep-equal: adding the same `SpecificResource` twice is idempotent; adding two different `SpecificResource` items leaves both attached. Two participants binding to *different* targets concurrently produces an annotation linked to both, not last-write-wins.
-- **`remove`** drops the first deep-equal match if present; concurrent removes of the same item simply both succeed (the second is a no-op). Concurrent remove + add can produce either ordering depending on event-log arrival order.
-- **`replace`** is keyed by `oldItem`. Two concurrent replaces of the same `oldItem` resolve as: the first applies; the second's `oldItem` no longer matches (the first one already replaced it) and the second is silently a no-op.
-
-For unresolved-reference workflows, this is usually the intended behavior — concurrent binds adding `SpecificResource` items don't trample each other. For workflows that require single-writer semantics (e.g. only one resolved target per annotation), enforce it at the application layer via a coordination signal (`bind:initiate` is the natural choice) rather than expecting the protocol to reject the second writer.
-
-## Annotation Body Structure
-
-**Unresolved** (entity type tags only):
 ```json
 {
   "body": [
@@ -176,20 +34,51 @@ For unresolved-reference workflows, this is usually the intended behavior — co
 }
 ```
 
-**Resolved** (with SpecificResource link):
+Bound, it also holds the resource:
+
 ```json
 {
   "body": [
     { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
-    { "type": "SpecificResource", "source": "resource://doc-789", "purpose": "linking" }
+    { "type": "SpecificResource", "source": "<resourceId>", "purpose": "linking" }
   ]
 }
 ```
 
-## Implementation
+A reference is bound three ways: by `bind.body` with a resource that exists, by [generating](YIELD.md) the resource it refers to (the knowledge base binds it when the new resource is created), or by composing the resource by hand and then binding.
 
-- **Namespace (write side)**: [packages/sdk/src/namespaces/bind.ts](../../../packages/sdk/src/namespaces/bind.ts) — emits `bind:update-body` for annotation body updates (bind is a write command, not a tracked state unit)
-- **Wizard**: [packages/react-ui/src/components/modals/ReferenceWizardModal.tsx](../../../packages/react-ui/src/components/modals/ReferenceWizardModal.tsx) — multi-step wizard for Bind/Generate/Compose
-- **Matcher actor**: [packages/make-meaning/src/matcher.ts](../../../packages/make-meaning/src/matcher.ts) — context-driven search + inference scoring
-- **Event definitions** (authority; generated into `bus-protocol.ts`): [specs/src/bus/registry.json](../../../specs/src/bus/registry.json) — `BIND FLOW` section
-- **API**: `updateAnnotationBody` in [@semiont/sdk](../../../packages/sdk/README.md)
+## Rules
+
+**The write is confirmed.** `bind.body` resolves when the archivist has recorded the change, and rejects with the failure if it could not.
+
+**Binding is reversible.** Removing the `SpecificResource` item returns the reference to its unbound state. Both the binding and the unbinding stay in the log.
+
+### Concurrent updates
+
+Two participants updating the same annotation at nearly the same time produce two events. The log receives them in some order, and each operation runs against the body the previous event left:
+
+- **`add`** is idempotent on equal items. Adding the same resource twice leaves one. Adding two different resources leaves both: concurrent binds to different targets produce a reference linked to both, not a last write that wins.
+- **`remove`** drops the first equal item if there is one. Two removes of the same item both succeed, and the second changes nothing.
+- **`replace`** is keyed on `oldItem`. Of two concurrent replaces of the same item, the first applies and the second finds nothing to replace.
+
+The protocol does not reject a second writer. An application that wants one target per reference has to arrange that itself.
+
+## Example
+
+```typescript
+await semiont.bind.body(resourceId, annotationId, [
+  { op: 'add', item: { type: 'SpecificResource', source: targetResourceId, purpose: 'linking' } },
+]);
+```
+
+From the launcher: `semiont bind <resourceId> <annotationId> <targetResourceId>`, and `--unbind` to reverse it.
+
+## Local signals
+
+`bind.initiate` and `bind.reportBodyError` publish on the client's own bus and nowhere else. `bind:initiate` is how one viewer's interface says a binding should begin; it is not the write. See [react-ui's events](../../builder/react-ui/EVENTS.md).
+
+## Where it is implemented
+
+- The SDK namespace: [packages/sdk/src/namespaces/bind.ts](../../../packages/sdk/src/namespaces/bind.ts)
+- How body operations are applied: `applyBodyOperations`, in [packages/core/src/annotation-assembly.ts](../../../packages/core/src/annotation-assembly.ts)
+- The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

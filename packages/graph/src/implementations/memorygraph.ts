@@ -59,19 +59,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
       throw new Error('Resource must have an id');
     }
 
-    // Simply add to in-memory map
-    // await this.client.submit(`
-    //   graph.tx().rollback()
-    //   g.addV('Resource')
-    //     .property('id', id)
-    //     .property('name', name)
-    //     .property('entityTypes', entityTypes)
-    //     .property('contentType', contentType)
-    //     .property('created', created)
-    //     .property('updatedAt', updatedAt)
-    //   graph.tx().commit()
-    // `, { id, name, entityTypes, ... });
-
     this.resources.set(id, resource);
     return resource;
   }
@@ -115,8 +102,8 @@ export class MemoryGraphDatabase implements GraphDatabase {
 
     // Nothing here needs serializing — but this store is the reference the
     // interface-contract suite runs against, and a reference that cannot
-    // exhibit what the real stores exhibit is why four codec divergences
-    // survived. So the annotation round-trips through the codec: what a Map
+    // exhibit what the real stores exhibit hides codec divergences between
+    // them. So the annotation round-trips through the codec: what a Map
     // hands back is exactly what Cypher and Gremlin hand back.
     const annotation = decodeAnnotation(
       encodeAnnotation(buildAnnotation(input)),
@@ -297,13 +284,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }
   
   async getEntityTypeStats(): Promise<EntityTypeStats[]> {
-    // Simple in-memory statistics
-    // const results = await this.client.submit(`
-    //   g.V().hasLabel('Resource')
-    //     .values('entityTypes').unfold()
-    //     .groupCount()
-    // `);
-
     const typeCounts = new Map<string, number>();
 
     for (const doc of this.resources.values()) {
@@ -386,13 +366,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     return results;
   }
   
-  async detectAnnotations(_resourceId: ResourceId): Promise<Annotation[]> {
-    // This would use AI/ML to detect annotations in a resource
-    // For now, return empty array as a placeholder
-    return [];
-  }
-  
-  // Tag Collections - stored as special vertices in the graph
+  // Tag Collections - an in-memory set
   private entityTypesCollection: Set<string> | null = null;
   
   async getEntityTypes(): Promise<string[]> {
@@ -408,9 +382,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
       await this.initializeTagCollections();
     }
     this.entityTypesCollection!.add(tag);
-    // Simply add to set
-    // await this.client.submit(`g.V().has('tagCollection', 'type', 'entity-types')
-    //   .property(set, 'tags', '${tag}')`, {});
   }
 
   async addEntityTypes(tags: string[]): Promise<void> {
@@ -418,17 +389,10 @@ export class MemoryGraphDatabase implements GraphDatabase {
       await this.initializeTagCollections();
     }
     tags.forEach(tag => this.entityTypesCollection!.add(tag));
-    // Simply add to set
   }
-  
-  private async initializeTagCollections(): Promise<void> {
-    // Initialize in-memory collections
-    // const result = await this.client.submit(
-    //   `g.V().has('tagCollection', 'type', 'entity-types')
-    //    .project('type', 'tags').by('type').by('tags')`, {}
-    // );
 
-    // For now, initialize with defaults if not present
+  private async initializeTagCollections(): Promise<void> {
+    // Initialize with defaults if not present
     if (this.entityTypesCollection === null) {
       const { DEFAULT_ENTITY_TYPES } = await import('@semiont/ontology');
       this.entityTypesCollection = new Set(DEFAULT_ENTITY_TYPES);
@@ -440,8 +404,6 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }
   
   async clearDatabase(): Promise<void> {
-    // In production: CAREFUL! This would clear the entire graph
-    // await this.client.submit(`g.V().drop()`);
     this.resources.clear();
     this.annotations.clear();
     this.entityTypesCollection = null;

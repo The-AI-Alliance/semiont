@@ -8,7 +8,7 @@
  * fails to build — every service-to-service call just starts returning 401
  * against a realm that looks correct in the console.
  *
- * The two TypeScript readers now share this module; the Go pair cannot, so a
+ * The two TypeScript readers share this module; the Go pair cannot, so a
  * lint (`npm run lint:service-role`) holds all of them to the same literal.
  */
 
@@ -26,7 +26,7 @@ export const SERVICE_ROLE = 'semiont-service';
 
 /**
  * The role that marks a principal permitted to CLAIM JOBS — a worker, whether
- * it is this stack's own or a foreign one (EXTRACT-JOBS P0).
+ * it is this stack's own or a foreign one.
  *
  * Distinct from `SERVICE_ROLE` on purpose. Every sidecar carries the service
  * role, so it proves service-ness and nothing finer; worker-ness is a separate
@@ -52,9 +52,9 @@ function hasRole(claims: { [claim: string]: unknown }, role: string): boolean {
 /**
  * Whether a verified token's claims mark a Semiont service account.
  *
- * The shape check travels with the constant on purpose. Both readers used to
- * implement it, and they had already drifted: one guarded against non-string
- * array members, the other did not. A nested `realm_access.roles` fails here,
+ * The shape check travels with the constant on purpose: implemented once per
+ * reader it drifts, one guarding against non-string array members and the
+ * other not. A nested `realm_access.roles` fails here,
  * which is the whole point — it is the shape a hand-configured client produces
  * and the one that looks right until every call is refused.
  */

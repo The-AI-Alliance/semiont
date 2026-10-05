@@ -1,5 +1,5 @@
 /**
- * OCR word boxes → PDF-point geometry (#739).
+ * OCR word boxes → PDF-point geometry.
  *
  * OCR reports boxes in the image's own pixel space, top-left origin. Anchoring
  * them means going through the matrix that placed the image on the page:

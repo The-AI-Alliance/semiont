@@ -7,7 +7,7 @@ type JobProgressMessage = components['schemas']['JobProgressMessage'];
 type Translate = (key: string, params?: Record<string, unknown>) => string;
 
 /**
- * The one code→copy switch (ASSIST-PROGRESS-CONSOLIDATION P3).
+ * The one code→copy switch.
  *
  * The wire carries nine codes with typed params; the client owns the sentence.
  * This lives in one place rather than as nine threaded strings, because five
@@ -41,13 +41,13 @@ export function assistProgressCopy(t: Translate): (m: JobProgressMessage) => str
       case 'complete-generated':
         // Generation's terminal success. Generic by design: the client holds
         // the title it typed, and the outcome (name + link) arrives on
-        // job:complete (GENERATE-FROM-RESOURCE D7/D8). A run cut off at the
-        // maxTokens ceiling still completes — but never silently (D6): the
-        // producer derives the bit, this is where it becomes a sentence.
+        // job:complete. A run cut off at the maxTokens ceiling still
+        // completes — but never silently: the producer derives the bit, this
+        // is where it becomes a sentence.
         return m.truncated ? t('codeCompleteGeneratedTruncated') : t('codeCompleteGenerated');
       case 'detecting-entities':
         // The entity type itself belongs on the subject line beneath, not
-        // repeated here — that repetition is defect 2.
+        // repeated here.
         return t('codeDetectingEntities');
       case 'creating-annotations':
         return t('codeCreatingAnnotations', { count: m.count });
@@ -68,7 +68,7 @@ function kindKey(kind: 'highlight' | 'comment' | 'assessment' | 'reference' | 't
   return `kind${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
 }
 
-/** What the run is working on — one shape for every flow (CLEAN-PROGRESS D2). */
+/** What the run is working on — one shape for every flow. */
 type Current = components['schemas']['JobProgress']['current'];
 
 /**
@@ -140,11 +140,11 @@ export function assistParamLabel(t: Translate): (code: string) => string {
 /**
  * The whole translations object, from one namespace, in one call.
  *
- * Every string `AssistProgress` renders lives in the `AssistProgress` namespace
- * (CLEAN-PROGRESS D3). Before this, four call sites each re-supplied `cancel`
- * and `inProgress` out of their own namespaces — four chances for the widget to
- * read differently depending on which panel you opened, invisible until someone
- * used the app in a locale nobody on the team reads.
+ * Every string `AssistProgress` renders lives in the `AssistProgress`
+ * namespace. Before this, four call sites each re-supplied `cancel` and
+ * `inProgress` out of their own namespaces — four chances for the widget to
+ * read differently depending on which panel you opened, invisible until
+ * someone used the app in a locale nobody on the team reads.
  *
  * `found` stays a caller opt-in: only flows that count per-item results pass it,
  * and its copy ("5 found") belongs to the panel that owns those results.

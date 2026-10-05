@@ -5,59 +5,15 @@ import { parse as parseToml } from 'smol-toml';
 import { isObject, isString } from './type-guards';
 
 /**
- * Represents a Semiont project rooted at a given directory.
- *
- * Computes all paths — durable and ephemeral — once at construction time.
- * XDG environment variables are read here and nowhere else.
- *
- * **The paths divide along what they are derived FROM, and so does the type.**
- * Everything ephemeral is composed from the KB's NAME, so it needs no working
- * tree and lives on `SemiontState`. Only the durable half is composed from the
- * root. `SemiontProject extends SemiontState` — a project is its state plus a
- * working tree — which lets a consumer that has no KB root (the gateway, after
- * SINGLE-KB-MOUNT P5) take the smaller type and still be checked by the
- * compiler rather than by a throw at first read.
- *
- * Durable paths (inside the project root, committed or repo-local) — `SemiontProject`:
- *   eventsDir — .semiont/events/  (system of record, committed)
- *
- * Ephemeral paths (outside the project root, never committed) — `SemiontState`:
- *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
- *   resourcesDir    — stateDir/resources/  (the per-resource materialized views)
- *   projectionsDir  — stateDir/projections/  (KB-global projections + the storage-uri index)
- *   anchoredTextDir — supplied by the caller; required, no default
- *
- * Everything ephemeral that is DERIVED sits under stateDir together —
- * the projections (from the event log). The anchored-text store is
- * derived too, but its location is declared by the deployment rather than
- * composed here (see anchoredTextDir). That is the XDG distinction, not a
- * filing habit:
- * $XDG_STATE_HOME is for data that persists between restarts but "is not
- * important or portable enough" for $XDG_DATA_HOME, and losing any of these
- * costs recomputation rather than information.
- *
- * There is no $XDG_DATA_HOME path here, deliberately. Semiont's own system of
- * record is the committed event log above; the databases live under the
- * launcher's per-root state, not the gateway's. A `dataHome` field existed and
- * had exactly one consumer — the anchored-text store, which belonged in state
- * all along — so it went with the move rather than being left for a
- * hypothetical future user of the DATA tier.
- *
- * Note: the frontend has no entry here, deliberately. It serves static assets
- * from its own container image and keeps no per-project state on the host, so
- * there is nothing to derive from a project root.
+ * The one composition of a project's state-tree root from its name, for the
+ * `SemiontState` constructor below. A service that mounts no part of the KB
+ * tree (the Librarian) builds a `SemiontState` from the name alone.
  */
-/**
- * The one composition of a project's state-tree root from its name. The
- * Librarian resolves this WITHOUT a SemiontProject — it has no KB root to
- * construct one from (SINGLE-KB-MOUNT P1) — so the join lives here, beside
- * the constructor that also uses it, rather than being restated over there.
- */
-export function stateDirFor(name: string): string {
-  // No fabricated default (CLAUDE.md: absence fails loudly). Every process that
-  // reaches its state tree through this — the Librarian, the Archivist, the fs
-  // job driver — runs in a container the launcher gives a state MOUNT and an
-  // explicit `XDG_STATE_HOME=/semiont-state`. Its absence means a service that
+function stateDirFor(name: string): string {
+  // No fabricated default: absence fails loudly. Every process that reaches
+  // its state tree through this — the Librarian, the Archivist — runs in a
+  // container the launcher gives a state MOUNT and an explicit
+  // `XDG_STATE_HOME=/semiont-state`. Its absence means a service that
   // needs state has no volume behind it — a misconfiguration — and writing to a
   // manufactured `~/.local/state` would hide that behind an ephemeral path
   // nobody chose. A service that needs no persistent state must not construct a
@@ -75,10 +31,10 @@ export function stateDirFor(name: string): string {
 /**
  * A KB's state tree, addressed by NAME — everything that needs no working tree.
  *
- * This exists because consumers appeared that genuinely need half of
- * `SemiontProject` and cannot supply the other half: the Librarian reads
- * `resourcesDir` on the shared state mount, with no readable KB root at all
- * (SINGLE-KB-MOUNT P1/P5).
+ * This exists for consumers that genuinely need half of `SemiontProject` and
+ * cannot supply the other half: the Librarian reads `resourcesDir` on the
+ * shared state mount, with no readable KB root at all. Only the Archivist
+ * mounts the KB.
  *
  * **Split rather than made optional, deliberately.** Relaxing
  * `SemiontProject`'s root-derived fields to optional-and-throw-on-read would
@@ -90,9 +46,9 @@ export function stateDirFor(name: string): string {
  *
  * Every field here is required, and every one is derived from `name` alone —
  * which is what makes the name the whole of this type's input. `anchoredTextDir`
- * is deliberately NOT here (SINGLE-KB-MOUNT P6): it is a supplied path rather
- * than a derived one, and its only readers hold a working tree too, so it sits
- * on `SemiontProject` where they already are.
+ * is deliberately NOT here: it is a supplied path rather than a derived one,
+ * and its only readers hold a working tree too, so it sits on `SemiontProject`
+ * where they already are.
  */
 export class SemiontState {
   readonly name: string;
@@ -111,7 +67,48 @@ export class SemiontState {
   }
 }
 
-/** A project is its state plus a working tree. */
+/**
+ * Represents a Semiont project rooted at a given directory.
+ *
+ * Computes all paths — durable and ephemeral — once at construction time.
+ * XDG environment variables are read here and nowhere else.
+ *
+ * **The paths divide along what they are derived FROM, and so does the type.**
+ * Everything ephemeral is composed from the KB's NAME, so it needs no working
+ * tree and lives on `SemiontState`. Only the durable half is composed from the
+ * root. `SemiontProject extends SemiontState` — a project is its state plus a
+ * working tree — which lets a consumer that has no KB root (the Librarian,
+ * which mounts no part of the KB tree) take the smaller type and still be
+ * checked by the compiler rather than by a throw at first read.
+ *
+ * Durable paths (inside the project root, committed or repo-local) — `SemiontProject`:
+ *   eventsDir — .semiont/events/  (system of record, committed)
+ *
+ * Ephemeral paths (outside the project root, never committed) — `SemiontState`:
+ *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
+ *   resourcesDir    — stateDir/resources/  (the per-resource materialized views)
+ *   projectionsDir  — stateDir/projections/  (KB-global projections + the storage-uri index)
+ *
+ * Supplied by the caller rather than composed — `SemiontProject`:
+ *   anchoredTextDir — the anchored-text store; required, no default
+ *
+ * Everything ephemeral that is DERIVED sits under stateDir together —
+ * the projections (from the event log). The anchored-text store is
+ * derived too, but its location is declared by the deployment rather than
+ * composed here (see anchoredTextDir). That is the XDG distinction, not a
+ * filing habit:
+ * $XDG_STATE_HOME is for data that persists between restarts but "is not
+ * important or portable enough" for $XDG_DATA_HOME, and losing any of these
+ * costs recomputation rather than information.
+ *
+ * There is no $XDG_DATA_HOME path here, deliberately. Semiont's own system of
+ * record is the committed event log above, and the databases live under the
+ * launcher's per-root data directory.
+ *
+ * Note: the Browser has no entry here, deliberately. It serves static assets
+ * from its own container image and keeps no per-project state on the host, so
+ * there is nothing to derive from a project root.
+ */
 export class SemiontProject extends SemiontState {
   readonly root: string;
   readonly anchoredTextDir: string;
@@ -154,10 +151,9 @@ export class SemiontProject extends SemiontState {
    *   from working. Passed IN, never read from the environment here — the entry
    *   point owns that read, exactly as it owns SEMIONT_ROOT.
    *
-   *   It lives on THIS type rather than `SemiontState` (SINGLE-KB-MOUNT P6)
-   *   because every reader of it holds a working tree as well, and the one
-   *   consumer that needs state paths without a tree — the gateway — does not
-   *   read it at all.
+   *   It lives on THIS type rather than `SemiontState` because every reader
+   *   of it holds a working tree as well, and the one consumer that needs
+   *   state paths without a tree — the Librarian — does not read it at all.
    */
   constructor(projectRoot: string, opts: { anchoredTextDir: string; name?: string }) {
     super({ name: SemiontProject.seedAndReadName(projectRoot, opts.name) });

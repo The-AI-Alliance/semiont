@@ -1,0 +1,105 @@
+# Actor Model
+
+Semiont's architecture is organized around **actors** communicating through a central **event bus**. This page explains who the actors are, how they relate, and why this shape was chosen.
+
+For the SPA-side wiring, see [HUMAN-UI.md](HUMAN-UI.md). For the read/write actors that mediate the knowledge base, see [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md). For the deployment layout that hosts these actors, see [CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md).
+
+## Topology
+
+```mermaid
+graph TD
+    READER["Human Reader"] -->|"browse, beckon"| BUS
+    ANALYST["Human Analyst"] -->|"mark, bind, browse"| BUS
+    AUTHOR["Human Author"] -->|"yield, mark"| BUS
+    MARKER["AI Marker"] -->|"mark, browse, beckon"| BUS
+    GENERATOR["AI Generator"] -->|"yield, gather"| BUS
+    LINKER["AI Linker"] -->|"bind, gather"| BUS
+    FEEDER["Feeder"] -->|"yield, frame"| BUS
+
+    BUS["E V E N T &ensp; B U S"]
+
+    subgraph ks ["Knowledge System (per knowledge base)"]
+        STOWER["Stower"]
+        GATHERER["Gatherer"]
+        MATCHER["Matcher"]
+        BROWSER["Browser"]
+        CTM["CloneTokenManager"]
+        WEAVER["Weaver<br/>(pipeline)"]
+        SMELTER["Smelter<br/>(pipeline)"]
+        KB["Knowledge Base"]
+        STOWER -->|"write"| KB
+        GATHERER -->|"query"| KB
+        MATCHER -->|"query"| KB
+        BROWSER -->|"query"| KB
+        CTM -->|"query"| KB
+        WEAVER -->|"project"| KB
+        SMELTER -->|"project"| KB
+    end
+
+    BUS -->|"write commands"| STOWER
+    BUS -->|"gather"| GATHERER
+    BUS -->|"match"| MATCHER
+    BUS -->|"browse"| BROWSER
+    BUS -->|"clone"| CTM
+    BUS -->|"domain events"| WEAVER
+    BUS -->|"domain events"| SMELTER
+
+    classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold,font-size:14px
+    classDef human fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
+    classDef ai fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
+    classDef kb fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
+    classDef worker fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
+
+    class READER,ANALYST,AUTHOR human
+    class MARKER,GENERATOR,LINKER,FEEDER ai
+    class BUS bus
+    class KB kb
+    class STOWER,GATHERER,MATCHER,BROWSER,CTM,WEAVER,SMELTER worker
+```
+
+Two kinds of actor:
+
+1. **Intelligent actors** — humans or AI agents that read, interpret, and annotate content. They produce events that carry semantic intent: writing (yield, mark, bind, frame), reading (browse, match, gather) and directing attention (beckon).
+2. **The knowledge base** — a passive actor that listens to events and materializes durable state. It has no intelligence; it simply records what the intelligent actors decide. Seven reactive sub-actors serve it: five access actors that mediate every read and write (Stower, Browser, Gatherer, Matcher, CloneTokenManager) and two projection pipelines that follow the event log (Weaver → graph, Smelter → vectors). See [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md).
+
+The event bus is the only coupling between actors. An actor does not know who else is listening.
+
+## Intelligent actors
+
+| | Actor | Flows | What they do |
+|-|-------|-------|-------------|
+| 🧠 | **Reader** | browse, beckon | Navigates resources and annotations. Clicks, hovers, scrolls. Consumes the knowledge base without modifying it. |
+| 🧠 | **Analyst** | mark, bind, browse, beckon | Reads content, creates annotations (highlights, comments, assessments, tags), and resolves references to existing resources. The primary human intelligence in the system. |
+| 🧠 | **Author** | yield, mark | Composes new resources manually (via the compose page) and annotates them. Produces content that the knowledge base records. |
+| 🤖 | **Marker Agent** | mark, browse, beckon | Scans documents and proposes annotations — highlights, assessments, comments, tags, and entity references. Produces the same W3C annotations that human analysts do. |
+| 🤖 | **Generator Agent** | yield, gather | Assembles context around a reference annotation (gather), then synthesizes a new resource from it (yield). Creates content that the knowledge base records. |
+| 🤖 | **Linker Agent** | bind, gather | Resolves unresolved references by searching for matching resources and linking them. Performs entity resolution and coreference — the binding of a mention to its referent. |
+| 🤖 | **Feeder** | yield, frame | Finds content outside the knowledge base and ingests it: declares the vocabulary it needs, then yields one resource per source. A process built on the SDK, such as a script over a corpus or a job that follows a feed. |
+
+AI actors connect to the event bus over the same `/bus/emit` + `/bus/subscribe` endpoints human actors use. Each signs in at the knowledge base's identity provider: a person through a browser, a script by the device grant, a service with its own account. The knowledge base describes a human's act and an AI's act the same way: every event carries the verified DID of its emitter, and an annotation's `creator`, `generator` and `wasAttributedTo` are derived from that by the knowledge base — never asserted by whoever wrote it.
+
+In a running stack the AI actors are jobs: the dispatcher queues them and the worker runs them. An agent built on the SDK is one in the same sense, from outside the stack.
+
+## How content enters
+
+A new resource enters as a **yield**, emitted by an actor like any other event, and the Stower records it. There is no separate intake path:
+
+- **A person** uploads a file, or writes one, on the Browser's compose page.
+- **A Feeder** finds content elsewhere and uploads it through the SDK. It is a client like any other, with no path of its own. The launcher's `semiont yield --upload` is the smallest one; the [ingest skill](../builder/skills/semiont-ingest/SKILL.md) and the Developer Guide's [ingest recipe](../builder/DEVELOPER-GUIDE.md#5-ingest-a-document) show how to write one.
+- **A Generator Agent** writes one from gathered context.
+
+## Flows
+
+Eight composable flows define how actors interact with the knowledge base. Four write: **Yield**, **Mark**, **Bind** and **Frame**. Three read: **Browse**, **Match** and **Gather**. One directs attention: **Beckon**. See **[../protocol/flows/README.md](../protocol/flows/README.md)** for the full table, relationships, and individual flow documentation.
+
+For the wire-level definition (channel naming, `correlationId` / `_userId` conventions, `_trace` carrier), see **[../protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md)**.
+
+## Why this shape
+
+The actor model makes three things visible that a layered architecture obscures:
+
+1. **Human and AI are peers.** They perform the same flows, produce the same events, and create the same W3C annotations. The system does not privilege one over the other. A future actor — a different AI model, a rule engine, a crowdsourcing pipeline — slots in by subscribing to and emitting events.
+
+2. **The knowledge base is inert.** It records; it does not decide. All intelligence lives in the actors. This means the knowledge base can be simple, append-only, and rebuildable — properties that are hard to maintain when "smart" behavior leaks into the data layer.
+
+3. **Flows are composable.** A Marker Agent does mark + browse + beckon. A Generator Agent does yield + gather. New actor types can mix flows freely. The bus doesn't care who emits an event or who consumes it — only that the event conforms to the [event-bus protocol](../protocol/EVENT-BUS.md).

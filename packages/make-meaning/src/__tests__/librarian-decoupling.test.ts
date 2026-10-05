@@ -1,14 +1,14 @@
 /**
- * EXTRACT-LIBRARIAN P1 — the decoupling proof for `Matcher`.
+ * The decoupling proof for `Matcher`.
  *
  * The Matcher constructs from narrow capability doubles. `KnowledgeBase`
  * appears nowhere in this file — that absence IS the test: if the actor can
  * be built and exercised without the god-object, it is decoupled.
  *
- * The capability shape is the actor's honest surface, measured 2026-08-28:
+ * The capability shape is the actor's honest surface:
  * - graph.listResources — name-match + entity-type retrieval sources
  * - graph.getResource + views.get — `resourceWithViewGrace`'s two halves
- *   (the view fallback is why "Matcher needs no filesystem" was wrong)
+ *   (the view fallback is why "Matcher needs no filesystem" is false)
  * - vectors.searchResources — the semantic retrieval source
  */
 
@@ -99,7 +99,7 @@ function makeStores(overrides: {
   };
 }
 
-describe('Matcher decoupling (EXTRACT-LIBRARIAN P1)', () => {
+describe('Matcher decoupling', () => {
   let matcher: Matcher | undefined;
   let eventBus: EventBus;
 

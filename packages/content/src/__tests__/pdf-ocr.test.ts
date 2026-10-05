@@ -1,5 +1,5 @@
 /**
- * OCR integration — classes B and C become readable (Phase 3).
+ * OCR integration — classes B and C become readable.
  *
  * The engine is stubbed here so the MERGE is what gets asserted:
  * deterministic, and independent of how well tesseract reads a given scan.
@@ -89,16 +89,15 @@ describe('class B — a fully scanned document', () => {
         expect(item!.y + item!.height).toBeLessThanOrEqual(792);
     });
 
-    it("declines 'no-text-layer' when OCR finds nothing — now meaning it truly failed", async () => {
+    it("declines 'no-text-layer' when OCR finds nothing — meaning it truly failed", async () => {
         recognizesAs('');
         expect(await extract('scanned-image.pdf')).toEqual({ kind: 'declined', declined: 'no-text-layer' });
         // "It truly failed" is the whole claim in that name, and the decline
         // alone does not carry it: a page whose image never reaches the engine
-        // declines identically. Both real bugs found on 2026-08-02 produced
-        // exactly that — `toRgb` rejecting every JPEG-coded scan, and
-        // `resolveImage` waiting forever on a shared XObject — and this suite
-        // stayed green through both, because the case below asserts a decline
-        // when there is no image and nothing asserted the other half.
+        // declines identically — `toRgb` rejecting a JPEG-coded scan, or
+        // `resolveImage` asking the wrong scope for a shared XObject, reads
+        // the same. The case below asserts a decline when there is no image;
+        // this asserts the other half, that the engine was handed one.
         expect(recognizeImages).toHaveBeenCalledTimes(1);
         expect(vi.mocked(recognizeImages).mock.calls[0]![0]).toHaveLength(1);
     });

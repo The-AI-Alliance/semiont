@@ -8,10 +8,10 @@
  * `mark.request`, etc.) visible to the e2e bus capture and to a
  * developer's DevTools console.
  *
- * Without this, those signals were silent at the wire-log layer
+ * Without this, those signals are silent at the wire-log layer
  * because they don't go through HttpTransport — they're in-memory
- * only. Spec 08 (hover-beckon) assumed they'd appear in the capture
- * and was effectively un-runnable until this wiring landed.
+ * only. The e2e hover-beckon spec (08) depends on them appearing in the
+ * capture.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -69,13 +69,12 @@ describe('EventBus busLog integration', () => {
 });
 
 /**
- * Dropped-reply detector — the silent-failure guard from
- * .plans/bugs/gather-resource-complete-not-bridged.md. A correlation-bearing
+ * Dropped-reply detector — the silent-failure guard. A correlation-bearing
  * reply emitted with zero observers is unreachable (no forwarder, no consumer),
  * so the awaiting client times out 30 s later with no error. On Node this WARNs
  * once per channel at emit time — but ONLY for channels not in `BRIDGED_CHANNELS`
- * (a 0-observer emit on a bridged channel is a redundant copy, not a gap; see
- * .plans/bugs/BRIDGE-GAPS.md). Each warning test uses a DISTINCT channel because
+ * (a 0-observer emit on a bridged channel is a redundant copy, not a gap).
+ * Each warning test uses a DISTINCT channel because
  * the once-per-channel dedup is process-global.
  */
 describe('EventBus dropped-reply detection', () => {
@@ -103,8 +102,8 @@ describe('EventBus dropped-reply detection', () => {
   it('does NOT warn for a 0-observer reply on a BRIDGED channel (redundant copy, not a gap)', () => {
     const bus = new EventBus();
     // gather:resource-complete IS bridged — a 0-observer emit here is a duplicate
-    // the awaiting take(1) already consumed, not a drop. Regression guard for the
-    // false-positive [bus DROP] flood (.plans/bugs/BRIDGE-GAPS.md).
+    // the awaiting take(1) already consumed, not a drop. Warning on it would be
+    // a false-positive [bus DROP] flood.
     bus.emit('gather:resource-complete', { response: {} } as never, { correlationId: 'deadbeef-5' });
 
     expect(warnSpy).not.toHaveBeenCalled();

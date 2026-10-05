@@ -26,7 +26,6 @@ export default function DiscoverPage() {
   const entityTypes = useObservable(stateUnit?.entityTypes.value$) ?? [];
   // Three states: a terminally failed list has no value either, so deriving
   // "loading" from `undefined` left this route spinning for ever.
-  // See .plans/PANEL-FAILURE-STATES.md
   const recentError = useObservable(stateUnit?.recent.error$) ?? null;
   const isLoadingRecent = useObservable(stateUnit?.recent.loading$) ?? true;
   const searchQuery = useObservable(stateUnit?.search.query$) ?? '';

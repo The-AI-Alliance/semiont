@@ -3,7 +3,7 @@ name: Launcher Release
 # Builds and publishes the Go launcher (apps/launcher) when a vX.Y.Z release
 # tag lands — the same one-knob versioning as the service images. Publishes
 # GitHub Release archives + the Homebrew tap, with SBOMs and provenance
-# attestation (GO-LAUNCHER.md P4).
+# attestation.
 #
 # Requires the TAP_GITHUB_TOKEN secret: a token with write access to
 # The-AI-Alliance/homebrew-semiont, used by goreleaser to push the formula.

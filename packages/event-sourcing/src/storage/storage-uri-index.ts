@@ -23,9 +23,7 @@ import path from 'path';
 import { createHash } from 'crypto';
 import { getShardPath } from '@semiont/core';
 
-/** SHA-256 hex of a URI — the index's filename derivation. Lived in
- *  shard-utils until the pure sharding helpers hoisted to @semiont/core
- *  (PERSIST-ANCHORS P1a); this was its only consumer. */
+/** SHA-256 hex of a URI — the index's filename derivation. */
 function sha256(data: string): string {
   return createHash('sha256').update(data).digest('hex');
 }
@@ -73,7 +71,8 @@ export async function resolveStorageUri(
 /**
  * Write a URI → resourceId mapping to the index.
  *
- * Called by ViewMaterializer when handling resource.created, resource.moved.
+ * Called by ViewMaterializer when handling yield:created or yield:cloned
+ * (with a storageUri), and yield:moved (new URI).
  *
  * @param projectionsDir - Path to the projections directory
  * @param uri - file:// URI
@@ -132,8 +131,8 @@ export async function listStorageUriEntries(
 /**
  * Remove a URI entry from the index.
  *
- * Called by ViewMaterializer when handling resource.moved (old URI only).
- * NOT called on resource.archived — archived resources retain their index entry.
+ * Called by ViewMaterializer when handling yield:moved (old URI only).
+ * NOT called on mark:archived — archived resources retain their index entry.
  *
  * @param projectionsDir - Path to the projections directory
  * @param uri - file:// URI to remove

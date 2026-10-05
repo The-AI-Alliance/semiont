@@ -6,7 +6,7 @@ Seven actors in two categories: five **access actors** (Stower, Browser, Gathere
 
 In the multi-service deployment the access actors are split across two services: the **Archivist** (`archivist-main`) runs Stower, Browser and CloneTokenManager — the actors that own the file-backed record — and the **Librarian** (`librarian-main`) runs Gatherer and Matcher — the LLM-bound actors. The Weaver and Smelter each run as their own process (`weaver-main` / `smelter-main`). Only the standalone composition root (`startMakeMeaning()`) runs the five access actors in-process; the gateway runs none of them and composes nothing from this package. The job queue and the `job:*` handlers are the **dispatcher**'s ([apps/dispatcher](../../../apps/dispatcher/README.md)), which runs no actor.
 
-Each actor's constructor takes a **capability slice** — a Pick-derived interface naming exactly the store operations it uses — rather than the whole `KnowledgeBase`. A full `KnowledgeBase` satisfies every slice structurally, so in-process wiring passes `kb` directly; the standalone services assemble the slice from their own attachments.
+Each actor's constructor takes a **capability slice** — a Pick-derived interface naming exactly the store operations it uses — rather than the whole `KnowledgeBase`. A full `KnowledgeBase` satisfies every slice but the Gatherer's structurally, so in-process wiring passes `kb` directly to the other four; the standalone services assemble the slice from their own attachments.
 
 ### Stower
 
@@ -35,12 +35,12 @@ Read actor. Handles all deterministic KB read queries — resources, annotations
 ```typescript
 import { Browser } from '@semiont/make-meaning';
 
-const browser = new Browser(kb, eventBus, project, config, limitsDiscovery, embeddingProvider, logger);
+const browser = new Browser(kb, eventBus, project, config, roster, embeddingProvider, logger);
 await browser.initialize();
 await browser.stop();
 ```
 
-The first parameter is `BrowserReads` — reads only: `views` (`get`/`getAll`/`exists`), `eventStore` (log storage + view materializer), `graph` (four queries), `vectors` (`searchResources`/`searchAnnotations`), `content.retrieve`, `anchoredText.read`, and `smeltProgress.whenSettled`. `limitsDiscovery` comes from `createLimitsDiscovery(config, logger)`; the `embeddingProvider` is mandatory — it powers the semantic search fallback for empty lexical searches.
+The first parameter is `BrowserReads` — reads only: `views` (`get`/`getAll`/`exists`), `eventStore` (log storage + view materializer), `graph` (four queries), `vectors` (`searchResources`/`searchAnnotations`), `content.retrieve`, `anchoredText.read`, and `smeltProgress.whenSettled`. `roster` is a `RosterConfig` — each role's provider and model, no credential: a `MakeMeaningConfig` is one, and the Archivist builds it from the keyless role maps with `rosterConfigFrom`; the `embeddingProvider` is mandatory — it powers the semantic search fallback for empty lexical searches.
 
 Responds to:
 - `browse:resource-requested` → emits `browse:resource-result` or `browse:resource-failed`
@@ -71,11 +71,12 @@ await gatherer.initialize();
 await gatherer.stop();
 ```
 
-`stores` is `GathererStores` — derived as `AnnotationGatherReads & ResourceGatherReads`, the intersection of the two gather paths' reads. Its `content` capability is a ResourceId-keyed `ContentReads` (`getBinary`), not the working tree: in-process roots wrap `kb` via `workingTreeContentReads(kb.views, kb.content)`; the standalone Librarian passes `HttpContentTransport`. `settleTimeoutMs` bounds the vector-index settle barrier and comes from `MakeMeaningConfig.gather`.
+`stores` is `GathererStores` — derived as `AnnotationGatherReads & ResourceGatherReads`, the intersection of the two gather paths' reads. Its `content` capability is a ResourceId-keyed `ContentReads` (`getBinary`), not the working tree: in-process roots wrap `kb` via `workingTreeContentReads(kb.views, kb.content)`; the standalone Librarian passes `archivistContentReads(...)` from `@semiont/content`, which reads the bytes from the Archivist. Its `anchoredText` capability is the `browse:anchored-text-requested` bus read (`anchoredTextOverBus`), not the anchored-text store. `settleTimeoutMs` bounds the vector-index settle barrier and comes from `MakeMeaningConfig.gather`.
 
 Responds to:
 - `gather:requested` → emits `gather:complete` or `gather:failed`
 - `gather:resource-requested` → emits `gather:resource-complete` or `gather:resource-failed`
+- `gather:limits-requested` → emits `gather:limits-result` or `gather:limits-failed` (the inference limits of the Gatherer's model)
 
 ### Matcher
 
@@ -95,6 +96,7 @@ await matcher.stop();
 
 Responds to:
 - `match:search-requested` → context-driven search over the `context` field (a `GatheredContext`) → emits `match:search-results` or `match:search-failed`
+- `match:limits-requested` → emits `match:limits-result` or `match:limits-failed` (the inference limits of the Matcher's model)
 
 Referenced-by lookups are handled by the Browser (`browse:referenced-by-requested`), not the Matcher.
 
@@ -106,7 +108,7 @@ Event-to-graph projection pipeline. Subscribes to graph-relevant domain events a
 
 ### Smelter (projection pipeline, standalone process)
 
-Event-to-vector projection pipeline. Runs in its own process via `@semiont/make-meaning/smelter-main` — it is **not** started by `startMakeMeaning()`. It reads content bytes over `HttpContentTransport` (the gateway's byte path), chunks text, computes embeddings via `@semiont/vectors` (EmbeddingProvider: Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). At startup, `reconcile()` diffs the index against the live catalog — re-embedding what's missing or stale (checksum-stamped upserts make changed content detectable), deleting orphans — so a wiped Qdrant volume recovers by restarting the smelter. Its `smelt:settled` signals feed the `kb.smeltProgress` fold, the vector-projection read barrier.
+Event-to-vector projection pipeline. Runs in its own process via `@semiont/make-meaning/smelter-main` — it is **not** started by `startMakeMeaning()`. It reads content bytes from the Archivist (`archivistContentReads` in `@semiont/content`), chunks text, computes embeddings via `@semiont/vectors` (EmbeddingProvider: Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). At startup, `reconcile()` diffs the index against the live catalog — re-embedding what's missing or stale (checksum-stamped upserts make changed content detectable), deleting orphans — so a wiped Qdrant volume recovers by restarting the smelter. Its `smelt:settled` signals feed each reading process's own `SmeltProgress` fold (`kb.smeltProgress` in the in-process root), the vector-projection read barrier.
 
 **Implementation**: [src/smelter.ts](../src/smelter.ts), entry point [src/smelter-main.ts](../src/smelter-main.ts)
 
@@ -173,7 +175,7 @@ Refuses targets whose media type cannot carry a coordinate (`assertAnnotatableTa
 
 ```typescript
 static async updateAnnotationBody(
-  id: string,
+  id: AnnotationId,
   request: UpdateAnnotationBodyRequest,
   userId: UserId,
   eventBus: EventBus,
@@ -187,8 +189,8 @@ Reads the current annotation from the views, emits `mark:update-body` on EventBu
 
 ```typescript
 static async deleteAnnotation(
-  id: string,
-  resourceId: string,
+  id: AnnotationId,
+  resId: ResourceId,
   userId: UserId,
   eventBus: EventBus,
   kb: { views: Pick<ViewStorage, 'get'> },
@@ -245,11 +247,11 @@ static async addContentPreviews(
 ```typescript
 static async getResourceContent(
   resource: ResourceDescriptor,
-  kb: { content: ContentReads },
+  kb: { content: ContentReads; anchoredText: AnchoredTextAsk },
 ): Promise<string | undefined>
 ```
 
-ResourceId-keyed: `ContentReads` is the transport contract's `getBinary`, so the standalone Librarian serves it over HTTP while in-process roots wrap the working tree behind the same shape.
+The media type decides where the text comes from. Decoded media read their bytes through the ResourceId-keyed `ContentReads` (the transport contract's `getBinary`): the standalone Librarian reads them from the Archivist over HTTP, while in-process roots wrap the working tree behind the same shape. Media whose text is derived (PDF) ask `anchoredText` for the Smelter's artifact; media with no text answer `undefined`.
 
 ### AnnotationContext
 
@@ -271,7 +273,7 @@ static async buildLLMContext(
 ): Promise<GatheredContext>
 ```
 
-Builds rich context for AI processing: an annotation-focus `GatheredContext` carrying the annotation, surrounding text, resource metadata, `semanticContext` from vector search, and the shared knowledge-graph backbone (`graph` / `KnowledgeGraph`). When an `InferenceClient` is provided, also generates an `inferredRelationshipSummary` describing how the passage relates to its graph neighborhood. `AnnotationGatherReads` is `views.get`, `content` (`ContentReads`), the graph builder's slice plus `getEntityTypeStats`, `vectors.searchAnnotations`, and the weave-progress barrier.
+Builds rich context for AI processing: an annotation-focus `GatheredContext` carrying the annotation, surrounding text, resource metadata, `semanticContext` from vector search, and the shared knowledge-graph backbone (`graph` / `KnowledgeGraph`). When an `InferenceClient` is provided, also generates an `inferredRelationshipSummary` describing how the passage relates to its graph neighborhood. `AnnotationGatherReads` is `views.get`, `content` (`ContentReads`), `anchoredText` (`AnchoredTextAsk`), the graph builder's slice plus `getEntityTypeStats`, `vectors.searchAnnotations`, and the weave-progress barrier.
 
 #### getResourceAnnotations()
 
@@ -348,7 +350,7 @@ static async getResourceContext(
 ): Promise<GatheredContext>
 ```
 
-`ResourceGatherReads` is `views.get`, `content` (`ContentReads`), the graph builder's slice, `vectors.searchByResource`, and the weave- and smelt-progress barriers. `settleTimeoutMs` bounds the `semanticContext` read-your-writes barrier against the vector index.
+`ResourceGatherReads` is `views.get`, `content` (`ContentReads`), `anchoredText` (`AnchoredTextAsk`), the graph builder's slice, `vectors.searchByResource`, and the weave- and smelt-progress barriers. `settleTimeoutMs` bounds the `semanticContext` read-your-writes barrier against the vector index.
 
 ---
 

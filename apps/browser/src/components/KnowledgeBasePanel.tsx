@@ -16,14 +16,12 @@ const STATUS_COLORS: Record<KbSessionStatus, string> = {
   authenticated: 'var(--semiont-color-success-500, #22c55e)',
   expired: 'var(--semiont-color-warning-500, #eab308)',
   'signed-out': 'var(--semiont-color-neutral-400, #9ca3af)',
-  unreachable: 'var(--semiont-color-error-500, #ef4444)',
 };
 
 const STATUS_KEYS: Record<KbSessionStatus, string> = {
   authenticated: 'statusConnected',
   expired: 'statusExpired',
   'signed-out': 'statusSignedOut',
-  unreachable: 'statusUnreachable',
 };
 
 const endpointKey = (host: string, port: number) => `${host}:${port}`;
@@ -38,8 +36,8 @@ const MISSING = '–';
 /**
  * The branch a KB's tree was on when it last described itself. Current only
  * when the KB answered this panel's own read; otherwise dimmed, with when it
- * was read — a branch changes with no event, so an older answer may no longer
- * be true.
+ * was read — a branch changes with no event, so an older answer may be out
+ * of date.
  */
 function LastReadBranch({ lastRead, current, t, locale }: { lastRead: KbRead | undefined; current: boolean; t: T; locale: string }) {
   if (!lastRead) return <span>{MISSING}</span>;
@@ -93,7 +91,7 @@ function StatusDot({ status, t }: { status: KbSessionStatus; t: T }) {
  */
 function ConnectForm({ t, title, onSubmit, onCancel, error, isSubmitting, autoFocus, pulsing, initialHost = 'localhost', initialPort = 4000 }: {
   t: T;
-  /** Overrides the generic heading — used to announce a contested ADDRESS (D). */
+  /** Overrides the generic heading, to announce a contested ADDRESS. */
   title?: string;
   onSubmit: (host: string, port: number, protocol: 'http' | 'https') => Promise<void>;
   onCancel: () => void;
@@ -190,7 +188,6 @@ export function KnowledgeBasePanel() {
     // session, so the page is unmounted the moment `activeSession$` goes null
     // and remounts fresh against the new KB — from its own point of view no
     // switch ever happened.
-    // See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
     if (pathname.startsWith('/know/resource/')) {
       semiont.emit('nav:push', { path: '/know', reason: 'kb-switch' });
     }
@@ -204,7 +201,7 @@ export function KnowledgeBasePanel() {
   const redirectUri = () => `${window.location.origin}/${i18n.language}/auth/callback`;
   // null = closed; {} = blank form; {host, port} = prefilled from a discovered
   // row. `expected*` records WHAT THE USER BELIEVED they were connecting to, so
-  // the outcome can be verified against the KB that actually answers (C).
+  // the outcome can be verified against the KB that actually answers.
   const [addForm, setAddForm] = useState<
     { host?: string; port?: number; expectedDid?: string; expectedName?: string } | null
   >(null);
@@ -216,18 +213,19 @@ export function KnowledgeBasePanel() {
   const [confirmRemoveKbId, setConfirmRemoveKbId] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
-  // Launcher discovery (BROWSER-KB-DISCOVERY P5). The document is launcher
-  // BELIEF — health stays this panel's own probe. Collision policy: a
-  // discovered KB matching a registered endpoint is ADOPTED render-only (one
-  // row, managed badge, registry untouched — fully reversible); removal is
-  // projection-only (discovered rows vanish, adopted rows lose the badge).
+  // Launcher discovery. The document is launcher BELIEF — health stays this
+  // panel's own probe. Collision policy: a discovered KB matching a registered
+  // endpoint is ADOPTED render-only (one row, managed badge, registry
+  // untouched — fully reversible); removal is projection-only (discovered rows
+  // vanish, adopted rows lose the badge).
   const { kbs: discoveredKbs } = useKBDiscovery();
-  // The join (KB-IDENTITY-VS-ADDRESS decision 9): **look up by address, verify
-  // by did.** The address is what is unique within a document (P1), so it
-  // SELECTS; the did then confirms the copy we reached is the KB we meant. A
-  // did can match several entries — one KB running in two places is normal and
-  // expected — so it can never be the selector. Grouping survives from P0
-  // because an older document can still contain duplicate addresses.
+  // The join: **look up by address, verify by did.** The launcher publishes at
+  // most one entry per address, so the address is what is unique within a
+  // document and it SELECTS; the did then confirms the copy we reached is the
+  // KB we meant. A did can match several entries — one KB running in two
+  // places is normal and expected — so it can never be the selector. The
+  // grouping below does not lean on that guarantee: a document from an older
+  // launcher can contain duplicate addresses.
   const discoveredByEndpoint = new Map<string, DiscoveredKB[]>();
   for (const d of discoveredKbs) {
     const key = endpointKey(d.host, d.port);
@@ -244,8 +242,11 @@ export function KnowledgeBasePanel() {
     const entry = unambiguousAt(endpointKey(kb.endpoint.host, kb.endpoint.port));
     // Verification: an entry at my address that is a DIFFERENT knowledge base
     // is not mine to adopt — it is someone else standing where I connected.
-    // (A registered KB whose address matches nothing is simply unmanaged; the
-    // spelling-mismatch miss is accepted deliberately — see the plan.)
+    // (A registered KB whose address matches nothing is simply unmanaged. A
+    // hand-typed address that spells the same copy differently — `localhost`
+    // against `127.0.0.1` — misses too, and that is accepted deliberately:
+    // normalising spellings would guess at host resolution, and an honest
+    // "not managed" beats a wrong claim.)
     return entry && entry.did === kb.did ? entry : undefined;
   };
   // Only an ADOPTED endpoint drops out of the discovered list; ambiguous ones
@@ -257,18 +258,19 @@ export function KnowledgeBasePanel() {
         : []),
   );
   const unregisteredDiscovered = discoveredKbs.filter(d => !adoptedEndpoints.has(endpointKey(d.host, d.port)));
-  // One KB in two places is normal (decision 9), so a discovered row can carry
+  // One KB in two places is normal, so a discovered row can carry
   // the same name as a KB you are already connected to. Say why, rather than
   // leaving it looking like a duplicate — the identity is what relates them.
   const registeredDids = new Set(knowledgeBases.map(kb => kb.did));
   const isAnotherCopy = (d: DiscoveredKB): boolean => registeredDids.has(d.did);
   // A duplicated ADDRESS is a conflict: only one process binds a port, so at
-  // most one claimant's promise is true (decision 4, narrowed by 9 — a shared
-  // DID is not a conflict). Producers no longer emit these; old documents can.
+  // most one claimant's promise is true. It is shown, never resolved by
+  // guessing (a shared DID is not a conflict). Only a document from an older
+  // launcher carries one.
   const conflictedAddresses = [...discoveredByEndpoint.entries()]
     .filter(([, bucket]) => bucket.length > 1)
     .map(([address, bucket]) => ({ address, count: bucket.length }));
-  // (D) A click was always an address; when the address is contested, the form
+  // A click names an address; when the address is contested, the form
   // says so instead of carrying a KB name that is at most half true.
   const addFormAddress = addForm?.host !== undefined && addForm.port !== undefined
     ? endpointKey(addForm.host, addForm.port)
@@ -307,8 +309,8 @@ export function KnowledgeBasePanel() {
   // Connecting is leaving: the sign-in happens at the issuer the KB trusts,
   // and the callback page registers the KB when the user returns — with the
   // identity the KB reports, verified against what they believed they
-  // clicked (C). Which entry that signs in is the KB's to decide, by the did
-  // it reports: the one registered at the address for that KB, or a new one.
+  // clicked. Which entry that signs in is the KB's to decide, by the did it
+  // reports: the one registered at the address for that KB, or a new one.
   const handleAdd = async (host: string, port: number, protocol: 'http' | 'https') => {
     setAddError(null);
     setAddSubmitting(true);
@@ -382,8 +384,8 @@ export function KnowledgeBasePanel() {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <StatusDot status={status} t={t} />
-                    {/* Decision 7: an unnamed KB reads "Unknown" — a state, not a
-                        blank — while the address stays on the address line below. */}
+                    {/* An unnamed KB reads "Unknown" — a state, not a blank —
+                        while the address stays on the address line below. */}
                     <span className="semiont-panel-text" style={{ flex: 1, fontWeight: 500 }}>{kb.label || t('unknownName')}</span>
                     {managed && <PlacementBadge placement={managed.placement} t={t} />}
                     {isActive && (
@@ -418,8 +420,8 @@ export function KnowledgeBasePanel() {
                       : `local:${kb.endpoint.kbId}`}
                   </span>
                   {read?.kind === 'conflict' && (
-                    // Decision 7: the KB that answered is named by what it said
-                    // of itself, never by this entry's label.
+                    // The KB that answered is named by what it said of itself,
+                    // never by this entry's label.
                     <span
                       className="semiont-panel-text-secondary"
                       style={{ fontSize: '0.7rem', paddingLeft: '1rem', color: 'var(--semiont-color-warning-500, #eab308)', whiteSpace: 'normal' }}
@@ -493,18 +495,18 @@ export function KnowledgeBasePanel() {
             ))}
             {unregisteredDiscovered.map((d) => (
               <div
-                /* Key on the PAIR. Decision 9's table spells out why neither
-                   half works alone: a did repeats across copies of one KB, an
-                   address repeats across contested claimants — and this list
-                   deliberately renders both. Only did+address is unique. */
+                /* Key on the PAIR. Neither half works alone: a did repeats
+                   across copies of one KB, an address repeats across contested
+                   claimants — and this list deliberately renders both. Only
+                   did+address is unique. */
                 key={`${d.did}@${endpointKey(d.host, d.port)}`}
                 className="semiont-panel-item semiont-panel-item--clickable"
                 style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', cursor: 'pointer', padding: '0.5rem 0.75rem' }}
                 onClick={() => openAddForm({
                   host: d.host,
                   port: d.port,
-                  // Record the belief so the outcome can be verified (C) —
-                  // recording it is not the same as promising it (D).
+                  // Record the belief so the outcome can be verified —
+                  // recording it is not the same as promising it.
                   expectedDid: d.did,
                   ...(d.siteName !== undefined ? { expectedName: d.siteName } : {}),
                 })}

@@ -1,11 +1,12 @@
-# goreleaser config for the semiont launcher (GO-LAUNCHER.md P4).
+# goreleaser config for the semiont launcher.
 #
 # Channels, deliberately minimal: GitHub Release archives (darwin/linux/
 # windows × arm64/amd64, static) + a Homebrew tap under The-AI-Alliance, with
 # SBOMs. Provenance attestation happens in the workflow via actions/attest-
-# build-provenance (no signing entity involved — constraint 3 holds). deb/rpm
-# are demand-driven later channels off this same config. Windows gets a zip
-# holding semiont.exe; under WSL2 it runs the Linux build.
+# build-provenance (no signing entity involved — the project has no legal
+# entity to sign anything). deb/rpm are demand-driven later channels off this
+# same config. Windows gets a zip holding semiont.exe; under WSL2 it runs the
+# Linux build.
 version: 2
 
 project_name: semiont-launcher

@@ -11,10 +11,10 @@ import (
 	"time"
 )
 
-// --- Output helpers (ported from the scripts' log/ok/warn/fail/banner) ---
+// --- Output helpers ---
 //
-// One deviation from bash: color only when stdout is a terminal, so piped
-// output and the --dry-run seam stay machine-clean.
+// Color only when stdout is a terminal, so piped output and the --dry-run
+// seam stay machine-clean.
 
 const (
 	AnsiBold    = "\033[1m"
@@ -54,7 +54,7 @@ func (u *UI) Log(format string, a ...any) {
 	fmt.Printf("%s %s\n", u.Wrap(AnsiCyan, "▸"), fmt.Sprintf(format, a...))
 }
 
-// note is log's stderr twin: narration a verb owes the user that must not
+// Note is Log's stderr twin: narration a verb owes the user that must not
 // land in what the verb PRINTS — a `--json` reply piped to jq stays one JSON
 // document.
 func (u *UI) Note(format string, a ...any) {
@@ -171,7 +171,7 @@ func treePrint(u *UI, items []treeItem, depth int, leaf func(treeItem, int)) {
 	}
 }
 
-// section renders a status-report section header: bold, flush left, ruled —
+// Section renders a status-report section header: bold, flush left, ruled —
 // the top-level groupings (LOCAL STACK / KNOWLEDGE BASES, plus LAUNCHER PATHS
 // under --verbose) must be findable at a glance in a report whose content
 // lines are all indented and dense.
@@ -205,9 +205,9 @@ var publicEnv = map[string]bool{
 // onCommandLine: whether a variable's value may ride a container's command
 // line. Default deny: anything not known to be public — every custody value,
 // every user-forwarded value, every daemon credential — crosses through the
-// runtime's own environment instead (SECRET-DELIVERY P6). Derived from
-// injectedVars rather than restating it: a hand-kept copy missed
-// KEYCLOAK_PORT and hid the one number a moved issuer is about.
+// runtime's own environment instead. Derived from injectedVars rather than
+// restating it: a hand-kept copy that misses KEYCLOAK_PORT hides the one
+// number a moved issuer is about.
 func onCommandLine(name string) bool {
 	return publicEnv[name] || (injectedVars[name] && !injectedCredentials[name])
 }
@@ -215,10 +215,9 @@ func onCommandLine(name string) bool {
 // offCommandLine splits a runtime command: every `--env`/`-e NAME=value` whose
 // value is not onCommandLine becomes `--env NAME` in argv, with NAME=value in
 // env for the runtime command's own environment. Both runtimes copy a bare
-// name from their caller (probed 2026-09-29: Apple container live, Docker's CLI
-// against a recording daemon), so the value arrives and no process on the
-// machine can read it with ps. `inspect` still shows it; delivering secrets
-// as environment means that.
+// name from their caller, so the value arrives and no process on the machine
+// can read it with ps. `inspect` still shows it; delivering secrets as
+// environment means that.
 func offCommandLine(args []string) (argv, env []string) {
 	argv = make([]string, len(args))
 	copy(argv, args)
@@ -234,10 +233,9 @@ func offCommandLine(args []string) (argv, env []string) {
 	return argv, env
 }
 
-// echoCmd mirrors the scripts' run_cmd prefix: show the exact command before
-// running it (the in-terminal legibility half of the --dry-run story). A
-// secret is never in it: offCommandLine keeps secret values off the command
-// line itself.
+// EchoCmd shows the exact command before running it (the in-terminal
+// legibility half of the --dry-run story). A secret is never in it:
+// offCommandLine keeps secret values off the command line itself.
 func (u *UI) EchoCmd(name string, args ...string) {
 	if u.quiet {
 		return
@@ -248,7 +246,7 @@ func (u *UI) EchoCmd(name string, args ...string) {
 // --- Subprocess helpers ---
 
 // runPassthrough runs a command with stdout shown and stderr discarded,
-// ignoring failure — the scripts' `cmd 2>/dev/null || true` shape used for
+// ignoring failure — the `cmd 2>/dev/null || true` shape used for
 // idempotent stop/rm.
 func runPassthrough(name string, args ...string) {
 	cmd := exec.Command(name, args...)
@@ -283,9 +281,6 @@ func runDetached(name string, env []string, args ...string) (string, error) {
 	return strings.TrimSpace(out.String()), err
 }
 
-// runWithStdin feeds input on stdin and shows stderr — for handing a secret
-// value to a subprocess without it ever appearing in argv (where any process
-// on the machine could read it via ps).
 // runWithStdinCaptured is runWithStdin with the child's output held rather
 // than passed through, for a step that RETRIES: the stderr of an attempt the
 // loop expects to absorb is not a failure the operator needs to read. The
@@ -322,6 +317,9 @@ func indentLines(s, prefix string) string {
 	return strings.Join(lines, "\n")
 }
 
+// runWithStdin feeds input on stdin and shows stderr — for handing a secret
+// value to a subprocess without it ever appearing in argv (where any process
+// on the machine could read it via ps).
 func runWithStdin(name, input string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Stdin = strings.NewReader(input)
@@ -475,12 +473,11 @@ func took(d time.Duration) string {
 // pollDelay paces a readiness loop: fast while the service might come up
 // any moment, settling to once a second for the long haul.
 //
-// It used to be a flat one second, which meant a service ready a beat after
-// the first probe still cost a full second of dead time. Measured on a start:
-// nine services each reported exactly "(1s)" — about nine seconds of pure
-// pacing, for services that were already up. The budget is wall-clock and
-// enforced against a deadline, so tightening the early retries shortens real
-// waits without touching the timeout contract.
+// A flat one second costs a service ready a beat after the first probe a
+// full second of dead time — a second of pure pacing per service, for
+// services that are already up. The budget is wall-clock and enforced against
+// a deadline, so tightening the early retries shortens real waits without
+// touching the timeout contract.
 func pollDelay(elapsed time.Duration) time.Duration {
 	switch {
 	case elapsed < time.Second:
@@ -492,18 +489,14 @@ func pollDelay(elapsed time.Duration) time.Duration {
 	}
 }
 
-// waitForHTTP polls until a URL returns 2xx, reporting how long readiness
-// took.
-// waitForHTTP polls until the endpoint answers or the budget expires. The
-// budget is WALL-CLOCK SECONDS, enforced against a deadline — not a count of
-// attempts.
+// waitForHTTP polls until a URL returns 2xx or the budget expires, reporting
+// how long readiness took. The budget is WALL-CLOCK SECONDS, enforced against
+// a deadline — not a count of attempts.
 //
-// It used to be a count, with the failure message printing that count as if
-// it were seconds. Each failing attempt costs the health client's 2s timeout
-// plus the 1s pacing sleep, so a "600s" wait could legitimately run past
-// 1800s; one was observed in the launcher's own log taking 1346s while
-// claiming 600. A deadline makes the number honest, and the message reports
-// the time actually spent so it can never drift from reality again.
+// Each failing attempt costs the health client's 2s timeout plus the pacing
+// sleep, so a count printed as seconds would let a "600s" wait run past
+// 1800s. A deadline makes the number honest, and the message reports the
+// time actually spent.
 func waitForHTTP(u *UI, name, url string, seconds int) (time.Duration, bool) {
 	return waitForHTTPTick(u, name, url, seconds, nil)
 }
@@ -562,24 +555,23 @@ func waitForContainerHTTP(u *UI, rt, label, container, url string, seconds int) 
 var stoppedStates = map[string]bool{"exited": true, "dead": true, "stopped": true}
 
 // waitForTCP waits for a TCP service in two phases. Phase 1 polls the published
-// port from the host — no container spawn per attempt (the old pg_isready-in-
-// a-container loop cost a fresh VM per attempt under Apple Container).
+// port from the host — no container spawn per attempt (a probe container per
+// attempt costs a fresh VM each time under Apple Container).
 // Phase 2 is a single container-side probe confirming the gateway path the
 // services actually dial.
 //
-// Port-open does NOT imply ready. This comment used to claim it did, on the
-// grounds that the postgres image's init-time temporary server listens on the
-// unix socket only — true of the SERVER, false of the gate, because the host
-// port belongs to the runtime's mapping and opens when the CONTAINER starts.
-// Measured on Apple container with an empty data dir: the host port answered
-// at 20ms and the real server accepted at 1579ms. Anything that must talk to
-// the database follows this with waitPGAccepting.
+// Port-open does NOT imply ready. The postgres image's init-time temporary
+// server listens on the unix socket only — true of the SERVER, false of the
+// gate, because the host port belongs to the runtime's mapping and opens when
+// the CONTAINER starts. On Apple container with an empty data dir the host
+// port answers at 20ms and the real server accepts at 1579ms. Anything that
+// must talk to the database follows this with waitPGAccepting.
 func waitForTCP(u *UI, rt, label, host string, port, seconds int) (time.Duration, bool) {
 	t0 := time.Now()
 	deadline := t0.Add(time.Duration(seconds) * time.Second)
 	up := false
-	// Same deadline discipline as waitForHTTP: the 1s dial timeout plus the
-	// 1s sleep made the old attempt count overstate the budget too.
+	// Same deadline discipline as waitForHTTP: with a 1s dial timeout plus
+	// the pacing sleep, an attempt count would overstate the budget too.
 	for {
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", port), time.Second)
 		if err == nil {
@@ -611,8 +603,8 @@ func waitForTCP(u *UI, rt, label, host string, port, seconds int) (time.Duration
 // bare pg_isready (the obvious version) would talk to the socket the
 // temporary server does answer.
 //
-// `exec` into the running container, not `run` — the VM already exists, which
-// is what made the old per-attempt `run` loop expensive.
+// `exec` into the running container, not `run` — the VM already exists, and
+// a `run` per attempt would boot a fresh one each time.
 func waitPGAccepting(u *UI, rt, container string, seconds int) bool {
 	t0 := time.Now()
 	deadline := t0.Add(time.Duration(seconds) * time.Second)

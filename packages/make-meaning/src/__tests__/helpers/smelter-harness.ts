@@ -2,8 +2,7 @@
  * Shared Smelter test harness.
  *
  * Used by `smelter.test.ts` (example-based behaviors) and
- * `smelter-axioms.test.ts` (fast-check properties — see
- * `.plans/SMELTER-AXIOMS.md`). Provides:
+ * `smelter-axioms.test.ts` (fast-check properties). Provides:
  *   - a deterministic mock EmbeddingProvider (embedding is a pure function
  *     of text, so reference models stay trivial)
  *   - W3C annotation / SmelterEvent / ResourceDescriptor builders
@@ -24,9 +23,8 @@ import type { SmelterChannel } from '../../smelter-fan-in';
 
 // Core's ResourceDescriptor, not the raw generated one. They differ: core
 // derives `RawResourceDescriptor & { '@id': ResourceId }`, and the browse
-// reply channels carry the branded form. Aliasing the raw type here meant the
-// fake produced descriptors the gateway never sends — invisible while the
-// fake cast its way past the channel's type.
+// reply channels carry the branded form. Aliasing the raw type here would have
+// the fake produce descriptors the gateway never sends.
 type ResourceDescriptor = CoreResourceDescriptor;
 
 export const mockLogger: Logger = {
@@ -75,9 +73,9 @@ export function makeAnnotation(resourceId: string, annotationId: string, exact: 
 //
 // A full `StoredEvent`: the envelope below, with the body under `.payload`.
 // Each builder is typed against its own `EventMap` entry, so a fixture cannot
-// drift from the wire. The flat `{ type, resourceId, payload }` literals these
-// replace hid a live bug: no type held them to the real shape, and the Smelter
-// read `mark:removed` one level too shallow for as long as they stood.
+// drift from the wire. A flat `{ type, resourceId, payload }` literal that no
+// type holds to the real shape lets the Smelter read `mark:removed` one level
+// too shallow and still pass.
 
 let sequence = 0;
 
@@ -156,8 +154,7 @@ export const markEntityTagRemoved = (resourceId: string, entityType: string): Ev
 export function createFakeBus() {
   // A real `EventBus` rather than a `Map<string, Subject<unknown>>`: core's
   // bus is already typed per channel, so the fake needs no cast and is truer
-  // to what production hands the state unit. The map version forced the one
-  // cast this comment used to apologise for.
+  // to what production hands the state unit.
   const eventBus = new EventBus();
   const bus: BusRequestPrimitive = {
     stream: <K extends keyof EventMap>(channel: K) => eventBus.on(channel),
@@ -165,7 +162,8 @@ export function createFakeBus() {
     // This double delivers whatever a test pushes at it — subjects are created
     // on demand — so `true` is the truth about it. It does not model a
     // NARROWED set; that behavior is proven against the real ActorStateUnit,
-    // and against the real worker manifest by this plan's P3.
+    // and against the real worker manifest in the gateway's two-instance
+    // harness.
     isSubscribed: () => true,
     trackReply: () => () => {},
     state$: new BehaviorSubject<ConnectionState>('open'),
@@ -230,7 +228,7 @@ export function createContentTransport(opts: {
   };
 }
 
-/** Text-only convenience over `createContentTransport` (legacy signature). */
+/** Text-only convenience over `createContentTransport`. */
 export function createMockContentTransport(
   contentByResourceId: Map<string, string>,
   contentType = 'text/plain',
@@ -244,16 +242,8 @@ export function createMockContentTransport(
 }
 
 /**
- * BusRequestPrimitive serving the browse RPC channels from a fake catalog,
- * with the same correlationId request/reply protocol the Browser actor uses.
- * Every emit is also recorded in `emitted` (browse requests included —
- * filter by channel in assertions), so tests can observe the Smelter's
- * outbound signals (`smelt:settled`).
- */
-/**
- * An in-memory `AnchoredTextStore` — the Smelter's own store, which it now
- * holds directly rather than reaching through the content transport
- * (ANCHORED-TEXT-TO-SMELTER P1).
+ * An in-memory `AnchoredTextStore` — the Smelter's own store, which it holds
+ * directly rather than reaching through the content transport.
  *
  * `write` REJECTS rather than swallowing, matching the real store's contract
  * (a write that returns has written). Tests that want the best-effort seam's
@@ -277,16 +267,6 @@ export function memoryAnchoredStore(
 }
 
 /**
- * A `BusRequestPrimitive` that answers the browse reads the Smelter makes.
- *
- * Over a real `EventBus`, not a `Map<string, Subject<Record<string, unknown>>>`.
- * The map version was weaker than the interface it faked: `BusRequestPrimitive`
- * has been channel-typed all along, and the fake cast its way out of that with
- * `channel(name as string) as unknown as Observable<EventMap[K]>` — so its
- * canned replies could drift from the spec with nothing to say so, which is
- * exactly how `job:queued`'s consumer lost `userId` for months.
- */
-/**
  * One emit, with its channel and payload still paired. A plain
  * `{ channel: keyof EventMap; payload: <union> }` pairs every channel with
  * every payload, so `.payload.resourceId` would not typecheck even for an
@@ -294,6 +274,19 @@ export function memoryAnchoredStore(
  */
 export type Emitted = { [K in keyof EventMap]: { channel: K; payload: EventMap[K]; correlationId?: string } }[keyof EventMap];
 
+/**
+ * A `BusRequestPrimitive` that answers the browse reads the Smelter makes
+ * from a fake catalog, with the same correlationId request/reply protocol the
+ * Browser actor uses. Every emit is also recorded in `emitted` (browse
+ * requests included — filter by channel in assertions), so tests can observe
+ * the Smelter's outbound signals (`smelt:settled`).
+ *
+ * Over a real `EventBus`, not a `Map<string, Subject<Record<string, unknown>>>`.
+ * A map is weaker than the interface it fakes: `BusRequestPrimitive` is
+ * channel-typed, and a map-backed fake casts its way out of that with
+ * `channel(name as string) as unknown as Observable<EventMap[K]>` — so its
+ * canned replies can drift from the spec with nothing to say so.
+ */
 export function createFakeKsBus(
   resources: ResourceDescriptor[],
   annotationsByResource: Map<string, Annotation[]> = new Map(),
@@ -339,15 +332,11 @@ export function createFakeKsBus(
         const { resourceId } = request.payload;
         const resource = resources.find((r) => r['@id'] === resourceId);
         // Every id resolves: known ones from `resources`, unknown ones to a
-        // synthesized descriptor. That is the policy the old fake already
-        // had — it never failed a lookup — but it expressed "not found" by
-        // replying `{ resource: undefined }`, a shape no gateway sends and
-        // only a cast allowed. Suites here drive the Smelter with ids they
+        // synthesized descriptor — never `{ resource: undefined }`, a shape
+        // no gateway sends. Suites here drive the Smelter with ids they
         // never registered because the resource read is not what they test;
         // failing those lookups would test something else.
         const found = resource ?? resourceDescriptor(resourceId);
-        // The reply carries annotations and entityReferences too — another
-        // thing the cast hid, since the fake sent `{ resource }` alone.
         const anns = annotationsByResource.get(resourceId) ?? [];
         queueMicrotask(() => eventBus.emit('browse:resource-result', {
           response: { resource: found, annotations: anns, entityReferences: [] },
@@ -371,8 +360,9 @@ export function createFakeKsBus(
 }
 
 /**
- * Serve the embedding provider's dimension-discovery probe — startMakeMeaning's
- * only embedding network call (MANDATORY-EMBEDDING P3) — so service startup is
+ * Serve the embedding provider's dimension-discovery probe — the only
+ * embedding network call startMakeMeaning can make, and only for a vector
+ * store that asks the provider for its dimensions — so service startup is
  * hermetic. A plain function, not a vi.fn(): clearAllMocks must not strip it.
  */
 export function stubEmbeddingProbeFetch(): void {

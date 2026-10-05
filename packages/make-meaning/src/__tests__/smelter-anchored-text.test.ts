@@ -1,6 +1,6 @@
 /**
- * The Smelter publishes the coordinate map it derived — ANCHORED-TEXT-CACHE
- * Lane 5, producer side.
+ * The Smelter publishes the coordinate map it derived — the producer side of
+ * the anchored-text store.
  *
  * The Smelter is the only process that reads a resource's bytes at ingest, so it
  * is the only one positioned to produce a map cheaply: it has already decoded
@@ -8,10 +8,10 @@
  * detection jobs and the browser — arrives later and would have to redo all of
  * it. Publishing here is what turns that one pass into the only pass.
  *
- * To a store the Smelter HOLDS, on its own mount (ANCHORED-TEXT-TO-SMELTER P1).
- * It used to publish through `IContentTransport`, which put the gateway between
- * this process and an artifact it derives itself; it is now the sole writer and
- * every read of the store moved to the Archivist's bus channels.
+ * To a store the Smelter HOLDS, on its own mount: publishing through
+ * `IContentTransport` would put the gateway between this process and an
+ * artifact it derives itself. The Smelter is the sole writer, and every other
+ * process reads the store through the Archivist's bus channels.
  */
 
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
@@ -50,7 +50,7 @@ beforeAll(async () => {
   PDF_BYTES = await doc.save();
 });
 
-/** Serves the one document under test; publishing is the store's job now. */
+/** Serves the one document under test; publishing is the store's job. */
 function transportServing(
   entry: { text: string; mediaType: string } | { bytes: Uint8Array; mediaType: string },
 ): IContentTransport {
@@ -58,10 +58,9 @@ function transportServing(
 }
 
 /**
- * A store that records every publish. The recording moved here from the
- * transport with the store itself (ANCHORED-TEXT-TO-SMELTER P1): the Smelter
- * writes to the store it holds, so a transport-side `putAnchoredText` spy
- * would now observe nothing — which is the decoupling working.
+ * A store that records every publish. The recording sits on the store, not
+ * the transport: the Smelter writes to the store it holds, so a
+ * transport-side spy would observe nothing.
  */
 function storeRecording(
   put: (checksum: string, anchored: ExtractionOutcome) => void,
@@ -117,10 +116,10 @@ describe('Smelter publishes derived anchored text', () => {
 
     expect(put).toHaveBeenCalledTimes(1);
     const [key, map] = put.mock.calls[0] as [string, ExtractionOutcome];
-    // Filed under the checksum of the bytes the producer read (P1b), never
-    // the mutable resource id.
+    // Filed under the checksum of the bytes the producer read, never the
+    // mutable resource id.
     expect(key).toBe(calculateChecksum(Buffer.from(PDF_BYTES)));
-    // The published record is the full outcome (P2a) — a success here, with
+    // The published record is the full outcome — a success here, with
     // geometry, not just text: the whole reason a consumer wants this.
     if (map.kind === 'declined') throw new Error(`expected a success outcome, got decline: ${map.declined}`);
     expect(map.text).toContain('alpha');
@@ -148,10 +147,10 @@ describe('Smelter publishes derived anchored text', () => {
     // The map is an optimization; the embedding is the job. A storage failure
     // must not turn a successful index into a skip — that would hide the
     // resource from search over a cache write.
-    // The throw now comes from the STORE, whose `write` rejects rather than
-    // swallowing (ANCHORED-TEXT-TO-SMELTER P1). This test is what pins that
-    // the extraction seam still catches: strictness moved to the store, and
-    // best-effort stayed at the seam that wants it.
+    // The throw comes from the STORE, whose `write` rejects rather than
+    // swallowing. This test is what pins that the extraction seam catches
+    // it: strictness belongs to the store, best-effort to the seam that
+    // wants it.
     const { events$, settle } = await smelterOver(
       transportServing({ text: 'alpha beta', mediaType: 'text/plain' }),
       storeRecording(vi.fn(), true),

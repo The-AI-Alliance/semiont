@@ -3,8 +3,8 @@
 # THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
 # published @semiont/jobs and runs `dist/worker-main.js` out of it; the
 # source is packages/jobs/src/worker-main.ts. Only the image
-# recipe lives here — the entrypoint stayed in its package deliberately, so
-# that moving it out would not have to promote ~18 of that package's
+# recipe lives here — the entrypoint lives in its package deliberately:
+# moving it out would promote ~18 of that package's
 # internals to public API just to satisfy a directory layout. If you change
 # the CMD, change it against that file.
 #
@@ -36,14 +36,15 @@ RUN addgroup --system --gid 1001 nodejs && \
 COPY --from=installer /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=installer /usr/local/bin /usr/local/bin
 
-# Typst renderer for PDF generation (PDF-GENERATION P2, approved 2026-08-04).
-# Pinned to the version the P0 spike measured — the recorded citation geometry
-# is a property of this version's layout. Alpine/musl build, same libc as this
-# base. The binary embeds its default Latin fonts (Libertinus, SIL OFL), which
-# covers the day-one locales (en/es/de/fr) with no separate font files; the
-# non-Latin tiers are a deliberate later pass. Every invocation must pin
-# --creation-timestamp — unpinned compiles change bytes on identical input,
-# which churns content checksums and re-embeds forever (S11/S12).
+# Typst renderer for PDF generation. Pinned to the
+# version whose PDF text-layer geometry was measured — the recorded citation
+# geometry is a property of this version's layout. Alpine/musl build, same
+# libc as this base. The binary embeds its default Latin fonts (Libertinus,
+# SIL OFL), which covers en/es/de/fr with no separate font files; non-Latin
+# scripts have no font in this image. Every
+# invocation must pin --creation-timestamp — unpinned compiles change bytes on
+# identical input, which churns content checksums and re-embeds forever
+# (smelter axioms S11/S12).
 # Attribution lives in NOTICE (Apache-2.0 + the embedded font licenses, which
 # no scanner can see inside a bare binary) — bump the version there in the
 # same diff as this tag.

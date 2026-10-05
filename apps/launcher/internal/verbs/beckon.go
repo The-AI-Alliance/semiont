@@ -131,11 +131,11 @@ func Beckon(args []string) int {
 	}
 	cli := t.Transport()
 
-	// Two signals, one act (GUIDED-TOUR P6). Focus SCROLLS, so beckoning three
-	// references in a row scroll-fights and only the last survives; sparkle is
-	// inert-but-visible, which is what makes it the branch menu — light up three
-	// and let the participant choose. They are mutually exclusive by
-	// construction: this emits one channel, never both.
+	// Two signals, one act. Focus SCROLLS, so beckoning three references in a
+	// row scroll-fights and only the last survives; sparkle is inert-but-visible,
+	// which is what makes it the branch menu — light up three and let the
+	// participant choose. They are mutually exclusive by construction: this
+	// emits one channel, never both.
 	channel := bus.Channel("beckon:focus")
 	var payload any
 	if sparkle {

@@ -1,8 +1,6 @@
 package verbs
 
-// beckon_test.go — the audience note beckon prints, split out of the
-// launcher's models_test.go when the verbs moved (P1): it tests a verb's
-// wording and had only ever lived there because everything lived there.
+// beckon_test.go — the audience note beckon prints.
 
 import (
 	"strings"

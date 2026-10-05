@@ -1,11 +1,11 @@
 /**
  * `relayFrames` is the only place a bus-to-bus hop is written, so it is the
- * single point of failure for the contract four shipped relays broke. The
- * census next door proves nobody hand-rolls one; this proves the one they all
- * call actually carries the envelope.
+ * single point of failure for the envelope contract. The census next door
+ * proves nobody hand-rolls one; this proves the one they all call actually
+ * carries the envelope.
  *
- * `scope` NOT crossing is asserted here too. It was a decision recorded only in
- * a comment, and a documented contract is not a contract.
+ * `scope` NOT crossing is asserted here too: a contract recorded only in a
+ * comment is not a contract.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { firstValueFrom, of, take, timeout } from 'rxjs';
@@ -58,7 +58,7 @@ describe('relayFrames', () => {
 
   it('does NOT carry scope — re-scoping at a hop hides frames from unscoped subscribers', async () => {
     // A hand-made source, because `EventBus.frames()` yields only UNSCOPED
-    // frames: a scoped emit lands on a different subject, so a real bus cannot
+    // frames: a scoped emit is filtered out of that view, so a real bus cannot
     // produce the input this branch exists for. A TRANSPORT source can — its
     // `BusEvent` declares `scope` — so this stands in for one.
     const scoped: FrameSource = {
@@ -70,10 +70,10 @@ describe('relayFrames', () => {
     expect(seen[0]!.envelope, 'scope must not cross the hop').toEqual({ correlationId: 'cid-1' });
   });
 
-  it('catches an async sink’s rejection even though onError is now required', async () => {
-    // `onError` used to be optional and the catch was guarded by it, so a
-    // caller that passed nothing turned every sink rejection into an unhandled
-    // promise rejection inside the one function all relays go through.
+  it('catches an async sink’s rejection through the required onError', async () => {
+    // With an optional `onError` guarding the catch, a caller that passed
+    // nothing would turn every sink rejection into an unhandled promise
+    // rejection inside the one function all relays go through.
     const from = new EventBus();
     const { sink } = recordingSink(() => Promise.reject(new Error('sink down')));
     const onError = vi.fn();

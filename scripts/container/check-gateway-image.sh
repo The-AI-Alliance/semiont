@@ -1,6 +1,6 @@
 #!/bin/sh
-# check-gateway-image.sh <image> [runtime] — what the gateway image promises
-# (RUST-GATEWAY D9), checked against a built image:
+# check-gateway-image.sh <image> [runtime] — what the gateway image promises,
+# checked against a built image:
 #
 #   1. No source: nothing that is Rust or TypeScript source, a Cargo file, a
 #      build tree, node_modules or the spec (the spec is inside the binary).
@@ -31,10 +31,10 @@ if [ -z "$DOCUMENT" ]; then
   exit 1
 fi
 
-# Set from the start times measured before the cutover (RUST-GATEWAY P1): the
-# Rust gateway served within 68 ms of spawning, the TypeScript one within
-# 649 ms (367 ms median). Four times the Rust gateway's slowest, and under
-# the TypeScript gateway's median.
+# Set from the start times the conformance harness measured for both gateways
+# before the cutover: the Rust gateway served within 68 ms of spawning, the
+# TypeScript one within 649 ms (367 ms median). Four times the Rust gateway's
+# slowest, and under the TypeScript gateway's median.
 START_BOUND_MS=300
 
 # As root: the promise covers the whole image, including what the image's own

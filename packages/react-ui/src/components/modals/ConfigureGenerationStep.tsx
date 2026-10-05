@@ -7,13 +7,12 @@ import type { GenerationOptions } from '@semiont/sdk';
 import { LOCALES, GENERATABLE_MEDIA_TYPES, capabilitiesOf, proposeStoragePath } from '@semiont/core';
 
 /**
- * Bounds for the max-length control when no ceiling is known. These are the
- * values this control has always shipped — the fallback is today's behaviour,
- * not an unbounded field (INFERENCE-LIMITS-EXPOSURE D6, as corrected in review).
+ * Bounds for the max-length control when no ceiling is known — the fallback
+ * is a bounded field, never an unbounded one.
  */
 const MIN_MAX_TOKENS = 100;
 const DEFAULT_MAX_TOKENS_CEILING = 4000;
-/** The step's form values, owned by the wizard so Back cannot discard them (D3). */
+/** The step's form values, owned by the wizard so Back cannot discard them. */
 export interface GenerationDraft {
   title: string;
   /**
@@ -27,16 +26,17 @@ export interface GenerationDraft {
   temperature: number;
   /** Text, not number: the field is user-editable and may be mid-edit or empty. */
   maxTokensText: string;
-  /** The artifact's media type. Seeded `text/markdown` by both hosts (D2). */
+  /** The artifact's media type. Seeded `text/markdown` by both hosts. */
   outputMediaType: SupportedMediaType;
 }
 
 /**
- * What this form fills in. Named here, but TYPED by the SDK (P2b).
+ * What this form fills in. Named here, but TYPED by the SDK.
  *
  * `storageUri` is on this list rather than a local `storagePath: string`
- * because the two were the same thing under different names — a divergence
- * that survived precisely because nothing tied them together (D8).
+ * because a second name for the same thing is tied to nothing and diverges.
+ * Under the SDK's name, the page forwards the submitted config by spread, so
+ * no field-by-field copy can drop one.
  */
 type FormFilled =
   | 'title'
@@ -47,14 +47,13 @@ type FormFilled =
 
 /**
  * The submitted payload: the SDK's own generation options, DERIVED rather
- * than restated (P2b), plus the grounding context.
+ * than restated, plus the grounding context.
  *
- * This was a hand-written interface listing the same fields with independent
- * types — the shape `## Duplicated Shape` forbids — and it drifted exactly as
- * predicted: `storagePath: string` held a `storageUri`, so every consumer
- * re-mapped it by hand and silently dropped whatever the mapping forgot.
- * Deriving means a rename or retype in `GenerationOptions` is a compile
- * error here instead of a quiet gap at the wire.
+ * A hand-written interface listing the same fields with independent types
+ * would be a second copy of a shape the SDK owns, and such a copy drifts:
+ * every consumer re-maps it by hand and silently drops whatever the mapping
+ * forgets. Deriving means a rename or retype in `GenerationOptions` is a
+ * compile error here instead of a quiet gap at the wire.
  *
  * NARROWED on purpose: the SDK also carries `task`, `structure`, `cite` and
  * `stallDeadlineMs`, which this form does not collect, and a payload type
@@ -68,20 +67,20 @@ type FormFilled =
  */
 export type GenerationConfig =
   & Required<Pick<GenerationOptions, FormFilled>>
-  // `temperature` left Required with SONNET-5-MIGRATION D3: a model that
-  // rejects the parameter gets neither the slider nor the field, so the
-  // submission carries it only when the serving model accepts it.
+  // `temperature` is deliberately not Required: a model that rejects the
+  // parameter gets neither the slider nor the field, so the submission
+  // carries it only when the serving model accepts it.
   & Pick<GenerationOptions, 'prompt' | 'temperature'>
   & { context: GatheredContext };
 
-/** The one place a format's required extension is read (D7). */
+/** The one place a format's required extension is read. */
 const extensionFor = (format: SupportedMediaType): string =>
   capabilitiesOf(format)?.extension ?? '';
 
 /**
- * A fresh draft, defined ONCE for both hosts (D8b). The two modals carried
- * byte-identical literals — magic numbers included — so every new field meant
- * two edits and an opportunity to seed only one of them.
+ * A fresh draft, defined ONCE for both hosts: a literal per modal — magic
+ * numbers included — would make every new field two edits and an opportunity
+ * to seed only one of them.
  */
 export const freshGenerationDraft = (title: string, locale: string): GenerationDraft => ({
   title,
@@ -90,25 +89,25 @@ export const freshGenerationDraft = (title: string, locale: string): GenerationD
   language: locale,
   temperature: 0.7,
   maxTokensText: '500',
-  // D2: markdown is the DEFAULT, not an assumption — the worker would also
+  // Markdown is the DEFAULT, not an assumption — the worker would also
   // default to it, but a control must send what it shows.
   outputMediaType: 'text/markdown',
 });
 
 export interface ConfigureGenerationStepProps {
   context: GatheredContext;
-  /** Echo of the gather step's hint — the thing being steered stays visible (GEP D8). */
+  /** Echo of the gather step's hint — the thing being steered stays visible. */
   hintEcho?: { label: string; value: string };
-  /** Owned by the wizard so Back is lossless (WIZARD-NAVIGATION D3). */
+  /** Owned by the wizard so Back is lossless. */
   config: GenerationDraft;
   onConfigChange: (config: GenerationDraft) => void;
-  /** Absent in a single-stack host (GATHER-AT-THE-TOP D6) — the footer then renders no retreat. */
+  /** Absent in a single-stack host, which has no Back — the footer then renders no retreat. */
   onBack?: () => void;
   onGenerate: (config: GenerationConfig) => void;
   /**
    * Folder of the resource being generated FROM, so the artifact lands beside
-   * its source (D11). The page derives it; this component stays
-   * presentational, exactly as it already receives the default title.
+   * its source. The page derives it; this component stays presentational,
+   * exactly as it already receives the default title.
    */
   defaultFolder?: string;
   translations: {
@@ -134,8 +133,8 @@ export interface ConfigureGenerationStepProps {
     outputFormat: string;
     /**
      * Shown when the Save location's extension contradicts the chosen format,
-     * which the form REFUSES to submit (D7 — the worker is faithful and will
-     * write a PDF to a `.md` path, so this is the only gate). Interpolates
+     * which the form REFUSES to submit (the worker is faithful and will write
+     * a PDF to a `.md` path, so this is the only gate). Interpolates
      * `{{extension}}`.
      */
     formatExtensionMismatch: string;
@@ -147,7 +146,7 @@ export interface ConfigureGenerationStepProps {
    * `limits` are known the max-length control is hard-bounded by the model's
    * output ceiling; absent — or present without `limits`, which is normal when
    * discovery could not answer right now — the control keeps its default
-   * bounds and generation still submits (D3).
+   * bounds and generation still submits.
    */
   generationAgent?: Collaborator;
 }
@@ -163,16 +162,16 @@ export function ConfigureGenerationStep({
   translations: t,
   generationAgent,
 }: ConfigureGenerationStepProps) {
-  // CONTROLLED (WIZARD-NAVIGATION D3): these were six local `useState`s, so Back
-  // unmounted the step and threw away every typed instruction, the save path and
-  // both sliders. `maxTokensText` stays TEXT rather than a number so the field can
-  // be cleared mid-edit — `parseInt` on an empty field yields NaN, which React
-  // warns about and which used to travel into the job config.
+  // CONTROLLED: Back unmounts the step, and local `useState`s would throw away
+  // every typed instruction, the save path and both sliders with it.
+  // `maxTokensText` stays TEXT rather than a number so the field can be cleared
+  // mid-edit — `parseInt` on an empty field yields NaN, which React warns about
+  // and which would travel into the job config.
   const { title, storagePath, prompt, language, temperature, maxTokensText, outputMediaType } = config;
   const set = (patch: Partial<GenerationDraft>) => onConfigChange({ ...config, ...patch });
 
-  // D11 — the Save location starts filled and FOLLOWS the title and format
-  // until the user takes it over. `pathTouched` is DERIVED rather than stored:
+  // The Save location starts filled and FOLLOWS the title and format until
+  // the user takes it over. `pathTouched` is DERIVED rather than stored:
   // it is exactly "the field holds the user's own text", which makes clearing
   // the field un-touch it for free, keeps it reset-on-open and Back-safe
   // because `storagePath` already is, and leaves no second field to desync.
@@ -180,11 +179,11 @@ export function ConfigureGenerationStep({
   const proposedPath = proposeStoragePath(defaultFolder, title, outputMediaType);
   const effectivePath = pathTouched ? storagePath : proposedPath;
 
-  // D7 — the GUI is where a format/extension mismatch is caught, because it is
+  // The GUI is where a format/extension mismatch is caught, because it is
   // where the person who can fix it is standing. An EMPTY path is not a
   // mismatch: the field is `required`, so emptiness is already refused, and
-  // telling an untouched form it is wrong is not a welcome. Under D11 a
-  // PROPOSED path always matches, so this now fires only on hand-edits.
+  // telling an untouched form it is wrong is not a welcome. A PROPOSED path
+  // always carries the format's extension, so this fires only on hand-edits.
   const requiredExtension = extensionFor(outputMediaType);
   const extensionMismatch =
     effectivePath !== '' &&
@@ -192,11 +191,11 @@ export function ConfigureGenerationStep({
 
   const ceiling = generationAgent?.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS_CEILING;
 
-  // D3 shape 1 (SONNET-5-MIGRATION, measured 2026-09-25): claude-sonnet-5
-  // refuses EVERY non-default temperature — the untouched 0.7 default
-  // included — so a rejecting model gets neither the control nor the field.
-  // Only an explicit false hides it: absent discovery means no claim, and
-  // the inference client suppresses as the second line of defense either way.
+  // claude-sonnet-5 refuses EVERY non-default temperature — the untouched 0.7
+  // default included — so a rejecting model gets neither the control nor the
+  // field, and no control silently does nothing. Only an explicit false hides
+  // it: absent discovery means no claim, and the inference client suppresses
+  // as the second line of defense either way.
   const temperatureAccepted = generationAgent?.limits?.acceptsTemperature !== false;
 
   /**
@@ -239,8 +238,8 @@ export function ConfigureGenerationStep({
 
   return (
     // No --scrollable: this form renders below the evidence display inside the
-    // host's single step-scroll pane — an independent scroll region here is
-    // what squeezed the parameters out of view (the measured failure).
+    // host's single step-scroll pane — an independent scroll region here
+    // squeezes the parameters out of view.
     <form onSubmit={handleSubmit} className="semiont-form">
       {hintEcho && (
         <p className="semiont-wizard__hint-echo">
@@ -292,8 +291,8 @@ export function ConfigureGenerationStep({
       </div>
 
       {/* Output format — with the artifact's IDENTITY (title, location), not
-          among the model knobs below (D5). The options are DERIVED from the
-          registry (D1): promote a fourth row to `generatable` and it appears
+          among the model knobs below. The options are DERIVED from the
+          registry: promote a fourth row to `generatable` and it appears
           here, with no list to forget to update. */}
       <div className="semiont-form__field">
         <label htmlFor="wizard-outputFormat" className="semiont-form__label">
@@ -388,8 +387,8 @@ export function ConfigureGenerationStep({
               const n = parseInt(raw, 10);
               if (!Number.isFinite(n)) return;
               // `max` alone does not stop a larger value being typed — it only
-              // marks the field invalid. D6 says it cannot be entered, so the
-              // clamp lives here.
+              // marks the field invalid. A value above the ceiling must not be
+              // enterable at all, so the clamp lives here.
               set({ maxTokensText: String(Math.min(n, ceiling)) });
             }}
             className="semiont-input"

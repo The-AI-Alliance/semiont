@@ -22,7 +22,6 @@ import type { CacheState } from '@semiont/sdk';
  * turns a routine filter switch into a full-page spinner — and if the fetch
  * is lost, into a spinner that never resolves. The failure path stays B14 →
  * B15 → `error$`, which views check before either signal.
- * See .plans/PANEL-FAILURE-STATES.md
  */
 export interface ListState<T> {
   value$: Observable<T>;
@@ -66,11 +65,11 @@ export function trackList<T>(open: () => Observable<CacheState<T>>, empty: T): {
   const attach = (): void => {
     if (disposed) return;
     subscription?.unsubscribe();
-    // D1 (CACHE-CONTRACT): the cache speaks pending | ready | failed, so
-    // this collapses to pattern-matching — and `failed` is an EMISSION, so
-    // the subscription never dies on error (the old dead-errored-observable
-    // hazard is structurally gone; retry() still re-attaches because a fresh
-    // subscription is what clears the failure marker — D3 recovery).
+    // The cache speaks pending | ready | failed, so this collapses to
+    // pattern-matching — and `failed` is an EMISSION, so the subscription
+    // never dies on error (there is no dead errored observable to recover
+    // from; retry() re-attaches all the same, because a fresh subscription
+    // is what clears the failure marker and starts a new fetch).
     subscription = open().subscribe((st) => {
       switch (st.status) {
         case 'pending':

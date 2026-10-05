@@ -1,19 +1,15 @@
 /**
- * The write path refuses unannotatable targets — MEDIA-CAPABILITY-DISPATCH P3.
+ * The write path refuses unannotatable targets.
  *
- * Annotatability used to be a UI-only notion: the GUI decided what to offer and
- * nothing decided what to accept, so an SDK or API caller could annotate a ZIP.
- * The gate goes on `mark:create-request` — the bus command every GUI and SDK
- * caller travels — and NOT on `mark:create`, the fact-writing channel Stower
+ * A GUI that decides what to offer does not decide what is accepted: without a
+ * gate on the write path an SDK or API caller can annotate a ZIP. The gate
+ * goes on `mark:create-request` — the bus command every GUI and SDK caller
+ * travels — and NOT on `mark:create`, the fact-writing channel Stower
  * consumes.
  *
- * The last case below pins that separation. When it was written, the ungated
- * channel had live users: the TypeScript import and replay path emitted
- * `mark:create` directly. EXPORT-VIA-LAUNCHER P3 deleted those, so nothing
- * travels it today — but restore returns in the launcher and its fact-writing
- * seam is undecided (that plan's P5), so the pin still guards the thing that
- * matters: gating `mark:create` would need a leniency flag for restore, which
- * is the compatibility switch D6 exists to avoid.
+ * The last case below pins that separation: gating `mark:create` would need a
+ * leniency flag for any path that writes recorded facts, which is the
+ * compatibility switch that gating only the request channel avoids.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -72,7 +68,7 @@ async function outcomeOf(bus: EventBus): Promise<{ channel: string; message?: st
   );
 }
 
-describe('mark:create-request refuses unannotatable targets (MEDIA-CAPABILITY-DISPATCH P3)', () => {
+describe('mark:create-request refuses unannotatable targets', () => {
   let bus: EventBus;
   beforeEach(() => {
     vi.clearAllMocks();
@@ -97,7 +93,7 @@ describe('mark:create-request refuses unannotatable targets (MEDIA-CAPABILITY-DI
     expect(outcome.message).toContain('text/css');
   });
 
-  it('refuses a target the registry has never seen (D2 second population)', async () => {
+  it('refuses a target the registry has never seen', async () => {
     // Import leniency means a KB can hold these, and `textSourceOf` is
     // lenient for `text/*` so they embed and turn up in search — a user who
     // found one will reasonably try to annotate it. The refusal has to read
@@ -113,12 +109,11 @@ describe('mark:create-request refuses unannotatable targets (MEDIA-CAPABILITY-DI
   });
 
   it('leaves the fact-writing channel ungated — the gate is on the REQUEST channel', async () => {
-    // The regression pin for D6. A direct `mark:create` for a storage-tier
-    // target must produce no refusal. Fires if a later session "tidies" the
-    // gate down into Stower's convergence point, which would need a leniency
-    // flag to undo — and would silently re-subject restored history to a gate
-    // the 2026-07-09 "events are facts, commands are requests" ruling put it
-    // outside of.
+    // Pins where the gate sits. A direct `mark:create` for a storage-tier
+    // target must produce no refusal. Fires if the gate is "tidied" down into
+    // Stower's convergence point, which would re-judge any recorded fact
+    // replayed through it — or need a leniency flag to exempt one. Events are
+    // facts, commands are requests: facts are outside this gate.
     registerAnnotationAssemblyHandler(bus, kbServing('text/css'), silentLogger);
     const failures: unknown[] = [];
     bus.on('mark:create-failed').subscribe((e) => failures.push(e));

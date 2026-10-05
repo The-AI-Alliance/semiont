@@ -1,9 +1,9 @@
 package launcher
 
-// EXTERNAL-IDENTITY P3 (launcher lane): [environments.*.identity] derives the
-// identity role. keycloak on ${KEYCLOAK_HOST} is provided — launched with its
-// database on the [database] PostgreSQL; an oidc issuer is external —
-// verified, never launched; every incomplete section refuses, naming the key.
+// [environments.*.identity] derives the identity role. keycloak on
+// ${KEYCLOAK_HOST} is provided — launched with its database on the [database]
+// PostgreSQL; an oidc issuer is external — verified, never launched; every
+// incomplete section refuses, naming the key.
 
 import (
 	"slices"
@@ -17,11 +17,11 @@ issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
 subjectClaim = "sub"
 `
 
-// MANDATORY (user, 2026-09-21). Absence used to derive an ABSENT identity
-// role, which produced a stack nobody could sign in to: no person, because
-// there are no keys to verify against; no sidecar, because the agent-minter
-// refuses before it mints; and a gateway that cannot reach its own record,
-// because dialling the Archivist needs a service-account token.
+// [identity] is MANDATORY. A config without it would give a stack nobody can
+// sign in to: no person, because there are no keys to verify against; no
+// sidecar, because the agent-minter refuses before it mints; and a gateway
+// that cannot reach its own record, because dialling the Archivist needs a
+// service-account token.
 func TestDerivePlanRefusesAConfigWithNoIdentity(t *testing.T) {
 	p := variantConfig(t, map[string]string{"identity": ""}) // empty drops the section
 	env, envName, _, err := loadConfig(p)
@@ -35,10 +35,11 @@ func TestDerivePlanRefusesAConfigWithNoIdentity(t *testing.T) {
 	}
 }
 
-// The claim a person's DID is built from is DECLARED (VERIFIED-PROVENANCE P5):
-// `did:web:<site domain>:users:<that claim's value>`. A section without it
-// refuses, naming the key — the launcher vets exactly what the gateway's
-// loader would refuse, so no path writes a config the stack cannot start.
+// The claim a person's DID is built from is DECLARED, never defaulted or
+// inferred: `did:web:<site domain>:users:<that claim's value>`. A section
+// without it refuses, naming the key — the launcher vets exactly what the
+// gateway's loader would refuse, so no path writes a config the stack cannot
+// start.
 func TestDerivePlanRefusesIdentityWithNoSubjectClaim(t *testing.T) {
 	p := variantConfig(t, map[string]string{"identity": "[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\n"})
 	env, envName, _, err := loadConfig(p)
@@ -133,10 +134,9 @@ func TestDerivePlanKeycloakNeedsDatabase(t *testing.T) {
 
 func TestKeycloakRealmJSONRegistersTheGateway(t *testing.T) {
 	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1", 3000, keycloakAccessTokenLifespan, nil))
-	// This assertion was the other way round for one commit, on the reasoning
-	// that the gateway verifies tokens and never presents one. True of the agent
-	// exchange, false in general: the gateway dials the Archivist for content,
-	// events and the working tree's branch, and proves who it is like any caller.
+	// The gateway verifies tokens, and in the agent exchange never presents
+	// one — but it dials the Archivist for content, events and the working
+	// tree's branch, and proves who it is like any caller.
 	if !strings.Contains(doc, `"clientId": "semiont-gateway"`) {
 		t.Error("realm document has no service account for the gateway, which dials the Archivist")
 	}
@@ -166,8 +166,8 @@ func TestKeycloakRealmJSON(t *testing.T) {
 		// Keycloak defaults to that release.
 		`"accessTokenLifespan": 300`,
 		// Each sidecar that exchanges a service-account token for an agent token
-		// needs a confidential client of its own. A shared one would be the
-		// static secret this replaced, wearing a realm's clothes.
+		// needs a confidential client of its own. A shared one would be a
+		// static secret wearing a realm's clothes.
 		`"clientId": "semiont-archivist"`,
 		`"clientId": "semiont-weaver"`,
 		`"serviceAccountsEnabled": true`,
@@ -258,14 +258,14 @@ accessTokenLifespan = -5
 	}
 }
 
-// BROWSER-SIGNIN-ORIGIN P1. Keycloak derives a client's CORS origins from
-// `webOrigins`, and matches them EXACTLY — unlike redirect URIs, where RFC 8252
-// §7.3 makes a portless loopback entry match any port. `"+"` means "derive them
-// from the redirect URIs", so the portless entries that make `--port` work
-// yielded `http://localhost` (port 80) and the Browser's real origin,
-// `http://localhost:3000`, was in no set at all. The token POST is cross-origin,
-// so Keycloak answered 403 `Invalid origin` with no CORS header and sign-in died
-// as an opaque `error=Verification`.
+// The browser client's web origins name the Browser's port. Keycloak derives a
+// client's CORS origins from `webOrigins`, and matches them EXACTLY — unlike
+// redirect URIs, where RFC 8252 §7.3 makes a portless loopback entry match any
+// port. `"+"` means "derive them from the redirect URIs", so the portless
+// entries that make `--port` work would yield `http://localhost` (port 80) and
+// leave the Browser's real origin, `http://localhost:3000`, in no set at all.
+// The token POST is cross-origin, so Keycloak would answer 403 `Invalid origin`
+// with no CORS header and sign-in would die as an opaque `error=Verification`.
 func TestBrowserWebOriginsCarryThePort(t *testing.T) {
 	origins := browserWebOrigins("192.168.64.1", 3000)
 	for _, want := range []string{
@@ -303,7 +303,7 @@ func TestKeycloakRealmJSONAllowsTheBrowsersOrigin(t *testing.T) {
 		`"http://localhost:3000"`,
 		`"http://127.0.0.1:3000"`,
 		`"http://192.168.64.1:3000"`,
-		// Unchanged: the redirect leg keeps RFC 8252's portless loopback.
+		// The redirect leg keeps RFC 8252's portless loopback.
 		`"http://localhost/*"`,
 	} {
 		if !strings.Contains(doc, want) {

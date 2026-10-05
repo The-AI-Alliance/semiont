@@ -136,14 +136,14 @@ container run --rm \
   per-container error tails + on-demand snapshot of the last N
   seconds across logs and Jaeger spans. How "live monitoring caught
   X" turns into "e2e spec Y".
-- [Known gotchas](docs/gotchas.md) — sharp edges that took real
-  debugging the first time: `crypto.randomUUID`, form-field ordering,
+- [Known gotchas](docs/gotchas.md) — sharp edges:
+  `crypto.randomUUID`, form-field ordering,
   stale tabs, fixture ordering, etc.
 
 ## The specs
 
-[`specs/`](specs/) holds one `NN-short-name.spec.ts` per path that has
-broken before; a regression in that path fails that spec. Specs tagged
+[`specs/`](specs/) holds one `NN-short-name.spec.ts` per path it
+guards; a regression in that path fails that spec. Specs tagged
 `@slow` run only under `npm run test:slow`.
 
 ## Scope
@@ -205,10 +205,10 @@ for inspecting cross-service traces while debugging an e2e failure
   `./scripts/ci/local-build.sh`, then restart the stack with
   `SEMIONT_VERSION=local semiont start`. Without the rebuild + restart,
   you'll run yesterday's images with today's source.
-- **SPA tracing is not currently wired.** Gateway / worker / smelter
+- **SPA tracing is not wired.** Gateway / worker / smelter
   produce traces; the Browser SPA does not. End-to-end traces
   therefore start at `bus.dispatch:*` (server-side EMIT receive)
-  rather than the SPA's `bus.emit:*`. To enable SPA tracing in a
-  future iteration, you'd need `VITE_OTEL_OTLP_ENDPOINT` threaded
+  rather than the SPA's `bus.emit:*`. Enabling SPA tracing
+  would need `VITE_OTEL_OTLP_ENDPOINT` threaded
   through `local-build.sh` into the vite build container, plus
   `COLLECTOR_OTLP_HTTP_CORS_ALLOWED_ORIGINS=*` on the Jaeger sidecar.

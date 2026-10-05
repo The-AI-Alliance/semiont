@@ -1,5 +1,5 @@
 {
-  "_note": "Debt frozen 2026-08-13 (CLEAN-PROGRESS Lane C). Entries may only be REMOVED.",
+  "_note": "Debt frozen 2026-08-13, as the css-classes lint gate found it on its first run. Entries may only be REMOVED.",
   "_note_unstyled": "Swept to ZERO 2026-09-24. This list was 64 classes that markup named and no stylesheet defined — found when /auth/error rendered invisible. Empty means the check is now absolute: any new unstyled class fails the build.",
   "duplicated": [
     "semiont-annotation-prompt__quote",

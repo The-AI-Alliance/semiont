@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { declineReason } from '../job-outcome';
 
-// `declinedMessage` was DELETED by P5, not aliased: the wire no longer carries
-// a sentence to return. Its pins are superseded by the `declineReason` block.
+// Decline reasons are codes: the wire carries no sentence to return.
 
 describe('declineReason', () => {
   it('returns the typed reason, never a wire-supplied sentence', () => {
@@ -18,7 +17,7 @@ describe('declineReason', () => {
 
   it('is null for a reason outside the vocabulary — never renders a raw string', () => {
     // A reason this client does not know has no copy; showing the bare token
-    // would be the untranslated leak this phase exists to remove.
+    // would be an untranslated leak.
     expect(declineReason({ declined: true, reason: 'something-new' })).toBeNull();
   });
 });

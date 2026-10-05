@@ -14,10 +14,10 @@ export interface GatherStateUnit extends StateUnit {
   error$: Observable<Error | null>;
   annotationId$: Observable<AnnotationId | null>;
   /**
-   * Resource-gather state (FLOW-LIFECYCLE-CONVERGENCE D2/D2a): SEPARATE
-   * slots from the annotation trio above — the two gathers can be live at
-   * once (wizard closed mid-load, Generate open), and one BehaviorSubject
-   * cannot represent both. One fact per observable.
+   * Resource-gather state: SEPARATE slots from the annotation trio above —
+   * the two gathers can be live at once (wizard closed mid-load, Generate
+   * open), and one BehaviorSubject cannot represent both. One fact per
+   * observable.
    */
   resourceContext$: Observable<GatheredContext | null>;
   resourceLoading$: Observable<boolean>;
@@ -25,8 +25,8 @@ export interface GatherStateUnit extends StateUnit {
   /**
    * Gather a resource-focus context. A METHOD, not a bus channel: the
    * annotation path's channel exists because a far-away component triggers
-   * it; this path's only trigger holds the unit already (D2 —
-   * ask-what-does-the-SDK-need).
+   * it; this path's only trigger holds the unit already, and a channel is
+   * added when a remote trigger exists, not before.
    */
   gatherResource(resourceId: ResourceId, options?: ResourceGatherOptions): void;
 }

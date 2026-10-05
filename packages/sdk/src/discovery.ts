@@ -1,5 +1,5 @@
 /**
- * Browser ↔ launcher KB discovery — the sdk domain layer (BROWSER-KB-DISCOVERY P3).
+ * Browser ↔ launcher KB discovery — the sdk domain layer.
  *
  * The launcher publishes an export view of the KBs it manages
  * (`DiscoveryDocument`, served by the frontend image at `DISCOVERY_URL_PATH`).
@@ -33,7 +33,7 @@ export type DiscoveryAbsentReason =
   | 'unreadable';          // the read itself failed (network, permissions)
 
 /**
- * The typed absent-vs-managed distinction (plan refinement 2): `absent` is
+ * The typed absent-vs-managed distinction: `absent` is
  * "no launcher detected"; `managed` with an empty list is "the launcher is
  * here and manages nothing". Consumers render these differently and must
  * never have to re-derive the difference.
@@ -99,15 +99,15 @@ export function parseDiscoveryDocument(text: string): DiscoveryState {
     }
     if (repo !== undefined && !isString(repo)) return absent('invalid', 'kb "repo" must be a string');
     if (siteName !== undefined && !isString(siteName)) return absent('invalid', 'kb "siteName" must be a string');
-    // `did` is REQUIRED (KB-IDENTITY-VS-ADDRESS decision 8): a knowledge base
-    // declares its identity or does not run. Rejecting the whole document
-    // rather than skipping the entry is deliberate and matches this
-    // validator's other required fields and the `version` gate — a partial
-    // parse would silently hide a running KB, which is the failure class the
-    // plan exists to end. In practice this means a document written by a
-    // launcher older than the requirement reads as "no launcher detected"
-    // until that launcher is updated, which is honest: this client cannot
-    // vouch for what such a document says.
+    // `did` is REQUIRED: a knowledge base declares its identity or does not
+    // run. Rejecting the whole document rather than skipping the entry is
+    // deliberate and matches this validator's other required fields and the
+    // `version` gate — a partial parse would silently hide a running KB,
+    // which is the failure class a required identity exists to end. In
+    // practice this means a document written by a launcher older than the
+    // requirement reads as "no launcher detected" until that launcher is
+    // updated, which is honest: this client cannot vouch for what such a
+    // document says.
     if (!isString(did)) {
       return absent(
         'invalid',
@@ -153,8 +153,9 @@ export function textDiscovery(read: () => Promise<string | null>): DiscoveryTran
  * The same-origin HTTP transport, speaking the frontend image's polling
  * contract: remembers the last good ETag and sends `If-None-Match` (a 304
  * comes back as `unchanged`, short-circuiting the diff pass), and
- * content-type-checks so the SPA fallback's index.html-at-200 — the
- * pre-image-upgrade reality — reads as absent, not as junk.
+ * content-type-checks so the SPA fallback's index.html-at-200 — what a
+ * frontend image without the discovery mount serves — reads as absent, not
+ * as junk.
  */
 export function httpDiscovery(url: string = DISCOVERY_URL_PATH): DiscoveryTransport {
   let etag: string | null = null;
@@ -188,15 +189,16 @@ export function httpDiscovery(url: string = DISCOVERY_URL_PATH): DiscoveryTransp
 
 /**
  * Merge key: the ADDRESS, which is the field the producer guarantees unique
- * (one entry per `host:port` — KB-IDENTITY-VS-ADDRESS P1/decision 5).
+ * (one entry per `host:port` — only one process can bind a port, and the
+ * launcher publishes at most one entry for it).
  *
  * NOT the did, and not `did ?? host:port`. A did says *which knowledge base*,
  * and is deliberately **not** unique: a local clone and a codespace of the
- * same repo are one KB reachable at two addresses, and both are published
- * (decision 9). Keying on it collapsed those two copies into one and made
+ * same repo are one KB reachable at two addresses, and both are published.
+ * Keying on it would collapse those two copies into one and make
  * the diff lie about a running stack — a phantom `updated` for the shadowed
- * copy on every poll, and a stopped copy whose removal never fired because
- * its twin kept the key alive. The did's job is verification, not selection.
+ * copy on every poll, and a stopped copy whose removal never fires because
+ * its twin keeps the key alive. The did's job is verification, not selection.
  */
 const keyOf = (kb: DiscoveredKB): string => `${kb.host}:${kb.port}`;
 
@@ -240,14 +242,13 @@ export function subscribeDiscovery(
         // Two entries at ONE ADDRESS: internally inconsistent, because only
         // one process can bind a port — at most one claim is true. (Two
         // entries sharing a DID is the opposite: one KB in two places, the
-        // common case, and keying on the address means it no longer reaches
-        // this branch at all — decision 9.) Merging silently is how the
-        // predecessor defect hid for a release: the loser vanished with no
-        // trace (decision 4 — ambiguity is shown, never resolved by
-        // guessing). The producer is the cure; this is the consumer refusing
-        // to hide the symptom. Every entry still reaches the subscriber in
-        // `state.kbs` — the diff is what collapses, so the panel can render
-        // all claimants and say so.
+        // common case, and keying on the address means it never reaches
+        // this branch.) Merging silently would make the loser vanish with
+        // no trace; ambiguity is shown, never resolved by guessing. The
+        // producer is the cure; this is the consumer refusing to hide the
+        // symptom. Every entry reaches the subscriber in `state.kbs` — the
+        // diff is what collapses, so the panel can render all claimants and
+        // say so.
         if (next.size !== nextKbs.length) {
           const seen = new Set<string>();
           const duplicated = [...new Set(nextKbs.map(keyOf).filter((k) => seen.size === seen.add(k).size))];

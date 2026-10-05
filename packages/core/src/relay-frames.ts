@@ -5,8 +5,7 @@
  * them with their envelope intact. Written by hand it is three correct-looking
  * lines that typecheck whether or not the envelope survives — `stream()` is
  * payload-only, the envelope on `emit` is optional, and a relay that never
- * mentions `correlationId` drops it in silence. Ten such relays shipped; four
- * were dropping it.
+ * mentions `correlationId` drops it in silence.
  *
  * `scope` deliberately does NOT cross. The transport flattens its scoped
  * fan-in into one delivery and consumers read those off the unscoped bus, so
@@ -47,10 +46,10 @@ function relayChannel<K extends keyof EventMap>(
 /**
  * Relay `channels` from one bus to another, envelope intact.
  *
- * `onError` is REQUIRED and unconditional. It was optional, guarded by
- * `if (onError && ...)`, which left an async sink's rejection uncaught whenever
- * a caller passed nothing — an unhandled rejection inside the one function
- * every relay now goes through. A synchronous sink never calls it; that is an
+ * `onError` is REQUIRED and unconditional. An optional one, guarded by
+ * `if (onError && ...)`, leaves an async sink's rejection uncaught whenever
+ * a caller passes nothing — an unhandled rejection inside the one function
+ * every relay goes through. A synchronous sink never calls it; that is an
  * unexercised handler, not a stub, and it is already correct if the sink later
  * becomes async. Returns one subscription per channel.
  */

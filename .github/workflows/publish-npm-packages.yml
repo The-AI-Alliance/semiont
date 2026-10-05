@@ -44,7 +44,7 @@ jobs:
         # `Reached heap limit Allocation failed - JavaScript heap out
         # of memory` here, set
         # `NODE_OPTIONS=--max-old-space-size=2560` on this step.
-        # With the env var unset (current default), the SDK is dynamic-
+        # With the env var unset (the default), the SDK is dynamic-
         # imported and dropped from the bundle entirely, so the build
         # is comfortably within memory.
         run: ./scripts/ci/build.sh
@@ -52,10 +52,9 @@ jobs:
       - name: Verify NodeNext resolution
         # Pre-publish gate: every @semiont/* package's dist must
         # resolve cleanly under `tsc --moduleResolution NodeNext` from
-        # an external consumer's perspective. Catches the asymmetric-
-        # dist regression class (bundled .js with per-file .d.ts
-        # shards) before it ships to npm. See `.plans/CLEANUP-SDK.md`
-        # item 1 for the failure mode that motivated this gate.
+        # an external consumer's perspective. Catches an asymmetric
+        # dist (bundled .js with per-file .d.ts shards) before it
+        # ships to npm.
         run: ./scripts/ci/verify-nodenext-resolution.sh
 
       - name: Determine version
@@ -126,9 +125,9 @@ jobs:
           } >> $GITHUB_STEP_SUMMARY
 
   # The images bundle the packages this workflow just published, so this is the
-  # only place that knows they are ready. Dispatching from here removes the
-  # hand-run step where `tag_latest` was forgotten on 0.5.33, leaving every
-  # image's :latest on the previous release and no fleet KB able to run it.
+  # only place that knows they are ready. Dispatching from here leaves no
+  # hand-run step in which `tag_latest` can be forgotten, which would leave every
+  # image's :latest on the previous release and no fleet KB able to run this one.
   trigger-images:
     name: Trigger image publishes (runs separately)
     needs: publish

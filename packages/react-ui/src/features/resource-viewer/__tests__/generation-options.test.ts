@@ -1,13 +1,10 @@
 /**
- * GENERATION-OUTPUT-FORMAT D8 — the submitted config becomes generation
- * options in ONE place, by spread.
+ * The submitted config becomes generation options in ONE place, by spread.
  *
- * Both page handlers used to build the options object field-by-field, so any
- * field not explicitly listed was silently dropped. That is precisely what
- * stranded `outputMediaType` in the SDK one layer down (P1), relocated one
- * layer up. These pins state the PROPERTY — everything the config carries is
- * forwarded — rather than enumerating today's fields, so a knob added later
- * cannot regress the mode back into existence.
+ * A handler that builds the options object field-by-field silently drops any
+ * field it does not list. These pins state the PROPERTY — everything the
+ * config carries is forwarded — rather than enumerating the fields, so a knob
+ * added later is covered without a change here.
  */
 import { describe, it, expect } from 'vitest';
 import type { GatheredContext } from '@semiont/core';

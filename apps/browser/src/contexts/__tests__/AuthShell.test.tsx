@@ -2,11 +2,10 @@
  * AuthShell Composition Tests
  *
  * AuthShell is a thin frontend composition over the library's protected
- * error boundary and the two auth-failure modals. After the UNREACT
- * migration, the session state (KB list, active KB, SemiontSession) is
- * owned by the module-scoped `SemiontBrowser` singleton and exposed via
- * `<SemiontProvider>` at the app root — AuthShell no longer mounts a
- * session provider.
+ * error boundary and its three modals. The session state (KB list, active
+ * KB, SemiontSession) is owned by the module-scoped `SemiontBrowser`
+ * singleton and exposed via `<SemiontProvider>` at the app root — AuthShell
+ * mounts no session provider.
  *
  * Library mocks are passthroughs/markers — the goal is structure, not
  * library behavior.

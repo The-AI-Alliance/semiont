@@ -3,7 +3,7 @@
 // under `moduleResolution: NodeNext`. Without this, the published dist
 // has bundled .js (from tsup) alongside sharded .d.ts (from tsc) with
 // no matching per-shard .js — NodeNext rejects the broken re-export
-// chain. See `.plans/CLEANUP-SDK.md` item 1.
+// chain.
 //
 // Inputs come from `dist-types/` (emitted by `tsc -p tsconfig.build.json`).
 // Outputs go to `dist/`, replacing the shards with bundled files.

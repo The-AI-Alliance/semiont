@@ -38,10 +38,10 @@ export function createMarkStateUnit(
   const assistingMotivation$ = new BehaviorSubject<Motivation | null>(null);
   const progress$ = new BehaviorSubject<JobProgress | null>(null);
 
-  // A finished run STAYS on screen (CLEAN-PROGRESS D1). There is no dismissal
+  // A finished run STAYS on screen. There is no dismissal
   // timer: the result line — "Created 7 references" — is the one thing in the
-  // whole run worth reading, and a timer that eats it is why the generation
-  // flow felt like it vanished mid-sentence. The ended display carries an
+  // whole run worth reading, and a timer that eats it makes the run seem to
+  // vanish mid-sentence. The ended display carries an
   // explicit Close control; it clears on that, on `mark:progress-dismiss`, or
   // when the next assist replaces it below.
 
@@ -87,10 +87,10 @@ export function createMarkStateUnit(
       //
       // Every other signal in this state machine is `direction: 'in-process'`
       // — `mark:requested`, `mark:select-*`, `mark:cancel-pending`. Clearing
-      // on the wire reply reached outside that vocabulary for a frame carrying
+      // on the wire reply would reach outside that vocabulary for a frame carrying
       // no `resourceId` (MarkCreateOk is `{ response: { annotationId } }`), so
       // it could not be filtered: with two viewers on one session, creating an
-      // annotation in either discarded the other's in-progress selection.
+      // annotation in either would discard the other's in-progress selection.
       // Clearing in the flow that owns the pending state is correlated by
       // construction. A host that wants to cancel a composer emits
       // `mark:cancel-pending`, which is what that channel is for.
@@ -111,16 +111,17 @@ export function createMarkStateUnit(
     assistingMotivation$.next(event.motivation);
     progress$.next(null);
 
-    // Silence detector, NOT a timeout (DETECTION-HEARTBEAT D6). The job
-    // outlives the client's attention: a run the UI gave up on still
-    // persisted 221 annotations (2026-08-07). So going quiet must degrade
-    // the display — never tear the subscription down, which would leave the
-    // real completion with nothing to resolve, and never claim the assist
-    // ended while the worker is still working.
+    // Silence detector, NOT a timeout. The job
+    // outlives the client's attention: a run the UI gives up on can go on
+    // to persist its annotations (221, in one measured run). So going quiet
+    // must degrade the display — never tear the subscription down, which
+    // would leave the real completion with nothing to resolve, and never
+    // claim the assist ended while the worker is still working.
     //
-    // Post-heartbeat (workers emit every ~15 s while a call is in flight),
-    // reaching this window means the worker really has gone quiet — so the
-    // signal is kept, and only its meaning is corrected.
+    // Workers emit a heartbeat every ~15 s while a call is in flight, so
+    // reaching this window means the worker really has gone quiet.
+    // `mark:assist-timeout` reports that silence; despite its name it ends
+    // nothing.
     let staleTimer: ReturnType<typeof setTimeout> | null = null;
     const clearStale = () => {
       if (staleTimer) { clearTimeout(staleTimer); staleTimer = null; }

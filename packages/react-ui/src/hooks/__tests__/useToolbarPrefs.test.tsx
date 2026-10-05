@@ -1,12 +1,9 @@
 /**
- * TOOLBAR-PREFS-AS-PROPS Phase 3 — the POLICY layer.
+ * Toolbar preferences — the POLICY layer.
  *
- * useToolbarPrefs() owns one shared prefs state, persists it to the historical
- * localStorage keys, and feeds the same values/callbacks to every viewer it
- * composes — today's Semiont Browser UX (global toolbar, persisted), relocated
- * from inside the components to a visible page-layer hook.
- *
- * Started RED (the hook does not exist) and GREEN once Phase 3 lands.
+ * useToolbarPrefs() owns one shared prefs state, persists it to localStorage,
+ * and feeds the same values/callbacks to every viewer it composes — the
+ * Semiont Browser UX (global toolbar, persisted) as a visible page-layer hook.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, within, waitFor } from '@testing-library/react';
@@ -97,7 +94,7 @@ describe('useToolbarPrefs — the policy layer (Browser parity)', () => {
     });
   });
 
-  it('a change survives a remount via the historical localStorage keys', async () => {
+  it('a change survives a remount via the localStorage keys', async () => {
     const session = fakeSession();
     const first = renderInEnglish(<TwoViewers session={session} />);
     await pickMode(first.getByTestId('v1'), 'Annotate');

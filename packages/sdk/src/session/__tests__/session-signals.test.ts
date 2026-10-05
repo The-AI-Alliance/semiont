@@ -2,9 +2,8 @@
  * SessionSignals — the notification state a UI host shows as modals.
  *
  * Each signal is ONE subject of one value: null while nothing is raised, the
- * notice while something is. A signal used to be two subjects, a payload and a
- * timestamp, which an observer could only read consistently because the
- * payload happened to be written first.
+ * notice while something is. Two subjects, a payload and a timestamp, could
+ * be read consistently only by an accident of write order.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -16,7 +15,7 @@ beforeEach(() => {
   signals = new SessionSignals();
 });
 
-/** Every value `subject` emits from now on, the current one included. */
+/** Every value `subject` emits from here on, the current one included. */
 function collect<T>(subject: { subscribe(next: (value: T) => void): unknown }): T[] {
   const seen: T[] = [];
   subject.subscribe((value) => seen.push(value));

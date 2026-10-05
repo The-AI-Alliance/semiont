@@ -176,11 +176,11 @@ describe('anchorAnnotation — no fuzzy recovery at render time', () => {
     expect(result?.confidence).toBe('low');
   });
 
-  it('does NOT smart-quote-fold; the legacy bug renders at stored offset, flagged', () => {
-    // The legal-KB case: content has a smart quote, stored exact has a
-    // straight quote. No verbatim match. The renderer keeps the stored
-    // offset (it's the system of record) and flags it — correction is an
-    // upstream concern (re-emit a corrected annotation event).
+  it('does NOT smart-quote-fold; a quote-style mismatch renders at stored offset, flagged', () => {
+    // Content has a smart quote, stored exact has a straight quote. No
+    // verbatim match. The renderer keeps the stored offset (it's the system
+    // of record) and flags it — correction is an upstream concern (re-emit a
+    // corrected annotation event).
     const content = 'Kenison, C.J.\nThe question to “any person” today.';
     const result = anchorAnnotation(content, {
       position: { start: 16, end: 40 },
@@ -237,7 +237,7 @@ describe('anchorAnnotation — position-fallback', () => {
   });
 });
 
-// ─── Layer 1: cross-cutting + the motivating bug ────────────────────────
+// ─── Layer 1: cross-cutting + positional drift ──────────────────────────
 
 describe('anchorAnnotation — cross-cutting', () => {
   it('positional drift: stale offset 16, exact is verbatim-unique at 14', () => {

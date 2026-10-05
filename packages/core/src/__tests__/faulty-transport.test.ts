@@ -1,5 +1,5 @@
 /**
- * FaultyTransport sequenced replies (.plans/SDK-TESTING-DOUBLE.md, Phase 2).
+ * FaultyTransport sequenced replies.
  *
  * The division of labor the queue introduces: the fault SCHEDULE scripts the
  * WIRE (deliver / drop / delay / duplicate / reject-emit), the reply QUEUE
@@ -97,12 +97,12 @@ describe('FaultyTransport.queueReply', () => {
   });
 });
 
-// ── SDK-TESTING-DOUBLE gap 6: payload assertions off the requestLog ──────
+// ── Payload assertions off the requestLog ────────────────────────────────
 //
 // A consumer asserting what its orchestrator actually SENT (envelope shape,
-// gather options, job params) previously had to hand-roll a per-channel
-// `transport.on(...)` wire recorder, because the log carried only accounting
-// fields. The payload rides the entry now — one arrival-ordered surface.
+// gather options, job params) reads it off the entry — one arrival-ordered
+// surface — instead of hand-rolling a per-channel `transport.on(...)` wire
+// recorder.
 
 describe('requestLog payloads', () => {
   it('carries the emitted payload on each entry, in arrival order', async () => {
@@ -114,11 +114,9 @@ describe('requestLog payloads', () => {
     expect(transport.requestLog).toHaveLength(2);
     expect(transport.requestLog[0]!.payload).toMatchObject({ limit: 10, entityType: 'Concept' });
     expect(transport.requestLog[1]!.payload).toMatchObject({ limit: 25 });
-    // The key is NOT on the payload: it rides the envelope now
-    // (BUS-CARRIES-FRAMES P3), and the log records it as its own field. This
-    // asserted the opposite while `correlationId` lived inside the domain
-    // payload — the entry is still what went on the wire, the wire just stopped
-    // carrying routing metadata inside the message.
+    // The key is NOT on the payload: it rides the envelope, and the log
+    // records it as its own field. The entry is what went on the wire, and
+    // the wire carries no routing metadata inside the message.
     expect(transport.requestLog[0]!.payload).not.toHaveProperty('correlationId');
     expect(transport.requestLog[0]!.correlationId).toEqual(expect.any(String));
 

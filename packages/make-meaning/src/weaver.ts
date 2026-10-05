@@ -17,7 +17,7 @@
  *   maxBatchSize  (500)              — force flush to bound memory
  *   idleTimeoutMs (200)              — silence before returning to passthrough
  * All timings are injected via the required `WeaverTiming` constructor param
- * (WEAVER-AXIOMS R0) — the axiom harness runs them at ~1 ms.
+ * — the axiom harness runs them at ~1 ms.
  *
  * ## Per-resource serialization
  *
@@ -31,8 +31,7 @@
  *
  * The pipeline holds a set of axioms verified as fast-check properties in
  * `__tests__/weaver-axioms.test.ts` and pinned structurally by
- * `scripts/compliance/audit-weaver-invariants.sh` — see
- * `.plans/WEAVER-AXIOMS.md`. Load-bearing among them:
+ * `scripts/compliance/audit-weaver-invariants.sh`. Load-bearing among them:
  *   - graph ≡ reference fold over arbitrary histories (W4), and rebuild ≡
  *     replay (W5);
  *   - redelivery is inert (W3) — the **sequence gate** in the pipeline drops
@@ -58,8 +57,7 @@ import type { WeaverCheckpoint } from './weaver-checkpoint.js';
  * Pipeline, drain, and flush timings. Required — `weaver-main` passes
  * production values (50/500/200 burst; 30s/25ms/40 drain; 5s flush); the
  * axiom harness passes ~1ms values so property suites run at generator
- * speed. See `.plans/WEAVER-AXIOMS.md` (R0), mirroring SmelterTiming
- * (SMELTER-AXIOMS D4).
+ * speed, mirroring SmelterTiming.
  */
 export interface WeaverTiming {
   burstWindowMs: number;
@@ -113,13 +111,13 @@ export class Weaver {
   private readonly logger: Logger;
 
   /**
-   * Transport-blind by construction (WEAVER-ISOLATION P2/P3): graph-relevant
-   * events arrive as an injected `events$` and rebuild commands as
-   * `rebuilds$` (the `weaverFanIn` fan-in — channel selection
-   * lives there); `weave:applied` signals, rebuild replies, and the
-   * catch-up's `browse:*` reads all ride the injected `BusRequestPrimitive`.
-   * In-process everything rides the core EventBus
-   * (`asBusRequestPrimitive`); standalone it all rides the gateway.
+   * Transport-blind by construction: graph-relevant events arrive as an
+   * injected `events$` and rebuild commands as `rebuilds$` (the
+   * `weaverFanIn` fan-in — channel selection lives there); `weave:applied`
+   * signals, rebuild replies, and the catch-up's `browse:*` reads all ride
+   * the injected `BusRequestPrimitive`. In-process everything rides the
+   * core EventBus (`asBusRequestPrimitive`); standalone it all rides the
+   * gateway.
    */
   constructor(
     private graphDb: GraphDatabase,
@@ -162,7 +160,7 @@ export class Weaver {
 
       mergeMap((group) => {
         if (group.key === SYSTEM_SCOPE) {
-          // System events (e.g., entitytype.added): process immediately, sequentially
+          // System events (e.g., frame:entity-type-added): process immediately, sequentially
           return group.pipe(
             concatMap((se) => from(this.safeApplyEvent(se)))
           );
@@ -176,7 +174,7 @@ export class Weaver {
             idleTimeoutMs: this.timing.idleTimeoutMs,
           }),
           concatMap((eventOrBatch: StoredEvent | StoredEvent[]) => {
-            // Sequence gate (WEAVER-AXIOMS W3): at-least-once delivery can
+            // Sequence gate (weaver axiom W3): at-least-once delivery can
             // redeliver an event AFTER later ones already applied (SSE
             // replay overlapping live). Content-idempotent folds tolerate
             // adjacent duplicates, but a DISPLACED redelivery would clobber
@@ -221,11 +219,6 @@ export class Weaver {
     this.logger.info('Subscribed to graph-relevant events with burst-buffered pipeline');
   }
 
-  /**
-   * Record an applied event's sequence and signal `weave:applied` — the
-   * push half of the applied-offset barrier (GRAPH-PROJECTION-SYNC P2):
-   * `WeaveProgress` folds these signals into the map `whenApplied` awaits.
-   */
   /** Record an apply outcome for the failed-floor bookkeeping (W6). */
   private noteOutcome(event: StoredEvent, ok: boolean): void {
     if (!event.resourceId) return;
@@ -247,6 +240,11 @@ export class Weaver {
     }
   }
 
+  /**
+   * Record an applied event's sequence and signal `weave:applied` — the
+   * push half of the applied-offset barrier: `WeaveProgress` folds these
+   * signals into the map `whenApplied` awaits.
+   */
   private noteApplied(resourceId: ResourceId, sequenceNumber: number): void {
     // Failed-floor cap (W6): the mark asserts "everything at or below me
     // landed" — it may never reach or pass an outstanding failed sequence,
@@ -282,34 +280,17 @@ export class Weaver {
     }
   }
 
+  // The Weaver's only view of history: reads over the bus. It has no event
+  // store attachment — in-process and standalone alike, catch-up and
+  // rebuild ride `browse:resources-requested` / `browse:events-requested`.
+
   /**
-   * Checkpointed catch-up (WEAVER-ISOLATION P3, D1). Rides EXISTING read
-   * channels: resources discovered via `browse:resources-requested`
-   * (archived included — no filter), each resource's events fetched via
-   * `browse:events-requested` (full StoredEvents), filtered client-side
-   * against the persisted checkpoint, and pushed through the normal
-   * pipeline — per-resource lanes serialize against live traffic,
-   * idempotent folds (P1) absorb any overlap, and `noteApplied` fires per
-   * apply so the `whenApplied` barrier keeps working mid-recovery.
-   *
-   * A checkpoint AHEAD of a resource's log (restore rewound history) is
-   * answered with a per-resource rebuild instead of trusting the
-   * checkpoint. Call after the live subscription is attached so nothing
-   * falls in the gap.
-   */
-  /**
-   * The Weaver's only view of history: reads over the bus. It has no event
-   * store attachment — in-process and standalone alike, catch-up and
-   * rebuild ride `browse:resources-requested` / `browse:events-requested`.
-   */
-  /**
-   * Shared with the smelter since 2026-09-09 — the two had identical paging
-   * loops, and one of them is where the retry belongs: `browse:*` is answered by
-   * the ARCHIVIST, so a weaver that authenticates first asks a channel nobody is
-   * subscribed to yet and used to give up for the life of the process.
-   * `WeaverCatalogPageAwaits` is now DERIVED from the channel this actually
+   * Shared with the smelter (`browse-resources.ts`), which is where the retry
+   * lives: `browse:*` is answered by the ARCHIVIST, so a weaver that
+   * authenticates first asks a channel nobody is subscribed to yet.
+   * `WeaverCatalogPageAwaits` is DERIVED from the channel this actually
    * requests (`typeof RESOURCES_CHANNEL`), so the roster and the request cannot
-   * disagree — where before they were two literals tied by `satisfies`.
+   * disagree.
    */
   private fetchAllResources(): Promise<ResourceDescriptor[]> {
     return browseAllResources(this.bus, { limit: Weaver.CATCHUP_PAGE_SIZE });
@@ -322,6 +303,21 @@ export class Weaver {
       .sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
   }
 
+  /**
+   * Checkpointed catch-up. Rides EXISTING read channels: resources
+   * discovered via `browse:resources-requested`
+   * (archived included — no filter), each resource's events fetched via
+   * `browse:events-requested` (full StoredEvents), filtered client-side
+   * against the persisted checkpoint, and pushed through the normal
+   * pipeline — per-resource lanes serialize against live traffic,
+   * idempotent folds absorb any overlap, and `noteApplied` fires per
+   * apply so the `whenApplied` barrier keeps working mid-recovery.
+   *
+   * A checkpoint AHEAD of a resource's log (restore rewound history) is
+   * answered with a per-resource rebuild instead of trusting the
+   * checkpoint. Call after the live subscription is attached so nothing
+   * falls in the gap.
+   */
   async catchUp(): Promise<{
     resourcesChecked: number;
     eventsReplayed: number;
@@ -397,7 +393,7 @@ export class Weaver {
    * Wait until `lastProcessed` reaches every target sequence — the drain
    * for catch-up's pushes through the async pipeline. Returns the number
    * of targets still unreached at exit. Failed applies hold their sequence
-   * back BY DESIGN (#845), so parity may never arrive for them — once the
+   * back BY DESIGN, so parity may never arrive for them — once the
    * pending set stops shrinking for ~1s we stop draining and report,
    * rather than burning the timeout on events that will not land.
    */
@@ -427,19 +423,19 @@ export class Weaver {
   }
 
   /**
-   * State-diff audit of the graph against the catalog (#845) — the backstop
+   * State-diff audit of the graph against the catalog — the backstop
    * for divergence nothing witnessed: out-of-band graph mutations, wiped or
-   * rolled-back volumes (post-split the checkpoint and the graph live in
-   * SEPARATE failure domains), and historical damage from old fold bugs
-   * that no future event will re-touch.
+   * rolled-back volumes (the checkpoint and the graph live in SEPARATE
+   * failure domains), and damage already in a graph that no future event
+   * will re-touch.
    *
-   * Detection uses the VIEW as the cheap authority — descriptor facets plus
-   * the annotation-id set, over the same `browse:*` reads everything else
-   * rides. Healing replays the LOG (`rebuildResource`), so repairs stay
-   * log-truthful even if the view itself were wrong. V1 compares identity
-   * and facets, not annotation bodies. Heals bypass the pipeline lanes like
-   * all rebuilds — the idempotent folds make a race with live traffic
-   * benign. Run after `catchUp()`, mirroring the Smelter's
+   * Detection uses the VIEW as the cheap authority — descriptor facets, the
+   * annotation-id set, and each annotation as the codec would store it —
+   * over the same `browse:*` reads everything else rides. Healing replays
+   * the LOG (`rebuildResource`), so repairs stay log-truthful even if the
+   * view itself were wrong. Heals bypass the pipeline lanes like all
+   * rebuilds — the idempotent folds make a race with live traffic benign.
+   * Run after `catchUp()`, mirroring the Smelter's
    * subscribe → catch-up → reconcile startup order.
    */
   async reconcile(): Promise<{ resourcesChecked: number; divergent: number; healed: number; healFailures: number; orphaned: number }> {
@@ -509,10 +505,9 @@ export class Weaver {
 
   /** Compare one resource's graph state against its view; null = in sync. */
   private async divergenceOf(resource: ResourceDescriptor): Promise<string | null> {
-    const graphDb = this.ensureInitialized();
     const rid = resource['@id'];
 
-    const doc = await graphDb.getResource(rid);
+    const doc = await this.graphDb.getResource(rid);
     if (!doc) return 'missing-node';
     if ((doc.archived ?? false) !== (resource.archived ?? false)) return 'archived-mismatch';
 
@@ -523,7 +518,7 @@ export class Weaver {
     }
 
     const { annotations } = await busRequest(this.bus, 'browse:annotations-requested' satisfies WeaverAnnotationsReadAwaits, { resourceId: rid });
-    const graphAnnotations = await graphDb.getResourceAnnotations(rid);
+    const graphAnnotations = await this.graphDb.getResourceAnnotations(rid);
     const viewIds = new Set(annotations.map((a) => String(a.id)));
     const graphIds = new Set(graphAnnotations.map((a) => String(a.id)));
     if (viewIds.size !== graphIds.size) return 'annotation-set-mismatch';
@@ -532,7 +527,7 @@ export class Weaver {
     }
 
     // Content depth. Membership equality is blind to an annotation mutated in
-    // place, and comparing bodies alone (W9-deep) left every other stored
+    // place, and comparing bodies alone (W9-deep) leaves every other stored
     // property — creator, motivation, the selector, created — able to go wrong
     // unseen.
     //
@@ -574,7 +569,7 @@ export class Weaver {
       await this.flushCheckpoint();
       if (result.eventsFailed > 0) {
         // A rebuild that dropped events must FAIL, not claim success —
-        // silent under-materialization is the #845 failure mode.
+        // never a silently under-materialized graph.
         await this.bus.emit('weave:rebuild-failed', {
           message: `rebuild dropped ${result.eventsFailed} event(s) — the graph is incomplete; see weaver logs`,
         }, { correlationId });
@@ -593,10 +588,7 @@ export class Weaver {
    * Apply one event; returns true iff it landed cleanly. Failures are
    * logged AND counted, and callers must not advance the applied mark past
    * them — `lastProcessed`/checkpoint never skip an event that did not
-   * land (#845); catch-up re-replays from the last clean sequence.
-   *
-   * (The old pre-split `setTimeout(0)` politeness yield is gone — the
-   * Weaver owns its isolate now; there is no HTTP loop to starve.)
+   * land; catch-up re-replays from the last clean sequence.
    */
   private async safeApplyEvent(storedEvent: StoredEvent): Promise<boolean> {
     try {
@@ -613,10 +605,6 @@ export class Weaver {
       });
       return false;
     }
-  }
-
-  private ensureInitialized(): GraphDatabase {
-    return this.graphDb;
   }
 
   /**
@@ -661,8 +649,8 @@ export class Weaver {
     const runs = partitionByType(events);
 
     // A failed run blocks checkpoint advance for the REST of the batch:
-    // the applied mark must never skip past events that did not land
-    // (#845). Catch-up re-replays from the last clean sequence, and the
+    // the applied mark must never skip past events that did not land.
+    // Catch-up re-replays from the last clean sequence, and the
     // idempotent folds absorb the runs that did land.
     for (const run of runs) {
       // Re-gate per run (W3): earlier runs in THIS batch advance the mark,
@@ -691,7 +679,7 @@ export class Weaver {
       // Always note, with the run's MAX sequence — delivery order is not
       // sequence order under redelivery (a displaced duplicate can sit
       // last in the run and would otherwise pin the mark below the run's
-      // true high-water; W3 counterexample, 2026-07-13). The failed-floor
+      // true high-water; a W3 counterexample). The failed-floor
       // cap (W6) keeps a run containing failures from over-claiming.
       const noted = live[0];
       if (noted.resourceId) {
@@ -709,22 +697,18 @@ export class Weaver {
   }
 
   /**
-   * Batch-optimized processing for consecutive events of the same type.
-   * Uses batch graph methods where available, falls back to sequential.
-   */
-  /**
-   * Batch-optimized apply for a same-type run. Outcomes land in the
+   * Batch-optimized apply for a same-type run: batch graph methods where
+   * they exist, sequential applies otherwise. Outcomes land in the
    * failed-floor bookkeeping (`noteOutcome`); a thrown batch marks the
    * whole run failed in `processBatch`'s catch.
    */
   private async applyBatchByType(events: StoredEvent[]): Promise<void> {
-    const graphDb = this.ensureInitialized();
     const type = events[0].type;
 
     switch (type) {
       case 'yield:created': {
         const resources = events.map(e => this.buildResourceDescriptor(e));
-        await graphDb.batchCreateResources(resources);
+        await this.graphDb.batchCreateResources(resources);
         for (const e of events) this.noteOutcome(e, true);
         this.logger.info('Batch created resources in graph', { count: events.length });
         break;
@@ -743,10 +727,10 @@ export class Weaver {
         }
         const inputs: CreateAnnotationInternal[] = [];
         for (const [id, input] of byId) {
-          if (!(await graphDb.getAnnotation(id))) inputs.push(input);
+          if (!(await this.graphDb.getAnnotation(id))) inputs.push(input);
         }
         if (inputs.length > 0) {
-          await graphDb.createAnnotations(inputs);
+          await this.graphDb.createAnnotations(inputs);
         }
         for (const e of events) this.noteOutcome(e, true);
         this.logger.info('Batch created annotations in graph', {
@@ -765,13 +749,13 @@ export class Weaver {
   }
 
   /**
-   * Build a ResourceDescriptor from a resource.created event.
-   * Extracted for reuse by both applyEventToGraph and applyBatchByType.
+   * Build a ResourceDescriptor from a `yield:created` event.
+   * Shared by applyEventToGraph and applyBatchByType.
    */
   private buildResourceDescriptor(storedEvent: StoredEvent): ResourceDescriptor {
     const event = storedEvent;
     if (event.type !== 'yield:created') {
-      throw new Error('Expected resource.created event');
+      throw new Error('Expected a yield:created event');
     }
     if (!event.resourceId) {
       throw new Error('yield:created requires resourceId');
@@ -786,11 +770,11 @@ export class Weaver {
         mediaType: event.payload.format,
         checksum: event.payload.contentChecksum,
         rel: 'original',
-        // The URI lives on the REPRESENTATION (STORAGE-URI-ONE-HOME D1).
-        // `ResourceDescriptor` is `additionalProperties: true`, so writing it
-        // at the top level typechecks and then reads back as undefined
-        // through `getStorageUri` — which is how the graph projection silently
-        // lost all 57 of its URIs until the P2 live gate caught it.
+        // The URI lives on the REPRESENTATION, its one home: the descriptor
+        // has no such field. `ResourceDescriptor` is
+        // `additionalProperties: true`, so writing it at the top level
+        // typechecks and then reads back as undefined through `getStorageUri`
+        // — the graph projection would silently lose every URI.
         ...(event.payload.storageUri ? { storageUri: event.payload.storageUri } : {}),
       }],
       archived: false,
@@ -803,7 +787,6 @@ export class Weaver {
    * Apply a single event to GraphDB.
    */
   protected async applyEventToGraph(storedEvent: StoredEvent): Promise<void> {
-    const graphDb = this.ensureInitialized();
     const event = storedEvent;
 
     this.logger.debug('Applying event to GraphDB', {
@@ -815,40 +798,40 @@ export class Weaver {
       case 'yield:created': {
         const resource = this.buildResourceDescriptor(storedEvent);
         this.logger.debug('Creating resource in graph', { resourceUri: resource['@id'] });
-        await graphDb.createResource(resource);
+        await this.graphDb.createResource(resource);
         this.logger.info('Resource created in graph', { resourceUri: resource['@id'] });
         break;
       }
 
       case 'mark:archived':
         if (!event.resourceId) throw new Error('mark:archived requires resourceId');
-        await graphDb.updateResource(event.resourceId, {
+        await this.graphDb.updateResource(event.resourceId, {
           archived: true,
         });
         break;
 
       case 'mark:unarchived':
         if (!event.resourceId) throw new Error('mark:unarchived requires resourceId');
-        await graphDb.updateResource(event.resourceId, {
+        await this.graphDb.updateResource(event.resourceId, {
           archived: false,
         });
         break;
 
       case 'mark:added': {
-        this.logger.debug('Processing annotation.added event', {
+        this.logger.debug('Processing mark:added event', {
           annotationId: event.payload.annotation.id
         });
         // Idempotent fold: creation-by-id is not upsert on every gateway, so
         // a redelivered mark:added (at-least-once delivery) must be refused
         // here — the same guard shape as the entity-tag fold below.
         const annId = event.payload.annotation.id;
-        if (await graphDb.getAnnotation(annId)) {
+        if (await this.graphDb.getAnnotation(annId)) {
           this.logger.debug('Annotation already in graph — duplicate delivery skipped', {
             annotationId: String(annId)
           });
           break;
         }
-        await graphDb.createAnnotation({
+        await this.graphDb.createAnnotation({
           ...event.payload.annotation,
           creator: didToAgent(event.userId),
         });
@@ -859,18 +842,18 @@ export class Weaver {
       }
 
       case 'mark:removed':
-        await graphDb.deleteAnnotation(event.payload.annotationId);
+        await this.graphDb.deleteAnnotation(event.payload.annotationId);
         break;
 
       case 'mark:body-updated':
-        this.logger.debug('Processing annotation.body.updated event', {
+        this.logger.debug('Processing mark:body-updated event', {
           annotationId: event.payload.annotationId,
           payload: event.payload
         });
         try {
           const annId = event.payload.annotationId;
 
-          const currentAnnotation = await graphDb.getAnnotation(annId);
+          const currentAnnotation = await this.graphDb.getAnnotation(annId);
 
           if (currentAnnotation) {
             let bodyArray = Array.isArray(currentAnnotation.body)
@@ -898,7 +881,7 @@ export class Weaver {
               }
             }
 
-            await graphDb.updateAnnotation(annId, {
+            await this.graphDb.updateAnnotation(annId, {
               body: bodyArray,
             } as Partial<Annotation>);
 
@@ -907,7 +890,7 @@ export class Weaver {
             this.logger.warn('Annotation not found in graph, skipping update');
           }
         } catch (error) {
-          this.logger.error('Error in annotation.body.updated handler', {
+          this.logger.error('Error in mark:body-updated handler', {
             annotationId: event.payload.annotationId,
             error: errField(error),
           });
@@ -918,13 +901,13 @@ export class Weaver {
         if (!event.resourceId) throw new Error('mark:entity-tag-added requires resourceId');
         {
           const rid = event.resourceId;
-          const doc = await graphDb.getResource(rid);
+          const doc = await this.graphDb.getResource(rid);
           // Idempotent fold, mirroring the view materializer's includes-guard:
           // duplicate -added events (stale caller diff base; historical
           // duplicates on rebuild) must not duplicate the tag — the graph and
           // the view are projections of one history and must agree.
           if (doc && !(doc.entityTypes || []).includes(event.payload.entityType)) {
-            await graphDb.updateResource(rid, {
+            await this.graphDb.updateResource(rid, {
               entityTypes: [...(doc.entityTypes || []), event.payload.entityType],
             });
           }
@@ -935,9 +918,9 @@ export class Weaver {
         if (!event.resourceId) throw new Error('mark:entity-tag-removed requires resourceId');
         {
           const rid = event.resourceId;
-          const doc = await graphDb.getResource(rid);
+          const doc = await this.graphDb.getResource(rid);
           if (doc) {
-            await graphDb.updateResource(rid, {
+            await this.graphDb.updateResource(rid, {
               entityTypes: (doc.entityTypes || []).filter(t => t !== event.payload.entityType),
             });
           }
@@ -945,7 +928,7 @@ export class Weaver {
         break;
 
       case 'frame:entity-type-added':
-        await graphDb.addEntityType(event.payload.entityType);
+        await this.graphDb.addEntityType(event.payload.entityType);
         break;
 
       default:
@@ -955,14 +938,14 @@ export class Weaver {
 
   /**
    * Rebuild entire resource from events.
-   * Bypasses the live pipeline — reads directly from event store.
+   * Bypasses the live pipeline — reads the resource's events over the bus
+   * (`browse:events-requested`) and applies them directly.
    */
   async rebuildResource(resourceId: ResourceId): Promise<{ eventCount: number; eventsApplied: number; eventsFailed: number }> {
-    const graphDb = this.ensureInitialized();
     this.logger.info('Rebuilding resource from events', { resourceId });
 
     try {
-      await graphDb.deleteResource(resourceId);
+      await this.graphDb.deleteResource(resourceId);
     } catch (error) {
       this.logger.debug('No existing resource to delete', { resourceId });
     }
@@ -977,7 +960,7 @@ export class Weaver {
     if (events.length > 0 && eventsFailed === 0) {
       // Advance the applied mark through noteApplied so the checkpoint and
       // the whenApplied barrier both see rebuild progress — but only for a
-      // CLEAN rebuild: a mark past dropped events would hide them (#845).
+      // CLEAN rebuild: a mark past dropped events would hide them.
       this.noteApplied(resourceId, Math.max(...events.map((e) => e.metadata.sequenceNumber)));
     }
     if (eventsFailed > 0) {
@@ -993,10 +976,10 @@ export class Weaver {
   /**
    * Rebuild entire GraphDB from all events.
    * Uses two-pass approach to ensure all resources exist before creating REFERENCES edges.
-   * Bypasses the live pipeline — reads directly from event store.
+   * Bypasses the live pipeline — discovers resources and reads their events
+   * over the bus (`browse:resources-requested`, `browse:events-requested`).
    */
   async rebuildAll(): Promise<{ resources: number; eventsApplied: number; eventsFailed: number }> {
-    const graphDb = this.ensureInitialized();
     this.logger.info('Rebuilding entire GraphDB from events');
     this.logger.info('Using two-pass approach: nodes first, then edges');
 
@@ -1008,12 +991,12 @@ export class Weaver {
     // here: no weaver-readable stream exists to rebuild frames from, and the
     // live registry is itself log-derived (folded from the bus as the events
     // arrived).
-    const entityTypes = await graphDb.getEntityTypes();
+    const entityTypes = await this.graphDb.getEntityTypes();
 
-    await graphDb.clearDatabase();
+    await this.graphDb.clearDatabase();
 
     if (entityTypes.length > 0) {
-      await graphDb.addEntityTypes(entityTypes);
+      await this.graphDb.addEntityTypes(entityTypes);
       this.logger.info('Re-registered frame vocabulary across the wipe', { count: entityTypes.length });
     }
 
@@ -1025,7 +1008,7 @@ export class Weaver {
 
     this.logger.info('Found resources to rebuild', { count: allResourceIds.length });
 
-    // Per-resource completeness ledger (#845): the applied mark advances
+    // Per-resource completeness ledger: the applied mark advances
     // only for resources whose BOTH passes were clean.
     const ledger = new Map<ResourceId, { maxSeq: number; attempted: number; failed: number }>();
 
@@ -1086,14 +1069,12 @@ export class Weaver {
     return { resources: allResourceIds.length, eventsApplied, eventsFailed };
   }
 
-  /**
-   * Get consumer health metrics.
-   */
   /** Highest applied sequence for a resource, if any — diagnostics/tests. */
   appliedUpTo(resourceId: string): number | undefined {
     return this.lastProcessed.get(resourceId);
   }
 
+  /** Pipeline health, spread into `weaver-main`'s `/health` response. */
   getHealthMetrics(): {
     subscriptions: number;
     resourcesTracked: number;
@@ -1101,26 +1082,18 @@ export class Weaver {
     applyFailures: number;
   } {
     return {
-      // One injected source stream since WEAVER-ISOLATION P2 — channel
-      // fan-in (9 channels) lives in weaverFanIn.
+      // One injected source stream — channel fan-in (9 channels) lives in
+      // weaverFanIn.
       subscriptions: this.sourceSubscription ? 1 : 0,
       // A count, deliberately not the map: serializing every per-resource
-      // sequence made /health an O(resources) payload (#845 scalability).
+      // sequence would make /health an O(resources) payload.
       // Per-resource marks are `appliedUpTo()`.
       resourcesTracked: this.lastProcessed.size,
       pipelineActive: !!this.pipelineSubscription,
       // Running count of applies that failed and were therefore NOT
-      // checkpointed (#845) — nonzero means the graph is missing events
+      // checkpointed — nonzero means the graph is missing events
       // the live pipeline witnessed failing.
       applyFailures: this._applyFailures,
     };
-  }
-
-  /**
-   * Shutdown consumer.
-   */
-  async shutdown(): Promise<void> {
-    await this.stop();
-    this.logger.info('Weaver shut down');
   }
 }

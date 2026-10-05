@@ -1,7 +1,6 @@
 package launcher
 
-// executor.go — the two walking modes for launch flows (see
-// .plans/LAUNCHER-ROLE-EXECUTOR.md). Flows (flows.go) touch the world only
+// executor.go — the two walking modes for launch flows. Flows (flows.go) touch the world only
 // through this interface; liveExec runs the stack, planExec renders
 // --dry-run. EFFECT methods are the drift-proof boundary: argv, ports, URLs,
 // tries, and record contents exist once, in the flow. DECORATION methods are
@@ -78,7 +77,7 @@ type keeper interface {
 	jwtSecret(root string) (string, bool)                // gateway token-signing key: env, else persisted per-root, else generated
 	identityAdminPassword(root string) (string, bool)    // Keycloak's bootstrap admin password: same three sources
 	serviceClientSecret(root, svc string) (string, bool) // one service's account credential, per root
-	daemonPassword(root, role string) (string, bool)     // a launcher-run daemon's password, per root (SECRET-DELIVERY P4)
+	daemonPassword(root, role string) (string, bool)     // a launcher-run daemon's password, generated and kept per root
 }
 
 // admitter: proves the issuer will admit the services, and the people, BEFORE anything holds a
@@ -94,7 +93,7 @@ type admitter interface {
 type storer interface {
 	stateMounts(role, image, root string) ([]string, bool) // persistent-state run args; !ok = refuse (data written by another image)
 	stateMountsShared(role, root string) ([]string, bool)  // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
-	resolveStoreStamps(fc flowCtx) bool                    // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
+	resolveStoreStamps(fc flowCtx) bool                    // preflight: every store's mismatch refuse/clear, before the first container run
 	createDatabase(user, name string) bool                 // a database on the launcher-run PostgreSQL, if absent
 	ollamaVolume(opts startOptions) string                 // model-cache choice (prompt is live-only)
 }
@@ -173,12 +172,11 @@ type liveExec struct {
 // or stopped, because a stopped container still holds its name and the next
 // `run --name` fails on it.
 //
-// ONE list per runtime, cached for the life of the command. The teardown used
-// to ask by firing `stop` then `rm` at all nine names blindly, on every
-// installed runtime: 54 fork/execs to discover, usually, that nothing was
-// there. It also inferred "did anything exist?" from the exit codes of commands
-// it EXPECTED to fail, which is why the settle below then slept a second on a
-// maybe. Asking once is both faster and a straight answer.
+// ONE list per runtime, cached for the life of the command. Firing `stop`
+// then `rm` at every name blindly, on every installed runtime, costs dozens of
+// fork/execs to discover, usually, that nothing is there, and infers "did
+// anything exist?" from the exit codes of commands EXPECTED to fail. Asking
+// once is both faster and a straight answer.
 func (x *liveExec) present(rt string) map[string]bool {
 	if x.existing == nil {
 		x.existing = map[string]map[string]bool{}
@@ -206,8 +204,8 @@ func (x *liveExec) present(rt string) map[string]bool {
 	}
 	// A runtime that cannot be listed yields an empty set, and every later
 	// stop/rm is skipped. That is the honest failure: unknown is not "present",
-	// and firing teardown at a runtime that would not answer a list is how the
-	// old code spent 18 spawns learning nothing.
+	// and firing teardown at a runtime that would not answer a list spends
+	// its spawns learning nothing.
 	x.existing[rt] = names
 	return names
 }
@@ -266,8 +264,8 @@ func (x *liveExec) portCheck(p portNeed) bool {
 }
 
 // hostOllamaReachable: a host Ollama is serving — confirm containers can
-// reach it, else print the Ollama-Desktop diagnostics and fail (measured:
-// Docker Desktop's bridge gateway does not reach the Mac host).
+// reach it, else print the Ollama-Desktop diagnostics and fail (Docker
+// Desktop's bridge gateway does not reach the Mac host).
 func (x *liveExec) hostOllamaReachable(addr string, port int) bool {
 	if runSilent(x.rt, "run", "--rm", "busybox:1.38.0", "sh", "-c",
 		fmt.Sprintf("wget -q -O- http://%s:%d/api/version", addr, port)) == nil {
@@ -355,16 +353,17 @@ func (x *liveExec) stageDir() (string, bool) {
 
 // archivistDialers: the services that resolve the Archivist's address from
 // their staged config copy, and so must be handed it. The Smelter, the
-// Librarian and the Worker read bytes from it directly (SINGLE-KB-MOUNT P4);
-// all three refuse to boot without it. The gateway is absent because its
-// configuration document carries the address (gatewaydoc.go); the Archivist,
-// because it IS the record, and holds the mount.
+// Librarian and the Worker read bytes from it directly, over HTTP and not
+// through the gateway; all three refuse to boot without it. The gateway is
+// absent because its configuration document carries the address
+// (gatewaydoc.go); the Archivist, because it IS the record, and holds the
+// mount.
 var archivistDialers = map[string]bool{"smelter": true, "librarian": true, "worker": true}
 
 // kbIdentityStaged: the services that describe a KB tree they do not mount,
-// and so must be handed its committed identity rather than reading it
-// (SINGLE-KB-MOUNT P5/P6). The gateway's document carries it; the Archivist
-// HOLDS the tree; the Smelter and Worker never name the KB.
+// and so must be handed its committed identity rather than reading it. The
+// gateway's document carries it; the Archivist HOLDS the tree; the Smelter
+// and Worker never name the KB.
 var kbIdentityStaged = map[string]bool{"librarian": true}
 
 // gatewayDocumentFile: the gateway is configured by a document, not a copy
@@ -556,9 +555,9 @@ func (x *liveExec) gatewayReachable(addr string, port int) bool {
 
 // hostProbeBudget bounds the wait for a runtime whose daemon answers but which
 // cannot run a container yet — docker-in-docker seconds after dockerd starts,
-// which is exactly when a codespace's post-start runs on resume (live
-// 2026-09-29: eight seconds was not enough). A daemon that does not answer at
-// all is not waited for; that is daemonDownFixit's case.
+// which is exactly when a codespace's post-start runs on resume (eight
+// seconds is not enough). A daemon that does not answer at all is not waited
+// for; that is daemonDownFixit's case.
 const hostProbeBudget = 30 * time.Second
 
 func (x *liveExec) resolveAddr() (string, bool) {
@@ -631,12 +630,11 @@ func (x *liveExec) otelDetect(addr string) []string {
 }
 
 // jwtSecret is per-root and persisted, so a --service gateway restart resolves
-// the SAME value a full start did. Every credential the launcher hands out now
-// works this way; the inspect-based recovery that once read a never-persisted
-// shared secret out of a running container is gone with the secret itself.
+// the SAME value a full start did. Every credential the launcher hands out
+// works this way.
 //
 // root is PASSED rather than read off x, which is only populated on the
-// --service path. Today x.root would still resolve correctly on a full start —
+// --service path. x.root would resolve correctly on a full start anyway —
 // start Chdir()s into the root after applying the --root > SEMIONT_ROOT > cwd
 // precedence, so an empty root falls back to cwd and lands in the same place.
 // This does not lean on that: the flow already holds the resolved root, and
@@ -689,11 +687,11 @@ func (x *liveExec) stageRealm(realm string, doc []byte) (string, bool) {
 // absent — idempotent by construction (psql's \gexec runs the CREATE only when
 // the WHERE finds nothing), so a second start is a no-op.
 //
-// Still retried, though waitPGAccepting now gates it: a session can be cut off
+// Retried even though waitPGAccepting gates it: a session can be cut off
 // mid-statement by the end of initdb ("terminating connection due to
 // administrator command"), and a retry costs a second. The attempt's output is
-// CAPTURED — printing the stderr of a failure the loop expects to absorb is
-// how a recovered start came to look like a broken one.
+// CAPTURED — printing the stderr of a failure the loop expects to absorb
+// makes a recovered start look like a broken one.
 func (x *liveExec) createDatabase(user, name string) bool {
 	sql := fmt.Sprintf("SELECT 'CREATE DATABASE %s' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '%s')\\gexec\n", name, name)
 	args := []string{"exec", "-i", descriptorFor("database", "postgres").container, "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
@@ -767,7 +765,7 @@ func (x *liveExec) noteContainer(role, container string) {
 
 // verifyRemoteModels records what /v1/models says about the configured
 // models — and says out loud when one is NOT listed for this key (withdrawn,
-// or a typo'd id): the remote analog of a MISSING ollama model, and today's
+// or a typo'd id): the remote analog of a MISSING ollama model, and the
 // only warning before a job fails on it.
 func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
 	if key == "" || x.st == nil {
@@ -868,11 +866,9 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 		fmt.Fprintln(os.Stderr, "  A realm is imported on its FIRST boot and never again, so a realm created")
 		fmt.Fprintln(os.Stderr, "  before these clients existed does not have them.")
 		fmt.Fprintln(os.Stderr, "")
-		// The repair, named rather than described (IDENTITY-PREFLIGHT P3) —
-		// but named as the COMMANDS TO RUN, in order, with the follow-up.
-		// `semiont identity sync` already ends by telling the operator to
-		// start again; the half that DETECTS the problem used to stop at
-		// naming a verb and leave the sequence to be inferred.
+		// The repair, named rather than described — but named as the
+		// COMMANDS TO RUN, in order, with the follow-up: naming a verb
+		// alone leaves the sequence to be inferred.
 		if managed {
 			fmt.Fprintf(os.Stderr, "  Fix it:  %s\n", x.u.Bold("semiont identity sync"))
 			fmt.Fprintf(os.Stderr, "           %s\n", x.u.Dim("Adds the missing clients and reconciles an existing one's roles mapper. Touches no accounts."))
@@ -943,10 +939,9 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 }
 
 // dumpLogs prints the tail of a just-launched container's own logs when its
-// health gate fails. The crash cause is usually sitting right there — a
-// friction log (2026-07-20) spent most of a day on an errno -35 event-log
-// read failure that was in `logs` for the whole 120s wait, while the
-// launcher said only "did not become ready".
+// health gate fails. The crash cause is usually sitting right there, in
+// `logs` for the whole wait, while the launcher says only "did not become
+// ready".
 func (x *liveExec) dumpLogs(container, svc string) {
 	out, _ := captureBoth(x.rt, "logs", container)
 	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
@@ -1026,7 +1021,7 @@ func (x *liveExec) ensureModels(base string, models []modelNeed) {
 // image: refuse for the system of record (database — user rows), clear
 // CONTENTS for projections (rebuildable from the log). Never unlinks the
 // store dir: an attached share survives a contents-clear and is orphaned
-// forever by delete-and-recreate (measured 2026-09-07).
+// forever by delete-and-recreate.
 func (x *liveExec) resolveStoreStamp(role, image, root string) bool {
 	spec := stateStores[role]
 	dir := stateRootDir(root)
@@ -1049,11 +1044,11 @@ func (x *liveExec) resolveStoreStamp(role, image, root string) bool {
 			return false
 		}
 	}
-	// Restamp NOW, not at the owner's prep: the old image's output is gone,
-	// and a resolution that leaves the old stamp re-fires at the owner's own
+	// Restamp here, not at the owner's prep: the stamped image's output is
+	// gone, and a resolution that leaves its stamp re-fires at the owner's own
 	// stateMounts — clearing whatever an earlier-booting sharer wrote into
-	// the store in between (the P5 live gate caught exactly this: the
-	// gateway's fresh jobs tree, cleared at archivist prep).
+	// the store in between (the gateway's fresh jobs tree, cleared at
+	// archivist prep).
 	meta.Stores[role] = storeMeta{Image: image}
 	saveRootMeta(dir, meta)
 	return true
@@ -1062,7 +1057,7 @@ func (x *liveExec) resolveStoreStamp(role, image, root string) bool {
 // resolveStoreStamps runs every store's stamp resolution in PREFLIGHT. The
 // state store is shared — the gateway and librarian attach what the
 // archivist stamps — so a clear at the owner's own prep lands mid-boot,
-// after sharers attached (SHARED-STORE-CLEAR-PREFLIGHT).
+// after sharers attached.
 func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
 	for _, role := range slices.Sorted(maps.Keys(stateStores)) {
 		spec := stateStores[role]
@@ -1083,9 +1078,9 @@ func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
 }
 
 // stateMounts prepares a role's persistent state dir and returns the run
-// args that mount it (LAUNCHER-STATE.md). The image-mismatch split lives
-// in resolveStoreStamp: database data is user rows — refuse, fix-it names
-// the clean command; projections (vectors/graph) auto-clean and rebuild.
+// args that mount it. The image-mismatch split lives in resolveStoreStamp:
+// database data is user rows — refuse, fix-it names the clean command;
+// projections (vectors/graph) auto-clean and rebuild.
 func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 	args := stateMountArgs(role, root)
 	if len(args) == 0 {
@@ -1112,7 +1107,10 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 // stateMountsShared: a role's state mounts for a container that is NOT the
 // stamp's owner. The SMELTER owns the anchored-text stamp (it mounts via
 // stateMounts with the smelter image and clears on image change); the
-// Archivist mounts the same store as a peer, read-only.
+// Archivist mounts the same store through here and only reads it. The
+// ARCHIVIST owns the state tree's stamp; the gateway and the Librarian mount
+// that one through here. The bind is the same either way (stateMountArgs
+// emits no `:ro`): what a sharer leaves alone is the stamp.
 //
 // Running the stamped path here with a second image would flip the stamp on
 // every start and — anchored-text being a projection — CLEAR the store each
@@ -1120,13 +1118,7 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 // the stamped path per store.
 //
 // The stamp follows the WRITER, which is what makes an image-change clear
-// correct: the stamp names the code whose output the store holds. It moved
-// from the gateway to the Smelter in ANCHORED-TEXT-TO-SMELTER P5, once P4
-// had removed the gateway's anchored-text faces.
-//
-// Two earlier versions of this comment predicted the wrong trigger — first
-// "the Archivist cutover", then EXTRACT-LIBRARIAN's. Neither happened; that
-// plan retired the flip entirely (the Gatherer reads no anchored text).
+// correct: the stamp names the code whose output the store holds.
 func (x *liveExec) stateMountsShared(role, root string) ([]string, bool) {
 	args := stateMountArgs(role, root)
 	if len(args) == 0 {
@@ -1373,17 +1365,14 @@ func (x *planExec) daemonPassword(_, role string) (string, bool) {
 	return "<" + daemonPasswords[role].custody + ">", true
 }
 
-// The clients are read OUT OF the document rather than described alongside it.
-// The sentence that stood here listed the realm, the Browser's public client
-// and the audience mapper — written when that was all there was, and still
-// saying so after six service accounts joined. A restatement of someone else's
-// shape drifts the moment that shape grows; this cannot, because adding a
-// client to keycloakRealmJSON adds it here too.
 func (x *planExec) stageNatsConf(_ []byte) (string, bool) {
 	x.c("stage the broker's authorization block (no credential in it — the daemon interpolates $NATS_USER/$NATS_PASSWORD from its own environment)")
 	return "<stage>/nats-semiont.conf", true
 }
 
+// The clients are read OUT OF the document rather than described alongside it.
+// A restatement of someone else's shape drifts the moment that shape grows;
+// this cannot, because adding a client to keycloakRealmJSON adds it here too.
 func (x *planExec) stageRealm(realm string, doc []byte) (string, bool) {
 	var parsed struct {
 		Clients []struct {

@@ -1,19 +1,8 @@
 /* ============================================
-   Badges Component
-   Global reusable badge elements
+   Badges
+
+   Holds a `pulse` keyframes rule only; there are no badge classes.
    ============================================ */
-
-/* Privilege Badges */
-
-/* Info Badge */
-
-/* Badge Sizes */
-
-/* Outlined Badge Variant */
-
-/* Status Indicators (dots) */
-
-/* Pulsing animation for active indicators */
 
 @keyframes pulse {
   0% {

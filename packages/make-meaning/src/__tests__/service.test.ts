@@ -77,9 +77,9 @@ describe('Make-Meaning Service', () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
-  describe('mandatory vector pair (MANDATORY-EMBEDDING P3, D1 explicit opt-in)', () => {
+  describe('mandatory vector pair', () => {
     it('a config naming type: memory constructs a WORKING in-memory store, with the rebuild-on-restart breadcrumb', async () => {
-      // D1: `memory` is a first-class explicit choice, never a fallback —
+      // `memory` is a first-class explicit choice, never a fallback —
       // and its cost (the index rebuilds from the event log on every
       // restart) is announced at startup per the L4 discipline, so whoever
       // wrote the config sees what they chose.
@@ -101,11 +101,11 @@ describe('Make-Meaning Service', () => {
 
   describe('config refusals at startup', () => {
     it('rejects a config naming no graph service', async () => {
-      // The other two service sections are required by the schema (P1 of
-      // MANDATORY-EMBEDDING), so the TOML loader turns those away before
-      // startup. `graph` is not, which is why this check is the one that has
-      // to live here — and why it must fail loudly rather than boot a service
-      // whose graph reads all throw on first use.
+      // The other two service sections are required by the schema, so the
+      // TOML loader turns those away before startup. `graph` is not, which is
+      // why this check is the one that has to live here — and why it must fail
+      // loudly rather than boot a service whose graph reads all throw on first
+      // use.
       const badConfig = { ...config, services: { ...config.services, graph: undefined } } as MakeMeaningConfig;
       await expect(startMakeMeaning(project, badConfig, eventBus, mockLogger)).rejects.toThrow(
         /services\.graph is required/,
@@ -113,7 +113,7 @@ describe('Make-Meaning Service', () => {
     });
   });
 
-  describe('A4 nesting assertion (gather barrier budgets vs the worker stall watchdog)', () => {
+  describe('nesting assertion (gather barrier budgets vs the worker stall watchdog)', () => {
     it('rejects a settle bound that cannot degrade before the stall watchdog fails fast', async () => {
       const { STALL_THRESHOLD_MS } = await import('@semiont/jobs');
       const badConfig: MakeMeaningConfig = {
@@ -163,7 +163,7 @@ describe('Make-Meaning Service', () => {
       expect(typeof kb.graph.disconnect).toBe('function');
     });
 
-    it('should initialize WeaveProgress but no in-process Weaver (D4: standalone-only)', async () => {
+    it('should initialize WeaveProgress but no in-process Weaver (standalone-only)', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
       const { kb } = service.knowledgeSystem;
 
@@ -205,6 +205,19 @@ describe('Make-Meaning Service', () => {
       const { kb } = service.knowledgeSystem;
 
       const disposeSpy = vi.spyOn(kb.weaveProgress, 'dispose');
+
+      await service.stop();
+
+      expect(disposeSpy).toHaveBeenCalled();
+
+      service = null;
+    });
+
+    it('should dispose SmeltProgress on service stop', async () => {
+      service = await startMakeMeaning(project, config, eventBus, mockLogger);
+      const { kb } = service.knowledgeSystem;
+
+      const disposeSpy = vi.spyOn(kb.smeltProgress, 'dispose');
 
       await service.stop();
 
@@ -267,12 +280,10 @@ describe('Make-Meaning Service', () => {
   });
 });
 
-// The 2026-07-20 startup-hang fix bounded the three dependency connects and
-// announced each one. The helper is core's `withDeadline`, unit-tested there;
-// THIS exercises the call sites — hermetically:
-// a memory vector store connects in-process, and the embedding provider's
-// only startup network call (the dimension-discovery probe) is served by a
-// stubbed fetch.
+// The three dependency connects are each bounded and announced. The helper is
+// core's `withDeadline`, unit-tested there; THIS exercises the call sites —
+// hermetically: a memory vector store connects in-process, and a stubbed
+// fetch stands where the embedding provider would answer.
 describe('startup dependency connects', () => {
   const mockLogger: Logger = {
     debug: vi.fn(),
@@ -313,8 +324,7 @@ describe('startup dependency connects', () => {
     const service = await startMakeMeaning(project, config, eventBus, mockLogger);
     try {
       // Each connect is announced BEFORE it is attempted — when one hangs,
-      // the last log line names the culprit (the property the live
-      // investigation lacked).
+      // the last log line names the culprit.
       const infos = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
       expect(infos).toContain('Connecting to graph database');
       expect(infos).toContain('Connecting to embedding provider');
@@ -324,9 +334,9 @@ describe('startup dependency connects', () => {
       // Startup makes NO call to the embedding provider. Dimensionality is a
       // provider-derived fact, so it follows the inference rule — discovered
       // at the point of use, not as a precondition of booting — and a memory
-      // store needs no dimensionality at all. Eagerly probing here is what
-      // made an unreachable provider fatal at startup: CI (postgres only,
-      // no Ollama) could not boot the gateway even with a `memory` store.
+      // store needs no dimensionality at all. An eager probe here would make
+      // an unreachable provider fatal at startup: an environment with no
+      // Ollama could not boot the gateway even with a `memory` store.
       expect(providerFetch).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();

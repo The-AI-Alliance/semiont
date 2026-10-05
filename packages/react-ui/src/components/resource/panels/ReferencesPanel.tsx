@@ -64,7 +64,6 @@ interface Props {
    * The entity-type list failed to load. Without it the picker's empty branch
    * asserts "no entity types available" — a claim about the knowledge base
    * that a failed load cannot support.
-   * See .plans/PANEL-FAILURE-STATES.md
    */
   entityTypesError?: Error | null;
   generatingReferenceId?: string | null;
@@ -74,7 +73,6 @@ interface Props {
    * The incoming-references load failed terminally (B15). Distinct from
    * `referencedByLoading` — without it a dead request is indistinguishable
    * from one still in flight, and the panel says "Loading..." forever.
-   * See .plans/PANEL-FAILURE-STATES.md
    */
   referencedByError?: Error | null;
   /** Retry the failed incoming-references load. */
@@ -83,7 +81,7 @@ interface Props {
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
   hoveredAnnotationId?: string | null;
-  /** Annotations currently sparkling (recently created or resolved) — entries in the set glow their icon (RESOLUTION-SPARKLE D6). */
+  /** Annotations currently sparkling (recently created or resolved) — entries in the set glow their icon. */
   sparkleAnnotationIds?: Set<string>;
 
   /** User UI locale — stamped on the unresolved-reference body's `language` field. */
@@ -136,7 +134,7 @@ export function ReferencesPanel({
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Direct ref management - replace useAnnotationPanel hook
+  // Direct ref management
   const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Sort annotations by their position in the resource
@@ -218,7 +216,7 @@ export function ReferencesPanel({
   }, [hoveredAnnotationId]);
 
   // Subscribe to click events - update focused state
-  // Event handler for annotation clicks (extracted to avoid inline arrow function)
+  // Event handler for annotation clicks (a named callback rather than an inline arrow function)
   const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
     setFocusedAnnotationId(annotationId);
     setTimeout(() => setFocusedAnnotationId(null), 3000);
@@ -381,7 +379,7 @@ export function ReferencesPanel({
               onDismiss: () => session?.client.mark.dismissProgress(),
               translations: assistProgressTranslations(ta, {
                 found: (count: number) => t('found', { count }),
-                // RD5: rendered only when the wire prices a denominator.
+                // Rendered only when the wire prices a denominator.
                 tally: (found: number, expected: number) => t('tally', { found, expected }),
               }),
             }}

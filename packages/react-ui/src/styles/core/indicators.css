@@ -1,22 +1,8 @@
 /* ============================================
-   Status Indicators - Core UI Element
+   Indicators
 
-   This is the authoritative source for all status indicator styles.
-   Usage: Apply .semiont-indicator with appropriate modifier.
-
-   Available modifiers:
-   - .semiont-indicator--online (green)
-   - .semiont-indicator--offline (gray)
-   - .semiont-indicator--busy (orange)
-   - .semiont-indicator--error (red)
-   - .semiont-indicator--pulse (animated)
+   The `pulse` keyframes and the session timer's text.
    ============================================ */
-
-/* Base Status Indicator (dot) */
-
-/* Status Variants */
-
-/* Pulse Animation */
 
 @keyframes pulse {
   0% {
@@ -29,35 +15,6 @@
     opacity: 1;
   }
 }
-
-@keyframes pulse-ring {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.5);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 0;
-  }
-}
-
-/* Size Variants */
-
-/* Indicator with Label */
-
-/* Indicator Badge (dot with count) */
-
-/* Connection Status Bar */
-
-/* Accessibility - Reduced Motion */
-
-/* Accessibility - Screen Reader Text */
-
-/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
 
 /* Time left in the session, shown before it is urgent — the banner takes
    over once it is. */

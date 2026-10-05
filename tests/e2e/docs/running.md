@@ -69,8 +69,7 @@ container run --rm \
 > file:line in seconds. `npm test` also excludes `@slow`; see below.
 >
 > **Derive the image tag, never hardcode it.** It must match the installed
-> library exactly. This page previously pinned `v1.61.0-noble` while the
-> lockfile carried 1.62.0.
+> library exactly.
 
 **Run one spec:** append the spec path as the last argument:
 

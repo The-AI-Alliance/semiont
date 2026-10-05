@@ -5,8 +5,7 @@
  * so reading it means getting that image out. We do NOT rasterize: pdf.js
  * decodes the embedded image in its worker (pure JS — JPEG, CCITT and JBIG2
  * decoders all live there) and hands back raw pixel planes, which means no
- * canvas gateway and no native dependency. Measured, not assumed — see
- * `.plans/SMELTER-MEDIA-TYPES.md` Resolved decision 10.
+ * canvas gateway and no native dependency. Measured, not assumed.
  *
  * Two consequences of extracting rather than rendering: we get the scan's own
  * resolution rather than choosing a render DPI (for a real scan that IS the
@@ -42,18 +41,17 @@ const IDENTITY: readonly number[] = [1, 0, 0, 1, 0, 0];
  *   ≈ 10 bytes/px transient peak for a single image
  *
  * So the budget below implies roughly half a gigabyte of transient peak for
- * one pathological page — the number to size a worker against. Stating three
- * bytes per pixel here (as an earlier revision did) understated it by ~3× and
- * gave a false sense of safety.
+ * one pathological page — the number to size a worker against. Three bytes
+ * per pixel, the decoded raster alone, understates it by ~3×.
  *
  * Chosen to admit the legitimate large cases with headroom: US Letter at
  * 600dpi is ~34 MP and A0 at 300dpi is ~35 MP, against an ordinary US Letter
  * at 300dpi of ~8 MP.
  *
  * A starting point, not a measured optimum: revisit against a real scanned
- * corpus (SMELTER-MEDIA-TYPES, live-testing follow-up). Lowering the peak
- * itself means removing copies from the chain — passing the decoded samples
- * straight to the encoder — which is a refactor, not a smaller constant.
+ * corpus. Lowering the peak itself means removing copies from the chain —
+ * passing the decoded samples straight to the encoder — which is a refactor,
+ * not a smaller constant.
  */
 export const MAX_IMAGE_PIXELS = 48_000_000;
 
@@ -126,9 +124,9 @@ export function findPlacedImages(fnArray: number[], argsArray: unknown[][]): Pla
  * `/FlateDecode` images arrive as a `Uint8Array`; `/DCTDecode` (JPEG) — what
  * essentially every real scanned PDF uses — arrives as a `Uint8ClampedArray`,
  * which is NOT an instance of `Uint8Array`. Testing only for the latter
- * discarded every real scan while accepting every fixture in this repo, all
- * of which are Flate. Both index bytes identically, so both are read; the
- * clamped view is re-wrapped without copying its 12 MB buffer.
+ * discards every real scan while accepting every Flate-coded image. Both
+ * index bytes identically, so both are read; the clamped view is re-wrapped
+ * without copying its 12 MB buffer.
  */
 function asBytes(data: unknown): Uint8Array | null {
     if (data instanceof Uint8Array) return data;

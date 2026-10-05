@@ -9,7 +9,6 @@ vi.mock('@/contexts/KeyboardShortcutsContext', () => ({
 }));
 
 // Mock @semiont/react-ui components — only what root Providers actually renders.
-// Root Providers no longer mounts the merged KB session provider; that's in AuthShell.
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
   return {
@@ -54,8 +53,8 @@ describe('Providers', () => {
       </Providers>
     );
 
-    // After the AuthShell extraction, root Providers no longer mounts AuthProvider.
-    // Auth-dependent providers are mounted in protected layouts via AuthShell.
+    // Root Providers mounts only auth-independent providers: auth-dependent
+    // UI is mounted in protected layouts via AuthShell.
     expect(screen.getByTestId('test-child')).toBeInTheDocument();
   });
 
@@ -74,8 +73,6 @@ describe('Providers', () => {
     const child = screen.getByTestId('nested-child');
 
     // Verify root provider hierarchy renders children.
-    // AuthProvider is no longer in root Providers — it's mounted in AuthShell
-    // inside protected layouts.
     expect(child).toBeInTheDocument();
   });
 });

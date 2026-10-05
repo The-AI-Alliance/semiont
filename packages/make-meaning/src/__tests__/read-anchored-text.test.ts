@@ -4,15 +4,6 @@
  * The Smelter derives a coordinate map at ingest; detection jobs and the
  * browser read it. This file pins how a READER resolves one — in particular
  * that it can never receive geometry for bytes the resource no longer has.
- *
- * These tests used to reach their subjects through four `IContentTransport`
- * methods (`putAnchoredText`, `getAnchoredText`, …). Those were one-line
- * wrappers, and SMELTER-OWNS-OCR P0 deleted them: anchored text moved onto bus
- * channels (ANCHORED-TEXT-TO-SMELTER P3/P4), so the transport-layer twins had
- * no callers and, on the HTTP side, no route behind them. The wrappers are
- * gone; the invariants they happened to cover are these, now asserted against
- * `readAnchoredText` and `kb.anchoredText` themselves — which is what they
- * were always about.
  */
 
 import { asBusRequestPrimitive } from '../bus-request-local';
@@ -118,17 +109,17 @@ describe('readAnchoredText + the anchored-text store', () => {
   });
 
   it('round-trips a map written by the producer and read by a consumer', async () => {
-    // The producer writes by the checksum of the bytes it read (P1b); the
+    // The producer writes by the checksum of the bytes it read; the
     // reader holds the rid, and the view index resolves it to the same key.
     await kb.anchoredText.write(checksum, MAP);
     expect(await readAnchoredText(kb, resourceId(String(rid)))).toEqual(MAP);
   });
 
   it('answers NOT-YET for a resource whose map nothing has settled', async () => {
-    // Not an error. But it is no longer a bare `null` either (SMELTER-OWNS-OCR
-    // P1): nothing has settled this generation, so the honest answer is "come
-    // back" — and a caller that blocks on this read needs to know that rather
-    // than concluding the document will never have a map.
+    // Not an error, and not a bare `null` either: nothing has settled this
+    // generation, so the honest answer is "come back" — and a
+    // caller that blocks on this read needs to know that rather than
+    // concluding the document will never have a map.
     //
     // There is no live Smelter here, so the barrier runs its full course; the
     // short timeout keeps that from being a 15 s test.
@@ -146,12 +137,12 @@ describe('readAnchoredText + the anchored-text store', () => {
     expect(await readAnchoredText(kb, resourceId(String(rid)))).toEqual(revised);
   });
 
-  it('does not serve superseded geometry after the resource\'s bytes change (PERSIST-ANCHORS P1)', async () => {
-    // Decision A's failure case, end to end: a map is derived from bytes B1;
-    // the resource then gains a new representation (new bytes, new checksum)
-    // and drops the old one. The map indexes text that no longer exists —
-    // serving it would place quotes at coordinates in the WRONG document,
-    // which is worse than absent. The reader must miss.
+  it('does not serve superseded geometry after the resource\'s bytes change', async () => {
+    // The case keying by content checksum exists for, end to end: a map is
+    // derived from bytes B1; the resource then gains a new representation
+    // (new bytes, new checksum) and drops the old one. The map indexes text
+    // that no longer exists — serving it would place quotes at coordinates
+    // in the WRONG document, which is worse than absent. The reader must miss.
     const { rid: target } = await seedPdf('mutable');
     const view1 = await kb.views.get(target);
     const c1 = getPrimaryRepresentation(view1?.resource)?.checksum;
@@ -162,7 +153,8 @@ describe('readAnchoredText + the anchored-text store', () => {
     expect(await readAnchoredText(kb, resourceId(String(target)))).toEqual(MAP);
 
     // The bytes change: old representation out, new one in — through the
-    // single write path (appendEvent), so the view is current by V1.
+    // single write path (appendEvent), so the view is current by append-seam
+    // axiom V1.
     const stored2 = await kb.content.store(Buffer.from('mutable — revised scan', 'utf-8'), `file://mutable-rev-${uuidv4()}.pdf`);
     await kb.eventStore.appendEvent({
       type: 'yield:representation-removed',
@@ -180,18 +172,18 @@ describe('readAnchoredText + the anchored-text store', () => {
       resourceId: resourceId(String(target)), contentChecksum: stored2.checksum, outcome: 'indexed',
     });
 
-    // Absent, and now SAYS SO by name. `not-yet` rather than `no-map`: the new
+    // Absent, and SAYS SO by name. `not-yet` rather than `no-map`: the new
     // generation settled indexed but carries no artifact, which the reconcile
-    // planner heals (its third drift class). What matters for P1's invariant is
+    // planner heals (its third drift class). What matters for this invariant is
     // that the OLD map is not served — the answer is an absence either way.
     const answer = await readAnchoredText(kb, resourceId(String(target)), 60);
     expect(answer.kind).toBe('not-yet');
     expect(answer).not.toEqual(MAP);
   });
 
-  // ── The two barrier-FREE reads (PERSIST-ANCHORS P0 + P2c) ─────────────────
+  // ── The two barrier-FREE reads ────────────────────────────────────────────
   //
-  // `getAnchoredText` above applies a read-your-writes barrier: a miss waits
+  // `readAnchoredText` above applies a read-your-writes barrier: a miss waits
   // for the Smelter to finish the resource's current content generation. These
   // two deliberately do not, and that asymmetry is the whole point of them
   // being separate methods rather than options on the first.
@@ -199,7 +191,7 @@ describe('readAnchoredText + the anchored-text store', () => {
   // Both tests below therefore emit NO `smelt:settled`. Under the barrier that
   // omission is what makes a miss block for the full timeout — so if either
   // read ever acquires one, these stop returning promptly and start hanging,
-  // which is exactly the regression worth catching. The smelter's cache
+  // which is exactly the failure worth catching. The smelter's cache
   // consult runs on every ingest.
 
   it('reads a map by checksum with no settle barrier — the caller already holds the identity', async () => {
@@ -219,7 +211,7 @@ describe('readAnchoredText + the anchored-text store', () => {
   });
 
   it('lists the store keys for the reconcile diff', async () => {
-    // Planning data (P0): presence is being asked, not content at a moment.
+    // Planning data: presence is being asked, not content at a moment.
     // Written under a REAL content checksum, which is what the planner diffs
     // against — the store shards by key and only entries under the current
     // stamp are listed, so a synthetic key proves nothing about either.
@@ -238,13 +230,13 @@ describe('readAnchoredText + the anchored-text store', () => {
 });
 
 /**
- * SMELTER-OWNS-OCR P1 — the answer says WHY there is no map.
+ * The answer says WHY there is no map.
  *
- * `readAnchoredText` used to return `ExtractionOutcome | null`, and that `null`
- * covered four different facts: the settle barrier expired, the Smelter settled
- * the resource as skipped, there was no content identity to look up, and the
- * progress fold was disposed. Two of those a caller should RETRY; two are
- * terminal. A detection worker that blocks on this read (P2) cannot classify its
+ * A bare `null` beside `ExtractionOutcome` would cover four different facts:
+ * the settle barrier expired, the Smelter settled the resource as skipped,
+ * there is no content identity to look up, and the progress fold was
+ * disposed. Two of those a caller should RETRY; two are
+ * terminal. A detection worker that blocks on this read cannot classify its
  * own failure without the distinction — it would either retry forever on a
  * document that will never have a map, or fail terminally on one that is merely
  * still being read.
@@ -253,7 +245,7 @@ describe('readAnchoredText + the anchored-text store', () => {
  * here, and a mocked one would assert the shape of the answer while proving
  * nothing about which branch produces it.
  */
-describe('readAnchoredText — why there is no map (SMELTER-OWNS-OCR P1)', () => {
+describe('readAnchoredText — why there is no map', () => {
   const SETTLE_MS = 60;
 
   /** A fold fed by hand, so a test can settle a generation or leave it open. */

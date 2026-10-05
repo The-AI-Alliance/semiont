@@ -1,18 +1,15 @@
 /**
- * Type-level guard — COLLABORATOR-DIRECTORY P1.
+ * Type-level guard — the collaborator directory's bus operation.
  *
  * Pins the `browse:agents` OPERATION, not just its schemas: the request
  * channel must be a registered `BusOperationKey` (which transitively requires
  * the EventMap + CHANNEL_SCHEMAS entries and derives the replies into
  * `BRIDGED_CHANNELS`), and `BusReply` must infer the reply-shape-standard
  * payload `{ agents: CollaboratorEntry[] }` from the result channel. Entries
- * cover both halves of the directory from day one — a Software agent with
- * structured `provider`/`model` and capabilities, and a Person without
- * `servesJobTypes` — so P4 (Persons) needs no schema rework.
+ * cover both halves of the directory — a Software agent with structured
+ * `provider`/`model` and capabilities, and a Person without `servesJobTypes`.
  *
- * Enforced by `tsc --noEmit` (core `typecheck`), not vitest runtime. RED
- * before the spec + registration land (no such channel/operation); GREEN
- * after.
+ * Enforced by `tsc --noEmit` (core `typecheck`), not vitest runtime.
  */
 import { describe, it, expect } from 'vitest';
 import type { components } from '../types';
@@ -21,7 +18,7 @@ import type { BusReply } from '../bus-request';
 
 type CollaboratorEntry = components['schemas']['CollaboratorEntry'];
 
-describe('browse:agents — operation + reply-shape guard (P1)', () => {
+describe('browse:agents — operation + reply-shape guard', () => {
   it('the request channel is a registered bus operation', () => {
     const op: BusOperationKey = 'browse:agents-requested';
     expect(op).toBe('browse:agents-requested');
@@ -47,7 +44,7 @@ describe('browse:agents — operation + reply-shape guard (P1)', () => {
     expect(entry.agent['@type']).toBe('Software');
   });
 
-  it('the Agent members are NAMED schemas a consumer can reference (WIRE-UNION-DISCRIMINANTS P5a)', () => {
+  it('the Agent members are NAMED schemas a consumer can reference', () => {
     // `discriminator` requires named members — an inline oneOf branch cannot
     // be a mapping target. The named types are also what lets a consumer
     // hold "a software agent" as a type rather than a re-derived narrowing.
@@ -62,7 +59,7 @@ describe('browse:agents — operation + reply-shape guard (P1)', () => {
     expect(person['@type']).toBe('Person');
   });
 
-  it('an entry admits a Person WITHOUT servesJobTypes (P4 composes into the same shape)', () => {
+  it('an entry admits a Person WITHOUT servesJobTypes (Persons compose into the same shape)', () => {
     const entry: CollaboratorEntry = {
       agent: {
         '@type': 'Person',

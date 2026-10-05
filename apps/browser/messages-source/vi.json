@@ -193,7 +193,6 @@
     "statusConnected": "Đã kết nối",
     "statusExpired": "Phiên đã hết hạn",
     "statusSignedOut": "Đã đăng xuất",
-    "statusUnreachable": "Không thể truy cập",
     "invalidHost": "Tên máy chủ không hợp lệ",
     "discoveredTitle": "Được tìm thấy trên máy này",
     "managedBadge": "Được quản lý bởi trình khởi chạy",

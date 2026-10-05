@@ -1,5 +1,5 @@
 {
-  "description": "Discriminated union of all job result types — every member carries a single-valued `kind` (WIRE-UNION-DISCRIMINANTS D1/D2). Consumers switch on `kind`; generated clients get typed variants.",
+  "description": "Discriminated union of all job result types — every member carries a single-valued `kind`. Consumers switch on `kind`; generated clients get typed variants.",
   "oneOf": [
     {
       "$ref": "./JobGenerationResult.json"

@@ -28,10 +28,10 @@ func declaredUser(t *testing.T, parts ...string) string {
 	return user
 }
 
-// CODESPACE-IDENTITY B1: the Semiont images run as a non-root user (uid 1001).
-// On a Linux Docker host the invoker is some other uid, so a bind-mount dir the
-// launcher creates 0755 is unwritable inside — the archivist died with EACCES
-// in a codespace (uid 1000). macOS runtimes map ownership and hide it.
+// The Semiont images run as a non-root user (uid 1001). On a Linux Docker host
+// the invoker is some other uid, so a bind-mount dir the launcher creates 0755
+// is unwritable inside — the archivist died with EACCES in a codespace
+// (uid 1000). macOS runtimes map ownership and hide it.
 //
 // Which stores this covers is read from the images: a store whose owner is a
 // Semiont-built role is written by the user its Dockerfile declares. Either

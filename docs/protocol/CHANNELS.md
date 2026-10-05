@@ -1,68 +1,91 @@
-# Channel Inventory
+# Channel inventory
 
-The set of channels every Semiont actor speaks, grouped by category. The protocol semantics behind these categories — naming, payload shape, scoping rules, persistence — are in **[EVENT-BUS.md](./EVENT-BUS.md)**. This doc is the reference list.
+Every channel on the bus, by what kind of channel it is. The rules behind the kinds (naming, identity, correlation, delivery) are in [EVENT-BUS.md](./EVENT-BUS.md).
 
-The authority is **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)**, from which [`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts) (`EventMap`, `CHANNEL_SCHEMAS`) and the Go equivalents are generated — see [EVENT-BUS.md](./EVENT-BUS.md#the-registry-is-the-authority-both-languages-are-generated). If a channel here disagrees with the registry, the registry wins.
+The authority is [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json). It declares every channel, the payload it carries, and the class it belongs to, and each SDK's channel tables are generated from it. Where this page and the registry disagree, the registry is right.
 
-## Persisted domain events (the system of record)
+## How a channel is classed
 
-Past-tense `-ed` channels appended to the event store. These drive materialized views and replay. Subscribed via SSE `scoped` channels for resource-bound delivery; published on both the global bus and the resource-scoped bus by `EventStore.appendEvent`.
+Every channel belongs to exactly one of these, and the generators refuse a channel that names none:
 
-- `mark:added`, `mark:removed`, `mark:body-updated`
-- `mark:archived`, `mark:unarchived`
-- `mark:entity-tag-added`, `mark:entity-tag-removed`
-- `yield:created`, `yield:cloned`, `yield:updated`, `yield:moved`
-- `yield:representation-added`, `yield:representation-removed`
-- `job:started`, `job:assigned`, `job:completed`, `job:failed`
+| Class | What it is | Who receives it |
+|---|---|---|
+| **Operation** | A request with a result and a failure | The request reaches the one service that answers it. The reply reaches the client that asked |
+| **Command** | A directive with no reply | The one handler that owns it |
+| **Event** | A fact announced after it happened | Set by its audience: **everyone**, the clients viewing one resource (**scoped**), or the services that name it (**declared**) |
+| **In-process** | A signal on a client's or a service's own bus | Nobody else. It never crosses the wire |
 
-The authoritative list is the registry's `storedEvent` channels, each naming its payload schema. `PERSISTED_EVENT_TYPES` and the event catalog in [`packages/core/src/persisted-events.ts`](../../packages/core/src/persisted-events.ts) are generated from them.
+Two more facts are declared beside the class:
 
-## System-wide broadcasts
+- **Recorded.** Whether the channel is an event of the record, appended to the event log.
+- **Effect.** For a channel a client can emit: whether emitting it **writes** to the knowledge base or only **reads** from it.
 
-Persisted but not resource-scoped — concern every connected client.
+## Events of the record
 
-- `frame:entity-type-added`
+These are appended to the event log. Everything else on this page is transient.
 
-## Ephemeral cross-participant signals
+| Family | Channels | Delivered to |
+|---|---|---|
+| Resources | `yield:created`, `yield:cloned`, `yield:updated`, `yield:moved` | everyone |
+| Renditions | `yield:representation-added`, `yield:representation-removed` | the resource's viewers |
+| Annotations | `mark:added`, `mark:removed`, `mark:body-updated` | the resource's viewers |
+| A resource's own facts | `mark:entity-tag-added`, `mark:entity-tag-removed`, `mark:archived`, `mark:unarchived` | the resource's viewers |
+| Vocabulary | `frame:entity-type-added`, `frame:tag-schema-added` | everyone |
+| Jobs | `job:started`, `job:assigned`, `job:completed`, `job:failed` | the resource's viewers |
+| People | `person:profiled` | the services that name it |
 
-Attention-coordination channels broadcast globally, not persisted. Delivered to every connected browser; the originator's emit echoes back through the bus so their UI responds too.
+`mark:added` and `mark:body-updated` are delivered with the annotation as it stands, so a client holding it updates in place.
 
-- `beckon:focus` — directs a participant to scroll/pulse an annotation
-- `beckon:sparkle` — triggers a sparkle animation on an annotation
+## Events that are not recorded
 
-## Correlation-ID responses
+| Channels | Says | Delivered to |
+|---|---|---|
+| `job:report-progress`, `job:complete`, `job:fail` | What a worker reports about a job | everyone; a consumer filters by the job's id or the resource's |
+| `job:queued` | A job is waiting to be claimed | workers |
+| `beckon:focus`, `beckon:sparkle` | Look here | everyone |
+| `browse:resource-open`, `browse:click` | Open this | everyone |
+| `browse:resource-viewed` | A viewer arrived at a resource | everyone |
+| `session:joined`, `session:left` | A participant connected or disconnected | everyone |
+| `smelt:settled` | A resource's text has been indexed | everyone |
+| `weave:applied` | An event has been applied to the graph | the services that name it |
+| `mark:body-update-failed` | A body update could not be recorded | the services that name it |
+| `bus:resume-gap` | A stream resumed past events it could not replay | everyone |
 
-Non-persisted results matched back to the originating request by the `correlationId` on their envelope. Always published on the **global** bus; the gateway delivers each only to the client that made the request, which matches it by `correlationId`. Consumers use `busRequest` ([`packages/core/src/bus-request.ts`](../../packages/core/src/bus-request.ts)), which hides the correlation glue and looks up the result/failure channels from `BUS_OPERATIONS`. Every reply's payload follows the standard shape: `{ response: T }` (data), `{}` (void), or `CommandError` (failure).
+## Commands
 
-- `browse:*-result` / `browse:*-failed`
-- `mark:*-ok` / `mark:*-failed`
-- `bind:body-update-failed`
-- `match:search-results` / `match:search-failed`
-- `gather:complete` / `gather:failed` / `gather:annotation-progress`
-- `gather:summary-result` / `gather:summary-failed`
-- `job:created` / `job:create-failed` / `job:claimed` / `job:claim-failed`
-- `job:complete` / `job:fail` — global job-lifecycle signals; the dispatching caller filters by `jobId`, resource viewers filter the same global stream by `resourceId` (keyed by id, not `correlationId`)
-- `yield:clone-token-generated` / `yield:clone-token-failed`
-- `yield:clone-resource-result` / `yield:clone-resource-failed`
+Directives with no reply, each owned by one handler: `job:start`, `job:assign`, `job:checkpoint`, `job:cancel`, `mark:update-body` and `person:profile`.
 
-## Resource-bound broadcasts
+## Operations
 
-Channels every viewer of a specific resource wants to see, regardless of who triggered them. Published on `eventBus.scope(resourceId)`; received via a `scope=rId&scoped=X` SSE subscription the SDK wires up automatically when a consumer subscribes to that resource's `browse.*` live queries (freshness follows observation; #847).
+A request, answered on its result or its failure channel. The reply reaches only the client that asked, matched by the correlation id on the frame's envelope.
 
-The authoritative list is `resourceBroadcasts.channels` in [the registry](../../specs/src/bus/registry.json), generated into `RESOURCE_BROADCAST_TYPES` in `bus-protocol.ts` — **currently empty.** `job:complete` / `job:fail` used to live here but were moved to global, `jobId`-keyed delivery (see *Correlation-ID responses* above, and #847): the caller that dispatched the job filters by `jobId`, viewers filter the global stream by `resourceId`, so a client that is both no longer receives them twice. The set remains as the extension point for genuine multi-viewer resource broadcasts (e.g. generation progress).
+| Family | Requests | Effect |
+|---|---|---|
+| Yield | `yield:create`, `yield:update`, `yield:clone-create`, `yield:clone-persist` | writes |
+| Yield | `yield:clone-token-requested`, `yield:clone-resource-requested` | reads |
+| Mark | `mark:create-request`, `mark:commit`, `mark:delete`, `mark:archive`, `mark:unarchive`, `mark:update-entity-types` | writes |
+| Bind | `bind:update-body` | writes |
+| Frame | `frame:add-entity-type`, `frame:add-tag-schema` | writes |
+| Browse | every `browse:…-requested` | reads |
+| Match | `match:search-requested`, `match:limits-requested` | reads |
+| Gather | `gather:requested`, `gather:resource-requested`, `gather:summary-requested`, `gather:limits-requested` | reads |
+| Jobs | `job:create`, `job:claim`, `job:cancel-requested` | writes |
+| Jobs | `job:status-requested`, `job:limits-requested` | reads |
+| Rebuilds | `weave:rebuild`, `smelt:rebuild-anchors` | writes |
 
-## Bridged channels (HTTP transport fan-in)
+Each request's result and failure channels are named in the registry's `operations`. Most follow one pattern: `-requested` answers on `-result` and `-failed`, and a command answers on `-ok` and `-failed`.
 
-The set the HTTP transport pushes onto the client's local bus on SSE receive: every operation's reply channels (`-ok` / `-failed` / `-result` / progress) plus the system-wide broadcasts. `BRIDGED_CHANNELS` ([`packages/core/src/bridged-channels.ts`](../../packages/core/src/bridged-channels.ts)) is **derived**, not hand-maintained — the reply channels come from the `BUS_OPERATIONS` registry, plus `bridgedBroadcasts` in [the registry](../../specs/src/bus/registry.json) for the non-request/reply minority (KB-global domain events, `beckon:*` UI signals, infra). Deriving the reply set is what keeps a reply channel from being silently omitted. Bridged channels are delivered globally and are **disjoint** from the resource-scoped set (see [TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)).
+## In-process channels
 
-In-process transports do the same fan-in via `LocalTransport.bridgeInto(bus)`.
+Published on a client's or a service's own bus only:
+
+- **The Browser's interface**: `nav:*`, `panel:*`, `tabs:*`, `shell:*`, `settings:*`, `beckon:hover`, `browse:entity-type-clicked`, and the `mark:` and `bind:` signals that coordinate one viewer's annotation interface. See [react-ui's event internals](../../packages/react-ui/docs/EVENTS.md).
+- **Inside the archivist**: `mark:create`, `yield:mv`, `yield:move-failed`, which are steps between its own handlers.
 
 ## See also
 
-- **[EVENT-BUS.md](./EVENT-BUS.md)** — channel naming, payload categories, scoping rules, `correlationId` / `_userId` / `_trace` conventions
-- **[TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md)** — abstract `ITransport` behavioral guarantees
-- **[TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)** — HTTP+SSE wire format
-- **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** — the authority (channels, payloads, operations)
-- **[`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts)** — GENERATED `EventMap` and `CHANNEL_SCHEMAS`
-- **[`packages/core/src/persisted-events.ts`](../../packages/core/src/persisted-events.ts)** — GENERATED event catalog and `PERSISTED_EVENT_TYPES`
-- **[`packages/core/src/bridged-channels.ts`](../../packages/core/src/bridged-channels.ts)** — `BRIDGED_CHANNELS`
+- [EVENT-BUS.md](./EVENT-BUS.md): naming, identity, correlation, scoping and delivery
+- [The eight verbs](./flows/README.md): what each family of channels is for
+- [JOBS.md](./JOBS.md): the job channels and what the dispatcher does with each
+- [TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md): what a transport promises about delivery
+- [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json): the authority

@@ -15,7 +15,7 @@
  * - browse:entity-types-requested — list entity types from the project projection
  * - browse:tag-schemas-requested — list tag schemas from the project projection
  * - browse:agents-requested — the collaborator directory: the KB's declared software
- *   agents, derived from the workers + actors inference config (COLLABORATOR-DIRECTORY)
+ *   agents, derived from the workers + actors inference config
  * - browse:kb-requested — the KB's description of itself: the committed name and
  *   domain, and the working tree's branch
  * - browse:directory-requested — list a project directory, merging fs + ViewStorage
@@ -54,10 +54,10 @@ type FileEntry      = components['schemas']['FileEntry'];
 type DirEntry       = components['schemas']['DirEntry'];
 
 /**
- * Browser's measured surface of the record (EXTRACT-ARCHIVIST P1) — reads
- * only, every member a derived slice of its owning type. What is absent is
- * the point: no appendEvent, no content bytes beyond `retrieve`, no
- * projectionsDir, no weaveProgress.
+ * Browser's measured surface of the record — reads only, every member a
+ * derived slice of its owning type. What is absent is the point: no
+ * appendEvent, no content bytes beyond `retrieve`, no projectionsDir, no
+ * weaveProgress.
  */
 export interface BrowserReads {
   views: Pick<ViewStorage, 'get' | 'getAll' | 'exists'>;
@@ -71,8 +71,8 @@ export interface BrowserReads {
 
 /**
  * The request channels Browser subscribes to — the Archivist's inbound wire
- * roster for this actor (EXTRACT-ARCHIVIST P2a). Pinned to `initialize()`'s
- * actual subscriptions by the census gate in archivist-decoupling.test.ts.
+ * roster for this actor. Pinned to `initialize()`'s actual subscriptions by
+ * the census gate in archivist-decoupling.test.ts.
  */
 export const BROWSER_CHANNELS = [
   'browse:resource-requested', 'browse:anchored-text-requested',
@@ -95,7 +95,7 @@ export class Browser {
     /** Who serves each role — provider and model, no credential. The
      *  directory's limits come from the services that hold the keys. */
     private roster: RosterConfig,
-    /** For the semantic search fallback — mandatory (MANDATORY-EMBEDDING D0). */
+    /** For the semantic search fallback — mandatory. */
     private embeddingProvider: EmbeddingProvider,
     logger: Logger,
   ) {
@@ -108,8 +108,8 @@ export class Browser {
     const errorHandler = (err: unknown) =>
       this.logger.error('Browser pipeline error', { error: err });
 
-    // `frames`: a responder echoes the key it was handed, and the payload no
-    // longer carries one (BUS-CARRIES-FRAMES P3).
+    // `frames`: a responder echoes the key it was handed, and the payload
+    // carries none — the correlationId rides the frame's envelope.
     const pipe = <K extends keyof EventMap>(
       name: K,
       handler: (event: EventMap[K], correlationId: string | undefined) => Promise<void>,
@@ -121,12 +121,11 @@ export class Browser {
           ),
         ).pipe(
           // Isolate per-event failures: a single handler throw must NOT tear down the
-          // channel subscription for every future request — that's the browse:entity-types
-          // wedge (.plans/bugs/browse-entity-types-never-responds.md). Handlers emit their
+          // channel subscription for every future request. Handlers emit their
           // own *-failed reply; this is the structural backstop for any throw that escapes a
           // handler's try/catch — the channel survives, the offending request is logged.
           // (A per-channel *-failed can't be emitted from this generic helper without the
-          // request→failure mapping — that's the Tier 1 operations registry.)
+          // request→failure mapping, which is `BUS_OPERATIONS`.)
           catchError((error) => {
             this.logger.error(`browse handler threw on ${name as string}`, { error: errField(error) });
             return EMPTY;
@@ -157,7 +156,7 @@ export class Browser {
   // ========================================================================
 
   /**
-   * Serve a resource's derived coordinate map (ANCHORED-TEXT-CACHE Lane 5).
+   * Serve a resource's derived coordinate map, whole-resource, over the bus.
    *
    * Read-your-writes on the same barrier `llm-context` uses for vectors: a
    * caller may arrive before the Smelter has finished the resource it just
@@ -165,10 +164,10 @@ export class Browser {
    * reporting "no map" for a document that is merely still being read.
    *
    * **This path never invokes the engine.** The Smelter is the sole producer.
-   * A miss that survives the barrier answers `null`, and the caller degrades —
-   * for a PDF annotation that means geometry with no quoted text, which is what
-   * shipped before any of this existed. OCR in a request path is precisely what
-   * this design exists to avoid.
+   * A miss that survives the barrier answers a named absence (`not-yet` or
+   * `no-map`), and the caller degrades — for a PDF annotation that means
+   * geometry with no quoted text. OCR in a request path is precisely what this
+   * design exists to avoid.
    */
   private async handleAnchoredText(event: EventMap['browse:anchored-text-requested'], correlationId: string | undefined): Promise<void> {
     try {
@@ -180,7 +179,7 @@ export class Browser {
   }
 
   /**
-   * Fill in the names of the people a reply mentions (PERSON-PROFILE P4).
+   * Fill in the names of the people a reply mentions.
    *
    * The Browser owns the system projections, so it is where a DID becomes a
    * name — once, on the way out, rather than in each client. Artifacts carry
@@ -243,7 +242,7 @@ export class Browser {
 
       // Add content previews for lexical search results. Semantic hits
       // already carry `content` — the passage that actually matched — and
-      // a first-200-chars preview must not overwrite it (SEMANTIC-FALLBACK).
+      // a first-200-chars preview must not overwrite it.
       const formattedDocs = event.search && result.matchKind === 'lexical'
         ? await ResourceContext.addContentPreviews(result.resources, this.kb)
         : result.resources;
@@ -254,8 +253,7 @@ export class Browser {
           total: result.total,
           offset,
           limit,
-          // The producer of the answer labels it (P1b moved the label here
-          // from a hardcoded 'lexical' when the fallback landed).
+          // The producer of the answer labels it.
           matchKind: result.matchKind,
         }),
       }, { correlationId });
@@ -389,18 +387,18 @@ export class Browser {
         motivation: event.motivation || 'all',
       });
 
-      // The inbound edge query is eventually consistent BY DESIGN
-      // (graph-read-after-write-coverage.md, mechanism (d)): the racing
-      // write lives in the CITING resource's stream, so no per-resource
-      // wait key exists here — and every consumer sits behind the SDK's
-      // referencedBy cache, whose staleness window dwarfs the Weaver's
-      // ~tens-of-ms apply lag. A just-woven edge appears on the next read.
+      // The inbound edge query is eventually consistent BY DESIGN: the
+      // racing write lives in the CITING resource's stream, so no
+      // per-resource wait key exists here — and every consumer sits behind
+      // the SDK's referencedBy cache, whose staleness window dwarfs the
+      // Weaver's ~tens-of-ms apply lag. A just-woven edge appears on the
+      // next read.
       const references = await this.kb.graph.getResourceReferencedBy(event.resourceId, event.motivation);
 
       const sourceIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
-      // Citer hydration IS id-keyed: graph-first with view fallback
-      // (mechanism (b′)) — a woven edge whose endpoint isn't woven yet must
-      // not render "Untitled Resource"; the view holds the fresher descriptor.
+      // Citer hydration IS id-keyed: graph-first with view fallback — a
+      // woven edge whose endpoint isn't woven yet must not render
+      // "Untitled Resource"; the view holds the fresher descriptor.
       const resolved = await Promise.all(
         sourceIds.map(id => resourceWithViewGrace(this.kb, id)),
       );

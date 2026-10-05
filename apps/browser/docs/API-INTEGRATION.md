@@ -59,7 +59,7 @@ All API interactions feature:
 
 - **Type-safety** — TypeScript types generated from the OpenAPI spec
 - **Framework-agnostic react-ui** — plugs into any React framework via providers
-- **In-memory bearer auth** — the per-KB `SemiontSession` holds the access token in JS memory and feeds the client's `token$`; no cookies, no ambient credentials
+- **Bearer auth** — the per-KB `SemiontSession` feeds the client's `token$` and keeps the access and refresh pair in `localStorage`; no cookies, no ambient credentials
 - **One bus connection** — `SemiontClient` maintains a single SSE subscription to `/bus/subscribe`
 - **Structured errors** — consistent error shape from the gateway, surfaced through `APIError`
 
@@ -126,10 +126,10 @@ A user is always authenticated against a specific Knowledge Base; there is
 - `activeSignals$` — that session's session-expired / permission-denied signals
 
 Switching KBs swaps `activeSession$` atomically. Each `SemiontSession` owns its
-own `SemiontClient` and the per-KB **bearer token in JS memory** — a short-lived
-access token re-minted from a long-lived refresh token
-([TTLs](../../../docs/system/administration/AUTHENTICATION.md)). Bearer-only: no
-cookie, no ambient credential.
+own `SemiontClient` and the per-KB **bearer token** — a short-lived access token
+([lifetimes](../../../docs/operator/administration/AUTHENTICATION.md#token-lifecycle)),
+renewed at the issuer from a refresh token, the pair kept in `localStorage`.
+Bearer-only: no cookie, no ambient credential.
 
 - **Sign in** — `browser.beginSignIn({ … })` discovers the KB's issuer from its
   gateway (RFC 9728) and sends the person there; the callback page's
@@ -184,7 +184,7 @@ function UserBadge() {
 **Key points:**
 
 - **Per-KB sessions** — there is no global session; switching KBs switches sessions atomically.
-- **No manual token management** — the `SemiontSession` mints and refreshes the bearer token in memory; the client reads it observably.
+- **No manual token management** — the `SemiontSession` renews the access token at the issuer and stores it; the client reads it observably.
 - **Type-safe** — types flow from the OpenAPI spec through the transport to components.
 
 ## Bus Gateway Transport
@@ -194,8 +194,8 @@ SSE connection to `/bus/subscribe` + HTTP POST to `/bus/emit`:
 
 - **Request-response queries** — `busRequest` generates a correlationId, subscribes to the result channel, and emits the request. The client filters incoming events by correlationId.
 - **Fire-and-forget commands** — `actor.emit(channel, payload)` POSTs to `/bus/emit`; results arrive as separate events.
-- **Live domain events** — `mark:added`, `yield:create-ok`, etc. flow on resource-scoped channels. Subscribing to a resource's `browse.*(id)` live queries adds those channels to the bus actor's subscription — freshness follows observation, with the SDK driving the transport's internal `subscribeToResource` (#847) — and drops them when the last subscriber unsubscribes.
-- **Gap detection** — on reconnect after a disconnect, `BrowseNamespace` invalidates all active caches and refetches. No server-side replay.
+- **Live domain events** — `mark:added`, `mark:body-updated`, etc. flow on resource-scoped channels. Subscribing to a resource's `browse.*(id)` live queries adds those channels to the bus actor's subscription — freshness follows observation, with the SDK driving the transport's internal `subscribeToResource` — and drops them when the last subscriber unsubscribes.
+- **Resumption** — when the stream reopens after a drop, the gateway replays each resource scope's persisted events from the last one the client received, or emits `bus:resume-gap` when it cannot; `BrowseNamespace` refetches only what replay does not cover. See [`docs/protocol/CACHE-SEMANTICS.md`](../../../docs/protocol/CACHE-SEMANTICS.md) (B13).
 
 See [`docs/protocol/EVENT-BUS.md`](../../../docs/protocol/EVENT-BUS.md) and
 [`docs/protocol/CHANNELS.md`](../../../docs/protocol/CHANNELS.md) for
@@ -285,23 +285,33 @@ matching locates the text if offsets are stale.
 Annotations are serialized as standard JSON-LD on the wire and in
 exports — any W3C-compliant consumer can ingest them.
 
-## Synchronous vs Asynchronous Operations
+## Request/Reply Operations and Jobs
 
-Two conceptual patterns:
+The gateway hosts no handlers. Every bus operation is a `POST /bus/emit`
+that the gateway answers `202` once it has accepted the frame; what the
+operation produces arrives afterwards on the SSE stream. Two patterns
+follow:
 
-**Synchronous (request-response)** — commands that complete quickly on
-the gateway handler: create annotation, delete annotation, browse
-queries. The Browser awaits a result event matched by correlationId.
+**Request/reply** — creating or deleting an annotation, a browse query.
+The request carries a `correlationId`; the service that answers the
+operation (the Archivist, for these) emits its reply with the same id, and
+the gateway delivers it to the client that asked. The request settles when
+that reply arrives on the stream: with the reply's response, or as a
+`BusRequestError` on a failure reply or when none arrives by the request's
+deadline.
 
-**Asynchronous (job-based)** — operations that run minutes to hours:
-entity detection, resource generation. The Browser emits `job:create`,
-gets back `job:created` with a `jobId`, then listens for
-`job:report-progress` / `job:complete` events scoped to
-the resource.
+**Jobs** — long-running work a worker performs: AI-assisted annotation
+(`mark.assist`) and generation (`yield.fromContext`). The verb emits
+`job:create`, itself a request/reply: the dispatcher admits the job and
+answers `job:created` with its `jobId`. The worker then reports on
+`job:report-progress`, `job:complete` and `job:fail`, which reach every
+client; the SDK keeps the frames that carry its job's `jobId` and delivers
+them as the verb's stream: progress, then the outcome.
 
-Both flow through the same bus gateway. The difference is whether the
-final result event arrives in the same HTTP turnaround as the command
-(sync) or later, driven by worker processes (async).
+[`docs/protocol/EVENT-BUS.md`](../../../docs/protocol/EVENT-BUS.md) and
+[`docs/protocol/TRANSPORT-HTTP.md`](../../../docs/protocol/TRANSPORT-HTTP.md)
+specify the emit and the correlated reply;
+[`docs/protocol/JOBS.md`](../../../docs/protocol/JOBS.md) specifies jobs.
 
 ## Error Handling
 

@@ -4,26 +4,25 @@
  *
  * Each reducer takes the current state of a `__system__` projection and
  * a single command payload, and returns the next state plus any
- * side-effect signals (currently just optional warnings). The
+ * side-effect signals (optional warnings). The
  * surrounding I/O — read JSON file → reduce → write JSON file — lives
  * in the `ViewMaterializer` shell.
  *
  * Why this split: tests for the projection-update semantics shouldn't
  * need the filesystem or an Apple-container event store to assert
  * "registering identical content twice is a no-op." The shell is
- * already covered by integration tests at `tag-schemas-reader.test.ts`
+ * covered by integration tests at `tag-schemas-reader.test.ts`
  * (Stower → materializer → reader round-trip) and
  * `local-transport.test.ts` (real client → bus → cache invalidation).
  *
- * The reducers also become the natural home for the deferred schema-
- * evolution work in `.plans/EVOLVE-TAG-SCHEMA.md` — migration
- * commands (rename/remove a category, version-bump a schema id) are
- * additional pure functions on the same view shapes.
+ * The reducers are also the natural home for schema evolution:
+ * migration commands (rename/remove a category, version-bump a schema
+ * id) would be additional pure functions on the same view shapes.
  *
  * Load-bearing properties (sortedness, uniqueness, idempotence,
  * most-recent-wins, no-mutation) are pinned by axiom-style fast-check
  * tests in `__tests__/views/projection-reducers.test.ts`. See
- * `docs/system/PROJECTION-PATTERN.md` for the full axiom catalog and
+ * `docs/architecture/PROJECTION-PATTERN.md` for the full axiom catalog and
  * the architectural narrative.
  */
 
@@ -75,10 +74,8 @@ export function applyPersonProfiled(
  *
  * Sort uses `localeCompare` to match {@link applyTagSchemaAdded}'s
  * id-sort and to give a sensible ordering across mixed-case + symbol
- * tags. (The pre-refactor materializer used `Array.sort()` with no
- * comparator, which is codepoint order — `_x` would sort *after* `A`
- * because `_` (0x5F) > `A` (0x41). Surfaced by an axiom test in
- * `projection-reducers.test.ts`.)
+ * tags. (`Array.sort()` with no comparator is codepoint order — `_x`
+ * would sort *after* `A` because `_` (0x5F) > `A` (0x41).)
  */
 export function applyEntityTypeAdded(
   current: readonly string[],

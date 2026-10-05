@@ -1,15 +1,13 @@
 /**
- * The channel-attribute classification (BUS-ROUTING-DECLARED P1).
+ * The channel-attribute classification.
  *
  * Orthogonal, GENERATED attributes per channel — `recorded`, `direction`,
- * `writes`, `delivery` — replacing the gateway's local partitions
- * (`CORRELATED_CHANNELS`, `PROGRESS_CHANNELS`) and the branches that read
- * them. This suite does NOT re-derive from `registry.json` (that would be a
- * second copy of the generator's derivation); it cross-checks the generated
- * classification against the OTHER generated authorities of the same
- * registry — `BUS_OPERATIONS`, `BRIDGED_BROADCASTS`, `CHANNEL_SCHEMAS`,
- * `PERSISTED_EVENT_TYPES`. Two independent projections of one source must
- * agree; where they cannot, the registry itself is corrupt.
+ * `writes`, `delivery`. This suite does NOT re-derive from `registry.json`
+ * (that would be a second copy of the generator's derivation); it
+ * cross-checks the generated classification against the OTHER generated
+ * authorities of the same registry — `BUS_OPERATIONS`, `BRIDGED_BROADCASTS`,
+ * `CHANNEL_SCHEMAS`, `PERSISTED_EVENT_TYPES`. Two independent projections of
+ * one source must agree; where they cannot, the registry itself is corrupt.
  *
  * The growth gate is structural: a new operation regenerates every authority,
  * and these assertions iterate them — no hand edit here, ever. Staleness
@@ -82,10 +80,10 @@ describe('channel classification (generated)', () => {
   });
 
   test('BRIDGED_CHANNELS is the replies plus audience:everyone — not every inbound channel', () => {
-    // Also restated at P1. `inbound` now covers three audiences: everyone,
-    // scoped (joined per resource) and declared (named in a client manifest).
-    // Only the first auto-subscribes, so the old biconditional would now
-    // demand that every browser subscribe the worker's channels.
+    // `inbound` covers three audiences: everyone, scoped (joined per
+    // resource) and declared (named in a client manifest). Only the first
+    // auto-subscribes, so "bridged ⇔ inbound" would demand that every browser
+    // subscribe the worker's channels.
     const inbound = new Set(allChannels.filter((ch) => attrs(ch).direction === 'inbound'));
     for (const ch of BRIDGED_CHANNELS) {
       expect(inbound.has(ch), `${ch} is bridged but not inbound`).toBe(true);
@@ -127,9 +125,9 @@ describe('channel classification (generated)', () => {
   test('recorded and audience are independent — pinned by the six channels that are both', () => {
     // The six persisted AND auto-subscribed channels, pinned BY NAME so a
     // later reader cannot "fix" the overlap away: recorded and delivered are
-    // two true facts about one channel, not a conflict (BUS-ROUTING-DECLARED
-    // D3). Expressed on the audience axis now that P1 removed the
-    // delivery:'broadcast' restatement of it.
+    // two true facts about one channel, not a conflict. Expressed on the
+    // audience axis, which states who receives a channel; `delivery` has no
+    // 'broadcast' value restating it.
     const everyone = new Set<string>(BRIDGED_BROADCASTS);
     const both = allChannels
       .filter((ch) => attrs(ch).recorded && everyone.has(ch))

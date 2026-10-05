@@ -1,11 +1,11 @@
 /**
- * EMBEDDABLE-VIEWER-COMPLETION Phase 4 — media-completeness sweep.
+ * Media-completeness sweep.
  *
  * ONE mounted component (`ResourceViewer`, inline, bare session, no providers)
  * renders every standard media type from the DEFAULTS — text, markdown, image,
  * pdf — with the annotation-overlay container present and zero per-type wiring.
  * (Formatted-markdown correctness is pinned by browse-renderers.test; visual
- * overlay alignment is the plan's live smoke-test. This sweep pins the routing
+ * overlay alignment is a manual, live smoke-test. This sweep pins the routing
  * parity: every type reaches its renderer from one component.)
  */
 import { describe, it, expect, vi } from 'vitest';
@@ -56,7 +56,7 @@ function mount(mediaType: string, content: string) {
   );
 }
 
-describe('media-completeness sweep (Phase 4) — one component, all types, inline, defaults only', () => {
+describe('media-completeness sweep — one component, all types, inline, defaults only', () => {
   it.each([
     ['text/plain', 'plain body'],
     ['text/markdown', '# md body'],

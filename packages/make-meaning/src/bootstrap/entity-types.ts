@@ -9,11 +9,9 @@
  * Idempotent: safe to call on every startup. Only emits events for types
  * not already in the log.
  *
- * Future: evolve toward a migration-based model where a `system:bootstrapped`
- * sentinel event records that first-time init completed, and `system:migrated`
- * events record schema version upgrades (e.g., adding new default entity types
- * in a future release). For now, scanning the small __system__ stream is simple
- * and correct.
+ * No sentinel event records that first-time init completed, and none records
+ * a schema upgrade: scanning the small __system__ stream on every startup is
+ * simple and correct.
  */
 
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';

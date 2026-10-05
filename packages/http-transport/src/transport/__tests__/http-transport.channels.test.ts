@@ -1,11 +1,10 @@
 /**
  * HttpTransport `channels` config — the narrowed-subscription seam.
  *
- * Reply channels are global fan-out on the gateway, so a full
- * `BRIDGED_CHANNELS` subscription delivers every other client's reply
- * traffic too. A narrow-profile process (the worker) passes exactly the
- * reply channels it awaits; `isSubscribed` is the probe `busRequest` uses
- * to fail fast on anything outside the set (worker OOM, 2026-09-03).
+ * Absent, the transport subscribes the full `BRIDGED_CHANNELS`. A
+ * narrow-profile process (the worker) passes exactly the reply channels
+ * it awaits; `isSubscribed` is the probe `busRequest` uses to fail fast
+ * on anything outside the set.
  */
 
 import { describe, it, expect } from 'vitest';

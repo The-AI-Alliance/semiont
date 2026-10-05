@@ -2,8 +2,9 @@ package launcher
 
 // secretstore.go — the secret-store setting (`semiont settings secret-store`):
 // which store keeps a knowledge base's custody values, and moving them
-// between stores (SECRETS-STORE P3, P4). One setting per KB root (D1), keyed
-// like the values it governs.
+// between stores. One setting per KB root — a team KB can keep its secrets in
+// a team vault while a personal one stays on files — keyed like the values it
+// governs.
 
 import (
 	"bytes"
@@ -32,7 +33,7 @@ func storeSettingsPath() string {
 // storeSettingsFile: secretstores.json. Roots maps a state key to the store
 // that keeps that root's values; a root with no entry keeps them in files.
 // Default, when set, is the store a new knowledge base adopts at its first
-// need (LAUNCHER-SETTINGS D4).
+// need.
 type storeSettingsFile struct {
 	Default *secretRef           `json:"default,omitempty"`
 	Roots   map[string]secretRef `json:"roots"`
@@ -140,7 +141,7 @@ func changeStoreSettings(change func(*storeSettingsFile)) error {
 }
 
 // parseStoreTarget: `file` is the filesystem; `op://<vault>` a 1Password
-// vault that holds the launcher's items and nothing else (D6).
+// vault that holds the launcher's items and nothing else.
 func parseStoreTarget(arg string) (secretRef, bool, error) {
 	if arg == "file" {
 		return secretRef{}, false, nil
@@ -180,7 +181,7 @@ func setSecretStore(u *UI, root, value string) bool {
 func unsetSecretStore(u *UI, root string) bool { return setSecretStore(u, root, "file") }
 
 // setDefaultSecretStore: the store new knowledge bases adopt. It moves no
-// knowledge base's values (D4: new KBs only).
+// knowledge base's values: the default applies to new KBs only.
 func setDefaultSecretStore(u *UI, root, value string) bool {
 	ref, configured, err := parseStoreTarget(value)
 	if err != nil {
@@ -214,9 +215,9 @@ func showSecretStoreLocations(u *UI, root string) {
 	}
 }
 
-// moveSecretStore moves every kept value, as D4 rules: copy, read each back,
-// record the new store, then delete from the old. A failure before the record
-// leaves the old store in charge and says what the new one now holds.
+// moveSecretStore moves every kept value: copy, read each back, record the
+// destination store, then delete from the source. A failure before the record
+// leaves the source in charge and says what the destination holds.
 func moveSecretStore(u *UI, key string, from, to custodyStore, ref secretRef, configured bool) int {
 	if held, ok := to.names(u); !ok {
 		return 1

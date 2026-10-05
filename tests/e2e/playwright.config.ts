@@ -2,9 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * Read required env vars early and fail fast with a clear message.
- * Tests don't run without these — automating test-user creation is a
- * separate plan; for now the test runner expects the user to bring up
- * a gateway with a known user.
+ * Tests don't run without these: test-user creation is not automated, so
+ * the test runner expects the user to bring up a gateway with a known user.
  */
 function requireEnv(name: string): string {
   const value = process.env[name];

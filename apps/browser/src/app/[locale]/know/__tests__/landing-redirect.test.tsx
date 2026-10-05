@@ -6,8 +6,6 @@
  * never heard of, so a guaranteed 404 and a console full of B14/B15 retry
  * noise. The page must read the ACTIVE KB's last-viewed resource from the
  * browser session layer, never a global localStorage key.
- *
- * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md (D3)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act } from '@testing-library/react';
@@ -75,9 +73,9 @@ describe('KnowledgePage landing redirect', () => {
     expect(routerReplaceCalls).toEqual(['/know/discover']);
   });
 
-  it('ignores the legacy global lastViewedDocumentId key entirely', () => {
-    // A value left behind by an older build — or by a DIFFERENT KB — must not
-    // steer the redirect. Storage from previous versions is not honoured.
+  it('ignores a global lastViewedDocumentId key entirely', () => {
+    // A value under a global localStorage key — whichever KB it came from —
+    // must not steer the redirect.
     localStorage.setItem('lastViewedDocumentId', 'res-from-another-kb');
     lastViewedResource$.next(null);
 

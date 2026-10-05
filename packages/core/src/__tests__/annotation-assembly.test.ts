@@ -1,11 +1,10 @@
 /**
- * assembleAnnotation — RESOURCE-LEVEL-ANCHOR P2.
+ * assembleAnnotation — a target without a selector.
  *
  * The target selector is optional: a source-only target annotates the whole
- * resource (resource-level edges, whole-resource notes), per W3C. These pin the
- * removal of the old "Either TextPositionSelector, SvgSelector, or
- * FragmentSelector is required" throw, while keeping the SVG-markup and
- * motivation guards.
+ * resource (resource-level edges, whole-resource notes), per W3C. These pin
+ * that a selector-less target assembles without throwing, and that the
+ * SVG-markup and motivation guards hold.
  */
 import { describe, it, expect } from 'vitest';
 import { assembleAnnotation } from '../annotation-assembly';
@@ -15,7 +14,7 @@ import { resourceId } from '../identifiers';
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type Agent = components['schemas']['Agent'];
 
-describe('assembleAnnotation — selector-optional target (P2)', () => {
+describe('assembleAnnotation — selector-optional target', () => {
   it('assembles a source-only target (whole-resource / edge) without throwing', () => {
     const request: CreateAnnotationRequest = {
       motivation: 'linking',
@@ -29,7 +28,7 @@ describe('assembleAnnotation — selector-optional target (P2)', () => {
     expect(annotation).not.toHaveProperty('creator');
   });
 
-  it('carries what produced it when told, and never who asked — that is derived downstream (VERIFIED-PROVENANCE P2)', () => {
+  it('carries what produced it when told, and never who asked — that is derived downstream', () => {
     // An emitter may say WHAT produced the annotation (a software peer, with
     // its parameters). It may not say who asked: `creator` and
     // `wasAttributedTo` are derived by the Stower from the emitter's identity
@@ -50,7 +49,7 @@ describe('assembleAnnotation — selector-optional target (P2)', () => {
     expect(untold).not.toHaveProperty('creator');
   });
 
-  it('still assembles a target with a selector (no regression)', () => {
+  it('assembles a target with a selector', () => {
     const request: CreateAnnotationRequest = {
       motivation: 'highlighting',
       target: {
@@ -62,7 +61,7 @@ describe('assembleAnnotation — selector-optional target (P2)', () => {
     expect(annotation.target).toMatchObject({ selector: { type: 'TextPositionSelector', start: 0, end: 5 } });
   });
 
-  it('still rejects invalid SvgSelector markup when a selector IS present', () => {
+  it('rejects invalid SvgSelector markup when a selector IS present', () => {
     const request: CreateAnnotationRequest = {
       motivation: 'highlighting',
       target: {
@@ -73,7 +72,7 @@ describe('assembleAnnotation — selector-optional target (P2)', () => {
     expect(() => assembleAnnotation(request)).toThrow(/Invalid SVG markup/);
   });
 
-  it('still requires motivation', () => {
+  it('requires motivation', () => {
     // @ts-expect-error — deliberately omitting required motivation to exercise the runtime guard
     const request: CreateAnnotationRequest = { target: { source: 'r-1' } };
     expect(() => assembleAnnotation(request)).toThrow(/motivation is required/);

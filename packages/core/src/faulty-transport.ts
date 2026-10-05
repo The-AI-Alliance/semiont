@@ -1,6 +1,6 @@
 /**
  * FaultyTransport — a seeded, scriptable `ITransport` simulator for the
- * liveness axioms (`.plans/LIVENESS-AXIOMS.md`). fast-check draws a fault
+ * liveness axioms. fast-check draws a fault
  * schedule; the transport applies one `FaultAction` per request-channel emit
  * and synthesizes replies from the `BUS_OPERATIONS` registry, so real
  * compositions (`busRequest`, SWR caches, live queries) run unmodified against
@@ -45,15 +45,16 @@ export interface RequestLogEntry {
   correlationId: string | undefined;
   /**
    * Request identity for retry accounting: channel + payload minus the
-   * per-issue fields (`correlationId`, `_trace`, `_userId`). Two emits with
-   * the same key are the same logical request re-issued.
+   * per-issue fields (`_trace`, `_userId`). Two emits with the same key are
+   * the same logical request re-issued.
    */
   retryKey: string;
   /**
-   * The payload as emitted — envelope, options, params, `correlationId` and
-   * all. This is the surface for "assert what my orchestrator actually SENT"
-   * (SDK-TESTING-DOUBLE gap 6): without it every consumer harness re-invented
-   * a per-channel `transport.on(...)` wire recorder alongside this log.
+   * The payload as emitted — options, params and all. The envelope is not
+   * part of it: its key is this entry's `correlationId`. This is the surface
+   * for "assert what my orchestrator actually SENT": without it every
+   * consumer harness needs its own per-channel `transport.on(...)` wire
+   * recorder alongside this log.
    *
    * SHALLOW snapshot: the top level is copied at emit time, so a caller that
    * mutates its own payload object afterwards cannot rewrite history. Nested
@@ -71,7 +72,8 @@ export interface FaultyTransportConfig {
   schedule?: readonly FaultAction[];
   /**
    * Synthesize the `response` value for a delivered reply. Return `undefined`
-   * for a void ack (`{ correlationId }` only). Default: `{}` for every op.
+   * for a void ack (an empty payload). Default: `refuseUnscriptedOperation`,
+   * which throws naming the operation.
    */
   makeResponse?: (operation: BusOperationKey, payload: Record<string, unknown>) => unknown;
 }
@@ -79,8 +81,8 @@ export interface FaultyTransportConfig {
 /**
  * The default `makeResponse`: refuse, rather than invent.
  *
- * This used to be `() => ({})`, which answered every unscripted operation with
- * a SUCCESS whose every field was `undefined`. That is not a neutral default —
+ * A `() => ({})` default would answer every unscripted operation with a
+ * SUCCESS whose every field is `undefined`. That is not a neutral default —
  * it is a fabricated reply, and it surfaces far from its cause (a caller doing
  * `result.agents.find(...)` reports `undefined is not a function`, naming
  * neither the operation nor the missing script). A shape-correct empty default
@@ -103,8 +105,8 @@ function isOperation(channel: string): channel is BusOperationKey {
 }
 
 /** Stable request identity: channel + sorted payload minus per-issue fields.
- *  The correlation key is not among them — it rides the envelope now, so the
- *  payload is already stable across retries of the same request. */
+ *  The correlation key is not among them — it rides the envelope, so the
+ *  payload is stable across retries of the same request. */
 export function retryKeyOf(channel: string, payload: Record<string, unknown>): string {
   const entries = Object.entries(payload)
     .filter(([k]) => k !== '_trace' && k !== '_userId')
@@ -136,13 +138,12 @@ export class FaultyTransport implements ITransport {
 
   /**
    * Queue responses for `op`, consumed FIFO — one per request that reaches
-   * the simulated gateway — before falling back to `makeResponse`
-   * (SDK-TESTING-DOUBLE.md, gap 2). The queue scripts the GATEWAY; the fault
-   * schedule scripts the WIRE. Consequences, deliberately: `duplicate-reply`
-   * replays one entry's body twice, and a `drop-reply` still consumes its
-   * entry (the gateway answered; the wire ate it) — so "first reply lost,
-   * the retry sees the NEXT page" is expressible. `reject-emit` consumes
-   * nothing: that request never reached the gateway.
+   * the simulated gateway — before falling back to `makeResponse`. The queue
+   * scripts the GATEWAY; the fault schedule scripts the WIRE. Consequences,
+   * deliberately: `duplicate-reply` replays one entry's body twice, and a
+   * `drop-reply` still consumes its entry (the gateway answered; the wire ate
+   * it) — so "first reply lost, the retry sees the NEXT page" is expressible.
+   * `reject-emit` consumes nothing: that request never reached the gateway.
    */
   queueReply(op: BusOperationKey, ...responses: unknown[]): void {
     const q = this.replyQueues.get(op) ?? [];
@@ -195,9 +196,9 @@ export class FaultyTransport implements ITransport {
 
     // The gateway's answer is computed ONCE per request that reaches it —
     // the reply QUEUE scripts the gateway, the fault schedule scripts the
-    // wire (SDK-TESTING-DOUBLE.md Phase 2). So `duplicate-reply` replays the
-    // same body twice, and a `drop-reply` still consumes its queue entry:
-    // the gateway answered, the wire ate it.
+    // wire. So `duplicate-reply` replays the same body twice, and a
+    // `drop-reply` still consumes its queue entry: the gateway answered, the
+    // wire ate it.
     const queue = this.replyQueues.get(name);
     const response = queue && queue.length > 0 ? queue.shift() : this.makeResponse(name, record);
 
@@ -253,19 +254,19 @@ export class FaultyTransport implements ITransport {
   }
 
   subscribeToResource(_rid: ResourceId): () => void {
-    // Mirrors the real HttpTransport: distinct scopes COMPOSE
-    // (MULTI-RESOURCE-SCOPE). Delivery here is bus-direct and never
-    // scope-gated, so acquisition needs no bookkeeping and release
-    // (idempotent by construction) is a no-op.
+    // Mirrors the real HttpTransport: distinct scopes COMPOSE onto one
+    // connection. Delivery here is bus-direct and never scope-gated, so
+    // acquisition needs no bookkeeping and release (idempotent by
+    // construction) is a no-op.
     return () => {};
   }
 
   /**
-   * Correlated-reply tracking (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1),
-   * exposed for assertions: `busRequest` registers each cid here before its
-   * emit and releases on settle, so a test can pin the tracked set at any
-   * point of a request's lifecycle. Delivery in this double is bus-direct
-   * (nothing to replay), so tracking has no behavioral effect.
+   * Correlated-reply tracking, exposed for assertions: `busRequest` registers
+   * each cid here before its emit and releases on settle, so a test can pin
+   * the tracked set at any point of a request's lifecycle. Delivery in this
+   * double is bus-direct (nothing to replay), so tracking has no behavioral
+   * effect.
    */
   readonly pendingReplies = new Set<string>();
 

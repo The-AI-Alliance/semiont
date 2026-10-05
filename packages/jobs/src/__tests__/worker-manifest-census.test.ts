@@ -1,14 +1,13 @@
 /**
- * RED (CLIENT-SUBSCRIPTION-MANIFEST P2, D2/D3): the worker declares ONE
- * manifest, and it covers every channel worker code consumes.
+ * The worker declares ONE manifest, and it covers every channel worker code
+ * consumes.
  *
- * `WORKER_CHANNELS` was the AWAITED-reply derivation only; the broadcasts a
- * worker consumes lived as `addChannels` calls scattered at their use sites —
- * `job:queued` in the claim adapter, `job:cancel-requested` in the worker
- * process. Nothing compared the two, so on 2026-09-16 the `job:queued`
- * widening was deleted as redundant, every worker went idle, and no list got
- * shorter. `WORKER_CONSUMED_BROADCASTS` gives those one home, and the
- * transport is constructed with the union.
+ * `WORKER_CHANNELS` is the awaited-reply derivation plus
+ * `WORKER_CONSUMED_BROADCASTS`, the one home for the broadcasts a worker
+ * consumes (`job:queued` in the claim adapter, `job:cancel-requested` in the
+ * worker process), and the transport is constructed with the union. Widened
+ * by `addChannels` calls at their use sites instead, a widening can be
+ * deleted without any list getting shorter, and every worker goes idle.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -40,7 +39,7 @@ describe('worker subscription manifest', () => {
 
   it('every broadcast the worker streams is declared in the manifest', () => {
     // The `stream('x')` / `on('x')` census: a channel consumed by worker code
-    // that the manifest does not name is the 2026-09-16 outage exactly.
+    // that the manifest does not name is one its transport never carries.
     const manifest = new Set<string>(WORKER_CHANNELS);
     const consumed = new Set<string>();
     for (const { text } of sources()) {

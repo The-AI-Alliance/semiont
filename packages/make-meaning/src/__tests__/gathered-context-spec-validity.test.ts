@@ -1,15 +1,14 @@
 /**
- * A gathered context validates against the spec `/bus/emit` enforces —
- * GRAPH-ANNOTATION-CODEC P3.
+ * A gathered context validates against the spec `/bus/emit` enforces.
  *
- * The stores used to require a `selector`, so a source-only annotation was
- * stored as `'{}'` and read back as `{}` — which satisfies no branch of the
- * selector union, 400ing the wizard's Search leg once gather embedded it.
+ * A source-only annotation has no `selector`. A store that manufactures one —
+ * writing `'{}'` and reading back `{}` — yields a value that satisfies no
+ * branch of the selector union, and the wizard's Search leg 400s once gather
+ * embeds it.
  *
  * Both halves cross a package boundary and so read built `dist/`, not source:
  * a codec change verified only against this test WITHOUT rebuilding
- * `@semiont/graph` is verifying the previous build (measured — a poisoned
- * codec left this file green until the rebuild).
+ * `@semiont/graph` is verifying the previous build.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -45,10 +44,10 @@ const resource = (id: string, name: string): ResourceDescriptor => ({
 });
 
 /**
- * The shape the bug produced: a generated-from provenance edge, which is
+ * The shape under test: a generated-from provenance edge, which is
  * resource-level — `source`, no `selector`. Written through a REAL store,
- * which round-trips the codec (D7); a hand-built fixture would have validated
- * against the old lying store too.
+ * which round-trips the codec; a hand-built fixture would validate whatever
+ * the store does to a missing selector.
  */
 async function seedGraph(): Promise<{ kb: KnowledgeGraphReads; annotation: Annotation }> {
   const graph = new MemoryGraphDatabase();
@@ -93,11 +92,11 @@ function check(schema: 'GatherAnnotationComplete' | 'MatchSearchRequest', payloa
   return validate(payload) ? null : formatErrors(validate.errors);
 }
 
-describe('a gathered context carrying a resource-level edge is emittable (GRAPH-ANNOTATION-CODEC P3)', () => {
+describe('a gathered context carrying a resource-level edge is emittable', () => {
   it('round-trips the provenance annotation with no selector key at all', async () => {
     const { annotation } = await seedGraph();
 
-    // Absence is absence (D4): not `null`, not `{}` — the key must be gone.
+    // Absence is absence: not `null`, not `{}` — the key must be gone.
     const { target } = annotation;
     if (!isObject(target)) throw new Error('expected a structured target');
     expect('selector' in target).toBe(false);
@@ -119,7 +118,7 @@ describe('a gathered context carrying a resource-level edge is emittable (GRAPH-
     })).toBeNull();
   });
 
-  it('validates against MatchSearchRequest — the leg that actually 400\'d', async () => {
+  it('validates against MatchSearchRequest — the Search leg', async () => {
     const { kb, annotation } = await seedGraph();
     const graph = await GraphContext.buildKnowledgeGraph(DERIVED_FROM_ID, kb, silentLogger);
 
@@ -135,8 +134,8 @@ describe('a gathered context carrying a resource-level edge is emittable (GRAPH-
     const { kb, annotation } = await seedGraph();
     const graph = await GraphContext.buildKnowledgeGraph(DERIVED_FROM_ID, kb, silentLogger);
 
-    // The old lie, re-injected — so the green assertions above are provably
-    // load-bearing.
+    // A manufactured `{}` injected — so the passing assertions above are
+    // provably load-bearing.
     const poisoned = structuredClone(graph);
     for (const node of poisoned.nodes) {
       if (node.type !== 'annotation') continue;

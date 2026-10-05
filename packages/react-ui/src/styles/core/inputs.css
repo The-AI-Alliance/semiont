@@ -3,10 +3,6 @@
 
    This is the authoritative source for all text input styles.
    Usage: Apply .semiont-input to <input type="text">, <input type="email">, etc.
-
-   Available modifiers:
-   - .semiont-input--small (reduced padding)
-   - .semiont-input--large (increased padding)
    ============================================ */
 
 /* Base Input Styling */
@@ -93,8 +89,6 @@
 [data-theme="dark"] .semiont-input:disabled {
   background-color: var(--semiont-color-gray-800);
 }
-
-/* Size Variants */
 
 /* Input with inline prefix (e.g. "file://") */
 .semiont-input-addon {

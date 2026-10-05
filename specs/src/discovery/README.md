@@ -23,7 +23,7 @@ registers them into the bundle by reference, so `@semiont/core` generates
 their types alongside the API's.
 
 A future standalone contract (e.g. semiontconfig, whose schema authority
-today is `packages/core/src/config/config.schema.json`) gets its OWN sibling
+is `packages/core/src/config/config.schema.json`) gets its OWN sibling
 directory and its own deliberate admission — there is deliberately no
 generic "formats" area to attract tenants whose closures are not actually
 small (the event log, entangled with the domain model and the W3C Web

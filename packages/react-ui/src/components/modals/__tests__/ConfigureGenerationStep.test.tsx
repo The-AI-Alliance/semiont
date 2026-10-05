@@ -1,11 +1,11 @@
 /**
- * INFERENCE-LIMITS-EXPOSURE P3b — the max-length control is bounded by the
- * generation-serving agent's discovered output ceiling.
+ * The max-length control is bounded by the generation-serving agent's
+ * discovered output ceiling.
  *
- * The control was NOT previously unbounded: it shipped `min="100" max="4000"`.
- * So this phase replaces a hardcoded 4000 with the real ceiling, which for any
- * model above 4000 RAISES a cap users hit today, and for a smaller model
- * lowers it to something the provider will actually honour.
+ * With no ceiling known the control is bounded anyway: `min="100" max="4000"`.
+ * A discovered ceiling takes the place of that hardcoded 4000, which for any
+ * model above 4000 RAISES the cap, and for a smaller model lowers it to
+ * something the provider will actually honour.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { useState } from 'react';
@@ -29,7 +29,7 @@ const translations = {
   creativityCreative: 'Creative',
   maxLength: 'Max length',
   maxLengthHelp: 'How long the generated resource may be.',
-  // Named model + ceiling, so the bound is legible rather than mysterious (D6).
+  // Named model + ceiling, so the bound is legible rather than mysterious.
   maxLengthCeiling: 'Limited to {{maxOutputTokens}} tokens by {{model}}.',
   outputFormat: 'Format',
   formatExtensionMismatch: 'Save location must end in {{extension}} to match the selected format.',
@@ -39,7 +39,7 @@ const translations = {
 
 const context = { resources: [], annotations: [] } as unknown as GatheredContext;
 
-/** The wizard's initial draft (WIZARD-NAVIGATION D3). */
+/** The wizard's initial draft. */
 const DRAFT: GenerationDraft = freshGenerationDraft('Untitled', 'en');
 
 const agentWithCeiling = (maxOutputTokens: number): Collaborator =>
@@ -55,7 +55,7 @@ const agentWithCeiling = (maxOutputTokens: number): Collaborator =>
   }) as unknown as Collaborator;
 
 /**
- * The step is CONTROLLED since WIZARD-NAVIGATION D3 — the wizard owns the draft so
+ * The step is CONTROLLED — the wizard owns the draft so
  * Back cannot discard it. These tests therefore mount a tiny stateful harness rather
  * than the bare component: a `vi.fn()` for `onConfigChange` would swallow every edit
  * and quietly turn each assertion below into a test of nothing.
@@ -117,8 +117,8 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
 
   it('will not commit a value above the ceiling', () => {
     // `max` on a number input does not prevent TYPING an over-value — it only
-    // marks the field invalid. D6 says the value cannot be entered, so assert
-    // the committed state, never the attribute alone.
+    // marks the field invalid. The ceiling is clamped on the control itself, so
+    // assert the committed state, never the attribute alone.
     const { input } = renderStep(agentWithCeiling(2_000));
 
     fireEvent.change(input(), { target: { value: '9999' } });
@@ -160,7 +160,9 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
     expect(input().value).toBe('800');
   });
 
-  it('falls back to today\'s bounds and copy without an agent (D3/D6 degradation)', () => {
+  it('falls back to the hardcoded bounds and copy without an agent', () => {
+    // A missing ceiling is normal, never an error: the control keeps its
+    // hardcoded bounds.
     const { input } = renderStep(undefined);
 
     expect(input().min).toBe('100');
@@ -192,11 +194,11 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
   });
 
   it('lets the field be cleared, and never submits NaN for it', () => {
-    // Pre-existing hazard the clamp must not inherit: the handler was
-    // `parseInt(e.target.value)` and `parseInt('')` is NaN, which React then
-    // warns about and which would travel into the job config. Clearing must
-    // stay possible (you cannot retype a number otherwise), so the contract is
-    // about what SUBMITS, not about forbidding the empty state.
+    // A hazard the clamp must not carry: a bare `parseInt(e.target.value)`
+    // handler yields NaN for an empty field, which React warns about and
+    // which would travel into the job config. Clearing must stay possible (you
+    // cannot retype a number otherwise), so the contract is about what
+    // SUBMITS, not about forbidding the empty state.
     const { props } = renderStep(agentWithCeiling(4_000));
     const onGenerate = props.onGenerate;
     const input = screen.getByLabelText('Max length') as HTMLInputElement;
@@ -215,7 +217,7 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
 });
 
 // The rest of the draft, same contract as the ceiling: every field reports to
-// the owner (WIZARD-NAVIGATION D3). A field that kept its own state would look
+// the owner. A field that kept its own state would look
 // right until someone pressed Back.
 describe('ConfigureGenerationStep — the draft is the owner\'s', () => {
   it('reports edits to title, instructions, language and creativity', async () => {
@@ -273,11 +275,11 @@ describe('ConfigureGenerationStep — the draft is the owner\'s', () => {
   });
 });
 
-// ── GENERATION-OUTPUT-FORMAT P2 — the output format is a choice ─────────────
-// The wire, the worker and the registry have carried three generatable types
-// the whole time; only the control was missing.
+// ── The output format is a choice ───────────────────────────────────────────
+// The wire, the worker and the registry all carry the generatable types; this
+// control is where the user chooses among them.
 
-describe('ConfigureGenerationStep — the output format (D1, D2)', () => {
+describe('ConfigureGenerationStep — the output format', () => {
   const formatSelect = () => screen.getByLabelText(translations.outputFormat) as HTMLSelectElement;
 
   it('offers exactly the registry-generatable types, in registry order, by their registry labels', () => {
@@ -292,7 +294,7 @@ describe('ConfigureGenerationStep — the output format (D1, D2)', () => {
     );
   });
 
-  it('defaults to markdown, and SENDS what it shows (D2)', () => {
+  it('defaults to markdown, and SENDS what it shows', () => {
     // The worker already defaults to markdown when the key is absent, so an
     // unsent field would produce the right artifact by accident. The point is
     // that the displayed value is the transmitted one.
@@ -312,12 +314,12 @@ describe('ConfigureGenerationStep — the output format (D1, D2)', () => {
   });
 });
 
-describe('ConfigureGenerationStep — the GUI refuses a format/extension mismatch (D7)', () => {
+describe('ConfigureGenerationStep — the GUI refuses a format/extension mismatch', () => {
   const formatSelect = () => screen.getByLabelText(translations.outputFormat) as HTMLSelectElement;
   const generateButton = () => screen.getByText(new RegExp(translations.generate)).closest('button')!;
 
   it('blocks submission and explains, naming the extension the format expects', () => {
-    // D7: the worker is faithful and incurious — it will write a PDF to a .md
+    // The worker is faithful and incurious — it will write a PDF to a .md
     // path and only log it — so this form is the ONLY refusal in the chain.
     const { props } = renderStep();
     fireEvent.change(screen.getByLabelText('Save location'), { target: { value: 'generated/out.md' } });
@@ -360,7 +362,7 @@ describe('ConfigureGenerationStep — the GUI refuses a format/extension mismatc
   });
 
   it('refuses an extensionless path, and accepts a differently-cased one', () => {
-    // Open question 2, both edges: the rule is "ends with the registry
+    // Both edges: the rule is "ends with the registry
     // extension", so no extension fails it; case is not a real mismatch.
     renderStep();
     fireEvent.change(screen.getByLabelText('Save location'), { target: { value: 'generated/notes' } });
@@ -371,7 +373,9 @@ describe('ConfigureGenerationStep — the GUI refuses a format/extension mismatc
   });
 });
 
-describe('ConfigureGenerationStep — the hint echo (GEP P1c, D8)', () => {
+// The hint being steered by stays visible on the configure step: one quiet
+// line, display only.
+describe('ConfigureGenerationStep — the hint echo', () => {
   it('echoes a non-empty hint, and renders nothing without one', () => {
     const { container, rerender } = render(
       <ConfigureGenerationStep
@@ -394,7 +398,7 @@ describe('ConfigureGenerationStep — the hint echo (GEP P1c, D8)', () => {
   });
 });
 
-describe('the Save location proposes a path and stops following once touched (D11)', () => {
+describe('the Save location proposes a path and stops following once touched', () => {
   const path = () => screen.getByLabelText('Save location') as HTMLInputElement;
   const title = () => screen.getByLabelText('Title') as HTMLInputElement;
 
@@ -442,7 +446,7 @@ describe('the Save location proposes a path and stops following once touched (D1
     );
   });
 
-  it('a proposed path never trips the D7 mismatch refusal — it carries the right extension', () => {
+  it('a proposed path never trips the mismatch refusal — it carries the right extension', () => {
     const { props } = renderStep(undefined, 'research');
     fireEvent.change(screen.getByLabelText('Format'), { target: { value: 'application/pdf' } });
     fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
@@ -452,11 +456,11 @@ describe('the Save location proposes a path and stops following once touched (D1
   });
 });
 
-describe('temperature gating — the Creativity slider follows the model (SONNET-5-MIGRATION D3 shape 1)', () => {
-  // Measured 2026-09-25: claude-sonnet-5 refuses every non-default temperature
-  // with a 400 — including the wizard's own 0.7 default — so a rejecting model
-  // must neither show the control nor receive the field. Only an EXPLICIT
-  // false hides it: absence of discovery means no claim, and the control stays.
+describe('temperature gating — the Creativity slider follows the model', () => {
+  // claude-sonnet-5 refuses every non-default temperature with a 400 —
+  // including the wizard's own 0.7 default — so a rejecting model must neither
+  // show the control nor receive the field. Only an EXPLICIT false hides it:
+  // absence of discovery means no claim, and the control stays.
   const rejectingAgent = (): Collaborator =>
     ({
       agent: {

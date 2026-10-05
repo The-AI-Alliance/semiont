@@ -159,8 +159,10 @@ false) is how the layout knows to render the unauth view with a
        └── Kicks off setActiveKb(id), sessionActivating$ → true
            └── SemiontSession constructs, validates token via /api/users/me
                ├── 200 → activeSession$.next(session), sessionActivating$ → false
-               └── 401 → session disposes itself, activeSession$ stays null,
-                         onAuthFailed raises notifySessionEnded (see below)
+               └── 401 → the token is renewed once at the issuer and asked about once more;
+                         a session that cannot be renewed, or whose renewed token is
+                         refused too, clears its stored tokens and its token$, and
+                         onAuthFailed raises notifySessionEnded with why (see below)
 
 3. Out-of-band 401/403 from any HTTP / bus call
    └── transport stamps unauthorized/forbidden → session.errors$ → SemiontBrowser
@@ -227,7 +229,7 @@ When no session is active (e.g. on the landing page), `activeSignals$` is
 ## Testing
 
 See [tests/e2e/specs/07-sign-out-sign-in.spec.ts](../../../tests/e2e/specs/07-sign-out-sign-in.spec.ts)
-for the end-to-end regression guard: sign out, sign back in through the
+for the end-to-end guard: sign out, sign back in through the
 issuer, confirm the new session's bus/SSE/client round-trip. The test gates
 on the KB row's sign-out control reappearing rather than URL matching,
 because `toHaveURL(/know/)` passes immediately post-sign-out (the URL already

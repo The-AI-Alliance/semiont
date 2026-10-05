@@ -8,7 +8,7 @@
  *
  * Seeds two `text/plain` resources (for the text-annotation specs) plus
  * five `application/pdf` resources: a 3-word render smoke fixture (for
- * `14-pdf-render.spec.ts`, the PDFJS-6-UNIFY browser smoke), a
+ * `14-pdf-render.spec.ts`, the pdf.js browser smoke), a
  * text-layer fixture with a Concept-dense paragraph (for
  * `20-pdf-assisted-detection.spec.ts`, AI detection on a PDF), an
  * unreadable scan (for `22-pdf-scanned-decline.spec.ts` and
@@ -22,22 +22,21 @@
  *
  * This module exports two entry points:
  *
- *   - `seedKb(opts)` — async function callable from Playwright's
- *     `globalSetup` hook. Idempotent: each seed has a stable
- *     storageUri so re-runs against an already-seeded KB skip cleanly.
+ *   - `seedKb(opts)` — seeds the KB the options name. Idempotent: each
+ *     seed has a stable storageUri so re-runs against an already-seeded
+ *     KB skip cleanly.
  *
- *   - default export (also `seedKb`) — same function, exposed in the
- *     shape Playwright's `globalSetup` expects (see
- *     `playwright.config.ts`).
+ *   - default export (`globalSetup`) — reads the suite's env vars and
+ *     calls `seedKb`, in the shape Playwright's `globalSetup` expects
+ *     (see `playwright.config.ts`).
  *
  * Goes through `@semiont/sdk` like every other production caller —
- * `client.auth.password(...)` to authenticate, then
+ * `sessionFor(...)` (`../lib/session`) to sign in at the issuer, then
  * `client.yield.resource(...)` for each seed. No raw HTTP, no
  * hand-rolled multipart, no parallel implementation of the wire
  * protocol to drift out of sync.
  */
 
-import { SemiontClient } from '@semiont/sdk';
 import { getStorageUri } from '@semiont/core';
 import { sessionFor } from '../lib/session';
 
@@ -578,10 +577,10 @@ export interface SeedOptions {
 }
 
 /**
- * Idempotently seed the KB. Returns the count of resources created
- * (excluding ones that already existed).
+ * Idempotently seed the KB. Returns how many seeds this run created and
+ * how many were already present.
  *
- * The "already exists" path returns success — the suite only cares
+ * A seed already present is a success — the suite only cares
  * that the seed resources are present, not that this run created them.
  */
 export async function seedKb(opts: SeedOptions): Promise<{ created: number; existed: number }> {
@@ -599,25 +598,18 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
   let existed = 0;
   try {
     // Which seeds are already here. Asked ONCE, up front, rather than relying on
-    // the create failing.
-    //
-    // This used to lean on the gateway rejecting a duplicate `storageUri` and
-    // catching that below. Nothing enforces `storageUri` uniqueness — not the
-    // gateway, not make-meaning — so the create always succeeded, the catch never
-    // fired, and every run logged "N created, 0 already present" no matter how
-    // many times it had run before. Any KB grew by the full seed set per run; a
-    // blank template degraded exactly as fast as a used one, just from a lower
-    // starting point. Measured 2026-08-06 at eleven copies of each seed.
+    // the create failing: nothing enforces `storageUri` uniqueness — not the
+    // gateway, not make-meaning — so a duplicate create succeeds, and a seeder
+    // that leaned on its refusal would grow any KB by the full seed set per run.
     //
     // That is not merely untidy. Discover's landing list is capped
     // (`RECENT_LIMIT = 10`, newest-first), so accumulated seeds push each other
     // out of it, and specs that open a resource by name start failing at the card
-    // — a failure that reads as a regression in whatever they were testing.
+    // — a failure that reads as a defect in whatever they are testing.
     //
-    // `.fresh()` because `browse.resources()` is a CacheObservable and this is a
-    // one-shot read (CACHE-CONTRACT D2). The limit is generous on purpose: a
-    // short page would report a present seed as missing and re-create it, which
-    // is the bug this replaces.
+    // `.fresh()` because `browse.resources()` is a CacheObservable, which is not
+    // awaitable, and this is a one-shot read. The limit is generous on purpose: a
+    // short page would report a present seed as missing and re-create it.
     const present = new Set<string>();
     for (const r of (await client.browse.resources({ limit: 500, archived: false }).fresh()).resources) {
       const uri = getStorageUri(r);
@@ -633,10 +625,8 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
       // `client.yield.resource(...)` returns an UploadObservable that
       // resolves to `{ resourceId }` on success. Errors come through
       // as observable errors — typically APIError with the gateway's
-      // status + code. The duplicate branch below is a BACKSTOP for a
-      // race (two seeders at once); the pre-check above is what actually
-      // makes re-runs idempotent. It is deliberately kept rather than
-      // deleted: if uniqueness is ever enforced, this is where it lands.
+      // status + code — and any of them fails the seed: the pre-check
+      // above is what makes re-runs idempotent.
       try {
         // Awaiting the UploadObservable yields the awaitable shape
         // (`{ resourceId }`) directly — same as every other production
@@ -654,13 +644,7 @@ export async function seedKb(opts: SeedOptions): Promise<{ created: number; exis
         created++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        const lower = msg.toLowerCase();
-        if (lower.includes('already') || lower.includes('exists') || lower.includes('duplicate')) {
-          log(`[seed] · already   ${spec.storageUri}`);
-          existed++;
-        } else {
-          throw new Error(`seed failed for ${spec.storageUri}: ${msg}`);
-        }
+        throw new Error(`seed failed for ${spec.storageUri}: ${msg}`);
       }
     }
   } finally {

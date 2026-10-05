@@ -1,17 +1,11 @@
 /**
- * Deriving text, and who is allowed to (SMELTER-MEDIA-TYPES #743;
- * READ-VS-EXTRACT P1/P2).
+ * Deriving text, and who is allowed to.
  *
- * The strategy-keyed `EXTRACTORS` registry these tests used to cover is gone.
- * It held one real extractor and a one-line wrapper around core's
- * `decodeRepresentation` — whose own behavior (UTF-8, charset parameters, the
- * no-charset default) is tested in `@semiont/core`'s `resource-utils.test.ts`,
- * so the wrapper's tests were duplicating that through an indirection and left
- * with it.
- *
- * What is covered here is what remains: which media types need deriving, that
- * deriving cannot be reached without the store that persists it, and that core's
- * geometry answer matches what actually runs.
+ * Covered here: which media types need deriving, that deriving cannot be
+ * reached without the store that persists it, and that core's geometry answer
+ * matches what actually runs. Decoding (UTF-8, charset parameters, the
+ * no-charset default) is core's `decodeRepresentation`, tested in
+ * `@semiont/core`'s `resource-utils.test.ts`.
  */
 
 import path from 'path';
@@ -24,16 +18,15 @@ import type { AnchoredTextStore } from '../anchored-text-store';
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
-describe('derivingExtractorFor (READ-VS-EXTRACT P2)', () => {
+describe('derivingExtractorFor', () => {
   it('answers for the one media type whose text must be derived', () => {
     expect(derivingExtractorFor('application/pdf')).not.toBeNull();
   });
 
   it('answers null for text — decoding is not deriving, and is core\'s job', () => {
-    // The deleted registry returned a passthrough extractor here, making
-    // "decode UTF-8" and "OCR a scan" the same call. Callers now reach
-    // `decodeRepresentation` in @semiont/core directly, as five sites in
-    // @semiont/make-meaning already did.
+    // A passthrough extractor here would make "decode UTF-8" and "OCR a
+    // scan" the same call. Callers reach `decodeRepresentation` in
+    // @semiont/core directly.
     expect(derivingExtractorFor('text/markdown')).toBeNull();
     expect(derivingExtractorFor('text/plain')).toBeNull();
     expect(derivingExtractorFor('application/json')).toBeNull();
@@ -49,20 +42,20 @@ describe('derivingExtractorFor (READ-VS-EXTRACT P2)', () => {
   });
 });
 
-describe('deriving requires the store that persists what it derives (READ-VS-EXTRACT P2)', () => {
+describe('deriving requires the store that persists what it derives', () => {
   // The ownership rule, enforced by the type rather than by a convention: an
   // `ExtractionCache` carries an `AnchoredTextStore`, only the Smelter holds
   // one, so only the Smelter can call this. A worker cannot derive by accident
   // because it cannot construct the argument.
   //
   // These assertions are the COMPILER's — `@ts-expect-error` fails `tsc` if the
-  // call ever starts type-checking, which is exactly the regression to catch.
+  // call ever starts type-checking, which is exactly the change to catch.
   // Nothing is invoked; a runtime guard would be the fifth thing to remember,
-  // and remembering is what this phase removes.
+  // and remembering is what the required parameter removes.
   it('does not type-check without a cache', () => {
     const extractor = derivingExtractorFor('application/pdf')!;
     const call = () =>
-      // @ts-expect-error - deriving without the store is not reachable (P2)
+      // @ts-expect-error - deriving without the store is not reachable
       extractor.extract(Buffer.from(''), 'application/pdf');
     expect(typeof call).toBe('function');
   });
@@ -76,18 +69,19 @@ describe('deriving requires the store that persists what it derives (READ-VS-EXT
 });
 
 /**
- * The census gate for READ-VS-EXTRACT P1, restated against P2's shape.
+ * The census gate for core's geometry answer, stated against
+ * `derivingExtractorFor`.
  *
- * P1 deleted the `yieldsGeometry` boolean each extractor declared and made core's
- * `yieldsGeometryOf` the single home. That removes the chance of two
- * *declarations* disagreeing, but not the thing that matters: core can still be
- * wrong about what the code DOES. So the gate is behavioral — for every strategy,
- * check that positioned runs appear exactly where core says they will.
+ * Core's `yieldsGeometryOf` is the single home of the answer; no extractor
+ * declares it. That removes the chance of two *declarations* disagreeing, but
+ * not the thing that matters: core can still be wrong about what the code
+ * DOES. So the gate is behavioral — for every strategy, check that positioned
+ * runs appear exactly where core says they will.
  *
  * Asserting core's answer against a second hand-written table would be a mirror;
  * asserting it against what actually runs cannot be.
  */
-describe("core's geometry answer matches what actually runs (READ-VS-EXTRACT P1/P2)", () => {
+describe("core's geometry answer matches what actually runs", () => {
   // Keyed by strategy, so a strategy added in core fails to compile here until
   // someone decides which media type exercises it.
   const PROBES: Record<TextSource, { mediaType: string; bytes: (() => Buffer) | null }> = {
@@ -119,7 +113,7 @@ describe("core's geometry answer matches what actually runs (READ-VS-EXTRACT P1/
       }
 
       // Whether a deriving extractor exists at all is itself the geometry
-      // answer — P2 keyed the accessor on `yieldsGeometryOf`, so this pins the
+      // answer — the accessor is keyed on `yieldsGeometryOf`, so this pins the
       // two together before either is run.
       expect(extractor !== null).toBe(yieldsGeometryOf(probe.mediaType));
 

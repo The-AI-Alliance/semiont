@@ -1,15 +1,18 @@
 #!/usr/bin/env node
-// SAFE-DOCS gate: every ```ts / ```tsx / ```typescript fence in a suite's docs
+// Doc-snippets gate: every ```ts / ```tsx / ```typescript fence in a suite's docs
 // must type-check against the BUILT packages, resolved through the exports map
 // the way that suite's reader resolves them. Doc rot fails here instead of
 // waiting for a reader to paste a dead snippet.
 //
-// Two suites, each one TypeScript program with its own preludes:
-//   - sdk: the builder docs (docs/builder) and the cache contract
-//     (docs/protocol/CACHE-SEMANTICS.md), plus the repo-root and packages/sdk READMEs, which
+// Three suites, each one TypeScript program with its own preludes:
+//   - sdk: the builder docs (docs/builder) and the protocol docs
+//     (docs/protocol and its flows), plus the repo-root and packages/sdk READMEs, which
 //     carry the first sdk code most readers see and are the least likely to
 //     be revisited when a signature moves. Resolved like an external node
 //     consumer (nodenext).
+//   - skills: the agent skills (docs/builder/skills/*/SKILL.md, and their
+//     README). They teach Node scripts, so Node's types are on; resolved like
+//     the sdk suite.
 //   - ui: the react-ui docs (docs/builder/react-ui and packages/react-ui/docs)
 //     and the Browser docs, with their READMEs. Resolved like the Browser
 //     (bundler resolution, as Vite does), with the Browser's `@/` alias, since
@@ -32,9 +35,9 @@
 //     legal TypeScript and resolves to the value itself. The await-thenable
 //     walk below covers that class, implemented against the compiler API
 //     because this repo carries no eslint and one rule doesn't justify the
-//     stack (SAFE-DOCS log, D-deviation). It flags `await e` where NO
-//     constituent of e's type is thenable (any/unknown are skipped; `for
-//     await` is not checked — no doc snippet uses it).
+//     stack. It flags `await e` where NO constituent of e's type is thenable
+//     (any/unknown are skipped; `for await` is not checked — no doc snippet
+//     uses it).
 //   - @semiont/* resolve via workspace links → exports map → dist (consumer-
 //     shaped); TRANSITIVE deps still resolve via monorepo hoisting. Full
 //     external fidelity is the verdaccio drift check's job, not this gate's.
@@ -46,7 +49,7 @@
 //     ```ts sketch
 // Exemption is the last resort — anti-pattern snippets usually still compile
 // (they're behaviorally wrong, not type-wrong), and comment-elided literals
-// should become prelude bindings instead (SAFE-DOCS design point 6).
+// should become prelude bindings instead.
 //
 // Usage: node check.mjs [suite]   — every suite when none is named.
 
@@ -72,13 +75,29 @@ const SUITES = {
   sdk: {
     docs: [
       ...markdownIn('docs/builder'),
-      'docs/protocol/CACHE-SEMANTICS.md',
+      ...markdownIn('docs/protocol'),
+      ...markdownIn('docs/protocol/flows'),
       'README.md',
       'packages/sdk/README.md',
     ],
     preludes: ['prelude.ts'],
     options: {},
     ambientModules: [],
+    onlyDocDiagnostics: false,
+  },
+  // The agent skills: Node scripts, taught fence by fence. Node's types are on,
+  // and a name a fence uses that @semiont/sdk exports is imported for it.
+  skills: {
+    docs: [
+      ...markdownIn('docs/builder/skills'),
+      ...readdirSync(join(REPO_ROOT, 'docs/builder/skills'), { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => join('docs/builder/skills', entry.name, 'SKILL.md'))
+        .sort(),
+    ],
+    preludes: ['prelude-skills.ts'],
+    options: { types: ['node'] },
+    ambientModules: ['@semiont/sdk'],
     onlyDocDiagnostics: false,
   },
   ui: {

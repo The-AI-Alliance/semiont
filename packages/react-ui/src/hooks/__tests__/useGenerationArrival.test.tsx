@@ -1,13 +1,15 @@
 /**
- * GENERATION-ARRIVAL P2 — the reveal's arming logic, pinned at the hook seam.
+ * The arming logic of the generation reveal — a completion witnessed on the
+ * source page opens the References tab at the new outgoing reference and
+ * re-triggers its sparkle — pinned at the hook seam.
  *
  * A finished from-resource generation mints a provenance reference on the
- * source (YIELD-FROM-RESOURCE Fork 2b: motivation `linking`, resource-level
- * target, body pointing at the new resource). When the OUTCOME arrives while
- * the page is mounted, the hook finds that edge and calls `onReveal` with its
- * id — exactly once per run (A3/D8). An outcome already held at mount (the
- * user navigated away and back; `outcome$` is a BehaviorSubject) must NOT
- * fire (D6): the arrival was not witnessed, so nothing is announced.
+ * source (motivation `linking`, resource-level target, body pointing at the
+ * new resource). When the OUTCOME arrives while the page is mounted, the hook
+ * finds that edge and calls `onReveal` with its id — exactly once per run. An
+ * outcome already held at mount (the user navigated away and back; `outcome$`
+ * is a BehaviorSubject) must NOT fire: the arrival was not witnessed, so
+ * nothing is announced.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
@@ -56,7 +58,7 @@ describe('useGenerationArrival', () => {
     expect(onReveal).toHaveBeenCalledWith('ann-prov');
   });
 
-  it('re-renders with the same outcome do not re-reveal (A3)', () => {
+  it('re-renders with the same outcome do not re-reveal', () => {
     const o = outcomeFor('res-new');
     const anns = [provenanceRef('ann-prov', 'res-new')];
     const { rerender, onReveal } = renderArrival({ outcome: null, annotations: [] });
@@ -66,7 +68,7 @@ describe('useGenerationArrival', () => {
     expect(onReveal).toHaveBeenCalledTimes(1);
   });
 
-  it('an outcome already held at mount never reveals (D6 — the remount case)', () => {
+  it('an outcome already held at mount never reveals (the remount case)', () => {
     // outcome$ is a BehaviorSubject: a remounted page receives the SAME held
     // object on every render. Identity is the arrival contract — the unit
     // emits one object per completion — so the held object re-delivered is
@@ -82,7 +84,7 @@ describe('useGenerationArrival', () => {
   it('an outcome arriving before its edge waits, then reveals when it lands', () => {
     // mark:create for the provenance ref is awaited before job:complete, so
     // in practice the edge is already projected — this pin covers the
-    // ordering anyway (the plan's P2 worklist names it).
+    // ordering anyway.
     const { rerender, onReveal } = renderArrival({ outcome: null, annotations: [] });
     rerender({ outcome: outcomeFor('res-new'), annotations: [] });
     expect(onReveal).not.toHaveBeenCalled();

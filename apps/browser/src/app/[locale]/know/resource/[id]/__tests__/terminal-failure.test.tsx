@@ -1,18 +1,15 @@
 /**
- * End-to-end pin for the reported symptom: an endless "Loading resource...".
+ * End-to-end pin: a terminal load failure shows the error state, not an
+ * endless "Loading resource...".
  *
  * When the resource cache exhausts its B14 retry with nothing cached, B15
- * errors that key's observable. Nothing downstream used to be able to receive
- * that — `useObservable` subscribes next-only, and the loader modelled only
- * (value | no value), so "no value" and "dead request" were the same state.
- * The page therefore sat on the spinner forever while RxJS rethrew the error
- * into the console as an uncaught `BusRequestError`.
+ * makes `failed` that key's state, as an emission. The loader models it as an
+ * outcome of its own: with only (value | no value), "no value" and "dead
+ * request" are the same state and the page sits on the spinner forever.
  *
  * This test uses the REAL loader state unit and the REAL `useObservable` —
  * only the client and the viewer are stubbed — so it fails if either layer
- * goes back to swallowing.
- *
- * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md (D4)
+ * swallows the failure.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
@@ -52,7 +49,7 @@ const harness = vi.hoisted(() => {
     id: 'session-1',
     client,
     kb: { id: 'kb-a', label: 'KB A' },
-    streamState$: new BehaviorSubject('connected'),
+    streamState$: new BehaviorSubject('open'),
   };
   return {
     attempts,
@@ -85,7 +82,7 @@ describe('KnowledgeResourcePage — terminal load failure', () => {
 
   const failLatest = (message: string) =>
     act(() => {
-      // D1: failure is an EMISSION, not a stream death.
+      // Three-outcome contract: failure is an EMISSION, not a stream death.
       (harness.attempts[harness.attempts.length - 1] as Subject<unknown>).next({
         status: 'failed',
         error: new Error(message),

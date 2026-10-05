@@ -59,7 +59,7 @@ this doc covers how the SPA uses it.
 
 A *session* token in a URL would be — query strings leak into proxy logs,
 browser history, and `Referer` headers, and a leaked session token grants the
-attacker hours of full access. A **media token's blast radius is tiny**:
+attacker full access until it expires. A **media token's blast radius is tiny**:
 5 minutes × one specific resource. The `sub: resourceId` claim is the
 load-bearing safety property — a leaked media token is cryptographically useless
 against any *other* resource, even one the same user could open with their
@@ -131,11 +131,10 @@ The split is **display vs programmatic**, not text vs binary:
 - [`@semiont/http-transport` MEDIA-TOKENS.md](../../../packages/http-transport/docs/MEDIA-TOKENS.md) — the canonical media-token spec (claims, threat model, OpenAPI)
 - [Browser Authentication Architecture](./AUTHENTICATION.md) — the SPA's bearer-only session model
 - [Gateway Authentication Guide](../../gateway/docs/AUTHENTICATION.md) — JWT validation, including the `?token=` media path
-- [System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md) — end-to-end auth flows
+- [System Authentication Architecture](../../../docs/operator/administration/AUTHENTICATION.md) — end-to-end auth flows
 
 ---
 
-**Last Updated**: 2026-08-03
 **Key implementation**:
 - `packages/react-ui/src/hooks/useMediaToken.ts` — the refreshing token hook
 - `packages/react-ui/src/lib/media-url.ts` — `mediaUrl()`, the one place the `?token=` URL is built

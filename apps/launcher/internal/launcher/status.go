@@ -68,9 +68,7 @@ with a note, unless the codespace is already running.
 // place new rows where they belong.
 //
 // The rows carry no endpoint: the probe is the DRIVER's, and it comes from
-// the descriptor (healthEndpoint) or from the record a start wrote. Seventeen
-// literals here used to be a third copy of it, and they were the copy with
-// the hardcoded ports.
+// the descriptor (healthEndpoint) or from the record a start wrote.
 var statusServices = []struct {
 	name  string // abstract role (keys the descriptor set)
 	core  bool   // counted toward the exit status
@@ -274,22 +272,23 @@ func Status(args []string) int {
 // BrowserProbe answers the two questions anything that wants to reach the
 // Browser has to ask: WHERE is it, and is it up?
 //
-// Endpoint is an ORIGIN and never a path. That line is the whole of
-// BROWSER-HANDOFF D6/O1: the launcher publishes the container's host port and
-// records the endpoint, so `http://localhost:3000` is its own fact —
-// `/know/resource/<id>` is the Browser's, and mirroring it here would drift
-// silently the day the route moves. If you find yourself adding a route to a
-// Go file, that decision was reopened without saying so.
+// Endpoint is an ORIGIN and never a path. That line is a decision — the
+// launcher knows where the Browser is and none of its routes: it publishes
+// the container's host port and records the endpoint, so
+// `http://localhost:3000` is its own fact — `/know/resource/<id>` is the
+// Browser's, and mirroring it here would drift silently the day the route
+// moves. If you find yourself adding a route to a Go file, that decision was
+// reopened without saying so.
 type BrowserProbe struct {
 	Endpoint string // origin: flag override → record → http://localhost:3000
 	Running  bool   // the endpoint answers — the only test of "can a human open this"
 	State    string // container state; "" when no container carries either handle
 }
 
-// BrowserTarget probes the Browser. Extracted from printBrowser, which is
-// still its first caller: `browse --browser` needs the same three facts to
-// explain an emit that reached nobody, and a second implementation would be
-// a second set of bugs (notably the stale-ID fallback below).
+// BrowserTarget probes the Browser, for printBrowser and for `browse
+// --browser`, which needs the same three facts to explain an emit that
+// reached nobody: a second implementation would be a second set of bugs
+// (notably the stale-ID fallback below).
 //
 // override is `--browser-url`, taking precedence over the record.
 func BrowserTarget(ss *StackSet, override string) BrowserProbe {
@@ -317,7 +316,7 @@ func BrowserTarget(ss *StackSet, override string) BrowserProbe {
 	p.State, _ = containerState(rts, handle)
 	if p.State == "" && handle != "semiont-browser" {
 		// A stale recorded ID must not contradict a live endpoint ("absent"
-		// beside ✓): the stable name is the fallback truth (Copilot review).
+		// beside ✓): the stable name is the fallback truth.
 		p.State, _ = containerState(rts, "semiont-browser")
 	}
 	return p
@@ -420,7 +419,7 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 	}
 
 	// One STATUS cell — mark + word — instead of STATE and HEALTH columns
-	// that said yes twice on every healthy row. The diagnostic divergences
+	// that say yes twice on every healthy row. The diagnostic divergences
 	// keep distinct words: "✗ running" (up but unhealthy) vs "✗ exited"
 	// (crashed, kept for inspection) vs "✓ host"/"✓ reachable" (provided
 	// elsewhere). The probe endpoint stays, dimmed.
@@ -504,7 +503,7 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 			rt = "host"
 		case handle == "":
 			// A container-less role (embedding) has nothing to inspect. Never
-			// ask the runtime with an empty name: today Apple container
+			// ask the runtime with an empty name: Apple container
 			// answers [] and docker errors, but either could just as well
 			// answer with EVERY container and be read as this role running.
 			// STATE stays blank — the role owns no container state — but the
@@ -615,8 +614,8 @@ their state. The registry only remembers; drop an entry with semiont forget.
   --help   Show this help
 `
 
-// Roots implements `semiont roots` — the catalog that lived inside status
-// until it outgrew a screen and pushed stack health out of view.
+// Roots implements `semiont roots` — the catalog, a verb of its own so that
+// it cannot push stack health out of status's view.
 func Roots(args []string) int {
 	u := NewUI(false)
 	for _, a := range args {
@@ -658,8 +657,8 @@ func printRootsPointer(u *UI, st *StackState, cs []*StackState) {
 				known = true
 			}
 		}
-		// The tree included a cwd-discovered KB the registry has never
-		// seen; the count keeps doing so.
+		// The catalog includes a cwd-discovered KB the registry has never
+		// seen, so the count does too.
 		if !known {
 			n++
 		}
@@ -1006,8 +1005,8 @@ func storeUse(dir string) (uses []storeUseRow, total int64, any bool) {
 
 // containerState asks each runtime for the container's state, first hit wins.
 // Apple `container inspect` emits a JSON array with a top-level "status"
-// field (empty array once a --rm container is gone); docker/podman answer
-// short state strings via inspect -f.
+// field (an empty array when no container has that name); docker/podman
+// answer short state strings via inspect -f.
 func containerState(runtimes []string, name string) (state, rt string) {
 	for _, r := range runtimes {
 		if r == "container" {
@@ -1037,10 +1036,10 @@ func containerState(runtimes []string, name string) (state, rt string) {
 // roleHealthy probes one role of the stack.
 //
 // The GATEWAY goes through the Go SDK. It is the only role in this table that
-// is a semiont service with a generated client, and asking it directly was the
-// last application request the launcher made to the gateway over a
-// hand-written path — the thing packages/sdk-go exists to own, and which the
-// TypeScript side has always covered (`healthCheck` on `IGatewayOperations`).
+// is a semiont service with a generated client, and an application request to
+// the gateway is the thing packages/sdk-go exists to own, never a hand-written
+// path here — as the TypeScript side covers it (`healthCheck` on
+// `IGatewayOperations`).
 //
 // Everything else keeps the generic prober, and that is not laziness: the
 // sidecars serve `/health` with no client of their own, and the rest are
