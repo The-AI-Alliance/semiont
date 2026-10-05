@@ -402,6 +402,12 @@
       "GatherSummaryRequest": {
         "$ref": "components/schemas/GatherSummaryRequest.json"
       },
+      "GatherReferencedByRequest": {
+        "$ref": "components/schemas/GatherReferencedByRequest.json"
+      },
+      "GatherReferencedByResult": {
+        "$ref": "components/schemas/GatherReferencedByResult.json"
+      },
       "DurabilityEvidence": {
         "$ref": "components/schemas/DurabilityEvidence.json"
       },
@@ -653,6 +659,15 @@
       },
       "MatchSearchResult": {
         "$ref": "components/schemas/MatchSearchResult.json"
+      },
+      "MatchResourcesRequest": {
+        "$ref": "components/schemas/MatchResourcesRequest.json"
+      },
+      "MatchResourcesResponse": {
+        "$ref": "components/schemas/MatchResourcesResponse.json"
+      },
+      "MatchResourcesResult": {
+        "$ref": "components/schemas/MatchResourcesResult.json"
       },
       "MediaTokenRequest": {
         "$ref": "components/schemas/MediaTokenRequest.json"

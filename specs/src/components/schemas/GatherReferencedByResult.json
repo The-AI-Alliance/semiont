@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "description": "The annotations elsewhere that refer to a resource",
+  "properties": {
+    "response": {
+      "$ref": "./GetReferencedByResponse.json"
+    }
+  },
+  "required": [
+    "response"
+  ]
+}

@@ -256,7 +256,7 @@ runWikiPipeline(target).catch((e) => {
 
 ## Guidance for the AI assistant
 
-- **Find the resource id first** if the user gives a name: `await semiont.browse.resources({ search: '<name>' }).fresh()` and pick from `.resources`.
+- **Find the resource id first** if the user gives a name: `await semiont.match.resources('<name>').fresh()` and pick from `.resources`.
 - **Ask which entity types to detect** (Location, Person, Organization, Concept and so on). The worker runs one detection per type, so more types means a longer job.
 - **The threshold is in Matcher points, not a probability.** A candidate's score is a sum of points for the signals it matched: entity types in common, how well its name matches, how it is already connected to the source. 30 is selective and 15 is permissive. At 0 every reference binds to its top candidate, if it has one.
 - **`useSemanticScoring: true`** has a model score the top candidates against the passage, which improves precision and costs an inference call. Set it to `false` to rank on the structural signals alone.

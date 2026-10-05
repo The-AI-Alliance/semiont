@@ -1,15 +1,80 @@
 import { filter, map } from 'rxjs/operators';
-import type { AnnotationId, ResourceId, EventBus, GatheredContext } from '@semiont/core';
+import type { AnnotationId, CacheQuery, ResourceId, EventBus, GatheredContext } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
-import { StreamObservable } from '../awaitable';
+import { CacheObservable, StreamObservable } from '../awaitable';
 import { busRequest, uuidV4 } from '@semiont/core';
-import type { GatherNamespace as IGatherNamespace, GatherAnnotationComplete } from './types';
+import { createCache, type Cache } from '../cache';
+import { CacheRefresher, ScopedSources } from '../cache-refresh';
+import type { GatherNamespace as IGatherNamespace, GatherAnnotationComplete, ReferencedByEntry } from './types';
+
+/**
+ * The live queries of specs/src/client/refresh.json this namespace answers.
+ * `client.ts` holds the namespaces to answering every one between them.
+ */
+export const GATHER_QUERIES = ['referencedBy'] as const satisfies readonly CacheQuery[];
+type GatherQuery = (typeof GATHER_QUERIES)[number];
 
 export class GatherNamespace implements IGatherNamespace {
+  /** In memory only: an answer of the graph, asked again on each session. */
+  private readonly referencedByCache: Cache<ResourceId, ReferencedByEntry[]>;
+  private readonly scoped: ScopedSources;
+  private readonly refresher: CacheRefresher<GatherQuery>;
+
   constructor(
     private readonly transport: ITransport,
     private readonly bus: EventBus,
-  ) {}
+    options?: {
+      /** Timeout of the requests the live query issues; absent, `busRequest`'s own. */
+      busTimeoutMs?: number;
+      /** B19's window; absent, `invalidationWindowMs` of specs/src/client/timing.json. */
+      invalidationWindowMs?: number;
+    },
+  ) {
+    this.scoped = new ScopedSources(this.transport);
+
+    this.referencedByCache = createCache<ResourceId, ReferencedByEntry[]>(async (resourceId) => {
+      const result = await busRequest(
+        this.transport,
+        'gather:referenced-by-requested',
+        { resourceId },
+        options?.busTimeoutMs,
+      );
+      return result.referencedBy;
+    });
+
+    this.refresher = new CacheRefresher<GatherQuery>(this.transport, this.bus, {
+      referencedBy: {
+        refetch: (subject, reach) => {
+          const resources = reach === 'held' ? this.referencedByCache.keys() : subject.resource ? [subject.resource] : [];
+          for (const rId of resources) {
+            this.refresher.held(this.referencedByCache, rId, `referenced-by/${rId}`, () => this.invalidateReferencedBy(rId));
+          }
+        },
+      },
+    }, options?.invalidationWindowMs);
+  }
+
+  /**
+   * The annotations elsewhere that refer to a resource — a live query, kept
+   * per resource. Subscribing acquires the resource's scope.
+   */
+  referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]> {
+    return CacheObservable.from(
+      this.scoped.of(resourceId, this.referencedByCache.observe(resourceId)),
+      () => this.referencedByCache.fetch(resourceId),
+    );
+  }
+
+  /** A direct caller says the key is out of date: asked again at once, whatever it holds (B8). */
+  invalidateReferencedBy(resourceId: ResourceId): void {
+    this.referencedByCache.invalidate(resourceId);
+  }
+
+  /** B16: detach from the bus and dispose the cache this namespace built. Idempotent. */
+  dispose(): void {
+    this.refresher.dispose();
+    this.referencedByCache.dispose();
+  }
 
   annotation(
     resourceId: ResourceId,

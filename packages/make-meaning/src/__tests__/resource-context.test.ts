@@ -200,29 +200,6 @@ describe('ResourceContext', () => {
       expect(result.resources).toEqual([mockResource3]);
     });
 
-    test('search path pushes every filter into the graph query', async () => {
-      const specialDoc = { ...mockResource2, name: 'Special Document' };
-      mockGraph.listResources.mockResolvedValue({ resources: [specialDoc], total: 42 });
-
-      const result = await ResourceContext.listResources(
-        { search: 'special', archived: false, entityType: 'Document', offset: 20, limit: 10 },
-        mockKb,
-        inertSemantic());
-
-      // Every filter travels into the engine. Narrowing any of them in JS after
-      // the fact would apply it to one page instead of the whole match set.
-      expect(mockGraph.listResources).toHaveBeenCalledWith({
-        search: 'special',
-        archived: false,
-        entityTypes: ['Document'],
-        offset: 20,
-        limit: 10,
-      });
-      expect(mockViewStorage.getAll).not.toHaveBeenCalled();
-      expect(result.total).toBe(42);
-      expect(result.resources).toEqual([specialDoc]);
-    });
-
     test('a whitespace-only query is not a search', async () => {
       mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource2)]);
 
@@ -233,15 +210,6 @@ describe('ResourceContext', () => {
       expect(mockGraph.listResources).not.toHaveBeenCalled();
       expect(mockViewStorage.getAll).toHaveBeenCalled();
       expect(result.total).toBe(2);
-    });
-
-    test('search path returns nothing when the graph has no matches', async () => {
-      mockGraph.listResources.mockResolvedValue({ resources: [], total: 0 });
-
-      const result = await ResourceContext.listResources({ search: 'nonexistent' }, mockKb, inertSemantic());
-
-      expect(result.resources).toEqual([]);
-      expect(result.total).toBe(0);
     });
 
     test('should sort by creation date (newest first)', async () => {
@@ -444,109 +412,15 @@ describe('ResourceContext', () => {
   // ── Semantic fallback — axioms S1–S6, S8 ─────────────────────────────────
   // Every case asserts `matchKind` because S1/S8's embed-absence halves would
   // pass vacuously on their own.
-  describe('semantic fallback — axioms', () => {
-    const FLOOR = 0.6;
-    const doc = (id: string, name = id): ResourceDescriptor => ({
-      '@context': 'https://schema.org/',
-      '@id': resourceId(id),
-      name,
-      representations: [],
-    });
-    const hit = (rid: string, score: number, text: string) => ({
-      id: `${rid}#0`, score, resourceId: resourceId(rid), text,
-    });
-
-    let embed: ReturnType<typeof vi.fn>;
-    let searchResources: ReturnType<typeof vi.fn>;
-    let warn: ReturnType<typeof vi.fn>;
-
-    const semantic = (over?: { floor?: number }) => ({
-      embeddingProvider: { embed } as any,
-      semanticFloor: over?.floor ?? FLOOR,
-      logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(), child: vi.fn() } as any,
-    });
-
-    beforeEach(() => {
-      embed = vi.fn().mockResolvedValue([0.1, 0.2, 0.3]);
-      warn = vi.fn();
-      searchResources = vi.fn().mockResolvedValue([]);
-      (mockKb as any).vectors = { searchResources };
-      mockGraph.getResource = vi.fn().mockImplementation(async (rid: ResourceId) => doc(String(rid)));
-    });
-
-    test('S1: a non-empty lexical result never calls the embedding provider', async () => {
-      mockGraph.listResources.mockResolvedValue({ resources: [doc('res-hit')], total: 1 });
-
-      const result = await ResourceContext.listResources({ search: 'ouranos' }, mockKb, semantic());
-
-      expect(result.matchKind).toBe('lexical');
-      expect(result.total).toBe(1);
-      expect(embed).not.toHaveBeenCalled();
-    });
-
-    test('S2: empty lexical + configured vectors answer semantically, labelled', async () => {
-      mockGraph.listResources.mockResolvedValue({ resources: [], total: 0 });
-      searchResources.mockResolvedValue([hit('res-a', 0.91, 'the passage that matched')]);
-
-      const result = await ResourceContext.listResources({ search: 'ouranos' }, mockKb, semantic());
-
-      expect(result.matchKind).toBe('semantic');
-      expect(embed).toHaveBeenCalledTimes(1);
-      expect(result.total).toBe(1);
-      expect(result.resources[0]?.['@id']).toBe('res-a');
-      // The snippet is the passage that matched, not the first 200 chars.
-      expect((result.resources[0] as { content?: string }).content).toBe('the passage that matched');
-    });
-
-    // No S3/S4 (vectors unconfigured / provider absent → empty lexical,
-    // labelled lexical): the vector store and embedding provider are required
-    // at the type level, so their premise is unrepresentable. S5 stands —
-    // mandatory is not the same as always up.
-
-    test('S5: a throwing embed degrades to the empty lexical result, logged — never an error', async () => {
-      mockGraph.listResources.mockResolvedValue({ resources: [], total: 0 });
-      embed.mockRejectedValue(new Error('provider down'));
-
-      const result = await ResourceContext.listResources({ search: 'ouranos' }, mockKb, semantic());
-
-      expect(result.matchKind).toBe('lexical');
-      expect(result.total).toBe(0);
-      expect(warn).toHaveBeenCalled();
-    });
-
-    test('S6: semantic results keep score order, not recency order', async () => {
-      mockGraph.listResources.mockResolvedValue({ resources: [], total: 0 });
-      // Recency (dateModified) would order c, b, a; scores order a, b, c.
-      searchResources.mockResolvedValue([
-        hit('res-b', 0.8, 'b'), hit('res-a', 0.9, 'a'), hit('res-c', 0.7, 'c'),
-      ]);
-      mockGraph.getResource = vi.fn().mockImplementation(async (rid: ResourceId) => ({
-        ...doc(String(rid)),
-        dateModified: { 'res-a': '2026-01-01', 'res-b': '2026-02-01', 'res-c': '2026-03-01' }[String(rid)],
-      }));
-
-      const result = await ResourceContext.listResources({ search: 'ouranos' }, mockKb, semantic());
-
-      expect(result.matchKind).toBe('semantic');
-      expect(result.resources.map((r) => r['@id'])).toEqual(['res-a', 'res-b', 'res-c']);
-    });
-
-    test('S8: offset > 0 never triggers the fallback', async () => {
-      mockGraph.listResources.mockResolvedValue({ resources: [], total: 0 });
-      searchResources.mockResolvedValue([hit('res-a', 0.9, 'a')]);
-
-      const result = await ResourceContext.listResources({ search: 'ouranos', offset: 50 }, mockKb, semantic());
-
-      expect(result.matchKind).toBe('lexical');
-      expect(result.total).toBe(0);
-      expect(embed).not.toHaveBeenCalled();
-    });
-  });
 });
 
 // The text-source dispatcher: the media type decides where text comes from.
 // Binary is never toString'd; absent means absent, never ''.
 describe('getResourceContent — text source dispatcher', () => {
+  // This block asserts what was NOT called, so the calls of the blocks
+  // above must not be counted against it.
+  beforeEach(() => vi.clearAllMocks());
+
   type ContentReads2 = Parameters<typeof ResourceContext.getResourceContent>[1];
 
   const doc = (): ResourceDescriptor => ({

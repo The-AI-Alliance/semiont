@@ -35,6 +35,7 @@
 import { replyChannelsFor, type BusOperationKey, type EventMap } from '@semiont/core';
 import { MATCHER_CHANNELS } from './matcher';
 import { GATHERER_CHANNELS } from './gatherer';
+import { RETRIEVAL_HANDLER_CHANNELS } from './handlers/resource-retrieval';
 import type { AnchoredTextAskAwaits } from './anchored-text-ask';
 import { STOWER_CHANNELS } from './stower';
 import { BROWSER_CHANNELS } from './browser';
@@ -103,8 +104,8 @@ export const weaverAwaitCensus: [WeaverAwaitCensusDrift] extends [never]
 // ── Librarian ────────────────────────────────────────────────────────
 
 /**
- * The actors' rosters (each pinned to its actor's real subscriptions by a
- * census gate), the gather-summary handler's channel, and the two progress
+ * The actors' rosters and the retrieval handlers' (each pinned to its real
+ * subscriptions by a census gate), the gather-summary handler's channel, and the two progress
  * SIGNALS the local folds consume (`weave:applied` for the graph grace,
  * `smelt:settled` for the settle barrier). Signals have no BUS_OPERATIONS
  * entries, so the outbound derivation ignores them and nothing echoes. The
@@ -114,6 +115,7 @@ export const weaverAwaitCensus: [WeaverAwaitCensusDrift] extends [never]
 export const LIBRARIAN_INBOUND_CHANNELS = [
   ...MATCHER_CHANNELS,
   ...GATHERER_CHANNELS,
+  ...RETRIEVAL_HANDLER_CHANNELS,
   'gather:summary-requested',
   'weave:applied',
   'smelt:settled',

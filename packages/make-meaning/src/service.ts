@@ -24,6 +24,7 @@ import { CloneTokenManager } from './clone-token-manager';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
 import { stopKnowledgeSystem, type KnowledgeSystem } from './knowledge-system';
 import { registerBusHandlers } from './handlers';
+import { registerRetrievalHandlers } from './handlers/resource-retrieval';
 import { anchoredTextOverBus } from './anchored-text-ask';
 import { asBusRequestPrimitive } from './bus-request-local';
 
@@ -183,13 +184,28 @@ async function createKnowledgeSystemFromConfig(
   );
   await matcher.initialize();
 
+  // Text search and referenced-by answer from the graph and the vectors, so
+  // they register beside the two actors that hold them.
+  const detachRetrieval = registerRetrievalHandlers(
+    eventBus,
+    { graph: kb.graph, views: kb.views, vectors: kb.vectors, content: workingTreeContentReads(kb.views, kb.content) },
+    { embeddingProvider, semanticFloor: config.search.semanticFloor, state: project },
+    logger,
+  );
+
   const browser = new Browser(kb, eventBus, project, config, config, embeddingProvider, logger.child({ component: 'browser' }));
   await browser.initialize();
 
   const cloneTokenManager = new CloneTokenManager(kb, eventBus, logger.child({ component: 'clone-token-manager' }));
   await cloneTokenManager.initialize();
 
-  const ks: KnowledgeSystem = { kb, stower, gatherer, matcher, browser, cloneTokenManager, stop: () => stopKnowledgeSystem(ks) };
+  const ks: KnowledgeSystem = {
+    kb, stower, gatherer, matcher, browser, cloneTokenManager,
+    stop: () => {
+      detachRetrieval();
+      return stopKnowledgeSystem(ks);
+    },
+  };
   return ks;
 }
 

@@ -8775,8 +8775,24 @@ func TestBindAddsAndRemovesTarget(t *testing.T) {
 	mustContain(t, "emit", b, `"op":"remove"`)
 }
 
-// WIRE SMOKE TEST (match). The family's only test, and end-to-end deliberately:
-// it proves the BUILT BINARY speaks HTTP a real server understands.
+// WIRE SMOKE TEST (match --search). The text form's logic runs in process
+// (internal/verbs/verbs_test.go); this proves the BUILT BINARY reaches the
+// resource search over HTTP and reads the reply it sends.
+func TestMatchSearchFindsResources(t *testing.T) {
+	s := busScenario(t, `FAKERT_BUS_REPLY_match_resources_requested={"resources":[`+
+		`{"@id":"res-7","name":"Acme MSA","entityTypes":["Contract"]}],`+
+		`"total":1,"offset":0,"limit":5,"matchKind":"lexical"}`)
+	stdout, stderr, code := s.run(t, "match", "--search", "indemnity", "--limit", "5")
+	if code != 0 {
+		t.Fatalf("match --search: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "table", stdout, "res-7", "Acme MSA", "1 shown, 1 total")
+	b := lastEmit(t, s)
+	mustContain(t, "emit", b, `"channel":"match:resources-requested"`, `"search":"indemnity"`, `"limit":5`, `"correlationId"`)
+}
+
+// WIRE SMOKE TEST (match, annotation form). End-to-end deliberately: it
+// proves the BUILT BINARY speaks HTTP a real server understands.
 func TestMatchGathersThenSearches(t *testing.T) {
 	// match is TWO exchanges: the search requires a context payload, so a
 	// gather must precede it — not an optimization, a precondition.

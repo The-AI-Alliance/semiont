@@ -61,7 +61,7 @@ export function SearchModal({
   const [pipeline] = useState(() =>
     createSearchPipeline<SearchResult>(
       (q) =>
-        semiontRef.current!.browse.resources({ search: q, limit: SEARCH_LIMIT }).pipe(
+        semiontRef.current!.match.resources(q, { limit: SEARCH_LIMIT }).pipe(
           map((st) => {
             const resources = readyValue(st)?.resources;
             if (resources === undefined) return undefined;

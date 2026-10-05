@@ -43,8 +43,8 @@ gather), and one directs attention (beckon). Learn them once and the surface sta
 | **bind** | Resolve ambiguous references to specific resources | `bind.body`, `bind.initiate` |
 | **frame** | Define and evolve the schema vocabulary (entity types, tag schemas) | `frame.addEntityTypes`, `frame.addTagSchema` |
 | **browse** | Navigate, read, observe — including who's here to collaborate | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
-| **match** | Search the corpus for candidate resources | `match.search` |
-| **gather** | Assemble grounding context around a resource or an annotation | `gather.resource`, `gather.annotation` |
+| **match** | Search the corpus — resources by text, and candidates for a reference | `match.resources`, `match.search` |
+| **gather** | Assemble grounding context around a resource or an annotation, and list what refers to a resource | `gather.resource`, `gather.annotation`, `gather.referencedBy` |
 | **beckon** | Direct attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.openResource` |
 
 Each flow is a namespace on `SemiontClient` (`client.mark.X(...)`); the verb is the unit of

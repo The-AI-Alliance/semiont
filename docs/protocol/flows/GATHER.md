@@ -2,6 +2,8 @@
 
 Gather assembles context: the passage, what surrounds it, and what the knowledge base knows about its neighborhood. The result is what a model is given to work from, and what a person is shown before deciding. It is one of the three reading verbs, with [Browse](BROWSE.md) and [Match](MATCH.md).
 
+Gather also lists what refers to a resource: the references elsewhere that are bound to it.
+
 Gather adds no knowledge. It finds and assembles what is already there.
 
 ## Operations
@@ -10,12 +12,13 @@ Gather adds no knowledge. It finds and assembles what is already there.
 |---|---|---|---|
 | `gather.annotation` | a stream that gives the context around one annotation | `gather:requested` | the librarian |
 | `gather.resource` | the context around a whole resource | `gather:resource-requested` | the librarian |
+| `gather.referencedBy` | a live query that gives the annotations elsewhere that refer to a resource | `gather:referenced-by-requested` | the librarian |
 
-The replies are `gather:complete` and `gather:resource-complete`, or their `-failed` counterparts.
+The replies are `gather:complete`, `gather:resource-complete` and `gather:referenced-by-result`, or their `-failed` counterparts.
 
 ## The gathered context
 
-Both operations give a `GatheredContext`:
+`gather.annotation` and `gather.resource` give a `GatheredContext`:
 
 | Part | Holds |
 |---|---|
@@ -28,6 +31,19 @@ Both operations give a `GatheredContext`:
 The lists a consumer usually wants (connected resources, what cites the source, sibling entity types) are derived from `graph` rather than stored beside it.
 
 `focus.kind` says which of the two it is, and what [Yield](YIELD.md) does with a context depends on it.
+
+## What refers to a resource
+
+`gather.referencedBy` gives one entry for each reference bound to the resource, read from the graph:
+
+| Part | Holds |
+|---|---|
+| `id` | The annotation |
+| `resourceName` | The name of the resource the annotation is on |
+| `target.source` | The resource the annotation is on |
+| `target.selector.exact` | The text the annotation covers |
+
+On the wire the request names the resource, and may name a `motivation` to keep to annotations of that kind. It is kept current as a [live query](../CACHE-SEMANTICS.md) is.
 
 ## Rules
 
@@ -59,6 +75,10 @@ const context = await semiont.gather.resource(resourceId, {
   maxResources: 10,
   excludeEntityTypes: ['Draft'],
 });
+
+// What refers to a resource
+const references = await semiont.gather.referencedBy(resourceId).fresh();
+for (const ref of references) console.log(`${ref.resourceName}: "${ref.target.selector.exact}"`);
 ```
 
 From the launcher: `semiont gather <resourceId>` for a resource, and `semiont gather <resourceId> <annotationId>` for an annotation.
@@ -67,5 +87,6 @@ From the launcher: `semiont gather <resourceId>` for a resource, and `semiont ga
 
 - The SDK namespace: [packages/sdk/src/namespaces/gather.ts](../../../packages/sdk/src/namespaces/gather.ts)
 - The Gatherer: [packages/make-meaning/src/gatherer.ts](../../../packages/make-meaning/src/gatherer.ts)
+- What refers to a resource: [packages/make-meaning/src/referenced-by.ts](../../../packages/make-meaning/src/referenced-by.ts)
 - The launcher verb: [apps/launcher/internal/verbs/gather.go](../../../apps/launcher/internal/verbs/gather.go)
 - The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

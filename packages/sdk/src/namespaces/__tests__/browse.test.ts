@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { map, firstValueFrom, filter, BehaviorSubject } from 'rxjs';
-import { EventBus, resourceId, annotationId, isObject } from '@semiont/core';
+import { EventBus, resourceId, annotationId } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
 import { isReady } from '../../cache';
 import type { ConnectionState, ITransport, IContentTransport } from '@semiont/core';
@@ -73,10 +73,6 @@ function defaultResponses(): ResponseMap {
     'browse:resources-requested': () => ({
       resultChannel: 'browse:resources-result',
       response: { resources: [mockResource('res-1')], total: 1, offset: 0, limit: 20, matchKind: 'lexical' },
-    }),
-    'browse:referenced-by-requested': () => ({
-      resultChannel: 'browse:referenced-by-result',
-      response: { referencedBy: [] },
     }),
     'browse:entity-types-requested': () => ({
       resultChannel: 'browse:entity-types-result',
@@ -200,7 +196,6 @@ describe('BrowseNamespace', () => {
       const val = await firstDefined(browse.resources());
       expect(emitSpy).toHaveBeenCalledTimes(1);
       expect(val.resources).toHaveLength(1);
-      expect(val.matchKind).toBe('lexical');
     });
 
     it('uses separate cache keys for different filters', async () => {
@@ -210,36 +205,12 @@ describe('BrowseNamespace', () => {
     });
 
     it('caches the same query and re-fetches a different one', async () => {
-      await firstDefined(browse.resources({ search: 'foo' }));
-      await firstDefined(browse.resources({ search: 'foo' }));
+      await firstDefined(browse.resources({ entityType: 'Person' }));
+      await firstDefined(browse.resources({ entityType: 'Person' }));
       expect(emitSpy).toHaveBeenCalledTimes(1);
 
-      await firstDefined(browse.resources({ search: 'bar' }));
+      await firstDefined(browse.resources({ entityType: 'Place' }));
       expect(emitSpy).toHaveBeenCalledTimes(2);
-    });
-
-    // ── Semantic fallback — axioms S9, S10 ────────────────────────────────
-
-    function semanticBrowse(): BrowseNamespace {
-      const responses = defaultResponses();
-      responses['browse:resources-requested'] = () => ({
-        resultChannel: 'browse:resources-result',
-        response: { resources: [mockResource('res-sem')], total: 1, offset: 0, limit: 20, matchKind: 'semantic' },
-      });
-      return new BrowseNamespace(createMockTransport(responses).transport, new EventBus(), makeContent());
-    }
-
-    it('S9: a caller can read matchKind from the emission', async () => {
-      const value = await firstDefined(semanticBrowse().resources({ search: 'kitten' }));
-      expect(value.matchKind).toBe('semantic');
-    });
-
-    it('S10: the label and the resources it describes arrive as one value', async () => {
-      const st = await firstValueFrom(semanticBrowse().resources({ search: 'kitten' }).pipe(filter(isReady)));
-      // The one ready emission carries the label AND the page it labels —
-      // there is no second observable to (mis)pair them from.
-      expect(isObject(st.value) && st.value.matchKind === 'semantic').toBe(true);
-      expect(st.value.resources.map((r) => r.name)).toEqual(['Resource res-sem']);
     });
   });
 

@@ -17,7 +17,7 @@ A reference in Semiont leads to one resource: an annotation on a passage, bound 
 - A **Relationship resource** for each related pair, with entity types `['Relationship', '<type>']`. Its text names the two nodes, and a reference on each name is bound to that node.
 - A **reference on the passage** that establishes the relationship, bound to the Relationship resource and tagged with the relationship's type.
 
-The graph then reads passage → relationship → the two nodes. `browse.referencedBy(node)` lists the relationships a node is in, `browse.referencedBy(relationship)` lists every passage that establishes one, and `browse.resources({ entityType: 'kinship' })` lists every relationship of a type.
+The graph then reads passage → relationship → the two nodes. `gather.referencedBy(node)` lists the relationships a node is in, `gather.referencedBy(relationship)` lists every passage that establishes one, and `browse.resources({ entityType: 'kinship' })` lists every relationship of a type.
 
 ## Who decides
 
@@ -110,7 +110,7 @@ async function relationshipResource(
 ): Promise<ResourceId> {
   const name = `${type}: ${a.name} and ${b.name}`;
 
-  const listed = await semiont.browse.resources({ entityType: type, search: name, limit: 100 }).fresh();
+  const listed = await semiont.match.resources(name, { entityType: type, limit: 100 }).fresh();
   const existing = listed.resources.find((r) => r.name === name);
   if (existing) return existing['@id'];
 
@@ -179,7 +179,7 @@ async function relationshipResource(
 ): Promise<ResourceId> {
   const name = `${type}: ${a.name} and ${b.name}`;
 
-  const listed = await semiont.browse.resources({ entityType: type, search: name, limit: 100 }).fresh();
+  const listed = await semiont.match.resources(name, { entityType: type, limit: 100 }).fresh();
   const existing = listed.resources.find((r) => r.name === name);
   if (existing) return existing['@id'];
 
@@ -260,5 +260,5 @@ relate(file).catch((e) => {
 - **Relationships are sparse.** A hundred passages might state twenty to fifty. If you are writing one for every pair of names in a paragraph, you are recording co-occurrence. Record what the text states.
 - **One Relationship resource for each pair and type.** Every passage that establishes it is bound to the same one, so the resource collects its own evidence.
 - **Edges feed aggregates.** [`semiont-aggregate`](../semiont-aggregate/SKILL.md) composes a family tree, a precedent graph or a party chart by walking them.
-- **Check results** with `await semiont.browse.referencedBy(relationshipId).fresh()` for the passages that establish a relationship, and `await semiont.browse.resources({ entityType: 'kinship' }).fresh()` for every relationship of a type.
+- **Check results** with `await semiont.gather.referencedBy(relationshipId).fresh()` for the passages that establish a relationship, and `await semiont.browse.resources({ entityType: 'kinship' }).fresh()` for every relationship of a type.
 - **Errors.** Every SDK throw extends `SemiontError`: catch it and route on its `code`. See [Error Handling](../../Usage.md#error-handling).

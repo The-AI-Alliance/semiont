@@ -62,7 +62,6 @@ function makeFakeTransport() {
       respond(channel as string, 'browse:annotations-requested', 'browse:annotations-result', envelope?.correlationId, { response: { annotations: [mockAnnotation('a1')], total: 1 } });
       respond(channel as string, 'browse:resource-requested', 'browse:resource-result', envelope?.correlationId, { response: { resource: mockResource('res-1'), annotations: [], entityReferences: [] } });
       respond(channel as string, 'browse:events-requested', 'browse:events-result', envelope?.correlationId, { response: { events: [], total: 0, resourceId: makeResourceId('res-1') } });
-      respond(channel as string, 'browse:referenced-by-requested', 'browse:referenced-by-result', envelope?.correlationId, { response: { referencedBy: [] } });
       respond(channel as string, 'browse:entity-types-requested', 'browse:entity-types-result', envelope?.correlationId, { response: { entityTypes: [] } });
     },
   });

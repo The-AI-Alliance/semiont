@@ -25,7 +25,7 @@ peers that answer differently.
 | `STARTUP_FETCH_RETRY` | every peer | the **gateway** to accept authentication | 8 × 1s→8s ≈ 39s |
 | `EMIT_RETRY` | every peer | the **gateway** to accept one `/bus/emit` | 4 × 1s→4s ≈ 7s |
 | `RESOURCE_LISTING_RETRY` | weaver, smelter | the **archivist** to subscribe | 17 × 1s→30s ≈ 361s |
-| `EMBEDDING_PROVIDER_RETRY` | archivist, librarian, smelter | the **embedding provider** to serve a model | 12 × 1s→15s ≈ 120s |
+| `EMBEDDING_PROVIDER_RETRY` | librarian, smelter | the **embedding provider** to serve a model | 12 × 1s→15s ≈ 120s |
 
 Budgets above are the delays alone. Each attempt is separately bounded — by
 `EMBED_ROUND_TRIP_TIMEOUT_MS` (15s) for the provider, `EMIT_TIMEOUT_MS` (30s) for an emit, `busRequest`'s

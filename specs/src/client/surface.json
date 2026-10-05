@@ -88,8 +88,8 @@
           "cases": [
             { "why": "no filters: the first hundred", "args": {}, "sends": { "limit": 100, "offset": 0 } },
             {
-              "args": { "filters": { "search": "cat", "archived": false, "entityType": "Person", "limit": 5 } },
-              "sends": { "search": "cat", "archived": false, "entityType": "Person", "limit": 5, "offset": 0 }
+              "args": { "filters": { "archived": false, "entityType": "Person", "limit": 5 } },
+              "sends": { "archived": false, "entityType": "Person", "limit": 5, "offset": 0 }
             }
           ]
         },
@@ -122,12 +122,6 @@
           "shape": "cache",
           "via": { "request": "browse:agents-requested" },
           "cases": [{ "why": "the directory is asked for first; each key holder's limits after it", "args": {}, "sends": {} }]
-        },
-        {
-          "method": "referencedBy",
-          "shape": "cache",
-          "via": { "request": "browse:referenced-by-requested" },
-          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {
           "method": "events",
@@ -393,7 +387,7 @@
     },
     {
       "namespace": "gather",
-      "docs": "Assembling the context a model is given.",
+      "docs": "Assembling the context a model is given, and what refers to a resource.",
       "methods": [
         {
           "method": "annotation",
@@ -431,12 +425,18 @@
               "sends": { "resourceId": "res-1", "options": { "depth": 2, "maxResources": 10, "includeContent": true, "includeSummary": false } }
             }
           ]
+        },
+        {
+          "method": "referencedBy",
+          "shape": "cache",
+          "via": { "request": "gather:referenced-by-requested" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         }
       ]
     },
     {
       "namespace": "match",
-      "docs": "Searching for what a reference could refer to.",
+      "docs": "Searching: for what a reference could refer to, and for resources by text.",
       "methods": [
         {
           "method": "search",
@@ -464,6 +464,18 @@
               "args": { "input": { "resourceId": "res-1", "referenceId": "ann-1", "context": { "$fixture": "context" } }, "correlationId": "cid-1" },
               "sends": { "resourceId": "res-1", "referenceId": "ann-1", "context": { "$fixture": "context" } },
               "correlationId": "cid-1"
+            }
+          ]
+        },
+        {
+          "method": "resources",
+          "shape": "cache",
+          "via": { "request": "match:resources-requested" },
+          "cases": [
+            { "why": "no filters: the first hundred", "args": { "search": "cat" }, "sends": { "search": "cat", "limit": 100, "offset": 0 } },
+            {
+              "args": { "search": "cat", "filters": { "archived": false, "entityType": "Person", "limit": 5 } },
+              "sends": { "search": "cat", "archived": false, "entityType": "Person", "limit": 5, "offset": 0 }
             }
           ]
         }

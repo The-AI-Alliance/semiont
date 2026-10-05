@@ -13,7 +13,7 @@ type Operation struct {
 	Failure Channel
 }
 
-// Operations is the request→reply registry: 42 operations.
+// Operations is the request→reply registry: 44 operations.
 var Operations = map[Channel]Operation{
 	"bind:update-body":                    {Result: "bind:body-updated", Failure: "bind:body-update-failed"},
 	"browse:resource-requested":           {Result: "browse:resource-result", Failure: "browse:resource-failed"},
@@ -35,6 +35,7 @@ var Operations = map[Channel]Operation{
 	"gather:requested":                    {Result: "gather:complete", Failure: "gather:failed"},
 	"gather:resource-requested":           {Result: "gather:resource-complete", Failure: "gather:resource-failed"},
 	"gather:summary-requested":            {Result: "gather:summary-result", Failure: "gather:summary-failed"},
+	"gather:referenced-by-requested":      {Result: "gather:referenced-by-result", Failure: "gather:referenced-by-failed"},
 	"gather:limits-requested":             {Result: "gather:limits-result", Failure: "gather:limits-failed"},
 	"job:create":                          {Result: "job:created", Failure: "job:create-failed"},
 	"job:status-requested":                {Result: "job:status-result", Failure: "job:status-failed"},
@@ -48,6 +49,7 @@ var Operations = map[Channel]Operation{
 	"mark:unarchive":                      {Result: "mark:unarchive-ok", Failure: "mark:unarchive-failed"},
 	"mark:update-entity-types":            {Result: "mark:update-entity-types-ok", Failure: "mark:update-entity-types-failed"},
 	"match:search-requested":              {Result: "match:search-results", Failure: "match:search-failed"},
+	"match:resources-requested":           {Result: "match:resources-result", Failure: "match:resources-failed"},
 	"match:limits-requested":              {Result: "match:limits-result", Failure: "match:limits-failed"},
 	"weave:rebuild":                       {Result: "weave:rebuild-ok", Failure: "weave:rebuild-failed"},
 	"smelt:rebuild-anchors":               {Result: "smelt:rebuild-anchors-ok", Failure: "smelt:rebuild-anchors-failed"},

@@ -20,7 +20,9 @@ Three actors, and they move together on purpose:
 
 - **Stower** — accessions the record: appends events and maintains the projections derived from
   them. The **only** caller that appends events.
-- **Browser** — serves it: answers every `browse:*` read from those projections and the graph.
+- **Browser** — serves it: answers every `browse:*` read from the log, those projections and the
+  working tree. It reads no graph, no vector index and no embedding provider: a read that needs one
+  is retrieval, and the [Librarian](../librarian/)'s.
 - **CloneTokenManager** — validates clone tokens so a copy inherits its source's metadata.
   Byte-free: it resolves storage URIs, never content.
 
@@ -125,8 +127,8 @@ Start it **after the gateway** (it mints an agent token there) and **before the 
 Smelter**, which read bytes from it. Its `/health` answers only once the actors and bus pumps are
 up, which is what makes that ordering enforceable.
 
-Its configuration is `~/.semiontconfig`, of which it reads the `gateway`, `graph`, `vectors`,
-`embedding`, `identity`, `make-meaning`, `actors` and `workers` sections. The
+Its configuration is `~/.semiontconfig`, of which it reads the `gateway`, `identity`,
+`make-meaning`, `actors` and `workers` sections. The
 [service catalog](../../docs/operator/services/OVERVIEW.md) states what it mounts and reaches
 beside the other services.
 

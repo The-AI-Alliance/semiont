@@ -104,14 +104,14 @@ Modal components use BEM-style CSS classes:
 
 ## Integration with Search
 
-`SearchModal` drives search through `client.browse.resources()` (wired up via
+`SearchModal` drives search through `client.match.resources()` (wired up via
 `createSearchPipeline`):
 
 ```tsx
 import { SearchModal, useSemiont } from '@semiont/react-ui';
 
 // The modal uses the SDK's Observable surface internally:
-// client.browse.resources({ search, limit }) — debounced via RxJS. The fetch
+// client.match.resources(search, { limit }) — debounced via RxJS. The fetch
 // closure maps each CacheState emission to the ready ResourceList envelope's
 // array: map((st) => readyValue(st)?.resources).
 // For custom search elsewhere, use the same approach: see API-INTEGRATION.md.

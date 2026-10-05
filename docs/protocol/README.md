@@ -23,9 +23,9 @@ Yield and Mark are where delegation enters. Each has a form done by hand and a d
 
 **Three verbs read.** They add no knowledge. They find and assemble what is already there, drawing on everything the knowledge base has accumulated: the record, the graph and the vector index.
 
-- **[Browse](flows/BROWSE.md)** reads resources, annotations, history and vocabulary.
-- **[Match](flows/MATCH.md)** searches for what a reference could refer to, and ranks the candidates.
-- **[Gather](flows/GATHER.md)** assembles the context around an annotation or a resource, grounded and attributable.
+- **[Browse](flows/BROWSE.md)** reads the record: resources, annotations, history and vocabulary.
+- **[Match](flows/MATCH.md)** searches: for resources by text, and for what a reference could refer to, ranking the candidates.
+- **[Gather](flows/GATHER.md)** assembles the context around an annotation or a resource, grounded and attributable, and lists what refers to a resource.
 
 **One verb directs attention.**
 

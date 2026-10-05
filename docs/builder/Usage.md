@@ -11,7 +11,7 @@
   - [Frame — Schema Vocabulary](#frame)
 - Reading
   - [Browse — Reading Resources and Annotations](#browse)
-  - [Match — Semantic Search](#match)
+  - [Match — Search](#match)
   - [Gather — LLM Context Assembly](#gather)
 - Directing attention
   - [Beckon — Attention Coordination](#beckon)
@@ -370,7 +370,7 @@ Browse methods read from materialized views. Live queries return `CacheObservabl
 
 ### Streams vs live queries
 
-Streaming methods (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`) return `StreamObservable<T>` — thenable, so `await` resolves the final value. Live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.referencedBy`, `browse.events`, `browse.entityTypes`, `browse.tagSchemas`, `browse.agents`) return `CacheObservable<T>` — NOT thenable; subscribe for the live view or call `.fresh()` for a fresh value. `.pipe(...)` composes with RxJS operators on either (and loses the stream thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
+Streaming methods (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`) return `StreamObservable<T>` — thenable, so `await` resolves the final value. Live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.events`, `browse.entityTypes`, `browse.tagSchemas`, `browse.agents`, `match.resources`, `gather.referencedBy`) return `CacheObservable<T>` — NOT thenable; subscribe for the live view or call `.fresh()` for a fresh value. `.pipe(...)` composes with RxJS operators on either (and loses the stream thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
 
 ### Live Queries (subscribe)
 
@@ -425,7 +425,7 @@ const { name, domain, gitBranch } = await semiont.browse.kb();
 
 ## Match
 
-Long-running. Returns a `StreamObservable` of scored results — `await` for the final emission, or `subscribe` for streaming progress. `referenceId` is typed as `AnnotationId` (the annotation containing the reference body to search candidates for).
+`match.search` finds what a reference could refer to. It is long-running, and returns a `StreamObservable` of scored results — `await` for the final emission, or `subscribe` for streaming progress. `referenceId` is typed as `AnnotationId` (the annotation containing the reference body to search candidates for).
 
 ```typescript
 semiont.match.search(resourceId, referenceId, gatheredContext, {
@@ -436,6 +436,13 @@ semiont.match.search(resourceId, referenceId, gatheredContext, {
     console.log('Results:', result.response);
   },
 });
+```
+
+`match.resources` searches resources by text. It is a live query, like the listing `browse.resources`: subscribe to it, or call `.fresh()`. Its filters are `archived`, `entityType` and `limit`. The answer's `matchKind` is `'lexical'` when the text matched, and `'semantic'` when nothing matched by text and these resources discuss the query.
+
+```typescript
+const found = await semiont.match.resources('ontology', { entityType: 'Concept', limit: 20 }).fresh();
+console.log(found.matchKind, found.resources.map((r) => r.name));
 ```
 
 ## Gather
@@ -459,6 +466,14 @@ const context = await semiont.gather.resource(resourceId, {
   maxResources: 10,
   excludeEntityTypes: ['Draft'],   // omit these entity types from the semantic recall
 });
+```
+
+`gather.referencedBy` lists what refers to a resource: one entry for each reference bound to it, with
+the resource the reference is on and the text it covers. It is a live query.
+
+```typescript
+const references = await semiont.gather.referencedBy(resourceId).fresh();
+for (const ref of references) console.log(`${ref.resourceName}: "${ref.target.selector.exact}"`);
 ```
 
 ## Beckon

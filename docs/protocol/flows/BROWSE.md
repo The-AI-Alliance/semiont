@@ -1,6 +1,6 @@
 # Browse
 
-Browse reads the knowledge base: its resources, their annotations, their history, and the vocabulary they are expressed in. It is one of the three reading verbs, with [Match](MATCH.md) and [Gather](GATHER.md). Reading changes nothing and leaves nothing behind.
+Browse reads the knowledge base's record: its resources, their annotations, their history, and the vocabulary they are expressed in. It is one of the three reading verbs, with [Match](MATCH.md) and [Gather](GATHER.md). Reading changes nothing and leaves nothing behind.
 
 ## Operations
 
@@ -9,10 +9,9 @@ A live query is asked for once and then kept current: when something it shows ch
 | SDK method | Kind | On the wire | Gives |
 |---|---|---|---|
 | `browse.resource` | live query | `browse:resource-requested` | One resource's description |
-| `browse.resources` | live query | `browse:resources-requested` | A page of resources matching a search or a filter, with the total |
+| `browse.resources` | live query | `browse:resources-requested` | A page of the resources, filtered by entity type or by whether they are archived, with the total |
 | `browse.annotations` | live query | `browse:annotations-requested` | Every annotation on a resource |
 | `browse.annotation` | live query | `browse:annotation-requested` | One annotation |
-| `browse.referencedBy` | live query | `browse:referenced-by-requested` | The annotations elsewhere that refer to a resource |
 | `browse.events` | live query | `browse:events-requested` | A resource's event history, each event with who did it |
 | `browse.entityTypes` | live query | `browse:entity-types-requested` | The entity-type vocabulary |
 | `browse.tagSchemas` | live query | `browse:tag-schemas-requested` | The registered tag schemas |
@@ -45,7 +44,7 @@ Driving another participant's viewer is [Beckon](BECKON.md): `beckon.openResourc
 
 **A history says who did each thing.** An event names its actor by DID and nothing else. A history reply carries each event as the log holds it and, beside it, the `agent` that DID identifies: a person, or a software peer with its provider and model. A person's `name` is filled in from the knowledge base's record of what its people are called, and a person it has no name for carries none. The agent is made when the reply is made. It is in no log, and no name is written into an event's payload.
 
-**A search says what kind of answer it gives.** `browse.resources` matches the query's text first. When nothing matches by text, it answers with resources that discuss the query, found through the vector index, and the reply's `matchKind` says which it is: `lexical` or `semantic`.
+**Browse answers from the record.** The event log, the views made from it and the working tree are all a `browse:` read draws on. A question that needs the graph, the vector index or an embedding is retrieval, and belongs to the other two reading verbs: searching resources by text is [Match](MATCH.md), and what refers to a resource is [Gather](GATHER.md).
 
 **A list of resources is the answer to a query, not a live collection.** It is refreshed when the client learns of a change it can see, which is not every change anywhere. See [what refreshes what](../CACHE-SEMANTICS.md#what-refreshes-what).
 

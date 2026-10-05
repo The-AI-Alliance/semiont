@@ -22,7 +22,7 @@ When a workflow does both, build the nodes first and write the report about them
 ## The shape
 
 1. **Name the anchor**: the resource the aggregate is about. A case, a literary work, a person, a matter.
-2. **Collect what refers to it.** `browse.referencedBy(anchor)` lists every reference bound to the anchor: the annotation, the resource it is on, and the text it covers.
+2. **Collect what refers to it.** `gather.referencedBy(anchor)` lists every reference bound to the anchor: the annotation, the resource it is on, and the text it covers.
 3. **Gather an excerpt for each**, if the report quotes its sources (`gather.annotation`).
 4. **Compose Markdown**: a title, a summary, a table or list with a link back to each source, and whatever narrative the report needs.
 5. **Yield it** with `yield.resource`, stamped with the kind of aggregate it is and the umbrella type `Aggregate`.
@@ -68,7 +68,7 @@ import { resourceId } from '@semiont/sdk';
 const anchorId = resourceId('case-citizens-united');
 
 const anchor = await semiont.browse.resource(anchorId).fresh();
-const references = await semiont.browse.referencedBy(anchorId).fresh();
+const references = await semiont.gather.referencedBy(anchorId).fresh();
 
 console.log(`${references.length} passages refer to ${anchor.name}`);
 for (const ref of references) {
@@ -162,7 +162,7 @@ async function aggregate(anchorIdStr: string): Promise<void> {
     const anchor = await semiont.browse.resource(anchorId).fresh();
 
     // 2. What refers to it
-    const references = await semiont.browse.referencedBy(anchorId).fresh();
+    const references = await semiont.gather.referencedBy(anchorId).fresh();
 
     // 3. An excerpt for each, when the report quotes its sources
     const rows: Array<{ source: string; name: string; quote: string }> = [];
@@ -221,7 +221,7 @@ aggregate(target).catch((e) => {
 ## Guidance for the AI assistant
 
 - **Ask the node-or-aggregate question first.** If annotations should point at the new resource, it is a canonical node and the skill is [`semiont-wiki`](../semiont-wiki/SKILL.md).
-- **Choose the anchor on purpose.** One resource (a case, a work, a person) makes `browse.referencedBy` the whole collection step. A kind of thing or a theme means listing resources with `browse.resources({ entityType })` and reading each one's annotations.
+- **Choose the anchor on purpose.** One resource (a case, a work, a person) makes `gather.referencedBy` the whole collection step. A kind of thing or a theme means listing resources with `browse.resources({ entityType })` and reading each one's annotations.
 - **An aggregate is a dated snapshot.** A new run writes a new resource; the timestamp in its `storageUri` keeps the earlier ones. A single resource that is kept current is a canonical node.
 - **Excerpts cost a request each.** A checklist that names its sources does not need them. The script reads `INCLUDE_GATHER=0` to skip them.
 - **Stamp the kind and `Aggregate`.** `['SubsequentTreatment', 'Aggregate']`, `['PlotArc', 'Aggregate']`.

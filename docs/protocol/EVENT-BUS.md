@@ -48,8 +48,8 @@ Every channel is `verb:action` or `verb:action-state`. The prefix is one of the 
 | `bind:` | `bind:update-body`, `bind:body-updated` | Writing: what a reference refers to |
 | `frame:` | `frame:add-entity-type`, `frame:entity-type-added` | Writing: the vocabulary (entity types and tag schemas) |
 | `browse:` | `browse:resource-requested`, `browse:click` | Reading: the record; and viewer navigation |
-| `match:` | `match:search-requested`, `match:search-results` | Reading: candidates for a reference |
-| `gather:` | `gather:requested`, `gather:complete` | Reading: assembled context |
+| `match:` | `match:search-requested`, `match:search-results`, `match:resources-requested` | Reading: candidates for a reference, and resources by text |
+| `gather:` | `gather:requested`, `gather:complete`, `gather:referenced-by-requested` | Reading: assembled context, and what refers to a resource |
 | `beckon:` | `beckon:focus`, `beckon:sparkle` | Directing attention |
 | `job:` | `job:create`, `job:report-progress`, `job:complete` | Delegated work ([JOBS.md](JOBS.md)) |
 | `person:`, `session:` | `person:profiled`, `session:joined` | Who a DID belongs to; who is connected |

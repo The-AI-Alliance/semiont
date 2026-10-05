@@ -64,6 +64,7 @@ export const BUS_OPERATIONS = {
   'gather:resource-requested':           { result: 'gather:resource-complete',       failure: 'gather:resource-failed' },
   // dormant — handler registered, no client caller (annotation summary)
   'gather:summary-requested':            { result: 'gather:summary-result',          failure: 'gather:summary-failed' },
+  'gather:referenced-by-requested':      { result: 'gather:referenced-by-result',    failure: 'gather:referenced-by-failed' },
   'gather:limits-requested':             { result: 'gather:limits-result',           failure: 'gather:limits-failed' },
 
   // ── JOB ─────────────────────────────────────────────────────────
@@ -85,6 +86,7 @@ export const BUS_OPERATIONS = {
   // ── MATCH ───────────────────────────────────────────────────────
   // take-1 dressed as an Observable in the SDK
   'match:search-requested':              { result: 'match:search-results',           failure: 'match:search-failed' },
+  'match:resources-requested':           { result: 'match:resources-result',         failure: 'match:resources-failed' },
   'match:limits-requested':              { result: 'match:limits-result',            failure: 'match:limits-failed' },
 
   // ── WEAVE ───────────────────────────────────────────────────────

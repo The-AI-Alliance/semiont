@@ -44,7 +44,7 @@ The result: a script that just wants to read a resource never imports anything f
 
 Everything reactive in the SDK is an RxJS Observable:
 
-- **Live queries** (`browse.resource`, `browse.resources`, `browse.annotations`, etc.) — values that re-emit when bus events fire (including events from other participants).
+- **Live queries** (`browse.resource`, `browse.resources`, `browse.annotations`, `match.resources`, `gather.referencedBy`, etc.) — values that re-emit when bus events fire (including events from other participants).
 - **Bounded streams** (`mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`, `yield.resource`) — progress events plus a final result.
 - **Collaboration signals on the bus** — `mark.request`, `beckon.hover`, `bind.initiate`, `browse.click`, etc. emit; participants observe via `client.bus.on(channel)` or `session.subscribe(channel, handler)`. Fire-and-forget at the call site, fan-out across participants on the bus.
 - **Lifecycle state** (`client.transport.state$`, `client.transport.errors$`, `session.token$`, `session.user$`, `session.errors$`) — synchronous-snapshot `BehaviorSubject`s and the transport's error stream.
@@ -207,11 +207,12 @@ The authority for this list is [`specs/src/client/surface.json`](../../specs/src
 - `browse.resources`
 - `browse.annotations`
 - `browse.annotation`
-- `browse.referencedBy`
 - `browse.events`
 - `browse.entityTypes`
 - `browse.tagSchemas`
 - `browse.agents`
+- `match.resources`
+- `gather.referencedBy`
 
 **Signals** (return `void`; fire-and-forget, published on the client's own bus):
 

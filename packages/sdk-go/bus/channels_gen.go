@@ -267,6 +267,15 @@ const (
 	// payload: MatchSearchFailed
 	MatchSearchFailed Channel = "match:search-failed"
 
+	// payload: MatchResourcesRequest
+	MatchResourcesRequested Channel = "match:resources-requested"
+
+	// payload: MatchResourcesResult
+	MatchResourcesResult Channel = "match:resources-result"
+
+	// not emittable (no registered schema)
+	MatchResourcesFailed Channel = "match:resources-failed"
+
 	// payload: InferenceLimitsRequest
 	MatchLimitsRequested Channel = "match:limits-requested"
 
@@ -302,6 +311,15 @@ const (
 
 	// not emittable (no registered schema)
 	GatherSummaryFailed Channel = "gather:summary-failed"
+
+	// payload: GatherReferencedByRequest
+	GatherReferencedByRequested Channel = "gather:referenced-by-requested"
+
+	// payload: GatherReferencedByResult
+	GatherReferencedByResult Channel = "gather:referenced-by-result"
+
+	// not emittable (no registered schema)
+	GatherReferencedByFailed Channel = "gather:referenced-by-failed"
 
 	// payload: InferenceLimitsRequest
 	GatherLimitsRequested Channel = "gather:limits-requested"
@@ -666,6 +684,8 @@ var ChannelSchemas = map[Channel]string{
 	MatchSearchRequested:             "MatchSearchRequest",
 	MatchSearchResults:               "MatchSearchResult",
 	MatchSearchFailed:                "MatchSearchFailed",
+	MatchResourcesRequested:          "MatchResourcesRequest",
+	MatchResourcesResult:             "MatchResourcesResult",
 	MatchLimitsRequested:             "InferenceLimitsRequest",
 	MatchLimitsResult:                "InferenceLimitsResult",
 	GatherRequested:                  "GatherAnnotationRequest",
@@ -673,6 +693,8 @@ var ChannelSchemas = map[Channel]string{
 	GatherResourceRequested:          "GatherResourceRequest",
 	GatherResourceComplete:           "GatherResourceComplete",
 	GatherSummaryRequested:           "GatherSummaryRequest",
+	GatherReferencedByRequested:      "GatherReferencedByRequest",
+	GatherReferencedByResult:         "GatherReferencedByResult",
 	GatherLimitsRequested:            "InferenceLimitsRequest",
 	GatherLimitsResult:               "InferenceLimitsResult",
 	BrowseResourceRequested:          "BrowseResourceRequest",

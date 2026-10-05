@@ -34,7 +34,7 @@ const store = await createVectorStore({
 });
 ```
 
-Brute-force cosine similarity, in one process's memory. The Archivist and the Librarian refuse it: a memory index cannot be shared with the Smelter that fills it.
+Brute-force cosine similarity, in one process's memory. The Librarian refuses it: a memory index cannot be shared with the Smelter that fills it.
 
 ## Embedding Providers
 

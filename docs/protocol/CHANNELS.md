@@ -67,8 +67,8 @@ A request, answered on its result or its failure channel. The reply reaches only
 | Bind | `bind:update-body` | writes |
 | Frame | `frame:add-entity-type`, `frame:add-tag-schema` | writes |
 | Browse | every `browse:…-requested` | reads |
-| Match | `match:search-requested`, `match:limits-requested` | reads |
-| Gather | `gather:requested`, `gather:resource-requested`, `gather:summary-requested`, `gather:limits-requested` | reads |
+| Match | `match:search-requested`, `match:resources-requested`, `match:limits-requested` | reads |
+| Gather | `gather:requested`, `gather:resource-requested`, `gather:referenced-by-requested`, `gather:summary-requested`, `gather:limits-requested` | reads |
 | Jobs | `job:create`, `job:claim`, `job:cancel-requested` | writes |
 | Jobs | `job:status-requested`, `job:limits-requested` | reads |
 | Rebuilds | `weave:rebuild`, `smelt:rebuild-anchors` | writes |

@@ -183,7 +183,7 @@ export interface MarkAssistOptions {
 /** Options for yield.createFromToken() */
 export type CreateFromTokenOptions = { token: string; name: string; content: string; archiveOriginal?: boolean };
 
-/** Referenced-by entry from browse.referencedBy() */
+/** Referenced-by entry from gather.referencedBy() */
 export type ReferencedByEntry = components['schemas']['GetReferencedByResponse']['referencedBy'][number];
 
 /** Annotation history from browse.annotationHistory() */
@@ -242,14 +242,25 @@ export type YieldGenerationEvent =
 // ── Namespace interfaces ────────────────────────────────────────────────────
 
 /**
- * What `browse.resources()` emits: the full list-reply envelope, not just the
+ * What `browse.resources()` emits: the list-reply envelope, the page of
+ * descriptors with the size of the whole listing.
+ */
+export type ResourceList = Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {
+  resources: ResourceDescriptor[];
+};
+
+/** The filters a text search takes beside its text. */
+export type ResourceSearchFilters = { limit?: number; archived?: boolean; entityType?: string };
+
+/**
+ * What `match.resources()` emits: the search-reply envelope, not just the
  * page of descriptors. `matchKind` labels how the answer was produced —
  * `'lexical'` (title/metadata matching) or `'semantic'` (the empty-lexical
  * vector fallback) — and it arrives WITH the resources it describes as one
  * value, so a consumer can never pair the label with a different query's
- * list (semantic fallback axiom S10).
+ * list.
  */
-export type ResourceList = Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {
+export type MatchedResources = Omit<components['schemas']['MatchResourcesResponse'], 'resources'> & {
   resources: ResourceDescriptor[];
 };
 
@@ -265,7 +276,7 @@ export type ResourceList = Omit<components['schemas']['ListResourcesResponse'], 
 export interface BrowseNamespace {
   // Live queries (Observable — bus gateway driven, cached in BehaviorSubject)
   resource(resourceId: ResourceId): CacheObservable<ResourceDescriptor>;
-  resources(filters?: { limit?: number; archived?: boolean; search?: string; entityType?: string }): CacheObservable<ResourceList>;
+  resources(filters?: { limit?: number; archived?: boolean; entityType?: string }): CacheObservable<ResourceList>;
   annotations(resourceId: ResourceId): CacheObservable<Annotation[]>;
   annotation(resourceId: ResourceId, annotationId: AnnotationId): CacheObservable<Annotation>;
   entityTypes(): CacheObservable<string[]>;
@@ -278,7 +289,6 @@ export interface BrowseNamespace {
    * lifetime, asked again when the stream reopens after a drop.
    */
   agents(): CacheObservable<Collaborator[]>;
-  referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]>;
   events(resourceId: ResourceId): CacheObservable<AttributedEvent[]>;
 
   // One-shot reads (Promise — no caching, no live update)
@@ -455,6 +465,9 @@ export interface GatherNamespace {
       excludeEntityTypes?: string[];
     },
   ): Promise<GatheredContext>;
+
+  /** Live query: the annotations elsewhere that refer to a resource. */
+  referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]>;
 }
 
 /**
@@ -476,6 +489,12 @@ export interface MatchNamespace {
 
   /** Fire-and-forget variant: match-state-unit orchestrates the call and its result Observable. */
   requestSearch(input: components['schemas']['MatchSearchRequest'], correlationId: string): void;
+
+  /**
+   * Live query: the resources a text search finds, lexically or, when
+   * nothing matches the text, by meaning.
+   */
+  resources(search: string, filters?: ResourceSearchFilters): CacheObservable<MatchedResources>;
 }
 
 /**

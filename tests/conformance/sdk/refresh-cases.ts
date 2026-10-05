@@ -51,6 +51,7 @@ const ANNOTATION = annotation('a1', 'r1', 'highlighting');
 const UPDATED = annotation('a1', 'r1', 'commenting');
 const OTHER = annotation('a2', 'r2', 'highlighting');
 const LIST = { resources: [], total: 0, offset: 0, limit: 100, matchKind: 'lexical' };
+const FOUND = { resources: [], total: 0, offset: 0, limit: 100, matchKind: 'semantic' };
 
 /** The operations a refresh of the collaborator directory asks beside its own: each key holder's limits. */
 const limitsOperations = (): string[] => registry().operations.map((operation) => operation.request).filter((request) => request.endsWith(':limits-requested'));
@@ -103,8 +104,15 @@ function held(): Held[] {
       value: OTHER,
     },
     perResource('history', 'events', 'r1', 'browse:events-requested', { events: [], total: 0, resourceId: V('r1') }, []),
-    perResource('citing', 'referencedBy', 'r1', 'browse:referenced-by-requested', { referencedBy: [] }, []),
+    perResource('citing', 'referencedBy', 'r1', 'gather:referenced-by-requested', { referencedBy: [] }, []),
     { observer: 'list', query: 'resources', observe: { query: 'resources' }, asks: [{ operation: 'browse:resources-requested', payload: { limit: 100, offset: 0 }, response: LIST }], value: LIST },
+    {
+      observer: 'found',
+      query: 'matchedResources',
+      observe: { query: 'matchedResources', search: 'cat' },
+      asks: [{ operation: 'match:resources-requested', payload: { search: 'cat', limit: 100, offset: 0 }, response: FOUND }],
+      value: FOUND,
+    },
     { observer: 'types', query: 'entityTypes', observe: { query: 'entityTypes' }, asks: [{ operation: 'browse:entity-types-requested', response: { entityTypes: ['Person'] } }], value: ['Person'] },
     { observer: 'schemas', query: 'tagSchemas', observe: { query: 'tagSchemas' }, asks: [{ operation: 'browse:tag-schemas-requested', response: { tagSchemas: [] } }], value: [] },
     {

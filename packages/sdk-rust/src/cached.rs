@@ -16,12 +16,15 @@
 //! `invalidate` says the value is out of date: it is asked for again, and
 //! shown meanwhile.
 
-use crate::cache::CacheState;
+use crate::cache::{Cache, CacheKey, CacheState, CacheValue};
 use crate::errors::SemiontError;
-use crate::transport::{BoxFuture, ResourceHold};
+use crate::transport::{BoxFuture, ResourceHold, Transport};
+use crate::types::ResourceId;
 use futures_core::Stream;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
+use tokio_stream::wrappers::WatchStream;
 
 /// What a query answers from: the namespace that made the query supplies it.
 pub(crate) trait Source<T>: Send + Sync {
@@ -89,5 +92,64 @@ impl<T> Stream for Observed<T> {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.states.as_mut().poll_next(cx)
+    }
+}
+
+/// A query answered by one key of one cache, as `view` shows its value.
+pub(crate) struct Keyed<K: CacheKey, V: CacheValue, T> {
+    pub cache: Cache<K, V>,
+    pub key: K,
+    pub view: fn(V) -> T,
+    /// The resource the query is of, and what holds its scope while the
+    /// query is watched.
+    pub scope: Option<(Arc<dyn Transport>, ResourceId)>,
+}
+
+struct Viewed<V, T> {
+    states: WatchStream<CacheState<V>>,
+    view: fn(V) -> T,
+}
+
+impl<V: CacheValue, T> Stream for Viewed<V, T> {
+    type Item = CacheState<T>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let view = self.view;
+        Pin::new(&mut self.states)
+            .poll_next(cx)
+            .map(|state| state.map(|state| state.map(view)))
+    }
+}
+
+impl<K, V, T> Source<T> for Keyed<K, V, T>
+where
+    K: CacheKey,
+    V: CacheValue,
+    T: 'static,
+{
+    fn fresh(&self) -> BoxFuture<'static, Result<T, SemiontError>> {
+        let fetching = self.cache.fetch(&self.key);
+        let view = self.view;
+        Box::pin(async move { fetching.await.map(view) })
+    }
+
+    fn watch(&self) -> Observed<T> {
+        // The scope first, so the events that refresh the key are already
+        // coming when its value arrives.
+        let scope = self
+            .scope
+            .as_ref()
+            .map(|(transport, resource_id)| transport.subscribe_to_resource(resource_id));
+        Observed::new(
+            Viewed {
+                states: self.cache.observe(&self.key),
+                view: self.view,
+            },
+            scope,
+        )
+    }
+
+    fn invalidate(&self) {
+        self.cache.invalidate(&self.key);
     }
 }

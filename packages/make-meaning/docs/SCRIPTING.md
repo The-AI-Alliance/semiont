@@ -15,7 +15,7 @@ What a process started this way does not have:
 | | |
 |---|---|
 | **Jobs** | There is no dispatcher and no worker. `mark.assist` and `yield.fromContext` create a job that nothing answers, and time out |
-| **A graph projection** | There is no Weaver. With `graph: { type: 'memory' }` the graph stays empty, so a search by name and a referenced-by lookup find nothing. Configured with a graph database, it reads whatever a Weaver wrote there |
+| **A graph projection** | There is no Weaver. With `graph: { type: 'memory' }` the graph stays empty, so `match.resources` and `gather.referencedBy` find nothing. Configured with a graph database, it reads whatever a Weaver wrote there |
 | **A vector index** | There is no Smelter, so nothing is embedded. Semantic recall is empty, and a resource gather waits out `gather.settleTimeoutMs` before it goes on without it |
 | **Sign-in** | The process acts as the one identity it states. A client over it has no `auth` and no `system` |
 | **Uploads through the client** | `LocalContentTransport` does not implement `putBinary`, so `yield.resource` throws. [Creating a resource](#creating-a-resource) is how it is done here |

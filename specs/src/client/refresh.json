@@ -28,7 +28,7 @@
     {
       "name": "referencedBy",
       "per": "resource",
-      "asks": "browse:referenced-by-requested",
+      "asks": "gather:referenced-by-requested",
       "docs": "The annotations elsewhere that refer to a resource."
     },
     {
@@ -36,6 +36,12 @@
       "per": "filters",
       "asks": "browse:resources-requested",
       "docs": "A list of resources, one per set of filters asked for. It is a query's answer, kept fresh by what every client hears and by the events of the resources whose scope the client holds, and by nothing else: a resource archived, unarchived or retagged elsewhere, by someone else, does not refresh it."
+    },
+    {
+      "name": "matchedResources",
+      "per": "filters",
+      "asks": "match:resources-requested",
+      "docs": "The resources a text search found, one per search and set of filters asked for. A query's answer like `resources`, and kept fresh by the same events and no others."
     },
     {
       "name": "entityTypes",
@@ -59,6 +65,7 @@
       "reach": "held",
       "refetches": [
         "resources",
+        "matchedResources",
         "resource",
         "entityTypes",
         "tagSchemas",
@@ -147,7 +154,8 @@
       "on": "mark:archived",
       "refetches": [
         "resource",
-        "resources"
+        "resources",
+        "matchedResources"
       ],
       "docs": "The resource was archived, which its description states and lists filter on."
     },
@@ -155,7 +163,8 @@
       "on": "mark:unarchived",
       "refetches": [
         "resource",
-        "resources"
+        "resources",
+        "matchedResources"
       ],
       "docs": "The resource was unarchived."
     },
@@ -163,7 +172,8 @@
       "on": "yield:created",
       "refetches": [
         "resource",
-        "resources"
+        "resources",
+        "matchedResources"
       ],
       "docs": "A resource was created."
     },
@@ -171,7 +181,8 @@
       "on": "yield:updated",
       "refetches": [
         "resource",
-        "resources"
+        "resources",
+        "matchedResources"
       ],
       "docs": "A resource was updated."
     },
@@ -179,7 +190,8 @@
       "on": "yield:cloned",
       "refetches": [
         "resource",
-        "resources"
+        "resources",
+        "matchedResources"
       ],
       "docs": "A resource was created as a clone."
     },
@@ -187,7 +199,8 @@
       "on": "yield:moved",
       "refetches": [
         "resource",
-        "resources"
+        "resources",
+        "matchedResources"
       ],
       "docs": "A resource was renamed or moved."
     },

@@ -73,7 +73,7 @@ export function createDiscoverStateUnit(
           ...(et ? { entityType: et } : {}),
         }).pipe(
           // This list renders only the page; project it out of the list
-          // envelope (`matchKind` travels on the search `state$` instead).
+          // envelope.
           map((st): CacheState<ResourceDescriptor[]> => (st.status === 'ready' ? { status: 'ready', value: st.value.resources } : st)),
         ),
       ),
@@ -100,9 +100,8 @@ export function createDiscoverStateUnit(
           // matchKind describes it.
           return of({ results: [] as ResourceDescriptor[], isSearching: false });
         }
-        return client.browse
-          .resources({
-            search: trimmed,
+        return client.match
+          .resources(trimmed, {
             limit: SEARCH_LIMIT,
             ...(et ? { entityType: et } : {}),
           })

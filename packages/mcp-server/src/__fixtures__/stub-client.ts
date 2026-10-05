@@ -25,6 +25,7 @@ import type {
   GenerationOptions,
   MarkAssistEvent,
   MarkAssistOptions,
+  MatchedResources,
   ResourceList,
   YieldGenerationEvent,
 } from '@semiont/sdk';
@@ -113,7 +114,7 @@ export const GENERATION_COMPLETE: YieldGenerationEvent = {
 export function createStub() {
   const browse = {
     resource: vi.fn<(id: ResourceId) => { fresh(): Promise<ResourceDescriptor> }>(() => ({ fresh: async () => RESOURCE })),
-    resources: vi.fn<(filters: { limit?: number; archived?: boolean; search?: string }) => { fresh(): Promise<ResourceList> }>(() => ({ fresh: async () => ({ resources: [RESOURCE], total: 1, offset: 0, limit: 100, matchKind: 'lexical' }) })),
+    resources: vi.fn<(filters: { limit?: number; archived?: boolean }) => { fresh(): Promise<ResourceList> }>(() => ({ fresh: async () => ({ resources: [RESOURCE], total: 1, offset: 0, limit: 100, matchKind: 'lexical' }) })),
     annotations: vi.fn<(id: ResourceId) => { fresh(): Promise<Annotation[]> }>(() => ({ fresh: async () => [HIGHLIGHT, BOUND_REFERENCE, UNBOUND_REFERENCE] })),
   };
   const mark = {
@@ -126,6 +127,11 @@ export function createStub() {
   };
   const bind = {
     body: vi.fn<(r: ResourceId, a: AnnotationId, ops: BodyOperation[]) => Promise<void>>(async () => {}),
+  };
+  const match = {
+    resources: vi.fn<(search: string, filters: { limit?: number; archived?: boolean }) => { fresh(): Promise<MatchedResources> }>(
+      () => ({ fresh: async () => ({ resources: [RESOURCE], total: 1, offset: 0, limit: 100, matchKind: 'lexical' }) }),
+    ),
   };
   const gather = {
     annotation: vi.fn<(r: ResourceId, a: AnnotationId, options?: { contextWindow?: number }) => Promise<GatherAnnotationComplete>>(
@@ -141,6 +147,6 @@ export function createStub() {
     ),
   };
 
-  const client: McpClient = { browse, mark, bind, gather, yield: yieldNamespace };
-  return { client, browse, mark, bind, gather, yield: yieldNamespace };
+  const client: McpClient = { browse, mark, bind, match, gather, yield: yieldNamespace };
+  return { client, browse, mark, bind, match, gather, yield: yieldNamespace };
 }

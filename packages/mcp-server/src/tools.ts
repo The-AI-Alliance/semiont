@@ -22,7 +22,6 @@ export const TOOLS: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        search: { type: 'string', description: 'Search query' },
         archived: { type: 'boolean', description: 'Filter by archived status (default: false)' },
         limit: { type: 'number', description: 'Maximum results (default: 50)' },
       },
@@ -78,6 +77,20 @@ export const TOOLS: Tool[] = [
         targetResourceId: { type: 'string', description: 'Target resource to link to' },
       },
       required: ['sourceResourceId', 'annotationId', 'targetResourceId'],
+    },
+  },
+  // ── Match ─────────────────────────────────────────────────────────
+  {
+    name: 'match_resources',
+    description: 'Search resources by text: by title and metadata, or by meaning when nothing matches the text',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        search: { type: 'string', description: 'Search query' },
+        archived: { type: 'boolean', description: 'Filter by archived status (default: false)' },
+        limit: { type: 'number', description: 'Maximum results (default: 50)' },
+      },
+      required: ['search'],
     },
   },
   // ── Gather ────────────────────────────────────────────────────────

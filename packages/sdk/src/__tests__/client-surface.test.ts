@@ -148,7 +148,6 @@ const CALLS: Calls = {
     entityTypes: (c) => c.browse.entityTypes(),
     tagSchemas: (c) => c.browse.tagSchemas(),
     agents: (c) => c.browse.agents(),
-    referencedBy: (c, a) => c.browse.referencedBy(rid(a)),
     events: (c, a) => c.browse.events(rid(a)),
     resourceContent: (c, a) => c.browse.resourceContent(rid(a)),
     resourceGraph: (c, a) => c.browse.resourceGraph(rid(a)),
@@ -190,6 +189,7 @@ const CALLS: Calls = {
   gather: {
     annotation: (c, a) => c.gather.annotation(rid(a), aid(a), optional(a['options'])),
     resource: (c, a) => c.gather.resource(rid(a), optional(a['options'])),
+    referencedBy: (c, a) => c.gather.referencedBy(rid(a)),
   },
   match: {
     search: (c, a) =>
@@ -201,6 +201,7 @@ const CALLS: Calls = {
       ),
     requestSearch: (c, a) =>
       c.match.requestSearch(a['input'] as unknown as components['schemas']['MatchSearchRequest'], String(a['correlationId'])),
+    resources: (c, a) => c.match.resources(String(a['search']), optional(a['filters'])),
   },
   yield: {
     resource: (c, a) => {

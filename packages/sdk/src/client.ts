@@ -13,15 +13,15 @@
  * `client.bus`.
  */
 
-import type { BaseUrl, AccessToken } from '@semiont/core';
+import type { BaseUrl, AccessToken, CacheQuery } from '@semiont/core';
 import { EventBus, accessToken, baseUrl } from '@semiont/core';
 import type { SessionStorage } from './session/session-storage';
 import { BehaviorSubject } from 'rxjs';
-import { BrowseNamespace } from './namespaces/browse';
+import { BrowseNamespace, type BROWSE_QUERIES } from './namespaces/browse';
 import { MarkNamespace } from './namespaces/mark';
 import { BindNamespace } from './namespaces/bind';
-import { GatherNamespace } from './namespaces/gather';
-import { MatchNamespace } from './namespaces/match';
+import { GatherNamespace, type GATHER_QUERIES } from './namespaces/gather';
+import { MatchNamespace, type MATCH_QUERIES } from './namespaces/match';
 import { YieldNamespace } from './namespaces/yield';
 import { BeckonNamespace } from './namespaces/beckon';
 import { FrameNamespace } from './namespaces/frame';
@@ -50,6 +50,24 @@ export {
   type HttpTransportConfig,
   HttpContentTransport,
 } from '@semiont/http-transport';
+
+/**
+ * Every live query of specs/src/client/refresh.json is answered by one of
+ * the namespaces that hold them, and no query by two: each namespace's
+ * refresher acts only on its own, so one left out would never refresh, and
+ * silently. A query added to the table and to no namespace fails to compile
+ * here, naming it.
+ */
+type AnsweredQuery =
+  | (typeof BROWSE_QUERIES)[number]
+  | (typeof GATHER_QUERIES)[number]
+  | (typeof MATCH_QUERIES)[number];
+type AnsweredTwice =
+  | ((typeof BROWSE_QUERIES)[number] & (typeof GATHER_QUERIES)[number])
+  | ((typeof BROWSE_QUERIES)[number] & (typeof MATCH_QUERIES)[number])
+  | ((typeof GATHER_QUERIES)[number] & (typeof MATCH_QUERIES)[number]);
+type LiveQueryCensusDrift = Exclude<CacheQuery, AnsweredQuery> | AnsweredTwice;
+export const liveQueryCensus: [LiveQueryCensusDrift] extends [never] ? 'in-census' : LiveQueryCensusDrift = 'in-census';
 
 export class SemiontClient {
   /**
@@ -151,10 +169,14 @@ export class SemiontClient {
     this.transport.bridgeInto(this.bus);
 
     this.frame  = new FrameNamespace(this.transport);
-    this.browse = new BrowseNamespace(this.transport, this.bus, this.content, {
-      ...(options?.cachePersistence ? { cachePersistence: options.cachePersistence } : {}),
+    // What every namespace holding live queries takes.
+    const liveQueryTiming = {
       ...(options?.busTimeoutMs !== undefined ? { busTimeoutMs: options.busTimeoutMs } : {}),
       ...(options?.invalidationWindowMs !== undefined ? { invalidationWindowMs: options.invalidationWindowMs } : {}),
+    };
+    this.browse = new BrowseNamespace(this.transport, this.bus, this.content, {
+      ...(options?.cachePersistence ? { cachePersistence: options.cachePersistence } : {}),
+      ...liveQueryTiming,
     });
     const jobFollowTiming = {
       ...(options?.jobSilenceMs !== undefined ? { jobSilenceMs: options.jobSilenceMs } : {}),
@@ -162,8 +184,8 @@ export class SemiontClient {
     };
     this.mark   = new MarkNamespace(this.transport, this.bus, jobFollowTiming);
     this.bind   = new BindNamespace(this.transport, this.bus);
-    this.gather = new GatherNamespace(this.transport, this.bus);
-    this.match  = new MatchNamespace(this.transport, this.bus);
+    this.gather = new GatherNamespace(this.transport, this.bus, liveQueryTiming);
+    this.match  = new MatchNamespace(this.transport, this.bus, liveQueryTiming);
     this.yield  = new YieldNamespace(this.transport, this.bus, this.content, jobFollowTiming);
     this.beckon = new BeckonNamespace(this.transport, this.bus);
     this.job    = new JobNamespace(this.transport, this.bus);
@@ -177,15 +199,17 @@ export class SemiontClient {
   }
 
   dispose(): void {
-    // Browse first: completing its caches stops any SWR fetch/retry chain
-    // from issuing new requests into a transport that's about to go away
-    // (B16 — a chain straddling teardown must die quietly, not error
-    // observers or fire post-dispose traffic).
+    // The live queries first: completing their caches stops any SWR
+    // fetch/retry chain from issuing new requests into a transport that's
+    // about to go away (B16 — a chain straddling teardown must die quietly,
+    // not error observers or fire post-dispose traffic).
     this.browse.dispose();
+    this.gather.dispose();
+    this.match.dispose();
     this.transport.dispose();
     this.content.dispose();
     // Bus last (A7-owned: this client constructed it): everything upstream
-    // is already quiet — browse detached its handlers, the transport's SSE
+    // is already quiet — the live queries detached their handlers, the transport's SSE
     // fan-in is down — so destroying it completes every remaining
     // subscriber cleanly (session.subscribe closures, host code holding
     // client.bus). Without this, the bus outlives the client and every

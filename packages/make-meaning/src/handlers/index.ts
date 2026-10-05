@@ -19,6 +19,7 @@ import { asBusRequestPrimitive } from '../bus-request-local.js';
 import { registerAnnotationAssemblyHandler } from './annotation-assembly.js';
 import { registerAnnotationContextHandler, registerGatherSummaryHandler } from './annotation-lookups.js';
 import { registerBindUpdateBodyHandler } from './bind-update-body.js';
+import { RETRIEVAL_HANDLER_CHANNELS } from './resource-retrieval.js';
 
 export {
   registerAnnotationAssemblyHandler,
@@ -39,6 +40,9 @@ export const HANDLER_CHANNELS = [
   'browse:annotation-context-requested', 'gather:summary-requested',
   // bind-update-body
   'bind:update-body', 'mark:body-updated', 'mark:body-update-failed',
+  // resource-retrieval: registered by the root itself, beside the Matcher
+  // and the Gatherer, where the embedding provider is in hand
+  ...RETRIEVAL_HANDLER_CHANNELS,
 ] as const satisfies readonly (keyof EventMap)[];
 
 /**

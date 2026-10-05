@@ -13,12 +13,11 @@ The vector index of a knowledge base: where the embeddings of its resources and 
 Each service connects from its own entry point in [`@semiont/make-meaning`](../make-meaning/README.md):
 
 - **The Smelter** is the one writer. It chunks a resource's text, embeds it, and keeps the index in step with the record.
-- **The Librarian** searches it, for the Gatherer's context and the Matcher's candidates.
-- **The Archivist** searches it when a search for resources by text finds nothing.
+- **The Librarian** searches it, for the Gatherer's context and the Matcher's candidates, and when a search for resources by text matches nothing.
 
 `startMakeMeaning()` connects the same way in one process, for scripts and tests.
 
-**Building an application?** You do not need this package. An application searches through [`@semiont/sdk`](../sdk/README.md): `browse.resources`, `match.search` and `gather`.
+**Building an application?** You do not need this package. An application searches through [`@semiont/sdk`](../sdk/README.md): `match.resources`, `match.search` and `gather`.
 
 ## What is in it
 

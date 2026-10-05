@@ -29,18 +29,18 @@ import type { SemiontProject } from '@semiont/core/node';
 import type { AttributedEvent, EventMap, Logger, StoredEvent, components } from '@semiont/core';
 import { EventBus, didToAgent, errField, getAnnotationIdFromEvent } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
-import { getExactText, getTargetSource, getTargetSelector, getBodySource, getStorageUri } from '@semiont/core';
+import { getBodySource, getStorageUri } from '@semiont/core';
 import { EventQuery } from '@semiont/event-sourcing';
-import type { PeopleView, ViewStorage } from '@semiont/event-sourcing';
+import type { ViewStorage } from '@semiont/event-sourcing';
 import type { GraphDatabase } from '@semiont/graph';
 import type { VectorStore } from '@semiont/vectors';
 import { stagingFor, type WorkingTreeStore, type AnchoredTextStore } from '@semiont/content';
 import type { EventStoreReads } from './knowledge-base';
 import type { SmeltProgress } from './smelt-progress';
 import { readAnchoredText } from './read-anchored-text';
-import { resourceWithViewGrace } from './graph-read-grace';
+import { findReferencedBy } from './referenced-by';
 import { readEntityTypesProjection } from './views/entity-types-reader';
-import { readPeopleProjection, resolvePersonNames } from './views/people-reader';
+import { personNamer } from './views/people-reader';
 import { readTagSchemasProjection } from './views/tag-schemas-reader';
 import { AnnotationContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
@@ -193,20 +193,8 @@ export class Browser {
   }
 
   /** The resolver `named` applies, over one read of the people projection. */
-  private async namer(): Promise<<T>(value: T) => T> {
-    let people: PeopleView;
-    try {
-      people = await readPeopleProjection(this.project);
-    } catch (error) {
-      // A name is an ENRICHMENT; the annotations are the answer. A projection
-      // this process cannot read is worth saying out loud, but it must not
-      // turn a browse into a failure — the reply then carries DIDs without
-      // names, which is the same shape as a person who has never acted and is
-      // a case every client already renders.
-      this.logger.warn('People projection unreadable — this reply names no one', { error: errField(error) });
-      return (value) => value;
-    }
-    return (value) => resolvePersonNames(value, people);
+  private namer(): Promise<<T>(value: T) => T> {
+    return personNamer(this.project, this.logger);
   }
 
   /**
@@ -398,48 +386,7 @@ export class Browser {
         motivation: event.motivation || 'all',
       });
 
-      // The inbound edge query is eventually consistent BY DESIGN: the
-      // racing write lives in the CITING resource's stream, so no
-      // per-resource wait key exists here — and every consumer sits behind
-      // the SDK's referencedBy cache, whose staleness window dwarfs the
-      // Weaver's ~tens-of-ms apply lag. A just-woven edge appears on the
-      // next read.
-      const references = await this.kb.graph.getResourceReferencedBy(event.resourceId, event.motivation);
-
-      const sourceIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
-      // Citer hydration IS id-keyed: graph-first with view fallback — a
-      // woven edge whose endpoint isn't woven yet must not render
-      // "Untitled Resource"; the view holds the fresher descriptor.
-      const resolved = await Promise.all(
-        sourceIds.map(id => resourceWithViewGrace(this.kb, id)),
-      );
-
-      const docMap = new Map(
-        resolved.filter(r => r.resource !== null).map(r => [r.resource!['@id'], r.resource!]),
-      );
-      for (let i = 0; i < sourceIds.length; i++) {
-        if (resolved[i].laggedBehindView) {
-          this.logger.info('[graph lag] citer hydrated from view', { resourceId: sourceIds[i] });
-        } else if (resolved[i].resource === null) {
-          this.logger.warn('Referenced resource not found in graph or view', { resourceId: sourceIds[i] });
-        }
-      }
-
-      const referencedBy = references.map(ref => {
-        const targetSource = getTargetSource(ref.target);
-        const targetSelector = getTargetSelector(ref.target);
-        const doc = targetSource ? docMap.get(targetSource) : undefined;
-        return {
-          id: ref.id,
-          resourceName: doc?.name || 'Untitled Resource',
-          target: {
-            source: targetSource,
-            selector: {
-              exact: targetSelector ? getExactText(targetSelector) : '',
-            },
-          },
-        };
-      });
+      const referencedBy = await findReferencedBy(this.kb, event.resourceId, event.motivation, this.logger);
 
       this.eventBus.emit('browse:referenced-by-result', {
         response: await this.named({ referencedBy }),

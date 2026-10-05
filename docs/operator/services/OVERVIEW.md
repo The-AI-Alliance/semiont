@@ -13,7 +13,7 @@ All eight are published to `ghcr.io/the-ai-alliance/`, for `linux/amd64` and `li
 | [gateway](../../../apps/gateway/README.md) | `semiont-gateway` | 4000 | Rust, `apps/gateway` | Verifies every caller's token, relays the bus, and proxies content bytes to the Archivist. It hosts no actors and holds no datastore |
 | [dispatcher](../../../apps/dispatcher/README.md) | `semiont-dispatcher` | 24105 | Rust, `apps/dispatcher` | Owns the job queue and answers the `job:*` lifecycle. No content flows through it |
 | [archivist](../../../apps/archivist/README.md) | `semiont-archivist` | 24103 | `@semiont/make-meaning` | Keeps the record. The only service that mounts the knowledge base's working tree: it appends the event log, writes content, and keeps the views |
-| [librarian](../../../apps/librarian/README.md) | `semiont-librarian` | 24104 | `@semiont/make-meaning` | Searches the knowledge base: gathers context and matches candidates |
+| [librarian](../../../apps/librarian/README.md) | `semiont-librarian` | 24104 | `@semiont/make-meaning` | Searches the knowledge base: finds resources by text, gathers context, lists what refers to a resource, and matches candidates |
 | [worker](../../../apps/worker/README.md) | `semiont-worker` | 24100 | `@semiont/jobs` | The worker pool: claims annotation and generation jobs and runs them against a model |
 | [smelter](../../../apps/smelter/README.md) | `semiont-smelter` | 24101 | `@semiont/make-meaning` | Computes embeddings, keeps the vector index, and extracts anchored text |
 | [weaver](../../../apps/weaver/README.md) | `semiont-weaver` | 24102 | `@semiont/make-meaning` | Keeps the graph projection of the event log |
@@ -27,7 +27,7 @@ This is the contract a deployment satisfies, whoever does the deploying. The lau
 |---|---|---|---|---|
 | gateway | `/etc/semiont/gateway.json`, a [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json) document | none | The issuer's published keys; the Archivist; the broker, when the signal plane is `nats` | any number, once the signal plane is `nats` |
 | dispatcher | `/etc/semiont/dispatcher.json`, a [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json) document | none | The gateway's bus; the broker's JetStream | one |
-| archivist | `~/.semiontconfig` (TOML) | The working tree at `/kb`, read-write; the state directory, where it writes views; the anchored-text store, read-only | The gateway's bus; graph; vectors; embedding | one |
+| archivist | `~/.semiontconfig` (TOML) | The working tree at `/kb`, read-write; the state directory, where it writes views; the anchored-text store, read-only | The gateway's bus | one |
 | librarian | `~/.semiontconfig` | The state directory, to read views | The gateway's bus; graph; vectors; embedding; inference; the Archivist | one |
 | worker | `~/.semiontconfig` | none | The gateway's bus; the Archivist, for bytes; inference | any number |
 | smelter | `~/.semiontconfig` | The anchored-text store, read-write | The gateway's bus; vectors; embedding; the Archivist, for bytes | one |
@@ -52,10 +52,10 @@ Each row is a role a stack needs, and the technology the launcher runs for it. A
 | `identity` | Keycloak | 8080 | People and services sign in there; the gateway verifies every token against its keys |
 | `database` | PostgreSQL | 5432 | Keycloak, and nothing else. Semiont stores nothing in it ([Database](../administration/DATABASE.md)) |
 | `messaging` | NATS, with JetStream | 4222 | The dispatcher's job queue; the gateway's signal plane, when it is `nats` |
-| `graph` | Neo4j | 7687 (Bolt), 7474 (HTTP) | Archivist, librarian, weaver |
-| `vectors` | Qdrant | 6333 | Archivist, librarian, smelter |
+| `graph` | Neo4j | 7687 (Bolt), 7474 (HTTP) | Librarian, weaver |
+| `vectors` | Qdrant | 6333 | Librarian, smelter |
 | `inference` | Ollama, or nothing when a remote API such as Anthropic does the inference | 11434 | Librarian, worker |
-| `embedding` | The same Ollama, or nothing when Voyage does the embedding | 11434 | Archivist, librarian, smelter |
+| `embedding` | The same Ollama, or nothing when Voyage does the embedding | 11434 | Librarian, smelter |
 | `collector` | OpenTelemetry Collector | 4318 (OTLP), 24110 (its own metrics) | Every service exports traces and metrics to it |
 | `traces` | Jaeger | 16686 (UI), 14318 (OTLP) | The collector forwards traces to it |
 | `metrics` | Prometheus | 9090 | Scrapes the collector |

@@ -225,11 +225,6 @@ function createHarness(opts: HarnessOptions = {}) {
         response = { entityTypes: ['Person'] };
         break;
       }
-      case 'browse:referenced-by-requested': {
-        resultChannel = 'browse:referenced-by-result';
-        response = { referencedBy: [] };
-        break;
-      }
       case 'browse:events-requested': {
         resultChannel = 'browse:events-result';
         response = { events: [], total: 0, resourceId: (payload.resourceId as string) ?? 'res-1' };
@@ -380,13 +375,6 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
       const { browse } = createHarness();
       const a = browse.entityTypes();
       const b = browse.entityTypes();
-      expect(a).toBe(b);
-    });
-
-    it('referencedBy(): identical for same resourceId', () => {
-      const { browse } = createHarness();
-      const a = browse.referencedBy(RID);
-      const b = browse.referencedBy(RID);
       expect(a).toBe(b);
     });
 
@@ -590,15 +578,6 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
       browse.invalidateEntityTypes();
       await flush();
       expect(browse.entityTypes()).toBe(obs);
-    });
-
-    it('referencedBy(): stable across invalidateReferencedBy', async () => {
-      const { browse } = createHarness();
-      const obs = browse.referencedBy(RID);
-      await firstDefined(obs);
-      browse.invalidateReferencedBy(RID);
-      await flush();
-      expect(browse.referencedBy(RID)).toBe(obs);
     });
 
     it('events(): stable across invalidateResourceEvents', async () => {

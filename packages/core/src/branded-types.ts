@@ -29,7 +29,6 @@ export type CloneToken = string & { readonly __brand: 'CloneToken' };
 // ============================================================================
 
 export type EntityType = string & { readonly __brand: 'EntityType' };
-export type SearchQuery = string & { readonly __brand: 'SearchQuery' };
 export type BaseUrl = string & { readonly __brand: 'BaseUrl' };
 
 // ============================================================================
@@ -42,7 +41,6 @@ export function accessToken(value: string): AccessToken { return value as Access
 export function mcpToken(value: string): MCPToken { return value as MCPToken; }
 export function cloneToken(value: string): CloneToken { return value as CloneToken; }
 export function entityType(value: string): EntityType { return value as EntityType; }
-export function searchQuery(value: string): SearchQuery { return value as SearchQuery; }
 export function baseUrl(value: string): BaseUrl { return value as BaseUrl; }
 
 // Motivation is an OpenAPI enum — use its values directly, no helper needed.

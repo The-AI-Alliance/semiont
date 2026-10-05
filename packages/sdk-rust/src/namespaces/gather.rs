@@ -1,14 +1,23 @@
-//! Gather: assembling the context a model is given.
+//! Gather: assembling the context a model is given, and what refers to a
+//! resource. The second is a query (`Cached`): it answers from the client's
+//! cache, and the client's refresher (`super::refresher`) keeps it true.
 
-use crate::channels::{GatherRequested, GatherResourceRequested};
+use crate::cache::Cache;
+use crate::cached::{Cached, Keyed};
+use crate::channels::{GatherReferencedByRequested, GatherRequested, GatherResourceRequested};
 use crate::client::Links;
 use crate::errors::SemiontError;
 use crate::running::Running;
+use crate::state_unit::StateUnit;
 use crate::types::{AnnotationId, ResourceId};
 use crate::types::{
     GatherAnnotationComplete, GatherAnnotationOptions, GatherAnnotationRequest,
-    GatherResourceRequest, GatherResourceRequestOptions, GatheredContext,
+    GatherReferencedByRequest, GatherResourceRequest, GatherResourceRequestOptions,
+    GatheredContext, GetReferencedByResponseReferencedByItem,
 };
+
+/// An annotation elsewhere that refers to a resource.
+pub(super) type ReferencedBy = GetReferencedByResponseReferencedByItem;
 
 /// How much of the source an annotation's context takes, in characters,
 /// when its caller states no window. Every SDK sends the same: the cases of
@@ -32,11 +41,51 @@ impl Default for GatherResourceRequestOptions {
 
 pub struct GatherNamespace {
     links: Links,
+    /// What refers to each resource asked about. Kept as long as the client
+    /// is: an answer of the graph, asked for again by the next client.
+    pub(super) referenced_by: Cache<ResourceId, Vec<ReferencedBy>>,
 }
 
 impl GatherNamespace {
     pub(crate) fn new(links: Links) -> GatherNamespace {
-        GatherNamespace { links }
+        let referenced_by = Cache::new({
+            let links = links.clone();
+            move |resource_id: ResourceId| {
+                let links = links.clone();
+                async move {
+                    let answer = links
+                        .request::<GatherReferencedByRequested>(&GatherReferencedByRequest {
+                            resource_id,
+                            motivation: None,
+                        })
+                        .await?;
+                    Ok(answer.response.referenced_by)
+                }
+            }
+        });
+        GatherNamespace {
+            links,
+            referenced_by,
+        }
+    }
+
+    /// End the query: every watcher's stream ends.
+    pub(crate) fn dispose(&self) {
+        self.referenced_by.dispose();
+    }
+
+    /// The annotations elsewhere that refer to a resource, kept per
+    /// resource. Watching it holds the resource's scope.
+    pub fn referenced_by(
+        &self,
+        resource_id: &ResourceId,
+    ) -> Cached<Vec<GetReferencedByResponseReferencedByItem>> {
+        Cached::of(Keyed {
+            cache: self.referenced_by.clone(),
+            key: resource_id.clone(),
+            view: |value| value,
+            scope: Some((self.links.wire.transport().clone(), resource_id.clone())),
+        })
     }
 
     /// The context around one annotation, taking `context_window` characters
@@ -82,5 +131,11 @@ impl GatherNamespace {
             })
             .await?;
         Ok(gathered.response)
+    }
+}
+
+impl Drop for GatherNamespace {
+    fn drop(&mut self) {
+        self.dispose();
     }
 }

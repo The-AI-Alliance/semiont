@@ -15,9 +15,9 @@ Every operation on a knowledge base belongs to one of eight verbs. Each is a con
 
 | Verb | Does | Who does it |
 |---|---|---|
-| **[Browse](BROWSE.md)** | Reads resources, annotations, history and vocabulary | every participant |
-| **[Match](MATCH.md)** | Searches for what a reference could refer to, and ranks the candidates | Analyst, Linker |
-| **[Gather](GATHER.md)** | Assembles the context around an annotation or a resource | Analyst, Generator, Linker |
+| **[Browse](BROWSE.md)** | Reads the record: resources, annotations, history and vocabulary | every participant |
+| **[Match](MATCH.md)** | Searches: for resources by text, and for what a reference could refer to, ranking the candidates | Analyst, Linker |
+| **[Gather](GATHER.md)** | Assembles the context around an annotation or a resource, and lists what refers to a resource | Analyst, Generator, Linker |
 
 **The attention-directing verb** writes nothing and reads nothing.
 
