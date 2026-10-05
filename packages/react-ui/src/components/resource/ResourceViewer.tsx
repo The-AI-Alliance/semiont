@@ -253,12 +253,11 @@ export function ResourceViewer({
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
     const metadata = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation));
 
-    // If annotation has a side panel, only open it when Detail mode is active
-    // For delete/jsonld/follow modes, let those handlers below process it
-    // Side-panel annotations in detail mode are routed to the host's panel by
-    // handleAnnotationClickEvent before this is ever called; here only the
-    // toolbar click modes (delete / jsonld / follow) fall through.
-    if (metadata?.hasSidePanel && selectedClick !== 'deleting' && selectedClick !== 'jsonld' && selectedClick !== 'follow') {
+    // An annotation of a registered type opens the annotations panel, and
+    // only when Detail mode is active: handleAnnotationClickEvent routes that
+    // to the host's panel before this is ever called. Here only the toolbar
+    // click modes (delete / jsonld / follow) fall through to the handlers below.
+    if (metadata && selectedClick !== 'deleting' && selectedClick !== 'jsonld' && selectedClick !== 'follow') {
       return;
     }
 
@@ -315,9 +314,9 @@ export function ResourceViewer({
     // The real annotation, not a `{ motivation } as Annotation` stand-in.
     const metadata = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation));
 
-    // No side panel, or a click mode other than detail: this is a plain
-    // annotation click, not a panel-opening one.
-    if (!metadata?.hasSidePanel || selectedClick !== 'detail') {
+    // No registered annotator, or a click mode other than detail: this is a
+    // plain annotation click, not a panel-opening one.
+    if (!metadata || selectedClick !== 'detail') {
       handleAnnotationClick(annotation);
       return;
     }

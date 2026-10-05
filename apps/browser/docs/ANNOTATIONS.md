@@ -98,26 +98,16 @@ const {
 
   // Display
   displayName,         // 'Highlight'
-  description,         // 'Mark text for attention'
 
   // Visual styling
   className,           // 'annotation-highlight'
   iconEmoji,           // optional emoji icon
-
-  // Behavior flags
-  isClickable,
-  hasHoverInteraction,
-  hasSidePanel,        // Opens the annotations panel
 
   // Type detection: (annotation: Annotation) => boolean
   matchesAnnotation,
 
   // Accessibility: screen reader announcement
   announceOnCreate,    // 'Highlight created'
-
-  // AI assist display metadata (optional), and how the body is built
-  detection,
-  create,
 }: Annotator = ANNOTATORS.highlight;
 ```
 
@@ -150,7 +140,7 @@ BrowseView's overlay records each annotation's `internalType` and wraps its text
 
 #### Routing Clicks
 
-When an annotation is clicked, `ResourceViewer` finds its annotator. If the annotator has a side panel (`hasSidePanel`) and the toolbar's click action is `detail`, the viewer asks the host to open the annotations panel at that annotation; the shell state unit turns the motivation into the panel's tab with `annotatorKeyForMotivation`.
+When an annotation is clicked, `ResourceViewer` finds its annotator. If it has one and the toolbar's click action is `detail`, the viewer asks the host to open the annotations panel at that annotation; the shell state unit turns the motivation into the panel's tab with `annotatorKeyForMotivation`.
 
 #### Grouping Annotations
 

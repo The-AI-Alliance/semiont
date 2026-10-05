@@ -5,6 +5,7 @@ import type {
   EventBus,
   GatheredContext,
   GenerationJobParams,
+  components,
 } from '@semiont/core';
 import { cloneFormat, deriveStorageUri, getPrimaryRepresentation } from '@semiont/core';
 
@@ -22,6 +23,8 @@ import type {
 } from './types';
 
 import type { ResourceDescriptor } from '@semiont/core';
+
+type CloneResourceWithTokenResponse = components['schemas']['CloneResourceWithTokenResponse'];
 
 export class YieldNamespace implements IYieldNamespace {
   constructor(
@@ -313,7 +316,7 @@ export class YieldNamespace implements IYieldNamespace {
     });
   }
 
-  async cloneToken(resourceId: ResourceId): Promise<{ token: string; expiresAt: string }> {
+  async cloneToken(resourceId: ResourceId): Promise<CloneResourceWithTokenResponse> {
     return busRequest(
       this.transport,
       'yield:clone-token-requested',

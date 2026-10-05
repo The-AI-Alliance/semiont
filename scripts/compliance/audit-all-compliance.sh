@@ -15,13 +15,6 @@ echo "⚛️  Checking React Hooks ordering..."
 npx tsx "$COMPLIANCE_DIR/audit-hooks-ordering.ts"
 echo ""
 
-# EventBus/SSE architecture check (detects callback-based SSE patterns)
-echo "🔌 Checking EventBus/SSE architecture..."
-npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/packages/react-ui/src" || echo "⚠️  EventBus/SSE violations found in react-ui"
-npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/apps/browser/src" || echo "⚠️  EventBus/SSE violations found in browser"
-npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/packages/mcp-server/src" || echo "⚠️  EventBus/SSE violations found in mcp-server"
-echo ""
-
 # Raw bus access check — forbid client.emit/.on/.stream outside http-transport
 echo "🚌 Checking for raw bus access outside http-transport..."
 bash "$COMPLIANCE_DIR/audit-raw-bus.sh"

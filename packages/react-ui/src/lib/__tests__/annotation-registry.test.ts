@@ -28,7 +28,6 @@ describe('annotation-registry ANNOTATORS', () => {
         expect(ann.displayName).toBeTruthy();
         expect(ann.className).toBeTruthy();
         expect(ann.iconEmoji).toBeTruthy();
-        expect(ann.create).toBeTruthy();
         expect(typeof ann.matchesAnnotation).toBe('function');
       }
     });
@@ -50,68 +49,6 @@ describe('annotation-registry ANNOTATORS', () => {
 
     it('tag matches tagging motivation', () => {
       expect(ANNOTATORS.tag.matchesAnnotation({ motivation: 'tagging' } as any)).toBe(true);
-    });
-  });
-
-  describe('detection.formatRequestParams', () => {
-    it('highlight formats instructions and density', () => {
-      const fmt = ANNOTATORS.highlight.detection!.formatRequestParams!;
-      const result = fmt(['Find key terms', undefined, 5]);
-      expect(result).toEqual([
-        { label: 'Instructions', value: 'Find key terms' },
-        { label: 'Density', value: '5 per 2000 words' },
-      ]);
-    });
-
-    it('highlight returns empty for no args', () => {
-      const fmt = ANNOTATORS.highlight.detection!.formatRequestParams!;
-      expect(fmt([undefined, undefined, undefined])).toEqual([]);
-    });
-
-    it('comment formats instructions, tone, and density', () => {
-      const fmt = ANNOTATORS.comment.detection!.formatRequestParams!;
-      const result = fmt(['Analyze', 'academic', 3]);
-      expect(result).toEqual([
-        { label: 'Instructions', value: 'Analyze' },
-        { label: 'Tone', value: 'academic' },
-        { label: 'Density', value: '3 per 2000 words' },
-      ]);
-    });
-
-    it('reference formats entity types and descriptive flag', () => {
-      const fmt = ANNOTATORS.reference.detection!.formatRequestParams!;
-      const result = fmt([['Person', 'Place'], true]);
-      expect(result).toEqual([
-        { label: 'Entity Types', value: 'Person, Place' },
-        { label: 'Include Descriptive References', value: 'Yes' },
-      ]);
-    });
-
-    it('reference returns empty for no types', () => {
-      const fmt = ANNOTATORS.reference.detection!.formatRequestParams!;
-      expect(fmt([[], false])).toEqual([]);
-    });
-
-    it('tag formats schema and categories', () => {
-      const fmt = ANNOTATORS.tag.detection!.formatRequestParams!;
-      const result = fmt(['legal-irac', ['Issue', 'Rule']]);
-      expect(result).toEqual([
-        { label: 'Schema', value: 'Legal (IRAC)' },
-        { label: 'Categories', value: 'Issue, Rule' },
-      ]);
-    });
-
-    it('tag formats unknown schema name as-is', () => {
-      const fmt = ANNOTATORS.tag.detection!.formatRequestParams!;
-      const result = fmt(['custom-schema', []]);
-      expect(result).toEqual([
-        { label: 'Schema', value: 'custom-schema' },
-      ]);
-    });
-
-    it('tag returns empty for no schema and no categories', () => {
-      const fmt = ANNOTATORS.tag.detection!.formatRequestParams!;
-      expect(fmt([undefined, undefined])).toEqual([]);
     });
   });
 

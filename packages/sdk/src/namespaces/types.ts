@@ -61,6 +61,7 @@ type JobProgress = components['schemas']['JobProgress'];
 export type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
 type SupportedMediaType = components['schemas']['SupportedMediaType'];
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
+type CloneResourceWithTokenResponse = components['schemas']['CloneResourceWithTokenResponse'];
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
 
 // ── Response type helpers (extract JSON body from OpenAPI path types) ────────
@@ -504,7 +505,7 @@ export interface YieldNamespace {
   ): StreamObservable<YieldGenerationEvent>;
 
   // Clone
-  cloneToken(resourceId: ResourceId): Promise<{ token: string; expiresAt: string }>;
+  cloneToken(resourceId: ResourceId): Promise<CloneResourceWithTokenResponse>;
   fromToken(token: string): Promise<ResourceDescriptor>;
   createFromToken(options: CreateFromTokenOptions): Promise<{ resourceId: ResourceId }>;
 
