@@ -350,7 +350,7 @@ The Rust client has the same seven shapes, with no reactive library under them.
 - **Events** come as a `Stream`. A reader that falls behind is told how far (`Lagged`) and reads on.
 - **Composition** uses `futures::StreamExt` or `tokio-stream`. The crate brings no operator library.
 
-The Rust README has [the table that maps each TypeScript shape to its Rust form](../../packages/sdk-rust/README.md#from-the-typescript-sdk), and [how each shape is used](../../packages/sdk-rust/README.md#what-is-in-the-crate).
+The Rust README has [the table that maps each TypeScript shape to its Rust form](../../packages/sdk-rust/README.md#from-the-typescript-sdk), and [how each shape is used](../../packages/sdk-rust/README.md#what-a-method-returns).
 
 ## See also
 

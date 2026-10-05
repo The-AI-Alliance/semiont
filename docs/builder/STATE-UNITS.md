@@ -250,7 +250,7 @@ A unit is a struct built over an `Arc<SemiontClient>` it never closes. Its state
 
 Two of the TypeScript rules have no Rust form. A unit is a struct, not a closure. And a `watch` receiver gives the current value directly, so the rule against a synchronous getter does not apply.
 
-The Rust README lists [the units and what each holds](../../packages/sdk-rust/README.md#what-is-in-the-crate), and has [the table that maps each TypeScript shape to its Rust form](../../packages/sdk-rust/README.md#from-the-typescript-sdk).
+The Rust README lists [the units and what each holds](../../packages/sdk-rust/README.md#state-units), and has [the table that maps each TypeScript shape to its Rust form](../../packages/sdk-rust/README.md#from-the-typescript-sdk).
 
 ## How these rules are enforced
 

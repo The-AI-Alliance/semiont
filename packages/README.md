@@ -23,6 +23,21 @@ Modular packages for the Semiont platform. For the layered design, dependency gr
 | [@semiont/sdk](https://www.npmjs.com/package/@semiont/sdk) | [![npm](https://img.shields.io/npm/v/@semiont/sdk)](https://www.npmjs.com/package/@semiont/sdk) | [sdk](./sdk/) | `SemiontClient`, verb-oriented namespaces, `SemiontSession` + `SemiontBrowser`, state units, `bus-request` + cache. Transport-agnostic — pair with `@semiont/http-transport` (HTTP) or `@semiont/make-meaning` (in-process) |
 | [@semiont/vectors](https://www.npmjs.com/package/@semiont/vectors) | [![npm](https://img.shields.io/npm/v/@semiont/vectors)](https://www.npmjs.com/package/@semiont/vectors) | [vectors](./vectors/) | Vector storage (Qdrant + in-memory), embedding providers (Voyage, Ollama), chunking, semantic search |
 
+## Rust Crates
+
+Six crates of the Rust workspace live here. Four are published to crates.io, and are how a Rust program uses Semiont. Two are the Rust services' own: they are built into the gateway and the dispatcher and published nowhere.
+
+| Crate | Version | Source | Description |
+| ----- | ------- | ------ | ----------- |
+| [semiont](https://crates.io/crates/semiont) | [![crates.io](https://img.shields.io/crates/v/semiont.svg)](https://crates.io/crates/semiont) | [sdk-rust](./sdk-rust/) | The Rust SDK: the client of a knowledge base, the protocol's types, sessions and state units. A full peer of `@semiont/sdk` |
+| [semiont-http-transport](https://crates.io/crates/semiont-http-transport) | [![crates.io](https://img.shields.io/crates/v/semiont-http-transport.svg)](https://crates.io/crates/semiont-http-transport) | [http-transport-rust](./http-transport-rust/) | The SDK's transport over a gateway, and signing a person or a service in |
+| [semiont-telemetry](https://crates.io/crates/semiont-telemetry) | [![crates.io](https://img.shields.io/crates/v/semiont-telemetry.svg)](https://crates.io/crates/semiont-telemetry) | [telemetry-rust](./telemetry-rust/) | The SDK's spans and counts, reported to whatever OpenTelemetry the application installed. It exports nothing |
+| [semiont-codegen](https://crates.io/crates/semiont-codegen) | [![crates.io](https://img.shields.io/crates/v/semiont-codegen.svg)](https://crates.io/crates/semiont-codegen) | [codegen-rust](./codegen-rust/) | The build-time generator of Rust types from the spec. A build dependency of `semiont`; nobody adds it by hand |
+| semiont-core | not published | [core-rust](./core-rust/) | What the Rust services share and no client needs: the embedded spec and its validators, the configuration documents, the reach to the messaging broker |
+| semiont-observability | not published | [observability-rust](./observability-rust/) | What a Rust service writes about itself: telemetry exported over OTLP, and log lines |
+
+The Go client is [sdk-go](./sdk-go/).
+
 ## Getting Started
 
 To work on these packages, start at the contributor's [orientation](../docs/contributor/README.md): building and running a change, testing it, and [adding a package](../docs/contributor/README.md#adding-a-package).

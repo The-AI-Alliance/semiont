@@ -1,86 +1,86 @@
-# semiont-http-transport (Rust)
+# semiont-http-transport
 
 [![crates.io](https://img.shields.io/crates/v/semiont-http-transport.svg)](https://crates.io/crates/semiont-http-transport)
 [![docs.rs](https://img.shields.io/docsrs/semiont-http-transport)](https://docs.rs/semiont-http-transport)
 [![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 [![License](https://img.shields.io/crates/l/semiont-http-transport.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-A knowledge base over its gateway's HTTP surface
-([TRANSPORT-HTTP.md](../../docs/protocol/TRANSPORT-HTTP.md)), as the SDK's
-`Transport`, `ContentTransport` and `GatewayOperations`
-(`semiont::transport`), to the contract every SDK's transport is held to
-([TRANSPORT-CONTRACT.md](../../docs/protocol/TRANSPORT-CONTRACT.md)).
+The HTTP transport of the [Semiont Rust SDK](../sdk-rust/README.md). It
+connects a [`semiont`](https://crates.io/crates/semiont) client to a
+knowledge base's gateway, and signs in the person or the service that uses
+it.
 
-The reference for every item is on [docs.rs](https://docs.rs/semiont-http-transport).
+[Semiont](../../README.md) is an open platform for building trusted AI
+knowledge bases. The SDK's client does no networking of its own: this crate
+is how it reaches a knowledge base. Start with the
+[SDK's README](../sdk-rust/README.md) for what the client does, and come
+here for how to connect it.
 
-- `transport` — `HttpTransport`: `POST /bus/emit` for what it sends, and the
-  gateway's plain operations. A request that is neither the stream nor an
-  emit has the deadline every SDK keeps (`HTTP_REQUEST_TIMEOUT`, or
-  `Timing::http_request`): unanswered by then, it fails as one that got no
-  answer and is not made again. Each emit is logged (`[bus EMIT]`), counted
-  (`semiont.bus.sent`) and sent in a `bus.emit` span whose trace travels as
-  `traceparent`; each frame received is logged (`[bus RECV]`) and delivered
-  with the trace it carried.
-- `actor` — the one stream, `POST /bus/subscribe`, and its state: opened when
-  first needed; replaced without a gap when what it carries changes, the old
-  one read until the new one is open; reopened after a drop from where each
-  scope had got to, with the replies still awaited; each event delivered once;
-  and held shut while the token is refused, until a new one arrives.
-- `sse` — the stream's framing.
-- `content` — `HttpContentTransport`: a resource's bytes up, with progress
-  and cancellation, and down, whole or as a stream. The deadline is on the
-  bytes beginning to arrive; an upload has none, since how long it takes is
-  how large the resource is.
-- `client` — `client(config, options)`: the SDK's `SemiontClient` over this
-  crate's transport under all three contracts, so its `auth` and `system`
-  namespaces are there.
-- `service_account` and `agent` — a service signing in: its account's
-  client-credentials grant at the issuer, exchanged at the gateway for the
-  token of the agent the work runs as (`AgentToken`), and renewed before it
-  expires. An agent's token is a credential source, as a person's stored
-  sign-in is, and not a session: an agent whose renewal fails keeps the
-  token it has and tries again, where a person is signed out.
+## Install
 
-Behind the `sign-in` feature, which a service does not enable, signing a
-person in:
+```bash
+cargo add semiont
+cargo add semiont-http-transport --features sign-in
+```
 
-- `oauth` — the client as an OAuth public client of the issuer a knowledge
-  base trusts: the issuer found from the knowledge base's resource metadata,
-  the authorization-code grant with PKCE, the device grant, the refresh
-  grant and revocation. A stored session's renewal tells a refusal from an
-  outage: only no answer, or one that says "not now", is tried again, inside
-  a bounded budget. Every request to the issuer has the same deadline, and
-  one that passes it is one that got no answer. PKCE's challenge and its
-  random verifier are `ring`'s.
-- `session` — sessions over a gateway. `HttpSessionFactory` is what a
-  `SemiontBrowser` builds its sessions through; `session_from_stored` (a
-  sign-in a storage already holds), `sign_in_device`, `session_from_issued`
-  and `session_over_http` are what a script uses directly; `begin_sign_in` and `complete_sign_in` are a registry's sign-in
-  through the issuer. Renewals of one knowledge base that are asked for
-  together are one request of the issuer. A registry's session resumes its
-  stream from the place its storage kept (`Bookmarks`).
-- `loopback` — the address an application with no web page of its own is
-  sent back to after a sign-in. The issuer sends a person back only to an
-  address its registration of the client lists; the realm a Semiont
-  launcher renders lists the loopback address for the browser client, at
-  any port.
-- `discovery` — a launcher's discovery document over HTTP.
+| Feature | What it adds |
+|---|---|
+| `sign-in` | Signing a person in, and their sessions: the issuer's grants, the redirect back to this machine, and the launcher's stored sign-in. A service signs in as its own account and leaves the feature off. |
 
-Its spans and its count are the rows of the SDK telemetry table, made by
-[`semiont-telemetry`](../telemetry-rust/README.md) and reported to whatever
-OpenTelemetry the application installed: that README says how. With none
-installed, nothing is recorded and no `traceparent` is sent. The crate links
-no exporter and names no OpenTelemetry of its own, which CI holds.
+It is used inside a [Tokio](https://tokio.rs) runtime. Every type and
+function is documented on
+[docs.rs](https://docs.rs/semiont-http-transport).
 
-## Three ways to use it
+### TLS
 
-These are the SDK's [three ways](../sdk-rust/README.md#three-ways-to-use-it),
-from the side of how each is signed in.
+The crate sends with a `reqwest::Client` the application gives it, the `http`
+of every example below. It turns on none of `reqwest`'s TLS features itself:
+which TLS library carries the connection is the application's choice. An
+application that reaches a gateway over `https` adds `reqwest` at the version
+this crate is built with, 0.13, with a TLS feature. Semiont's own services
+use rustls with the `ring` provider:
 
-**A script** uses the sign-in `semiont login` made
-([sign-in-store](../../specs/src/sign-in-store/README.md)). `state_home` is
-`semiont::sign_in_store::state_dir` of what the script read of its
-environment: the crates read none themselves.
+```toml
+[dependencies]
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+```
+
+With `rustls-no-provider`, the process installs the provider once, before it
+builds a client: `rustls::crypto::ring::default_provider().install_default()`.
+
+## Signing in
+
+A person signs in at the identity provider the knowledge base trusts, never
+at the gateway, and their password never passes through the process. A
+service signs in with an account of its own. Which way fits depends on the
+program, a script, a daemon or an application, as in the SDK's
+[three ways to use the client](../sdk-rust/README.md#three-ways-to-use-it).
+
+| Who | Signs in with | Gives |
+|---|---|---|
+| A script, after `semiont login` | `session_from_stored` | a `SemiontSession` |
+| A script on its own | `sign_in_device` | a `SemiontSession` |
+| A daemon | `AgentToken::sign_in`, then `client` | a `SemiontClient` |
+| An application | `begin_sign_in`, `complete_sign_in` | a session in its `SemiontBrowser` |
+
+In the examples:
+
+- `http` is the application's `reqwest::Client`.
+- `gateway` is where the knowledge base's gateway is: an `HttpEndpoint`
+  (host, port and protocol), or its origin as text for a daemon.
+- `kb` is a `KbTarget`: a knowledge base's id, its name and its endpoint.
+- `storage` is an `Arc<dyn SessionStorage>`: where a session's tokens are
+  kept.
+
+### A script, after `semiont login`
+
+The [launcher](../../apps/launcher/README.md)'s `semiont login` signs a
+person in and keeps the sign-in on disk
+([sign-in store](../../specs/src/sign-in-store/README.md)). A script reuses
+it. `state_home` is the directory that holds it:
+`semiont::sign_in_store::state_dir` of what the script read of its own
+environment. The crates read none themselves.
 
 ```rust
 // The sign-in `semiont login` made for the local stack. The stack's key
@@ -112,6 +112,8 @@ let about = session.client().browse.kb().await?;
 session.close().await;
 ```
 
+### A script on its own
+
 Where nobody has signed in, a script signs a person in by the device grant
 and keeps the tokens in the storage it is given.
 
@@ -137,9 +139,12 @@ let session = sign_in_device(
 .await?;
 ```
 
-**A daemon** signs in as a service, and its work runs as an agent. It is not
-a session: an agent whose renewal fails keeps the token it has and tries
-again.
+### A daemon
+
+A daemon signs in as a service, and its work runs as an agent. `credential`
+is its service account at the issuer: the issuer, a client id and a client
+secret. It is not a session: an agent whose renewal fails keeps the token it
+has and tries again, where a person would be signed out.
 
 ```rust
 // A service signs in with its account, as the agent its work runs as,
@@ -176,7 +181,21 @@ while let Some(event) = completed.next().await {
 }
 ```
 
-**An application** holds a `SemiontBrowser` whose sessions are built by
+`HttpTransportConfig` is everything a transport is given:
+
+| Field | |
+|---|---|
+| `base_url` | The gateway's origin. |
+| `token` | The token every request carries: the current one, and each one after it. With none, the transport sends nothing and waits for one. |
+| `refresher` | Asked for a new token when the gateway answers 401. |
+| `channels` | The global channels the stream names. `None` is every channel a client hears. A process that awaits only some operations names their reply channels, and is not sent every other client's replies. |
+| `http` | The application's `reqwest::Client`. |
+| `timing` | The deadlines. `Timing::default()` is the ones every Semiont SDK keeps. |
+| `bookmarks` | Where the stream's place is kept across restarts. With none, the stream begins each life at the present. |
+
+### An application
+
+An application holds a `SemiontBrowser` whose sessions are built by
 `HttpSessionFactory`, and signs a person in at the issuer through a redirect
 to this machine. `open` shows the person the URL.
 
@@ -209,18 +228,87 @@ let callback = redirect.callback().await?;
 let signed_in = complete_sign_in(&browser, &callback, &http).await?;
 ```
 
-[conformance/](conformance) holds the two drivers the SDK conformance suite
-([tests/conformance/sdk](../../tests/conformance/sdk/README.md)) runs:
-`semiont-wire-driver`, in this crate's place, and `semiont-live-driver`, in
-the place of the SDK's client over it. [tests/stream.rs](tests/stream.rs) holds the liveness axioms
-and the stream's handoffs against a stand-in gateway that misbehaves on cue,
-and [tests/sign_in.rs](tests/sign_in.rs) the grants, the sessions and a
-registry's sign-in against a stand-in gateway and issuer. The examples above
-are regions of that file, run there: a block here that is not one of them
-fails a test. [tests/telemetry_on.rs](tests/telemetry_on.rs) and
-[tests/telemetry_off.rs](tests/telemetry_off.rs) hold the trace an emit
-carries and a frame hands on, in a process that installed an OpenTelemetry
-of its own after the client opened, and in one that installed none.
+The issuer sends a person back only to an address its registration of the
+client lists. The realm a Semiont launcher sets up lists the loopback
+address for the browser client, at any port. What an issuer of your own has
+to provide is in
+[Authentication](../../docs/operator/administration/AUTHENTICATION.md).
+
+## What it implements
+
+The SDK states three contracts a client needs of the wire
+(`semiont::transport`), and this crate implements each over a gateway
+([HTTP transport](../../docs/protocol/TRANSPORT-HTTP.md),
+[transport contract](../../docs/protocol/TRANSPORT-CONTRACT.md)):
+
+| Contract | Type here | Carries |
+|---|---|---|
+| `Transport` | `HttpTransport` | The bus: what the client sends, and the one stream of what it receives |
+| `ContentTransport` | `HttpContentTransport` | A resource's bytes, up and down |
+| `GatewayOperations` | `HttpTransport` | The gateway's plain operations: who a token is, which issuer the knowledge base trusts, its health and status |
+
+`client(config, options)` is the SDK's `SemiontClient` over all three, so
+its `auth` and `system` namespaces are there.
+
+## How it behaves
+
+- **One stream.** Everything a client receives arrives on one stream. It is
+  opened when first needed. When what it carries changes, a new one is
+  opened and the old one is read until the new one is ready, so nothing is
+  missed between them.
+- **A dropped stream is reopened** from where each resource's events had got
+  to, with the replies still awaited. Each event is delivered once.
+- **A refused token closes the stream** until a new one arrives. The
+  `refresher` is asked once per outage.
+- **A request has a deadline** (`Timing::http_request`). Unanswered by then,
+  it fails as one that got no answer, and is not made again.
+- **Content.** An upload reports its progress and can be cancelled. It has
+  no deadline, since how long it takes is how large the resource is. A
+  download's deadline is on the bytes beginning to arrive.
+- **A person's renewal tells a refusal from an outage.** Only no answer, or
+  one that says "not now", is tried again, inside a bounded budget. A
+  refusal ends the session.
+
+## Telemetry
+
+Each emit and each content request runs in a span, and each frame received
+is delivered with the trace it was sent under. The spans are made by
+[`semiont-telemetry`](../telemetry-rust/README.md) and reported to whatever
+OpenTelemetry the application installed. Its README says how to turn that
+on. With none installed, nothing is recorded and no `traceparent` is sent.
+
+With `SEMIONT_BUS_LOG` set, each emit and each frame received is also a line
+on stderr.
+
+## What is in the crate
+
+| Module | What it holds |
+|---|---|
+| `client` | `client(config, options)`: a `SemiontClient` over this transport |
+| `transport` | `HttpTransport`, `HttpTransportConfig`, `Timing`, `Bookmarks` |
+| `content` | `HttpContentTransport` |
+| `service_account`, `agent` | A service's sign-in: `Credential`, `ServiceToken`, `AgentToken` |
+| `session` (`sign-in`) | Sessions over a gateway: `session_from_stored`, `sign_in_device`, `begin_sign_in`, `complete_sign_in`, `HttpSessionFactory` |
+| `oauth` (`sign-in`) | The issuer's grants: authorization code with PKCE, device, refresh, and revocation |
+| `loopback` (`sign-in`) | `LoopbackRedirect`: the address on this machine a person is sent back to |
+| `discovery` (`sign-in`) | A launcher's list of knowledge bases, read over HTTP |
+
+## The other crates
+
+| Crate | |
+|---|---|
+| [`semiont`](../sdk-rust/README.md) | The client this crate carries, and the contracts it implements. |
+| [`semiont-telemetry`](../telemetry-rust/README.md) | The spans and counts this crate reports, and how an application turns tracing on. |
+| [`semiont-codegen`](../codegen-rust/README.md) | The build-time generator of the SDK's types. Cargo builds it for you. |
+
+## Contributing
+
+Every Rust block on this page is a region of
+[tests/sign_in.rs](tests/sign_in.rs), compiled and run there against a
+stand-in gateway and issuer. [tests/stream.rs](tests/stream.rs) holds the
+stream's behaviour against a gateway that misbehaves on cue.
+[conformance/](conformance) holds the two drivers the
+[SDK conformance suite](../../tests/conformance/sdk/README.md) runs.
 
 ## License
 
