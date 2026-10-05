@@ -17,6 +17,13 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { SemiontProject } from '@semiont/core/node';
+import type { Roster } from '../../archivist/agent-roster';
+
+/** A knowledge base no agent serves. */
+export const NO_AGENTS: Roster = { workers: {}, actors: {} };
+
+/** What a test composes an Archivist with: a full boot, and staging's deployed bounds. */
+export const COMPOSE_OPTIONS = { skipRebuild: false, staging: { flushMs: 250, maxWaitMs: 2_000 } };
 
 export interface TestProject {
   project: SemiontProject;

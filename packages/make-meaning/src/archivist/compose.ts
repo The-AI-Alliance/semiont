@@ -7,12 +7,13 @@
 import { EventBus, type Logger } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import { createEventStore, type EventStore, type ViewStorage } from '@semiont/event-sourcing';
-import { WorkingTreeStore, createAnchoredTextStore, stagingFor, type AnchoredTextStore } from '@semiont/content';
+import { WorkingTreeStore, createAnchoredTextReader, stagingFor } from '@semiont/content';
 import { Stower } from './stower';
 import { Browser } from './browser';
 import { CloneTokenManager } from './clone-token-manager';
 import { createSmeltProgress } from '../smelt-progress';
-import type { RosterConfig } from '../config';
+import type { Roster } from './agent-roster';
+import type { StagingOptions } from '@semiont/content';
 import { registerAnnotationAssemblyHandler } from './annotation-assembly';
 import { registerAnnotationContextHandler } from './annotation-context-handler';
 import { registerBindUpdateBodyHandler } from './bind-update-body';
@@ -36,14 +37,18 @@ export interface Archivist {
 export async function composeArchivist(
   project: SemiontProject,
   /** Who serves each role — provider and model, no credential. */
-  roster: RosterConfig,
+  roster: Roster,
   logger: Logger,
-  options: { skipRebuild: boolean },
+  options: {
+    skipRebuild: boolean;
+    /** How far staging may run behind the tree. Every store that stages in this repository shares the bounds set here. */
+    staging: Pick<StagingOptions, 'flushMs' | 'maxWaitMs'>;
+  },
 ): Promise<Archivist> {
   // A config that says `[git] sync = true` over a tree git cannot stage into
   // is refused here, before anything is rebuilt or served. A knowledge base
   // that does not sync git runs no git, and this resolves at once.
-  await stagingFor(project, { logger: logger.child({ component: 'staging' }) }).ready();
+  await stagingFor(project, { ...options.staging, logger: logger.child({ component: 'staging' }) }).ready();
   const kbDomain = project.siteDomain();
   if (!kbDomain) {
     throw new Error("The knowledge base's committed .semiont/config declares no [site] domain: it is the identity this knowledge base acts under, and the audience it accepts tokens for");
@@ -62,11 +67,10 @@ export async function composeArchivist(
   // facts carry their annotation.
   wireEnrichment(eventStore, { views });
   const content = new WorkingTreeStore(project, logger.child({ component: 'working-tree-store' }));
-  // Read-only from construction: this process shares the directory with
-  // the store's single writer, the Smelter, so the narrowing — not mere
-  // abstinence — is what keeps single-writer true. Widening this type
-  // breaks that; it is not a refactor.
-  const anchoredText: Pick<AnchoredTextStore, 'read'> = createAnchoredTextStore(project.anchoredTextDir, logger.child({ component: 'anchored-text-store' }));
+  // A reader, and only a reader: this process shares the directory with the
+  // store's single writer, the Smelter, and compares entries against the
+  // stamp the Smelter states there.
+  const anchoredText = createAnchoredTextReader(project.anchoredTextDir, logger.child({ component: 'anchored-text-store' }));
   const smeltProgress = createSmeltProgress(bus);
 
   const stower = new Stower({ content, eventStore }, bus, project, logger.child({ component: 'stower' }));

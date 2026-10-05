@@ -28,7 +28,7 @@ import {
 import { SemiontProject } from '@semiont/core/node';
 import { asBusRequestPrimitive } from '../bus-request-local';
 import { composeArchivist, type Archivist } from '../archivist/compose';
-import { declareTestKb, TEST_KB_DOMAIN } from './helpers/test-project';
+import { declareTestKb, TEST_KB_DOMAIN, NO_AGENTS, COMPOSE_OPTIONS } from './helpers/test-project';
 
 const logger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
@@ -71,7 +71,7 @@ describe('the composed Archivist', () => {
     await fs.mkdir(testDir, { recursive: true });
     await declareTestKb(testDir);
     archivist = await composeArchivist(
-      new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` }), {}, logger, { skipRebuild: false },
+      new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` }), NO_AGENTS, logger, COMPOSE_OPTIONS,
     );
     actors = asBusRequestPrimitive(archivist.bus);
   });
@@ -94,7 +94,7 @@ describe('the composed Archivist', () => {
       await fs.mkdir(undeclaredDir, { recursive: true });
       try {
         await expect(composeArchivist(
-          new SemiontProject(undeclaredDir, { anchoredTextDir: `${undeclaredDir}/anchored-text` }), {}, logger, { skipRebuild: false },
+          new SemiontProject(undeclaredDir, { anchoredTextDir: `${undeclaredDir}/anchored-text` }), NO_AGENTS, logger, COMPOSE_OPTIONS,
         )).rejects.toThrow('[site] domain');
       } finally {
         await fs.rm(undeclaredDir, { recursive: true, force: true });

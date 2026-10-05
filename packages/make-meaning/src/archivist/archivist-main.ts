@@ -26,14 +26,14 @@
  *         registered operation names (ARCHIVIST_OUTBOUND_STRAYS). Requests
  *         and replies never overlap, so nothing echoes.
  *
- * Environment variables:
- *   SEMIONT_ROOT              — project root (the KB directory). Required.
- *   SEMIONT_ANCHORED_TEXT_DIR — anchored-text store dir. Required.
- *   SEMIONT_OIDC_CLIENT_ID    — this process's own account at the KB's issuer;
- *   SEMIONT_OIDC_CLIENT_SECRET  buys the agent token it shows the gateway. Its
- *                               own read path admits callers by verifying THEIR
- *                               issuer token, not by comparing a shared string.
- *   SEMIONT_SKIP_REBUILD      — 'true' skips the startup view rebuild.
+ * Inputs:
+ *   --config <path>            — its configuration document (ArchivistConfig in
+ *                                the spec); the image passes /etc/semiont/archivist.json.
+ *   SEMIONT_OIDC_CLIENT_ID     — this process's own account at the KB's issuer;
+ *   SEMIONT_OIDC_CLIENT_SECRET   buys the agent token it shows the gateway. Its
+ *                                own read path admits callers by verifying THEIR
+ *                                issuer token, not by comparing a shared string.
+ *   XDG_STATE_HOME             — the state volume the views are written under.
  */
 
 import { Subscription, merge } from 'rxjs';
@@ -46,59 +46,45 @@ import {
   busRequest,
   kbResource } from '@semiont/core';
 import { IssuerVerifier } from '@semiont/core/identity';
-import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
+import { SemiontProject } from '@semiont/core/node';
 import { ARCHIVIST_INBOUND_CHANNELS, ARCHIVIST_OUTBOUND_CHANNELS } from '../service-channels';
 import { attachServicePumps } from '../service-pumps';
-import { rosterConfigFrom } from '../config';
+import { configPathFrom, readArchivistConfig, type ArchivistConfig } from './archivist-config';
 import { createArchivistServer } from './archivist-read-path';
 import { createFactPump } from './fact-pump';
 import { asBusRequestPrimitive } from '../bus-request-local';
 import { composeArchivist } from './compose';
 
 // ── Config ───────────────────────────────────────────────────────────
-
-const maybeRoot = process.env.SEMIONT_ROOT;
-if (!maybeRoot) {
-  throw new Error('SEMIONT_ROOT environment variable is not set');
+//
+// One document, named by `--config` and validated against ArchivistConfig in
+// the spec; the launcher writes it resolved. A refusal here ends the process
+// before it serves, with the reason on stderr.
+function loadConfig(): ArchivistConfig {
+  try {
+    return readArchivistConfig(configPathFrom(process.argv.slice(2)));
+  } catch (error) {
+    process.stderr.write(`[fatal] ${error instanceof Error ? error.message : String(error)}\n`);
+    process.exit(1);
+  }
 }
-const projectRoot: string = maybeRoot;
-const maybeAnchoredTextDir = process.env.SEMIONT_ANCHORED_TEXT_DIR;
-if (!maybeAnchoredTextDir) {
-  throw new Error('SEMIONT_ANCHORED_TEXT_DIR environment variable is not set');
-}
-const anchoredTextDir: string = maybeAnchoredTextDir;
-
-const envConfig = loadEnvironmentConfig(projectRoot, { service: 'archivist' });
-const gatewayPublicURL = envConfig.services?.gateway?.publicURL;
-if (!gatewayPublicURL) {
-  throw new Error('services.gateway.publicURL is required in environment config');
-}
-const baseUrl: string = gatewayPublicURL;
+const config = loadConfig();
 
 /**
  * This process's own account at the issuer. The credential authenticates the
  * PROCESS; the agent DID it buys names the WORK. See `startAgentSession`.
  */
-const maybeIssuerUrl = envConfig.services?.identity?.issuer;
-if (!maybeIssuerUrl) {
-  throw new Error('services.identity.issuer is required: a sidecar authenticates at the knowledge base\'s issuer');
-}
-const issuerUrl = maybeIssuerUrl;
 const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
 const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
 if (!clientId || !clientSecret) {
   throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required to authenticate as a service account');
 }
-const credential = { issuer: issuerUrl, clientId, clientSecret };
-const skipRebuild = process.env.SEMIONT_SKIP_REBUILD === 'true';
-
-/** Claimed as a portNeed in the launcher: worker 24100, smelter 24101, weaver 24102. */
-const healthPort = 24103;
+const credential = { issuer: config.identity.issuer, clientId, clientSecret };
 
 import { registerFactPumpDepthProvider } from '@semiont/observability';
 import { createProcessLogger } from '@semiont/observability/process-logger';
 import { startAgentSession } from '../agent-session';
-const logger = createProcessLogger('archivist');
+const logger = createProcessLogger('archivist', { level: config.logLevel, format: config.logFormat });
 
 // ── Main ─────────────────────────────────────────────────────────────
 
@@ -118,7 +104,7 @@ async function main() {
   // The token's lifetime and the refresh cadence derived from it are the
   // gateway's to decide; see `startAgentSession`.
   const session = await startAgentSession({
-    baseUrl,
+    baseUrl: config.gatewayUrl,
     credential,
     provider: 'semiont',
     model: 'archivist',
@@ -126,13 +112,11 @@ async function main() {
   });
 
   // ── The record and its actors: local, single-owner ─────────────────
-  // The roster comes from the keyless role maps: the archivist holds no
-  // inference credential, and its section list names no [inference].
   const archivist = await composeArchivist(
-    new SemiontProject(projectRoot, { anchoredTextDir }),
-    rosterConfigFrom(envConfig),
+    new SemiontProject(config.root, { anchoredTextDir: config.anchoredTextDir }),
+    config.roster,
     logger,
-    { skipRebuild },
+    { skipRebuild: config.skipRebuild, staging: config.staging },
   );
   // `kbDomain` is the audience every token in this knowledge base is minted
   // for: derived from the committed [site] domain with the SAME function the
@@ -141,7 +125,7 @@ async function main() {
 
   // ── Bus pumps ──────────────────────────────────────────────────────
   const httpTransport = new HttpTransport({
-    baseUrl: makeBaseUrl(baseUrl),
+    baseUrl: makeBaseUrl(config.gatewayUrl),
     token$: session.token$,
     tokenRefresher: session.refresh,
     // Exactly the inbound roster — never the full bridged set (see
@@ -212,15 +196,15 @@ async function main() {
     // The Archivist verifies its OWN callers. It serves the event log and
     // accepts byte writes — the most valuable things in the stack — so each
     // caller's issuer token is verified here, never a shared static string.
-    verifier: new IssuerVerifier({ issuer: issuerUrl, audience: kbResource(kbDomain) }),
+    verifier: new IssuerVerifier({ issuer: config.identity.issuer, audience: kbResource(kbDomain) }),
     health: () => ({
       status: 'ok',
       actors: ['stower', 'browser', 'cloneTokenManager'],
     }),
     logger,
   });
-  server.listen(healthPort, () => {
-    logger.info('Archivist HTTP surface ready', { port: healthPort, paths: ['/health', '/events/:resourceId', 'POST /resources', '/resources/:id/content', '/resources/:id/jsonld'] });
+  server.listen(config.port, () => {
+    logger.info('Archivist HTTP surface ready', { port: config.port, paths: ['/health', '/events/:resourceId', 'POST /resources', '/resources/:id/content', '/resources/:id/jsonld'] });
   });
 
   const shutdown = () => {

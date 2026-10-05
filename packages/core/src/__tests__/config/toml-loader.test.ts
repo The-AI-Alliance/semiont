@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { loadTomlConfig, resolveEnvVars, createTomlConfigLoader } from '../../config/toml-loader';
 
 // Every environment must NAME a vector store and an embedding provider —
@@ -646,67 +649,36 @@ apiKey = "\${UNSET_P5_KEY}"
   });
 });
 
-// Who is on the collaborator roster is a keyless fact: each role's provider
-// and model. The archivist lists the roster and holds no inference credential
-// (only the worker and the librarian images receive inference secrets), so it
-// reads the keyless maps and never [inference]. They must select exactly what
-// the credentialed maps select.
-describe('the keyless roster maps', () => {
-  const ROSTER = `${MINIMAL_TOML}
-[environments.local.inference.anthropic]
-platform = "external"
-apiKey = "\${UNSET_ROSTER_KEY}"
+// Who serves each role is decided here for the services that call a model,
+// and by the launcher for the roster the Archivist lists. The shared table
+// holds the two to one answer.
+describe('the role selection agrees with the shared table', () => {
+  type Role = { provider: string; model: string };
+  const table: { cases: { why: string; config: string; roster: { workers: Record<string, Role>; actors: Record<string, Role> } }[] } =
+    JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../specs/src/service-config/roster-cases.json'), 'utf8'));
+  const JOB_TYPES = ['reference-annotation', 'highlight-annotation', 'assessment-annotation', 'comment-annotation', 'tag-annotation', 'generation'];
+  const pick = (i: { type: string; model: string }): Role => ({ provider: i.type, model: i.model });
 
-[environments.local.inference.ollama]
-platform = "external"
-baseURL = "http://ollama.internal:11434"
-
-[environments.local.workers.default.inference]
-type = "anthropic"
-model = "m-default"
-
-[environments.local.workers.generation.inference]
-type = "anthropic"
-model = "m-generation"
-
-[environments.local.make-meaning.default.inference]
-type = "ollama"
-model = "g-fallback"
-
-[environments.local.actors.matcher.inference]
-type = "anthropic"
-model = "m-matcher"
-`;
-
-  it('an archivist reads them without reading [inference], which it cannot', () => {
-    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(ROSTER), {}, 'archivist');
-    expect(cfg.workers).toEqual({
-      default: { inference: { type: 'anthropic', model: 'm-default' } },
-      generation: { inference: { type: 'anthropic', model: 'm-generation' } },
-    });
-    // The gatherer names no section of its own: make-meaning.default serves it.
-    expect(cfg.actors).toEqual({
-      gatherer: { inference: { type: 'ollama', model: 'g-fallback' } },
-      matcher: { inference: { type: 'anthropic', model: 'm-matcher' } },
-    });
-    expect(() => cfg.inference).toThrow(/archivist.*\[environments\.local\.inference\]/);
+  it('has cases', () => {
+    expect(table.cases.length).toBeGreaterThan(0);
   });
 
-  it('they select what the credentialed maps select, role by role', () => {
-    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(ROSTER), { UNSET_ROSTER_KEY: 'k' }, 'librarian');
-    const pick = (i: { type?: string; model?: string }) => ({ type: i.type, model: i.model });
-    const merged = cfg._metadata?.actors as Record<string, { type: string; model: string }>;
-    for (const [role, { inference }] of Object.entries(cfg.actors ?? {})) {
-      expect(inference && pick(inference), role).toEqual(pick(merged[role]!));
-    }
-    expect(Object.keys(cfg.actors ?? {}).sort()).toEqual(Object.keys(merged).sort());
-
-    const worker = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(ROSTER), { UNSET_ROSTER_KEY: 'k' }, 'worker');
-    const mergedWorkers = worker._metadata?.workers as Record<string, { type: string; model: string }>;
-    for (const [role, { inference }] of Object.entries(worker.workers ?? {})) {
-      expect(inference && pick(inference), role).toEqual(pick(mergedWorkers[role]!));
-    }
-    expect(Object.keys(worker.workers ?? {}).sort()).toEqual(Object.keys(mergedWorkers).sort());
+  it.each(table.cases)('$why', ({ config, roster }) => {
+    const load = (service: 'worker' | 'librarian') =>
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(config), {}, service)._metadata;
+    const bound = (load('worker')?.workers ?? {}) as Record<string, { type: string; model: string }>;
+    // The worker's own rule: a job type's binding, else the default's.
+    const workers = Object.fromEntries(
+      JOB_TYPES.flatMap((jobType) => {
+        const serving = bound[jobType] ?? bound['default'];
+        return serving ? [[jobType, pick(serving)]] : [];
+      }),
+    );
+    const actors = Object.fromEntries(
+      Object.entries((load('librarian')?.actors ?? {}) as Record<string, { type: string; model: string }>)
+        .map(([actor, serving]) => [actor, pick(serving)]),
+    );
+    expect({ workers, actors }).toEqual(roster);
   });
 });
 
@@ -734,7 +706,6 @@ model = "m"
     const workers = cfg._metadata?.workers as Record<string, { apiKey?: string; endpoint?: string; model?: string }>;
     expect(workers.default).toMatchObject({ model: 'm', apiKey: 'k' });
     expect(cfg.inference?.anthropic).toMatchObject({ apiKey: 'k', endpoint: 'https://api.anthropic.com' });
-    expect(cfg.workers).toEqual({ default: { inference: { type: 'anthropic', model: 'm' } } });
   });
 
   it('workers inherit baseURL and maxTokens from a flat [inference] of type ollama', () => {
@@ -817,9 +788,9 @@ model = "mg"
 apiKey = "k"
 `);
     // [make-meaning.actors] wins over [actors] for the same actor.
-    expect(cfg.actors).toEqual({
-      gatherer: { inference: { type: 'anthropic', model: 'mg' } },
-      matcher: { inference: { type: 'anthropic', model: 'mm' } },
+    expect(cfg._metadata?.actors).toMatchObject({
+      gatherer: { type: 'anthropic', model: 'mg' },
+      matcher: { type: 'anthropic', model: 'mm' },
     });
   });
 

@@ -418,11 +418,10 @@ export function loadTomlConfig(
     };
   }
 
-  // Which section serves each role is decided once, here, and read twice:
-  // keyless, as the roster (`workers`/`actors`: who serves a role, which the
-  // archivist lists without holding any credential), and merged with
-  // [inference], as the services that call the model need it
-  // (`_metadata.workers`/`_metadata.actors`).
+  // Which section serves each role, merged with [inference] as the services
+  // that call the model need it (`_metadata.workers`/`_metadata.actors`).
+  // specs/src/service-config/roster-cases.json holds this selection and the
+  // launcher's, which writes the Archivist's roster, to one answer.
   function selectedActors(): [keyof ActorInferenceConfig, InferenceConfig][] {
     const makeMeaningSection = section('make-meaning');
     const actorsSection = section('actors') ?? {};
@@ -496,19 +495,6 @@ export function loadTomlConfig(
       } as OllamaProviderConfig;
     }
     return providers;
-  }
-
-  // The roster: each role's provider and model, and no credential.
-  function keyless(selected: [string, InferenceConfig][]): Record<string, { inference: { type: InferenceConfig['type']; model: string } }> | undefined {
-    return selected.length > 0
-      ? Object.fromEntries(selected.map(([role, i]) => [role, { inference: { type: i.type, model: i.model } }]))
-      : undefined;
-  }
-  function topLevelWorkers(): EnvironmentConfig['workers'] | undefined {
-    return keyless(selectedWorkers());
-  }
-  function topLevelActors(): EnvironmentConfig['actors'] | undefined {
-    return keyless(selectedActors());
   }
 
   // 8. Map to EnvironmentConfig. Every part is built at its first read, and
@@ -679,8 +665,6 @@ export function loadTomlConfig(
         } }
       : {}),
     get inference() { return once('inference', inferenceProviders); },
-    get workers() { return once('workers', topLevelWorkers); },
-    get actors() { return once('actors', topLevelActors); },
     _metadata: {
       environment: resolvedEnvironment,
       projectRoot,

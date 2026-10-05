@@ -8,7 +8,6 @@ import "sort"
 // the TypeScript loader enforces; TestServiceSectionsAgreeWithTheSpec holds
 // this copy to it.
 var serviceConfigSections = map[string][]string{
-	"archivist": {"gateway", "identity", "make-meaning", "actors", "workers"},
 	"librarian": {"gateway", "graph", "vectors", "embedding", "identity", "archivist", "make-meaning", "actors", "inference"},
 	"weaver":    {"gateway", "graph", "identity"},
 	"smelter":   {"gateway", "vectors", "embedding", "identity", "archivist"},
@@ -16,14 +15,15 @@ var serviceConfigSections = map[string][]string{
 }
 
 // launcherReads: the sections whose ${VAR} values the launcher resolves itself,
-// keyed by the role it resolves them for — the gateway's and the dispatcher's
-// documents, Keycloak's external PostgreSQL password, and the remote-model
-// check's key.
+// keyed by the role it resolves them for — the gateway's, the dispatcher's
+// and the Archivist's documents, Keycloak's external PostgreSQL password, and
+// the remote-model check's key.
 // TestLauncherReadsAreTheSectionsTheLauncherResolves reads them from the
 // resolving calls.
 var launcherReads = map[string][]string{
 	"gateway":    {"gateway", "identity", "archivist", "signal"},
 	"dispatcher": {"gateway", "identity", "jobs"},
+	"archivist":  {"gateway", "identity"},
 	"identity":   {"database"},
 	"inference":  {"inference"},
 }
@@ -101,10 +101,11 @@ func sectionRefs(envSection map[string]any, sections []string) (required, option
 }
 
 // serviceVars: for each stack service, the user variables it is handed — the
-// references in the sections it reads. The gateway and the dispatcher read no
-// KB config: their variables are the ones their documents name.
+// references in the sections it reads. The gateway, the dispatcher and the
+// Archivist read no KB config: their variables are the ones their documents
+// name, and the Archivist's names none.
 func serviceVars(envSection map[string]any, env *envConfig) map[string][]string {
-	out := map[string][]string{"gateway": gatewayNamedVars(env), "dispatcher": dispatcherNamedVars(env)}
+	out := map[string][]string{"gateway": gatewayNamedVars(env), "dispatcher": dispatcherNamedVars(env), "archivist": nil}
 	for svc, sections := range serviceConfigSections {
 		required, optional := sectionRefs(envSection, sections)
 		names := append(required, optional...)

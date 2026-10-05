@@ -101,6 +101,7 @@ For product framing and getting a knowledge base running, see the **[project REA
 | [flows/](flows/README.md) | Each of the eight verbs: its operations, what it records, and the rules a client can rely on |
 | [EVENT-BUS.md](EVENT-BUS.md) | The bus: channel naming, identity stamped by the gateway, correlation, scoping, what is recorded |
 | [CHANNELS.md](CHANNELS.md) | The channel inventory, by class |
+| [ARCHIVIST.md](ARCHIVIST.md) | The record: the event log, the views and the other files the Archivist keeps, the commands it records, the reads and the HTTP surface it answers, the facts it publishes |
 | [JOBS.md](JOBS.md) | Delegated work: the job record and its states, the `job:*` channels the dispatcher answers, claims, checkpoints, retries, cancellation |
 | [TRANSPORT-CONTRACT.md](TRANSPORT-CONTRACT.md) | What every transport promises a client, in any language |
 | [TRANSPORT-HTTP.md](TRANSPORT-HTTP.md) | The HTTP transport: `/bus/emit`, the `/bus/subscribe` stream, content, limits |

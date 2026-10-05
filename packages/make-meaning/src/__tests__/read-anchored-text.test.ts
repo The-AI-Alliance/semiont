@@ -21,7 +21,7 @@ import { ResourceOperations } from '@semiont/core';
 import { composeArchivist, type Archivist } from '../archivist/compose';
 import { createAnchoredTextStore, type AnchoredTextStore } from '@semiont/content';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
-import { declareTestKb } from './helpers/test-project';
+import { declareTestKb, NO_AGENTS, COMPOSE_OPTIONS } from './helpers/test-project';
 
 stubEmbeddingProbeFetch();
 
@@ -56,7 +56,7 @@ describe('readAnchoredText + the anchored-text store', () => {
     testDir = join(tmpdir(), `semiont-anchored-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
     await declareTestKb(testDir);
-    service = await composeArchivist(new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` }), {}, silentLogger, { skipRebuild: false });
+    service = await composeArchivist(new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` }), NO_AGENTS, silentLogger, COMPOSE_OPTIONS);
     eventBus = service.bus;
     kb = {
       ...service,

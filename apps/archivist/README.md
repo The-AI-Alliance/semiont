@@ -106,13 +106,20 @@ therefore holds a credential that can write here, and only network access keeps 
 
 ## Running it
 
-Mount the KB at `/kb` and the shared state and anchored-text directories at their declared
-paths; the image fixes the container-side paths so the launcher passes no path env. Set
+It reads one configuration document, an
+[`ArchivistConfig`](../../specs/src/components/schemas/ArchivistConfig.json), from the path its
+`--config` flag names; the image passes `/etc/semiont/archivist.json`. The document names the
+gateway, the issuer, the knowledge base's root, the anchored-text store, who serves each role, the
+port, and the staging bounds. Mount the knowledge base, the state volume and the anchored-text
+store where the document says they are, and set `XDG_STATE_HOME` to the state volume. Set
 `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` — its own service account at the
 knowledge base's issuer. It exchanges them for a token to reach the gateway, and requires a
-token of the same kind on its own surface. `SEMIONT_SKIP_REBUILD=true` skips the startup view rebuild — and with it the reap, so views
-the log no longer justifies survive until a rebuild runs or `semiont clean --store state`
-clears them.
+token of the same kind on its own surface. `skipRebuild` in the document skips the startup view
+rebuild — and with it the reap, so views the log no longer justifies survive until a rebuild runs
+or `semiont clean --store state` clears them.
+
+What it keeps and answers is specified in
+[docs/protocol/ARCHIVIST.md](../../docs/protocol/ARCHIVIST.md).
 
 **The heap ceiling is explicit, and paired.** The image sets
 `NODE_OPTIONS=--max-old-space-size=1536` against a 2 GB container allocation. Without it V8

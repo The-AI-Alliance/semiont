@@ -356,8 +356,7 @@ func (x *liveExec) stageDir() (string, bool) {
 // Librarian and the Worker read bytes from it directly, over HTTP and not
 // through the gateway; all three refuse to boot without it. The gateway is
 // absent because its configuration document carries the address
-// (gatewaydoc.go); the Archivist, because it IS the record, and holds the
-// mount.
+// (gatewaydoc.go); the Archivist, because it IS the record.
 var archivistDialers = map[string]bool{"smelter": true, "librarian": true, "worker": true}
 
 // kbIdentityStaged: the services that describe a KB tree they do not mount,
@@ -376,9 +375,9 @@ const gatewayDocumentFile = "gateway.json"
 // sidecars' TOML ~/.semiontconfig it was derived from.
 const gatewayDocumentTarget = "/etc/semiont/gateway.json"
 
-// stageService writes one service's config into the stage: the gateway's or
-// the dispatcher's resolved document, or another service's patched copy of
-// the KB config.
+// stageService writes one service's config into the stage: the gateway's,
+// the dispatcher's or the Archivist's resolved document, or another service's
+// patched copy of the KB config.
 func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr string) bool {
 	if svc == "gateway" {
 		env, _, _, err := loadConfig(fc.configFile)
@@ -404,6 +403,20 @@ func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr 
 		}
 		if err != nil {
 			x.u.Fail("Writing the dispatcher's configuration document: %v", err)
+			return false
+		}
+		return true
+	}
+	if svc == "archivist" {
+		env, _, _, err := loadConfig(fc.configFile)
+		if err == nil {
+			var doc []byte
+			if doc, err = archivistDocument(env, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv); err == nil {
+				err = os.WriteFile(filepath.Join(stage, archivistDocumentFile), doc, 0o644)
+			}
+		}
+		if err != nil {
+			x.u.Fail("Writing the Archivist's configuration document: %v", err)
 			return false
 		}
 		return true
@@ -1239,12 +1252,13 @@ func (x *planExec) stageCollector(string) (string, bool) {
 func (x *planExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	staged := make([]string, 0, len(stackServices))
 	for _, svc := range stackServices {
-		if svc != "gateway" && svc != "dispatcher" {
+		if svc != "gateway" && svc != "dispatcher" && svc != "archivist" {
 			staged = append(staged, svc+".toml")
 		}
 	}
 	x.c("write <config-stage>/%s (the gateway's configuration document: GatewayConfig, resolved)", gatewayDocumentFile)
 	x.c("write <config-stage>/%s (the dispatcher's configuration document: DispatcherConfig, resolved)", dispatcherDocumentFile)
+	x.c("write <config-stage>/%s (the Archivist's configuration document: ArchivistConfig, resolved)", archivistDocumentFile)
 	x.c("stage per-service config copies under <config-stage>: %s", strings.Join(staged, " "))
 	x.c("write into each copy the addresses this start places, as literals, in the sections that service reads (launcher-staged topology):")
 	// In plan mode the context names the config; the file is under the root.
@@ -1270,6 +1284,10 @@ func (x *planExec) stageOne(svc string, fc flowCtx, _ string) (string, bool) {
 	}
 	if svc == "dispatcher" {
 		x.c("write a fresh <config-stage>/%s (the dispatcher's configuration document: DispatcherConfig, resolved)", dispatcherDocumentFile)
+		return "<config-stage>", true
+	}
+	if svc == "archivist" {
+		x.c("write a fresh <config-stage>/%s (the Archivist's configuration document: ArchivistConfig, resolved)", archivistDocumentFile)
 		return "<config-stage>", true
 	}
 	x.c("stage a fresh private config copy under <config-stage>: %s.toml, with the addresses this start places written into the sections it reads (launcher-staged topology)", svc)

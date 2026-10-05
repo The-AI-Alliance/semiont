@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "description": "The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.",
+  "properties": {
+    "provider": {
+      "type": "string",
+      "enum": [
+        "anthropic",
+        "ollama"
+      ],
+      "description": "The inference provider."
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The model identifier, as the provider names it."
+    }
+  },
+  "required": [
+    "provider",
+    "model"
+  ],
+  "additionalProperties": false
+}

@@ -2,11 +2,10 @@
 #
 # THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
 # published @semiont/make-meaning and runs `dist/archivist-main.js` out of it; the
-# source is packages/make-meaning/src/archivist/archivist-main.ts. Only the image
-# recipe lives here — the entrypoint lives in its package deliberately:
-# moving it out would promote ~18 of that package's
-# internals to public API just to satisfy a directory layout. If you change
-# the CMD, change it against that file.
+# source is packages/make-meaning/src/archivist/archivist-main.ts. If you change
+# the CMD, change it against that file. The CMD passes the path of the
+# configuration document (ArchivistConfig in specs/), which whoever runs the
+# image mounts there.
 #
 # Stage 1: install (npm runs here, then is discarded).
 #
@@ -79,10 +78,6 @@ COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 USER semiont
 
 ENV NODE_ENV=production
-# The container-side paths are constants of the image, declared here: the
-# launcher mounts host dirs AT these targets and passes no path env.
-ENV SEMIONT_ROOT=/kb
-ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
 
 # ── Heap ceiling ─────────────────────────────────────────────────────────
 # WHY THIS EXISTS, because a bare number here is unreadable in a year:
@@ -124,4 +119,4 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
 ENV SUPERVISE_NAME=archivist \
     SUPERVISE_PROBE=http://localhost:24103/health
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
-CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/archivist-main.js"]
+CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/archivist-main.js", "--config", "/etc/semiont/archivist.json"]

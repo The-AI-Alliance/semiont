@@ -1,0 +1,163 @@
+{
+  "description": "One entry of the anchored-text store: the file `<ab>/<cd>/<key>.json` under the store's directory, where the key is the SHA-256 of the bytes the text was extracted from, in hex. The Smelter writes it; the Archivist reads it. Written as compact JSON, `v` and `stamp` first, by writing a sibling temporary file and renaming it onto the path. The store's writer states its current stamp, followed by a newline, in the file `STAMP` at the store's root.",
+  "oneOf": [
+    {
+      "type": "object",
+      "description": "The text extracted from the bytes, where each word is on the page, and how it was extracted.",
+      "properties": {
+        "v": {
+          "type": "integer",
+          "enum": [
+            2
+          ],
+          "description": "The entry format."
+        },
+        "stamp": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The stamp of the writer that derived the entry. A reader takes the entry only when it equals the stamp the writer states in the store's `STAMP` file."
+        },
+        "text": {
+          "type": "string",
+          "description": "The extracted text."
+        },
+        "lines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "One line of text: the words that share a page, a baseline and a height.",
+            "properties": {
+              "p": {
+                "type": "integer",
+                "description": "The page, counted from 1."
+              },
+              "y": {
+                "type": "number",
+                "description": "The line's vertical position in PDF points, from the bottom of the page."
+              },
+              "h": {
+                "type": "number",
+                "description": "The line's height in PDF points."
+              },
+              "words": {
+                "type": "array",
+                "description": "Each word as `[x, width, start, end]`: its horizontal position and width in PDF points, and the offsets of its text in `text`.",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "minItems": 4,
+                  "maxItems": 4
+                }
+              }
+            },
+            "required": [
+              "p",
+              "y",
+              "h",
+              "words"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Where each word of `text` is, line by line, in reading order."
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "text-passthrough",
+            "pdf-text-layer",
+            "table",
+            "form",
+            "ocr"
+          ],
+          "description": "How the text was extracted."
+        },
+        "pdfClass": {
+          "type": "string",
+          "enum": [
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F",
+            "G"
+          ],
+          "description": "PDF classification, when the source was a PDF."
+        },
+        "ocrConfidence": {
+          "type": "object",
+          "description": "How well the engine read the pixels, when any of this text came from OCR.",
+          "properties": {
+            "mean": {
+              "type": "number",
+              "description": "Mean per-word confidence, 0-100."
+            },
+            "lowConfidenceWords": {
+              "type": "integer",
+              "description": "Words the engine was unsure of."
+            },
+            "totalWords": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "mean",
+            "lowConfidenceWords",
+            "totalWords"
+          ]
+        },
+        "unreadPages": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "1-indexed pages this extraction could not read — present only for partially covered documents (class C)."
+        }
+      },
+      "required": [
+        "v",
+        "stamp",
+        "text",
+        "lines",
+        "method"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "The bytes were declined: no text is extracted from them.",
+      "properties": {
+        "v": {
+          "type": "integer",
+          "enum": [
+            2
+          ],
+          "description": "The entry format."
+        },
+        "stamp": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The stamp of the writer that derived the entry. A reader takes the entry only when it equals the stamp the writer states in the store's `STAMP` file."
+        },
+        "declined": {
+          "type": "string",
+          "enum": [
+            "no-text-layer",
+            "encrypted",
+            "corrupt",
+            "too-large"
+          ],
+          "description": "Why extraction yielded nothing, by class."
+        }
+      },
+      "required": [
+        "v",
+        "stamp",
+        "declined"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

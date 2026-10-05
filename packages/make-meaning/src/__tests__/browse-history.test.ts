@@ -28,7 +28,7 @@ import { AnnotationOperations } from '../archivist/annotation-operations';
 import { composeArchivist, type Archivist } from '../archivist/compose';
 import { readPeopleProjection } from '../views/people-reader';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
-import { declareTestKb, TEST_KB_DOMAIN } from './helpers/test-project';
+import { declareTestKb, TEST_KB_DOMAIN, NO_AGENTS, COMPOSE_OPTIONS } from './helpers/test-project';
 
 stubEmbeddingProbeFetch();
 
@@ -69,7 +69,7 @@ describe('history replies name their actors', () => {
     await fs.mkdir(testDir, { recursive: true });
     await declareTestKb(testDir);
     project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
-    archivist = await composeArchivist(project, {}, mockLogger, { skipRebuild: false });
+    archivist = await composeArchivist(project, NO_AGENTS, mockLogger, COMPOSE_OPTIONS);
     eventBus = archivist.bus;
     const kb = archivist;
 

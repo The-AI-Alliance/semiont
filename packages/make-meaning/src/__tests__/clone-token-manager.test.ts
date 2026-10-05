@@ -27,7 +27,7 @@ import { composeArchivist, type Archivist } from '../archivist/compose';
 import { CloneTokenManager, type CloneTokenStores } from '../archivist/clone-token-manager';
 import { ResourceOperations } from '@semiont/core';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
-import { declareTestKb } from './helpers/test-project';
+import { declareTestKb, NO_AGENTS, COMPOSE_OPTIONS } from './helpers/test-project';
 
 stubEmbeddingProbeFetch();
 
@@ -96,7 +96,7 @@ describe('CloneTokenManager format selection', () => {
     await declareTestKb(testDir);
     const project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
 
-    archivist = await composeArchivist(project, {}, mockLogger, { skipRebuild: false });
+    archivist = await composeArchivist(project, NO_AGENTS, mockLogger, COMPOSE_OPTIONS);
     eventBus = archivist.bus;
   });
 

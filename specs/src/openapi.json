@@ -909,6 +909,36 @@
       "DispatcherHealth": {
         "$ref": "components/schemas/DispatcherHealth.json"
       },
+      "ArchivistConfig": {
+        "$ref": "components/schemas/ArchivistConfig.json"
+      },
+      "ResourceAnnotations": {
+        "$ref": "components/schemas/ResourceAnnotations.json"
+      },
+      "ResourceView": {
+        "$ref": "components/schemas/ResourceView.json"
+      },
+      "EntityTypesProjection": {
+        "$ref": "components/schemas/EntityTypesProjection.json"
+      },
+      "TagSchemasProjection": {
+        "$ref": "components/schemas/TagSchemasProjection.json"
+      },
+      "PeopleProjection": {
+        "$ref": "components/schemas/PeopleProjection.json"
+      },
+      "StorageUriEntry": {
+        "$ref": "components/schemas/StorageUriEntry.json"
+      },
+      "AnchoredTextEntry": {
+        "$ref": "components/schemas/AnchoredTextEntry.json"
+      },
+      "ArchivistRoster": {
+        "$ref": "components/schemas/ArchivistRoster.json"
+      },
+      "ArchivistRosterRole": {
+        "$ref": "components/schemas/ArchivistRosterRole.json"
+      },
       "YieldMoveFailed": {
         "$ref": "components/schemas/YieldMoveFailed.json"
       },

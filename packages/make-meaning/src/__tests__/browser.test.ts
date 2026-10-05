@@ -9,7 +9,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom, race, timer, map, take } from 'rxjs';
 import { EventBus, resourceId, agentToDid, type Logger } from '@semiont/core';
 import { Browser } from '../archivist/browser';
-import type { MakeMeaningConfig, RosterConfig } from '../config';
+import type { Roster } from '../archivist/agent-roster';
+import { NO_AGENTS } from './helpers/test-project';
 
 
 // ── fs mock ───────────────────────────────────────────────────────────────────
@@ -86,7 +87,7 @@ describe('Browser actor', () => {
       { ...mockKb, views: makeViews([]) },
       eventBus,
       { root: PROJECT_ROOT } as any,
-      {},
+      NO_AGENTS,
       mockLogger,
     );
     await browser.initialize();
@@ -209,7 +210,7 @@ describe('Browser actor', () => {
       { ...mockKb, views: makeViews([{ storageUri: fileUri, resourceId: 'res:abc', entityTypes: ['Article'] }]) },
       eventBus,
       { root: PROJECT_ROOT } as any,
-      {},
+      NO_AGENTS,
       mockLogger,
     );
     await browser.initialize();
@@ -296,8 +297,7 @@ describe('Browser actor', () => {
     // project's `siteDomain()`, the one source the roster mints from.
     async function withBrowser(
       domain: string | undefined,
-      // The in-process service hands the Browser its credentialed config.
-      config: RosterConfig | Pick<MakeMeaningConfig, 'workers' | 'actors'>,
+      config: Roster,
       fn: (bus: EventBus) => Promise<void>,
     ) {
       const bus = new EventBus();
@@ -327,16 +327,21 @@ describe('Browser actor', () => {
       return reply;
     }
 
-    it('answers the deduplicated software roster: worker-derivation DIDs, resolved capabilities', async () => {
+    it('answers the deduplicated software roster: worker-derivation DIDs, each agent with every job type it serves', async () => {
+      const haiku = { provider: 'anthropic', model: 'claude-haiku-4-5' } as const;
       await withBrowser(
         SITE_DOMAIN,
         {
           workers: {
-            default: { type: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'secret-key-do-not-leak' },
-            generation: { type: 'anthropic', model: 'claude-sonnet-4-5' },
+            'reference-annotation': haiku,
+            'highlight-annotation': haiku,
+            'assessment-annotation': haiku,
+            'comment-annotation': haiku,
+            'tag-annotation': haiku,
+            generation: { provider: 'anthropic', model: 'claude-sonnet-4-5' },
           },
-          // overlaps workers.default — must dedup into one entry
-          actors: { matcher: { type: 'anthropic', model: 'claude-haiku-4-5' } },
+          // the same agent as the annotation workers — one entry, not two
+          actors: { matcher: haiku },
         },
         async (bus) => {
           const r = await requestAgents(bus);
@@ -347,8 +352,6 @@ describe('Browser actor', () => {
           const entryFor = (model: string) =>
             agents.find((a) => a.agent['@type'] === 'Software' && a.agent.model === model);
 
-          // workers.default expands to every job type not explicitly assigned
-          // elsewhere ('default' is NOT a JobType and must not appear).
           expect(entryFor('claude-haiku-4-5')).toMatchObject({
             agent: {
               '@type': 'Software',
@@ -368,9 +371,6 @@ describe('Browser actor', () => {
             agent: { '@id': did('anthropic', 'claude-sonnet-4-5') },
             servesJobTypes: ['generation'],
           });
-
-          // credentials never leak into the directory
-          expect(JSON.stringify(r.e)).not.toContain('secret-key-do-not-leak');
         },
       );
     });
@@ -378,9 +378,7 @@ describe('Browser actor', () => {
     it('omits servesJobTypes for an actors-only agent', async () => {
       await withBrowser(
         SITE_DOMAIN,
-        {
-          actors: { gatherer: { type: 'ollama', model: 'llama3' } },
-        },
+        { workers: {}, actors: { gatherer: { provider: 'ollama', model: 'llama3' } } },
         async (bus) => {
           const r = await requestAgents(bus);
           if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
@@ -395,9 +393,7 @@ describe('Browser actor', () => {
     it('carries no limits: the services holding the inference credentials report those', async () => {
       await withBrowser(
         SITE_DOMAIN,
-        {
-          workers: { default: { type: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'k' } },
-        },
+        { workers: { generation: { provider: 'anthropic', model: 'claude-haiku-4-5' } }, actors: {} },
         async (bus) => {
           const r = await requestAgents(bus);
           if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
@@ -407,8 +403,8 @@ describe('Browser actor', () => {
       );
     });
 
-    it('answers an empty roster when no workers or actors are declared', async () => {
-      await withBrowser(SITE_DOMAIN, {}, async (bus) => {
+    it('answers an empty roster when no role is served', async () => {
+      await withBrowser(SITE_DOMAIN, NO_AGENTS, async (bus) => {
         const r = await requestAgents(bus);
         if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
         expect(r.e.response.agents).toEqual([]);
@@ -416,7 +412,7 @@ describe('Browser actor', () => {
     });
 
     it('fails naming the missing [site] domain when the committed config declares none', async () => {
-      await withBrowser(undefined, {}, async (bus) => {
+      await withBrowser(undefined, NO_AGENTS, async (bus) => {
         const r = await requestAgents(bus);
         if (r.kind !== 'failed') throw new Error('expected failed');
         expect(r.replyTo).toBe('cid-agents');

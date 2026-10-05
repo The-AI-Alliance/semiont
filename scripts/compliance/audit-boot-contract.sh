@@ -86,7 +86,6 @@ builder_for() {
 # by design (a documented fallback exists) or produced inside the container
 # before the server starts. An entry with neither property is a bug here.
 ALLOW="
-archivist SEMIONT_SKIP_REBUILD — operator escape hatch; default is to rebuild
 "
 
 allowed() { # allowed <service> <var>

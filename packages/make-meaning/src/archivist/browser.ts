@@ -41,8 +41,7 @@ import { readTagSchemasProjection } from './views/tag-schemas-reader';
 import { AnnotationContext } from '../annotation-context';
 import { ResourceContext } from '../resource-context';
 import { assembleResourceGraph } from './resource-graph';
-import type { RosterConfig } from '../config';
-import { deriveAgentRoster } from './agent-roster';
+import { deriveAgentRoster, type Roster } from './agent-roster';
 
 type DirectoryEntry = components['schemas']['DirectoryEntry'];
 type FileEntry      = components['schemas']['FileEntry'];
@@ -72,7 +71,7 @@ export class Browser {
     private project: SemiontProject,
     /** Who serves each role — provider and model, no credential. The
      *  directory's limits come from the services that hold the keys. */
-    private roster: RosterConfig,
+    private roster: Roster,
     logger: Logger,
   ) {
     this.logger = logger;

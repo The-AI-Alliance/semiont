@@ -26,7 +26,7 @@ import { Stower, type StowerStores } from '../archivist/stower';
 import { Browser, type BrowserReads } from '../archivist/browser';
 import { CloneTokenManager, type CloneTokenStores } from '../archivist/clone-token-manager';
 import { STOWER_CHANNELS, BROWSER_CHANNELS, CLONE_TOKEN_CHANNELS } from '../service-channels';
-import { createTestProject, type TestProject } from './helpers/test-project';
+import { createTestProject, NO_AGENTS, type TestProject } from './helpers/test-project';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -212,7 +212,7 @@ describe('Browser constructs from capability doubles', () => {
       reads,
       eventBus,
       { root: PROJECT_ROOT } as never,
-      {},
+      NO_AGENTS,
       mockLogger,
     );
     await browser.initialize();
@@ -425,7 +425,7 @@ describe('channel rosters match actual subscriptions (census gate)', () => {
         },
         bus,
         { root: '/tmp/census' } as never,
-        {},
+        NO_AGENTS,
         mockLogger,
       );
       await browser.initialize();

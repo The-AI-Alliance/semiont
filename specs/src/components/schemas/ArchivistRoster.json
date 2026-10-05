@@ -1,0 +1,49 @@
+{
+  "type": "object",
+  "description": "Who serves each role, behind `browse:agents`: a provider and a model, and no credential. Every fallback the knowledge base's config allows is already applied, so a role absent here is served by no one.",
+  "properties": {
+    "workers": {
+      "type": "object",
+      "description": "The agent serving each job type.",
+      "properties": {
+        "reference-annotation": {
+          "$ref": "./ArchivistRosterRole.json"
+        },
+        "highlight-annotation": {
+          "$ref": "./ArchivistRosterRole.json"
+        },
+        "assessment-annotation": {
+          "$ref": "./ArchivistRosterRole.json"
+        },
+        "comment-annotation": {
+          "$ref": "./ArchivistRosterRole.json"
+        },
+        "tag-annotation": {
+          "$ref": "./ArchivistRosterRole.json"
+        },
+        "generation": {
+          "$ref": "./ArchivistRosterRole.json"
+        }
+      },
+      "additionalProperties": false
+    },
+    "actors": {
+      "type": "object",
+      "description": "The agent serving each actor that calls a model.",
+      "properties": {
+        "gatherer": {
+          "$ref": "./ArchivistRosterRole.json"
+        },
+        "matcher": {
+          "$ref": "./ArchivistRosterRole.json"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "workers",
+    "actors"
+  ],
+  "additionalProperties": false
+}

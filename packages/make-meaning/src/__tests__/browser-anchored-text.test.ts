@@ -22,6 +22,7 @@ import { filter, take } from 'rxjs/operators';
 import { EventBus, type AnchoredText, type Logger, resourceId } from '@semiont/core';
 import { Browser } from '../archivist/browser';
 import { SmeltProgressTimeout } from '../smelt-progress';
+import { NO_AGENTS } from './helpers/test-project';
 
 const mockLogger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
@@ -47,7 +48,7 @@ function browserOver(kb: Record<string, unknown>) {
     kb as never,
     eventBus,
     { root: '/tmp' } as never,
-    {},
+    NO_AGENTS,
     mockLogger,
   );
   return { eventBus, browser };

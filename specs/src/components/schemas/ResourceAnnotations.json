@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "description": "The annotations on one resource, as its materialized view holds them.",
+  "properties": {
+    "resourceId": {
+      "$ref": "./ResourceId.json"
+    },
+    "annotations": {
+      "type": "array",
+      "items": {
+        "$ref": "./Annotation.json"
+      },
+      "description": "Each annotation as the `mark:added` event that recorded it carried it, with the body changes recorded since applied. In the order they were first recorded."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many of the resource's events the view has applied."
+    },
+    "updatedAt": {
+      "type": "string",
+      "description": "The timestamp of the last event applied; the empty string before any."
+    }
+  },
+  "required": [
+    "resourceId",
+    "annotations",
+    "version",
+    "updatedAt"
+  ],
+  "additionalProperties": false
+}

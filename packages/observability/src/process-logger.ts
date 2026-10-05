@@ -8,8 +8,9 @@
  * correlation that lets a grep through stdout line up with the trace
  * UI without manual stitching.
  *
- * Reads `LOG_LEVEL` (default `info`) and `LOG_FORMAT` (`json` default,
- * `simple` for human-friendly dev output).
+ * A service configured by a document passes that document's settings. One
+ * that is not reads `LOG_LEVEL` (default `info`) and `LOG_FORMAT` (`json`
+ * default, `simple` for human-friendly dev output).
  *
  * Co-located with `getLogTraceContext` deliberately: this is the
  * only reasonably-shaped consumer of that helper, and putting them in
@@ -17,8 +18,11 @@
  */
 
 import winston from 'winston';
-import type { Logger } from '@semiont/core';
+import type { Logger, components } from '@semiont/core';
 import { getLogTraceContext } from './index.js';
+
+type LogLevel = components['schemas']['LogLevel'];
+type LogFormat = components['schemas']['LogFormat'];
 
 const traceContextFormat = winston.format((info) => {
   const trace = getLogTraceContext();
@@ -29,9 +33,9 @@ const traceContextFormat = winston.format((info) => {
   return info;
 })();
 
-export function createProcessLogger(component: string): Logger {
-  const level = process.env.LOG_LEVEL ?? 'info';
-  const simple = process.env.LOG_FORMAT === 'simple';
+export function createProcessLogger(component: string, settings?: { level: LogLevel; format: LogFormat }): Logger {
+  const level = settings?.level ?? process.env.LOG_LEVEL ?? 'info';
+  const simple = (settings?.format ?? process.env.LOG_FORMAT) === 'simple';
   const format = simple
     ? winston.format.combine(
         winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),

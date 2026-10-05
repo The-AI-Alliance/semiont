@@ -27,8 +27,8 @@ This is the contract a deployment satisfies, whoever does the deploying. The lau
 |---|---|---|---|---|
 | gateway | `/etc/semiont/gateway.json`, a [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json) document | none | The issuer's published keys; the Archivist; the broker, when the signal plane is `nats` | any number, once the signal plane is `nats` |
 | dispatcher | `/etc/semiont/dispatcher.json`, a [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json) document | none | The gateway's bus; the broker's JetStream | one |
-| archivist | `~/.semiontconfig` (TOML) | The working tree at `/kb`, read-write; the state directory, where it writes views; the anchored-text store, read-only | The gateway's bus | one |
-| librarian | `~/.semiontconfig` | The state directory, to read views | The gateway's bus; graph; vectors; embedding; inference; the Archivist | one |
+| archivist | `/etc/semiont/archivist.json`, an [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json) document | The working tree at `/kb`, read-write; the state directory, where it writes views; the anchored-text store, read-only | The gateway's bus | one |
+| librarian | `~/.semiontconfig` (TOML) | The state directory, to read views | The gateway's bus; graph; vectors; embedding; inference; the Archivist | one |
 | worker | `~/.semiontconfig` | none | The gateway's bus; the Archivist, for bytes; inference | any number |
 | smelter | `~/.semiontconfig` | The anchored-text store, read-write | The gateway's bus; vectors; embedding; the Archivist, for bytes | one |
 | weaver | `~/.semiontconfig` | none | The gateway's bus; graph | one |
@@ -38,7 +38,7 @@ Every service but the Browser has its own service account at the knowledge base'
 
 Two specs hold the rest:
 
-- [`service-config/sections.json`](../../../specs/src/service-config/sections.json) lists the config sections each Node service reads. A service resolves a `${VAR}` reference only in a section it reads.
+- [`service-config/sections.json`](../../../specs/src/service-config/sections.json) lists the config sections each service that reads the TOML reads. A service resolves a `${VAR}` reference only in a section it reads.
 - [`service-environment/variables.json`](../../../specs/src/service-environment/variables.json) lists every environment variable the gateway and the dispatcher read.
 
 Why each service has one instance or many is in [Scaling](../administration/SCALING.md). Which secrets reach which service is in [Secrets](SECRETS.md).

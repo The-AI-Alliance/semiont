@@ -1,0 +1,177 @@
+{
+  "$comment": "Who serves each role, as every reader must compute it from one environment of a knowledge base's config. A job type is served by `workers.<type>`, else `workers.default`; an actor by `make-meaning.actors.<actor>`, else `actors.<actor>`, else `make-meaning.default`. TypeScript (packages/core: the loader the worker and the Librarian route work by) and Go (apps/launcher: the roster it writes into the Archivist's configuration document, which `browse:agents` answers from) each run every case and fail on any difference, so the roster names exactly the agents the work is routed to. `config` is the whole file; `roster` is ArchivistConfig's. Add a case here before changing either implementation.",
+  "cases": [
+    {
+      "why": "no role is bound: no one serves anything",
+      "config": "[defaults]\nenvironment = \"local\"\n\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"k\"\n\n[environments.local.inference.ollama]\nplatform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n",
+      "roster": {
+        "workers": {},
+        "actors": {}
+      }
+    },
+    {
+      "why": "workers.default serves every job type",
+      "config": "[defaults]\nenvironment = \"local\"\n\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"k\"\n\n[environments.local.inference.ollama]\nplatform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n\n[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"m-default\"\n",
+      "roster": {
+        "workers": {
+          "reference-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "highlight-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "assessment-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "comment-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "tag-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "generation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          }
+        },
+        "actors": {}
+      }
+    },
+    {
+      "why": "a job type's own binding wins over workers.default",
+      "config": "[defaults]\nenvironment = \"local\"\n\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"k\"\n\n[environments.local.inference.ollama]\nplatform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n\n[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"m-default\"\n\n[environments.local.workers.generation.inference]\ntype = \"ollama\"\nmodel = \"g-generation\"\n",
+      "roster": {
+        "workers": {
+          "reference-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "highlight-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "assessment-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "comment-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "tag-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "generation": {
+            "provider": "ollama",
+            "model": "g-generation"
+          }
+        },
+        "actors": {}
+      }
+    },
+    {
+      "why": "with no workers.default, only the bound job types are served",
+      "config": "[defaults]\nenvironment = \"local\"\n\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"k\"\n\n[environments.local.inference.ollama]\nplatform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n\n[environments.local.workers.tag-annotation.inference]\ntype = \"anthropic\"\nmodel = \"m-tag\"\n",
+      "roster": {
+        "workers": {
+          "tag-annotation": {
+            "provider": "anthropic",
+            "model": "m-tag"
+          }
+        },
+        "actors": {}
+      }
+    },
+    {
+      "why": "make-meaning.default serves both actors",
+      "config": "[defaults]\nenvironment = \"local\"\n\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"k\"\n\n[environments.local.inference.ollama]\nplatform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n\n[environments.local.make-meaning.default.inference]\ntype = \"ollama\"\nmodel = \"g-fallback\"\n",
+      "roster": {
+        "workers": {},
+        "actors": {
+          "gatherer": {
+            "provider": "ollama",
+            "model": "g-fallback"
+          },
+          "matcher": {
+            "provider": "ollama",
+            "model": "g-fallback"
+          }
+        }
+      }
+    },
+    {
+      "why": "an actor's own binding wins over make-meaning.default",
+      "config": "[defaults]\nenvironment = \"local\"\n\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"k\"\n\n[environments.local.inference.ollama]\nplatform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n\n[environments.local.make-meaning.default.inference]\ntype = \"ollama\"\nmodel = \"g-fallback\"\n\n[environments.local.actors.matcher.inference]\ntype = \"anthropic\"\nmodel = \"m-matcher\"\n",
+      "roster": {
+        "workers": {},
+        "actors": {
+          "gatherer": {
+            "provider": "ollama",
+            "model": "g-fallback"
+          },
+          "matcher": {
+            "provider": "anthropic",
+            "model": "m-matcher"
+          }
+        }
+      }
+    },
+    {
+      "why": "make-meaning.actors wins over actors",
+      "config": "[defaults]\nenvironment = \"local\"\n\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"k\"\n\n[environments.local.inference.ollama]\nplatform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n\n[environments.local.actors.gatherer.inference]\ntype = \"anthropic\"\nmodel = \"m-actors\"\n\n[environments.local.make-meaning.actors.gatherer.inference]\ntype = \"ollama\"\nmodel = \"g-make-meaning\"\n",
+      "roster": {
+        "workers": {},
+        "actors": {
+          "gatherer": {
+            "provider": "ollama",
+            "model": "g-make-meaning"
+          }
+        }
+      }
+    },
+    {
+      "why": "with no make-meaning.default, only the bound actors are served",
+      "config": "[defaults]\nenvironment = \"local\"\n\n[environments.local.inference.anthropic]\nplatform = \"external\"\napiKey = \"k\"\n\n[environments.local.inference.ollama]\nplatform = \"external\"\nbaseURL = \"http://ollama.internal:11434\"\n\n[environments.local.actors.matcher.inference]\ntype = \"anthropic\"\nmodel = \"m-matcher\"\n\n[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"m-default\"\n",
+      "roster": {
+        "workers": {
+          "reference-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "highlight-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "assessment-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "comment-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "tag-annotation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          },
+          "generation": {
+            "provider": "anthropic",
+            "model": "m-default"
+          }
+        },
+        "actors": {
+          "matcher": {
+            "provider": "anthropic",
+            "model": "m-matcher"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -15,7 +15,7 @@ import { firstValueFrom, race, timer, map, take } from 'rxjs';
 import { EventBus, type Logger } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { Browser, type BrowserReads } from '../archivist/browser';
-import { createTestProject, type TestProject } from './helpers/test-project';
+import { createTestProject, NO_AGENTS, type TestProject } from './helpers/test-project';
 
 const mockLogger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
@@ -41,7 +41,7 @@ describe('browse:kb — the knowledge base describes itself', () => {
   let browser: Browser;
 
   const browserFor = async (project: SemiontProject) => {
-    browser = new Browser(READS, bus, project, {}, mockLogger);
+    browser = new Browser(READS, bus, project, NO_AGENTS, mockLogger);
     await browser.initialize();
   };
 

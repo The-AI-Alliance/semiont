@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "One entry of the storage-uri index: the file `projections/storage-uri/<ab>/<cd>/<sha256 of the URI, hex>.json` under the state directory. It answers which resource's content is at a place in the working tree. Written as JSON indented by two spaces, `uri` first.",
+  "properties": {
+    "uri": {
+      "type": "string",
+      "description": "The `file://` URI of a place in the working tree, relative to the knowledge base's root."
+    },
+    "resourceId": {
+      "$ref": "./ResourceId.json"
+    }
+  },
+  "required": [
+    "uri",
+    "resourceId"
+  ],
+  "additionalProperties": false
+}

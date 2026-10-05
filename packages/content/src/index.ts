@@ -36,6 +36,7 @@ export { MAX_PDF_BYTES, withinByteBudget } from './pdf-extractor';
 // reproducible from the source bytes, and master data never belongs here.
 export {
   createAnchoredTextStore,
+  createAnchoredTextReader,
   type AnchoredTextStore,
   type CachedAnchoredText,
   type CachedLine,
