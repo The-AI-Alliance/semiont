@@ -8,9 +8,7 @@
  * because that's where transport choice lives. The construction step
  * is parameterized via this factory.
  *
- * The HTTP factory is provided by `createHttpSessionFactory`. A
- * future in-process variant from `@semiont/make-meaning` would expose
- * its own factory.
+ * The HTTP factory is provided by `createHttpSessionFactory`.
  */
 
 import type { KnowledgeBase } from './knowledge-base';

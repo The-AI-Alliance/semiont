@@ -66,7 +66,7 @@ MATCH (r:Resource) WHERE r.stub = true RETURN r.id
 
 ## When the graph is behind, or away
 
-A stack needs a graph: the Weaver, the Archivist and the Librarian each connect to it when they start. While it is running:
+A stack needs a graph: the Weaver and the Librarian each connect to it when they start. While it is running:
 
 - **Behind.** A read of one resource by id that misses in the graph is answered from the view, which is ahead of it. A gathered context waits for the Weaver to have applied what it needs, up to a bound, and is assembled without its graph neighbourhood past that bound.
 - **Away.** Writes and reads of a single document carry on, since they do not touch the graph. Queries only the graph can answer fail.

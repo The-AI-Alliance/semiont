@@ -86,6 +86,24 @@ each way. Every error is an `ErrorResponse`. Handlers:
 
 Authentication is per route: [AUTHENTICATION.md](AUTHENTICATION.md).
 
+## TLS
+
+**In.** The gateway serves plain HTTP/1.1 on its port and terminates no TLS.
+That is done in front of it, by whatever routes clients to it
+([Deployment](../../../docs/operator/administration/DEPLOYMENT.md), *Ingress
+and TLS*). Its credentials are bearer tokens, so a gateway reached from beyond
+its own host with no TLS in front gives them to the network. It sends
+`Strict-Transport-Security` on every response, which a browser honours only on
+a response that came over HTTPS; nothing in the gateway knows whether one did.
+
+**Out.** The connections the gateway makes use rustls with the `ring` provider,
+which `main` installs before anything else ([src/app.rs](../src/app.rs)). The
+crates it is built from turn on no TLS of their own, so the application does.
+The issuer is reached at `identity.issuer`, as its scheme says: `https` in a
+deployment. The broker's connection is encrypted when `signal.servers` names it
+`tls://`, or the broker requires it. The Archivist is reached over plain HTTP,
+on the private network the two share.
+
 ## The signal plane
 
 [src/signal/](../src/signal/) is the hub's fan-out behind one interface

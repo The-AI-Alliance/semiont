@@ -21,7 +21,6 @@ export type {
   CloneToken,
   // System identifiers
   EntityType,
-  SearchQuery,
   BaseUrl,
 } from './branded-types';
 export {
@@ -32,7 +31,6 @@ export {
   mcpToken,
   cloneToken,
   entityType,
-  searchQuery,
   baseUrl,
 } from './branded-types';
 
@@ -237,6 +235,7 @@ export {
   isDraft,
   getNodeEncoding,
   decodeRepresentation,
+  compareByRecencyThenId,
 } from './resource-utils';
 
 // Transport contract — interfaces every concrete transport must satisfy.

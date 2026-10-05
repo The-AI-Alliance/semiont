@@ -20,16 +20,13 @@ import { type SemiontProject } from '@semiont/core/node';
 import {
   EventBus,
   type Logger,
-  type GraphServiceConfig,
   userId as makeUserId,
 } from '@semiont/core';
-import { createKnowledgeBase } from '../../knowledge-base';
-import { Stower } from '../../stower';
-import { getGraphDatabase } from '@semiont/graph';
+import { WorkingTreeStore } from '@semiont/content';
+import { Stower } from '../../archivist/stower';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { createTestProject } from '../helpers/test-project';
-import { createVectorStore } from '@semiont/vectors';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -132,8 +129,7 @@ describe('People Projection Reader', () => {
     it('reads the name after the Stower handles a person:profile, and a rename REPLACES it', async () => {
       const eventBus = new EventBus();
       const eventStore = createEventStore(project, eventBus, mockLogger);
-      const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-      const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger, { vectorStore: await createVectorStore({ type: 'memory', dimensions: async () => 4 }) });
+      const kb = { eventStore: eventStore, content: new WorkingTreeStore(project, mockLogger) };
       const stower = new Stower(kb, eventBus, project, mockLogger);
       await stower.initialize();
 

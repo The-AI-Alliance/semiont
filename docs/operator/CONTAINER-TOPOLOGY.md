@@ -151,13 +151,10 @@ graph TB
     NATS -->|rw — owner: gateway| SIG
 
     WEAVE --> NEO
-    ARCH --> NEO
     LIB --> NEO
     SMELT --> QD
-    ARCH --> QD
     LIB --> QD
     SMELT --> OL
-    ARCH --> OL
     LIB --> OL
     WORKER --> OL
     KC --> PG

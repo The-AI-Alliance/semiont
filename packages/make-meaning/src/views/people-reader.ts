@@ -14,6 +14,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { SYSTEM_SCOPE } from '@semiont/core';
+import { errField, type Logger } from '@semiont/core';
 import type { SemiontState } from '@semiont/core/node';
 import type { PeopleView } from '@semiont/event-sourcing';
 
@@ -24,7 +25,7 @@ import type { PeopleView } from '@semiont/event-sourcing';
  * entity-type reader answers — never an error, and never a fabricated name.
  * A DID with no entry stays unnamed: the record says what it knows.
  */
-export async function readPeopleProjection(state: SemiontState): Promise<PeopleView> {
+export async function readPeopleProjection(state: Pick<SemiontState, 'stateDir'>): Promise<PeopleView> {
   const peoplePath = path.join(
     state.stateDir,
     'projections',
@@ -96,4 +97,28 @@ export function resolvePersonNames<T>(value: T, people: PeopleView): T {
   }
 
   return (changed ? next : value) as T;
+}
+
+/**
+ * The resolver a reply is passed through, over ONE read of the people
+ * projection: one read per reply, not per Agent.
+ *
+ * A name is an ENRICHMENT; the reply is the answer. A projection this
+ * process cannot read is worth saying out loud, but it must not turn a read
+ * into a failure — the reply then carries DIDs without names, which is the
+ * same shape as a person who has never acted and is a case every client
+ * already renders.
+ */
+export async function personNamer(
+  state: Pick<SemiontState, 'stateDir'>,
+  logger: Logger,
+): Promise<<T>(value: T) => T> {
+  let people: PeopleView;
+  try {
+    people = await readPeopleProjection(state);
+  } catch (error) {
+    logger.warn('People projection unreadable — this reply names no one', { error: errField(error) });
+    return (value) => value;
+  }
+  return (value) => resolvePersonNames(value, people);
 }

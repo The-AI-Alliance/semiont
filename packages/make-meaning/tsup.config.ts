@@ -6,7 +6,13 @@ export default defineConfig({
   // 619ms build. Failures still fail the command; build.sh prints the per-package
   // check mark. Drop this line temporarily when you want the size column.
   silent: true,
-  entry: ['src/index.ts', 'src/smelter-main.ts', 'src/weaver-main.ts', 'src/archivist-main.ts', 'src/librarian-main.ts'],
+  entry: {
+    index: 'src/index.ts',
+    'smelter-main': 'src/smelter-main.ts',
+    'weaver-main': 'src/weaver-main.ts',
+    'archivist-main': 'src/archivist/archivist-main.ts',
+    'librarian-main': 'src/librarian-main.ts',
+  },
   format: ['esm'],
   dts: false,
   sourcemap: true,

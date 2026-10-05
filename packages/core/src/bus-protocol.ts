@@ -251,6 +251,15 @@ export type EventMap = {
   'match:search-requested': components['schemas']['MatchSearchRequest'];
   'match:search-results': components['schemas']['MatchSearchResult'];
   'match:search-failed': components['schemas']['MatchSearchFailed'];
+
+  // Searching resources by text: lexical first, by meaning when nothing matches.
+  'match:resources-requested': components['schemas']['MatchResourcesRequest'];
+  'match:resources-result': Refines<components['schemas']['MatchResourcesResult'], {
+    response: Omit<components['schemas']['MatchResourcesResponse'], 'resources'> & {
+      resources: ResourceDescriptor[];
+    };
+  }>;
+  'match:resources-failed': components['schemas']['CommandError'];
   'match:limits-requested': components['schemas']['InferenceLimitsRequest'];
   'match:limits-result': components['schemas']['InferenceLimitsResult'];
   'match:limits-failed': components['schemas']['CommandError'];
@@ -269,6 +278,11 @@ export type EventMap = {
   'gather:summary-requested': components['schemas']['GatherSummaryRequest'];
   'gather:summary-result': { response: components['schemas']['ContextualSummaryResponse'] };
   'gather:summary-failed': components['schemas']['CommandError'];
+
+  // What refers to a resource: the annotations elsewhere that cite it.
+  'gather:referenced-by-requested': components['schemas']['GatherReferencedByRequest'];
+  'gather:referenced-by-result': components['schemas']['GatherReferencedByResult'];
+  'gather:referenced-by-failed': components['schemas']['CommandError'];
   'gather:limits-requested': components['schemas']['InferenceLimitsRequest'];
   'gather:limits-result': components['schemas']['InferenceLimitsResult'];
   'gather:limits-failed': components['schemas']['CommandError'];
@@ -347,10 +361,6 @@ export type EventMap = {
   'browse:annotation-context-requested': components['schemas']['BrowseAnnotationContextRequest'];
   'browse:annotation-context-result': { response: components['schemas']['AnnotationContextResponse'] };
   'browse:annotation-context-failed': components['schemas']['CommandError'];
-
-  'browse:referenced-by-requested': components['schemas']['BrowseReferencedByRequest'];
-  'browse:referenced-by-result': components['schemas']['BrowseReferencedByResult'];
-  'browse:referenced-by-failed': components['schemas']['CommandError'];
 
   'browse:entity-types-requested': components['schemas']['BrowseEntityTypesRequest'];
   'browse:entity-types-result': components['schemas']['BrowseEntityTypesResult'];
@@ -660,6 +670,9 @@ export const CHANNEL_SCHEMAS = {
   'match:search-requested':           'MatchSearchRequest',
   'match:search-results':             'MatchSearchResult',
   'match:search-failed':              'MatchSearchFailed',
+  'match:resources-requested':        'MatchResourcesRequest',
+  'match:resources-result':           'MatchResourcesResult',
+  'match:resources-failed':           null,
   'match:limits-requested':           'InferenceLimitsRequest',
   'match:limits-result':              'InferenceLimitsResult',
   'match:limits-failed':              null,
@@ -674,6 +687,9 @@ export const CHANNEL_SCHEMAS = {
   'gather:summary-requested':         'GatherSummaryRequest',
   'gather:summary-result':            null, // { response: ContextualSummaryResponse }
   'gather:summary-failed':            null, // CommandError
+  'gather:referenced-by-requested':   'GatherReferencedByRequest',
+  'gather:referenced-by-result':      'GatherReferencedByResult',
+  'gather:referenced-by-failed':      null,
   'gather:limits-requested':          'InferenceLimitsRequest',
   'gather:limits-result':             'InferenceLimitsResult',
   'gather:limits-failed':             null,
@@ -703,9 +719,6 @@ export const CHANNEL_SCHEMAS = {
   'browse:annotation-context-requested': 'BrowseAnnotationContextRequest',
   'browse:annotation-context-result': null, // { response: AnnotationContextResponse }
   'browse:annotation-context-failed': null,
-  'browse:referenced-by-requested':   'BrowseReferencedByRequest',
-  'browse:referenced-by-result':      'BrowseReferencedByResult',
-  'browse:referenced-by-failed':      null,
   'browse:entity-types-requested':    'BrowseEntityTypesRequest',
   'browse:entity-types-result':       'BrowseEntityTypesResult',
   'browse:entity-types-failed':       null,

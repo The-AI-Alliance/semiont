@@ -41,16 +41,6 @@ export interface MatcherStores {
   vectors: Pick<VectorStore, 'searchResources'>;
 }
 
-/**
- * The request channels Matcher subscribes to — the Librarian's inbound wire
- * roster for this actor. Pinned to `initialize()`'s actual subscriptions by
- * the census gate in librarian-decoupling.test.ts.
- */
-export const MATCHER_CHANNELS = [
-  'match:search-requested',
-  'match:limits-requested',
-] as const satisfies readonly (keyof EventMap)[];
-
 export class Matcher {
   private subscriptions: Subscription[] = [];
   private readonly logger: Logger;

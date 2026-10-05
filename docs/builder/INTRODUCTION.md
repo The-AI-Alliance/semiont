@@ -112,8 +112,8 @@ attention, as in [`docs/protocol/flows/`](../protocol/flows/README.md):
 | writes | `bind` | resolve an ambiguous reference to a specific document |
 | writes | `frame` | define the schema vocabulary (entity types, tag schemas) |
 | reads | `browse` | read and navigate — documents, annotations, who else is here |
-| reads | `match` | search the corpus for candidate documents |
-| reads | `gather` | assemble the context that grounds generation and search |
+| reads | `match` | search the corpus — documents by text, and candidates for a reference |
+| reads | `gather` | assemble the context that grounds generation and search, and list what refers to a document |
 | directs attention | `beckon` | point other participants at a passage or a document |
 
 Plus `job` for tracking long-running work, and `auth` / `system` when the client
@@ -133,7 +133,7 @@ import { useObservable } from '@semiont/react-ui';
 
 const state = useObservable(session.client.browse.resources());
 // state: { status: 'pending' }
-//      | { status: 'ready',  value: ResourceList }   ← { resources, total, matchKind, … }
+//      | { status: 'ready',  value: ResourceList }   ← { resources, total, … }
 //      | { status: 'failed', error: Error }
 //      | undefined   ← react-ui's hook, on the very first render (see below)
 ```

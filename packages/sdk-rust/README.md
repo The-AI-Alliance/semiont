@@ -79,8 +79,8 @@ attention. Each is a namespace of the client.
 | | `bind` | Resolve an ambiguous reference to a specific resource | `bind.body`, `bind.initiate` |
 | | `frame` | Define and grow the schema vocabulary | `frame.add_entity_types`, `frame.add_tag_schema` |
 | Reading | `browse` | Navigate, read and observe, including who is here | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
-| | `match_` | Search the corpus for candidate resources | `match_.search` |
-| | `gather` | Assemble grounding context around a resource or an annotation | `gather.resource`, `gather.annotation` |
+| | `match_` | Search the corpus: resources by text, and candidates for a reference | `match_.resources`, `match_.search` |
+| | `gather` | Assemble grounding context around a resource or an annotation, and list what refers to a resource | `gather.resource`, `gather.annotation`, `gather.referenced_by` |
 | Attention | `beckon` | Direct attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.open_resource` |
 
 `yield` and `match` are Rust's own words, so those two namespaces take a

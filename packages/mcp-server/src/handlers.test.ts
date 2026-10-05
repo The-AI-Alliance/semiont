@@ -9,6 +9,7 @@ import {
   browseReferences,
   browseResource,
   browseResources,
+  matchResources,
   callTool,
   gatherAnnotation,
   markAnnotation,
@@ -57,12 +58,12 @@ describe('browseResources', () => {
     expect(browse.resources).toHaveBeenCalledWith({ archived: false });
   });
 
-  it('passes search and limit through', async () => {
+  it('passes limit and archived through', async () => {
     const { client, browse } = createStub();
 
-    await browseResources(client, { search: 'ontology', limit: 5, archived: true });
+    await browseResources(client, { limit: 5, archived: true });
 
-    expect(browse.resources).toHaveBeenCalledWith({ search: 'ontology', limit: 5, archived: true });
+    expect(browse.resources).toHaveBeenCalledWith({ limit: 5, archived: true });
   });
 
   it('summarises each resource with its id and entity types', async () => {
@@ -75,7 +76,7 @@ describe('browseResources', () => {
 
   it('says so when a resource carries no entity types', async () => {
     const { client, browse } = createStub();
-    browse.resources.mockReturnValue({ fresh: async () => ({ resources: [{ ...RESOURCE, entityTypes: undefined }], total: 1, offset: 0, limit: 100, matchKind: 'lexical' }) });
+    browse.resources.mockReturnValue({ fresh: async () => ({ resources: [{ ...RESOURCE, entityTypes: undefined }], total: 1, offset: 0, limit: 100 }) });
 
     expect(text(await browseResources(client, {})))
       .toBe('Found 1 resources:\n- The Iliad (res-iliad) — no types');
@@ -477,6 +478,34 @@ describe('yieldFromAnnotation', () => {
   });
 });
 
+// ── Match ───────────────────────────────────────────────────────────────────
+
+describe('matchResources', () => {
+  it('searches unarchived resources by the text, passing limit through', async () => {
+    const { client, match } = createStub();
+
+    const result = await matchResources(client, { search: 'ontology', limit: 5 });
+
+    expect(match.resources).toHaveBeenCalledWith('ontology', { limit: 5, archived: false });
+    expect(text(result)).toBe('Found 1 resources matching "ontology":\n- The Iliad (res-iliad) — Book, Poem');
+  });
+
+  it('says so when the answer is by meaning rather than by text', async () => {
+    const { client, match } = createStub();
+    match.resources.mockReturnValue({ fresh: async () => ({ resources: [RESOURCE], total: 1, offset: 0, limit: 100, matchKind: 'semantic' }) });
+
+    expect(text(await matchResources(client, { search: 'wrath' })))
+      .toBe('Nothing matches "wrath" by text; 1 resources discuss it:\n- The Iliad (res-iliad) — Book, Poem');
+  });
+
+  it('refuses a search with no text', async () => {
+    const { client, match } = createStub();
+
+    await expect(matchResources(client, { search: '  ' })).rejects.toThrow('search is required');
+    expect(match.resources).not.toHaveBeenCalled();
+  });
+});
+
 // ── Dispatch ────────────────────────────────────────────────────────────────
 
 describe('callTool', () => {
@@ -485,6 +514,7 @@ describe('callTool', () => {
     browse_resources: {},
     browse_highlights: { resourceId: 'res-iliad' },
     browse_references: { resourceId: 'res-iliad' },
+    match_resources: { search: 'ontology' },
     mark_annotation: { resourceId: 'res-iliad', selectionData: { offset: 0, length: 1, text: 'S' } },
     mark_assist: { resourceId: 'res-iliad' },
     bind_body: { sourceResourceId: 'res-iliad', annotationId: 'anno-reference', targetResourceId: 'res-achilles' },

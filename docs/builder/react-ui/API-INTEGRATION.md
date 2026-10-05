@@ -49,13 +49,13 @@ returns `undefined` until both the session and the first cache emission land.
 
 ## Reading data
 
-Each `browse.*` method returns a `CacheObservable`. Subscribe with
+Each live read returns a `CacheObservable`. Subscribe with
 `useObservable()`; emissions are `CacheState` values — `{ status: 'pending' }`,
 `{ status: 'ready', value }`, or `{ status: 'failed', error }` — plus
 `undefined` on the very first render, before the subscription lands (treat it
 as pending). The component re-renders as the read-through cache revalidates.
 For list reads the ready value is the `ResourceList` envelope
-(`{ resources, total, offset, limit, matchKind }`), not a bare array.
+(`{ resources, total, offset, limit }`), not a bare array.
 
 ```tsx
 import { useSemiont, useObservable } from '@semiont/react-ui';
@@ -87,13 +87,14 @@ to `undefined`.
 **Available reads** (all return `CacheObservable<…>`):
 
 - `client.browse.resource(rId)` — a single resource descriptor
-- `client.browse.resources(filters?)` — list / search resources
+- `client.browse.resources(filters?)` — list resources
 - `client.browse.annotations(rId)` — a resource's annotations
 - `client.browse.annotation(rId, annotationId)` — a single annotation
 - `client.browse.entityTypes()` — known entity types
 - `client.browse.tagSchemas()` — tag schemas
-- `client.browse.referencedBy(rId)` — resources referencing this one
 - `client.browse.events(rId)` — a resource's event log, each event with the `agent` who did it
+- `client.match.resources(search, filters?)` — resources found by text; the list envelope with a `matchKind`, `'lexical'` or `'semantic'`
+- `client.gather.referencedBy(rId)` — the references elsewhere bound to this resource
 
 Subscribing to a per-resource read such as `client.browse.annotations(rId)`
 (or `client.browse.resource(rId)`) is also what **acquires the resource's SSE
@@ -102,8 +103,7 @@ the last subscriber unmounts, the scope is released.
 
 ### Search (`createSearchPipeline`)
 
-There is no dedicated search read — search is `browse.resources({ search })`
-driven by a debounced input. `createSearchPipeline` (re-exported here from
+Search is `match.resources(search)` driven by a debounced input. `createSearchPipeline` (re-exported here from
 `@semiont/sdk`) encapsulates the debounce + distinct + switchMap +
 loading-state shape so components don't reassemble it by hand:
 
@@ -128,7 +128,7 @@ function MySearchUI() {
       // CacheState emission to the ready envelope's array — undefined while
       // pending, which the pipeline reads as "search in flight".
       (q) =>
-        client!.browse.resources({ search: q, limit: 20 }).pipe(
+        client!.match.resources(q, { limit: 20 }).pipe(
           map((st) => readyValue(st)?.resources),
         ),
     ),
@@ -282,7 +282,7 @@ import { of } from 'rxjs';
 declare function RecentResources(): React.JSX.Element; // the component under test
 
 it('renders resources', async () => {
-  const list: ResourceList = { resources: [resource], total: 1, offset: 0, limit: 20, matchKind: 'lexical' };
+  const list: ResourceList = { resources: [resource], total: 1, offset: 0, limit: 20 };
   vi.spyOn(BrowseNamespace.prototype, 'resources').mockReturnValue(
     CacheObservable.from(of<CacheState<ResourceList>>({ status: 'ready', value: list })),
   );

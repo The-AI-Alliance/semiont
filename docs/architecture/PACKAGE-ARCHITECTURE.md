@@ -166,7 +166,7 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 
 ## Architectural principles
 
-1. **One composition root per process.** Each service's entry point builds what that process needs and nothing else. `startMakeMeaning()` is one more root, for in-process use: every access actor on one caller-owned bus, for `LocalTransport` consumers such as the SDK's tests. It runs no jobs; the job queue is the dispatcher's.
+1. **One composition root per process.** Each service's entry point builds what that process needs and nothing else.
 
 2. **Strict API boundary.** `apps/browser` never imports a service's package. Its only `@semiont/*` imports are `@semiont/sdk`, `@semiont/http-transport` and `@semiont/react-ui` — every interaction with a knowledge base goes through the SDK over `HttpTransport`.
 

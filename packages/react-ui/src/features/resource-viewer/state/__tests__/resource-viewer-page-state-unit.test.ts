@@ -38,14 +38,16 @@ function clientWithNamespaces(overrides: {
       annotations: () => asStates(annotations$.asObservable()),
       entityTypes: () => asStates(entityTypes$.asObservable()),
       events: () => asStates(events$.asObservable()),
-      referencedBy: () => asStates(referencedBy$.asObservable()),
     },
     mark: {
       annotation: vi.fn().mockResolvedValue({ annotationId: 'ann-new' }),
       delete: vi.fn().mockResolvedValue(undefined),
       assist: vi.fn(() => new Observable(() => {})),
     },
-    gather: { annotation: vi.fn(() => new Observable(() => {})) },
+    gather: {
+      annotation: vi.fn(() => new Observable(() => {})),
+      referencedBy: () => asStates(referencedBy$.asObservable()),
+    },
     match: { search: vi.fn(() => new Observable(() => {})) },
     yield: { fromContext: vi.fn(() => new Observable(() => {})) },
     bind: { body: vi.fn().mockResolvedValue(undefined) },
@@ -279,14 +281,16 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
         annotations: () => new BehaviorSubject<unknown>({ status: 'ready', value: [] }).asObservable(),
         entityTypes: () => new BehaviorSubject<unknown>({ status: 'ready', value: [] }).asObservable(),
         events: () => new BehaviorSubject<unknown>({ status: 'ready', value: [] }).asObservable(),
+      },
+      mark: { annotation: vi.fn(), delete: vi.fn(), assist: vi.fn(() => new Observable(() => {})) },
+      gather: {
+        annotation: vi.fn(() => new Observable(() => {})),
         referencedBy: () => {
           const s = new BehaviorSubject<unknown>({ status: 'pending' });
           attempts.push(s);
           return s.asObservable();
         },
       },
-      mark: { annotation: vi.fn(), delete: vi.fn(), assist: vi.fn(() => new Observable(() => {})) },
-      gather: { annotation: vi.fn(() => new Observable(() => {})) },
       match: { search: vi.fn(() => new Observable(() => {})) },
       yield: { fromContext: vi.fn(() => new Observable(() => {})) },
       bind: { body: vi.fn().mockResolvedValue(undefined) },

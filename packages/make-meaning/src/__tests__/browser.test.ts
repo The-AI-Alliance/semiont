@@ -7,10 +7,9 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom, race, timer, map, take } from 'rxjs';
-import type { EventMap } from '@semiont/core';
 import { EventBus, resourceId, agentToDid, type Logger } from '@semiont/core';
-import { Browser } from '../browser';
-import type { MakeMeaningConfig } from '../config';
+import { Browser } from '../archivist/browser';
+import type { MakeMeaningConfig, RosterConfig } from '../config';
 
 
 // ── fs mock ───────────────────────────────────────────────────────────────────
@@ -24,12 +23,11 @@ vi.mock('fs', () => {
   };
 });
 
-vi.mock('../resource-graph', () => ({ assembleResourceGraph: vi.fn() }));
+vi.mock('../archivist/resource-graph', () => ({ assembleResourceGraph: vi.fn() }));
 
 import { promises as fsMock } from 'fs';
-import { assembleResourceGraph } from '../resource-graph';
+import { assembleResourceGraph } from '../archivist/resource-graph';
 const mockAssemble = assembleResourceGraph as ReturnType<typeof vi.fn>;
-import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 const mockStat   = fsMock.stat   as ReturnType<typeof vi.fn>;
 const mockReaddir = fsMock.readdir as ReturnType<typeof vi.fn>;
 
@@ -71,9 +69,7 @@ function makeViews(views: Array<{ storageUri: string; resourceId: string; entity
 
 const defaultStat = { size: 1024, mtime: new Date('2026-01-01T00:00:00Z') };
 
-const mockKb = { graph: {}, views: {} } as any;
-
-const emptyConfig: MakeMeaningConfig = { services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } };
+const mockKb = { views: {} } as any;
 
 
 // ── tests ─────────────────────────────────────────────────────────────────────
@@ -90,9 +86,7 @@ describe('Browser actor', () => {
       { ...mockKb, views: makeViews([]) },
       eventBus,
       { root: PROJECT_ROOT } as any,
-      emptyConfig,
-      emptyConfig,
-      createMockEmbeddingProvider(),
+      {},
       mockLogger,
     );
     await browser.initialize();
@@ -101,29 +95,6 @@ describe('Browser actor', () => {
   afterEach(async () => {
     await browser.stop();
     eventBus.destroy();
-  });
-
-  // ── resources search reply ─────────────────────────────────────────────────
-
-  it('labels the resources reply with matchKind', async () => {
-    // The wire discriminator is REQUIRED so the compiler finds every emitter:
-    // an optional field defaulting to lexical would be a compatibility shim
-    // (a missing value silently reads as lexical). The lexical path labels
-    // itself here; the semantic fallback labels its answers 'semantic'.
-    // Non-empty on purpose: vectors and embedding are mandatory, so the empty
-    // search page falls through to the semantic fallback and labels itself
-    // 'semantic' (pinned in resource-context.test.ts) — the lexical label
-    // needs a hit.
-    mockKb.graph.listResources = vi.fn().mockResolvedValue({ resources: [{ '@id': 'res-ouranos', name: 'ouranos' }], total: 1 });
-
-    const result$ = eventBus.frames('browse:resources-result');
-    const resultPromise = new Promise<any>((resolve) => result$.subscribe(resolve));
-
-    eventBus.emit('browse:resources-requested', { search: 'ouranos' }, { correlationId: 'cid-mk' });
-
-    const frame = await resultPromise;
-    expect(frame.correlationId).toBe('cid-mk');
-    expect(frame.payload.response.matchKind).toBe('lexical');
   });
 
   // ── path traversal guard ───────────────────────────────────────────────────
@@ -238,9 +209,7 @@ describe('Browser actor', () => {
       { ...mockKb, views: makeViews([{ storageUri: fileUri, resourceId: 'res:abc', entityTypes: ['Article'] }]) },
       eventBus,
       { root: PROJECT_ROOT } as any,
-      emptyConfig,
-      emptyConfig,
-      createMockEmbeddingProvider(),
+      {},
       mockLogger,
     );
     await browser.initialize();
@@ -312,201 +281,6 @@ describe('Browser actor', () => {
     expect(response.entries[0].name).toBe('new.txt');
   });
 
-  // ── referenced-by handling ─────────────────────────────────────────────────
-
-  describe('referenced-by handling', () => {
-    const DOC_A_URI = 'doc-a';
-    const DOC_B_URI = 'doc-b';
-    const TARGET_RESOURCE_ID = resourceId('target-res');
-
-    let mockReferencedBy: ReturnType<typeof vi.fn>;
-    let mockGetResource: ReturnType<typeof vi.fn>;
-
-    function makeAnnotation(id: string, targetSource: string, bodySource: string, exact = 'selected text') {
-      return {
-        id,
-        '@context': 'http://www.w3.org/ns/anno.jsonld',
-        type: 'Annotation',
-        motivation: 'linking',
-        target: { source: targetSource, selector: [{ type: 'TextQuoteSelector', exact }] },
-        body: { source: bodySource },
-      };
-    }
-
-    function resultPromise() {
-      return new Promise<any>((resolve) => eventBus.frames('browse:referenced-by-result').subscribe(resolve));
-    }
-
-    function failedPromise() {
-      return new Promise<any>((resolve) => eventBus.frames('browse:referenced-by-failed').subscribe(resolve));
-    }
-
-    // Typed as the channel declares it, not `object`. The `(eventBus as any)`
-    // cast this replaces was hiding the mismatch: every caller already passes
-    // a conforming payload, so the cast bought nothing and cost the compiler
-    // its view of three call sites.
-    function fire(payload: EventMap['browse:referenced-by-requested'], correlationId: string) {
-      eventBus.emit('browse:referenced-by-requested', payload, { correlationId });
-    }
-
-    let mockViewGet: ReturnType<typeof vi.fn>;
-
-    beforeEach(async () => {
-      await browser.stop();
-      vi.clearAllMocks();
-      mockReferencedBy = vi.fn();
-      mockGetResource = vi.fn();
-      mockViewGet = vi.fn().mockResolvedValue(null);
-      const kb = {
-        graph: { getResourceReferencedBy: mockReferencedBy, getResource: mockGetResource },
-        views: { get: mockViewGet },
-      } as any;
-      browser = new Browser(kb, eventBus, { root: PROJECT_ROOT } as any, emptyConfig, emptyConfig, createMockEmbeddingProvider(), mockLogger);
-      await browser.initialize();
-    });
-
-    it('emits referenced-by-result with resource names and selectors', async () => {
-      const anno1 = makeAnnotation('anno-1', DOC_A_URI, String(TARGET_RESOURCE_ID), 'Prometheus');
-      const anno2 = makeAnnotation('anno-2', DOC_B_URI, String(TARGET_RESOURCE_ID), 'the Titan');
-      mockReferencedBy.mockResolvedValue([anno1, anno2]);
-      mockGetResource.mockImplementation((id: any) => {
-        if (id === resourceId('doc-a')) return Promise.resolve({ '@id': DOC_A_URI, name: 'Prometheus Bound' });
-        if (id === resourceId('doc-b')) return Promise.resolve({ '@id': DOC_B_URI, name: 'Greek Myths' });
-        return Promise.resolve(null);
-      });
-
-      const p = resultPromise();
-      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-1');
-      const result = await p;
-      expect(result.correlationId).toBe('corr-1');
-      expect(result.payload.response.referencedBy).toHaveLength(2);
-      expect(result.payload.response.referencedBy[0]).toEqual({ id: 'anno-1', resourceName: 'Prometheus Bound', target: { source: DOC_A_URI, selector: { exact: 'Prometheus' } } });
-      expect(result.payload.response.referencedBy[1]).toEqual({ id: 'anno-2', resourceName: 'Greek Myths', target: { source: DOC_B_URI, selector: { exact: 'the Titan' } } });
-      expect(mockReferencedBy).toHaveBeenCalledWith(TARGET_RESOURCE_ID, undefined);
-    });
-
-    it('hydrates a graph-lagging citer from the view — never "Untitled Resource" for a known resource', async () => {
-      // The read-after-write artifact: the edge is woven but the citing
-      // resource's node is not yet — the view is the fresher projection and
-      // must supply the name.
-      const anno = makeAnnotation('anno-lag', DOC_B_URI, String(TARGET_RESOURCE_ID), 'the Titan');
-      mockReferencedBy.mockResolvedValue([anno]);
-      mockGetResource.mockResolvedValue(null); // graph hasn't woven the citer yet
-      mockViewGet.mockImplementation((id: any) =>
-        String(id) === DOC_B_URI
-          ? Promise.resolve({ resource: { '@id': DOC_B_URI, name: 'Greek Myths' }, annotations: {} })
-          : Promise.resolve(null),
-      );
-
-      const p = resultPromise();
-      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-lag');
-      const result = await p;
-
-      expect(result.payload.response.referencedBy).toHaveLength(1);
-      expect(result.payload.response.referencedBy[0].resourceName).toBe('Greek Myths');
-      // L4: degradation is observable, never silent — the breadcrumb is
-      // part of the contract, not decoration.
-      expect(mockLogger.info).toHaveBeenCalledWith('[graph lag] citer hydrated from view', { resourceId: DOC_B_URI });
-    });
-
-    it('a citer neither projection knows still renders the Untitled fallback', async () => {
-      const anno = makeAnnotation('anno-ghost', 'doc-ghost', String(TARGET_RESOURCE_ID));
-      mockReferencedBy.mockResolvedValue([anno]);
-      mockGetResource.mockResolvedValue(null);
-      // mockViewGet default: null
-
-      const p = resultPromise();
-      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-ghost');
-      const result = await p;
-
-      expect(result.payload.response.referencedBy[0].resourceName).toBe('Untitled Resource');
-    });
-
-    it('passes motivation filter to graph query', async () => {
-      mockReferencedBy.mockResolvedValue([]);
-      const p = resultPromise();
-      fire({ resourceId: TARGET_RESOURCE_ID, motivation: 'linking' }, 'corr-2');
-      await p;
-      expect(mockReferencedBy).toHaveBeenCalledWith(TARGET_RESOURCE_ID, 'linking');
-    });
-
-    it('handles empty referenced-by results', async () => {
-      mockReferencedBy.mockResolvedValue([]);
-      const p = resultPromise();
-      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-3');
-      const result = await p;
-      expect(result.payload.response.referencedBy).toEqual([]);
-      expect(mockGetResource).not.toHaveBeenCalled();
-    });
-
-    it('deduplicates source resource lookups', async () => {
-      const anno1 = makeAnnotation('anno-1', DOC_A_URI, String(TARGET_RESOURCE_ID), 'first mention');
-      const anno2 = makeAnnotation('anno-2', DOC_A_URI, String(TARGET_RESOURCE_ID), 'second mention');
-      mockReferencedBy.mockResolvedValue([anno1, anno2]);
-      mockGetResource.mockResolvedValue({ '@id': DOC_A_URI, name: 'Prometheus Bound' });
-      const p = resultPromise();
-      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-4');
-      const result = await p;
-      expect(result.payload.response.referencedBy).toHaveLength(2);
-      expect(mockGetResource).toHaveBeenCalledTimes(1);
-    });
-
-    it('uses "Untitled Resource" when source resource is missing', async () => {
-      mockReferencedBy.mockResolvedValue([makeAnnotation('anno-1', DOC_A_URI, String(TARGET_RESOURCE_ID), 'orphan ref')]);
-      mockGetResource.mockResolvedValue(null);
-      const p = resultPromise();
-      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-5');
-      const result = await p;
-      expect(result.payload.response.referencedBy[0].resourceName).toBe('Untitled Resource');
-    });
-
-    it('handles annotations with string target (no selector)', async () => {
-      mockReferencedBy.mockResolvedValue([{
-        id: 'anno-1', '@context': 'http://www.w3.org/ns/anno.jsonld', type: 'Annotation',
-        motivation: 'linking', target: DOC_A_URI, body: { source: String(TARGET_RESOURCE_ID) },
-      }]);
-      mockGetResource.mockResolvedValue({ '@id': DOC_A_URI, name: 'Prometheus Bound' });
-      const p = resultPromise();
-      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-6');
-      const result = await p;
-      expect(result.payload.response.referencedBy[0].resourceName).toBe('Prometheus Bound');
-      expect(result.payload.response.referencedBy[0].target.source).toBe(DOC_A_URI);
-      expect(result.payload.response.referencedBy[0].target.selector.exact).toBe('');
-    });
-
-    it('emits referenced-by-failed on graph error', async () => {
-      mockReferencedBy.mockRejectedValue(new Error('Graph unavailable'));
-      const p = failedPromise();
-      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-7');
-      const result = await p;
-      expect(result.correlationId).toBe('corr-7');
-      expect(result.payload.message).toBe('Graph unavailable');
-    });
-
-    it('a throwing citer hydration degrades that entry — the reply still succeeds', async () => {
-      // Changed contract: one citer's store hiccup must not fail the whole
-      // references reply.
-      // resourceWithViewGrace absorbs the per-citer read error and falls
-      // back to the view (or Untitled when neither projection answers);
-      // an EDGE-QUERY failure still fails the request (spec above).
-      mockReferencedBy.mockResolvedValue([makeAnnotation('anno-1', DOC_A_URI, String(TARGET_RESOURCE_ID), 'text')]);
-      mockGetResource.mockRejectedValue(new Error('Resource lookup failed'));
-      mockViewGet.mockImplementation((id: any) =>
-        String(id) === DOC_A_URI
-          ? Promise.resolve({ resource: { '@id': DOC_A_URI, name: 'Prometheus Bound' }, annotations: {} })
-          : Promise.resolve(null),
-      );
-
-      const p = resultPromise();
-      fire({ resourceId: TARGET_RESOURCE_ID }, 'corr-8');
-      const result = await p;
-
-      expect(result.correlationId).toBe('corr-8');
-      expect(result.payload.response.referencedBy).toHaveLength(1);
-      expect(result.payload.response.referencedBy[0].resourceName).toBe('Prometheus Bound');
-    });
-  });
-
   // ── collaborator directory ────────────────────────────────────────────────
 
   describe('agents directory', () => {
@@ -522,11 +296,12 @@ describe('Browser actor', () => {
     // project's `siteDomain()`, the one source the roster mints from.
     async function withBrowser(
       domain: string | undefined,
-      config: MakeMeaningConfig,
+      // The in-process service hands the Browser its credentialed config.
+      config: RosterConfig | Pick<MakeMeaningConfig, 'workers' | 'actors'>,
       fn: (bus: EventBus) => Promise<void>,
     ) {
       const bus = new EventBus();
-      const b = new Browser(mockKb, bus, { root: PROJECT_ROOT, siteDomain: () => domain } as any, config, config, createMockEmbeddingProvider(), mockLogger);
+      const b = new Browser(mockKb, bus, { root: PROJECT_ROOT, siteDomain: () => domain } as any, config, mockLogger);
       await b.initialize();
       try {
         await fn(bus);
@@ -556,8 +331,6 @@ describe('Browser actor', () => {
       await withBrowser(
         SITE_DOMAIN,
         {
-          services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
-          gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
           workers: {
             default: { type: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'secret-key-do-not-leak' },
             generation: { type: 'anthropic', model: 'claude-sonnet-4-5' },
@@ -606,8 +379,6 @@ describe('Browser actor', () => {
       await withBrowser(
         SITE_DOMAIN,
         {
-          services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
-          gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
           actors: { gatherer: { type: 'ollama', model: 'llama3' } },
         },
         async (bus) => {
@@ -625,8 +396,6 @@ describe('Browser actor', () => {
       await withBrowser(
         SITE_DOMAIN,
         {
-          services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
-          gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
           workers: { default: { type: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'k' } },
         },
         async (bus) => {
@@ -639,7 +408,7 @@ describe('Browser actor', () => {
     });
 
     it('answers an empty roster when no workers or actors are declared', async () => {
-      await withBrowser(SITE_DOMAIN, { services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } }, async (bus) => {
+      await withBrowser(SITE_DOMAIN, {}, async (bus) => {
         const r = await requestAgents(bus);
         if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
         expect(r.e.response.agents).toEqual([]);
@@ -647,7 +416,7 @@ describe('Browser actor', () => {
     });
 
     it('fails naming the missing [site] domain when the committed config declares none', async () => {
-      await withBrowser(undefined, { services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } }, async (bus) => {
+      await withBrowser(undefined, {}, async (bus) => {
         const r = await requestAgents(bus);
         if (r.kind !== 'failed') throw new Error('expected failed');
         expect(r.replyTo).toBe('cid-agents');

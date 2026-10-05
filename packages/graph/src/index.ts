@@ -11,7 +11,6 @@
 
 // Graph Database interface
 export type { GraphDatabase } from './interface';
-export { compareByRecencyThenId } from './interface';
 
 // Factory pattern (singleton)
 export { getGraphDatabase, createGraphDatabase, closeGraphDatabase } from './factory';

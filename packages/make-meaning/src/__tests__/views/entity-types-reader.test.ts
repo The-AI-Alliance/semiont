@@ -10,19 +10,17 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { readEntityTypesProjection } from '../../views/entity-types-reader';
-import { bootstrapEntityTypes } from '../../bootstrap/entity-types';
+import { readEntityTypesProjection } from '../../archivist/views/entity-types-reader';
+import { bootstrapEntityTypes } from '../../archivist/bootstrap-entity-types';
 import { createEventStore } from '@semiont/event-sourcing';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
 import { type SemiontProject } from '@semiont/core/node';
-import { EventBus, type Logger, type GraphServiceConfig } from '@semiont/core';
-import { createKnowledgeBase } from '../../knowledge-base';
-import { Stower } from '../../stower';
-import { getGraphDatabase } from '@semiont/graph';
+import { EventBus, type Logger } from '@semiont/core';
+import { WorkingTreeStore } from '@semiont/content';
+import { Stower } from '../../archivist/stower';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { createTestProject, TEST_KB_DOMAIN } from '../helpers/test-project';
-import { createVectorStore } from '@semiont/vectors';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -69,8 +67,7 @@ describe('Entity Types Projection Reader', () => {
       
       const eventBus = new EventBus();
       const eventStore = createEventStore(project, eventBus, mockLogger);
-      const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-      const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger, { vectorStore: await createVectorStore({ type: 'memory', dimensions: async () => 4 }) });
+      const kb = { eventStore: eventStore, content: new WorkingTreeStore(project, mockLogger) };
       const stower = new Stower(kb, eventBus, project, mockLogger);
       await stower.initialize();
       await bootstrapEntityTypes(eventBus, eventStore, TEST_KB_DOMAIN);
@@ -166,8 +163,7 @@ describe('Entity Types Projection Reader', () => {
       
       const eventBus = new EventBus();
       const eventStore = createEventStore(project, eventBus, mockLogger);
-      const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-      const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger, { vectorStore: await createVectorStore({ type: 'memory', dimensions: async () => 4 }) });
+      const kb = { eventStore: eventStore, content: new WorkingTreeStore(project, mockLogger) };
       const stower = new Stower(kb, eventBus, project, mockLogger);
       await stower.initialize();
 

@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "Request for the annotations elsewhere that refer to a resource. The Librarian answers from the graph.",
+  "properties": {
+    "resourceId": {
+      "$ref": "./ResourceId.json"
+    },
+    "motivation": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "resourceId"
+  ]
+}

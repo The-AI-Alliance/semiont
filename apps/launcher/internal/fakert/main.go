@@ -1710,6 +1710,7 @@ var busScripted = map[string]bool{
 	"mark:delete":                   true,
 	"bind:update-body":              true,
 	"match:search-requested":        true,
+	"match:resources-requested":     true,
 	"job:create":                    true,
 	"job:limits-requested":          true,
 	"gather:limits-requested":       true,

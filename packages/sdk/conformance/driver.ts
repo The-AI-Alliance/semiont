@@ -88,7 +88,7 @@ function follow(observer: string, job: () => Observable<unknown>): void {
 
 /** The live query a case names. */
 function live(query: Arguments): CacheObservable<unknown> {
-  const { browse } = opened();
+  const { browse, gather, match } = opened();
   const resource = () => resourceId(text(query, 'resource'));
   switch (text(query, 'query')) {
     case 'resource':
@@ -100,9 +100,11 @@ function live(query: Arguments): CacheObservable<unknown> {
     case 'events':
       return browse.events(resource());
     case 'referencedBy':
-      return browse.referencedBy(resource());
+      return gather.referencedBy(resource());
     case 'resources':
       return browse.resources(query['filters'] === undefined ? undefined : object(query, 'filters'));
+    case 'matchedResources':
+      return match.resources(text(query, 'search'), query['filters'] === undefined ? undefined : object(query, 'filters'));
     case 'entityTypes':
       return browse.entityTypes();
     case 'tagSchemas':
@@ -202,7 +204,7 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
   },
 
   invalidate(args) {
-    const { browse } = opened();
+    const { browse, gather, match } = opened();
     const query = object(args, 'query');
     const resource = () => resourceId(text(query, 'resource'));
     switch (text(query, 'query')) {
@@ -213,9 +215,11 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
       case 'events':
         return browse.invalidateResourceEvents(resource());
       case 'referencedBy':
-        return browse.invalidateReferencedBy(resource());
+        return gather.invalidateReferencedBy(resource());
       case 'resources':
         return browse.invalidateResourceLists();
+      case 'matchedResources':
+        return match.invalidateResources();
       case 'entityTypes':
         return browse.invalidateEntityTypes();
       case 'tagSchemas':

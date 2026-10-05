@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom, take } from 'rxjs';
 import { EventBus, resourceId, type Logger } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
-import { Stower, type StowerStores } from '../stower';
+import { Stower, type StowerStores } from '../archivist/stower';
 
 const silentLogger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),

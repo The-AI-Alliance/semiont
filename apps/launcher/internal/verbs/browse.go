@@ -44,7 +44,6 @@ Options:
   --annotation <id>     With --browser: open ONE annotation (not --annotations)
   --launch              With --browser: start the Browser if none is running
   --browser-url <url>   Browser origin to report (default: the recorded one)
-  --search <text>       Filter the list by text
   --entity-type <name>  Filter the list by entity type
   --limit <n>           Maximum results (default 20)
   --annotations         With a resourceId: show its annotations here
@@ -60,7 +59,7 @@ Requires a session:  semiont login
 
 func Browse(args []string) int {
 	u := launcher.NewUI(false)
-	var resourceID, search, entityType, repo, browserURL, annotation string
+	var resourceID, entityType, repo, browserURL, annotation string
 	limit := 20
 	annotations, entityTypes, tagSchemas, asJSON, wantLocal := false, false, false, false, false
 	toBrowser, launch := false, false
@@ -76,12 +75,6 @@ func Browse(args []string) int {
 			return args[i], true
 		}
 		switch a {
-		case "--search":
-			v, ok := val()
-			if !ok {
-				return 1
-			}
-			search = v
 		case "--entity-type":
 			v, ok := val()
 			if !ok {
@@ -267,9 +260,6 @@ func Browse(args []string) int {
 		op = "browse:resources-requested"
 		req := semiont.BrowseResourcesRequest{}
 		req.Limit = &limit
-		if search != "" {
-			req.Search = &search
-		}
 		if entityType != "" {
 			req.EntityType = &entityType
 		}
@@ -394,18 +384,7 @@ func renderBrowse(u *launcher.UI, op bus.Channel, reply json.RawMessage) int {
 		if err := json.Unmarshal(reply, &r); err != nil {
 			return rawFallback(reply)
 		}
-		if len(r.Response.Resources) == 0 {
-			u.Log("No resources match.")
-			return 0
-		}
-		for _, res := range r.Response.Resources {
-			types := ""
-			if res.EntityTypes != nil && len(*res.EntityTypes) > 0 {
-				types = u.Dim("(" + strings.Join(*res.EntityTypes, ", ") + ")")
-			}
-			fmt.Printf("  %-28s %s %s\n", res.Id, res.Name, types)
-		}
-		fmt.Printf("\n  %s\n", u.Dim(fmt.Sprintf("%d shown, %d total", len(r.Response.Resources), int(r.Response.Total))))
+		printResources(u, r.Response.Resources, int(r.Response.Total))
 	case "browse:resource-requested":
 		var r semiont.BrowseResourceResult
 		if err := json.Unmarshal(reply, &r); err != nil {
@@ -462,6 +441,23 @@ func renderBrowse(u *launcher.UI, op bus.Channel, reply json.RawMessage) int {
 		return rawFallback(reply)
 	}
 	return 0
+}
+
+// printResources prints one page of resources: the table `browse` lists and
+// `match --search` finds.
+func printResources(u *launcher.UI, resources []semiont.ResourceDescriptor, total int) {
+	if len(resources) == 0 {
+		u.Log("No resources match.")
+		return
+	}
+	for _, res := range resources {
+		types := ""
+		if res.EntityTypes != nil && len(*res.EntityTypes) > 0 {
+			types = u.Dim("(" + strings.Join(*res.EntityTypes, ", ") + ")")
+		}
+		fmt.Printf("  %-28s %s %s\n", res.Id, res.Name, types)
+	}
+	fmt.Printf("\n  %s\n", u.Dim(fmt.Sprintf("%d shown, %d total", len(resources), total)))
 }
 
 // rawFallback prints what the gateway actually said. A reply we cannot shape

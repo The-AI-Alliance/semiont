@@ -15,7 +15,7 @@ The files of a knowledge base, and the text read out of the ones that carry none
 - **The Librarian, the Smelter and the Worker** hold no store. They read a resource's bytes from the Archivist, through `archivistContentReads()`.
 - **[`@semiont/event-sourcing`](../event-sourcing/README.md)** stages the event log through the same driver (`stagingFor`), since the log lives in the same working tree.
 
-Each of those is wired in [`@semiont/make-meaning`](../make-meaning/README.md) or [`@semiont/jobs`](../jobs/README.md). `startMakeMeaning()` builds the same store in one process, for scripts and tests.
+Each of those is wired in [`@semiont/make-meaning`](../make-meaning/README.md) or [`@semiont/jobs`](../jobs/README.md).
 
 **Building an application?** You do not need this package. An application uploads and reads content through [`@semiont/sdk`](../sdk/README.md): `yield.resource` and `browse.resourceContent`.
 

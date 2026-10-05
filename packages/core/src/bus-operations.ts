@@ -46,7 +46,6 @@ export const BUS_OPERATIONS = {
   'browse:annotations-requested':        { result: 'browse:annotations-result',      failure: 'browse:annotations-failed' },
   'browse:annotation-history-requested': { result: 'browse:annotation-history-result', failure: 'browse:annotation-history-failed' },
   'browse:events-requested':             { result: 'browse:events-result',           failure: 'browse:events-failed' },
-  'browse:referenced-by-requested':      { result: 'browse:referenced-by-result',    failure: 'browse:referenced-by-failed' },
   'browse:entity-types-requested':       { result: 'browse:entity-types-result',     failure: 'browse:entity-types-failed' },
   'browse:tag-schemas-requested':        { result: 'browse:tag-schemas-result',      failure: 'browse:tag-schemas-failed' },
   'browse:agents-requested':             { result: 'browse:agents-result',           failure: 'browse:agents-failed' },
@@ -64,6 +63,7 @@ export const BUS_OPERATIONS = {
   'gather:resource-requested':           { result: 'gather:resource-complete',       failure: 'gather:resource-failed' },
   // dormant — handler registered, no client caller (annotation summary)
   'gather:summary-requested':            { result: 'gather:summary-result',          failure: 'gather:summary-failed' },
+  'gather:referenced-by-requested':      { result: 'gather:referenced-by-result',    failure: 'gather:referenced-by-failed' },
   'gather:limits-requested':             { result: 'gather:limits-result',           failure: 'gather:limits-failed' },
 
   // ── JOB ─────────────────────────────────────────────────────────
@@ -85,6 +85,7 @@ export const BUS_OPERATIONS = {
   // ── MATCH ───────────────────────────────────────────────────────
   // take-1 dressed as an Observable in the SDK
   'match:search-requested':              { result: 'match:search-results',           failure: 'match:search-failed' },
+  'match:resources-requested':           { result: 'match:resources-result',         failure: 'match:resources-failed' },
   'match:limits-requested':              { result: 'match:limits-result',            failure: 'match:limits-failed' },
 
   // ── WEAVE ───────────────────────────────────────────────────────

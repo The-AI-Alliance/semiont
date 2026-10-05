@@ -25,6 +25,7 @@ mod gather;
 mod job;
 mod mark;
 mod match_;
+mod refresher;
 mod system;
 mod yield_;
 
@@ -38,5 +39,6 @@ pub use gather::GatherNamespace;
 pub use job::JobNamespace;
 pub use mark::{MarkAssistOptions, MarkNamespace};
 pub use match_::MatchNamespace;
+pub(crate) use refresher::Refresher;
 pub use system::SystemNamespace;
 pub use yield_::{CreateFromTokenOptions, YieldNamespace, stall_deadline};

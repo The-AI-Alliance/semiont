@@ -35,6 +35,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+import { CHANNEL_ATTRS } from '../bus-classification';
 import { BRIDGED_CHANNELS } from '../bridged-channels';
 import { BUS_OPERATIONS } from '../bus-operations';
 import { PERSISTED_EVENT_TYPES } from '../persisted-events';
@@ -59,7 +62,6 @@ const FROZEN_BRIDGED = [
   'browse:annotation-result', 'browse:annotation-failed',
   'browse:annotation-history-result', 'browse:annotation-history-failed',
   'browse:events-result', 'browse:events-failed',
-  'browse:referenced-by-result', 'browse:referenced-by-failed',
   'browse:entity-types-result', 'browse:entity-types-failed',
   'browse:tag-schemas-result', 'browse:tag-schemas-failed',
   'browse:agents-result', 'browse:agents-failed',
@@ -73,12 +75,14 @@ const FROZEN_BRIDGED = [
   'mark:unarchive-ok', 'mark:unarchive-failed',
   'mark:update-entity-types-ok', 'mark:update-entity-types-failed',
   'match:search-results', 'match:search-failed',
+  'match:resources-result', 'match:resources-failed',
   'match:limits-result', 'match:limits-failed',
   'weave:rebuild-ok', 'weave:rebuild-failed',
   'smelt:rebuild-anchors-ok', 'smelt:rebuild-anchors-failed',
   'gather:complete', 'gather:failed',
   'gather:resource-complete', 'gather:resource-failed',
   'gather:summary-result', 'gather:summary-failed',
+  'gather:referenced-by-result', 'gather:referenced-by-failed',
   'gather:limits-result', 'gather:limits-failed',
   'bind:body-updated', 'bind:body-update-failed',
   'job:report-progress', 'job:complete', 'job:fail',
@@ -193,5 +197,27 @@ describe('bus channel-classification invariants', () => {
       'frame:entity-type-added', 'frame:tag-schema-added',
       'yield:cloned', 'yield:created', 'yield:moved', 'yield:updated',
     ]);
+  });
+});
+
+/**
+ * Browse answers from the record; finding things is the Librarian's. A listing
+ * cannot search, and what refers to a resource is asked of Gather.
+ */
+describe('browse is retrieval, never discovery', () => {
+  const schema = (name: string): { properties: Record<string, unknown>; required?: string[] } =>
+    JSON.parse(readFileSync(resolve(__dirname, `../../../../specs/src/components/schemas/${name}.json`), 'utf8'));
+
+  it('no browse channel asks what refers to a resource', () => {
+    expect(Object.keys(CHANNEL_ATTRS).filter((channel) => channel.startsWith('browse:referenced-by'))).toEqual([]);
+  });
+
+  it('a listing request carries no search', () => {
+    expect(Object.keys(schema('BrowseResourcesRequest').properties)).not.toContain('search');
+  });
+
+  it('a listing reply says nothing of how it matched: only a search does', () => {
+    expect(Object.keys(schema('ListResourcesResponse').properties)).not.toContain('matchKind');
+    expect(Object.keys(schema('MatchResourcesResponse').properties)).toContain('matchKind');
   });
 });

@@ -12,9 +12,9 @@ import { take } from 'rxjs/operators';
 import { EventBus, annotationId, resourceId, type Logger } from '@semiont/core';
 import { Gatherer, type GathererStores } from '../gatherer';
 
-// Mock AnnotationContext and LLMContext
-vi.mock('../annotation-context', () => ({
-  AnnotationContext: {
+// Mock AnnotationGather and LLMContext
+vi.mock('../annotation-gather', () => ({
+  AnnotationGather: {
     buildLLMContext: vi.fn(),
   },
 }));
@@ -25,7 +25,7 @@ vi.mock('../llm-context', () => ({
   },
 }));
 
-import { AnnotationContext } from '../annotation-context';
+import { AnnotationGather } from '../annotation-gather';
 import { LLMContext } from '../llm-context';
 import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
@@ -110,7 +110,7 @@ describe('Gatherer', () => {
         metadata: { resourceType: 'document' as const },
       };
 
-      vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValue(mockContext);
+      vi.mocked(AnnotationGather.buildLLMContext).mockResolvedValue(mockContext);
 
       const resultPromise = eventBus.on('gather:complete').pipe(take(1)).toPromise();
 
@@ -121,7 +121,7 @@ describe('Gatherer', () => {
       expect(result!.annotationId).toBe('ann-1');
       expect(result!.response).toEqual(mockContext);
 
-      expect(AnnotationContext.buildLLMContext).toHaveBeenCalledWith(
+      expect(AnnotationGather.buildLLMContext).toHaveBeenCalledWith(
         'ann-1',
         'res-1',
         kb,
@@ -133,7 +133,7 @@ describe('Gatherer', () => {
     });
 
     it('should emit gather:failed on error', async () => {
-      vi.mocked(AnnotationContext.buildLLMContext).mockRejectedValue(new Error('Annotation not found'));
+      vi.mocked(AnnotationGather.buildLLMContext).mockRejectedValue(new Error('Annotation not found'));
 
       const resultPromise = eventBus.on('gather:failed').pipe(take(1)).toPromise();
 
@@ -203,7 +203,7 @@ describe('Gatherer', () => {
     it('should not process events after stop', async () => {
       await gatherer.stop();
 
-      vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValue({} as any);
+      vi.mocked(AnnotationGather.buildLLMContext).mockResolvedValue({} as any);
 
       eventBus.emit('gather:requested', { annotationId: annotationId('ann-3'),
         resourceId: resourceId('res-1'), }, { correlationId: 'test-corr-id' });
@@ -211,7 +211,7 @@ describe('Gatherer', () => {
       // Give time for any processing
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      expect(AnnotationContext.buildLLMContext).not.toHaveBeenCalled();
+      expect(AnnotationGather.buildLLMContext).not.toHaveBeenCalled();
     });
   });
 });

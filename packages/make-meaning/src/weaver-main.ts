@@ -25,7 +25,7 @@ import { FileWeaverCheckpoint } from './weaver-checkpoint';
 import { HttpTransport } from '@semiont/http-transport';
 import { baseUrl as makeBaseUrl, createTomlConfigLoader, withDeadline } from '@semiont/core';
 import { runBootPass, type BootPassState } from './boot-pass';
-import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
+import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './startup';
 import { getGraphDatabase } from '@semiont/graph';
 import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';

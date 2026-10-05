@@ -23,7 +23,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { Subject } from 'rxjs';
 import type { EventMap, Logger, PersistedEventType } from '@semiont/core';
 import { isNumber, isObject, resourceId as makeResourceId, userId } from '@semiont/core';
-import { createFactPump } from '../fact-pump';
+import { createFactPump } from '../archivist/fact-pump';
 
 const mockLogger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),

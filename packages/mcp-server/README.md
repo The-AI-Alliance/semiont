@@ -125,7 +125,7 @@ await client.connect(transport);
 const { tools } = await client.listTools();
 
 const result = await client.callTool({
-  name: 'browse_resources',
+  name: 'match_resources',
   arguments: { search: 'ontology', limit: 5 },
 });
 
@@ -143,7 +143,7 @@ that fails answers the same way, with `isError` set.
 | Tool | Required | Optional |
 |---|---|---|
 | `browse_resource` — get a resource's descriptor | `id` | |
-| `browse_resources` — list resources | | `search`, `archived` (default `false`), `limit` (default `50`) |
+| `browse_resources` — list resources | | `archived` (default `false`), `limit` (default `50`) |
 | `browse_highlights` — highlighting annotations for a resource | `resourceId` | |
 | `browse_references` — linking annotations for a resource | `resourceId` | |
 
@@ -161,6 +161,12 @@ that fails answers the same way, with `isError` set.
 | Tool | Required |
 |---|---|
 | `bind_body` — link a reference annotation to a target resource | `sourceResourceId`, `annotationId`, `targetResourceId` |
+
+### match
+
+| Tool | Required | Optional |
+|---|---|---|
+| `match_resources` — search resources by text: by title and metadata, or by meaning when nothing matches the text | `search` | `archived` (default `false`), `limit` (default `50`) |
 
 ### gather
 

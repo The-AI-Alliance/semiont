@@ -6,8 +6,10 @@
  * else. Never concludes anything; concluding is the Generator's job. Runs
  * the LLM-bound actors: `Matcher` (candidate search + scoring for the bind
  * flow) and `Gatherer` (LLM context assembly for the gather flows), plus
- * the gather-summary handler that calls the Gatherer (a handler runs
- * beside the actor it serves).
+ * the handlers that run beside them: the gather-summary handler, which
+ * calls the Gatherer, and the two retrieval handlers, which answer text
+ * search (`match:resources-requested`) and what refers to a resource
+ * (`gather:referenced-by-requested`) from the graph and the vectors.
  *
  * Its attachments are the bus (HttpTransport: SSE in, `/bus/emit` out),
  * Neo4j and Qdrant (the retrieval sources), an embedding provider (query
@@ -22,9 +24,9 @@
  *
  * Bus wiring is two disjoint pumps on the archivist-main pattern; both
  * rosters live in `service-channels.ts`:
- *   in  — LIBRARIAN_INBOUND_CHANNELS (the actor rosters, each pinned to its
- *         actor's real subscriptions by a census gate, plus the handler's
- *         channel and the two progress signals); SSE frames are pushed onto
+ *   in  — LIBRARIAN_INBOUND_CHANNELS (the actor and retrieval-handler
+ *         rosters, each pinned to its real subscriptions by a census gate,
+ *         plus the summary handler's channel and the two progress signals); SSE frames are pushed onto
  *         the local bus. The transport's SSE subscription is this set plus
  *         LIBRARIAN_REPLY_CHANNELS (the replies to the one read this process
  *         awaits) — never the full bridged set.
@@ -69,8 +71,10 @@ import { anchoredTextOverBus } from './anchored-text-ask';
 import { attachServicePumps } from './service-pumps';
 import { createWeaveProgress } from './weave-progress';
 import { createSmeltProgress } from './smelt-progress';
-import { registerGatherSummaryHandler } from './handlers/annotation-lookups';
-import { assertMakeMeaningConfig , STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
+import { registerGatherSummaryHandler } from './handlers/gather-summary';
+import { registerRetrievalHandlers } from './handlers/resource-retrieval';
+import { assertMakeMeaningConfig } from './assert-make-meaning-config';
+import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './startup';
 import { makeMeaningConfigFrom, requireKBName, resolveActorInference } from './config';
 
 // ── Config ───────────────────────────────────────────────────────────
@@ -162,10 +166,8 @@ async function main() {
   // The one filesystem read: views from the shared stateDir, located by
   // the staged KB name alone — no SemiontProject, no KB root. The
   // Archivist materializes them; this process NEVER rebuilds.
-  const views = new FilesystemViewStorage(
-    new SemiontState({ name: kbName }),
-    logger.child({ component: 'view-storage' }),
-  );
+  const state = new SemiontState({ name: kbName });
+  const views = new FilesystemViewStorage(state, logger.child({ component: 'view-storage' }));
 
   logger.info('Connecting to graph database', { type: graphConfig.type });
   // Bounded: an unbounded await on a dependency that is not up leaves the
@@ -251,6 +253,16 @@ async function main() {
   // inference path, so it registers here beside it.
   registerGatherSummaryHandler(localBus, gatherer, logger);
 
+  // Text search and referenced-by: retrieval, answered from the stores this
+  // process already holds. Names in their replies come from the people
+  // projection, under the same shared state mount as the views.
+  const detachRetrieval = registerRetrievalHandlers(
+    localBus,
+    { graph: graphDb, views, vectors: vectorStore, content: contentReads },
+    { embeddingProvider, semanticFloor: config.search.semanticFloor, state },
+    logger,
+  );
+
   // ── Bus pumps ──────────────────────────────────────────────────────
   const pumps: Subscription[] = [];
 
@@ -287,6 +299,7 @@ async function main() {
     logger.info('Shutting down');
     session.stop();
     for (const pump of pumps) pump.unsubscribe();
+    detachRetrieval();
     httpTransport.dispose();
     void Promise.all([matcher.stop(), gatherer.stop()]).then(async () => {
       weaveProgress.dispose();

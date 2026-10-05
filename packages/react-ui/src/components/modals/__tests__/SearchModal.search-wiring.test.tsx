@@ -2,7 +2,7 @@
  * SearchModal — wiring + UI tests
  *
  * Verifies that SearchModal correctly wires createSearchPipeline to
- * browse.resources, maps results to its SearchResult shape, and renders
+ * match.resources, maps results to its SearchResult shape, and renders
  * each emission. Pure pipeline behavior (debounce, distinct, switchMap,
  * loading state) is covered by search-pipeline.test.ts and not duplicated
  * here.
@@ -33,9 +33,9 @@ vi.mock('@headlessui/react', () => ({
 }));
 
 // Mock the http-transport Observable surface
-const browseResourcesSubject = new BehaviorSubject<any[] | undefined>(undefined);
-const browseResourcesMock = vi.fn(() => asStates(browseResourcesSubject.asObservable().pipe(
-  // Arrays get the list envelope `resources()` emits; `undefined`
+const matchResourcesSubject = new BehaviorSubject<any[] | undefined>(undefined);
+const matchResourcesMock = vi.fn((_search: string, _filters?: { limit?: number }) => asStates(matchResourcesSubject.asObservable().pipe(
+  // Arrays get the search envelope `match.resources()` emits; `undefined`
   // passes through as the pending state.
   map((v) => (Array.isArray(v) ? { resources: v, total: v.length, offset: 0, limit: 20, matchKind: 'lexical' } : v)),
 )));
@@ -44,7 +44,7 @@ const browseResourcesMock = vi.fn(() => asStates(browseResourcesSubject.asObserv
 // fresh object literal would invalidate useMemo deps and restart the RxJS
 // pipeline on every keystroke. The real SemiontBrowser holds a single
 // activeSession$ BehaviorSubject; the mock must do the same.
-const stableMockClient = { browse: { resources: browseResourcesMock } };
+const stableMockClient = { match: { resources: matchResourcesMock } };
 const stableMockSession = { client: stableMockClient };
 const stableActiveSession$ = new BehaviorSubject<any>(stableMockSession);
 const stableMockBrowser = { activeSession$: stableActiveSession$ };
@@ -70,7 +70,7 @@ vi.mock('../../../hooks/useSearchAnnouncements', () => ({
 
 function setBrowseResults(resources: any[] | undefined) {
   act(() => {
-    browseResourcesSubject.next(resources);
+    matchResourcesSubject.next(resources);
   });
 }
 
@@ -102,7 +102,7 @@ describe('SearchModal — search wiring', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    browseResourcesSubject.next(undefined);
+    matchResourcesSubject.next(undefined);
   });
 
   it('renders the search input when open', () => {
@@ -120,8 +120,8 @@ describe('SearchModal — search wiring', () => {
     expect(screen.getByText('Start typing to search...')).toBeInTheDocument();
   });
 
-  it('wires the modal to browse.resources with the correct shape', async () => {
-    // One integration check that the modal calls browse.resources with the
+  it('wires the modal to match.resources with the correct shape', async () => {
+    // One integration check that the modal calls match.resources with the
     // limit and search shape it advertises. Pipeline mechanics (debounce,
     // empty-query gating) live in search-pipeline.test.ts.
     renderWithProviders(<SearchModal {...defaultProps} />);
@@ -130,7 +130,7 @@ describe('SearchModal — search wiring', () => {
     fireEvent.change(input, { target: { value: 'marathon' } });
 
     await waitFor(
-      () => expect(browseResourcesMock).toHaveBeenCalledWith({ search: 'marathon', limit: 5 }),
+      () => expect(matchResourcesMock).toHaveBeenCalledWith('marathon', { limit: 5 }),
       { timeout: 1500 }
     );
   });
@@ -140,7 +140,7 @@ describe('SearchModal — search wiring', () => {
     const input = screen.getByPlaceholderText('Search resources, entities...');
     fireEvent.change(input, { target: { value: 'test' } });
 
-    await waitFor(() => expect(browseResourcesMock).toHaveBeenCalled(), { timeout: 1500 });
+    await waitFor(() => expect(matchResourcesMock).toHaveBeenCalled(), { timeout: 1500 });
     setBrowseResults([
       buildResource('res-1', 'Test Document', 'Some content here'),
       buildResource('res-2', 'Another Result', 'More content'),
@@ -157,7 +157,7 @@ describe('SearchModal — search wiring', () => {
     const input = screen.getByPlaceholderText('Search resources, entities...');
     fireEvent.change(input, { target: { value: 'xyz' } });
 
-    await waitFor(() => expect(browseResourcesMock).toHaveBeenCalled(), { timeout: 1500 });
+    await waitFor(() => expect(matchResourcesMock).toHaveBeenCalled(), { timeout: 1500 });
     setBrowseResults([]);
 
     await waitFor(() => {
@@ -187,7 +187,7 @@ describe('SearchModal — search wiring', () => {
     const input = screen.getByPlaceholderText('Search resources, entities...');
     fireEvent.change(input, { target: { value: 'doc' } });
 
-    await waitFor(() => expect(browseResourcesMock).toHaveBeenCalled(), { timeout: 1500 });
+    await waitFor(() => expect(matchResourcesMock).toHaveBeenCalled(), { timeout: 1500 });
     setBrowseResults([buildResource('res-1', 'Pickable', 'preview')]);
 
     await waitFor(() => expect(screen.getByText('Pickable')).toBeInTheDocument(), {
@@ -206,7 +206,7 @@ describe('SearchModal — search wiring', () => {
     const input = screen.getByPlaceholderText('Search resources, entities...');
     fireEvent.change(input, { target: { value: 'doc' } });
 
-    await waitFor(() => expect(browseResourcesMock).toHaveBeenCalled(), { timeout: 1500 });
+    await waitFor(() => expect(matchResourcesMock).toHaveBeenCalled(), { timeout: 1500 });
     setBrowseResults([
       buildResource('res-1', 'First'),
       buildResource('res-2', 'Second'),
@@ -227,7 +227,7 @@ describe('SearchModal — search wiring', () => {
     const input = screen.getByPlaceholderText('Search resources, entities...');
     fireEvent.change(input, { target: { value: 'q' } });
 
-    await waitFor(() => expect(browseResourcesMock).toHaveBeenCalled(), { timeout: 1500 });
+    await waitFor(() => expect(matchResourcesMock).toHaveBeenCalled(), { timeout: 1500 });
     setBrowseResults([
       { '@context': 'https://www.w3.org/ns/anno.jsonld', name: 'No ID', representations: [] },
       buildResource('res-keep', 'Has ID'),

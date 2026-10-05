@@ -15,6 +15,7 @@ use semiont::testing::as_id;
 use semiont::testing::liveness::{LivenessScenario, LivenessSpec, assert_liveness_axioms};
 use semiont::testing::{FaultyTransport, TestClientOptions, create_test_client};
 use semiont::transport::{ConnectionState, Envelope, STREAM_BACKLOG};
+use semiont::types::MatchResourcesResponse;
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -63,7 +64,7 @@ fn answers(
                 "annotations": [], "entityReferences": [],
             }),
             "browse:resources-requested" => json!({
-                "resources": [], "total": n, "offset": 0, "limit": 100, "matchKind": "lexical",
+                "resources": [], "total": n, "offset": 0, "limit": 100,
             }),
             "browse:annotations-requested" => json!({
                 "annotations": [annotation("ann-1", resource, &format!("as of ask {n}"))],
@@ -89,7 +90,10 @@ fn answers(
             "gather:limits-requested" | "match:limits-requested" => json!({ "limits": [
                 { "provider": "anthropic", "model": "writer-1", "limits": { "contextTokens": 2000.0, "maxOutputTokens": 200.0 } },
             ] }),
-            "browse:referenced-by-requested" => json!({ "referencedBy": [] }),
+            "gather:referenced-by-requested" => json!({ "referencedBy": [] }),
+            "match:resources-requested" => json!({
+                "resources": [], "total": n, "offset": 0, "limit": 100, "matchKind": "semantic",
+            }),
             "browse:events-requested" => {
                 json!({ "events": [], "total": n, "resourceId": resource })
             }
@@ -195,16 +199,17 @@ fn heard(client: &SemiontClient, channel: &str, payload: Map<String, Value>) {
     client.bus().emit(channel, payload, Envelope::default());
 }
 
-const READS: [&str; 9] = [
+const READS: [&str; 10] = [
     "browse:resource-requested",
     "browse:resources-requested",
     "browse:annotations-requested",
     "browse:annotation-requested",
     "browse:events-requested",
-    "browse:referenced-by-requested",
+    "gather:referenced-by-requested",
     "browse:entity-types-requested",
     "browse:tag-schemas-requested",
     "browse:agents-requested",
+    "match:resources-requested",
 ];
 
 /// A watcher of every query, of two resources: what a busy viewer holds.
@@ -212,7 +217,7 @@ struct Everything {
     transport: FaultyTransport,
     client: Arc<SemiontClient>,
     _watching: Vec<Box<dyn std::any::Any + Send>>,
-    before: [usize; 9],
+    before: [usize; 10],
 }
 
 async fn watching_everything() -> Everything {
@@ -225,7 +230,7 @@ async fn watching_everything() -> Everything {
         ));
         watching.push(Box::new(client.browse.events(&as_id(resource)).watch()));
         watching.push(Box::new(
-            client.browse.referenced_by(&as_id(resource)).watch(),
+            client.gather.referenced_by(&as_id(resource)).watch(),
         ));
     }
     watching.push(Box::new(
@@ -243,6 +248,12 @@ async fn watching_everything() -> Everything {
     watching.push(Box::new(
         client.browse.resources(ResourceFilters::default()).watch(),
     ));
+    watching.push(Box::new(
+        client
+            .match_
+            .resources("cat", ResourceFilters::default())
+            .watch(),
+    ));
     watching.push(Box::new(client.browse.entity_types().watch()));
     watching.push(Box::new(client.browse.tag_schemas().watch()));
     watching.push(Box::new(client.browse.agents().watch()));
@@ -250,7 +261,7 @@ async fn watching_everything() -> Everything {
     let before = asked(&transport, READS);
     assert_eq!(
         before,
-        [2, 1, 2, 2, 2, 2, 1, 1, 1],
+        [2, 1, 2, 2, 2, 2, 1, 1, 1, 1],
         "one ask per key watched"
     );
     Everything {
@@ -264,7 +275,7 @@ async fn watching_everything() -> Everything {
 impl Everything {
     /// How many more times each read has been asked since the watchers
     /// settled, once the window has closed and what it owed has run.
-    async fn more(&self) -> [usize; 9] {
+    async fn more(&self) -> [usize; 10] {
         tokio::time::sleep(WINDOW * 3).await;
         let now = asked(&self.transport, READS);
         std::array::from_fn(|i| now[i] - self.before[i])
@@ -282,7 +293,7 @@ async fn b12_an_annotation_added_asks_again_for_that_resources_annotations_and_h
         "mark:added",
         recorded("res-1", json!({}), json!({})),
     );
-    assert_eq!(all.more().await, [0, 0, 1, 0, 1, 0, 0, 0, 0]);
+    assert_eq!(all.more().await, [0, 0, 1, 0, 1, 0, 0, 0, 0, 0]);
     assert_eq!(
         asked_of(&all.transport, "browse:annotations-requested", "res-1"),
         2
@@ -294,14 +305,15 @@ async fn b12_an_annotation_added_asks_again_for_that_resources_annotations_and_h
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_resource_event_heard_by_every_client_asks_again_for_the_resource_and_every_list() {
+async fn a_resource_event_heard_by_every_client_asks_again_for_the_resource_and_every_list_and_search()
+ {
     let all = watching_everything().await;
     heard(
         &all.client,
         "yield:updated",
         recorded("res-2", json!({}), json!({})),
     );
-    assert_eq!(all.more().await, [1, 1, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(all.more().await, [1, 1, 0, 0, 0, 0, 0, 0, 0, 1]);
     assert_eq!(
         asked_of(&all.transport, "browse:resource-requested", "res-2"),
         2
@@ -321,7 +333,7 @@ async fn a_change_to_the_vocabulary_asks_again_for_it() {
         "frame:tag-schema-added",
         recorded_of_the_knowledge_base(),
     );
-    assert_eq!(all.more().await, [0, 0, 0, 0, 0, 0, 1, 1, 0]);
+    assert_eq!(all.more().await, [0, 0, 0, 0, 0, 0, 1, 1, 0, 0]);
 }
 
 #[tokio::test(start_paused = true)]
@@ -345,7 +357,7 @@ async fn b20_an_event_about_what_nothing_asked_for_costs_no_request() {
         recorded("res-1", json!({}), json!({})),
     );
     tokio::time::sleep(WINDOW * 3).await;
-    assert_eq!(asked(&transport, READS), [1, 0, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(asked(&transport, READS), [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 }
 
 #[tokio::test(start_paused = true)]
@@ -373,9 +385,9 @@ async fn b13_after_a_drop_what_events_without_a_position_feed_is_asked_for_again
     all.transport.set_state(ConnectionState::Reconnecting);
     settle().await;
     all.transport.set_state(ConnectionState::Open);
-    // Lists, resources, the vocabulary and the directory: not what a scope
-    // replays.
-    assert_eq!(all.more().await, [2, 1, 0, 0, 0, 0, 1, 1, 1]);
+    // Lists, searches, resources, the vocabulary and the directory: not
+    // what a scope replays.
+    assert_eq!(all.more().await, [2, 1, 0, 0, 0, 0, 1, 1, 1, 1]);
 }
 
 #[tokio::test(start_paused = true)]
@@ -383,7 +395,7 @@ async fn b13_a_stream_that_stays_open_and_the_first_open_ask_for_nothing() {
     let all = watching_everything().await;
     // A handoff: the state never leaves open.
     all.transport.set_state(ConnectionState::Open);
-    assert_eq!(all.more().await, [0; 9]);
+    assert_eq!(all.more().await, [0; 10]);
 
     // A client whose stream opens for the first time missed nothing either.
     let transport = FaultyTransport::answering(vec![], answers(&[]));
@@ -406,11 +418,12 @@ async fn b13_a_gap_the_gateway_could_not_replay_asks_again_for_what_is_held_of_t
             json!({ "scope": "res-1", "lastSeenId": "p-res-1-4", "reason": "retention-exceeded" }),
         ),
     );
-    assert_eq!(all.more().await, [1, 0, 1, 1, 1, 1, 0, 0, 0]);
+    assert_eq!(all.more().await, [1, 0, 1, 1, 1, 1, 0, 0, 0, 0]);
     for read in [
         "browse:resource-requested",
         "browse:annotations-requested",
         "browse:events-requested",
+        "gather:referenced-by-requested",
     ] {
         assert_eq!(asked_of(&all.transport, read, "res-2"), 1, "{read}");
     }
@@ -425,7 +438,7 @@ async fn an_event_that_was_missed_or_cannot_be_read_asks_again_for_everything_he
         "mark:added",
         object(json!({ "resourceId": 7 })),
     );
-    assert_eq!(all.more().await, [2, 1, 2, 2, 2, 2, 1, 1, 1]);
+    assert_eq!(all.more().await, [2, 1, 2, 2, 2, 2, 1, 1, 1, 1]);
 
     let all = watching_everything().await;
     for _ in 0..(STREAM_BACKLOG + 10) {
@@ -537,7 +550,7 @@ async fn b13b_a_body_update_that_carries_the_annotation_writes_it_and_asks_only_
         serde_json::to_value(&listed[0]).expect("it serializes")["body"]["value"],
         json!("as the event says")
     );
-    assert_eq!(all.more().await, [0, 0, 0, 0, 1, 0, 0, 0, 0]);
+    assert_eq!(all.more().await, [0, 0, 0, 0, 1, 0, 0, 0, 0, 0]);
 }
 
 #[tokio::test(start_paused = true)]
@@ -552,7 +565,7 @@ async fn a_body_update_that_does_not_carry_the_annotation_asks_again_for_it() {
             json!({}),
         ),
     );
-    assert_eq!(all.more().await, [0, 0, 1, 1, 1, 0, 0, 0, 0]);
+    assert_eq!(all.more().await, [0, 0, 1, 1, 1, 0, 0, 0, 0, 0]);
 }
 
 // ── B19: the refetches one key is asked for fold into one per window ────
@@ -643,7 +656,7 @@ async fn watching_a_query_of_a_resource_holds_its_scope_and_a_one_shot_read_hold
     assert_eq!(transport.holds(&as_id("res-1")), 1);
     let resource = client.browse.resource(&as_id("res-1")).watch();
     let events = client.browse.events(&as_id("res-1")).watch();
-    let referenced = client.browse.referenced_by(&as_id("res-1")).watch();
+    let referenced = client.gather.referenced_by(&as_id("res-1")).watch();
     let annotation = client
         .browse
         .annotation(&as_id("res-1"), &as_id("ann-1"))
@@ -675,6 +688,10 @@ async fn a_query_of_the_knowledge_base_as_a_whole_holds_no_scope() {
     let (client, transport) = world();
     let _watching = (
         client.browse.resources(ResourceFilters::default()).watch(),
+        client
+            .match_
+            .resources("cat", ResourceFilters::default())
+            .watch(),
         client.browse.entity_types().watch(),
         client.browse.tag_schemas().watch(),
         client.browse.agents().watch(),
@@ -709,6 +726,269 @@ async fn a_list_is_kept_per_set_of_filters_and_every_list_held_is_asked_for_agai
     );
     tokio::time::sleep(WINDOW * 3).await;
     assert_eq!(asked(&transport, ["browse:resources-requested"]), [4]);
+}
+
+// ── Searches, by their text and their filters ───────────────────────────
+
+/// What each search asked the knowledge base, in order.
+fn searched(transport: &FaultyTransport) -> Vec<Value> {
+    transport
+        .request_log()
+        .iter()
+        .filter(|entry| entry.channel == "match:resources-requested")
+        .map(|entry| Value::Object(entry.payload.clone()))
+        .collect()
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_search_asks_for_its_text_among_the_resources_its_filters_admit() {
+    let (client, transport) = world();
+    let found = client
+        .match_
+        .resources("cat", ResourceFilters::default())
+        .fresh()
+        .await
+        .expect("an answer");
+    // The answer whole: the page, and which kind of answer it is.
+    assert_eq!(
+        serde_json::to_value(&found).expect("it serializes"),
+        json!({ "resources": [], "total": 1.0, "offset": 0.0, "limit": 100.0, "matchKind": "semantic" })
+    );
+    let _ = client
+        .match_
+        .resources(
+            "cat",
+            ResourceFilters {
+                limit: Some(5),
+                archived: Some(false),
+                entity_type: Some("Person".to_owned()),
+            },
+        )
+        .fresh()
+        .await;
+    assert_eq!(
+        searched(&transport),
+        [
+            json!({ "search": "cat", "limit": 100, "offset": 0 }),
+            json!({ "search": "cat", "archived": false, "entityType": "Person", "limit": 5, "offset": 0 }),
+        ]
+    );
+    // A list is asked for with no text, and of another operation.
+    let _ = client
+        .browse
+        .resources(ResourceFilters::default())
+        .fresh()
+        .await;
+    assert_eq!(
+        transport
+            .request_log()
+            .iter()
+            .filter(|entry| entry.channel == "browse:resources-requested")
+            .map(|entry| Value::Object(entry.payload.clone()))
+            .collect::<Vec<_>>(),
+        [json!({ "limit": 100, "offset": 0 })]
+    );
+}
+
+/// A watcher of three searches, two of them the same: of one text, of that
+/// text among people, and of another text.
+async fn searching() -> (
+    Arc<SemiontClient>,
+    FaultyTransport,
+    Vec<Observed<MatchResourcesResponse>>,
+) {
+    let (client, transport) = world();
+    let people = || ResourceFilters {
+        entity_type: Some("Person".to_owned()),
+        ..ResourceFilters::default()
+    };
+    let mut watching = vec![
+        client
+            .match_
+            .resources("cat", ResourceFilters::default())
+            .watch(),
+        client.match_.resources("cat", people()).watch(),
+        client
+            .match_
+            .resources("dog", ResourceFilters::default())
+            .watch(),
+        client
+            .match_
+            .resources("cat", ResourceFilters::default())
+            .watch(),
+    ];
+    for watcher in &mut watching {
+        assert!(holds(watcher).await.is_ready());
+    }
+    assert_eq!(
+        asked(&transport, ["match:resources-requested"]),
+        [3],
+        "one ask per search and set of filters"
+    );
+    (client, transport, watching)
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_search_is_kept_per_text_and_set_of_filters_and_every_search_held_is_asked_for_again_as_one()
+ {
+    let (client, transport, mut watching) = searching().await;
+    // The two watchers of one search are shown one answer.
+    let first = client
+        .match_
+        .resources("cat", ResourceFilters::default())
+        .fresh()
+        .await
+        .expect("an answer");
+    assert_eq!(
+        holds(&mut watching[0]).await,
+        CacheState::Ready(first.clone())
+    );
+    assert_eq!(holds(&mut watching[3]).await, CacheState::Ready(first));
+    let before = asked(&transport, ["match:resources-requested"])[0];
+
+    // Three resources created inside one window: each search is asked for
+    // again at once, and once more when the window closes.
+    for created in ["res-5", "res-6", "res-7"] {
+        heard(
+            &client,
+            "yield:created",
+            recorded(created, json!({}), json!({})),
+        );
+    }
+    settle().await;
+    assert_eq!(
+        asked(&transport, ["match:resources-requested"]),
+        [before + 3],
+        "at once"
+    );
+    tokio::time::sleep(WINDOW * 3).await;
+    assert_eq!(
+        asked(&transport, ["match:resources-requested"]),
+        [before + 6]
+    );
+    let again = searched(&transport);
+    for search in [
+        json!({ "search": "cat", "limit": 100, "offset": 0 }),
+        json!({ "search": "cat", "entityType": "Person", "limit": 100, "offset": 0 }),
+        json!({ "search": "dog", "limit": 100, "offset": 0 }),
+    ] {
+        assert_eq!(
+            again[before..]
+                .iter()
+                .filter(|asked| **asked == search)
+                .count(),
+            2,
+            "{search}"
+        );
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn b13_a_stream_that_reopens_asks_again_for_every_search_held() {
+    let (_client, transport, _watching) = searching().await;
+    transport.set_state(ConnectionState::Reconnecting);
+    settle().await;
+    transport.set_state(ConnectionState::Open);
+    tokio::time::sleep(WINDOW * 3).await;
+    assert_eq!(asked(&transport, ["match:resources-requested"]), [6]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn b20_an_event_asks_for_no_search_when_none_is_held() {
+    let (client, transport) = world();
+    let _list = client.browse.resources(ResourceFilters::default()).watch();
+    settle().await;
+    heard(
+        &client,
+        "yield:created",
+        recorded("res-5", json!({}), json!({})),
+    );
+    tokio::time::sleep(WINDOW * 3).await;
+    assert_eq!(
+        asked(
+            &transport,
+            ["browse:resources-requested", "match:resources-requested"]
+        ),
+        [2, 0]
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_search_can_be_said_to_be_out_of_date_and_ends_with_its_client() {
+    let (client, transport) = world();
+    let search = client.match_.resources("cat", ResourceFilters::default());
+    let mut watcher = search.watch();
+    assert!(holds(&mut watcher).await.is_ready());
+    search.invalidate();
+    settle().await;
+    assert_eq!(asked(&transport, ["match:resources-requested"]), [2]);
+
+    client.close().await;
+    while tokio::time::timeout(Duration::from_secs(1), watcher.next())
+        .await
+        .expect("a closed client's watcher ends")
+        .is_some()
+    {}
+    heard(
+        &client,
+        "yield:created",
+        recorded("res-5", json!({}), json!({})),
+    );
+    tokio::time::sleep(WINDOW * 3).await;
+    assert_eq!(asked(&transport, ["match:resources-requested"]), [2]);
+}
+
+// ── What refers to a resource ───────────────────────────────────────────
+
+#[tokio::test(start_paused = true)]
+async fn what_refers_to_a_resource_is_asked_of_the_gather_flow_by_the_resource_alone() {
+    let (client, transport) = world();
+    let referring = client
+        .gather
+        .referenced_by(&as_id("res-1"))
+        .fresh()
+        .await
+        .expect("an answer");
+    assert!(referring.is_empty());
+    let log = transport.request_log();
+    let asked: Vec<(&str, Value)> = log
+        .iter()
+        .map(|entry| (entry.channel.as_str(), Value::Object(entry.payload.clone())))
+        .collect();
+    assert_eq!(
+        asked,
+        [(
+            "gather:referenced-by-requested",
+            json!({ "resourceId": "res-1" })
+        )]
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn b13_a_gap_asks_again_for_what_refers_to_the_resource_it_names_and_to_no_other() {
+    let (client, transport) = world();
+    let _watching = (
+        client.gather.referenced_by(&as_id("res-1")).watch(),
+        client.gather.referenced_by(&as_id("res-2")).watch(),
+    );
+    settle().await;
+    let gap = |scope: &str| {
+        object(json!({ "scope": scope, "lastSeenId": "p-4", "reason": "retention-exceeded" }))
+    };
+    heard(&client, "bus:resume-gap", gap("res-1"));
+    // A resource nobody asked about: nothing is held of it (B20).
+    heard(&client, "bus:resume-gap", gap("res-3"));
+    tokio::time::sleep(WINDOW * 3).await;
+    let of = |resource| asked_of(&transport, "gather:referenced-by-requested", resource);
+    assert_eq!((of("res-1"), of("res-2"), of("res-3")), (2, 1, 0));
+
+    // And a stream that reopens asks for none of them: a scope's events are
+    // replayed, or a gap says they could not be.
+    transport.set_state(ConnectionState::Reconnecting);
+    settle().await;
+    transport.set_state(ConnectionState::Open);
+    tokio::time::sleep(WINDOW * 3).await;
+    assert_eq!(asked(&transport, ["gather:referenced-by-requested"]), [3]);
 }
 
 // ── The collaborator directory ──────────────────────────────────────────

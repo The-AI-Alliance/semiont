@@ -24,7 +24,8 @@ use crate::errors::SemiontError;
 use crate::event_bus::EventBus;
 use crate::namespaces::{
     AuthNamespace, BeckonNamespace, BindNamespace, BrowseNamespace, FrameNamespace,
-    GatherNamespace, JobNamespace, MarkNamespace, MatchNamespace, SystemNamespace, YieldNamespace,
+    GatherNamespace, JobNamespace, MarkNamespace, MatchNamespace, Refresher, SystemNamespace,
+    YieldNamespace,
 };
 use crate::storage::SessionStorage;
 use crate::timing::{BUS_REQUEST_TIMEOUT, INVALIDATION_WINDOW, JOB_SILENCE, JOB_STATUS_POLL};
@@ -129,6 +130,8 @@ impl Links {
 pub struct SemiontClient {
     transport: Arc<dyn Transport>,
     own: EventBus,
+    /// What keeps the queries of `browse`, `gather` and `match_` true.
+    refresher: Arc<Refresher>,
     /// The vocabulary: what kinds of things exist.
     pub frame: FrameNamespace,
     /// Reads, and this viewer's own signals.
@@ -137,9 +140,11 @@ pub struct SemiontClient {
     pub mark: MarkNamespace,
     /// Linking a reference to what it refers to.
     pub bind: BindNamespace,
-    /// Assembling the context a model is given.
+    /// Assembling the context a model is given, and what refers to a
+    /// resource.
     pub gather: GatherNamespace,
-    /// Searching for what a reference could refer to.
+    /// Searching: for what a reference could refer to, and for resources
+    /// by text.
     pub match_: MatchNamespace,
     /// Creating resources.
     pub yield_: YieldNamespace,
@@ -169,19 +174,23 @@ impl SemiontClient {
             own: own.clone(),
             timing: options.timing,
         };
+        let browse = BrowseNamespace::new(
+            links.clone(),
+            content.clone(),
+            options.cache_persistence.as_ref(),
+        );
+        let gather = GatherNamespace::new(links.clone());
+        let match_ = MatchNamespace::new(links.clone());
         SemiontClient {
             transport,
             own,
+            refresher: Refresher::new(&links, &browse, &gather, &match_),
             frame: FrameNamespace::new(links.clone()),
-            browse: BrowseNamespace::new(
-                links.clone(),
-                content.clone(),
-                options.cache_persistence.as_ref(),
-            ),
+            browse,
             mark: MarkNamespace::new(links.clone()),
             bind: BindNamespace::new(links.clone()),
-            gather: GatherNamespace::new(links.clone()),
-            match_: MatchNamespace::new(links.clone()),
+            gather,
+            match_,
             yield_: YieldNamespace::new(links.clone(), content),
             beckon: BeckonNamespace::new(links.clone()),
             job: JobNamespace::new(links),
@@ -224,7 +233,10 @@ impl SemiontClient {
     /// every stream ends and every request still pending fails as closed;
     /// then the client's own bus ends. Closing twice is closing once.
     pub async fn close(&self) {
+        self.refresher.dispose();
         self.browse.dispose();
+        self.gather.dispose();
+        self.match_.dispose();
         self.transport.close().await;
         self.own.destroy();
     }

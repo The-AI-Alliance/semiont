@@ -1,59 +1,20 @@
-// @semiont/make-meaning - Making meaning from resources
-// Transforms raw resources into meaningful, interconnected knowledge
+// @semiont/make-meaning — the services that keep, index and find a knowledge
+// base's contents. Each runs from its own entry point (`./archivist-main`,
+// `./librarian-main`, `./smelter-main`, `./weaver-main`); what is exported
+// here is what a caller composing its own process builds from.
 
-// Service (primary export)
-export { startMakeMeaning } from './service';
-export type { MakeMeaningService, MakeMeaningConfig } from './service';
-
-// The Archivist's address, and the byte read that rides it, live in
-// `@semiont/content`: the Worker needs them too, and `make-meaning` depends on
-// `jobs`, so a shared fact has to sit under both.
 export { makeMeaningConfigFrom, requireKBName } from './config';
+export type { MakeMeaningConfig } from './config';
 
-// Knowledge System
-export type { KnowledgeSystem } from './knowledge-system';
-export { stopKnowledgeSystem } from './knowledge-system';
-
-// Local transport (in-process ITransport / IContentTransport for the SemiontClient)
-export { LocalTransport, type LocalTransportConfig } from './local-transport';
-export { LocalContentTransport } from './local-content-transport';
-// In-process BusRequestPrimitive over a raw EventBus — callers beside the
-// bus they ask (e.g. the entity-type bootstrap, the Archivist's recording
-// upload) share busRequest's correlated request/reply path.
+// In-process BusRequestPrimitive over a raw EventBus.
 export { asBusRequestPrimitive } from './bus-request-local';
 
-// Bus command handlers — registered automatically by `startMakeMeaning`;
-// also exported individually for callers that bring their own bootstrap.
-export {
-  registerBusHandlers,
-  registerAnnotationAssemblyHandler,
-  registerAnnotationContextHandler,
-  registerGatherSummaryHandler,
-  registerBindUpdateBodyHandler,
-} from './handlers';
-
-// Bootstrap
-export { bootstrapEntityTypes } from './bootstrap/entity-types';
-
-// Views
-export { readEntityTypesProjection } from './views/entity-types-reader';
-
-// Knowledge Base
-export { createKnowledgeBase } from './knowledge-base';
-export type { KnowledgeBase } from './knowledge-base';
-
-// Actors
+// Librarian
 export { Gatherer } from './gatherer';
 export { Matcher } from './matcher';
-export { Stower } from './stower';
-export type { CreateResourceResult } from './stower';
-export { Browser } from './browser';
-export { CloneTokenManager } from './clone-token-manager';
+export { registerGatherSummaryHandler } from './handlers/gather-summary';
 
 // Smelter — event-to-vector pipeline plus its domain-event fan-in.
-// `smelter-main` (the standalone container entry point) wires the two together;
-// both are exported for callers that want to run the pipeline on top of their
-// own `BusRequestPrimitive`.
 export {
   Smelter,
   type ReconcileSummary,
@@ -68,17 +29,14 @@ export {
   type SmelterEvent,
 } from './smelter-fan-in';
 
-// Annotation operations
-export { AnnotationOperations } from './annotation-operations';
-export type { CreateAnnotationResult, UpdateAnnotationBodyResult } from './annotation-operations';
-
-// Context assembly exports
+// Context assembly
 export { ResourceContext } from './resource-context';
 export type { ListResourcesFilters, ListResourcesResult } from './resource-context';
 export { anchoredTextOverBus } from './anchored-text-ask';
 export type { AnchoredTextAsk } from './anchored-text-ask';
 export { AnnotationContext } from './annotation-context';
-export type { BuildContextOptions } from './annotation-context';
+export { AnnotationGather } from './annotation-gather';
+export type { BuildContextOptions } from './annotation-gather';
 export { GraphContext } from './graph-context';
 // The graph shape is the core/spec type `KnowledgeGraph` (`@semiont/core`).
 export { LLMContext } from './llm-context';

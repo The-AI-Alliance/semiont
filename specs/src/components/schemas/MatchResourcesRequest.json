@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "description": "Request to search the knowledge base's resources by text. The Librarian answers: it matches the text lexically, and when nothing matches, by meaning.",
+  "properties": {
+    "search": {
+      "type": "string",
+      "description": "The text to search for."
+    },
+    "archived": {
+      "type": "boolean"
+    },
+    "entityType": {
+      "type": "string"
+    },
+    "offset": {
+      "type": "integer"
+    },
+    "limit": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "search"
+  ]
+}

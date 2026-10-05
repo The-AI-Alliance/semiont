@@ -117,7 +117,7 @@ This makes the views layer the third leg of a symmetric pattern: the three deriv
 | Vectors (Qdrant) | `Smelter.reconcile()`, against the catalog | `@semiont/make-meaning` |
 | Materialized views | `ViewManager.rebuildAll(eventLog)` | `@semiont/event-sourcing` |
 
-Each runs in its own service: the Archivist calls `rebuildAll` before it serves a request, the Weaver catches up in `weaver-main`, and the Smelter reconciles in `smelter-main`. `createKnowledgeBase` calls `rebuildAll` the same way for an in-process composition.
+Each runs in its own service: the Archivist calls `rebuildAll` before it serves a request, the Weaver catches up in `weaver-main`, and the Smelter reconciles in `smelter-main`.
 
 `rebuildAll` accepts any object satisfying the `RebuildEventSource` structural type (`getEvents(rid)` + `getAllResourceIds()`); the concrete `EventLog` satisfies it without an explicit conformance declaration.
 

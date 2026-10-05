@@ -7,9 +7,8 @@
  * one behaviour.
  */
 
-import { getResourceEntityTypes, getStorageUri } from '@semiont/core';
+import { compareByRecencyThenId, getResourceEntityTypes, getStorageUri } from '@semiont/core';
 import type { ResourceDescriptor, ResourceFilter } from '@semiont/core';
-import { compareByRecencyThenId } from './interface';
 
 /**
  * Split a query into the terms every match must satisfy. Blank input yields no

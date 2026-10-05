@@ -52,12 +52,107 @@ func TestBrowseSendsItsFilters(t *testing.T) {
 	defer restore()
 	fake.Replies["browse:resources-requested"] = reply(`{"resources":[],"total":0}`)
 
-	harness.CaptureStdout(t, func() { Browse([]string{"--limit", "5", "--search", "clause"}) })
+	harness.CaptureStdout(t, func() { Browse([]string{"--limit", "5", "--entity-type", "Contract"}) })
 	if len(fake.Requests) != 1 {
 		t.Fatalf("want 1 request, got %v", fake.Ops())
 	}
 	got := bustest.JSON(fake.Requests[0].Payload)
-	harness.MustContainAll(t, "request payload", got, `"limit":5`, `"search":"clause"`)
+	harness.MustContainAll(t, "request payload", got, `"limit":5`, `"entityType":"Contract"`)
+}
+
+// Text search is `match --search`; the listing takes no text.
+func TestBrowseHasNoSearchFlag(t *testing.T) {
+	fake, restore := withFake(t)
+	defer restore()
+
+	out, errOut := harness.CaptureOutput(t, func() {
+		if code := Browse([]string{"--search", "clause"}); code == 0 {
+			t.Fatal("must refuse")
+		}
+	})
+	harness.MustContainAll(t, "refusal", out+errOut, "Unknown argument: --search")
+	if len(fake.Requests) != 0 {
+		t.Errorf("a refused argument still reached the wire: %v", fake.Ops())
+	}
+}
+
+// ── match ───────────────────────────────────────────────────────────────
+
+func TestMatchSearchAsksTheResourceSearch(t *testing.T) {
+	fake, restore := withFake(t)
+	defer restore()
+	fake.Replies["match:resources-requested"] = reply(`{"resources":[` +
+		`{"@id":"res-7","name":"Acme MSA","entityTypes":["Contract"]}],` +
+		`"total":3,"offset":0,"limit":5,"matchKind":"lexical"}`)
+
+	out := harness.CaptureStdout(t, func() {
+		if code := Match([]string{"--search", "indemnity clause", "--limit", "5", "--entity-type", "Contract"}); code != 0 {
+			t.Fatalf("match --search: exit %d", code)
+		}
+	})
+	if ops := fake.Ops(); len(ops) != 1 || ops[0] != "match:resources-requested" {
+		t.Fatalf("want exactly match:resources-requested, got %v", ops)
+	}
+	got := bustest.JSON(fake.Requests[0].Payload)
+	harness.MustContainAll(t, "request payload", got,
+		`"search":"indemnity clause"`, `"limit":5`, `"entityType":"Contract"`)
+	harness.MustContainAll(t, "table", out, "res-7", "Acme MSA", "Contract", "1 shown, 3 total")
+}
+
+func TestMatchSearchLimitDefaultsToTwenty(t *testing.T) {
+	fake, restore := withFake(t)
+	defer restore()
+	fake.Replies["match:resources-requested"] = reply(`{"resources":[],"total":0,"offset":0,"limit":20,"matchKind":"lexical"}`)
+
+	out := harness.CaptureStdout(t, func() { Match([]string{"--search", "clause"}) })
+	if len(fake.Requests) != 1 {
+		t.Fatalf("want 1 request, got %v", fake.Ops())
+	}
+	harness.MustContainAll(t, "request payload", bustest.JSON(fake.Requests[0].Payload), `"limit":20`)
+	harness.MustContainAll(t, "empty page", out, "No resources match.")
+}
+
+func TestMatchSearchJSONCarriesTheMatchKind(t *testing.T) {
+	fake, restore := withFake(t)
+	defer restore()
+	fake.Replies["match:resources-requested"] = reply(`{"resources":[],"total":0,"offset":0,"limit":20,"matchKind":"semantic"}`)
+
+	out := harness.CaptureStdout(t, func() {
+		if code := Match([]string{"--search", "clause", "--json"}); code != 0 {
+			t.Fatalf("match --search --json: exit %d", code)
+		}
+	})
+	harness.MustContainAll(t, "raw reply", out, `"response"`, `"matchKind":"semantic"`)
+}
+
+func TestMatchRefusalsInProcess(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{"neither form", nil, []string{"--search <text>", "<resourceId> <annotationId>"}},
+		{"half an annotation", []string{"res-1"}, []string{"--search <text>", "<resourceId> <annotationId>", "got 1"}},
+		{"both forms", []string{"res-1", "ann-1", "--search", "clause"}, []string{"--search <text>", "<resourceId> <annotationId>", "Pick one"}},
+		{"search with one positional", []string{"--search", "clause", "res-1"}, []string{"Pick one"}},
+		{"empty text", []string{"--search", ""}, []string{"--search wants the text"}},
+		{"--no-semantic with --search", []string{"--search", "clause", "--no-semantic"}, []string{"--no-semantic only applies"}},
+		{"--entity-type with an annotation", []string{"res-1", "ann-1", "--entity-type", "Contract"}, []string{"--entity-type only applies with --search"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			fake, restore := withFake(t)
+			defer restore()
+			out, errOut := harness.CaptureOutput(t, func() {
+				if code := Match(c.args); code == 0 {
+					t.Fatal("must refuse")
+				}
+			})
+			harness.MustContainAll(t, "refusal", out+errOut, c.want...)
+			if len(fake.Requests) != 0 {
+				t.Errorf("a refused argument still reached the wire: %v", fake.Ops())
+			}
+		})
+	}
 }
 
 func TestBrowseBrowserSignalsWithoutReadingInProcess(t *testing.T) {

@@ -1260,24 +1260,6 @@ func (e LimitRefusalCode) Valid() bool {
 	}
 }
 
-// Defines values for ListResourcesResponseMatchKind.
-const (
-	Lexical  ListResourcesResponseMatchKind = "lexical"
-	Semantic ListResourcesResponseMatchKind = "semantic"
-)
-
-// Valid indicates whether the value is a known member of the ListResourcesResponseMatchKind enum.
-func (e ListResourcesResponseMatchKind) Valid() bool {
-	switch e {
-	case Lexical:
-		return true
-	case Semantic:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for LogFormat.
 const (
 	Json   LogFormat = "json"
@@ -1353,6 +1335,24 @@ func (e MarkAssistRequestEventOptionsTone) Valid() bool {
 	case Scholarly:
 		return true
 	case Technical:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MatchResourcesResponseMatchKind.
+const (
+	Lexical  MatchResourcesResponseMatchKind = "lexical"
+	Semantic MatchResourcesResponseMatchKind = "semantic"
+)
+
+// Valid indicates whether the value is a known member of the MatchResourcesResponseMatchKind enum.
+func (e MatchResourcesResponseMatchKind) Valid() bool {
+	switch e {
+	case Lexical:
+		return true
+	case Semantic:
 		return true
 	default:
 		return false
@@ -2418,19 +2418,6 @@ type BrowsePanelToggleEvent struct {
 	Panel string `json:"panel"`
 }
 
-// BrowseReferencedByRequest Request to browse annotations that reference a resource
-type BrowseReferencedByRequest struct {
-	Motivation *string `json:"motivation,omitempty"`
-
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
-	ResourceId ResourceId `json:"resourceId"`
-}
-
-// BrowseReferencedByResult Result of browsing annotations that reference a resource
-type BrowseReferencedByResult struct {
-	Response GetReferencedByResponse `json:"response"`
-}
-
 // BrowseResourceCloseEvent Emitted when a resource is closed in the browse panel
 type BrowseResourceCloseEvent struct {
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
@@ -2472,7 +2459,6 @@ type BrowseResourcesRequest struct {
 	EntityType *string `json:"entityType,omitempty"`
 	Limit      *int    `json:"limit,omitempty"`
 	Offset     *int    `json:"offset,omitempty"`
-	Search     *string `json:"search,omitempty"`
 }
 
 // BrowseResourcesResult Result of browsing resources
@@ -3101,6 +3087,19 @@ type GatherFailed struct {
 
 // GatherFailedCode Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
 type GatherFailedCode string
+
+// GatherReferencedByRequest Request for the annotations elsewhere that refer to a resource. The Librarian answers from the graph.
+type GatherReferencedByRequest struct {
+	Motivation *string `json:"motivation,omitempty"`
+
+	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	ResourceId ResourceId `json:"resourceId"`
+}
+
+// GatherReferencedByResult The annotations elsewhere that refer to a resource
+type GatherReferencedByResult struct {
+	Response GetReferencedByResponse `json:"response"`
+}
 
 // GatherResourceComplete Completion payload emitted on the gather:resource-complete bus channel when resource context gathering finishes.
 type GatherResourceComplete struct {
@@ -4341,17 +4340,11 @@ type LimitRefusalCode string
 
 // ListResourcesResponse defines model for ListResourcesResponse.
 type ListResourcesResponse struct {
-	Limit float32 `json:"limit"`
-
-	// MatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index. Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
-	MatchKind ListResourcesResponseMatchKind `json:"matchKind"`
-	Offset    float32                        `json:"offset"`
-	Resources []ResourceDescriptor           `json:"resources"`
-	Total     float32                        `json:"total"`
+	Limit     float32              `json:"limit"`
+	Offset    float32              `json:"offset"`
+	Resources []ResourceDescriptor `json:"resources"`
+	Total     float32              `json:"total"`
 }
-
-// ListResourcesResponseMatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index. Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
-type ListResourcesResponseMatchKind string
 
 // LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
 type LogFormat string
@@ -4544,6 +4537,37 @@ type MarkUpdateEntityTypesCommand struct {
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
 	ResourceId         ResourceId `json:"resourceId"`
 	UpdatedEntityTypes []string   `json:"updatedEntityTypes"`
+}
+
+// MatchResourcesRequest Request to search the knowledge base's resources by text. The Librarian answers: it matches the text lexically, and when nothing matches, by meaning.
+type MatchResourcesRequest struct {
+	Archived   *bool   `json:"archived,omitempty"`
+	EntityType *string `json:"entityType,omitempty"`
+	Limit      *int    `json:"limit,omitempty"`
+	Offset     *int    `json:"offset,omitempty"`
+
+	// Search The text to search for.
+	Search string `json:"search"`
+}
+
+// MatchResourcesResponse One page of the resources a text search found, and which kind of answer it is.
+type MatchResourcesResponse struct {
+	Limit float32 `json:"limit"`
+
+	// MatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index. Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
+	MatchKind MatchResourcesResponseMatchKind `json:"matchKind"`
+	Offset    float32                         `json:"offset"`
+	Resources []ResourceDescriptor            `json:"resources"`
+	Total     float32                         `json:"total"`
+}
+
+// MatchResourcesResponseMatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index. Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
+type MatchResourcesResponseMatchKind string
+
+// MatchResourcesResult Result of searching resources by text
+type MatchResourcesResult struct {
+	// Response One page of the resources a text search found, and which kind of answer it is.
+	Response MatchResourcesResponse `json:"response"`
 }
 
 // MatchSearchFailed Error payload emitted on match:search-failed SSE channel.

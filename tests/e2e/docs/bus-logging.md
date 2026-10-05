@@ -31,20 +31,16 @@ lists the three.
 
 Instrumentation lives at `ITransport` and `IContentTransport` — the
 transport contract layer — not at any single implementation. Every
-event flows through one of these regardless of whether the bytes move
-over HTTP+SSE or stay in-process.
+event flows through one of these.
 
 | Op     | Site                                                         |
 |--------|--------------------------------------------------------------|
 | `EMIT` | `HttpTransport.emit()` (http-transport)                          |
-| `EMIT` | `LocalTransport.emit()` (make-meaning)                       |
 | `RECV` | HttpTransport's wire-parse (SSE-side fan-in inside actor-state-unit) |
-| `RECV` | `LocalTransport.bridgeInto` subscriber callback              |
 | `EMIT` | Gateway `/bus/emit` HTTP route                               |
 | `SSE`  | Gateway `Connection::deliver` in `apps/gateway/src/routes/stream.rs`|
 | `PUT`  | `HttpContentTransport.putBinary()`                           |
 | `GET`  | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching gateway route |
-| `GET`  | `LocalContentTransport.getBinary()` / `getBinaryStream()` (in-process)            |
 
 `ActorStateUnit` and namespace methods (`client.mark.assist`, etc.) are
 **not** choke points. Namespace methods ride on top of the transport;

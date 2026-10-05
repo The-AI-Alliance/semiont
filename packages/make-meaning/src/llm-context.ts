@@ -2,7 +2,7 @@
  * LLM Context
  *
  * Builds comprehensive context for LLM processing of resources
- * Orchestrates: ResourceContext, GraphContext, AnnotationContext, and generation functions
+ * Orchestrates: ResourceContext, GraphContext and generation functions
  */
 
 import { ResourceContext } from './resource-context';
@@ -24,8 +24,7 @@ import type { ResourceDescriptor } from '@semiont/core';
 /**
  * What the resource-gather path reads — the graph builder's slice plus this
  * module's own reads, content keyed by resource id. Pick-derived, never
- * restated. In-process roots satisfy it with `workingTreeContentReads` over
- * their `kb`; the Librarian passes `archivistContentReads`.
+ * restated. The Librarian passes `archivistContentReads`.
  */
 export interface ResourceGatherReads {
   views: Pick<ViewStorage, 'get'>;

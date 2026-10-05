@@ -84,7 +84,7 @@ await graph.connect();
 
 ### In-memory
 
-The contract in one process's memory, for tests. The Weaver, the Archivist and the Librarian refuse it, because it could not be shared between them.
+The contract in one process's memory, for tests. The Weaver and the Librarian refuse it, because it could not be shared between them.
 
 ```typescript
 import { MemoryGraphDatabase } from '@semiont/graph';

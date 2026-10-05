@@ -73,9 +73,9 @@ describe('lazy: the fetch belongs to the first subscription, not the call', () =
   });
 });
 
-describe('uniform identity: per-key, including the withScope-wrapped accessors', () => {
+describe('uniform identity: per-key, including the scope-acquiring accessors', () => {
   it('resource()/annotations()/referencedBy()/events() return the SAME observable per key', () => {
-    // withScope memoizes per-source (`scopedSources`), so identity is
+    // The scope wrapper memoizes per source (`ScopedSources`), so identity is
     // uniform across scoped and un-scoped accessors, and laziness does not
     // change it. This test is the standing measurement.
     const { client } = createTestClient({ transport: { makeResponse: RESPONSES } });
@@ -84,7 +84,7 @@ describe('uniform identity: per-key, including the withScope-wrapped accessors',
 
     expect(client.browse.resource(rid)).toBe(client.browse.resource(rid));
     expect(client.browse.annotations(rid)).toBe(client.browse.annotations(rid));
-    expect(client.browse.referencedBy(rid)).toBe(client.browse.referencedBy(rid));
+    expect(client.gather.referencedBy(rid)).toBe(client.gather.referencedBy(rid));
     expect(client.browse.events(rid)).toBe(client.browse.events(rid));
     // Distinct keys stay distinct.
     expect(client.browse.resource(rid)).not.toBe(client.browse.resource(other));

@@ -28,11 +28,12 @@ This architecture leverages RxJS EventBus for event routing, eliminates callback
 - ❌ NO JSX rendering
 - ❌ NO manual event forwarding (the ActorStateUnit bridge is EventBus-native)
 
-**Implementation**: subscribe to the resource's `browse.*(resourceId)` live queries.
+**Implementation**: subscribe to the resource's live queries.
 
 The page state unit (`resource-viewer-page-state-unit`) builds its
 annotations, events, and referencedBy list states with `trackList` over
-`client.browse.*(resourceId)`. **Freshness follows observation**:
+`client.browse.annotations`, `client.browse.events` and
+`client.gather.referencedBy`. **Freshness follows observation**:
 subscribing to any of them acquires the resource's SSE scope (ref-counted
 across all of them), and the last unsubscribe releases it. There is no
 explicit `subscribeToResource` call.
@@ -42,7 +43,7 @@ explicit `subscribeToResource` call.
 // tracks, each through trackList, which exposes it as a ListState (value$, loading$, error$):
 const annotations = client.browse.annotations(resourceId);     // CacheObservable<Annotation[]>
 const events = client.browse.events(resourceId);               // CacheObservable<AttributedEvent[]>
-const referencedBy = client.browse.referencedBy(resourceId);   // CacheObservable<ReferencedByEntry[]>
+const referencedBy = client.gather.referencedBy(resourceId);   // CacheObservable<ReferencedByEntry[]>
 // Subscribing to any of these (from Layer 2 / Layer 3) keeps the resource
 // scope live; dropping the last subscriber releases it on teardown.
 ```

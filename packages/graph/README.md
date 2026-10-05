@@ -13,11 +13,9 @@ The knowledge graph of a knowledge base: its resources and annotations as nodes 
 Each service connects from its own entry point in [`@semiont/make-meaning`](../make-meaning/README.md), with `getGraphDatabase()`:
 
 - **The Weaver** is the one writer. It projects the record's events into the graph.
-- **The Archivist and the Librarian** read it: what refers to a resource, resources by name or entity type, the Matcher's candidates, and the neighbourhood a gathered context includes.
+- **The Librarian** reads it: what refers to a resource, resources by text, the Matcher's candidates, and the neighbourhood a gathered context includes.
 
-`startMakeMeaning()` connects the same way in one process, for scripts and tests.
-
-**Building an application?** You do not need this package. An application asks those questions through [`@semiont/sdk`](../sdk/README.md): `browse.referencedBy`, `browse.resources`, `match.search` and `gather`.
+**Building an application?** You do not need this package. An application asks those questions through [`@semiont/sdk`](../sdk/README.md): `gather.referencedBy`, `match.resources`, `match.search` and `gather`.
 
 ## What is in it
 
@@ -29,7 +27,6 @@ Each service connects from its own entry point in [`@semiont/make-meaning`](../m
 | `NeptuneGraphDatabase`, `JanusGraphDatabase` | The same contract over Gremlin |
 | `MemoryGraphDatabase` | The contract in one process's memory, for tests |
 | `intendedGraphAnnotation(annotation)` | What the graph should hold for an annotation. The graph stores what its queries need and no more, so this, and not a view, is what a check of the graph compares against |
-| `compareByRecencyThenId` | The order every listing of resources carries: newest first, ties broken by id, so that paging neither repeats nor drops a row |
 
 A database's driver is an optional peer dependency, installed by whoever uses it: `neo4j-driver` for Neo4j, and `gremlin` for Neptune and JanusGraph.
 
@@ -60,7 +57,7 @@ const { resources } = await graph.listResources({ entityTypes: ['Person'] });
 - **Writes are idempotent and take any order.** Events for different resources reach the graph in no fixed order, so a write never assumes the thing it points at is there yet. The Neo4j store is built that way, and [Architecture](docs/ARCHITECTURE.md#writes-that-take-any-order) says how. The Gremlin stores are not.
 - **Reading a single document needs no graph.** A resource, its annotations and their changes come from the record's views. The graph answers what crosses documents, and a reader degrades, rather than fails, when it lags.
 - **Callers never ask which database they hold.** They are written to `GraphDatabase`.
-- **A memory graph is for one process.** The Weaver, the Archivist and the Librarian refuse it, because it could not be shared between them.
+- **A memory graph is for one process.** The Weaver and the Librarian refuse it, because it could not be shared between them.
 
 ## Documentation
 

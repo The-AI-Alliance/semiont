@@ -12,6 +12,7 @@ function mockBrowse(): ShellStateUnit {
   return { dispose: vi.fn() } as unknown as ShellStateUnit;
 }
 
+/** What either query was asked: `search` is set when `match.resources()` asked it. */
 interface BrowseFilters {
   limit?: number;
   archived?: boolean;
@@ -23,7 +24,7 @@ function mockClient(overrides: {
   resources$?: BehaviorSubject<unknown[] | undefined>;
   entityTypes$?: BehaviorSubject<string[] | undefined>;
   resourcesFn?: (filters: BrowseFilters) => BehaviorSubject<unknown[] | undefined>;
-  /** What the stubbed list envelope reports as its match kind. */
+  /** What the stubbed search envelope reports as its match kind. */
   matchKind?: 'lexical' | 'semantic';
 } = {}): { client: SemiontClient; resourceCalls: BrowseFilters[] } {
   const resourceCalls: BrowseFilters[] = [];
@@ -34,17 +35,22 @@ function mockClient(overrides: {
 
   const resourcesFn = overrides.resourcesFn ?? (() => defaultResources$);
 
+  // Arrays get the envelope the query emits; explicit status objects (B15
+  // fixtures) and `undefined` pass through.
+  const asked = (filters: BrowseFilters, envelope: (page: unknown[]) => unknown) => {
+    resourceCalls.push(filters);
+    return asStates(resourcesFn(filters).asObservable().pipe(map((v) => (Array.isArray(v) ? envelope(v) : v))));
+  };
+
   const client = {
     browse: {
-      resources: (filters: BrowseFilters = {}) => {
-        resourceCalls.push(filters);
-        return asStates(resourcesFn(filters).asObservable().pipe(
-          // Arrays get the list envelope `resources()` emits; explicit
-          // status objects (B15 fixtures) and `undefined` pass through.
-          map((v) => (Array.isArray(v) ? { resources: v, total: v.length, offset: 0, limit: 20, matchKind: overrides.matchKind ?? 'lexical' } : v)),
-        ));
-      },
+      resources: (filters: Omit<BrowseFilters, 'search'> = {}) =>
+        asked(filters, (page) => ({ resources: page, total: page.length, offset: 0, limit: 20 })),
       entityTypes: () => asStates(entityTypes$.asObservable()),
+    },
+    match: {
+      resources: (search: string, filters: Omit<BrowseFilters, 'search'> = {}) =>
+        asked({ search, ...filters }, (page) => ({ resources: page, total: page.length, offset: 0, limit: 20, matchKind: overrides.matchKind ?? 'lexical' })),
     },
   } as unknown as SemiontClient;
 

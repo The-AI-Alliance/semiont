@@ -25,7 +25,7 @@ upload body (`ResourceUpload`) is one schema that both documents' `POST
   gateway's: every operation says whether it is public, every response has a
   body schema, every error is an `ErrorResponse`, every 401 carries its
   challenge, every operation declares a 500.
-- The Archivist (`packages/make-meaning/src/archivist-read-path.ts`): its
+- The Archivist (`packages/make-meaning/src/archivist/archivist-read-path.ts`): its
   tests check every reply against this document, and fail when an operation
   here is not exercised.
 - The gateway conformance suite's stand-in Archivist

@@ -426,6 +426,22 @@
       "direction": "inbound",
       "delivery": "correlated"
     },
+    "match:resources-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "match:resources-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "match:resources-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
     "match:limits-requested": {
       "recorded": false,
       "direction": "outbound",
@@ -486,6 +502,22 @@
       "delivery": "correlated"
     },
     "gather:summary-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "gather:referenced-by-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false,
+      "delivery": "passing"
+    },
+    "gather:referenced-by-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "gather:referenced-by-failed": {
       "recorded": false,
       "direction": "inbound",
       "delivery": "correlated"
@@ -630,22 +662,6 @@
       "delivery": "correlated"
     },
     "browse:annotation-context-failed": {
-      "recorded": false,
-      "direction": "inbound",
-      "delivery": "correlated"
-    },
-    "browse:referenced-by-requested": {
-      "recorded": false,
-      "direction": "outbound",
-      "writes": false,
-      "delivery": "passing"
-    },
-    "browse:referenced-by-result": {
-      "recorded": false,
-      "direction": "inbound",
-      "delivery": "correlated"
-    },
-    "browse:referenced-by-failed": {
       "recorded": false,
       "direction": "inbound",
       "delivery": "correlated"

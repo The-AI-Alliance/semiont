@@ -33,12 +33,7 @@
  */
 
 import { replyChannelsFor, type BusOperationKey, type EventMap } from '@semiont/core';
-import { MATCHER_CHANNELS } from './matcher';
-import { GATHERER_CHANNELS } from './gatherer';
 import type { AnchoredTextAskAwaits } from './anchored-text-ask';
-import { STOWER_CHANNELS } from './stower';
-import { BROWSER_CHANNELS } from './browser';
-import { CLONE_TOKEN_CHANNELS } from './clone-token-manager';
 import type {
   SmelterResourceReadAwaits,
   SmelterAnnotationsReadAwaits,
@@ -103,8 +98,39 @@ export const weaverAwaitCensus: [WeaverAwaitCensusDrift] extends [never]
 // ── Librarian ────────────────────────────────────────────────────────
 
 /**
- * The actors' rosters (each pinned to its actor's real subscriptions by a
- * census gate), the gather-summary handler's channel, and the two progress
+ * The request channels Matcher subscribes to — the Librarian's inbound wire
+ * roster for this actor. Pinned to `initialize()`'s actual subscriptions by
+ * the census gate in librarian-decoupling.test.ts.
+ */
+export const MATCHER_CHANNELS = [
+  'match:search-requested',
+  'match:limits-requested',
+] as const satisfies readonly (keyof EventMap)[];
+
+/**
+ * The request channels Gatherer subscribes to — the Librarian's inbound wire
+ * roster for this actor. Pinned to `initialize()`'s actual subscriptions by
+ * the census gate in gatherer-decoupling.test.ts.
+ */
+export const GATHERER_CHANNELS = [
+  'gather:requested',
+  'gather:resource-requested',
+  'gather:limits-requested',
+] as const satisfies readonly (keyof EventMap)[];
+
+/**
+ * The request channels the retrieval handlers subscribe, spread into the
+ * Librarian's inbound roster; the census gate in resource-retrieval.test.ts
+ * pins it to their subscriptions.
+ */
+export const RETRIEVAL_HANDLER_CHANNELS = [
+  'match:resources-requested',
+  'gather:referenced-by-requested',
+] as const satisfies readonly (keyof EventMap)[];
+
+/**
+ * The actors' rosters and the retrieval handlers' (each pinned to its real
+ * subscriptions by a census gate), the gather-summary handler's channel, and the two progress
  * SIGNALS the local folds consume (`weave:applied` for the graph grace,
  * `smelt:settled` for the settle barrier). Signals have no BUS_OPERATIONS
  * entries, so the outbound derivation ignores them and nothing echoes. The
@@ -114,6 +140,7 @@ export const weaverAwaitCensus: [WeaverAwaitCensusDrift] extends [never]
 export const LIBRARIAN_INBOUND_CHANNELS = [
   ...MATCHER_CHANNELS,
   ...GATHERER_CHANNELS,
+  ...RETRIEVAL_HANDLER_CHANNELS,
   'gather:summary-requested',
   'weave:applied',
   'smelt:settled',
@@ -146,6 +173,47 @@ export const librarianAwaitCensus: [LibrarianAwaitCensusDrift] extends [never]
   : LibrarianAwaitCensusDrift = 'in-census';
 
 // ── Archivist ────────────────────────────────────────────────────────
+
+/**
+ * The command channels Stower subscribes to — the Archivist's inbound wire
+ * roster for this actor. Pinned to `initialize()`'s actual subscriptions by
+ * the census gate in archivist-decoupling.test.ts: grow one, and the gate
+ * fails until the other moves with it.
+ */
+export const STOWER_CHANNELS = [
+  'yield:create', 'yield:clone-persist', 'yield:update', 'yield:mv',
+  'mark:create', 'mark:commit', 'mark:delete', 'mark:update-body',
+  'frame:add-entity-type', 'frame:add-tag-schema',
+  // Gateway-emitted when a person ACTS — a write, never mere presence —
+  // carrying the name it verified. Declared, not bridged: no client
+  // consumes it.
+  'person:profile',
+  'mark:archive', 'mark:unarchive', 'mark:update-entity-types',
+  'job:start', 'job:assign', 'job:complete', 'job:fail',
+] as const satisfies readonly (keyof EventMap)[];
+
+/**
+ * The request channels Browser subscribes to — the Archivist's inbound wire
+ * roster for this actor. Pinned to `initialize()`'s actual subscriptions by
+ * the census gate in archivist-decoupling.test.ts.
+ */
+export const BROWSER_CHANNELS = [
+  'browse:resource-requested', 'browse:anchored-text-requested',
+  'browse:resources-requested', 'browse:annotations-requested',
+  'browse:annotation-requested', 'browse:events-requested',
+  'browse:annotation-history-requested',
+  'browse:entity-types-requested', 'browse:tag-schemas-requested',
+  'browse:agents-requested', 'browse:kb-requested', 'browse:directory-requested',
+] as const satisfies readonly (keyof EventMap)[];
+
+/**
+ * The command channels CloneTokenManager subscribes to — the Archivist's
+ * inbound wire roster for this actor. Pinned to `initialize()`'s actual
+ * subscriptions by the census gate in archivist-decoupling.test.ts.
+ */
+export const CLONE_TOKEN_CHANNELS = [
+  'yield:clone-token-requested', 'yield:clone-resource-requested', 'yield:clone-create',
+] as const satisfies readonly (keyof EventMap)[];
 
 /**
  * Everything the actors subscribe to (each roster pinned by a census gate),

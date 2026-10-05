@@ -106,8 +106,8 @@ const INDEXING_TIMEOUT = 120_000;
 async function semanticSearch(
   client: SemiontClient,
 ): Promise<Array<ResourceDescriptor & { content?: string }>> {
-  return (await client.browse
-    .resources({ search: BODY_QUERY })
+  return (await client.match
+    .resources(BODY_QUERY)
     .fresh()).resources as Array<ResourceDescriptor & { content?: string }>;
 }
 
@@ -147,12 +147,12 @@ test.describe.serial('semantic fallback answers what lexical search cannot', () 
    */
   test('a name search still answers lexically (control)', async () => {
     await expect
-      .poll(async () => (await client.browse.resources({ search: RESOURCE_NAME }).fresh()).resources.length, {
+      .poll(async () => (await client.match.resources(RESOURCE_NAME).fresh()).resources.length, {
         timeout: INDEXING_TIMEOUT,
       })
       .toBeGreaterThan(0);
 
-    const { resources: hits } = await client.browse.resources({ search: RESOURCE_NAME }).fresh();
+    const { resources: hits } = await client.match.resources(RESOURCE_NAME).fresh();
     expect(
       hits.some((r) => r['@id'] === rid),
       'the seeded resource is findable by name — lexical search is intact and the fallback did not displace it',
@@ -225,13 +225,13 @@ test.describe.serial('semantic fallback answers what lexical search cannot', () 
       .poll(async () => (await semanticSearch(client)).length, { timeout: INDEXING_TIMEOUT })
       .toBeGreaterThan(0);
 
-    const semantic = await client.browse.resources({ search: BODY_QUERY }).fresh();
+    const semantic = await client.match.resources(BODY_QUERY).fresh();
     expect(
       semantic.matchKind,
       'a body-only phrase can only have been answered by the fallback, and must say so',
     ).toBe('semantic');
 
-    const lexical = await client.browse.resources({ search: RESOURCE_NAME }).fresh();
+    const lexical = await client.match.resources(RESOURCE_NAME).fresh();
     expect(
       lexical.matchKind,
       'a name hit never reaches the fallback — labelling it semantic would make the notice a lie',

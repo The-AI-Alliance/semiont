@@ -11,7 +11,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { loadTomlConfig } from '@semiont/core';
-import { deriveAgentRoster } from '../agent-roster';
+import { deriveAgentRoster } from '../archivist/agent-roster';
 import { rosterConfigFrom, type MakeMeaningConfig } from '../config';
 
 const WORKERS = { default: { type: 'anthropic' as const, model: 'claude-haiku-4-5' } };

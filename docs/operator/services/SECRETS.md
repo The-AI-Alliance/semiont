@@ -180,7 +180,7 @@ Anthropic key in `[inference]` reaches the librarian and the worker, and no othe
 the only services that call a model, so they are also the ones that report each model's limits
 (context window, output ceiling); the archivist lists the collaborator directory without a key.
 A daemon's password reaches the services that connect to that daemon: Neo4j's goes to the
-services that read `[graph]` (the archivist, librarian and weaver), and the broker's pair goes to
+services that read `[graph]` (the librarian and the weaver), and the broker's pair goes to
 the dispatcher, which reads `[jobs]`, and to the gateway when its signal plane is the broker.
 
 **Never on a command line.** A container is started with `--env NAME` alone, and the value

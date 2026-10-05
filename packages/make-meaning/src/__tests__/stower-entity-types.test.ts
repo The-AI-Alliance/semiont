@@ -18,12 +18,9 @@ import { filter, map, take } from 'rxjs/operators';
 import { EventBus, resourceId, userId, type Logger, type ResourceId } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { getGraphDatabase } from '@semiont/graph';
-import type { GraphServiceConfig } from '@semiont/core';
-import { Stower } from '../stower';
-import { createKnowledgeBase } from '../knowledge-base';
+import { Stower } from '../archivist/stower';
+import { WorkingTreeStore } from '@semiont/content';
 import { createTestProject } from './helpers/test-project';
-import { createVectorStore } from '@semiont/vectors';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -47,8 +44,7 @@ describe('Stower mark:update-entity-types vocabulary gate', () => {
 
     eventBus = new EventBus();
     eventStore = createEventStore(project, eventBus, mockLogger);
-    const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    const kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger, { vectorStore: await createVectorStore({ type: 'memory', dimensions: async () => 4 }) });
+    const kb = { eventStore: eventStore, content: new WorkingTreeStore(project, mockLogger) };
     stower = new Stower(kb, eventBus, project, mockLogger);
     await stower.initialize();
 

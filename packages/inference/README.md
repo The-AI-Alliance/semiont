@@ -15,8 +15,6 @@ Two of Semiont's services hold a model credential, and only they create clients:
 - the [Worker](../../apps/worker/README.md), through [`@semiont/jobs`](../jobs/README.md): one client for each model its job types are configured with;
 - the [Librarian](../../apps/librarian/README.md), through [`@semiont/make-meaning`](../make-meaning/README.md): one for the Matcher and one for the Gatherer.
 
-`startMakeMeaning()` creates the Librarian's two in one process, for scripts and tests.
-
 **Building an application?** You do not need this package. An application asks a knowledge base to do the inference, through [`@semiont/sdk`](../sdk/README.md): `mark.assist`, `yield.fromContext`, `gather` and `match`.
 
 ## What is in it

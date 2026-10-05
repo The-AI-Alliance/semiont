@@ -138,6 +138,21 @@ impl Args {
     fn options(&self) -> Map<String, Value> {
         self.0.get("options").map(object).unwrap_or_default()
     }
+
+    /// The filters a list or a search is given. A filter this SDK has no
+    /// field for fails the case rather than going unsent.
+    fn filters(&self) -> ResourceFilters {
+        let mut filters = ResourceFilters::default();
+        for (name, stated) in self.0.get("filters").map(object).unwrap_or_default() {
+            match name.as_str() {
+                "limit" => filters.limit = stated.as_i64(),
+                "archived" => filters.archived = stated.as_bool(),
+                "entityType" => filters.entity_type = stated.as_str().map(str::to_owned),
+                other => panic!("the case filters by {other}, which ResourceFilters has not"),
+            }
+        }
+        filters
+    }
 }
 
 /// Every method this SDK's client has, as the table names them.
@@ -156,7 +171,6 @@ const METHODS: &[(&str, &[&str])] = &[
             "entityTypes",
             "tagSchemas",
             "agents",
-            "referencedBy",
             "events",
             "resourceContent",
             "resourceGraph",
@@ -190,8 +204,8 @@ const METHODS: &[(&str, &[&str])] = &[
         ],
     ),
     ("bind", &["body", "initiate", "reportBodyError"]),
-    ("gather", &["annotation", "resource"]),
-    ("match", &["search", "requestSearch"]),
+    ("gather", &["annotation", "resource", "referencedBy"]),
+    ("match", &["search", "requestSearch", "resources"]),
     (
         "yield",
         &[
@@ -259,22 +273,7 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
             .browse
             .resource(&as_id(&args.text("resourceId")))
             .fresh()),
-        ("browse", "resources") => {
-            let stated = args.0.get("filters").map(object).unwrap_or_default();
-            let filters = ResourceFilters {
-                limit: stated.get("limit").and_then(Value::as_i64),
-                archived: stated.get("archived").and_then(Value::as_bool),
-                search: stated
-                    .get("search")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned),
-                entity_type: stated
-                    .get("entityType")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned),
-            };
-            go!(client.browse.resources(filters).fresh())
-        }
+        ("browse", "resources") => go!(client.browse.resources(args.filters()).fresh()),
         ("browse", "annotations") => {
             go!(client
                 .browse
@@ -291,12 +290,6 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
         ("browse", "entityTypes") => go!(client.browse.entity_types().fresh()),
         ("browse", "tagSchemas") => go!(client.browse.tag_schemas().fresh()),
         ("browse", "agents") => go!(client.browse.agents().fresh()),
-        ("browse", "referencedBy") => {
-            go!(client
-                .browse
-                .referenced_by(&as_id(&args.text("resourceId")))
-                .fresh())
-        }
         ("browse", "events") => go!(client
             .browse
             .events(&as_id(&args.text("resourceId")))
@@ -431,6 +424,12 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
             let options = serde_json::from_value(Value::Object(options)).expect("gather options");
             go!(client.gather.resource(&as_id(&resource_id), options))
         }
+        ("gather", "referencedBy") => {
+            go!(client
+                .gather
+                .referenced_by(&as_id(&args.text("resourceId")))
+                .fresh())
+        }
 
         ("match", "search") => {
             let mut request = json!({
@@ -445,6 +444,10 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
         ("match", "requestSearch") => client
             .match_
             .request_search(args.typed("input"), &args.text("correlationId")),
+        ("match", "resources") => go!(client
+            .match_
+            .resources(&args.text("search"), args.filters())
+            .fresh()),
 
         ("yield", "resource") => {
             let data = object(&args.0["data"]);

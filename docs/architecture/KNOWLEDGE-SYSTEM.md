@@ -51,13 +51,10 @@ graph TB
     ARCH -->|ro| ANCH
 
     WEAVE --> NEO
-    ARCH --> NEO
     LIB --> NEO
     SMELT --> QD
-    ARCH --> QD
     LIB --> QD
     SMELT --> OL
-    ARCH --> OL
     LIB --> OL
 
     classDef svc fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
@@ -104,19 +101,19 @@ The single write gateway. Bus commands (`mark:create`, `mark:commit`, `yield:cre
 
 ### Browser (archivist)
 
-The read actor for deterministic single-index queries — resources, annotations, events, history, referenced-by, entity-type and tag-schema listings, the collaborator directory, directory browse — plus the semantic fallback when lexical search finds nothing. Multi-source fusion belongs to the Matcher. Directory browse prefix-scans the views and merges untracked entries, under a path-confinement invariant: every resolved path stays within `project.root`.
+The read actor for the record — resources, annotations, events, history, entity-type and tag-schema listings, the collaborator directory, directory browse — answered from the event log, the materialized views and the working tree. Anything that needs the graph, the vector index or an embedding is retrieval, and the librarian's. Directory browse prefix-scans the views and merges untracked entries, under a path-confinement invariant: every resolved path stays within `project.root`.
 
 ### CloneTokenManager (archivist)
 
-The clone-token lifecycle in the yield flow: issue a 15-minute in-memory token, validate it, create the clone through the normal write path. Tokens never touch durable storage — losing them on restart is harmless. That expiry is written down here and nowhere else; it is the `expiresAt` literal in [`clone-token-manager.ts`](../../packages/make-meaning/src/clone-token-manager.ts) — check this paragraph against that literal, not against another document.
+The clone-token lifecycle in the yield flow: issue a 15-minute in-memory token, validate it, create the clone through the normal write path. Tokens never touch durable storage — losing them on restart is harmless. That expiry is written down here and nowhere else; it is the `expiresAt` literal in [`clone-token-manager.ts`](../../packages/make-meaning/src/archivist/clone-token-manager.ts) — check this paragraph against that literal, not against another document.
 
 ### Gatherer (librarian)
 
-Context assembly for the gather flows: queries views, graph, and vectors, reads content bytes from the archivist, and emits the assembled context back onto the bus for the Generator and Linker Agents.
+Context assembly for the gather flows: queries views, graph, and vectors, reads content bytes from the archivist, and emits the assembled context back onto the bus for the Generator and Linker Agents. Beside it the librarian answers `gather:referenced-by-requested` from the graph: the annotations elsewhere that refer to a resource.
 
 ### Matcher (librarian)
 
-Candidate search and scoring for the match flow: retrieves candidates by name, entity types, graph neighborhood, and vector similarity, scores them against the supplied `GatheredContext`, and emits ranked results. The **bind** that records a chosen referent is a write, handled through the Stower.
+Candidate search and scoring for the match flow: retrieves candidates by name, entity types, graph neighborhood, and vector similarity, scores them against the supplied `GatheredContext`, and emits ranked results. The **bind** that records a chosen referent is a write, handled through the Stower. Beside it the librarian answers `match:resources-requested`, a search of resources by text: lexically in the graph, and through the vector index when nothing matches by text.
 
 ### Weaver (projection pipeline)
 

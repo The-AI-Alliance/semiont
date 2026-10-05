@@ -4,47 +4,44 @@
 //! report among them going over the wire.
 //!
 //! What keeps a query true is specs/src/client/refresh.json
-//! (`crate::refresh`): each event on the bus, and the reopening of a dropped
-//! stream, asks again for the queries its row names, writes the ones whose
-//! new value the event carries, and ends the ones whose entity is gone. This
-//! module states only what each event names: its resource, its annotation,
-//! the value it carries. An event acts only on a key the cache holds, and
-//! the refetches one key is asked for inside a window are one refetch
+//! (`crate::refresh`), which the client's refresher applies to the caches
+//! here (`super::refresher`): each event on the bus, and the reopening of a
+//! dropped stream, asks again for the queries its row names, writes the ones
+//! whose new value the event carries, and ends the ones whose entity is gone
 //! (docs/protocol/CACHE-SEMANTICS.md B12–B13b, B19, B20).
 
-use crate::bus::{LIMITS_OPERATIONS, Operation, StreamError, operation};
+use super::refresher::Subject;
+use crate::bus::{LIMITS_OPERATIONS, Operation, operation};
 use crate::cache::{
     Cache, CacheKey, CachePersister, CacheState, CacheValue, MAX_STORED_BYTES, SAVE_DEBOUNCE,
     StoragePersister,
 };
-use crate::cached::{Cached, Observed, Source};
+use crate::cached::{Cached, Keyed, Observed, Source};
 use crate::channels::{
-    self, BrowseAgentsRequested, BrowseAnchoredTextRequested, BrowseAnnotationHistoryRequested,
+    BrowseAgentsRequested, BrowseAnchoredTextRequested, BrowseAnnotationHistoryRequested,
     BrowseAnnotationRequested, BrowseAnnotationsRequested, BrowseClick, BrowseDirectoryRequested,
-    BrowseEntityTypesRequested, BrowseEventsRequested, BrowseKbRequested,
-    BrowseReferencedByRequested, BrowseResourceOpen, BrowseResourceRequested, BrowseResourceViewed,
-    BrowseResourcesRequested, BrowseTagSchemasRequested, Channel,
+    BrowseEntityTypesRequested, BrowseEventsRequested, BrowseKbRequested, BrowseResourceOpen,
+    BrowseResourceRequested, BrowseResourceViewed, BrowseResourcesRequested,
+    BrowseTagSchemasRequested,
 };
 use crate::client::{CachePersistence, Links};
 use crate::errors::{
     BusRequestError, BusRequestErrorCode, SemiontError, TransportError, TransportErrorCode,
 };
 use crate::locked;
-use crate::refresh::{CacheQuery, Reach, RefreshTrigger, RefreshWhen};
+use crate::refresh::CacheQuery;
 use crate::state_unit::StateUnit;
-use crate::transport::{
-    BoxFuture, ConnectionState, Content, ContentStream, ContentTransport, Envelope, Transport,
-};
+use crate::transport::{BoxFuture, Content, ContentStream, ContentTransport, Envelope};
 use crate::types::{
     Agent, AnchoredTextAnswer, Annotation, AttributedEvent, BrowseAgentsRequest,
     BrowseAnchoredTextRequest, BrowseAnnotationHistoryRequest, BrowseAnnotationRequest,
     BrowseAnnotationsRequest, BrowseClickEvent, BrowseDirectoryRequest, BrowseDirectoryRequestSort,
     BrowseDirectoryResultResponse, BrowseEntityTypesRequest, BrowseEventsRequest, BrowseKbRequest,
-    BrowseReferencedByRequest, BrowseResourceOpenEvent, BrowseResourceRequest,
-    BrowseResourceViewedEvent, BrowseResourcesRequest, BrowseTagSchemasRequest, CollaboratorEntry,
-    GetAnnotationHistoryResponse, GetAnnotationsResponse, GetReferencedByResponseReferencedByItem,
-    GetResourceResponse, InferenceLimits, InferenceLimitsResultResponse, InferencePairLimits,
-    KbDescription, ListResourcesResponse, ResourceDescriptor, StoredEventResponse, TagSchema,
+    BrowseResourceOpenEvent, BrowseResourceRequest, BrowseResourceViewedEvent,
+    BrowseResourcesRequest, BrowseTagSchemasRequest, CollaboratorEntry,
+    GetAnnotationHistoryResponse, GetAnnotationsResponse, GetResourceResponse, InferenceLimits,
+    InferenceLimitsResultResponse, InferencePairLimits, KbDescription, ListResourcesResponse,
+    ResourceDescriptor, TagSchema,
 };
 use crate::types::{AnnotationId, ResourceId};
 use futures_core::Stream;
@@ -55,32 +52,36 @@ use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
-use std::time::Duration;
-use tokio::sync::watch;
-use tokio::task::{AbortHandle, JoinSet};
 use tokio_stream::wrappers::WatchStream;
 
-/// How many resources a list asks for when its caller states no limit.
-/// Every SDK asks for as many: the cases of specs/src/client/surface.json
-/// hold each to it.
+/// How many resources a list or a search asks for when its caller states no
+/// limit. Every SDK asks for as many: the cases of
+/// specs/src/client/surface.json hold each to it.
 const LIST_LIMIT: i64 = 100;
 
 /// The key of a query the knowledge base has one of.
-const WHOLE: &str = "_";
+pub(super) const WHOLE: &str = "_";
 
 /// The version of what the persisted caches hold. A document of another
 /// version reads as nothing kept, so this changes when a kept value's shape
 /// does.
 const PERSISTED_VERSION: u64 = 1;
 
-/// Which resources a list is of. Each field that is stated narrows it.
+/// Which resources a list, or a search, is of. Each field that is stated
+/// narrows it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct ResourceFilters {
+    /// How many resources at most: a hundred when not stated.
     pub limit: Option<i64>,
     pub archived: Option<bool>,
-    /// Text to find. An empty search is no search.
-    pub search: Option<String>,
     pub entity_type: Option<String>,
+}
+
+impl ResourceFilters {
+    /// How many resources a request with these filters asks for.
+    pub(crate) fn limit(&self) -> i64 {
+        self.limit.unwrap_or(LIST_LIMIT)
+    }
 }
 
 /// One of the knowledge base's collaborators: its entry in the directory,
@@ -157,126 +158,24 @@ async fn limits_reported(links: &Links, operation: &Operation) -> Vec<InferenceP
         .unwrap_or_default()
 }
 
-// ── Windows ─────────────────────────────────────────────────────────────
+// ── The caches ──────────────────────────────────────────────────────────
 
-/// What a window still owes: the refetch asked for while it was open.
-type Owed = Box<dyn FnOnce() + Send>;
-
-struct Window {
-    owed: Option<Owed>,
-    closing: AbortHandle,
-}
-
-/// B19: per key, the first refetch an event asks for runs at once and opens
-/// a window; any more inside it are owed, and run as one when it closes,
-/// which opens the next. So a storm of events costs a refetch per key per
-/// window, and the last event is always reflected.
-struct Windows {
-    lasting: Duration,
-    /// `None` once disposed.
-    open: Mutex<Option<HashMap<String, Window>>>,
-}
-
-impl Windows {
-    fn run(self: &Arc<Self>, key: String, refetch: Owed) {
-        let mut open = locked(&self.open);
-        let Some(windows) = open.as_mut() else {
-            return;
-        };
-        if let Some(window) = windows.get_mut(&key) {
-            window.owed = Some(refetch);
-            return;
-        }
-        let these = Arc::downgrade(self);
-        let lasting = self.lasting;
-        let of = key.clone();
-        let closing = tokio::spawn(async move {
-            tokio::time::sleep(lasting).await;
-            let Some(these) = these.upgrade() else {
-                return;
-            };
-            let owed = locked(&these.open)
-                .as_mut()
-                .and_then(|windows| windows.remove(&of))
-                .and_then(|window| window.owed);
-            if let Some(owed) = owed {
-                these.run(of, owed);
-            }
-        })
-        .abort_handle();
-        windows.insert(
-            key,
-            Window {
-                owed: None,
-                closing,
-            },
-        );
-        drop(open);
-        refetch();
-    }
-
-    /// Every window closes, and what each owed is dropped.
-    fn dispose(&self) {
-        if let Some(windows) = locked(&self.open).take() {
-            for window in windows.into_values() {
-                window.closing.abort();
-            }
-        }
-    }
-}
-
-// ── The caches, and what refreshes them ─────────────────────────────────
-
-/// What an event names: which of a split channel's rows it is, the keys a
-/// row that reaches its `Subject` acts on, and the value an enriched event
-/// carries.
-#[derive(Default)]
-struct Subject {
-    when: Option<RefreshWhen>,
-    resource: Option<ResourceId>,
-    annotation: Option<AnnotationId>,
-    written: Option<Annotation>,
-}
-
-impl Subject {
-    fn of(resource: Option<ResourceId>) -> Subject {
-        Subject {
-            resource,
-            ..Subject::default()
-        }
-    }
-}
-
-struct Live {
-    resource: Cache<ResourceId, ResourceDescriptor>,
-    lists: Cache<ResourceFilters, ListResourcesResponse>,
-    annotations: Cache<ResourceId, GetAnnotationsResponse>,
-    annotation: Cache<AnnotationId, Annotation>,
+/// The caches the namespace's queries answer from.
+pub(super) struct Live {
+    pub(super) resource: Cache<ResourceId, ResourceDescriptor>,
+    pub(super) lists: Cache<ResourceFilters, ListResourcesResponse>,
+    pub(super) annotations: Cache<ResourceId, GetAnnotationsResponse>,
+    pub(super) annotation: Cache<AnnotationId, Annotation>,
     /// The resource each annotation that was asked for is of: an annotation
     /// is kept by its own id, and a request for it names its resource too.
-    annotation_of: Arc<Mutex<HashMap<AnnotationId, ResourceId>>>,
-    entity_types: Cache<String, Vec<String>>,
-    tag_schemas: Cache<String, Vec<TagSchema>>,
-    agents: Cache<String, Vec<CollaboratorEntry>>,
+    pub(super) annotation_of: Arc<Mutex<HashMap<AnnotationId, ResourceId>>>,
+    pub(super) entity_types: Cache<String, Vec<String>>,
+    pub(super) tag_schemas: Cache<String, Vec<TagSchema>>,
+    pub(super) agents: Cache<String, Vec<CollaboratorEntry>>,
     /// Each key holder's report of its models' limits, by the operation
     /// that asks it.
-    limits: Cache<&'static str, Vec<InferencePairLimits>>,
-    referenced_by: Cache<ResourceId, Vec<GetReferencedByResponseReferencedByItem>>,
-    events: Cache<ResourceId, Vec<AttributedEvent>>,
-    windows: Arc<Windows>,
-    /// What listens for each trigger, until the namespace is disposed.
-    listening: Mutex<JoinSet<()>>,
-}
-
-/// A cache that keeps nothing beyond its client.
-fn kept_in_memory<K, V, F, Fut>(fetch: F) -> Cache<K, V>
-where
-    K: CacheKey,
-    V: CacheValue,
-    F: Fn(K) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = Result<V, SemiontError>> + Send + 'static,
-{
-    Cache::new(fetch)
+    pub(super) limits: Cache<&'static str, Vec<InferencePairLimits>>,
+    pub(super) events: Cache<ResourceId, Vec<AttributedEvent>>,
 }
 
 /// A cache the client's storage keeps under `name`, when it has one: the
@@ -328,17 +227,16 @@ impl Live {
                 }
             }
         });
-        let lists = kept_in_memory({
+        let lists = Cache::new({
             let links = asking(links);
             move |filters: ResourceFilters| {
                 let links = links.clone();
                 async move {
                     let request = BrowseResourcesRequest {
-                        search: filters.search.filter(|text| !text.is_empty()),
+                        limit: Some(filters.limit()),
                         archived: filters.archived,
                         entity_type: filters.entity_type,
                         offset: Some(0),
-                        limit: Some(filters.limit.unwrap_or(LIST_LIMIT)),
                     };
                     let answer = links.request::<BrowseResourcesRequested>(&request).await?;
                     Ok(answer.response)
@@ -409,7 +307,7 @@ impl Live {
                 }
             }
         });
-        let agents = kept_in_memory({
+        let agents = Cache::new({
             let links = asking(links);
             move |_: String| {
                 let links = links.clone();
@@ -421,7 +319,7 @@ impl Live {
                 }
             }
         });
-        let limits = kept_in_memory({
+        let limits = Cache::new({
             let links = asking(links);
             move |holder: &'static str| {
                 let links = links.clone();
@@ -433,22 +331,7 @@ impl Live {
                 }
             }
         });
-        let referenced_by = kept_in_memory({
-            let links = asking(links);
-            move |resource_id: ResourceId| {
-                let links = links.clone();
-                async move {
-                    let answer = links
-                        .request::<BrowseReferencedByRequested>(&BrowseReferencedByRequest {
-                            resource_id,
-                            motivation: None,
-                        })
-                        .await?;
-                    Ok(answer.response.referenced_by)
-                }
-            }
-        });
-        let events = kept_in_memory({
+        let events = Cache::new({
             let links = asking(links);
             move |resource_id: ResourceId| {
                 let links = links.clone();
@@ -461,7 +344,7 @@ impl Live {
             }
         });
 
-        let live = Arc::new(Live {
+        Arc::new(Live {
             resource,
             lists,
             annotations,
@@ -471,192 +354,13 @@ impl Live {
             tag_schemas,
             agents,
             limits,
-            referenced_by,
             events,
-            windows: Arc::new(Windows {
-                lasting: links.timing.invalidation_window,
-                open: Mutex::new(Some(HashMap::new())),
-            }),
-            listening: Mutex::new(JoinSet::new()),
-        });
-        live.listen(links);
-        live
-    }
-
-    /// Listen for every trigger of the refresh table. Each arm states what
-    /// its event names, and a trigger with no arm does not compile.
-    fn listen(self: &Arc<Self>, links: &Links) {
-        let stored = |event: StoredEventResponse| Subject::of(event.resource_id);
-        for trigger in RefreshTrigger::ALL {
-            match trigger {
-                RefreshTrigger::Reopened => self.on_reopening(links.wire.transport().state()),
-                RefreshTrigger::BusResumeGap => {
-                    self.on::<channels::BusResumeGap>(links, *trigger, |gap| {
-                        Subject::of(ResourceId::new(gap.scope).ok())
-                    });
-                }
-                RefreshTrigger::MarkAdded => {
-                    self.on::<channels::MarkAdded>(links, *trigger, |event| {
-                        Subject::of(event.resource_id)
-                    });
-                }
-                RefreshTrigger::MarkRemoved => {
-                    self.on::<channels::MarkRemoved>(links, *trigger, |event| Subject {
-                        annotation: event
-                            .payload
-                            .get("annotationId")
-                            .and_then(|id| id.as_str())
-                            .and_then(|id| AnnotationId::new(id).ok()),
-                        ..Subject::of(event.resource_id)
-                    });
-                }
-                RefreshTrigger::MarkDeleteOk => {
-                    self.on::<channels::MarkDeleteOk>(links, *trigger, |reply| Subject {
-                        annotation: Some(reply.response.annotation_id),
-                        ..Subject::default()
-                    });
-                }
-                RefreshTrigger::MarkBodyUpdated => {
-                    self.on::<channels::MarkBodyUpdated>(links, *trigger, |event| {
-                        match event.annotation {
-                            Some(annotation) => Subject {
-                                when: Some(RefreshWhen::Enriched),
-                                resource: event.resource_id,
-                                annotation: Some(annotation.id.clone()),
-                                written: Some(annotation),
-                            },
-                            None => Subject {
-                                when: Some(RefreshWhen::Unenriched),
-                                resource: event.resource_id,
-                                annotation: event
-                                    .payload
-                                    .get("annotationId")
-                                    .and_then(|id| id.as_str())
-                                    .and_then(|id| AnnotationId::new(id).ok()),
-                                written: None,
-                            },
-                        }
-                    });
-                }
-                RefreshTrigger::MarkEntityTagAdded => {
-                    self.on::<channels::MarkEntityTagAdded>(links, *trigger, stored);
-                }
-                RefreshTrigger::MarkEntityTagRemoved => {
-                    self.on::<channels::MarkEntityTagRemoved>(links, *trigger, stored);
-                }
-                RefreshTrigger::MarkArchived => {
-                    self.on::<channels::MarkArchived>(links, *trigger, stored);
-                }
-                RefreshTrigger::MarkUnarchived => {
-                    self.on::<channels::MarkUnarchived>(links, *trigger, stored);
-                }
-                // What is heard by every client: its resource is the one it
-                // records, not a scope the client holds.
-                RefreshTrigger::YieldCreated => {
-                    self.on::<channels::YieldCreated>(links, *trigger, stored);
-                }
-                RefreshTrigger::YieldUpdated => {
-                    self.on::<channels::YieldUpdated>(links, *trigger, stored);
-                }
-                RefreshTrigger::YieldCloned => {
-                    self.on::<channels::YieldCloned>(links, *trigger, stored);
-                }
-                RefreshTrigger::YieldMoved => {
-                    self.on::<channels::YieldMoved>(links, *trigger, stored);
-                }
-                RefreshTrigger::FrameEntityTypeAdded => {
-                    self.on::<channels::FrameEntityTypeAdded>(links, *trigger, |_| {
-                        Subject::default()
-                    });
-                }
-                RefreshTrigger::FrameTagSchemaAdded => {
-                    self.on::<channels::FrameTagSchemaAdded>(links, *trigger, |_| {
-                        Subject::default()
-                    });
-                }
-            }
-        }
-    }
-
-    /// Apply `trigger`'s row to what each event on the channel `C` names.
-    fn on<C: Channel>(
-        self: &Arc<Self>,
-        links: &Links,
-        trigger: RefreshTrigger,
-        names: impl Fn(C::Payload) -> Subject + Send + 'static,
-    ) {
-        debug_assert_eq!(trigger.channel(), Some(C::NAME));
-        let mut events = links.own.stream::<C>();
-        let live = Arc::downgrade(self);
-        locked(&self.listening).spawn(async move {
-            while let Some(event) = events.next().await {
-                let Some(live) = live.upgrade() else {
-                    return;
-                };
-                match event {
-                    Ok(event) => live.refresh(trigger, &names(event.payload)),
-                    // An event that was missed, or one that cannot be read:
-                    // something changed and nothing says what. Everything
-                    // held is asked for again, as after a gap.
-                    Err(StreamError::Lagged(_) | StreamError::Undecodable(_)) => {
-                        live.everything_held();
-                    }
-                }
-            }
-        });
-    }
-
-    /// B13: the stream is open again having left `Open`, which only a drop
-    /// does. A changed subscription is handed over with the state still
-    /// `Open`, and misses nothing.
-    fn on_reopening(self: &Arc<Self>, mut state: watch::Receiver<ConnectionState>) {
-        let live = Arc::downgrade(self);
-        locked(&self.listening).spawn(async move {
-            let (mut opened, mut left) = (false, false);
-            loop {
-                // A reopening is seen as one because a transport waits on its
-                // connection between leaving `Open` and reaching it again,
-                // and this task runs in that wait.
-                if *state.borrow_and_update() == ConnectionState::Open {
-                    if left && let Some(live) = live.upgrade() {
-                        live.refresh(RefreshTrigger::Reopened, &Subject::default());
-                    }
-                    opened = true;
-                    left = false;
-                } else {
-                    left = opened;
-                }
-                if state.changed().await.is_err() {
-                    return;
-                }
-            }
-        });
-    }
-
-    fn refresh(self: &Arc<Self>, trigger: RefreshTrigger, subject: &Subject) {
-        let Some(row) = trigger.rows().iter().find(|row| row.when == subject.when) else {
-            return;
-        };
-        for query in row.writes {
-            self.write(*query, subject);
-        }
-        for query in row.removes {
-            self.remove(*query, subject);
-        }
-        for query in row.refetches {
-            self.refetch(*query, subject, row.reach);
-        }
-    }
-
-    fn everything_held(self: &Arc<Self>) {
-        for query in CacheQuery::ALL {
-            self.refetch(*query, &Subject::default(), Reach::Held);
-        }
+        })
     }
 
     /// B13b: the event carries the value. The table's own build refuses a
     /// row that writes a query no event carries a value for.
-    fn write(&self, query: CacheQuery, subject: &Subject) {
+    pub(super) fn write(&self, query: CacheQuery, subject: &Subject) {
         let (Some(resource), Some(written)) = (&subject.resource, &subject.written) else {
             return;
         };
@@ -682,7 +386,7 @@ impl Live {
 
     /// B13a: the event says the entity is gone. Only an annotation is ever
     /// said to be.
-    fn remove(&self, query: CacheQuery, subject: &Subject) {
+    pub(super) fn remove(&self, query: CacheQuery, subject: &Subject) {
         if let (CacheQuery::Annotation, Some(annotation)) = (query, &subject.annotation) {
             self.annotation_gone(annotation);
         }
@@ -705,107 +409,7 @@ impl Live {
         }
     }
 
-    /// Ask again for one key, when the cache holds it (B20), through the
-    /// key's window (B19).
-    fn again<K, V>(self: &Arc<Self>, cache: &Cache<K, V>, key: K, window: String)
-    where
-        K: CacheKey,
-        V: CacheValue,
-    {
-        if cache.known(&key) {
-            let cache = cache.clone();
-            self.windows
-                .run(window, Box::new(move || cache.invalidate(&key)));
-        }
-    }
-
-    /// B7: ask again, for the keys the row reaches, showing what there is
-    /// meanwhile.
-    fn refetch(self: &Arc<Self>, query: CacheQuery, subject: &Subject, reach: Reach) {
-        let reached = |held: Vec<ResourceId>| match reach {
-            Reach::Held => held,
-            Reach::Subject => subject.resource.iter().cloned().collect(),
-        };
-        match query {
-            CacheQuery::Resource => {
-                for id in reached(self.resource.keys()) {
-                    let window = format!("resource/{id}");
-                    self.again(&self.resource, id, window);
-                }
-            }
-            CacheQuery::Annotations => {
-                for id in reached(self.annotations.keys()) {
-                    let window = format!("annotations/{id}");
-                    self.again(&self.annotations, id, window);
-                }
-            }
-            CacheQuery::Events => {
-                for id in reached(self.events.keys()) {
-                    let window = format!("events/{id}");
-                    self.again(&self.events, id, window);
-                }
-            }
-            CacheQuery::ReferencedBy => {
-                for id in reached(self.referenced_by.keys()) {
-                    let window = format!("referenced-by/{id}");
-                    self.again(&self.referenced_by, id, window);
-                }
-            }
-            CacheQuery::Annotation => {
-                // The annotation the event names; when it names none, each
-                // one held of the resource it names.
-                let annotations = match (reach, &subject.annotation) {
-                    (Reach::Held, _) => self.annotation.keys(),
-                    (Reach::Subject, Some(annotation)) => vec![annotation.clone()],
-                    (Reach::Subject, None) => locked(&self.annotation_of)
-                        .iter()
-                        .filter(|(_, of)| Some(*of) == subject.resource.as_ref())
-                        .map(|(annotation, _)| annotation.clone())
-                        .collect(),
-                };
-                for id in annotations {
-                    let window = format!("annotation/{id}");
-                    self.again(&self.annotation, id, window);
-                }
-            }
-            // An event does not say which lists it changes, so every list
-            // the cache holds is asked for again, as one.
-            CacheQuery::Resources => {
-                let lists = self.lists.clone();
-                self.windows.run(
-                    "resource-lists".to_owned(),
-                    Box::new(move || lists.invalidate_all()),
-                );
-            }
-            CacheQuery::EntityTypes => {
-                self.again(
-                    &self.entity_types,
-                    WHOLE.to_owned(),
-                    "entity-types".to_owned(),
-                );
-            }
-            CacheQuery::TagSchemas => {
-                self.again(
-                    &self.tag_schemas,
-                    WHOLE.to_owned(),
-                    "tag-schemas".to_owned(),
-                );
-            }
-            CacheQuery::Agents => {
-                if self.agents.known(&WHOLE.to_owned()) {
-                    let (agents, limits) = (self.agents.clone(), self.limits.clone());
-                    self.windows.run(
-                        "agents".to_owned(),
-                        Box::new(move || invalidate_agents(&agents, &limits)),
-                    );
-                }
-            }
-        }
-    }
-
     fn dispose(&self) {
-        locked(&self.listening).abort_all();
-        self.windows.dispose();
         self.resource.dispose();
         self.lists.dispose();
         self.annotations.dispose();
@@ -814,7 +418,6 @@ impl Live {
         self.tag_schemas.dispose();
         self.agents.dispose();
         self.limits.dispose();
-        self.referenced_by.dispose();
         self.events.dispose();
         locked(&self.annotation_of).clear();
     }
@@ -827,7 +430,7 @@ impl Drop for Live {
 }
 
 /// The directory is out of date, and so is what each key holder reported.
-fn invalidate_agents(
+pub(super) fn invalidate_agents(
     agents: &Cache<String, Vec<CollaboratorEntry>>,
     limits: &Cache<&'static str, Vec<InferencePairLimits>>,
 ) {
@@ -838,65 +441,6 @@ fn invalidate_agents(
 }
 
 // ── What a query answers from ───────────────────────────────────────────
-
-/// A query answered by one key of one cache, as `view` shows its value.
-struct Keyed<K: CacheKey, V: CacheValue, T> {
-    cache: Cache<K, V>,
-    key: K,
-    view: fn(V) -> T,
-    /// The resource the query is of, and what holds its scope while the
-    /// query is watched.
-    scope: Option<(Arc<dyn Transport>, ResourceId)>,
-}
-
-struct Viewed<V, T> {
-    states: WatchStream<CacheState<V>>,
-    view: fn(V) -> T,
-}
-
-impl<V: CacheValue, T> Stream for Viewed<V, T> {
-    type Item = CacheState<T>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let view = self.view;
-        Pin::new(&mut self.states)
-            .poll_next(cx)
-            .map(|state| state.map(|state| state.map(view)))
-    }
-}
-
-impl<K, V, T> Source<T> for Keyed<K, V, T>
-where
-    K: CacheKey,
-    V: CacheValue,
-    T: 'static,
-{
-    fn fresh(&self) -> BoxFuture<'static, Result<T, SemiontError>> {
-        let fetching = self.cache.fetch(&self.key);
-        let view = self.view;
-        Box::pin(async move { fetching.await.map(view) })
-    }
-
-    fn watch(&self) -> Observed<T> {
-        // The scope first, so the events that refresh the key are already
-        // coming when its value arrives.
-        let scope = self
-            .scope
-            .as_ref()
-            .map(|(transport, resource_id)| transport.subscribe_to_resource(resource_id));
-        Observed::new(
-            Viewed {
-                states: self.cache.observe(&self.key),
-                view: self.view,
-            },
-            scope,
-        )
-    }
-
-    fn invalidate(&self) {
-        self.cache.invalidate(&self.key);
-    }
-}
 
 /// The collaborator directory with each key holder's limits joined on.
 struct Collaborators {
@@ -1048,7 +592,7 @@ const NOT_DECODED: &str = "and only UTF-8 is decoded without the `charsets` feat
 pub struct BrowseNamespace {
     links: Links,
     content: Arc<dyn ContentTransport>,
-    live: Arc<Live>,
+    pub(super) live: Arc<Live>,
 }
 
 impl BrowseNamespace {
@@ -1074,8 +618,8 @@ impl BrowseNamespace {
             || live.tag_schemas.persistence_pending())
     }
 
-    /// End the queries: every watcher's stream ends, what was owed to
-    /// storage is saved, and no event refreshes anything after.
+    /// End the queries: every watcher's stream ends, and what was owed to
+    /// storage is saved.
     pub(crate) fn dispose(&self) {
         self.live.dispose();
     }
@@ -1120,11 +664,11 @@ impl BrowseNamespace {
         self.of_resource(&self.live.resource, resource_id, resource_id, |value| value)
     }
 
-    /// A page of the resources `filters` admits, with how the answer was
-    /// produced. A list is a query's answer: it is asked for again when a
-    /// resource is created, updated, cloned or moved, and when a dropped
-    /// stream reopens, and not by a change to a resource whose scope the
-    /// client does not hold.
+    /// A page of the resources `filters` admits. A list is a query's answer:
+    /// it is asked for again when a resource is created, updated, cloned or
+    /// moved, and when a dropped stream reopens, and not by a change to a
+    /// resource whose scope the client does not hold. Finding resources by
+    /// text is `match_.resources`.
     pub fn resources(&self, filters: ResourceFilters) -> Cached<ListResourcesResponse> {
         Cached::of(Keyed {
             cache: self.live.lists.clone(),
@@ -1167,18 +711,6 @@ impl BrowseNamespace {
             agents: self.live.agents.clone(),
             limits: self.live.limits.clone(),
         })
-    }
-
-    pub fn referenced_by(
-        &self,
-        resource_id: &ResourceId,
-    ) -> Cached<Vec<GetReferencedByResponseReferencedByItem>> {
-        self.of_resource(
-            &self.live.referenced_by,
-            resource_id,
-            resource_id,
-            |value| value,
-        )
     }
 
     pub fn events(&self, resource_id: &ResourceId) -> Cached<Vec<AttributedEvent>> {

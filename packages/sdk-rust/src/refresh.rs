@@ -2,8 +2,9 @@
 //! specs/src/client/refresh.json, the table every SDK applies: a row per
 //! trigger, saying which live queries it asks again for (`refetches`), which
 //! it writes with the value the event carries (`writes`), and which it ends,
-//! their entity being gone (`removes`). `crate::namespaces::BrowseNamespace`
-//! applies it, and states for itself only what each event names.
+//! their entity being gone (`removes`). A client applies it to the queries
+//! of its `browse`, `gather` and `match_` namespaces, and states for itself
+//! only what each event names and which namespace answers each query.
 
 /// Which of a split channel's two kinds of event a row is for: one that
 /// carries the annotation as it now is, or one that could not.

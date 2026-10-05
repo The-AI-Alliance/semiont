@@ -21,15 +21,15 @@ promoting ~18 of that package's internals to public API to satisfy a directory l
 
 Change the CMD only against that file.
 
-The image also bundles `neo4j-driver`, as the Archivist's and the Librarian's do and the
-Smelter's does not. It is a lazy peer of `@semiont/graph`, loaded at connect time, so only the
+The image also bundles `neo4j-driver`, as the Librarian's does and the Archivist's and the
+Smelter's do not. It is a lazy peer of `@semiont/graph`, loaded at connect time, so only the
 images of services that dial the graph carry it. The Weaver is the one that writes it.
 
 ## What it does
 
 Subscribes to graph-relevant domain events over SSE and writes them into the graph store:
 resources, annotations, references, entity types, and the edges between them. That projection
-is what `browse.referencedBy` answers from, and what gather's knowledge-graph traversal
+is what `gather.referencedBy` answers from, and what gather's knowledge-graph traversal
 walks.
 
 It is a pure network peer. Its only privileged attachment beyond the bus is the graph

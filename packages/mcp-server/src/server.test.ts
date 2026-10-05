@@ -47,16 +47,16 @@ describe('createServer', () => {
   });
 
   it('routes tools/call to the handler and returns its text block', async () => {
-    const { client, browse } = await connect();
+    const { client, match } = await connect();
 
     const result = await client.callTool({
-      name: 'browse_resources',
+      name: 'match_resources',
       arguments: { search: 'ontology', limit: 5 },
     });
 
-    expect(browse.resources).toHaveBeenCalledWith({ search: 'ontology', limit: 5, archived: false });
+    expect(match.resources).toHaveBeenCalledWith('ontology', { limit: 5, archived: false });
     expect(result.content).toEqual([
-      { type: 'text', text: 'Found 1 resources:\n- The Iliad (res-iliad) — Book, Poem' },
+      { type: 'text', text: 'Found 1 resources matching "ontology":\n- The Iliad (res-iliad) — Book, Poem' },
     ]);
     expect(result.isError).toBeUndefined();
   });

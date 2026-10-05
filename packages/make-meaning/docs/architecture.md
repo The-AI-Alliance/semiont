@@ -10,14 +10,13 @@ The third derived read model — the materialized views — is **not** pipeline-
 
 ### Deployment topology
 
-The package has one composition root and four standalone service entry points:
+The package has four service entry points:
 
-- **`startMakeMeaning()`** — the standalone root: runs all five access actors in-process against local stores.
 - **Archivist** (`archivist-main`) — the service that keeps the system of record: runs Stower, Browser and CloneTokenManager against local stores (event log, views, working tree, anchored text), plus the annotation-assembly, annotation-context and bind-update-body handlers, the entity-type bootstrap and the startup view rebuild. Its HTTP surface stores and serves the KB's bytes — the gateway proxies external content requests to it, and internal readers dial it directly.
-- **Librarian** (`librarian-main`) — the reference desk: runs the LLM-bound actors, Matcher and Gatherer, plus the gather-summary handler. It reads views from the shared stateDir the Archivist materializes into, bytes from the Archivist (`archivistContentReads` in `@semiont/content`), and runs the weave/smelt progress folds locally off the bus signals. It appends nothing, serves no bytes, and owns no store.
+- **Librarian** (`librarian-main`) — the reference desk: runs the LLM-bound actors, Matcher and Gatherer, plus the gather-summary handler and the two retrieval handlers, which answer text search (`match:resources-requested`) and what refers to a resource (`gather:referenced-by-requested`) from the graph and the vector index. It reads views from the shared stateDir the Archivist materializes into, bytes from the Archivist (`archivistContentReads` in `@semiont/content`), and runs the weave/smelt progress folds locally off the bus signals. It appends nothing, serves no bytes, and owns no store.
 - **Weaver** (`weaver-main`) and **Smelter** (`smelter-main`) — the projection pipelines, each its own process in every arrangement.
 
-Each actor's constructor takes a Pick-derived **capability slice** (`StowerStores`, `BrowserReads`, `GathererStores`, `MatcherStores`, `CloneTokenStores`) naming exactly the store operations it uses; a full `KnowledgeBase` satisfies every slice but `GathererStores` structurally (its `content` and `anchoredText` are a ResourceId-keyed byte read and a bus read, not the stores). Each actor's inbound channel roster is exported beside it (`STOWER_CHANNELS`, `BROWSER_CHANNELS`, …) and pinned to its real subscriptions by a census gate in the decoupling tests.
+Each actor's constructor takes a Pick-derived **capability slice** (`StowerStores`, `BrowserReads`, `GathererStores`, `MatcherStores`, `CloneTokenStores`) naming exactly the store operations it uses. Each actor's inbound channel roster is exported beside it (`STOWER_CHANNELS`, `BROWSER_CHANNELS`, …) and pinned to its real subscriptions by a census gate in the decoupling tests.
 
 ```mermaid
 graph TB
@@ -26,8 +25,9 @@ graph TB
 
     BUS -->|"yield:create, yield:update, yield:mv,<br/>mark:create, mark:commit, mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>frame:add-entity-type, frame:add-tag-schema,<br/>mark:update-entity-types,<br/>job:start, job:assign, job:complete, job:fail"| STOWER["Stower"]
     BUS -->|"browse:*"| BROWSER["Browser"]
-    BUS -->|"gather:*"| GATHERER["Gatherer"]
+    BUS -->|"gather:requested,<br/>gather:resource-requested"| GATHERER["Gatherer"]
     BUS -->|"match:search-requested"| MATCHER["Matcher"]
+    BUS -->|"match:resources-requested,<br/>gather:referenced-by-requested"| RETRIEVAL["Retrieval handlers"]
     BUS -->|"domain events:<br/>yield:created, yield:updated,<br/>yield:representation-added,<br/>mark:added, mark:removed,<br/>mark:archived, mark:unarchived,<br/>mark:entity-tag-added/-removed"| SMELTER["Smelter<br/>(pipeline, standalone process)"]
     BUS -->|"graph-relevant<br/>domain events"| WEAVER["Weaver<br/>(pipeline, standalone process)"]
     BUS -->|"yield:clone-*"| CTM["CloneTokenManager"]
@@ -50,8 +50,6 @@ graph TB
     WEAVER -->|project| GRAPH
 
     BROWSER -->|query| VIEWS
-    BROWSER -->|search| GRAPH
-    BROWSER -->|"semantic fallback"| VECTORS
     BROWSER -->|read| CONTENT
 
     GATHERER -->|query| VIEWS
@@ -62,6 +60,11 @@ graph TB
     MATCHER -->|query| VIEWS
     MATCHER -->|traverse| GRAPH
     MATCHER -->|search| VECTORS
+
+    RETRIEVAL -->|query| VIEWS
+    RETRIEVAL -->|search| GRAPH
+    RETRIEVAL -->|"semantic fallback"| VECTORS
+    RETRIEVAL -->|read| CONTENT
 
     SMELTER -->|read| CONTENT
     SMELTER -->|embed & index| VECTORS
@@ -74,6 +77,7 @@ graph TB
     BROWSER -->|"browse:*-result / *-failed"| BUS
     GATHERER -->|"gather:complete / gather:failed,<br/>gather:resource-complete / *-failed"| BUS
     MATCHER -->|"match:search-results,<br/>match:search-failed"| BUS
+    RETRIEVAL -->|"match:resources-result,<br/>gather:referenced-by-result,<br/>*-failed"| BUS
     CTM -->|"yield:clone-token-generated,<br/>yield:clone-resource-result,<br/>yield:clone-created"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
@@ -83,7 +87,7 @@ graph TB
 
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH,VECTORS store
-    class STOWER,BROWSER,GATHERER,MATCHER,SMELTER,WEAVER,CTM worker
+    class STOWER,BROWSER,GATHERER,MATCHER,RETRIEVAL,SMELTER,WEAVER,CTM worker
     class Workers,EBC caller
 ```
 
@@ -91,7 +95,7 @@ graph TB
 
 ### Stower (Write Gateway)
 
-**Implementation**: [src/stower.ts](../src/stower.ts)
+**Implementation**: [src/archivist/stower.ts](../src/archivist/stower.ts)
 
 The single write path to the Knowledge Base event log — no other code calls `eventStore.appendEvent()`. Runs in the Archivist service against its `StowerStores` slice (`content: ContentLifecycle`, `eventStore: EventAppends`). Working-tree content is handled through the lifecycle half of the `WorkingTreeStore`: the Stower registers, moves, and removes files in response to commands — never bytes; upload paths write bytes with `content.store()` before emitting `yield:create`.
 
@@ -134,9 +138,9 @@ To check a write that cites a job, the Stower reads the `job:assigned` record fo
 
 ### Browser (Read Actor)
 
-**Implementation**: [src/browser.ts](../src/browser.ts)
+**Implementation**: [src/archivist/browser.ts](../src/archivist/browser.ts)
 
-The read actor for the Knowledge Base. Handles deterministic, fact-based queries against the materialized state — single-source, single-ordering, no scoring, no fusion, no LLM. If a question can be answered by one query against one index (a view scan, a graph match, an event filter), the Browser handles it. Runs in the Archivist service against its `BrowserReads` slice — reads only: no `appendEvent`, no content bytes beyond `retrieve`.
+The read actor for the record. It answers from the event log, the materialized views and the working tree — no graph, no vector index, no embedding, no LLM. If a question can be answered by a view read, an event filter or a directory listing, the Browser handles it. Runs in the Archivist service against its `BrowserReads` slice — reads only: no `appendEvent`, no content bytes beyond `retrieve`.
 
 **Pipeline**: `browse:*` events use `mergeMap` for independent request-response (no grouping needed since they use `correlationId`).
 
@@ -144,29 +148,27 @@ The read actor for the Knowledge Base. Handles deterministic, fact-based queries
 |--------------|---------|-------------|
 | `browse:resource-requested` | `assembleResourceGraph()` — materializes the resource from the event store and filters its inbound entity references (shared with `LocalContentTransport.getResourceGraph`) | `browse:resource-result` / `browse:resource-failed` |
 | `browse:anchored-text-requested` | `readAnchoredText()` — the anchored-text store's derived coordinate map | `browse:anchored-text-result` / `browse:anchored-text-failed` |
-| `browse:resources-requested` | `ResourceContext.listResources()` (delegates to `kb.graph.listResources` when `search` is set, otherwise reads the materialized views) | `browse:resources-result` / `browse:resources-failed` |
+| `browse:resources-requested` | `ResourceContext.listResources()` — the listing, filtered by `archived` and `entityType`, read from the materialized views | `browse:resources-result` / `browse:resources-failed` |
 | `browse:annotations-requested` | `AnnotationContext.getAllAnnotations()` | `browse:annotations-result` / `browse:annotations-failed` |
 | `browse:annotation-requested` | `AnnotationContext.getAnnotation()` + `ResourceContext.getResourceMetadata()` | `browse:annotation-result` / `browse:annotation-failed` |
 | `browse:events-requested` | `EventQuery.queryEvents()`; each event with the agent its `userId` identifies, a Person named from `people.json` | `browse:events-result` / `browse:events-failed` |
 | `browse:annotation-history-requested` | `EventQuery`, kept to the events `getAnnotationIdFromEvent` reads as this annotation's; attributed as `browse:events-requested` is | `browse:annotation-history-result` / `browse:annotation-history-failed` |
-| `browse:referenced-by-requested` | Graph referenced-by lookup + resource metadata | `browse:referenced-by-result` / `browse:referenced-by-failed` |
 | `browse:entity-types-requested` | `readEntityTypesProjection()` | `browse:entity-types-result` / `browse:entity-types-failed` |
 | `browse:tag-schemas-requested` | Tag-schema projection read | `browse:tag-schemas-result` / `browse:tag-schemas-failed` |
 | `browse:agents-requested` | `deriveAgentRoster()` — the KB's declared software agents from the workers/actors inference config | `browse:agents-result` / `browse:agents-failed` |
 | `browse:kb-requested` | `SemiontProject` — the committed `[project] name` and `[site] domain` — and, for a knowledge base that syncs git, the working tree's branch from the staging driver, read at each request | `browse:kb-result` / `browse:kb-failed` |
 | `browse:directory-requested` | Filesystem directory listing merged with KB metadata | `browse:directory-result` / `browse:directory-failed` |
 
-#### Browse vs Match — when search belongs here vs in the Matcher
+#### Browse vs Match and Gather — record or retrieval
 
-Both actors can find resources by name; the question is what kind of question is being asked.
+**Browse answers from the record**: the event log, the materialized views, the working tree. **Anything that needs the graph, the vector index or an embedding is retrieval**, answered in the Librarian under Match or Gather.
 
-- **Browse handles a query.** Lexical signals only, one deterministic ordering. "Resources where every term appears in the name, the path or an entity type, ranked by how directly the name answers and then by recency." `kb.graph.listResources({ search })` is a Browse primitive when used standalone — it answers the literal question and returns. The discover page's search box uses this path: a lexical match is exactly what the user asked for, nothing more.
+- **A listing is Browse.** `browse:resources-requested` filters the views by `archived` and `entityType` and pages them by recency. The views are materialized on append, so a listing is read-your-writes.
+- **A search by text is Match.** `match:resources-requested` asks "resources where every term appears in the name, the path or an entity type, ranked by how directly the name answers and then by recency" of the graph's lexical index, and asks the vector index when nothing matches. Each is one query against one index: it fuses nothing, scores against no `GatheredContext`, and calls no LLM.
+- **What refers to a resource is Gather.** `gather:referenced-by-requested` is an inbound-edge query on the graph.
+- **A recommendation is Match.** `match:search-requested` asks "given this annotation, this passage, and this graph neighborhood, what are the most relevant resources to bind?" Multiple candidate sources, composite scoring against `GatheredContext`, optional LLM blending. That's not a query — it's a ranked judgment, and the Matcher's.
 
-- **Match handles a recommendation.** Multiple candidate sources, composite scoring against `GatheredContext`, optional LLM blending. "Given this annotation, this passage, and this graph neighborhood, what are the most relevant resources to bind?" That's not a query — it's a ranked judgment.
-
-The same primitive (`kb.graph.listResources({ search })`) is used by both actors. That's fine: the difference is what each actor *does with the result*. Browse returns it ranked and paged. Match treats it as one of four candidate sources and runs it through structural + semantic scoring.
-
-The rule: **if the answer could be a single query against a single index, it's Browse. If it needs to fuse multiple sources or score against context, it's Match.** The boundary is *fusion*, not *modality*: the semantic fallback (an empty lexical search answered from the vector index, labelled `matchKind: 'semantic'`) is one query against one index, fuses nothing, scores against no `GatheredContext`, and calls no LLM, so it lives in Browse and the transport surface stays `browse.resources({ search })`. What would genuinely move to the Matcher — and `match.search(...)` — is *blended* recall: fusing a lexical rank with a cosine score, or boosting either against context. That fusion is the Matcher's composite scorer's job, and it remains out of scope for Browse.
+The same primitive (the graph's `listResources({ search })`) serves both Match operations. The text search returns it ranked and paged. The Matcher treats it as one of four candidate sources and runs it through structural + semantic scoring.
 
 ### Gatherer (Context Assembly Actor)
 
@@ -178,7 +180,7 @@ Assembles `GatheredContext` for downstream actors (Matcher, generation workers).
 
 | Request Event | Handler | Result Event |
 |--------------|---------|-------------|
-| `gather:requested` | `AnnotationContext.buildLLMContext(kb, inferenceClient)` — passage + graph + vector semantic search + optional inference summary | `gather:complete` / `gather:failed` |
+| `gather:requested` | `AnnotationGather.buildLLMContext(kb, inferenceClient)` — passage + graph + vector semantic search + optional inference summary | `gather:complete` / `gather:failed` |
 | `gather:resource-requested` | `LLMContext.getResourceContext(kb)` | `gather:resource-complete` / `gather:resource-failed` |
 
 It also answers `gather:limits-requested` with the inference limits of its model (`gather:limits-result` / `gather:limits-failed`).
@@ -195,13 +197,22 @@ Searches KB stores to resolve entity references and discover relationships. `mat
 
 It also answers `match:limits-requested` with the inference limits of its model (`match:limits-result` / `match:limits-failed`).
 
-Referenced-by lookups are a deterministic single-index query and live on the Browser (`browse:referenced-by-requested`), not the Matcher.
-
 **Context-driven search** retrieves candidates from four sources (name match, entity type filter, graph neighborhood, vector semantic search), scores them with structural signals (entity type overlap, bidirectionality, citation weight, name match, recency, vector similarity weighted at 25), and blends LLM semantic relevance scores unless the request sets `useSemanticScoring: false`.
+
+### Retrieval handlers (text search, referenced-by)
+
+**Implementation**: [src/handlers/resource-retrieval.ts](../src/handlers/resource-retrieval.ts)
+
+The two reads that need the graph or the vector index and take no `GatheredContext`. They register beside the Matcher and the Gatherer, in the Librarian, and their channel roster is `RETRIEVAL_HANDLER_CHANNELS`. Each request is answered on its own (`mergeMap`).
+
+| Request Event | Handler | Result Event |
+|--------------|---------|-------------|
+| `match:resources-requested` | `searchResources()` — the graph's lexical index; when its first page is empty, the vector index above `search.semanticFloor`, labelled `matchKind: 'semantic'` | `match:resources-result` / `match:resources-failed` |
+| `gather:referenced-by-requested` | `findReferencedBy()` — the graph's inbound references, each with the name of the resource it is on | `gather:referenced-by-result` / `gather:referenced-by-failed` |
 
 ### CloneTokenManager (Clone Token Actor)
 
-**Implementation**: [src/clone-token-manager.ts](../src/clone-token-manager.ts)
+**Implementation**: [src/archivist/clone-token-manager.ts](../src/archivist/clone-token-manager.ts)
 
 Manages the lifecycle of temporary clone tokens for resource cloning. In-memory token store with a short expiry — the **Implementation** link above is the literal. Runs in the Archivist service against its `CloneTokenStores` slice (`views.get`, `content.resolveUri` — no byte capability).
 
@@ -215,7 +226,7 @@ Manages the lifecycle of temporary clone tokens for resource cloning. In-memory 
 
 **Implementation**: [src/weaver.ts](../src/weaver.ts), entry point [src/weaver-main.ts](../src/weaver-main.ts)
 
-The Weaver is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/weaver-main`, receiving graph-relevant domain events and `weave:rebuild` commands through the [`weaverFanIn`](../src/weaver-fan-in.ts) fan-in (the graph projection is part of the graph stack, not the embedding process). It projects the nine graph-relevant event types into the graph database through an RxJS pipeline with adaptive burst buffering:
+The Weaver runs as its own process via `@semiont/make-meaning/weaver-main`, receiving graph-relevant domain events and `weave:rebuild` commands through the [`weaverFanIn`](../src/weaver-fan-in.ts) fan-in (the graph projection is part of the graph stack, not the embedding process). It projects the nine graph-relevant event types into the graph database through an RxJS pipeline with adaptive burst buffering:
 
 ```
 weaverFanIn(bus).events$ (9 channels, StoredEvents)
@@ -227,13 +238,13 @@ weaverFanIn(bus).events$ (9 channels, StoredEvents)
           → Batch: processBatch() → batchCreateResources / createAnnotations
 ```
 
-Every apply advances a per-resource high-water mark and emits a `weave:applied` signal; each graph-reading process keeps its own `WeaveProgress` fold (the Librarian's, or `kb.weaveProgress` in the in-process root), which turns those into the `whenApplied` barrier the gatherer's graph reads use. At startup the Weaver runs a **checkpointed catch-up**: it discovers resources via `browse:resources-requested`, fetches gap events via `browse:events-requested` (its ONLY view of history — it has no event-store attachment), and replays them through the normal pipeline; a checkpoint ahead of the log (restore) triggers a per-resource rebuild. Full rebuilds are the `weave:rebuild` bus command — so a wiped graph volume recovers by command or by wiping the checkpoint and restarting.
+Every apply advances a per-resource high-water mark and emits a `weave:applied` signal; the Librarian keeps a `WeaveProgress` fold, which turns those into the `whenApplied` barrier the gatherer's graph reads use. At startup the Weaver runs a **checkpointed catch-up**: it discovers resources via `browse:resources-requested`, fetches gap events via `browse:events-requested` (its ONLY view of history — it has no event-store attachment), and replays them through the normal pipeline; a checkpoint ahead of the log (restore) triggers a per-resource rebuild. Full rebuilds are the `weave:rebuild` bus command — so a wiped graph volume recovers by command or by wiping the checkpoint and restarting.
 
 ### Smelter (Projection Pipeline, standalone process)
 
 **Implementation**: [src/smelter.ts](../src/smelter.ts), entry point [src/smelter-main.ts](../src/smelter-main.ts)
 
-The Smelter is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`smelterFanIn`](../src/smelter-fan-in.ts) fan-in. It reads content bytes from the Archivist (`archivistContentReads` in `@semiont/content`), chunks them, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). Like the Weaver, it processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call. Every settled decision emits a `smelt:settled` signal; each reading process keeps its own `SmeltProgress` fold (the Archivist's, the Librarian's, or `kb.smeltProgress` in the in-process root), which turns those into the `whenSettled` barrier the resource-gather and anchored-text reads use.
+The Smelter runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`smelterFanIn`](../src/smelter-fan-in.ts) fan-in. It reads content bytes from the Archivist (`archivistContentReads` in `@semiont/content`), chunks them, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). Like the Weaver, it processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call. Every settled decision emits a `smelt:settled` signal; each reading process keeps its own `SmeltProgress` fold (the Archivist's, the Librarian's, or `kb.smeltProgress` in the in-process root), which turns those into the `whenSettled` barrier the resource-gather and anchored-text reads use.
 
 | Domain Event | Handler |
 |--------------|---------|
@@ -251,21 +262,18 @@ Because Qdrant is an ephemeral projection of the event log, `Smelter.reconcile()
 
 The Knowledge Base is not an intelligent actor. It has no goals, preferences, or decisions. It is inert storage — the durable record of what intelligent actors decide.
 
-**Implementation**: [src/knowledge-base.ts](../src/knowledge-base.ts)
+| Store | What it is | Held by | From |
+|---|---|---|---|
+| The event log | Immutable, append-only: the record | Archivist | [`@semiont/event-sourcing`](../../event-sourcing/README.md) |
+| The views | Materialized inside each append | Archivist writes; Librarian reads | `@semiont/event-sourcing` |
+| The working tree | A resource's files, by URI | Archivist | [`@semiont/content`](../../content/README.md) |
+| Anchored text | Text derived from files that carry none, with its geometry | Smelter writes; Archivist reads | `@semiont/content` |
+| The graph | Eventually consistent | Weaver writes; Librarian reads | [`@semiont/graph`](../../graph/README.md) |
+| The vector index | Required | Smelter writes; Librarian reads | [`@semiont/vectors`](../../vectors/README.md) |
 
-| Member | What it is | From |
-|---|---|---|
-| `eventStore` | The event log: immutable, append-only, the record | [`@semiont/event-sourcing`](../../event-sourcing/README.md) |
-| `views` | The materialized views, written inside each append | `@semiont/event-sourcing` |
-| `content` | The working tree's files, by URI | [`@semiont/content`](../../content/README.md) |
-| `anchoredText` | Text derived from files that carry none, with its geometry | `@semiont/content` |
-| `graph` | The graph, eventually consistent | [`@semiont/graph`](../../graph/README.md) |
-| `vectors` | The vector index. Required | [`@semiont/vectors`](../../vectors/README.md) |
-| `weaveProgress` | The fold of `weave:applied`: the barrier a graph read waits at | here |
-| `smeltProgress` | The fold of `smelt:settled`: the barrier a vector read waits at | here |
-| `projectionsDir` | Where the system-wide projections are | |
+Two folds stand between a reader and a store that is still catching up: `WeaveProgress`, of `weave:applied`, is the barrier a graph read waits at; `SmeltProgress`, of `smelt:settled`, is the barrier a vector or anchored-text read waits at.
 
-The `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options)` factory instantiates `FilesystemViewStorage`, `WorkingTreeStore` and the anchored-text store once, constructs the `WeaveProgress` and `SmeltProgress` folds, and (unless `options.skipRebuild`) rebuilds the materialized views from the event log. `options.vectorStore` is required — a KB without vector search is not a supported configuration. The graph is NOT rebuilt here — the standalone Weaver catches up from its checkpoint. Actors and context modules receive Pick-derived slices of this interface, which a full `KnowledgeBase` satisfies structurally — except the gather paths' slices, whose `content` and `anchoredText` in-process roots wrap around `kb`.
+The Archivist's composition is [`composeArchivist`](../src/archivist/compose.ts): it refuses a tree its git staging cannot work in, rebuilds the views from the event log (unless told to skip), and starts the three actors and the handlers beside them on one bus. `archivist-main` adds the bus pumps and the HTTP surface.
 
 ## Operations
 
@@ -286,20 +294,21 @@ ResourceOperations.createResource(input, { did: userId, roles: [] }, bus)
 
 ## Context modules
 
-The readers the actors are built from. Each is a class of static functions that takes the slice of the knowledge base it reads, so each can be called on its own.
+The readers the actors and handlers are built from. Each takes the slice of the knowledge base it reads, so each can be called on its own.
 
 | Function | Gives | Used by |
 |---|---|---|
 | `ResourceContext.getResourceMetadata` | A resource's descriptor from its view, or `null` | Browser, CloneTokenManager, both gather paths |
-| `ResourceContext.listResources` | A page of resources with `total`, the size of the whole match set, and `matchKind`. A `search` goes to the graph's lexical index, and a listing with none reads the views. When a lexical search's first page is empty, the vector index answers, and `matchKind` is `'semantic'` | Browser |
-| `ResourceContext.addContentPreviews` | The same resources, each with its content as text | Browser |
+| `ResourceContext.listResources` | A page of the resources with `total`, the size of the whole listing, filtered by `archived` and `entityType` and read from the views | Browser |
+| `searchResources` | A page of the resources a text finds, with `total`, the size of the whole match set, and `matchKind`. The graph's lexical index answers. When its first page is empty, the vector index answers, and `matchKind` is `'semantic'` | Retrieval handlers |
+| `findReferencedBy` | The annotations elsewhere that refer to a resource, each with the name of the resource it is on, from the graph | Retrieval handlers |
 | `ResourceContext.getResourceContent` | A resource's text. The media type decides where it comes from: decoded from its bytes, asked of the anchored text for a PDF, or `undefined` for a type with none | Both gather paths |
 | `AnnotationContext.getResourceAnnotations`, `getAllAnnotations`, `getAnnotation` | A resource's annotations from its view: the view with its version, the list alone, or one | Browser, `AnnotationOperations` |
-| `AnnotationContext.buildLLMContext` | The `GatheredContext` for an annotation: the passage and what surrounds it, the resource, `semanticContext` from the vector index, the graph neighbourhood, and a summary of how the passage relates to it when an inference client is given | Gatherer |
+| `AnnotationGather.buildLLMContext` | The `GatheredContext` for an annotation: the passage and what surrounds it, the resource, `semanticContext` from the vector index, the graph neighbourhood, and a summary of how the passage relates to it when an inference client is given | Gatherer |
 | `LLMContext.getResourceContext` | The `GatheredContext` for a resource | Gatherer |
 | `GraphContext.buildKnowledgeGraph` | A resource's neighbourhood as a `KnowledgeGraph`: resources and annotations as typed nodes, typed directed edges, inbound citations included | Both gather paths |
 
-The two gather paths do not take the working tree. Their `content` is a read by `ResourceId` (`ContentReads`) and their `anchoredText` is a read over the bus, so that the Librarian, which mounts nothing, runs the same code as a process that holds the stores.
+The two gather paths do not take the working tree. Their `content` is a read by `ResourceId` (`ContentReads`) and their `anchoredText` is a read over the bus, because the Librarian mounts nothing.
 
 A gather waits for the projections it reads, within bounds. A graph read waits at `weaveProgress.whenApplied` for under a second. A resource gather waits at `smeltProgress.whenSettled` for up to `gather.settleTimeoutMs`. Past either bound the gather goes on without that part, and counts the degrade (`recordGatherDegrade`).
 
@@ -309,24 +318,19 @@ Workers are not in this package and are not actors. They are [`@semiont/jobs`](.
 
 ## Initialization Order
 
-`startMakeMeaning()` refuses a knowledge base whose committed `.semiont/config` declares no `[site] domain`: the knowledge base acts under that identity. It then initializes components in dependency order:
+The Archivist refuses a knowledge base whose committed `.semiont/config` declares no `[site] domain`: the knowledge base acts under that identity. `composeArchivist` then starts, in order:
 
-1. GraphDatabase
-2. EventStore (with EventBus integration)
-3. EmbeddingProvider + VectorStore *(mandatory — Qdrant or memory, from `@semiont/vectors`; each connect is bounded by the 60s startup timeout so the container restart policy can retry)*
-4. **KnowledgeBase** (groups the stores; constructs the WeaveProgress and SmeltProgress folds; rebuilds views unless `skipRebuild` — the graph belongs to the standalone Weaver)
-5. Event enrichment wiring (`wireEnrichment`)
-6. **Stower** (must start before reader actors — it handles writes they depend on)
-7. Entity type bootstrap (emits via EventBus as the knowledge base itself, `did:web:<[site] domain>`; Stower persists)
-8. **Gatherer** (context assembly, vector semantic search; gets its own InferenceClient and the `gather.settleTimeoutMs` barrier bound)
-9. **Matcher** (candidate search, vector semantic search, composite scoring; gets its own InferenceClient)
-10. **Browser** (browse reads, entity type and tag-schema listing, directory browse; gets the role roster and the embedding provider)
-11. **CloneTokenManager** (clone token lifecycle)
-12. Bus command handlers (`registerBusHandlers` — request-channel translators)
+1. The event store, and the view rebuild from the event log (unless `skipRebuild`)
+2. Event enrichment wiring (`wireEnrichment`)
+3. **Stower** (before the readers: it handles the writes they depend on)
+4. **Browser** (gets the role roster)
+5. **CloneTokenManager**
+6. The annotation-assembly, bind-update-body and annotation-context handlers
+7. Entity type bootstrap (emits as the knowledge base itself, `did:web:<[site] domain>`; the Stower persists)
 
-Not started here: the **Weaver** and **Smelter** (standalone processes via `@semiont/make-meaning/weaver-main` / `smelter-main`), the **job queue** (the dispatcher's) and the **job workers** (worker process in `@semiont/jobs`).
+The Librarian connects the graph, the embedding provider and the vector store, each bounded by the 60s startup timeout so the container restart policy can retry, then starts the **Gatherer**, the **Matcher**, the retrieval handlers and the gather-summary handler.
 
-In the split deployment no root builds a subset: each service's `*-main` composes exactly what it owns, and the gateway composes nothing from this package — it verifies, validates and routes. The handlers sit beside the actors they call: annotation-assembly, annotation-context and bind-update-body in the Archivist, gather-summary in the Librarian; the `job:*` set is the dispatcher's, with the queue.
+Each service's `*-main` composes exactly what it owns, and the gateway composes nothing from this package — it verifies, validates and routes. The `job:*` set is the dispatcher's, with the queue.
 
 ## Storage Architecture
 
@@ -338,18 +342,13 @@ The event log is committed with the knowledge base, under `.semiont/events/`. Th
 
 Stower writes the events and projections that Browser reads, so splitting them would open a cross-process read-after-write window over the same state. Git is single-writer for the same reason — the Archivist owns the working tree.
 
-## EventBus ownership
-
-The EventBus is created by the caller (a script or a test) and passed into `startMakeMeaning()` as a dependency. Make-meaning does not own or encapsulate the EventBus — the caller shares it with every actor in the process.
-
 ## Pure projection validators
 
-Entity types are a controlled vocabulary: the Stower refuses a `mark:update-entity-types` that adds one not registered. The rule is a pure function in [`src/views/projection-validators.ts`](../src/views/projection-validators.ts): `validateEntityTypes(registered, requested)` → `{ ok: true } | { ok: false; unknown }`, a set membership check that lists the offending tags in caller order. The Stower is the I/O shell: it reads the projection (via the readers in `src/views/`), passes it to the validator, and refuses the whole request before its first append. Validator unit tests run in single-digit milliseconds with no filesystem and no event bus; `__tests__/stower-entity-types.test.ts` covers the wiring.
+Entity types are a controlled vocabulary: the Stower refuses a `mark:update-entity-types` that adds one not registered. The rule is a pure function in [`src/archivist/views/projection-validators.ts`](../src/archivist/views/projection-validators.ts): `validateEntityTypes(registered, requested)` → `{ ok: true } | { ok: false; unknown }`, a set membership check that lists the offending tags in caller order. The Stower is the I/O shell: it reads the projection (via the readers in `src/archivist/views/`), passes it to the validator, and refuses the whole request before its first append. Validator unit tests run in single-digit milliseconds with no filesystem and no event bus; `__tests__/stower-entity-types.test.ts` covers the wiring.
 
 This pattern (functional core, imperative shell) is shared with `@semiont/event-sourcing`'s projection reducers; see [`docs/architecture/PROJECTION-PATTERN.md`](../../../docs/architecture/PROJECTION-PATTERN.md) for the architectural narrative, the full axiom catalog, and guidance for adding new validators.
 
 ## See Also
 
 - [ACTOR-MODEL.md](../../../docs/architecture/ACTOR-MODEL.md) — System-wide actor model
-- [Scripting](./SCRIPTING.md) — A knowledge base in your own process
 - [Workers](../../jobs/docs/Workers.md) — The worker, in `@semiont/jobs`

@@ -9,8 +9,8 @@
  *
  * Defaults to `WebBrowserStorage` + `createHttpSessionFactory()` (the
  * canonical web setup). Hosts that need a different shape — Electron /
- * Tauri with a filesystem-backed storage, an in-process session factory
- * built around `LocalTransport`, etc. — pass `storage` and/or
+ * Tauri with a filesystem-backed storage, a session factory for a
+ * non-HTTP transport, etc. — pass `storage` and/or
  * `sessionFactory` to override the defaults. Tests typically construct
  * a `SemiontBrowser` directly and inject it via `browser`.
  */
@@ -32,7 +32,7 @@ export interface SemiontProviderProps {
   browser?: SemiontBrowser;
   /** Override the default `WebBrowserStorage`. Useful for non-browser hosts (Electron/Tauri filesystem-backed adapters). */
   storage?: SessionStorage;
-  /** Override the default HTTP session factory. Useful for in-process or future non-HTTP transports. */
+  /** Override the default HTTP session factory. Useful for non-HTTP transports. */
   sessionFactory?: SessionFactory;
   children: ReactNode;
 }

@@ -6,13 +6,14 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { AnnotationContext, type AnnotationGatherReads } from '../annotation-context';
+import { AnnotationContext } from '../annotation-context';
+import { AnnotationGather, type AnnotationGatherReads } from '../annotation-gather';
 import { deriveViews } from '@semiont/core';
 import { resourceId, annotationId, userId, EventBus, type Logger } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
-import { workingTreeContentReads } from '../knowledge-base';
+import { workingTreeContentReads } from '../archivist/record-slices';
 import { createTestProject } from './helpers/test-project';
 import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
@@ -182,7 +183,7 @@ describe('AnnotationContext', () => {
 
     // Test too small
     await expect(
-      AnnotationContext.buildLLMContext(
+      AnnotationGather.buildLLMContext(
         annotationId('test-1'),
         resourceId(testResourceId),
         kb,
@@ -195,7 +196,7 @@ describe('AnnotationContext', () => {
 
     // Test too large
     await expect(
-      AnnotationContext.buildLLMContext(
+      AnnotationGather.buildLLMContext(
         annotationId('test-2'),
         resourceId(testResourceId),
         kb,
@@ -215,7 +216,7 @@ describe('AnnotationContext', () => {
 
     // Test minimum valid value
     await expect(
-      AnnotationContext.buildLLMContext(
+      AnnotationGather.buildLLMContext(
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
@@ -228,7 +229,7 @@ describe('AnnotationContext', () => {
 
     // Test maximum valid value
     await expect(
-      AnnotationContext.buildLLMContext(
+      AnnotationGather.buildLLMContext(
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
@@ -241,7 +242,7 @@ describe('AnnotationContext', () => {
 
     // Test mid-range value
     await expect(
-      AnnotationContext.buildLLMContext(
+      AnnotationGather.buildLLMContext(
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
@@ -260,7 +261,7 @@ describe('AnnotationContext', () => {
     await createTestAnnotation(testResourceId, annotationId(testAnnId), 'fox', 16, 19);
 
 
-    const result = await AnnotationContext.buildLLMContext(
+    const result = await AnnotationGather.buildLLMContext(
       annotationId(testAnnId),
       resourceId(testResourceId),
       kb,
@@ -282,7 +283,7 @@ describe('AnnotationContext', () => {
     await createTestAnnotation(testResourceId, annotationId(testAnnId), 'context', 15, 22);
 
 
-    const withContext = await AnnotationContext.buildLLMContext(
+    const withContext = await AnnotationGather.buildLLMContext(
       annotationId(testAnnId),
       resourceId(testResourceId),
       kb,
@@ -292,7 +293,7 @@ describe('AnnotationContext', () => {
       mockLogger
     );
 
-    const withoutContext = await AnnotationContext.buildLLMContext(
+    const withoutContext = await AnnotationGather.buildLLMContext(
       annotationId(testAnnId),
       resourceId(testResourceId),
       kb,
@@ -309,7 +310,7 @@ describe('AnnotationContext', () => {
 
   it('should throw error for non-existent resource', async () => {
     await expect(
-      AnnotationContext.buildLLMContext(
+      AnnotationGather.buildLLMContext(
         annotationId('nonexistent'),
         resourceId('nonexistent-resource'),
         kb,
@@ -363,7 +364,7 @@ describe('AnnotationContext', () => {
     await new Promise(resolve => setTimeout(resolve, 100));
 
 
-    const result = await AnnotationContext.buildLLMContext(
+    const result = await AnnotationGather.buildLLMContext(
       annotationId(testAnnId),
       resourceId(testResourceId),
       kb,
@@ -398,7 +399,7 @@ describe('AnnotationContext', () => {
         { type: 'Location', count: 3 },
       ]);
 
-      const result = await AnnotationContext.buildLLMContext(
+      const result = await AnnotationGather.buildLLMContext(
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
@@ -440,7 +441,7 @@ describe('AnnotationContext', () => {
       ]);
       (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
 
-      const result = await AnnotationContext.buildLLMContext(
+      const result = await AnnotationGather.buildLLMContext(
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
@@ -470,7 +471,7 @@ describe('AnnotationContext', () => {
         { type: 'Event', count: 2 },
       ]);
 
-      const result = await AnnotationContext.buildLLMContext(
+      const result = await AnnotationGather.buildLLMContext(
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
@@ -542,7 +543,7 @@ describe('AnnotationContext', () => {
         },
       ]);
 
-      const result = await AnnotationContext.buildLLMContext(
+      const result = await AnnotationGather.buildLLMContext(
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
@@ -584,7 +585,7 @@ describe('AnnotationContext', () => {
         generateStructured: vi.fn().mockResolvedValue({ items: [], stopReason: 'end_turn' }),
       };
 
-      const result = await AnnotationContext.buildLLMContext(
+      const result = await AnnotationGather.buildLLMContext(
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
@@ -613,7 +614,7 @@ describe('AnnotationContext', () => {
       (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
 
-      const result = await AnnotationContext.buildLLMContext(
+      const result = await AnnotationGather.buildLLMContext(
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
@@ -647,7 +648,7 @@ describe('AnnotationContext', () => {
         generateStructured: vi.fn().mockResolvedValue({ items: [], stopReason: 'end_turn' }),
       };
 
-      const result = await AnnotationContext.buildLLMContext(
+      const result = await AnnotationGather.buildLLMContext(
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
@@ -676,7 +677,7 @@ describe('AnnotationContext', () => {
       (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
 
-      const result = await AnnotationContext.buildLLMContext(
+      const result = await AnnotationGather.buildLLMContext(
         annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
@@ -771,7 +772,7 @@ describe('AnnotationContext', () => {
       await new Promise((r) => setTimeout(r, 100));
 
       const spy = vi.spyOn(kb.content, 'getBinary');
-      const result = await AnnotationContext.buildLLMContext(
+      const result = await AnnotationGather.buildLLMContext(
         aid, resourceId(src), kb, mockEmbeddingProvider,
         { includeTargetContext: true }, undefined, mockLogger,
       );

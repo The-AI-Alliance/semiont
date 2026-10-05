@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "description": "Result of searching resources by text",
+  "properties": {
+    "response": {
+      "$ref": "./MatchResourcesResponse.json"
+    }
+  },
+  "required": [
+    "response"
+  ]
+}

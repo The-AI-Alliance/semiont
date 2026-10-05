@@ -18,15 +18,15 @@ import { take } from 'rxjs/operators';
 import { LLMContext, type ResourceGatherReads } from '../llm-context';
 import { ResourceOperations } from '@semiont/core';
 import { asBusRequestPrimitive } from '../bus-request-local';
-import { AnnotationOperations } from '../annotation-operations';
+import { AnnotationOperations } from '../archivist/annotation-operations';
 import { resourceId, annotationId, userId, EventBus, type Logger, type SupportedMediaType, deriveStorageUri } from '@semiont/core';
 import type { GraphServiceConfig, GatheredContext } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, calculateChecksum } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
-import { workingTreeContentReads } from '../knowledge-base';
+import { workingTreeContentReads } from '../archivist/record-slices';
 import { createSmeltProgress } from '../smelt-progress';
-import { Stower } from '../stower';
+import { Stower } from '../archivist/stower';
 import { createTestProject } from './helpers/test-project';
 
 const mockLogger: Logger = {

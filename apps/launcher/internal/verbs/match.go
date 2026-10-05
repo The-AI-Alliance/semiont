@@ -1,15 +1,22 @@
 package verbs
 
-// match.go — `semiont match`: find candidate resources an annotation could
-// bind to. Two bus exchanges, in order: gather the annotation's context
-// first, then hand that context to the scored search.
-// The gather is not an optimization — match:search-requested REQUIRES a
-// context payload, so skipping it would just be a rejected request.
+// match.go — `semiont match`: search the knowledge base. Two forms, one
+// per question:
+//
+//	semiont match --search <text>               resources by text
+//	semiont match <resourceId> <annotationId>   candidates an annotation could bind to
+//
+// The text form is one exchange (match:resources-requested). The annotation
+// form is two, in order: gather the annotation's context first, then hand
+// that context to the scored search. The gather is not an optimization —
+// match:search-requested REQUIRES a context payload, so skipping it would
+// just be a rejected request.
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -18,18 +25,26 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
-const matchUsage = `Usage: semiont match <resourceId> <annotationId> [options]
+const matchUsage = `Usage: semiont match --search <text> [options]
+       semiont match <resourceId> <annotationId> [options]
 
-Search for resources this annotation could bind to. Gathers the annotation's
-context, then runs a scored search over the KB.
+Search the knowledge base. Give one of the two forms:
+
+  --search <text>               Resources whose text matches, and when none
+                                does, resources that discuss it
+  <resourceId> <annotationId>   Resources this annotation could bind to:
+                                gathers the annotation's context, then runs
+                                a scored search over the KB
 
 Options:
-  --limit <n>          Maximum candidates (default 10)
-  --no-semantic        Skip semantic scoring (lexical only)
-  --json               Raw JSON reply
-  --repo <owner/name>  Target a codespace stack (default: the local stack)
-  --runtime <rt>       Target the local stack explicitly
-  --help               Show this help
+  --entity-type <name>  With --search: only resources of this entity type
+  --no-semantic         With an annotation: skip semantic scoring (lexical only)
+  --limit <n>           Maximum results (default 20 with --search, 10 with
+                        an annotation)
+  --json                Raw JSON reply
+  --repo <owner/name>   Target a codespace stack (default: the local stack)
+  --runtime <rt>        Target the local stack explicitly
+  --help                Show this help
 
 Requires a session:  semiont login
 `
@@ -37,9 +52,9 @@ Requires a session:  semiont login
 func Match(args []string) int {
 	u := launcher.NewUI(false)
 	var positional []string
-	var repo string
-	limit := 10
-	noSemantic, asJSON, wantLocal := false, false, false
+	var search, entityType, repo string
+	limit := 0
+	searching, noSemantic, asJSON, wantLocal := false, false, false, false
 
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -64,6 +79,11 @@ func Match(args []string) int {
 				}
 				limit = n
 			}
+		case "--search":
+			search, ok = val()
+			searching = true
+		case "--entity-type":
+			entityType, ok = val()
 		case "--repo":
 			repo, ok = val()
 		case "--runtime":
@@ -88,11 +108,26 @@ func Match(args []string) int {
 			return 1
 		}
 	}
-	if len(positional) != 2 {
-		fmt.Print(matchUsage)
+	// The two forms ask different questions of different operations, so an
+	// invocation that states both, or neither, has not said which.
+	switch {
+	case searching && len(positional) > 0:
+		u.Fail("--search <text> searches resources by text; <resourceId> <annotationId> searches for what an annotation could bind to. Pick one.")
+		return 1
+	case searching && search == "":
+		u.Fail("--search wants the text to search for.")
+		return 1
+	case searching && noSemantic:
+		u.Fail("--no-semantic only applies to: semiont match <resourceId> <annotationId>")
+		return 1
+	case !searching && entityType != "":
+		u.Fail("--entity-type only applies with --search.")
+		return 1
+	case !searching && len(positional) != 2:
+		u.Fail("match needs --search <text>, or <resourceId> <annotationId> (got %d positional argument(s)).", len(positional))
+		fmt.Fprintln(os.Stderr, "  semiont match --help")
 		return 1
 	}
-	resourceID, annotationID := positional[0], positional[1]
 
 	t, ok := launcher.VerbSession(u, "match", repo, wantLocal)
 	if !ok {
@@ -100,6 +135,35 @@ func Match(args []string) int {
 	}
 	cli := t.Transport()
 	ctx := context.Background()
+
+	if searching {
+		if limit == 0 {
+			limit = 20
+		}
+		req := semiont.MatchResourcesRequest{Search: search, Limit: &limit}
+		if entityType != "" {
+			req.EntityType = &entityType
+		}
+		reply, err := cli.Request(ctx, "match:resources-requested", req, nil)
+		if err != nil {
+			return busFail(u, "match", err)
+		}
+		if asJSON {
+			fmt.Println(string(reply))
+			return 0
+		}
+		var found semiont.MatchResourcesResult
+		if json.Unmarshal(reply, &found) != nil {
+			return rawFallback(reply)
+		}
+		printResources(u, found.Response.Resources, int(found.Response.Total))
+		return 0
+	}
+
+	resourceID, annotationID := positional[0], positional[1]
+	if limit == 0 {
+		limit = 10
+	}
 
 	// Step 1: the annotation's context (streaming operation).
 	u.Log("Gathering context for %s...", annotationID)

@@ -1,11 +1,10 @@
 import { Observable, combineLatest, map } from 'rxjs';
 import { CacheObservable } from '../awaitable';
-import { searchQuery, decodeWithCharset } from '@semiont/core';
+import { decodeWithCharset } from '@semiont/core';
 import type { AnchoredTextAnswer } from '@semiont/core';
 import type {
   Annotation,
   EventBus,
-  EventMap,
   ResourceDescriptor,
   ResourceId,
   AnchorRect,
@@ -19,8 +18,9 @@ import type {
   components,
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
-import { busRequest, BusRequestError, CACHE_REFRESH, INVALIDATION_WINDOW_MS, LIMITS_OPERATIONS } from '@semiont/core';
-import type { CacheQuery, CacheRefresh, CacheRefreshTrigger, CacheRefreshWhen } from '@semiont/core';
+import { busRequest, BusRequestError, LIMITS_OPERATIONS } from '@semiont/core';
+import type { CacheQuery, CacheRefresh } from '@semiont/core';
+import { CacheRefresher, ScopedSources, type QueryActs, type RefreshSubject } from '../cache-refresh';
 import { createCache, type CacheState, type Cache, type CachePersister } from '../cache';
 import { sessionStoragePersister } from '../cache-persister';
 import type { SessionStorage } from '../session/session-storage';
@@ -33,7 +33,6 @@ import type { SessionStorage } from '../session/session-storage';
 const CACHE_PERSISTENCE_VERSION = 1;
 import type {
   BrowseNamespace as IBrowseNamespace,
-  ReferencedByEntry,
   AnnotationHistoryResponse,
   ResourceList,
 } from './types';
@@ -43,40 +42,8 @@ type AnnotationsListResponse = components['schemas']['GetAnnotationsResponse'];
 type ResourceListFilters = {
   limit?: number;
   archived?: boolean;
-  search?: string;
   entityType?: string;
 };
-
-/**
- * B19 — per key, the first invalidation runs at once and opens a window; any
- * more inside it are owed, and run as one when it closes, which opens the next.
- */
-class InvalidationWindows {
-  private readonly open = new Map<string, { owed: (() => void) | null; timer: ReturnType<typeof setTimeout> }>();
-
-  constructor(private readonly windowMs: number) {}
-
-  run(key: string, invalidate: () => void): void {
-    const window = this.open.get(key);
-    if (window) {
-      window.owed = invalidate;
-      return;
-    }
-    invalidate();
-    const timer = setTimeout(() => {
-      const owed = this.open.get(key)?.owed;
-      this.open.delete(key);
-      if (owed) this.run(key, owed);
-    }, this.windowMs);
-    this.open.set(key, { owed: null, timer });
-  }
-
-  /** B16: an owed invalidation dies with the namespace. */
-  dispose(): void {
-    for (const { timer } of this.open.values()) clearTimeout(timer);
-    this.open.clear();
-  }
-}
 
 /** Sentinel key for the singleton entity-types cache. */
 const ENTITY_TYPES_KEY = '_';
@@ -89,45 +56,14 @@ const AGENTS_KEY = '_';
 
 type InferencePairLimits = components['schemas']['InferencePairLimits'];
 
-/** What a trigger names: which of a split channel's rows it is, the keys a `subject` reach acts on, and the value an enriched event carries. */
-interface RefreshSubject {
-  when?: CacheRefreshWhen;
-  resource?: ResourceId;
-  annotation?: AnnotationId;
-  written?: Annotation;
-}
-
-/** The channels specs/src/client/refresh.json has a row for. */
-type RefreshChannel = Exclude<CacheRefreshTrigger, 'reopened'>;
-
 /**
- * What each channel's event names. What follows from it is the table's to
- * say (`CACHE_REFRESH`), so a row added there with no entry here does not
- * compile.
+ * The live queries of specs/src/client/refresh.json this namespace answers.
+ * `client.ts` holds the namespaces to answering every one between them.
  */
-const SUBJECT_OF: { [K in RefreshChannel]: (event: EventMap[K]) => RefreshSubject } = {
-  'bus:resume-gap': (gap) => ({ resource: gap.scope }),
-  'mark:added': (stored) => ({ resource: stored.resourceId }),
-  'mark:removed': (stored) => ({ resource: stored.resourceId, annotation: stored.payload.annotationId }),
-  'mark:delete-ok': (reply) => ({ annotation: reply.response.annotationId }),
-  'mark:body-updated': (stored) =>
-    stored.annotation
-      ? { when: 'enriched', resource: stored.resourceId, annotation: stored.annotation.id, written: stored.annotation }
-      : { when: 'unenriched', resource: stored.resourceId, annotation: stored.payload.annotationId },
-  'mark:entity-tag-added': (stored) => ({ resource: stored.resourceId }),
-  'mark:entity-tag-removed': (stored) => ({ resource: stored.resourceId }),
-  'mark:archived': (stored) => ({ resource: stored.resourceId }),
-  'mark:unarchived': (stored) => ({ resource: stored.resourceId }),
-  // Cross-client resource refresh rides the persisted domain events, never
-  // the request replies: a `yield:*-ok` reply reaches only the client that
-  // asked, and would leave every other viewer's list stale.
-  'yield:created': (stored) => ({ resource: stored.resourceId }),
-  'yield:updated': (stored) => ({ resource: stored.resourceId }),
-  'yield:cloned': (stored) => ({ resource: stored.resourceId }),
-  'yield:moved': (stored) => ({ resource: stored.resourceId }),
-  'frame:entity-type-added': () => ({}),
-  'frame:tag-schema-added': () => ({}),
-};
+export const BROWSE_QUERIES = [
+  'resource', 'annotations', 'annotation', 'events', 'resources', 'entityTypes', 'tagSchemas', 'agents',
+] as const satisfies readonly CacheQuery[];
+type BrowseQuery = (typeof BROWSE_QUERIES)[number];
 
 /** The directory with each reported model's limits on its entries. */
 function joinLimits(directory: CollaboratorEntry[], reported: InferencePairLimits[]): Collaborator[] {
@@ -168,7 +104,6 @@ export class BrowseNamespace implements IBrowseNamespace {
   private readonly limitsCache: Cache<LimitsOperation, InferencePairLimits[]>;
   /** The directory, joined with the limits reports as each arrives. */
   private readonly collaborators$: Observable<CacheState<Collaborator[]>>;
-  private readonly referencedByCache: Cache<ResourceId, ReferencedByEntry[]>;
   private readonly resourceEventsCache: Cache<ResourceId, AttributedEvent[]>;
 
   /** Filter-blob memory so `invalidateResourceLists` can replay per-key. */
@@ -185,13 +120,8 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private readonly annotationListObs = new Map<ResourceId, Observable<CacheState<Annotation[]>>>();
 
-  /**
-   * Per-source memo for the scope-acquiring wrapper, keyed by
-   * the underlying (stable, per-key) cache observable so the wrapped
-   * observable is itself stable per key — preserving B4/B11 referential
-   * identity through to `CacheObservable.from`'s own memo.
-   */
-  private readonly scopedSources = new WeakMap<Observable<unknown>, Observable<unknown>>();
+  /** Subscribing to a resource-scoped query acquires the resource's scope. */
+  private readonly scoped: ScopedSources;
 
   /**
    * Timeout passed to every `busRequest` this namespace issues. `undefined`
@@ -202,14 +132,8 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private readonly busTimeoutMs: number | undefined;
 
-  /**
-   * The `subscribeToEvents()` bus subscriptions, held so `dispose()` can
-   * detach them — a disposed namespace must not react to late bus events
-   * by refetching into disposed caches (B16).
-   */
-  private readonly busSubs: Array<{ unsubscribe(): void }> = [];
-
-  private readonly invalidationWindows: InvalidationWindows;
+  /** Applies the refresh table to this namespace's queries; B16 detaches it. */
+  private readonly refresher: CacheRefresher<BrowseQuery>;
 
   /**
    * Ask again for one key, as a row of the refresh table says to. Only a key
@@ -220,16 +144,11 @@ export class BrowseNamespace implements IBrowseNamespace {
    * whatever the key holds (B8), for direct callers.
    */
   private readonly refetchKey = {
-    resource: (rId: ResourceId) => this.held(this.resourceCache, rId, `resource/${rId}`, () => this.invalidateResourceDetail(rId)),
-    annotations: (rId: ResourceId) => this.held(this.annotationListCache, rId, `annotations/${rId}`, () => this.invalidateAnnotationList(rId)),
-    annotation: (aId: AnnotationId) => this.held(this.annotationDetailCache, aId, `annotation/${aId}`, () => this.annotationDetailCache.invalidate(aId)),
-    events: (rId: ResourceId) => this.held(this.resourceEventsCache, rId, `events/${rId}`, () => this.invalidateResourceEvents(rId)),
-    referencedBy: (rId: ResourceId) => this.held(this.referencedByCache, rId, `referenced-by/${rId}`, () => this.invalidateReferencedBy(rId)),
+    resource: (rId: ResourceId) => this.refresher.held(this.resourceCache, rId, `resource/${rId}`, () => this.invalidateResourceDetail(rId)),
+    annotations: (rId: ResourceId) => this.refresher.held(this.annotationListCache, rId, `annotations/${rId}`, () => this.invalidateAnnotationList(rId)),
+    annotation: (aId: AnnotationId) => this.refresher.held(this.annotationDetailCache, aId, `annotation/${aId}`, () => this.annotationDetailCache.invalidate(aId)),
+    events: (rId: ResourceId) => this.refresher.held(this.resourceEventsCache, rId, `events/${rId}`, () => this.invalidateResourceEvents(rId)),
   };
-
-  private held<K>(cache: { known(key: K): boolean }, key: K, window: string, invalidate: () => void): void {
-    if (cache.known(key)) this.invalidationWindows.run(window, invalidate);
-  }
 
   /**
    * B17-Q — the persisted caches, registered at construction, for the
@@ -259,7 +178,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     },
   ) {
     this.busTimeoutMs = options?.busTimeoutMs;
-    this.invalidationWindows = new InvalidationWindows(options?.invalidationWindowMs ?? INVALIDATION_WINDOW_MS);
+    this.scoped = new ScopedSources(this.transport);
 
     // The opt-in table: the small, first-paint caches persist (a resource,
     // its annotations, one annotation, the vocabulary); resource lists, event
@@ -294,12 +213,10 @@ export class BrowseNamespace implements IBrowseNamespace {
 
     this.resourceListCache = createCache<string, ResourceList>(async (key) => {
       const filters = this.resourceListFilters.get(key) ?? {};
-      const search = filters.search ? searchQuery(filters.search) : undefined;
       const result = await busRequest(
         this.transport,
         'browse:resources-requested',
         {
-          search,
           archived: filters.archived,
           entityType: filters.entityType,
           limit: filters.limit ?? 100,
@@ -308,9 +225,7 @@ export class BrowseNamespace implements IBrowseNamespace {
         this.busTimeoutMs,
       );
       // Brand the wire type (unbranded @id: string) to the SDK's ResourceDescriptor
-      // (@id: ResourceId) at the boundary — same as resourceCache above. The
-      // whole envelope is cached, not just the page: `matchKind` and the list
-      // it labels are one value (semantic fallback axiom S10).
+      // (@id: ResourceId) at the boundary — same as resourceCache above.
       return { ...result, resources: result.resources as ResourceDescriptor[] };
     });
 
@@ -384,16 +299,6 @@ export class BrowseNamespace implements IBrowseNamespace {
         ? { status: 'ready', value: joinLimits(directory.value, reports.flatMap((r) => (r.status === 'ready' ? r.value : []))) }
         : directory));
 
-    this.referencedByCache = createCache<ResourceId, ReferencedByEntry[]>(async (resourceId) => {
-      const result = await busRequest(
-        this.transport,
-        'browse:referenced-by-requested',
-        { resourceId },
-        this.busTimeoutMs,
-      );
-      return result.referencedBy;
-    });
-
     this.resourceEventsCache = createCache<ResourceId, AttributedEvent[]>(async (resourceId) => {
       const result = await busRequest(
         this.transport,
@@ -404,41 +309,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       return result.events;
     });
 
-    this.subscribeToEvents();
-  }
-
-  /**
-   * Wrap a resource-scoped live query's source so that *subscribing* acquires
-   * the resource's scope (via the transport's ref-counted
-   * `subscribeToResource`) and the last unsubscribe releases it.
-   * Freshness follows observation: a `.subscribe()` keeps `rId`'s scoped
-   * events flowing — so `mark:*` / entity-tag invalidations reach this cache —
-   * with no separate `subscribeToResource` call from the consumer.
-   *
-   * The one-shot `.fresh()` path does NOT go through here (it resolves via
-   * the cache's `fetch` — see `CacheObservable.from`'s `fetchFresh`), so a
-   * one-shot read acquires no scope.
-   *
-   * Memoized per source so the wrapped observable is stable per key (B4/B11).
-   * Each subscription calls `subscribeToResource(rId)`; the transport
-   * ref-counts per resource, and DISTINCT resources COMPOSE onto the one SSE
-   * connection's subscription matrix — N mounted loaders on N resources are
-   * all fully live. Acquisition cannot fail.
-   */
-  private withScope<S>(rId: ResourceId, source: Observable<S>): Observable<S> {
-    let scoped = this.scopedSources.get(source) as Observable<S> | undefined;
-    if (!scoped) {
-      scoped = new Observable<S>((subscriber) => {
-        const release = this.transport.subscribeToResource(rId);
-        const inner = source.subscribe(subscriber);
-        return () => {
-          inner.unsubscribe();
-          release();
-        };
-      });
-      this.scopedSources.set(source, scoped);
-    }
-    return scoped;
+    this.refresher = new CacheRefresher<BrowseQuery>(this.transport, this.bus, this.refreshActs(), options?.invalidationWindowMs);
   }
 
   // ── Live queries ────────────────────────────────────────────────────────
@@ -447,7 +318,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   // (`pending` during initial load), and `.fresh()` is the one-shot read.
 
   resource(resourceId: ResourceId): CacheObservable<ResourceDescriptor> {
-    return CacheObservable.from(this.withScope(resourceId, this.resourceCache.observe(resourceId)), () => this.resourceCache.fetch(resourceId));
+    return CacheObservable.from(this.scoped.of(resourceId, this.resourceCache.observe(resourceId)), () => this.resourceCache.fetch(resourceId));
   }
 
   resources(filters?: ResourceListFilters): CacheObservable<ResourceList> {
@@ -466,7 +337,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       );
       this.annotationListObs.set(resourceId, obs);
     }
-    return CacheObservable.from(this.withScope(resourceId, obs), () => this.annotationListCache.fetch(resourceId).then((r) => r.annotations as Annotation[]));
+    return CacheObservable.from(this.scoped.of(resourceId, obs), () => this.annotationListCache.fetch(resourceId).then((r) => r.annotations as Annotation[]));
   }
 
   annotation(resourceId: ResourceId, annotationId: AnnotationId): CacheObservable<Annotation> {
@@ -474,7 +345,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     // the cache key, `annotationId`) can look up the resourceId it
     // needs for the bus request.
     this.annotationResources.set(annotationId, resourceId);
-    return CacheObservable.from(this.withScope(resourceId, this.annotationDetailCache.observe(annotationId)), () => this.annotationDetailCache.fetch(annotationId));
+    return CacheObservable.from(this.scoped.of(resourceId, this.annotationDetailCache.observe(annotationId)), () => this.annotationDetailCache.fetch(annotationId));
   }
 
   entityTypes(): CacheObservable<string[]> {
@@ -503,12 +374,8 @@ export class BrowseNamespace implements IBrowseNamespace {
     });
   }
 
-  referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]> {
-    return CacheObservable.from(this.withScope(resourceId, this.referencedByCache.observe(resourceId)), () => this.referencedByCache.fetch(resourceId));
-  }
-
   events(resourceId: ResourceId): CacheObservable<AttributedEvent[]> {
-    return CacheObservable.from(this.withScope(resourceId, this.resourceEventsCache.observe(resourceId)), () => this.resourceEventsCache.fetch(resourceId));
+    return CacheObservable.from(this.scoped.of(resourceId, this.resourceEventsCache.observe(resourceId)), () => this.resourceEventsCache.fetch(resourceId));
   }
 
   // ── One-shot reads ──────────────────────────────────────────────────────
@@ -685,10 +552,6 @@ export class BrowseNamespace implements IBrowseNamespace {
     return this.persistedCaches.every((cache) => !cache.persistencePending());
   }
 
-  invalidateReferencedBy(resourceId: ResourceId): void {
-    this.referencedByCache.invalidate(resourceId);
-  }
-
   invalidateResourceEvents(resourceId: ResourceId): void {
     this.resourceEventsCache.invalidate(resourceId);
   }
@@ -717,24 +580,6 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.annotationDetailCache.set(aId, annotation);
   }
 
-  // ── EventBus subscriptions ──────────────────────────────────────────────
-
-  /**
-   * Typed shorthand for `eventBus.on(channel).subscribe(handler)`.
-   * Preserves per-channel payload typing so handlers read
-   * `EventMap[K]` without any casts.
-   */
-  private on<K extends keyof EventMap>(
-    channel: K,
-    handler: (payload: EventMap[K]) => void,
-  ): void {
-    this.busSubs.push(
-      (this.bus.on(channel) as {
-        subscribe(fn: (p: EventMap[K]) => void): { unsubscribe(): void };
-      }).subscribe(handler),
-    );
-  }
-
   /**
    * Dispose the namespace: detach every bus subscription and dispose all
    * owned caches (B16 — this namespace constructed them, so it disposes
@@ -744,9 +589,7 @@ export class BrowseNamespace implements IBrowseNamespace {
    * `SemiontClient.dispose()`.
    */
   dispose(): void {
-    for (const sub of this.busSubs) sub.unsubscribe();
-    this.busSubs.length = 0;
-    this.invalidationWindows.dispose();
+    this.refresher.dispose();
     this.resourceCache.dispose();
     this.resourceListCache.dispose();
     this.annotationListCache.dispose();
@@ -755,7 +598,6 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.tagSchemasCache.dispose();
     this.agentsCache.dispose();
     this.limitsCache.dispose();
-    this.referencedByCache.dispose();
     this.resourceEventsCache.dispose();
     this.annotationResources.clear();
     this.resourceListFilters.clear();
@@ -764,63 +606,45 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   // ── What the bus, and the stream itself, do to the cache ────────────────
   //
-  // specs/src/client/refresh.json says what each trigger does; this applies it.
+  // specs/src/client/refresh.json says what each trigger does; the refresher
+  // applies its rows to these.
 
-  /** Apply the table's row for `trigger` to what `subject` names. */
-  private refresh(trigger: CacheRefreshTrigger, subject: RefreshSubject = {}): void {
-    const rows: readonly CacheRefresh[] = CACHE_REFRESH[trigger];
-    const row = rows.find((candidate) => candidate.when === subject.when);
-    if (!row) throw new Error(`The refresh table has no row for ${trigger}${subject.when ? ` (${subject.when})` : ''}`);
-    for (const query of row.writes) this.write(query, subject);
-    for (const query of row.removes) this.remove(query, subject);
-    for (const query of row.refetches) this.refetch(query, subject, row.reach);
-  }
-
-  /** B13b: the event carries the value. */
-  private write(query: CacheQuery, { resource, written }: RefreshSubject): void {
-    if (!resource || !written) throw new Error(`An event that writes ${query} names a resource and carries the annotation`);
-    switch (query) {
-      case 'annotations':
-        return this.writeAnnotationIntoList(resource, written);
-      case 'annotation':
-        return this.writeAnnotationDetail(resource, written);
-      default:
-        throw new Error(`The refresh table writes ${query}, which no event carries a value for`);
-    }
-  }
-
-  /** B13a: the event says the entity is gone. */
-  private remove(query: CacheQuery, { annotation }: RefreshSubject): void {
-    if (query !== 'annotation') throw new Error(`The refresh table removes ${query}, which no event reports gone`);
-    if (!annotation) throw new Error('An event that removes an annotation names it');
-    this.removeAnnotationDetail(annotation);
-  }
-
-  /** B7: ask again, for the keys the row reaches, keeping what is shown meanwhile. */
-  private refetch(query: CacheQuery, subject: RefreshSubject, reach: CacheRefresh['reach']): void {
-    const resources = (cache: { keys(): ResourceId[] }): ResourceId[] =>
+  private refreshActs(): Record<BrowseQuery, QueryActs> {
+    const resources = (cache: { keys(): ResourceId[] }, subject: RefreshSubject, reach: CacheRefresh['reach']): ResourceId[] =>
       reach === 'held' ? cache.keys() : subject.resource ? [subject.resource] : [];
-    switch (query) {
-      case 'resource':
-        return resources(this.resourceCache).forEach(this.refetchKey.resource);
-      case 'annotations':
-        return resources(this.annotationListCache).forEach(this.refetchKey.annotations);
-      case 'events':
-        return resources(this.resourceEventsCache).forEach(this.refetchKey.events);
-      case 'referencedBy':
-        return resources(this.referencedByCache).forEach(this.refetchKey.referencedBy);
-      case 'annotation':
-        return this.annotationsReached(subject, reach).forEach(this.refetchKey.annotation);
-      case 'resources':
-        // Its keys are the lists the cache knows: `invalidateAll` reaches no other.
-        return this.invalidationWindows.run('resource-lists', () => this.invalidateResourceLists());
-      case 'entityTypes':
-        return this.held(this.entityTypesCache, ENTITY_TYPES_KEY, 'entity-types', () => this.invalidateEntityTypes());
-      case 'tagSchemas':
-        return this.held(this.tagSchemasCache, TAG_SCHEMAS_KEY, 'tag-schemas', () => this.invalidateTagSchemas());
-      case 'agents':
-        return this.held(this.agentsCache, AGENTS_KEY, 'agents', () => this.invalidateAgents());
-    }
+    // B13b: the event carries the value.
+    const written = (query: BrowseQuery, { resource, written }: RefreshSubject): { resource: ResourceId; written: Annotation } => {
+      if (!resource || !written) throw new Error(`An event that writes ${query} names a resource and carries the annotation`);
+      return { resource, written };
+    };
+    return {
+      resource: { refetch: (subject, reach) => resources(this.resourceCache, subject, reach).forEach(this.refetchKey.resource) },
+      annotations: {
+        refetch: (subject, reach) => resources(this.annotationListCache, subject, reach).forEach(this.refetchKey.annotations),
+        write: (subject) => {
+          const { resource, written: annotation } = written('annotations', subject);
+          this.writeAnnotationIntoList(resource, annotation);
+        },
+      },
+      annotation: {
+        refetch: (subject, reach) => this.annotationsReached(subject, reach).forEach(this.refetchKey.annotation),
+        write: (subject) => {
+          const { resource, written: annotation } = written('annotation', subject);
+          this.writeAnnotationDetail(resource, annotation);
+        },
+        // B13a: the event says the entity is gone.
+        remove: ({ annotation }) => {
+          if (!annotation) throw new Error('An event that removes an annotation names it');
+          this.removeAnnotationDetail(annotation);
+        },
+      },
+      events: { refetch: (subject, reach) => resources(this.resourceEventsCache, subject, reach).forEach(this.refetchKey.events) },
+      // Its keys are the lists the cache knows: `invalidateAll` reaches no other.
+      resources: { refetch: () => this.refresher.windowed('resource-lists', () => this.invalidateResourceLists()) },
+      entityTypes: { refetch: () => this.refresher.held(this.entityTypesCache, ENTITY_TYPES_KEY, 'entity-types', () => this.invalidateEntityTypes()) },
+      tagSchemas: { refetch: () => this.refresher.held(this.tagSchemasCache, TAG_SCHEMAS_KEY, 'tag-schemas', () => this.invalidateTagSchemas()) },
+      agents: { refetch: () => this.refresher.held(this.agentsCache, AGENTS_KEY, 'agents', () => this.invalidateAgents()) },
+    };
   }
 
   /** The annotation the event names; when it names none, each one held of the resource it names. */
@@ -828,35 +652,5 @@ export class BrowseNamespace implements IBrowseNamespace {
     if (reach === 'held') return this.annotationDetailCache.keys();
     if (annotation) return [annotation];
     return [...this.annotationResources].flatMap(([held, of]) => (of === resource ? [held] : []));
-  }
-
-  /** Subscribe `channel`'s row of the refresh table to its events. */
-  private refreshOn<K extends RefreshChannel>(channel: K): void {
-    const subjectOf: (event: EventMap[K]) => RefreshSubject = SUBJECT_OF[channel];
-    this.on(channel, (event) => this.refresh(channel, subjectOf(event)));
-  }
-
-  private subscribeToEvents(): void {
-    for (const channel of Object.keys(SUBJECT_OF) as RefreshChannel[]) this.refreshOn(channel);
-
-    // B13: `reopened`. The stream is `open` again having left it, which only
-    // a drop does: a subscription that changes is handed over, and the state
-    // stays `open` across it. Events with a position are replayed from where
-    // the client left off, or `bus:resume-gap` says they could not be; the
-    // rest were lost while the stream was down, and the row asks again for
-    // what they feed.
-    let opened = false;
-    let left = false;
-    this.busSubs.push(
-      this.transport.state$.subscribe((state) => {
-        if (state !== 'open') {
-          left = opened;
-          return;
-        }
-        if (left) this.refresh('reopened');
-        opened = true;
-        left = false;
-      }),
-    );
   }
 }

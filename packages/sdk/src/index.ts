@@ -9,8 +9,7 @@
  * `IContentTransport` contracts from `@semiont/core`. The HTTP adapters
  * (`HttpTransport`, `HttpContentTransport`) are re-exported here for
  * convenience so the common case is a single import; non-HTTP transports
- * (e.g. `LocalTransport` from `@semiont/make-meaning`) are constructed
- * by the caller from their own package.
+ * are constructed by the caller from their own package.
  *
  * `APIError`, the HTTP transport's error class, is re-exported with the
  * adapters. Catch on `SemiontError` (exported below) and route on

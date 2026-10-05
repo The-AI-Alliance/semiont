@@ -28,6 +28,7 @@ import type {
   GenerationOptions,
   MarkAssistEvent,
   MarkAssistOptions,
+  MatchedResources,
   ResourceList,
   YieldGenerationEvent,
 } from '@semiont/sdk';
@@ -48,7 +49,7 @@ export type McpResult = { content: Array<{ type: 'text'; text: string }>; isErro
 export interface McpClient {
   browse: {
     resource(resourceId: ResourceId): { fresh(): Promise<ResourceDescriptor> };
-    resources(filters: { limit?: number; archived?: boolean; search?: string }): { fresh(): Promise<ResourceList> };
+    resources(filters: { limit?: number; archived?: boolean }): { fresh(): Promise<ResourceList> };
     annotations(resourceId: ResourceId): { fresh(): Promise<Annotation[]> };
   };
   mark: {
@@ -57,6 +58,9 @@ export interface McpClient {
   };
   bind: {
     body(resourceId: ResourceId, annotationId: AnnotationId, operations: BodyOperation[]): Promise<void>;
+  };
+  match: {
+    resources(search: string, filters: { limit?: number; archived?: boolean }): { fresh(): Promise<MatchedResources> };
   };
   gather: {
     annotation(
@@ -92,17 +96,37 @@ export async function browseResource(semiont: McpClient, args: any): Promise<Mcp
 }
 
 export async function browseResources(semiont: McpClient, args: any): Promise<McpResult> {
-  const filters: { limit?: number; archived?: boolean; search?: string } = {};
+  const filters: { limit?: number; archived?: boolean } = {};
   if (args?.limit !== undefined) filters.limit = args.limit;
-  if (args?.search !== undefined) filters.search = args.search;
   filters.archived = args?.archived ?? false;
   const { resources } = await semiont.browse.resources(filters).fresh();
   return {
     content: [{
       type: 'text',
-      text: `Found ${resources.length} resources:\n${resources.map(d => `- ${d.name} (${d['@id']}) — ${d.entityTypes?.join(', ') || 'no types'}`).join('\n')}`,
+      text: `Found ${resources.length} resources:\n${resourceLines(resources)}`,
     }],
   };
+}
+
+/** One line per resource: its name, id and entity types. */
+function resourceLines(resources: ResourceDescriptor[]): string {
+  return resources.map(d => `- ${d.name} (${d['@id']}) — ${d.entityTypes?.join(', ') || 'no types'}`).join('\n');
+}
+
+// ── Match ───────────────────────────────────────────────────────────────────
+
+export async function matchResources(semiont: McpClient, args: any): Promise<McpResult> {
+  if (typeof args?.search !== 'string' || args.search.trim() === '') throw new Error('search is required');
+  const filters: { limit?: number; archived?: boolean } = {};
+  if (args?.limit !== undefined) filters.limit = args.limit;
+  filters.archived = args?.archived ?? false;
+  const { resources, matchKind } = await semiont.match.resources(args.search, filters).fresh();
+  // A semantic answer is a different kind of page: nothing matched the text,
+  // and these resources discuss it.
+  const found = matchKind === 'semantic'
+    ? `Nothing matches "${args.search}" by text; ${resources.length} resources discuss it:`
+    : `Found ${resources.length} resources matching "${args.search}":`;
+  return { content: [{ type: 'text', text: `${found}\n${resourceLines(resources)}` }] };
 }
 
 export async function browseHighlights(semiont: McpClient, args: any): Promise<McpResult> {
@@ -310,6 +334,7 @@ export async function callTool(semiont: McpClient, name: string, args: any): Pro
       case 'mark_annotation':       return await markAnnotation(semiont, args);
       case 'mark_assist':           return await markAssist(semiont, args);
       case 'bind_body':             return await bindBody(semiont, args);
+      case 'match_resources':       return await matchResources(semiont, args);
       case 'gather_annotation':     return await gatherAnnotation(semiont, args);
       case 'yield_resource':        return await yieldResource(semiont, args);
       case 'yield_from_annotation': return await yieldFromAnnotation(semiont, args);

@@ -87,7 +87,7 @@ export function createResourceViewerPageStateUnit(
   const annotations = trackList<Annotation[]>(() => client.browse.annotations(resourceId), []);
   const entityTypes = trackList<string[]>(() => client.browse.entityTypes(), []);
   const events = trackList<AttributedEvent[]>(() => client.browse.events(resourceId), []);
-  const referencedBy = trackList<ReferencedByEntry[]>(() => client.browse.referencedBy(resourceId), []);
+  const referencedBy = trackList<ReferencedByEntry[]>(() => client.gather.referencedBy(resourceId), []);
   disposer.add(annotations.dispose);
   disposer.add(entityTypes.dispose);
   disposer.add(events.dispose);

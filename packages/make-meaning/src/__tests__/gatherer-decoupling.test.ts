@@ -1,9 +1,8 @@
 /**
  * The decoupling proof for `Gatherer`.
  *
- * The Gatherer constructs from narrow capability doubles. `KnowledgeBase`
- * appears nowhere in this file — that absence IS the test: if the actor can
- * be built and exercised without the god-object, it is decoupled.
+ * The Gatherer constructs from narrow capability doubles: an actor that can
+ * be built and exercised from the slices it names holds nothing else.
  *
  * The capability shape is the whole Gatherer-path surface (the union of
  * buildLLMContext + getResourceContext + generateAnnotationSummary,
@@ -15,7 +14,8 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { take } from 'rxjs/operators';
 import { EventBus, resourceId, type Logger, type ResourceDescriptor } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
-import { Gatherer, GATHERER_CHANNELS, type GathererStores } from '../gatherer';
+import { Gatherer, type GathererStores } from '../gatherer';
+import { GATHERER_CHANNELS } from '../service-channels';
 import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
 const MAIN_ID = 'gather-target';

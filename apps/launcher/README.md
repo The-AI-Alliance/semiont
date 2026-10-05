@@ -577,6 +577,18 @@ with no text the worker could read) and a failure both exit non-zero, and
 --delegate` sends for each motivation is the `mark.assist` row of
 `specs/src/client/surface.json`, which the TypeScript and Rust SDKs run too.
 
+### Searching a KB
+
+`semiont browse` lists and shows what a KB holds; `semiont match` searches
+it, in two forms. `semiont match --search <text>` finds resources by text
+(`match:resources-requested`; `--entity-type` and `--limit` narrow it, and
+`--json` carries the reply's `matchKind`: `lexical` when the text matched,
+`semantic` when nothing did and the resources discuss it instead). `semiont
+match <resourceId> <annotationId>` finds the resources that annotation could
+bind to: it gathers the annotation's context, then runs the scored search
+(`match:search-requested`). The two forms exclude each other, and `match`
+with neither is refused.
+
 ### Driving a participant's Browser
 
 `semiont browse <resourceId> --browser` opens that resource on the

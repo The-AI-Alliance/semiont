@@ -20,7 +20,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventBus, WORKER_ROLE, type Annotation, type Logger, type ResourceId } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
-import { Stower } from '../stower';
+import { Stower } from '../archivist/stower';
 
 const silentLogger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),

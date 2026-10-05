@@ -156,7 +156,6 @@ describe('Weaver', () => {
               '@id': id, name: id, representations: [], archived: false, entityTypes: [],
             })),
             total: rids.length,
-            matchKind: 'lexical',
           },
         } as any, { correlationId });
       }),

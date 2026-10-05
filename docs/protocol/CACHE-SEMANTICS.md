@@ -571,8 +571,8 @@ and each one held), its event history and what refers to it.
 every client, on no scope, and so carry no position. One published while
 the stream is down is lost, and nothing replays it. So when the stream is
 open again **after a drop**, the cache asks again for everything those
-events feed and it holds: every list of resources, every resource, the
-entity types and the tag schemas. The collaborator directory, which no
+events feed and it holds: every list of resources, every text search of
+them, every resource, the entity types and the tag schemas. The collaborator directory, which no
 event feeds, is asked for again here too: a gateway restarted with a
 changed roster presents as a drop.
 
@@ -614,7 +614,8 @@ Two things the table's shape follows from:
 
 - **Lists of resources are refreshed as a whole.** An event does not say
   which filter combinations it affects, so every list the cache holds is
-  asked for again.
+  asked for again. A text search (`match.resources`) is such a list, and
+  the same rows refresh it.
 - **A list of resources is a query's answer, not a live collection.** It is
   refreshed by the events every client hears (a resource created, updated,
   cloned or moved), by the reopening of a dropped stream, and by

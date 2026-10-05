@@ -43,8 +43,8 @@ gather), and one directs attention (beckon). Learn them once and the surface sta
 | **bind** | Resolve ambiguous references to specific resources | `bind.body`, `bind.initiate` |
 | **frame** | Define and evolve the schema vocabulary (entity types, tag schemas) | `frame.addEntityTypes`, `frame.addTagSchema` |
 | **browse** | Navigate, read, observe — including who's here to collaborate | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
-| **match** | Search the corpus for candidate resources | `match.search` |
-| **gather** | Assemble grounding context around a resource or an annotation | `gather.resource`, `gather.annotation` |
+| **match** | Search the corpus — resources by text, and candidates for a reference | `match.resources`, `match.search` |
+| **gather** | Assemble grounding context around a resource or an annotation, and list what refers to a resource | `gather.resource`, `gather.annotation`, `gather.referencedBy` |
 | **beckon** | Direct attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.openResource` |
 
 Each flow is a namespace on `SemiontClient` (`client.mark.X(...)`); the verb is the unit of
@@ -84,9 +84,7 @@ on one client's own bus, where its interface coordinates itself.
 ### 4. Transport agnosticism
 
 `SemiontClient` is built against the `ITransport` / `IContentTransport` contracts from
-`@semiont/core`, not any particular wire — the same surface runs over HTTP or in-process. The
-HTTP adapter is re-exported here for convenience; the in-process transport is
-`LocalTransport` from `@semiont/make-meaning`.
+`@semiont/core`, not any particular wire. The HTTP adapter is re-exported here for convenience.
 
 ## What's in the box
 
@@ -143,19 +141,7 @@ await session.dispose();
 Already hold tokens? `SemiontSession.fromIssuedSession(...)` takes the access and refresh pair.
 `SemiontSession.fromHttp(...)` takes a bare access token and the `refresh` that renews it.
 `SemiontClient.fromHttp({ baseUrl, token })` takes a bare token and never renews it, which suits
-a one-shot script that finishes inside one token's life. In-process (CLI, tests, embedded) —
-same surface, no network:
-
-```ts
-import { SemiontClient } from '@semiont/sdk';
-import { startMakeMeaning, LocalTransport, LocalContentTransport } from '@semiont/make-meaning';
-
-const ks = await startMakeMeaning(project, config, eventBus, logger);
-const client = new SemiontClient(
-  new LocalTransport({ eventBus, userId }),
-  new LocalContentTransport(ks.knowledgeSystem.kb),
-);
-```
+a one-shot script that finishes inside one token's life.
 
 From here, the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md)
 takes over — every recipe assumes exactly this setup.
@@ -181,6 +167,6 @@ Apache-2.0 — see [LICENSE](https://github.com/The-AI-Alliance/semiont/blob/mai
 - [`semiont`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-rust) — the Rust SDK, a full peer of this one, on [crates.io](https://crates.io/crates/semiont)
 - [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core) — domain types, `ITransport` contract, `busRequest`, OpenAPI-derived schemas
 - [`@semiont/http-transport`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/http-transport) — HTTP transport (`HttpTransport`, `HttpContentTransport`)
-- [`@semiont/make-meaning`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/make-meaning) — in-process transport (`LocalTransport`) and the actor model behind it
+- [`@semiont/make-meaning`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/make-meaning) — the knowledge-base actors and the entry points of the four services that run them
 - [`@semiont/observability`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/observability) — OpenTelemetry tracing the SDK propagates across the bus
 - [`@semiont/react-ui`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/react-ui) — the embeddable `ResourceViewer` (bring-your-own-session) plus React hooks (`useResourceLoader`, `useMediaToken`, `useObservable`) and the web `SessionStorage`; its docs cross-link the [Developer Guide](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md)

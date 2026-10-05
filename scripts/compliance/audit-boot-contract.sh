@@ -61,7 +61,7 @@ service_files() {
     worker)    find packages/jobs/src -name '*.ts' ! -path '*__tests__*' ;;
     smelter)   echo packages/make-meaning/src/smelter-main.ts ;;
     weaver)    echo packages/make-meaning/src/weaver-main.ts ;;
-    archivist) echo packages/make-meaning/src/archivist-main.ts ;;
+    archivist) echo packages/make-meaning/src/archivist/archivist-main.ts ;;
     librarian) echo packages/make-meaning/src/librarian-main.ts ;;
   esac
 }

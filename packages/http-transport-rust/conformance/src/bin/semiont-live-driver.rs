@@ -10,6 +10,7 @@ use semiont::cache::CacheState;
 use semiont::cached::Observed;
 use semiont::client::{CachePersistence, ClientOptions, ClientTiming, SemiontClient};
 use semiont::namespaces::{JobEvent, MarkAssistOptions, ResourceFilters};
+use semiont::refresh::CacheQuery;
 use semiont::storage::InMemorySessionStorage;
 use semiont::transport::ConnectionState;
 use semiont::types::{AnnotationId, GenerationJobParams, ResourceId};
@@ -55,73 +56,87 @@ fn value<T: Serialize>(of: &T) -> Result<Value, Ended> {
         .map_err(|e| Ended::Misuse(format!("a value that does not serialize: {e}")))
 }
 
-/// The filters a case states for a list of resources.
+/// The filters a case states for a list of resources, or for a search.
 fn filters(query: &Arguments) -> Result<ResourceFilters, Ended> {
-    let stated = match query.get("filters") {
-        None => &Arguments::new(),
-        Some(_) => object(query, "filters")?,
-    };
-    Ok(ResourceFilters {
-        limit: stated.get("limit").and_then(Value::as_i64),
-        archived: stated.get("archived").and_then(Value::as_bool),
-        search: stated
-            .get("search")
-            .and_then(Value::as_str)
-            .map(str::to_owned),
-        entity_type: stated
-            .get("entityType")
-            .and_then(Value::as_str)
-            .map(str::to_owned),
-    })
+    let mut filters = ResourceFilters::default();
+    if query.get("filters").is_some() {
+        for (name, stated) in object(query, "filters")? {
+            match name.as_str() {
+                "limit" => filters.limit = stated.as_i64(),
+                "archived" => filters.archived = stated.as_bool(),
+                "entityType" => filters.entity_type = stated.as_str().map(str::to_owned),
+                other => {
+                    return Err(Ended::Misuse(format!(
+                        "a filter by {other}, which no query of resources takes"
+                    )));
+                }
+            }
+        }
+    }
+    Ok(filters)
 }
 
-/// Do `$then` with the live query a case names, as `$cached`.
+/// The live query of specs/src/client/refresh.json a case names.
+fn named(query: &Arguments) -> Result<CacheQuery, Ended> {
+    let name = text(query, "query")?;
+    CacheQuery::ALL
+        .iter()
+        .copied()
+        .find(|query| query.name() == name)
+        .ok_or_else(|| Ended::Misuse(format!("no live query {name}")))
+}
+
+/// Do `$then` with the live query a case names, as `$cached`. A query of
+/// the table with no arm does not compile.
 macro_rules! with_query {
     ($client:expr, $query:expr, |$cached:ident| $then:expr) => {{
         let query: &Arguments = $query;
-        let browse = &$client.browse;
+        let (browse, gather, match_) = (&$client.browse, &$client.gather, &$client.match_);
         let resource = || identifier::<ResourceId>(query, "resource");
-        match text(query, "query")? {
-            "resource" => {
+        match named(query)? {
+            CacheQuery::Resource => {
                 let $cached = browse.resource(&resource()?);
                 $then
             }
-            "annotations" => {
+            CacheQuery::Annotations => {
                 let $cached = browse.annotations(&resource()?);
                 $then
             }
-            "annotation" => {
+            CacheQuery::Annotation => {
                 let $cached = browse.annotation(
                     &resource()?,
                     &identifier::<AnnotationId>(query, "annotation")?,
                 );
                 $then
             }
-            "events" => {
+            CacheQuery::Events => {
                 let $cached = browse.events(&resource()?);
                 $then
             }
-            "referencedBy" => {
-                let $cached = browse.referenced_by(&resource()?);
+            CacheQuery::ReferencedBy => {
+                let $cached = gather.referenced_by(&resource()?);
                 $then
             }
-            "resources" => {
+            CacheQuery::Resources => {
                 let $cached = browse.resources(filters(query)?);
                 $then
             }
-            "entityTypes" => {
+            CacheQuery::MatchedResources => {
+                let $cached = match_.resources(text(query, "search")?, filters(query)?);
+                $then
+            }
+            CacheQuery::EntityTypes => {
                 let $cached = browse.entity_types();
                 $then
             }
-            "tagSchemas" => {
+            CacheQuery::TagSchemas => {
                 let $cached = browse.tag_schemas();
                 $then
             }
-            "agents" => {
+            CacheQuery::Agents => {
                 let $cached = browse.agents();
                 $then
             }
-            other => return Err(Ended::Misuse(format!("no live query {other}"))),
         }
     }};
 }

@@ -1,36 +1,26 @@
 /**
  * Resource Context
  *
- * Assembles resource context from view storage and content store.
- * Graph queries go through GraphContext — with one deliberate exception:
- * `listResources`' search path runs inside the graph engine, and its
- * semantic fallback reads the vector index. Both are single-index reads;
- * anything that FUSES sources belongs to the Matcher.
+ * Assembles resource context from view storage and content store. It reads
+ * the record only: searching resources is discovery, and the Librarian's
+ * (`resource-search.ts`).
  */
 
-import { decodeRepresentation, derivesTextOf, getResourceEntityTypes, getResourceId, textSourceOf } from '@semiont/core';
+import { compareByRecencyThenId, decodeRepresentation, derivesTextOf, getResourceEntityTypes, getResourceId, textSourceOf } from '@semiont/core';
 import { representationSource } from './representation.js';
 import type { AnchoredTextAsk } from './anchored-text-ask.js';
-import type { Logger, ResourceId } from '@semiont/core';
-import { compareByRecencyThenId, type GraphDatabase } from '@semiont/graph';
-import { mergeByResource, type EmbeddingProvider, type VectorStore } from '@semiont/vectors';
+import type { ResourceId } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
-import type { ContentReads, WorkingTreeStore } from '@semiont/content';
-import { resourceWithViewGrace } from './graph-read-grace';
+import type { ContentReads } from '@semiont/content';
 
 import type { ResourceDescriptor } from '@semiont/core';
 
-/** What the listing paths read: lexical search in the graph, unsearched
- *  listings from views, the semantic fallback in the vector index — plus
- *  `resourceWithViewGrace`'s graph-first hydration. */
+/** What a listing reads: the views, and nothing else. */
 export interface ListResourcesReads {
-  views: Pick<ViewStorage, 'get' | 'getAll'>;
-  graph: Pick<GraphDatabase, 'listResources' | 'getResource'>;
-  vectors: Pick<VectorStore, 'searchResources'>;
+  views: Pick<ViewStorage, 'getAll'>;
 }
 
 export interface ListResourcesFilters {
-  search?: string;
   archived?: boolean;
   entityType?: string;
   offset?: number;
@@ -38,41 +28,10 @@ export interface ListResourcesFilters {
 }
 
 export interface ListResourcesResult {
-  /** Semantic hits carry `content` — the passage that matched, not a preview. */
-  resources: Array<ResourceDescriptor & { content?: string }>;
+  resources: ResourceDescriptor[];
   /** Size of the whole match set, not of the returned page. */
   total: number;
-  /**
-   * Which kind of answer this is: 'lexical' for the graph/view paths
-   * (including an honestly-empty page), 'semantic' when an empty lexical
-   * search was answered from the vector index. REQUIRED — an optional
-   * discriminator defaulting to lexical would let a missing value silently
-   * read as lexical.
-   */
-  matchKind: 'lexical' | 'semantic';
 }
-
-/**
- * What the semantic fallback needs, passed as plain arguments (the
- * buildContext idiom — providers are parameters, not fields). Both the
- * provider and `kb.vectors` are mandatory, so there is no unconfigured
- * branch. What degrades is FAILURE: a throwing embed yields the empty
- * lexical page (axiom S5), because mandatory does not mean always up.
- */
-export interface SemanticFallbackDeps {
-  embeddingProvider: EmbeddingProvider;
-  /** Minimum cosine score for a hit to appear — `search.semanticFloor`. */
-  semanticFloor: number;
-  logger: Logger;
-}
-
-/**
- * Chunk-hit over-fetch factor: `searchResources` returns per-chunk hits and
- * the fold collapses them per resource, so a multi-chunk document could
- * otherwise crowd resources out of the page. Headroom, not a guarantee —
- * the same rationale as the vectors package's SEARCH_BY_RESOURCE_OVER_FETCH.
- */
-const SEMANTIC_OVER_FETCH = 4;
 
 export class ResourceContext {
   /**
@@ -89,45 +48,17 @@ export class ResourceContext {
 
   /**
    * List resources, optionally filtered, as one page plus the size of the whole
-   * match set. Every filter is applied before pagination on both paths — a
-   * filter applied afterwards narrows the page rather than the match set, which
-   * is how a search scoped to an entity type can come back empty while hundreds
-   * of resources match.
+   * match set. Every filter is applied before pagination — a filter applied
+   * afterwards narrows the page rather than the match set.
    *
-   * When `search` is set, the entire query — filtering, ordering and
-   * pagination — runs inside the graph engine.
-   *
-   * When `search` is unset, the materialized views answer instead. They are the
-   * barrier-stamped projection, so an unsearched listing is read-your-writes
-   * where the graph is only eventually consistent.
+   * The materialized views answer. They are the barrier-stamped projection, so
+   * a listing is read-your-writes.
    */
   static async listResources(
     filters: ListResourcesFilters | undefined,
     kb: ListResourcesReads,
-    semantic: SemanticFallbackDeps,
   ): Promise<ListResourcesResult> {
-    const { search: rawSearch, archived, entityType, offset = 0, limit = 50 } = filters ?? {};
-    // Blank input is not a search: it must not divert the listing onto the
-    // eventually-consistent graph path, and it has nothing to match on.
-    const search = rawSearch?.trim() || undefined;
-
-    if (search) {
-      // Set-shaped graph read — eventually consistent BY DESIGN: no key
-      // to await, human-timescale browse; a just-created resource appears
-      // in search after the Weaver's ~tens-of-ms apply.
-      const lexical = await kb.graph.listResources({
-        search,
-        archived,
-        entityTypes: entityType ? [entityType] : undefined,
-        offset,
-        limit,
-      });
-      // The fallback's whole cost model: the embedding call is unreachable
-      // unless this page would otherwise be empty (axiom S1), and a later
-      // page of an empty search never re-triggers it (S8).
-      if (lexical.total > 0 || offset > 0) return { ...lexical, matchKind: 'lexical' };
-      return ResourceContext.semanticFallback(search, limit, kb, semantic);
-    }
+    const { archived, entityType, offset = 0, limit = 50 } = filters ?? {};
 
     const allViews = await kb.views.getAll();
     const matches = allViews
@@ -136,94 +67,7 @@ export class ResourceContext {
       .filter((doc) => !entityType || getResourceEntityTypes(doc).includes(entityType))
       .sort(compareByRecencyThenId);
 
-    return { resources: matches.slice(offset, offset + limit), total: matches.length, matchKind: 'lexical' };
-  }
-
-  /**
-   * Answer an empty lexical search from the vector index:
-   * embed the query once, fold chunk hits per resource, floor them, and label
-   * the answer 'semantic' so the UI can say "no title matches, but these
-   * documents discuss it".
-   *
-   * Degradation is the contract (axiom S5): ANY failure inside the
-   * fallback yields the same empty page the caller already had, labelled
-   * 'lexical' — a broken fallback must never turn a working empty search
-   * into an error.
-   *
-   * The floor is applied HERE rather than passed as `scoreThreshold`, so the
-   * below-floor hits exist to be counted — the debug line is the evidence
-   * the guessed 0.6 floor gets tuned from.
-   */
-  private static async semanticFallback(
-    search: string,
-    limit: number,
-    kb: ListResourcesReads,
-    semantic: SemanticFallbackDeps,
-  ): Promise<ListResourcesResult> {
-    const empty: ListResourcesResult = { resources: [], total: 0, matchKind: 'lexical' };
-
-    try {
-      const embedding = await semantic.embeddingProvider.embed(search);
-      const hits = await kb.vectors.searchResources(embedding, { limit: limit * SEMANTIC_OVER_FETCH });
-      const merged = mergeByResource(hits);
-      const aboveFloor = merged.filter((h) => h.score >= semantic.semanticFloor);
-      // The floor's tuning evidence — one line per fallback.
-      semantic.logger.debug('[search FALLBACK] semantic score distribution', {
-        chunkHits: hits.length,
-        resources: merged.length,
-        aboveFloor: aboveFloor.length,
-        belowFloor: merged.length - aboveFloor.length,
-        topScore: merged[0]?.score,
-        bottomScore: merged[merged.length - 1]?.score,
-        floor: semantic.semanticFloor,
-      });
-
-      // Score order is the ranking — recency ordering is the one universal
-      // rule this path must NOT apply (axiom S6).
-      const resources: Array<ResourceDescriptor & { content?: string }> = [];
-      for (const hit of aboveFloor.slice(0, limit)) {
-        // Graph-first with view grace: the vector index can momentarily
-        // outlive a deleted resource — a hit that hydrates to nothing is
-        // dropped, not an error.
-        const { resource } = await resourceWithViewGrace(kb, hit.resourceId);
-        if (resource) resources.push({ ...resource, content: hit.text });
-      }
-      return { resources, total: aboveFloor.length, matchKind: 'semantic' };
-    } catch (error) {
-      semantic.logger.warn('[search FALLBACK] degraded to the empty lexical page', {
-        reason: error instanceof Error ? error.message : String(error),
-      });
-      return empty;
-    }
-  }
-
-  /**
-   * Add content previews to resources (for search results)
-   * Retrieves and decodes the first 200 characters of each resource's primary representation
-   */
-  static async addContentPreviews(
-    resources: ResourceDescriptor[],
-    kb: { content: Pick<WorkingTreeStore, 'retrieve'> }
-  ): Promise<Array<ResourceDescriptor & { content: string }>> {
-    return Promise.all(
-      resources.map(async (doc) => {
-        try {
-          // The descriptors are already in hand, so this takes the descriptor
-          // half of the one resolution rather than re-reading the view.
-          // Previews exist only for decode media: a binary row would
-          // preview 200 chars of mojibake.
-          const source = representationSource(doc);
-          if (source && !derivesTextOf(source.mediaType) && textSourceOf(source.mediaType) !== 'none') {
-            const contentBuffer = await kb.content.retrieve(source.storageUri);
-            const contentPreview = decodeRepresentation(contentBuffer, source.mediaType).slice(0, 200);
-            return { ...doc, content: contentPreview };
-          }
-          return { ...doc, content: '' };
-        } catch {
-          return { ...doc, content: '' };
-        }
-      })
-    );
+    return { resources: matches.slice(offset, offset + limit), total: matches.length };
   }
 
   /**

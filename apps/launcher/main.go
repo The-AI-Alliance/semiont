@@ -48,7 +48,7 @@ Knowledge base (need login):
             --delete removes an annotation
   frame     Add entity types to the KB's schema vocabulary
   gather    Assemble LLM context for a resource or annotation
-  match     Find resources an annotation could bind to
+  match     Search the KB: resources by text, or what an annotation could bind to
   beckon    Draw attention to a resource or annotation
   listen    Follow the KB's live event stream
 

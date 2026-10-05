@@ -87,6 +87,9 @@
       "match:search-requested",
       "match:search-results",
       "match:search-failed",
+      "match:resources-requested",
+      "match:resources-result",
+      "match:resources-failed",
       "match:limits-requested",
       "match:limits-result",
       "match:limits-failed",
@@ -99,6 +102,9 @@
       "gather:summary-requested",
       "gather:summary-result",
       "gather:summary-failed",
+      "gather:referenced-by-requested",
+      "gather:referenced-by-result",
+      "gather:referenced-by-failed",
       "gather:limits-requested",
       "gather:limits-result",
       "gather:limits-failed",
@@ -126,9 +132,6 @@
       "browse:annotation-context-requested",
       "browse:annotation-context-result",
       "browse:annotation-context-failed",
-      "browse:referenced-by-requested",
-      "browse:referenced-by-result",
-      "browse:referenced-by-failed",
       "browse:entity-types-requested",
       "browse:entity-types-result",
       "browse:entity-types-failed",
@@ -289,6 +292,9 @@
       "match:search-requested",
       "match:search-results",
       "match:search-failed",
+      "match:resources-requested",
+      "match:resources-result",
+      "match:resources-failed",
       "match:limits-requested",
       "match:limits-result",
       "match:limits-failed",
@@ -301,6 +307,9 @@
       "gather:summary-requested",
       "gather:summary-result",
       "gather:summary-failed",
+      "gather:referenced-by-requested",
+      "gather:referenced-by-result",
+      "gather:referenced-by-failed",
       "gather:limits-requested",
       "gather:limits-result",
       "gather:limits-failed",
@@ -328,9 +337,6 @@
       "browse:annotation-context-requested",
       "browse:annotation-context-result",
       "browse:annotation-context-failed",
-      "browse:referenced-by-requested",
-      "browse:referenced-by-result",
-      "browse:referenced-by-failed",
       "browse:entity-types-requested",
       "browse:entity-types-result",
       "browse:entity-types-failed",
@@ -1743,6 +1749,52 @@
       }
     },
     {
+      "channel": "match:resources-requested",
+      "shape": "schema",
+      "schema": "MatchResourcesRequest",
+      "validate": "MatchResourcesRequest",
+      "docs": {
+        "lead": [
+          "",
+          "  // Searching resources by text: lexical first, by meaning when nothing matches."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "match:resources-result",
+      "shape": "schema",
+      "schema": "MatchResourcesResult",
+      "validate": "MatchResourcesResult",
+      "tsRefinement": "{\n    response: Omit<components['schemas']['MatchResourcesResponse'], 'resources'> & {\n      resources: ResourceDescriptor[];\n    };\n  }",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "match:resources-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": null,
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
       "channel": "match:limits-requested",
       "shape": "schema",
       "schema": "InferenceLimitsRequest",
@@ -1919,6 +1971,51 @@
       "schemaDocs": {
         "lead": [],
         "trailing": "// CommandError"
+      }
+    },
+    {
+      "channel": "gather:referenced-by-requested",
+      "shape": "schema",
+      "schema": "GatherReferencedByRequest",
+      "validate": "GatherReferencedByRequest",
+      "docs": {
+        "lead": [
+          "",
+          "  // What refers to a resource: the annotations elsewhere that cite it."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "gather:referenced-by-result",
+      "shape": "schema",
+      "schema": "GatherReferencedByResult",
+      "validate": "GatherReferencedByResult",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "gather:referenced-by-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": null,
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
       }
     },
     {
@@ -2334,50 +2431,6 @@
     },
     {
       "channel": "browse:annotation-context-failed",
-      "shape": "schema",
-      "schema": "CommandError",
-      "validate": null,
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "browse:referenced-by-requested",
-      "shape": "schema",
-      "schema": "BrowseReferencedByRequest",
-      "validate": "BrowseReferencedByRequest",
-      "docs": {
-        "lead": [
-          ""
-        ],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "browse:referenced-by-result",
-      "shape": "schema",
-      "schema": "BrowseReferencedByResult",
-      "validate": "BrowseReferencedByResult",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "browse:referenced-by-failed",
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
@@ -3614,15 +3667,6 @@
       }
     },
     {
-      "request": "browse:referenced-by-requested",
-      "result": "browse:referenced-by-result",
-      "failure": "browse:referenced-by-failed",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
       "request": "browse:entity-types-requested",
       "result": "browse:entity-types-result",
       "failure": "browse:entity-types-failed",
@@ -3728,6 +3772,15 @@
         "lead": [
           "  // dormant — handler registered, no client caller (annotation summary)"
         ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "gather:referenced-by-requested",
+      "result": "gather:referenced-by-result",
+      "failure": "gather:referenced-by-failed",
+      "docs": {
+        "lead": [],
         "trailing": ""
       }
     },
@@ -3857,6 +3910,15 @@
           "  // ── MATCH ───────────────────────────────────────────────────────",
           "  // take-1 dressed as an Observable in the SDK"
         ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "match:resources-requested",
+      "result": "match:resources-result",
+      "failure": "match:resources-failed",
+      "docs": {
+        "lead": [],
         "trailing": ""
       }
     },
@@ -4148,17 +4210,18 @@
       "browse:entity-types-requested",
       "browse:events-requested",
       "browse:kb-requested",
-      "browse:referenced-by-requested",
       "browse:resource-requested",
       "browse:resources-requested",
       "browse:tag-schemas-requested",
       "gather:limits-requested",
+      "gather:referenced-by-requested",
       "gather:requested",
       "gather:resource-requested",
       "gather:summary-requested",
       "job:limits-requested",
       "job:status-requested",
       "match:limits-requested",
+      "match:resources-requested",
       "match:search-requested",
       "yield:clone-resource-requested",
       "yield:clone-token-requested"

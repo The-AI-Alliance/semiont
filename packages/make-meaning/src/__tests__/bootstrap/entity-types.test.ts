@@ -9,16 +9,14 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { bootstrapEntityTypes } from '../../bootstrap/entity-types';
+import { bootstrapEntityTypes } from '../../archivist/bootstrap-entity-types';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
 import { type SemiontProject } from '@semiont/core/node';
-import { userId, kbDid, resourceId, EventBus, type Logger, type GraphServiceConfig } from '@semiont/core';
-import { createKnowledgeBase, type KnowledgeBase } from '../../knowledge-base';
-import { Stower } from '../../stower';
-import { getGraphDatabase } from '@semiont/graph';
+import { userId, kbDid, resourceId, EventBus, type Logger } from '@semiont/core';
+import { WorkingTreeStore } from '@semiont/content';
+import { Stower, type StowerStores } from '../../archivist/stower';
 import { createTestProject, TEST_KB_DOMAIN } from '../helpers/test-project';
-import { createVectorStore } from '@semiont/vectors';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -34,15 +32,14 @@ describe('Entity Types Bootstrap', () => {
   let eventStore: EventStore;
   let eventBus: EventBus;
   let stower: Stower;
-  let kb: KnowledgeBase;
+  let kb: StowerStores & { content: WorkingTreeStore };
 
   beforeEach(async () => {
     ({ project, teardown } = await createTestProject('bootstrap'));
 
     eventBus = new EventBus();
     eventStore = createEventStore(project, eventBus, mockLogger);
-    const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    kb = await createKnowledgeBase(eventStore, project, graphDb, eventBus, mockLogger, { vectorStore: await createVectorStore({ type: 'memory', dimensions: async () => 4 }) });
+    kb = { eventStore: eventStore, content: new WorkingTreeStore(project, mockLogger) };
     stower = new Stower(kb, eventBus, project, mockLogger);
     await stower.initialize();
   });

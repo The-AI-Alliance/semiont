@@ -26,7 +26,7 @@ export async function generatedDescriptor(
     await expect
       .poll(
         async () => {
-          const { resources } = await client.browse.resources({ search: name }).fresh();
+          const { resources } = await client.match.resources(name).fresh();
           hit = resources.find((r) => r.name === name);
           return hit !== undefined;
         },

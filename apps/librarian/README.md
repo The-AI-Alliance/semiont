@@ -26,7 +26,13 @@ The two LLM-bound actors:
   composite structural scoring, and optional LLM semantic scoring.
 
 Plus the gather-summary handler, which registers here, beside the actor it calls: the same
-rule the Archivist's annotation-assembly handler follows.
+rule the Archivist's annotation-assembly handler follows. And the two retrieval handlers, which
+need the graph or the vector index and no model:
+
+- **Text search** (`match:resources-requested`) — resources by text: lexically in the graph, and
+  through the vector index when nothing matches by text. The reply's `matchKind` says which.
+- **Referenced-by** (`gather:referenced-by-requested`) — the annotations elsewhere that refer to
+  a resource, from the graph.
 
 ## What it talks to
 
