@@ -30,7 +30,7 @@ const READS: BrowserReads = {
     log: { storage: { getAllEvents: vi.fn(), getEventFiles: vi.fn(), getLastEvent: vi.fn() } },
     views: { materializer: { materialize: vi.fn() } },
   },
-  graph: { getResource: vi.fn(), getResourceReferencedBy: vi.fn(), listResources: vi.fn(), getEntityTypeStats: vi.fn() },
+  graph: { getResource: vi.fn(), getResourceReferencedBy: vi.fn(), listResources: vi.fn() },
   vectors: { searchResources: vi.fn(), searchAnnotations: vi.fn() },
   content: { retrieve: vi.fn() },
   anchoredText: { read: vi.fn() },

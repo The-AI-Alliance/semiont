@@ -62,7 +62,7 @@ type DirEntry       = components['schemas']['DirEntry'];
 export interface BrowserReads {
   views: Pick<ViewStorage, 'get' | 'getAll' | 'exists'>;
   eventStore: EventStoreReads;
-  graph: Pick<GraphDatabase, 'getResource' | 'getResourceReferencedBy' | 'listResources' | 'getEntityTypeStats'>;
+  graph: Pick<GraphDatabase, 'getResource' | 'getResourceReferencedBy' | 'listResources'>;
   vectors: Pick<VectorStore, 'searchResources' | 'searchAnnotations'>;
   content: Pick<WorkingTreeStore, 'retrieve'>;
   anchoredText: Pick<AnchoredTextStore, 'read'>;

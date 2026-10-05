@@ -7,8 +7,9 @@
  * lifecycle) — against LOCAL stores: the event log, materialized views, the
  * git working tree, and anchored text (read-only; the Smelter writes it).
  * Its network attachments are the bus (HttpTransport: SSE in, `/bus/emit`
- * out), Neo4j (one query — `browse:referenced-by`), and the embedding
- * provider (Browser's semantic search fallback). Its HTTP surface serves
+ * out), the graph (`browse:referenced-by`, and searching resources by text),
+ * and the vector store with its embedding provider (the search's semantic
+ * fallback). Its HTTP surface serves
  * the KB's bytes: the gateway proxies external content requests through
  * it, and internal readers dial it directly.
  *
@@ -276,12 +277,6 @@ async function main() {
   // Vocabulary bootstrap emits frame:add-entity-type for missing defaults —
   // handled by our own Stower, in-process, no cross-service boot race.
   await bootstrapEntityTypes(localBus, eventStore, kbDomain, logger.child({ component: 'entity-types-bootstrap' }));
-
-  // The entity-type warm: getEntityTypes() lazily runs
-  // initializeTagCollections(), which merges DEFAULT_ENTITY_TYPES into the
-  // Neo4j TagCollection and persists it. Seed-and-warm, not a dead read.
-  const entityTypes = await graphDb.getEntityTypes();
-  logger.info('Entity-type collections warmed', { count: entityTypes.length });
 
   // ── Bus pumps ──────────────────────────────────────────────────────
   const httpTransport = new HttpTransport({
