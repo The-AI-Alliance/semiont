@@ -22,8 +22,8 @@ import { type EventBus, cloneToken as makeCloneToken, type CloneToken } from '@s
 import { getResourceEntityTypes, getStorageUri } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { WorkingTreeStore } from '@semiont/content';
-import { ResourceContext } from './resource-context';
-import { asBusRequestPrimitive } from './bus-request-local';
+import { ResourceContext } from '../resource-context';
+import { asBusRequestPrimitive } from '../bus-request-local';
 import { ResourceOperations } from '@semiont/core';
 
 /**

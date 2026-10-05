@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { EventBus, annotationId, resourceId, userId, type Annotation, type EventMap } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { wireEnrichment } from '../event-enrichment';
+import { wireEnrichment } from '../archivist/event-enrichment';
 import { createTestProject, type TestProject } from './helpers/test-project';
 import { mockLogger } from './helpers/smelter-harness';
 

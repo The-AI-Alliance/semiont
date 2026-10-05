@@ -125,8 +125,8 @@ export interface TestClientOptions {
   transport?: FaultyTransportConfig;
   /**
    * Gateway operations for the `auth`/`system` namespaces. Omitted = both are
-   * `undefined` (transport-only client, same as production LocalTransport
-   * setups). Pass `stubGateway()` when a unit under test touches
+   * `undefined` (a transport-only client). Pass `stubGateway()` when a unit
+   * under test touches
    * `client.auth` and the test scripts it via `AuthNamespace.prototype`
    * spies (the AuthShell precedent).
    */

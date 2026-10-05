@@ -20,7 +20,7 @@ import { EventBus } from '@semiont/core';
 import { WorkingTreeStore } from '@semiont/content';
 import { RepresentationMissing } from '@semiont/content';
 import { representationSource, resolveRepresentation } from '../representation';
-import { workingTreeContentReads } from '../knowledge-base';
+import { workingTreeContentReads } from '../archivist/record-slices';
 import { createTestProject, type TestProject } from './helpers/test-project';
 
 const mockLogger: Logger = {
@@ -114,22 +114,6 @@ describe('resolveRepresentation — every face agrees', () => {
   it('workingTreeContentReads is a buffering face of the same call', async () => {
     const { data, contentType } = await workingTreeContentReads(eventStore.viewStorage, content).getBinary(rid);
 
-    expect(Buffer.from(data).toString()).toBe(BODY);
-    expect(contentType).toBe('text/markdown');
-  });
-
-  it('LocalContentTransport.getBinary is a face of the same call', async () => {
-    // Local mode resolves through the shared decision too: a resolution of
-    // its own, reading a field the materializer does not write, would throw
-    // for EVERY resource in local mode.
-    const { LocalContentTransport } = await import('../local-content-transport');
-    // A cast, but a small lie: a two-field stand-in for a KnowledgeBase,
-    // which is all `getBinary` reads.
-    const transport = new LocalContentTransport(
-      { views: eventStore.viewStorage, content } as never,
-    );
-
-    const { data, contentType } = await transport.getBinary(rid);
     expect(Buffer.from(data).toString()).toBe(BODY);
     expect(contentType).toBe('text/markdown');
   });

@@ -9,8 +9,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'fs';
-import { dirname, resolve } from 'path';
+import { existsSync, readFileSync, readdirSync } from 'fs';
+import { dirname, relative, resolve } from 'path';
 
 const SRC = resolve(__dirname, '..');
 const DISCOVERY_PACKAGES = ['@semiont/graph', '@semiont/vectors', '@semiont/inference'];
@@ -53,11 +53,11 @@ function loadedFrom(entry: string): Map<string, string[]> {
 }
 
 describe('what the Archivist process loads', () => {
-  const loaded = loadedFrom(resolve(SRC, 'archivist-main.ts'));
+  const loaded = loadedFrom(resolve(SRC, 'archivist/archivist-main.ts'));
 
   it('follows the entry point into its actors', () => {
     const files = [...loaded.keys()].map((file) => file.slice(SRC.length + 1));
-    expect(files).toEqual(expect.arrayContaining(['stower.ts', 'browser.ts', 'clone-token-manager.ts', 'service-channels.ts']));
+    expect(files).toEqual(expect.arrayContaining(['archivist/stower.ts', 'archivist/browser.ts', 'archivist/clone-token-manager.ts', 'service-channels.ts']));
   });
 
   it('loads no graph, vector or inference package', () => {
@@ -71,5 +71,31 @@ describe('what the Archivist process loads', () => {
   it('the Librarian, walked the same way, does load them', () => {
     const packages = new Set([...loadedFrom(resolve(SRC, 'librarian-main.ts')).values()].flat());
     expect(DISCOVERY_PACKAGES.filter((d) => !packages.has(d))).toEqual([]);
+  });
+});
+
+/** Every source file under `dir`, tests aside. */
+function sourcesUnder(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = resolve(dir, entry.name);
+    if (entry.isDirectory()) return entry.name === '__tests__' ? [] : sourcesUnder(path);
+    return entry.name.endsWith('.ts') ? [path] : [];
+  });
+}
+
+describe("the Archivist's code is the Archivist's alone", () => {
+  // `src/archivist/` is what a port of the Archivist replaces. Another
+  // service that imports from it — even for a type — has a stake in code that
+  // is about to be someone else's.
+  it('nothing outside src/archivist imports from it', () => {
+    const ARCHIVIST = resolve(SRC, 'archivist');
+    const anyImport = /(?:from|import)\s*\(?\s*['"](\.{1,2}\/[^'"]+)['"]/g;
+    const offenders = sourcesUnder(SRC)
+      .filter((file) => !file.startsWith(`${ARCHIVIST}/`))
+      .flatMap((file) => [...readFileSync(file, 'utf8').matchAll(anyImport)]
+        .map((match) => resolve(dirname(file), match[1]!))
+        .filter((target) => target === ARCHIVIST || target.startsWith(`${ARCHIVIST}/`))
+        .map((target) => `${relative(SRC, file)} imports ${relative(SRC, target)}`));
+    expect(offenders).toEqual([]);
   });
 });

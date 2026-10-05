@@ -117,8 +117,8 @@ export class ViewManager {
 
   /**
    * Rebuild all materialized views from the event log on startup.
-   * Mirrors Weaver.rebuildAll() — call this once during
-   * createKnowledgeBase before the HTTP server begins accepting requests.
+   * Mirrors Weaver.rebuildAll() — the Archivist calls this once, before
+   * it serves a request.
    * Idempotent: existing view files are overwritten.
    */
   async rebuildAll(eventLog: RebuildEventSource): Promise<void> {

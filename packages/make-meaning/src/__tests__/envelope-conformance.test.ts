@@ -1,19 +1,18 @@
 /**
- * Every in-process relay this package owns must carry the frame's envelope.
+ * The in-process relay this package owns must carry the frame's envelope.
  *
  * The gate is a runtime one because the defect is: `emit`'s third parameter is
  * optional in the interface, so an implementation that declares only two
  * typechecks, delivers every payload, and drops the correlation key. The
- * compiler has nothing to say; the symptom is `startMakeMeaning` hanging on
- * its entity-type bootstrap, which awaits a reply keyed on exactly that key.
+ * compiler has nothing to say; the symptom is the Archivist hanging on its
+ * entity-type bootstrap, which awaits a reply keyed on exactly that key.
  */
 
 import { describe, it } from 'vitest';
-import { EventBus, userId } from '@semiont/core';
+import { EventBus } from '@semiont/core';
 import { assertCarriesEnvelope } from '@semiont/core/testing';
 import { firstValueFrom, take, timeout } from 'rxjs';
 import { asBusRequestPrimitive } from '../bus-request-local';
-import { LocalTransport } from '../local-transport';
 
 const CHANNEL = 'frame:add-entity-type' as const;
 const PAYLOAD = { tag: 'Person' };
@@ -24,7 +23,7 @@ const firstKey = (bus: EventBus) =>
     .then((frame) => frame.correlationId)
     .catch(() => undefined);
 
-describe('in-process relays carry the frame envelope', () => {
+describe('the in-process relay carries the frame envelope', () => {
   it('asBusRequestPrimitive', async () => {
     const bus = new EventBus();
     try {
@@ -37,22 +36,6 @@ describe('in-process relays carry the frame envelope', () => {
       });
     } finally {
       bus.destroy();
-    }
-  });
-
-  it('LocalTransport', async () => {
-    const bus = new EventBus();
-    const transport = new LocalTransport({ eventBus: bus, userId: userId('did:web:example.org:users:test') });
-    try {
-      const observed = firstKey(bus);
-      await assertCarriesEnvelope({
-        relay: transport,
-        observe: () => observed,
-        channel: CHANNEL,
-        payload: PAYLOAD,
-      });
-    } finally {
-      transport.dispose();
     }
   });
 });

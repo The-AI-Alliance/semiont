@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Observable } from 'rxjs';
 import type { EventMap, PersistedEventType } from '@semiont/core';
-import { createFactPump } from '../fact-pump';
+import { createFactPump } from '../archivist/fact-pump';
 
 /**
  * Equality, not assignability: a typed stream is already assignable to an

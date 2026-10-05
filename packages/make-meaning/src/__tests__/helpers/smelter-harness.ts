@@ -363,9 +363,8 @@ export function createFakeKsBus(
 
 /**
  * Serve the embedding provider's dimension-discovery probe — the only
- * embedding network call startMakeMeaning can make, and only for a vector
- * store that asks the provider for its dimensions — so service startup is
- * hermetic. A plain function, not a vi.fn(): clearAllMocks must not strip it.
+ * embedding network call a service's startup can make, and only for a vector
+ * store that asks the provider for its dimensions — so startup is hermetic. A plain function, not a vi.fn(): clearAllMocks must not strip it.
  */
 export function stubEmbeddingProbeFetch(): void {
   vi.stubGlobal('fetch', async () => new Response(

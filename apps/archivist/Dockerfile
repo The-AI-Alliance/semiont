@@ -2,7 +2,7 @@
 #
 # THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
 # published @semiont/make-meaning and runs `dist/archivist-main.js` out of it; the
-# source is packages/make-meaning/src/archivist-main.ts. Only the image
+# source is packages/make-meaning/src/archivist/archivist-main.ts. Only the image
 # recipe lives here — the entrypoint lives in its package deliberately:
 # moving it out would promote ~18 of that package's
 # internals to public API just to satisfy a directory layout. If you change

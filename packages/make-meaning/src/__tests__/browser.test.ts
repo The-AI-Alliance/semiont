@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom, race, timer, map, take } from 'rxjs';
 import { EventBus, resourceId, agentToDid, type Logger } from '@semiont/core';
-import { Browser } from '../browser';
+import { Browser } from '../archivist/browser';
 import type { MakeMeaningConfig, RosterConfig } from '../config';
 
 
@@ -23,10 +23,10 @@ vi.mock('fs', () => {
   };
 });
 
-vi.mock('../resource-graph', () => ({ assembleResourceGraph: vi.fn() }));
+vi.mock('../archivist/resource-graph', () => ({ assembleResourceGraph: vi.fn() }));
 
 import { promises as fsMock } from 'fs';
-import { assembleResourceGraph } from '../resource-graph';
+import { assembleResourceGraph } from '../archivist/resource-graph';
 const mockAssemble = assembleResourceGraph as ReturnType<typeof vi.fn>;
 const mockStat   = fsMock.stat   as ReturnType<typeof vi.fn>;
 const mockReaddir = fsMock.readdir as ReturnType<typeof vi.fn>;

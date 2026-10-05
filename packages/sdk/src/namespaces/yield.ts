@@ -64,7 +64,7 @@ export class YieldNamespace implements IYieldNamespace {
         },
         {
           // Byte-progress hook. `HttpContentTransport` calls it as the
-          // bytes are sent; `LocalContentTransport` has no wire to observe.
+          // bytes are sent; a transport with no wire never calls it.
           onProgress: ({ bytesUploaded, totalBytes: txTotal }) => {
             if (cancelled) return;
             // Prefer the transport's reported total; fall back to the

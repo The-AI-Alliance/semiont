@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { firstValueFrom, race, timer, take } from 'rxjs';
 import { EventBus, resourceId, type Logger } from '@semiont/core';
-import { registerAnnotationAssemblyHandler } from '../../handlers/annotation-assembly';
+import { registerAnnotationAssemblyHandler } from '../../archivist/annotation-assembly';
 
 type AssemblyReads = Parameters<typeof registerAnnotationAssemblyHandler>[1];
 

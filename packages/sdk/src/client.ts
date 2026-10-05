@@ -40,9 +40,8 @@ import {
   HttpContentTransport,
 } from '@semiont/http-transport';
 
-// Convenience re-exports of the HTTP adapters. Non-HTTP transports
-// (e.g. LocalTransport from @semiont/make-meaning) are wired directly by
-// callers; the sdk does not pre-bundle them.
+// Convenience re-exports of the HTTP adapters. Non-HTTP transports are
+// wired directly by callers; the sdk does not pre-bundle them.
 export {
   APIError,
   type TokenRefresher,
@@ -95,7 +94,7 @@ export class SemiontClient {
   // content-layer flows plus `job`. `auth` and `system` are gateway-ops
   // namespaces — they're only constructed when the caller passes an
   // `IGatewayOperations` instance to the constructor. A `SemiontClient`
-  // over a transport-only setup (e.g. `LocalTransport`) has
+  // over a transport-only setup has
   // `auth === undefined` / `system === undefined`.
   public readonly frame: FrameNamespace;
   public readonly browse: BrowseNamespace;
@@ -115,8 +114,8 @@ export class SemiontClient {
    * The reference flows client → transport, never the other way:
    * the transport stores the reference and publishes the events it
    * receives onto that bus. `HttpTransport` does so for every channel
-   * delivered on its SSE wire; in-process transports adapt their
-   * internal source.
+   * delivered on its SSE wire; a transport with no wire adapts its
+   * own source.
    *
    * Callers do not pass a bus in. If they need to interact with the bus
    * (e.g. for tests or to subscribe to arbitrary channels), they read it

@@ -21,7 +21,7 @@
 
 import { softwareToAgent } from '@semiont/core';
 import type { components } from '@semiont/core';
-import { resolveActorInference, resolveWorkerInference, type RoleInference, type RosterConfig, type WorkerInferenceConfig } from './config';
+import { resolveActorInference, resolveWorkerInference, type RoleInference, type RosterConfig, type WorkerInferenceConfig } from '../config';
 
 type Agent = components['schemas']['Agent'];
 type CollaboratorEntry = components['schemas']['CollaboratorEntry'];

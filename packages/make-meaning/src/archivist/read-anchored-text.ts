@@ -17,7 +17,7 @@
 import { getPrimaryRepresentation, type AnchoredTextAnswer, type ResourceId } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { AnchoredTextStore } from '@semiont/content';
-import { SmeltProgressTimeout, type SmeltProgress } from './smelt-progress';
+import { SmeltProgressTimeout, type SmeltProgress } from '../smelt-progress';
 
 /** The barrier-guarded read path's whole surface. */
 export interface AnchoredTextReads {

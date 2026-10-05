@@ -49,7 +49,7 @@ import type { ResourceId } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { resolveStorageUri } from '@semiont/event-sourcing';
 import type { SemiontProject } from '@semiont/core/node';
-import type { ContentLifecycle, EventAppends } from './knowledge-base';
+import type { ContentLifecycle, EventAppends } from './record-slices';
 import { readEntityTypesProjection } from './views/entity-types-reader';
 import { validateEntityTypes, entityTypesNotRegisteredMessage } from './views/projection-validators';
 

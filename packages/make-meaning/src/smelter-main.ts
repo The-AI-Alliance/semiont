@@ -98,7 +98,7 @@ const healthPort = 24101;
 import { createProcessLogger } from '@semiont/observability/process-logger';
 import { startAgentSession } from './agent-session';
 import { registerVectorIndexSizeProvider } from '@semiont/observability';
-import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
+import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './startup';
 const logger = createProcessLogger('smelter');
 
 // ── Main ─────────────────────────────────────────────────────────────

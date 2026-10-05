@@ -53,7 +53,7 @@ export const TEST_KB_DOMAIN = 'example.org:test-kb';
 
 /**
  * Writes the committed `.semiont/config` of the knowledge base at `root`,
- * declaring its `[site] domain`. `startMakeMeaning` refuses a knowledge base
+ * declaring its `[site] domain`. The Archivist refuses a knowledge base
  * that declares none.
  */
 export async function declareTestKb(root: string): Promise<void> {

@@ -39,7 +39,6 @@
 import { Subscription, merge } from 'rxjs';
 import { HttpTransport } from '@semiont/http-transport';
 import {
-  EventBus,
   PERSISTED_EVENT_TYPES,
   BusRequestError,
   ResourceOperations,
@@ -48,25 +47,13 @@ import {
   kbResource } from '@semiont/core';
 import { IssuerVerifier } from '@semiont/core/identity';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
-import { createEventStore } from '@semiont/event-sourcing';
-import { WorkingTreeStore, createAnchoredTextStore, stagingFor, type AnchoredTextStore } from '@semiont/content';
-import { Stower } from './stower';
-import { Browser } from './browser';
-import { CloneTokenManager } from './clone-token-manager';
-import { ARCHIVIST_INBOUND_CHANNELS, ARCHIVIST_OUTBOUND_CHANNELS } from './service-channels';
-import { attachServicePumps } from './service-pumps';
-import { createSmeltProgress } from './smelt-progress';
-import { rosterConfigFrom } from './config';
+import { ARCHIVIST_INBOUND_CHANNELS, ARCHIVIST_OUTBOUND_CHANNELS } from '../service-channels';
+import { attachServicePumps } from '../service-pumps';
+import { rosterConfigFrom } from '../config';
 import { createArchivistServer } from './archivist-read-path';
 import { createFactPump } from './fact-pump';
-import { registerAnnotationAssemblyHandler } from './handlers/annotation-assembly';
-import { registerAnnotationContextHandler } from './handlers/annotation-lookups';
-import { registerBindUpdateBodyHandler } from './handlers/bind-update-body';
-import { workingTreeContentReads } from './knowledge-base';
-import { anchoredTextOverBus } from './anchored-text-ask';
-import { asBusRequestPrimitive } from './bus-request-local';
-import { bootstrapEntityTypes } from './bootstrap/entity-types';
-import { wireEnrichment } from './event-enrichment';
+import { asBusRequestPrimitive } from '../bus-request-local';
+import { composeArchivist } from './compose';
 
 // ── Config ───────────────────────────────────────────────────────────
 
@@ -110,7 +97,7 @@ const healthPort = 24103;
 
 import { registerFactPumpDepthProvider } from '@semiont/observability';
 import { createProcessLogger } from '@semiont/observability/process-logger';
-import { startAgentSession } from './agent-session';
+import { startAgentSession } from '../agent-session';
 const logger = createProcessLogger('archivist');
 
 // ── Main ─────────────────────────────────────────────────────────────
@@ -138,96 +125,19 @@ async function main() {
     logger,
   });
 
-  // ── The record: local, single-owner ────────────────────────────────
-  const project = new SemiontProject(projectRoot, { anchoredTextDir });
-  // A config that says `[git] sync = true` over a tree git cannot stage into
-  // is refused here, before anything is rebuilt or served. A knowledge base
-  // that does not sync git runs no git, and this resolves at once.
-  await stagingFor(project, { logger: logger.child({ component: 'staging' }) }).ready();
-  // The audience every token in this knowledge base is minted for: the KB's own
-  // did:web-derived resource identity, from its committed [site] domain — read
-  // here, where the file is mounted, and derived with the SAME function the
-  // gateway and the launcher use. A second source is how a deployment that
-  // looks correct comes to refuse every token.
-  const kbDomain = project.siteDomain();
-  if (!kbDomain) {
-    throw new Error("The knowledge base's committed .semiont/config declares no [site] domain: it is the audience this knowledge base accepts tokens for");
-  }
-  const localBus = new EventBus();
-
-  const eventStore = createEventStore(project, localBus, logger.child({ component: 'event-store' }));
-  if (!skipRebuild) {
-    // The Browser reads views, so they must be populated before any request
-    // is served — same startup contract as createKnowledgeBase. The
-    // Archivist is the ONE rebuild owner: no reader rebuilds, the Librarian
-    // reads this stateDir.
-    logger.info('Rebuilding materialized views from the event log');
-    await eventStore.views.rebuildAll(eventStore.log);
-  }
-  const views = eventStore.viewStorage;
-  // Annotation enrichment rides this process's append path: published
-  // facts carry their annotation, and the forwarded copies below carry it too.
-  wireEnrichment(eventStore, { views });
-  const content = new WorkingTreeStore(project, logger.child({ component: 'working-tree-store' }));
-  // Read-only from construction: this process shares the directory with
-  // the store's single writer, the Smelter, so the narrowing — not mere
-  // abstinence — is what keeps single-writer true. Widening this type
-  // breaks that; it is not a refactor.
-  const anchoredText: Pick<AnchoredTextStore, 'read'> = createAnchoredTextStore(anchoredTextDir, logger.child({ component: 'anchored-text-store' }));
-  const smeltProgress = createSmeltProgress(localBus);
-
-  // ── Actors ─────────────────────────────────────────────────────────
-  const stower = new Stower(
-    { content, eventStore },
-    localBus, project, logger.child({ component: 'stower' }),
-  );
-  await stower.initialize();
-
-  // The roster from the keyless role maps: the archivist holds no inference
-  // credential, and its section list names no [inference].
-  const browser = new Browser(
-    { views, eventStore, content, anchoredText, smeltProgress },
-    localBus, project, rosterConfigFrom(envConfig), logger.child({ component: 'browser' }),
-  );
-  await browser.initialize();
-
-  const cloneTokenManager = new CloneTokenManager(
-    { views, content },
-    localBus, logger.child({ component: 'clone-token-manager' }),
-  );
-  await cloneTokenManager.initialize();
-
-  // The fact-consumers follow the facts, so no fact crosses a process
-  // boundary as an emit: annotation-assembly subscribes to the mark:added
-  // this process's Stower publishes, and its mark:create-ok/-failed replies
-  // ride the outbound pump like every reply.
-  registerAnnotationAssemblyHandler(localBus, { views }, logger);
-
-  // Same rule again: the bind re-emit only translates `bind:update-body`
-  // into `mark:update-body` and matches the Stower's reply back. With the
-  // Stower here, that whole exchange is local: only `bind:update-body` and
-  // its reply cross the wire.
-  registerBindUpdateBodyHandler(localBus, logger);
-
-  // The annotation-context read follows the same rule: it is a views+content
-  // read, and this is the process that holds both. Its byte read is the same
-  // in-process resolution the HTTP face serves, with no hop to reach the
-  // mount.
-  // Derived text rides the same bus read everywhere; here our own Browser
-  // answers on the local bus.
-  registerAnnotationContextHandler(
-    localBus,
-    {
-      views,
-      content: workingTreeContentReads(views, content),
-      anchoredText: anchoredTextOverBus(asBusRequestPrimitive(localBus)),
-    },
+  // ── The record and its actors: local, single-owner ─────────────────
+  // The roster comes from the keyless role maps: the archivist holds no
+  // inference credential, and its section list names no [inference].
+  const archivist = await composeArchivist(
+    new SemiontProject(projectRoot, { anchoredTextDir }),
+    rosterConfigFrom(envConfig),
     logger,
+    { skipRebuild },
   );
-
-  // Vocabulary bootstrap emits frame:add-entity-type for missing defaults —
-  // handled by our own Stower, in-process, no cross-service boot race.
-  await bootstrapEntityTypes(localBus, eventStore, kbDomain, logger.child({ component: 'entity-types-bootstrap' }));
+  // `kbDomain` is the audience every token in this knowledge base is minted
+  // for: derived from the committed [site] domain with the SAME function the
+  // gateway and the launcher use.
+  const { bus: localBus, eventStore, views, content, kbDomain } = archivist;
 
   // ── Bus pumps ──────────────────────────────────────────────────────
   const httpTransport = new HttpTransport({
@@ -318,9 +228,7 @@ async function main() {
     session.stop();
     for (const pump of pumps) pump.unsubscribe();
     httpTransport.dispose();
-    void Promise.all([stower.stop(), browser.stop(), cloneTokenManager.stop()]).then(() => {
-      smeltProgress.dispose();
-      localBus.destroy();
+    void archivist.stop().then(() => {
       server.close();
       process.exit(0);
     });

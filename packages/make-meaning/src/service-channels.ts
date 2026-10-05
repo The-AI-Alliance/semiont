@@ -119,10 +119,9 @@ export const GATHERER_CHANNELS = [
 ] as const satisfies readonly (keyof EventMap)[];
 
 /**
- * The request channels these handlers subscribe. The Librarian's inbound
- * roster and the in-process root's handler roster both spread this; the
- * census gate in resource-retrieval.test.ts pins it to the subscriptions
- * below.
+ * The request channels the retrieval handlers subscribe, spread into the
+ * Librarian's inbound roster; the census gate in resource-retrieval.test.ts
+ * pins it to their subscriptions.
  */
 export const RETRIEVAL_HANDLER_CHANNELS = [
   'match:resources-requested',

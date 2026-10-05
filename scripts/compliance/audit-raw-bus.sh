@@ -13,8 +13,7 @@ set -euo pipefail
 #
 # The typed namespace methods (session.client.mark.assist etc.) are the
 # only public API surface. Direct bus access is reserved for the SDK
-# implementation (`@semiont/sdk`), the LocalTransport adapter
-# (`@semiont/make-meaning`), and HTTP adapters (`@semiont/http-transport`).
+# implementation (`@semiont/sdk`) and HTTP adapters (`@semiont/http-transport`).
 #
 # Generic-channel subscription (the case `useEventSubscription` needs —
 # channel name is a hook parameter, not known statically) goes through
@@ -29,10 +28,6 @@ set -euo pipefail
 #   - packages/jobs/src/**              — job-claim adapter and worker loop
 #                                          (domain-owned worker adapters that
 #                                          subscribe to job:* bus events)
-#   - packages/make-meaning/src/local-transport.ts
-#                                       — LocalTransport implements ITransport
-#                                          on top of EventBus (the bus's own verbs
-#                                          are the natural backing primitive there)
 #   - packages/make-meaning/src/weaver.ts
 #   - packages/make-meaning/src/smelter.ts
 #                                       — actors whose `bus` field is a
@@ -45,8 +40,7 @@ set -euo pipefail
 #                                       — FaultyTransport (liveness-axioms
 #                                          simulator, @semiont/core/testing)
 #                                          implements ITransport on top of
-#                                          EventBus, same as LocalTransport;
-#                                          consumed by test suites only
+#                                          EventBus; consumed by test suites only
 #   - packages/react-ui/src/state/**    — cross-feature page state units (shell, session)
 #                                          that subscribe to bus events for
 #                                          UI workflow coordination
@@ -84,7 +78,6 @@ filter_allowlist() {
     | grep -v "^packages/sdk/src/" \
     | grep -v "^packages/http-transport/src/" \
     | grep -v "^packages/jobs/src/" \
-    | grep -v "^packages/make-meaning/src/local-transport\.ts:" \
     | grep -v "^packages/make-meaning/src/weaver\.ts:" \
     | grep -v "^packages/make-meaning/src/smelter\.ts:" \
     | grep -v "^packages/core/src/faulty-transport\.ts:" \

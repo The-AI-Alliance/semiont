@@ -15,10 +15,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { EventBus, getPrimaryRepresentation, userId as makeUserId, type ExtractionOutcome, type Logger, type ResourceId, resourceId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
-import { readAnchoredText } from '../read-anchored-text';
-import { createSmeltProgress } from '../smelt-progress';
+import { readAnchoredText } from '../archivist/read-anchored-text';
+import { createSmeltProgress, type SmeltProgress } from '../smelt-progress';
 import { ResourceOperations } from '@semiont/core';
-import { startMakeMeaning, type MakeMeaningConfig, type MakeMeaningService } from '../service';
+import { composeArchivist, type Archivist } from '../archivist/compose';
+import { createAnchoredTextStore, type AnchoredTextStore } from '@semiont/content';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
 import { declareTestKb } from './helpers/test-project';
 
@@ -30,18 +31,6 @@ const silentLogger: Logger = {
 };
 
 const TEST_USER_ID = makeUserId('did:web:test:users:test-host');
-
-const config: MakeMeaningConfig = {
-  gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
-  services: { graph: { platform: { type: 'posix' }, type: 'memory' }, vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
-  actors: {
-    gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
-    matcher: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
-  },
-  workers: {
-    default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
-  },
-};
 
 /** One page of recognized words — the shape OCR produces via `mapWordsToItems`. */
 const MAP: ExtractionOutcome = {
@@ -55,9 +44,9 @@ const MAP: ExtractionOutcome = {
 };
 
 describe('readAnchoredText + the anchored-text store', () => {
-  let service: MakeMeaningService;
-  /** The KnowledgeSystem the reader resolves against — views + the store. */
-  let kb: MakeMeaningService['knowledgeSystem']['kb'];
+  let service: Archivist;
+  /** What the reader resolves against: the views, and the store the Smelter writes. */
+  let kb: Archivist & { anchoredText: AnchoredTextStore; smeltProgress: SmeltProgress };
   let eventBus: EventBus;
   let testDir: string;
   let rid: ResourceId;
@@ -67,9 +56,13 @@ describe('readAnchoredText + the anchored-text store', () => {
     testDir = join(tmpdir(), `semiont-anchored-${uuidv4()}`);
     await fs.mkdir(testDir, { recursive: true });
     await declareTestKb(testDir);
-    eventBus = new EventBus();
-    service = await startMakeMeaning(new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` }), config, eventBus, silentLogger);
-    kb = service.knowledgeSystem.kb;
+    service = await composeArchivist(new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` }), {}, silentLogger, { skipRebuild: false });
+    eventBus = service.bus;
+    kb = {
+      ...service,
+      anchoredText: createAnchoredTextStore(`${testDir}/anchored-text`, silentLogger),
+      smeltProgress: createSmeltProgress(service.bus),
+    };
 
     ({ rid, checksum } = await seedPdf('scan'));
   }, 30_000);
@@ -85,7 +78,7 @@ describe('readAnchoredText + the anchored-text store', () => {
    */
   async function seedPdf(name: string, outcome: 'indexed' | 'skipped' = 'indexed'): Promise<{ rid: ResourceId; checksum: string }> {
     const buf = Buffer.from(`${name} — a scanned page`, 'utf-8');
-    const stored = await service.knowledgeSystem.kb.content.store(buf, `file://${name}-${uuidv4()}.pdf`);
+    const stored = await service.content.store(buf, `file://${name}-${uuidv4()}.pdf`);
     const rid = await ResourceOperations.createResource(
       {
         name,

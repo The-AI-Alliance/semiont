@@ -63,7 +63,7 @@ import { formatErrors, validators } from '@semiont/core/openapi';
 
 import type { EventLog, ViewStorage } from '@semiont/event-sourcing';
 import { RepresentationMissing, type WorkingTreeStore } from '@semiont/content';
-import { resolveRepresentation } from './representation';
+import { resolveRepresentation } from '../representation';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type ArchivistHealth = components['schemas']['ArchivistHealth'];

@@ -1,6 +1,6 @@
 # Event-Bus Protocol
 
-This document describes the wire-level event protocol that every actor in Semiont speaks: channel naming, payload conventions, the gateway's identity injection, the trace-context carrier, and resource scoping. It is the contract that a transport (HTTP with server-sent events, or in-process) implements and that an SDK hides behind typed methods.
+This document describes the wire-level event protocol that every actor in Semiont speaks: channel naming, payload conventions, the gateway's identity injection, the trace-context carrier, and resource scoping. It is the contract that a transport (HTTP with server-sent events) implements and that an SDK hides behind typed methods.
 
 If you only want to *use* the protocol from a script, you don't need this doc — read **[../../docs/builder/Usage.md](../builder/Usage.md)**, the SDK already wraps every channel pattern. Read this if you're:
 
@@ -34,7 +34,7 @@ API), datastores (Neo4j, Qdrant, Postgres), `/health` liveness probes, and OTLP 
 
 The standing rule governing what may live on the Archivist's HTTP surface at all — *"this surface
 serves the KB tree and each resource's linked-data description, and nothing else"* — is stated once, in
-[`archivist-read-path.ts`](../../packages/make-meaning/src/archivist-read-path.ts)'s header. This
+[`archivist-read-path.ts`](../../packages/make-meaning/src/archivist/archivist-read-path.ts)'s header. This
 table is the system-level view; that header is the gate.
 
 ## Channel naming
@@ -132,8 +132,6 @@ In the schema, `_userId` is **optional** with the canonical description "Authent
 
 The underscore prefix is the convention's marker — anything starting with `_` on a payload is gateway plumbing, not consumer-supplied data. This applies uniformly across every command schema that needs auth context: `MarkCreateCommand`, `MarkArchiveCommand`, `YieldCreateCommand`, `YieldCloneCreateCommand`, `JobCompleteCommand`, etc.
 
-In-process transports (e.g. `LocalTransport` from `@semiont/make-meaning`) emit directly without a gateway hop. They're responsible for setting `_userId` themselves before publishing — if the call originated from an authenticated context, the local emit code must thread the user identity through.
-
 ## Correlation: request/response over a fan-out bus
 
 > **Where the bus lives.** Inside the gateway the bus is a *driver seam*, below the wire this document describes: the in-process driver keeps the fan-out inside one gateway process, and `[signal] type = "nats"` swaps in a NATS driver that fans out over core subjects across replicas. Neither the wire nor anything below changes — the gateway injects identity, applies entitlement, and mints correlation the same way under both, so this protocol and every SDK client are unaffected by the choice. See [Signal Plane configuration](../operator/administration/CONFIGURATION.md).
@@ -144,7 +142,7 @@ The bus is fan-out: every subscriber to a channel sees every event on it. Reques
 2. The handler does its work and emits the response (`match:search-results` or `match:search-failed`) carrying the **same** `correlationId` on its envelope.
 3. The gateway delivers the response only to the connections of the client that made the request (the request's emit *claimed* the id), and the caller matches it by `correlationId`.
 
-`busRequest` ([packages/core/src/bus-request.ts](../../packages/core/src/bus-request.ts)) implements this pattern uniformly. It lives in `@semiont/core`, next to the bus protocol, so the SDK *and* in-process workers share one helper. You call it with the **operation** — the request channel — and a payload; it mints the `correlationId`, looks the reply channels up from the registry, emits, and resolves the awaited reply:
+`busRequest` ([packages/core/src/bus-request.ts](../../packages/core/src/bus-request.ts)) implements this pattern uniformly. It lives in `@semiont/core`, next to the bus protocol, so the SDK *and* the services share one helper. You call it with the **operation** — the request channel — and a payload; it mints the `correlationId`, looks the reply channels up from the registry, emits, and resolves the awaited reply:
 
 ```ts
 import { busRequest } from '@semiont/core';
@@ -180,8 +178,6 @@ The two directions carry it differently:
 
 - **Emit.** A client's `POST /bus/emit` carries the active span in the `traceparent` request header (`getActiveTraceparent()` in `@semiont/observability` reads it); the payload is left alone.
 - **Receive.** An SSE event has no headers of its own, so the gateway's stream route writes the trace context onto `payload._trace`. On receipt, `extractTraceparent(payload)` pulls and removes the field, returning the carrier so the handler runs under `withTraceparent(carrier, ...)`.
-
-An in-process transport has no HTTP boundary and no `_trace` field: a handler's parent is the active OpenTelemetry context of the code that emitted.
 
 The field is **internal plumbing**: subscribers see it stripped before delivery, and most consumer code never needs to touch it. A new wire transport mirrors the pattern — propagate on emit, extract before subscriber dispatch.
 
@@ -241,8 +237,6 @@ The HTTP transport wires this once, for the life of its stream: each frame it re
 
 This is the *fan-in* set — what the transport pushes onto the client's bus. The set the client emits is open-ended and uses `transport.emit(channel, payload)` directly.
 
-In-process transports do the same: `LocalTransport.bridgeInto(bus)` subscribes to the actor bus inside the make-meaning process and republishes on the caller's bus. Same shape, different wire.
-
 ## Wire format: the bus log
 
 When `__SEMIONT_BUS_LOG__ = true` (browser) or `SEMIONT_BUS_LOG=1` (Node), every cross-transport event prints one grep-friendly line:
@@ -259,8 +253,8 @@ Five operations, all logged at transport-contract choke points (not in the SDK's
 
 | Op | Site |
 |---|---|
-| `EMIT` | `HttpTransport.emit()`, `LocalTransport.emit()`, gateway `/bus/emit` route |
-| `RECV` | HttpTransport SSE-side fan-in, `LocalTransport.bridgeInto` callback |
+| `EMIT` | `HttpTransport.emit()`, gateway `/bus/emit` route |
+| `RECV` | HttpTransport SSE-side fan-in |
 | `SSE` | Gateway `Connection::deliver` in `apps/gateway/src/routes/stream.rs` (on stderr) |
 | `PUT` | `HttpContentTransport.putBinary()` + matching gateway route |
 | `GET` | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching gateway route |
@@ -273,9 +267,9 @@ A clean round-trip across the wire shows a contiguous EMIT → EMIT → SSE → 
 
 The SDK doesn't *replace* the bus — it wraps the channel-call patterns so consumers don't write `correlationId` glue and `bus.stream(...).pipe(filter(...))` for every operation. Three layers of abstraction sit on top:
 
-**1. `ITransport`** ([packages/core/src/transport.ts](../../packages/core/src/transport.ts)) — the contract every transport implements: `emit(channel, payload, scope?)`, `stream(channel)`, `subscribeToResource(id)`, `bridgeInto(bus)`. Transport-neutral. Both `HttpTransport` (HTTP+SSE) and `LocalTransport` (in-process actor bus) implement this same surface.
+**1. `ITransport`** ([packages/core/src/transport.ts](../../packages/core/src/transport.ts)) — the contract every transport implements: `emit(channel, payload, scope?)`, `stream(channel)`, `subscribeToResource(id)`, `bridgeInto(bus)`. Transport-neutral; `HttpTransport` (HTTP+SSE) implements it.
 
-**2. `busRequest`** ([packages/core/src/bus-request.ts](../../packages/core/src/bus-request.ts)) — the request/response abstraction. Called with the **operation** (request channel) and a payload; it mints the `correlationId`, looks the result/failure channels up from `BUS_OPERATIONS`, applies a timeout, infers its return type from the result channel, and resolves to the response or rejects with a typed `BusRequestError`. Every namespace method that needs a round-trip is a thin call into this helper. (It lives in `@semiont/core`, so in-process workers use the same path.)
+**2. `busRequest`** ([packages/core/src/bus-request.ts](../../packages/core/src/bus-request.ts)) — the request/response abstraction. Called with the **operation** (request channel) and a payload; it mints the `correlationId`, looks the result/failure channels up from `BUS_OPERATIONS`, applies a timeout, infers its return type from the result channel, and resolves to the response or rejects with a typed `BusRequestError`. Every namespace method that needs a round-trip is a thin call into this helper. (It lives in `@semiont/core`, so the services use the same path.)
 
 **3. Verb namespaces** (`semiont.mark.*`, `semiont.match.*`, `semiont.browse.*`, etc.) — the typed entry points. Each method picks the right channels for its operation, brands ID inputs, and returns the right shape (`Promise`, `StreamObservable`, `CacheObservable`). The channel choice is hidden behind the method name — `semiont.match.search(...)` knows it emits `match:search-requested` and resolves on `match:search-results` / `match:search-failed`.
 

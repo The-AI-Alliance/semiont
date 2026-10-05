@@ -30,13 +30,6 @@ import type {
 } from '@semiont/sdk';
 import type { FaultyTransport as _FaultyTransport } from '@semiont/sdk/testing';
 import type { ShellStateUnit as _ShellStateUnit } from '@semiont/react-ui';
-// The in-process (LocalTransport) path the sdk README teaches. `SemiontProject`
-// is not re-exported by either package, so `project` below derives its type
-// from the very function the snippet calls rather than restating it here.
-import type {
-  startMakeMeaning as _startMakeMeaning,
-  MakeMeaningConfig as _MakeMeaningConfig,
-} from '@semiont/make-meaning';
 
 declare global {
   // ── type vocabulary snippets use in annotations ──────────────────────
@@ -92,10 +85,6 @@ declare global {
   const kb: _KnowledgeBase;
   const storage: _SessionStorage;
   const logger: _Logger;
-  /** The in-process trio the sdk README's LocalTransport snippet starts from. */
-  const project: Parameters<typeof _startMakeMeaning>[0];
-  const config: _MakeMeaningConfig;
-  const eventBus: Parameters<typeof _startMakeMeaning>[2];
   const sub: Subscription;
   const ourSubs: Subscription[];
   const error: Error;

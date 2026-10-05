@@ -13,14 +13,11 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ResourceOperations } from '@semiont/core';
 import { asBusRequestPrimitive } from '../bus-request-local';
 import { type SemiontProject } from '@semiont/core/node';
-import { userId, EventBus, type Logger, type GraphServiceConfig, deriveStorageUri } from '@semiont/core';
+import { userId, EventBus, type Logger, deriveStorageUri } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { Stower } from '../stower';
-import { createKnowledgeBase } from '../knowledge-base';
-import { getGraphDatabase } from '@semiont/graph';
-import type { KnowledgeBase } from '../knowledge-base';
+import { Stower, type StowerStores } from '../archivist/stower';
+import { WorkingTreeStore } from '@semiont/content';
 import { createTestProject } from './helpers/test-project';
-import { createVectorStore } from '@semiont/vectors';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -38,7 +35,7 @@ describe('ResourceOperations', () => {
   let testEventStore: EventStore;
   let eventBus: EventBus;
   let stower: Stower;
-  let kb: KnowledgeBase;
+  let kb: StowerStores & { content: WorkingTreeStore };
 
   /** Write content to disk then create resource via EventBus. */
   async function create(
@@ -59,8 +56,7 @@ describe('ResourceOperations', () => {
 
     eventBus = new EventBus();
     testEventStore = createEventStore(project, eventBus, mockLogger);
-    const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
-    kb = await createKnowledgeBase(testEventStore, project, graphDb, eventBus, mockLogger, { vectorStore: await createVectorStore({ type: 'memory', dimensions: async () => 4 }) });
+    kb = { eventStore: testEventStore, content: new WorkingTreeStore(project, mockLogger) };
 
     stower = new Stower(kb, eventBus, project, mockLogger);
     await stower.initialize();

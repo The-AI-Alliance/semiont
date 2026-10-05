@@ -494,12 +494,9 @@ made in — so a host with N viewers routes each `mark:requested` to the right o
 
 ## Headless (Node) vs. browser
 
-The same code runs in both — only two things differ:
-- **Storage:** `InMemorySessionStorage` (or your own file-backed `SessionStorage`) in Node; a
-  `localStorage`-backed `SessionStorage` in the browser.
-- **Transport:** the default HTTP transport for a remote gateway; `LocalTransport` (from
-  `@semiont/make-meaning`) for fully in-process operation (embedded use, an agentic worker, a
-  test). The verb namespaces are identical either way.
+The same code runs in both — only the storage differs: `InMemorySessionStorage` (or your own
+file-backed `SessionStorage`) in Node; a `localStorage`-backed `SessionStorage` in the browser.
+The verb namespaces are identical either way.
 
 Keep your orchestration framework-free (plain functions over the `session` / `session.client`
 surface) and the same logic serves a browser app, a Node daemon, and a one-shot script.

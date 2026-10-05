@@ -77,7 +77,7 @@ From the launcher: `semiont frame --entity-type Person --entity-type Organizatio
 ## Where it is implemented
 
 - The SDK namespace: [packages/sdk/src/namespaces/frame.ts](../../../packages/sdk/src/namespaces/frame.ts)
-- What records the events: the Stower, in [packages/make-meaning/src/stower.ts](../../../packages/make-meaning/src/stower.ts)
+- What records the events: the Stower, in [packages/make-meaning/src/archivist/stower.ts](../../../packages/make-meaning/src/archivist/stower.ts)
 - How the two vocabularies are projected and read: [the projection pattern](../../architecture/PROJECTION-PATTERN.md)
 - Where the dispatcher resolves a schema id: [apps/dispatcher/handlers/src/admission.rs](../../../apps/dispatcher/handlers/src/admission.rs)
 - The entity types a new knowledge base starts with: [packages/ontology/src/entity-types.ts](../../../packages/ontology/src/entity-types.ts)

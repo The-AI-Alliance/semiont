@@ -51,7 +51,7 @@ const client = new SemiontClient(transport, new HttpContentTransport(transport),
 - **A narrowed stream still hears its replies.** A process that passes `channels` names the reply channels of every operation it awaits. A request whose replies are outside the set fails at once with `bus.unsubscribed`, rather than timing out.
 - **Wire shapes are generated.** Requests and responses are `@semiont/core`'s types, from the spec. None is retyped here.
 
-A transport that is not HTTP implements `ITransport` and `IContentTransport` from `@semiont/core` and inherits nothing from this package. `LocalTransport` in [`@semiont/make-meaning`](../make-meaning/README.md) is the in-process one.
+A transport that is not HTTP implements `ITransport` and `IContentTransport` from `@semiont/core` and inherits nothing from this package.
 
 ## Documentation
 

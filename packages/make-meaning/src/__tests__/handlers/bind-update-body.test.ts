@@ -8,7 +8,7 @@
  * plus the legs around it.
  *
  * One bus is the real arrangement, not a simplification: the relay registers
- * beside the Stower it drives, in the Archivist and in the in-process root,
+ * beside the Stower it drives, in the Archivist,
  * so the `mark:update-body` it emits and the outcome it waits for never cross
  * a process boundary. What crosses the wire is `bind:update-body` and its
  * reply: `service-channels.test.ts` pins the request in the Archivist's
@@ -18,7 +18,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { firstValueFrom, take, timeout } from 'rxjs';
 import { EventBus, type BusFrame, type EventMap, type Logger } from '@semiont/core';
-import { registerBindUpdateBodyHandler } from '../bind-update-body';
+import { registerBindUpdateBodyHandler } from '../../archivist/bind-update-body';
 
 const silentLogger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),

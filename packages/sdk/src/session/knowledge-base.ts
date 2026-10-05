@@ -6,10 +6,9 @@
  *
  *  - `endpoint.kind === 'http'`  — a remote gateway reached over HTTP+SSE.
  *                                  Carries `host`/`port`/`protocol`.
- *  - `endpoint.kind === 'local'` — an in-process knowledge system reached
- *                                  via `LocalTransport` from
- *                                  `@semiont/make-meaning`. Carries an
- *                                  opaque `kbId` identifying the local
+ *  - `endpoint.kind === 'local'` — a knowledge system reached through a
+ *                                  transport with no wire. Carries an
+ *                                  opaque `kbId` identifying the
  *                                  instance to the host process.
  *
  * Session lifecycle code (a `SemiontSession`, `SemiontBrowser`'s
@@ -103,7 +102,7 @@ export interface HttpEndpoint {
 
 export interface LocalEndpoint {
   kind: 'local';
-  /** Opaque identifier for the in-process KB instance the host has loaded. */
+  /** Opaque identifier for the KB instance, meaningful to the host process. */
   kbId: string;
 }
 

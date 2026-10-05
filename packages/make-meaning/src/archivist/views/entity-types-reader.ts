@@ -29,7 +29,7 @@ export async function readEntityTypesProjection(state: SemiontState): Promise<st
   } catch (error: any) {
     if (error.code === 'ENOENT') {
       // Projection file doesn't exist. After ViewManager.rebuildAll() runs at
-      // startup (see createKnowledgeBase), this is the genuine "no entity-type
+      // startup (see composeArchivist), this is the genuine "no entity-type
       // events have been recorded yet" case — empty event log → empty result.
       return [];
     }

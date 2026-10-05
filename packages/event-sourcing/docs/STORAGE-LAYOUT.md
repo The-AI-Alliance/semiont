@@ -5,7 +5,7 @@ Event sourcing data is split between **two directories** with different durabili
 - **Event log** (`<projectRoot>/.semiont/events/`) — durable, source of truth, staged into git on every append when `gitSync` is enabled
 - **Materialized views and projections** (`<stateDir>`, e.g. `$XDG_STATE_HOME/semiont/<project>/`) — ephemeral, derived state, safe to wipe
 
-The materialized layer is rebuildable from the event log at any time via `ViewManager.rebuildAll(eventLog)`, which the Archivist runs once at process start (`createKnowledgeBase` does the same for an in-process composition). See [Why two directories](#why-two-directories) below.
+The materialized layer is rebuildable from the event log at any time via `ViewManager.rebuildAll(eventLog)`, which the Archivist runs once at process start. See [Why two directories](#why-two-directories) below.
 
 ## Directory Structure
 

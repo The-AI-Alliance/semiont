@@ -19,7 +19,7 @@ import type {
   Logger,
 } from '@semiont/core';
 import { EventBus, assembleAnnotation, applyBodyOperations, isAnnotatable, getPrimaryRepresentation } from '@semiont/core';
-import { AnnotationContext } from './annotation-context';
+import { AnnotationContext } from '../annotation-context';
 import type { ViewStorage } from '@semiont/event-sourcing';
 
 import type { Annotation } from '@semiont/core';

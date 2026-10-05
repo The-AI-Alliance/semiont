@@ -1,7 +1,7 @@
 import { resourceId, assembleAnnotation, type AnnotationId } from '@semiont/core';
 import type { EventBus, Logger, components } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
-import { assertAnnotatableTarget } from '../annotation-operations.js';
+import { assertAnnotatableTarget } from './annotation-operations.js';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 

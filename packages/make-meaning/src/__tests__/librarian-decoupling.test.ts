@@ -1,9 +1,8 @@
 /**
  * The decoupling proof for `Matcher`.
  *
- * The Matcher constructs from narrow capability doubles. `KnowledgeBase`
- * appears nowhere in this file — that absence IS the test: if the actor can
- * be built and exercised without the god-object, it is decoupled.
+ * The Matcher constructs from narrow capability doubles: an actor that can
+ * be built and exercised from the slices it names holds nothing else.
  *
  * The capability shape is the actor's honest surface:
  * - graph.listResources — name-match + entity-type retrieval sources

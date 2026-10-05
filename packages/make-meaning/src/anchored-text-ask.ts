@@ -2,8 +2,8 @@
  * How gather reads a resource's DERIVED text — the anchored-text bus read.
  *
  * One implementation for every process, because every process holds a
- * `BusRequestPrimitive` that reaches the Browser: the standalone root's and
- * the Archivist's local bus (the Browser is in-process), and the Librarian's
+ * `BusRequestPrimitive` that reaches the Browser: the Archivist's local bus
+ * (the Browser is in-process), and the Librarian's
  * `HttpTransport` (SSE in, `/bus/emit` out; the Archivist answers — the
  * reply channels must be in its subscription set, which `busRequest`'s
  * probe enforces loudly at first use).

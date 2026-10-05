@@ -113,7 +113,7 @@ import type { ITransport, IContentTransport, IGatewayOperations, ConnectionState
 import { BRIDGED_CHANNELS } from '@semiont/core';
 ```
 
-`@semiont/http-transport` implements these over HTTP + SSE; `LocalTransport` and `LocalContentTransport` in `@semiont/make-meaning` implement `ITransport` and `IContentTransport` in-process.
+`@semiont/http-transport` implements these over HTTP + SSE.
 
 ## Resource writes
 

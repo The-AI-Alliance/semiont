@@ -13,7 +13,7 @@ import type { ViewStorage } from '@semiont/event-sourcing';
 import type { ContentReads } from '@semiont/content';
 import type { AnchoredTextAsk } from './anchored-text-ask.js';
 
-/** The view slice the annotation reads run on, not the whole KnowledgeBase. */
+/** The view slice the annotation reads run on. */
 type ViewGet = { views: Pick<ViewStorage, 'get'> };
 
 type AnnotationContextResponse = components['schemas']['AnnotationContextResponse'];

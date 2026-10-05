@@ -33,12 +33,9 @@ import { LLMContext, type ResourceGatherReads } from './llm-context';
 
 /**
  * The Gatherer's capability slice — DERIVED as the intersection of the two
- * gather paths' reads, never restated. A `KnowledgeBase` supplies all of it
- * but `content` and `anchoredText`: the in-process root wraps its working
- * tree (`workingTreeContentReads`) and asks for anchored text over the bus;
- * the standalone Librarian builds the slice from the shared stateDir (views),
- * network clients (graph/vectors/content), bus-fed progress folds, and the
- * same anchored-text bus read.
+ * gather paths' reads, never restated. The Librarian builds it from the
+ * shared stateDir (views), network clients (graph/vectors/content), bus-fed
+ * progress folds, and the anchored-text bus read.
  */
 export type GathererStores = AnnotationGatherReads & ResourceGatherReads;
 

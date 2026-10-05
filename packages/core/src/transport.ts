@@ -2,15 +2,14 @@
  * Transport interfaces — the shared contract for any wire-or-local
  * communication path consumed by `SemiontClient`. Concrete implementations
  * live alongside the runtime they wrap (`HttpTransport` in
- * `@semiont/http-transport`, in-process variants in `@semiont/make-meaning`,
- * etc.).
+ * `@semiont/http-transport`).
  *
  * Three interfaces:
  *
  *   ITransport          — bus primitives + lifecycle. Universal: every
  *                         concrete transport implements this.
  *   IGatewayOperations  — auth and system endpoints.
- *                         HTTP-shaped; an in-process transport may
+ *                         HTTP-shaped; a non-HTTP transport may
  *                         implement none, some, or a different set.
  *                         Optional on `SemiontClient` — passed only when
  *                         the host has a gateway that supports them.
@@ -97,7 +96,7 @@ export type UserResponse = ResponseContent<paths['/api/users/me']['get']>;
 export interface ITransport {
   /**
    * Base URL the transport speaks to. For HTTP this is `https://host[:port]`;
-   * for in-process transports, an opaque identifier (e.g. `local://kb-id`).
+   * for a transport with no wire, an opaque identifier (e.g. `local://kb-id`).
    */
   readonly baseUrl: BaseUrl;
 
@@ -114,7 +113,7 @@ export interface ITransport {
    * (`/bus/emit` responds `{subscribers: n}`, so a signal that reached an
    * empty room is visible to its caller), or with `undefined` when there is
    * no count — a gateway on a broker signal plane, which cannot count and
-   * omits `subscribers`, an unreadable body, or an in-process transport where
+   * omits `subscribers`, an unreadable body, or a transport with no wire, where
    * the question does not apply. The absence is carried through as an
    * absence: an uncounted emit must stay distinguishable from a genuine empty
    * room, and a number standing in for "unknown" would compare, add and print
@@ -130,8 +129,8 @@ export interface ITransport {
 
   /**
    * Subscribe to a resource-scoped channel set. HTTP attaches a scope to
-   * its SSE connection; in-process transports may be a no-op because
-   * local events are delivered without scoping.
+   * its SSE connection; a transport with no wire may be a no-op because
+   * it delivers events without scoping.
    *
    * Returns a disposer that detaches the scope when the last subscriber
    * unsubscribes (ref-counted).
@@ -151,7 +150,7 @@ export interface ITransport {
    * client → transport (the client owns the bus); transports never
    * construct or replace it. Concrete transports decide what "receives"
    * means: HTTP bridges every channel it observes on its SSE wire;
-   * an in-process transport bridges from the local actor bus.
+   * a transport with no wire bridges from its own source.
    */
   bridgeInto(bus: EventBus): void;
 
@@ -159,7 +158,7 @@ export interface ITransport {
 
   /**
    * Transport-level connection state. For HTTP, reflects the SSE
-   * connection's health; for in-process transports, typically `'open'`
+   * connection's health; for a transport with no wire, typically `'open'`
    * from construction onward (no connection to lose).
    *
    * Load-bearing beyond UI: `busRequest` gates its emit on this
@@ -176,7 +175,7 @@ export interface ITransport {
    * transport includes the tracked set as `pendingReplies` on each subscribe
    * body so a reply published while the connection was down replays from the
    * server's retention buffer. Required of every transport: one that cannot
-   * lose a reply (in-process) has nothing to track and returns a disposer
+   * lose a reply has nothing to track and returns a disposer
    * that does nothing, which is its true answer.
    */
   trackReply(correlationId: string): () => void;
@@ -184,8 +183,8 @@ export interface ITransport {
   /**
    * Whether this transport's receive path delivers `channel`
    * (`BusRequestPrimitive.isSubscribed` — every `ITransport` is passed to
-   * `busRequest`, so it answers the same question). REQUIRED: an in-process
-   * transport answers `true` for every channel because it delivers every
+   * `busRequest`, so it answers the same question). REQUIRED: a transport
+   * with no wire answers `true` for every channel because it delivers every
    * emit, which is the true answer and not a stub.
    */
   isSubscribed(channel: keyof EventMap): boolean;
@@ -201,7 +200,7 @@ export interface ITransport {
    * Stream of transport-level errors surfaced from typed-wire methods or
    * other transport-mediated round-trips, just before they're thrown to
    * the caller. Each emission is a `SemiontError` (or subclass — HTTP
-   * emits `APIError`, in-process transports emit whatever subclass is
+   * emits `APIError`, other transports emit whatever subclass is
    * appropriate). Consumers can subscribe for global error handling
    * (e.g. surfacing 401/403 as modals, logging) without wrapping every
    * call site in try/catch. Distinct from bus-level errors, which are
@@ -219,7 +218,7 @@ export interface ITransport {
  * `HttpTransport` implements both this and `ITransport`; the
  * `SemiontClient` constructor takes a `IGatewayOperations` argument
  * separately from the bus transport so non-HTTP transports
- * (`LocalTransport`) can implement just the bus surface and the
+ * can implement just the bus surface and the
  * SemiontClient cleanly omits `client.auth` / `client.system`.
  *
  * Implementations should map their native error codes to
@@ -281,7 +280,7 @@ export interface PutBinaryOptions {
   /**
    * Called as the bytes are sent: how much has gone and how much there is,
    * never less than it last said. A transport with no wire to send them
-   * over (the in-process `LocalContentTransport`) never calls it.
+   * over never calls it.
    */
   onProgress?: PutBinaryProgress;
   /**
@@ -311,7 +310,7 @@ export interface IContentTransport {
    * Fetch the resource's JSON-LD metadata graph (descriptor + annotations +
    * inbound entity references). The HTTP transport dereferences
    * `GET /resources/:id/jsonld` (the LD face an external linked-data client
-   * sees); in-process transports assemble it from their `KnowledgeSystem`.
+   * sees).
    */
   getResourceGraph(
     resourceId: ResourceId,

@@ -110,7 +110,7 @@ export function replyChannelsFor(channels: readonly string[]): EventName[] {
 
 /**
  * Subset of ITransport that `busRequest` needs: a way to send a command and
- * a way to observe channels. Generic enough that an in-process transport
+ * a way to observe channels. Generic enough that an in-process bus
  * can satisfy it without round-tripping through HTTP.
  */
 export interface BusRequestPrimitive {
@@ -140,7 +140,7 @@ export interface BusRequestPrimitive {
    * optional: `busRequest` gates its emit on
    * this — no correlated emit before the reply path exists. Implementers back
    * it with a `BehaviorSubject`, so the current state arrives synchronously
-   * on subscribe; a transport that cannot lose replies (in-process) reports
+   * on subscribe; a bus that cannot lose replies (in-process) reports
    * `'open'` until disposal.
    */
   state$: Observable<ConnectionState>;
@@ -151,7 +151,7 @@ export interface BusRequestPrimitive {
    * `pendingReplies` in each subscribe body, so a reply published while
    * the connection was down is replayed from the server's retention
    * buffer on reconnect. Required, not optional, for the reason `frames`
-   * and `isSubscribed` are: an in-process transport that cannot lose a reply
+   * and `isSubscribed` are: an in-process bus that cannot lose a reply
    * returns a disposer that does nothing, and `busRequest` has one path.
    */
   trackReply(correlationId: string): () => void;
@@ -163,7 +163,7 @@ export interface BusRequestPrimitive {
    * outside it fails fast with `bus.unsubscribed` instead of burning its
    * timeout on a reply that could never arrive.
    *
-   * REQUIRED. An in-process transport answers `true` for every channel,
+   * REQUIRED. An in-process bus answers `true` for every channel,
    * because it delivers every emit — that is the true answer, not a stub.
    * An optional member would be a compatibility layer: `busRequest` would
    * branch on whether the method exists, so the check would run or not
@@ -295,7 +295,7 @@ export async function busRequest<Op extends BusOperationKey>(
   );
 
   // Subscribe before emitting so we don't miss an instantaneous reply
-  // (which can happen with an in-process LocalTransport bus).
+  // (which can happen with an in-process bus).
   const resultPromise = firstValueFrom(signal ? race(settled$, abandonment(signal)) : settled$);
   // It rejects on a timeout or an abandonment, and is read only where it is
   // awaited, at the tail. Every path that leaves before then — a closed bus, a

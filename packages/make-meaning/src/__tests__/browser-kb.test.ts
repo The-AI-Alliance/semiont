@@ -14,7 +14,7 @@ import { join } from 'path';
 import { firstValueFrom, race, timer, map, take } from 'rxjs';
 import { EventBus, type Logger } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
-import { Browser, type BrowserReads } from '../browser';
+import { Browser, type BrowserReads } from '../archivist/browser';
 import { createTestProject, type TestProject } from './helpers/test-project';
 
 const mockLogger: Logger = {

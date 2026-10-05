@@ -15,8 +15,6 @@ Each service connects from its own entry point in [`@semiont/make-meaning`](../m
 - **The Weaver** is the one writer. It projects the record's events into the graph.
 - **The Librarian** reads it: what refers to a resource, resources by text, the Matcher's candidates, and the neighbourhood a gathered context includes.
 
-`startMakeMeaning()` connects the same way in one process, for scripts and tests.
-
 **Building an application?** You do not need this package. An application asks those questions through [`@semiont/sdk`](../sdk/README.md): `gather.referencedBy`, `match.resources`, `match.search` and `gather`.
 
 ## What is in it

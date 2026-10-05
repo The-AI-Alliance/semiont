@@ -18,7 +18,7 @@ import * as fc from 'fast-check';
 import {
   validateEntityTypes,
   entityTypesNotRegisteredMessage,
-} from '../../views/projection-validators';
+} from '../../archivist/views/projection-validators';
 
 // Arbitraries. Same shape as in projection-reducers.test.ts — kept
 // narrow so counterexamples shrink to readable values.

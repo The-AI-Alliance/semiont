@@ -27,12 +27,10 @@ type ContextualSummaryResponse = components['schemas']['ContextualSummaryRespons
 type ViewGet = { views: Pick<ViewStorage, 'get'> };
 
 /**
- * What the annotation-gather path reads — a narrow capability slice, not the
- * whole KnowledgeBase, with content keyed by resource id so a network
- * transport can back it: the graph builder's slice plus this module's own
- * reads. Pick-derived, never restated. In-process roots satisfy it with
- * `workingTreeContentReads` over their `kb`; the Librarian passes
- * `archivistContentReads`.
+ * What the annotation-gather path reads — a narrow capability slice, with
+ * content keyed by resource id so a network transport backs it: the graph
+ * builder's slice plus this module's own reads. Pick-derived, never restated.
+ * The Librarian passes `archivistContentReads`.
  */
 export interface AnnotationGatherReads {
   views: Pick<ViewStorage, 'get'>;

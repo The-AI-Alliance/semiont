@@ -1,4 +1,4 @@
-import { AnnotationContext } from './annotation-context';
+import { AnnotationContext } from '../annotation-context';
 import type { EventStore, ViewStorage } from '@semiont/event-sourcing';
 import { ENRICHED_EVENT_TYPES } from '@semiont/core';
 import type { Annotation, EnrichedEvent, EnrichedEventType, EventMap, ResourceId, StoredEvent } from '@semiont/core';
@@ -53,8 +53,8 @@ async function readAnnotationFromView(
 
 /**
  * Wire annotation enrichment onto an event store's append path. Enrichment
- * rides appendEvent (step 3 of its pipeline), so it belongs wherever appends
- * happen: the standalone root and the Archivist service.
+ * rides appendEvent (step 3 of its pipeline), so it belongs where appends
+ * happen.
  */
 export function wireEnrichment(eventStore: EventStore, kb: { views: Pick<ViewStorage, 'get'> }): void {
   eventStore.setEnrichEvent(async (event, resourceId) => {

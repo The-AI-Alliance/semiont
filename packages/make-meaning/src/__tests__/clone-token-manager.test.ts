@@ -22,8 +22,9 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { startMakeMeaning, ResourceContext, type MakeMeaningConfig } from '..';
-import { CloneTokenManager, type CloneTokenStores } from '../clone-token-manager';
+import { ResourceContext } from '..';
+import { composeArchivist, type Archivist } from '../archivist/compose';
+import { CloneTokenManager, type CloneTokenStores } from '../archivist/clone-token-manager';
 import { ResourceOperations } from '@semiont/core';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
 import { declareTestKb } from './helpers/test-project';
@@ -86,7 +87,7 @@ describe('CloneTokenManager tokens', () => {
 
 describe('CloneTokenManager format selection', () => {
   let testDir: string;
-  let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
+  let archivist: Archivist;
   let eventBus: EventBus;
 
   beforeEach(async () => {
@@ -95,38 +96,17 @@ describe('CloneTokenManager format selection', () => {
     await declareTestKb(testDir);
     const project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
 
-    const config: MakeMeaningConfig = {
-      gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
-      services: {
-        graph: { platform: { type: 'posix' }, type: 'memory' },
-    vectors: { type: 'memory' },
-    embedding: { type: 'ollama', model: 'nomic-embed-text' },
-      },
-      actors: {
-        gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
-        matcher: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
-      },
-      workers: {
-        default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
-      },
-    };
-
-    eventBus = new EventBus();
-    makeMeaning = await startMakeMeaning(project, config, eventBus, mockLogger);
+    archivist = await composeArchivist(project, {}, mockLogger, { skipRebuild: false });
+    eventBus = archivist.bus;
   });
 
   afterEach(async () => {
-    if (makeMeaning) {
-      await makeMeaning.stop();
-    }
-    if (eventBus) {
-      eventBus.destroy();
-    }
+    await archivist?.stop();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
   async function createSource(format: SupportedMediaType, content: string) {
-    const kb = makeMeaning.knowledgeSystem.kb;
+    const kb = archivist;
     const uri = deriveStorageUri(`clone-src-${++fileCounter}`, format);
     const stored = await kb.content.store(Buffer.from(content), uri);
     return ResourceOperations.createResource(
@@ -180,7 +160,7 @@ describe('CloneTokenManager format selection', () => {
     // The gateway's half of the clone wire shape: bytes are stored, unstaged,
     // BEFORE the command, which carries storage coordinates + the
     // SDK-derived clone format — never content.
-    const kb = makeMeaning.knowledgeSystem.kb;
+    const kb = archivist;
     const format = cloneFormat(sourceFormat);
     const cloneUri = deriveStorageUri(`clone-${fileCounter}`, format);
     const stored = await kb.content.store(Buffer.from('edited clone content'), cloneUri);
@@ -196,7 +176,7 @@ describe('CloneTokenManager format selection', () => {
     const cloneId = await created$;
     if (!cloneId) throw new Error('yield:clone-created carried no resourceId');
 
-    const clone = await ResourceContext.getResourceMetadata(makeResourceId(cloneId), makeMeaning.knowledgeSystem.kb);
+    const clone = await ResourceContext.getResourceMetadata(makeResourceId(cloneId), archivist);
     expect(clone).not.toBeNull();
     return getPrimaryRepresentation(clone!)?.mediaType;
   }

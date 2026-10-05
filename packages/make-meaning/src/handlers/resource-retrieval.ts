@@ -4,8 +4,7 @@
  * Browse answers from the record: the event log, the views, the working
  * tree. These two answer from what is derived from it for finding things —
  * the graph, the vectors, an embedding — so they register wherever those
- * are held: beside the Matcher and the Gatherer, in the Librarian and in
- * the in-process root.
+ * are held: beside the Matcher and the Gatherer, in the Librarian.
  *
  * - `match:resources-requested` — searching resources by text.
  * - `gather:referenced-by-requested` — what refers to a resource.

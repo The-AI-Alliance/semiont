@@ -2,15 +2,14 @@
  * Assemble a resource's JSON-LD metadata graph — descriptor + annotations +
  * inbound entity references — from the event store.
  *
- * Shared by the bus handler (`browse:resource-requested`, in `browser.ts`) and
- * `LocalContentTransport.getResourceGraph`, so the in-process face and the
- * HTTP `/resources/:id/jsonld` face return identical shapes.
+ * The Browser answers `browse:resource-requested` with it, and the HTTP
+ * `/resources/:id/jsonld` face asks the Browser, so both return one shape.
  */
 
 import type { Annotation, ResourceDescriptor, ResourceId } from '@semiont/core';
 import { EventQuery } from '@semiont/event-sourcing';
 import { getEntityTypes } from '@semiont/ontology';
-import type { EventStoreReads } from './knowledge-base';
+import type { EventStoreReads } from './record-slices';
 
 /**
  * `GetResourceResponse` with the domain-flavored (branded) documents the

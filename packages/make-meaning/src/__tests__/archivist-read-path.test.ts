@@ -21,7 +21,7 @@ import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, calculateChecksum } from '@semiont/content';
 import { createServer, type Server } from 'http';
 import type { IssuerVerifier } from '@semiont/core/identity';
-import { createArchivistServer, type RecordedUpload } from '../archivist-read-path';
+import { createArchivistServer, type RecordedUpload } from '../archivist/archivist-read-path';
 import { archivistContentReads } from '@semiont/content';
 import type { ArchivistAddressConfig } from '@semiont/core/node';
 import { createTestProject, type TestProject } from './helpers/test-project';

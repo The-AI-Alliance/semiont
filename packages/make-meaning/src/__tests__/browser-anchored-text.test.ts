@@ -20,7 +20,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { firstValueFrom, map } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
 import { EventBus, type AnchoredText, type Logger, resourceId } from '@semiont/core';
-import { Browser } from '../browser';
+import { Browser } from '../archivist/browser';
 import { SmeltProgressTimeout } from '../smelt-progress';
 
 const mockLogger: Logger = {

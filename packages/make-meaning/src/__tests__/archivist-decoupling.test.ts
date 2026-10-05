@@ -2,9 +2,8 @@
  * The Archivist's actors — the decoupling proof.
  *
  * Each Archivist actor (Stower, Browser, CloneTokenManager) constructs from
- * narrow capability doubles. `KnowledgeBase` appears nowhere in this file —
- * that absence IS the test: if an actor can be built and exercised without
- * the god-object, it is decoupled. These tests pin the boundary.
+ * narrow capability doubles: an actor that can be built and exercised from
+ * the slices it names holds nothing else. These tests pin the boundary.
  *
  * The capability shapes are the actors' honest surfaces:
  * - Stower: content lifecycle {register, move, remove, resolveUri} (the
@@ -23,9 +22,9 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { EventBus, channelAttrsOf, resourceId as makeResourceId, type BusFrame, type Logger, userId } from '@semiont/core';
 import { writeStorageUriEntry } from '@semiont/event-sourcing';
-import { Stower, type StowerStores } from '../stower';
-import { Browser, type BrowserReads } from '../browser';
-import { CloneTokenManager, type CloneTokenStores } from '../clone-token-manager';
+import { Stower, type StowerStores } from '../archivist/stower';
+import { Browser, type BrowserReads } from '../archivist/browser';
+import { CloneTokenManager, type CloneTokenStores } from '../archivist/clone-token-manager';
 import { STOWER_CHANNELS, BROWSER_CHANNELS, CLONE_TOKEN_CHANNELS } from '../service-channels';
 import { createTestProject, type TestProject } from './helpers/test-project';
 
@@ -89,7 +88,7 @@ describe('Stower constructs from capability doubles', () => {
     await tp.teardown();
   });
 
-  it('yield:create registers content and appends yield:created — no KnowledgeBase', async () => {
+  it('yield:create registers content and appends yield:created', async () => {
     tp = await createTestProject('stower-doubles');
     eventBus = new EventBus();
     const stores = makeStores();
@@ -224,7 +223,7 @@ describe('Browser constructs from capability doubles', () => {
     eventBus.destroy();
   });
 
-  it('browse:annotations-requested answers from the views slice — no KnowledgeBase', async () => {
+  it('browse:annotations-requested answers from the views slice', async () => {
     const rid = makeResourceId('res-b1');
     const annotation = {
       id: 'anno-1',

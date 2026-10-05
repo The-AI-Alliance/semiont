@@ -11,7 +11,6 @@ The record of a knowledge base, and the views read from it. Every change is an e
 ## Who uses it
 
 - **The Archivist** holds the one event store, built in [`@semiont/make-meaning`](../make-meaning/README.md). Its Stower is the only writer, and its Browser reads events and views to answer `browse` requests.
-- **`startMakeMeaning()`** builds the same store in one process, for scripts and tests.
 - **[`@semiont/jobs`](../jobs/README.md)** uses `annotationIdFor`, so that the same annotation made twice has one id.
 
 **Building an application?** You do not need this package. An application reads a resource's history through [`@semiont/sdk`](../sdk/README.md) (`browse.events`), and writes by using the verbs.

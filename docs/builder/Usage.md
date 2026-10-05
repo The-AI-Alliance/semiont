@@ -75,7 +75,7 @@ const session = await SemiontSession.signInDevice({
 // storage-adapter wiring).
 ```
 
-`KnowledgeBase` is a uniform shape regardless of transport kind. The transport-specific connection details live in the nested `endpoint` discriminated union (`{ kind: 'http', host, port, protocol }` for HTTP gateways, `{ kind: 'local', kbId }` for in-process). Code that doesn't construct transports never inspects `endpoint`.
+`KnowledgeBase` is a uniform shape regardless of transport kind. The transport-specific connection details live in the nested `endpoint` discriminated union (`{ kind: 'http', host, port, protocol }` for HTTP gateways, `{ kind: 'local', kbId }` for a transport with no wire). Code that doesn't construct transports never inspects `endpoint`.
 
 The session refreshes at the issuer with the refresh token the grant returned. Override `refresh` only for non-standard flows (a service account's client-credentials grant, an interactive re-prompt).
 
@@ -113,7 +113,7 @@ The session factory owns the load-bearing "same `BehaviorSubject` instance flows
 
 ### Manual construction (advanced)
 
-When you need direct control of `token$`, an alternate transport (`LocalTransport` from `@semiont/make-meaning`), or to inject a `tokenRefresher` callback at the transport level, construct each piece by hand:
+When you need direct control of `token$`, an alternate transport, or to inject a `tokenRefresher` callback at the transport level, construct each piece by hand:
 
 ```typescript
 import { SemiontClient, HttpTransport, HttpContentTransport } from '@semiont/sdk';
@@ -568,7 +568,7 @@ RxJS `Observable` (a poll loop has no terminal value): subscribe/unsubscribe, no
 
 ## Bus Connection
 
-For HTTP transports, the client lazily opens a single SSE connection to `/bus/subscribe`. Result channels, global domain events, and resource-scoped fan-out all flow through it. For in-process transports, the bus is the in-memory `EventBus` from `@semiont/core`. Either way, the namespace methods hide the wire.
+For HTTP transports, the client lazily opens a single SSE connection to `/bus/subscribe`. Result channels, global domain events, and resource-scoped fan-out all flow through it. The namespace methods hide the wire.
 
 To receive live updates for a specific resource, subscribe to its
 `browse.*` live queries — **freshness follows observation**.
@@ -626,7 +626,7 @@ const adapter = createJobClaimAdapter({
 adapter.start();
 ```
 
-The cast names the seam: the workers that exist are HTTP workers. The adapter itself is transport-neutral — an in-process worker would pass its own `BusRequestPrimitive`, and the cast goes away.
+The cast names the seam: the workers that exist are HTTP workers. The adapter itself is transport-neutral: it takes any `BusRequestPrimitive`.
 
 ## Debugging the bus
 

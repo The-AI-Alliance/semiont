@@ -273,7 +273,7 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
   const { session, logger } = config;
   // Workers are HTTP-bound: the actor is needed for the job-claim
   // protocol (SSE subscribe + ad-hoc channel adds). Cast to HttpTransport
-  // is intentional: `LocalTransport` workers don't exist. The adapter
+  // is intentional: every worker is an HTTP worker. The adapter
   // itself is transport-neutral — see `BusRequestPrimitive` in
   // `@semiont/core`.
   const httpTransport = session.client.transport as HttpTransport;

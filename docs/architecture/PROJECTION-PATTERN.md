@@ -67,7 +67,7 @@ The reducer is the contract; the shell is the wiring.
 
 ### Validators (`@semiont/make-meaning`)
 
-Lives in [`packages/make-meaning/src/views/projection-validators.ts`](../../packages/make-meaning/src/views/projection-validators.ts).
+Lives in [`packages/make-meaning/src/archivist/views/projection-validators.ts`](../../packages/make-meaning/src/archivist/views/projection-validators.ts).
 
 One validator:
 
@@ -76,7 +76,7 @@ One validator:
 | `validateEntityTypes(registered, requested)` | `string[]`, `string[] \| undefined` | `{ ok: true } \| { ok: false; unknown }` | empty-input no-op, set membership check, unknown-tag listing |
 
 The shell — the Stower's `mark:update-entity-types` handler
-([`stower.ts`](../../packages/make-meaning/src/stower.ts)) — calls the
+([`stower.ts`](../../packages/make-meaning/src/archivist/stower.ts)) — calls the
 reader (which does the I/O) then the validator (pure), and refuses the
 whole request before its first append when any added entity type is not
 registered:

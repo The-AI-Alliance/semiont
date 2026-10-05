@@ -71,9 +71,10 @@ import { anchoredTextOverBus } from './anchored-text-ask';
 import { attachServicePumps } from './service-pumps';
 import { createWeaveProgress } from './weave-progress';
 import { createSmeltProgress } from './smelt-progress';
-import { registerGatherSummaryHandler } from './handlers/annotation-lookups';
+import { registerGatherSummaryHandler } from './handlers/gather-summary';
 import { registerRetrievalHandlers } from './handlers/resource-retrieval';
-import { assertMakeMeaningConfig , STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
+import { assertMakeMeaningConfig } from './assert-make-meaning-config';
+import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './startup';
 import { makeMeaningConfigFrom, requireKBName, resolveActorInference } from './config';
 
 // ── Config ───────────────────────────────────────────────────────────

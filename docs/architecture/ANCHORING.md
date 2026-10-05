@@ -155,7 +155,7 @@ bytes, hence the checksum, which the Smelter reads as a content change.
 | Producing a map (text layer, OCR, tables, forms) | `@semiont/content` — `pdf-extractor.ts` |
 | Storing one | `@semiont/content` — `anchored-text-store.ts` |
 | Publishing at ingest | `@semiont/make-meaning` — `smelter.ts` |
-| Serving one, with the barrier | `@semiont/make-meaning` — `read-anchored-text.ts` |
+| Serving one, with the barrier | `@semiont/make-meaning` — `archivist/read-anchored-text.ts` |
 | Detection's geometry tail | `@semiont/jobs` — `buildPdfAnnotation` |
 | The canvas | `@semiont/react-ui` — `PdfAnnotationCanvas.tsx` |
 

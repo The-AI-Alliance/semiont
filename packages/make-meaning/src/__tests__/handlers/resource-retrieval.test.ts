@@ -276,9 +276,9 @@ describe('the Librarian answers retrieval', () => {
   });
 });
 
-// The Librarian's inbound roster and the in-process root's handler roster
-// both spread RETRIEVAL_HANDLER_CHANNELS. This pins that constant to what
-// the handlers subscribe: one added without the other fails here.
+// The Librarian's inbound roster spreads RETRIEVAL_HANDLER_CHANNELS. This
+// pins that constant to what the handlers subscribe: one added without the
+// other fails here.
 describe('retrieval handler roster (census gate)', () => {
   it('names exactly the channels the handlers subscribe', async () => {
     const bus = new EventBus();

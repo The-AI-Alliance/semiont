@@ -17,10 +17,10 @@ headers and SSE `_trace` payload fields.
 
 | Span name              | Site                                      | Kind     |
 |------------------------|-------------------------------------------|----------|
-| `bus.emit:<channel>`   | `HttpTransport.emit` / `LocalTransport.emit` | producer |
+| `bus.emit:<channel>`   | `HttpTransport.emit`                      | producer |
 | `bus.recv:<channel>`   | Wire-parse / bridge subscriber            | consumer |
 | `actor.<name>:<channel>` | In-process subscriber (Stower / Gatherer / Matcher / Browser / Smelter) | consumer |
-| `content.{put,get}`    | `HttpContentTransport.*` / `LocalContentTransport.*` | client / internal |
+| `content.{put,get}`    | `HttpContentTransport.*`                  | client   |
 | `job:<type>`           | Worker `handleJob`                        | consumer |
 
 What the Rust services export is specified, with kinds and attributes, in
@@ -205,7 +205,7 @@ Librarian, the Smelter, the Weaver and the worker.
 
 | Metric                       | Type             | Attributes                                              | Where                                         |
 |------------------------------|------------------|---------------------------------------------------------|-----------------------------------------------|
-| `semiont.bus.sent`           | counter          | `bus.channel`, and `bus.scope` on a scoped emit         | Every transport `emit` (`HttpTransport`, `LocalTransport`): an emit a client sent |
+| `semiont.bus.sent`           | counter          | `bus.channel`, and `bus.scope` on a scoped emit         | Every transport `emit` (`HttpTransport`): an emit a client sent |
 | `semiont.handler.duration`   | histogram        | `actor`, `bus.channel`                                  | Every actor handler (Stower / Gatherer / Matcher / Browser / Smelter) |
 | `semiont.job.outcome`        | counter          | `job.type`, `job.outcome` (`completed` / `failed`)      | Worker `handleJob`                       |
 | `semiont.job.duration`       | histogram        | `job.type`, `job.outcome`                               | Worker `handleJob`                            |

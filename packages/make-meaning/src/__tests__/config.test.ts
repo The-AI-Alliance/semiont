@@ -1,9 +1,8 @@
 /**
  * `makeMeaningConfigFrom` — the one mapping from EnvironmentConfig.
  *
- * It exists because two actors need the identical slice (the gateway's
- * `startMakeMeaning` and the Archivist's `archivist-main`), and two copies
- * would drift. Its two throws are the interesting part: `gather` and `search`
+ * One mapping, so every service that reads the slice reads the same one.
+ * Its two throws are the interesting part: `gather` and `search`
  * defaults belong to the TOML loader, so a config arriving without them
  * bypassed the loader — and this refuses rather than quietly substituting a
  * second default, which is how two defaults for one value get born.

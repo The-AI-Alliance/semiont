@@ -23,7 +23,9 @@ import {
   EventBus, ResourceOperations, agentToDid, annotationId, busRequest, deriveStorageUri, resourceId, userToDid,
   type AnnotationId, type Logger, type ResourceId, type UserId,
 } from '@semiont/core';
-import { startMakeMeaning, AnnotationOperations, asBusRequestPrimitive, type MakeMeaningConfig } from '..';
+import { asBusRequestPrimitive } from '..';
+import { AnnotationOperations } from '../archivist/annotation-operations';
+import { composeArchivist, type Archivist } from '../archivist/compose';
 import { readPeopleProjection } from '../views/people-reader';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
 import { declareTestKb, TEST_KB_DOMAIN } from './helpers/test-project';
@@ -42,27 +44,11 @@ const BOB = userToDid({ domain: TEST_KB_DOMAIN, subject: '8b1f0c22-77aa-4d31-9b0
 /** A software peer. */
 const WORKER = agentToDid({ domain: TEST_KB_DOMAIN, provider: 'anthropic', model: 'claude-haiku-4-5' });
 
-const config: MakeMeaningConfig = {
-  gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
-  services: {
-    graph: { platform: { type: 'posix' }, type: 'memory' },
-    vectors: { type: 'memory' },
-    embedding: { type: 'ollama', model: 'nomic-embed-text' },
-  },
-  actors: {
-    gatherer: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
-    matcher: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
-  },
-  workers: {
-    default: { type: 'anthropic', model: 'claude-haiku-4-5-20251001', apiKey: 'test-key' },
-  },
-};
-
 describe('history replies name their actors', () => {
   let testDir: string;
   let project: SemiontProject;
   let eventBus: EventBus;
-  let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
+  let archivist: Archivist;
   let rId: ResourceId;
   /** Bob's highlight, which the worker then adds to. */
   let annotated: AnnotationId;
@@ -72,7 +58,7 @@ describe('history replies name their actors', () => {
       { motivation: 'highlighting', target: { source: rId, selector: [{ type: 'TextPositionSelector', start, end }] }, body: [] },
       by,
       eventBus,
-      makeMeaning.knowledgeSystem.kb,
+      archivist,
     );
     await firstValueFrom(eventBus.on('mark:added').pipe(filter((e) => e.payload.annotation.id === annotation.id), take(1)));
     return annotationId(annotation.id);
@@ -83,9 +69,9 @@ describe('history replies name their actors', () => {
     await fs.mkdir(testDir, { recursive: true });
     await declareTestKb(testDir);
     project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
-    eventBus = new EventBus();
-    makeMeaning = await startMakeMeaning(project, config, eventBus, mockLogger);
-    const kb = makeMeaning.knowledgeSystem.kb;
+    archivist = await composeArchivist(project, {}, mockLogger, { skipRebuild: false });
+    eventBus = archivist.bus;
+    const kb = archivist;
 
     // The gateway publishes a person's verified name when they act. Alice's is
     // recorded; Bob's never is.
@@ -116,7 +102,7 @@ describe('history replies name their actors', () => {
   });
 
   afterAll(async () => {
-    await makeMeaning.stop();
+    await archivist.stop();
     eventBus.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
@@ -157,7 +143,7 @@ describe('history replies name their actors', () => {
       // Alice has a name, and her highlight's stored annotation says she made
       // it. The Weaver rebuilds the graph from this reply, so a name written
       // into the payload here would be a name written into the graph.
-      const logged = await makeMeaning.knowledgeSystem.kb.eventStore.log.getEvents(rId);
+      const logged = await archivist.eventStore.log.getEvents(rId);
       const reply = await events();
       const hers = reply.find((e) => e.type === 'mark:added' && e.userId === ALICE);
       expect(hers?.agent.name).toBe('Adam Pingel');
@@ -167,7 +153,7 @@ describe('history replies name their actors', () => {
 
     it('writes no agent and no name into the log', async () => {
       await events();
-      const logged = await makeMeaning.knowledgeSystem.kb.eventStore.log.getEvents(rId);
+      const logged = await archivist.eventStore.log.getEvents(rId);
       expect(logged.length).toBeGreaterThanOrEqual(4);
       for (const event of logged) {
         expect(event).not.toHaveProperty('agent');

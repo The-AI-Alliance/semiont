@@ -13,7 +13,7 @@ import { resourceId, annotationId, userId, EventBus, type Logger } from '@semion
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
-import { workingTreeContentReads } from '../knowledge-base';
+import { workingTreeContentReads } from '../archivist/record-slices';
 import { createTestProject } from './helpers/test-project';
 import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
