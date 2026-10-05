@@ -124,11 +124,6 @@ export function ResourceDiscoveryPage({
   const onNavigateToResourceRef = useRef(onNavigateToResource);
   onNavigateToResourceRef.current = onNavigateToResource;
 
-  // Memoized callbacks
-  const handleEntityTypeFilter = useCallback((entityType: string) => {
-    onSelectedEntityTypeChange(entityType);
-  }, [onSelectedEntityTypeChange]);
-
   const openResource = useCallback((resource: ResourceDescriptor) => {
     const resourceId = getResourceId(resource);
     if (resourceId) {
@@ -208,7 +203,7 @@ export function ResourceDiscoveryPage({
                 aria-label="Entity type filters"
               >
                 <button
-                  onClick={() => handleEntityTypeFilter('')}
+                  onClick={() => onSelectedEntityTypeChange('')}
                   tabIndex={0}
                   aria-pressed={selectedEntityType === ''}
                   className="semiont-card__filter-button"
@@ -219,7 +214,7 @@ export function ResourceDiscoveryPage({
                 {entityTypes.map((type: string) => (
                   <button
                     key={type}
-                    onClick={() => handleEntityTypeFilter(type)}
+                    onClick={() => onSelectedEntityTypeChange(type)}
                     tabIndex={-1}
                     aria-pressed={selectedEntityType === type}
                     className="semiont-card__filter-button"

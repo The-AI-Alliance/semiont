@@ -118,51 +118,28 @@ jobs:
           ./scripts/compliance/audit-storage-uri-one-home.sh
           echo "::endgroup::"
 
+      # The two audits below decide by exit status: batch-audit.ts exits
+      # non-zero when a symbol fails, its wrapper passes that on, and the step
+      # fails. Nothing here reads a report to find out. This step holds the
+      # audits to that: each must refuse a planted violation and pass a clean
+      # tree, because a gate that cannot fail passes everything.
+      - name: Check the Compliance Audits Can Fail
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: ./scripts/compliance/audit-compliance-gate.sh
+
       - name: Run React-UI Compliance Audit
         id: react-ui-audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          echo "::group::React-UI Compliance Audit"
           cd packages/react-ui
           ./scripts/generate-compliance-report.sh
-          echo "::endgroup::"
-
-          # Capture report summary
-          echo "::group::React-UI Summary"
-          head -n 20 ../../.compliance/REACT-UI-COMPLIANCE.md
-          echo "::endgroup::"
-
-          # Check for violations
-          if grep -q "Failing (❌): [1-9]" ../../.compliance/REACT-UI-COMPLIANCE.md; then
-            echo "react_ui_violations=true" >> $GITHUB_OUTPUT
-            echo "::error::React-UI has architecture violations"
-          else
-            echo "react_ui_violations=false" >> $GITHUB_OUTPUT
-            echo "::notice::React-UI is compliant"
-          fi
 
       - name: Run Browser Compliance Audit
         id: browser-audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          echo "::group::Browser Compliance Audit"
           cd apps/browser
           ./scripts/generate-compliance-report.sh
-          echo "::endgroup::"
-
-          # Capture report summary
-          echo "::group::Browser Summary"
-          head -n 20 ../../.compliance/BROWSER-COMPLIANCE.md
-          echo "::endgroup::"
-
-          # Check for violations
-          if grep -q "Failing (❌): [1-9]" ../../.compliance/BROWSER-COMPLIANCE.md; then
-            echo "browser_violations=true" >> $GITHUB_OUTPUT
-            echo "::error::Browser has architecture violations"
-          else
-            echo "browser_violations=false" >> $GITHUB_OUTPUT
-            echo "::notice::Browser is compliant"
-          fi
 
       - name: Display Full React-UI Report
         if: always()
@@ -215,29 +192,10 @@ jobs:
           # Overall Status
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.react-ui-audit.outputs.react_ui_violations }}" = "true" ] || [ "${{ steps.browser-audit.outputs.browser_violations }}" = "true" ]; then
-            echo "❌ **FAILED**: Architecture violations detected" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Please review the full reports above and fix all violations." >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.react-ui-audit.outcome }}" = "success" ] && [ "${{ steps.browser-audit.outcome }}" = "success" ]; then
+            echo "✅ **PASSED**: no failing symbol in either workspace" >> $GITHUB_STEP_SUMMARY
           else
-            echo "✅ **PASSED**: All workspaces are compliant" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **FAILED**: React-UI audit ${{ steps.react-ui-audit.outcome }}, Browser audit ${{ steps.browser-audit.outcome }}" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "🎉 Zero architecture violations detected!" >> $GITHUB_STEP_SUMMARY
+            echo "Each failing audit names its failing symbols in its own step's log, and the full reports are above." >> $GITHUB_STEP_SUMMARY
           fi
-
-      - name: Fail on Violations
-        if: steps.react-ui-audit.outputs.react_ui_violations == 'true' || steps.browser-audit.outputs.browser_violations == 'true'
-        run: |
-          echo "❌ Architecture compliance check failed"
-          echo ""
-          echo "Violations detected in:"
-          if [ "${{ steps.react-ui-audit.outputs.react_ui_violations }}" = "true" ]; then
-            echo "  - React-UI package"
-          fi
-          if [ "${{ steps.browser-audit.outputs.browser_violations }}" = "true" ]; then
-            echo "  - Browser application"
-          fi
-          echo ""
-          echo "See the full reports above for details on all violations."
-          echo "Fix all violations before merging."
-          exit 1

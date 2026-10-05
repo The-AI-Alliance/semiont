@@ -12,7 +12,7 @@ import { NavigationHandler } from '@/components/knowledge/NavigationHandler';
 import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
 
 /**
- * Root Provider Composition for Semiont Frontend.
+ * Root Provider Composition for the Semiont Browser.
  *
  * Wires up GLOBAL contexts that every page needs.
  *

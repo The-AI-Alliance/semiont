@@ -15,7 +15,10 @@ REPORT_FILE="$REPORT_DIR/REACT-UI-TESTS-COMPLIANCE.md"
 AUDIT_TESTS="$REPO_ROOT/scripts/compliance/batch-audit-tests.ts"
 
 echo "🧪 Auditing test files in $SRC_DIR..."
-npx tsx "$AUDIT_TESTS" "$SRC_DIR" > "$REPORT_FILE"
+# The audit exits non-zero when a test file fails. Its status is kept, so the
+# report is still previewed below, and is this script's own.
+audit_status=0
+npx tsx "$AUDIT_TESTS" "$SRC_DIR" > "$REPORT_FILE" || audit_status=$?
 
 echo "📊 Test compliance report generated: $REPORT_FILE"
 echo ""
@@ -27,3 +30,5 @@ if [ -f "$REPORT_FILE" ]; then
   echo ""
   echo "Full report available at: $REPORT_FILE"
 fi
+
+exit "$audit_status"

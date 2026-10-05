@@ -121,6 +121,40 @@ describe('ResourceViewer — embeddable (bring-your-own-session, no session prov
     });
   });
 
+  // The viewer reads the host's callbacks through refs. A host that passes a
+  // new function on each render must be called with the one it passed last.
+  it('calls the onOpenPanel of the latest render', async () => {
+    const { session, eventBus } = createTestSemiontWrapper();
+    const first = vi.fn();
+    const latest = vi.fn();
+
+    const { rerender } = renderInEnglish(
+      <ResourceViewer
+        session={session}
+        resource={resource}
+        annotations={annotationsWithHighlight}
+        onOpenResource={vi.fn()}
+        onOpenPanel={first}
+      />,
+    );
+    rerender(
+      <ResourceViewer
+        session={session}
+        resource={resource}
+        annotations={annotationsWithHighlight}
+        onOpenResource={vi.fn()}
+        onOpenPanel={latest}
+      />,
+    );
+
+    act(() => {
+      eventBus.emit('browse:click', { annotationId: annotationId('ann-1') });
+    });
+
+    await waitFor(() => expect(latest).toHaveBeenCalledTimes(1));
+    expect(first).not.toHaveBeenCalled();
+  });
+
   it('ignores a browse:click naming an annotation this viewer has not loaded', async () => {
     // A remote drive can arrive while the participant is looking at something
     // else. Resolving the annotation FIRST makes that a no-op by construction,

@@ -1,5 +1,5 @@
 /**
- * Global test setup for frontend
+ * Global test setup for the Browser
  */
 
 import '@testing-library/jest-dom';

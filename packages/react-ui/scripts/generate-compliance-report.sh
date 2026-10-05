@@ -28,7 +28,10 @@ fi
 
 echo ""
 echo "🔬 Running compliance audit..."
-npx tsx "$AUDIT" "$SRC_DIR" "$SYMBOLS_FILE" > "$REPORT_FILE"
+# The audit exits non-zero when a symbol fails. Its status is kept, so the
+# report is still previewed below, and is this script's own.
+audit_status=0
+npx tsx "$AUDIT" "$SRC_DIR" "$SYMBOLS_FILE" > "$REPORT_FILE" || audit_status=$?
 
 echo "📊 Compliance report generated: $REPORT_FILE"
 echo ""
@@ -40,3 +43,5 @@ if [ -f "$REPORT_FILE" ]; then
   echo ""
   echo "Full report available at: $REPORT_FILE"
 fi
+
+exit "$audit_status"

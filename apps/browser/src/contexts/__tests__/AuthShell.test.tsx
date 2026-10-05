@@ -1,7 +1,7 @@
 /**
  * AuthShell Composition Tests
  *
- * AuthShell is a thin frontend composition over the library's protected
+ * AuthShell is the app's thin composition over the library's protected
  * error boundary and its three modals. The session state (KB list, active
  * KB, SemiontSession) is owned by the module-scoped `SemiontBrowser`
  * singleton and exposed via `<SemiontProvider>` at the app root — AuthShell

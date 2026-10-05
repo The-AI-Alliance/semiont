@@ -361,6 +361,36 @@ describe('ReferenceWizardModal — compose is the fourth in-modal strategy', () 
     expect(screen.queryByText(T.discardDraftPrompt)).not.toBeInTheDocument();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('calls the onClose of the latest render', async () => {
+    // The wizard reads the host's callbacks through refs. A host that passes a
+    // new function on each render must be called with the one it passed last.
+    const { rerender, onClose, onComposeSubmit, onGenerateSubmit, onLinkResource } = renderWizard();
+    const latest = vi.fn();
+    rerender(
+      <ReferenceWizardModal
+        isOpen
+        onClose={latest}
+        annotationId={annotationId("ann-1")}
+        resourceId={resourceId("res-1")}
+        defaultTitle="Caspian Sea"
+        entityTypes={['Location']}
+        entityTypeOptions={['Person', 'Topic', 'Location']}
+        locale="en"
+        context={CONTEXT}
+        contextLoading={false}
+        contextError={null}
+        onGenerateSubmit={onGenerateSubmit}
+        onLinkResource={onLinkResource}
+        onComposeSubmit={onComposeSubmit}
+        translations={T}
+      />,
+    );
+
+    await userEvent.click(screen.getByLabelText('Close'));
+    expect(latest).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
 
 // The dirty guard is wizard-wide. Dirtiness is step-independent (typed work

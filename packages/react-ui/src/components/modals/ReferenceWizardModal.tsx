@@ -152,6 +152,16 @@ export function ReferenceWizardModal({
   generationAgent,
 }: ReferenceWizardModalProps) {
   const session = useObservable(useSemiont().activeSession$);
+  // The host's callbacks are read through refs, so a host that passes a new
+  // function on every render does not re-create the handlers below.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const onGenerateSubmitRef = useRef(onGenerateSubmit);
+  onGenerateSubmitRef.current = onGenerateSubmit;
+  const onLinkResourceRef = useRef(onLinkResource);
+  onLinkResourceRef.current = onLinkResource;
+  const onComposeSubmitRef = useRef(onComposeSubmit);
+  onComposeSubmitRef.current = onComposeSubmit;
   const [wizardStep, setWizardStep] = useState<WizardStep>({ step: 'gather' });
   // Both step drafts live HERE, not in the steps. Stepping back unmounts a step;
   // if the step owned its values, Back would silently discard everything typed.
@@ -251,9 +261,9 @@ export function ReferenceWizardModal({
     // Rejection propagates to ComposeStep (footer re-enables); the host
     // surfaces the error. Success closes UNCONDITIONALLY — the dirty guard
     // protects dismissal, not completion.
-    await onComposeSubmit(annotationId, params);
-    onClose();
-  }, [annotationId, onComposeSubmit, onClose]);
+    await onComposeSubmitRef.current(annotationId, params);
+    onCloseRef.current();
+  }, [annotationId]);
 
   // The dirty guard: a modal dies on ✕/Escape/backdrop, but typed work must
   // not die with it — WHEREVER the user currently is (drafts survive stepping
@@ -271,8 +281,8 @@ export function ReferenceWizardModal({
       setShowDiscardPrompt(true);
       return;
     }
-    onClose();
-  }, [draftDirty, onClose]);
+    onCloseRef.current();
+  }, [draftDirty]);
 
   const handleBackToGather = useCallback(() => {
     setWizardStep({ step: 'gather' });
@@ -305,15 +315,15 @@ export function ReferenceWizardModal({
 
   const handleGenerateSubmit = useCallback((config: GenerationConfig) => {
     if (!annotationId) return;
-    onGenerateSubmit(annotationId, config);
-    onClose();
-  }, [annotationId, onGenerateSubmit, onClose]);
+    onGenerateSubmitRef.current(annotationId, config);
+    onCloseRef.current();
+  }, [annotationId]);
 
   const handleLink = useCallback((targetResourceId: ResourceId) => {
     if (!annotationId) return;
-    onLinkResource(annotationId, targetResourceId);
-    onClose();
-  }, [annotationId, onLinkResource, onClose]);
+    onLinkResourceRef.current(annotationId, targetResourceId);
+    onCloseRef.current();
+  }, [annotationId]);
 
   // The evidence display's translations — shared by the gather step and the
   // strategy steps, which keep the context in view (display-only)

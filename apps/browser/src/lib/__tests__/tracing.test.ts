@@ -46,14 +46,14 @@ afterEach(() => {
 describe('initObservabilityWeb', () => {
   it('returns false when neither otlpEndpoint nor enabled is provided', async () => {
     const { initObservabilityWeb } = await loadFresh();
-    expect(initObservabilityWeb({ serviceName: 'frontend' })).toBe(false);
+    expect(initObservabilityWeb({ serviceName: 'semiont-browser' })).toBe(false);
   });
 
   it('returns false when enabled=false (even with an endpoint)', async () => {
     const { initObservabilityWeb } = await loadFresh();
     expect(
       initObservabilityWeb({
-        serviceName: 'frontend',
+        serviceName: 'semiont-browser',
         otlpEndpoint: 'https://collector.example.com/v1/traces',
         enabled: false,
       }),
@@ -64,7 +64,7 @@ describe('initObservabilityWeb', () => {
     const { initObservabilityWeb } = await loadFresh();
     expect(
       initObservabilityWeb({
-        serviceName: 'frontend',
+        serviceName: 'semiont-browser',
         otlpEndpoint: 'https://collector.example.com/v1/traces',
       }),
     ).toBe(true);
@@ -74,7 +74,7 @@ describe('initObservabilityWeb', () => {
     const { initObservabilityWeb } = await loadFresh();
     expect(
       initObservabilityWeb({
-        serviceName: 'frontend',
+        serviceName: 'semiont-browser',
         enabled: true,
       }),
     ).toBe(true);
@@ -84,7 +84,7 @@ describe('initObservabilityWeb', () => {
     const { initObservabilityWeb } = await loadFresh();
     expect(
       initObservabilityWeb({
-        serviceName: 'frontend',
+        serviceName: 'semiont-browser',
         otlpEndpoint: 'https://collector.example.com/v1/traces',
         otlpHeaders: { 'x-api-key': 'secret' },
       }),
@@ -95,7 +95,7 @@ describe('initObservabilityWeb', () => {
     const { initObservabilityWeb } = await loadFresh();
     expect(
       initObservabilityWeb({
-        serviceName: 'frontend',
+        serviceName: 'semiont-browser',
         serviceVersion: '2.3.4',
         enabled: true,
       }),
@@ -105,10 +105,10 @@ describe('initObservabilityWeb', () => {
   it('is idempotent — second call returns false', async () => {
     const { initObservabilityWeb } = await loadFresh();
     expect(
-      initObservabilityWeb({ serviceName: 'frontend', enabled: true }),
+      initObservabilityWeb({ serviceName: 'semiont-browser', enabled: true }),
     ).toBe(true);
     expect(
-      initObservabilityWeb({ serviceName: 'frontend', enabled: true }),
+      initObservabilityWeb({ serviceName: 'semiont-browser', enabled: true }),
     ).toBe(false);
   });
 });

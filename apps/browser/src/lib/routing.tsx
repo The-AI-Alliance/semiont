@@ -1,8 +1,8 @@
 /**
- * Routing configuration for Semiont frontend
+ * Routing configuration for the Semiont Browser
  *
  * This module provides the concrete implementation of the RoutingContext
- * interface for the React Router-based frontend application.
+ * interface for this React Router application.
  */
 
 import { Link as LocaleLink } from '@/i18n/routing';
@@ -20,7 +20,7 @@ export function Link({ href, ...props }: LinkComponentProps) {
 }
 
 /**
- * Route builder for Semiont frontend
+ * Route builder for the Semiont Browser
  */
 export const routes: RouteBuilder = {
   resourceDetail: (id: string) => `/know/resource/${id}`,

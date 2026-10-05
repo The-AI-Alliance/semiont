@@ -1,6 +1,6 @@
 // @vitest-environment node
 /**
- * Launcher KB discovery — the frontend image serves `/discovery/*`.
+ * Launcher KB discovery — the Browser image serves `/discovery/*`.
  *
  * The static server's SPA fallback must NOT apply to the discovery prefix:
  * served or 404, never index.html — that's what lets consumers distinguish
@@ -24,7 +24,7 @@ interface Response {
   body: string;
 }
 
-describe('frontend static server — /discovery prefix', () => {
+describe('Browser static server — /discovery prefix', () => {
   let server: http.Server;
   let port: number;
   let root: string;

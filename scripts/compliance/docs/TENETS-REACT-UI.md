@@ -234,6 +234,7 @@ These patterns are enforced via automated AST analysis:
    - Aggregates violations across all symbols
    - Generates markdown compliance reports
    - Calculates compliance percentage
+   - Exits non-zero when a symbol fails, which is what CI reads
 
 **Run compliance audit**:
 ```bash

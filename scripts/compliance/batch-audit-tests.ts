@@ -181,6 +181,15 @@ function main() {
   // Output summary + table
   console.log(generateSummary(results, bypassConfig));
   console.log(formatAsMarkdownTable(results));
+
+  // As in batch-audit.ts: a failing test file is a non-zero exit, named on
+  // stderr, so nothing has to parse the report to know.
+  const failing = results.filter(r => r.status === '❌');
+  if (failing.length > 0) {
+    console.error(`❌ ${failing.length} failing test file(s):`);
+    for (const row of failing) console.error(`   ${row.testFile}`);
+    process.exitCode = 1;
+  }
 }
 
 if (require.main === module) {
