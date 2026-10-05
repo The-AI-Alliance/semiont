@@ -178,17 +178,6 @@ pub(super) struct Live {
     pub(super) events: Cache<ResourceId, Vec<AttributedEvent>>,
 }
 
-/// A cache that keeps nothing beyond its client.
-fn kept_in_memory<K, V, F, Fut>(fetch: F) -> Cache<K, V>
-where
-    K: CacheKey,
-    V: CacheValue,
-    F: Fn(K) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = Result<V, SemiontError>> + Send + 'static,
-{
-    Cache::new(fetch)
-}
-
 /// A cache the client's storage keeps under `name`, when it has one: the
 /// small ones a returning client shows at once.
 fn kept<K, V, F, Fut>(persistence: Option<&CachePersistence>, name: &str, fetch: F) -> Cache<K, V>
@@ -238,13 +227,12 @@ impl Live {
                 }
             }
         });
-        let lists = kept_in_memory({
+        let lists = Cache::new({
             let links = asking(links);
             move |filters: ResourceFilters| {
                 let links = links.clone();
                 async move {
                     let request = BrowseResourcesRequest {
-                        search: None,
                         limit: Some(filters.limit()),
                         archived: filters.archived,
                         entity_type: filters.entity_type,
@@ -319,7 +307,7 @@ impl Live {
                 }
             }
         });
-        let agents = kept_in_memory({
+        let agents = Cache::new({
             let links = asking(links);
             move |_: String| {
                 let links = links.clone();
@@ -331,7 +319,7 @@ impl Live {
                 }
             }
         });
-        let limits = kept_in_memory({
+        let limits = Cache::new({
             let links = asking(links);
             move |holder: &'static str| {
                 let links = links.clone();
@@ -343,7 +331,7 @@ impl Live {
                 }
             }
         });
-        let events = kept_in_memory({
+        let events = Cache::new({
             let links = asking(links);
             move |resource_id: ResourceId| {
                 let links = links.clone();

@@ -328,7 +328,6 @@ export function createFakeKsBus(
             total: resources.length,
             offset,
             limit,
-            matchKind: 'lexical' as const,
           },
         }, { correlationId }));
       } else if (request.channel === 'browse:resource-requested') {

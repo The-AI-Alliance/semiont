@@ -177,13 +177,14 @@ var serviceDescriptors = []serviceDescriptor{
 		needs: needs("gateway", "archivist"), health: healthProbe{path: "/health"}},
 	{role: "weaver", driver: driverSemiont, container: "semiont-weaver", mem: "2G", ports: []portNeed{{24102, "Weaver"}},
 		needs: needs("gateway", "archivist"), health: healthProbe{path: "/health"}},
-	// The Archivist is where the stores the actors dial become preconditions:
-	// each of them gates it, and none of them gates the gateway above.
+	// The Archivist dials the bus and nothing else.
 	{role: "archivist", driver: driverSemiont, container: "semiont-archivist", mem: "2G", ports: []portNeed{{24103, "Archivist"}},
+		needs: needs("gateway"), health: healthProbe{path: "/health"}},
+	// The Librarian owns discovery, so the stores it dials are its preconditions:
+	// each of them gates it, and none of them gates the gateway above.
+	{role: "librarian", driver: driverSemiont, container: "semiont-librarian", mem: "2G", ports: []portNeed{{24104, "Librarian"}},
 		needs:  needs("gateway", "graph", "vectors", "inference", "embedding"),
 		health: healthProbe{path: "/health"}},
-	{role: "librarian", driver: driverSemiont, container: "semiont-librarian", mem: "2G", ports: []portNeed{{24104, "Librarian"}},
-		needs: needs("gateway"), health: healthProbe{path: "/health"}},
 	// The dispatcher's JetStream queue dials the same broker the signal plane
 	// does.
 	{role: "dispatcher", driver: driverSemiont, container: "semiont-dispatcher", mem: "2G", ports: []portNeed{{24105, "Dispatcher"}},

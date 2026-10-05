@@ -112,7 +112,6 @@ describe('archivist transport channels', () => {
       'browse:entity-types-requested',
       'browse:events-requested',
       'browse:kb-requested',
-      'browse:referenced-by-requested',
       'browse:resource-requested',
       'browse:resources-requested',
       'browse:tag-schemas-requested',

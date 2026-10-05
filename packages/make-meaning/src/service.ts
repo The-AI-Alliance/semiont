@@ -193,7 +193,7 @@ async function createKnowledgeSystemFromConfig(
     logger,
   );
 
-  const browser = new Browser(kb, eventBus, project, config, config, embeddingProvider, logger.child({ component: 'browser' }));
+  const browser = new Browser(kb, eventBus, project, config, logger.child({ component: 'browser' }));
   await browser.initialize();
 
   const cloneTokenManager = new CloneTokenManager(kb, eventBus, logger.child({ component: 'clone-token-manager' }));

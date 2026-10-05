@@ -10,7 +10,7 @@ import { resourceId } from '@semiont/core';
 // The union of the slices this file exercises — DERIVED from the methods'
 // own parameter types, never restated.
 type ResourceContextReads = Parameters<typeof ResourceContext.listResources>[1] &
-  Parameters<typeof ResourceContext.addContentPreviews>[1];
+  Parameters<typeof ResourceContext.getResourceMetadata>[1];
 
 // Mock the helpers ResourceContext reads from core. Use importOriginal so
 // branded constructors (resourceId, etc.) keep their real implementations.
@@ -27,8 +27,6 @@ import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/core';
 describe('ResourceContext', () => {
   let mockKb: ResourceContextReads;
   let mockViewStorage: any;
-  let mockRepStore: any;
-  let mockGraph: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -38,30 +36,7 @@ describe('ResourceContext', () => {
       getAll: vi.fn(),
     };
 
-    mockRepStore = {
-      retrieve: vi.fn(),
-    };
-
-    mockGraph = {
-      getResource: vi.fn().mockResolvedValue(null),
-      listResources: vi.fn().mockResolvedValue({ resources: [], total: 0 }),
-    };
-
-    mockKb = {
-      views: mockViewStorage,
-      content: mockRepStore,
-      graph: mockGraph,
-      vectors: { searchResources: vi.fn().mockResolvedValue([]) } as ResourceContextReads['vectors'],
-    };
-  });
-
-  // Every listResources caller supplies the fallback deps (the vector store
-  // and embedding provider are required). Tests not about the fallback pass an
-  // inert bag; the fallback's own axioms below build theirs per-case.
-  const inertSemantic = () => ({
-    embeddingProvider: { embed: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]) } as any,
-    semanticFloor: 0.6,
-    logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), child: vi.fn() } as any,
+    mockKb = { views: mockViewStorage };
   });
 
   describe('getResourceMetadata', () => {
@@ -159,7 +134,7 @@ describe('ResourceContext', () => {
     test('should list all resources when no filters provided', async () => {
       mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource2)]);
 
-      const result = await ResourceContext.listResources(undefined, mockKb, inertSemantic());
+      const result = await ResourceContext.listResources(undefined, mockKb);
 
       expect(result.total).toBe(2);
       expect(result.resources).toContainEqual(mockResource1);
@@ -169,7 +144,7 @@ describe('ResourceContext', () => {
     test('should filter by archived status (false)', async () => {
       mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource3)]);
 
-      const result = await ResourceContext.listResources({ archived: false }, mockKb, inertSemantic());
+      const result = await ResourceContext.listResources({ archived: false }, mockKb);
 
       expect(result.resources).toEqual([mockResource1]);
       expect(result.total).toBe(1);
@@ -178,7 +153,7 @@ describe('ResourceContext', () => {
     test('should filter by archived status (true)', async () => {
       mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource3)]);
 
-      const result = await ResourceContext.listResources({ archived: true }, mockKb, inertSemantic());
+      const result = await ResourceContext.listResources({ archived: true }, mockKb);
 
       expect(result.resources).toEqual([mockResource3]);
       expect(result.total).toBe(1);
@@ -191,8 +166,7 @@ describe('ResourceContext', () => {
 
       const result = await ResourceContext.listResources(
         { entityType: 'Document', limit: 1, offset: 0 },
-        mockKb,
-        inertSemantic());
+        mockKb);
 
       // Two Documents match; the page holds one. `total` describes the match
       // set, because that is what the caller pages on.
@@ -200,24 +174,12 @@ describe('ResourceContext', () => {
       expect(result.resources).toEqual([mockResource3]);
     });
 
-    test('a whitespace-only query is not a search', async () => {
-      mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource2)]);
-
-      const result = await ResourceContext.listResources({ search: '   ' }, mockKb, inertSemantic());
-
-      // Blank input must not divert the listing onto the eventually-consistent
-      // graph path, and must not match every name containing a space.
-      expect(mockGraph.listResources).not.toHaveBeenCalled();
-      expect(mockViewStorage.getAll).toHaveBeenCalled();
-      expect(result.total).toBe(2);
-    });
-
     test('should sort by creation date (newest first)', async () => {
       mockViewStorage.getAll.mockResolvedValue([
         asView(mockResource1), asView(mockResource2), asView(mockResource3),
       ]);
 
-      const result = await ResourceContext.listResources(undefined, mockKb, inertSemantic());
+      const result = await ResourceContext.listResources(undefined, mockKb);
 
       expect(result.resources.map(r => r.dateCreated)).toEqual([
         '2024-01-03T00:00:00Z',
@@ -238,180 +200,13 @@ describe('ResourceContext', () => {
 
       mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(resourceNoDate)]);
 
-      const result = await ResourceContext.listResources(undefined, mockKb, inertSemantic());
+      const result = await ResourceContext.listResources(undefined, mockKb);
 
       expect(result.total).toBe(2);
       // Resource with date should come first
       expect(result.resources[0]).toEqual(mockResource1);
     });
   });
-
-  describe('addContentPreviews', () => {
-    const mockResource: ResourceDescriptor = {
-      '@context': 'https://schema.org/',
-      '@id': resourceId('test-123'),
-      name: 'Test Resource',
-      archived: false,
-      entityTypes: ['Document'],
-      dateCreated: '2024-01-01T00:00:00Z',
-      representations: [
-        {
-          mediaType: 'text/plain',
-          checksum: 'abc123',
-          storageUri: 'abc123',
-          byteSize: 100,
-          rel: 'original',
-        },
-      ],
-    };
-
-    test('should add content previews to resources', async () => {
-      const content = 'This is test content';
-
-      vi.mocked(getPrimaryRepresentation).mockReturnValue({
-        mediaType: 'text/plain',
-        checksum: 'abc123',
-        storageUri: 'abc123',
-        byteSize: 100,
-        rel: 'original',
-      });
-
-      mockRepStore.retrieve.mockResolvedValue(Buffer.from(content));
-      vi.mocked(decodeRepresentation).mockReturnValue(content);
-
-      const result = await ResourceContext.addContentPreviews([mockResource], mockKb);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({
-        ...mockResource,
-        content,
-      });
-      expect(mockRepStore.retrieve).toHaveBeenCalledWith('abc123');
-      expect(decodeRepresentation).toHaveBeenCalledWith(Buffer.from(content), 'text/plain');
-    });
-
-    test('should handle multiple resources', async () => {
-      const resources: ResourceDescriptor[] = [
-        mockResource,
-        {
-          ...mockResource,
-          '@id': resourceId('test-456'),
-          representations: [
-            {
-              mediaType: 'text/plain',
-              checksum: 'def456',
-              storageUri: 'def456',
-              byteSize: 50,
-              rel: 'original',
-            },
-          ],
-        },
-      ];
-
-      vi.mocked(getPrimaryRepresentation).mockImplementation((resource: Parameters<typeof getPrimaryRepresentation>[0]) => {
-        const reps = resource?.representations;
-        return Array.isArray(reps) ? reps[0] : reps;
-      });
-
-      mockRepStore.retrieve
-        .mockResolvedValueOnce(Buffer.from('Content 1'))
-        .mockResolvedValueOnce(Buffer.from('Content 2'));
-
-      vi.mocked(decodeRepresentation)
-        .mockReturnValueOnce('Content 1')
-        .mockReturnValueOnce('Content 2');
-
-      const result = await ResourceContext.addContentPreviews(resources, mockKb);
-
-      expect(result).toHaveLength(2);
-      expect(result[0]?.content).toBe('Content 1');
-      expect(result[1]?.content).toBe('Content 2');
-    });
-
-    test('should handle resources without representations', async () => {
-      const resourceWithoutReps: ResourceDescriptor = {
-        ...mockResource,
-        representations: [],
-      };
-
-      vi.mocked(getPrimaryRepresentation).mockReturnValue(undefined);
-
-      const result = await ResourceContext.addContentPreviews([resourceWithoutReps], mockKb);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({ ...resourceWithoutReps, content: '' });
-      expect(mockRepStore.retrieve).not.toHaveBeenCalled();
-    });
-
-    test('should handle resources without checksum', async () => {
-      const repWithoutChecksum = {
-        mediaType: 'text/plain',
-        byteSize: 100,
-        rel: 'original' as const,
-      };
-
-      const resourceNoChecksum: ResourceDescriptor = {
-        ...mockResource,
-        representations: [repWithoutChecksum],
-      };
-
-      vi.mocked(getPrimaryRepresentation).mockReturnValue(repWithoutChecksum);
-
-      const result = await ResourceContext.addContentPreviews([resourceNoChecksum], mockKb);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]?.content).toBe('');
-      expect(mockRepStore.retrieve).not.toHaveBeenCalled();
-    });
-
-    test('should handle retrieval errors gracefully', async () => {
-      vi.mocked(getPrimaryRepresentation).mockReturnValue({
-        mediaType: 'text/plain',
-        checksum: 'abc123',
-        storageUri: 'abc123',
-        byteSize: 100,
-        rel: 'original',
-      });
-
-      mockRepStore.retrieve.mockRejectedValue(new Error('Content not found'));
-
-      const result = await ResourceContext.addContentPreviews([mockResource], mockKb);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({ ...mockResource, content: '' });
-    });
-
-    test('should handle empty input array', async () => {
-      const result = await ResourceContext.addContentPreviews([], mockKb);
-
-      expect(result).toEqual([]);
-      expect(mockRepStore.retrieve).not.toHaveBeenCalled();
-    });
-
-    test('should truncate content to 200 characters', async () => {
-      const longContent = 'a'.repeat(500);
-
-      vi.mocked(getPrimaryRepresentation).mockReturnValue({
-        mediaType: 'text/plain',
-        checksum: 'abc123',
-        storageUri: 'abc123',
-        byteSize: 500,
-        rel: 'original',
-      });
-
-      mockRepStore.retrieve.mockResolvedValue(Buffer.from(longContent));
-      vi.mocked(decodeRepresentation).mockReturnValue(longContent);
-
-      const result = await ResourceContext.addContentPreviews([mockResource], mockKb);
-
-      expect(result[0]?.content).toHaveLength(200);
-      expect(result[0]?.content).toBe(longContent.slice(0, 200));
-    });
-
-  });
-  // ── Semantic fallback — axioms S1–S6, S8 ─────────────────────────────────
-  // Every case asserts `matchKind` because S1/S8's embed-absence halves would
-  // pass vacuously on their own.
 });
 
 // The text-source dispatcher: the media type decides where text comes from.

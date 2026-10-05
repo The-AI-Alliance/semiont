@@ -2,9 +2,6 @@
   "type": "object",
   "description": "Request to browse resources with optional filtering and pagination",
   "properties": {
-    "search": {
-      "type": "string"
-    },
     "archived": {
       "type": "boolean"
     },

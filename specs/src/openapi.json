@@ -252,12 +252,6 @@
       "BrowseResourceViewedEvent": {
         "$ref": "components/schemas/BrowseResourceViewedEvent.json"
       },
-      "BrowseReferencedByRequest": {
-        "$ref": "components/schemas/BrowseReferencedByRequest.json"
-      },
-      "BrowseReferencedByResult": {
-        "$ref": "components/schemas/BrowseReferencedByResult.json"
-      },
       "BrowseResourceCloseEvent": {
         "$ref": "components/schemas/BrowseResourceCloseEvent.json"
       },

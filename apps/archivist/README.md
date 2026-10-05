@@ -22,7 +22,7 @@ Three actors, and they move together on purpose:
   them. The **only** caller that appends events.
 - **Browser** — serves it: answers every `browse:*` read from the log, those projections and the
   working tree. It reads no graph, no vector index and no embedding provider: a read that needs one
-  is retrieval, and the [Librarian](../librarian/)'s.
+  is discovery, and the [Librarian](../librarian/)'s.
 - **CloneTokenManager** — validates clone tokens so a copy inherits its source's metadata.
   Byte-free: it resolves storage URIs, never content.
 

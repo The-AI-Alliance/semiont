@@ -72,7 +72,7 @@ function defaultResponses(): ResponseMap {
     }),
     'browse:resources-requested': () => ({
       resultChannel: 'browse:resources-result',
-      response: { resources: [mockResource('res-1')], total: 1, offset: 0, limit: 20, matchKind: 'lexical' },
+      response: { resources: [mockResource('res-1')], total: 1, offset: 0, limit: 20 },
     }),
     'browse:entity-types-requested': () => ({
       resultChannel: 'browse:entity-types-result',

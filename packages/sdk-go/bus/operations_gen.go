@@ -13,7 +13,7 @@ type Operation struct {
 	Failure Channel
 }
 
-// Operations is the request→reply registry: 44 operations.
+// Operations is the request→reply registry: 43 operations.
 var Operations = map[Channel]Operation{
 	"bind:update-body":                    {Result: "bind:body-updated", Failure: "bind:body-update-failed"},
 	"browse:resource-requested":           {Result: "browse:resource-result", Failure: "browse:resource-failed"},
@@ -23,7 +23,6 @@ var Operations = map[Channel]Operation{
 	"browse:annotations-requested":        {Result: "browse:annotations-result", Failure: "browse:annotations-failed"},
 	"browse:annotation-history-requested": {Result: "browse:annotation-history-result", Failure: "browse:annotation-history-failed"},
 	"browse:events-requested":             {Result: "browse:events-result", Failure: "browse:events-failed"},
-	"browse:referenced-by-requested":      {Result: "browse:referenced-by-result", Failure: "browse:referenced-by-failed"},
 	"browse:entity-types-requested":       {Result: "browse:entity-types-result", Failure: "browse:entity-types-failed"},
 	"browse:tag-schemas-requested":        {Result: "browse:tag-schemas-result", Failure: "browse:tag-schemas-failed"},
 	"browse:agents-requested":             {Result: "browse:agents-result", Failure: "browse:agents-failed"},

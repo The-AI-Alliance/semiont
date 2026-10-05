@@ -132,9 +132,6 @@
       "browse:annotation-context-requested",
       "browse:annotation-context-result",
       "browse:annotation-context-failed",
-      "browse:referenced-by-requested",
-      "browse:referenced-by-result",
-      "browse:referenced-by-failed",
       "browse:entity-types-requested",
       "browse:entity-types-result",
       "browse:entity-types-failed",
@@ -340,9 +337,6 @@
       "browse:annotation-context-requested",
       "browse:annotation-context-result",
       "browse:annotation-context-failed",
-      "browse:referenced-by-requested",
-      "browse:referenced-by-result",
-      "browse:referenced-by-failed",
       "browse:entity-types-requested",
       "browse:entity-types-result",
       "browse:entity-types-failed",
@@ -2450,50 +2444,6 @@
       }
     },
     {
-      "channel": "browse:referenced-by-requested",
-      "shape": "schema",
-      "schema": "BrowseReferencedByRequest",
-      "validate": "BrowseReferencedByRequest",
-      "docs": {
-        "lead": [
-          ""
-        ],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "browse:referenced-by-result",
-      "shape": "schema",
-      "schema": "BrowseReferencedByResult",
-      "validate": "BrowseReferencedByResult",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
-      "channel": "browse:referenced-by-failed",
-      "shape": "schema",
-      "schema": "CommandError",
-      "validate": null,
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
       "channel": "browse:entity-types-requested",
       "shape": "schema",
       "schema": "BrowseEntityTypesRequest",
@@ -3717,15 +3667,6 @@
       }
     },
     {
-      "request": "browse:referenced-by-requested",
-      "result": "browse:referenced-by-result",
-      "failure": "browse:referenced-by-failed",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      }
-    },
-    {
       "request": "browse:entity-types-requested",
       "result": "browse:entity-types-result",
       "failure": "browse:entity-types-failed",
@@ -4269,7 +4210,6 @@
       "browse:entity-types-requested",
       "browse:events-requested",
       "browse:kb-requested",
-      "browse:referenced-by-requested",
       "browse:resource-requested",
       "browse:resources-requested",
       "browse:tag-schemas-requested",

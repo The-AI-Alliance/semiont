@@ -50,7 +50,7 @@ const annotation = (id: string, of: string, motivation: string): unknown => ({
 const ANNOTATION = annotation('a1', 'r1', 'highlighting');
 const UPDATED = annotation('a1', 'r1', 'commenting');
 const OTHER = annotation('a2', 'r2', 'highlighting');
-const LIST = { resources: [], total: 0, offset: 0, limit: 100, matchKind: 'lexical' };
+const LIST = { resources: [], total: 0, offset: 0, limit: 100 };
 const FOUND = { resources: [], total: 0, offset: 0, limit: 100, matchKind: 'semantic' };
 
 /** The operations a refresh of the collaborator directory asks beside its own: each key holder's limits. */

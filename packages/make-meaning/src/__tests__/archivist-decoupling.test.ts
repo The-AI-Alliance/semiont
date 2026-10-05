@@ -11,8 +11,7 @@
  *   lifecycle half only — no byte service, since bytes travel over HTTP)
  *   + appendEvent + project.projectionsDir.
  * - Browser: read-only slices — views, event-log reads + materializer,
- *   graph reads, vector search, content.retrieve, anchoredText, the smelt
- *   barrier.
+ *   content.retrieve, anchoredText, the smelt barrier.
  * - CloneTokenManager: views.get + content.resolveUri. Existence is
  *   resolveUri + stat: a `retrieve()` used as an existence check is a full
  *   file read to answer a boolean, and this actor never touches bytes.
@@ -28,8 +27,6 @@ import { Stower, STOWER_CHANNELS, type StowerStores } from '../stower';
 import { Browser, BROWSER_CHANNELS, type BrowserReads } from '../browser';
 import { CloneTokenManager, CLONE_TOKEN_CHANNELS, type CloneTokenStores } from '../clone-token-manager';
 import { createTestProject, type TestProject } from './helpers/test-project';
-import { createMockEmbeddingProvider } from './helpers/smelter-harness';
-import type { MakeMeaningConfig } from '../config';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -180,12 +177,6 @@ describe('Stower constructs from capability doubles', () => {
 
 describe('Browser constructs from capability doubles', () => {
   const PROJECT_ROOT = '/home/user/archivist-p1';
-  const config: MakeMeaningConfig = {
-    services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
-    gather: { settleTimeoutMs: 15_000 },
-    search: { semanticFloor: 0.6 },
-  };
-
   let eventBus: EventBus;
   let browser: Browser;
 
@@ -208,15 +199,6 @@ describe('Browser constructs from capability doubles', () => {
           materializer: { materialize: vi.fn().mockResolvedValue(null) },
         },
       },
-      graph: {
-        getResource: vi.fn().mockResolvedValue(null),
-        getResourceReferencedBy: vi.fn().mockResolvedValue([]),
-        listResources: vi.fn().mockResolvedValue({ resources: [], total: 0 }),
-      },
-      vectors: {
-        searchResources: vi.fn().mockResolvedValue([]),
-        searchAnnotations: vi.fn().mockResolvedValue([]),
-      },
       content: { retrieve: vi.fn().mockResolvedValue(Buffer.from('')) },
       anchoredText: { read: vi.fn().mockResolvedValue(null) },
       smeltProgress: { whenSettled: vi.fn().mockResolvedValue('indexed') },
@@ -230,9 +212,7 @@ describe('Browser constructs from capability doubles', () => {
       reads,
       eventBus,
       { root: PROJECT_ROOT } as never,
-      config,
-      config,
-      createMockEmbeddingProvider(),
+      {},
       mockLogger,
     );
     await browser.initialize();
@@ -288,32 +268,6 @@ describe('Browser constructs from capability doubles', () => {
     const result = await ok;
     expect(result.response.resource.name).toBe('Assembled');
     expect(reads.eventStore.views.materializer.materialize).toHaveBeenCalled();
-  });
-
-  it('browse:referenced-by-requested walks the graph slice with view grace', async () => {
-    const target = makeResourceId('res-b3');
-    const citer = makeResourceId('res-citer');
-    const reads = makeReads();
-    (reads.graph.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValue([
-      {
-        id: 'anno-ref-1',
-        target: { source: String(citer), selector: { type: 'TextQuoteSelector', exact: 'quoted words' } },
-      },
-    ]);
-    (reads.graph.getResource as ReturnType<typeof vi.fn>).mockResolvedValue({
-      '@id': String(citer),
-      name: 'Citing Doc',
-    });
-    await start(reads);
-
-    const correlationId = 'p1-refby-1';
-    const ok = reply(eventBus.frames('browse:referenced-by-result'), eventBus.frames('browse:referenced-by-failed'), correlationId);
-
-    eventBus.emit('browse:referenced-by-requested', { resourceId: makeResourceId(String(target)) }, { correlationId });
-
-    const result = await ok;
-    expect(result.response.referencedBy).toHaveLength(1);
-    expect(result.response.referencedBy[0].resourceName).toBe('Citing Doc');
   });
 });
 
@@ -465,17 +419,13 @@ describe('channel rosters match actual subscriptions (census gate)', () => {
             log: { storage: { getAllEvents: vi.fn(), getEventFiles: vi.fn(), getLastEvent: vi.fn() } },
             views: { materializer: { materialize: vi.fn() } },
           },
-          graph: { getResource: vi.fn(), getResourceReferencedBy: vi.fn(), listResources: vi.fn() },
-          vectors: { searchResources: vi.fn(), searchAnnotations: vi.fn() },
           content: { retrieve: vi.fn() },
           anchoredText: { read: vi.fn() },
           smeltProgress: { whenSettled: vi.fn() },
         },
         bus,
         { root: '/tmp/census' } as never,
-        { services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } },
         {},
-        createMockEmbeddingProvider(),
         mockLogger,
       );
       await browser.initialize();

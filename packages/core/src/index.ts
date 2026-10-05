@@ -235,6 +235,7 @@ export {
   isDraft,
   getNodeEncoding,
   decodeRepresentation,
+  compareByRecencyThenId,
 } from './resource-utils';
 
 // Transport contract — interfaces every concrete transport must satisfy.

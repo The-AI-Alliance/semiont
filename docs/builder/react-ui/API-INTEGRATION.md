@@ -282,7 +282,7 @@ import { of } from 'rxjs';
 declare function RecentResources(): React.JSX.Element; // the component under test
 
 it('renders resources', async () => {
-  const list: ResourceList = { resources: [resource], total: 1, offset: 0, limit: 20, matchKind: 'lexical' };
+  const list: ResourceList = { resources: [resource], total: 1, offset: 0, limit: 20 };
   vi.spyOn(BrowseNamespace.prototype, 'resources').mockReturnValue(
     CacheObservable.from(of<CacheState<ResourceList>>({ status: 'ready', value: list })),
   );

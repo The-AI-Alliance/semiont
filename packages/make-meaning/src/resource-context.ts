@@ -1,36 +1,26 @@
 /**
  * Resource Context
  *
- * Assembles resource context from view storage and content store.
- * Graph queries go through GraphContext — with one deliberate exception:
- * `listResources`' search path runs inside the graph engine, and its
- * semantic fallback reads the vector index. Both are single-index reads;
- * anything that FUSES sources belongs to the Matcher.
+ * Assembles resource context from view storage and content store. It reads
+ * the record only: searching resources is discovery, and the Librarian's
+ * (`resource-search.ts`).
  */
 
-import { decodeRepresentation, derivesTextOf, getResourceEntityTypes, getResourceId, textSourceOf } from '@semiont/core';
+import { compareByRecencyThenId, decodeRepresentation, derivesTextOf, getResourceEntityTypes, getResourceId, textSourceOf } from '@semiont/core';
 import { representationSource } from './representation.js';
 import type { AnchoredTextAsk } from './anchored-text-ask.js';
 import type { ResourceId } from '@semiont/core';
-import { compareByRecencyThenId, type GraphDatabase } from '@semiont/graph';
-import type { VectorStore } from '@semiont/vectors';
 import type { ViewStorage } from '@semiont/event-sourcing';
-import type { ContentReads, WorkingTreeStore } from '@semiont/content';
-import { searchResources, type SemanticFallbackDeps } from './resource-search';
+import type { ContentReads } from '@semiont/content';
 
 import type { ResourceDescriptor } from '@semiont/core';
 
-/** What the listing paths read: lexical search in the graph, unsearched
- *  listings from views, the semantic fallback in the vector index — plus
- *  `resourceWithViewGrace`'s graph-first hydration. */
+/** What a listing reads: the views, and nothing else. */
 export interface ListResourcesReads {
-  views: Pick<ViewStorage, 'get' | 'getAll'>;
-  graph: Pick<GraphDatabase, 'listResources' | 'getResource'>;
-  vectors: Pick<VectorStore, 'searchResources'>;
+  views: Pick<ViewStorage, 'getAll'>;
 }
 
 export interface ListResourcesFilters {
-  search?: string;
   archived?: boolean;
   entityType?: string;
   offset?: number;
@@ -38,18 +28,9 @@ export interface ListResourcesFilters {
 }
 
 export interface ListResourcesResult {
-  /** Semantic hits carry `content` — the passage that matched, not a preview. */
-  resources: Array<ResourceDescriptor & { content?: string }>;
+  resources: ResourceDescriptor[];
   /** Size of the whole match set, not of the returned page. */
   total: number;
-  /**
-   * Which kind of answer this is: 'lexical' for the graph/view paths
-   * (including an honestly-empty page), 'semantic' when an empty lexical
-   * search was answered from the vector index. REQUIRED — an optional
-   * discriminator defaulting to lexical would let a missing value silently
-   * read as lexical.
-   */
-  matchKind: 'lexical' | 'semantic';
 }
 
 export class ResourceContext {
@@ -67,31 +48,17 @@ export class ResourceContext {
 
   /**
    * List resources, optionally filtered, as one page plus the size of the whole
-   * match set. Every filter is applied before pagination on both paths — a
-   * filter applied afterwards narrows the page rather than the match set, which
-   * is how a search scoped to an entity type can come back empty while hundreds
-   * of resources match.
+   * match set. Every filter is applied before pagination — a filter applied
+   * afterwards narrows the page rather than the match set.
    *
-   * When `search` is set, the entire query — filtering, ordering and
-   * pagination — runs inside the graph engine.
-   *
-   * When `search` is unset, the materialized views answer instead. They are the
-   * barrier-stamped projection, so an unsearched listing is read-your-writes
-   * where the graph is only eventually consistent.
+   * The materialized views answer. They are the barrier-stamped projection, so
+   * a listing is read-your-writes.
    */
   static async listResources(
     filters: ListResourcesFilters | undefined,
     kb: ListResourcesReads,
-    semantic: SemanticFallbackDeps,
   ): Promise<ListResourcesResult> {
-    const { search: rawSearch, archived, entityType, offset = 0, limit = 50 } = filters ?? {};
-    // Blank input is not a search: it must not divert the listing onto the
-    // eventually-consistent graph path, and it has nothing to match on.
-    const search = rawSearch?.trim() || undefined;
-
-    // A search has one implementation, the Librarian's
-    // (`match:resources-requested`); a searched listing reaches it here.
-    if (search) return searchResources({ search, archived, entityType, offset, limit }, kb, semantic);
+    const { archived, entityType, offset = 0, limit = 50 } = filters ?? {};
 
     const allViews = await kb.views.getAll();
     const matches = allViews
@@ -100,36 +67,7 @@ export class ResourceContext {
       .filter((doc) => !entityType || getResourceEntityTypes(doc).includes(entityType))
       .sort(compareByRecencyThenId);
 
-    return { resources: matches.slice(offset, offset + limit), total: matches.length, matchKind: 'lexical' };
-  }
-
-  /**
-   * Add content previews to resources (for search results)
-   * Retrieves and decodes the first 200 characters of each resource's primary representation
-   */
-  static async addContentPreviews(
-    resources: ResourceDescriptor[],
-    kb: { content: Pick<WorkingTreeStore, 'retrieve'> }
-  ): Promise<Array<ResourceDescriptor & { content: string }>> {
-    return Promise.all(
-      resources.map(async (doc) => {
-        try {
-          // The descriptors are already in hand, so this takes the descriptor
-          // half of the one resolution rather than re-reading the view.
-          // Previews exist only for decode media: a binary row would
-          // preview 200 chars of mojibake.
-          const source = representationSource(doc);
-          if (source && !derivesTextOf(source.mediaType) && textSourceOf(source.mediaType) !== 'none') {
-            const contentBuffer = await kb.content.retrieve(source.storageUri);
-            const contentPreview = decodeRepresentation(contentBuffer, source.mediaType).slice(0, 200);
-            return { ...doc, content: contentPreview };
-          }
-          return { ...doc, content: '' };
-        } catch {
-          return { ...doc, content: '' };
-        }
-      })
-    );
+    return { resources: matches.slice(offset, offset + limit), total: matches.length };
   }
 
   /**

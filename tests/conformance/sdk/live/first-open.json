@@ -13,9 +13,9 @@
     {"backend": "release"},
     {"state": "open"},
     {"fetches": [{"fetch": "browse:resources-requested", "payload": {"limit": 100, "offset": 0}, "as": "f1"}, {"fetch": "browse:entity-types-requested", "as": "f2"}]},
-    {"backend": "emit", "with": {"channel": "browse:resources-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"resources": [], "total": 0, "offset": 0, "limit": 100, "matchKind": "lexical"}}}},
+    {"backend": "emit", "with": {"channel": "browse:resources-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"resources": [], "total": 0, "offset": 0, "limit": 100}}}},
     {"backend": "emit", "with": {"channel": "browse:entity-types-result", "correlationId": {"$var": "f2"}, "payload": {"response": {"entityTypes": ["Person"]}}}},
-    {"reaches": "list", "state": {"status": "ready", "value": {"resources": [], "total": 0, "offset": 0, "limit": 100, "matchKind": "lexical"}}},
+    {"reaches": "list", "state": {"status": "ready", "value": {"resources": [], "total": 0, "offset": 0, "limit": 100}}},
     {"reaches": "types", "state": {"status": "ready", "value": ["Person"]}},
     {"quiet": 400}
   ]

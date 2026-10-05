@@ -8,7 +8,7 @@ import "sort"
 // the TypeScript loader enforces; TestServiceSectionsAgreeWithTheSpec holds
 // this copy to it.
 var serviceConfigSections = map[string][]string{
-	"archivist": {"gateway", "graph", "vectors", "embedding", "identity", "make-meaning", "actors", "workers"},
+	"archivist": {"gateway", "identity", "make-meaning", "actors", "workers"},
 	"librarian": {"gateway", "graph", "vectors", "embedding", "identity", "archivist", "make-meaning", "actors", "inference"},
 	"weaver":    {"gateway", "graph", "identity"},
 	"smelter":   {"gateway", "vectors", "embedding", "identity", "archivist"},

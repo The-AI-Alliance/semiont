@@ -6,12 +6,11 @@
  * `Browser` (serves: `browse:*` reads), `CloneTokenManager` (resource
  * lifecycle) — against LOCAL stores: the event log, materialized views, the
  * git working tree, and anchored text (read-only; the Smelter writes it).
- * Its network attachments are the bus (HttpTransport: SSE in, `/bus/emit`
- * out), the graph (`browse:referenced-by`, and searching resources by text),
- * and the vector store with its embedding provider (the search's semantic
- * fallback). Its HTTP surface serves
- * the KB's bytes: the gateway proxies external content requests through
- * it, and internal readers dial it directly.
+ * Its one network attachment is the bus (HttpTransport: SSE in, `/bus/emit`
+ * out): it holds no graph, no vector store and no embedding provider —
+ * finding things is the Librarian's. Its HTTP surface serves the KB's bytes:
+ * the gateway proxies external content requests through it, and internal
+ * readers dial it directly.
  *
  * Bus wiring is two disjoint `relayFrames` pumps — not `bridgeInto`, which
  * bridges everything the transport receives; both rosters live in
@@ -46,21 +45,18 @@ import {
   ResourceOperations,
   baseUrl as makeBaseUrl,
   busRequest,
-  withDeadline,
   kbResource } from '@semiont/core';
 import { IssuerVerifier } from '@semiont/core/identity';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, createAnchoredTextStore, stagingFor, type AnchoredTextStore } from '@semiont/content';
-import { getGraphDatabase } from '@semiont/graph';
-import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
 import { Stower } from './stower';
 import { Browser } from './browser';
 import { CloneTokenManager } from './clone-token-manager';
 import { ARCHIVIST_INBOUND_CHANNELS, ARCHIVIST_OUTBOUND_CHANNELS } from './service-channels';
 import { attachServicePumps } from './service-pumps';
 import { createSmeltProgress } from './smelt-progress';
-import { makeMeaningConfigFrom, rosterConfigFrom } from './config';
+import { rosterConfigFrom } from './config';
 import { createArchivistServer } from './archivist-read-path';
 import { createFactPump } from './fact-pump';
 import { registerAnnotationAssemblyHandler } from './handlers/annotation-assembly';
@@ -92,26 +88,6 @@ if (!gatewayPublicURL) {
 }
 const baseUrl: string = gatewayPublicURL;
 
-const config = makeMeaningConfigFrom(envConfig);
-
-const maybeGraphConfig = config.services.graph;
-if (!maybeGraphConfig?.type) {
-  throw new Error('services.graph.type is required for the Archivist');
-}
-if (maybeGraphConfig.type === 'memory') {
-  // Same stance as weaver-main: an in-memory graph lives in one process's
-  // heap; the Archivist would answer `browse:referenced-by` from an empty
-  // graph forever while looking healthy.
-  throw new Error("services.graph.type 'memory' is a test-only sink; the Archivist requires a server-backed graph");
-}
-// Re-bind after the guards: module-level narrowing does not carry into main().
-const graphConfig = maybeGraphConfig;
-if (config.services.vectors.type === 'memory') {
-  // A memory vector index here can never be shared with the Smelter that
-  // fills it — semantic search would return the empty page forever.
-  throw new Error("services.vectors.type 'memory' is a test-only sink; the Archivist requires a server-backed vector store");
-}
-
 /**
  * This process's own account at the issuer. The credential authenticates the
  * PROCESS; the agent DID it buys names the WORK. See `startAgentSession`.
@@ -135,7 +111,6 @@ const healthPort = 24103;
 import { registerFactPumpDepthProvider } from '@semiont/observability';
 import { createProcessLogger } from '@semiont/observability/process-logger';
 import { startAgentSession } from './agent-session';
-import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
 const logger = createProcessLogger('archivist');
 
 // ── Main ─────────────────────────────────────────────────────────────
@@ -201,30 +176,6 @@ async function main() {
   const anchoredText: Pick<AnchoredTextStore, 'read'> = createAnchoredTextStore(anchoredTextDir, logger.child({ component: 'anchored-text-store' }));
   const smeltProgress = createSmeltProgress(localBus);
 
-  logger.info('Connecting to graph database', { type: graphConfig.type });
-  // Bounded: an unbounded await on a dependency that is not up leaves the
-  // container hung and unhealthy, where `restart: on-failure` only rescues a
-  // process that EXITS. The vector store gets the deadline as a signal because
-  // creating a collection retries while the embedding model warms up — this stops
-  // that retry rather than abandoning it mid-flight.
-  const graphDb = await withDeadline('Graph database', STARTUP_CONNECT_TIMEOUT_MS,
-    () => getGraphDatabase(graphConfig), RESTART_HINT);
-
-  const embeddingConfig = config.services.embedding;
-  logger.info('Connecting to embedding provider', { type: embeddingConfig.type, model: embeddingConfig.model });
-  const embeddingProvider = await withDeadline('Embedding provider', STARTUP_CONNECT_TIMEOUT_MS,
-    () => createEmbeddingProvider(embeddingConfig), RESTART_HINT);
-  const vectorsConfig = config.services.vectors;
-  logger.info('Connecting to vector store', { type: vectorsConfig.type });
-  const vectorStore = await withDeadline('Vector store', STARTUP_CONNECT_TIMEOUT_MS,
-    (signal) => createVectorStore({
-      signal,
-      type: vectorsConfig.type,
-      host: vectorsConfig.host,
-      port: vectorsConfig.port,
-      dimensions: () => embeddingProvider.dimensions(),
-    }), RESTART_HINT);
-
   // ── Actors ─────────────────────────────────────────────────────────
   const stower = new Stower(
     { content, eventStore },
@@ -235,8 +186,8 @@ async function main() {
   // The roster from the keyless role maps: the archivist holds no inference
   // credential, and its section list names no [inference].
   const browser = new Browser(
-    { views, eventStore, graph: graphDb, vectors: vectorStore, content, anchoredText, smeltProgress },
-    localBus, project, config, rosterConfigFrom(envConfig), embeddingProvider, logger.child({ component: 'browser' }),
+    { views, eventStore, content, anchoredText, smeltProgress },
+    localBus, project, rosterConfigFrom(envConfig), logger.child({ component: 'browser' }),
   );
   await browser.initialize();
 

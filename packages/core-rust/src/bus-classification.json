@@ -666,22 +666,6 @@
       "direction": "inbound",
       "delivery": "correlated"
     },
-    "browse:referenced-by-requested": {
-      "recorded": false,
-      "direction": "outbound",
-      "writes": false,
-      "delivery": "passing"
-    },
-    "browse:referenced-by-result": {
-      "recorded": false,
-      "direction": "inbound",
-      "delivery": "correlated"
-    },
-    "browse:referenced-by-failed": {
-      "recorded": false,
-      "direction": "inbound",
-      "delivery": "correlated"
-    },
     "browse:entity-types-requested": {
       "recorded": false,
       "direction": "outbound",

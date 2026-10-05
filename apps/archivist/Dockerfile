@@ -12,10 +12,8 @@
 #
 # The Archivist is a separate image from the shared @semiont/make-meaning
 # package, like smelter and weaver — separate because their dependency
-# footprints differ. The Archivist's Browser serves `browse:referenced-by`
-# from the graph (one call site, browser.ts), so neo4j-driver is bundled
-# here like the weaver's. It never dials Qdrant directly beyond the vector SEARCH the
-# qdrant client in @semiont/make-meaning already carries — no extra install.
+# footprints differ. The Archivist dials no graph and no vector store, so it
+# installs no driver beside the package.
 #
 # Base is node:24-alpine (not node:26): node 26's built-in undici breaks the
 # qdrant client's own undici, which @semiont/make-meaning can load transitively
@@ -27,7 +25,7 @@ ARG SEMIONT_VERSION=latest
 # so the pinned copy is replaced after install. See the script.
 COPY scripts/container/patch-qdrant-undici.sh /tmp/patch-qdrant-undici.sh
 RUN npm config set registry $NPM_REGISTRY && \
-    npm install -g @semiont/make-meaning@${SEMIONT_VERSION} neo4j-driver && \
+    npm install -g @semiont/make-meaning@${SEMIONT_VERSION} && \
     sh /tmp/patch-qdrant-undici.sh && \
     npm cache clean --force
 
@@ -53,7 +51,7 @@ RUN apk add --no-cache git && \
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 semiont
 
-# The global @semiont/make-meaning + neo4j-driver (with hoisted deps) and bins.
+# The global @semiont/make-meaning (with hoisted deps) and bins.
 COPY --from=installer /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=installer /usr/local/bin /usr/local/bin
 
@@ -96,8 +94,8 @@ ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
 # pays for is unreachable.
 #
 # 1536 leaves ~512 MB under the container's 2G for everything OUTSIDE the JS
-# heap: RSS overhead, Buffers, the git subprocesses this image shells out to,
-# and neo4j-driver's native allocations. Do not raise this to 2048 — being
+# heap: RSS overhead, Buffers and the git subprocesses this image shells out
+# to. Do not raise this to 2048 — being
 # OOM-KILLED by the cgroup is strictly worse than a V8 heap error, because the
 # process is shot rather than given the chance to throw and log.
 #

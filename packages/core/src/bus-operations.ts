@@ -46,7 +46,6 @@ export const BUS_OPERATIONS = {
   'browse:annotations-requested':        { result: 'browse:annotations-result',      failure: 'browse:annotations-failed' },
   'browse:annotation-history-requested': { result: 'browse:annotation-history-result', failure: 'browse:annotation-history-failed' },
   'browse:events-requested':             { result: 'browse:events-result',           failure: 'browse:events-failed' },
-  'browse:referenced-by-requested':      { result: 'browse:referenced-by-result',    failure: 'browse:referenced-by-failed' },
   'browse:entity-types-requested':       { result: 'browse:entity-types-result',     failure: 'browse:entity-types-failed' },
   'browse:tag-schemas-requested':        { result: 'browse:tag-schemas-result',      failure: 'browse:tag-schemas-failed' },
   'browse:agents-requested':             { result: 'browse:agents-result',           failure: 'browse:agents-failed' },

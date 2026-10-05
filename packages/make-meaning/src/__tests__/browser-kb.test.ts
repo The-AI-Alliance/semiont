@@ -15,9 +15,7 @@ import { firstValueFrom, race, timer, map, take } from 'rxjs';
 import { EventBus, type Logger } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { Browser, type BrowserReads } from '../browser';
-import type { MakeMeaningConfig } from '../config';
 import { createTestProject, type TestProject } from './helpers/test-project';
-import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
 const mockLogger: Logger = {
   debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
@@ -30,17 +28,9 @@ const READS: BrowserReads = {
     log: { storage: { getAllEvents: vi.fn(), getEventFiles: vi.fn(), getLastEvent: vi.fn() } },
     views: { materializer: { materialize: vi.fn() } },
   },
-  graph: { getResource: vi.fn(), getResourceReferencedBy: vi.fn(), listResources: vi.fn() },
-  vectors: { searchResources: vi.fn(), searchAnnotations: vi.fn() },
   content: { retrieve: vi.fn() },
   anchoredText: { read: vi.fn() },
   smeltProgress: { whenSettled: vi.fn() },
-};
-
-const CONFIG: MakeMeaningConfig = {
-  services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
-  gather: { settleTimeoutMs: 15_000 },
-  search: { semanticFloor: 0.6 },
 };
 
 const DOMAIN = 'example.github.io:arxiv-kb';
@@ -51,7 +41,7 @@ describe('browse:kb — the knowledge base describes itself', () => {
   let browser: Browser;
 
   const browserFor = async (project: SemiontProject) => {
-    browser = new Browser(READS, bus, project, CONFIG, CONFIG, createMockEmbeddingProvider(), mockLogger);
+    browser = new Browser(READS, bus, project, {}, mockLogger);
     await browser.initialize();
   };
 

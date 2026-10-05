@@ -1260,24 +1260,6 @@ func (e LimitRefusalCode) Valid() bool {
 	}
 }
 
-// Defines values for ListResourcesResponseMatchKind.
-const (
-	ListResourcesResponseMatchKindLexical  ListResourcesResponseMatchKind = "lexical"
-	ListResourcesResponseMatchKindSemantic ListResourcesResponseMatchKind = "semantic"
-)
-
-// Valid indicates whether the value is a known member of the ListResourcesResponseMatchKind enum.
-func (e ListResourcesResponseMatchKind) Valid() bool {
-	switch e {
-	case ListResourcesResponseMatchKindLexical:
-		return true
-	case ListResourcesResponseMatchKindSemantic:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for LogFormat.
 const (
 	Json   LogFormat = "json"
@@ -1361,16 +1343,16 @@ func (e MarkAssistRequestEventOptionsTone) Valid() bool {
 
 // Defines values for MatchResourcesResponseMatchKind.
 const (
-	MatchResourcesResponseMatchKindLexical  MatchResourcesResponseMatchKind = "lexical"
-	MatchResourcesResponseMatchKindSemantic MatchResourcesResponseMatchKind = "semantic"
+	Lexical  MatchResourcesResponseMatchKind = "lexical"
+	Semantic MatchResourcesResponseMatchKind = "semantic"
 )
 
 // Valid indicates whether the value is a known member of the MatchResourcesResponseMatchKind enum.
 func (e MatchResourcesResponseMatchKind) Valid() bool {
 	switch e {
-	case MatchResourcesResponseMatchKindLexical:
+	case Lexical:
 		return true
-	case MatchResourcesResponseMatchKindSemantic:
+	case Semantic:
 		return true
 	default:
 		return false
@@ -2436,19 +2418,6 @@ type BrowsePanelToggleEvent struct {
 	Panel string `json:"panel"`
 }
 
-// BrowseReferencedByRequest Request to browse annotations that reference a resource
-type BrowseReferencedByRequest struct {
-	Motivation *string `json:"motivation,omitempty"`
-
-	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
-	ResourceId ResourceId `json:"resourceId"`
-}
-
-// BrowseReferencedByResult Result of browsing annotations that reference a resource
-type BrowseReferencedByResult struct {
-	Response GetReferencedByResponse `json:"response"`
-}
-
 // BrowseResourceCloseEvent Emitted when a resource is closed in the browse panel
 type BrowseResourceCloseEvent struct {
 	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
@@ -2490,7 +2459,6 @@ type BrowseResourcesRequest struct {
 	EntityType *string `json:"entityType,omitempty"`
 	Limit      *int    `json:"limit,omitempty"`
 	Offset     *int    `json:"offset,omitempty"`
-	Search     *string `json:"search,omitempty"`
 }
 
 // BrowseResourcesResult Result of browsing resources
@@ -4372,17 +4340,11 @@ type LimitRefusalCode string
 
 // ListResourcesResponse defines model for ListResourcesResponse.
 type ListResourcesResponse struct {
-	Limit float32 `json:"limit"`
-
-	// MatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index. Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
-	MatchKind ListResourcesResponseMatchKind `json:"matchKind"`
-	Offset    float32                        `json:"offset"`
-	Resources []ResourceDescriptor           `json:"resources"`
-	Total     float32                        `json:"total"`
+	Limit     float32              `json:"limit"`
+	Offset    float32              `json:"offset"`
+	Resources []ResourceDescriptor `json:"resources"`
+	Total     float32              `json:"total"`
 }
-
-// ListResourcesResponseMatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index. Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
-type ListResourcesResponseMatchKind string
 
 // LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
 type LogFormat string

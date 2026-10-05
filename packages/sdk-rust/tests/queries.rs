@@ -64,7 +64,7 @@ fn answers(
                 "annotations": [], "entityReferences": [],
             }),
             "browse:resources-requested" => json!({
-                "resources": [], "total": n, "offset": 0, "limit": 100, "matchKind": "lexical",
+                "resources": [], "total": n, "offset": 0, "limit": 100,
             }),
             "browse:annotations-requested" => json!({
                 "annotations": [annotation("ann-1", resource, &format!("as of ask {n}"))],

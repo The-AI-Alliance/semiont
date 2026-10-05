@@ -11,7 +11,6 @@
  * - browse:annotation-requested — single annotation with resolved resource
  * - browse:events-requested — resource event history
  * - browse:annotation-history-requested — annotation event history
- * - browse:referenced-by-requested — find annotations in the KB graph that reference a resource
  * - browse:entity-types-requested — list entity types from the project projection
  * - browse:tag-schemas-requested — list tag schemas from the project projection
  * - browse:agents-requested — the collaborator directory: the KB's declared software
@@ -32,22 +31,18 @@ import { withActorSpan } from '@semiont/observability';
 import { getBodySource, getStorageUri } from '@semiont/core';
 import { EventQuery } from '@semiont/event-sourcing';
 import type { ViewStorage } from '@semiont/event-sourcing';
-import type { GraphDatabase } from '@semiont/graph';
-import type { VectorStore } from '@semiont/vectors';
 import { stagingFor, type WorkingTreeStore, type AnchoredTextStore } from '@semiont/content';
 import type { EventStoreReads } from './knowledge-base';
 import type { SmeltProgress } from './smelt-progress';
 import { readAnchoredText } from './read-anchored-text';
-import { findReferencedBy } from './referenced-by';
 import { readEntityTypesProjection } from './views/entity-types-reader';
 import { personNamer } from './views/people-reader';
 import { readTagSchemasProjection } from './views/tag-schemas-reader';
 import { AnnotationContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
 import { assembleResourceGraph } from './resource-graph';
-import type { MakeMeaningConfig, RosterConfig } from './config';
+import type { RosterConfig } from './config';
 import { deriveAgentRoster } from './agent-roster';
-import type { EmbeddingProvider } from '@semiont/vectors';
 
 type DirectoryEntry = components['schemas']['DirectoryEntry'];
 type FileEntry      = components['schemas']['FileEntry'];
@@ -62,8 +57,6 @@ type DirEntry       = components['schemas']['DirEntry'];
 export interface BrowserReads {
   views: Pick<ViewStorage, 'get' | 'getAll' | 'exists'>;
   eventStore: EventStoreReads;
-  graph: Pick<GraphDatabase, 'getResource' | 'getResourceReferencedBy' | 'listResources'>;
-  vectors: Pick<VectorStore, 'searchResources' | 'searchAnnotations'>;
   content: Pick<WorkingTreeStore, 'retrieve'>;
   anchoredText: Pick<AnchoredTextStore, 'read'>;
   smeltProgress: Pick<SmeltProgress, 'whenSettled'>;
@@ -78,7 +71,7 @@ export const BROWSER_CHANNELS = [
   'browse:resource-requested', 'browse:anchored-text-requested',
   'browse:resources-requested', 'browse:annotations-requested',
   'browse:annotation-requested', 'browse:events-requested',
-  'browse:annotation-history-requested', 'browse:referenced-by-requested',
+  'browse:annotation-history-requested',
   'browse:entity-types-requested', 'browse:tag-schemas-requested',
   'browse:agents-requested', 'browse:kb-requested', 'browse:directory-requested',
 ] as const satisfies readonly (keyof EventMap)[];
@@ -91,12 +84,9 @@ export class Browser {
     private kb: BrowserReads,
     private eventBus: EventBus,
     private project: SemiontProject,
-    private config: MakeMeaningConfig,
     /** Who serves each role — provider and model, no credential. The
      *  directory's limits come from the services that hold the keys. */
     private roster: RosterConfig,
-    /** For the semantic search fallback — mandatory. */
-    private embeddingProvider: EmbeddingProvider,
     logger: Logger,
   ) {
     this.logger = logger;
@@ -142,7 +132,6 @@ export class Browser {
       pipe('browse:annotation-requested',        (e, cid) => this.handleBrowseAnnotation(e, cid)).subscribe({ error: errorHandler }),
       pipe('browse:events-requested',            (e, cid) => this.handleBrowseEvents(e, cid)).subscribe({ error: errorHandler }),
       pipe('browse:annotation-history-requested',(e, cid) => this.handleBrowseAnnotationHistory(e, cid)).subscribe({ error: errorHandler }),
-      pipe('browse:referenced-by-requested',     (e, cid) => this.handleReferencedBy(e, cid)).subscribe({ error: errorHandler }),
       pipe('browse:entity-types-requested',      (e, cid) => this.handleEntityTypes(e, cid)).subscribe({ error: errorHandler }),
       pipe('browse:tag-schemas-requested',       (e, cid) => this.handleTagSchemas(e, cid)).subscribe({ error: errorHandler }),
       pipe('browse:agents-requested',            (e, cid) => this.handleBrowseAgents(e, cid)).subscribe({ error: errorHandler }),
@@ -233,34 +222,13 @@ export class Browser {
       const offset = event.offset ?? 0;
       const limit = event.limit ?? 50;
 
-      const result = await ResourceContext.listResources({
-        search: event.search,
-        archived: event.archived,
-        entityType: event.entityType,
-        offset,
-        limit,
-      }, this.kb, {
-        embeddingProvider: this.embeddingProvider,
-        semanticFloor: this.config.search.semanticFloor,
-        logger: this.logger,
-      });
-
-      // Add content previews for lexical search results. Semantic hits
-      // already carry `content` — the passage that actually matched — and
-      // a first-200-chars preview must not overwrite it.
-      const formattedDocs = event.search && result.matchKind === 'lexical'
-        ? await ResourceContext.addContentPreviews(result.resources, this.kb)
-        : result.resources;
+      const result = await ResourceContext.listResources(
+        { archived: event.archived, entityType: event.entityType, offset, limit },
+        this.kb,
+      );
 
       this.eventBus.emit('browse:resources-result', {
-        response: await this.named({
-          resources: formattedDocs,
-          total: result.total,
-          offset,
-          limit,
-          // The producer of the answer labels it.
-          matchKind: result.matchKind,
-        }),
+        response: await this.named({ resources: result.resources, total: result.total, offset, limit }),
       }, { correlationId });
     } catch (error) {
       this.logger.error('Browse resources failed', { error: errField(error) });
@@ -375,25 +343,6 @@ export class Browser {
     } catch (error) {
       this.logger.error('Browse annotation history failed', { resourceId: event.resourceId, annotationId: event.annotationId, error: errField(error) });
       this.eventBus.emit('browse:annotation-history-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
-    }
-  }
-
-  private async handleReferencedBy(
-    event: EventMap['browse:referenced-by-requested'], correlationId: string | undefined): Promise<void> {
-    try {
-      this.logger.debug('Looking for annotations referencing resource', {
-        resourceId: event.resourceId,
-        motivation: event.motivation || 'all',
-      });
-
-      const referencedBy = await findReferencedBy(this.kb, event.resourceId, event.motivation, this.logger);
-
-      this.eventBus.emit('browse:referenced-by-result', {
-        response: await this.named({ referencedBy }),
-      }, { correlationId });
-    } catch (error) {
-      this.logger.error('Referenced-by query failed', { resourceId: event.resourceId, error: errField(error) });
-      this.eventBus.emit('browse:referenced-by-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 

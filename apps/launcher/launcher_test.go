@@ -9348,16 +9348,18 @@ func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
 	if err != nil || strings.TrimSpace(string(kept)) != graphPw {
 		t.Errorf("roots/<key>/neo4j-password does not hold Neo4j's password (read %q, %v)", kept, err)
 	}
-	for _, svc := range []string{"archivist", "librarian", "weaver"} {
+	for _, svc := range []string{"librarian", "weaver"} {
 		if v, _ := s.containerEnv(t, "semiont-"+svc, "NEO4J_PASSWORD"); v != graphPw {
 			t.Errorf("%s reads [graph] but was handed NEO4J_PASSWORD=%q, want Neo4j's", svc, v)
 		}
 	}
-	if _, handed := s.containerEnv(t, "semiont-smelter", "NEO4J_PASSWORD"); handed {
-		t.Error("the smelter reads no [graph] but was handed its password")
+	for _, svc := range []string{"archivist", "smelter"} {
+		if _, handed := s.containerEnv(t, "semiont-"+svc, "NEO4J_PASSWORD"); handed {
+			t.Errorf("the %s reads no [graph] but was handed its password", svc)
+		}
 	}
-	if staged := stagedFile(t, s, "archivist.toml"); !regexp.MustCompile(`password = ['"]\$\{NEO4J_PASSWORD\}['"]`).MatchString(staged) {
-		t.Errorf("the archivist's staged [graph] does not read ${NEO4J_PASSWORD}:\n%s", staged)
+	if staged := stagedFile(t, s, "librarian.toml"); !regexp.MustCompile(`password = ['"]\$\{NEO4J_PASSWORD\}['"]`).MatchString(staged) {
+		t.Errorf("the librarian's staged [graph] does not read ${NEO4J_PASSWORD}:\n%s", staged)
 	}
 	pg, _ := s.containerEnv(t, "semiont-postgres", "POSTGRES_PASSWORD")
 	if len(pg) < 32 {

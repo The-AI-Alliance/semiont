@@ -29,7 +29,6 @@ Each service connects from its own entry point in [`@semiont/make-meaning`](../m
 | `NeptuneGraphDatabase`, `JanusGraphDatabase` | The same contract over Gremlin |
 | `MemoryGraphDatabase` | The contract in one process's memory, for tests |
 | `intendedGraphAnnotation(annotation)` | What the graph should hold for an annotation. The graph stores what its queries need and no more, so this, and not a view, is what a check of the graph compares against |
-| `compareByRecencyThenId` | The order every listing of resources carries: newest first, ties broken by id, so that paging neither repeats nor drops a row |
 
 A database's driver is an optional peer dependency, installed by whoever uses it: `neo4j-driver` for Neo4j, and `gremlin` for Neptune and JanusGraph.
 

@@ -327,7 +327,7 @@ export function serveHistory(eventBus: EventBus, history: StoredEvent[]): () => 
         };
       });
       eventBus.emit('browse:resources-result', {
-        response: { resources: page, total: rids.length, matchKind: 'lexical' },
+        response: { resources: page, total: rids.length },
       } as unknown as EventMap['browse:resources-result'], { correlationId });
     }),
     eventBus.frames('browse:events-requested').subscribe(({ payload: req, correlationId }) => {
