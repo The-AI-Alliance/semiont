@@ -462,9 +462,9 @@ telemetry collector's (`OTEL_EXPORTER_OTLP_ENDPOINT`). A
   is strict (invalid values error, never fall back), else the root is found
   by walking up from cwd for `.semiont/`. git is not
   part of discovery — the must-be-a-git-clone invariant applies to a full
-  start, `--service archivist` (the one service that mounts `/kb`) and
-  `--service gateway`; every other service needs at most the `.semiont/`
-  tree. `semiont status` reports the root(s) in its KNOWLEDGE BASES section.
+  start and `--service archivist` (the one service that mounts `/kb`);
+  every other service needs at most the `.semiont/` tree. `semiont status`
+  reports the root(s) in its KNOWLEDGE BASES section.
 - The launcher remembers every root a real start used in `roots.json` (beside
   `stack.json`; entries survive stops, vanished paths are flagged not
   dropped). `semiont start --root <path|name>` selects a root explicitly — a
