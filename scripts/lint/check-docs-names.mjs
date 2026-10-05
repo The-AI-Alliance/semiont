@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Every name the builder's, the apps', react-ui's and the protocol's documents use exists in the tree.
+ * Every name the builder's, the packages', the apps' and the protocol's documents use exists in the tree.
  *
  * Documents restate the code by hand, and this gate is what keeps the two in
  * step. Without it a document can import an export or call a client method
@@ -8,9 +8,9 @@
  * a file that is not there: a reader copying any of them gets an error, and
  * nothing says the document is wrong.
  *
- * Checked in `docs/builder` (the guides, the skills and `react-ui`), `packages/sdk/README.md`,
- * the root `README.md`, `packages/react-ui/docs`, `packages/react-ui/README.md`,
- * `apps/README.md`, every app's `README.md` and `docs`, `docs/protocol` and `docs/protocol/flows`:
+ * Checked in `docs/builder` (the guides, the skills and `react-ui`), the root `README.md`,
+ * `packages/README.md`, every npm package's `README.md` and `docs`, `apps/README.md`, every
+ * app's `README.md` and `docs`, `docs/protocol` and `docs/protocol/flows`:
  *
  *   - imports from `@semiont/*`: each name is exported by that package (a
  *     wildcard re-export of another package counts, read from its types);
@@ -102,12 +102,14 @@ function externalNames(spec) {
   return names;
 }
 
-const PACKAGE_SRC = {
-  '@semiont/react-ui': 'packages/react-ui/src',
-  '@semiont/sdk': 'packages/sdk/src',
-  '@semiont/core': 'packages/core/src',
-  '@semiont/http-transport': 'packages/http-transport/src',
-};
+/** Every npm package under `packages/`, by the name it is imported under. */
+const NPM_PACKAGES = readdirSync(join(ROOT, 'packages'), { withFileTypes: true })
+  .filter((e) => e.isDirectory() && existsSync(join(ROOT, 'packages', e.name, 'package.json')))
+  .map((e) => e.name);
+const PACKAGE_SRC = Object.fromEntries(NPM_PACKAGES.map((dir) => [
+  JSON.parse(read(join(ROOT, 'packages', dir, 'package.json'))).name,
+  `packages/${dir}/src`,
+]));
 const pkgMemo = new Map();
 function packageNames(pkg) {
   if (pkgMemo.has(pkg)) return pkgMemo.get(pkg);
@@ -169,11 +171,11 @@ for (const pj of [join(ROOT, 'package.json'),
 
 // ── What each document says ───────────────────────────────────────────────────
 
-/** An app's README and the documents in its `docs` directory. */
-const appDocs = (app) => [
-  `apps/${app}/README.md`,
-  ...(existsSync(join(ROOT, 'apps', app, 'docs'))
-    ? readdirSync(join(ROOT, 'apps', app, 'docs')).filter((f) => f.endsWith('.md')).map((f) => `apps/${app}/docs/${f}`)
+/** The README of an app or a package, and the documents in its `docs` directory. */
+const ownDocs = (dir) => [
+  `${dir}/README.md`,
+  ...(existsSync(join(ROOT, dir, 'docs'))
+    ? readdirSync(join(ROOT, dir, 'docs')).filter((f) => f.endsWith('.md')).map((f) => `${dir}/docs/${f}`)
     : []),
 ];
 
@@ -182,15 +184,14 @@ const DOCS = [
   'docs/builder/skills/README.md',
   ...readdirSync(join(ROOT, 'docs/builder/skills'), { withFileTypes: true })
     .filter((e) => e.isDirectory()).map((e) => `docs/builder/skills/${e.name}/SKILL.md`),
-  'packages/sdk/README.md',
   'README.md',
   ...readdirSync(join(ROOT, 'docs/builder/react-ui')).filter((f) => f.endsWith('.md')).map((f) => `docs/builder/react-ui/${f}`),
-  ...readdirSync(join(ROOT, 'packages/react-ui/docs')).filter((f) => f.endsWith('.md')).map((f) => `packages/react-ui/docs/${f}`),
-  'packages/react-ui/README.md',
+  'packages/README.md',
+  ...NPM_PACKAGES.flatMap((dir) => ownDocs(`packages/${dir}`)),
   'apps/README.md',
   ...readdirSync(join(ROOT, 'apps'), { withFileTypes: true })
     .filter((e) => e.isDirectory() && existsSync(join(ROOT, 'apps', e.name, 'README.md')))
-    .flatMap((e) => appDocs(e.name)),
+    .flatMap((e) => ownDocs(`apps/${e.name}`)),
   ...readdirSync(join(ROOT, 'docs/protocol')).filter((f) => f.endsWith('.md')).map((f) => `docs/protocol/${f}`),
   ...readdirSync(join(ROOT, 'docs/protocol/flows')).filter((f) => f.endsWith('.md')).map((f) => `docs/protocol/flows/${f}`),
 ];
@@ -226,16 +227,23 @@ for (const doc of DOCS) {
   const local = new Set([...allCode.matchAll(/(?:function|const|let|var|class|interface|type|enum)\s+([A-Za-z_$][\w$]*)/g)].map((m) => m[1]));
   const imported = new Set();
   for (const m of allCode.matchAll(/import\s+(?:type\s+)?(?:[\w$]+\s*,\s*)?\{([^}]*)\}\s+from\s+['"][^'"]+['"]/g)) {
-    for (const n of m[1].split(',')) imported.add(n.trim().replace(/^type\s+/, '').split(/\s+as\s+/).pop().trim());
+    for (const n of m[1].replace(COMMENT, '').split(',')) imported.add(n.trim().replace(/^type\s+/, '').split(/\s+as\s+/).pop().trim());
   }
   for (const m of allCode.matchAll(/import\s+([A-Z][\w$]*)\s+from\s+['"]/g)) imported.add(m[1]);
   const known = (n) => local.has(n) || imported.has(n) || ANYWHERE.has(n);
+  // A package's document may hold a client or a session of its own — an
+  // inference client, an MCP client, a graph driver's session. A name the
+  // document declares from anything that is not the SDK's is not held to it.
+  const itsOwn = (name) => [...allCode.matchAll(new RegExp(String.raw`(?:const|let|var)\s+${name}\s*(?::[^=\n]+)?=\s*([^;\n]+)`, 'g'))]
+    .some((m) => !/semiont|createTest|\.client\b/i.test(m[1].split('(')[0]));
+  const sdkClient = !itsOwn('client');
+  const sdkSession = !itsOwn('session');
 
   for (const block of code) {
     for (const m of block.text.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"](@semiont\/[^'"]+)['"]/g)) {
       const exported = importable(m[2]);
       if (!exported) continue;
-      for (const raw of m[1].split(',')) {
+      for (const raw of m[1].replace(COMMENT, '').split(',')) {
         const n = raw.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0].trim();
         if (n && !exported.has(n)) report(doc, lineOf(block, m.index), 'import', `${n} (from ${m[2]})`);
       }
@@ -248,15 +256,18 @@ for (const doc of DOCS) {
     }
     for (const m of block.text.matchAll(/\b(client|session\??\.client|semiont)\??\.([a-z]\w*)\??\.([a-z]\w*)\(/g)) {
       const [, recv, ns, method] = m;
+      if (recv === 'client' ? !sdkClient : recv !== 'semiont' && !sdkSession) continue;
       const at = lineOf(block, m.index);
       if (ns === 'bus') { if (!BUS_METHODS.has(method)) report(doc, at, 'sdk-call', `${recv}.bus.${method}()`); }
       else if (NAMESPACE_METHODS.has(ns)) { if (!NAMESPACE_METHODS.get(ns).has(method)) report(doc, at, 'sdk-call', `${recv}.${ns}.${method}()`); }
       else if (recv !== 'semiont' && !CLIENT_NAMESPACES.has(ns)) report(doc, at, 'sdk-call', `${recv}.${ns}.${method}() — no such namespace`);
     }
     for (const m of block.text.matchAll(/\b(client|session\??\.client)\??\.([a-z]\w*)\(/g)) {
+      if (m[1] === 'client' ? !sdkClient : !sdkSession) continue;
       if (!CLIENT_METHODS.has(m[2])) report(doc, lineOf(block, m.index), 'sdk-call', `${m[1]}.${m[2]}() — not a SemiontClient method`);
     }
     for (const m of block.text.matchAll(/(?<![\w.$])session\??\.([a-z]\w*)\(/g)) {
+      if (!sdkSession) continue;
       if (!SESSION_METHODS.has(m[1])) report(doc, lineOf(block, m.index), 'sdk-call', `session.${m[1]}() — not a SemiontSession method`);
     }
     for (const m of block.text.matchAll(/(?<![\w.$])semiont\.([a-z]\w*)\(/g)) {

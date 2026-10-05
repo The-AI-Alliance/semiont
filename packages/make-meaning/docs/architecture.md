@@ -323,6 +323,20 @@ Projections of current state rebuilt from events:
 
 Resources reference their content via `storageUri` (e.g. `file://README.md`). Semiont reads files where they live in the working tree.
 
+## Why the Stower and the Browser share a process
+
+Stower writes the events and projections that Browser reads, so splitting them would open a cross-process read-after-write window over the same state. Git is single-writer for the same reason — the Archivist owns the working tree.
+
+## EventBus ownership
+
+The EventBus is created by the caller (a script or a test) and passed into `startMakeMeaning()` as a dependency. Make-meaning does not own or encapsulate the EventBus — the caller shares it with every actor in the process.
+
+## Pure projection validators
+
+Entity types are a controlled vocabulary: the Stower refuses a `mark:update-entity-types` that adds one not registered. The rule is a pure function in [`src/views/projection-validators.ts`](../src/views/projection-validators.ts): `validateEntityTypes(registered, requested)` → `{ ok: true } | { ok: false; unknown }`, a set membership check that lists the offending tags in caller order. The Stower is the I/O shell: it reads the projection (via the readers in `src/views/`), passes it to the validator, and refuses the whole request before its first append. Validator unit tests run in single-digit milliseconds with no filesystem and no event bus; `__tests__/stower-entity-types.test.ts` covers the wiring.
+
+This pattern (functional core, imperative shell) is shared with `@semiont/event-sourcing`'s projection reducers; see [`docs/architecture/PROJECTION-PATTERN.md`](../../../docs/architecture/PROJECTION-PATTERN.md) for the architectural narrative, the full axiom catalog, and guidance for adding new validators.
+
 ## See Also
 
 - [ACTOR-MODEL.md](../../../docs/architecture/ACTOR-MODEL.md) — System-wide actor model

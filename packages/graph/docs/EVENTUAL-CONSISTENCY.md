@@ -194,6 +194,8 @@ RETURN r.id, r
 Add monitoring to alert if stub count exceeds threshold:
 
 ```typescript
+// A neo4j-driver session.
+const session = driver.session();
 const result = await session.run(
   'MATCH (r:Resource {stub: true}) RETURN count(r) AS count'
 );

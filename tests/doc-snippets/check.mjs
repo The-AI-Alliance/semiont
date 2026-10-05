@@ -4,7 +4,7 @@
 // the way that suite's reader resolves them. Doc rot fails here instead of
 // waiting for a reader to paste a dead snippet.
 //
-// Three suites, each one TypeScript program with its own preludes:
+// Four suites, each one TypeScript program with its own preludes:
 //   - sdk: the builder docs (docs/builder) and the protocol docs
 //     (docs/protocol and its flows), plus the repo-root and packages/sdk READMEs, which
 //     carry the first sdk code most readers see and are the least likely to
@@ -13,6 +13,10 @@
 //   - skills: the agent skills (docs/builder/skills/*/SKILL.md, and their
 //     README). They teach Node scripts, so Node's types are on; resolved like
 //     the sdk suite.
+//   - packages: the READMEs of the packages the services are built from
+//     (packages/*/README.md, but the sdk's and react-ui's, which the suites
+//     beside this one hold). Node's types are on, and there is no prelude: a
+//     fence there is a whole example, and imports or declares what it uses.
 //   - ui: the react-ui docs (docs/builder/react-ui and packages/react-ui/docs)
 //     and the Browser docs, with their READMEs. Resolved like the Browser
 //     (bundler resolution, as Vite does), with the Browser's `@/` alias, since
@@ -98,6 +102,19 @@ const SUITES = {
     preludes: ['prelude-skills.ts'],
     options: { types: ['node'] },
     ambientModules: ['@semiont/sdk'],
+    onlyDocDiagnostics: false,
+  },
+  // The READMEs of the packages Semiont's services are built from. Each shows
+  // its package to someone working on it, with one example that runs. A fence
+  // imports or declares everything it uses: there is no shared vocabulary.
+  packages: {
+    docs: [
+      'content', 'core', 'event-sourcing', 'graph', 'http-transport', 'inference',
+      'jobs', 'make-meaning', 'observability', 'ontology', 'vectors',
+    ].map((dir) => join('packages', dir, 'README.md')),
+    preludes: [],
+    options: { types: ['node'] },
+    ambientModules: [],
     onlyDocDiagnostics: false,
   },
   ui: {

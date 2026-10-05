@@ -6,111 +6,47 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/ontology.svg)](https://www.npmjs.com/package/@semiont/ontology)
 [![License](https://img.shields.io/npm/l/@semiont/ontology.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-Entity types, and the readers of entity types and tags on an annotation.
+The entity types a knowledge base starts with, and the readers of entity types and tags on an annotation. It is small on purpose: a knowledge base's vocabulary is its own, kept in its record, and what lives here is only the starting set and the functions that read a vocabulary back off an annotation.
 
-## Overview
+## Who uses it
 
-This package holds:
-- **Entity types**: the kinds of thing a reference can be about and a resource can be classified as (Person, Organization, Location and so on). `DEFAULT_ENTITY_TYPES` is the starting set, and `getEntityTypes` reads them from an annotation.
-- **Tag readers**: `getTagCategory` and `getTagSchemaId`, which read a tag's category and its schema's id from an annotation's body. They need no schema registry.
-- **Tag collections**: interfaces for keeping the entity-type vocabulary in a graph store.
+- **[`@semiont/make-meaning`](../make-meaning/README.md)** seeds a new knowledge base with `DEFAULT_ENTITY_TYPES`, and reads entity types off annotations when it assembles context and when the Smelter indexes them.
+- **[`@semiont/graph`](../graph/README.md)** reads them when it writes an annotation to the graph, and seeds its entity-type collection with the defaults.
+- **[`@semiont/react-ui`](../react-ui/README.md)** reads them to show a reference's entity types and a tag's category.
 
-**Tag schemas are not in this package.** A knowledge base registers its own with `frame.addTagSchema(...)`; the `TagSchema` and `TagCategory` types are `@semiont/core`'s, and a schema's data lives with the knowledge base that owns it.
+**Building an application?** A knowledge base's vocabulary comes from the knowledge base, through [`@semiont/sdk`](../sdk/README.md): `browse.entityTypes()`, `frame.addEntityTypes(...)`, `browse.tagSchemas()` and `frame.addTagSchema(...)`. The three readers here are plain functions over an annotation, and a script that wants them imports this package for them.
 
-## Installation
+## What is in it
 
-```bash
-npm install @semiont/ontology
-```
+| | |
+|---|---|
+| `DEFAULT_ENTITY_TYPES` | The nine types a new knowledge base is given: Person, Organization, Location, Event, Concept, Product, Technology, Date, Author |
+| `getEntityTypes(annotation)` | The entity types a reference names |
+| `getTagCategory(annotation)`, `getTagSchemaId(annotation)` | A tag's category, and the id of the schema it was made under |
+| `TagCollection`, `TagCollectionOperations` | Types describing an entity-type collection kept in a store |
 
-## Usage
-
-### Entity types
-
-The entity types a new knowledge base starts with:
+## Example
 
 ```typescript
-import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
+import { getEntityTypes, getTagCategory, getTagSchemaId } from '@semiont/ontology';
+import type { Annotation } from '@semiont/core';
 
-console.log(DEFAULT_ENTITY_TYPES);
-// ['Person', 'Organization', 'Location', 'Event', 'Concept',
-//  'Product', 'Technology', 'Date', 'Author']
-```
-
-A knowledge base adds its own with `frame.addEntityTypes(...)` and reads the whole vocabulary with `browse.entityTypes()`.
-
-### Tag schemas
-
-Tag schemas are registered per knowledge base, at runtime (see the [`semiont-tag` skill](../../docs/builder/skills/semiont-tag/SKILL.md)). The `TagSchema` and `TagCategory` types are `@semiont/core`'s, and a schema's data lives with the knowledge base that owns it.
-
-```typescript
-import type { TagSchema } from '@semiont/sdk';
-
-const SCHEMA: TagSchema = {
-  id: 'my-schema',
-  name: 'My Schema',
-  description: 'What this schema classifies',
-  domain: 'general',
-  tags: [{ name: 'Claim', description: 'An assertion the text makes', examples: ['What is being claimed?'] }],
-};
-
-// Registering identical content again changes nothing.
-await semiont.frame.addTagSchema(SCHEMA);
-
-// The schemas a knowledge base has registered
-const all = await semiont.browse.tagSchemas().fresh();
-```
-
-### Reading entity types from an annotation
-
-A reference names its entity types in `TextualBody` items whose `purpose` is `tagging`. `getEntityTypes` collects their values, from a body that is a list. A body that is a single item, or absent, gives an empty list.
-
-```typescript
-import { getEntityTypes } from '@semiont/ontology';
-
-const annotations = await semiont.browse.annotations(rId).fresh();
-for (const annotation of annotations) {
-  console.log(annotation.id, getEntityTypes(annotation));   // e.g. ['Person', 'Organization']
+function describe(annotation: Annotation): string {
+  const category = getTagCategory(annotation);          // 'Issue', or undefined when it is not a tag
+  if (category) return `${getTagSchemaId(annotation)}: ${category}`;
+  return getEntityTypes(annotation).join(', ');         // 'Person, Organization'
 }
 ```
 
-See [src/entity-extraction.ts](src/entity-extraction.ts).
+## What a change must keep
 
-### Reading a tag's category and schema
+- **The defaults are a starting set, not the vocabulary.** A knowledge base adds types of its own, and what it holds is what its record says. Nothing checks an entity type against `DEFAULT_ENTITY_TYPES`.
+- **Tag schemas are not here.** A knowledge base registers its own at runtime, and a schema's data lives with the knowledge base that owns it. The `TagSchema` and `TagCategory` types are [`@semiont/core`](../core/README.md)'s.
+- **The readers need no registry.** Each reads only the annotation it is given. A reference names its entity types in `TextualBody` items whose `purpose` is `tagging`. A tag has two items: one `tagging`, holding the category, and one `classifying`, holding the schema's id.
+- **An annotation of another shape is an ordinary answer.** `getEntityTypes` gives an empty list for a body that is a single item or absent. The two tag readers give `undefined` for an annotation that is not a tag.
+- **Seeding is not here.** Giving a new knowledge base its defaults needs an event bus and an event store, so it is `@semiont/make-meaning`'s, in `src/bootstrap/entity-types.ts`.
 
-A tag has two body items: one whose `purpose` is `tagging`, holding the category, and one whose `purpose` is `classifying`, holding the schema's id. Both readers return `undefined` for an annotation that is not a tag.
-
-```typescript
-import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
-
-const annotations = await semiont.browse.annotations(rId).fresh();
-for (const annotation of annotations) {
-  const category = getTagCategory(annotation);   // e.g. 'Issue'
-  const schemaId = getTagSchemaId(annotation);   // e.g. 'legal-irac'
-  if (category) console.log(`${schemaId}: ${category}`);
-}
-```
-
-See [src/tag-extraction.ts](src/tag-extraction.ts).
-
-## Tag collections
-
-Interfaces for keeping the entity-type vocabulary in a graph store:
-
-```typescript
-import type { TagCollection, TagCollectionOperations } from '@semiont/ontology';
-```
-
-`TagCollection` is a stored collection (`id`, `collectionType: 'entity-types'`, `tags`, `created`, `updatedAt`). `TagCollectionOperations` is `getEntityTypes`, `addEntityType`, `addEntityTypes`, `hasEntityTypesCollection` and `initializeCollections`. See [src/tag-collections.ts](src/tag-collections.ts). The drivers in `@semiont/graph` keep the vocabulary through the first three, which `GraphDatabase` declares itself; none of them declares these interfaces.
-
-## Dependencies
-
-- `@semiont/core`, for the `Annotation` type.
-
-## Notes
-
-- **Seeding a knowledge base's entity types** is in `packages/make-meaning/src/bootstrap/entity-types.ts`. It needs an event bus and an event store, which do not belong in this package.
-- **The readers of the rest of an annotation** (its target, its quoted text, the resource it links to, `isHighlight()`, `isReference()` and the like) are `@semiont/core`'s, in `src/web-annotation-utils.ts`.
+The readers of the rest of an annotation (its target, its quoted text, the resource it links to, `isHighlight`, `isReference`) are `@semiont/core`'s.
 
 ## License
 

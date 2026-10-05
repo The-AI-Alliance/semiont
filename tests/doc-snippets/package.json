@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Doc-snippets fixture: compile-checks the code fences of the builder docs and skills, the protocol docs, and the react-ui and Browser docs, with their READMEs, against dist through the exports map, the way each doc's reader resolves them",
+  "description": "Doc-snippets fixture: compile-checks the code fences of the builder docs and skills, the protocol docs, the package READMEs, and the react-ui and Browser docs, with their READMEs, against dist through the exports map, the way each doc's reader resolves them",
   "scripts": {
     "check": "node check.mjs"
   },

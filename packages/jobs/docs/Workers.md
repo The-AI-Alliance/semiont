@@ -60,7 +60,7 @@ A claim the dispatcher refuses for any reason other than an empty queue arrives 
 
 The highlight, comment, assessment, and tag processors share one signature shape:
 
-```typescript
+```typescript sketch
 process<X>Job(
   content: string,            // prepared by the worker process, not the processor
   inferenceClient: InferenceClient,

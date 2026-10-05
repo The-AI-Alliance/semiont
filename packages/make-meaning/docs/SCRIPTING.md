@@ -92,7 +92,7 @@ main().catch(console.error);
 export SEMIONT_ROOT=/path/to/your/project
 export SEMIONT_ANCHORED_TEXT_DIR=/path/to/anchored-text
 export XDG_STATE_HOME=/path/to/state
-tsx scripts/your-script.ts
+tsx your-script.ts
 ```
 
 ## Creating Resources
@@ -234,7 +234,7 @@ Use the context modules directly (`ResourceContext`, `AnnotationContext`, `Graph
 
 ```bash
 export XDG_STATE_HOME=/path/to/state
-tsx scripts/your-script.ts
+tsx your-script.ts
 ```
 
 ### Script Hangs
@@ -254,7 +254,7 @@ Run from the monorepo root with packages built:
 
 ```bash
 npm run build:packages
-tsx scripts/your-script.ts
+tsx your-script.ts
 ```
 
 ## See Also
