@@ -71,7 +71,7 @@ export interface ResourceGenerateModalProps {
   onClose: () => void;
   resourceId: string;
   defaultTitle: string;
-  /** Folder of the source resource, so the artifact lands beside it (D11). */
+  /** Folder of the source resource, so the artifact lands beside it. */
   defaultFolder?: string;
   locale: string;
   /**

@@ -108,7 +108,7 @@ describe('Scripting Example: Query Graph Database', () => {
     eventBus = new EventBus();
     makeMeaning = await startMakeMeaning(project, config, eventBus, mockLogger);
 
-    // The service no longer runs a Weaver (D4: the graph projection is part
+    // The service no longer runs a Weaver (the graph projection is part
     // of the graph stack). A hermetic test that wants projection wires one
     // directly against the service's own graph instance and bus — exactly
     // what weaver-main does in a deployment.

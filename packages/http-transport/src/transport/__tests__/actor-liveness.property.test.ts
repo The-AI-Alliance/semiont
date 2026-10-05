@@ -7,18 +7,19 @@
  * (docs/protocol/TRANSPORT-HTTP.md, Abort discipline).
  *
  * Teeth before trust: the property is first proven to FAIL against a
- * test-local double reconstructing the pre-fix behavior — defect 2 of the
- * starvation bug:
+ * test-local double reconstructing the pre-fix behavior — the starvation
+ * bug's loss of buffered replies at handover:
  * a transition that errors the old stream immediately, so queued-but-unread
  * frames are discarded by `ReadableStreamDefaultController.error()` — the
  * exact byte-loss mechanism, reproduced at the stream level rather than
- * P1's abstract buffer double. Only then is the property trusted green
- * against the real `createActorStateUnit`.
+ * through the abstract buffer double of the axiom harness's own teeth
+ * tests. Only then is the property trusted green against the real
+ * `createActorStateUnit`.
  *
  * The hand-written linger/dedup tests in actor-state-unit.test.ts stay as
  * readable anchors; this property adds the interleavings nobody named.
  *
- * L4 (P4): the property describe silences `[bus LINGER]` (bursty, expected);
+ * L4: the property describe silences `[bus LINGER]` (bursty, expected);
  * the dedicated L4 describe below asserts it — the gated breadcrumb fires for
  * a superseded-connection delivery once `busLogEnabled()` is on
  * (`globalThis.__SEMIONT_BUS_LOG__`, the existing switch), on the
@@ -175,12 +176,13 @@ function realActorSubject(): DeliverySubject {
 
 // ── The tests ───────────────────────────────────────────────────────────────
 
-describe('L3 — delivery across lifecycle transitions (liveness axioms P3)', () => {
+describe('L3 — delivery across lifecycle transitions', () => {
   beforeEach(() => {
     vi.useRealTimers();
     mockFetch.mockReset();
     // [bus LINGER] breadcrumbs fire on superseded-connection deliveries —
-    // expected under this property. P4 flips this spy into the L4 assertion.
+    // expected under this property, so silenced here. The L4 describe below
+    // spies the same `console.debug` and asserts on it.
     vi.spyOn(console, 'debug').mockImplementation(() => {});
   });
 
@@ -193,8 +195,8 @@ describe('L3 — delivery across lifecycle transitions (liveness axioms P3)', ()
     await expect(
       assertExactlyOnceDelivery({
         setup: preFixAbortingConnection,
-        // Pin the minimal losing interleaving (P1 teeth convention): the
-        // write's frame is queued when the abort lands.
+        // Pin the minimal losing interleaving, as the axiom harness's own
+        // teeth tests do: the write's frame is queued when the abort lands.
         opsArb: fc.constant(['write', 'write', 'transition'] as readonly DeliveryOp[]),
         numRuns: 3,
       }),
@@ -215,7 +217,7 @@ describe('L3 — delivery across lifecycle transitions (liveness axioms P3)', ()
   });
 });
 
-// ── L4 — observable degradation: the [bus LINGER] breadcrumb (liveness P4) ──
+// ── L4 — observable degradation: the [bus LINGER] breadcrumb ────────────────
 
 describe('L4 — [bus LINGER] fires for a superseded-connection delivery', () => {
   const busLogGlobal = globalThis as { __SEMIONT_BUS_LOG__?: boolean };

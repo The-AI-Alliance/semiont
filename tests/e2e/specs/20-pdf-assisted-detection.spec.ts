@@ -4,7 +4,7 @@ import type { Page, Locator } from '@playwright/test';
 import { openResourceByName } from '../fixtures/discover';
 /**
  * Smoke test: AI-assisted (AI-directed) detection on a **text-layer PDF**
- * (#736 Phase 2 + #737 Phase 3).
+ * (#736, #737).
  *
  * User-directed PDF annotation already round-trips (14-pdf-render.spec.ts).
  * This proves the *AI-directed* detection pipeline runs end-to-end on a PDF —

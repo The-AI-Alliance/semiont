@@ -36,7 +36,7 @@ export function useResourceLoader(client: SemiontClient | null, resourceId: Reso
     setRawAnnotations(undefined);
     setError(null);
     const onError = (e: unknown) => setError(e instanceof Error ? e : new Error(String(e)));
-    // D1: failure arrives as a `failed` EMISSION — routed to the same error
+    // Failure arrives as a `failed` EMISSION — routed to the same error
     // state; pending/ready project to the value-or-undefined these setters
     // always took.
     const subs = [

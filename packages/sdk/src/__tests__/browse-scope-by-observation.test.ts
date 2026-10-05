@@ -1,5 +1,5 @@
 /**
- * #847 Phase 4 — live-query freshness follows observation.
+ * #847 — live-query freshness follows observation.
  *
  * Subscribing to a resource-scoped `browse.*(rId)` live query acquires that
  * resource's scope (via the transport's ref-counted `subscribeToResource`);
@@ -77,7 +77,7 @@ const noopContent = {
   dispose: () => {},
 } as unknown as IContentTransport;
 
-describe('browse live-query subscription acquires the resource scope (#847 Phase 4)', () => {
+describe('browse live-query subscription acquires the resource scope (#847)', () => {
   let bus: EventBus;
   let browse: BrowseNamespace;
   let subscribeToResource: ReturnType<typeof makeFakeTransport>['subscribeToResource'];

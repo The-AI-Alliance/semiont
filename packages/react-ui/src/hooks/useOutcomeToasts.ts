@@ -87,10 +87,10 @@ export function useOutcomeToasts(resourceId: string): void {
         // reason on the wire needs copy and the translations gate says so.
         showInfo(t(`decline_${reason}`));
       } else if (event.result?.kind === 'reference-annotation' && event.result.underReportedPieces !== undefined) {
-        // RD4 on the ephemeral surface: the run finished but the count-verifier
-        // accepted under-reported pieces. Info, not success — and only when the
-        // wire SAYS so: absence is the emitter's mutation-proven claim of
-        // cleanliness, never re-derived here.
+        // A partial run, reported on the ephemeral surface: the run finished
+        // but the count-verifier accepted under-reported pieces. Info, not
+        // success — and only when the wire SAYS so: absence is the emitter's
+        // mutation-proven claim of cleanliness, never re-derived here.
         showInfo(t('annotationCompletePartial', { pieces: event.result.underReportedPieces }));
       } else {
         showSuccess(t('annotationComplete'));
@@ -105,9 +105,9 @@ export function useOutcomeToasts(resourceId: string): void {
       if (event.jobType === 'generation') {
         showError(t('generationFailed', { detail: event.error }));
       } else if (event.completedUnits && event.completedUnits.length > 0) {
-        // RD4: the terminal failure left durable finds standing (partial
-        // results STAND — retraction is rejected). Say so, so the annotations
-        // on screen are not mistaken for a complete run's.
+        // The terminal failure left durable finds standing (partial results
+        // STAND — they are never retracted). Say so, so the annotations on
+        // screen are not mistaken for a complete run's.
         showError(t('annotationFailedPartial', { kept: event.completedUnits.length }));
       } else {
         showError(event.error || t('annotationFailed'));

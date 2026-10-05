@@ -52,7 +52,7 @@ export function createResourceLoaderStateUnit(
     subscription?.unsubscribe();
     subscription = client.browse.resource(resourceId).subscribe((st) => {
       if (st.status === 'failed') {
-        // D1: failure is an emission — the subscription stays alive.
+        // Failure is an emission — the subscription stays alive.
         error$.next(st.error);
         return;
       }

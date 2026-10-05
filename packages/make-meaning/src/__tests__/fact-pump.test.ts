@@ -122,7 +122,7 @@ describe('fact pump', () => {
 
   it('reports its backlog — how far behind the pump is, as a number', async () => {
     // Without this the only symptom of a pump falling behind is RSS, which is
-    // why the growth in the bug report is still a hypothesis.
+    // why the pump's part in the Archivist's heap growth is still a hypothesis.
     let release: (() => void) | undefined;
     const emit = vi.fn(() => new Promise<number>((res) => { release = () => res(1); }));
     const facts$ = new Subject<Fact>();

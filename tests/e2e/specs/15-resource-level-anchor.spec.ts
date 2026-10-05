@@ -55,8 +55,8 @@ test.describe('resource-level anchor', () => {
       ).resourceId;
 
       // Whole-resource edge A→B: a source-only target (no selector) with a
-      // SpecificResource body. Pre-P2 this threw "selector required"; that it
-      // returns an id at all is the core assertion of the feature.
+      // SpecificResource body. Before #908 this threw "selector required"; that
+      // it returns an id at all is the core assertion of the feature.
       const { annotationId } = await client.mark.annotation({
         target: { source: a },
         motivation: 'linking',

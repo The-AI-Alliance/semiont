@@ -75,7 +75,7 @@ export function TextAnnotateRenderer({
   getTargetResourceName,
   generatingReferenceId,
 }: AnnotateMediaRendererProps) {
-  // D1: segmentation is a text-rendering concern, derived here rather than
+  // Segmentation is a text-rendering concern, derived here rather than
   // threaded through the shared interface.
   const segments = segmentTextWithAnnotations(content, annotations);
 

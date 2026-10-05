@@ -121,7 +121,7 @@ describe('assistSubjectCopy', () => {
     expect(calls.map((c) => c.key)).toContain('subject');
   });
 
-  it('localizes the KIND and never leaks the wire code (A5b)', () => {
+  it('localizes the KIND and never leaks the wire code', () => {
     // "Person" is an entity type and the line should say so — but "entity-type"
     // is a wire token, and a user reading a Japanese UI must never see it.
     for (const [current, key] of [

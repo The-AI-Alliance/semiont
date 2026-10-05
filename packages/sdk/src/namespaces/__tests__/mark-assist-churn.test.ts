@@ -49,7 +49,7 @@ function makeFakeTransport() {
   return { transport, subscribeToResource };
 }
 
-describe('mark.assist — no SSE churn (Link 1)', () => {
+describe('mark.assist — no SSE churn', () => {
   let bus: EventBus;
   const rId = makeResourceId('res-1');
 
@@ -139,7 +139,7 @@ describe('mark.assist — frames that arrive before the job has its id', () => {
   });
 });
 
-describe('job:complete dual-delivery contract (Link 1 / approach A)', () => {
+describe('job:complete dual-delivery contract', () => {
   let bus: EventBus;
   const rId = makeResourceId('res-1');
   const completePayload = { resourceId: rId, jobId: jobId('job-1'), jobType: 'reference-annotation' as const };

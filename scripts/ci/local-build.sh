@@ -698,9 +698,10 @@ banner "CONTAINER IMAGES"
 # built image into every OTHER responsive runtime. A fan-out failure is a
 # warning, not a build failure (the primary store is intact).
 #
-# File-based transfer only: P0 measured that `container image save` cannot
-# stream (`-o -` writes a literal file named "-"; /dev/stdout truncates the
-# archive), so pipe-less save→load via a temp file is the portable shape.
+# File-based transfer only: a format probe measured that `container image
+# save` cannot stream (`-o -` writes a literal file named "-"; /dev/stdout
+# truncates the archive), so pipe-less save→load via a temp file is the
+# portable shape.
 # An installed-but-unresponsive engine (e.g. Docker Desktop not running)
 # warns once here and is skipped; an absent engine is silently ignored.
 FANOUT_RTS=""

@@ -117,8 +117,8 @@ export async function extractPdfTextLayer(
 
         return { pages, text, items, fields: await readFormFields(doc) };
     } finally {
-        // Release the pdf.js document — Phase 2 runs this in a long-lived worker
-        // pool. pdf.js 6.0 removed PDFDocumentProxy.destroy(); teardown moved to
+        // Release the pdf.js document — this runs in long-lived processes.
+        // pdf.js 6.0 removed PDFDocumentProxy.destroy(); teardown moved to
         // PDFDocumentLoadingTask.destroy().
         await loadingTask.destroy();
     }

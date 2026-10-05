@@ -93,7 +93,7 @@ function StatusDot({ status, t }: { status: KbSessionStatus; t: T }) {
  */
 function ConnectForm({ t, title, onSubmit, onCancel, error, isSubmitting, autoFocus, pulsing, initialHost = 'localhost', initialPort = 4000 }: {
   t: T;
-  /** Overrides the generic heading — used to announce a contested ADDRESS (D). */
+  /** Overrides the generic heading — used to announce a contested ADDRESS. */
   title?: string;
   onSubmit: (host: string, port: number, protocol: 'http' | 'https') => Promise<void>;
   onCancel: () => void;
@@ -203,7 +203,7 @@ export function KnowledgeBasePanel() {
   const redirectUri = () => `${window.location.origin}/${i18n.language}/auth/callback`;
   // null = closed; {} = blank form; {host, port} = prefilled from a discovered
   // row. `expected*` records WHAT THE USER BELIEVED they were connecting to, so
-  // the outcome can be verified against the KB that actually answers (C).
+  // the outcome can be verified against the KB that actually answers.
   const [addForm, setAddForm] = useState<
     { host?: string; port?: number; expectedDid?: string; expectedName?: string } | null
   >(null);
@@ -272,7 +272,7 @@ export function KnowledgeBasePanel() {
   const conflictedAddresses = [...discoveredByEndpoint.entries()]
     .filter(([, bucket]) => bucket.length > 1)
     .map(([address, bucket]) => ({ address, count: bucket.length }));
-  // (D) A click was always an address; when the address is contested, the form
+  // A click was always an address; when the address is contested, the form
   // says so instead of carrying a KB name that is at most half true.
   const addFormAddress = addForm?.host !== undefined && addForm.port !== undefined
     ? endpointKey(addForm.host, addForm.port)
@@ -311,8 +311,8 @@ export function KnowledgeBasePanel() {
   // Connecting is leaving: the sign-in happens at the issuer the KB trusts,
   // and the callback page registers the KB when the user returns — with the
   // identity the KB reports, verified against what they believed they
-  // clicked (C). Which entry that signs in is the KB's to decide, by the did
-  // it reports: the one registered at the address for that KB, or a new one.
+  // clicked. Which entry that signs in is the KB's to decide, by the did it
+  // reports: the one registered at the address for that KB, or a new one.
   const handleAdd = async (host: string, port: number, protocol: 'http' | 'https') => {
     setAddError(null);
     setAddSubmitting(true);
@@ -386,8 +386,8 @@ export function KnowledgeBasePanel() {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <StatusDot status={status} t={t} />
-                    {/* Decision 7: an unnamed KB reads "Unknown" — a state, not a
-                        blank — while the address stays on the address line below. */}
+                    {/* An unnamed KB reads "Unknown" — a state, not a blank —
+                        while the address stays on the address line below. */}
                     <span className="semiont-panel-text" style={{ flex: 1, fontWeight: 500 }}>{kb.label || t('unknownName')}</span>
                     {managed && <PlacementBadge placement={managed.placement} t={t} />}
                     {isActive && (
@@ -422,8 +422,8 @@ export function KnowledgeBasePanel() {
                       : `local:${kb.endpoint.kbId}`}
                   </span>
                   {read?.kind === 'conflict' && (
-                    // Decision 7: the KB that answered is named by what it said
-                    // of itself, never by this entry's label.
+                    // The KB that answered is named by what it said of itself,
+                    // never by this entry's label.
                     <span
                       className="semiont-panel-text-secondary"
                       style={{ fontSize: '0.7rem', paddingLeft: '1rem', color: 'var(--semiont-color-warning-500, #eab308)', whiteSpace: 'normal' }}
@@ -497,18 +497,18 @@ export function KnowledgeBasePanel() {
             ))}
             {unregisteredDiscovered.map((d) => (
               <div
-                /* Key on the PAIR. Decision 9's table spells out why neither
-                   half works alone: a did repeats across copies of one KB, an
-                   address repeats across contested claimants — and this list
-                   deliberately renders both. Only did+address is unique. */
+                /* Key on the PAIR. Neither half works alone: a did repeats
+                   across copies of one KB, an address repeats across contested
+                   claimants — and this list deliberately renders both. Only
+                   did+address is unique. */
                 key={`${d.did}@${endpointKey(d.host, d.port)}`}
                 className="semiont-panel-item semiont-panel-item--clickable"
                 style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', cursor: 'pointer', padding: '0.5rem 0.75rem' }}
                 onClick={() => openAddForm({
                   host: d.host,
                   port: d.port,
-                  // Record the belief so the outcome can be verified (C) —
-                  // recording it is not the same as promising it (D).
+                  // Record the belief so the outcome can be verified —
+                  // recording it is not the same as promising it.
                   expectedDid: d.did,
                   ...(d.siteName !== undefined ? { expectedName: d.siteName } : {}),
                 })}

@@ -7,14 +7,14 @@ import { openConfigureStep, runGeneration } from '../fixtures/generate';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
- * An UNTOUCHED Save location generates to the PROPOSED path (P4/D11).
+ * An UNTOUCHED Save location generates to the PROPOSED path.
  *
  * Every other generation spec fills `#wizard-storagePath` — and filling is
  * exactly what marks the field touched, so the whole suite exercised only the
- * hand-edited branch. This spec covers the branch P4 actually changed: the
- * form proposes `<source-folder>/<title-slug><ext>`, the proposal follows the
- * title and the format while untouched, and submitting WITHOUT touching it
- * lands the artifact exactly there. Since P4a the worker has no fallback, so
+ * hand-edited branch. This spec covers the untouched branch: the form
+ * proposes `<source-folder>/<title-slug><ext>`, the proposal follows the title
+ * and the format while untouched, and submitting WITHOUT touching it lands the
+ * artifact exactly there. The worker has no fallback for the Save location, so
  * a broken proposal would fail every default-path generation in the product
  * while every other spec stayed green.
  *
@@ -55,15 +55,16 @@ test.describe('generate to the proposed save location', () => {
     await expect(pathInput, 'the proposal derives from source folder + title + format')
       .toHaveValue(proposeStoragePath(folder, title, 'text/markdown'));
 
-    // Switching format re-proposes the extension — which is also why D7's
-    // mismatch refusal is unreachable from an untouched form (see spec 26).
+    // Switching format re-proposes the extension — which is also why the
+    // form's extension/format mismatch refusal is unreachable from an
+    // untouched form (see spec 26).
     await modal.locator('#wizard-outputFormat').selectOption('text/plain');
     const proposed = proposeStoragePath(folder, title, 'text/plain');
     await expect(pathInput, 'a format switch rewrites the proposed extension').toHaveValue(proposed);
     await expect(modal.locator('#wizard-format-mismatch')).toHaveCount(0);
 
     // Submit with the path NEVER touched: the proposal is what reaches the
-    // worker, and the worker (no fallback since P4a) writes exactly there.
+    // worker, and the worker (which has no fallback) writes exactly there.
     await runGeneration(modal, bus, 120_000);
     await expectGeneratedAt(title, proposed, 'text/plain');
   });

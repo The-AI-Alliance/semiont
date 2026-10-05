@@ -27,10 +27,10 @@ import { signInSession } from '../fixtures/sdk-session';
  * 3. **Dispatcher rejects unregistered schema.** `mark.assist` with a
  *    `schemaId` not in the projection must reject synchronously with
  *    `Tag schema not registered: <id>`. This is the failure mode
- *    introduced by Stage 2's worker/dispatcher migration: the worker
- *    no longer has a build-time fallback, so an unknown schemaId is
- *    a synchronous-at-job-creation error rather than a worker-time
- *    "Invalid tag schema".
+ *    introduced when the schema lookup moved from the worker to the
+ *    dispatcher: the worker no longer has a build-time fallback, so an
+ *    unknown schemaId is a synchronous-at-job-creation error rather
+ *    than a worker-time "Invalid tag schema".
  *
  * 4. **Tagging applies.** `mark.assist(rid, 'tagging', { schemaId,
  *    categories })` against a registered schema runs the LLM tagging
@@ -54,13 +54,13 @@ import { signInSession } from '../fixtures/sdk-session';
  *   would be the culprit.
  * - **Dispatcher fallback regression** — `mark.assist` against an
  *   unknown schemaId silently succeeds. Means the dispatcher is
- *   either consulting a stale build-time registry (Stage 2 incomplete)
- *   or the projection lookup is hiding errors.
+ *   either consulting a stale build-time registry or the projection
+ *   lookup is hiding errors.
  * - **Worker schema-embedding regression** — annotations land but
  *   without the `classifying` body, or with the wrong schemaId in
  *   that body. Means the dispatcher isn't embedding the resolved
  *   `TagSchema` in `TagDetectionParams`, or the processor isn't
- *   reading `params.schema.id` (the post-Stage-2 shape).
+ *   reading `params.schema.id` (the schema the dispatcher embedded).
  *
  * Uses a stable schema id so re-runs are silent at the projection
  * layer — the materializer's most-recent-wins semantics treat
@@ -155,9 +155,9 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       // ── Phase 3: dispatcher rejects unknown schemaId ──────────────
       //
       // mark.assist against a schemaId that isn't in the projection
-      // must reject synchronously. This is the post-Stage-2 contract:
-      // the dispatcher resolves schemaId → TagSchema at job-creation
-      // time, so an unknown id surfaces as a synchronous BusRequestError
+      // must reject synchronously. The contract: the dispatcher
+      // resolves schemaId → TagSchema at job-creation time, so an
+      // unknown id surfaces as a synchronous BusRequestError
       // (job:create-failed) rather than a worker-time "Invalid tag
       // schema" exception.
       //
@@ -213,8 +213,7 @@ test.describe('frame tag-schema registry + tagging round-trip', () => {
       // dispatcher embeds the full TagSchema in TagDetectionParams,
       // and the processor stamps `params.schema.id` into the
       // classifying body — so the value here is load-bearing proof
-      // that the post-Stage-2 worker pipeline used the embedded
-      // schema.
+      // that the worker pipeline used the embedded schema.
       const ann = ours[0]!;
       const bodies = Array.isArray(ann.body) ? ann.body : ann.body ? [ann.body] : [];
       const classifyingBody = bodies.find(

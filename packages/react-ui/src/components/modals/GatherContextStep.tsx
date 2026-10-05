@@ -259,7 +259,7 @@ export function GatherContextStep({
             </div>
           )}
 
-          {/* Full-width source context strip — resource focus. Same D6 rule as
+          {/* Full-width source context strip — resource focus. Same rule as
               the annotation strip: chips are metadata about the anchor and
               live on the label row, never inside the prose. */}
           {resourceFocus && (
@@ -306,9 +306,9 @@ export function GatherContextStep({
             </div>
           )}
 
-          {/* The evidence panes (GEP D1): curated knowledge beside latent
-              knowledge — the fork reads off them. Both render for every
-              caller; emptiness is evidence, never blankness. */}
+          {/* The evidence panes: curated knowledge beside latent knowledge —
+              the fork reads off them. Both render for every caller;
+              emptiness is evidence, never blankness. */}
           <div className="semiont-gather__body">
             <div className="semiont-gather__left">
               <ContextSummary context={context} translations={t} />

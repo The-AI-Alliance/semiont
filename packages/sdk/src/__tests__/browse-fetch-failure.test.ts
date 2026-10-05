@@ -74,7 +74,7 @@ const noopContent = {
   dispose: () => {},
 } as unknown as IContentTransport;
 
-describe('browse read — await semantics on fetch failure (Link 3)', () => {
+describe('browse read — await semantics on fetch failure', () => {
   let bus: EventBus;
   let browse: BrowseNamespace;
   let setOnEmit: ReturnType<typeof makeFakeTransport>['setOnEmit'];
@@ -113,7 +113,7 @@ describe('browse read — await semantics on fetch failure (Link 3)', () => {
     expect(outcome).toBe('rejected');
   });
 
-  it('subscribe on a value-less key: pending through the retry chain, then a failed emission on exhaustion (B15/D1)', async () => {
+  it('subscribe on a value-less key: pending through the retry chain, then a failed emission on exhaustion (B15)', async () => {
     const states: Array<{ status: string; error?: Error }> = [];
     const sub = browse.annotations(rId).subscribe((s) => states.push(s));
 
@@ -122,7 +122,7 @@ describe('browse read — await semantics on fetch failure (Link 3)', () => {
 
     // No value ever emitted (the store was never written — that half of B6
     // stands): pending, then the exhausted chain's terminal failure as a
-    // `failed` EMISSION (B15/D1) — carrying the bus rejection, not silence.
+    // `failed` EMISSION (B15) — carrying the bus rejection, not silence.
     expect(states.map((s) => s.status)).toEqual(['pending', 'failed']);
     expect((states[1] as { error: Error }).error.message).toContain('boom');
   });

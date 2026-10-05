@@ -17,10 +17,10 @@ const DEGRADED: ReadonlySet<string> = new Set<AnchorMethod>(['first-of-many', 'f
 /**
  * Audit one anchoring outcome: counted always, warned only when degraded.
  *
- * Counting EVERY outcome is the point (P5). A warning tells an operator that
+ * Counting EVERY outcome is the point. A warning tells an operator that
  * one anchor was uncertain; only a rate over all anchors says whether the
- * detection run was precise, and the rate is what the plan asks to put beside
- * the yield numbers.
+ * detection run was precise, and that rate is the measured precision that
+ * belongs beside the yield numbers.
  */
 export function noteAnchor(label: string, exact: string, method: AnchorMethod, logger?: Logger): void {
   recordAnchorOutcome(label, method);

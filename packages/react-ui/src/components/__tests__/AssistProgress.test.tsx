@@ -1,5 +1,5 @@
 /**
- * AssistProgress (#7) — the ONE job-progress renderer, unifying the three
+ * AssistProgress — the ONE job-progress renderer, unifying the three
  * previous shapes (AssistSection's inline block, AnnotateReferencesProgressWidget,
  * TaggingPanel's inline block) plus the resource-generate flow.
  *

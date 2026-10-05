@@ -5,9 +5,9 @@ import { openResourceByName } from '../fixtures/discover';
  * Smoke test: hovering an annotation fires `beckon:hover` on the bus
  * and BeckonStateUnit reacts by firing `beckon:sparkle`.
  *
- * Regression target (VMs-from-Session Stage D): `createBeckonStateUnit` was
- * migrated from `(eventBus)` to `(client)`, and its internal wiring moved with
- * it — today it observes through `client.bus.on('beckon:hover').subscribe(...)`
+ * Regression target: `createBeckonStateUnit` was migrated from `(eventBus)`
+ * to `(client)`, and its internal wiring moved with it — today it
+ * observes through `client.bus.on('beckon:hover').subscribe(...)`
  * and reacts with `client.bus.emit('beckon:sparkle', ...)`. If the factory's
  * internal bus wiring regressed, the hover would still fire `beckon:hover`
  * (because the component emits it itself, through

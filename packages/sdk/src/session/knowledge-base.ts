@@ -52,17 +52,17 @@ export interface KbTarget {
  * is knowable.
  *
  * `did` is REQUIRED here, and only here: a knowledge base declares its
- * identity or does not run (decision 8 — the launcher refuses to start one
- * without a `[site] domain`, and the gateway refuses to boot), so anything
- * that has been connected to *has* a did. What was previously unknowable is
- * now simply a `KbTarget`.
+ * identity or does not run (the launcher refuses to start one without a
+ * `[site] domain`, and the gateway refuses to boot), so anything that has
+ * been connected to *has* a did. What was previously unknowable is now
+ * simply a `KbTarget`.
  *
  * It says **which knowledge base**, not **which running copy**, and it is
  * deliberately NOT unique: a local clone and a codespace of one repo are the
- * same KB at two addresses and report the same did (decision 9). When
- * matching a registered KB against discovered entries, look up by `endpoint`
- * — the unique field — and use this to *verify* the copy you reached is the
- * KB you meant. Never select on it.
+ * same KB at two addresses and report the same did. When matching a
+ * registered KB against discovered entries, look up by `endpoint` — the
+ * unique field — and use this to *verify* the copy you reached is the KB you
+ * meant. Never select on it.
  */
 export interface KnowledgeBase extends KbTarget {
   did: string;

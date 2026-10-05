@@ -22,13 +22,13 @@ export interface AssistShellProps {
    *
    * Required because `translations` is: the shell renders the progress display
    * itself, so a caller that omitted this would render untranslated chrome —
-   * the failure Lane A exists to make impossible.
+   * the failure the widget's required translations exist to make impossible.
    */
   progressProps: Omit<AssistProgressProps, 'progress' | 'dataType' | 'ended'>;
 }
 
 /**
- * The one assist-section chrome (#7): collapsible header with persisted expand
+ * The one assist-section chrome: collapsible header with persisted expand
  * state, the assisting wrapper, and the form-vs-progress switch. Every
  * motivation's panel composes this shell with its own fields — the fields
  * differ per motivation by design (instructions/tone/density vs entity chips
@@ -73,7 +73,7 @@ export function AssistShell({ assistType, title, isAssisting, progress, form, pr
               // `ended` is deliberately NOT in `progressProps` (it is Omit'd):
               // the shell watches the job lifecycle, so a panel cannot get this
               // wrong or forget it.
-              // D7: terminality is the OWNER's fact. `isAssisting` follows the
+              // Terminality is the OWNER's fact. `isAssisting` follows the
               // job lifecycle (job:complete / job:fail); the widget must never
               // infer "done" from a progress payload, which cannot tell it
               // about a cancel or a crash after the last tick.

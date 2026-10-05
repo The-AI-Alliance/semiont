@@ -9,7 +9,7 @@ export type ScoredResult = ResourceDescriptor & {
 };
 
 /**
- * Pure RESULTS (GEP D10, amended): ranked rows with scores and Link buttons.
+ * Pure RESULTS: ranked rows with scores and Link buttons.
  * The evidence display is the HOST's job — the wizard stacks the full
  * display-only GatherContextStep (with the collapsed strategy band) above
  * this step, the same grammar as the configure steps.

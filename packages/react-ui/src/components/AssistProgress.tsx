@@ -45,7 +45,7 @@ export interface AssistProgressTranslations {
   /** Completed entity-type log line (reference flow only). */
   found?: (count: number) => string;
   /**
-   * The found-of-~expected tally (reference flow only, RD5). Rendered only
+   * The found-of-~expected tally (reference flow only). Rendered only
    * when the wire carries BOTH counts: `entitiesExpected` absent means the
    * provider priced nothing — no claim — and a denominator is never
    * manufactured from it. The ~ is the copy's to render: the wire calls the
@@ -184,7 +184,7 @@ export function AssistProgress({
         </span>
       </div>
 
-      {/* RD5: the honest denominator. Present only when the count-verifier
+      {/* The honest denominator. Present only when the count-verifier
           priced one — both counts from the wire, zero manufactured. */}
       {tr.tally && progress.entitiesFound !== undefined && progress.entitiesExpected !== undefined && (
         <div className="semiont-assist-progress__tally" data-testid="semiont-assist-tally">

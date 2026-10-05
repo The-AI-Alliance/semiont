@@ -71,7 +71,7 @@ test.describe('frame:tag-schema-added single delivery (BRIDGED ∩ RESOURCE_SCOP
     // Let the make-before-break scope reconnect fully settle, so the scoped
     // subscription is live AND the old (global-only) connection is gone before
     // we trigger the event. This keeps us out of the racy reconnect-overlap
-    // path (Fix #1) and isolates the deterministic global+scoped overlap (Fix #2).
+    // path and isolates the deterministic global+scoped overlap.
     await page.waitForTimeout(2_000);
 
     // ── Trigger exactly one frame:tag-schema-added from a parallel client ──

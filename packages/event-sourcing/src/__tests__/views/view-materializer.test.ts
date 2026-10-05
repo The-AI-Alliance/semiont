@@ -815,8 +815,8 @@ describe('ViewMaterializer', () => {
     });
 
     it('replaces by id and logs a warning when re-registering with differing content', async () => {
-      // Most-recent-wins. The plan's Q2 decision: log a warning so
-      // operators see the overwrite.
+      // Most-recent-wins, with a warning logged so operators see the
+      // overwrite.
       const warn = vi.fn();
       const loggingMaterializer = new ViewMaterializer(
         viewStorage,

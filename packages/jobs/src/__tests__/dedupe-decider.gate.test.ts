@@ -12,7 +12,7 @@ import { join } from 'path';
 
 const read = (rel: string) => readFileSync(join(__dirname, '..', rel), 'utf-8');
 
-describe('the dedupe decider moved, it did not multiply (RD3)', () => {
+describe('the dedupe decider moved, it did not multiply', () => {
   it('the batch post-pass is gone from every detection source', () => {
     for (const rel of ['processors.ts', 'workers/annotation-detection.ts', 'workers/detection/entity-extractor.ts']) {
       const calls = read(rel).match(/dedupeAnnotations\(/g) ?? [];

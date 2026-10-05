@@ -339,7 +339,7 @@ describe('callChunkSubdividing', () => {
     expect(calls.length).toBeGreaterThan(1); // it descended rather than propagating
   });
 
-  // ── The denominator: accepted pieces report their count (RD5) ───────────
+  // ── The denominator: accepted pieces report their count ─────────────────
   //
   // The count-verifier already prices every verified piece; the denominator is
   // those counts, summed over pieces whose results were ACCEPTED. A flagged

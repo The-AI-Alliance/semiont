@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { declineReason } from '../job-outcome';
 
-// `declinedMessage` was DELETED by P5, not aliased: the wire no longer carries
-// a sentence to return. Its pins are superseded by the `declineReason` block.
+// `declinedMessage` was DELETED, not aliased, when decline reasons became
+// codes: the wire no longer carries a sentence to return. Its pins are
+// superseded by the `declineReason` block.
 
 describe('declineReason', () => {
   it('returns the typed reason, never a wire-supplied sentence', () => {

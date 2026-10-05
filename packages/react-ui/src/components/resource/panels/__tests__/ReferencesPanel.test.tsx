@@ -665,7 +665,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       // Should not show any log items. Terminal progress (dismissable) is
-      // shown instead of the form — the AssistShell normalization (#7); the
+      // shown instead of the form — the AssistShell normalization; the
       // form returns once progress clears.
       expect(screen.queryByText('✓')).not.toBeInTheDocument();
       expect(screen.queryByText('Select entity types')).not.toBeInTheDocument();

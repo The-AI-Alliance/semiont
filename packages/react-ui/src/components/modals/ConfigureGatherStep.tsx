@@ -85,7 +85,7 @@ export function ConfigureGatherStep({ onGather, translations: t, children }: Con
         </div>
       </div>
 
-      {/* Exclusion multi-select slot (Phase 4) */}
+      {/* Exclusion multi-select slot */}
       {children}
 
       <WizardFooter primary={{ label: t.gather, type: 'submit' }} />

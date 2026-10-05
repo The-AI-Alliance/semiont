@@ -304,7 +304,7 @@ export function ResourceViewerPage({
 
   const handleWizardGenerateSubmit = useCallback((referenceId: AnnotationId, config: GenerationConfig) => {
     clearSparkle(referenceId);
-    // D8: forwarded by spread in ONE place, so a knob added to the form is
+    // Forwarded by spread in ONE place, so a knob added to the form is
     // never dropped on the way to the wire. `sourceLanguage` is the viewed
     // resource's language — a page fact the form cannot know.
     stateUnit?.yield.generate(config.context, toGenerationOptions(config, getLanguage(resource)));

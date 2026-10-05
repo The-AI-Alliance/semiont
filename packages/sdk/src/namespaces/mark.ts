@@ -148,7 +148,7 @@ export class MarkNamespace implements IMarkNamespace {
 
       // Only a TERMINAL failure ends the progress stream. `takeUntil(fail$)`
       // silenced progress on a retryable failure too, so a run that recovered
-      // went quiet even when the stream itself survived (P5).
+      // went quiet even when the stream itself survived.
       const terminalFail$ = fail$.pipe(filter((e) => e.willRetry !== true));
       const progressSub = progress$
         .pipe(takeUntil(merge(complete$, terminalFail$)))

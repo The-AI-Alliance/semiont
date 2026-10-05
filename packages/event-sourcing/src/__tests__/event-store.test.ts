@@ -95,10 +95,10 @@ describe('Event Store', () => {
   });
 
   /**
-   * Threads correlationId through to event metadata. Load-bearing for the
-   * unified-stream architecture: the events-stream route reads metadata.correlationId
-   * to let subscribers match command-result events back to the POST that
-   * initiated them. Phase 0b.
+   * Threads correlationId through to the published frame. Load-bearing for
+   * the unified-stream architecture: subscribers read the frame's
+   * correlationId to match command-result events back to the POST that
+   * initiated them.
    */
   it('appendEvent carries correlationId on the published FRAME, never into the log', async () => {
     const docId = resourceId('doc-correlation-test');

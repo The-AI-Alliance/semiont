@@ -276,7 +276,7 @@
   text-align: center;
 }
 
-/* D2: the Annotate gate's hint while the Smelter has not settled the map. */
+/* The Annotate gate's hint while the Smelter has not settled the map. */
 .semiont-pdf-annotation-canvas__map-pending {
   margin: 0.25rem auto;
   padding: 0.25rem 0.75rem;

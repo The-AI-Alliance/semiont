@@ -6,9 +6,9 @@ export interface ContextSummaryTranslations {
   sourceContextLabel: string;
   connectionsLabel: string;
   citedByLabel: string;
-  /** GEP P2: the graph pane's chrome travels with this component (D10). */
+  /** The graph pane's chrome travels with this component. */
   graphPaneTitle: string;
-  /** Strategy-relevant empty state — emptiness is evidence (GEP D1). */
+  /** Strategy-relevant empty state — emptiness is evidence. */
   graphEmpty: string;
   /** Resource-level linking annotation whose target the graph can't name. */
   resourceLinkLabel: string;
@@ -38,7 +38,7 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
 
   // Sibling NODES — the same structural annotation-of walk core uses for its
   // entity-type set, collected at node granularity because the viz draws them
-  // (GEP P4; core's `siblingEntityTypes` stays the prompt-side view).
+  // (core's `siblingEntityTypes` stays the prompt-side view).
   const annotationOf = new Map<string, string>();
   for (const edge of context.graph.edges) {
     if (edge.type === 'annotation-of') annotationOf.set(edge.source, edge.target);
@@ -48,7 +48,7 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
   );
 
   // Rarity-ranked entity types for hover-text — the IDF semantics
-  // `entityTypeFrequencies` was stored for (D3).
+  // `entityTypeFrequencies` was stored for.
   const freq: Record<string, number> =
     (context.metadata?.entityTypeFrequencies as Record<string, number> | undefined) ?? {};
   const rank = (types: string[]) => [...types].sort((a, b) => (freq[a] ?? 0) - (freq[b] ?? 0));
@@ -65,7 +65,7 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
     return undefined;
   };
 
-  // ── Deterministic layered layout (D3): citers | focal + siblings | peers ──
+  // ── Deterministic layered layout: citers | focal + siblings | peers ───────
   // Positions derive from array order alone — no physics, no randomness.
   // Geometry adapts to what's populated (no-clipping principle): an absent
   // citer/peer layer frees its column for the sibling band to wrap into, and
@@ -129,9 +129,9 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
 
   siblings.forEach((s, i) => {
     // Discriminated: type === 'annotation' guarantees the embedded W3C
-    // annotation (P3/D11). The node's identity is the text it wraps — a
-    // column of motivation labels is uninterpretable; motivation shows as
-    // the node's styling and hover instead.
+    // annotation. The node's identity is the text it wraps — a column of
+    // motivation labels is uninterpretable; motivation shows as the node's
+    // styling and hover instead.
     const ann = s.type === 'annotation' ? s.annotation : undefined;
     const quote = ann ? getExactText(getTargetSelector(ann.target)) : '';
     const motivation = ann?.motivation ?? s.label;
@@ -168,10 +168,11 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
   const truncate = (s: string) => (s.length > 22 ? `${s.slice(0, 21)}…` : s);
   const hasBody = connections.length > 0 || citedBy.length > 0 || siblings.length > 0;
 
-  // GEP P4: this component IS the graph pane, and its body IS a graph — a
-  // hand-rolled deterministic SVG (D3: no physics, no library, no pan-zoom;
-  // a decision surface, not an explorer). Chrome travels with the component,
-  // so every consumer inherits it (D10). Emptiness is evidence (D1).
+  // This component IS the graph pane, and its body IS a graph — a hand-rolled
+  // deterministic SVG (no physics, no library, no pan-zoom; a decision
+  // surface, not an explorer). Chrome travels with the component, so every
+  // consumer inherits it. Emptiness is evidence: an empty neighborhood
+  // renders its empty state, never a blank pane.
   return (
     <div className="semiont-gather-pane semiont-gather-pane--graph">
       <div className="semiont-gather-pane__title">{t.graphPaneTitle}</div>

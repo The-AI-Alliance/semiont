@@ -3,14 +3,14 @@ package launcher
 // importcmd.go — `semiont import`: the other half of export.
 //
 // It untars. That is the entire mechanism, and it is why the design question
-// that once made this the hard phase evaporated.
+// that once made this the hard part evaporated.
 //
 // The 2026-07-09 ruling — "events are facts, commands are requests" — exists so
 // a restore never re-issues `mark:update-entity-types` and never re-subjects
-// restored history to the vocabulary gate. An earlier draft of this plan
-// carried a three-way fork over how Go could honour that: write the event log
-// directly (a large mirror of the event model), dial a local fact-append seam
-// (an API surface by another name), or keep import on the API.
+// restored history to the vocabulary gate. An earlier design of import carried
+// a three-way fork over how Go could honour that: write the event log directly
+// (a large mirror of the event model), dial a local fact-append seam (an API
+// surface by another name), or keep import on the API.
 //
 // Untarring replays nothing. It puts bytes back. The constraint is satisfied by
 // construction, so the cheap design and the correct design turned out to be the

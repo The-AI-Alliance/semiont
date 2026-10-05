@@ -494,8 +494,9 @@ export interface MatchNamespace {
 export interface YieldNamespace {
   // File upload. Returns an `UploadObservable` — subscribers see the full
   // `UploadProgress` lifecycle (started → finished); awaiting resolves to
-  // `{ resourceId }` directly (the awaited shape is unchanged from before
-  // Phase 18 — `await client.yield.resource(...)` keeps working as-is).
+  // `{ resourceId }` directly (the awaited shape is unchanged from when this
+  // returned a Promise — `await client.yield.resource(...)` keeps working
+  // as-is).
   resource(data: CreateResourceInput): UploadObservable;
 
   // Grounded generation (long-running, LLM-based — yields progress, then a

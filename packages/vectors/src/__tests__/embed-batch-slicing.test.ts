@@ -189,7 +189,7 @@ describe.each(providers)('$name', ({ policy, make, reply }) => {
   });
 
   it('embed() of a single text goes through the same gated path', async () => {
-    // D3 — every round trip acquires or the cap leaks. `measureDimensions`
+    // Every round trip acquires or the cap leaks. `measureDimensions`
     // probes through `embed`, so gating this covers the probe too.
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) =>
       reply(JSON.parse(String(init.body)).input));

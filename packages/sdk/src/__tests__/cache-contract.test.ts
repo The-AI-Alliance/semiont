@@ -78,7 +78,7 @@ describe('uniform identity: per-key, including the withScope-wrapped accessors',
     // Calibration history: scoped accessors were once recorded as fresh per
     // call; two recon passes "corrected" that in opposite directions; a pin
     // written before anything changed measured the truth — withScope
-    // memoizes per-source (`scopedSources`, #847 Phase 4), so identity was
+    // memoizes per-source (`scopedSources`, #847), so identity was
     // ALREADY uniform and making accessors lazy changed only laziness. This
     // test is the standing measurement.
     const { client } = createTestClient({ transport: { makeResponse: RESPONSES } });

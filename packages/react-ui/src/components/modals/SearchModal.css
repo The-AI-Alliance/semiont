@@ -393,9 +393,9 @@
   max-width: 1100px;
 }
 
-/* Gather-context step. Width comes from `--wide` (GEP D2: the family's own
-   1100px precedent), applied alongside at both call sites — this class owns
-   only the gather-specific flex/height shape. */
+/* Gather-context step. Width comes from `--wide` (the family's own 1100px
+   precedent), applied alongside at both call sites — this class owns only
+   the gather-specific flex/height shape. */
 .semiont-search-modal__panel--gather {
   max-height: min(92vh, 860px);
   display: flex;
@@ -505,7 +505,7 @@
   padding-top: 0.25rem;
 }
 
-/* GEP P2: the evidence panes — quiet lists under small-cap headers (D1/D3/D4). */
+/* The evidence panes, graph and corpus — quiet lists under small-cap headers. */
 .semiont-gather-pane {
   display: flex;
   flex-direction: column;
@@ -583,7 +583,7 @@
   color: var(--semiont-text-tertiary);
 }
 
-/* GEP P4 (D3): the graph pane's body — a deterministic, hand-rolled SVG. */
+/* The graph pane's body — a deterministic, hand-rolled SVG. */
 .semiont-graph {
   width: 100%;
   height: auto;
@@ -699,7 +699,7 @@
   border-color: var(--semiont-color-primary-600);
 }
 
-/* GEP D5: the hint on its own full-width row, input-then-act above the footer. */
+/* The hint on its own full-width row, input-then-act above the footer. */
 .semiont-gather__hint-row {
   flex-shrink: 0;
   padding-top: 0.5rem;
@@ -710,7 +710,8 @@
   color: var(--semiont-text-tertiary);
 }
 
-/* GEP D8: the gather step's hint stays visible while being steered by. */
+/* The gather step's hint, echoed on the configure steps: it stays visible
+   while being steered by. */
 .semiont-wizard__hint-echo {
   margin: 0 0 0.5rem;
   font-size: var(--semiont-text-xs);
@@ -718,7 +719,7 @@
   color: var(--semiont-text-secondary);
 }
 
-/* Suggested references are prose (D3) — sentences, listed, not chipped. */
+/* Suggested references are prose — sentences, listed, not chipped. */
 .semiont-gather__suggested {
   margin: 0.5rem 0 0;
   padding-left: 1.25rem;
@@ -915,9 +916,9 @@
   }
 }
 
-/* D4 discard guard: inline prompt raised when dismissal would destroy a
+/* Discard guard: inline prompt raised when dismissal would destroy a
    non-empty compose draft. Never window.confirm; the footer stays
-   dismissal-free (A4) — this band owns the decision. */
+   dismissal-free — this band owns the decision. */
 .semiont-wizard__discard-prompt {
   display: flex;
   align-items: center;

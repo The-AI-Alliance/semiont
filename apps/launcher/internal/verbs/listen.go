@@ -120,7 +120,7 @@ func Listen(args []string) int {
 
 	// Resource names, fetched ONCE before the stream opens. Not per event: a
 	// lookup is a correlated Request, which opens its own SSE connection, and
-	// since presence landed (P7) every connection publishes session:joined/left
+	// since presence landed every connection publishes session:joined/left
 	// — so inline resolution would make this console generate the churn it is
 	// meant to report. One request up front, then never again; ids the prefetch
 	// misses render as ids.

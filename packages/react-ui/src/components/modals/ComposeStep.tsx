@@ -40,7 +40,7 @@ export interface ComposeStepProps {
   onDraftChange: (patch: Partial<ComposeDraft>) => void;
   /**
    * Folder of the resource being composed FROM, so the new file lands beside
-   * its source (D11). Compose is always `text/markdown`, so the proposal's
+   * its source. Compose is always `text/markdown`, so the proposal's
    * extension is fixed.
    */
   defaultFolder?: string;
@@ -81,8 +81,8 @@ export function ComposeStep({
   onCompose,
   translations: t,
 }: ComposeStepProps) {
-  // D11 — the Save location starts filled and follows the title until the
-  // user takes it over; `pathTouched` is derived (see ConfigureGenerationStep),
+  // The Save location starts filled and follows the title until the user
+  // takes it over; `pathTouched` is derived (see ConfigureGenerationStep),
   // so clearing the field restores the proposal. Compose writes markdown.
   const pathTouched = draft.storagePath !== '';
   const effectivePath = pathTouched

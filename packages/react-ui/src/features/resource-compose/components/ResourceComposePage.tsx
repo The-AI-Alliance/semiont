@@ -169,7 +169,7 @@ export function ResourceComposePage({
   // Archive original checkbox (for clones only)
   const [archiveOriginal, setArchiveOriginal] = useState(true);
 
-  // D11 — the Save location starts filled and follows the title until the user
+  // The Save location starts filled and follows the title until the user
   // takes it over; `pathTouched` is derived, so clearing restores the proposal.
   // A clone proposes beside its source; a new resource proposes at the root.
   const composeFormat: SupportedMediaType =

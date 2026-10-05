@@ -179,7 +179,7 @@ export function SvgDrawingCanvas({
         // Find annotation at click point
         // Note: We're checking in display coordinates. The hit-test owns the
         // coordinate transform — capture the hit annotation's viewport rect
-        // for the emission below (A1 anchor).
+        // for the emission below, where it rides the click as its anchor.
         let hitRect: AnchorRect | undefined;
         const clickedAnnotation = existingAnnotations.find(ann => {
           if (typeof ann.target === 'string') return false;

@@ -90,7 +90,7 @@ describe('locate', () => {
     });
     
     it('documents known imperfect reading order for multi-column PDFs', async () => {
-        // Multi-column reading order is a known limitation (Phase 4 / #738): pdf.js
+        // Multi-column reading order is a known limitation (#738): pdf.js
         // yields one column fully before the other, so true row-wise reading order
         // across columns is not preserved. Assert the (imperfect) current order
         // explicitly rather than snapshotting an opaque blob.

@@ -112,7 +112,7 @@ export function PdfAnnotationCanvas({
    * its aspect ratio and its raster width. NOT its raster height — the image
    * renders under `max-width: 100%; height: auto`, so its displayed height
    * depends on the column's width, and reserving raster pixels made the
-   * column's height lurch on every mount (S1b).
+   * column's height lurch on every mount.
    */
   const [pageShape, setPageShape] = useState<{ aspect: number; rasterWidth: number } | null>(null);
   /** Measured inner width of the column — the other half of the reservation. */
@@ -147,8 +147,9 @@ export function PdfAnnotationCanvas({
         setNumPages(doc.numPages);
         setIsLoading(false);
 
-        // One extra getPage, for slot sizing (D4). Failure is not fatal:
-        // unsized slots still scroll, just less faithfully.
+        // One extra getPage, for slot sizing: every slot takes page 1's
+        // shape. Failure is not fatal: unsized slots still scroll, just less
+        // faithfully.
         try {
           const first = await doc.getPage(1);
           if (cancelled) return;
@@ -329,7 +330,7 @@ export function PdfAnnotationCanvas({
     : pageNumber;
 
   /**
-   * Left/Right step pages (S1a).
+   * Left/Right step pages.
    *
    * Bound to the window rather than a focusable wrapper so it works without
    * the reader hunting for the viewer's focus — but that reach is exactly why

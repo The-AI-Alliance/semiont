@@ -90,10 +90,10 @@ describe('extractPdfTextLayer', () => {
     });
 });
 
-describe('per-page classification (Phase 3)', () => {
+describe('per-page classification', () => {
     // Routing class C (mixed native + scanned) requires knowing which PAGES
     // are scanned. A document-level flag cannot express it — the shared
-    // prerequisite this phase and detection's #739 both need.
+    // prerequisite that OCR of scanned pages and detection's #739 both need.
 
     it('classifies each page of a mixed document independently', async () => {
         const layer = await extractPdfTextLayer(readFixture('mixed.pdf'));

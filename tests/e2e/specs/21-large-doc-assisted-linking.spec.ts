@@ -9,7 +9,7 @@ import { signInSession } from '../fixtures/sdk-session';
  * The bug: detection sent the WHOLE document in ONE call with a hardcoded
  * 4000-token output cap, so any document yielding more entities than that cap
  * failed the entire job — **zero** annotations, not partial. Six RFCs were
- * ingested; only the 6 KB one enriched. `rfc793` (170 KB) was the stress row.
+ * ingested; only the 6 KB one enriched. `rfc793` (170 KB) was the stress case.
  *
  * This spec reproduces that shape at the system level: ingest a large
  * document, run `mark.assist('linking')`, assert annotations **persisted**.
@@ -51,7 +51,7 @@ import { signInSession } from '../fixtures/sdk-session';
  *     PROVES: the chunk loop, the per-chunk heartbeat, and overlap dedupe —
  *     but only above ~340 KB. At 170 KB this path ALSO runs as one chunk.
  *
- * Hence the two tests: the 170 KB one is the Evidence-table row (outcome
+ * Hence the two tests: the 170 KB one is the `rfc793` stress case (outcome
  * only, provider-agnostic); the ~750 KB one is sized past BOTH input bounds
  * so chunking is forced whichever provider serves `reference-annotation`.
  *
@@ -64,7 +64,7 @@ import { signInSession } from '../fixtures/sdk-session';
  * in the log rather than as one long silence ending in a timeout.
  */
 
-/** ≥ 170 KB — the `rfc793` stress row from the Evidence table. */
+/** ≥ 170 KB — the size of `rfc793`, the stress case among the six RFCs. */
 const TARGET_BYTES = 170_000;
 
 /**
@@ -75,7 +75,7 @@ const TARGET_BYTES = 170_000;
  * 1. **Too sparse.** v1 drew from a fixed 40-term vocabulary; at 170 KB it
  *    produced 48 entities (~2.4K output tokens) — under the OLD 4000-token
  *    cap, so it PASSED pre-fix and guarded nothing. The bug is driven by
- *    entity COUNT, not document length (the Evidence table's 6 KB `rfc768`
+ *    entity COUNT, not document length (of the six RFCs, the 6 KB `rfc768`
  *    passed at ~60 entities; the 21 KB `rfc826` failed).
  * 2. **Not real prose.** v2 was dense but built from invented proper nouns
  *    ("the Kestrel-142 protocol") in a repeating template; the model returned
@@ -146,7 +146,7 @@ function buildLargeDocument(targetBytes: number = TARGET_BYTES): string {
 }
 
 test.describe('large-document assisted linking', () => {
-  test('a 170 KB document enriches — assisted linking persists annotations (the Evidence-table stress row)', { tag: ['@slow'] }, async () => {
+  test('a 170 KB document enriches — assisted linking persists annotations', { tag: ['@slow'] }, async () => {
     // Wall-clock is provider-shaped. Anthropic: ONE large streamed call, a few
     // minutes. ollama-gemma: the shared window forces ~17-20 chunks at this
     // size, each its own serialized local inference call — tens of minutes.
@@ -163,7 +163,7 @@ test.describe('large-document assisted linking', () => {
       const content = buildLargeDocument();
       expect(
         content.length,
-        'fixture must reach the Evidence-table stress size',
+        'fixture must reach the 170 KB stress size',
       ).toBeGreaterThanOrEqual(TARGET_BYTES);
       // Density guard: the bug is driven by ENTITY COUNT, not length. A
       // low-vocabulary fixture of this size passes even pre-fix (measured:
@@ -216,8 +216,8 @@ test.describe('large-document assisted linking', () => {
           }
         });
 
-      // PRE-FIX this threw `/truncat/i` and failed the whole job — the
-      // Evidence table's "0 annotations" rows.
+      // PRE-FIX this threw `/truncat/i` and failed the whole job — zero
+      // annotations, as on five of the six ingested RFCs.
       expect(
         final.kind,
         'linking assist completes (it failed the whole job pre-fix on documents this size)',

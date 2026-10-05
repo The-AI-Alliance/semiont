@@ -186,7 +186,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   private readonly annotationListObs = new Map<ResourceId, Observable<CacheState<Annotation[]>>>();
 
   /**
-   * Per-source memo for the scope-acquiring wrapper (#847 Phase 4), keyed by
+   * Per-source memo for the scope-acquiring wrapper (#847), keyed by
    * the underlying (stable, per-key) cache observable so the wrapped
    * observable is itself stable per key — preserving B4/B11 referential
    * identity through to `CacheObservable.from`'s own memo.
@@ -410,7 +410,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   /**
    * Wrap a resource-scoped live query's source so that *subscribing* acquires
    * the resource's scope (via the transport's ref-counted
-   * `subscribeToResource`) and the last unsubscribe releases it (#847 Phase 4).
+   * `subscribeToResource`) and the last unsubscribe releases it (#847).
    * Freshness follows observation: a `.subscribe()` keeps `rId`'s scoped
    * events flowing — so `mark:*` / entity-tag invalidations reach this cache —
    * with no separate `subscribeToResource` call from the consumer.

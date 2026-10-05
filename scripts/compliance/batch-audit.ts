@@ -232,7 +232,7 @@ function analyzeAndFormat(
     };
   }
 
-  // Determine status based on issues (Phase 7 logic)
+  // Determine status based on issues
   let status = '✅';
 
   // Determine if this is a component (not a hook)

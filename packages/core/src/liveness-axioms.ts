@@ -235,9 +235,9 @@ export async function assertLivenessAxioms(spec: LivenessAxiomSpec): Promise<voi
 /**
  * A connection-stream-shaped subject: something that accepts writes to the
  * live connection, can be told to transition (handover / reconnect / scope
- * change), and exposes the subscriber-facing output. P3 adapts the real
- * actor's mock-connection harness to this shape; the teeth tests drive
- * reconstructed pre-fix doubles.
+ * change), and exposes the subscriber-facing output. The http-transport
+ * actor's property suite adapts the real actor's mock-connection harness to
+ * this shape; the teeth tests drive reconstructed pre-fix doubles.
  */
 export interface DeliverySubject {
   /** Write the event with this id to the currently-live connection. */

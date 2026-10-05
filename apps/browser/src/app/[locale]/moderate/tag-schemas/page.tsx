@@ -30,8 +30,9 @@ export default function TagSchemasPageWrapper() {
     [session],
   );
   const schemasObserved = useObservable(tagSchemas$);
-  // D1 unwrap: the third outcome is explicit — a failed registry read shows
-  // as not-loading with an empty list here (failure UI is follow-up work).
+  // Three-outcome unwrap: the third outcome is explicit — a failed registry
+  // read shows as not-loading with an empty list here (failure UI is
+  // follow-up work).
   const schemas = schemasObserved && isReady(schemasObserved) ? schemasObserved.value : [];
   const isLoading = schemasObserved === undefined || schemasObserved.status === 'pending';
 

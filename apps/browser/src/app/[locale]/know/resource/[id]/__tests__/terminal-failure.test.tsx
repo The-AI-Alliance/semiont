@@ -83,7 +83,7 @@ describe('KnowledgeResourcePage — terminal load failure', () => {
 
   const failLatest = (message: string) =>
     act(() => {
-      // D1: failure is an EMISSION, not a stream death.
+      // Three-outcome contract: failure is an EMISSION, not a stream death.
       (harness.attempts[harness.attempts.length - 1] as Subject<unknown>).next({
         status: 'failed',
         error: new Error(message),

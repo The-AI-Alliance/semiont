@@ -43,7 +43,7 @@ export interface ReferenceWizardModalProps {
   resourceId: ResourceId | null;
   /** Default title (selected text) */
   defaultTitle: string;
-  /** Folder of the source resource, so new files land beside it (D11). */
+  /** Folder of the source resource, so new files land beside it. */
   defaultFolder?: string;
   /** Entity types from the annotation */
   entityTypes: string[];

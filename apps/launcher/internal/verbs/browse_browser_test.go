@@ -1,9 +1,10 @@
 package verbs
 
 // browse_browser_test.go — `semiont browse --browser`, split out of the
-// launcher's browser_target_test.go when the verbs moved (P1). That file had
-// become two subjects under one name: BrowserTarget and roleHealthy, which are
-// the launcher's, and these, which drive the Browse verb.
+// launcher's browser_target_test.go when the verbs moved to their own package.
+// That file had become two subjects under one name: BrowserTarget and
+// roleHealthy, which are the launcher's, and these, which drive the Browse
+// verb.
 
 import (
 	"encoding/json"
@@ -34,7 +35,7 @@ func recordBrowserFixture(t *testing.T, b *launcher.ServiceState) {
 	}
 }
 
-// ── P1: the probe ───────────────────────────────────────────────────────
+// ── the probe ───────────────────────────────────────────────────────────
 
 // The case the stable-name fallback exists for: the record carries a container
 // ID that no longer resolves, while the endpoint is plainly live. Before the
@@ -47,16 +48,16 @@ func TestBrowseBrowserRefusesWhenNoOneIsWatching(t *testing.T) {
 		notWant []string
 	}{
 		{
-			// Row 2: the container is up, so the origin is the useful thing to
-			// print — someone has to point a web browser at it and log in.
+			// The container is up, so the origin is the useful thing to print —
+			// someone has to point a web browser at it and log in.
 			name:    "Browser running, nobody watching",
 			origin:  harness.LiveOrigin,
 			want:    []string{"Nobody saw res-42", "no web browser is watching", "log in"},
 			notWant: []string{"--launch"},
 		},
 		{
-			// Row 3: there is nothing to open, so naming the origin would send
-			// the user to a refused connection. Name the commands instead.
+			// There is nothing to open, so naming the origin would send the
+			// user to a refused connection. Name the commands instead.
 			name:    "no Browser at all",
 			origin:  harness.DeadOrigin,
 			want:    []string{"Nobody saw res-42", "No Browser is running", "--launch", "semiont start --service browser"},
@@ -126,7 +127,7 @@ func TestBrowseBrowserDoesNotRefuseOnAnUncountedEmit(t *testing.T) {
 	harness.MustContainAll(t, "uncounted emit", out, "no delivery confirmation")
 }
 
-// ── P3: --launch is opt-in, and only means one thing ────────────────────
+// ── --launch is opt-in, and only means one thing ────────────────────────
 
 func TestBrowseLaunchAndBrowserURLRequireBrowser(t *testing.T) {
 	for _, args := range [][]string{
@@ -147,10 +148,10 @@ func TestBrowseLaunchAndBrowserURLRequireBrowser(t *testing.T) {
 	}
 }
 
-// Without --launch the launcher must not start anything — D4: a read verb's
-// flag does not get to bring a container up as a side effect. An empty PATH
-// makes any attempt fail loudly rather than silently succeeding on a machine
-// that has a runtime installed.
+// Without --launch the launcher must not start anything: a read verb's flag
+// does not get to bring a container up as a side effect. An empty PATH makes
+// any attempt fail loudly rather than silently succeeding on a machine that
+// has a runtime installed.
 func TestBrowseBrowserDoesNotStartTheBrowserUnasked(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()

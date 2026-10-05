@@ -89,7 +89,7 @@ const {
   };
 });
 
-// Launcher discovery (P5): the panel binds useKBDiscovery; tests script it
+// Launcher discovery: the panel binds useKBDiscovery; tests script it
 // through this holder (reset in beforeEach, set per test).
 const discoveryHolder = vi.hoisted(() => ({
   current: { state: null, kbs: [] } as {
@@ -242,8 +242,8 @@ describe('KnowledgeBasePanel', () => {
   describe('Connect starts a sign-in at the issuer the KB trusts', () => {
     // Who the user is comes from the issuer, so the panel's whole job at
     // connect time is: hand the browser a target, go where it says. The
-    // identity capture and the (C) verification happen on the way back, in
-    // the callback page — see its tests.
+    // identity capture, and its verification against the row the user
+    // clicked, happen on the way back, in the callback page — see its tests.
     async function connect() {
       const user = userEvent.setup();
       render(<KnowledgeBasePanel />);
@@ -312,7 +312,9 @@ describe('KnowledgeBasePanel', () => {
       });
     });
 
-    it('renders "Unknown" for a registered KB with no name (decision 7 vocabulary)', () => {
+    // An unknown identity is a state the user can act on, so it gets a word;
+    // it is never an address standing in for a name.
+    it('renders "Unknown" for a registered KB with no name', () => {
       kbs$.next([{ ...kb1, label: '' }]);
       render(<KnowledgeBasePanel />);
 
@@ -322,7 +324,9 @@ describe('KnowledgeBasePanel', () => {
     });
   });
 
-  describe('Identity join (P3b — decision 9: look up by address, verify by did)', () => {
+  // A did is not unique — one KB can run at several addresses — so the
+  // address selects the discovered entry and the did confirms it.
+  describe('Identity join: look up by address, verify by did', () => {
     beforeEach(() => {
       discoveryHolder.current = { state: null, kbs: [] };
     });
@@ -362,8 +366,8 @@ describe('KnowledgeBasePanel', () => {
     });
 
     it('renders one KB in two places as two rows — never merged, never a conflict', () => {
-      // Decision 9: a local clone and a codespace of one repo share a did and
-      // will be COMMON. Distinct running copies with distinct health.
+      // A local clone and a codespace of one repo share a did and will be
+      // COMMON. Distinct running copies with distinct health.
       const localCopy = {
         host: 'localhost', port: 4000, placement: 'local' as const,
         managedBy: 'semiont-launcher', did: 'did:web:twin.example', repo: 'org/twin-kb',
@@ -386,7 +390,7 @@ describe('KnowledgeBasePanel', () => {
     });
   });
 
-  describe('Twin copies (P3c — Option 2: mark the relationship)', () => {
+  describe('Twin copies: mark the relationship', () => {
     beforeEach(() => {
       discoveryHolder.current = { state: null, kbs: [] };
     });
@@ -404,7 +408,7 @@ describe('KnowledgeBasePanel', () => {
 
       render(<KnowledgeBasePanel />);
 
-      // The twin renders as its own row (never merged — decision 9) …
+      // The twin renders as its own row (never merged) …
       const twinRow = screen.getByText('localhost:4002').closest('.semiont-panel-item') as HTMLElement;
       // … and says WHY it looks like a duplicate.
       expect(within(twinRow).getByText(/another copy of the knowledge base/i)).toBeInTheDocument();
@@ -424,7 +428,10 @@ describe('KnowledgeBasePanel', () => {
     });
   });
 
-  describe('Conflict + verification (P3c — decisions 6 & 7)', () => {
+  // Connect stays enabled on a contested address: the form names the address
+  // rather than either claimant, and the outcome is verified against the KB
+  // that answers.
+  describe('Conflict + verification', () => {
     const claimantA = {
       host: 'localhost', port: 4000, placement: 'local' as const,
       managedBy: 'semiont-launcher', did: 'did:web:caselaw.example',
@@ -448,11 +455,11 @@ describe('KnowledgeBasePanel', () => {
     });
 
     it('keys contested claimants distinctly — the PAIR identifies an entry', () => {
-      // Copilot review, PR #1108: P3b keyed rows on the address to stop twins
-      // colliding, which traded one collision for the other — two claimants at
-      // ONE address (kept visible on purpose) then shared a key, letting React
-      // reuse DOM nodes across rows. Decision 9's table already said it:
-      // neither field alone identifies an entry, the pair does.
+      // Copilot review, PR #1108: keying rows on the address alone stopped
+      // twins colliding but traded one collision for the other — two claimants
+      // at ONE address (kept visible on purpose) then shared a key, letting
+      // React reuse DOM nodes across rows. Neither field alone identifies an
+      // entry, the pair does.
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       discoveryHolder.current = { state: { kind: 'managed', kbs: [claimantA, claimantB] }, kbs: [claimantA, claimantB] };
 
@@ -472,7 +479,7 @@ describe('KnowledgeBasePanel', () => {
       expect(screen.queryByText(/likely stale/i)).not.toBeInTheDocument();
     });
 
-    it('opens an ADDRESS-labelled form from an ambiguous row — no KB name implied (D)', async () => {
+    it('opens an ADDRESS-labelled form from an ambiguous row — no KB name implied', async () => {
       discoveryHolder.current = { state: { kind: 'managed', kbs: [claimantA, claimantB] }, kbs: [claimantA, claimantB] };
       const user = userEvent.setup();
       render(<KnowledgeBasePanel />);
@@ -485,7 +492,7 @@ describe('KnowledgeBasePanel', () => {
       expect(screen.queryByText('Connect to Knowledge Base')).not.toBeInTheDocument();
     });
 
-    it('records what the user believed they clicked, so the return can verify it (C)', async () => {
+    it('records what the user believed they clicked, so the return can verify it', async () => {
       discoveryHolder.current = { state: { kind: 'managed', kbs: [claimantA, claimantB] }, kbs: [claimantA, claimantB] };
       const user = userEvent.setup();
       render(<KnowledgeBasePanel />);
@@ -504,7 +511,7 @@ describe('KnowledgeBasePanel', () => {
     });
   });
 
-  describe('Launcher discovery (P5)', () => {
+  describe('Launcher discovery', () => {
     const discoveredLocal = {
       host: 'localhost',
       port: 4001,

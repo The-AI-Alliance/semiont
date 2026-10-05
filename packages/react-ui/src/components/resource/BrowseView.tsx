@@ -155,7 +155,7 @@ export const BrowseView = memo(function BrowseView({
         const annotation = allAnnotations.find(a => a.id === annotationId);
         if (annotation) {
           // The emission site owns the geometry: the clicked span's viewport
-          // rect rides the event so hosts can anchor popovers (A1).
+          // rect rides the event so hosts can anchor popovers.
           session.client.browse.click(annotation.id, annotationElement.getBoundingClientRect());
         }
       }

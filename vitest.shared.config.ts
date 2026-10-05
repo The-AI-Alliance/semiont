@@ -37,7 +37,7 @@ export default defineConfig({
         '**/demo/**',
         '**/index.ts', // Export files
         '**/types.ts', // Generated types
-        // D3: every sidecar's `*-main.ts` is process wiring — config, credential,
+        // Every sidecar's `*-main.ts` is process wiring — config, credential,
         // a health server, the pumps. No suite imports one; they are proven by the
         // launcher's `--dry-run` goldens and by the live round trip. If anyone
         // later wants them covered, the honest form is a boot-refusal test per

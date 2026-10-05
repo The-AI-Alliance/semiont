@@ -1,5 +1,5 @@
 /**
- * Embedded page images — the pixel path OCR reads (Phase 3).
+ * Embedded page images — the pixel path OCR reads.
  *
  * This is the dependency-free half, tested for real: no canvas, no
  * rasterizer, just pdf.js decoding the embedded image in its worker.

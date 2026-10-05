@@ -31,7 +31,7 @@ const CREATED = '2026-08-21T10:00:00.000Z';
 
 /**
  * Each store hands the codec a flat property bag, but shapes its own on the
- * way in (D3). These adapters are those shapes: the same properties as the
+ * way in. These adapters are those shapes: the same properties as the
  * driver would hand back, so the decode path under test is the real one.
  */
 const STORES: Array<{ name: string; decode: (p: AnnotationProperties, e?: string[]) => Annotation }> = [
@@ -83,7 +83,7 @@ describe.each(STORES)('$name — decode conformance', ({ decode }) => {
     expect('selector' in (ann.target as object)).toBe(false);
   });
 
-  it("D6: a legacy row whose stored selector is '{}' decodes clean — no migration needed", () => {
+  it("a legacy row whose stored selector is '{}' decodes clean — no migration needed", () => {
     const ann = decode({ ...RESOURCE_LEVEL, selector: '{}' });
     expect('selector' in (ann.target as object)).toBe(false);
   });
@@ -121,7 +121,7 @@ describe('A4: the stores agree', () => {
   });
 });
 
-describe('encode — absence is stored as absence (D4)', () => {
+describe('encode — absence is stored as absence', () => {
   const sourceOnly = buildAnnotation(
     {
       id: annotationId('ann-1'),
@@ -234,7 +234,7 @@ describe('the category a caller filters by maps to one motivation, in one place'
   });
 });
 
-describe('each store flattens its own driver shapes before the codec sees them (D3)', () => {
+describe('each store flattens its own driver shapes before the codec sees them', () => {
   const bag = { ...RESOURCE_LEVEL };
 
   it('neo4j: a null property is dropped, and a non-string is stringified', () => {
@@ -272,7 +272,7 @@ describe('each store flattens its own driver shapes before the codec sees them (
   });
 });
 
-describe('D7: memorygraph is a faithful reference, not a store where the bug is impossible', () => {
+describe('memorygraph is a faithful reference, not a store where the bug is impossible', () => {
   it('round-trips a source-only annotation through the codec, selector-free', async () => {
     const graph = new MemoryGraphDatabase();
     await graph.connect();

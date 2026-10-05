@@ -1,5 +1,5 @@
 /**
- * #847 Phase 2 — a one-shot `await` of a Browse live-query returns a FRESH
+ * #847 — a one-shot `await` of a Browse live-query returns a FRESH
  * value, not the stale memoized one, on re-read.
  *
  * A headless consumer (e.g. a loader's resume-guard) does `read → write →
@@ -46,7 +46,9 @@ const noopContent = {
   dispose: () => {},
 } as unknown as IContentTransport;
 
-describe('browse read — the one-shot .fresh() read is fresh (#847; D2 made it explicit)', () => {
+// The one-shot read is the explicit `.fresh()`: a Browse live query is not
+// thenable, so nothing awaits one directly.
+describe('browse read — the one-shot .fresh() read is fresh (#847)', () => {
   let bus: EventBus;
   let browse: BrowseNamespace;
   const rId: ResourceId = makeResourceId('res-1');

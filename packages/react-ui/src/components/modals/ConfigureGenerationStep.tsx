@@ -27,16 +27,18 @@ export interface GenerationDraft {
   temperature: number;
   /** Text, not number: the field is user-editable and may be mid-edit or empty. */
   maxTokensText: string;
-  /** The artifact's media type. Seeded `text/markdown` by both hosts (D2). */
+  /** The artifact's media type. Seeded `text/markdown` by both hosts. */
   outputMediaType: SupportedMediaType;
 }
 
 /**
- * What this form fills in. Named here, but TYPED by the SDK (P2b).
+ * What this form fills in. Named here, but TYPED by the SDK.
  *
  * `storageUri` is on this list rather than a local `storagePath: string`
  * because the two were the same thing under different names — a divergence
- * that survived precisely because nothing tied them together (D8).
+ * that survived precisely because nothing tied them together. Under the
+ * SDK's name, the page forwards the submitted config by spread, so no
+ * field-by-field copy can drop one.
  */
 type FormFilled =
   | 'title'
@@ -47,7 +49,7 @@ type FormFilled =
 
 /**
  * The submitted payload: the SDK's own generation options, DERIVED rather
- * than restated (P2b), plus the grounding context.
+ * than restated, plus the grounding context.
  *
  * This was a hand-written interface listing the same fields with independent
  * types — the shape `## Duplicated Shape` forbids — and it drifted exactly as
@@ -74,12 +76,12 @@ export type GenerationConfig =
   & Pick<GenerationOptions, 'prompt' | 'temperature'>
   & { context: GatheredContext };
 
-/** The one place a format's required extension is read (D7). */
+/** The one place a format's required extension is read. */
 const extensionFor = (format: SupportedMediaType): string =>
   capabilitiesOf(format)?.extension ?? '';
 
 /**
- * A fresh draft, defined ONCE for both hosts (D8b). The two modals carried
+ * A fresh draft, defined ONCE for both hosts. The two modals carried
  * byte-identical literals — magic numbers included — so every new field meant
  * two edits and an opportunity to seed only one of them.
  */
@@ -90,7 +92,7 @@ export const freshGenerationDraft = (title: string, locale: string): GenerationD
   language: locale,
   temperature: 0.7,
   maxTokensText: '500',
-  // D2: markdown is the DEFAULT, not an assumption — the worker would also
+  // Markdown is the DEFAULT, not an assumption — the worker would also
   // default to it, but a control must send what it shows.
   outputMediaType: 'text/markdown',
 });
@@ -107,8 +109,8 @@ export interface ConfigureGenerationStepProps {
   onGenerate: (config: GenerationConfig) => void;
   /**
    * Folder of the resource being generated FROM, so the artifact lands beside
-   * its source (D11). The page derives it; this component stays
-   * presentational, exactly as it already receives the default title.
+   * its source. The page derives it; this component stays presentational,
+   * exactly as it already receives the default title.
    */
   defaultFolder?: string;
   translations: {
@@ -134,8 +136,8 @@ export interface ConfigureGenerationStepProps {
     outputFormat: string;
     /**
      * Shown when the Save location's extension contradicts the chosen format,
-     * which the form REFUSES to submit (D7 — the worker is faithful and will
-     * write a PDF to a `.md` path, so this is the only gate). Interpolates
+     * which the form REFUSES to submit (the worker is faithful and will write
+     * a PDF to a `.md` path, so this is the only gate). Interpolates
      * `{{extension}}`.
      */
     formatExtensionMismatch: string;
@@ -171,8 +173,8 @@ export function ConfigureGenerationStep({
   const { title, storagePath, prompt, language, temperature, maxTokensText, outputMediaType } = config;
   const set = (patch: Partial<GenerationDraft>) => onConfigChange({ ...config, ...patch });
 
-  // D11 — the Save location starts filled and FOLLOWS the title and format
-  // until the user takes it over. `pathTouched` is DERIVED rather than stored:
+  // The Save location starts filled and FOLLOWS the title and format until
+  // the user takes it over. `pathTouched` is DERIVED rather than stored:
   // it is exactly "the field holds the user's own text", which makes clearing
   // the field un-touch it for free, keeps it reset-on-open and Back-safe
   // because `storagePath` already is, and leaves no second field to desync.
@@ -180,11 +182,11 @@ export function ConfigureGenerationStep({
   const proposedPath = proposeStoragePath(defaultFolder, title, outputMediaType);
   const effectivePath = pathTouched ? storagePath : proposedPath;
 
-  // D7 — the GUI is where a format/extension mismatch is caught, because it is
+  // The GUI is where a format/extension mismatch is caught, because it is
   // where the person who can fix it is standing. An EMPTY path is not a
   // mismatch: the field is `required`, so emptiness is already refused, and
-  // telling an untouched form it is wrong is not a welcome. Under D11 a
-  // PROPOSED path always matches, so this now fires only on hand-edits.
+  // telling an untouched form it is wrong is not a welcome. A PROPOSED path
+  // always carries the format's extension, so this fires only on hand-edits.
   const requiredExtension = extensionFor(outputMediaType);
   const extensionMismatch =
     effectivePath !== '' &&
@@ -293,8 +295,8 @@ export function ConfigureGenerationStep({
       </div>
 
       {/* Output format — with the artifact's IDENTITY (title, location), not
-          among the model knobs below (D5). The options are DERIVED from the
-          registry (D1): promote a fourth row to `generatable` and it appears
+          among the model knobs below. The options are DERIVED from the
+          registry: promote a fourth row to `generatable` and it appears
           here, with no list to forget to update. */}
       <div className="semiont-form__field">
         <label htmlFor="wizard-outputFormat" className="semiont-form__label">

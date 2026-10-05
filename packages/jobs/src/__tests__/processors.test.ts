@@ -2334,7 +2334,7 @@ describe('under-report verdicts on the terminal surface', () => {
   });
 });
 
-// The denominator (RD5): the count-verifier's expectation, cumulative on the
+// The denominator: the count-verifier's expectation, cumulative on the
 // progress surface, so the UI can draw "69 of ~290". Absent without a
 // verifying provider — no claim, not zero.
 describe('entitiesExpected on the progress surface', () => {

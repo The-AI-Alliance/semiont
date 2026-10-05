@@ -32,4 +32,4 @@ fi
 if [ "$violations" -ne 0 ]; then
   exit 1
 fi
-echo "✅ gathered context stays in the SDK's state units (FLC A5)"
+echo "✅ gathered context stays in the SDK's state units (invariant A5)"

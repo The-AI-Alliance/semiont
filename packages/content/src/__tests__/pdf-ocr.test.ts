@@ -1,5 +1,5 @@
 /**
- * OCR integration — classes B and C become readable (Phase 3).
+ * OCR integration — classes B and C become readable.
  *
  * The engine is stubbed here so the MERGE is what gets asserted:
  * deterministic, and independent of how well tesseract reads a given scan.

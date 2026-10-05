@@ -274,7 +274,7 @@ describe('createResourceViewerPageStateUnit — list failure states', () => {
   });
 
   it('retry() clears the error, re-enters loading, and re-subscribes so a fresh attempt can succeed', async () => {
-    // D1/D3: failure is an EMISSION and recovery is a fresh SUBSCRIPTION —
+    // Failure is an EMISSION and recovery is a fresh SUBSCRIPTION —
     // retry() re-attaches, and the new subscription's chain delivers.
     const attempts: Array<BehaviorSubject<unknown>> = [];
     const tc = makeTestSession({

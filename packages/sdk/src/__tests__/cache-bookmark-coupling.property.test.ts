@@ -22,10 +22,10 @@
  * bug), `settleA` (A's debounce fires), `reload` (crash semantics: nothing
  * flushes, fresh rig over the same storage, replay from bookmark+1).
  *
- * RED today by design (real TDD, not a regression fence): the shrunk
- * counterexample is the evidence for whether fix (b) — the quiescence gate —
- * makes the invariant hold, settling by counterexample what the bug doc
- * settles by argument.
+ * The quiescence gate (B17-Q) — the bookmark may flush only when every
+ * persisted cache is quiet — is settled here by counterexample rather than
+ * by argument: the ungated rig, the pre-fix implementation, violates C1 on
+ * the measured sequence, and with the gate no generated interleaving does.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fc from 'fast-check';
@@ -76,8 +76,8 @@ function buildRig(storage: InMemorySessionStorage, opts?: { gated?: boolean }): 
     },
   );
 
-  // Fix (b)'s wiring, exactly as the session factory does it: the bookmark
-  // may flush only when every persisted cache is quiet.
+  // The quiescence gate's wiring, exactly as the session factory does it: the
+  // bookmark may flush only when every persisted cache is quiet.
   if (opts?.gated !== false) {
     coupled.setFlushGate(() => !cacheA.persistencePending() && !cacheB.persistencePending());
   }
@@ -118,9 +118,9 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
 
   /**
    * Interpret one command sequence, then reload and check both halves of C1.
-   * `gated` toggles fix (b) so the property doubles as its own teeth: the
-   * ungated rig is the pre-fix implementation and must violate C1 for the
-   * counterexample sequences.
+   * `gated` toggles the quiescence gate so the property doubles as its own
+   * teeth: the ungated rig is the pre-fix implementation and must violate C1
+   * for the counterexample sequences.
    */
   async function runScenario(commands: Command[], gated: boolean): Promise<{
     c1Held: boolean; renderedEqualsServer: boolean;
@@ -184,7 +184,7 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
     return { c1Held, renderedEqualsServer };
   }
 
-  it('K1 (fix-b keystone): a bystander write while A is mid-refetch does NOT flush the bookmark; the next quiet write does', async () => {
+  it('K1 (quiescence-gate keystone): a bystander write while A is mid-refetch does NOT flush the bookmark; the next quiet write does', async () => {
     const storage = new InMemorySessionStorage();
     const rig = buildRig(storage);
     rig.cacheA.observe(KEY).subscribe({ next: () => {}, error: () => {} });

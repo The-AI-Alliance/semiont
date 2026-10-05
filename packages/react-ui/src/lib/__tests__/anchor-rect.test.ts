@@ -1,5 +1,5 @@
 /**
- * A1 anchor thread — the display→viewport conversion both canvas hit-tests
+ * Click anchor rect — the display→viewport conversion both canvas hit-tests
  * share (image + PDF). Pure math: the origin is the canvas image's viewport
  * position; x/y/width/height are the hit annotation's display-coordinate rect.
  */

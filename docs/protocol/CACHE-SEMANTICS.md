@@ -293,7 +293,7 @@ holds it.** No observer sees `failed` while another sees `pending`.
 1. Observers present at exhaustion see `failed`. Their subscription
    stays alive — a later recovery on the same key flows to them without
    resubscribing.
-2. An observer ARRIVING at a failed key runs RECOVERY (D3): the
+2. An observer ARRIVING at a failed key runs RECOVERY: the
    subscribe-time decision clears the failure and starts a fresh attempt
    chain — so a component remount recovers by construction. The key is
    `pending` again, for the observer arriving and for those already
@@ -544,7 +544,7 @@ Two things the table's shape follows from:
 ## Required audits in the implementation
 
 The following audits are checkable against the code; running them
-is part of Phase 1's completion.
+is part of completing an implementation.
 
 ### A1 — All invalidate* methods follow B7 (SWR)
 

@@ -1,13 +1,15 @@
 /**
- * The boot property P1's refusal made load-bearing: a sidecar's manifest must
- * cover every channel its fold streams AT CONSTRUCTION.
+ * The boot property made load-bearing once `stream()` refuses a channel
+ * outside the subscription set: a sidecar's manifest must cover every channel
+ * its fold streams AT CONSTRUCTION.
  *
- * Measured 2026-09-16, before P2: the weaver would have thrown
- * `bus.unsubscribed` on `yield:created`, `frame:entity-type-added` and
- * `weave:rebuild` at `weaverFanIn`, and the smelter on
- * `yield:created`, `yield:updated` and `smelt:rebuild-anchors` — because the
- * transport was constructed with reply channels only and widened later. The
- * sidecar suites could not see it: their doubles answer every channel.
+ * Measured 2026-09-16, before each sidecar declared one complete manifest:
+ * the weaver would have thrown `bus.unsubscribed` on `yield:created`,
+ * `frame:entity-type-added` and `weave:rebuild` at `weaverFanIn`, and the
+ * smelter on `yield:created`, `yield:updated` and `smelt:rebuild-anchors` —
+ * because the transport was constructed with reply channels only and widened
+ * later. The sidecar suites could not see it: their doubles answer every
+ * channel.
  *
  * This asserts against the REAL refusal rule (global set, or scopable), not
  * against a double.

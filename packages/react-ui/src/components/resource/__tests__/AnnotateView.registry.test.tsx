@@ -103,7 +103,7 @@ describe('AnnotateView — media-renderer registry', () => {
   });
 
   it('renders one toolbar and one content shell, whatever the render mode', () => {
-    // The collapse this plan is really about: three branches used to repeat
+    // The collapse the registry is really about: three branches used to repeat
     // the wrapper, the toolbar block and the content div verbatim.
     for (const mimeType of ['text/plain', 'application/pdf', 'image/png']) {
       const { container, unmount } = renderInEnglish(<AnnotateView {...base(mimeType)} />);

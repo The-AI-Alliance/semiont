@@ -239,7 +239,7 @@ describe('ResourceViewerPage — resolution sparkles', () => {
     expect(sparkleContext.triggerSparkleAnimation).toHaveBeenCalledWith('ann-7');
   });
 
-  it('unlink (remove-only operations) stays dark — A2', () => {
+  it('unlink (remove-only operations) stays dark', () => {
     const handler = renderAndGetHandler();
 
     handler?.(bodyUpdated([

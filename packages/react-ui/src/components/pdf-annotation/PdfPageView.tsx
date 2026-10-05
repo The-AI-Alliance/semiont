@@ -278,7 +278,8 @@ export function PdfPageView({
       // This was a click, not a drag - check if we clicked an existing annotation
       if (existingAnnotations.length > 0) {
         // The hit-test owns the coordinate transform — capture the hit
-        // annotation's viewport rect for the emission below (A1 anchor).
+        // annotation's viewport rect for the emission below, where it rides
+        // the click as its anchor.
         let hitRect: AnchorRect | undefined;
         const hit = rectsForPage(existingAnnotations, pageNumber).find(r => {
           const rect = pdfToCanvasCoordinates(r.coord, pageDimensions.height, 1.0);

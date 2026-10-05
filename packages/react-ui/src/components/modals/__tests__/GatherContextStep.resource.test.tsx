@@ -247,9 +247,9 @@ describe('GatheredContext display — resource focus', () => {
     // Descending by score, whatever order the wire delivered.
     expect(cards.map((c) => c.querySelector('.semiont-corpus__source')!.textContent))
       .toEqual(['Best Doc', 'Middling Doc', 'Weak Doc']);
-    // The card names its source (D9's required field), shows the snippet, and
-    // formats the 0–1 cosine to two places (logged deviation — the search step's
-    // raw render is a different scale).
+    // The card names its source (`resourceName`, required on every match),
+    // shows the snippet, and formats the 0–1 cosine to two places (the search
+    // step's raw render is a different scale).
     expect(cards[0]!.textContent).toContain('the best passage');
     expect(cards[0]!.textContent).toContain('0.91');
     // Match-level entityTypes are tokens — chips on the card.

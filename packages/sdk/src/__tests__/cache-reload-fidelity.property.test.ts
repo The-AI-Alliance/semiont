@@ -25,7 +25,7 @@
  * demonstrate the loss it was built to find, so a regression in the
  * transport ordering is caught twice: at the transport pin, and here.
  *
- * Axioms (full statements in the bug doc):
+ * Axioms:
  *   A1  reload fidelity — after reload+replay, rendered state == server truth
  *   A4  rehydrate is never worse than cold
  *
