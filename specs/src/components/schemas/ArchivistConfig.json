@@ -27,6 +27,11 @@
       "minLength": 1,
       "description": "The knowledge base's working tree: the directory holding `.semiont/`. The event log, the content and the committed config are under it."
     },
+    "stateHome": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's."
+    },
     "anchoredTextDir": {
       "type": "string",
       "minLength": 1,
@@ -77,6 +82,7 @@
     "gatewayUrl",
     "identity",
     "root",
+    "stateHome",
     "anchoredTextDir",
     "roster",
     "port",

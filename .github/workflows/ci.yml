@@ -287,6 +287,67 @@ jobs:
         env:
           CI: true
 
+  archivist-conformance:
+    name: Archivist Conformance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+
+      # The workspace's release build, shared with Gateway Conformance.
+      - name: Cache cargo
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gateway-release-
+
+      # The Archivist reaches the bus only through a gateway.
+      - name: Build the gateway
+        run: cargo build --release --locked -p semiont-gateway
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            tests/conformance/package-lock.json
+
+      # The Archivist under test is the built @semiont/make-meaning entry point.
+      - name: Install dependencies and build the packages
+        run: |
+          npm ci --include=optional
+          npm run build:packages
+
+      # The harness's global setup refuses to run without a broker on PATH.
+      - name: Install nats-server
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
+      # Black-box: it starts Archivist processes behind a gateway and meets
+      # them on the bus, at their HTTP surface and in the files they keep.
+      - name: Run the Archivist conformance suite
+        run: |
+          cd tests/conformance
+          npm ci
+          npm run test:archivist
+        env:
+          CI: true
+
   sdk-conformance:
     name: SDK Conformance
     runs-on: ubuntu-latest

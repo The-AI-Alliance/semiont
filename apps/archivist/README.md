@@ -51,8 +51,8 @@ tree that is not a git checkout stops the Archivist at boot, naming the tree and
 
 **It is the only container that mounts the knowledge base** — pinned by
 `TestExactlyOneContainerMountsTheKB` in the launcher, not merely intended. `/kb` is the working
-tree (`SEMIONT_ROOT`): the resources, and the event log under `.semiont/events/`. The views it
-derives from the log go to the state directory (`XDG_STATE_HOME`), which the Librarian mounts to
+tree (the document's `root`): the resources, and the event log under `.semiont/events/`. The views
+it derives from the log go to the state volume (the document's `stateHome`), which the Librarian mounts to
 read them. Anchored text (`/anchored-text`) it mounts **read-only** — the Smelter writes that.
 [Where a knowledge base lives on disk](../../docs/architecture/FILESYSTEM.md) has the layout.
 
@@ -109,9 +109,9 @@ therefore holds a credential that can write here, and only network access keeps 
 It reads one configuration document, an
 [`ArchivistConfig`](../../specs/src/components/schemas/ArchivistConfig.json), from the path its
 `--config` flag names; the image passes `/etc/semiont/archivist.json`. The document names the
-gateway, the issuer, the knowledge base's root, the anchored-text store, who serves each role, the
-port, and the staging bounds. Mount the knowledge base, the state volume and the anchored-text
-store where the document says they are, and set `XDG_STATE_HOME` to the state volume. Set
+gateway, the issuer, the knowledge base's root, the state volume, the anchored-text store, who
+serves each role, the port, and the staging bounds. Mount the knowledge base, the state volume and
+the anchored-text store where the document says they are. Set
 `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` — its own service account at the
 knowledge base's issuer. It exchanges them for a token to reach the gateway, and requires a
 token of the same kind on its own surface. `skipRebuild` in the document skips the startup view

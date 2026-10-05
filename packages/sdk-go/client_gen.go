@@ -2309,6 +2309,9 @@ type ArchivistConfig struct {
 		// MaxWaitMs The longest a change waits to be staged while others keep arriving, measured from the oldest pending change.
 		MaxWaitMs int `json:"maxWaitMs"`
 	} `json:"staging"`
+
+	// StateHome The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's.
+	StateHome string `json:"stateHome"`
 }
 
 // ArchivistEventsResponse The events of one resource from one sequence number, inclusive, in log order: the Archivist's answer to `GET /events/{resourceId}`, which the gateway reads to replay a scope a subscriber resumes.

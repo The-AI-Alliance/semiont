@@ -8,6 +8,7 @@ const valid: ArchivistConfig = {
   gatewayUrl: 'http://gateway:4000',
   identity: { issuer: 'http://keycloak:8080/realms/semiont' },
   root: '/kb',
+  stateHome: '/semiont-state',
   anchoredTextDir: '/anchored-text',
   roster: {
     workers: { generation: { provider: 'anthropic', model: 'claude-haiku-4-5' } },

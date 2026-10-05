@@ -18,6 +18,14 @@ export const GATEWAY_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/relea
  */
 export const DISPATCHER_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/release/semiont-dispatcher')];
 
+/**
+ * How an Archivist is started. The Archivist suite runs it with
+ * `--config <document>` and the environment, and meets it on the bus, at its
+ * HTTP surface, and in the files it keeps. vitest.config.ts provides it as
+ * `archivistCommand`.
+ */
+export const ARCHIVIST_COMMAND: readonly string[] = ['node', join(REPO_ROOT, 'packages/make-meaning/dist/archivist-main.js')];
+
 /** An SDK's drivers: the programs the SDK suite talks to in that SDK's place (sdk/README.md § The driver protocol). */
 export interface SdkDrivers {
   /** How its wire driver is started. */

@@ -34,7 +34,8 @@ the spec, named where each file is described below.
 
 **The Archivist reads one document, named by its `--config` flag,** and defaults nothing. The
 document is an [`ArchivistConfig`](../../specs/src/components/schemas/ArchivistConfig.json): the
-gateway's URL, the issuer, the working tree's root, the anchored-text store's directory, the roster
+gateway's URL, the issuer, the working tree's root, the state volume, the anchored-text store's
+directory, the roster
 of who serves each role, the port of its HTTP surface, whether to skip the boot rebuild, the staging
 bounds, and its log level and format. Its image passes `--config /etc/semiont/archivist.json`, and
 the launcher writes the document there, resolved from the knowledge base's config. Started without
@@ -43,7 +44,6 @@ Archivist writes the reason to stderr and exits with status 1 before it serves.
 
 The document carries no secret. The Archivist's own account at the issuer is the pair
 `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`; without both it does not start.
-`XDG_STATE_HOME` names the state volume; without it the Archivist does not start.
 
 **What the knowledge base says of itself is read from the tree,** not from the document: the
 committed `<root>/.semiont/config`, a TOML file.
@@ -72,7 +72,7 @@ Three trees:
 | Tree | Where | Holds |
 |---|---|---|
 | The working tree | `root` | The content, and under `.semiont/events/` the event log. Committed by people |
-| The state directory | `$XDG_STATE_HOME/semiont/<name>/` | The views and projections. Rebuilt from the log; never committed |
+| The state directory | `<stateHome>/semiont/<name>/` | The views and projections. Rebuilt from the log; never committed |
 | The anchored-text store | `anchoredTextDir` | Text extracted from content, with where each word is. Written by the Smelter |
 
 ### Identifiers and shards

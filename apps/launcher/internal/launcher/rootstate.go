@@ -174,7 +174,7 @@ var stateStores = map[string]stateStoreSpec{
 	"state": {
 		dir:        "state",
 		holds:      "views and projections",
-		mounts:     []stateMount{{"", "/semiont-state"}},
+		mounts:     []stateMount{{"", stateHomeTarget}},
 		mode:       0o777,
 		projection: true,
 		owner:      "archivist",

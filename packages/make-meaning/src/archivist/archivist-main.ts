@@ -33,7 +33,6 @@
  *   SEMIONT_OIDC_CLIENT_SECRET   buys the agent token it shows the gateway. Its
  *                                own read path admits callers by verifying THEIR
  *                                issuer token, not by comparing a shared string.
- *   XDG_STATE_HOME             — the state volume the views are written under.
  */
 
 import { Subscription, merge } from 'rxjs';
@@ -113,7 +112,7 @@ async function main() {
 
   // ── The record and its actors: local, single-owner ─────────────────
   const archivist = await composeArchivist(
-    new SemiontProject(config.root, { anchoredTextDir: config.anchoredTextDir }),
+    new SemiontProject(config.root, { anchoredTextDir: config.anchoredTextDir, stateHome: config.stateHome }),
     config.roster,
     logger,
     { skipRebuild: config.skipRebuild, staging: config.staging },

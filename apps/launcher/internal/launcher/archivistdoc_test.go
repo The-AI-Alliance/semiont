@@ -63,8 +63,8 @@ func TestArchivistDocumentIsResolved(t *testing.T) {
 	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
 		t.Errorf("issuer = %q", doc.Identity.Issuer)
 	}
-	if doc.Root != kbMountTarget || doc.AnchoredTextDir != stateStores["anchored-text"].mounts[0].target {
-		t.Errorf("root = %q, anchoredTextDir = %q: want the paths the launcher mounts onto", doc.Root, doc.AnchoredTextDir)
+	if doc.Root != kbMountTarget || doc.AnchoredTextDir != stateStores["anchored-text"].mounts[0].target || doc.StateHome != stateStores["state"].mounts[0].target {
+		t.Errorf("root = %q, anchoredTextDir = %q, stateHome = %q: want the paths the launcher mounts onto", doc.Root, doc.AnchoredTextDir, doc.StateHome)
 	}
 	if doc.Port != semiontDescriptor("archivist").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
@@ -162,7 +162,7 @@ func TestArchivistDocumentIsMountedAndNoHostVariableIsPassed(t *testing.T) {
 	if want := "/stage/" + archivistDocumentFile + ":" + archivistDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the Archivist's document is not mounted (%s):\n%s", want, args)
 	}
-	for _, unwanted := range []string{"GATEWAY_HOST", "BACKEND_HOST", ".semiontconfig"} {
+	for _, unwanted := range []string{"GATEWAY_HOST", "BACKEND_HOST", "XDG_STATE_HOME", ".semiontconfig"} {
 		if strings.Contains(args, unwanted) {
 			t.Errorf("the Archivist is handed %s, which its document replaces:\n%s", unwanted, args)
 		}

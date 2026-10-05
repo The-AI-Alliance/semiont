@@ -27,6 +27,11 @@ const archivistDocumentTarget = "/etc/semiont/archivist.json"
 // containers that hold it.
 const anchoredTextTarget = "/anchored-text"
 
+// stateHomeTarget: where the state volume is mounted in the containers that
+// hold it. The Archivist's document names it; the Librarian is told it as
+// XDG_STATE_HOME.
+const stateHomeTarget = "/semiont-state"
+
 // archivistStaging: how far a deployed Archivist's staging may run behind the
 // working tree. The launcher is the one decider: the Archivist defaults
 // neither, and a test harness writes its own.
@@ -139,6 +144,7 @@ func archivistDocument(env *envConfig, rt, addr string, issuerPort int, userEnv 
 		return nil, err
 	}
 	doc.Root = kbMountTarget
+	doc.StateHome = stateHomeTarget
 	doc.AnchoredTextDir = anchoredTextTarget
 	if doc.Roster, err = archivistRoster(env); err != nil {
 		return nil, err

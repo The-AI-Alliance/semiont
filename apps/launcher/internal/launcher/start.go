@@ -769,7 +769,8 @@ func sidecarArgs(svc string, port int, stage, rt, addr string, clientSecret, ver
 // anchored-text store it answers reads from and the state tree it writes the
 // views to. It reads a resolved configuration document (archivistdoc.go) at
 // the path its image passes to `--config`, so it is handed no *_HOST
-// variables: the document carries every address already. It keeps the
+// variables and no path: the document carries every address and every
+// directory already. It keeps the
 // issuer's host entry, because it signs in at the issuer by name.
 // Deliberately NO JWT_SECRET: it signs nothing. It authenticates as its own
 // service account at the issuer, and admits callers by verifying theirs (the
@@ -784,7 +785,6 @@ func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version string,
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(rt, addr)...)
 	a = append(a,
-		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("archivist"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
@@ -810,7 +810,7 @@ func librarianArgs(stage, rt, addr string, clientSecret, version string, userEnv
 	a = append(a, gatewayHostEnv(addr)...)
 	a = append(a, identityHostArgs(rt, addr)...)
 	a = append(a,
-		"--env", "XDG_STATE_HOME=/semiont-state",
+		"--env", "XDG_STATE_HOME="+stateHomeTarget,
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("librarian"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
