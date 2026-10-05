@@ -10,7 +10,7 @@ A release publishes, all at the version in [`version.json`](../../version.json):
 | GitHub Container Registry | The eight images | [`publish-browser.yml`](../../.github/workflows/publish-browser.yml), [`publish-service-images.yml`](../../.github/workflows/publish-service-images.yml) |
 | GitHub Release and the Homebrew tap | The `semiont` launcher, for macOS, Linux and Windows | [`launcher-release.yml`](../../.github/workflows/launcher-release.yml) |
 | GitHub Release | The desktop apps, for macOS and Linux | [`publish-desktop.yml`](../../.github/workflows/publish-desktop.yml) |
-| crates.io | The four Rust SDK crates | By hand: see [The Rust crates](#the-rust-crates) |
+| crates.io | The four Rust SDK crates | [`publish-crates.yml`](../../.github/workflows/publish-crates.yml) |
 
 ## The flow
 
@@ -41,7 +41,8 @@ gh workflow run release.yml
 1. Verifies the versions again, tags the commit `v<version>`, and creates the GitHub Release.
 2. Dispatches the npm publish. When the packages are live, that workflow dispatches both image workflows with `tag_latest=true`: it is the only stage that knows the packages the images install are actually published.
 3. Dispatches the launcher release at the tag.
-4. Builds and publishes the desktop apps.
+4. Dispatches the crates publish at the tag.
+5. Builds and publishes the desktop apps.
 
 Two inputs:
 
@@ -134,15 +135,20 @@ Built for macOS on Apple Silicon and Intel and for Linux on x64, and attached to
 
 Four crates of the Rust workspace are published to crates.io: `semiont` (the SDK), `semiont-codegen` (its build dependency), `semiont-telemetry` and `semiont-http-transport`. Every other member is `publish = false`, and CI fails the workspace if the published set is any other, or if a published crate is at any version but `version.json`'s.
 
-They are published by hand, from a clean checkout of the release's commit, in dependency order. A published version of a crate is permanent: it can be yanked, never replaced.
+[`publish-crates.yml`](../../.github/workflows/publish-crates.yml) publishes them, at the release's tag. A published version of a crate is permanent: it can be yanked, never replaced. So the workflow:
+
+1. Reads which crates are published, and their order, from cargo: a crate is published after every published crate it depends on.
+2. Refuses a crate whose version is not `version.json`'s.
+3. Packages every crate and builds each from its packaged form against the others (`cargo publish --dry-run --workspace`), before any is uploaded.
+4. Publishes each in order, skipping one already on crates.io at that version, so a run that failed partway can be run again.
+
+crates.io trusts the workflow by name. Each crate's settings on crates.io (Settings → Trusted Publishing) name this repository and `publish-crates.yml`, with no environment, and crates.io gives the run a token that lasts 30 minutes. No token is stored in the repository.
+
+By hand, it is run at the tag. `dry_run` packages and builds and publishes nothing:
 
 ```bash
-cargo publish --dry-run --workspace     # packages and builds all four against each other
-
-cargo publish -p semiont-codegen
-cargo publish -p semiont
-cargo publish -p semiont-telemetry
-cargo publish -p semiont-http-transport
+gh workflow run publish-crates.yml --ref v<version>
+gh workflow run publish-crates.yml --field dry_run=true
 ```
 
 The SDK's build script reads the spec through `packages/sdk-rust/specs`, a link to `specs/src` that cargo follows when it packages, so the published crate carries the spec files it is generated from.
@@ -172,7 +178,9 @@ Dependencies between packages in this repository are `"*"` in source and are rew
 
 ## A new package
 
-npm's trusted publishing cannot create a package. Before the first release that includes a new publishable package:
+npm's trusted publishing cannot create a package, and neither can crates.io's. Before the first release that includes a new publishable crate, publish it once by hand with `cargo publish -p <crate>`, then add this repository and `publish-crates.yml` under its Settings → Trusted Publishing on crates.io.
+
+Before the first release that includes a new publishable npm package:
 
 1. Add it to `version.json` ([Adding a package](README.md#adding-a-package)).
 2. Publish it once by hand, at the version before the one about to be released. Publish that one package alone, under its published name: for an app, that is the name in its `package.publish.json`, not its key in `version.json`.

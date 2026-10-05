@@ -179,10 +179,9 @@ done
 # ----------------------------------------------------------------------- crates
 head_ "Rust crates"
 
-# The crates are published by hand (docs/contributor/RELEASE.md), so a release
-# can finish without them. Each is asked of crates.io twice, as the npm
-# packages are: the index says the version exists, and the .crate it names is
-# downloaded and hashed against the checksum the index states.
+# Each crate is asked of crates.io twice, as the npm packages are: the index
+# says the version exists, and the .crate it names is downloaded and hashed
+# against the checksum the index states.
 CRATES_IO_AGENT='semiont-verify-release (https://github.com/The-AI-Alliance/semiont)'
 CRATES=$("$ROOT/scripts/release/published-crates.sh")
 [ -n "$CRATES" ] || bad "published-crates.sh named no crate"

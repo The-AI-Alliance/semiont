@@ -43,7 +43,7 @@ gh workflow run release.yml
 ```
 
 `release.yml` tags the commit, creates the GitHub Release, and dispatches
-`publish-npm-packages.yml` and `launcher-release.yml`. The npm workflow in turn
+`publish-npm-packages.yml`, `launcher-release.yml` and `publish-crates.yml`. The npm workflow in turn
 dispatches `publish-browser.yml` and `publish-service-images.yml` with
 `tag_latest=true`, since it is the only stage that knows the packages the images
 bundle are actually published.
@@ -76,8 +76,7 @@ Inspects the artifacts rather than workflow conclusions:
 - for every image, both platforms, an attestation whose subject matches the tag
   digest, and `:latest` resolving to the same digest as the released version.
 
-Exits non-zero listing what failed. The crates are published by hand, so a
-release whose crates are not yet on crates.io fails here until they are.
+Exits non-zero listing what failed.
 
 A mutable tag existing proves nothing about where it points, so the `:latest`
 check compares against both the released version and the previous one — "never
