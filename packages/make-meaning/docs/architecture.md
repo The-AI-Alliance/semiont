@@ -181,7 +181,7 @@ Assembles `GatheredContext` for downstream actors (Matcher, generation workers).
 
 | Request Event | Handler | Result Event |
 |--------------|---------|-------------|
-| `gather:requested` | `AnnotationContext.buildLLMContext(kb, inferenceClient)` — passage + graph + vector semantic search + optional inference summary | `gather:complete` / `gather:failed` |
+| `gather:requested` | `AnnotationGather.buildLLMContext(kb, inferenceClient)` — passage + graph + vector semantic search + optional inference summary | `gather:complete` / `gather:failed` |
 | `gather:resource-requested` | `LLMContext.getResourceContext(kb)` | `gather:resource-complete` / `gather:resource-failed` |
 
 It also answers `gather:limits-requested` with the inference limits of its model (`gather:limits-result` / `gather:limits-failed`).
@@ -309,7 +309,7 @@ The readers the actors and handlers are built from. Each takes the slice of the 
 | `ResourceContext.addContentPreviews` | The same resources, each with its content as text | Browser |
 | `ResourceContext.getResourceContent` | A resource's text. The media type decides where it comes from: decoded from its bytes, asked of the anchored text for a PDF, or `undefined` for a type with none | Both gather paths |
 | `AnnotationContext.getResourceAnnotations`, `getAllAnnotations`, `getAnnotation` | A resource's annotations from its view: the view with its version, the list alone, or one | Browser, `AnnotationOperations` |
-| `AnnotationContext.buildLLMContext` | The `GatheredContext` for an annotation: the passage and what surrounds it, the resource, `semanticContext` from the vector index, the graph neighbourhood, and a summary of how the passage relates to it when an inference client is given | Gatherer |
+| `AnnotationGather.buildLLMContext` | The `GatheredContext` for an annotation: the passage and what surrounds it, the resource, `semanticContext` from the vector index, the graph neighbourhood, and a summary of how the passage relates to it when an inference client is given | Gatherer |
 | `LLMContext.getResourceContext` | The `GatheredContext` for a resource | Gatherer |
 | `GraphContext.buildKnowledgeGraph` | A resource's neighbourhood as a `KnowledgeGraph`: resources and annotations as typed nodes, typed directed edges, inbound citations included | Both gather paths |
 

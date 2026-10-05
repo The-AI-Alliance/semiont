@@ -35,7 +35,7 @@ Each entry point composes exactly what its service owns. The gateway composes no
 | `CloneTokenManager` | The tokens a resource is cloned with |
 | `Smelter`, `smelterFanIn` | The pipeline that keeps the vector index in step with the record |
 | `createKnowledgeBase`, `KnowledgeBase`, `KnowledgeSystem` | The stores as one value, and the stores with their actors |
-| `AnnotationOperations`, `ResourceContext`, `AnnotationContext`, `GraphContext`, `LLMContext` | What the actors are built from: annotation writes, and the readers that assemble context |
+| `AnnotationOperations`, `ResourceContext`, `AnnotationContext`, `AnnotationGather`, `GraphContext`, `LLMContext` | What the actors are built from: annotation writes, and the readers that assemble context |
 | `makeMeaningConfigFrom` | A `MakeMeaningConfig` from a knowledge base's loaded configuration |
 
 The Weaver is not exported. It runs only from its entry point.

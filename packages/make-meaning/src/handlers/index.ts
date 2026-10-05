@@ -19,7 +19,7 @@ import { asBusRequestPrimitive } from '../bus-request-local.js';
 import { registerAnnotationAssemblyHandler } from './annotation-assembly.js';
 import { registerAnnotationContextHandler, registerGatherSummaryHandler } from './annotation-lookups.js';
 import { registerBindUpdateBodyHandler } from './bind-update-body.js';
-import { RETRIEVAL_HANDLER_CHANNELS } from './resource-retrieval.js';
+import { RETRIEVAL_HANDLER_CHANNELS } from '../service-channels.js';
 
 export {
   registerAnnotationAssemblyHandler,

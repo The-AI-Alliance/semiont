@@ -20,8 +20,8 @@ import {
   type Logger,
   type ResourceDescriptor,
 } from '@semiont/core';
+import { RETRIEVAL_HANDLER_CHANNELS } from '../../service-channels';
 import {
-  RETRIEVAL_HANDLER_CHANNELS,
   registerRetrievalHandlers,
   type RetrievalReads,
 } from '../../handlers/resource-retrieval';

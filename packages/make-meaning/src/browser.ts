@@ -62,20 +62,6 @@ export interface BrowserReads {
   smeltProgress: Pick<SmeltProgress, 'whenSettled'>;
 }
 
-/**
- * The request channels Browser subscribes to — the Archivist's inbound wire
- * roster for this actor. Pinned to `initialize()`'s actual subscriptions by
- * the census gate in archivist-decoupling.test.ts.
- */
-export const BROWSER_CHANNELS = [
-  'browse:resource-requested', 'browse:anchored-text-requested',
-  'browse:resources-requested', 'browse:annotations-requested',
-  'browse:annotation-requested', 'browse:events-requested',
-  'browse:annotation-history-requested',
-  'browse:entity-types-requested', 'browse:tag-schemas-requested',
-  'browse:agents-requested', 'browse:kb-requested', 'browse:directory-requested',
-] as const satisfies readonly (keyof EventMap)[];
-
 export class Browser {
   private subscriptions: Subscription[] = [];
   private readonly logger: Logger;

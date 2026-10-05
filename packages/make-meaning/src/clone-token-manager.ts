@@ -38,15 +38,6 @@ export interface CloneTokenStores {
   content: Pick<WorkingTreeStore, 'resolveUri'>;
 }
 
-/**
- * The command channels CloneTokenManager subscribes to — the Archivist's
- * inbound wire roster for this actor. Pinned to `initialize()`'s actual
- * subscriptions by the census gate in archivist-decoupling.test.ts.
- */
-export const CLONE_TOKEN_CHANNELS = [
-  'yield:clone-token-requested', 'yield:clone-resource-requested', 'yield:clone-create',
-] as const satisfies readonly (keyof EventMap)[];
-
 export class CloneTokenManager {
   private subscriptions: Subscription[] = [];
   private readonly logger: Logger;

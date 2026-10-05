@@ -16,7 +16,8 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { take } from 'rxjs/operators';
 import { EventBus, resourceId, type GatheredContext, type Logger, type ResourceDescriptor, annotationId } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
-import { Matcher, MATCHER_CHANNELS, type MatcherStores } from '../matcher';
+import { Matcher, type MatcherStores } from '../matcher';
+import { MATCHER_CHANNELS } from '../service-channels';
 import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
 type ListResources = MatcherStores['graph']['listResources'];

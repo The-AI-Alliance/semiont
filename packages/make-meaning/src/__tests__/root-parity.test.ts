@@ -26,11 +26,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { startMakeMeaning, type MakeMeaningService, type MakeMeaningConfig } from '../service';
-import { STOWER_CHANNELS } from '../stower';
-import { BROWSER_CHANNELS } from '../browser';
-import { CLONE_TOKEN_CHANNELS } from '../clone-token-manager';
-import { MATCHER_CHANNELS } from '../matcher';
-import { GATHERER_CHANNELS } from '../gatherer';
+import { STOWER_CHANNELS, BROWSER_CHANNELS, CLONE_TOKEN_CHANNELS, MATCHER_CHANNELS, GATHERER_CHANNELS } from '../service-channels';
 import { HANDLER_CHANNELS } from '../handlers/index.js';
 import { SemiontProject } from '@semiont/core/node';
 import { BUS_OPERATIONS, EventBus, type Logger } from '@semiont/core';

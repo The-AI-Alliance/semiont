@@ -2,7 +2,7 @@
  * LLM Context
  *
  * Builds comprehensive context for LLM processing of resources
- * Orchestrates: ResourceContext, GraphContext, AnnotationContext, and generation functions
+ * Orchestrates: ResourceContext, GraphContext and generation functions
  */
 
 import { ResourceContext } from './resource-context';

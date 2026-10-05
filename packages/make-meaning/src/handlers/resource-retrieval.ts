@@ -19,6 +19,7 @@ import type { ContentReads } from '@semiont/content';
 import { withActorSpan } from '@semiont/observability';
 
 import { findReferencedBy, type ReferencedByReads } from '../referenced-by.js';
+import type { RETRIEVAL_HANDLER_CHANNELS } from '../service-channels.js';
 import {
   searchResources,
   withContentPreviews,
@@ -34,17 +35,6 @@ export interface RetrievalDeps extends Omit<SemanticFallbackDeps, 'logger'> {
   /** Where the people projection is: a reply names the people it mentions. */
   state: Pick<SemiontState, 'stateDir'>;
 }
-
-/**
- * The request channels these handlers subscribe. The Librarian's inbound
- * roster and the in-process root's handler roster both spread this; the
- * census gate in resource-retrieval.test.ts pins it to the subscriptions
- * below.
- */
-export const RETRIEVAL_HANDLER_CHANNELS = [
-  'match:resources-requested',
-  'gather:referenced-by-requested',
-] as const satisfies readonly (keyof EventMap)[];
 
 /** Register both handlers on `eventBus`. Returns what detaches them. */
 export function registerRetrievalHandlers(

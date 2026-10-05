@@ -78,7 +78,8 @@ export type { ListResourcesFilters, ListResourcesResult } from './resource-conte
 export { anchoredTextOverBus } from './anchored-text-ask';
 export type { AnchoredTextAsk } from './anchored-text-ask';
 export { AnnotationContext } from './annotation-context';
-export type { BuildContextOptions } from './annotation-context';
+export { AnnotationGather } from './annotation-gather';
+export type { BuildContextOptions } from './annotation-gather';
 export { GraphContext } from './graph-context';
 // The graph shape is the core/spec type `KnowledgeGraph` (`@semiont/core`).
 export { LLMContext } from './llm-context';

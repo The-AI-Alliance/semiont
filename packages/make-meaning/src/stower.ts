@@ -69,24 +69,6 @@ export interface StowerStores {
   eventStore: EventAppends;
 }
 
-/**
- * The command channels Stower subscribes to — the Archivist's inbound wire
- * roster for this actor. Pinned to `initialize()`'s actual subscriptions by
- * the census gate in archivist-decoupling.test.ts: grow one, and the gate
- * fails until the other moves with it.
- */
-export const STOWER_CHANNELS = [
-  'yield:create', 'yield:clone-persist', 'yield:update', 'yield:mv',
-  'mark:create', 'mark:commit', 'mark:delete', 'mark:update-body',
-  'frame:add-entity-type', 'frame:add-tag-schema',
-  // Gateway-emitted when a person ACTS — a write, never mere presence —
-  // carrying the name it verified. Declared, not bridged: no client
-  // consumes it.
-  'person:profile',
-  'mark:archive', 'mark:unarchive', 'mark:update-entity-types',
-  'job:start', 'job:assign', 'job:complete', 'job:fail',
-] as const satisfies readonly (keyof EventMap)[];
-
 export class Stower {
   private subscription: Subscription | null = null;
   private readonly logger: Logger;

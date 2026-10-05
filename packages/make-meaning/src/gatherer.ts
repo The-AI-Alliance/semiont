@@ -28,7 +28,7 @@ import { EventBus, errField } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { answerLimitsRequests, type InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider } from '@semiont/vectors';
-import { AnnotationContext, type AnnotationGatherReads } from './annotation-context';
+import { AnnotationGather, type AnnotationGatherReads } from './annotation-gather';
 import { LLMContext, type ResourceGatherReads } from './llm-context';
 
 /**
@@ -41,17 +41,6 @@ import { LLMContext, type ResourceGatherReads } from './llm-context';
  * same anchored-text bus read.
  */
 export type GathererStores = AnnotationGatherReads & ResourceGatherReads;
-
-/**
- * The request channels Gatherer subscribes to — the Librarian's inbound wire
- * roster for this actor. Pinned to `initialize()`'s actual subscriptions by
- * the census gate in gatherer-decoupling.test.ts.
- */
-export const GATHERER_CHANNELS = [
-  'gather:requested',
-  'gather:resource-requested',
-  'gather:limits-requested',
-] as const satisfies readonly (keyof EventMap)[];
 
 export class Gatherer {
   private subscriptions: Subscription[] = [];
@@ -117,7 +106,7 @@ export class Gatherer {
         resourceId: event.resourceId,
       });
 
-      const response = await AnnotationContext.buildLLMContext(
+      const response = await AnnotationGather.buildLLMContext(
         event.annotationId,
         event.resourceId,
         this.stores,
@@ -170,7 +159,7 @@ export class Gatherer {
     annotationId: AnnotationId,
     resourceId: ResourceId,
   ): Promise<components['schemas']['ContextualSummaryResponse']> {
-    return AnnotationContext.generateAnnotationSummary(
+    return AnnotationGather.generateAnnotationSummary(
       annotationId,
       resourceId,
       this.stores,

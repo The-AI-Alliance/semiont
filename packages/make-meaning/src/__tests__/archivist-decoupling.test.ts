@@ -23,9 +23,10 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { EventBus, channelAttrsOf, resourceId as makeResourceId, type BusFrame, type Logger, userId } from '@semiont/core';
 import { writeStorageUriEntry } from '@semiont/event-sourcing';
-import { Stower, STOWER_CHANNELS, type StowerStores } from '../stower';
-import { Browser, BROWSER_CHANNELS, type BrowserReads } from '../browser';
-import { CloneTokenManager, CLONE_TOKEN_CHANNELS, type CloneTokenStores } from '../clone-token-manager';
+import { Stower, type StowerStores } from '../stower';
+import { Browser, type BrowserReads } from '../browser';
+import { CloneTokenManager, type CloneTokenStores } from '../clone-token-manager';
+import { STOWER_CHANNELS, BROWSER_CHANNELS, CLONE_TOKEN_CHANNELS } from '../service-channels';
 import { createTestProject, type TestProject } from './helpers/test-project';
 
 const mockLogger: Logger = {

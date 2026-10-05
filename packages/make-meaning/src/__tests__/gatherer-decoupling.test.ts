@@ -15,7 +15,8 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { take } from 'rxjs/operators';
 import { EventBus, resourceId, type Logger, type ResourceDescriptor } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
-import { Gatherer, GATHERER_CHANNELS, type GathererStores } from '../gatherer';
+import { Gatherer, type GathererStores } from '../gatherer';
+import { GATHERER_CHANNELS } from '../service-channels';
 import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
 const MAIN_ID = 'gather-target';
