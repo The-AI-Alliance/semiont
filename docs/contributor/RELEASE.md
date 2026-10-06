@@ -135,7 +135,7 @@ Built for macOS on Apple Silicon and Intel and for Linux on x64, and attached to
 
 ### The Rust crates
 
-Four crates of the Rust workspace are published to crates.io: `semiont` (the SDK), `semiont-codegen` (its build dependency), `semiont-telemetry` and `semiont-http-transport`. Every other member is `publish = false`, and CI fails the workspace if the published set is any other, or if a published crate is at any version but `version.json`'s.
+Four crates of the Rust workspace are published to crates.io: `semiont` (the SDK), `semiont-codegen` (its build dependency), `semiont-telemetry` and `semiont-http-transport`. Every other member is `publish = false`, and CI fails the workspace if the published set is any other, if a published crate is at any version but `version.json`'s, or if one does not package and build from its packaged form.
 
 [`publish-crates.yml`](../../.github/workflows/publish-crates.yml) publishes them, at the release's tag. A published version of a crate is permanent: it can be yanked, never replaced. So the workflow:
 
@@ -161,7 +161,7 @@ The Python SDK (`packages/sdk-python`) is published to PyPI as one project, `sem
 
 [`publish-pypi.yml`](../../.github/workflows/publish-pypi.yml) publishes it. A published version is permanent: its files can be yanked, never replaced. So the workflow:
 
-1. Builds the source distribution, and the wheel from it, with [`scripts/ci/build-python-sdk.sh`](../../scripts/ci/build-python-sdk.sh), which CI also runs on every change.
+1. Builds the source distribution, and the wheel from it, with [`scripts/ci/build-python-sdk.sh`](../../scripts/ci/build-python-sdk.sh), which CI runs on every change and `local-build.sh` on every full run.
 2. Refuses distributions not named for the version, or that hold more than the package.
 3. Installs the wheel in an environment of its own and imports every module of it, so a module that needs what the package does not declare fails before anything is uploaded.
 4. Skips a version already on PyPI, so a run can be made again.

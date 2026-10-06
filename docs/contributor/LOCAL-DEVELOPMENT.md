@@ -4,13 +4,13 @@ Local development is built around **[`scripts/ci/local-build.sh`](../../scripts/
 
 ## What you need
 
-- **A container runtime**: Apple `container`, Docker or Podman. Nothing else: the script runs npm, cargo and Go inside containers.
+- **A container runtime**: Apple `container`, Docker or Podman. Nothing else: the script runs npm, cargo, Go and Python inside containers.
 - **A knowledge base to run against.** Clone [`semiont-template-kb`](https://github.com/The-AI-Alliance/semiont-template-kb), or see [Knowledge Bases](../KNOWLEDGE-BASES.md) for others.
 
 ## The loop
 
 ```bash
-# 1. In the repository: build the packages, all eight images, and the launcher
+# 1. In the repository: build the packages, all eight images, the launcher, and the Python SDK
 ./scripts/ci/local-build.sh
 
 # 2. In the knowledge base: run the stack on what you built
@@ -32,6 +32,7 @@ What a full run does:
 3. Builds the eight images from the same Dockerfiles the publish workflows use, tagged `ghcr.io/the-ai-alliance/semiont-<service>:local`. They are never pushed.
 4. Loads the images into every container runtime on the machine, so the stack can run under any of them.
 5. Builds the launcher from the working tree, as `apps/launcher/dist/semiont`.
+6. Builds the Python SDK's wheel and source distribution into `packages/sdk-python/dist`, and checks them as CI does. They are published nowhere: Verdaccio holds npm packages only, and no image installs this one. The wheel installs by path.
 
 Two things make the stack use your build:
 

@@ -295,7 +295,7 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | Job | What it covers |
 |---|---|
 | `test-browser` | `npm run typecheck` and `npm test` for `apps/browser` |
-| `test-gateway` | `cargo fmt --check`, `clippy -D warnings` and `cargo test` for the Rust workspace; which crates may depend on which; the published crates' set and version; the licence policy for the crates each image links |
+| `test-gateway` | `cargo fmt --check`, `clippy -D warnings` and `cargo test` for the Rust workspace; which crates may depend on which; the published crates' set and version, and each packaged and built from its packaged form (`cargo publish --dry-run`); the licence policy for the crates each image links |
 | `gateway-conformance` | Builds the gateway and runs the conformance suite's `gateway` project |
 | `dispatcher-conformance` | Builds the gateway and the dispatcher and runs the `dispatcher` project |
 | `sdk-conformance` | Builds the gateway, the Rust drivers and `@semiont/sdk`, installs the Python SDK's locked environment, and runs the `sdk` project |

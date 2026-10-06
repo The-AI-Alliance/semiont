@@ -6,7 +6,9 @@ set -euo pipefail
 # ghcr.io/the-ai-alliance/semiont-<svc>:local (consumed by `semiont start` /
 # compose via SEMIONT_VERSION=local; never pushed). Also builds the semiont
 # launcher itself (apps/launcher/dist/semiont, a host binary) so one run
-# yields everything a fully-local stack needs.
+# yields everything a fully-local stack needs. And it builds the Python SDK's
+# distributions (packages/sdk-python/dist), which no image installs and
+# Verdaccio cannot hold, so they are built and checked and published nowhere.
 # No npm, Go or Python required on the host — everything runs inside containers.
 #
 # Each run starts a fresh Verdaccio (no stale state), registers a user,
@@ -187,7 +189,8 @@ while [[ $# -gt 0 ]]; do
       echo "Build and publish @semiont/* packages to a local Verdaccio registry,"
       echo "then build the service container images against it, tagged"
       echo "ghcr.io/the-ai-alliance/semiont-<svc>:local (local-only, never pushed),"
-      echo "plus the semiont launcher binary (apps/launcher/dist/semiont)."
+      echo "plus the semiont launcher binary (apps/launcher/dist/semiont) and the"
+      echo "Python SDK's wheel and source distribution (packages/sdk-python/dist)."
       echo "No npm or Go required on the host — everything runs inside containers."
       echo ""
       echo "Built images are also loaded into every other responsive container"
@@ -211,8 +214,9 @@ while [[ $# -gt 0 ]]; do
       echo "                     such as a CI runner, has no use for the copies)"
       echo "  --images-only      Build ONLY container images, against the Verdaccio a"
       echo "                     previous run left running. Skips the npm build+publish,"
-      echo "                     the drift gates and the launcher. Pair with --image to"
-      echo "                     rebuild one service in ~a minute instead of the lot."
+      echo "                     the drift gates, the Python SDK and the launcher. Pair"
+      echo "                     with --image to rebuild one service in ~a minute instead"
+      echo "                     of the lot."
       echo "  -h, --help         Show this help"
       echo ""
       echo "Rebuilding one image after a code change:"
@@ -1140,7 +1144,7 @@ if [[ "$IMAGES_ONLY" == true ]]; then
   echo -e "  Restart the affected service(s) to pick them up, e.g."
   echo -e "    ${BOLD}SEMIONT_VERSION=local <your-kb>/semiont restart${RESET}"
   echo ""
-  echo -e "${DIM}Skipped (use a full run for these): npm build+publish, bus/sdk-go drift gates, launcher.${RESET}"
+  echo -e "${DIM}Skipped (use a full run for these): npm build+publish, bus/sdk-go drift gates, Python SDK, launcher.${RESET}"
   echo ""
   echo -e "\033[2m[$(date '+%Y-%m-%d %H:%M:%S')] local-build finished (--images-only)\033[0m"
   exit 0
@@ -1183,6 +1187,58 @@ $RT run --rm \
   go build -buildvcs=false -o dist/semiont .
 ok "apps/launcher/dist/semiont built"
 
+# --- Build the Python SDK (a wheel and a source distribution) ---
+#
+# The script CI and publish-pypi.yml run: the source distribution, the wheel
+# built from it, and the checks a published one must pass, so a packaging break
+# is seen here and not first in CI. Built in the drift gate's Python image,
+# with its uv cache.
+#
+# It is published nowhere. Verdaccio holds npm packages and nothing else, and
+# no image installs this package, so nothing in a local stack would read it
+# from an index. What is left in packages/sdk-python/dist installs by path.
+#
+# Last, since the stack needs nothing of it: a run that fails here has built
+# everything a local stack runs on.
+
+banner "PYTHON SDK"
+
+step "Building the Python SDK's distributions in ${PYTHON_IMAGE}..."
+# What the script needs and the image lacks leaves with 3, as in the models
+# gate: a failed download is not a package that does not build.
+PYTHON_SDK_RC=0
+$RT run --rm \
+  -v "$REPO_ROOT":/workspace \
+  -v "$UVCACHE_DIR":/root/.cache/uv \
+  -e UV_LINK_MODE=copy \
+  -e UV_PYTHON_DOWNLOADS=never \
+  -e PYTHONDONTWRITEBYTECODE=1 \
+  -w /workspace \
+  "$PYTHON_IMAGE" \
+  sh -c 'apk add --no-cache bash jq > /dev/null || exit 3
+         pip install --quiet --disable-pip-version-check --root-user-action=ignore uv || exit 3
+         bash scripts/ci/build-python-sdk.sh' \
+  || PYTHON_SDK_RC=$?
+
+if [[ "$PYTHON_SDK_RC" == 0 ]]; then
+  PYTHON_SDK_WHEELS=("$REPO_ROOT"/packages/sdk-python/dist/*.whl)
+  ok "${PYTHON_SDK_WHEELS[0]#"$REPO_ROOT"/} built, with its source distribution"
+elif [[ "$PYTHON_SDK_RC" == 3 ]]; then
+  fail "The Python SDK's build could not RUN (its output is above)."
+  echo ""
+  echo -e "  This says nothing about whether the package builds: ${BOLD}bash${RESET}, ${BOLD}jq${RESET} or ${BOLD}uv${RESET} could not"
+  echo -e "  be installed in ${BOLD}${PYTHON_IMAGE}${RESET}. A failed download is the usual cause."
+  echo ""
+  exit 1
+else
+  fail "The Python SDK's distributions did not build, or did not pass their checks (exit $PYTHON_SDK_RC)."
+  echo ""
+  echo -e "  ${BOLD}scripts/ci/build-python-sdk.sh${RESET} says which, above. CI's Python job and"
+  echo -e "  ${BOLD}publish-pypi.yml${RESET} run the same script, and would fail the same way."
+  echo ""
+  exit 1
+fi
+
 banner "DONE ✓"
 
 if [[ -n "$FANOUT_FAILURES" ]]; then
@@ -1210,6 +1266,10 @@ echo ""
 
 echo -e "${BOLD}Or run a single image, e.g. the browser:${RESET}"
 echo -e "  $RT run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-browser:local"
+echo ""
+
+echo -e "${BOLD}The Python SDK is built, and published nowhere. Install it by path:${RESET}"
+echo -e "  pip install ${PYTHON_SDK_WHEELS[0]}"
 echo ""
 
 echo -e "${DIM}Stop Verdaccio when done:${RESET}  $RT stop $VERDACCIO_NAME"
