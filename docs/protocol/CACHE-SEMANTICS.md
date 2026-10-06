@@ -51,7 +51,7 @@ Every SDK. The behaviors are numbered so that each can be tested by name:
   ([Test-parity](#test-parity)).
 
 The examples are TypeScript, where the cache is `createCache` in
-`@semiont/sdk`. The behaviors are the same in the Rust SDK.
+`@semiont/sdk`. The behaviors are the same in the Rust SDK and the Python SDK.
 
 ## Vocabulary
 

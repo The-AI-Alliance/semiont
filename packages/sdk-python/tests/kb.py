@@ -1,12 +1,15 @@
 """A knowledge base's answers and events, as small as their shapes allow: what a test of a client's queries scripts."""
 
+from collections.abc import Mapping
 from typing import Final, assert_never
 
 from pydantic import JsonValue
 from spec import JsonObject
 
 from semiont.identifiers import AnnotationId, ResourceId
+from semiont.operations import OPERATIONS
 from semiont.refresh import CacheQuery, CacheRefreshTrigger, CacheRefreshWhen
+from semiont.testing import DropReply, FaultyTransport, Refuse, refuse_unscripted_operation
 from semiont.transport import Frame
 
 RESOURCE, OTHER = ResourceId("res-1"), ResourceId("res-2")
@@ -48,23 +51,62 @@ def annotation(annotation_id: str, resource: str, modified: str | None = None) -
     return stated
 
 
-def answers(times: int = 50) -> dict[str, list[JsonValue]]:
-    """An answer to every operation a live query asks, `times` over. A resource or an annotation is answered as `RESOURCE`'s."""
-    page: JsonObject = {"resources": [], "total": 0, "offset": 0, "limit": 100}
-    each: dict[str, JsonValue] = {
-        "browse:resource-requested": {"resource": descriptor(RESOURCE), "annotations": [], "entityReferences": []},
-        "browse:annotations-requested": {"annotations": [annotation(ANNOTATION, RESOURCE)], "total": 1},
-        "browse:annotation-requested": {"annotation": annotation(ANNOTATION, RESOURCE), "resource": None, "resolvedResource": None},
-        "browse:events-requested": {"events": [], "total": 0, "resourceId": RESOURCE},
-        "gather:referenced-by-requested": {"referencedBy": []},
-        "browse:resources-requested": page,
-        "match:resources-requested": {**page, "matchKind": "lexical"},
-        "browse:entity-types-requested": {"entityTypes": ["Person"]},
-        "browse:tag-schemas-requested": {"tagSchemas": []},
-        "browse:agents-requested": {"agents": []},
-        **{holder: {"limits": []} for holder in LIMITS},
-    }
-    return {operation: [answer] * times for operation, answer in each.items()}
+_PAGE: Final[JsonObject] = {"resources": [], "total": 0, "offset": 0, "limit": 100}
+_ANSWERS: Final[dict[str, JsonValue]] = {
+    "browse:resource-requested": {"resource": descriptor(RESOURCE), "annotations": [], "entityReferences": []},
+    "browse:annotations-requested": {"annotations": [annotation(ANNOTATION, RESOURCE)], "total": 1},
+    "browse:annotation-requested": {"annotation": annotation(ANNOTATION, RESOURCE), "resource": None, "resolvedResource": None},
+    "browse:events-requested": {"events": [], "total": 0, "resourceId": RESOURCE},
+    "gather:referenced-by-requested": {"referencedBy": []},
+    "browse:resources-requested": _PAGE,
+    "match:resources-requested": {**_PAGE, "matchKind": "lexical"},
+    "browse:entity-types-requested": {"entityTypes": ["Person"]},
+    "browse:tag-schemas-requested": {"tagSchemas": []},
+    "browse:agents-requested": {"agents": []},
+    **{holder: {"limits": []} for holder in LIMITS},
+}
+
+
+def knowing(operation: str, payload: Mapping[str, JsonValue]) -> JsonValue | None:
+    """What a small knowledge base answers each operation a live query asks, as often as it is asked.
+
+    A resource or an annotation is answered as `RESOURCE`'s. Another
+    operation is refused by name, as a transport nobody scripted refuses it.
+    """
+    if operation not in _ANSWERS:
+        refuse_unscripted_operation(operation, payload)
+    return _ANSWERS[operation]
+
+
+def silent() -> FaultyTransport:
+    """A transport whose gateway hears each request and says nothing a client hears: the test answers each itself."""
+    return FaultyTransport([DropReply()], make_response=lambda operation, payload: None)
+
+
+def refusing(*operations: str) -> Refuse:
+    """A gateway that answers each of `operations` with a failure, and refuses no other."""
+
+    def refuse(operation: str, payload: Mapping[str, JsonValue]) -> Mapping[str, JsonValue] | None:
+        return {"code": "rejected", "message": f"the scripted gateway refuses {operation}"} if operation in operations else None
+
+    return refuse
+
+
+def asked_for(transport: FaultyTransport, operation: str) -> list[Frame]:
+    """The requests of one operation, in the order they were made."""
+    return [frame for frame in transport.emitted if frame.channel == operation]
+
+
+def answer(transport: FaultyTransport, request: Frame, response: JsonValue) -> None:
+    """Answer a request with `response`, as the service that answers its operation would."""
+    result = OPERATIONS[request.channel].result.name
+    transport.deliver(Frame(channel=result, payload={"response": response}, correlation_id=request.correlation_id))
+
+
+def refuse(transport: FaultyTransport, request: Frame, message: str = "the service refused") -> None:
+    """Answer a request with a failure."""
+    refused: JsonObject = {"code": "rejected", "message": message}
+    transport.deliver(Frame(channel=OPERATIONS[request.channel].failure.name, payload=refused, correlation_id=request.correlation_id))
 
 
 def recorded(kind: str, resource: str | None, payload: JsonObject | None = None) -> JsonObject:

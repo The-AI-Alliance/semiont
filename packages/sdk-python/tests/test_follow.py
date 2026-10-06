@@ -8,12 +8,10 @@ from typing import assert_never
 
 import pytest
 from aio import pass_time, run, soon, turns
-from doubles import RecordingContent, RecordingGateway
+from kb import refusing, silent
 from pydantic import JsonValue
-from scripted_transport import Scripted
 from spec import JsonObject
 
-from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import ClientTiming, SemiontClient
 from semiont.errors import BusRequestError, JobError, SemiontError
 from semiont.identifiers import ResourceId
@@ -21,6 +19,7 @@ from semiont.namespaces.follow import JobAttemptFailed, JobCompleted, JobEvent, 
 from semiont.namespaces.mark import MarkAssistOptions
 from semiont.namespaces.yield_ import generation_stall_deadline_ms
 from semiont.running import Running
+from semiont.testing import FaultyTransport, InMemoryContent, StubGateway
 from semiont.timing import GENERATION_STALL_FLOOR_MS, JOB_SILENCE_MS, JOB_STATUS_POLL_MS
 from semiont.transport import Frame
 from semiont.types import GenerationJobParams
@@ -36,14 +35,15 @@ CONTEXT: JsonObject = {
     "metadata": {},
 }
 
-type Client = SemiontClient[Scripted]
+type Client = SemiontClient[FaultyTransport]
 
 
-def world(*, answered: bool = True) -> tuple[Client, Scripted]:
+def world(*, answered: bool = True) -> tuple[Client, FaultyTransport]:
     """A client whose `job:create` is answered with `job-1`, or by the test when it is not `answered`."""
-    transport = Scripted(BRIDGED_CHANNELS, "open")
-    transport.answers = {"job:create": [{"jobId": "job-1"}]} if answered else None
-    return SemiontClient(transport, RecordingContent(), RecordingGateway()), transport
+    transport = FaultyTransport() if answered else silent()
+    if answered:
+        transport.queue_reply("job:create", [{"jobId": "job-1"}])
+    return SemiontClient(transport, InMemoryContent(), StubGateway()), transport
 
 
 def highlighting(client: Client) -> Running[JobEvent]:
@@ -76,7 +76,7 @@ def status(of: str, **more: JsonValue) -> JsonObject:
     }
 
 
-def asked(transport: Scripted, channel: str) -> list[Frame]:
+def asked(transport: FaultyTransport, channel: str) -> list[Frame]:
     return [frame for frame in transport.emitted if frame.channel == channel]
 
 
@@ -174,8 +174,7 @@ def test_frames_that_arrive_before_the_jobs_id_is_known_are_kept_and_handled_in_
 def test_a_silent_job_is_asked_for_its_status_until_its_status_is_an_end() -> None:
     async def scenario() -> None:
         client, transport = world()
-        assert transport.answers is not None
-        transport.answers["job:status-requested"] = [status("running"), status("complete")]
+        transport.queue_reply("job:status-requested", [status("running"), status("complete")])
         task, seen = following(highlighting(client))
         await turns()
 
@@ -208,8 +207,7 @@ def test_a_silent_job_is_asked_for_its_status_until_its_status_is_an_end() -> No
 def test_a_status_carries_the_result_its_job_was_stored_with_and_an_empty_one_is_none() -> None:
     async def scenario(result: JsonValue) -> JobEvent:
         client, transport = world()
-        assert transport.answers is not None
-        transport.answers["job:status-requested"] = [status("complete", result=result)]
+        transport.queue_reply("job:status-requested", [status("complete", result=result)])
         task, seen = following(highlighting(client))
         await turns()
         await pass_time(SILENCE + 0.1, step=0.5)
@@ -260,8 +258,7 @@ def test_every_frame_of_the_job_starts_the_silence_again() -> None:
 def test_a_status_that_is_an_end_and_no_completion_ends_the_follower_with_it(of: str, more: JsonObject, code: str, message: str) -> None:
     async def scenario() -> None:
         client, transport = world()
-        assert transport.answers is not None
-        transport.answers["job:status-requested"] = [status(of, **more)]
+        transport.queue_reply("job:status-requested", [status(of, **more)])
         failed = asyncio.ensure_future(_awaited(highlighting(client)))
         await turns()
         await pass_time(SILENCE + 0.1, step=0.5)
@@ -346,7 +343,7 @@ def test_an_assist_its_job_could_not_run_is_refused_before_anything_is_sent(
 def test_a_job_whose_creation_is_refused_is_its_followers_failure() -> None:
     async def scenario() -> None:
         client, transport = world()
-        transport.answers = {}
+        transport.refuse_when(refusing("job:create"))
         with pytest.raises(BusRequestError) as refused:
             await soon(highlighting(client))
         assert refused.value.code == "bus.rejected"
@@ -361,9 +358,8 @@ def test_a_job_whose_creation_is_refused_is_its_followers_failure() -> None:
 def test_a_generation_that_says_nothing_is_cancelled_and_given_up_on() -> None:
     async def scenario() -> None:
         client, transport = world()
-        assert transport.answers is not None
         # Its status says it is running for as long as it is asked: only the deadline ends it.
-        transport.answers["job:status-requested"] = [status("running")] * 50
+        transport.queue_reply("job:status-requested", [status("running")] * 50)
         stalled = asyncio.ensure_future(_awaited(generation(client, stall_deadline_ms=30_000)))
         await turns()
         assert [(frame.channel, sorted(frame.payload)) for frame in transport.emitted] == [("job:create", ["jobType", "params"])]
@@ -433,8 +429,7 @@ def test_how_long_a_generation_may_be_silent_grows_with_what_was_asked_of_it() -
 def test_a_generation_waits_as_long_as_its_length_allows_when_no_deadline_is_stated() -> None:
     async def scenario() -> None:
         client, transport = world()
-        assert transport.answers is not None
-        transport.answers["job:status-requested"] = [status("running")] * 100
+        transport.queue_reply("job:status-requested", [status("running")] * 100)
         stalled = asyncio.ensure_future(_awaited(generation(client, stall_deadline_ms=None, max_tokens=4000)))
         await turns()
         await pass_time(299, step=1)
@@ -453,11 +448,10 @@ def test_a_generation_waits_as_long_as_its_length_allows_when_no_deadline_is_sta
 
 def test_a_client_told_other_waits_keeps_them() -> None:
     async def scenario() -> None:
-        transport = Scripted(BRIDGED_CHANNELS, "open")
-        transport.answers = {"job:create": [{"jobId": "job-1"}], "job:status-requested": [status("complete")]}
-        client = SemiontClient(
-            transport, RecordingContent(), RecordingGateway(), timing=ClientTiming(job_silence_ms=50, job_status_poll_ms=20)
-        )
+        transport = FaultyTransport()
+        transport.queue_reply("job:create", [{"jobId": "job-1"}])
+        transport.queue_reply("job:status-requested", [status("complete")])
+        client = SemiontClient(transport, InMemoryContent(), StubGateway(), timing=ClientTiming(job_silence_ms=50, job_status_poll_ms=20))
         assert (client.timing.job_silence_ms, client.timing.bus_request_ms) == (50, 30_000)
         # No clock is moved: a twentieth of a second is waited out.
         done = await soon(highlighting(client))
@@ -470,8 +464,7 @@ def test_a_client_told_other_waits_keeps_them() -> None:
 def test_a_client_that_closes_ends_the_jobs_it_was_following() -> None:
     async def scenario() -> None:
         client, transport = world()
-        assert transport.answers is not None
-        transport.answers["job:create"].append({"jobId": "job-2"})
+        transport.queue_reply("job:create", [{"jobId": "job-2"}])
         task, _ = following(highlighting(client))
         awaited = asyncio.ensure_future(_awaited(highlighting(client)))
         await turns()

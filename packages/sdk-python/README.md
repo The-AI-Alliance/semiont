@@ -9,27 +9,31 @@ content, and the gateway's own operations. It signs in there: as an agent,
 as the person `semiont login` signed in, or as a person by the device grant.
 And it holds the client every Semiont SDK has: eleven namespaces, seventy
 methods, each a row of `specs/src/client/surface.json`, and live queries that
-answer from a cache the client keeps true as the knowledge base changes. A
-wrong id, a wrong payload for a channel and an unhandled code or state are
-errors a type checker reports.
+answer from a cache the client keeps true as the knowledge base changes. And
+it ships what a test of code built on it needs: a real client over doubles
+(`semiont.testing`). A wrong id, a wrong payload for a channel and an
+unhandled code or state are errors a type checker reports.
 
 It requires Python 3.12 or later, and runs on asyncio. It is checked by
 `mypy --strict` and by `pyright` in strict mode, and ships its types
 (`py.typed`).
 
 ```python
-from semiont.identifiers import AnnotationId, ResourceId
+from semiont.identifiers import AnnotationId, InvalidIdentifier, ResourceId
 from semiont.types import MarkDeleteCommand
 
 resource = ResourceId("5bcd259ab1464cf68a556bbad21f513f")
-ResourceId("https://kb.example/resources/x")  # raises InvalidIdentifier: a URI is not an id
-ResourceId.parse("not an id")  # None
+assert ResourceId.parse("not an id") is None  # where text that is not an id is an ordinary answer
+try:
+    ResourceId("https://kb.example/resources/x")
+except InvalidIdentifier as refused:
+    print(refused)  # 'https://kb.example/resources/x' is not a ResourceId: it does not match ^[A-Za-z0-9_-]{1,128}$
 
 command = MarkDeleteCommand(annotation_id=AnnotationId("a-1"), resource_id=resource)
-command.model_dump(mode="json", exclude_unset=True)
+print(command.model_dump(mode="json", exclude_unset=True))
 # {'annotationId': 'a-1', 'resourceId': '5bcd259ab1464cf68a556bbad21f513f'}
 
-MarkDeleteCommand(annotation_id=resource)  # refused by a type checker: a ResourceId is not an AnnotationId
+# MarkDeleteCommand(annotation_id=resource) is refused by a type checker: a ResourceId is not an AnnotationId.
 ```
 
 ## The bus
@@ -142,30 +146,35 @@ from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.namespaces.follow import JobAttemptFailed, JobCompleted, JobProgressed
 from semiont.namespaces.mark import MarkAssistOptions
+from semiont.transport import Transport
 from semiont.watched import Variable
 
 
-async def annotate(origin: str, token: str, resource: ResourceId, annotation: AnnotationId) -> None:
+async def annotate(client: SemiontClient[Transport], resource: ResourceId, annotation: AnnotationId) -> None:
+    described = await client.browse.resource(resource).fresh()  # a query, read once
+    text = await client.browse.resource_content(resource)  # asked once, answered once
+    print(described.name, len(text))
+
+    async for event in client.mark.assist(resource, "highlighting", MarkAssistOptions()):  # a job, followed
+        match event:
+            case JobProgressed(data=progress):
+                print(progress.percentage)
+            case JobAttemptFailed(data=setback):
+                print("trying again after:", setback.error)
+            case JobCompleted(data=done):
+                print(done.result)
+
+    reached = await client.beckon.attention(resource, annotation)  # a drive: how many the gateway reached
+    client.browse.click(annotation)  # a signal: this viewer's own, never sent
+    print(reached)
+
+
+async def over_http(origin: str, token: str, resource: ResourceId, annotation: AnnotationId) -> None:
     async with (
         HttpTransport(origin, token=Variable[str | None](token)) as transport,
         SemiontClient(transport, transport.content, transport) as client,
     ):
-        described = await client.browse.resource(resource).fresh()  # a query, read once
-        text = await client.browse.resource_content(resource)  # asked once, answered once
-        print(described.name, len(text))
-
-        async for event in client.mark.assist(resource, "highlighting", MarkAssistOptions()):  # a job, followed
-            match event:
-                case JobProgressed(data=progress):
-                    print(progress.percentage)
-                case JobAttemptFailed(data=setback):
-                    print("trying again after:", setback.error)
-                case JobCompleted(data=done):
-                    print(done.result)
-
-        reached = await client.beckon.attention(resource, annotation)  # a drive: how many the gateway reached
-        client.browse.click(annotation)  # a signal: this viewer's own, never sent
-        print(reached)
+        await annotate(client, resource, annotation)
 ```
 
 Every method returns one of seven shapes, and the table says which:
@@ -192,6 +201,8 @@ Every method returns one of seven shapes, and the table says which:
   its queries true, and it ends what it started on the way out. It does not
   close its transport: whoever opened that closes it, after the client. A
   session (`session_from_kept`) holds one as `session.client`.
+- **A client is generic in its transport.** Code that takes a
+  `SemiontClient[Transport]` runs over HTTP and over a test's doubles alike.
 - **What it sends unasked is the table's**: a list's first hundred, a
   search's ten candidates, a context's two thousand characters. An option
   given as `None` is an option not given, and is not sent.
@@ -208,11 +219,11 @@ from typing import assert_never
 
 from semiont.cache import Failed, Pending, Ready
 from semiont.client import SemiontClient
-from semiont.http import HttpTransport
 from semiont.identifiers import ResourceId
+from semiont.transport import Transport
 
 
-async def watch(client: SemiontClient[HttpTransport], resource: ResourceId) -> None:
+async def watch(client: SemiontClient[Transport], resource: ResourceId) -> None:
     async with client.browse.annotations(resource) as live:  # holds the resource's scope
         async for state in live:
             match state:
@@ -271,6 +282,7 @@ transport, its agent's token, and the channels it awaits replies on.
 from semiont.bus import reply_channels_for
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
 from semiont.operations import JOB_CLAIM
+from semiont.watched import reached
 
 
 async def work(gateway: str, issuer: str, secret: str) -> None:
@@ -279,7 +291,7 @@ async def work(gateway: str, issuer: str, secret: str) -> None:
         AgentToken(gateway, provider="ollama", model="gemma2:27b", service=service) as agent,
         HttpTransport(gateway, token=agent.token, refresher=agent.refresh, channels=reply_channels_for(JOB_CLAIM)) as transport,
     ):
-        print(transport.state.value)
+        print(await reached(transport.state, lambda state: state == "open"))  # its stream is open, as the agent
 ```
 
 **A person** is signed in at the issuer the knowledge base trusts, and the
@@ -331,6 +343,64 @@ async def as_me(gateway: str, home: str) -> None:
 - **Nothing here reads the environment.** An application reads its own
   (`HOME`, a secret, an address) and says what it found.
 
+## Testing what is built on it
+
+`semiont.testing` gives a real client over doubles. Its namespaces, its cache
+and its deadlines are the client's own; only what it speaks through is
+scripted. A test says what the knowledge base answers, runs the code under
+test, and reads what that code asked.
+
+```python
+from semiont.client import SemiontClient
+from semiont.identifiers import ResourceId
+from semiont.testing import create_test_client
+from semiont.transport import Transport
+
+
+async def title_of(client: SemiontClient[Transport], resource: ResourceId) -> str:
+    return (await client.browse.resource(resource).fresh()).name.title()
+
+
+async def a_title_is_its_resources_name_in_title_case() -> None:
+    made = create_test_client()
+    made.transport.queue_reply(
+        "browse:resource-requested",
+        [
+            {
+                "resource": {"@context": "https://schema.org", "@id": "res-1", "name": "a page of notes", "representations": []},
+                "annotations": [],
+                "entityReferences": [],
+            }
+        ],
+    )
+
+    async with made.client as client:
+        assert await title_of(client, ResourceId("res-1")) == "A Page Of Notes"
+
+    # What the code under test asked of the knowledge base, as it was sent.
+    assert [(asked.channel, asked.payload) for asked in made.transport.request_log] == [
+        ("browse:resource-requested", {"resourceId": "res-1"})
+    ]
+    await made.transport.close()
+```
+
+- **`FaultyTransport`** is a transport with no wire. `queue_reply` says what
+  the gateway answers the next requests of an operation with, and
+  `refuse_when` has it answer with a failure. A schedule of `Deliver`,
+  `DropReply`, `Delay`, `DuplicateReply` and `RejectEmit` says what the wire
+  does to each request in turn, so a lost reply and the retry after it can be
+  scripted. `request_log` and `emitted` are what was sent; `deliver` carries a
+  frame in as the bus would; `set_state` drops the stream and brings it back.
+- **`InMemoryContent`** keeps what is uploaded and what a test seeds, and
+  **`StubGateway`** answers the gateway's own operations as a test scripted
+  them. Each records the calls made of it.
+- **A double refuses what nobody scripted, by name.** A request with no
+  answer scripted fails naming its operation, and a read of content nobody
+  stored fails naming the resource. None answers with a value of its own
+  making, so a test that forgot to say something fails where it forgot.
+- **`create_test_client`** takes the doubles a test built, or makes ones
+  nothing is scripted on, and the client's own timing and persistence.
+
 ## Telemetry
 
 The SDK takes OpenTelemetry's API and installs nothing: it does nothing until
@@ -371,3 +441,8 @@ uv run ruff check && uv run ruff format --check
 `tests/refusals` holds programs that must not type-check. Each wrong line
 names the error it must raise, and a line that stops raising it fails the
 checker that stopped.
+
+`tests/readme` holds the programs this document shows, word for word. Both
+checkers check them, and `tests/test_readme.py` runs each one: against a
+scripted gateway on this machine where it opens a connection, and over
+`semiont.testing`'s doubles where it takes a client.

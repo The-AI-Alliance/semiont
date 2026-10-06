@@ -477,3 +477,6 @@ with more than one tenant.
 - `packages/http-transport-rust/src/transport.rs` — the Rust client's
   `Transport`, and `actor.rs`, its stream.
 - `packages/sdk-rust/src/bus.rs` — its bus request.
+- `packages/sdk-python/src/semiont/http/transport.py` — the Python client's
+  `Transport`, and `stream.py`, its stream.
+- `packages/sdk-python/src/semiont/bus.py` — its bus request.

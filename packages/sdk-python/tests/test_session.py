@@ -15,14 +15,12 @@ from typing import final
 
 import pytest
 from aio import pass_time, run, soon, turns
-from doubles import RecordingContent, RecordingGateway
-from scripted_transport import Scripted
 from spec import SPEC, JsonObject, objects, read, strings, text
 from tokens import expired, jwt, token
 
-from semiont.client import SemiontClient
 from semiont.errors import BusRequestError, SemiontError, SessionError, SignInError, TransportError
 from semiont.session import HeldSignIn, MemorySignIn, Refresh, SemiontSession, SessionEndReason, Validate
+from semiont.testing import FaultyTransport, create_test_client
 from semiont.types import UserResponse
 from semiont.watched import Variable
 
@@ -79,10 +77,10 @@ class World:
             raise answer
         return answer
 
-    def session(self, *, refresh: Refresh | None, validate: Validate | None) -> SemiontSession[Scripted]:
+    def session(self, *, refresh: Refresh | None, validate: Validate | None) -> SemiontSession[FaultyTransport]:
         return SemiontSession(
             kb_id=KB,
-            client=SemiontClient(Scripted((), "open"), RecordingContent(), RecordingGateway()),
+            client=create_test_client().client,
             token=self.token,
             kept=self.kept,
             refresh=refresh,
@@ -91,7 +89,7 @@ class World:
             on_error=self.errors.append,
         )
 
-    def its_session(self) -> SemiontSession[Scripted]:
+    def its_session(self) -> SemiontSession[FaultyTransport]:
         """A session that renews and asks as the world scripts."""
         return self.session(refresh=self.refresh, validate=self.validate)
 
@@ -147,13 +145,13 @@ def one_too_many() -> TransportError:
     return TransportError.of_status("asked more than the case allows", 500, None)
 
 
-def ends(session: SemiontSession[Scripted]) -> str:
+def ends(session: SemiontSession[FaultyTransport]) -> str:
     if session.token.value is None:
         return "signed-out"
     return "unconfirmed" if session.user.value is None else "signed-in"
 
 
-async def is_as_stated(row: JsonObject, world: World, session: SemiontSession[Scripted], asked_before: int) -> None:
+async def is_as_stated(row: JsonObject, world: World, session: SemiontSession[FaultyTransport], asked_before: int) -> None:
     """The session ended as the row states, and one that ended signed out asks nobody anything afterwards, however long it is held."""
     asks, renewals = count(row, "asks"), count(row, "renewals")
     assert (len(world.validated) - asked_before, world.renewed) == (asks, renewals), "how often the gateway and the issuer were asked"

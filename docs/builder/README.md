@@ -7,11 +7,14 @@ daemon, an application, an agent.
 
 The SDK is a typed client whose namespaces are the
 [eight verbs](../protocol/flows/README.md) everything in Semiont speaks. It comes in
-[TypeScript](../../packages/sdk/README.md) (`@semiont/sdk`) and
+[TypeScript](../../packages/sdk/README.md) (`@semiont/sdk`),
 [Rust](../../packages/sdk-rust/README.md) (the [`semiont`](https://crates.io/crates/semiont)
-crate), full peers held to one [conformance suite](../../tests/conformance/sdk/README.md).
+crate) and [Python](../../packages/sdk-python/README.md) (the `semiont` package), each
+held to one [conformance suite](../../tests/conformance/sdk/README.md).
 The examples here are TypeScript. The Rust SDK has the same namespaces, methods
-and behaviour, and its README maps each TypeScript shape here to its Rust form.
+and behaviour, and its README maps each TypeScript shape here to its Rust form. The
+Python SDK has the same namespaces, methods and live queries, and its README shows
+each in Python; it has no state units and no registry of several knowledge bases.
 
 TypeScript:
 
@@ -49,7 +52,7 @@ tells you what belongs in it — and what to reject in review.
 | [INTRODUCTION.md](./INTRODUCTION.md) | **Orientation** (read first) | The builder's mental model: the three core ideas, the contract→SDKs→bindings stack, live data, a one-page chat turn, the testing ethos, and the build-vs-adopt case for teams shipping with AI coding tools. No recipes, no reference. |
 | [DEVELOPER-GUIDE.md](./DEVELOPER-GUIDE.md) | **How-to** (and the de-facto tutorial) | Task-ordered recipes: connect → ingest → enrich → gather → generate → annotate → react live → test → tear down. Short prose + the exact lines. |
 | [Usage.md](./Usage.md) | **Reference** | The per-namespace surface: every method family, options, return shapes, error vocabulary, bus debugging. |
-| [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) | **Explanation** | Why the surface is shaped this way: the seven return shapes every SDK shares, then how TypeScript and Rust each render them, and the three paths to the bus. |
+| [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) | **Explanation** | Why the surface is shaped this way: the seven return shapes every SDK shares, then how TypeScript, Rust and Python each render them, and the three paths to the bus. |
 | [STATE-UNITS.md](./STATE-UNITS.md) | **Explanation + conventions** | The state-unit pattern: what every state unit keeps, in any language, how TypeScript and Rust each write one, and how the rules are enforced. |
 | [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) | **Contract** | The live-query cache's numbered behavioral contract: `CacheState` emissions, SWR, bounded retry, failure-as-emission, disposal, persistence. Tests cite these numbers. |
 
@@ -133,6 +136,13 @@ table that maps each TypeScript shape in these docs to its Rust form.
 [`semiont-http-transport`](../../packages/http-transport-rust/README.md) has the
 sessions and signing in. CACHE-SEMANTICS and STATE-UNITS are contracts of both
 SDKs: the Rust tests cite the same clause numbers.
+
+**"I'm building in Python"** — INTRODUCTION for the model, then the Python SDK's
+[README](../../packages/sdk-python/README.md): the bus, the client and what each
+method returns, live queries, signing in as an agent or as a person, and testing
+what you build over `semiont.testing`. It runs on asyncio and is checked by
+`mypy` and `pyright`, both strict. CACHE-SEMANTICS is its contract too, and its
+tests cite the same clause numbers.
 
 **"I'm an AI agent, or building one"** — the
 [skill packs](skills/) are ready-made definitions for agentic

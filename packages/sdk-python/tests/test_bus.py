@@ -5,8 +5,8 @@ from collections.abc import Mapping
 
 import pytest
 from aio import run, soon
+from kb import refusing
 from pydantic import JsonValue, ValidationError
-from scripted_transport import Scripted
 
 from semiont.bus import Bus, decoded, reply_channels_for
 from semiont.channel import Empty
@@ -15,6 +15,7 @@ from semiont.errors import BusRequestError, TransportError
 from semiont.identifiers import AnnotationId, JobId, ResourceId
 from semiont.model import written
 from semiont.operations import BROWSE_KB_REQUESTED, FRAME_ADD_ENTITY_TYPE, JOB_STATUS_REQUESTED, MARK_CREATE_REQUEST
+from semiont.testing import FaultyTransport
 from semiont.transport import Frame
 from semiont.types import (
     BeckonFocusEvent,
@@ -40,12 +41,6 @@ CONTEXT: Mapping[str, JsonValue] = {
 }
 
 
-def answering(*channels: str) -> Scripted:
-    transport = Scripted(channels, "open")
-    transport.answers = {}
-    return transport
-
-
 def test_an_option_given_as_nothing_is_not_sent_and_what_a_shape_holds_deeper_is_sent_as_it_came() -> None:
     # At its top, a field that may be left out and holds nothing is left out.
     assert written(MarkDeleteCommand(annotation_id=ANNOTATION, resource_id=None)) == {"annotationId": "ann-1"}
@@ -59,7 +54,7 @@ def test_an_option_given_as_nothing_is_not_sent_and_what_a_shape_holds_deeper_is
 
 def test_an_emit_by_type_sends_its_channels_name_and_its_payload_as_the_wire_carries_it() -> None:
     async def scenario() -> None:
-        transport = Scripted((), "open")
+        transport = FaultyTransport(channels=())
         bus = Bus(transport)
         assert bus.transport is transport
         await bus.emit(BECKON_FOCUS, BeckonFocusEvent(annotation_id=ANNOTATION), scope=RESOURCE, correlation_id="cid-1")
@@ -90,7 +85,7 @@ def test_a_payload_is_read_without_the_stamps_its_channel_does_not_declare() -> 
 
 def test_frames_by_type_carry_their_payload_decoded_and_who_emitted_them(caplog: pytest.LogCaptureFixture) -> None:
     async def scenario() -> None:
-        transport = Scripted(("beckon:focus",), "open")
+        transport = FaultyTransport(channels=("beckon:focus",))
         frames = Bus(transport).frames(BECKON_FOCUS)
         transport.deliver(
             Frame(
@@ -125,11 +120,10 @@ def test_frames_by_type_carry_their_payload_decoded_and_who_emitted_them(caplog:
 
 def test_a_request_by_type_gives_its_operations_result_as_that_results_type() -> None:
     async def scenario() -> None:
-        transport = answering(*reply_channels_for(MARK_CREATE_REQUEST, BROWSE_KB_REQUESTED, FRAME_ADD_ENTITY_TYPE))
-        assert transport.answers is not None
+        transport = FaultyTransport(channels=reply_channels_for(MARK_CREATE_REQUEST, BROWSE_KB_REQUESTED, FRAME_ADD_ENTITY_TYPE))
         bus = Bus(transport)
 
-        transport.answers["mark:create-request"] = [{"annotationId": "ann-9"}]
+        transport.queue_reply("mark:create-request", [{"annotationId": "ann-9"}])
         request = CreateAnnotationRequest.model_validate({"motivation": "highlighting", "target": {"source": "res-1"}})
         created = await soon(bus.request(MARK_CREATE_REQUEST, MarkCreateRequest(resource_id=RESOURCE, request=request)))
         assert created.response.annotation_id == "ann-9"
@@ -140,26 +134,27 @@ def test_a_request_by_type_gives_its_operations_result_as_that_results_type() ->
         )
 
         # A reply that carries no response is its channel's empty payload.
-        transport.answers["frame:add-entity-type"] = [None]
+        transport.queue_reply("frame:add-entity-type", [None])
         await soon(bus.request(FRAME_ADD_ENTITY_TYPE, FrameAddEntityTypeCommand(tag="Person")))
 
-        # A failure is the request's error, under the bus's code for it.
-        with pytest.raises(BusRequestError) as rejected:
-            await soon(bus.request(BROWSE_KB_REQUESTED, BrowseKbRequest()))
-        assert rejected.value.code == "bus.rejected"
-
         # A result that is not the operation's is said, and is not handed on as if it were.
-        transport.answers["browse:kb-requested"] = [{"name": 7}]
+        transport.queue_reply("browse:kb-requested", [{"name": 7}])
         with pytest.raises(TransportError, match="a payload on browse:kb-result is not that channel's") as undecodable:
             await soon(bus.request(BROWSE_KB_REQUESTED, BrowseKbRequest()))
         assert undecodable.value.code == "error"
+
+        # A failure is the request's error, under the bus's code for it.
+        transport.refuse_when(refusing("browse:kb-requested"))
+        with pytest.raises(BusRequestError) as rejected:
+            await soon(bus.request(BROWSE_KB_REQUESTED, BrowseKbRequest()))
+        assert rejected.value.code == "bus.rejected"
 
     run(scenario())
 
 
 def test_a_request_whose_replies_the_transport_does_not_carry_is_refused_before_anything_is_sent() -> None:
     async def scenario() -> None:
-        transport = answering("job:status-result")
+        transport = FaultyTransport(channels=("job:status-result",))
         with pytest.raises(BusRequestError) as refused:
             await soon(Bus(transport).request(JOB_STATUS_REQUESTED, JobStatusRequest(job_id=JobId("job-1"))))
         assert refused.value.code == "bus.unsubscribed"

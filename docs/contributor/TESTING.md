@@ -9,14 +9,15 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 | Workspace suites | every npm workspace in `apps/*` and `packages/*` with a `test` script | Units and in-process integration: components, hooks, SDK namespaces, services composed over test doubles | Nothing running, except `nats-server` on `PATH` for `@semiont/jobs` |
 | Rust | the Cargo workspace (`cargo test --workspace`) | The Rust SDK (its session, cache, bus and live queries, and the shared case tables), its transport, and the gateway's and dispatcher's own crates | The toolchain [`rust-toolchain.toml`](../../rust-toolchain.toml) names |
 | Go | `apps/launcher`, `packages/sdk-go` | The launcher driving a fake runtime through real start and stop lifecycles; the Go bus client's wire contract | The Go toolchain each `go.mod` names |
+| Python | `packages/sdk-python` (`uv run pytest`) | The Python SDK: its transport, sign-in and session, its client, cache and live queries, the shared case tables, and the programs its README shows, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Gateway conformance | [`tests/conformance/gateway`](../../tests/conformance/gateway/README.md) | A running gateway, black-box, against `specs/`: every declared operation, every response and stream message, and hand-written protocol cases, on both signal planes | A built gateway; `nats-server` 2.10 or later on `PATH` |
 | Dispatcher conformance | [`tests/conformance/dispatcher`](../../tests/conformance/dispatcher/README.md) | A running dispatcher, black-box, behind a real gateway on a real JetStream broker, against [JOBS.md](../protocol/JOBS.md) and every channel's schema | A built gateway and dispatcher; `nats-server` |
-| SDK conformance | [`tests/conformance/sdk`](../../tests/conformance/sdk/README.md) | Every SDK, through a driver, as a client of a real gateway: one corpus of cases, on the wire and in live queries | A built gateway and the Rust drivers; `@semiont/sdk` built; `nats-server` |
+| SDK conformance | [`tests/conformance/sdk`](../../tests/conformance/sdk/README.md) | Every SDK, through a driver, as a client of a real gateway: one corpus of cases, on the wire and in live queries | A built gateway and the Rust drivers; `@semiont/sdk` built; `uv` and Python 3.12 or later, for the Python drivers; `nats-server` |
 | End-to-end | [`tests/e2e`](../../tests/e2e/README.md) | The live Browser against a live gateway and knowledge base | A running stack and a user at its issuer |
 
 The conformance suites import nothing from what they check. One line per service and per SDK in [`harness/paths.ts`](../../tests/conformance/harness/paths.ts) names the implementation, so the same cases judge any implementation of the same spec.
 
-The tools: **Vitest** runs every TypeScript suite; **React Testing Library**, with the `jest-dom` and `jest-axe` matchers, tests components under jsdom; **Playwright** drives the end-to-end suite; Go's `testing` package and Cargo's test harness cover the rest.
+The tools: **Vitest** runs every TypeScript suite; **React Testing Library**, with the `jest-dom` and `jest-axe` matchers, tests components under jsdom; **Playwright** drives the end-to-end suite; Go's `testing` package, Cargo's test harness and **pytest** cover the rest.
 
 ## How suites are configured
 
@@ -63,7 +64,7 @@ No Vitest suite takes configuration from the shell. A test that exercises code w
 
 Workspace suites run with nothing listening. CI's package matrix starts no database, vector store or model server, and the `graph`, `vectors` and `inference` suites pass without Neo4j, Qdrant or Ollama.
 
-- **The SDK.** `@semiont/sdk/testing` provides a real `SemiontClient` (`createTestClient`) or `SemiontSession` (`createTestSession`) over `FaultyTransport`, the scriptable in-memory transport from `@semiont/core/testing`. An operation the test did not script throws `No response scripted for bus operation "<op>"` rather than answering with a fabricated reply. `stubGateway()` supplies gateway operations that each reject with their own name; `inMemoryContent()` stores content and throws on an unknown id.
+- **The SDK.** `@semiont/sdk/testing` provides a real `SemiontClient` (`createTestClient`) or `SemiontSession` (`createTestSession`) over `FaultyTransport`, the scriptable in-memory transport from `@semiont/core/testing`. An operation the test did not script throws `No response scripted for bus operation "<op>"` rather than answering with a fabricated reply. `stubGateway()` supplies gateway operations that each reject with their own name; `inMemoryContent()` stores content and throws on an unknown id. The Rust and Python SDKs ship the same doubles, `semiont::testing` and `semiont.testing`, for what is built on them.
 - **React.** `@semiont/react-ui/test-utils` assembles those doubles into providers: `renderWithProviders` renders inside a real `SemiontBrowser` whose active session runs on them. The Browser's tests import it directly.
 - **Property axioms.** `@semiont/core/testing/axioms` holds the StateUnit and liveness axiom harnesses. It needs `fast-check` in the importing package's devDependencies.
 - **An identity provider.** `@semiont/core/testing/issuer` is an in-process OIDC issuer: signing keys, signed tokens, and the discovery and JWKS documents. It serves nothing; the consumer answers the two URLs.
@@ -77,7 +78,7 @@ Each gateway the suite starts gets a fresh temporary directory holding its `Gate
 
 ## Running tests
 
-Tests run through each workspace's npm scripts, `cargo` and `go`. The `semiont` launcher runs knowledge bases, not this repository's tests.
+Tests run through each workspace's npm scripts, `cargo`, `go` and `uv`. The `semiont` launcher runs knowledge bases, not this repository's tests.
 
 ### From the repository root
 
@@ -140,6 +141,20 @@ cd packages/sdk-go && go test -timeout 5m ./...
 
 The launcher's suite takes minutes; its notes are in [apps/launcher/README.md](../../apps/launcher/README.md#development).
 
+### Python
+
+As CI runs them, from `packages/sdk-python`:
+
+```bash
+uv sync --locked
+uv run mypy
+uv run pyright
+uv run ruff check && uv run ruff format --check
+uv run pytest
+```
+
+Both type checkers are part of the suite: `tests/refusals` holds programs that must not type-check, and `tests/readme` the programs the package's README shows, which `tests/test_readme.py` runs. The package's own tests are built on `semiont.testing`, the doubles it ships.
+
 ### In a container
 
 None of the toolchains has to be on your machine. Two things to know:
@@ -158,7 +173,7 @@ container run --rm -v "$(pwd)":/work -w /work node:24-alpine \
   sh -c 'apk add --no-cache nats-server && npm test --workspace=@semiont/jobs'
 ```
 
-For Go, use the `golang` image whose tag satisfies the `toolchain` line in the module's `go.mod`.
+For Go, use the `golang` image whose tag satisfies the `toolchain` line in the module's `go.mod`. For Python, use a `python` image at or above the `requires-python` of `packages/sdk-python/pyproject.toml`, with `uv` and, for `pyright`, Node.js.
 
 ## Writing tests
 
@@ -283,12 +298,14 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | `test-gateway` | `cargo fmt --check`, `clippy -D warnings` and `cargo test` for the Rust workspace; which crates may depend on which; the published crates' set and version; the licence policy for the crates each image links |
 | `gateway-conformance` | Builds the gateway and runs the conformance suite's `gateway` project |
 | `dispatcher-conformance` | Builds the gateway and the dispatcher and runs the `dispatcher` project |
-| `sdk-conformance` | Builds the gateway, the Rust drivers and `@semiont/sdk`, and runs the `sdk` project |
+| `sdk-conformance` | Builds the gateway, the Rust drivers and `@semiont/sdk`, installs the Python SDK's locked environment, and runs the `sdk` project |
+| `test-sdk-python` | `mypy` and `pyright`, each as Linux and as Windows, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/sdk-python` |
+| `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
 | `test-comprehensive` | The Browser suite again, after a full package build |
 | `validate-config` | `npm ci --include=optional` and `npm run build:packages` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |
 | `build-all` | `npm run build`, after `test-browser` and `test-gateway` pass |
-| `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/sdk-go/client_gen.go`, and Go schema coverage |
+| `generated-artifacts` | Drift between the bus registry and its generated TypeScript and Go, between the bundled OpenAPI spec and `packages/sdk-go/client_gen.go`, between `specs/` and the Python SDK's generated modules and models, and Go schema coverage |
 | `test-launcher` | `gofmt` over both Go modules; `go vet` and `go test` for the launcher; `go vet`, `go build` and `go test` for `packages/sdk-go`; `govulncheck` for the launcher |
 | `test-launcher-windows` | `go vet` and `go test` for the launcher on Windows |
 

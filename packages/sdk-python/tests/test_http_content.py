@@ -11,8 +11,8 @@ import dataclasses
 
 import pytest
 from aio import run, soon
+from gateway_server import NOT_FOUND, Answer, GatewayServer
 from pydantic import JsonValue, TypeAdapter
-from stub_gateway import NOT_FOUND, Answer, StubGateway
 
 from semiont.errors import SemiontError, TransportError
 from semiont.http import HttpTransport, Timing
@@ -28,7 +28,7 @@ RESOURCE = ResourceId("res-1")
 _JSON = TypeAdapter[JsonValue](JsonValue)
 
 
-def transport_to(gateway: StubGateway, token: str | None = "t") -> HttpTransport:
+def transport_to(gateway: GatewayServer, token: str | None = "t") -> HttpTransport:
     return HttpTransport(gateway.origin, token=Variable[str | None](token), channels=("beckon:focus",), timing=QUICK)
 
 
@@ -55,7 +55,7 @@ def test_an_upload_carries_its_bytes_unchanged_and_each_field_under_its_own_name
     )
 
     async def scenario() -> tuple[str, dict[str, tuple[bytes, dict[str, str]]], str, list[UploadProgress]]:
-        async with StubGateway() as gateway, transport_to(gateway) as transport:
+        async with GatewayServer() as gateway, transport_to(gateway) as transport:
             upload = transport.content.put_binary(request)
             reports = [progress async for progress in upload]
             created = await upload
@@ -96,7 +96,7 @@ def test_a_field_with_nothing_to_say_is_left_out_of_the_form() -> None:
 
 def test_an_upload_is_awaited_once_and_its_progress_read_once() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway, transport_to(gateway) as transport:
+        async with GatewayServer() as gateway, transport_to(gateway) as transport:
             upload = transport.content.put_binary(PutBinaryRequest(name="n", file=b"abc", format="text/plain", storage_uri="file://n"))
             await upload
             with pytest.raises(RuntimeError, match="awaited once"):
@@ -111,7 +111,7 @@ def test_an_upload_is_awaited_once_and_its_progress_read_once() -> None:
 
 def test_an_upload_its_caller_abandons_closes_its_connection_reports_nothing_and_is_not_sent_again() -> None:
     async def scenario() -> tuple[int, list[SemiontError]]:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.scripted[("POST", "/resources")] = [Answer(hold=True)]
             async with transport_to(gateway) as transport:
                 failures = transport.failures()
@@ -137,7 +137,7 @@ def test_an_upload_its_caller_abandons_closes_its_connection_reports_nothing_and
 
 def test_a_transport_closed_under_an_upload_and_a_read_ends_each_as_a_request_that_got_no_answer() -> None:
     async def scenario() -> tuple[str, str, str]:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.scripted[("POST", "/resources")] = [Answer(hold=True)]
             gateway.scripted[("GET", "/api/health")] = [Answer(hold=True)]
             transport = HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=("beckon:focus",))
@@ -167,7 +167,7 @@ def test_a_transport_closed_under_an_upload_and_a_read_ends_each_as_a_request_th
 
 def test_a_read_gives_the_bytes_unchanged_whole_or_as_they_arrive_and_one_that_is_not_there_fails_as_not_found() -> None:
     async def scenario() -> tuple[bytes, str, bytes, str, TransportError, list[SemiontError]]:
-        async with StubGateway() as gateway, transport_to(gateway) as transport:
+        async with GatewayServer() as gateway, transport_to(gateway) as transport:
             gateway.stored[RESOURCE] = ("image/png", EVERY_BYTE)
             failures = transport.failures()
             whole = await transport.content.get_binary(RESOURCE)
@@ -187,7 +187,7 @@ def test_a_read_gives_the_bytes_unchanged_whole_or_as_they_arrive_and_one_that_i
 
 def test_a_read_whose_bytes_stop_coming_fails_as_unavailable_and_one_left_early_ends() -> None:
     async def scenario() -> tuple[list[str], int]:
-        async with StubGateway() as gateway, transport_to(gateway) as transport:
+        async with GatewayServer() as gateway, transport_to(gateway) as transport:
             gateway.scripted[("GET", "/resources/res-1")] = [Answer(body=b"only this much", promise=10_000) for _ in range(2)]
             gateway.stored[RESOURCE] = ("text/plain", EVERY_BYTE)
             with pytest.raises(TransportError) as whole:
@@ -212,7 +212,7 @@ def test_a_description_is_what_the_gateway_answers_and_an_answer_that_is_not_the
     }
 
     async def scenario() -> tuple[JsonValue, TransportError]:
-        async with StubGateway() as gateway, transport_to(gateway) as transport:
+        async with GatewayServer() as gateway, transport_to(gateway) as transport:
             gateway.described[RESOURCE] = described
             graph = await transport.content.get_resource_graph(RESOURCE)
             gateway.scripted[("GET", "/resources/res-1/jsonld")] = [Answer(body=b'{"resource": "not a description"}')]
@@ -251,7 +251,7 @@ def test_each_gateway_operation_is_one_request_to_its_own_path_and_carries_the_t
     }
 
     async def scenario() -> tuple[list[JsonValue], list[tuple[str, str, str | None]], JsonValue]:
-        async with StubGateway() as gateway, transport_to(gateway, token="the-token") as transport:
+        async with GatewayServer() as gateway, transport_to(gateway, token="the-token") as transport:
             gateway.answers = answers
             answered: list[JsonValue] = [
                 (await transport.health_check()).model_dump(mode="json", exclude_unset=True),
@@ -280,7 +280,7 @@ def test_a_request_safe_to_repeat_is_made_a_second_time_and_one_that_is_not_is_n
     not_now = Answer(status=503, body=b'{"error":"The gateway is starting"}')
 
     async def scenario() -> tuple[str, int, list[object], int, list[object], int, list[object], int]:
-        async with StubGateway() as gateway, transport_to(gateway) as transport:
+        async with GatewayServer() as gateway, transport_to(gateway) as transport:
             gateway.answers = {
                 "/api/health": {"status": "ok", "message": "m", "version": "v", "timestamp": "t"},
                 "/api/tokens/media": {"token": "m"},
@@ -326,7 +326,7 @@ def test_a_request_safe_to_repeat_is_made_a_second_time_and_one_that_is_not_is_n
 
 def test_a_request_never_answered_fails_as_unavailable_at_its_deadline_and_is_not_made_again() -> None:
     async def scenario() -> tuple[str, int | None, int, str, int, list[SemiontError]]:
-        async with StubGateway() as gateway, transport_to(gateway) as transport:
+        async with GatewayServer() as gateway, transport_to(gateway) as transport:
             failures = transport.failures()
             gateway.scripted[("GET", "/api/health")] = [Answer(hold=True)]
             with pytest.raises(TransportError) as late:

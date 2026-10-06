@@ -84,7 +84,11 @@ believe them at first:
    [`semiont-http-transport`](../../packages/http-transport-rust/README.md)) has the
    same client, cache, state units and sessions, and is held to the same
    shared case tables and conformance suite; its README maps each shape in
-   this book to its Rust form. The concepts in these docs transfer
+   this book to its Rust form. The Python SDK
+   ([`semiont`](../../packages/sdk-python/README.md)) has the same client,
+   cache and sessions on asyncio, typed for `mypy` and `pyright`, and is held
+   to the same tables and the same suite; it has no state units. The concepts
+   in these docs transfer
    across SDKs; the syntax doesn't. If you're reading this from another
    language, treat the TypeScript as pseudocode with a working
    implementation.

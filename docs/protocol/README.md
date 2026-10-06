@@ -59,7 +59,7 @@ Each verb's contract is in **[flows/](flows/README.md)**.
 
 The bus is not defined in prose. **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** is the machine-readable authority: every channel, the schema of what it carries, the request and reply channels of every operation, which channels are events of the record, and who receives each. [CHANNELS.md](CHANNELS.md) is the readable inventory.
 
-The TypeScript, Rust and Go clients each *generate* their channel tables from that file. Three implementations in three languages derive from one artifact, which is the practical answer to "is this a protocol or just a TypeScript library."
+The TypeScript, Rust, Go and Python clients each *generate* their channel tables from that file. Four implementations in four languages derive from one artifact, which is the practical answer to "is this a protocol or just a TypeScript library."
 
 The same holds one level up. **[`specs/src/client/surface.json`](../../specs/src/client/surface.json)** declares every method an SDK gives each verb and the shape of what it returns. Every SDK is held to it: a lint checks each SDK's methods against the table, and each SDK's own tests run the table's cases.
 
@@ -88,7 +88,7 @@ await semiont.bind.body(resourceId, annotationId, [                             
 
 Three surfaces speak these verbs:
 
-- **The SDKs**, in [TypeScript](../../packages/sdk/README.md) and [Rust](../../packages/sdk-rust/README.md), are the typed clients everything else is built on. See **[the builder docs](../builder/README.md)**.
+- **The SDKs**, in [TypeScript](../../packages/sdk/README.md), [Rust](../../packages/sdk-rust/README.md) and [Python](../../packages/sdk-python/README.md), are the typed clients everything else is built on. See **[the builder docs](../builder/README.md)**.
 - **[Agent skills](../builder/skills/)** are ready-made skill definitions that agentic coding assistants use to work in a knowledge base without writing integration code.
 - **[The launcher](../../apps/launcher/README.md)**, the `semiont` binary, exposes the verbs as terminal commands against a running stack; `semiont <verb> --help` for each.
 

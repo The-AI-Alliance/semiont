@@ -12,7 +12,7 @@ import logging
 
 import pytest
 from aio import run, soon
-from stub_gateway import Answer, StubGateway
+from gateway_server import Answer, GatewayServer
 
 from semiont.bus import request
 from semiont.channels import BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS
@@ -60,7 +60,7 @@ async def opened(transport: HttpTransport) -> None:
 def test_a_frame_is_delivered_with_what_is_beside_its_payload_and_what_is_not_a_frame_is_not(caplog: pytest.LogCaptureFixture) -> None:
     async def scenario() -> list[Frame]:
         async with (
-            StubGateway() as gateway,
+            GatewayServer() as gateway,
             HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=CHANNELS, timing=QUICK) as transport,
         ):
             await opened(transport)
@@ -92,7 +92,7 @@ def test_a_frame_is_delivered_with_what_is_beside_its_payload_and_what_is_not_a_
 
 def test_a_closed_transport_has_ended_everything_it_began() -> None:
     async def scenario() -> tuple[list[ConnectionState], list[Frame], list[SemiontError], str, str, list[str]]:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             transport = HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=CHANNELS, timing=QUICK)
             states: list[ConnectionState] = []
 
@@ -152,7 +152,7 @@ def test_a_transport_closed_before_it_was_opened_is_closed_and_cannot_be_opened(
 def test_closing_ends_an_emit_that_is_waiting_to_be_made_again() -> None:
     async def scenario() -> tuple[str, int | None, int, float]:
         patient = Timing(reconnect_ms=10, emit_retry=RetryPolicy(attempts=5, initial_delay_ms=1, max_delay_ms=1))
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.scripted[("POST", "/bus/emit")] = [
                 Answer(status=429, headers={"Retry-After": "600"}, body=b'{"error":"not now","code":"emit-rate"}')
             ]
@@ -177,7 +177,7 @@ def test_closing_ends_an_emit_that_is_waiting_to_be_made_again() -> None:
 def test_a_stream_that_cannot_open_is_tried_again_and_a_token_that_changes_reaches_the_next_request() -> None:
     async def scenario() -> tuple[list[str], list[str]]:
         token: Variable[str | None] = Variable("first")
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.scripted[("POST", "/bus/subscribe")] = [Answer(status=503, body=b"") for _ in range(3)]
             async with HttpTransport(gateway.origin, token=token, channels=CHANNELS, timing=QUICK) as transport:
                 failures = transport.failures()

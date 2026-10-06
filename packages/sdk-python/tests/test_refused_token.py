@@ -11,8 +11,8 @@ from typing import final
 
 import pytest
 from aio import run, settle, soon
+from gateway_server import Answer, GatewayServer
 from spec import JsonObject
-from stub_gateway import Answer, StubGateway
 
 from semiont.errors import SignInError, TransportError
 from semiont.http import HttpTransport, Timing
@@ -51,7 +51,7 @@ class Source:
         return renewal
 
 
-def sent_with(gateway: StubGateway, method: str, path: str) -> list[str | None]:
+def sent_with(gateway: GatewayServer, method: str, path: str) -> list[str | None]:
     """The credential each request of a method and path carried."""
     return [asked.headers.get("authorization") for asked in gateway.of(method, path)]
 
@@ -67,7 +67,7 @@ def test_a_stream_refused_asks_its_refresher_and_opens_at_once_with_what_it_is_g
     source = Source("stale", "fresh")
 
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.scripted[("POST", "/bus/subscribe")] = [REFUSED]
             # A reconnect that waited out its backoff would not have opened by the time this test ends.
             slow = Timing(reconnect_ms=60_000)
@@ -90,7 +90,7 @@ def test_a_stream_whose_refresher_gives_no_other_token_waits_for_one_and_asks_on
     source = Source("stale", gives)
 
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.scripted[("POST", "/bus/subscribe")] = [REFUSED]
             async with HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, timing=QUICK) as transport:
                 await state_is(transport, "unauthenticated")
@@ -113,7 +113,7 @@ def test_a_stream_whose_renewed_token_is_refused_too_asks_for_no_third() -> None
     source = Source("first", "second", "third")
 
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.scripted[("POST", "/bus/subscribe")] = [REFUSED, REFUSED]
             async with HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, timing=QUICK) as transport:
                 await soon(gateway.arrived("POST", "/bus/subscribe", 2))
@@ -133,7 +133,7 @@ def test_a_stream_refused_again_after_it_opened_asks_its_refresher_again() -> No
     source = Source("first", "second", "third")
 
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.scripted[("POST", "/bus/subscribe")] = [REFUSED]
             async with HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, timing=QUICK) as transport:
                 await state_is(transport, "open")
@@ -154,7 +154,7 @@ def test_a_stream_with_no_refresher_waits_for_its_token_to_change() -> None:
     token = Variable[str | None]("stale")
 
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.scripted[("POST", "/bus/subscribe")] = [REFUSED]
             async with HttpTransport(gateway.origin, token=token, timing=QUICK) as transport:
                 await state_is(transport, "unauthenticated")
@@ -173,7 +173,7 @@ def test_a_request_refused_is_made_once_more_with_the_token_its_refresher_gives(
     source = Source("stale", "fresh")
 
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.answers["/api/status"] = STATUS
             gateway.scripted[("GET", "/api/status")] = [REFUSED]
             # No stream: only the request is refused here.
@@ -200,7 +200,7 @@ def test_a_request_that_may_have_an_effect_is_made_again_too_for_it_was_refused_
     source = Source("stale", "fresh")
 
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.answers["/api/tokens/media"] = {"token": "a-media-token"}
             gateway.scripted[("POST", "/api/tokens/media")] = [REFUSED]
             transport = HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, channels=())
@@ -219,7 +219,7 @@ def test_a_request_refused_twice_is_refused_and_its_refresher_was_asked_once() -
     source = Source("stale", "fresh", "fresher")
 
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.scripted[("GET", "/api/status")] = [REFUSED, REFUSED]
             transport = HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, channels=())
             try:
@@ -239,7 +239,7 @@ def test_a_request_refused_twice_is_refused_and_its_refresher_was_asked_once() -
 def test_a_request_refused_with_nothing_to_renew_with_is_refused_at_once(gives: SignInError | None) -> None:
     async def scenario(transport_of: str) -> None:
         source = Source("stale", gives)
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.scripted[("GET", "/api/status")] = [REFUSED]
             gateway.answers["/api/status"] = STATUS
             refresher = source.refresh if transport_of == "a refresher that gives nothing" else None
@@ -261,7 +261,7 @@ def test_a_request_that_sends_no_token_asks_nobody_to_renew_one() -> None:
     source = Source("stale", "fresh")
 
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.scripted[("GET", "/.well-known/oauth-protected-resource")] = [REFUSED]
             transport = HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, channels=())
             try:
@@ -283,7 +283,7 @@ def test_an_upload_refused_is_sent_again_whole_and_its_progress_is_reported_once
     data = bytes(range(256)) * 1024  # Four pieces of the grain an upload is sent in.
 
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             gateway.scripted[("POST", "/resources")] = [REFUSED]
             transport = HttpTransport(gateway.origin, token=source.token, refresher=source.refresh, channels=())
             try:

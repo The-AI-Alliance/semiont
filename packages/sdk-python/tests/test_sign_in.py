@@ -14,16 +14,34 @@ from urllib.parse import parse_qs
 
 import pytest
 from aio import hurried, pass_time, run, settle, soon
+from gateway_server import NOT_FOUND, Answer, Asked, GatewayServer
+from issuer import (
+    AGENT,
+    CONFIGURATION,
+    DEVICE,
+    ME,
+    METADATA,
+    PENDING,
+    REFUSED,
+    REVOKE,
+    SECRET,
+    TOKEN,
+    account,
+    agent_token,
+    issuer_of,
+    minted,
+    says,
+    trusting,
+)
 from kb import recorded
 from pydantic import JsonValue, TypeAdapter
 from spec import JsonObject
-from stub_gateway import NOT_FOUND, Answer, Asked, StubGateway
 from tokens import expired, token
 
 from semiont.bus import reply_channels_for
 from semiont.cache import Pending, Ready
 from semiont.errors import SignInError, TransportError
-from semiont.http import AgentToken, Credential, DeviceCode, HttpTransport, ServiceToken, session_from_kept, sign_in_device, sign_out
+from semiont.http import AgentToken, DeviceCode, HttpTransport, ServiceToken, session_from_kept, sign_in_device, sign_out
 from semiont.http.oauth import (
     IssuedTokens,
     discover_issuer,
@@ -34,7 +52,6 @@ from semiont.http.oauth import (
     sign_in_with_device_grant,
 )
 from semiont.identifiers import ResourceId
-from semiont.identity import agent_did
 from semiont.operations import BROWSE_RESOURCE_REQUESTED, MARK_DELETE
 from semiont.session import HeldSignIn, MemorySignIn, SessionEndReason, SignInKept
 from semiont.sign_in_store import FILE_NAME, SignInStore
@@ -43,50 +60,6 @@ from semiont.timing import MIN_REFRESH_DELAY_MS
 from semiont.watched import Watched, reached
 
 _JSON = TypeAdapter[JsonValue](JsonValue)
-
-REALM = "/realms/semiont"
-CONFIGURATION = f"{REALM}/.well-known/openid-configuration"
-TOKEN, DEVICE, REVOKE = f"{REALM}/token", f"{REALM}/device", f"{REALM}/revoke"
-METADATA = "/.well-known/oauth-protected-resource"
-AGENT = "/api/tokens/agent"
-ME = "/api/users/me"
-ALICE: JsonObject = {
-    "did": "did:web:example.org:users:alice",
-    "email": "alice@example.org",
-    "name": "Alice",
-    "image": None,
-    "domain": "example.org",
-}
-REFUSED = Answer(status=401, body=b'{"error":"The token is not one this gateway admits"}')
-
-
-def says(body: JsonValue, status: int = 200) -> Answer:
-    return Answer(status=status, body=_JSON.dump_json(body))
-
-
-def issuer_of(gateway: StubGateway) -> str:
-    return f"{gateway.origin}{REALM}"
-
-
-def trusting(gateway: StubGateway, *, device: bool = True, revocation: bool = True) -> None:
-    """The gateway names its issuer, and the issuer its endpoints."""
-    issuer = issuer_of(gateway)
-    gateway.answers[METADATA] = {
-        "resource": "https://kb.example.org",
-        "authorization_servers": [issuer],
-        "bearer_methods_supported": ["header"],
-    }
-    configuration: JsonObject = {
-        "issuer": issuer,
-        "authorization_endpoint": f"{issuer}/auth",
-        "token_endpoint": f"{gateway.origin}{TOKEN}",
-    }
-    if device:
-        configuration["device_authorization_endpoint"] = f"{gateway.origin}{DEVICE}"
-    if revocation:
-        configuration["revocation_endpoint"] = f"{gateway.origin}{REVOKE}"
-    gateway.answers[CONFIGURATION] = configuration
-    gateway.answers[ME] = ALICE
 
 
 def form(asked: Asked) -> dict[str, str]:
@@ -101,7 +74,7 @@ def access(n: int, lifetime: int = 3600) -> str:
     return token(lifetime, n, email="alice@example.org", iss="https://issuer.example.org")
 
 
-def held(gateway: StubGateway, access_token: str, refresh: str = "refresh-1") -> HeldSignIn:
+def held(gateway: GatewayServer, access_token: str, refresh: str = "refresh-1") -> HeldSignIn:
     return HeldSignIn(
         access=access_token,
         refresh=refresh,
@@ -116,7 +89,7 @@ def now[T](watched: Watched[T]) -> T:
     return watched.value
 
 
-def sent_with(gateway: StubGateway, method: str, path: str) -> list[str | None]:
+def sent_with(gateway: GatewayServer, method: str, path: str) -> list[str | None]:
     return [asked.headers.get("authorization") for asked in gateway.of(method, path)]
 
 
@@ -125,7 +98,7 @@ def sent_with(gateway: StubGateway, method: str, path: str) -> list[str | None]:
 
 def test_the_knowledge_base_names_its_issuer_and_the_issuer_its_endpoints() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             found = await soon(discover_issuer(gateway.origin))
             assert found.issuer == issuer_of(gateway)
@@ -144,7 +117,7 @@ def test_the_knowledge_base_names_its_issuer_and_the_issuer_its_endpoints() -> N
 
 def test_a_knowledge_base_that_names_no_issuer_has_nowhere_to_sign_in() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             # One that does not serve the document at all.
             with pytest.raises(SignInError) as absent:
                 await soon(discover_issuer(gateway.origin))
@@ -164,7 +137,7 @@ def test_a_knowledge_base_that_names_no_issuer_has_nowhere_to_sign_in() -> None:
 
 def test_an_issuer_that_cannot_be_found_is_said_with_the_answer_there_was() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             issuer = issuer_of(gateway)
 
@@ -211,7 +184,7 @@ def test_an_issuer_that_cannot_be_found_is_said_with_the_answer_there_was() -> N
 
 def test_the_refresh_grant_is_one_form_and_an_issuer_that_does_not_rotate_leaves_the_refresh_token_current() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway, issuer_client() as http:
+        async with GatewayServer() as gateway, issuer_client() as http:
             endpoint = f"{gateway.origin}{TOKEN}"
             gateway.scripted[("POST", TOKEN)] = [
                 says({"access_token": "access-2", "refresh_token": "refresh-2"}),
@@ -256,7 +229,7 @@ def test_the_refresh_grant_is_one_form_and_an_issuer_that_does_not_rotate_leaves
 
 def test_a_kept_sign_in_is_renewed_and_what_the_issuer_rotated_is_kept() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             kept = MemorySignIn(held(gateway, access(1)))
             renewed = access(2)
             gateway.scripted[("POST", TOKEN)] = [says({"access_token": renewed, "refresh_token": "refresh-2"})]
@@ -274,7 +247,7 @@ def test_a_kept_sign_in_is_renewed_and_what_the_issuer_rotated_is_kept() -> None
 
 def test_a_renewal_the_issuer_did_not_refuse_is_tried_again_inside_its_budget() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             kept = MemorySignIn(held(gateway, access(1)))
             renewed = access(2)
             # "Not now", and no answer at all: neither is the issuer's verdict.
@@ -290,7 +263,7 @@ def test_a_renewal_the_issuer_did_not_refuse_is_tried_again_inside_its_budget() 
 
 def test_a_refused_grant_is_final_and_a_spent_budget_says_how_many_attempts_it_took() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             first = access(1)
             kept = MemorySignIn(held(gateway, first))
 
@@ -344,7 +317,7 @@ class SignedOutMeanwhile(SignInKept):
 
 def test_a_sign_in_that_ended_while_it_was_renewed_is_given_no_token() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             kept = SignedOutMeanwhile(held(gateway, access(1)))
             gateway.scripted[("POST", TOKEN)] = [says({"access_token": access(2), "refresh_token": "refresh-2"})]
 
@@ -358,7 +331,7 @@ def test_a_sign_in_that_ended_while_it_was_renewed_is_given_no_token() -> None:
 
 def test_revocation_is_one_form_and_a_refusal_is_said() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway, issuer_client() as http:
+        async with GatewayServer() as gateway, issuer_client() as http:
             endpoint = f"{gateway.origin}{REVOKE}"
             gateway.scripted[("POST", REVOKE)] = [Answer(), Answer(status=503)]
 
@@ -378,19 +351,9 @@ def test_revocation_is_one_form_and_a_refusal_is_said() -> None:
 # ── The device grant ────────────────────────────────────────────────────
 
 
-def minted(**stated: JsonValue) -> Answer:
-    """The issuer's answer to a device authorization request."""
-    return says(
-        {"device_code": "the-device-code", "user_code": "WDJB-MJHT", "verification_uri": "https://issuer.example.org/device", **stated}
-    )
-
-
-PENDING = says({"error": "authorization_pending"}, 400)
-
-
 def test_the_device_grant_shows_the_code_and_asks_at_the_issuers_interval_until_the_tokens_arrive() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             gateway.scripted[("POST", DEVICE)] = [
                 minted(verification_uri_complete="https://issuer.example.org/device?user_code=WDJB-MJHT", expires_in=900, interval=2)
@@ -452,7 +415,7 @@ def test_the_device_grant_shows_the_code_and_asks_at_the_issuers_interval_until_
 
 def test_an_issuer_that_states_no_interval_is_asked_every_five_seconds_until_the_code_has_expired() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             gateway.scripted[("POST", DEVICE)] = [minted(expires_in=30)]
             gateway.scripted[("POST", TOKEN)] = [PENDING] * 20
@@ -471,7 +434,7 @@ def test_an_issuer_that_states_no_interval_is_asked_every_five_seconds_until_the
 
 def test_an_issuer_that_states_no_lifetime_mints_a_code_good_for_ten_minutes() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             gateway.scripted[("POST", DEVICE)] = [minted()]
             gateway.scripted[("POST", TOKEN)] = [says({"error": "access_denied"}, 400)]
@@ -507,7 +470,7 @@ def test_an_issuer_that_states_no_lifetime_mints_a_code_good_for_ten_minutes() -
 )
 def test_a_device_grant_that_does_not_sign_in_says_why(answers: Sequence[Answer], code: str, status: int | None, message: str) -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             gateway.scripted[("POST", DEVICE)] = [minted(interval=1)]
             gateway.scripted[("POST", TOKEN)] = list(answers)
@@ -521,7 +484,7 @@ def test_a_device_grant_that_does_not_sign_in_says_why(answers: Sequence[Answer]
 
 def test_a_device_grant_the_issuer_does_not_offer_or_will_not_begin_shows_nobody_a_code() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             shown: list[DeviceCode] = []
             trusting(gateway, device=False)
             with pytest.raises(SignInError, match=r"offers no device authorization endpoint.*semiont-cli") as absent:
@@ -547,20 +510,10 @@ def test_a_device_grant_the_issuer_does_not_offer_or_will_not_begin_shows_nobody
 
 # ── An agent ────────────────────────────────────────────────────────────
 
-SECRET = "s3cr3t &=+/"
-
-
-def account(gateway: StubGateway) -> Credential:
-    return Credential(issuer=issuer_of(gateway), client_id="semiont-smelter", client_secret=SECRET)
-
-
-def agent_token(n: int, lifetime: int = 3600) -> Answer:
-    return says({"token": token(lifetime, n), "did": agent_did("example.org", "ollama", "gemma2:27b")})
-
 
 def test_a_service_account_signs_in_once_and_its_token_is_used_until_it_is_due() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             first, second = token(300, 1), token(300, 2)
             gateway.scripted[("POST", TOKEN)] = [says({"access_token": first, "expires_in": 300}), says({"access_token": second})]
@@ -590,7 +543,7 @@ def test_a_service_account_signs_in_once_and_its_token_is_used_until_it_is_due()
 
 def test_a_service_token_that_says_nothing_of_how_long_it_lives_is_not_kept() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             gateway.scripted[("POST", TOKEN)] = [
                 says({"access_token": "opaque-1"}),
@@ -612,7 +565,7 @@ def test_a_service_token_that_says_nothing_of_how_long_it_lives_is_not_kept() ->
 
 def test_a_service_account_that_cannot_sign_in_says_where_and_as_whom_and_never_its_secret() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             credential = account(gateway)
             assert SECRET not in repr(credential)
             service = ServiceToken(credential)
@@ -649,7 +602,7 @@ def test_a_service_account_that_cannot_sign_in_says_where_and_as_whom_and_never_
 
 def test_an_agent_is_signed_in_by_exchanging_its_service_accounts_token_and_feeds_a_transport() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             service_token = token(3600, 0)
             gateway.answers[TOKEN] = {"access_token": service_token}
@@ -694,7 +647,7 @@ def test_an_agent_is_signed_in_by_exchanging_its_service_accounts_token_and_feed
 
 def test_an_agent_that_cannot_be_signed_in_says_so_on_the_way_in() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             gateway.answers[TOKEN] = {"access_token": token(3600, 0)}
             service = ServiceToken(account(gateway))
@@ -731,7 +684,7 @@ def test_an_agent_that_cannot_be_signed_in_says_so_on_the_way_in() -> None:
 
 def test_an_agent_renews_its_token_when_it_is_due_and_keeps_the_one_it_has_when_a_renewal_fails() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             gateway.answers[TOKEN] = {"access_token": token(86_400, 0)}
             gateway.scripted[("POST", AGENT)] = [agent_token(1, 300), agent_token(2, 30)]
@@ -778,7 +731,7 @@ def test_an_agent_renews_its_token_when_it_is_due_and_keeps_the_one_it_has_when_
 
 def test_a_session_over_what_semiont_login_kept_is_ready_and_renews_through_the_store(tmp_path: Path) -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             store = SignInStore(tmp_path / FILE_NAME)
             kept = store.entry("local")
@@ -828,7 +781,7 @@ def test_a_session_over_what_semiont_login_kept_is_ready_and_renews_through_the_
 
 def test_a_request_the_gateway_refuses_is_made_again_with_the_sessions_renewed_token() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             first, second = access(1), access(2)
             kept = MemorySignIn(held(gateway, first))
@@ -853,7 +806,7 @@ def test_a_request_the_gateway_refuses_is_made_again_with_the_sessions_renewed_t
 
 def test_with_nothing_kept_a_session_is_signed_out_and_its_requests_are_refused() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             gateway.scripted[("GET", "/api/health")] = [REFUSED]
             told: list[SessionEndReason] = []
@@ -872,7 +825,7 @@ def test_with_nothing_kept_a_session_is_signed_out_and_its_requests_are_refused(
 
 def test_a_session_whose_issuer_will_not_renew_it_is_over_and_its_sign_in_is_forgotten(tmp_path: Path) -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             store = SignInStore(tmp_path / FILE_NAME)
             kept = store.entry("local")
@@ -931,7 +884,7 @@ class Slowly(SignInKept):
 
 def test_renewals_asked_for_together_spend_one_refresh_token() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             first, second = access(1), access(2)
             kept = Slowly(held(gateway, first))
@@ -968,7 +921,7 @@ def test_renewals_asked_for_together_spend_one_refresh_token() -> None:
 
 def test_a_renewal_runs_to_its_end_when_the_request_that_asked_for_it_stops_waiting() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             first, second = access(1), access(2)
             kept = Slowly(held(gateway, first))
@@ -994,7 +947,7 @@ def test_a_renewal_runs_to_its_end_when_the_request_that_asked_for_it_stops_wait
 
 def test_leaving_a_session_ends_a_renewal_nobody_is_left_to_hear_of() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             kept = Slowly(held(gateway, access(1)))
             gateway.scripted[("GET", "/api/health")] = [REFUSED]
@@ -1015,7 +968,7 @@ def test_leaving_a_session_ends_a_renewal_nobody_is_left_to_hear_of() -> None:
 
 def test_a_person_signs_in_by_the_device_grant_and_the_sign_in_is_kept_as_semiont_login_keeps_one(tmp_path: Path) -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             store = SignInStore(tmp_path / FILE_NAME)
             kept = store.entry("local")
@@ -1042,7 +995,7 @@ def test_a_person_signs_in_by_the_device_grant_and_the_sign_in_is_kept_as_semion
 
 def test_a_device_grant_that_does_not_sign_in_keeps_nothing() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
             kept = MemorySignIn()
             gateway.scripted[("POST", DEVICE)] = [minted(interval=1)]
@@ -1058,7 +1011,7 @@ def test_a_device_grant_that_does_not_sign_in_keeps_nothing() -> None:
 
 def test_signing_out_revokes_the_refresh_token_and_forgets_the_sign_in_whatever_the_issuer_answers() -> None:
     async def scenario() -> None:
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             kept = MemorySignIn(held(gateway, access(1)))
             gateway.scripted[("POST", REVOKE)] = [Answer()]
             await soon(sign_out(kept))
@@ -1103,7 +1056,7 @@ def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_pl
             stored = storage.get(key)
             return None if stored is None else _JSON.validate_json(stored)
 
-        async with StubGateway() as gateway:
+        async with GatewayServer() as gateway:
             trusting(gateway)
 
             def answering(emit: JsonObject) -> None:

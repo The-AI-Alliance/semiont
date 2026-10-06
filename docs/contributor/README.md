@@ -18,13 +18,14 @@ To run tools directly on your machine instead, the versions are:
 | Rust | the pinned channel | [`rust-toolchain.toml`](../../rust-toolchain.toml) |
 | Go | the `toolchain` line | `go.mod` in [`apps/launcher`](../../apps/launcher/go.mod) and [`packages/sdk-go`](../../packages/sdk-go/go.mod) |
 
-## Three workspaces, one spec
+## Four toolchains, one spec
 
-The repository holds code in three languages, and none of them depends on another. What they agree on is in `specs/`, and each generates its types from it.
+The repository holds code in four languages, and none of them depends on another. What they agree on is in `specs/`, and each generates its types from it.
 
 - **npm workspaces** (`apps/*`, `packages/*`, `tests/doc-snippets`): the TypeScript packages and the Browser.
 - **A Cargo workspace**: the gateway, the dispatcher, and the Rust SDK's crates.
 - **Two Go modules**: the launcher (`apps/launcher`) and the Go SDK (`packages/sdk-go`).
+- **A Python package**: the Python SDK (`packages/sdk-python`), whose environment is `uv`'s.
 
 [Package Architecture](../architecture/PACKAGE-ARCHITECTURE.md) draws both dependency graphs and says what each service image runs.
 
@@ -59,7 +60,8 @@ semiont/
 │   ├── sdk-rust/           # The Rust SDK (crate `semiont`), with
 │   ├── http-transport-rust/ telemetry-rust/ codegen-rust/
 │   ├── core-rust/ observability-rust/ http-service-rust/    # what the Rust services share
-│   └── sdk-go/             # The Go SDK
+│   ├── sdk-go/             # The Go SDK
+│   └── sdk-python/         # The Python SDK (package `semiont`)
 ├── tests/
 │   ├── conformance/        # Black-box suites: the gateway, the dispatcher, every SDK
 │   ├── e2e/                # Playwright, against a live stack

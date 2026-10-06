@@ -10,6 +10,7 @@ import re
 
 import pytest
 from aio import run, soon
+from gateway_server import GatewayServer
 from opentelemetry import metrics, trace
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import InMemoryMetricReader, Sum
@@ -17,7 +18,6 @@ from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanKind
-from stub_gateway import StubGateway
 
 from semiont.http import HttpTransport
 from semiont.identifiers import ResourceId
@@ -51,7 +51,7 @@ def of(row: SpanRow, spans: tuple[ReadableSpan, ...]) -> list[ReadableSpan]:
 async def traffic() -> tuple[Frame, str | None]:
     """One of everything the table lists. Returns the frame received, and the trace the emit carried."""
     async with (
-        StubGateway() as gateway,
+        GatewayServer() as gateway,
         HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=("beckon:focus", "beckon:sparkle")) as transport,
     ):
         gateway.stored[RESOURCE] = ("image/png", b"bytes")

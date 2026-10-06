@@ -8,24 +8,36 @@ something else fails.
 import asyncio
 import gc
 import logging
+from collections.abc import Collection, Mapping
 from typing import final, override
 
 import pytest
 from aio import run, soon, turns
-from doubles import RecordingContent, RecordingGateway
-from scripted_transport import Scripted
+from kb import refusing, silent
+from pydantic import JsonValue
 from spec import JsonObject
 
 from semiont.bus import Bus
-from semiont.channels import BRIDGED_CHANNELS, JOB_QUEUED
+from semiont.channels import JOB_QUEUED
 from semiont.client import ClientTiming, SemiontClient
-from semiont.errors import BusRequestError, TransportError
+from semiont.errors import BusRequestError, SemiontError, TransportError
 from semiont.event_bus import EventBus
+from semiont.events import Events
 from semiont.identifiers import AnnotationId, JobId, ResourceId
 from semiont.namespaces.browse import Collaborator
 from semiont.running import Running
-from semiont.transport import Content, ContentStream, ContentTransport, Frame, PutBinaryRequest, Upload
-from semiont.types import CreateResourceResponse, GatheredContext, GetResourceResponse, JobStatusResponse, MatchSearchResult
+from semiont.testing import FaultyTransport, InMemoryContent, StubGateway, create_test_client
+from semiont.transport import (
+    ConnectionState,
+    Content,
+    Frame,
+    FrameSink,
+    PendingReply,
+    ResourceHold,
+    Transport,
+)
+from semiont.types import GatheredContext, JobStatusResponse, MatchSearchResult
+from semiont.watched import Watched
 
 RESOURCE = ResourceId("res-1")
 CONTEXT: JsonObject = {
@@ -37,15 +49,68 @@ CONTEXT: JsonObject = {
     "metadata": {},
 }
 
-type Client = SemiontClient[Scripted]
+type Client = SemiontClient[FaultyTransport]
 
 
-def world() -> tuple[Client, Scripted]:
+@final
+class Down(Transport):
+    """A transport whose wire is down: whatever is emitted through it is refused, and said to have been."""
+
+    def __init__(self) -> None:
+        self._beneath = FaultyTransport()
+        self.refused: list[str] = []
+        """The channel of each emit it refused."""
+
+    @property
+    @override
+    def base_url(self) -> str:
+        return self._beneath.base_url
+
+    @override
+    async def emit(
+        self, channel: str, payload: Mapping[str, JsonValue], *, scope: ResourceId | None = None, correlation_id: str | None = None
+    ) -> int | None:
+        self.refused.append(channel)
+        raise TransportError.without_response("the wire is down")
+
+    @override
+    def frames(self, channel: str) -> Events[Frame]:
+        return self._beneath.frames(channel)
+
+    @override
+    def is_subscribed(self, channel: str) -> bool:
+        return self._beneath.is_subscribed(channel)
+
+    @override
+    def subscribe_to_resource(self, resource_id: ResourceId) -> ResourceHold:
+        return self._beneath.subscribe_to_resource(resource_id)
+
+    @property
+    @override
+    def state(self) -> Watched[ConnectionState]:
+        return self._beneath.state
+
+    @override
+    def failures(self) -> Events[SemiontError]:
+        return self._beneath.failures()
+
+    @override
+    def track_reply(self, correlation_id: str, reply_channels: Collection[str]) -> PendingReply:
+        return self._beneath.track_reply(correlation_id, reply_channels)
+
+    @override
+    def bridge_into(self, bus: FrameSink) -> None:
+        self._beneath.bridge_into(bus)
+
+    @override
+    async def close(self) -> None:
+        await self._beneath.close()
+
+
+def world(transport: FaultyTransport | None = None) -> tuple[Client, FaultyTransport]:
     """A client over a gateway that answers each operation what the test queues for it, and refuses what it queued nothing for."""
-    transport = Scripted(BRIDGED_CHANNELS, "open")
-    transport.answers = {}
-    client: Client = SemiontClient(transport, RecordingContent(), RecordingGateway())
-    return client, transport
+    made = create_test_client(transport=transport)
+    return made.client, made.transport
 
 
 def test_a_client_is_its_namespaces_over_one_transport_and_a_bus_of_its_own() -> None:
@@ -96,11 +161,15 @@ def test_a_signal_never_reaches_the_wire_and_a_report_does_without_being_awaited
         assert [(frame.channel, dict(frame.payload), frame.correlation_id) for frame in transport.emitted] == [
             ("browse:resource-viewed", {"resourceId": "res-1"}, None)
         ]
-        # A report the transport could not send is the transport's to tell of: nothing is raised to nobody.
-        transport.refusal = TransportError.without_response("the wire is down")
-        client.browse.resource_viewed(RESOURCE)
-        await turns()
         await client.close()
+
+        # A report the transport could not send is the transport's to tell of: nothing is raised to nobody.
+        down = Down()
+        unheard: SemiontClient[Down] = SemiontClient(down, InMemoryContent(), StubGateway())
+        unheard.browse.resource_viewed(RESOURCE)
+        await turns()
+        assert down.refused == ["browse:resource-viewed"]
+        await unheard.close()
 
     with caplog.at_level(logging.ERROR, logger="asyncio"):
         run(scenario())
@@ -115,11 +184,11 @@ def test_a_signal_never_reaches_the_wire_and_a_report_does_without_being_awaited
 def test_a_query_asks_when_its_fresh_is_called_and_gives_the_part_of_the_answer_it_is_of() -> None:
     async def scenario() -> None:
         client, transport = world()
-        assert transport.answers is not None
         descriptor: JsonObject = {"@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": []}
-        transport.answers["browse:resource-requested"] = [{"resource": descriptor, "annotations": [], "entityReferences": []}] * 2
-        transport.answers["browse:entity-types-requested"] = [{"entityTypes": ["Person", "Place"]}]
-        transport.answers["gather:referenced-by-requested"] = [{"referencedBy": []}]
+        described: JsonObject = {"resource": descriptor, "annotations": [], "entityReferences": []}
+        transport.queue_reply("browse:resource-requested", [described] * 2)
+        transport.queue_reply("browse:entity-types-requested", [{"entityTypes": ["Person", "Place"]}])
+        transport.queue_reply("gather:referenced-by-requested", [{"referencedBy": []}])
 
         query = client.browse.resource(RESOURCE)
         # Building it touches nothing.
@@ -132,6 +201,7 @@ def test_a_query_asks_when_its_fresh_is_called_and_gives_the_part_of_the_answer_
         assert await soon(client.browse.entity_types().fresh()) == ["Person", "Place"]
         assert await soon(client.gather.referenced_by(RESOURCE).fresh()) == []
         # A failure is raised.
+        transport.refuse_when(refusing("browse:tag-schemas-requested"))
         with pytest.raises(BusRequestError):
             await soon(client.browse.tag_schemas().fresh())
         await client.close()
@@ -142,7 +212,6 @@ def test_a_query_asks_when_its_fresh_is_called_and_gives_the_part_of_the_answer_
 def test_the_collaborators_are_the_directory_with_each_models_limits_as_its_key_holders_report_them() -> None:
     async def scenario() -> None:
         client, transport = world()
-        assert transport.answers is not None
         gemma: JsonObject = {"@type": "Software", "name": "ollama gemma2", "provider": "ollama", "model": "gemma2:27b"}
         same_model_elsewhere: JsonObject = {
             "provider": "elsewhere",
@@ -152,19 +221,18 @@ def test_the_collaborators_are_the_directory_with_each_models_limits_as_its_key_
         said_again: JsonObject = {"provider": "ollama", "model": "gemma2:27b", "limits": {"contextTokens": 9, "maxOutputTokens": 9}}
         claude: JsonObject = {"@type": "Software", "name": "anthropic claude", "provider": "anthropic", "model": "claude"}
         alice: JsonObject = {"@type": "Person", "name": "Alice"}
-        transport.answers["browse:agents-requested"] = [{"agents": [{"agent": gemma}, {"agent": claude}, {"agent": alice}]}]
+        transport.queue_reply("browse:agents-requested", [{"agents": [{"agent": gemma}, {"agent": claude}, {"agent": alice}]}])
         # One key holder answers, with a model of the directory and one that is not in it. The others are down.
         # A model is its provider's: one of the same name under another is another model. And what is reported first stands.
-        transport.answers["job:limits-requested"] = [
-            {
-                "limits": [
-                    same_model_elsewhere,
-                    {"provider": "ollama", "model": "gemma2:27b", "limits": {"contextTokens": 8192, "maxOutputTokens": 2048}},
-                    said_again,
-                    {"provider": "ollama", "model": "unlisted", "limits": {"contextTokens": 1, "maxOutputTokens": 1}},
-                ]
-            }
-        ]
+        reported: JsonObject = {
+            "limits": [
+                same_model_elsewhere,
+                {"provider": "ollama", "model": "gemma2:27b", "limits": {"contextTokens": 8192, "maxOutputTokens": 2048}},
+                said_again,
+                {"provider": "ollama", "model": "unlisted", "limits": {"contextTokens": 1, "maxOutputTokens": 1}},
+            ]
+        }
+        transport.queue_reply("job:limits-requested", [reported])
 
         collaborators = await soon(client.browse.agents().fresh())
         assert [type(collaborator) for collaborator in collaborators] == [Collaborator] * 3
@@ -183,6 +251,7 @@ def test_the_collaborators_are_the_directory_with_each_models_limits_as_its_key_
         ]
 
         # A directory that cannot be had is the query's failure, whatever the key holders say.
+        transport.refuse_when(refusing("browse:agents-requested"))
         with pytest.raises(BusRequestError):
             await soon(client.browse.agents().fresh())
         await client.close()
@@ -192,9 +261,8 @@ def test_the_collaborators_are_the_directory_with_each_models_limits_as_its_key_
 
 def test_a_searchs_failure_says_what_went_wrong_in_the_words_it_was_given() -> None:
     async def scenario() -> None:
-        client, transport = world()
         # The test answers this one itself.
-        transport.answers = None
+        client, transport = world(silent())
         searching = client.match.search(RESOURCE, AnnotationId("ann-1"), GatheredContext.model_validate(CONTEXT))
         # Nothing is sent until the operation is awaited or read.
         await turns()
@@ -226,14 +294,14 @@ async def awaited(searching: Running[MatchSearchResult]) -> MatchSearchResult:
 
 def test_a_request_waits_as_long_as_its_client_was_told_and_a_closed_client_ends_what_it_was_doing() -> None:
     async def scenario() -> None:
-        transport = Scripted(BRIDGED_CHANNELS, "open")
-        client: Client = SemiontClient(transport, RecordingContent(), RecordingGateway(), timing=ClientTiming(bus_request_ms=40))
+        transport = silent()
+        client: Client = SemiontClient(transport, InMemoryContent(), StubGateway(), timing=ClientTiming(bus_request_ms=40))
         # Nobody answers: the request is over when the client's own wait is.
         with pytest.raises(BusRequestError) as late:
             await soon(client.browse.kb(), within=2.0)
         assert late.value.code == "bus.timeout"
 
-        patient: Client = SemiontClient(transport, RecordingContent(), RecordingGateway())
+        patient: Client = SemiontClient(transport, InMemoryContent(), StubGateway())
         searching = asyncio.ensure_future(
             awaited(patient.match.search(RESOURCE, AnnotationId("ann-1"), GatheredContext.model_validate(CONTEXT)))
         )
@@ -262,20 +330,19 @@ def status(of: str) -> JsonObject:
 def test_a_jobs_status_is_asked_for_until_it_has_ended_and_each_answer_is_given_to_whoever_watches() -> None:
     async def scenario() -> None:
         client, transport = world()
-        assert transport.answers is not None
-        transport.answers["job:status-requested"] = [status("pending"), status("running"), status("complete")]
+        transport.queue_reply("job:status-requested", [status("pending"), status("running"), status("complete")])
         watched: list[JobStatusResponse] = []
         ended = await soon(client.job.poll_until_complete(JobId("job-1"), every_ms=5, within_ms=5_000, on_status=watched.append))
         assert ended.status == "complete"
         assert [answer.status for answer in watched] == ["pending", "running", "complete"]
 
         # One that has not ended in time fails as a timeout, having been asked at least once.
-        transport.answers["job:status-requested"] = [status("running")] * 50
+        transport.queue_reply("job:status-requested", [status("running")] * 50)
         with pytest.raises(BusRequestError, match="Job polling timeout after 30ms") as late:
             await soon(client.job.poll_until_complete(JobId("job-1"), every_ms=10, within_ms=30))
         assert late.value.code == "bus.timeout"
 
-        transport.answers["job:cancel-requested"] = [{"cancelled": 3}, {"cancelled": 1}]
+        transport.queue_reply("job:cancel-requested", [{"cancelled": 3}, {"cancelled": 1}])
         assert await soon(client.job.cancel_by_type("annotation")) == 3
         assert await soon(client.job.cancel(JobId("job-1"))) == 1
         await client.close()
@@ -286,36 +353,11 @@ def test_a_jobs_status_is_asked_for_until_it_has_ended_and_each_answer_is_given_
 # ── Text ────────────────────────────────────────────────────────────────
 
 
-@final
-class Holding(ContentTransport):
-    """A content transport that holds one resource's bytes."""
-
-    def __init__(self, data: bytes, content_type: str) -> None:
-        self.content = Content(data=data, content_type=content_type)
-
-    @override
-    def put_binary(self, request: PutBinaryRequest) -> Upload:
-        async def created() -> CreateResourceResponse:
-            return CreateResourceResponse(resource_id=ResourceId("res-created"))
-
-        return Upload(lambda _: asyncio.ensure_future(created()))
-
-    @override
-    async def get_binary(self, resource_id: ResourceId) -> Content:
-        return self.content
-
-    @override
-    async def get_binary_stream(self, resource_id: ResourceId) -> ContentStream:
-        raise TransportError.without_response("not held as a stream")
-
-    @override
-    async def get_resource_graph(self, resource_id: ResourceId) -> GetResourceResponse:
-        raise TransportError.without_response("no description is held")
-
-
 def text_of(data: bytes, content_type: str) -> str:
     async def scenario() -> str:
-        client: Client = SemiontClient(Scripted(BRIDGED_CHANNELS, "open"), Holding(data, content_type), RecordingGateway())
+        made = create_test_client()
+        made.content.seed(RESOURCE, Content(data=data, content_type=content_type))
+        client = made.client
         try:
             representation = await client.browse.resource_representation(RESOURCE)
             assert (representation.data, representation.content_type) == (data, content_type)

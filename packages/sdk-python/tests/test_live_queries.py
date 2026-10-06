@@ -9,53 +9,49 @@ from contextlib import AsyncExitStack
 
 import pytest
 from aio import pass_time, run, soon, turns
-from doubles import RecordingContent, RecordingGateway
-from kb import ANNOTATION, LIMITS, OTHER, RESOURCE, annotation, answers, descriptor, event
+from kb import ANNOTATION, LIMITS, OTHER, RESOURCE, annotation, answer, asked_for, descriptor, event, knowing, refuse, refusing, silent
 from pydantic import JsonValue, TypeAdapter
-from scripted_transport import Scripted
 from spec import JsonObject
 
 from semiont.cache import SAVE_DEBOUNCE_MS, Failed, Pending, Ready
-from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import CachePersistence, SemiontClient
 from semiont.errors import BusRequestError
 from semiont.namespaces.browse import Collaborator
 from semiont.refresh import CACHE_QUERIES, CacheQuery
 from semiont.storage import MemoryStorage
+from semiont.testing import FaultyTransport, InMemoryContent, StubGateway
 
-type Client = SemiontClient[Scripted]
+type Client = SemiontClient[FaultyTransport]
 
 _DOCUMENT = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue])
 
 
-def world(persistence: CachePersistence | None = None) -> tuple[Client, Scripted]:
-    """A client over a gateway that answers every operation a live query asks."""
-    transport = Scripted(BRIDGED_CHANNELS, "open")
-    transport.answers = answers()
-    client: Client = SemiontClient(transport, RecordingContent(), RecordingGateway(), persistence=persistence)
+def world(persistence: CachePersistence | None = None, *, answered: bool = True) -> tuple[Client, FaultyTransport]:
+    """A client over a gateway that answers every operation a live query asks, or one the test answers for when it is not `answered`."""
+    transport = FaultyTransport(make_response=knowing) if answered else silent()
+    client: Client = SemiontClient(transport, InMemoryContent(), StubGateway(), persistence=persistence)
     return client, transport
 
 
 def test_watching_a_query_of_a_resource_holds_its_scope_from_before_it_asks_until_the_watcher_leaves() -> None:
     async def scenario() -> None:
-        client, transport = world()
-        transport.answers = None
+        client, transport = world(answered=False)
         async with client:
             query = client.browse.annotations(RESOURCE)
             # Naming a query touches nothing.
             await turns()
-            assert (transport.held, transport.emitted) == ([], [])
+            assert (transport.scopes, transport.emitted) == ([], [])
             async with query as live:
                 # The scope is held before the request is made: the events that refresh the value are coming when it arrives.
-                assert (transport.held, transport.emitted) == ([RESOURCE], [])
+                assert (transport.holds(RESOURCE), transport.emitted) == (1, [])
                 assert await soon(anext(live)) == Pending()
                 await turns()
                 assert len(transport.emitted) == 1
                 # A second watcher, of the same query or of another of the resource, is a second hold.
                 async with query, client.browse.annotation(RESOURCE, ANNOTATION), client.gather.referenced_by(OTHER):
-                    assert sorted(transport.held) == [RESOURCE, RESOURCE, RESOURCE, OTHER]
-                assert transport.held == [RESOURCE]
-            assert transport.held == []
+                    assert (transport.holds(RESOURCE), transport.holds(OTHER)) == (3, 1)
+                assert (transport.holds(RESOURCE), transport.scopes) == (1, [RESOURCE])
+            assert transport.scopes == []
 
             # Every query of a resource holds its scope while it is watched.
             for of_a_resource in (
@@ -66,8 +62,8 @@ def test_watching_a_query_of_a_resource_holds_its_scope_from_before_it_asks_unti
                 client.gather.referenced_by(OTHER),
             ):
                 async with of_a_resource:
-                    assert transport.held == [OTHER]
-                assert transport.held == []
+                    assert (transport.holds(OTHER), transport.scopes) == (1, [OTHER])
+                assert transport.scopes == []
 
             # A query of the knowledge base holds no scope, and neither does a read of any query.
             async with (
@@ -77,10 +73,10 @@ def test_watching_a_query_of_a_resource_holds_its_scope_from_before_it_asks_unti
                 client.browse.tag_schemas(),
                 client.browse.agents(),
             ):
-                assert transport.held == []
+                assert transport.scopes == []
             reading = asyncio.ensure_future(client.browse.resource(RESOURCE).fresh())
             await turns()
-            assert transport.held == []
+            assert transport.scopes == []
             reading.cancel()
 
     run(scenario())
@@ -95,8 +91,8 @@ def test_a_watcher_that_cannot_be_given_its_scope_is_not_left_holding_anything()
                 with pytest.raises(ValueError, match="left early"):
                     async with query:
                         raise ValueError("left early")
-                assert transport.held == [RESOURCE]
-            assert transport.held == []
+                assert transport.holds(RESOURCE) == 1
+            assert transport.scopes == []
 
     run(scenario())
 
@@ -104,10 +100,10 @@ def test_a_watcher_that_cannot_be_given_its_scope_is_not_left_holding_anything()
 def test_a_read_gives_what_the_service_answers_now_and_every_watcher_is_given_it_too() -> None:
     async def scenario() -> None:
         client, transport = world()
-        assert transport.answers is not None
-        transport.answers["browse:resource-requested"] = [
-            {"resource": descriptor(RESOURCE, name), "annotations": [], "entityReferences": []} for name in ("first", "second")
-        ]
+        transport.queue_reply(
+            "browse:resource-requested",
+            [{"resource": descriptor(RESOURCE, name), "annotations": [], "entityReferences": []} for name in ("first", "second")],
+        )
         async with client, client.browse.resource(RESOURCE) as live:
             assert await soon(anext(live)) == Pending()
             first = await soon(anext(live))
@@ -119,13 +115,14 @@ def test_a_read_gives_what_the_service_answers_now_and_every_watcher_is_given_it
             assert isinstance(second, Ready)
             assert second.value.name == "second"
             # And raises the failure it meets, which no watcher is shown: the value stays.
+            transport.refuse_when(refusing("browse:resource-requested"))
             with pytest.raises(BusRequestError):
                 await soon(client.browse.resource(RESOURCE).fresh())
             reading = asyncio.ensure_future(anext(live))
             await turns(20)
             assert not reading.done()
             reading.cancel()
-            assert len(transport.asked_for("browse:resource-requested")) == 3
+            assert len(asked_for(transport, "browse:resource-requested")) == 3
 
     run(scenario())
 
@@ -136,11 +133,10 @@ def test_invalidating_a_query_asks_again_and_shows_its_value_meanwhile() -> None
         async with client, client.browse.entity_types() as live:
             assert await soon(anext(live)) == Pending()
             assert await soon(anext(live)) == Ready(["Person"])
-            assert transport.answers is not None
-            transport.answers["browse:entity-types-requested"] = [{"entityTypes": ["Person", "Place"]}]
+            transport.queue_reply("browse:entity-types-requested", [{"entityTypes": ["Person", "Place"]}])
             client.browse.entity_types().invalidate()
             assert await soon(anext(live)) == Ready(["Person", "Place"])
-            assert len(transport.asked_for("browse:entity-types-requested")) == 2
+            assert len(asked_for(transport, "browse:entity-types-requested")) == 2
 
     run(scenario())
 
@@ -163,17 +159,17 @@ def test_a_resources_annotations_are_the_list_and_a_list_or_a_search_is_one_quer
                     await held.enter_async_context(query)
                 await turns(20)
                 # Stating the limit a list has anyway is the same list.
-                asked = [frame.payload for frame in transport.asked_for("browse:resources-requested")]
+                asked = [frame.payload for frame in asked_for(transport, "browse:resources-requested")]
                 assert {"limit": 100, "offset": 0} in asked
                 assert {"limit": 100, "offset": 0, "archived": True} in asked
                 assert {"limit": 100, "offset": 0, "entityType": "Person"} in asked
                 assert {"limit": 5, "offset": 0} in asked
                 assert len(asked) == 4
 
-            before = len(transport.asked_for("match:resources-requested"))
+            before = len(asked_for(transport, "match:resources-requested"))
             async with client.match.resources("a"), client.match.resources("a"), client.match.resources("b", archived=False):
                 await turns(20)
-            searched = [frame.payload for frame in transport.asked_for("match:resources-requested")[before:]]
+            searched = [frame.payload for frame in asked_for(transport, "match:resources-requested")[before:]]
             assert searched == [{"search": "a", "limit": 100, "offset": 0}, {"search": "b", "limit": 100, "offset": 0, "archived": False}]
 
     run(scenario())
@@ -183,8 +179,7 @@ def test_the_collaborators_are_shown_as_the_directory_answers_and_each_holders_l
     async def scenario() -> None:
         gemma: JsonObject = {"@type": "Software", "name": "gemma", "provider": "ollama", "model": "gemma2:27b"}
         claude: JsonObject = {"@type": "Software", "name": "claude", "provider": "anthropic", "model": "claude-opus-5-5"}
-        client, transport = world()
-        transport.answers = None
+        client, transport = world(answered=False)
 
         def limits_of(collaborators: list[Collaborator]) -> list[float | None]:
             return [None if each.limits is None else each.limits.context_tokens for each in collaborators]
@@ -197,22 +192,25 @@ def test_the_collaborators_are_shown_as_the_directory_answers_and_each_holders_l
             directory, gather, job, match = transport.emitted
 
             # A holder that answers before the directory has nothing to be shown on yet.
-            transport.answer(
-                job, {"limits": [{"provider": "ollama", "model": "gemma2:27b", "limits": {"contextTokens": 8192, "maxOutputTokens": 1}}]}
+            answer(
+                transport,
+                job,
+                {"limits": [{"provider": "ollama", "model": "gemma2:27b", "limits": {"contextTokens": 8192, "maxOutputTokens": 1}}]},
             )
             reading = asyncio.ensure_future(anext(live))
             await turns(20)
             assert not reading.done()
 
             # The directory is shown when it answers, with what has been reported so far: it waits for no holder.
-            transport.answer(directory, {"agents": [{"agent": gemma}, {"agent": claude}]})
+            answer(transport, directory, {"agents": [{"agent": gemma}, {"agent": claude}]})
             shown = await soon(reading)
             assert isinstance(shown, Ready)
             assert [each.entry.agent.name for each in shown.value] == ["gemma", "claude"]
             assert limits_of(shown.value) == [8192, None]
 
             # A holder that reports later delays only its own models' limits.
-            transport.answer(
+            answer(
+                transport,
                 gather,
                 {"limits": [{"provider": "anthropic", "model": "claude-opus-5-5", "limits": {"contextTokens": 9, "maxOutputTokens": 1}}]},
             )
@@ -221,7 +219,7 @@ def test_the_collaborators_are_shown_as_the_directory_answers_and_each_holders_l
             assert limits_of(shown.value) == [8192, 9]
 
             # And one that fails reports none: nothing changes, and nothing is failed.
-            transport.refuse(match)
+            refuse(transport, match)
             reading = asyncio.ensure_future(anext(live))
             await turns(20)
             assert not reading.done()
@@ -232,7 +230,7 @@ def test_the_collaborators_are_shown_as_the_directory_answers_and_each_holders_l
             await turns()
             assert [frame.channel for frame in transport.emitted[4:]] == ["browse:agents-requested", *LIMITS]
             assert not reading.done()
-            transport.answer(transport.emitted[4], {"agents": [{"agent": claude}]})
+            answer(transport, transport.emitted[4], {"agents": [{"agent": claude}]})
             shown = await soon(reading)
             assert isinstance(shown, Ready)
             assert [each.entry.agent.name for each in shown.value] == ["claude"]
@@ -244,8 +242,7 @@ def test_the_collaborators_are_shown_as_the_directory_answers_and_each_holders_l
 def test_a_directory_that_fails_is_a_failed_state_whatever_its_holders_report_and_a_read_of_it_raises() -> None:
     async def scenario() -> None:
         client, transport = world()
-        assert transport.answers is not None
-        transport.answers["browse:agents-requested"] = []
+        transport.refuse_when(refusing("browse:agents-requested"))
         async with client:
             with pytest.raises(BusRequestError) as refused:
                 await soon(client.browse.agents().fresh())
@@ -367,8 +364,7 @@ KEPT = ("resource", "annotations", "annotation", "entityTypes", "tagSchemas")
 @pytest.mark.parametrize("query", CACHE_QUERIES)
 def test_a_client_is_settled_unless_a_query_it_keeps_is_being_fetched_or_is_owed_to_storage(query: CacheQuery) -> None:
     async def scenario() -> None:
-        client, transport = world(CachePersistence(storage=MemoryStorage(), key_prefix="kb"))
-        transport.answers = None
+        client, _ = world(CachePersistence(storage=MemoryStorage(), key_prefix="kb"), answered=False)
         named = {
             "resource": client.browse.resource(RESOURCE),
             "annotations": client.browse.annotations(RESOURCE),

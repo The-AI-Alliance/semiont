@@ -293,10 +293,13 @@ Two generators read it:
 | `packages/core/src/bus-protocol.ts`, `bus-operations.ts`, `bus-classification.ts` | `node scripts/bus/generate-ts.mjs` |
 | `packages/sdk-go/bus/{channels,operations}_gen.go` | `node scripts/bus/generate-go.mjs` |
 | The Rust SDK's channel and operation tables | its build script, [`packages/sdk-rust/build.rs`](../../packages/sdk-rust/build.rs), on every build |
+| `packages/sdk-python/src/semiont/channels.py`, `operations.py` | `node scripts/bus/generate-python.mjs` |
 
 ```sh
 npm run generate:bus          # regenerate TypeScript and Go
 npm run generate:bus:check    # verify without writing (what CI runs)
+npm run generate:python       # regenerate every module the Python SDK takes from specs/, these two among them
+npm run generate:python:check # verify without writing (what CI runs)
 ```
 
 Hand-written TypeScript that the registry cannot express — runtime-only UI

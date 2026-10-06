@@ -5,9 +5,9 @@ from typing import final, override
 
 import pytest
 from aio import run, settle, soon
+from gateway_server import GatewayServer
 from kb import OTHER, RESOURCE
 from pydantic import JsonValue
-from stub_gateway import StubGateway
 
 from semiont.http import HttpTransport, Timing
 from semiont.identifiers import ResourceId
@@ -81,7 +81,7 @@ def test_what_is_kept_under_the_key_and_is_not_places_is_nothing_kept() -> None:
     assert places.load() == {RESOURCE: "p-1"}
 
 
-async def places_asked_from(gateway: StubGateway, scopes: int) -> dict[JsonValue, JsonValue]:
+async def places_asked_from(gateway: GatewayServer, scopes: int) -> dict[JsonValue, JsonValue]:
     """Where a subscription of `scopes` scopes asks each to begin, once the gateway has been sent one."""
     while True:
         for subscription in reversed(gateway.subscriptions):
@@ -97,7 +97,7 @@ def test_a_stream_begins_each_scope_where_its_bookmarks_say_and_tells_them_each_
         storage.set(KEY, '{"res-1": "p-41"}')
         places = CoupledBookmarks(storage, KEY)
         async with (
-            StubGateway() as gateway,
+            GatewayServer() as gateway,
             HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=(), timing=QUICK, bookmarks=places) as transport,
         ):
             await soon(reached(transport.state, lambda state: state == "open"))
@@ -117,7 +117,7 @@ def test_a_stream_begins_each_scope_where_its_bookmarks_say_and_tells_them_each_
 
         # With no bookmarks, a stream begins every scope at the present and keeps nothing.
         async with (
-            StubGateway() as gateway,
+            GatewayServer() as gateway,
             HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=(), timing=QUICK) as transport,
         ):
             await soon(reached(transport.state, lambda state: state == "open"))

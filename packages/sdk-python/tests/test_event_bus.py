@@ -4,12 +4,12 @@ import logging
 
 import pytest
 from aio import run, soon
-from scripted_transport import Scripted
 
 from semiont.channels import BECKON_HOVER, MARK_CANCEL_PENDING
 from semiont.event_bus import EventBus
 from semiont.events import Events
 from semiont.identifiers import AnnotationId, ResourceId
+from semiont.testing import FaultyTransport
 from semiont.transport import Frame
 from semiont.types import BeckonHoverEvent
 
@@ -132,7 +132,7 @@ def test_by_type_a_frame_is_published_as_its_channel_writes_it_and_read_as_its_c
 
 def test_a_transport_delivers_into_the_bus_it_was_bridged_into_every_frame_whatever_its_channel() -> None:
     async def scenario() -> None:
-        transport = Scripted(("mark:added",), "open")
+        transport = FaultyTransport(channels=("mark:added",))
         bus, second = EventBus(), EventBus()
         transport.bridge_into(bus)
         transport.bridge_into(second)

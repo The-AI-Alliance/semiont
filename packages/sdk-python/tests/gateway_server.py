@@ -67,7 +67,7 @@ NOT_FOUND: Final = Answer(status=404, body=b'{"error":"The gateway has no such t
 
 
 @final
-class StubGateway:
+class GatewayServer:
     """Held with `async with`. `origin` is where a transport is pointed."""
 
     def __init__(self) -> None:

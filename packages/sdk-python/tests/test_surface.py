@@ -20,17 +20,24 @@ from typing import Final, final
 
 import pytest
 from aio import run, soon
-from doubles import RecordingContent, RecordingGateway
 from pydantic import JsonValue, TypeAdapter
-from scripted_transport import Scripted
 from spec import SPEC, JsonObject, objects, read, text
 
 from semiont.bus import Typed
-from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import SemiontClient
 from semiont.identifiers import AnnotationId, JobId, ResourceId
 from semiont.model import WireModel, written
 from semiont.namespaces.mark import MarkAssistOptions
+from semiont.testing import (
+    ContentCall,
+    FaultyTransport,
+    GetBinary,
+    GetBinaryStream,
+    GetResourceGraph,
+    InMemoryContent,
+    PutBinary,
+    StubGateway,
+)
 from semiont.transport import Frame, PutBinaryRequest
 from semiont.types import (
     AnnotationSelector,
@@ -63,7 +70,7 @@ def fixtures() -> JsonObject:
 
 FIXTURES: Final = fixtures()
 
-type Client = SemiontClient[Scripted]
+type Client = SemiontClient[FaultyTransport]
 type Args = Mapping[str, JsonValue]
 
 _MOTIVATION = TypeAdapter[Motivation](Motivation)
@@ -331,15 +338,51 @@ EVENTS: Final[dict[tuple[str, str], Callable[[Client], Awaitable[JsonObject]]]] 
 }
 
 
+def content_call(call: ContentCall) -> tuple[str, JsonObject]:
+    """A call of the content transport, as the table names it and states what it was given."""
+    match call:
+        case PutBinary(request=request):
+            given: JsonObject = {
+                "name": request.name,
+                "content": request.file.decode(),
+                "format": request.format,
+                "storageUri": request.storage_uri,
+            }
+            if request.clone_token is not None:
+                given["cloneToken"] = request.clone_token
+            return "putBinary", given
+        case GetBinary(resource_id=resource_id):
+            return "getBinary", {"resourceId": resource_id}
+        case GetBinaryStream(resource_id=resource_id):
+            return "getBinaryStream", {"resourceId": resource_id}
+        case GetResourceGraph(resource_id=resource_id):
+            return "getResourceGraph", {"resourceId": resource_id}
+
+
+GATEWAY: Final = {
+    "get_current_user": "getCurrentUser",
+    "get_media_token": "getMediaToken",
+    "get_protected_resource_metadata": "getProtectedResourceMetadata",
+    "health_check": "healthCheck",
+    "get_status": "getStatus",
+}
+"""The gateway's own operations, as the table names each."""
+
+
+def gateway_call(call: str) -> tuple[str, JsonObject]:
+    """A call of the gateway, as the table names it and states what it was given."""
+    operation, _, of = call.partition(" ")
+    return GATEWAY[operation], {"resourceId": of} if of else {}
+
+
 @final
 class World:
-    """A client, and a record of what it asked of its transport, its content transport and its gateway."""
+    """A client over doubles nothing is scripted to answer, which record what it asked of each."""
 
     def __init__(self) -> None:
-        self.transport = Scripted(BRIDGED_CHANNELS, "open")
-        self.transport.answers = {}
-        self.content = RecordingContent()
-        self.gateway = RecordingGateway()
+        self.transport = FaultyTransport()
+        self.content = InMemoryContent()
+        self.gateway = StubGateway()
         self.client: Client = SemiontClient(self.transport, self.content, self.gateway)
         self.calls: list[asyncio.Task[object]] = []
 
@@ -388,14 +431,14 @@ async def held_to(world: World, at: int, step: JsonObject, sends: JsonValue, why
             f"{why}: a request carries a key of the client's making, and a frame nobody answers carries none"
         )
     elif kind == "content":
-        operation, given = await eventually(
-            f"{why}: a call of the content transport", lambda: world.content.calls[0] if world.content.calls else None
+        operation, given = content_call(
+            await eventually(f"{why}: a call of the content transport", lambda: world.content.calls[0] if world.content.calls else None)
         )
         assert operation == named, why
         assert numbers(given) == numbers(sends), f"{why}: what it was given"
     elif kind == "gateway":
-        operation, given = await eventually(
-            f"{why}: a call of the gateway", lambda: world.gateway.calls[0] if world.gateway.calls else None
+        operation, given = gateway_call(
+            await eventually(f"{why}: a call of the gateway", lambda: world.gateway.calls[0] if world.gateway.calls else None)
         )
         assert operation == named, why
         assert numbers(given) == numbers(sends), f"{why}: what it was given"
@@ -440,8 +483,7 @@ def test_a_method_does_what_its_row_says(case: tuple[str, str, JsonObject, JsonO
         world = World()
         try:
             if "answers" in stated:
-                assert world.transport.answers is not None
-                world.transport.answers[channel] = [resolved(stated["answers"])]
+                world.transport.queue_reply(channel, [resolved(stated["answers"])])
             if kind == "local":
                 published = world.client.bus.frames_on(channel)
                 world.call(namespace, method, args)
