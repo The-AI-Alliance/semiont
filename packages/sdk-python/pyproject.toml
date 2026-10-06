@@ -5,11 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "semiont"
 dynamic = ["version"]
-description = "Semiont's Python SDK"
+description = "The Python SDK for Semiont, an open platform for building trusted AI knowledge bases"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
+keywords = ["semiont", "knowledge-base", "annotation", "agents", "sdk"]
 classifiers = [
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -24,7 +27,11 @@ dependencies = [
 ]
 
 [project.urls]
+Homepage = "https://the-ai-alliance.github.io/semiont/"
+Documentation = "https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/README.md"
 Repository = "https://github.com/The-AI-Alliance/semiont"
+Issues = "https://github.com/The-AI-Alliance/semiont/issues"
+Changelog = "https://github.com/The-AI-Alliance/semiont/releases"
 
 # The checkers, the formatter and the model generator are pinned to a version
 # each: what they say of this package, and what the generator writes, is held
