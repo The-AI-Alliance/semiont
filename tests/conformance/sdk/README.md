@@ -331,8 +331,9 @@ driver that answers `unsupported` to a case it is not exempt from fails that
 case.
 
 TypeScript and Rust name none: their drivers run every wire case. Python
-names every one: it has no transport, and its driver answers `unsupported` to
-each.
+names the cases that ask for content, an upload, one of the gateway's own
+operations, or telemetry: its SDK holds the bus and nothing else of the wire
+layer, and its driver answers `unsupported` to the rest.
 
 ## Cases that restate a table
 

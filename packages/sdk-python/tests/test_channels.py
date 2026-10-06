@@ -15,7 +15,7 @@ from semiont.types import EnrichedResourceEvent, MarkDeleteCommand, StoredEventR
 
 REGISTRY = read(SPEC / "bus/registry.json")
 STATED = objects(REGISTRY["channels"], "channels")
-BY_NAME = {str(name): channel for name, channel in channels.CHANNELS.items()}
+BY_NAME = channels.CHANNELS
 
 
 def constant(name: str) -> str:
@@ -52,7 +52,7 @@ def test_a_channel_s_payload_is_what_its_shape_says() -> None:
 
 def test_every_operation_of_the_registry_names_its_three_channels() -> None:
     stated = objects(REGISTRY["operations"], "operations")
-    by_request = {str(name): operation for name, operation in operations.OPERATIONS.items()}
+    by_request = operations.OPERATIONS
     assert list(by_request) == [text(entry["request"], "a request") for entry in stated]
     for entry in stated:
         operation = by_request[text(entry["request"], "a request")]

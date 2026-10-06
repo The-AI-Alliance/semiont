@@ -60,3 +60,15 @@ def test_every_refusal_is_silenced_for_both_checkers_on_the_line_it_is_made() ->
             assert "# type: ignore[" in line, f"{program.name}: mypy is not held on: {line.strip()}"
             if not any(f"# type: ignore[{rule}]" in line for rule in MYPY_ALONE):
                 assert "# pyright: ignore[" in line, f"{program.name}: pyright is not held on: {line.strip()}"
+
+
+def test_only_the_http_layer_imports_an_http_library() -> None:
+    # The seam the layers keep: what a client is built from above its transport
+    # never names what carries it, so another transport can stand in.
+    http = PACKAGE / "src/semiont/http"
+    names_it = re.compile(r"^\s*(import|from)\s+httpx\b", re.MULTILINE)
+    importing = sorted(
+        path for path in SOURCES if path.is_relative_to(PACKAGE / "src") and names_it.search(path.read_text(encoding="utf-8"))
+    )
+    assert importing, "nothing here imports httpx: this gate reads nothing"
+    assert [str(path.relative_to(PACKAGE)) for path in importing if not path.is_relative_to(http)] == []

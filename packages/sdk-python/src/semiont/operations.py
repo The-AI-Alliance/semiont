@@ -14,7 +14,6 @@ from typing import Final
 
 from semiont import channels
 from semiont.channel import AnyOperation, Operation
-from semiont.channels import ChannelName
 
 __all__ = [
     "OPERATIONS",
@@ -279,8 +278,8 @@ YIELD_CLONE_TOKEN_REQUESTED: Final = Operation(
     failure=channels.YIELD_CLONE_TOKEN_FAILED,
 )
 
-# Every operation, by the name of its request channel.
-OPERATIONS: Final[Mapping[ChannelName, AnyOperation]] = MappingProxyType(
+# Every operation, by the name of its request channel: for code that is given a name and not a constant.
+OPERATIONS: Final[Mapping[str, AnyOperation]] = MappingProxyType(
     {
         "bind:update-body": BIND_UPDATE_BODY,
         "browse:resource-requested": BROWSE_RESOURCE_REQUESTED,

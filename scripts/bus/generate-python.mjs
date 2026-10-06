@@ -61,6 +61,17 @@ for (const c of reg.channels) {
 }
 
 const payloads = reg.channels.map((c) => ({ channel: c.channel, constant: pyConstant(c.channel), ...payloadOf(c) }));
+
+// What a client hears with no scope held, unless it names a narrower list:
+// every operation's two replies, then the events sent to every client. And what
+// holding a resource adds. A channel in both would be delivered twice.
+const bridged = [...reg.operations.flatMap((o) => [o.result, o.failure]), ...reg.audience.everyone];
+const scoped = reg.audience.scoped;
+const twice = scoped.find((channel) => bridged.includes(channel));
+if (twice !== undefined) {
+  throw new Error(`registry: "${twice}" is delivered both globally and per scope: a client would be given it twice`);
+}
+const names = (channels) => channels.map((channel) => `    ${pyString(channel)},`).join('\n');
 const schemaNames = [...new Set(payloads.flatMap((p) => p.names))].sort();
 
 const channelsPy = `${pyBanner('specs/src/bus/registry.json', SCRIPT)}
@@ -83,8 +94,10 @@ ${schemaNames.map((name) => `    ${name},`).join('\n')}
 )
 
 __all__ = [
+    "BRIDGED_CHANNELS",
     "CHANNELS",
     "CHANNEL_NAMES",
+    "RESOURCE_SCOPED_CHANNELS",
 ${payloads
   .map((p) => p.constant)
   .sort()
@@ -105,10 +118,21 @@ ${reg.channels.map((c) => `    ${pyString(c.channel)},`).join('\n')}
 ${payloads.map((p) => `${p.constant}: Final = Channel[${p.type}](${pyString(p.channel)}, ${p.type})`).join('\n')}
 
 # Every channel, by its name: for code that is given a name and not a constant.
-CHANNELS: Final[Mapping[ChannelName, AnyChannel]] = MappingProxyType(
+CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(
     {
 ${payloads.map((p) => `        ${pyString(p.channel)}: ${p.constant},`).join('\n')}
     }
+)
+
+# The channels a client hears with no scope held, unless it names a narrower list: every
+# operation's result and failure, and the events sent to every client.
+BRIDGED_CHANNELS: Final[tuple[ChannelName, ...]] = (
+${names(bridged)}
+)
+
+# The channels a resource's scope carries: what holding a resource adds to a client's stream.
+RESOURCE_SCOPED_CHANNELS: Final[tuple[ChannelName, ...]] = (
+${names(scoped)}
 )
 `;
 
@@ -130,7 +154,6 @@ from typing import Final
 
 from semiont import channels
 from semiont.channel import AnyOperation, Operation
-from semiont.channels import ChannelName
 
 __all__ = [
     "OPERATIONS",
@@ -143,8 +166,8 @@ ${reg.operations
 
 ${reg.operations.map(operation).join('\n')}
 
-# Every operation, by the name of its request channel.
-OPERATIONS: Final[Mapping[ChannelName, AnyOperation]] = MappingProxyType(
+# Every operation, by the name of its request channel: for code that is given a name and not a constant.
+OPERATIONS: Final[Mapping[str, AnyOperation]] = MappingProxyType(
     {
 ${reg.operations.map((o) => `        ${pyString(o.request)}: ${pyConstant(o.request)},`).join('\n')}
     }
