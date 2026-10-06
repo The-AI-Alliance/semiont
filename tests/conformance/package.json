@@ -11,7 +11,6 @@
     "test:gateway": "npm run typecheck && vitest run --project gateway",
     "test:dispatcher": "npm run typecheck && vitest run --project dispatcher",
     "test:archivist": "npm run typecheck && vitest run --project archivist",
-    "test:archivist-rust": "npm run typecheck && vitest run --project archivist-rust",
     "test:sdk": "npm run typecheck && vitest run --project sdk"
   },
   "devDependencies": {

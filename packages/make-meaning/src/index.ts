@@ -1,7 +1,7 @@
 // @semiont/make-meaning — the services that keep, index and find a knowledge
-// base's contents. Each runs from its own entry point (`./archivist-main`,
-// `./librarian-main`, `./smelter-main`, `./weaver-main`); what is exported
-// here is what a caller composing its own process builds from.
+// base's contents. Each runs from its own entry point (`./librarian-main`,
+// `./smelter-main`, `./weaver-main`); what is exported here is what a caller
+// composing its own process builds from.
 
 export { makeMeaningConfigFrom, requireKBName } from './config';
 export type { MakeMeaningConfig } from './config';
@@ -31,7 +31,6 @@ export {
 
 // Context assembly
 export { ResourceContext } from './resource-context';
-export type { ListResourcesFilters, ListResourcesResult } from './resource-context';
 export { anchoredTextOverBus } from './anchored-text-ask';
 export type { AnchoredTextAsk } from './anchored-text-ask';
 export { AnnotationContext } from './annotation-context';

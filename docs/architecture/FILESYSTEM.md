@@ -30,7 +30,7 @@ vectors, the job queue, the anchored text) are directories the launcher keeps fo
 base. [The launcher's README](../../apps/launcher/README.md#where-the-launcher-keeps-its-files)
 says where, on each system, and `semiont status --verbose` lists them with what each takes on disk.
 The full layout of the log and the views is
-[STORAGE-LAYOUT.md](../../packages/event-sourcing/docs/STORAGE-LAYOUT.md).
+[specified with the Archivist](../protocol/ARCHIVIST.md).
 
 ## Content
 
@@ -123,6 +123,6 @@ and [rebuilding derived state](../operator/administration/MAINTENANCE.md#rebuild
 
 ## Related
 
-- [STORAGE-LAYOUT.md](../../packages/event-sourcing/docs/STORAGE-LAYOUT.md) — the log's and the views' full layout
+- [The Archivist's specification](../protocol/ARCHIVIST.md) — the log's and the views' full layout
 - [KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md) — the actors that read and write these stores
 - [Configuration](../operator/administration/CONFIGURATION.md) — where the paths are configured

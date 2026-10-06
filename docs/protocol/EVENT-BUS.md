@@ -34,8 +34,8 @@ API), datastores (Neo4j, Qdrant, Postgres), `/health` liveness probes, and OTLP 
 
 The standing rule governing what may live on the Archivist's HTTP surface at all — *"this surface
 serves the KB tree and each resource's linked-data description, and nothing else"* — is stated once, in
-[`archivist-read-path.ts`](../../packages/make-meaning/src/archivist/archivist-read-path.ts)'s header. This
-table is the system-level view; that header is the gate.
+[the Archivist's API](../../specs/src/archivist/README.md). This
+table is the system-level view; that document is the gate.
 
 ## Channel naming
 

@@ -80,5 +80,5 @@ From the launcher: `semiont bind <resourceId> <annotationId> <targetResourceId>`
 ## Where it is implemented
 
 - The SDK namespace: [packages/sdk/src/namespaces/bind.ts](../../../packages/sdk/src/namespaces/bind.ts)
-- How body operations are applied: `applyBodyOperations`, in [packages/core/src/annotation-assembly.ts](../../../packages/core/src/annotation-assembly.ts)
+- How body operations are applied: [the Archivist's specification](../ARCHIVIST.md), and [apps/archivist/record/src/view.rs](../../../apps/archivist/record/src/view.rs)
 - The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

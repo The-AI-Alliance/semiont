@@ -22,7 +22,7 @@
  * SSE, so the graph grace and the settle barrier work unchanged. This
  * process appends nothing, serves no bytes, and owns no store.
  *
- * Bus wiring is two disjoint pumps on the archivist-main pattern; both
+ * Bus wiring is two disjoint pumps; both
  * rosters live in `service-channels.ts`:
  *   in  — LIBRARIAN_INBOUND_CHANNELS (the actor and retrieval-handler
  *         rosters, each pinned to its real subscriptions by a census gate,
@@ -101,7 +101,7 @@ if (!maybeGraphConfig?.type) {
   throw new Error('services.graph.type is required for the Librarian');
 }
 if (maybeGraphConfig.type === 'memory') {
-  // Same stance as weaver-main and archivist-main: an in-memory graph lives
+  // Same stance as weaver-main: an in-memory graph lives
   // in one process's heap; the Librarian would search an empty graph forever
   // while looking healthy.
   throw new Error("services.graph.type 'memory' is a test-only sink; the Librarian requires a server-backed graph");

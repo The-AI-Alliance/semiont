@@ -82,11 +82,11 @@ jobs:
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               ;;
-            ontology|vectors)
+            ontology|vectors|content|event-sourcing)
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               ;;
-            content|event-sourcing|graph|inference)
+            graph|inference)
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/ontology

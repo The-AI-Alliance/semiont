@@ -53,6 +53,7 @@
     "container:build": "node scripts/container/build-images.js",
     "container:build:gateway": "node scripts/container/build-images.js gateway",
     "container:build:dispatcher": "node scripts/container/build-images.js dispatcher",
+    "container:build:archivist": "node scripts/container/build-images.js archivist",
     "container:build:browser": "node scripts/container/build-images.js browser",
     "container:build:all": "node scripts/container/build-images.js all",
     "container:images": "node scripts/container/container-utils.js list",

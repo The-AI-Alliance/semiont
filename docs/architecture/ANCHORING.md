@@ -167,5 +167,5 @@ time, and `@semiont/content` carries pdf.js, Tesseract and `node:fs`.
 
 - **[../protocol/W3C-SELECTORS.md](../protocol/W3C-SELECTORS.md)** — the selector types an annotation may carry, and which apply to which media.
 - **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** — the actors, and the storage the map sits in.
-- **[PROJECTION-PATTERN.md](PROJECTION-PATTERN.md)** — the read-your-writes barrier this read path reuses.
+- **[../protocol/ARCHIVIST.md](../protocol/ARCHIVIST.md)** — the anchored-text store as the Archivist reads it, and the wait for the Smelter to settle.
 - **[../protocol/TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md)** — `IContentTransport`, where the map crosses a process boundary.

@@ -30,6 +30,7 @@ const SUPERVISOR = 'scripts/container/supervise.sh';
 const SERVICES = [
   { name: 'gateway', crate: 'apps/gateway', container: 'semiont-gateway', dockerfile: 'apps/gateway/Dockerfile', cases: 'tests/conformance/gateway' },
   { name: 'dispatcher', crate: 'apps/dispatcher', container: 'semiont-dispatcher', dockerfile: 'apps/dispatcher/Dockerfile', cases: 'tests/conformance/dispatcher' },
+  { name: 'archivist', crate: 'apps/archivist', container: 'semiont-archivist', dockerfile: 'apps/archivist/Dockerfile', cases: 'tests/conformance/archivist' },
 ];
 
 const READERS = new Set(['service', 'opentelemetry']);

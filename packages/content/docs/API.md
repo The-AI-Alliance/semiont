@@ -2,91 +2,13 @@
 
 Each call of `@semiont/content`, with an example. Why the package is shaped as it is, is [Architecture](architecture.md).
 
-## WorkingTreeStore
-
-### Initialization
+## Checksum
 
 ```typescript
-import { WorkingTreeStore } from '@semiont/content';
-import { SemiontProject } from '@semiont/core/node';
-
-const project = new SemiontProject('/path/to/project', { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! });
-const store = new WorkingTreeStore(project, logger /* optional */);
-```
-
-The store resolves `file://` URIs against the project root. When the project has `[git] sync = true` in `.semiont/config`, `register`, `move` and `remove` also keep the git index up to date.
-
-### Storing Content
-
-`store()` writes bytes to disk. The Archivist calls it with the bytes of an upload.
-
-```typescript
-const stored = await store.store(
-  Buffer.from('# Overview\n'),
-  'file://docs/overview.md'
-);
-
-// Returns StoredResource:
-// {
-//   storageUri: 'file://docs/overview.md',
-//   checksum: '875dce0e...',        // SHA-256 hex of content
-//   byteSize: 11,
-//   created: '2026-06-10T12:00:00.000Z'
-// }
-```
-
-Intermediate directories are created automatically. `store` stages nothing: `register` stages the file.
-
-### Registering Existing Files
-
-`register()` reads a file that is already on disk and returns its metadata. The Stower calls it when it records a resource. With git sync, the file is queued for staging: staging is deferred and deduplicated, and `flushStaging()` stages what is pending. If `expectedChecksum` is provided and does not match, it throws `ChecksumMismatchError`, which carries the URI, the checksum expected and the one found.
-
-```typescript
-const registered = await store.register('file://docs/overview.md');
-
-// With verification:
-await store.register('file://docs/overview.md', expectedChecksum);
-// throws ChecksumMismatchError on mismatch
-```
-
-### Retrieving Content
-
-```typescript
-const buffer = await store.retrieve('file://docs/overview.md');
-const text = buffer.toString('utf-8');
-// Throws "Resource not found: <uri>" if the file does not exist
-```
-
-### Moving and Removing
-
-```typescript
-// Rename/move (staged with git sync)
-await store.move('file://docs/overview.md', 'file://docs/intro.md');
-
-// Delete (unstaged with git sync)
-await store.remove('file://docs/intro.md');
-
-// Unstage, but keep the file on disk
-await store.remove('file://docs/intro.md', { keepFile: true });
-```
-
-### Resolving URIs
-
-```typescript
-store.resolveUri('file://docs/overview.md');
-// => '/path/to/project/docs/overview.md'
-// Throws for URIs that do not start with file://
-```
-
-## Checksum Utilities
-
-```typescript
-import { calculateChecksum, verifyChecksum } from '@semiont/content';
+import { calculateChecksum } from '@semiont/content';
 
 const checksum = calculateChecksum(Buffer.from('Hello'));
 // SHA-256 hex string (64 chars)
-
-verifyChecksum(Buffer.from('Hello'), checksum);  // true
 ```
 
 ## Naming a file

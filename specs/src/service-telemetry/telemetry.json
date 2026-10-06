@@ -1,7 +1,10 @@
 {
-  "$comment": "The telemetry each Semiont service exports over OTLP, in any language: every span and metric, the services that export it, its kind, and the attributes it carries. A service exports the rows that list it and no others. Each service's conformance suite holds it to this table from outside, in both directions: every span and metric its observability cases receive must be a row listing the service, of the listed kind, carrying only listed attribute keys (and, where a row lists values, only those values); and every row listing it whose `when` is `export` or `traffic` must arrive, with every attribute not marked `only`. `when`: `export` — whenever export is on; `traffic` — once the service's observability cases' traffic has run; `supervised` — only under the supervisor (SUPERVISE_EVENTS and SUPERVISE_NAME set), checked by the environment cases; `fatal` — only on a fatal error, which no case causes. `planes`, where given, names the only signal planes a gateway row arrives on. `sdk` names the services that reach the bus through an SDK, and for each the SDK transports it uses: such a service also exports the rows specs/src/sdk-telemetry/telemetry.json lists for those transports, and its suite holds it to both tables as one. In a span name, `{channel}` is the bus channel. Span kinds are OTLP's; a metric's `instrument` is `counter` (a monotonic sum), `up-down counter` (a non-monotonic sum) or `gauge`.",
+  "$comment": "The telemetry each Semiont service exports over OTLP, in any language: every span and metric, the services that export it, its kind, and the attributes it carries. A service exports the rows that list it and no others. Each service's conformance suite holds it to this table from outside, in both directions: every span and metric its observability cases receive must be a row listing the service, of the listed kind, carrying only listed attribute keys (and, where a row lists values, only those values); and every row listing it whose `when` is `export` or `traffic` must arrive, with every attribute not marked `only`. `when`: `export` — whenever export is on; `traffic` — once the service's observability cases' traffic has run; `supervised` — only under the supervisor (SUPERVISE_EVENTS and SUPERVISE_NAME set), checked by the environment cases; `fatal` — only on a fatal error, which no case causes. `planes`, where given, names the only signal planes a gateway row arrives on. `sdk` names the services that reach the bus through an SDK, and for each the SDK transports it uses: such a service also exports the rows specs/src/sdk-telemetry/telemetry.json lists for those transports, and its suite holds it to both tables as one. In a span name, `{channel}` is the bus channel. Span kinds are OTLP's; a metric's `instrument` is `counter` (a monotonic sum), `up-down counter` (a non-monotonic sum), `gauge` or `histogram`.",
   "sdk": {
     "dispatcher": [
+      "bus"
+    ],
+    "archivist": [
       "bus"
     ]
   },
@@ -270,7 +273,8 @@
       "name": "semiont.process.start_time",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "instrument": "gauge",
       "when": "export",
@@ -281,7 +285,8 @@
       "name": "semiont.runtime.event_loop.lag",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "instrument": "gauge",
       "when": "export",
@@ -301,7 +306,8 @@
       "name": "semiont.runtime.heap",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "instrument": "gauge",
       "when": "export",
@@ -322,7 +328,8 @@
       "name": "semiont.process.restarts",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "instrument": "gauge",
       "when": "supervised",
@@ -333,7 +340,8 @@
       "name": "semiont.process.abnormal_exit",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "instrument": "counter",
       "when": "fatal",
@@ -365,6 +373,53 @@
             "complete",
             "failed",
             "cancelled"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.archivist.fact_pump.depth",
+      "services": [
+        "archivist"
+      ],
+      "instrument": "gauge",
+      "when": "export",
+      "meaning": "Events appended to the record and not yet published on the bus. Zero at rest; a rising floor means publishing is behind its transport.",
+      "attributes": []
+    },
+    {
+      "name": "semiont.git.duration",
+      "services": [
+        "archivist"
+      ],
+      "instrument": "histogram",
+      "when": "traffic",
+      "meaning": "How long each git command the staging driver ran took, in milliseconds, the failing ones too.",
+      "attributes": [
+        {
+          "key": "git.command",
+          "values": [
+            "add",
+            "rm",
+            "rev-parse"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.git.staging.failures",
+      "services": [
+        "archivist"
+      ],
+      "instrument": "counter",
+      "when": "traffic",
+      "meaning": "Staging degradations: changes recorded and not staged, by why.",
+      "attributes": [
+        {
+          "key": "reason",
+          "values": [
+            "index-lock",
+            "other"
           ]
         }
       ]

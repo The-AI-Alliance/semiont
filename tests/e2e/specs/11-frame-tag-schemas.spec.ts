@@ -20,7 +20,7 @@ import { signInSession } from '../fixtures/sdk-session';
  *
  * 2. **Projection visibility.** After registration, the schema must
  *    appear in `client.browse.tagSchemas()` — proves the
- *    ViewMaterializer wrote `tagschemas.json` and the projection
+ *    Archivist wrote `tagschemas.json` and the projection
  *    reader serves it back.
  *
  * 3. **Dispatcher rejects unregistered schema.** `mark.assist` with a
@@ -48,8 +48,7 @@ import { signInSession } from '../fixtures/sdk-session';
  *   to SSE subscribers.
  * - **Materialization** — the projection file isn't being
  *   written, so `browse.tagSchemas()` doesn't surface the registration.
- *   `ViewMaterializer.materializeTagSchemas` or `ViewManager.materializeSystem`
- *   would be the culprit.
+ *   The Archivist's system projections would be the culprit.
  * - **Dispatcher fallback** — `mark.assist` against an
  *   unknown schemaId silently succeeds. Means the dispatcher is
  *   either consulting a stale build-time registry or the projection

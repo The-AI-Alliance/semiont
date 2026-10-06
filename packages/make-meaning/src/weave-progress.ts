@@ -1,7 +1,6 @@
 /**
  * WeaveProgress — process-local fold of `weave:applied` signals. Every process
- * that reads the graph behind the barrier (the Librarian, the in-process
- * root) keeps its own.
+ * that reads the graph behind the barrier (the Librarian) keeps its own.
  *
  * The Weaver emits `weave:applied` after applying an event (or a batch's
  * last event) for a resource. This unit folds those signals into a

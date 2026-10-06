@@ -64,8 +64,8 @@ COPY packages/telemetry-rust/src packages/telemetry-rust/src
 # scripts, never at boot.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/build/target \
-    cargo auditable build --release --locked -p semiont-dispatcher -p semiont-gateway && \
-    cp target/release/semiont-dispatcher target/release/semiont-gateway /
+    cargo auditable build --release --locked -p semiont-archivist -p semiont-dispatcher -p semiont-gateway && \
+    cp target/release/semiont-archivist target/release/semiont-dispatcher target/release/semiont-gateway /
 
 FROM alpine:3.24
 RUN apk upgrade --no-cache && apk add --no-cache tini

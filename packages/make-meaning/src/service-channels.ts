@@ -1,6 +1,6 @@
 /**
  * Per-service bus channel rosters for the standalone make-meaning entry
- * points (smelter, weaver, librarian, archivist).
+ * points (smelter, weaver, librarian).
  *
  * Each service's transport subscribes exactly what that service consumes
  * (the worker-runtime precedent, `WORKER_AWAITED_OPERATIONS` in
@@ -18,10 +18,6 @@
  *   - The LIBRARIAN answers operations AND awaits one read (the anchored-text
  *     ask behind gather's text dispatcher), so its transport carries its
  *     inbound roster plus that operation's reply channels.
- *   - The ARCHIVIST answers operations and folds broadcast signals but never
- *     awaits a wire reply, so its transport carries exactly its inbound
- *     request/signal roster. (Its own anchored-text ask runs on its LOCAL
- *     bus — the Browser beside it answers — so no wire reply is awaited.)
  *
  * Each awaited-operations list restates a fact the code owns (which
  * operations that service calls `busRequest` on); its gate is the build-time
@@ -171,84 +167,3 @@ type LibrarianAwaitCensusDrift =
 export const librarianAwaitCensus: [LibrarianAwaitCensusDrift] extends [never]
   ? 'in-census'
   : LibrarianAwaitCensusDrift = 'in-census';
-
-// ── Archivist ────────────────────────────────────────────────────────
-
-/**
- * The command channels Stower subscribes to — the Archivist's inbound wire
- * roster for this actor. Pinned to `initialize()`'s actual subscriptions by
- * the census gate in archivist-decoupling.test.ts: grow one, and the gate
- * fails until the other moves with it.
- */
-export const STOWER_CHANNELS = [
-  'yield:create', 'yield:clone-persist', 'yield:update', 'yield:mv',
-  'mark:create', 'mark:commit', 'mark:delete', 'mark:update-body',
-  'frame:add-entity-type', 'frame:add-tag-schema',
-  // Gateway-emitted when a person ACTS — a write, never mere presence —
-  // carrying the name it verified. Declared, not bridged: no client
-  // consumes it.
-  'person:profile',
-  'mark:archive', 'mark:unarchive', 'mark:update-entity-types',
-  'job:start', 'job:assign', 'job:complete', 'job:fail',
-] as const satisfies readonly (keyof EventMap)[];
-
-/**
- * The request channels Browser subscribes to — the Archivist's inbound wire
- * roster for this actor. Pinned to `initialize()`'s actual subscriptions by
- * the census gate in archivist-decoupling.test.ts.
- */
-export const BROWSER_CHANNELS = [
-  'browse:resource-requested', 'browse:anchored-text-requested',
-  'browse:resources-requested', 'browse:annotations-requested',
-  'browse:annotation-requested', 'browse:events-requested',
-  'browse:annotation-history-requested',
-  'browse:entity-types-requested', 'browse:tag-schemas-requested',
-  'browse:agents-requested', 'browse:kb-requested', 'browse:directory-requested',
-] as const satisfies readonly (keyof EventMap)[];
-
-/**
- * The command channels CloneTokenManager subscribes to — the Archivist's
- * inbound wire roster for this actor. Pinned to `initialize()`'s actual
- * subscriptions by the census gate in archivist-decoupling.test.ts.
- */
-export const CLONE_TOKEN_CHANNELS = [
-  'yield:clone-token-requested', 'yield:clone-resource-requested', 'yield:clone-create',
-] as const satisfies readonly (keyof EventMap)[];
-
-/**
- * Everything the actors subscribe to (each roster pinned by a census gate),
- * plus the smelt barrier's fold input, plus `mark:create-request` —
- * annotation-assembly registers beside the Stower whose `mark:added` facts
- * it consumes. The Archivist awaits no wire replies, so this inbound set IS
- * its transport's whole global subscription.
- */
-export const ARCHIVIST_INBOUND_CHANNELS = [
-  ...STOWER_CHANNELS,
-  ...BROWSER_CHANNELS,
-  ...CLONE_TOKEN_CHANNELS,
-  'mark:create-request',
-  'smelt:settled',
-  // The annotation-context read registers beside the bytes it reads.
-  'browse:annotation-context-requested',
-  // The bind re-emit registers beside the Stower it drives. Its replies are
-  // DERIVED from here — `bind:update-body` is a registered operation, so
-  // `replyChannelsFor` picks up bind:body-updated / bind:body-update-failed
-  // without a hand-written entry.
-  'bind:update-body',
-] as const satisfies readonly (keyof EventMap)[];
-
-/**
- * Reply channels the Archivist forwards that the BUS_OPERATIONS derivation
- * cannot see, because no registered operation names them as its result or
- * failure. Each is named with its owner; anything else belongs in the
- * derivation, never here.
- */
-export const ARCHIVIST_OUTBOUND_STRAYS = [
-  'yield:move-failed',       // the Stower's failure answer to `yield:mv`, which has no registered operation
-] as const satisfies readonly (keyof EventMap)[];
-
-/** Every reply channel the Archivist's outbound pump forwards — the derivation over the inbound set, plus the strays. */
-export const ARCHIVIST_OUTBOUND_CHANNELS: readonly (keyof EventMap)[] = [
-  ...ARCHIVIST_OUTBOUND_STRAYS,
-  ...replyChannelsFor(ARCHIVIST_INBOUND_CHANNELS),
-];

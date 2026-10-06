@@ -274,8 +274,7 @@ export class Smelter {
     private vectorStore: VectorStore,
     private embeddingProvider: EmbeddingProvider,
     /** Byte reads only — the Smelter never writes through this seam, so it
-     *  declares `ContentReads` and any implementation satisfies it: the
-     *  Archivist's client in the fleet, the working tree in-process. */
+     *  declares `ContentReads`; `smelter-main` passes the Archivist's client. */
     private content: ContentReads,
     /**
      * The anchored-text store, held DIRECTLY.

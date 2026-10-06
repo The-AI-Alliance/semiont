@@ -4,7 +4,7 @@
  * Tests event type filtering, per-resource serialization,
  * cross-resource parallelism, event application, burst batching, and lifecycle.
  *
- * Uses a real EventStore (temp dir) with a mock GraphDatabase.
+ * Uses an in-test event log on a real EventBus with a mock GraphDatabase.
  *
  * Note: The consumer uses an RxJS pipeline with a burstBuffer operator.
  * First event for a resource passes through immediately (leading edge).
@@ -13,8 +13,6 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi, beforeEach } from 'vitest';
-import { EventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
-import { SemiontProject } from '@semiont/core/node';
 import { Weaver, type WeaverTiming } from '../weaver';
 
 // Production-shaped timings: this suite's specs assume the real burst window
@@ -32,15 +30,41 @@ import { weaverFanIn } from '../weaver-fan-in';
 import { asBusRequestPrimitive } from '../bus-request-local';
 import { FileWeaverCheckpoint } from '../weaver-checkpoint';
 import { busRequest } from '@semiont/core';
-import { resourceId, userId, annotationId, EventBus } from '@semiont/core';
-import type { Logger } from '@semiont/core';
+import { resourceId, userId, annotationId, EventBus, SYSTEM_SCOPE } from '@semiont/core';
+import type { EventInput, Logger, StoredEvent } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import { MemoryGraphDatabase } from '@semiont/graph';
 import type { EventMap, PersistedEventType } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
+
+/**
+ * Stands in for the Archivist's append: numbers each event within its
+ * resource's stream, keeps it for the `browse:events-requested` responder,
+ * and publishes it on the bus the Weaver's fan-in reads.
+ */
+function createEventLog(bus: EventBus) {
+  const streams = new Map<string, StoredEvent[]>();
+  return {
+    async appendEvent(event: EventInput): Promise<StoredEvent> {
+      const scope = 'resourceId' in event && event.resourceId ? event.resourceId : SYSTEM_SCOPE;
+      const stream = streams.get(scope) ?? [];
+      streams.set(scope, stream);
+      const stored = {
+        ...event,
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        metadata: { sequenceNumber: stream.length + 1 },
+      } as StoredEvent;
+      stream.push(stored);
+      bus.emit(stored.type, stored as never);
+      return stored;
+    },
+    getEvents: (rid: string): StoredEvent[] => [...(streams.get(rid) ?? [])],
+  };
+}
 
 // Helper: wait for fire-and-forget callbacks + burst buffer flush + idle timeout
 const tick = (ms = 350) => new Promise(resolve => setTimeout(resolve, ms));
@@ -93,30 +117,20 @@ function createMockGraphDb(): GraphDatabase {
 
 describe('Weaver', () => {
   let testDir: string;
-  let project: SemiontProject;
-  let eventStore: EventStore;
+  let eventStore: ReturnType<typeof createEventLog>;
   let coreEventBus: EventBus;
   let graphDb: GraphDatabase;
   let consumer: Weaver;
 
   beforeAll(async () => {
-    testDir = join(tmpdir(), `semiont-consumer-test-${uuidv4()}`);
+    testDir = join(tmpdir(), `semiont-consumer-test-${randomUUID()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
-    const viewStorage = new FilesystemViewStorage(project);
     coreEventBus = new EventBus();
-
-    eventStore = new EventStore(
-      project,
-      testDir,
-      viewStorage,
-      coreEventBus,
-    );
+    eventStore = createEventLog(coreEventBus);
   });
 
   afterAll(async () => {
-    await project.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
@@ -128,7 +142,7 @@ describe('Weaver', () => {
       fanIn.events$,
       fanIn.rebuilds$,
       bus,
-      new FileWeaverCheckpoint(checkpointPath ?? join(testDir, `weaver-checkpoint-${uuidv4()}.json`)),
+      new FileWeaverCheckpoint(checkpointPath ?? join(testDir, `weaver-checkpoint-${randomUUID()}.json`)),
       PROD_TIMING,
       mockLogger,
     );
@@ -160,11 +174,10 @@ describe('Weaver', () => {
         } as any, { correlationId });
       }),
       coreEventBus.frames('browse:events-requested').subscribe(({ payload: req, correlationId }: any) => {
-        void eventStore.log.getEvents(resourceId(req.resourceId)).then((events) => {
-          coreEventBus.emit('browse:events-result', {
-            response: { events, total: events.length, resourceId: req.resourceId },
-          } as any, { correlationId });
-        });
+        const events = eventStore.getEvents(req.resourceId);
+        coreEventBus.emit('browse:events-result', {
+          response: { events, total: events.length, resourceId: req.resourceId },
+        } as any, { correlationId });
       }),
       coreEventBus.frames('browse:annotations-requested').subscribe(({ payload: req, correlationId }: any) => {
         coreEventBus.emit('browse:annotations-result', {
@@ -807,7 +820,7 @@ describe('Weaver', () => {
         localFanIn.events$,
         localFanIn.rebuilds$,
         localBus,
-        new FileWeaverCheckpoint(join(testDir, `weaver-checkpoint-${uuidv4()}.json`)),
+        new FileWeaverCheckpoint(join(testDir, `weaver-checkpoint-${randomUUID()}.json`)),
         PROD_TIMING,
         mockLogger,
       );
@@ -873,7 +886,7 @@ describe('Weaver', () => {
       rid: string | undefined,
       payload: unknown,
     ): EventMap[K] => ({
-      id: uuidv4(),
+      id: randomUUID(),
       type,
       timestamp: new Date().toISOString(),
       userId: userId('did:web:test:users:user-dup'),
@@ -1099,7 +1112,7 @@ describe('Weaver', () => {
       });
 
       // A checkpoint claiming we are FAR ahead of the log — the restore shape.
-      const checkpointPath = join(testDir, `weaver-checkpoint-${uuidv4()}.json`);
+      const checkpointPath = join(testDir, `weaver-checkpoint-${randomUUID()}.json`);
       await new FileWeaverCheckpoint(checkpointPath).save({ [rid]: 999 });
 
       graphDb = new MemoryGraphDatabase();
@@ -1268,7 +1281,7 @@ describe('Weaver', () => {
         created: '2026-01-01T00:00:00.000Z',
       });
       const pushMark = (aid: string, seq: number) => coreEventBus.emit('mark:added', {
-        id: uuidv4(), type: 'mark:added', timestamp: new Date().toISOString(),
+        id: randomUUID(), type: 'mark:added', timestamp: new Date().toISOString(),
         userId: userId('did:web:test:users:user1'), resourceId: resourceId(rid), version: 1,
         payload: { annotation: ann(aid) }, metadata: { sequenceNumber: seq },
       } as unknown as EventMap['mark:added']);

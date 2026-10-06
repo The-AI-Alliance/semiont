@@ -165,7 +165,7 @@ jobs:
         run: |
           mkdir "$RUNNER_TEMP/crates"
           cargo metadata --format-version 1 --locked > "$RUNNER_TEMP/crates/metadata.json"
-          for binary in semiont-gateway semiont-dispatcher; do
+          for binary in semiont-gateway semiont-dispatcher semiont-archivist; do
             for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
               cargo tree --locked -p "$binary" -e normal,no-proc-macro --target "$target" --prefix none --format '{p}' \
                 > "$RUNNER_TEMP/crates/linked-$binary-$target.txt"
@@ -321,9 +321,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gateway-release-
 
-      # The Archivist reaches the bus only through a gateway. Both
-      # implementations of the Archivist are judged, and pass a tree between
-      # them.
+      # The Archivist reaches the bus only through a gateway.
       - name: Build the gateway and the Archivist
         run: cargo build --release --locked -p semiont-gateway -p semiont-archivist
 
@@ -336,11 +334,12 @@ jobs:
             package-lock.json
             tests/conformance/package-lock.json
 
-      # The Archivist under test is the built @semiont/make-meaning entry point.
-      - name: Install dependencies and build the packages
+      # The suite imports @semiont/core — its test issuer — and bundles the
+      # spec with the root's redocly. Core is the one package it builds.
+      - name: Install dependencies
         run: |
           npm ci --include=optional
-          npm run build:packages
+          npm run build --workspace=@semiont/core
 
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
@@ -357,7 +356,6 @@ jobs:
           cd tests/conformance
           npm ci
           npm run test:archivist
-          npm run test:archivist-rust
         env:
           CI: true
 

@@ -50,7 +50,8 @@ function makeStores(overrides: Partial<GathererStores> = {}): GathererStores {
     views: {
       get: async (rid) => ({
         resource: descriptor(String(rid), 'Gather Target'),
-        annotations: { resourceId: rid, annotations: [], version: 0, updatedAt: '2026-08-28T00:00:00Z' },
+        annotations: { resourceId: rid, annotations: [], version: 1, updatedAt: '2026-08-28T00:00:00Z' },
+        lastSequence: 1,
       }),
     },
     content: { getBinary: async () => ({ data: new ArrayBuffer(0), contentType: 'text/plain' }) },
@@ -116,7 +117,7 @@ describe('Gatherer decoupling', () => {
         views: {
           get: async (rid) => ({
             resource: descriptor(String(rid), 'Lagging Target'),
-            annotations: { resourceId: rid, annotations: [], version: 0, updatedAt: '2026-08-28T00:00:00Z' },
+            annotations: { resourceId: rid, annotations: [], version: 1, updatedAt: '2026-08-28T00:00:00Z' },
             lastSequence: 3,
           }),
         },

@@ -208,9 +208,9 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "  --images-only reuses the packages already in Verdaccio, so it picks up a"
       echo "  code change ONLY if that package was republished. Change package source"
-      echo "  and you want a full run (or --package <pkg>) first. The gateway and"
-      echo "  dispatcher images are the exception: they compile the Rust workspace from"
-      echo "  the working tree every time."
+      echo "  and you want a full run (or --package <pkg>) first. The gateway,"
+      echo "  dispatcher and archivist images are the exception: they compile the Rust"
+      echo "  workspace from the working tree every time."
       echo ""
       echo "Packages build in the order version.json lists them; an unknown"
       echo "--package name is refused with the list."
@@ -875,8 +875,8 @@ fi
 # "transferring" round-trips for byte-sized payloads), which overlapping
 # absorbs, and the npm images build while the Rust one compiles. Three, not
 # six: the builder VM has 2G. The one heavy build is the Rust builder stage,
-# which the gateway and dispatcher images share, so it compiles once however
-# the two overlap. Build output goes to a per-image log; a failure tails it and
+# which the gateway, dispatcher and archivist images share, so it compiles once
+# however they overlap. Build output goes to a per-image log; a failure tails it and
 # stops the run.
 # Fan-out happens after all builds, keeping the builder VM to itself.
 PIDS=(); TAGS=(); LOGS=(); IMGS=(); STARTS=(); NAMES=(); DONE=()
@@ -902,13 +902,13 @@ while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
     TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
     LOG=$(mktemp "$TMP_DIR/semiont-build-${img}.XXXXXX")
     step "Building ${TAG} from ${DF}..."
-    # The gateway and the dispatcher compile from the repository with the
-    # pinned toolchain, and their layers are keyed by what they copy, so a
+    # The gateway, the dispatcher and the archivist compile from the repository
+    # with the pinned toolchain, and their layers are keyed by what they copy, so a
     # cached one is never stale.
     # Every other image installs from Verdaccio, where --no-cache is what keeps
     # a republished same-version package from being reused stale (above).
     case "$img" in
-      gateway|dispatcher) BUILD_FLAGS=(--build-arg "RUST_TOOLCHAIN=$RUST_TOOLCHAIN") ;;
+      gateway|dispatcher|archivist) BUILD_FLAGS=(--build-arg "RUST_TOOLCHAIN=$RUST_TOOLCHAIN") ;;
       *)                  BUILD_FLAGS=(--no-cache --build-arg "NPM_REGISTRY=$BUILD_REGISTRY") ;;
     esac
     $RT build "${BUILD_FLAGS[@]}" --tag "$TAG" \
@@ -946,8 +946,12 @@ while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
     beat=$(date +%s)
     rm -f "${LOGS[$j]}"
     # The Rust images carry no source and start (or refuse) quickly, or they are not built.
-    if [[ "${NAMES[$j]}" == gateway || "${NAMES[$j]}" == dispatcher ]] \
-       && ! "$REPO_ROOT/scripts/container/check-${NAMES[$j]}-image.sh" "${TAGS[$j]}" "$RT"; then
+    case "${NAMES[$j]}" in
+      gateway)              kept=("$REPO_ROOT/scripts/container/check-gateway-image.sh" "${TAGS[$j]}" "$RT") ;;
+      dispatcher|archivist) kept=("$REPO_ROOT/scripts/container/check-document-image.sh" "${NAMES[$j]}" "${TAGS[$j]}" "$RT") ;;
+      *)                    kept=(true) ;;
+    esac
+    if ! "${kept[@]}"; then
       fail "${TAGS[$j]} does not keep the ${NAMES[$j]} image's promises (above)"
       stop_builds
       exit 1

@@ -1,5 +1,5 @@
 {
-  "$comment": "Every environment variable a Semiont service written in Rust reads, beside its configuration document (GatewayConfig, DispatcherConfig) and the broker variables that document names (the gateway's signal.userEnv and signal.passwordEnv, the dispatcher's queue.userEnv and queue.passwordEnv). A service, in any language, reads the rows that list it and no variable the table does not list for it — beyond the standard OTEL_* variables an OpenTelemetry SDK reads on its own, and the options variable of the allocator it links (jemalloc's _RJEM_MALLOC_CONF, which it reads before any of its code runs), which the table neither promises nor refuses. `services` names the services that read each. `readBy` says what reads it: `service`, the service's own code — which lint:service-environment scans in both directions, over each service's crate and every workspace crate it links: a read not listed for that service fails it, and so does a row nothing in it reads; `opentelemetry`, the OpenTelemetry SDK. `providedBy` says what sets each where the launcher runs the service: `launcher` (lint:service-environment checks the service's line of the launcher's boot golden passes it), `image` (the image or its supervisor sets it; checked there too), or `operator` (nothing sets it; an operator may). A service's conformance suite sets only the rows that list it, and exercises each by name; one gateway case also sets a variable a runtime would read for itself (TOKIO_WORKER_THREADS), to show that it changes nothing.",
+  "$comment": "Every environment variable a Semiont service written in Rust reads, beside its configuration document (GatewayConfig, DispatcherConfig, ArchivistConfig) and the broker variables that document names (the gateway's signal.userEnv and signal.passwordEnv, the dispatcher's queue.userEnv and queue.passwordEnv). A service, in any language, reads the rows that list it and no variable the table does not list for it — beyond the standard OTEL_* variables an OpenTelemetry SDK reads on its own, and the options variable of the allocator it links (jemalloc's _RJEM_MALLOC_CONF, which it reads before any of its code runs), which the table neither promises nor refuses. `services` names the services that read each. `readBy` says what reads it: `service`, the service's own code — which lint:service-environment scans in both directions, over each service's crate and every workspace crate it links: a read not listed for that service fails it, and so does a row nothing in it reads; `opentelemetry`, the OpenTelemetry SDK. `providedBy` says what sets each where the launcher runs the service: `launcher` (lint:service-environment checks the service's line of the launcher's boot golden passes it), `image` (the image or its supervisor sets it; checked there too), or `operator` (nothing sets it; an operator may). A service's conformance suite sets only the rows that list it, and exercises each by name; one gateway case also sets a variable a runtime would read for itself (TOKIO_WORKER_THREADS), to show that it changes nothing.",
   "variables": [
     {
       "name": "JWT_SECRET",
@@ -15,18 +15,20 @@
       "name": "SEMIONT_OIDC_CLIENT_ID",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "readBy": "service",
       "providedBy": "launcher",
       "required": true,
-      "effect": "The client id of the service's own account at the issuer: the gateway exchanges its token for the one it reaches the Archivist with, the dispatcher for the agent token it reaches the bus with. Unset, the service refuses to start."
+      "effect": "The client id of the service's own account at the issuer: the gateway exchanges its token for the one it reaches the Archivist with, the dispatcher and the Archivist for the agent token each reaches the bus with. Unset, the service refuses to start."
     },
     {
       "name": "SEMIONT_OIDC_CLIENT_SECRET",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "readBy": "service",
       "providedBy": "launcher",
@@ -37,7 +39,8 @@
       "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "readBy": "service",
       "providedBy": "launcher",
@@ -48,18 +51,20 @@
       "name": "OTEL_SERVICE_NAME",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "readBy": "service",
       "providedBy": "operator",
       "required": false,
-      "effect": "The `service.name` exported spans and metrics carry; `semiont-gateway` or `semiont-dispatcher` when unset."
+      "effect": "The `service.name` exported spans and metrics carry; `semiont-gateway`, `semiont-dispatcher` or `semiont-archivist` when unset."
     },
     {
       "name": "OTEL_SDK_DISABLED",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "readBy": "service",
       "providedBy": "operator",
@@ -70,7 +75,8 @@
       "name": "OTEL_CONSOLE_EXPORTER",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "readBy": "service",
       "providedBy": "operator",
@@ -81,7 +87,8 @@
       "name": "OTEL_METRICS_EXPORTER",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "readBy": "service",
       "providedBy": "operator",
@@ -92,7 +99,8 @@
       "name": "OTEL_METRIC_EXPORT_INTERVAL",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "readBy": "service",
       "providedBy": "operator",
@@ -103,7 +111,8 @@
       "name": "OTEL_BSP_SCHEDULE_DELAY",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "readBy": "opentelemetry",
       "providedBy": "operator",
@@ -114,7 +123,8 @@
       "name": "SEMIONT_BUS_LOG",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "readBy": "service",
       "providedBy": "operator",
@@ -125,7 +135,8 @@
       "name": "SUPERVISE_EVENTS",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "readBy": "service",
       "providedBy": "image",
@@ -136,7 +147,8 @@
       "name": "SUPERVISE_NAME",
       "services": [
         "gateway",
-        "dispatcher"
+        "dispatcher",
+        "archivist"
       ],
       "readBy": "service",
       "providedBy": "image",

@@ -1,7 +1,7 @@
 {
   "name": "@semiont/event-sourcing",
   "version": "0.6.11",
-  "description": "Event sourcing infrastructure for Semiont - EventLog, EventBus, and ViewManager",
+  "description": "Reading the materialized views of a Semiont knowledge base, and content-addressed annotation ids",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -28,7 +28,6 @@
     "directory": "packages/event-sourcing"
   },
   "scripts": {
-    "pretypecheck": "npm run build --workspace=@semiont/content --if-present",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
     "watch": "tsup --watch",
@@ -39,18 +38,14 @@
   },
   "keywords": [
     "event-sourcing",
-    "event-store",
-    "event-log",
-    "event-bus",
-    "view-manager",
-    "cqrs",
+    "materialized-view",
+    "annotation-id",
     "semiont"
   ],
   "author": "Semiont Team",
   "license": "Apache-2.0",
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",
-    "fast-check": "^4.10.0",
     "rollup": "^4.63.6",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
@@ -58,11 +53,6 @@
     "vitest": "^4.1.11"
   },
   "dependencies": {
-    "@semiont/content": "*",
-    "@semiont/core": "*",
-    "@semiont/http-transport": "*",
-    "@semiont/observability": "*",
-    "nanoid": "^6.0.0",
-    "uuid": "^14.0.2"
+    "@semiont/core": "*"
   }
 }

@@ -151,19 +151,19 @@ graph BT
     class rhttp,rtel,rsdk,codegen published
 ```
 
-Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `semiont-telemetry` and `semiont-codegen`. `semiont-core`, `semiont-observability` and `semiont-http-service` are the services' own. The dispatcher also has two crates of its own beside its binary, for its handlers and its JetStream queue. The Archivist in Rust has two as well, for its record and its staging drivers.
+Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `semiont-telemetry` and `semiont-codegen`. `semiont-core`, `semiont-observability` and `semiont-http-service` are the services' own. The dispatcher also has two crates of its own beside its binary, for its handlers and its JetStream queue. The Archivist has two as well, for its record and its staging drivers.
 
 ## What each service image runs
 
 | Image | Runs | From |
 |---|---|---|
-| `semiont-archivist` | `archivist-main` | `@semiont/make-meaning` |
 | `semiont-librarian` | `librarian-main` | `@semiont/make-meaning` |
 | `semiont-smelter` | `smelter-main` | `@semiont/make-meaning` |
 | `semiont-weaver` | `weaver-main` | `@semiont/make-meaning` |
 | `semiont-worker` | `worker-main` | `@semiont/jobs` |
 | `semiont-browser` | the built SPA | `apps/browser` |
 | `semiont-gateway` | a Rust binary | `apps/gateway` |
+| `semiont-archivist` | a Rust binary | `apps/archivist` |
 | `semiont-dispatcher` | a Rust binary | `apps/dispatcher` |
 
 ## Architectural principles

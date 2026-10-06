@@ -2,12 +2,10 @@
  * Reading a resource's bytes: the contract, the way it fails, and the
  * implementation that reaches the Archivist over HTTP.
  *
- * These live in `@semiont/content` because this package IS the byte layer —
- * the Archivist's whole job — and because the readers span the dependency
- * graph. `@semiont/make-meaning` holds the Archivist itself and satisfies
- * `ContentReads` in-process from the working tree; `@semiont/jobs` holds the
- * Worker and can only reach the record over the wire. make-meaning depends on
- * jobs, so anything both need has to sit under both.
+ * These live in `@semiont/content` because the readers span the dependency
+ * graph: `@semiont/make-meaning` holds the Librarian and the Smelter,
+ * `@semiont/jobs` holds the Worker, and make-meaning depends on jobs, so
+ * anything both need has to sit under both.
  *
  * Where the Archivist IS lives in `@semiont/core/node` (`archivistEndpoint`),
  * not here: an address is a config value plus a credential, which is what
@@ -59,10 +57,9 @@ export class RepresentationMissing extends Error {
  * Archivist configured must die while an operator is watching it boot, rather
  * than fail every resource for the life of the process.
  *
- * A miss arrives as `RepresentationMissing` — the same error the in-process
- * face throws for the same fact, so no caller can tell whether the bytes were
- * a hop away. The Archivist's `code` says which half failed, precisely so this
- * side need not guess; a 404 without one is a broken Archivist, not a miss.
+ * A miss arrives as `RepresentationMissing`. The Archivist's `code` says
+ * which half failed, precisely so this side need not guess; a 404 without
+ * one is a broken Archivist, not a miss.
  */
 export function archivistContentReads(
   config: ArchivistAddressConfig,

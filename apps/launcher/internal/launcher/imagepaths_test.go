@@ -88,10 +88,11 @@ func TestTheArchivistImageTrustsTheKBMount(t *testing.T) {
 		"git's safe.directory": regexp.MustCompile(`safe\.directory (\S+)`),
 		"WORKDIR":              regexp.MustCompile(`(?m)^WORKDIR (\S+)`),
 	} {
-		m := re.FindSubmatch(df)
-		if m == nil {
+		// The last one stated: the runtime stage's, after the builder's.
+		all := re.FindAllSubmatch(df, -1)
+		if len(all) == 0 {
 			t.Errorf("the archivist image declares no %s", label)
-		} else if got := string(m[1]); got != kbMountTarget {
+		} else if got := string(all[len(all)-1][1]); got != kbMountTarget {
 			t.Errorf("the archivist image's %s is %q, the launcher mounts the knowledge base onto %q", label, got, kbMountTarget)
 		}
 	}
@@ -192,7 +193,7 @@ func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
 	for what, want := range map[string]string{
 		"the shared supervisor":              "scripts/container/supervise.sh",
 		"the boot entrypoint that arms it":   "scripts/container/boot.sh",
-		"the entry point, stated once (CMD)": "dist/archivist-main.js",
+		"the entry point, stated once (CMD)": "/usr/local/bin/semiont-archivist",
 		"the supervisor's probe target":      "SUPERVISE_PROBE=http://localhost:24103/health",
 	} {
 		if !strings.Contains(string(df), want) {

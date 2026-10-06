@@ -1,39 +1,30 @@
 /**
- * ViewStorage Tests
- * Tests for FilesystemViewStorage implementation
+ * FilesystemViewStorage reads the view files the Archivist keeps.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FilesystemViewStorage } from '../../storage/view-storage';
 import type { ResourceView } from '../../storage/view-storage';
-import { SemiontProject } from '@semiont/core/node';
-import { annotationId, resourceId } from '@semiont/core';
-import type { ResourceId, Motivation } from '@semiont/core';
-import { promises as fs } from 'fs';
+import { annotationId, getShardPath, resourceId } from '@semiont/core';
+import type { Annotation, Logger, ResourceId } from '@semiont/core';
+import { validators, formatErrors } from '@semiont/core/openapi';
+import { promises as fs, readFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join, resolve } from 'path';
-import { readFileSync } from 'fs';
-import { v4 as uuidv4 } from 'uuid';
+import { dirname, join, resolve } from 'path';
+import { randomUUID } from 'crypto';
 
-// Helper to create minimal ResourceDescriptor for tests
-function createResourceDescriptor(id: string, name: string, overrides = {}) {
+function viewOf(id: string, name: string, overrides: Partial<ResourceView['resource']> = {}, annotations: ResourceView['annotations']['annotations'] = []): ResourceView {
+  const rid = resourceId(id);
   return {
-    '@context': 'https://www.w3.org/ns/activitystreams',
-    '@id': resourceId(id),
-    name,
-    representations: [],
-    ...overrides,
-  };
-}
-
-// Helper to create minimal ResourceAnnotations for tests
-function createResourceAnnotations(rid: ResourceId, overrides = {}) {
-  return {
-    resourceId: rid,
-    version: 0,
-    updatedAt: new Date().toISOString(),
-    annotations: [],
-    ...overrides,
+    resource: {
+      '@context': 'https://www.w3.org/ns/activitystreams',
+      '@id': rid,
+      name,
+      representations: [],
+      ...overrides,
+    },
+    annotations: { resourceId: rid, version: 1, updatedAt: '2026-01-01T00:00:00.000Z', annotations },
+    lastSequence: 1,
   };
 }
 
@@ -45,272 +36,85 @@ const REFUSED: string[] = (
 ).kinds.find((kind) => kind.schema === 'ResourceId')!.refuses.map((refused) => refused.id);
 
 describe('FilesystemViewStorage', () => {
-  let testDir: string;
-  let project: SemiontProject;
+  let resourcesDir: string;
   let storage: FilesystemViewStorage;
 
+  const viewFile = (rid: ResourceId): string => {
+    const [ab, cd] = getShardPath(rid);
+    return join(resourcesDir, ab, cd, `${rid}.json`);
+  };
+
+  /** A view file as the Archivist leaves it. */
+  const kept = async (view: ResourceView): Promise<void> => {
+    const validate = validators.ResourceView;
+    expect(validate(view), formatErrors(validate.errors)).toBe(true);
+    const file = viewFile(resourceId(view.resource['@id']));
+    await fs.mkdir(dirname(file), { recursive: true });
+    await fs.writeFile(file, JSON.stringify(view, null, 2), 'utf-8');
+  };
+
   beforeEach(async () => {
-    testDir = join(tmpdir(), `semiont-test-viewstorage-${uuidv4()}`);
-    await fs.mkdir(testDir, { recursive: true });
-    project = new SemiontProject(testDir, { anchoredTextDir: `${testDir}/anchored-text` });
-    storage = new FilesystemViewStorage(project);
+    resourcesDir = join(tmpdir(), `semiont-test-viewstorage-${randomUUID()}`);
+    await fs.mkdir(resourcesDir, { recursive: true });
+    storage = new FilesystemViewStorage({ resourcesDir });
   });
 
   afterEach(async () => {
-    await project.destroy();
-    await fs.rm(testDir, { recursive: true, force: true });
+    await fs.rm(resourcesDir, { recursive: true, force: true });
   });
 
   describe('An id is one name in the file system', () => {
     // The type says a `ResourceId` is one. A value that got past the type is
     // text, and here is where that text would become a file's name.
-    it.each(REFUSED)('no view is read, written, found or deleted for %j', async (text) => {
-      const id = text as ResourceId;
-      const view = { resource: createResourceDescriptor('res-1', 'A'), annotations: createResourceAnnotations(resourceId('res-1')) };
-      await expect(storage.save(id, view)).rejects.toThrow(TypeError);
-      await expect(storage.get(id)).rejects.toThrow(TypeError);
-      await expect(storage.exists(id)).rejects.toThrow(TypeError);
-      await expect(storage.delete(id)).rejects.toThrow(TypeError);
-    });
-  });
-
-  describe('Constructor', () => {
-    it('should create FilesystemViewStorage with basePath', () => {
-      expect(storage).toBeDefined();
-    });
-
-    it('should create storage from project', () => {
-      const testStorage = new FilesystemViewStorage(project);
-      expect(testStorage).toBeDefined();
-    });
-  });
-
-  describe('save()', () => {
-    it('should save a resource view', async () => {
-      const rid = resourceId('doc1');
-      const view: ResourceView = {
-        resource: createResourceDescriptor('doc1', 'Test Document', {
-          format: 'text/plain',
-        }),
-        annotations: createResourceAnnotations(rid),
-      };
-
-      await storage.save(rid, view);
-
-      const retrieved = await storage.get(rid);
-      expect(retrieved).not.toBeNull();
-      expect(retrieved?.resource.name).toBe('Test Document');
-    });
-
-    it('should overwrite existing view', async () => {
-      const rid = resourceId('doc1');
-      const view1: ResourceView = {
-        resource: createResourceDescriptor('doc1', 'Version 1', {
-          format: 'text/plain',
-        }),
-        annotations: createResourceAnnotations(rid),
-      };
-
-      const view2: ResourceView = {
-        resource: createResourceDescriptor('doc1', 'Version 2', {
-          format: 'text/plain',
-        }),
-        annotations: createResourceAnnotations(rid),
-      };
-
-      await storage.save(rid, view1);
-      await storage.save(rid, view2);
-
-      const retrieved = await storage.get(rid);
-      expect(retrieved?.resource.name).toBe('Version 2');
+    it.each(REFUSED)('no view is read for %j', async (text) => {
+      await expect(storage.get(text as ResourceId)).rejects.toThrow(TypeError);
     });
   });
 
   describe('get()', () => {
-    it('should retrieve saved view', async () => {
+    it('reads the view kept for a resource', async () => {
+      const view = viewOf('doc1', 'Test Document', {
+        representations: [
+          { mediaType: 'text/plain', byteSize: 100, checksum: 'checksum1', created: '2026-01-01T00:00:00.000Z' },
+          { mediaType: 'text/html', byteSize: 200, checksum: 'checksum2', created: '2026-01-01T00:00:00.000Z' },
+        ],
+      });
+      await kept(view);
+
+      expect(await storage.get(resourceId('doc1'))).toEqual(view);
+    });
+
+    it('reads the annotations the view carries', async () => {
+      const annotation = (id: string): Annotation => ({
+        '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+        id: annotationId(id),
+        type: 'Annotation' as const,
+        motivation: 'commenting' as const,
+        body: [{ type: 'TextualBody' as const, value: 'test comment', purpose: 'commenting' as const }],
+        target: { source: resourceId('doc1') },
+        created: '2026-01-01T00:00:00.000Z',
+        creator: { '@id': 'http://localhost:4000/users/user1', '@type': 'Person' as const, name: 'user1' },
+      });
+      await kept(viewOf('doc1', 'Annotated Document', {}, [annotation('anno1'), annotation('anno2')]));
+
+      const view = await storage.get(resourceId('doc1'));
+
+      expect(view?.annotations.annotations.map((a) => a.id)).toEqual(['anno1', 'anno2']);
+    });
+
+    it('returns null where no view is kept', async () => {
+      expect(await storage.get(resourceId('nonexistent'))).toBeNull();
+    });
+
+    it('reads a corrupted file as missing, and says so', async () => {
+      const error = vi.fn();
+      const logger = { error } as Partial<Logger> as Logger;
       const rid = resourceId('doc1');
-      const view: ResourceView = {
-        resource: createResourceDescriptor('doc1', 'Test Document', {
-          format: 'text/plain',
-          representations: [{
-            '@id': 'checksum1',
-            mediaType: 'text/plain',
-            byteSize: 100,
-            checksum: 'checksum1',
-            created: new Date().toISOString(),
-          }],
-        }),
-        annotations: createResourceAnnotations(rid),
-      };
+      await fs.mkdir(dirname(viewFile(rid)), { recursive: true });
+      await fs.writeFile(viewFile(rid), '{ "resource": ', 'utf-8');
 
-      await storage.save(rid, view);
-      const retrieved = await storage.get(rid);
-
-      expect(retrieved).not.toBeNull();
-      expect(retrieved?.resource['@id']).toBe('doc1');
-      expect(retrieved?.resource.name).toBe('Test Document');
-      expect(retrieved?.resource.representations).toHaveLength(1);
-    });
-
-    it('should return null for non-existent view', async () => {
-      const rid = resourceId('nonexistent');
-      const view = await storage.get(rid);
-      expect(view).toBeNull();
-    });
-  });
-
-  describe('delete()', () => {
-    it('should delete a view', async () => {
-      const rid = resourceId('doc1');
-      const view: ResourceView = {
-        resource: createResourceDescriptor('doc1', 'To Delete', {
-          format: 'text/plain',
-        }),
-        annotations: createResourceAnnotations(rid),
-      };
-
-      await storage.save(rid, view);
-      expect(await storage.get(rid)).not.toBeNull();
-
-      await storage.delete(rid);
-      expect(await storage.get(rid)).toBeNull();
-    });
-
-    it('should not throw when deleting non-existent view', async () => {
-      const rid = resourceId('nonexistent');
-      await expect(storage.delete(rid)).resolves.not.toThrow();
-    });
-  });
-
-  describe('exists()', () => {
-    it('should return true for existing view', async () => {
-      const rid = resourceId('doc1');
-      const view: ResourceView = {
-        resource: createResourceDescriptor('doc1', 'Test', {
-          format: 'text/plain',
-        }),
-        annotations: createResourceAnnotations(rid),
-      };
-
-      await storage.save(rid, view);
-      const exists = await storage.exists(rid);
-      expect(exists).toBe(true);
-    });
-
-    it('should return false for non-existent view', async () => {
-      const rid = resourceId('nonexistent');
-      const exists = await storage.exists(rid);
-      expect(exists).toBe(false);
-    });
-  });
-
-  describe('getAll()', () => {
-    it('should return all views', async () => {
-      const rid1 = resourceId('doc1');
-      const rid2 = resourceId('doc2');
-
-      const view1: ResourceView = {
-        resource: createResourceDescriptor('doc1', 'Doc 1', {
-          format: 'text/plain',
-        }),
-        annotations: createResourceAnnotations(rid1),
-      };
-
-      const view2: ResourceView = {
-        resource: createResourceDescriptor('doc2', 'Doc 2', {
-          format: 'text/plain',
-        }),
-        annotations: createResourceAnnotations(rid2),
-      };
-
-      await storage.save(rid1, view1);
-      await storage.save(rid2, view2);
-
-      const views = await storage.getAll();
-
-      expect(views.length).toBeGreaterThanOrEqual(2);
-      const names = views.map(v => v.resource.name);
-      expect(names).toContain('Doc 1');
-      expect(names).toContain('Doc 2');
-    });
-
-    it('should return empty array when no views exist', async () => {
-      const views = await storage.getAll();
-      expect(views).toEqual([]);
-    });
-  });
-
-  describe('Complex views', () => {
-    it('should handle view with multiple representations', async () => {
-      const rid = resourceId('doc1');
-      const view: ResourceView = {
-        resource: createResourceDescriptor('doc1', 'Multi-Rep Document', {
-          format: 'text/plain',
-          representations: [
-            {
-              '@id': 'checksum1',
-              mediaType: 'text/plain',
-              byteSize: 100,
-              checksum: 'checksum1',
-              created: new Date().toISOString(),
-            },
-            {
-              '@id': 'checksum2',
-              mediaType: 'text/html',
-              byteSize: 200,
-              checksum: 'checksum2',
-              created: new Date().toISOString(),
-            },
-          ],
-        }),
-        annotations: createResourceAnnotations(rid),
-      };
-
-      await storage.save(rid, view);
-      const retrieved = await storage.get(rid);
-
-      expect(retrieved?.resource.representations).toHaveLength(2);
-      const reps = Array.isArray(retrieved?.resource.representations) ? retrieved.resource.representations : [retrieved?.resource.representations];
-      expect(reps[0]?.mediaType).toBe('text/plain');
-      expect(reps[1]?.mediaType).toBe('text/html');
-    });
-
-    it('should handle view with multiple annotations', async () => {
-      const rid = resourceId('doc1');
-      const view: ResourceView = {
-        resource: createResourceDescriptor('doc1', 'Annotated Document', {
-          format: 'text/plain',
-        }),
-        annotations: createResourceAnnotations(rid, {
-          annotations: [
-            {
-              '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-              id: annotationId('anno1'),
-              type: 'Annotation' as const,
-              motivation: 'commenting' satisfies Motivation,
-              body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],
-              target: 'http://localhost:4000/resources/doc1',
-              created: new Date().toISOString(),
-              creator: { '@id': 'http://localhost:4000/users/user1', '@type': 'Person' as const, name: 'user1' },
-            },
-            {
-              '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-              id: annotationId('anno2'),
-              type: 'Annotation' as const,
-              motivation: 'commenting' satisfies Motivation,
-              body: [{ type: 'TextualBody', value: 'test comment', purpose: 'commenting' }],
-              target: 'http://localhost:4000/resources/doc1',
-              created: new Date().toISOString(),
-              creator: { '@id': 'http://localhost:4000/users/user1', '@type': 'Person' as const, name: 'user1' },
-            },
-          ],
-        }),
-      };
-
-      await storage.save(rid, view);
-      const retrieved = await storage.get(rid);
-
-      expect(retrieved?.annotations.annotations).toHaveLength(2);
+      expect(await new FilesystemViewStorage({ resourcesDir }, logger).get(rid)).toBeNull();
+      expect(error).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -24,10 +24,7 @@ export const DISPATCHER_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/re
  * HTTP surface, and in the files it keeps. vitest.config.ts provides it as
  * `archivistCommand`.
  */
-export const ARCHIVIST_COMMAND: readonly string[] = ['node', join(REPO_ROOT, 'packages/make-meaning/dist/archivist-main.js')];
-
-/** The Archivist in Rust, held to the same cases while both exist. */
-export const ARCHIVIST_RUST_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/release/semiont-archivist')];
+export const ARCHIVIST_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/release/semiont-archivist')];
 
 /** An SDK's drivers: the programs the SDK suite talks to in that SDK's place (sdk/README.md § The driver protocol). */
 export interface SdkDrivers {

@@ -1,52 +1,15 @@
 /**
  * @semiont/event-sourcing
  *
- * Event sourcing infrastructure for Semiont
- *
- * Provides:
- * - EventStore: Orchestration layer for event sourcing
- * - EventLog: Event persistence (append, retrieve, query)
- * - ViewManager: View materialization (resource and system)
- * - ViewStorage: Interface and filesystem implementation for materialized views
+ * What a reader of the Archivist's record needs:
+ * - ViewStorage: reading a resource's materialized view from the state tree
+ * - annotationIdFor: the content-addressed id an annotation is recorded under
  */
 
-// Core event sourcing components
-export { EventStore, type EnrichEvent } from './event-store';
-export { createEventStore } from './event-store-factory';
-export { EventLog, type EventLogConfig } from './event-log';
-export { ViewManager, type ViewManagerConfig } from './view-manager';
-
-// Storage
-export { type EventStorageConfig } from './storage/event-storage';
-export { EventStorage } from './storage/event-storage';
 export {
   type ViewStorage,
   type ResourceView,
   FilesystemViewStorage,
 } from './storage/view-storage';
-export {
-  resolveStorageUri,
-  writeStorageUriEntry,
-  removeStorageUriEntry,
-  listStorageUriEntries,
-  ResourceNotFoundError,
-  type StorageUriEntry,
-} from './storage/storage-uri-index';
 
-
-// Query
-export { EventQuery, type EventReadStorage } from './query/event-query';
-
-// Views
-export { ViewMaterializer } from './views/view-materializer';
-export {
-  applyEntityTypeAdded,
-  applyTagSchemaAdded,
-  applyPersonProfiled,
-  type ApplyTagSchemaAddedResult,
-  type PeopleView,
-  type PersonProfile,
-} from './views/projection-reducers';
-
-// Identifier utilities
 export { annotationIdFor, type AnnotationIdentity } from './identifier-utils';

@@ -227,20 +227,5 @@ describe('GraphContext', () => {
       expect(graph.nodes.find((n) => n.id === 'res-main')).toMatchObject({ type: 'resource' });
       expect(mockGraphDb.getResource.mock.calls.length).toBeGreaterThanOrEqual(3);
     });
-
-    it('skips the barrier for views without a sequence stamp — straight to the poll floor', async () => {
-      // Pre-stamp view files (written before lastSequence existed) carry no
-      // parity target; the barrier cannot engage and must not block.
-      mockViews.get.mockReset().mockResolvedValue({ resource: mainDoc });
-      mockWeaveProgress.whenApplied.mockReset().mockResolvedValue(undefined);
-      mockGraphDb.getResource
-        .mockReset()
-        .mockResolvedValueOnce(null)
-        .mockResolvedValue(mainDoc);
-
-      await GraphContext.buildKnowledgeGraph(resourceId('res-main'), mockKb);
-
-      expect(mockWeaveProgress.whenApplied).not.toHaveBeenCalled();
-    });
   });
 });

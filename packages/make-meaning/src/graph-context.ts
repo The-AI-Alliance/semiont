@@ -92,25 +92,20 @@ export class GraphContext {
       if (view) {
         // Applied-offset barrier first: an event-driven wake at the moment
         // the Weaver reports parity with the view's sequence.
-        // A view without a stamp cannot name a parity target and skips
-        // straight to the poll floor.
-        if (view.lastSequence !== undefined) {
-          try {
-            await kb.weaveProgress.whenApplied(
-              String(resourceId),
-              view.lastSequence,
-              PROJECTION_BARRIER_TIMEOUT_MS,
-            );
-            mainDoc = await kb.graph.getResource(resourceId);
-          } catch (error) {
-            // Only the barrier's own timeout downgrades to the poll floor —
-            // any other failure is a broken progress fold and must surface,
-            // not silently degrade into polling.
-            if (!(error instanceof WeaveProgressTimeout)) throw error;
-          }
+        try {
+          await kb.weaveProgress.whenApplied(
+            String(resourceId),
+            view.lastSequence,
+            PROJECTION_BARRIER_TIMEOUT_MS,
+          );
+          mainDoc = await kb.graph.getResource(resourceId);
+        } catch (error) {
+          // Only the barrier's own timeout downgrades to the poll floor —
+          // any other failure is a broken progress fold and must surface,
+          // not silently degrade into polling.
+          if (!(error instanceof WeaveProgressTimeout)) throw error;
         }
-        // Bounded-poll floor: the fallback when the barrier cannot
-        // engage or its signals stall.
+        // Bounded-poll floor: the fallback when the barrier's signals stall.
         if (!mainDoc) {
           for (const delayMs of PROJECTION_LAG_BACKOFF_MS) {
             await new Promise((resolve) => setTimeout(resolve, delayMs));

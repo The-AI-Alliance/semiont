@@ -1,7 +1,6 @@
 /**
  * SmeltProgress — process-local fold of `smelt:settled` signals. Every process
- * that reads behind the barrier (the Archivist, the Librarian, the in-process
- * root) keeps its own.
+ * that reads behind the barrier (the Archivist, the Librarian) keeps its own.
  *
  * The Smelter emits `smelt:settled` after deciding a resource's content:
  * `indexed` (embedded + upserted) or `skipped` (media gate, empty text) —

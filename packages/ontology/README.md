@@ -44,7 +44,7 @@ function describe(annotation: Annotation): string {
 - **Tag schemas are not here.** A knowledge base registers its own at runtime, and a schema's data lives with the knowledge base that owns it. The `TagSchema` and `TagCategory` types are [`@semiont/core`](../core/README.md)'s.
 - **The readers need no registry.** Each reads only the annotation it is given. A reference names its entity types in `TextualBody` items whose `purpose` is `tagging`. A tag has two items: one `tagging`, holding the category, and one `classifying`, holding the schema's id.
 - **An annotation of another shape is an ordinary answer.** `getEntityTypes` gives an empty list for a body that is a single item or absent. The two tag readers give `undefined` for an annotation that is not a tag.
-- **Seeding is not here.** Giving a new knowledge base its defaults needs an event bus and an event store, so it is `@semiont/make-meaning`'s, in `src/bootstrap/entity-types.ts`.
+- **Seeding is not here.** Giving a new knowledge base its defaults is an append to its record, so it is the [Archivist](../../docs/protocol/ARCHIVIST.md)'s.
 
 The readers of the rest of an annotation (its target, its quoted text, the resource it links to, `isHighlight`, `isReference`) are `@semiont/core`'s.
 

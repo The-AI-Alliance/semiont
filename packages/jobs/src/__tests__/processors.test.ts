@@ -992,7 +992,7 @@ describe('annotation attribution composition', () => {
   // Who asked (`creator`) and the responsible parties (`wasAttributedTo`) are
   // not the worker's to say: the Stower derives both from the cited job, and
   // that is tested at the layer that decides it — `attribution()` in
-  // @semiont/core and the Stower's job-citation suite. Pinned here is the one
+  // @semiont/core and the Archivist's conformance suite. Pinned here is the one
   // fact the worker DOES state, on every motivation: what produced the
   // annotation.
 

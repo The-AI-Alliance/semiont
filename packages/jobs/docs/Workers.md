@@ -2,7 +2,7 @@
 
 A worker serves a single software-agent identity and turns queued jobs into Knowledge Base events; the worker host process runs one for each inference engine it is configured with. It opens an authenticated session, serves a set of job types, and — whenever it is idle — claims the next pending job of those types, reads the resource, runs a **processor**, and emits the results.
 
-Workers are **not** actors. They don't subscribe to a reducer; they claim jobs over the bus and dispatch by job type. But they emit the same EventBus commands as any other caller in the system. The **Stower** actor (in `@semiont/make-meaning`) handles all persistence to the Knowledge Base — a worker never writes to storage directly.
+Workers are **not** actors. They don't subscribe to a reducer; they claim jobs over the bus and dispatch by job type. But they emit the same EventBus commands as any other caller in the system. The Archivist's **Stower** handles all persistence to the Knowledge Base — a worker never writes to storage directly.
 
 **See also**: [Job types](./JobTypes.md) for what each job carries, [Failure discipline](./FailureDiscipline.md) for how one fails, and the [worker service](../../../apps/worker/README.md) for running it: its port, its health endpoint, its configuration and its stall watchdog.
 

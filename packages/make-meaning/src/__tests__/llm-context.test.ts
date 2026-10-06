@@ -13,21 +13,13 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { firstValueFrom } from 'rxjs';
-import { take } from 'rxjs/operators';
 import { LLMContext, type ResourceGatherReads } from '../llm-context';
-import { ResourceOperations } from '@semiont/core';
-import { asBusRequestPrimitive } from '../bus-request-local';
-import { AnnotationOperations } from '../archivist/annotation-operations';
-import { resourceId, annotationId, userId, EventBus, type Logger, type SupportedMediaType, deriveStorageUri } from '@semiont/core';
+import { resourceId, annotationId, EventBus, type Logger } from '@semiont/core';
 import type { GraphServiceConfig, GatheredContext } from '@semiont/core';
-import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { WorkingTreeStore, calculateChecksum } from '@semiont/content';
+import { calculateChecksum } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
-import { workingTreeContentReads } from '../archivist/record-slices';
 import { createSmeltProgress } from '../smelt-progress';
-import { Stower } from '../archivist/stower';
-import { createTestProject } from './helpers/test-project';
+import { createRecordFixture, type RecordFixture } from './helpers/record-fixtures';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -54,33 +46,14 @@ vi.mock('@semiont/inference', async () => {
   };
 });
 
-let fileCounter = 0;
-
 describe('LLM Context', () => {
-  let teardown: () => Promise<void>;
-  let eventStore: EventStore;
-  let eventBus: EventBus;
-  let stower: Stower;
+  let record: RecordFixture;
   let graphConfig: GraphServiceConfig;
-  // The narrow gather reads — real views + the real working-tree content
-  // adapter (exercised here, not mocked), a real memory graph, mock vectors.
+  // The narrow gather reads — real views, a real memory graph, mock vectors.
   let kb: ResourceGatherReads;
-  let workingTree: WorkingTreeStore;
   let graphDb: GraphDatabase;
-  let testResourceId: string;
-
-  async function create(
-    opts: { name: string; content: Buffer; format: SupportedMediaType; language?: string },
-    uid: ReturnType<typeof userId>,
-  ) {
-    const uri = deriveStorageUri(`test-${++fileCounter}`, opts.format);
-    const stored = await workingTree.store(opts.content, uri);
-    return ResourceOperations.createResource(
-      { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language },
-      { did: uid, roles: [] },
-      asBusRequestPrimitive(eventBus),
-    );
-  }
+  const testResourceId = 'llm-context-test-resource';
+  const CONTENT = 'This is test content for LLM context building.';
 
   beforeAll(async () => {
     // Initialize mock client
@@ -92,21 +65,13 @@ describe('LLM Context', () => {
 
     graphConfig = { type: 'memory' } as GraphServiceConfig;
 
-    const { project, teardown: td } = await createTestProject('llm-context');
-    teardown = td;
+    record = await createRecordFixture();
 
-    // Initialize EventBus and stores
-    eventBus = new EventBus();
-    eventStore = createEventStore(project, eventBus, mockLogger);
-
-    // The narrow reads — share the event store's view storage to avoid
-    // separate instances; content goes through the real adapter.
     const { getGraphDatabase } = await import('@semiont/graph');
     graphDb = await getGraphDatabase(graphConfig);
-    workingTree = new WorkingTreeStore(project, mockLogger);
     kb = {
-      views: eventStore.viewStorage,
-      content: workingTreeContentReads(eventStore.viewStorage, workingTree),
+      views: record.views,
+      content: record.content,
       // Text-media harness: the derived-text door is never consulted.
       anchoredText: async () => ({ kind: 'unknown' as const }),
       graph: graphDb,
@@ -115,39 +80,21 @@ describe('LLM Context', () => {
       smeltProgress: { whenSettled: async () => 'inert' as const },
     };
 
-    // Start Stower
-    stower = new Stower({ content: workingTree, eventStore }, eventBus, project, mockLogger);
-    await stower.initialize();
-
-    // Create a test resource
-    const content = Buffer.from('This is test content for LLM context building.', 'utf-8');
-    const resId = await create(
-      {
-        name: 'LLM Context Test Resource',
-        content,
-        format: 'text/plain',
-      },
-      userId('did:web:test:users:user-1'),
-    );
-
-    testResourceId = resId;
+    await record.resource(testResourceId, { name: 'LLM Context Test Resource', text: CONTENT });
 
     // Populate graph database (required by GraphContext)
-    // Construct a minimal ResourceDescriptor: `create` returns only the ResourceId
     await graphDb.createResource({
       '@context': 'https://www.w3.org/ns/anno.jsonld',
-      '@id': resId,
+      '@id': resourceId(testResourceId),
       name: 'LLM Context Test Resource',
       archived: false,
       entityTypes: [],
-      representations: { mediaType: 'text/plain', rel: 'original', checksum: '', byteSize: content.length },
+      representations: { mediaType: 'text/plain', rel: 'original', checksum: '', byteSize: Buffer.byteLength(CONTENT) },
     });
   });
 
   afterAll(async () => {
-    await stower.stop();
-    eventBus.destroy();
-    await teardown();
+    await record.teardown();
   });
 
   describe('resource context retrieval', () => {
@@ -195,32 +142,14 @@ describe('LLM Context', () => {
 
   describe('annotation inclusion', () => {
     it('should include annotations in context', async () => {
-      // Create an annotation on the resource and await Stower persistence.
-      // mark:create-ok is emitted by annotation-assembly in response to
-      // mark:added; this test emits mark:create directly, so we await the
-      // persisted mark:added domain event instead.
-      const created$ = firstValueFrom(eventBus.on('mark:added').pipe(take(1)));
-      await AnnotationOperations.createAnnotation(
-        {
-          motivation: 'highlighting',
-          target: {
-            source: resourceId(testResourceId),
-            selector: [{
-              type: 'TextPositionSelector',
-              start: 0,
-              end: 4
-            }]
-          },
-          body: {
-            type: 'TextualBody',
-            value: 'Test annotation',
-            format: 'text/plain',
-          },
-        },
-        userId('did:web:test:users:user-1'),
-        eventBus,
-        kb);
-      await created$;
+      await record.annotate(testResourceId, {
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        type: 'Annotation',
+        id: annotationId('llm-view-ann'),
+        motivation: 'highlighting',
+        created: '2026-01-01T00:00:00.000Z',
+        target: { source: resourceId(testResourceId), selector: [{ type: 'TextPositionSelector', start: 0, end: 4 }] },
+      });
 
       // The unified context sources annotations from the graph projection; this test's kb wires no
       // Weaver, so add the annotation to the graph store directly. The graph
@@ -643,7 +572,7 @@ describe('LLM Context', () => {
     const SETTLE_MS = 1_000;
     const hit = [{ id: 'r-sim#0', score: 0.9, resourceId: 'r-sim', text: 'similar text', entityTypes: [] }];
     // The focal resource's content generation — what the barrier waits on.
-    const TEST_CHECKSUM = calculateChecksum('This is test content for LLM context building.');
+    const TEST_CHECKSUM = calculateChecksum(CONTENT);
 
     // A vector store that has no focal vectors until the "Smelter" applies,
     // plus a real SmeltProgress fold on a test-driven bus: the delayed-Smelter

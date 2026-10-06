@@ -7,12 +7,9 @@ processes read. It checks what they do against
 [docs/protocol/ARCHIVIST.md](../../../docs/protocol/ARCHIVIST.md), the schemas
 `specs/` gives every channel and every file, and the Archivist's
 [API](../../../specs/src/archivist/openapi.json). It imports nothing from the
-Archivist: the lines that name an implementation are in
-[harness/paths.ts](../harness/paths.ts). There are two while both exist, and
-each is judged by the same cases: `ARCHIVIST_COMMAND`, the built
-`@semiont/make-meaning` entry point (`npm run test:archivist`), and
-`ARCHIVIST_RUST_COMMAND`, the binary `target/release/semiont-archivist`
-(`npm run test:archivist-rust`).
+Archivist: the one line that names an implementation is `ARCHIVIST_COMMAND` in
+[harness/paths.ts](../harness/paths.ts): the Rust binary
+`target/release/semiont-archivist`.
 
 ## The world around an Archivist
 
@@ -65,9 +62,22 @@ what its schema says; and a case fails otherwise, whatever it was about.
   stop and after a crash, every view and projection rebuilt from the log, a
   wrong view corrected and an orphan reaped, the rebuild skipped when the
   document says so, a log read as it is found, and clone tokens forgotten.
-- **One tree, two implementations** (`compatibility.test.ts`): what the
-  Archivist under test writes, the other rebuilds byte for byte from the log;
-  and a tree the other went on from, the first goes on from in turn.
+- **A tree written before** (`fixture.test.ts`): the knowledge base in
+  `fixtures/typescript-tree`, written by the Archivist's first implementation
+  and kept as it was left, is rebuilt from its log into the very views it was
+  left with, byte for byte, served as recorded, and gone on from.
+- **Environment** (`environment.test.ts`): what each variable
+  [`specs/src/service-environment/variables.json`](../../../specs/src/service-environment/variables.json)
+  lists for the Archivist changes, and that a reply continues its request's
+  trace.
+- **Telemetry** (`observability.test.ts`): the `bus.recv` and `bus.emit` spans
+  its frames make, the depth of what is waiting to be published, each git
+  command measured and a staging degradation counted, and, last, everything
+  exported held, in both directions, to the rows of
+  [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)
+  that list the Archivist and the rows of
+  [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json)
+  for the SDK transport it reaches the bus through.
 - **Staging** (`staging.test.ts`): what reaches the git index and within what
   bound, what an archive unstages, the branch, a batch that cannot be staged,
   and a knowledge base that does not sync git, which runs none.
@@ -80,11 +90,10 @@ reachable through a gateway and have no cases.
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-archivist
-npm run build:packages
+npm run build --workspace=@semiont/core
 cd tests/conformance
 npm ci
 npm run test:archivist
-npm run test:archivist-rust
 ```
 
 It needs `git` and `nats-server` on `PATH`.

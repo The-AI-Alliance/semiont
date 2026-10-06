@@ -47,5 +47,5 @@ A write from a worker that cites no job, or a job it does not hold, is refused.
 
 - The role names and how a claim is read: [packages/core/src/service-role.ts](../../packages/core/src/service-role.ts) and the Rust SDK's [roles.rs](../../packages/sdk-rust/src/roles.rs), held to one literal by `npm run lint:service-role`
 - The gateway's principal: [apps/gateway/src/principal.rs](../../apps/gateway/src/principal.rs)
-- The archivist's read path: [packages/make-meaning/src/archivist/archivist-read-path.ts](../../packages/make-meaning/src/archivist/archivist-read-path.ts)
+- The Archivist's HTTP surface: [apps/archivist/src/surface.rs](../../apps/archivist/src/surface.rs)
 - The dispatcher's claim check: [apps/dispatcher/handlers/src/handlers.rs](../../apps/dispatcher/handlers/src/handlers.rs)

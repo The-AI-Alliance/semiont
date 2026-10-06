@@ -97,7 +97,6 @@ export const BUS_OPERATIONS = {
   'smelt:rebuild-anchors':               { result: 'smelt:rebuild-anchors-ok',       failure: 'smelt:rebuild-anchors-failed' },
 
   // ── YIELD ───────────────────────────────────────────────────────
-  // ResourceOperations issues it via busRequest, in process beside the Stower;
   // clients refresh on the persisted `yield:created`, never on the -ok reply
   'yield:create':                        { result: 'yield:create-ok',                failure: 'yield:create-failed' },
   'yield:clone-persist':                 { result: 'yield:clone-persist-ok',         failure: 'yield:clone-persist-failed' },

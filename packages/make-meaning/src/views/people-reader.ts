@@ -2,7 +2,7 @@
  * People Projection Reader
  *
  * Who the DIDs in this knowledge base's record belong to. Maintained by
- * ViewMaterializer in response to `person:profiled` events, which the gateway
+ * the Archivist in response to `person:profiled` events, which the gateway
  * produces when a person ACTS, from the name it verified on their token.
  *
  * This is the read side of person profiles: provenance joins on the DID alone
@@ -14,9 +14,11 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { SYSTEM_SCOPE } from '@semiont/core';
-import { errField, type Logger } from '@semiont/core';
+import { errField, type Logger, type components } from '@semiont/core';
 import type { SemiontState } from '@semiont/core/node';
-import type { PeopleView } from '@semiont/event-sourcing';
+
+/** DID → current profile, as the people projection file holds it. */
+export type People = components['schemas']['PeopleProjection']['people'];
 
 /**
  * Read the people projection: DID → current profile.
@@ -25,7 +27,7 @@ import type { PeopleView } from '@semiont/event-sourcing';
  * entity-type reader answers — never an error, and never a fabricated name.
  * A DID with no entry stays unnamed: the record says what it knows.
  */
-export async function readPeopleProjection(state: Pick<SemiontState, 'stateDir'>): Promise<PeopleView> {
+export async function readPeopleProjection(state: Pick<SemiontState, 'stateDir'>): Promise<People> {
   const peoplePath = path.join(
     state.stateDir,
     'projections',
@@ -66,7 +68,7 @@ export async function readPeopleProjection(state: Pick<SemiontState, 'stateDir'>
  * Returns the SAME reference when nothing changed, so a reply mentioning no
  * person costs a walk and no allocation.
  */
-export function resolvePersonNames<T>(value: T, people: PeopleView): T {
+export function resolvePersonNames<T>(value: T, people: People): T {
   if (Array.isArray(value)) {
     let changed = false;
     const next = value.map((item) => {
@@ -113,7 +115,7 @@ export async function personNamer(
   state: Pick<SemiontState, 'stateDir'>,
   logger: Logger,
 ): Promise<<T>(value: T) => T> {
-  let people: PeopleView;
+  let people: People;
   try {
     people = await readPeopleProjection(state);
   } catch (error) {

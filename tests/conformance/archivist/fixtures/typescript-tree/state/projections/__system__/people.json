@@ -1,0 +1,12 @@
+{
+  "people": {
+    "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:ada": {
+      "name": "Person ada",
+      "since": "2026-10-06T00:22:25.697Z"
+    },
+    "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:agents:conformance:namer": {
+      "name": "The Namer",
+      "since": "2026-10-06T00:22:25.825Z"
+    }
+  }
+}

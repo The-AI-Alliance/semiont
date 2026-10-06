@@ -486,14 +486,11 @@ export class ArchivistWorld {
 
   // ── Restarts ──────────────────────────────────────────────────────────────
 
-  /**
-   * Stop the Archivist and start one again on the same trees and, unless
-   * changed, the same settings: the same implementation, or the other.
-   */
-  async restart(change: (s: ArchivistSettings) => ArchivistSettings = (s) => s, peer = false): Promise<void> {
+  /** Stop the Archivist and start it again on the same trees and, unless changed, the same settings. */
+  async restart(change: (s: ArchivistSettings) => ArchivistSettings = (s) => s): Promise<void> {
     const settings = change(this.settings);
     await this.archivist.stop();
-    this.archivist = await startArchivistProcess({ settings, env: this.env, peer, ...(this.pathFirst ? { pathFirst: this.pathFirst } : {}) });
+    this.archivist = await startArchivistProcess({ settings, env: this.env, ...(this.pathFirst ? { pathFirst: this.pathFirst } : {}) });
     await this.answering();
   }
 

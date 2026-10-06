@@ -1,7 +1,7 @@
 /**
  * Annotation Assembly
  *
- * Pure functions for building W3C Annotations and applying body operations.
+ * Pure functions for building W3C Annotations.
  * No EventBus, no persistence — just data transformation.
  */
 
@@ -14,7 +14,6 @@ import { generateUuid } from './id-generation';
 type Agent = components['schemas']['Agent'];
 type AnnotationBody = components['schemas']['AnnotationBody'];
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
-type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
 type SvgSelector = components['schemas']['SvgSelector'];
 type FragmentSelector = components['schemas']['FragmentSelector'];
@@ -144,42 +143,4 @@ export function assembleAnnotation(
   const bodyArray = (Array.isArray(request.body) ? request.body : request.body ? [request.body] : []) as AnnotationBody[];
 
   return { annotation, bodyArray };
-}
-
-/**
- * Apply body operations (add/remove/replace) to an annotation's body array.
- * Returns a new array — does not mutate the input.
- */
-export function applyBodyOperations(
-  body: Annotation['body'],
-  operations: UpdateAnnotationBodyRequest['operations'],
-): AnnotationBody[] {
-  const bodyArray = Array.isArray(body) ? [...body] : [];
-
-  for (const op of operations) {
-    if (op.op === 'add') {
-      const exists = bodyArray.some(item =>
-        JSON.stringify(item) === JSON.stringify(op.item)
-      );
-      if (!exists) {
-        bodyArray.push(op.item);
-      }
-    } else if (op.op === 'remove') {
-      const index = bodyArray.findIndex(item =>
-        JSON.stringify(item) === JSON.stringify(op.item)
-      );
-      if (index !== -1) {
-        bodyArray.splice(index, 1);
-      }
-    } else if (op.op === 'replace') {
-      const index = bodyArray.findIndex(item =>
-        JSON.stringify(item) === JSON.stringify(op.oldItem)
-      );
-      if (index !== -1) {
-        bodyArray[index] = op.newItem;
-      }
-    }
-  }
-
-  return bodyArray;
 }

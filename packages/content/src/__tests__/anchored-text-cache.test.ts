@@ -55,7 +55,7 @@ vi.mock('../extract-pdf-text-layer', async (importOriginal) => {
 });
 
 const { derivingExtractorFor } = await import('../text-extractor');
-const { createAnchoredTextStore, createAnchoredTextReader, encodeLines, decodeLines } = await import('../anchored-text-store');
+const { createAnchoredTextStore, encodeLines, decodeLines } = await import('../anchored-text-store');
 const { calculateChecksum } = await import('../checksum');
 const { locate, textUnder, getShardPath } = await import('@semiont/core');
 type Item = import('@semiont/core').PdfTextItem;
@@ -536,57 +536,28 @@ describe('would-hit key listing', () => {
 /**
  * The stamp is the writer's to state. A process that only reads the store —
  * built from other packages, or in another language — cannot compute the
- * writer's stamp, and one that computed its own would either never hit or
- * serve stale recognition after the writer's parser moved.
+ * writer's stamp; it compares entries against the one stated in the directory.
  */
-describe('a reader compares entries against the stamp the writer states', () => {
+describe('the writer states its stamp in the directory', () => {
   const MAP = { kind: 'extracted' as const, text: 'alpha beta', items: [{ start: 0, end: 5, page: 1, x: 72, y: 720, width: 30, height: 12 }], method: 'ocr' as const };
   const KEY = 'feedc0de11';
+  const stated = () => fs.readFileSync(path.join(dir, 'STAMP'), 'utf8');
 
-  /** An entry and a stated stamp as some other writer left them. */
-  const leftBy = (stamp: string, stated: string | null) => {
-    const [ab, cd] = getShardPath(KEY);
-    fs.mkdirSync(path.join(dir, ab, cd), { recursive: true });
-    fs.writeFileSync(path.join(dir, ab, cd, `${KEY}.json`), JSON.stringify({ v: 2, stamp, text: MAP.text, lines: encodeLines(MAP.items), method: MAP.method }));
-    if (stated !== null) fs.writeFileSync(path.join(dir, 'STAMP'), `${stated}\n`);
-  };
-
-  it('a write states the stamp, and a reader then hits what was written', async () => {
-    expect(await createAnchoredTextReader(dir).read(KEY)).toBeNull();
-
+  it('a write states the stamp its entries carry', async () => {
     await createAnchoredTextStore(dir).write(KEY, MAP);
 
     const [file] = allEntryFiles(dir);
-    expect(fs.readFileSync(path.join(dir, 'STAMP'), 'utf8')).toBe(`${JSON.parse(fs.readFileSync(file!, 'utf8')).stamp}\n`);
-    expect(await createAnchoredTextReader(dir).read(KEY)).toEqual(MAP);
-  });
-
-  it('hits under a stamp the reader could never have computed', async () => {
-    leftBy('a-writer-built-from-other-packages', 'a-writer-built-from-other-packages');
-
-    expect(await createAnchoredTextReader(dir).read(KEY)).toEqual(MAP);
-  });
-
-  it('misses an entry the writer has since moved on from', async () => {
-    leftBy('the-old-parser', 'the-new-parser');
-
-    expect(await createAnchoredTextReader(dir).read(KEY)).toBeNull();
-  });
-
-  it('misses everything while no stamp is stated', async () => {
-    leftBy('any-stamp', null);
-
-    expect(await createAnchoredTextReader(dir).read(KEY)).toBeNull();
+    expect(stated()).toBe(`${JSON.parse(fs.readFileSync(file!, 'utf8')).stamp}\n`);
   });
 
   it('a listing states the stamp too, so a writer that re-derives nothing still leaves readers able to hit', async () => {
     await createAnchoredTextStore(dir).write(KEY, MAP);
+    const written = stated();
     fs.rmSync(path.join(dir, 'STAMP'));
-    expect(await createAnchoredTextReader(dir).read(KEY)).toBeNull();
 
     expect(await createAnchoredTextStore(dir).list()).toEqual([KEY]);
 
-    expect(await createAnchoredTextReader(dir).read(KEY)).toEqual(MAP);
+    expect(stated()).toBe(written);
   });
 
   it('the stated stamp survives the listing sweep', async () => {

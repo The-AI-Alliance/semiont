@@ -10,13 +10,215 @@ This container image (semiont-archivist) includes the following third-party
 components:
 
   Alpine Linux - MIT License
-  Node.js - MIT License
   tini - MIT License
   git - GPL-2.0-only License
 
-  npm dependencies (installed at build time from https://registry.npmjs.org):
-    @semiont/make-meaning - Apache-2.0 License (The AI Alliance)
+  Rust crates compiled into the archivist binary (from crates.io):
+    ahash - MIT OR Apache-2.0
+    aho-corasick - Unlicense OR MIT
+    allocator-api2 - MIT OR Apache-2.0
+    atomic-waker - Apache-2.0 OR MIT
+    axum - MIT
+    axum-core - MIT
+    base16ct - Apache-2.0 OR MIT
+    base64 - MIT OR Apache-2.0
+    base64ct - Apache-2.0 OR MIT
+    bit-set - Apache-2.0 OR MIT
+    bit-vec - Apache-2.0 OR MIT
+    bitflags - MIT OR Apache-2.0
+    block-buffer - MIT OR Apache-2.0
+    borrow-or-share - MIT-0
+    bytecount - Apache-2.0 OR MIT
+    bytes - MIT
+    cfg-if - MIT OR Apache-2.0
+    chrono - MIT OR Apache-2.0
+    const-oid - Apache-2.0 OR MIT
+    core_detect - MIT OR Apache-2.0
+    cpufeatures - MIT OR Apache-2.0
+    crypto-bigint - Apache-2.0 OR MIT
+    crypto-common - MIT OR Apache-2.0
+    curve25519-dalek - BSD-3-Clause
+    data-encoding - MIT
+    der - Apache-2.0 OR MIT
+    digest - MIT OR Apache-2.0
+    ecdsa - Apache-2.0 OR MIT
+    ed25519 - Apache-2.0 OR MIT
+    ed25519-dalek - BSD-3-Clause
+    elliptic-curve - Apache-2.0 OR MIT
+    email_address - MIT
+    encoding_rs - (Apache-2.0 OR MIT) AND BSD-3-Clause
+    equivalent - Apache-2.0 OR MIT
+    errno - MIT OR Apache-2.0
+    fancy-regex - MIT
+    ff - MIT OR Apache-2.0
+    fluent-uri - MIT
+    foldhash - Zlib
+    form_urlencoded - MIT OR Apache-2.0
+    fraction - MIT OR Apache-2.0
+    futures - MIT OR Apache-2.0
+    futures-channel - MIT OR Apache-2.0
+    futures-core - MIT OR Apache-2.0
+    futures-executor - MIT OR Apache-2.0
+    futures-io - MIT OR Apache-2.0
+    futures-sink - MIT OR Apache-2.0
+    futures-task - MIT OR Apache-2.0
+    futures-util - MIT OR Apache-2.0
+    generic-array - MIT
+    getrandom - MIT OR Apache-2.0
+    group - MIT OR Apache-2.0
+    hashbrown - MIT OR Apache-2.0
+    hkdf - MIT OR Apache-2.0
+    hmac - MIT OR Apache-2.0
+    http - MIT OR Apache-2.0
+    http-body - MIT
+    http-body-util - MIT
+    httparse - MIT OR Apache-2.0
+    httpdate - MIT OR Apache-2.0
+    hyper - MIT
+    hyper-rustls - Apache-2.0 OR ISC OR MIT
+    hyper-util - MIT
+    iana-time-zone - MIT OR Apache-2.0
+    icu_collections - Unicode-3.0
+    icu_locale_core - Unicode-3.0
+    icu_normalizer - Unicode-3.0
+    icu_normalizer_data - Unicode-3.0
+    icu_properties - Unicode-3.0
+    icu_properties_data - Unicode-3.0
+    icu_provider - Unicode-3.0
+    idna - MIT OR Apache-2.0
+    idna_adapter - Apache-2.0 OR MIT
+    indexmap - Apache-2.0 OR MIT
+    ipnet - MIT OR Apache-2.0
+    itoa - MIT OR Apache-2.0
+    jsonschema - MIT
+    jsonschema-regex - MIT
+    jsonschema-value - MIT
+    jsonwebtoken - MIT
+    lazy_static - MIT OR Apache-2.0
+    libc - MIT OR Apache-2.0
+    libm - MIT
+    litemap - Unicode-3.0
+    lock_api - MIT OR Apache-2.0
+    log - MIT OR Apache-2.0
+    matchit - MIT AND BSD-3-Clause
+    memchr - Unlicense OR MIT
+    micromap - MIT
+    mime - MIT OR Apache-2.0
+    mio - MIT
+    multer - MIT
+    num - MIT OR Apache-2.0
+    num-bigint - MIT OR Apache-2.0
+    num-bigint-dig - MIT OR Apache-2.0
+    num-cmp - MIT OR Apache-2.0
+    num-complex - MIT OR Apache-2.0
+    num-integer - MIT OR Apache-2.0
+    num-iter - MIT OR Apache-2.0
+    num-rational - MIT OR Apache-2.0
+    num-traits - MIT OR Apache-2.0
+    once_cell - MIT OR Apache-2.0
+    openssl-probe - MIT OR Apache-2.0
+    opentelemetry - Apache-2.0
+    opentelemetry_sdk - Apache-2.0
+    opentelemetry-http - Apache-2.0
+    opentelemetry-otlp - Apache-2.0
+    opentelemetry-proto - Apache-2.0
+    opentelemetry-stdout - Apache-2.0
+    outref - MIT
+    p256 - Apache-2.0 OR MIT
+    p384 - Apache-2.0 OR MIT
+    parking_lot - MIT OR Apache-2.0
+    parking_lot_core - MIT OR Apache-2.0
+    pem-rfc7468 - Apache-2.0 OR MIT
+    percent-encoding - MIT OR Apache-2.0
+    pin-project-lite - Apache-2.0 OR MIT
+    pkcs1 - Apache-2.0 OR MIT
+    pkcs8 - Apache-2.0 OR MIT
+    potential_utf - Unicode-3.0
+    ppv-lite86 - MIT OR Apache-2.0
+    primeorder - Apache-2.0 OR MIT
+    prost - Apache-2.0
+    rand - MIT OR Apache-2.0
+    rand_chacha - MIT OR Apache-2.0
+    rand_core - MIT OR Apache-2.0
+    ref-cast - MIT OR Apache-2.0
+    referencing - MIT
+    regex - MIT OR Apache-2.0
+    regex-automata - MIT OR Apache-2.0
+    regex-syntax - MIT OR Apache-2.0
+    reqwest - MIT OR Apache-2.0
+    rfc6979 - Apache-2.0 OR MIT
+    ring - Apache-2.0 AND ISC
+    rsa - MIT OR Apache-2.0
+    rustls - Apache-2.0 OR ISC OR MIT
+    rustls-native-certs - Apache-2.0 OR ISC OR MIT
+    rustls-pki-types - MIT OR Apache-2.0
+    rustls-platform-verifier - MIT OR Apache-2.0
+    rustls-webpki - ISC
+    ryu - Apache-2.0 OR BSL-1.0
+    scopeguard - MIT OR Apache-2.0
+    sec1 - Apache-2.0 OR MIT
+    serde - MIT OR Apache-2.0
+    serde_core - MIT OR Apache-2.0
+    serde_json - MIT OR Apache-2.0
+    serde_path_to_error - MIT OR Apache-2.0
+    serde_spanned - MIT OR Apache-2.0
+    serde_urlencoded - MIT OR Apache-2.0
+    sha2 - MIT OR Apache-2.0
+    signal-hook-registry - MIT OR Apache-2.0
+    signature - Apache-2.0 OR MIT
+    simdutf8 - MIT OR Apache-2.0
+    slab - MIT
+    smallvec - MIT OR Apache-2.0
+    socket2 - MIT OR Apache-2.0
+    spin - MIT
+    spki - Apache-2.0 OR MIT
+    stable_deref_trait - MIT OR Apache-2.0
+    strum - MIT
+    subtle - BSD-3-Clause
+    sync_wrapper - Apache-2.0
+    thiserror - MIT OR Apache-2.0
+    tikv-jemalloc-ctl - MIT OR Apache-2.0
+    tikv-jemalloc-sys - MIT OR Apache-2.0
+    tikv-jemallocator - MIT OR Apache-2.0
+    tinystr - Unicode-3.0
+    tinyvec - Zlib OR Apache-2.0 OR MIT
+    tokio - MIT
+    tokio-rustls - MIT OR Apache-2.0
+    tokio-stream - MIT
+    tokio-util - MIT
+    toml - MIT OR Apache-2.0
+    toml_datetime - MIT OR Apache-2.0
+    toml_parser - MIT OR Apache-2.0
+    tower - MIT
+    tower-http - MIT
+    tower-layer - MIT
+    tower-service - MIT
+    tracing - MIT
+    tracing-core - MIT
+    try-lock - MIT
+    typenum - MIT OR Apache-2.0
+    unicode-general-category - Apache-2.0
+    unicode-normalization - MIT OR Apache-2.0
+    untrusted - ISC
+    url - MIT OR Apache-2.0
+    utf8_iter - Apache-2.0 OR MIT
+    uuid - Apache-2.0 OR MIT
+    uuid-simd - MIT
+    vsimd - MIT
+    want - MIT
+    winnow - MIT
+    writeable - Unicode-3.0
+    yoke - Unicode-3.0
+    zerocopy - BSD-2-Clause OR Apache-2.0 OR MIT
+    zerofrom - Unicode-3.0
+    zeroize - Apache-2.0 OR MIT
+    zerotrie - Unicode-3.0
+    zerovec - Unicode-3.0
+    zmij - MIT
 
-Each npm dependency's full license text is available in its respective
-node_modules/<package>/LICENSE file within the image, under
-/usr/local/lib/node_modules.
+  Native code those crates compile into the binary:
+    jemalloc - BSD-2-Clause (compiled in by tikv-jemalloc-sys)
+
+Each crate's license text is part of its published source on crates.io, and so
+is the license of the native code a crate compiles in; the image carries the
+binary alone.

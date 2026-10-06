@@ -61,7 +61,6 @@ service_files() {
     worker)    find packages/jobs/src -name '*.ts' ! -path '*__tests__*' ;;
     smelter)   echo packages/make-meaning/src/smelter-main.ts ;;
     weaver)    echo packages/make-meaning/src/weaver-main.ts ;;
-    archivist) echo packages/make-meaning/src/archivist/archivist-main.ts ;;
     librarian) echo packages/make-meaning/src/librarian-main.ts ;;
   esac
 }
@@ -76,7 +75,6 @@ dockerfile_for() {
 
 builder_for() {
   case "$1" in
-    archivist) echo archivistArgs ;;
     librarian) echo librarianArgs ;;
     *)         echo sidecarArgs ;;
   esac
@@ -99,7 +97,7 @@ demand_of() {
 }
 
 # ── B1 — per-service env census ─────────────────────────────────────────────
-for svc in worker smelter weaver archivist librarian; do
+for svc in worker smelter weaver librarian; do
   demand=$(demand_of "$svc")
   df=$(dockerfile_for "$svc")
   df_env=$(grep -hE '^ENV ' "$df" | sed -E 's/^ENV +//' | cut -d= -f1 || true)

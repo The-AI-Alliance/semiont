@@ -230,22 +230,19 @@ async function statedStamp(dir: string): Promise<string | null> {
     }
 }
 
-/** One read: a hit only for a well-formed entry carrying `stamp`. Never throws. */
-async function readEntry(dir: string, key: string, stamp: string | null, logger?: Logger): Promise<ExtractionOutcome | null> {
+/** One read: a hit only for a well-formed entry carrying this writer's stamp. Never throws. */
+async function readEntry(dir: string, key: string, logger?: Logger): Promise<ExtractionOutcome | null> {
     let hit: CachedAnchoredText | null = null;
     try {
         const file = entryFile(dir, key);
         if (file === null) throw new Error('invalid key');   // refused → a miss like any other
         const parsed: unknown = JSON.parse(await fs.promises.readFile(file, 'utf8'));
-        if (stamp !== null && isCached(parsed) && parsed.stamp === stamp) hit = parsed;
+        if (isCached(parsed) && parsed.stamp === STAMP) hit = parsed;
     } catch {
         hit = null;   // absent, unreadable, truncated, or not ours
     }
-    // Logged here rather than at the call sites: the Smelter's extract seam
-    // and the Archivist's anchored-text read both come through here, so each
-    // would see only its own share of the traffic and the policy would be
-    // stated twice. Hit rate is what keeps the decision to build this cache
-    // auditable after the fact.
+    // Hit rate is what keeps the decision to build this cache auditable
+    // after the fact.
     logger?.debug('Anchored-text cache', {
         outcome: hit ? 'hit' : 'miss',
         key,
@@ -257,17 +254,6 @@ async function readEntry(dir: string, key: string, stamp: string | null, logger?
     if ('declined' in hit) return { kind: 'declined', declined: hit.declined };
     const { v: _v, stamp: _stamp, lines, text, ...provenance } = hit;
     return { kind: 'extracted', text, items: decodeLines(lines), ...provenance };
-}
-
-/**
- * The store as a process that does not write it reads it: an entry is a hit
- * only under the stamp the writer has stated in the directory. With no stamp
- * stated, every read is a miss.
- */
-export function createAnchoredTextReader(dir: string, logger?: Logger): Pick<AnchoredTextStore, 'read'> {
-    return {
-        read: async (key) => readEntry(dir, key, await statedStamp(dir), logger),
-    };
 }
 
 /**
@@ -304,7 +290,7 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
     };
 
     return {
-        read: (key) => readEntry(dir, key, STAMP, logger),
+        read: (key) => readEntry(dir, key, logger),
 
         async write(key, outcome) {
             const target = fileFor(key);

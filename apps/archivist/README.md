@@ -10,35 +10,31 @@ that touches the knowledge base tree**. Every other service reaches it over the 
 | --- | --- |
 | Image | `ghcr.io/the-ai-alliance/semiont-archivist` |
 | Port | 24103 |
-| Entry point | `@semiont/make-meaning/dist/archivist-main.js` |
-| Code | [`packages/make-meaning`](../../packages/make-meaning/) |
-| npm | not published — container only |
+| Runs | the Rust binary `semiont-archivist` |
+| Code | this directory: [src](./src), and its crates [record](./record) and [staging](./staging) |
+| Specification | [docs/protocol/ARCHIVIST.md](../../docs/protocol/ARCHIVIST.md) |
+| Judged by | [tests/conformance/archivist](../../tests/conformance/archivist/README.md) |
 
-## Two implementations
+## What it is made of
 
-The image runs the TypeScript Archivist in `@semiont/make-meaning`. This directory also holds the
-Archivist in Rust: the binary `semiont-archivist` ([src](./src)), with two crates of its own beside
-it — [record](./record), the event log, views and projections, which reaches no network and runs no
-program; and [staging](./staging), the staging drivers, the only place git is run. Both
-implementations are held to one specification,
-[docs/protocol/ARCHIVIST.md](../../docs/protocol/ARCHIVIST.md), by one suite,
-[tests/conformance/archivist](../../tests/conformance/archivist/README.md), which also passes a
-tree from each to the other.
+The binary ([src](./src)) composes two crates of its own and the crates the Rust services share:
 
-## What it runs
+- [record](./record) — the event log, the views and the projections, and where each is filed. It
+  reaches no network and runs no program, and CI holds it to that.
+- [staging](./staging) — the staging drivers: git, and none for a knowledge base that does not
+  sync git. The only place git is run.
 
-Three actors, and they move together on purpose:
+## What it does
 
-- **Stower** — accessions the record: appends events and maintains the projections derived from
-  them. The **only** caller that appends events.
-- **Browser** — serves it: answers every `browse:*` read from the log, those projections and the
-  working tree. It reads no graph, no vector index and no embedding provider: a read that needs one
-  is discovery, and the [Librarian](../librarian/)'s.
-- **CloneTokenManager** — validates clone tokens so a copy inherits its source's metadata.
-  Byte-free: it resolves storage URIs, never content.
+Five jobs, and they move together on purpose:
 
-Plus the annotation-assembly and annotation-context handlers, the entity-type bootstrap, and the
-startup view rebuild — this is the one rebuild owner.
+- **It appends events** to the event log. It is the only process that does.
+- **It writes content** to the working tree.
+- **It stages change** where a person can commit it.
+- **It keeps the materialized views** up to date with the log, and rebuilds them at startup.
+- **It serves browse requests** from the log, the views and the working tree. It reads no graph,
+  no vector index and no embedding provider: a read that needs one is discovery, and the
+  [Librarian](../librarian/)'s.
 
 **The startup rebuild also reaps.** It replays the log and writes a view for every resource it
 finds, then **deletes the views the log no longer justifies**. Without that step the pass is
@@ -47,7 +43,7 @@ catalog is those views, so it spends every boot trying to heal resources that no
 A view whose rebuild *threw* is kept rather than reaped: a transient read failure must not read
 as "the log does not justify this." Each reap is logged by resource id, with a count.
 
-**Why these cannot be split.** Stower writes the events and projections Browser reads;
+**Why these cannot be split.** The events and views that are written are the ones browse reads;
 separating them opens a cross-process read-after-write window over the same state. And git is
 single-writer — the Archivist's staging driver runs it, so two processes on one index means
 `index.lock` contention, a hard failure rather than a retry. The Archivist owns the tree and is
@@ -81,15 +77,15 @@ way, as ordinary events (once globally, once scoped to their resource). See
 | Route | What it does | Called by |
 | --- | --- | --- |
 | `GET /health` | liveness; the only unauthenticated path | health checks |
-| `POST /resources` | an upload, multipart as the client sent it, for the principal named in `Semiont-Principal` (with its roles in `Semiont-Roles`): the bytes are stored and the resource is recorded — by the Stower, or by the CloneTokenManager when the upload carries `cloneToken` — and the answer is `{resourceId}`. 400 names what is wrong with the upload; 500 carries the record's reason for refusing it. | the gateway, for `POST /resources` |
+| `POST /resources` | an upload, multipart as the client sent it, for the principal named in `Semiont-Principal` (with its roles in `Semiont-Roles`): the bytes are stored and the resource is recorded — as a copy when the upload carries `cloneToken` — and the answer is `{resourceId}`. 400 names what is wrong with the upload; 500 carries the record's reason for refusing it. | the gateway, for `POST /resources` |
 | `GET /resources/:id/content` | a resource's bytes, streamed, with its stored media type | the gateway, for `GET /resources/:id`; the Librarian, the Smelter and the workers, directly |
-| `GET /resources/:id/jsonld` | a resource's linked-data description (the Browser's answer to `browse:resource-requested`); 404 when there is no such resource | the gateway, for `GET /resources/:id/jsonld` |
+| `GET /resources/:id/jsonld` | a resource's linked-data description (the answer to `browse:resource-requested`); 404 when there is no such resource | the gateway, for `GET /resources/:id/jsonld` |
 | `GET /events/:resourceId?fromSequence=N` | one resource's events from a sequence number | the gateway, when a client resumes its subscription with `Last-Event-ID` |
 
 The contract is [specs/src/archivist/openapi.json](../../specs/src/archivist/openapi.json): every
 status each route answers and its body — a missing resource's bytes are a 404 whose `code` is
-`resource` or `representation` — and the headers. The Archivist's tests check every reply against
-it, and the gateway conformance suite holds its stand-in Archivist to it.
+`resource` or `representation` — and the headers. The Archivist's conformance suite checks every
+reply against it, and the gateway's holds its stand-in Archivist to it.
 
 A browser never calls these: its requests go to the gateway, which calls them with its own
 credential.
@@ -98,8 +94,7 @@ Everything but `/health` requires a bearer token from the knowledge base's ident
 carrying the `semiont-service` role. Each caller gets one with its own service account. The
 gateway requires the same role to issue a service its agent token.
 
-Every refusal is **401**, including when no identity provider is configured: without a verifier,
-every path but `/health` refuses. Its challenge is `Bearer`, or `Bearer error="invalid_token"` when a
+Every refusal is **401**. Its challenge is `Bearer`, or `Bearer error="invalid_token"` when a
 token was presented and refused.
 
 **⚠️ Standing rule: this surface serves the KB tree and each resource's linked-data description,
@@ -132,27 +127,16 @@ or `semiont clean --store state` clears them.
 What it keeps and answers is specified in
 [docs/protocol/ARCHIVIST.md](../../docs/protocol/ARCHIVIST.md).
 
-**The heap ceiling is explicit, and paired.** The image sets
-`NODE_OPTIONS=--max-old-space-size=1536` against a 2 GB container allocation. Without it V8
-picks its own default, which lands well under the cgroup limit — the process dies at
-~1016 MB inside 2048 MB, with half the memory it was allotted unreachable. The 1536/2048 pair
-must move together: raising the cap to the container's full allocation trades a catchable V8
-heap error for an uncatchable cgroup kill. `semiont.runtime.heap{heap.stat="limit"}` reports the
-ceiling actually in force, so a cap that was set but did not apply is visible rather than
-assumed. Rationale in full lives in the Dockerfile beside the `ENV`.
-
 Start it **after the gateway** (it mints an agent token there) and **before the worker and the
-Smelter**, which read bytes from it. Its `/health` answers only once the actors and bus pumps are
-up, which is what makes that ordering enforceable.
+Smelter**, which read bytes from it. Its `/health` answers only once it has booted, which is what
+makes that ordering enforceable.
 
-Its configuration is `~/.semiontconfig`, of which it reads the `gateway`, `identity`,
-`make-meaning`, `actors` and `workers` sections. The
+The
 [service catalog](../../docs/operator/services/OVERVIEW.md) states what it mounts and reaches
 beside the other services.
 
 ## Related
 
-- [`@semiont/make-meaning`](../../packages/make-meaning/) — the actors and this entry point
 - [Librarian](../librarian/) — the deliberate pair: the Archivist holds the record and answers
   *"what is there?"*; the Librarian searches it and answers *"what is relevant?"*
 - [Knowledge System](../../docs/architecture/KNOWLEDGE-SYSTEM.md) — the actors and the stores

@@ -127,7 +127,8 @@ A payload key whose value is absent is not written. A command's correlation id i
 log stores facts, not routing.
 
 **Sequence numbers** count from 1 within a stream, one per event, in the order appended. After a
-restart a stream's next number follows the last event of its last file.
+restart a stream's next number follows its last event. A last line that was cut short, with no
+newline, is ended with one before the next event is appended.
 
 **Reading.** A stream is read file by file in file-number order. Blank lines are skipped. A line that
 is not JSON is logged and skipped. A line of the shape `{"event": {…}, "metadata": {…}}` with no
@@ -149,17 +150,22 @@ place for the next write to replace.
 
 | File | Schema | Holds |
 |---|---|---|
-| `entitytypes.json` | [`EntityTypesProjection`](../../specs/src/components/schemas/EntityTypesProjection.json) | Every entity type added, each once, sorted |
-| `tagschemas.json` | [`TagSchemasProjection`](../../specs/src/components/schemas/TagSchemasProjection.json) | Every tag schema added, sorted by `id` |
+| `entitytypes.json` | [`EntityTypesProjection`](../../specs/src/components/schemas/EntityTypesProjection.json) | Every entity type added, each once, in dictionary order |
+| `tagschemas.json` | [`TagSchemasProjection`](../../specs/src/components/schemas/TagSchemasProjection.json) | Every tag schema added, in dictionary order of `id` |
 | `people.json` | [`PeopleProjection`](../../specs/src/components/schemas/PeopleProjection.json) | Each person's current name and since when, by DID |
 
-A projection file that is absent reads as empty.
+A projection file that is absent reads as empty. Each is written as a view is: to a temporary file,
+renamed onto the path.
+
+**Dictionary order** compares two names by their letters, whatever their accents and their case;
+then puts an unaccented letter before an accented one; then a small letter before its capital. It
+is the same in any locale.
 
 **The storage-uri index** answers which resource's content is at a place in the working tree. An
 entry is the file `projections/storage-uri/<ab>/<cd>/<h>.json` in the state directory, where `<h>` is
 the SHA-256 of the URI's UTF-8 bytes in lowercase hex. It is a
 [`StorageUriEntry`](../../specs/src/components/schemas/StorageUriEntry.json), `uri` first, JSON
-indented by two spaces.
+indented by two spaces, written as a view is.
 
 ### How each event changes the views
 
@@ -192,12 +198,14 @@ event if its type calls for it ([Enrichment](#enrichment)); publish the event
 ([Facts](#facts)). The changes to one resource's view are applied one event at a time.
 
 When a resource has no view, the view is built from every event of its stream, in sequence order.
+A read that builds a view this way does not write it.
 
 ### The working tree
 
 A resource's content is a file in the working tree, named by a **storage URI**: `file://` followed
 by the file's path relative to the root. A URI that does not begin `file://` is refused:
-`Invalid storage URI (must start with file://): <uri>`.
+`Invalid storage URI (must start with file://): <uri>`. So is one that names a place outside the
+working tree: `Invalid storage URI (must name a file inside the working tree): <uri>`.
 
 A **checksum** is the SHA-256 of the content's bytes, in lowercase hex.
 
@@ -262,9 +270,7 @@ its sender, which the gateway sets. A reply carries the command's correlation id
 | `yield:create` | `yield:create-ok` `{resourceId}` | `yield:create-failed` | `yield:created` |
 | `yield:clone-persist` | `yield:clone-persist-ok` `{resourceId}` | `yield:clone-persist-failed` | `yield:cloned` |
 | `yield:update` | `yield:update-ok` `{resourceId}` | `yield:update-failed` | `yield:updated` |
-| `yield:mv` | none | `yield:move-failed` `{fromUri, message}` | `yield:moved` |
 | `mark:create-request` | `mark:create-ok` `{annotationId}` | `mark:create-failed` | `mark:added` |
-| `mark:create` | none | `mark:create-failed` | `mark:added` |
 | `mark:commit` | `mark:commit-ok` `{persisted, annotationIds}` | `mark:commit-failed` | `mark:added`, one per new annotation |
 | `mark:delete` | `mark:delete-ok` `{annotationId}` | `mark:delete-failed` | `mark:removed` |
 | `mark:update-body` | none | `mark:body-update-failed` | `mark:body-updated` |
@@ -281,8 +287,10 @@ its sender, which the gateway sets. A reply carries the command's correlation id
 | `job:fail` | none | none | `job:failed` |
 
 A failure reply is `{message}`, the reason in words. Commands on one channel are handled one at a
-time, in the order they arrive. See [Known defects](#known-defects) for commands on different
-channels.
+time, in the order they arrive; commands on different channels are not ordered against each other.
+Appends never interleave: one event is written, its views changed and its fact queued before the
+next is begun, whichever channels they came on. A command that carries no `_userId` is refused, or
+dropped when its channel has no reply.
 
 ### Attribution
 
@@ -327,9 +335,6 @@ Otherwise: `refused: cites job <id>, but this resource's log holds no assignment
 `parentResourceId` in place of the generation fields. The requester is the sender.
 
 **`yield:update`** registers the content at `storageUri` and records its checksum and size.
-
-**`yield:mv`** finds the resource at `fromUri` in the storage-uri index, moves the file, and records
-`{fromUri, toUri}`. With no resource there: `No resource found for URI: <uri>`.
 
 **`mark:archive`** removes the file at `storageUri`, when the command names one, keeping the file
 itself when `keepFile` is set, and records the archive. **`mark:unarchive`** requires the file at
@@ -413,7 +418,7 @@ names no one.
 | `browse:tag-schemas-requested` | `{tagSchemas}` from `tagschemas.json` |
 | `browse:agents-requested` | `{agents}`: the roster; see below |
 | `browse:kb-requested` | `{name, domain, gitBranch?}`, the domain and the branch read when asked |
-| `browse:directory-requested` `{path, sort?}` | `{path, entries}`: the directories and regular files at a path of the working tree, without names that begin `.`. Sorted by `name` (the default), by `mtime` newest first, or by `annotationCount` highest first. A path outside the root: `path escapes project root`. No such path: `path not found` |
+| `browse:directory-requested` `{path, sort?}` | `{path, entries}`: the directories and regular files at a path of the working tree, without names that begin `.`. A file that is a resource's content, by its storage URI, is `tracked` and carries the resource's id, entity types, annotation count and creator. Sorted by `name` in dictionary order (the default), by `mtime` newest first, or by `annotationCount` highest first. A path outside the root: `path escapes project root`. No such path: `path not found` |
 
 **Anchored text.** The answer is the stored entry for the checksum of the resource's first
 representation: the extracted text with each word's place, or the decline. Otherwise:
@@ -463,8 +468,8 @@ token was presented, `Bearer` when none was.
 | Route | Answers |
 |---|---|
 | `GET` `/health` | `200` `{"status":"ok","actors":["stower","browser","cloneTokenManager"]}`. It answers once the Archivist has booted |
-| `GET` `/events/{resourceId}`, with `?fromSequence=N` | `200` `{"events": […]}`: the stream's stored events from sequence `N` on, in log order. Empty for a resource with none. `N` must be an integer of at least 1: `400` `{"error":"resourceId path segment and integer fromSequence >= 1 are required"}`. A failed read: `500` `{"error":"event read failed"}` |
-| `GET` `/resources/{id}/content` | `200` with the content streamed, and `Content-Type` the media type recorded. No view: `404` `{"error":"Resource not found: <id>","code":"resource"}`. A view with no storage URI: `404` `{"error":"Resource representation not found: no storageUri for <id>","code":"representation"}` |
+| `GET` `/events/{resourceId}`, with `?fromSequence=N` | `200` `{"events": […]}`: the stream's stored events from sequence `N` on, in log order. Empty for a resource with none. `N` must be an integer of at least 1, in decimal digits, and the id an id: `400` `{"error":"resourceId path segment and integer fromSequence >= 1 are required"}`. A failed read: `500` `{"error":"event read failed"}` |
+| `GET` `/resources/{id}/content` | `200` with the content streamed, and `Content-Type` the media type recorded. A file missing from the tree: `500` `{"error":"content read failed"}`. No view: `404` `{"error":"Resource not found: <id>","code":"resource"}`. A view with no storage URI: `404` `{"error":"Resource representation not found: no storageUri for <id>","code":"representation"}` |
 | `GET` `/resources/{id}/jsonld` | `200`, `Content-Type: application/ld+json; charset=utf-8`: what `browse:resource-requested` answers. `404` `{"error":"Resource not found"}` |
 | `POST` `/resources` | Stores content and records it; see below |
 
@@ -496,32 +501,34 @@ The Archivist boots in this order, and a failure at any step ends the process wi
 3. Ask staging whether it can work ([Staging](#staging)).
 4. Read `[site] domain`; refuse to start without one.
 5. **Rebuild the views from the log,** unless `skipRebuild` is set: replay the `__system__` stream
-   into its three projections; then, for every stream, build the view from its events and write it,
-   and replay its events into the storage-uri index. A stream that fails is logged and skipped, and
-   the rest are rebuilt. Then **reap:** delete every view whose resource has no stream.
-6. Start answering commands and browse requests.
-7. **Seed the vocabulary:** for each default entity type the `__system__` stream has not recorded —
+   into its three projections, each begun empty; then, with the storage-uri index begun empty, for
+   every stream, build the view from its events and write it, and replay its events into the
+   index. A stream that fails is logged and skipped, and the rest are rebuilt. A directory of the
+   log that is not a stream is noted and passed over. Then **reap:** delete every view whose
+   resource has no stream.
+6. **Seed the vocabulary:** for each default entity type the `__system__` stream has not recorded —
    `Person`, `Organization`, `Location`, `Event`, `Concept`, `Product`, `Technology`, `Date`,
    `Author` — add it, as the knowledge base itself (`did:web:<domain>`).
-8. Subscribe to its channels on the bus, start publishing facts, and serve its HTTP surface.
+7. Subscribe to its channels on the bus, publish its facts, the seeded vocabulary's first, and
+   serve its HTTP surface.
 
-On `SIGTERM` or `SIGINT` it stops renewing its token, leaves the bus, stops its handlers, closes its
-HTTP surface and exits with status 0.
+On `SIGTERM` or `SIGINT` it closes its HTTP surface, stages everything pending, and exits with
+status 0.
 
 ## Telemetry
 
-The Archivist exports as `semiont-archivist`.
+The Archivist exports as `semiont-archivist`. Its spans and metrics are the rows
+[`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
+lists for it, and those
+[`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json) lists for
+the transport it reaches the bus through. Its own:
 
 | Signal | Name | Meaning |
 |---|---|---|
-| Span | `actor.stower:<channel>`, `actor.browser:<channel>` | One command or browse request handled |
-| Span | `bus.emit:<channel>`, `bus.recv:<channel>` | One frame sent to or received from the gateway |
-| Histogram | `semiont.handler.duration` | How long a command or browse request took, by actor and channel |
-| Histogram | `semiont.record.append.duration` | How long each step of an append took: `persist`, `materialize`, `enrich`, `publish` |
-| Gauge | `semiont.archivist.fact_pump.depth` | Events waiting to be published |
-| Histogram | `semiont.git.duration` | How long each git command took, by command |
-| Counter | `semiont.git.staging.failures` | Staging degradations, by reason: `index-lock` or `other` |
-| Counter | `semiont.bus.sent` | Frames sent to the gateway |
+| Span | `bus.recv:<channel>`, `bus.emit:<channel>` | One frame received from or sent to the gateway. A reply is in the trace of the request it answers |
+| Gauge | `semiont.archivist.fact_pump.depth` | Events appended and not yet published |
+| Histogram | `semiont.git.duration` | How long each git command took, by `git.command` |
+| Counter | `semiont.git.staging.failures` | Staging degradations, by `reason`: `index-lock` or `other` |
 
 ## Known defects
 
@@ -530,76 +537,48 @@ implementation need not reproduce any of it.
 
 **Appending**
 
-- A command with no `_userId`, a `mark:delete` with no `resourceId`, and any failure while recording
-  `person:profile` or a `job:*` command stop the handling of every command channel until the
-  process restarts. `/health` goes on answering `ok`.
-- Commands on different channels for one resource are not ordered against each other. Two that are
-  the first to append to a stream after a restart can be given the same sequence number.
-- A sequence number is taken before the line is written; a write that fails leaves a gap.
-- After a restart, a stream whose last file is empty or holds no readable line numbers its next
-  event 1.
-- A last line cut short, with no newline, makes the next event appended unreadable.
 - When the views cannot be changed after the line is written, or the annotation cannot be attached,
-  the command is answered as failed, the event stays in the log, and it is never published. The
-  view then counts later events without it until the next rebuild.
+  the command is answered as failed, the event stays in the log, and it is not published. The view
+  then counts later events without it until the next rebuild.
 - No command checks that its resource exists: a command naming an unknown id begins a stream for it.
   `mark:delete` does not check that the annotation exists.
-- `yield:mv`, `mark:archive` and the upload change the working tree before the event is recorded. A
-  record that then fails leaves the tree changed.
+- `mark:archive` and the upload change the working tree before the event is recorded. A record that
+  then fails leaves the tree changed.
 - `yield:create` and `yield:clone-persist` record the size the command states, not the size of the
   file. `yield:update` records the command's checksum and size after checking the checksum, and an
   update with no size removes the size recorded.
 - `mark:commit` records the annotations before the one it refuses, and replies failed.
 - `job:started` does not record the command's `attempt`.
-- `yield:mv` has no reply on success, and its failure carries no correlation id. A failed
-  `mark:update-body` is not reported outside the Archivist.
 
 **Views and projections**
 
-- The projections and the storage-uri entries are written in place, not by rename; a reader can see
-  a partial file.
-- The rebuild does not start the projections or the storage-uri index from empty: what the log no
-  longer supports stays.
-- A resource id of one or two characters is taken for a shard directory: its stream is not rebuilt
-  and its view is reaped.
-- A directory under `.semiont/events/` whose name is longer than two characters and is not a
-  resource id, or a view file that is JSON but has no `resource`, stops the boot.
-- When two resources have been at one storage URI, the index entry after a rebuild depends on the
-  order directories are listed. `yield:moved` removes the entry for `fromUri` whichever resource it
-  names.
-- `browse:resource-requested` writes a view when it builds one, unordered against an append to the
-  same resource.
-- The sort of `entitytypes.json` and `tagschemas.json` depends on the locale of the process.
-- The vocabulary seeded at the first boot is recorded before facts are published, and is never
-  published.
+- When two resources have been at one storage URI, which of them the index names after a rebuild is
+  the one whose stream is read last. `yield:moved` removes the entry for `fromUri` whichever
+  resource it names.
 
 **The working tree and staging**
 
-- A storage URI is not confined to the working tree: `file://../x` names a file outside it.
 - The upload replaces a file already at the URI before the record is made, and leaves the new bytes
-  when the record is refused. A store that fails answers `500` `{"error":"internal error"}`.
+  when the record is refused.
 - The upload is held in memory whole before it is written. No size is refused.
-- Nothing pending is staged at shutdown.
+- Asking git whether the tree is a checkout, and which branch it is on, does not wait for the git
+  command in progress.
+- Pending paths are given to `git add` with nothing to mark where the paths begin, so a path that
+  begins `-` is read as an option.
+- A batch that failed on a locked index and was queued again after the driver was told to stop is
+  not staged.
+- In a move, when git refuses to unstage the old path, the new path is not staged.
 
 **Browse and the HTTP surface**
 
-- `browse:directory-requested` reports a file as a resource's only when the resource's storage URI
-  is the file's absolute path; storage URIs are relative to the root, so files are reported as
-  untracked. A failure after the directory is read is not answered.
 - Only `browse:resource-requested` gives `not-found` as a `code`; the other reads give the message
   alone.
 - `browse:events-requested` reads a `limit` of 0 as no limit, and its `total` counts after the
   limit.
 - A history cannot be read for an annotation that has been removed.
-- A resource id that fails the id rule, or a path that is not validly percent-encoded, is answered
-  `500` `{"error":"internal error"}`.
-- `fromSequence` accepts whatever JavaScript reads as an integer, `1e2` and `0x10` among them.
-- Content carries no `Content-Length` and no range support. A file missing from the tree closes the
-  connection after a `200`.
-- Replies to requests the Archivist makes of itself are also sent to the gateway.
+- Content carries no `Content-Length` and no range support.
 
 **Clone tokens**
 
-- Two `yield:clone-create` commands sent together with one token both succeed. A token never
-  presented is never forgotten until a restart.
-- Archiving the source of a clone does not remove its file, and the reply does not wait for it.
+- A token never presented is never forgotten until a restart.
+- Archiving the source of a clone does not remove its file.

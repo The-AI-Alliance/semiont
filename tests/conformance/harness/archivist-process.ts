@@ -4,8 +4,9 @@
  * An Archivist is `ARCHIVIST_COMMAND`, `--config <document>` and an
  * environment. The document is the spec's `ArchivistConfig`, written as the
  * settings say; a case that needs a broken document writes `verbatim`, never a
- * hand-edited rendering. The environment holds its service account and PATH,
- * which finds its command and git, and nothing else from the developer's
+ * hand-edited rendering. The environment holds what
+ * specs/src/service-environment/variables.json lists for the Archivist, and
+ * PATH, which finds its command and git; nothing else from the developer's
  * shell.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -15,14 +16,23 @@ import { join } from 'node:path';
 import type { components } from '@semiont/core';
 import { inject } from 'vitest';
 import { call, type CallOptions, type Reply } from './http';
+import { serviceEnvironment } from './spec';
 
 export type ArchivistSettings = components['schemas']['ArchivistConfig'];
 
 export interface ArchivistEnvironment {
   SEMIONT_OIDC_CLIENT_ID?: string;
   SEMIONT_OIDC_CLIENT_SECRET?: string;
-  OTEL_EXPORTER_OTLP_ENDPOINT?: string;
-  OTEL_METRIC_EXPORT_INTERVAL?: string;
+  [name: string]: string | undefined;
+}
+
+/** Refuse an environment variable the Archivist does not read: a case setting one would prove nothing. */
+function checkEnvironment(env: ArchivistEnvironment): void {
+  const listed = new Set([...serviceEnvironment('archivist'), 'PATH']);
+  const strays = Object.keys(env).filter((name) => env[name] !== undefined && !listed.has(name));
+  if (strays.length > 0) {
+    throw new Error(`the suite set ${strays.join(', ')}, which specs/src/service-environment/variables.json does not list for the Archivist`);
+  }
 }
 
 export interface ArchivistLaunch {
@@ -34,8 +44,6 @@ export interface ArchivistLaunch {
   args?: (document: string) => string[];
   /** A directory searched before the rest of PATH: where a case puts a command of its own in a real one's way. */
   pathFirst?: string;
-  /** Start the other implementation of the Archivist, not the one the suite is judging. */
-  peer?: boolean;
 }
 
 export interface ArchivistProcess {
@@ -64,13 +72,14 @@ function collectLines(stream: NodeJS.ReadableStream, into: string[]): void {
   });
 }
 
-function launch({ settings, env, verbatim, args, pathFirst, peer }: ArchivistLaunch): { child: ChildProcess; output: string[]; exited: Promise<number | null>; dir: string } {
+function launch({ settings, env, verbatim, args, pathFirst }: ArchivistLaunch): { child: ChildProcess; output: string[]; exited: Promise<number | null>; dir: string } {
+  checkEnvironment(env);
   const dir = mkdtempSync(join(tmpdir(), 'conformance-archivist-'));
   const document = join(dir, 'archivist.json');
   writeFileSync(document, (typeof verbatim === 'string' ? verbatim : JSON.stringify(verbatim ?? settings, null, 2)) + '\n');
   const childEnv: Record<string, string> = { PATH: [pathFirst, process.env['PATH']].filter((p) => p).join(':') };
   for (const [k, v] of Object.entries(env)) if (v !== undefined) childEnv[k] = v;
-  const [command, ...prefix] = inject(peer ? 'archivistPeerCommand' : 'archivistCommand');
+  const [command, ...prefix] = inject('archivistCommand');
   const child = spawn(command!, [...prefix, ...(args ? args(document) : ['--config', document])], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   const output: string[] = [];
   collectLines(child.stdout!, output);

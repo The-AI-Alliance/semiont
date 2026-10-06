@@ -1,6 +1,6 @@
 /**
  * `service-channels.test.ts` proves the rosters as SETS — and every one of
- * those assertions was green while both services dropped the correlation key
+ * those assertions is green while a service drops the correlation key
  * on every reply, because a set cannot observe a hop. So: for each operation a
  * service answers, require the reply back with its correlationId.
  *
@@ -18,8 +18,6 @@ import {
   type FrameSource,
 } from '@semiont/core';
 import {
-  ARCHIVIST_INBOUND_CHANNELS,
-  ARCHIVIST_OUTBOUND_CHANNELS,
   LIBRARIAN_INBOUND_CHANNELS,
   LIBRARIAN_OUTBOUND_CHANNELS,
 } from '../service-channels';
@@ -57,7 +55,6 @@ interface ServiceCase {
 }
 
 const SERVICES: ServiceCase[] = [
-  { name: 'Archivist', inbound: ARCHIVIST_INBOUND_CHANNELS, outbound: ARCHIVIST_OUTBOUND_CHANNELS },
   { name: 'Librarian', inbound: LIBRARIAN_INBOUND_CHANNELS, outbound: LIBRARIAN_OUTBOUND_CHANNELS },
 ];
 

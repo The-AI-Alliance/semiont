@@ -14,13 +14,3 @@ export function calculateChecksum(content: string | Buffer): string {
   hash.update(content);
   return hash.digest('hex');
 }
-
-/**
- * Verify content against a checksum
- * @param content The content to verify
- * @param checksum The expected checksum
- * @returns True if content matches checksum
- */
-export function verifyChecksum(content: string | Buffer, checksum: string): boolean {
-  return calculateChecksum(content) === checksum;
-}
