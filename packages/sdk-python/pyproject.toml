@@ -18,6 +18,8 @@ classifiers = [
 ]
 dependencies = [
     "httpx>=0.28,<1",
+    # The API alone: it does nothing until the process it runs in installs a provider.
+    "opentelemetry-api>=1.30,<2",
     "pydantic>=2.12,<3",
 ]
 
@@ -28,6 +30,12 @@ Repository = "https://github.com/The-AI-Alliance/semiont"
 # each: what they say of this package, and what the generator writes, is held
 # by a gate, and a new version of one is a change of its own.
 [dependency-groups]
+# What only the conformance drivers take: an exporter for the telemetry the
+# suite reads. The drivers are outside the wheel, and so is this.
+conformance = [
+    "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
+    "opentelemetry-sdk>=1.30,<2",
+]
 dev = [
     "datamodel-code-generator==0.83.0",
     "mypy==2.4.0",
@@ -35,6 +43,11 @@ dev = [
     "pytest>=9.1,<10",
     "ruff==0.16.10",
 ]
+
+# `uv sync` makes the environment the checkers and the tests run in, and they
+# read the drivers too. The suite's own, `uv sync --no-dev`, leaves `dev` out.
+[tool.uv]
+default-groups = ["conformance", "dev"]
 
 # The version is the repository's, stated once, in version.json.
 [tool.hatch.version]
@@ -59,6 +72,7 @@ extend-exclude = [
     "src/semiont/identifiers.py",
     "src/semiont/operations.py",
     "src/semiont/refresh.py",
+    "src/semiont/telemetry_table.py",
     "src/semiont/timing.py",
     "src/semiont/types.py",
 ]

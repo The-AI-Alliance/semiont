@@ -9,7 +9,14 @@ def run[T](scenario: Coroutine[None, None, T]) -> T:
 
     async def held() -> T:
         result = await scenario
-        left = [task for task in asyncio.all_tasks() if task is not asyncio.current_task()]
+        # What the loop had already been handed gets its turn: the HTTP library
+        # ends a stream that was left early a turn or two after it was left.
+        left: list[asyncio.Task[object]] = []
+        for _ in range(20):
+            left = [task for task in asyncio.all_tasks() if task is not asyncio.current_task()]
+            if not left:
+                break
+            await asyncio.sleep(0)
         assert left == [], f"tasks left running: {left}"
         return result
 

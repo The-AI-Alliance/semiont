@@ -72,3 +72,12 @@ def test_only_the_http_layer_imports_an_http_library() -> None:
     )
     assert importing, "nothing here imports httpx: this gate reads nothing"
     assert [str(path.relative_to(PACKAGE)) for path in importing if not path.is_relative_to(http)] == []
+
+
+def test_only_the_telemetry_module_names_opentelemetry() -> None:
+    # One module tells OpenTelemetry what the table lists. Nothing else here knows it is there.
+    names_it = re.compile(r"^\s*(import|from)\s+opentelemetry\b", re.MULTILINE)
+    importing = sorted(
+        path for path in SOURCES if path.is_relative_to(PACKAGE / "src") and names_it.search(path.read_text(encoding="utf-8"))
+    )
+    assert [str(path.relative_to(PACKAGE)) for path in importing] == ["src/semiont/telemetry.py"]

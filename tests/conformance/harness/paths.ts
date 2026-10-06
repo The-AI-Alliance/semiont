@@ -49,22 +49,6 @@ export const PYTHON_SDK = join(REPO_ROOT, 'packages/sdk-python');
 const PYTHON = join(PYTHON_SDK, '.venv/bin/python');
 
 /**
- * The wire cases the Python driver cannot be put through, each with what the
- * Python SDK lacks for it. The suite holds each as it holds a case, so a case
- * the driver comes to perform fails until its name leaves this list.
- */
-const PYTHON_HAS_NO_CONTENT_TRANSPORT = 'the Python SDK has no content transport';
-const PYTHON_EXEMPT: Readonly<Record<string, string>> = {
-  'content-read': PYTHON_HAS_NO_CONTENT_TRANSPORT,
-  'content-upload': PYTHON_HAS_NO_CONTENT_TRANSPORT,
-  'gateway-operations': "the Python SDK does not make the gateway's own operations",
-  telemetry: `${PYTHON_HAS_NO_CONTENT_TRANSPORT}, and exports no telemetry`,
-  unreachable: PYTHON_HAS_NO_CONTENT_TRANSPORT,
-  'upload-cancelled': PYTHON_HAS_NO_CONTENT_TRANSPORT,
-  'upload-progress': PYTHON_HAS_NO_CONTENT_TRANSPORT,
-};
-
-/**
  * Each SDK's drivers. An SDK joins a layer of the suite by adding its line.
  * vitest.config.ts provides them as `sdkDrivers`.
  */
@@ -79,7 +63,6 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   },
   python: {
     wire: [PYTHON, join(PYTHON_SDK, 'conformance/wire.py')],
-    exempt: PYTHON_EXEMPT,
   },
 };
 

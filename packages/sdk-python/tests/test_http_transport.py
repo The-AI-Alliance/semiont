@@ -12,7 +12,7 @@ import logging
 
 import pytest
 from aio import run, soon
-from stub_gateway import StubGateway
+from stub_gateway import Answer, StubGateway
 
 from semiont.bus import request
 from semiont.channels import BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS
@@ -107,7 +107,7 @@ def test_a_closed_transport_has_ended_everything_it_began() -> None:
                 hold = transport.subscribe_to_resource(ResourceId("res-1"))
                 await soon(gateway.streams(2))
                 asking = asyncio.ensure_future(request(transport, BROWSE_RESOURCE_REQUESTED, {"resourceId": "res-1"}))
-                await soon(gateway.emitted(1))
+                await soon(gateway.arrived("POST", "/bus/emit"))
             # Left: its stream has ended, and so has every reader's wait.
             await soon(watching)
             hold.release()
@@ -153,13 +153,15 @@ def test_closing_ends_an_emit_that_is_waiting_to_be_made_again() -> None:
     async def scenario() -> tuple[str, int | None, int, float]:
         patient = Timing(reconnect_ms=10, emit_retry=RetryPolicy(attempts=5, initial_delay_ms=1, max_delay_ms=1))
         async with StubGateway() as gateway:
-            gateway.emit_answers = [(429, {"Retry-After": "600"}, b'{"error":"not now","code":"emit-rate"}')]
+            gateway.scripted[("POST", "/bus/emit")] = [
+                Answer(status=429, headers={"Retry-After": "600"}, body=b'{"error":"not now","code":"emit-rate"}')
+            ]
             started = asyncio.get_running_loop().time()
             async with HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=CHANNELS, timing=patient) as transport:
                 await opened(transport)
                 failures = transport.failures()
                 emitting = asyncio.ensure_future(transport.emit("beckon:focus", {}))
-                await soon(gateway.emitted(1))
+                await soon(gateway.arrived("POST", "/bus/emit"))
                 await asyncio.sleep(0.01)
             with pytest.raises(TransportError) as raised:
                 await soon(emitting)
@@ -176,15 +178,14 @@ def test_a_stream_that_cannot_open_is_tried_again_and_a_token_that_changes_reach
     async def scenario() -> tuple[list[str], list[str]]:
         token: Variable[str | None] = Variable("first")
         async with StubGateway() as gateway:
-            gateway.accepting = False
+            gateway.scripted[("POST", "/bus/subscribe")] = [Answer(status=503, body=b"") for _ in range(3)]
             async with HttpTransport(gateway.origin, token=token, channels=CHANNELS, timing=QUICK) as transport:
                 failures = transport.failures()
                 await soon(reached(transport.state, lambda state: state == "reconnecting"))
                 refused = await soon(anext(failures))
-                gateway.accepting = True
                 await opened(transport)
                 token.set("second")
                 await soon(transport.emit("beckon:focus", {}))
-            return [refused.code, str(refused.status)], sorted(set(gateway.tokens))
+            return [refused.code, str(refused.status)], sorted({asked.headers["authorization"] for asked in gateway.asked})
 
     assert run(scenario()) == (["unavailable", "503"], ["Bearer first", "Bearer second"])

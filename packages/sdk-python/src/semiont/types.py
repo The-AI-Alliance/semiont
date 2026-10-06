@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from typing import Annotated, Literal
-from pydantic import JsonValue, AnyUrl, AwareDatetime, Field
+from pydantic import JsonValue, Field
 from semiont.model import WireModel
 from semiont.identifiers import AnnotationId, JobId, ResourceId, UserId
 
@@ -355,7 +355,7 @@ class AgentOrganization(WireModel, frozen=True, extra="allow"):
     """
 
     type: Annotated[Literal["Organization"], Field(alias="@type")]
-    id: Annotated[AnyUrl | None, Field(alias="@id")] = None
+    id: Annotated[str | None, Field(alias="@id")] = None
     name: str
     homepage: str | None = None
 
@@ -367,7 +367,7 @@ class AgentPerson(WireModel, frozen=True, extra="allow"):
 
     type: Annotated[Literal["Person"], Field(alias="@type")]
     id: Annotated[
-        AnyUrl | None,
+        str | None,
         Field(
             alias="@id",
             description="DID-shaped identifier (e.g. did:web:host:users:email%40host)",
@@ -392,7 +392,7 @@ class AgentSoftware(WireModel, frozen=True, extra="allow"):
 
     type: Annotated[Literal["Software"], Field(alias="@type")]
     id: Annotated[
-        AnyUrl | None,
+        str | None,
         Field(
             alias="@id",
             description="DID-shaped identifier (e.g. did:web:host:agents:provider:model)",
@@ -447,7 +447,7 @@ class BeckonHoverEvent(WireModel, frozen=True):
     Emitted when an annotation is hovered over for beckoning
     """
 
-    annotation_id: Annotated[AnnotationId, Field(alias="annotationId")]
+    annotation_id: Annotated[AnnotationId | None, Field(alias="annotationId")]
 
 
 class BeckonSparkleEvent(WireModel, frozen=True):
@@ -896,7 +896,7 @@ class DirEntry(WireModel, frozen=True, extra="forbid"):
     type: Literal["dir"]
     name: Annotated[str, Field(description="Entry name (basename)")]
     path: Annotated[str, Field(description="Path relative to project root")]
-    mtime: Annotated[AwareDatetime, Field(description="Last modified time (ISO 8601)")]
+    mtime: Annotated[str, Field(description="Last modified time (ISO 8601)")]
 
 
 class DiscoveredKB(WireModel, frozen=True):
@@ -1045,7 +1045,7 @@ class FileEntry(WireModel, frozen=True, extra="forbid"):
     name: Annotated[str, Field(description="Entry name (basename)")]
     path: Annotated[str, Field(description="Path relative to project root")]
     size: Annotated[int, Field(description="File size in bytes")]
-    mtime: Annotated[AwareDatetime, Field(description="Last modified time (ISO 8601)")]
+    mtime: Annotated[str, Field(description="Last modified time (ISO 8601)")]
     tracked: Annotated[
         bool,
         Field(description="True if this file is a tracked resource in the Knowledge Base"),
@@ -2136,10 +2136,7 @@ class Representation(WireModel, frozen=True, extra="allow"):
     A specific, byte-addressable rendition of a resource (file/asset/variant).
     """
 
-    id: Annotated[
-        AnyUrl | None,
-        Field(alias="@id", description="Stable ID for this representation."),
-    ] = None
+    id: Annotated[str | None, Field(alias="@id", description="Stable ID for this representation.")] = None
     type: Annotated[
         str | Type | None,
         Field(alias="@type", description="Type(s), e.g., schema:MediaObject."),
@@ -2169,10 +2166,10 @@ class Representation(WireModel, frozen=True, extra="allow"):
     width: Annotated[int | None, Field(description="Pixels (images/video).", ge=0)] = None
     height: Annotated[int | None, Field(description="Pixels (images/video).", ge=0)] = None
     duration: Annotated[float | None, Field(description="Seconds (audio/video).", ge=0.0)] = None
-    created: AwareDatetime | None = None
-    modified: AwareDatetime | None = None
+    created: str | None = None
+    modified: str | None = None
     conforms_to: Annotated[
-        AnyUrl | list[AnyUrl] | None,
+        str | list[str] | None,
         Field(
             alias="conformsTo",
             description="Profile/shape the bytes conform to (e.g., a JSON profile or SVG profile).",
@@ -2231,7 +2228,7 @@ class Identifier1(WireModel, frozen=True, extra="allow"):
     Persistent identifiers (e.g., DOI, URN).
     """
 
-    id: Annotated[AnyUrl | None, Field(alias="@id")] = None
+    id: Annotated[str | None, Field(alias="@id")] = None
     value: str | None = None
     scheme: str | None = None
 
@@ -2412,7 +2409,7 @@ class StoredEventResponse(WireModel, frozen=True):
 
     id: Annotated[str, Field(description="Unique event ID (UUID)")]
     type: Annotated[str, Field(description="Event type (flow verb name, e.g. mark:added)")]
-    timestamp: Annotated[AwareDatetime, Field(description="When the event occurred")]
+    timestamp: Annotated[str, Field(description="When the event occurred")]
     user_id: Annotated[
         UserId,
         Field(alias="userId", description="DID of the user who triggered the event"),
@@ -2581,8 +2578,8 @@ class UserResponse(WireModel, frozen=True):
         ),
     ]
     email: str
-    name: str
-    image: str
+    name: Annotated[str | None, Field(...)]
+    image: Annotated[str | None, Field(...)]
     domain: Annotated[
         str,
         Field(
@@ -4507,7 +4504,7 @@ class ResourceDescriptor(WireModel, frozen=True, extra="allow"):
     """
 
     context: Annotated[
-        AnyUrl | dict[str, JsonValue] | list[AnyUrl | dict[str, JsonValue]],
+        str | dict[str, JsonValue] | list[str | dict[str, JsonValue]],
         Field(
             alias="@context",
             description="JSON-LD context; URI, object, or array of these.",
@@ -4532,15 +4529,15 @@ class ResourceDescriptor(WireModel, frozen=True, extra="allow"):
     ] = None
     about: Annotated[str | About | None, Field(description="Topics (IRIs or strings).")] = None
     same_as: Annotated[
-        list[AnyUrl] | None,
+        list[str] | None,
         Field(alias="sameAs", description="Equivalent/authoritative references."),
     ] = None
-    is_part_of: Annotated[list[AnyUrl] | None, Field(alias="isPartOf")] = None
-    has_part: Annotated[list[AnyUrl] | None, Field(alias="hasPart")] = None
-    license: AnyUrl | None = None
+    is_part_of: Annotated[list[str] | None, Field(alias="isPartOf")] = None
+    has_part: Annotated[list[str] | None, Field(alias="hasPart")] = None
+    license: str | None = None
     version: str | None = None
-    date_created: Annotated[AwareDatetime | None, Field(alias="dateCreated")] = None
-    date_modified: Annotated[AwareDatetime | None, Field(alias="dateModified")] = None
+    date_created: Annotated[str | None, Field(alias="dateCreated")] = None
+    date_modified: Annotated[str | None, Field(alias="dateModified")] = None
     was_derived_from: Annotated[
         ResourceId | list[ResourceId] | None,
         Field(
@@ -4562,7 +4559,7 @@ class ResourceDescriptor(WireModel, frozen=True, extra="allow"):
         ),
     ] = None
     conforms_to: Annotated[
-        AnyUrl | list[AnyUrl] | None,
+        str | list[str] | None,
         Field(
             alias="conformsTo",
             description="Profile/shape URI this resource description conforms to.",
@@ -4612,7 +4609,7 @@ class ResourceDescriptor(WireModel, frozen=True, extra="allow"):
         ),
     ] = None
     originated_from: Annotated[
-        AnyUrl | None,
+        str | None,
         Field(
             alias="originatedFrom",
             description="Original URI from a source knowledge base when this resource was imported",
@@ -5354,12 +5351,12 @@ class Annotation(WireModel, frozen=True):
         ),
     ] = None
     created: Annotated[
-        AwareDatetime,
+        str,
         Field(
             description="When the annotation was MADE — the authoring moment, carried from the event that created it. Not when a projection happened to write it: a store that rebuilds from the log must preserve this value, never restamp it."
         ),
     ]
-    modified: AwareDatetime | None = None
+    modified: str | None = None
     generator: Annotated[
         Agent | Generator | None,
         Field(
@@ -5462,8 +5459,8 @@ class Focus(WireModel, frozen=True):
 
 class GetAnnotationResponse(WireModel, frozen=True):
     annotation: Annotation
-    resource: ResourceDescriptor
-    resolved_resource: Annotated[ResourceDescriptor, Field(alias="resolvedResource")]
+    resource: Annotated[ResourceDescriptor | None, Field(...)]
+    resolved_resource: Annotated[ResourceDescriptor | None, Field(alias="resolvedResource")]
 
 
 class GetAnnotationsResponse(WireModel, frozen=True):

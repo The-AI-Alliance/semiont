@@ -1,14 +1,20 @@
 """The wire driver: this SDK's transport, as `tests/conformance/sdk/wire` drives it.
 
 It reaches the transport only as an application does, through what `semiont`
-exports, so what the suite observes is what a caller of the SDK gets. An
-operation the SDK has nothing for is not here, and is answered `unsupported`:
-each wire case that asks for one is named in this SDK's line of `SDK_DRIVERS`
-with why.
+exports, so what the suite observes is what a caller of the SDK gets.
+
+Started with `OTEL_EXPORTER_OTLP_ENDPOINT` in its environment, it exports the
+SDK's telemetry there over OTLP/HTTP, and has exported all of it by the time
+it exits. The exporter is this program's: the SDK takes OpenTelemetry's API
+and installs nothing.
 """
 
 import asyncio
+import base64
+import binascii
+import os
 import sys
+from collections.abc import Callable
 from contextlib import AsyncExitStack
 from typing import final
 
@@ -19,10 +25,11 @@ from semiont.bus import request
 from semiont.errors import SemiontError
 from semiont.events import Events
 from semiont.http import HttpTransport, Timing
-from semiont.identifiers import InvalidIdentifier, ResourceId
+from semiont.identifiers import AnnotationId, InvalidIdentifier, JobId, ResourceId
+from semiont.model import WireModel
 from semiont.operations import OPERATIONS
 from semiont.retry import RetryPolicy
-from semiont.transport import ConnectionState, Frame, ResourceHold
+from semiont.transport import ConnectionState, Frame, PutBinaryRequest, ResourceHold
 from semiont.watched import Variable
 
 
@@ -31,6 +38,33 @@ def _resource(args: Arguments, name: str) -> ResourceId:
         return ResourceId(text(args, name))
     except InvalidIdentifier as error:
         raise Misuse(f"{name} is not a resource's id: {error}") from error
+
+
+def _upload_of(args: Arguments) -> PutBinaryRequest:
+    """The upload `put` and `upload` are asked for."""
+    try:
+        return PutBinaryRequest(
+            name=text(args, "name"),
+            file=base64.b64decode(text(args, "bytes"), validate=True),
+            format=text(args, "format"),
+            storage_uri=text(args, "storageUri"),
+            entity_types=texts(args, "entityTypes") if "entityTypes" in args else (),
+            language=optional_text(args, "language"),
+            source_resource_id=None if args.get("sourceResourceId") is None else ResourceId(text(args, "sourceResourceId")),
+            source_annotation_id=None if args.get("sourceAnnotationId") is None else AnnotationId(text(args, "sourceAnnotationId")),
+            generation_prompt=optional_text(args, "generationPrompt"),
+            job_id=None if args.get("jobId") is None else JobId(text(args, "jobId")),
+            is_draft=args.get("isDraft") is True if "isDraft" in args else None,
+        )
+    except binascii.Error as error:
+        raise Misuse(f"bytes is not base64: {error}") from error
+    except InvalidIdentifier as error:
+        raise Misuse(f"an id the upload names is not one: {error}") from error
+
+
+def _answered(answer: WireModel) -> JsonValue:
+    """What the gateway answered, as the wire carried it."""
+    return answer.model_dump(mode="json", exclude_unset=True)
 
 
 def _timing(stated: Arguments) -> Timing:
@@ -160,6 +194,44 @@ class Wire:
         result = await request(self._opened(), operation, object_of(args, "payload"), timeout_ms=count(args, "timeoutMs"))
         return {"response": result["response"]} if "response" in result else {}
 
+    async def put(self, _: int, args: Arguments) -> JsonValue:
+        created = await self._opened().content.put_binary(_upload_of(args))
+        return {"resourceId": created.resource_id}
+
+    async def upload(self, asked: int, args: Arguments) -> JsonValue:
+        upload = self._opened().content.put_binary(_upload_of(args))
+        async for progress in upload:
+            say({"progress": {"upload": asked, "bytesUploaded": progress.bytes_uploaded, "totalBytes": progress.total_bytes}})
+        created = await upload
+        return {"resourceId": created.resource_id}
+
+    async def get(self, _: int, args: Arguments) -> JsonValue:
+        content = await self._opened().content.get_binary(_resource(args, "resource"))
+        return {"contentType": content.content_type, "bytes": base64.b64encode(content.data).decode()}
+
+    async def get_stream(self, _: int, args: Arguments) -> JsonValue:
+        async with await self._opened().content.get_binary_stream(_resource(args, "resource")) as stream:
+            data = b"".join([piece async for piece in stream])
+        return {"contentType": stream.content_type, "bytes": base64.b64encode(data).decode()}
+
+    async def graph(self, _: int, args: Arguments) -> JsonValue:
+        return _answered(await self._opened().content.get_resource_graph(_resource(args, "resource")))
+
+    async def health(self, _: int, __: Arguments) -> JsonValue:
+        return _answered(await self._opened().health_check())
+
+    async def status(self, _: int, __: Arguments) -> JsonValue:
+        return _answered(await self._opened().get_status())
+
+    async def current_user(self, _: int, __: Arguments) -> JsonValue:
+        return _answered(await self._opened().get_current_user())
+
+    async def media_token(self, _: int, args: Arguments) -> JsonValue:
+        return _answered(await self._opened().get_media_token(_resource(args, "resource")))
+
+    async def protected_resource_metadata(self, _: int, __: Arguments) -> JsonValue:
+        return _answered(await self._opened().get_protected_resource_metadata())
+
     async def sync(self, _: int, __: Arguments) -> JsonValue:
         # Answers after everything the transport reported before it: the
         # suite's way to know it has read the state the connection is in.
@@ -181,15 +253,58 @@ class Wire:
             "release-resource": Operation(self.release_resource, in_turn=True),
             "emit": Operation(self.emit),
             "request": Operation(self.request, abandonable=True),
+            "put": Operation(self.put),
+            "upload": Operation(self.upload, abandonable=True),
+            "get": Operation(self.get),
+            "get-stream": Operation(self.get_stream),
+            "graph": Operation(self.graph),
+            "health": Operation(self.health),
+            "status": Operation(self.status),
+            "current-user": Operation(self.current_user),
+            "media-token": Operation(self.media_token),
+            "protected-resource-metadata": Operation(self.protected_resource_metadata),
             "sync": Operation(self.sync, in_turn=True),
         }
 
 
+def _exporting() -> Callable[[], None] | None:
+    """Export telemetry over OTLP/HTTP when the suite says where. Returns what sends the last of it."""
+    if "OTEL_EXPORTER_OTLP_ENDPOINT" not in os.environ:
+        return None
+    # Taken only by a driver that exports, and only then: it is most of a second to load.
+    from opentelemetry import metrics, trace
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+    resource = Resource.create({"service.name": "semiont-conformance-driver"})
+    spans = TracerProvider(resource=resource)
+    spans.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+    meters = MeterProvider(resource=resource, metric_readers=[PeriodicExportingMetricReader(OTLPMetricExporter())])
+    trace.set_tracer_provider(spans)
+    metrics.set_meter_provider(meters)
+
+    def flush() -> None:
+        spans.shutdown()
+        meters.shutdown()
+
+    return flush
+
+
 async def main() -> int:
-    # The reporters end when the transport they read is closed, which `dispose` does.
-    async with AsyncExitStack() as held, asyncio.TaskGroup() as reporters:
-        wire = Wire(held, reporters)
-        return await serve(wire.operations(), wire.dispose)
+    flush = _exporting()
+    try:
+        # The reporters end when the transport they read is closed, which `dispose` does.
+        async with AsyncExitStack() as held, asyncio.TaskGroup() as reporters:
+            wire = Wire(held, reporters)
+            return await serve(wire.operations(), wire.dispose)
+    finally:
+        if flush is not None:
+            flush()
 
 
 if __name__ == "__main__":

@@ -330,10 +330,8 @@ to what it asks, so an exemption that has stopped being true fails, and a
 driver that answers `unsupported` to a case it is not exempt from fails that
 case.
 
-TypeScript and Rust name none: their drivers run every wire case. Python
-names the cases that ask for content, an upload, one of the gateway's own
-operations, or telemetry: its SDK holds the bus and nothing else of the wire
-layer, and its driver answers `unsupported` to the rest.
+No SDK names one: the TypeScript, Rust and Python drivers each run every wire
+case. An SDK that arrives in steps names what it has not reached.
 
 ## Cases that restate a table
 

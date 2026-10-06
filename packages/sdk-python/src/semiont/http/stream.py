@@ -30,8 +30,9 @@ from dataclasses import dataclass
 from typing import Final, final
 
 import httpx
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
 
+from semiont import telemetry
 from semiont.channels import RESOURCE_SCOPED_CHANNELS
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast
@@ -41,6 +42,7 @@ from semiont.retry import RetryPolicy, equal_jitter, retry_after_ms
 from semiont.timing import (
     DEGRADED_THRESHOLD_MS,
     EMIT_RETRY,
+    HTTP_REQUEST_TIMEOUT_MS,
     LAZY_REMOVE_MS,
     LINGER_MS,
     MAX_RECONNECT_MS,
@@ -48,13 +50,26 @@ from semiont.timing import (
     RECONNECT_MS,
     SEEN_EVENT_IDS_COUNT,
 )
-from semiont.transport import CONNECTION_STATE_MAY_BECOME, ConnectionState, Frame, FrameHub, ReplyRouter
+from semiont.transport import CONNECTION_STATE_MAY_BECOME, ConnectionState, Frame, FrameHub, ReplyRouter, TraceContext
 from semiont.types import BusFrame, BusSubscribeRequest, ErrorResponse, ScopedItem
 from semiont.watched import Variable, Watched
 
 __all__ = ["SeenIds", "Stream", "Timing", "backoff_cap_ms"]
 
 _LOG: Final = logging.getLogger("semiont.http")
+
+# Where a frame's payload carries the trace it was sent under. It is the wire's, and no reader of the frame sees it.
+_TRACE_FIELD: Final = "_trace"
+
+
+def _sent_under(carried: JsonValue) -> TraceContext | None:
+    """The trace a frame's payload says it was sent under, when it says so."""
+    if not isinstance(carried, dict):
+        return None
+    traceparent, tracestate = carried.get("traceparent"), carried.get("tracestate")
+    if not isinstance(traceparent, str):
+        return None
+    return TraceContext(traceparent=traceparent, tracestate=tracestate if isinstance(tracestate, str) and tracestate else None)
 
 
 @final
@@ -67,6 +82,8 @@ class Timing:
     linger_ms: int = LINGER_MS
     emit_retry: RetryPolicy = EMIT_RETRY
     seen_event_ids_count: int = SEEN_EVENT_IDS_COUNT
+    http_request_ms: int = HTTP_REQUEST_TIMEOUT_MS
+    """The deadline on one request that is neither the stream nor an emit."""
 
 
 def backoff_cap_ms(reconnect_ms: int, failures: int) -> int:
@@ -458,7 +475,18 @@ class Stream:
             # What is not a frame is not delivered, and is said so.
             _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, error)
             return
-        frame = Frame(channel=carried.channel, payload=carried.payload, correlation_id=carried.correlation_id, scope=carried.scope)
+        payload = carried.payload
+        sent_under: TraceContext | None = None
+        if _TRACE_FIELD in payload:
+            sent_under = _sent_under(payload[_TRACE_FIELD])
+            payload = {name: value for name, value in payload.items() if name != _TRACE_FIELD}
+        frame = Frame(
+            channel=carried.channel,
+            payload=payload,
+            correlation_id=carried.correlation_id,
+            scope=carried.scope,
+            trace=telemetry.received(carried.channel, carried.scope, sent_under),
+        )
         self._router.route(frame)
         # A scope's position is the last recorded event delivered on it: only
         # a recorded event's id (`p-…`) is one, and it always comes on its scope.

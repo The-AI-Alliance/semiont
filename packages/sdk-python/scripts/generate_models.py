@@ -4,8 +4,8 @@
     uv run python scripts/generate_models.py --check    compare, and fail on a difference
 
 The classes are written by `datamodel-code-generator`, the ecosystem's own
-generator, pinned in this package's lockfile. Three things it cannot be told by
-a flag are done here, before and after it runs.
+generator, pinned in this package's lockfile. What it cannot be told by a flag
+is done here, before and after it runs.
 
 Before, on a copy of the spec:
 
@@ -18,6 +18,9 @@ Before, on a copy of the spec:
   type checker refuses.
 - **Two properties that would be given one Python name are refused**, here,
   where the generator would rename one of them without saying so.
+- **Text stays text, whatever format the spec says it has.** A time or a URI
+  read into a type of its own is written back in another spelling than it came
+  in, and a client hands on what it was sent. Only `binary` is not text.
 
 After, on what it wrote:
 
@@ -44,6 +47,11 @@ KINDS = ROOT / "specs/src/identifiers/kinds.json"
 OUT = PACKAGE / "src/semiont/types.py"
 
 SCHEMA_REF = "#/components/schemas/"
+
+# The formats the spec gives a string. A format this does not name is refused:
+# whether its text is kept as it came is a decision, made here.
+KEPT_AS_TEXT = frozenset({"date-time", "uri"})
+BYTES = "binary"
 BANNER = (
     "# Generated from specs/openapi.json, the bundled spec; do not edit.\n"
     "# Regenerate: uv run python scripts/generate_models.py (in packages/sdk-python)\n"
@@ -166,6 +174,20 @@ def written_whole(name: str, schema: JsonObject, schemas: JsonObject) -> JsonObj
     return whole
 
 
+def as_text(name: str, node: JsonValue) -> JsonValue:
+    """`node`, with every formatted string but bytes left as plain text."""
+    if isinstance(node, list):
+        return [as_text(name, item) for item in node]
+    if not isinstance(node, dict):
+        return node
+    stated = node.get("format")
+    if node.get("type") != "string" or not isinstance(stated, str) or stated == BYTES:
+        return {key: as_text(name, value) for key, value in node.items()}
+    if stated not in KEPT_AS_TEXT:
+        refuse(f"{name}: a string of format {stated!r}, which this script does not know; say in it whether such text is kept as it came")
+    return {key: as_text(name, value) for key, value in node.items() if key != "format"}
+
+
 def python_name(wire: str) -> str:
     """The Python name the generator gives a property: what marks it (`@`, `_`) dropped, then snake_case."""
     return re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", wire.lstrip("@_")).replace("-", "_").lower()
@@ -202,7 +224,7 @@ def prepared(spec: JsonObject, kinds: frozenset[str]) -> JsonObject:
             continue
         if not isinstance(schema, dict):
             refuse(f"{name} is not a schema")
-        whole[name] = with_kinds(written_whole(name, schema, schemas), kinds)
+        whole[name] = as_text(name, with_kinds(written_whole(name, schema, schemas), kinds))
         hold_names(name, whole[name])
     if names_a_kind(whole, kinds):
         refuse("a reference to a kind of id survived: the generator would write it as text")
@@ -243,6 +265,8 @@ def generated(spec: JsonObject) -> str:
                 "--enum-field-as-literal",
                 "all",
                 "--use-schema-description",
+                # What the spec says may be null may be null, whether or not it must be there.
+                "--strict-nullable",
                 "--snake-case-field",
                 "--remove-special-field-name-prefix",
                 "--disable-timestamp",

@@ -5,13 +5,13 @@ from typing import TypeAliasType, get_args
 
 import pytest
 from pydantic import ValidationError
-from spec import SPEC, objects, read, strings, text
+from spec import SPEC, JsonObject, objects, read, strings, text
 
 import semiont.identifiers
 import semiont.types
 from semiont.identifiers import AnnotationId, JobId, ResourceId, UserId
 from semiont.model import WireModel
-from semiont.types import Annotation, MarkDeleteCommand
+from semiont.types import Annotation, MarkDeleteCommand, ResourceDescriptor
 
 KINDS: dict[str, type[str]] = {"ResourceId": ResourceId, "AnnotationId": AnnotationId, "JobId": JobId, "UserId": UserId}
 
@@ -92,3 +92,50 @@ def test_an_annotation_survives_the_round_trip() -> None:
     annotation = Annotation.model_validate_json(wire)
     assert type(annotation.id) is AnnotationId
     assert Annotation.model_validate_json(annotation.model_dump_json(exclude_unset=True)) == annotation
+
+
+def test_what_a_model_reads_it_writes_back_as_it_came() -> None:
+    # A client hands on what it was sent. Text the spec gives a format (a
+    # time, a URI) stays the text it was: a parsed time or URL is written back
+    # in another spelling than it was read in.
+    described: JsonObject = {
+        "@context": "https://schema.org/",
+        "@id": "res-1",
+        "name": "Described",
+        "representations": [
+            {"mediaType": "text/plain", "created": "2026-10-06T05:04:06.111Z", "modified": "2026-10-06T05:04:06.123456789+02:00"}
+        ],
+        "license": "https://example.org",
+        "isPartOf": ["HTTPS://Example.org/a b"],
+        "dateCreated": "2026-10-06T05:04:06+00:00",
+    }
+    assert ResourceDescriptor.model_validate(described).model_dump(mode="json", exclude_unset=True) == described
+
+
+def test_no_shape_is_typed_by_something_that_rewrites_what_it_reads() -> None:
+    source = inspect.getsource(semiont.types)
+    imported = {
+        name.strip()
+        for line in source.splitlines()
+        if line.startswith("from pydantic import ")
+        for name in line.split("import ")[1].split(",")
+    }
+    assert imported == {"JsonValue", "Field"}
+
+
+def test_a_property_the_spec_says_may_be_null_may_be_null() -> None:
+    held = 0
+    refusing: list[str] = []
+    for path in sorted((SPEC / "components/schemas").glob("*.json")):
+        properties = read(path).get("properties")
+        model = getattr(semiont.types, path.stem, None)
+        if not isinstance(properties, dict) or not (inspect.isclass(model) and issubclass(model, WireModel)):
+            continue
+        by_wire = {field.alias or name: field for name, field in model.model_fields.items()}
+        for wire, stated in properties.items():
+            if isinstance(stated, dict) and stated.get("nullable") is True:
+                held += 1
+                if type(None) not in get_args(by_wire[wire].annotation):
+                    refusing.append(f"{path.stem}.{wire}")
+    assert refusing == []
+    assert held >= 5, "the census found few nullable properties: it is reading the wrong thing"

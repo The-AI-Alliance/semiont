@@ -16,7 +16,17 @@ from typing import Final, final
 
 from semiont.errors import SemiontError
 
-__all__ = ["BOOT", "RETRY_RULES", "RetryFacts", "RetryPolicy", "RetryRule", "equal_jitter", "retry_after_ms", "retry_with_backoff"]
+__all__ = [
+    "BOOT",
+    "RETRY_RULES",
+    "TRANSPORT",
+    "RetryFacts",
+    "RetryPolicy",
+    "RetryRule",
+    "equal_jitter",
+    "retry_after_ms",
+    "retry_with_backoff",
+]
 
 
 @final
@@ -59,7 +69,26 @@ BOOT: Final = RetryRule("boot", _boot)
 the statuses that say "up, but not now". A `500` is not among them: replaying
 it re-runs whatever broke it."""
 
-RETRY_RULES: Final[Mapping[str, RetryRule]] = MappingProxyType({rule.name: rule for rule in (BOOT,)})
+# Repeating these cannot cause a second effect upstream (RFC 9110 §9.2.2).
+_IDEMPOTENT_METHODS: Final = frozenset({"GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE"})
+
+
+def _transport(facts: RetryFacts) -> bool:
+    if facts.status is None:
+        return False
+    if facts.status == 401:
+        return True
+    repeatable = facts.method is not None and facts.method.upper() in _IDEMPOTENT_METHODS
+    return repeatable and facts.status in (408, 413, 429, 500, 502, 503, 504)
+
+
+TRANSPORT: Final = RetryRule("transport", _transport)
+"""An HTTP client that can renew its token. A `401` is retried on any method:
+the request was rejected, not processed, and a renewed token makes it valid.
+Every other retryable status applies only to a method that cannot cause a
+second effect, because a POST answered `502` may already have been processed."""
+
+RETRY_RULES: Final[Mapping[str, RetryRule]] = MappingProxyType({rule.name: rule for rule in (BOOT, TRANSPORT)})
 """Every rule this SDK keeps, by its name in the table."""
 
 _WHOLE_SECONDS: Final = re.compile(r"[0-9]+", re.ASCII)

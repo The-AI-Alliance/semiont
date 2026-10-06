@@ -71,7 +71,7 @@ def test_the_wire_driver_answers_each_operation_once_and_disposes_of_its_transpo
     assert isinstance(unsubscribed, dict)
     assert unsubscribed["code"] == "bus.unsubscribed"
     assert answers[10] == {"misuse": "no such request is unsettled"}
-    assert answers[11] == {"unsupported": True}
+    assert answers[11] == {"misuse": "name must be a string"}
     assert answers[12] == {"ok": None}
     # Nothing answers at that address: the stream is a state, never a failure, and every state is one of the contract's.
     states = [line["state"] for line in said if "state" in line]

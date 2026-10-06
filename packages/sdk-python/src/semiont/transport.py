@@ -11,7 +11,7 @@ its requests still await (`ReplyRouter`).
 """
 
 import asyncio
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Collection, Generator, Mapping, Sequence
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Final, Literal, Protocol, Self, final
@@ -20,19 +20,37 @@ from pydantic import JsonValue
 
 from semiont.errors import BusRequestError, SemiontError
 from semiont.events import Broadcast, Events
-from semiont.identifiers import ResourceId
+from semiont.identifiers import AnnotationId, JobId, ResourceId
+from semiont.types import (
+    Agent,
+    CreateResourceResponse,
+    GetResourceResponse,
+    HealthResponse,
+    MediaTokenResponse,
+    ProtectedResourceMetadata,
+    StatusResponse,
+    UserResponse,
+)
 from semiont.watched import Watched
 
 __all__ = [
     "CONNECTION_STATES",
     "CONNECTION_STATE_MAY_BECOME",
     "ConnectionState",
+    "Content",
+    "ContentStream",
+    "ContentTransport",
     "Frame",
     "FrameHub",
+    "GatewayOperations",
     "PendingReply",
+    "PutBinaryRequest",
     "ReplyRouter",
     "ResourceHold",
+    "TraceContext",
     "Transport",
+    "Upload",
+    "UploadProgress",
     "unsubscribed",
 ]
 
@@ -75,8 +93,17 @@ CONNECTION_STATE_MAY_BECOME: Final[Mapping[ConnectionState, frozenset[Connection
 
 @final
 @dataclass(frozen=True, slots=True, kw_only=True)
+class TraceContext:
+    """A W3C trace context, as the wire carries one."""
+
+    traceparent: str
+    tracestate: str | None = None
+
+
+@final
+@dataclass(frozen=True, slots=True, kw_only=True)
 class Frame:
-    """A frame as a transport delivers it: a payload, and the routing facts beside it, never inside it."""
+    """A frame as a transport delivers it: a payload, and what is beside it, never inside it."""
 
     channel: str
     payload: Mapping[str, JsonValue]
@@ -84,6 +111,8 @@ class Frame:
     """What pairs a reply with its request."""
     scope: ResourceId | None = None
     """The resource whose scope the frame was delivered on."""
+    trace: TraceContext | None = None
+    """The trace the work done for this frame continues, when the frame was sent under one."""
 
 
 def unsubscribed(channel: str) -> BusRequestError:
@@ -293,4 +322,183 @@ class Transport(Protocol):
 
         Closing twice is closing once.
         """
+        ...
+
+
+# ── Content ─────────────────────────────────────────────────────────────
+
+
+@final
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PutBinaryRequest:
+    """An upload: the bytes, and each field the resource is created with."""
+
+    name: str
+    file: bytes
+    format: str
+    """The media type of the bytes."""
+    storage_uri: str
+    entity_types: Sequence[str] = ()
+    language: str | None = None
+    source_annotation_id: AnnotationId | None = None
+    source_resource_id: ResourceId | None = None
+    generation_prompt: str | None = None
+    generator: Agent | Sequence[Agent] | None = None
+    """The agent or agents that generated it."""
+    job_id: JobId | None = None
+    """The job this resource fulfils, when a worker is creating it."""
+    is_draft: bool | None = None
+    clone_token: str | None = None
+    """A clone's provenance: with it, the resource is created as a clone."""
+    archive_original: bool | None = None
+    """Of a clone: archive the source once the clone exists."""
+
+
+@final
+@dataclass(frozen=True, slots=True, kw_only=True)
+class UploadProgress:
+    """How much of an upload has been sent."""
+
+    bytes_uploaded: int
+    total_bytes: int
+    """The size of the whole request."""
+
+
+@final
+class Upload:
+    """An upload. Awaited, it gives the resource created; iterated, how much of it has been sent, ending when it has.
+
+    It begins when it is first awaited or iterated, and each is done once. Its
+    caller abandons it by cancelling the task that awaits it or reads its
+    progress: nothing more is sent, and nothing is reported.
+    """
+
+    def __init__(self, start: Callable[[Callable[[UploadProgress], None]], "asyncio.Task[CreateResourceResponse]"]) -> None:
+        self._start = start
+        self._sending: asyncio.Task[CreateResourceResponse] | None = None
+        self._reports: asyncio.Queue[UploadProgress | None] = asyncio.Queue()
+        self._awaited = False
+        self._iterated = False
+
+    def _begun(self) -> "asyncio.Task[CreateResourceResponse]":
+        if self._sending is None:
+            self._sending = self._start(self._reports.put_nowait)
+            self._sending.add_done_callback(self._ended)
+        return self._sending
+
+    def _ended(self, sending: "asyncio.Task[CreateResourceResponse]") -> None:
+        # What it reported before it ended has been queued, and it reports no more.
+        self._reports.put_nowait(None)
+        if not sending.cancelled():
+            # Its failure is its awaiter's to hear. Read here, it is not also said to be unheard.
+            sending.exception()
+
+    async def _outcome(self) -> CreateResourceResponse:
+        return await self._begun()
+
+    def __await__(self) -> Generator[object, None, CreateResourceResponse]:
+        if self._awaited:
+            raise RuntimeError("an upload is awaited once")
+        self._awaited = True
+        return self._outcome().__await__()
+
+    def __aiter__(self) -> AsyncIterator[UploadProgress]:
+        if self._iterated:
+            raise RuntimeError("an upload's progress is read once")
+        self._iterated = True
+        return self
+
+    async def __anext__(self) -> UploadProgress:
+        sending = self._begun()
+        try:
+            progress = await self._reports.get()
+        except asyncio.CancelledError:
+            sending.cancel()
+            raise
+        if progress is None:
+            # Left for a later read, which ends the same way.
+            self._reports.put_nowait(None)
+            raise StopAsyncIteration
+        return progress
+
+
+@final
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Content:
+    """A resource's bytes, with their media type."""
+
+    data: bytes
+    content_type: str
+
+
+@final
+class ContentStream:
+    """A resource's bytes as they arrive, with their media type.
+
+    Held with `async with`, which ends the read on the way out, whether or
+    not every byte was taken.
+    """
+
+    def __init__(self, content_type: str, pieces: AsyncGenerator[bytes]) -> None:
+        self.content_type: Final = content_type
+        self._pieces = pieces
+
+    def __aiter__(self) -> AsyncIterator[bytes]:
+        return self._pieces
+
+    async def aclose(self) -> None:
+        """End the read: nothing more is taken from the gateway."""
+        await self._pieces.aclose()
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, kind: type[BaseException] | None, error: BaseException | None, trace: TracebackType | None) -> None:
+        await self.aclose()
+
+
+class ContentTransport(Protocol):
+    """Bytes, which never ride the bus, and a resource's description as linked data."""
+
+    def put_binary(self, request: PutBinaryRequest) -> Upload:
+        """Upload `request`'s bytes as a new resource."""
+        ...
+
+    async def get_binary(self, resource_id: ResourceId) -> Content:
+        """A resource's bytes, unchanged, with their media type."""
+        ...
+
+    async def get_binary_stream(self, resource_id: ResourceId) -> ContentStream:
+        """The same, as a stream."""
+        ...
+
+    async def get_resource_graph(self, resource_id: ResourceId) -> GetResourceResponse:
+        """A resource's description: itself, its annotations and the references to it."""
+        ...
+
+
+# ── The gateway's own operations ────────────────────────────────────────
+
+
+class GatewayOperations(Protocol):
+    """What a gateway answers for itself. A transport with no gateway behind it does not offer it."""
+
+    async def get_current_user(self) -> UserResponse:
+        """Who the gateway says this token is."""
+        ...
+
+    async def get_media_token(self, resource_id: ResourceId) -> MediaTokenResponse:
+        """A token that lets a browser fetch one resource's bytes."""
+        ...
+
+    async def get_protected_resource_metadata(self) -> ProtectedResourceMetadata:
+        """Which issuer the knowledge base trusts (RFC 9728). Public: read before any token exists."""
+        ...
+
+    async def health_check(self) -> HealthResponse:
+        """Whether the gateway is serving."""
+        ...
+
+    async def get_status(self) -> StatusResponse:
+        """What the gateway is, and who it takes its caller to be."""
         ...

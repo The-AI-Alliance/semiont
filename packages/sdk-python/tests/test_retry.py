@@ -22,7 +22,6 @@ STATED_WAITS = objects(TABLE["retryAfter"], "retryAfter")
 NOT_KEPT = {
     "job": "a job's retry budget is its worker's, which is not this SDK's",
     "refresh": "the session renews a token",
-    "transport": "the gateway's own operations and content are requested",
 }
 
 

@@ -2,7 +2,12 @@
 
 One stream, `POST /bus/subscribe`, naming the client's global channels and an
 entry per resource scope it holds; and `POST /bus/emit` for what it sends. The
-stream is `semiont.http.stream`'s.
+stream is `semiont.http.stream`'s. The gateway's own operations ride plain
+request and response, and so does content (`HttpTransport.content`).
+
+What crosses the wire is told to OpenTelemetry as the telemetry table says:
+each emit is counted and sent in a span whose trace travels with it, and each
+frame's arrival is marked in the trace the frame was sent under.
 """
 
 import asyncio
@@ -14,15 +19,38 @@ from typing import Final, Self, final, override
 import httpx
 from pydantic import JsonValue, ValidationError
 
+from semiont import telemetry
 from semiont.channels import BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast, Events
+from semiont.http.content import HttpContentTransport
+from semiont.http.exchange import Exchange
 from semiont.http.stream import Stream, Timing
 from semiont.identifiers import ResourceId
 from semiont.retry import BOOT, RetryFacts, retry_after_ms, retry_with_backoff
 from semiont.timing import EMIT_TIMEOUT_MS
-from semiont.transport import ConnectionState, Frame, FrameHub, PendingReply, ReplyRouter, ResourceHold, Transport, unsubscribed
-from semiont.types import BusEmitAccepted, BusEmitRequest
+from semiont.transport import (
+    ConnectionState,
+    ContentTransport,
+    Frame,
+    FrameHub,
+    GatewayOperations,
+    PendingReply,
+    ReplyRouter,
+    ResourceHold,
+    Transport,
+    unsubscribed,
+)
+from semiont.types import (
+    BusEmitAccepted,
+    BusEmitRequest,
+    HealthResponse,
+    MediaTokenRequest,
+    MediaTokenResponse,
+    ProtectedResourceMetadata,
+    StatusResponse,
+    UserResponse,
+)
 from semiont.watched import Watched
 
 __all__ = ["HttpTransport"]
@@ -34,7 +62,7 @@ def _worth_another_emit(error: SemiontError) -> bool:
 
 
 @final
-class HttpTransport(Transport):
+class HttpTransport(Transport, GatewayOperations):
     """A transport to one gateway. Held with `async with`: its stream opens inside, once there is a token, and ends on the way out.
 
     `token` is the token every request carries: the present one, and each one
@@ -75,10 +103,19 @@ class HttpTransport(Transport):
             router=self._router,
             failures=self._failures,
         )
+        self._closing: Final = asyncio.Event()
+        self._exchange: Final = Exchange(
+            base_url=self._base_url,
+            http=self._http,
+            token=token,
+            failures=self._failures,
+            deadline_ms=self._timing.http_request_ms,
+            closing=self._closing,
+        )
+        self._content: Final = HttpContentTransport(self._exchange)
         self._holds: Final[dict[ResourceId, int]] = {}
         """How many holds each resource's scope has."""
         self._running: asyncio.Task[None] | None = None
-        self._closing: Final = asyncio.Event()
         self._closed: Final = asyncio.Event()
         self._emitting = 0
         self._quiet: Final = asyncio.Event()
@@ -103,7 +140,9 @@ class HttpTransport(Transport):
             # A failure is reported for as long as an emit can fail: to the end.
             self._failures.close()
             try:
+                # Whatever else is on the wire ends here, as a request that got no answer.
                 await self._http.aclose()
+                await self._exchange.ended()
             finally:
                 self._closed.set()
 
@@ -116,6 +155,11 @@ class HttpTransport(Transport):
     @override
     def state(self) -> Watched[ConnectionState]:
         return self._stream.state
+
+    @property
+    def content(self) -> ContentTransport:
+        """Bytes, and a resource's description, from the same gateway."""
+        return self._content
 
     @override
     def failures(self) -> Events[SemiontError]:
@@ -177,12 +221,13 @@ class HttpTransport(Transport):
         self._emitting += 1
         self._quiet.clear()
         try:
-            return await retry_with_backoff(
-                self._timing.emit_retry,
-                lambda: self._emit_once(body),
-                retryable=_worth_another_emit,
-                give_up=self._closing,
-            )
+            with telemetry.emitting(channel, scope):
+                return await retry_with_backoff(
+                    self._timing.emit_retry,
+                    lambda: self._emit_once(body),
+                    retryable=_worth_another_emit,
+                    give_up=self._closing,
+                )
         except TransportError as error:
             # A failed emit is reported where every failure is, as its caller hears it.
             self._failures.deliver(error)
@@ -201,7 +246,11 @@ class HttpTransport(Transport):
                 response = await self._http.post(
                     f"{self._base_url}/bus/emit",
                     content=body,
-                    headers={"Authorization": f"Bearer {self._token.value or ''}", "Content-Type": "application/json"},
+                    headers={
+                        **telemetry.trace_headers(),
+                        "Authorization": f"Bearer {self._token.value or ''}",
+                        "Content-Type": "application/json",
+                    },
                 )
         except TimeoutError:
             raise TransportError.without_response(f"/bus/emit got no answer within {EMIT_TIMEOUT_MS // 1000}s") from None
@@ -222,6 +271,32 @@ class HttpTransport(Transport):
             return BusEmitAccepted.model_validate_json(response.content).subscribers
         except ValidationError:
             return None
+
+    @override
+    async def get_current_user(self) -> UserResponse:
+        return await self._exchange.answer(UserResponse, "GET", "/api/users/me")
+
+    @override
+    async def get_media_token(self, resource_id: ResourceId) -> MediaTokenResponse:
+        return await self._exchange.answer(
+            MediaTokenResponse,
+            "POST",
+            "/api/tokens/media",
+            headers={"Content-Type": "application/json"},
+            content=MediaTokenRequest(resource_id=resource_id).model_dump_json().encode(),
+        )
+
+    @override
+    async def get_protected_resource_metadata(self) -> ProtectedResourceMetadata:
+        return await self._exchange.answer(ProtectedResourceMetadata, "GET", "/.well-known/oauth-protected-resource", authenticated=False)
+
+    @override
+    async def health_check(self) -> HealthResponse:
+        return await self._exchange.answer(HealthResponse, "GET", "/api/health")
+
+    @override
+    async def get_status(self) -> StatusResponse:
+        return await self._exchange.answer(StatusResponse, "GET", "/api/status")
 
     @override
     async def close(self) -> None:
