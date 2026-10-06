@@ -78,6 +78,11 @@ class Broadcast[T]:
             self._readers[events] = queue
         return events
 
+    @property
+    def listening(self) -> int:
+        """How many readers there are now."""
+        return len(self._readers)
+
     def deliver(self, item: T) -> int:
         """Give `item` to every reader. Returns how many there were."""
         queues = list(self._readers.values())

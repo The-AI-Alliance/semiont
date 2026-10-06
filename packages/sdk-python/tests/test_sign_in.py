@@ -790,7 +790,7 @@ def test_a_session_over_what_semiont_login_kept_is_ready_and_renews_through_the_
                 assert signed_in is not None
                 assert signed_in.email == "alice@example.org"
                 assert sent_with(gateway, "GET", ME) == [f"Bearer {first}"]
-                await soon(reached(session.transport.state, lambda state: state == "open"))
+                await soon(reached(session.client.transport.state, lambda state: state == "open"))
                 assert sent_with(gateway, "POST", "/bus/subscribe") == [f"Bearer {first}"]
 
                 # The gateway refuses the token: it is renewed at the issuer the sign-in names, and asked about.
@@ -806,6 +806,17 @@ def test_a_session_over_what_semiont_login_kept_is_ready_and_renews_through_the_
                 written = store.read()["local"]
                 assert isinstance(written, dict)
                 assert written["email"] == "alice@example.org"
+                # Its client asks through the same transport, with the same token.
+                gateway.answers["/api/status"] = {
+                    "status": "ok",
+                    "version": "0.0.0",
+                    "features": {"semanticContent": "on", "collaboration": "on"},
+                    "message": "serving",
+                }
+                assert (await soon(session.client.system.status())).version == "0.0.0"
+                assert sent_with(gateway, "GET", "/api/status") == [f"Bearer {second}"]
+            # On the way out its client ended with it.
+            assert session.client.bus.destroyed
             assert told == []
 
     run(scenario())
@@ -827,7 +838,7 @@ def test_a_request_the_gateway_refuses_is_made_again_with_the_sessions_renewed_t
             gateway.scripted[("GET", "/api/health")] = [REFUSED]
 
             async with session_from_kept(gateway.origin, kb_id="kb", kept=kept, channels=()) as session:
-                transport = session.transport
+                transport = session.client.transport
                 await soon(transport.health_check())
                 assert sent_with(gateway, "GET", "/api/health") == [f"Bearer {first}", f"Bearer {second}"]
                 assert session.token.value == second
@@ -845,7 +856,7 @@ def test_with_nothing_kept_a_session_is_signed_out_and_its_requests_are_refused(
 
             async with session_from_kept(gateway.origin, kb_id="kb", kept=MemorySignIn(), on_auth_failed=told.append) as session:
                 assert (session.token.value, session.user.value) == (None, None)
-                transport = session.transport
+                transport = session.client.transport
                 with pytest.raises(TransportError) as refused:
                     await soon(transport.health_check())
                 assert refused.value.code == "unauthorized"
@@ -931,7 +942,7 @@ def test_renewals_asked_for_together_spend_one_refresh_token() -> None:
 
             async def held_open() -> str | None:
                 async with session_from_kept(gateway.origin, kb_id="kb", kept=kept, on_auth_failed=told.append) as session:
-                    await soon(reached(session.transport.state, lambda state: state == "open"))
+                    await soon(reached(session.client.transport.state, lambda state: state == "open"))
                     return session.token.value
 
             holding = asyncio.create_task(held_open())
@@ -961,7 +972,7 @@ def test_a_renewal_runs_to_its_end_when_the_request_that_asked_for_it_stops_wait
             gateway.scripted[("GET", "/api/health")] = [REFUSED]
 
             async with session_from_kept(gateway.origin, kb_id="kb", kept=kept, channels=()) as session:
-                transport = session.transport
+                transport = session.client.transport
                 # A caller that gives its request a moment, and no more.
                 with pytest.raises(TimeoutError):
                     async with asyncio.timeout(0.1):
@@ -985,7 +996,7 @@ def test_leaving_a_session_ends_a_renewal_nobody_is_left_to_hear_of() -> None:
             gateway.scripted[("GET", "/api/health")] = [REFUSED]
 
             async with session_from_kept(gateway.origin, kb_id="kb", kept=kept, channels=()) as session:
-                transport = session.transport
+                transport = session.client.transport
                 with pytest.raises(TimeoutError):
                     async with asyncio.timeout(0.1):
                         await transport.health_check()

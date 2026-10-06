@@ -70,6 +70,7 @@ extend-exclude = [
     "src/semiont/channels.py",
     "src/semiont/error_codes.py",
     "src/semiont/identifiers.py",
+    "src/semiont/media_types_table.py",
     "src/semiont/oauth_clients.py",
     "src/semiont/operations.py",
     "src/semiont/refresh.py",

@@ -15,13 +15,15 @@ from semiont.error_codes import (
     BUS_REQUEST_CODE_BY_WIRE_CODE,
     UNRECOGNIZED_FAILURE_CODE,
     BusRequestErrorCode,
+    JobErrorCode,
     SemiontSessionErrorCode,
     SignInErrorCode,
     TransportErrorCode,
     transport_error_code_for_status,
 )
+from semiont.identifiers import JobId
 
-__all__ = ["BusRequestError", "SemiontError", "SessionError", "SignInError", "TransportError"]
+__all__ = ["BusRequestError", "JobError", "SemiontError", "SessionError", "SignInError", "TransportError"]
 
 
 class SemiontError(Exception, ABC):
@@ -93,6 +95,22 @@ class BusRequestError(SemiontError):
             BUS_REQUEST_CODE_BY_WIRE_CODE.get(stated, UNRECOGNIZED_FAILURE_CODE) if isinstance(stated, str) else UNRECOGNIZED_FAILURE_CODE
         )
         return cls(code, said if isinstance(said, str) else "Bus request rejected", failure=failure)
+
+
+@final
+class JobError(SemiontError):
+    """A job its follower saw end without completing: it failed for good, was cancelled, or said nothing for too long."""
+
+    def __init__(self, code: JobErrorCode, message: str, *, job_id: JobId | None) -> None:
+        super().__init__(message)
+        self._code: Final = code
+        self.job_id: Final = job_id
+        """The job, when its creation was answered: one that stalled before that has no id."""
+
+    @property
+    @override
+    def code(self) -> JobErrorCode:
+        return self._code
 
 
 @final

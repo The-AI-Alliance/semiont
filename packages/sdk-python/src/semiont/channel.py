@@ -5,7 +5,7 @@ from typing import Protocol, final
 
 from pydantic import JsonValue
 
-from semiont.model import WireModel
+from semiont.model import WireModel, written
 
 __all__ = ["AnyChannel", "AnyOperation", "Channel", "Empty", "Operation", "Response"]
 
@@ -53,9 +53,9 @@ class Channel[P: WireModel]:
         """What a frame on this channel carries, as its payload's type. Raises `ValidationError` for anything else."""
         return self.payload.model_validate(value)
 
-    def encode(self, payload: P) -> JsonValue:
-        """`payload` as the wire carries it: by the wire's names, and without what was never said."""
-        return payload.model_dump(mode="json", exclude_unset=True)
+    def encode(self, payload: P) -> dict[str, JsonValue]:
+        """`payload` as the wire carries it (`semiont.model.written`)."""
+        return written(payload)
 
 
 class AnyOperation(Protocol):

@@ -9,7 +9,8 @@ from pydantic import JsonValue
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast, Events
 from semiont.identifiers import ResourceId
-from semiont.transport import ConnectionState, Frame, FrameHub, PendingReply, ReplyRouter, ResourceHold, Transport, unsubscribed
+from semiont.operations import OPERATIONS
+from semiont.transport import ConnectionState, Frame, FrameHub, FrameSink, PendingReply, ReplyRouter, ResourceHold, Transport, unsubscribed
 from semiont.watched import Variable, Watched
 
 
@@ -23,9 +24,14 @@ class Scripted(Transport):
         self.router = ReplyRouter()
         self.hub = FrameHub()
         self.failed: Broadcast[SemiontError] = Broadcast()
-        self.emitted: list[tuple[str, Mapping[str, JsonValue], str | None]] = []
+        self.emitted: list[Frame] = []
+        """Every frame sent, in order."""
         self.sent = asyncio.Event()
         self.refusal: TransportError | None = None
+        self.answers: dict[str, list[JsonValue]] | None = None
+        """When there is one, the gateway behind the transport answers each request: with the next of what is
+        queued here for its operation (a `response`, or `None` for a reply that carries none), and with a refusal
+        when nothing is. With none, a test answers a request itself."""
 
     @property
     @override
@@ -38,9 +44,30 @@ class Scripted(Transport):
     ) -> int | None:
         if self.refusal is not None:
             raise self.refusal
-        self.emitted.append((channel, payload, correlation_id))
+        self.emitted.append(Frame(channel=channel, payload=payload, correlation_id=correlation_id, scope=scope))
         self.sent.set()
+        operation = OPERATIONS.get(channel)
+        if self.answers is not None and operation is not None and correlation_id is not None:
+            queued = self.answers.get(channel)
+            if queued:
+                response = queued.pop(0)
+                self.deliver(
+                    Frame(
+                        channel=operation.result.name,
+                        payload={} if response is None else {"response": response},
+                        correlation_id=correlation_id,
+                    )
+                )
+            else:
+                # A request nobody scripted an answer for is refused, naming the operation.
+                refused: dict[str, JsonValue] = {"code": "rejected", "message": f"the scripted gateway was told no answer to {channel}"}
+                self.deliver(Frame(channel=operation.failure.name, payload=refused, correlation_id=correlation_id))
         return None
+
+    def deliver(self, frame: Frame) -> None:
+        """Deliver a frame as if the bus had carried it."""
+        self.router.route(frame)
+        self.hub.deliver(frame)
 
     @override
     def frames(self, channel: str) -> Events[Frame]:
@@ -70,14 +97,19 @@ class Scripted(Transport):
         return self.router.track(correlation_id, reply_channels)
 
     @override
+    def bridge_into(self, bus: FrameSink) -> None:
+        self.hub.bridge(bus)
+
+    @override
     async def close(self) -> None:
         self.now.set("closed")
         self.now.end()
+        self.hub.close()
         self.router.close()
 
     async def asked(self) -> str:
         """The correlation id of the one request emitted, once it has been."""
         await self.sent.wait()
-        correlation_id = self.emitted[0][2]
+        correlation_id = self.emitted[0].correlation_id
         assert correlation_id is not None
         return correlation_id

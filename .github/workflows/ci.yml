@@ -663,8 +663,8 @@ jobs:
       # Authority: specs/src → the Python SDK's committed modules
       # (packages/sdk-python/src/semiont): the bus vocabulary, the kinds of id,
       # the error codes, the client's timing, its refresh table, the telemetry
-      # it exports, the clients it signs in as and the entry of the sign-in
-      # store. TypeScript and Rust build theirs from the same files at build
+      # it exports, the clients it signs in as, the entry of the sign-in store
+      # and the media types. TypeScript and Rust build theirs from the same files at build
       # time; Python has no build, so its are committed, and are what can go
       # stale.
       - name: Spec tables vs the Python SDK's generated modules
@@ -677,6 +677,7 @@ jobs:
           node scripts/spec/generate-sdk-telemetry-python.mjs --check
           node scripts/spec/generate-oauth-clients-python.mjs --check
           node scripts/spec/generate-sign-in-python.mjs --check
+          node scripts/spec/generate-media-types-python.mjs --check
 
       # Authority: specs/src/media-types/registry.json → Go
       # (packages/sdk-go/mediatypes). The TypeScript and Rust tables are built

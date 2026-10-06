@@ -15,10 +15,12 @@ from typing import final
 
 import pytest
 from aio import pass_time, run, soon, turns
+from doubles import RecordingContent, RecordingGateway
 from scripted_transport import Scripted
 from spec import SPEC, JsonObject, objects, read, strings, text
 from tokens import expired, jwt, token
 
+from semiont.client import SemiontClient
 from semiont.errors import BusRequestError, SemiontError, SessionError, SignInError, TransportError
 from semiont.session import HeldSignIn, MemorySignIn, Refresh, SemiontSession, SessionEndReason, Validate
 from semiont.types import UserResponse
@@ -80,7 +82,7 @@ class World:
     def session(self, *, refresh: Refresh | None, validate: Validate | None) -> SemiontSession[Scripted]:
         return SemiontSession(
             kb_id=KB,
-            transport=Scripted((), "open"),
+            client=SemiontClient(Scripted((), "open"), RecordingContent(), RecordingGateway()),
             token=self.token,
             kept=self.kept,
             refresh=refresh,

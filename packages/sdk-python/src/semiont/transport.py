@@ -42,6 +42,7 @@ __all__ = [
     "ContentTransport",
     "Frame",
     "FrameHub",
+    "FrameSink",
     "GatewayOperations",
     "PendingReply",
     "PutBinaryRequest",
@@ -124,13 +125,27 @@ def unsubscribed(channel: str) -> BusRequestError:
     )
 
 
+class FrameSink(Protocol):
+    """Where a transport delivers every frame it receives: its client's own bus."""
+
+    def deliver(self, frame: Frame) -> None:
+        """Take one frame, as the transport delivered it."""
+        ...
+
+
 @final
 class FrameHub:
-    """The frames of every channel anybody listens to, a broadcast per channel."""
+    """The frames of every channel anybody listens to, a broadcast per channel, and the buses every frame is bridged into."""
 
     def __init__(self) -> None:
         self._channels: dict[str, Broadcast[Frame]] = {}
+        self._bridged: list[FrameSink] = []
         self._closed = False
+
+    def bridge(self, bus: FrameSink) -> None:
+        """Deliver into `bus` every frame delivered here from now on, whatever its channel."""
+        if not self._closed:
+            self._bridged.append(bus)
 
     def frames(self, channel: str) -> Events[Frame]:
         """The frames delivered on `channel` from now on. Of a closed hub, events that have ended."""
@@ -144,7 +159,9 @@ class FrameHub:
         return broadcast.listen()
 
     def deliver(self, frame: Frame) -> int:
-        """Give `frame` to its channel's readers. Returns how many there were."""
+        """Give `frame` to its channel's readers, and to every bus bridged into. Returns how many readers there were."""
+        for bus in self._bridged:
+            bus.deliver(frame)
         broadcast = self._channels.get(frame.channel)
         return 0 if broadcast is None else broadcast.deliver(frame)
 
@@ -154,6 +171,7 @@ class FrameHub:
         for broadcast in self._channels.values():
             broadcast.close()
         self._channels.clear()
+        self._bridged.clear()
 
 
 @final
@@ -307,6 +325,10 @@ class Transport(Protocol):
 
     def failures(self) -> Events[SemiontError]:
         """The failures the transport meets from now on: everything a server refused, and every request never answered."""
+        ...
+
+    def bridge_into(self, bus: FrameSink) -> None:
+        """Publish into `bus` every frame this transport delivers. The bus is its client's: a transport never makes one."""
         ...
 
     def track_reply(self, correlation_id: str, reply_channels: Collection[str]) -> PendingReply:

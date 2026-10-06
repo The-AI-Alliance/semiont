@@ -21,6 +21,18 @@ Before, on a copy of the spec:
 - **Text stays text, whatever format the spec says it has.** A time or a URI
   read into a type of its own is written back in another spelling than it came
   in, and a client hands on what it was sent. Only `binary` is not text.
+- **A schema written in place is named for where it is.** The generator would
+  name it for its property alone and number the ones that collide
+  (`Response4`), so a name would change when the spec gained a schema
+  elsewhere. Each is made a schema of its own first: `MarkCreateOk`'s
+  `response` is `MarkCreateOkResponse`, an array's items are `…Item`, a map's
+  values `…Value`, and a member of a union is named by the one value its
+  discriminating property takes. A closed set of words written in place is
+  named the same way (`BrowseDirectoryRequestSort`), so a function that takes
+  one names its type and does not restate its words; a set of one word is
+  what tells a union's members apart, and stays where it is. It is the rule
+  Rust's generator names them by (`packages/codegen-rust`), so a shape has
+  one name in both.
 
 After, on what it wrote:
 
@@ -28,6 +40,8 @@ After, on what it wrote:
   read it, and the rest of its configuration is said there with it.
 - **What the spec leaves open is JSON, not `Any`.**
 - **`__all__` names what the spec names.**
+- **A name the generator made up is refused.** Every class and alias is a
+  schema of the spec or one named above.
 """
 
 import argparse
@@ -211,6 +225,157 @@ def hold_names(name: str, node: JsonValue) -> None:
         hold_names(name, value)
 
 
+def pascal(word: str) -> str:
+    """`in-process` and `subjectClaim` as `InProcess` and `SubjectClaim`."""
+    written: list[str] = []
+    begins = True
+    for character in word:
+        if character.isascii() and character.isalnum():
+            written.append(character.upper() if begins else character)
+            begins = False
+        else:
+            begins = True
+    return "".join(written)
+
+
+UNION = ("oneOf", "anyOf")
+# What an array says of itself beyond what it holds. One that says any of it is a type of its own to the generator.
+ARRAY_RULES = ("minItems", "maxItems", "uniqueItems")
+# The same, of text and of a number.
+SCALAR_RULES = ("minLength", "maxLength", "pattern", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf")
+
+
+def discriminant(member: JsonObject) -> str | None:
+    """The single value an object's discriminating property takes: the first of its properties that admits exactly one text."""
+    for stated in properties_of(member).values():
+        if not isinstance(stated, dict):
+            continue
+        values = stated.get("enum")
+        if isinstance(values, list) and len(values) == 1 and isinstance(values[0], str):
+            return values[0]
+        constant = stated.get("const")
+        if values is None and isinstance(constant, str):
+            return constant
+    return None
+
+
+def is_a_reference(node: JsonObject) -> bool:
+    """Whether `node` names a type that is written elsewhere: a schema, or one of this SDK's kinds of id."""
+    return "$ref" in node or "customTypePath" in node
+
+
+def named_in_place(schemas: JsonObject) -> JsonObject:
+    """`schemas`, with every schema written in place made a schema of its own, named for where it is."""
+    named: JsonObject = {}
+
+    def name_for(owner: str, held_as: str) -> str:
+        name = owner + pascal(held_as)
+        # For as long as the spec has a schema of that name already.
+        while name in schemas:
+            name += "Value"
+        if name in named:
+            refuse(f"two schemas written in place would both be named {name}")
+        return name
+
+    def a_class(node: JsonObject) -> bool:
+        return node.get("type") == "object" and (bool(properties_of(node)) or node.get("additionalProperties") is False)
+
+    def on_its_own(name: str, node: JsonObject) -> JsonValue:
+        nullable = node.get("nullable") is True
+        named[name] = {}
+        named[name] = an_object(name, {key: value for key, value in node.items() if key != "nullable"})
+        reference: JsonObject = {"$ref": f"{SCHEMA_REF}{name}"}
+        # How OpenAPI 3.0 says "that schema, or null".
+        return {"nullable": True, "allOf": [reference]} if nullable else reference
+
+    def an_object(owner: str, node: JsonObject) -> JsonObject:
+        """An object's schema, with what each of its properties writes in place named."""
+        written = dict(node)
+        if properties_of(node):
+            written["properties"] = {key: placed(owner, key, value) for key, value in properties_of(node).items()}
+        parts = node.get("allOf")
+        if isinstance(parts, list):
+            written["allOf"] = [an_object(owner, part) if isinstance(part, dict) and not is_a_reference(part) else part for part in parts]
+        return written
+
+    def an_item(owner: str, held_as: str, items: JsonValue) -> JsonValue:
+        """What an array holds. An item that says more than its type is a type of its own to the generator, and is named."""
+        item = placed(owner, held_as, items)
+        if not isinstance(item, dict) or is_a_reference(item):
+            return item
+        of_its_own = (
+            any(isinstance(item.get(key), list) for key in UNION)
+            or (item.get("type") == "array" and any(rule in item for rule in ARRAY_RULES))
+            or (item.get("type") in ("string", "number", "integer") and any(rule in item for rule in SCALAR_RULES))
+        )
+        if not of_its_own:
+            return item
+        name = name_for(owner, held_as)
+        named[name] = item
+        return {"$ref": f"{SCHEMA_REF}{name}"}
+
+    def a_member(union: str, member: JsonValue) -> JsonValue:
+        """One member of the union named `union`."""
+        if not isinstance(member, dict) or is_a_reference(member):
+            return member
+        if member.get("type") == "object" and (a_class(member) or member.get("maxProperties") == 0):
+            variant = discriminant(member) or ("Object" if properties_of(member) else "Empty")
+            return on_its_own(name_for(union, variant), member)
+        if member.get("type") == "array":
+            items = member.get("items")
+            listed: JsonObject = member if items is None else {**member, "items": an_item(union, "Item", items)}
+            if any(rule in member for rule in ARRAY_RULES):
+                name = name_for(union, "List")
+                named[name] = listed
+                return {"$ref": f"{SCHEMA_REF}{name}"}
+            return listed
+        return placed(union, "Value", member)
+
+    def placed(owner: str, held_as: str, node: JsonValue) -> JsonValue:
+        """What `owner` holds as `held_as`, with every schema written in place in it named and referred to."""
+        if not isinstance(node, dict) or is_a_reference(node):
+            return node
+        for key in UNION:
+            members = node.get(key)
+            if isinstance(members, list):
+                union = owner + pascal(held_as)
+                return {**node, key: [a_member(union, member) for member in members]}
+        parts = node.get("allOf")
+        if isinstance(parts, list):
+            # An `allOf` of one schema is that schema: the form a reference takes when something is said beside it.
+            if len(parts) == 1 and isinstance(parts[0], dict) and is_a_reference(parts[0]):
+                return node
+            return on_its_own(name_for(owner, held_as), node)
+        if node.get("type") == "array":
+            items = node.get("items")
+            return node if items is None else {**node, "items": an_item(owner, f"{held_as}Item", items)}
+        if a_class(node):
+            return on_its_own(name_for(owner, held_as), node)
+        words = node.get("enum")
+        if node.get("type") == "string" and isinstance(words, list) and len(words) > 1:
+            return on_its_own(name_for(owner, held_as), node)
+        values = node.get("additionalProperties")
+        if node.get("type") == "object" and isinstance(values, dict):
+            return {**node, "additionalProperties": placed(owner, f"{held_as}Value", values)}
+        return node
+
+    whole: JsonObject = {}
+    for name, schema in schemas.items():
+        if not isinstance(schema, dict):
+            refuse(f"{name} is not a schema")
+        union_key = next((key for key in UNION if isinstance(schema.get(key), list)), None)
+        if union_key is not None:
+            members = schema[union_key]
+            assert isinstance(members, list)
+            whole[name] = {**schema, union_key: [a_member(name, member) for member in members]}
+        elif schema.get("type") == "array":
+            items = schema.get("items")
+            whole[name] = schema if items is None else {**schema, "items": an_item(name, "Item", items)}
+        else:
+            whole[name] = an_object(name, schema)
+    return {**whole, **named}
+
+
 def prepared(spec: JsonObject, kinds: frozenset[str]) -> JsonObject:
     """The spec as the generator is given it."""
     schemas = member(member(spec, "components", "the spec"), "schemas", "the spec's components")
@@ -229,7 +394,7 @@ def prepared(spec: JsonObject, kinds: frozenset[str]) -> JsonObject:
     if names_a_kind(whole, kinds):
         refuse("a reference to a kind of id survived: the generator would write it as text")
 
-    return {**spec, "components": {**member(spec, "components", "the spec"), "schemas": whole}}
+    return {**spec, "components": {**member(spec, "components", "the spec"), "schemas": named_in_place(whole)}}
 
 
 def generated(spec: JsonObject) -> str:
@@ -336,9 +501,14 @@ def finished(source: str, named: frozenset[str]) -> str:
     if typing_imports != 1 or pydantic_imports != 1:
         refuse("the generator's imports are not as this script expects; read what it wrote")
 
-    # What the spec names, and every class a caller builds one of its shapes from.
+    # Every class and alias is a schema the generator was given by name. One
+    # that is not, it named itself: for a property alone, numbered where two
+    # collide, and so not the same from one spec to the next.
     classes = CLASS.findall(source)
-    exported = sorted({name for name, _ in classes} | {name for name in ALIAS.findall(source) if name in named})
+    exported = sorted({name for name, _ in classes} | set(ALIAS.findall(source)))
+    made_up = [name for name in exported if name not in named]
+    if made_up:
+        refuse(f"the generator named {', '.join(made_up)} itself: name what is written in place before it runs")
     everything = "__all__ = [\n" + "".join(f'    "{name}",\n' for name in exported) + "]\n"
     head, separator, body = source.partition("\n\n\n")
     if separator == "":
@@ -366,9 +536,9 @@ def main() -> int:
         refuse("kinds.json lists no kinds")
     kinds = frozenset(kind["schema"] for kind in stated if isinstance(kind, dict) and isinstance(kind["schema"], str))
 
-    spec = read(SPEC)
-    named = frozenset(member(member(spec, "components", "the spec"), "schemas", "the spec's components"))
-    source = finished(generated(prepared(spec, kinds)), named)
+    given = prepared(read(SPEC), kinds)
+    named = frozenset(member(member(given, "components", "the spec"), "schemas", "the spec's components"))
+    source = finished(generated(given), named)
 
     name = OUT.relative_to(ROOT)
     current = OUT.read_text(encoding="utf-8") if OUT.exists() else ""

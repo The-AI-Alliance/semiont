@@ -53,7 +53,7 @@ from semiont.timing import (
     SEEN_EVENT_IDS_COUNT,
 )
 from semiont.transport import CONNECTION_STATE_MAY_BECOME, ConnectionState, Frame, FrameHub, ReplyRouter, TraceContext
-from semiont.types import BusFrame, BusSubscribeRequest, ErrorResponse, ScopedItem
+from semiont.types import BusFrame, BusSubscribeRequest, BusSubscribeRequestScopedItem, ErrorResponse
 from semiont.watched import Variable, Watched
 
 __all__ = ["SeenIds", "Stream", "Timing", "backoff_cap_ms"]
@@ -427,7 +427,7 @@ class Stream:
             client_id=self._client_id,
             global_=list(self._global),
             scoped=[
-                ScopedItem(scope=scope, channels=list(channels), last_event_id=self._watermarks.get(scope))
+                BusSubscribeRequestScopedItem(scope=scope, channels=list(channels), last_event_id=self._watermarks.get(scope))
                 for scope, channels in sorted(self._scoped.items())
             ],
             pending_replies=awaited or None,

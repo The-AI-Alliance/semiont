@@ -1,4 +1,4 @@
-"""A session with one knowledge base: the token its transport sends, and who is signed in.
+"""A session with one knowledge base: its client, the token the client's transport sends, and who is signed in.
 
 Headless: it runs in an application, a script, a daemon and a test alike, and
 shows nobody anything. What it needs of its surroundings it is given:
@@ -46,6 +46,7 @@ from typing import Final, Literal, Protocol, Self, final, override
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
+from semiont.client import SemiontClient
 from semiont.errors import SemiontError, SessionError, SignInError, TransportError
 from semiont.timing import MIN_REFRESH_DELAY_MS, REFRESH_BEFORE_EXP_MS
 from semiont.transport import Transport
@@ -264,16 +265,16 @@ class SemiontSession[T: Transport]:
     """See the module's documentation.
 
     Held with `async with`: it starts inside, and `ready` says when it has
-    done what it does at its start. `transport` is the one that sends its
-    token, as the kind of transport it is; the session does not open or
-    close it.
+    done what it does at its start. `client` is the one whose transport sends
+    its token, typed by the kind of transport that is; the session does not
+    open or close either.
     """
 
     def __init__(
         self,
         *,
         kb_id: str,
-        transport: T,
+        client: SemiontClient[T],
         token: Variable[str | None],
         kept: SignInKept,
         refresh: Refresh | None = None,
@@ -282,7 +283,7 @@ class SemiontSession[T: Transport]:
         on_error: Callable[[SessionError], None] | None = None,
     ) -> None:
         self.kb_id: Final = kb_id
-        self.transport: Final[T] = transport
+        self.client: Final[SemiontClient[T]] = client
         self._token: Final = token
         self._kept: Final = kept
         self._refresh: Final = refresh

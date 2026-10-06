@@ -34,6 +34,7 @@ from semiont.transport import (
     ContentTransport,
     Frame,
     FrameHub,
+    FrameSink,
     GatewayOperations,
     PendingReply,
     ReplyRouter,
@@ -187,6 +188,10 @@ class HttpTransport(Transport, GatewayOperations):
     @override
     def track_reply(self, correlation_id: str, reply_channels: Collection[str]) -> PendingReply:
         return self._router.track(correlation_id, reply_channels)
+
+    @override
+    def bridge_into(self, bus: FrameSink) -> None:
+        self._hub.bridge(bus)
 
     @override
     def subscribe_to_resource(self, resource_id: ResourceId) -> ResourceHold:

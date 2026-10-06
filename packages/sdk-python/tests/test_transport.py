@@ -111,7 +111,7 @@ def test_a_request_is_one_emit_under_an_id_of_its_own_and_resolves_with_the_repl
 
     result, transport = run(scenario())
     assert result == {"response": {"found": True}}
-    assert [(channel, payload) for channel, payload, _ in transport.emitted] == [("browse:resource-requested", ASKED)]
+    assert [(frame.channel, frame.payload) for frame in transport.emitted] == [("browse:resource-requested", ASKED)]
     assert transport.router.awaited() == []
 
 

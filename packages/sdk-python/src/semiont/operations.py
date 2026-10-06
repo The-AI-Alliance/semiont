@@ -16,6 +16,7 @@ from semiont import channels
 from semiont.channel import AnyOperation, Operation
 
 __all__ = [
+    "LIMITS_OPERATIONS",
     "OPERATIONS",
     "BIND_UPDATE_BODY",
     "BROWSE_AGENTS_REQUESTED",
@@ -325,4 +326,12 @@ OPERATIONS: Final[Mapping[str, AnyOperation]] = MappingProxyType(
         "yield:clone-resource-requested": YIELD_CLONE_RESOURCE_REQUESTED,
         "yield:clone-token-requested": YIELD_CLONE_TOKEN_REQUESTED,
     }
+)
+
+# The operations that report the limits of the models a service holds credentials for: one per
+# such service, each named `<flow>:limits-requested`. A new key holder's joins by being registered.
+LIMITS_OPERATIONS: Final = (
+    GATHER_LIMITS_REQUESTED,
+    JOB_LIMITS_REQUESTED,
+    MATCH_LIMITS_REQUESTED,
 )

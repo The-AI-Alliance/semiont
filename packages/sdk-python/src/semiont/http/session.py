@@ -22,6 +22,7 @@ from contextlib import asynccontextmanager
 from typing import Final, final
 
 from semiont.channels import BRIDGED_CHANNELS
+from semiont.client import SemiontClient
 from semiont.errors import SessionError, SignInError
 from semiont.http.oauth import DeviceCode, issuer_client, renew_kept, revoke_at_issuer, sign_in_with_device_grant
 from semiont.http.transport import HttpTransport
@@ -99,22 +100,23 @@ async def session_from_kept(
 ) -> AsyncGenerator[SemiontSession[HttpTransport]]:
     """A session with the knowledge base whose gateway is at `base_url`, over the sign-in `kept` holds.
 
-    Held with `async with`, and ready inside it: the session and its
-    transport are open, and both are closed on the way out. A token the
-    gateway refuses is renewed through the session, so the transport and the
-    session never hold different ones.
+    Held with `async with`, and ready inside it: the session, its client and
+    the client's transport are open, and each is closed on the way out. A
+    token the gateway refuses is renewed through the session, so the transport
+    and the session never hold different ones.
 
     With nothing kept, the session is signed out: its `token` is none, and a
-    request made over its transport is refused. `validate` is whether the
+    request made through its client is refused. `validate` is whether the
     gateway is asked who the token is; `channels` are the global channels the
     transport's stream names.
     """
     token = Variable[str | None](None)
     renewing = _Renewing(kept)
     transport = HttpTransport(base_url, token=token, refresher=lambda: session.refresh(), channels=channels)
+    client = SemiontClient(transport, transport.content, transport)
     session: SemiontSession[HttpTransport] = SemiontSession(
         kb_id=kb_id,
-        transport=transport,
+        client=client,
         token=token,
         kept=kept,
         refresh=renewing,
@@ -123,7 +125,7 @@ async def session_from_kept(
         on_error=on_error,
     )
     try:
-        async with transport, session:
+        async with transport, client, session:
             await session.ready()
             yield session
     finally:

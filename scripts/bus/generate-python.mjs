@@ -140,6 +140,14 @@ const byChannel = new Map(payloads.map((p) => [p.channel, p]));
 const operation = (o) =>
   `${pyConstant(o.request)}: Final = Operation(\n    request=channels.${byChannel.get(o.request).constant},\n    result=channels.${byChannel.get(o.result).constant},\n    failure=channels.${byChannel.get(o.failure).constant},\n)`;
 
+// Every limits operation asks and answers the same, which is what lets one caller ask them all.
+const limitsOperations = reg.operations.filter((o) => o.request.endsWith(':limits-requested'));
+const shapeOf = (o) => [o.request, o.result, o.failure].map((channel) => byChannel.get(channel).type).join(' / ');
+if (limitsOperations.length === 0) throw new Error('registry: no operation is named <flow>:limits-requested');
+if (new Set(limitsOperations.map(shapeOf)).size !== 1) {
+  throw new Error(`registry: the limits operations do not all ask and answer the same: ${limitsOperations.map((o) => `${o.request} (${shapeOf(o)})`).join('; ')}`);
+}
+
 const operationsPy = `${pyBanner('specs/src/bus/registry.json', SCRIPT)}
 """Every request of the bus, with the two channels it is answered on.
 
@@ -156,6 +164,7 @@ from semiont import channels
 from semiont.channel import AnyOperation, Operation
 
 __all__ = [
+    "LIMITS_OPERATIONS",
     "OPERATIONS",
 ${reg.operations
   .map((o) => pyConstant(o.request))
@@ -171,6 +180,12 @@ OPERATIONS: Final[Mapping[str, AnyOperation]] = MappingProxyType(
     {
 ${reg.operations.map((o) => `        ${pyString(o.request)}: ${pyConstant(o.request)},`).join('\n')}
     }
+)
+
+# The operations that report the limits of the models a service holds credentials for: one per
+# such service, each named \`<flow>:limits-requested\`. A new key holder's joins by being registered.
+LIMITS_OPERATIONS: Final = (
+${limitsOperations.map((o) => `    ${pyConstant(o.request)},`).join('\n')}
 )
 `;
 

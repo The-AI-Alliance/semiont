@@ -5,10 +5,12 @@ kinds of id, the shapes the protocol sends and answers with, the channels of
 its bus and the requests made over them, and the tables every Semiont client
 keeps to. It holds the wire to a knowledge base's gateway: its bus (one
 stream, kept open and resumed, with emits and requests made over it), its
-content, and the gateway's own operations. And it signs in there: as an agent,
+content, and the gateway's own operations. It signs in there: as an agent,
 as the person `semiont login` signed in, or as a person by the device grant.
-A wrong id, a wrong payload for a channel and an unhandled code or state are
-errors a type checker reports.
+And it holds the client every Semiont SDK has: eleven namespaces, seventy
+methods, each a row of `specs/src/client/surface.json`. A wrong id, a wrong
+payload for a channel and an unhandled code or state are errors a type
+checker reports.
 
 It requires Python 3.12 or later, and runs on asyncio. It is checked by
 `mypy --strict` and by `pyright` in strict mode, and ships its types
@@ -35,30 +37,38 @@ A transport is held with `async with`. Its stream opens inside, once there is
 a token, and everything it started has ended on the way out.
 
 ```python
-from semiont.bus import request
+from semiont.bus import Bus
+from semiont.channels import MARK_ADDED
 from semiont.errors import BusRequestError
 from semiont.http import HttpTransport
 from semiont.identifiers import ResourceId
 from semiont.operations import BROWSE_RESOURCE_REQUESTED
+from semiont.types import BrowseResourceRequest
 from semiont.watched import Variable
 
 
 async def read(origin: str, token: str, resource: ResourceId) -> None:
     async with HttpTransport(origin, token=Variable[str | None](token)) as transport:
+        bus = Bus(transport)
         try:
-            reply = await request(transport, BROWSE_RESOURCE_REQUESTED, {"resourceId": resource})
+            reply = await bus.request(BROWSE_RESOURCE_REQUESTED, BrowseResourceRequest(resource_id=resource))
         except BusRequestError as error:
             print(error.code)  # "bus.not-found", "bus.timeout", …: a closed vocabulary
             return
-        print(reply["response"])
+        print(reply.response.resource.name)
 
         # Frames arrive on a resource's channels while its scope is held.
         with transport.subscribe_to_resource(resource):
-            async with transport.frames("mark:added") as added:
+            async with bus.frames(MARK_ADDED) as added:
                 async for frame in added:
-                    print(frame.scope, frame.payload)
+                    print(frame.scope, frame.payload.type)
 ```
 
+- **The bus is typed by channel.** A channel is a constant that carries its
+  payload's type: a request is refused another operation's payload, its reply
+  is that operation's result, and a frame's payload is its channel's. By
+  name, with JSON objects, it is `semiont.bus.request` and the transport's
+  own `emit` and `frames`.
 - **A request** waits for the stream to be open before it is sent, is answered
   once, and is abandoned by cancelling the task that awaits it.
 - **Frames** are a sequence: each reader is given every one, in order, however
@@ -118,6 +128,72 @@ async def store(transport: HttpTransport, page: bytes) -> ResourceId:
 - **A read is asked a second time** when the gateway says it will recover, or
   says nothing. A request that may already have had its effect is not.
 
+## The client
+
+A client is the eleven namespaces over one transport: `frame`, `browse`,
+`mark`, `bind`, `gather`, `match`, `yield_` and `beckon`, one per flow of the
+protocol, and `job`, `auth` and `system` beside them. `yield` is Python's own
+word, so its namespace is `yield_`.
+
+```python
+from semiont.client import SemiontClient
+from semiont.http import HttpTransport
+from semiont.identifiers import AnnotationId, ResourceId
+from semiont.namespaces.follow import JobAttemptFailed, JobCompleted, JobProgressed
+from semiont.namespaces.mark import MarkAssistOptions
+from semiont.watched import Variable
+
+
+async def annotate(origin: str, token: str, resource: ResourceId, annotation: AnnotationId) -> None:
+    async with (
+        HttpTransport(origin, token=Variable[str | None](token)) as transport,
+        SemiontClient(transport, transport.content, transport) as client,
+    ):
+        described = await client.browse.resource(resource).fresh()  # a query, asked when `fresh` is called
+        text = await client.browse.resource_content(resource)  # asked once, answered once
+        print(described.name, len(text))
+
+        async for event in client.mark.assist(resource, "highlighting", MarkAssistOptions()):  # a job, followed
+            match event:
+                case JobProgressed(data=progress):
+                    print(progress.percentage)
+                case JobAttemptFailed(data=setback):
+                    print("trying again after:", setback.error)
+                case JobCompleted(data=done):
+                    print(done.result)
+
+        reached = await client.beckon.attention(resource, annotation)  # a drive: how many the gateway reached
+        client.browse.click(annotation)  # a signal: this viewer's own, never sent
+        print(reached)
+```
+
+Every method returns one of seven shapes, and the table says which:
+
+| Shape | In Python | |
+|---|---|---|
+| asked once, answered once | `async def` | a failure is raised |
+| a long-running operation | `Running[T]` | awaited for its final value, or read with `async for` for every report and then the final value; one or the other, once |
+| an upload | `Upload` | awaited for the resource it created, read for its progress |
+| a query | `Cached[T]` | building it sends nothing; `await query.fresh()` asks now |
+| a signal | `def`, returning nothing | published on the client's own bus, or sent and not awaited |
+| a drive | `async def` giving `int \| None` | how many participants the gateway reached, or nothing when it kept no count |
+| a channel's events | `Typed[P]` | `async for`, each event's payload decoded |
+
+- **A followed job** (`mark.assist`, `yield_.from_context`) reports its
+  progress and ends with its completion. A job that says nothing is asked for
+  its status, so a completion the stream did not carry is still heard. It ends
+  as a `JobError` when the job failed for good, was cancelled, or (a
+  generation) said nothing for longer than its length allows.
+- **`client.bus`** is the client's own bus: every frame its transport
+  delivered, and every signal its own parts gave each other.
+  **`client.wire`** is the bus over the transport, typed by channel.
+- **A client is held with `async with`**, and ends what it started on the way
+  out. It does not close its transport: whoever opened that closes it, after
+  the client. A session (`session_from_kept`) holds one as `session.client`.
+- **What it sends unasked is the table's**: a list's first hundred, a
+  search's ten candidates, a context's two thousand characters. An option
+  given as `None` is an option not given, and is not sent.
+
 ## Signing in
 
 A transport sends the token it is given. Where the token comes from is one of
@@ -168,7 +244,7 @@ async def as_me(gateway: str, home: str) -> None:
     if await kept.held() is None:
         await sign_in_device(gateway, kept, show)
     async with session_from_kept(gateway, kb_id="local", kept=kept) as session:
-        print(session.user.value, (await session.transport.get_status()).version)
+        print(session.user.value, (await session.client.system.status()).version)
 ```
 
 - **An agent whose renewal fails keeps the token it has** and tries again: a
@@ -217,6 +293,7 @@ from `specs/`, committed, and held by a drift gate in CI.
 | `semiont.telemetry_table` | `specs/src/sdk-telemetry/telemetry.json` | `node scripts/spec/generate-sdk-telemetry-python.mjs` |
 | `semiont.oauth_clients` | `specs/src/session/oauth.json` | `node scripts/spec/generate-oauth-clients-python.mjs` |
 | `semiont.sign_in` | `specs/src/sign-in-store/SignIn.json` | `node scripts/spec/generate-sign-in-python.mjs` |
+| `semiont.media_types_table` | `specs/src/media-types/registry.json` | `node scripts/spec/generate-media-types-python.mjs` |
 
 ## Working on it
 
