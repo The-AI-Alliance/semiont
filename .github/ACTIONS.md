@@ -37,7 +37,7 @@ listed in [Testing](../docs/contributor/TESTING.md#continuous-integration).
 ### CodeQL Analysis (`codeql-analysis.yml`)
 **Automated security code scanning**:
 - Runs on push, PR, and weekly schedule
-- Analyzes the TypeScript, Go and Rust code
+- Analyzes the TypeScript, Go, Rust and Python code
 - Runs the `security-and-quality` query suite
 - Uploads results to GitHub Security tab
 

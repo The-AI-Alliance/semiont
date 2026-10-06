@@ -41,6 +41,8 @@ paths:
   - packages/mcp-server/src
   - packages/observability/src
   - packages/sdk/src
+  # The Python SDK: what its wheel holds
+  - packages/sdk-python/src
 
 paths-ignore:
   - apps/launcher/testdata
@@ -71,3 +73,8 @@ query-filters:
         # Exclude specific queries that are not relevant
         - js/unused-local-variable
         - js/debugger-statement
+        # Reads no `type` statement (PEP 695) as a definition, so it reports
+        # every type alias the Python SDK exports. pyright holds the property
+        # in CI: a name in `__all__` that is not defined fails it
+        # (reportUnsupportedDunderAll).
+        - py/undefined-export
