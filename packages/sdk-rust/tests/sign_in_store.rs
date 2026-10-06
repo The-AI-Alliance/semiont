@@ -289,6 +289,27 @@ fn a_new_sign_in_states_who_signed_in_and_at_which_issuer() {
 }
 
 #[test]
+fn a_sign_in_over_another_persons_states_who_signed_in_now_and_at_which_issuer() {
+    let home = Home::new();
+    let store = home.store();
+    let alices = jwt(json!({ "iss": ISSUER, "email": "alice@example.org" }));
+    store_session(&store, "local", &script(&alices, "r-alice"));
+    assert_eq!(home.document()["local"]["email"], "alice@example.org");
+
+    let elsewhere = "https://elsewhere.test/realms/semiont";
+    let bobs = jwt(json!({ "iss": elsewhere, "email": "bob@example.org" }));
+    store_session(&store, "local", &script(&bobs, "r-bob"));
+
+    let document = home.document();
+    let entry = &document["local"];
+    assert_eq!(entry["token"], bobs);
+    assert_eq!(entry["refreshToken"], "r-bob");
+    assert_eq!(entry["email"], "bob@example.org");
+    assert_eq!(entry["issuer"], elsewhere);
+    assert!(home.failures().is_empty(), "{:?}", home.failures());
+}
+
+#[test]
 fn a_session_whose_token_does_not_say_who_or_which_issuer_is_not_kept_and_that_is_said() {
     let home = Home::holding(json!({ "codespace:owner/name": launchers("a2", "r2") }));
     let store = home.store();
