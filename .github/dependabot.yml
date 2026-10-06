@@ -144,7 +144,7 @@ updates:
       prefix: "sdk-go"
       include: "scope"
 
-  # The Python SDK: its one runtime dependency, and the tools its gates are
+  # The Python SDK: its runtime dependencies, and the tools its gates are
   # made of. The type checkers, the formatter and the model generator are
   # pinned to a version each, because what they say of the package, and what
   # the generator writes, is held by CI: a bump of one is a change to read, and

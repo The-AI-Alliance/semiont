@@ -18,11 +18,13 @@
 - [ ] The spec (`specs/`)
 - [ ] Gateway (`apps/gateway`)
 - [ ] Dispatcher (`apps/dispatcher`)
-- [ ] A Node service image (`apps/archivist`, `apps/librarian`, `apps/smelter`, `apps/weaver`, `apps/worker`)
+- [ ] Archivist (`apps/archivist`)
+- [ ] A Node service image (`apps/librarian`, `apps/smelter`, `apps/weaver`, `apps/worker`)
 - [ ] Browser (`apps/browser`, `apps/desktop`)
 - [ ] Launcher (`apps/launcher`)
 - [ ] TypeScript packages (`packages/sdk` and the other npm workspaces under `packages/`)
 - [ ] Rust crates (`packages/*-rust`)
+- [ ] Python SDK (`packages/sdk-python`)
 - [ ] Go SDK (`packages/sdk-go`)
 - [ ] Conformance suites (`tests/conformance`)
 - [ ] End-to-end suite (`tests/e2e`)
@@ -37,10 +39,12 @@ Check what you ran. CI runs every suite here except the end-to-end one; `docs/co
 - [ ] Tests are added or updated for the behavior this changes
 - [ ] npm workspaces: `npm run typecheck`, and `npm test --workspace=<name>` for each one changed
 - [ ] Rust: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace`
+- [ ] Python SDK: from `packages/sdk-python`, `uv run mypy`, `uv run pyright`, `uv run ruff check`, `uv run ruff format --check` and `uv run pytest`
 - [ ] Launcher: `cd apps/launcher && go test -timeout 30m ./...`
 - [ ] Go SDK: `cd packages/sdk-go && go test -timeout 5m ./...`
 - [ ] Gateway conformance: `cd tests/conformance && npm run test:gateway`
 - [ ] Dispatcher conformance: `cd tests/conformance && npm run test:dispatcher`
+- [ ] Archivist conformance: `cd tests/conformance && npm run test:archivist`
 - [ ] SDK conformance: `cd tests/conformance && npm run test:sdk`
 - [ ] End-to-end, against a stack built from this branch: `cd tests/e2e && npm test`
 - [ ] `specs/` changed: the generated code committed to the tree is regenerated (the `generated-artifacts` job in `.github/workflows/ci.yml` names a stale file and the command that rewrites it)
