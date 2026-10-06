@@ -11,6 +11,7 @@ A release publishes, all at the version in [`version.json`](../../version.json):
 | GitHub Release and the Homebrew tap | The `semiont` launcher, for macOS, Linux and Windows | [`launcher-release.yml`](../../.github/workflows/launcher-release.yml) |
 | GitHub Release | The desktop apps, for macOS and Linux | [`publish-desktop.yml`](../../.github/workflows/publish-desktop.yml) |
 | crates.io | The four Rust SDK crates | [`publish-crates.yml`](../../.github/workflows/publish-crates.yml) |
+| PyPI | The Python SDK, `semiont` | [`publish-pypi.yml`](../../.github/workflows/publish-pypi.yml) |
 
 ## The flow
 
@@ -42,7 +43,8 @@ gh workflow run release.yml
 2. Dispatches the npm publish. When the packages are live, that workflow dispatches both image workflows with `tag_latest=true`: it is the only stage that knows the packages the images install are actually published.
 3. Dispatches the launcher release at the tag.
 4. Dispatches the crates publish at the tag.
-5. Builds and publishes the desktop apps.
+5. Dispatches the PyPI publish at the tag.
+6. Builds and publishes the desktop apps.
 
 Two inputs:
 
@@ -57,7 +59,7 @@ None of the chain uses a `push: tags` trigger. The tag is pushed with the workfl
 ./scripts/release/verify-release.sh <version>
 ```
 
-It inspects the artifacts, not the workflows' conclusions: the tag, the release's assets, a downloaded archive hashed against `checksums.txt`, the tap's formula, every published package in the npm registry, every published crate on crates.io with its `.crate` hashed against the index, and for each image both platforms, an attestation whose subject matches the tag's digest, and `latest` resolving to the same digest as the version. It exits non-zero and lists what failed.
+It inspects the artifacts, not the workflows' conclusions: the tag, the release's assets, a downloaded archive hashed against `checksums.txt`, the tap's formula, every published package in the npm registry, every published crate on crates.io with its `.crate` hashed against the index, the Python package on PyPI with each file hashed against the index and attested as built by its publish workflow, and for each image both platforms, an attestation whose subject matches the tag's digest, and `latest` resolving to the same digest as the version. It exits non-zero and lists what failed.
 
 To boot the published images:
 
@@ -99,8 +101,8 @@ Dispatching the npm workflow on its own, without `stable_release`, publishes a d
 
 Each image passes these gates before it is pushed, in order. They fail one at a time, so fixing one can reveal the next:
 
-1. **The packages exist.** A Node image installs the published `@semiont/*` packages at its own version, never a working tree, and the workflow refuses to build until every one is installable. The gateway and dispatcher images compile from the commit instead, which is why they are published from the release tag.
-2. **The image is what it should be.** The Rust images are checked to carry no source and to start as documented ([`check-gateway-image.sh`](../../scripts/container/check-gateway-image.sh), [`check-dispatcher-image.sh`](../../scripts/container/check-dispatcher-image.sh)).
+1. **The packages exist.** A Node image installs the published `@semiont/*` packages at its own version, never a working tree, and the workflow refuses to build until every one is installable. The gateway, dispatcher and Archivist images compile from the commit instead, which is why they are published from the release tag.
+2. **The image is what it should be.** The Rust images are checked to carry no source and to start as documented ([`check-gateway-image.sh`](../../scripts/container/check-gateway-image.sh), [`check-document-image.sh`](../../scripts/container/check-document-image.sh) for the dispatcher's and the Archivist's).
 3. **Vulnerabilities.** Trivy scans for `HIGH` and `CRITICAL` findings and fails on any that has a fix.
 4. **Licences.** See [Dependencies](DEPENDENCIES.md#licences).
 
@@ -133,7 +135,7 @@ Built for macOS on Apple Silicon and Intel and for Linux on x64, and attached to
 
 ### The Rust crates
 
-Four crates of the Rust workspace are published to crates.io: `semiont` (the SDK), `semiont-codegen` (its build dependency), `semiont-telemetry` and `semiont-http-transport`. Every other member is `publish = false`, and CI fails the workspace if the published set is any other, or if a published crate is at any version but `version.json`'s.
+Four crates of the Rust workspace are published to crates.io: `semiont` (the SDK), `semiont-codegen` (its build dependency), `semiont-telemetry` and `semiont-http-transport`. Every other member is `publish = false`, and CI fails the workspace if the published set is any other, if a published crate is at any version but `version.json`'s, or if one does not package and build from its packaged form.
 
 [`publish-crates.yml`](../../.github/workflows/publish-crates.yml) publishes them, at the release's tag. A published version of a crate is permanent: it can be yanked, never replaced. So the workflow:
 
@@ -153,9 +155,33 @@ gh workflow run publish-crates.yml --field dry_run=true
 
 The SDK's build script reads the spec through `packages/sdk-rust/specs`, a link to `specs/src` that cargo follows when it packages, so the published crate carries the spec files it is generated from.
 
+### The Python package
+
+The Python SDK (`packages/sdk-python`) is published to PyPI as one project, `semiont`: a source distribution and a wheel. It takes its version from `version.json` when it is built, so it states none of its own.
+
+[`publish-pypi.yml`](../../.github/workflows/publish-pypi.yml) publishes it. A published version is permanent: its files can be yanked, never replaced. So the workflow:
+
+1. Builds the source distribution, and the wheel from it, with [`scripts/ci/build-python-sdk.sh`](../../scripts/ci/build-python-sdk.sh), which CI runs on every change and `local-build.sh` on every full run.
+2. Refuses distributions not named for the version, or that hold more than the package.
+3. Installs the wheel in an environment of its own and imports every module of it, so a module that needs what the package does not declare fails before anything is uploaded.
+4. Skips a version already on PyPI, so a run can be made again.
+5. Uploads each file with an attestation of which workflow built it.
+
+PyPI trusts the workflow by name. The project's settings on PyPI (Publishing) name this repository and `publish-pypi.yml`, with no environment, and PyPI gives the run a token that lasts minutes. No token is stored in the repository.
+
+A release publishes `version.json`'s version: `release.yml` dispatches the workflow at the tag, with `stable_release`. Without it, what is published is a development release of that version, `<version>.dev<run number>`, as the npm packages go out as `<version>-build.<run number>` under their `dev` tag. `pip` takes a development release only when asked for one (`pip install --pre semiont`), or when the project has no other.
+
+By hand:
+
+```bash
+gh workflow run publish-pypi.yml                                        # a development release, from main
+gh workflow run publish-pypi.yml --ref v<version> --field stable_release=true
+gh workflow run publish-pypi.yml --field dry_run=true                   # build and check, publish nothing
+```
+
 ## Versions
 
-`version.json` holds the one version every package, image, crate and binary carries, and the list of packages:
+`version.json` holds the one version every package, image, crate, binary and Python distribution carries, and the list of packages:
 
 ```json
 "@semiont/core": {
@@ -187,6 +213,8 @@ Before the first release that includes a new publishable npm package:
 3. Configure its trusted publisher on npm: this repository and `publish-npm-packages.yml`, with no environment.
 
 Skipping this stops the publish partway down the list, which leaves a partial release.
+
+PyPI's trusted publishing can create a project. Before the first publish of a new one, the account that will own it adds a *pending* publisher on PyPI (Account → Publishing): the project's name, this repository's owner and name, and `publish-pypi.yml`, with no environment. The first run of the workflow creates the project and makes the publisher its own. A pending publisher does not reserve the name: until that first run, anyone can take it.
 
 ## When something goes wrong
 

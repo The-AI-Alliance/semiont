@@ -31,10 +31,10 @@ You work in a knowledge base through the Semiont Browser.
 
 ## Builder
 
-You write code against a knowledge base, in TypeScript or Rust.
+You write code against a knowledge base, in TypeScript, Rust or Python.
 
 - [Quick Start](builder/QUICK-START.md): a knowledge base running on your machine, to build against
-- [Building with the Semiont SDK](builder/README.md): install, the guides, the reference
+- [Building with the Semiont SDK](builder/README.md): install, where the SDK goes, the guides, the reference
 - [Embedding the React components](builder/README.md#react-embedding-semiontreact-ui)
 - [Agent skills](builder/skills/), one ready-made definition per task
 

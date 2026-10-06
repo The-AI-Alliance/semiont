@@ -1,17 +1,17 @@
 // Generate the client error vocabularies from specs/src/errors/codes.json:
 // the code types, the wire → bus-code mapping, and the HTTP status classifier.
 //
-// The table is the authority every SDK generates from, so the generator is
-// also where it is held to account: it refuses a table that disagrees with the
-// wire's own vocabulary (`CommandError.code`) in either direction, or that
-// says one thing twice. Output is gitignored and rebuilt by core's `prebuild`.
+// The table is the authority every SDK generates from. Its reading, and the
+// account it is held to, are error-codes-table.mjs's, shared with every other
+// generator of it. Output is gitignored and rebuilt by core's `prebuild`.
 //
 // `--table <path>` and `--out <path>` name another table and another output;
 // the test of the refusals passes them.
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readErrorCodes } from './error-codes-table.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
@@ -30,89 +30,8 @@ function refuse(message) {
   process.exit(1);
 }
 
-/** A vocabulary's codes, each stated once and each documented. */
-function codesOf(name, vocabulary) {
-  if (!vocabulary || !Array.isArray(vocabulary.codes) || vocabulary.codes.length === 0) {
-    refuse(`"${name}" lists no codes`);
-  }
-  if (typeof vocabulary.docs !== 'string' || vocabulary.docs === '') refuse(`"${name}" has no docs`);
-  const seen = new Set();
-  for (const entry of vocabulary.codes) {
-    if (typeof entry.code !== 'string' || entry.code === '') refuse(`"${name}" has an entry with no code`);
-    if (seen.has(entry.code)) refuse(`"${name}" states ${entry.code} twice`);
-    seen.add(entry.code);
-    if (typeof entry.docs !== 'string' || entry.docs === '') refuse(`${entry.code} has no docs`);
-  }
-  return vocabulary.codes;
-}
-
-const table = JSON.parse(readFileSync(TABLE, 'utf8'));
-const wireCodes = JSON.parse(readFileSync(COMMAND_ERROR, 'utf8')).properties.code.enum;
-
-// ── busRequest ──────────────────────────────────────────────────────────
-const busCodes = codesOf('busRequest', table.busRequest);
-const busByWire = new Map();
-for (const entry of busCodes) {
-  if (entry.wire === undefined) continue;
-  if (!wireCodes.includes(entry.wire)) {
-    refuse(`${entry.code} restates the wire code "${entry.wire}", which CommandError.code does not declare`);
-  }
-  if (busByWire.has(entry.wire)) {
-    refuse(`the wire code "${entry.wire}" becomes both ${busByWire.get(entry.wire)} and ${entry.code}`);
-  }
-  busByWire.set(entry.wire, entry.code);
-}
-for (const wire of wireCodes) {
-  if (!busByWire.has(wire)) refuse(`CommandError.code declares "${wire}", and no busRequest code restates it`);
-}
-const unrecognized = busCodes.find((entry) => entry.code === table.busRequest.unrecognizedFailure);
-if (!unrecognized) refuse(`busRequest.unrecognizedFailure names "${table.busRequest.unrecognizedFailure}", which is not one of its codes`);
-if (unrecognized.wire !== undefined) refuse(`busRequest.unrecognizedFailure is ${unrecognized.code}, which restates a wire code; an unrecognized failure cannot be a recognized one`);
-
-// ── transport ───────────────────────────────────────────────────────────
-const transportCodes = codesOf('transport', table.transport);
-const byStatus = new Map();
-const ranges = [];
-for (const entry of transportCodes) {
-  if (entry.status !== undefined && entry.statusFrom !== undefined) {
-    refuse(`${entry.code} states both a status and a statusFrom`);
-  }
-  if (entry.status !== undefined) {
-    if (!Number.isInteger(entry.status)) refuse(`${entry.code}'s status is not an integer`);
-    if (byStatus.has(entry.status)) refuse(`status ${entry.status} is both ${byStatus.get(entry.status)} and ${entry.code}`);
-    byStatus.set(entry.status, entry.code);
-  }
-  if (entry.statusFrom !== undefined) {
-    if (!Number.isInteger(entry.statusFrom)) refuse(`${entry.code}'s statusFrom is not an integer`);
-    ranges.push(entry);
-  }
-}
-if (ranges.length > 1) refuse(`${ranges.map((entry) => entry.code).join(' and ')} each state a statusFrom; one open range is all a status can fall in`);
-for (const [status, code] of byStatus) {
-  if (ranges[0] && status >= ranges[0].statusFrom) {
-    refuse(`status ${status} is ${code} and also falls in ${ranges[0].code}'s range`);
-  }
-}
-const unclassified = transportCodes.find((entry) => entry.code === table.transport.unclassified);
-if (!unclassified) refuse(`transport.unclassified names "${table.transport.unclassified}", which is not one of its codes`);
-if (unclassified.status !== undefined || unclassified.statusFrom !== undefined) {
-  refuse(`transport.unclassified is ${unclassified.code}, which a status already maps to`);
-}
-for (const entry of transportCodes) {
-  if (entry !== unclassified && entry.status === undefined && entry.statusFrom === undefined) {
-    refuse(`${entry.code} maps from no status and is not the unclassified code, so nothing produces it`);
-  }
-}
-
-// ── job ─────────────────────────────────────────────────────────────────
-const jobCodes = codesOf('job', table.job);
-
-// ── session ─────────────────────────────────────────────────────────────
-const sessionCodes = codesOf('session', table.session);
-
-// ── sign-in, and the identity a sign-in must establish ──────────────────
-const signInCodes = codesOf('signIn', table.signIn);
-const kbIdentityCodes = codesOf('kbIdentity', table.kbIdentity);
+const { table, busCodes, busByWire, unrecognized, transportCodes, byStatus, ranges, unclassified, jobCodes, sessionCodes, signInCodes, kbIdentityCodes } =
+  readErrorCodes(TABLE, COMMAND_ERROR, refuse);
 
 // ── render ──────────────────────────────────────────────────────────────
 const doc = (text, indent = '') => `${indent}/** ${text.replaceAll('*/', '*\\/')} */`;

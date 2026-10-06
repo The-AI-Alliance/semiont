@@ -14,7 +14,8 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readOAuthClients } from './oauth-clients.mjs';
-import { goComment, writeOrCheck } from './go-source.mjs';
+import { goComment } from './go-source.mjs';
+import { writeOrCheck } from './committed-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const TABLE = resolve(ROOT, 'specs/src/session/oauth.json');

@@ -18,11 +18,14 @@
  *
  * What a method does when it is called is not read here: each SDK's surface
  * test runs the table's cases (packages/sdk/src/__tests__/client-surface.test.ts,
- * packages/sdk-rust/tests/surface.rs).
+ * packages/sdk-rust/tests/surface.rs, packages/sdk-python/tests/test_surface.py).
  *
  * TypeScript's signatures are the interfaces of
  * packages/sdk/src/namespaces/types.ts; Rust's are the `pub fn`s of each
- * `impl <Name>Namespace` in packages/sdk-rust/src/namespaces.
+ * `impl <Name>Namespace` in packages/sdk-rust/src/namespaces; Python's are the
+ * methods of each `class <Name>Namespace` in
+ * packages/sdk-python/src/semiont/namespaces whose names begin with no
+ * underscore.
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -33,6 +36,7 @@ const TABLE = 'specs/src/client/surface.json';
 const REGISTRY = 'specs/src/bus/registry.json';
 const TS_INTERFACES = 'packages/sdk/src/namespaces/types.ts';
 const RUST_NAMESPACES = 'packages/sdk-rust/src/namespaces';
+const PYTHON_NAMESPACES = 'packages/sdk-python/src/semiont/namespaces';
 
 const failures = [];
 const fail = (message) => failures.push(message);
@@ -234,6 +238,77 @@ function rustSurface() {
   return surface;
 }
 
+// ── Python ──────────────────────────────────────────────────────────────
+
+/** `source` with its docstrings and comments blanked, the strings of its code left alone. */
+function withoutPythonComments(source) {
+  let out = '';
+  let i = 0;
+  while (i < source.length) {
+    const three = source.slice(i, i + 3);
+    if (three === '"""' || three === "'''") {
+      const end = source.indexOf(three, i + 3);
+      i = end === -1 ? source.length : end + 3;
+      out += '""';
+    } else if (source[i] === '"' || source[i] === "'") {
+      const quote = source[i];
+      out += source[i++];
+      while (i < source.length && source[i] !== quote && source[i] !== '\n') {
+        if (source[i] === '\\') out += source[i++];
+        out += source[i++];
+      }
+      if (i < source.length) out += source[i++];
+    } else if (source[i] === '#') {
+      while (i < source.length && source[i] !== '\n') i++;
+    } else {
+      out += source[i++];
+    }
+  }
+  return out;
+}
+
+function pythonShape(isAsync, returns) {
+  if (returns === undefined) return undefined;
+  if (isAsync) return returns === 'int | None' ? 'count' : 'promise';
+  if (returns === 'None') return 'signal';
+  if (returns.startsWith('Cached[')) return 'cache';
+  if (returns.startsWith('Running[')) return 'stream';
+  if (returns === 'Upload') return 'upload';
+  if (returns.startsWith('Typed[')) return 'events';
+  return undefined;
+}
+
+/** namespace → method → { shape, returns }. An SDK with no namespaces has none. */
+function pythonSurface() {
+  const surface = new Map();
+  const directory = join(ROOT, PYTHON_NAMESPACES);
+  if (!existsSync(directory)) return surface;
+  for (const file of readdirSync(directory).filter((name) => name.endsWith('.py')).sort()) {
+    const source = withoutPythonComments(readFileSync(join(directory, file), 'utf8'));
+    for (const match of source.matchAll(/^class (\w+)Namespace\b[^\n]*:\n/gm)) {
+      // A namespace whose name Python keeps for itself is in a file named
+      // with a trailing underscore; the class's name says which namespace it is.
+      const namespace = match[1][0].toLowerCase() + match[1].slice(1);
+      const expected = existsSync(join(directory, `${namespace}_.py`)) ? `${namespace}_.py` : `${namespace}.py`;
+      if (file !== expected) fail(`${PYTHON_NAMESPACES}/${file} holds ${match[1]}Namespace, which belongs in ${expected}`);
+      if (!surface.has(namespace)) surface.set(namespace, new Map());
+      const methods = surface.get(namespace);
+      // The class's body: every line after its header, up to the next that begins at the margin.
+      const rest = source.slice(match.index + match[0].length);
+      const end = rest.search(/^\S/m);
+      const body = end === -1 ? rest : rest.slice(0, end);
+      for (const def of body.matchAll(/^ {4}(async )?def (\w+)\(/gm)) {
+        if (def[2].startsWith('_')) continue;
+        const afterParameters = closing(body, def.index + def[0].length - 1);
+        const tail = /^\s*->\s*([^\n]+?):[ \t]*\n/.exec(body.slice(afterParameters));
+        const returns = tail ? squeezed(tail[1]) : undefined;
+        methods.set(camel(def[2]), { shape: pythonShape(Boolean(def[1]), returns), returns: returns ?? 'nothing it states' });
+      }
+    }
+  }
+  return surface;
+}
+
 // ── Each SDK against the table ──────────────────────────────────────────
 
 function held(sdk, where, surface) {
@@ -269,12 +344,13 @@ function held(sdk, where, surface) {
 
 for (const row of [...rows.values()].flatMap((methods) => [...methods.values()])) {
   for (const sdk of Object.keys(row.absent ?? {})) {
-    if (!['typescript', 'rust'].includes(sdk)) fail(`${TABLE}: \`absent\` names "${sdk}", which is no SDK this lint reads`);
+    if (!['typescript', 'rust', 'python'].includes(sdk)) fail(`${TABLE}: \`absent\` names "${sdk}", which is no SDK this lint reads`);
   }
 }
 
 held('typescript', TS_INTERFACES, typescriptSurface());
 held('rust', RUST_NAMESPACES, rustSurface());
+held('python', PYTHON_NAMESPACES, pythonSurface());
 
 if (failures.length > 0) {
   console.error(`✗ lint:client-surface — ${failures.length} problem${failures.length === 1 ? '' : 's'}`);
@@ -282,4 +358,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 const count = [...rows.values()].reduce((total, methods) => total + methods.size, 0);
-console.log(`✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, held by TypeScript and Rust`);
+console.log(`✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, held by TypeScript, Rust and Python`);

@@ -6,8 +6,10 @@ set -euo pipefail
 # ghcr.io/the-ai-alliance/semiont-<svc>:local (consumed by `semiont start` /
 # compose via SEMIONT_VERSION=local; never pushed). Also builds the semiont
 # launcher itself (apps/launcher/dist/semiont, a host binary) so one run
-# yields everything a fully-local stack needs.
-# No npm or Go required on the host — everything runs inside containers.
+# yields everything a fully-local stack needs. And it builds the Python SDK's
+# distributions (packages/sdk-python/dist), which no image installs and
+# Verdaccio cannot hold, so they are built and checked and published nowhere.
+# No npm, Go or Python required on the host — everything runs inside containers.
 #
 # Each run starts a fresh Verdaccio (no stale state), registers a user,
 # acquires an auth token, builds, publishes, and builds the images.
@@ -85,6 +87,18 @@ if [[ -z "$RUST_TOOLCHAIN" ]]; then
   exit 1
 fi
 
+# --- Python toolchain (derived, not restated) ---
+#
+# The oldest Python the SDK supports is a fact packages/sdk-python/pyproject.toml
+# owns (requires-python), and the SDK's generator runs on that one, here as in
+# CI. No fallback, as for Go.
+PYTHON_FLOOR="$(sed -n 's/^requires-python = ">=\([0-9][0-9.]*\)"$/\1/p' "$REPO_ROOT/packages/sdk-python/pyproject.toml")"
+if [[ -z "$PYTHON_FLOOR" ]]; then
+  fail "No 'requires-python = \">=X.Y\"' line in packages/sdk-python/pyproject.toml — cannot choose a Python image."
+  exit 1
+fi
+PYTHON_IMAGE="python:${PYTHON_FLOOR}-alpine"
+
 # --- What is kept between runs ---
 #
 # In the user's cache directory: macOS deletes files in /tmp that go unread
@@ -93,8 +107,9 @@ CACHE_ROOT="${XDG_CACHE_HOME:-$HOME/.cache}/semiont"
 NPM_CACHE_DIR="$CACHE_ROOT/local-build-npm"
 GOCACHE_DIR="$CACHE_ROOT/local-build-gocache"
 GOMODCACHE_DIR="$CACHE_ROOT/local-build-gomodcache"
+UVCACHE_DIR="$CACHE_ROOT/local-build-uv"
 IMAGE_STATE="$CACHE_ROOT/local-build-images.json"
-mkdir -p "$NPM_CACHE_DIR" "$GOCACHE_DIR" "$GOMODCACHE_DIR"
+mkdir -p "$NPM_CACHE_DIR" "$GOCACHE_DIR" "$GOMODCACHE_DIR" "$UVCACHE_DIR"
 
 # --- Failure cleanup trap ---
 # On failure, stop and remove the Verdaccio container so the next run starts
@@ -174,7 +189,8 @@ while [[ $# -gt 0 ]]; do
       echo "Build and publish @semiont/* packages to a local Verdaccio registry,"
       echo "then build the service container images against it, tagged"
       echo "ghcr.io/the-ai-alliance/semiont-<svc>:local (local-only, never pushed),"
-      echo "plus the semiont launcher binary (apps/launcher/dist/semiont)."
+      echo "plus the semiont launcher binary (apps/launcher/dist/semiont) and the"
+      echo "Python SDK's wheel and source distribution (packages/sdk-python/dist)."
       echo "No npm or Go required on the host — everything runs inside containers."
       echo ""
       echo "Built images are also loaded into every other responsive container"
@@ -198,8 +214,9 @@ while [[ $# -gt 0 ]]; do
       echo "                     such as a CI runner, has no use for the copies)"
       echo "  --images-only      Build ONLY container images, against the Verdaccio a"
       echo "                     previous run left running. Skips the npm build+publish,"
-      echo "                     the drift gates and the launcher. Pair with --image to"
-      echo "                     rebuild one service in ~a minute instead of the lot."
+      echo "                     the drift gates, the Python SDK and the launcher. Pair"
+      echo "                     with --image to rebuild one service in ~a minute instead"
+      echo "                     of the lot."
       echo "  -h, --help         Show this help"
       echo ""
       echo "Rebuilding one image after a code change:"
@@ -279,16 +296,11 @@ else
   exit 1
 fi
 
-# --- sdk-go drift gate ---
+# --- the bundled spec ---
 #
-# packages/sdk-go/client_gen.go is GENERATED from specs/openapi.json and
-# COMMITTED (see packages/sdk-go/README.md). Nothing regenerates it
-# automatically, so a spec change can leave it stale. This gate regenerates
-# to a scratch path inside the container (never the working tree — builds
-# don't mutate source) and diffs: byte-identical or fail. Deterministic
-# because the generator version is pinned.
+# The two gates below both read it.
 
-banner "SDK-GO DRIFT GATE"
+banner "OPENAPI BUNDLE"
 
 # specs/openapi.json is a BUILD ARTIFACT bundled from specs/src/. With the
 # gates running before the package builds, the copy a prior build left may be
@@ -300,6 +312,96 @@ if ! $RT run --rm -v "$REPO_ROOT":/workspace -v "$NPM_CACHE_DIR":/root/.npm -w /
   fail "Could not bundle the OpenAPI spec (redocly; output above)."
   exit 1
 fi
+
+# --- Python SDK drift gate ---
+#
+# The Python SDK has no build: what it holds of specs/src is generated and
+# COMMITTED (packages/sdk-python/src/semiont), so a spec change can leave it
+# stale. Node generators write the tables and the bus vocabulary; the models
+# (types.py) are written by a Python tool pinned in the package's lockfile.
+
+banner "PYTHON SDK DRIFT GATE"
+
+step "Checking the Python SDK's generated tables against specs/src..."
+if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace node:24-alpine \
+  sh -c 'node scripts/bus/generate-python.mjs --check && node scripts/spec/generate-identifiers-python.mjs --check && node scripts/spec/generate-error-codes-python.mjs --check && node scripts/spec/generate-client-timing-python.mjs --check && node scripts/spec/generate-cache-refresh-python.mjs --check && node scripts/spec/generate-sdk-telemetry-python.mjs --check && node scripts/spec/generate-oauth-clients-python.mjs --check && node scripts/spec/generate-sign-in-python.mjs --check && node scripts/spec/generate-media-types-python.mjs --check'; then
+  ok "the Python SDK's generated tables match specs/src"
+else
+  fail "The Python SDK's generated tables are STALE (or were hand-edited) — they must match specs/src."
+  echo ""
+  echo -e "  Regenerate and commit:"
+  echo ""
+  echo -e "    ${BOLD}npm run generate:python${RESET}   (packages/sdk-python/src/semiont)"
+  echo ""
+  exit 1
+fi
+
+step "Checking the Python SDK's models against specs/openapi.json (in ${PYTHON_IMAGE})..."
+# The environment is made INSIDE the container (/venv) from the package's
+# lockfile, and Python is told to write no bytecode: nothing lands in the
+# working tree. Only uv's download cache is kept between runs.
+#
+# Making the environment and comparing report SEPARATELY, as for Go: a failed
+# download is not a stale file.
+MODELS_LOG=$(mktemp "${TMPDIR:-/tmp}/semiont-python-models.XXXXXX")
+MODELS_RC=0
+$RT run --rm \
+  -v "$REPO_ROOT":/workspace \
+  -v "$UVCACHE_DIR":/root/.cache/uv \
+  -e UV_PROJECT_ENVIRONMENT=/venv \
+  -e UV_LINK_MODE=copy \
+  -e UV_PYTHON_DOWNLOADS=never \
+  -e PYTHONDONTWRITEBYTECODE=1 \
+  -w /workspace \
+  "$PYTHON_IMAGE" \
+  sh -c 'pip install --quiet --disable-pip-version-check --root-user-action=ignore uv || exit 3
+         uv sync --quiet --locked --project packages/sdk-python || exit 3
+         uv run --no-sync --project packages/sdk-python python packages/sdk-python/scripts/generate_models.py --check || exit 4' \
+  2>&1 | tee "$MODELS_LOG" \
+  || MODELS_RC=$?
+
+# The generator says DRIFT (or "new") when it compared and found a difference.
+# Leaving with 4 without saying so, it never got that far.
+if [[ "$MODELS_RC" == 0 ]]; then
+  ok "the Python SDK's models match the spec"
+  rm -f "$MODELS_LOG"
+elif [[ "$MODELS_RC" == 4 ]] && grep -qE '^(DRIFT|new) ' "$MODELS_LOG"; then
+  fail "packages/sdk-python/src/semiont/types.py is STALE (or was hand-edited) — it must match the OpenAPI spec."
+  echo ""
+  echo -e "  Regenerate and commit it:"
+  echo ""
+  echo -e "    ${BOLD}uv run --project packages/sdk-python python packages/sdk-python/scripts/generate_models.py${RESET}"
+  echo ""
+  exit 1
+else
+  fail "The Python SDK's models gate could not RUN (exit $MODELS_RC; its output is above)."
+  echo ""
+  echo -e "  This says nothing about whether the models are stale — the check never got"
+  echo -e "  far enough to compare."
+  echo ""
+  if [[ "$MODELS_RC" == 4 ]]; then
+    echo -e "  The generator refused the spec or failed. Its message names what it met."
+  else
+    echo -e "  The locked environment could not be made in ${BOLD}${PYTHON_IMAGE}${RESET}: a failed download"
+    echo -e "  (${BOLD}pypi.org${RESET}) is the usual cause, or ${BOLD}packages/sdk-python/uv.lock${RESET} no longer"
+    echo -e "  agreeing with its pyproject.toml."
+  fi
+  echo ""
+  echo -e "  ${DIM}Output kept at: $MODELS_LOG${RESET}"
+  echo ""
+  exit 1
+fi
+
+# --- sdk-go drift gate ---
+#
+# packages/sdk-go/client_gen.go is GENERATED from specs/openapi.json and
+# COMMITTED (see packages/sdk-go/README.md). Nothing regenerates it
+# automatically, so a spec change can leave it stale. This gate regenerates
+# to a scratch path inside the container (never the working tree — builds
+# don't mutate source) and diffs: byte-identical or fail. Deterministic
+# because the generator version is pinned.
+
+banner "SDK-GO DRIFT GATE"
 
 step "Checking packages/sdk-go/client_gen.go against specs/openapi.json..."
 # Both Go caches are this script's own, not shared with other container
@@ -1042,7 +1144,7 @@ if [[ "$IMAGES_ONLY" == true ]]; then
   echo -e "  Restart the affected service(s) to pick them up, e.g."
   echo -e "    ${BOLD}SEMIONT_VERSION=local <your-kb>/semiont restart${RESET}"
   echo ""
-  echo -e "${DIM}Skipped (use a full run for these): npm build+publish, bus/sdk-go drift gates, launcher.${RESET}"
+  echo -e "${DIM}Skipped (use a full run for these): npm build+publish, bus/sdk-go drift gates, Python SDK, launcher.${RESET}"
   echo ""
   echo -e "\033[2m[$(date '+%Y-%m-%d %H:%M:%S')] local-build finished (--images-only)\033[0m"
   exit 0
@@ -1085,6 +1187,58 @@ $RT run --rm \
   go build -buildvcs=false -o dist/semiont .
 ok "apps/launcher/dist/semiont built"
 
+# --- Build the Python SDK (a wheel and a source distribution) ---
+#
+# The script CI and publish-pypi.yml run: the source distribution, the wheel
+# built from it, and the checks a published one must pass, so a packaging break
+# is seen here and not first in CI. Built in the drift gate's Python image,
+# with its uv cache.
+#
+# It is published nowhere. Verdaccio holds npm packages and nothing else, and
+# no image installs this package, so nothing in a local stack would read it
+# from an index. What is left in packages/sdk-python/dist installs by path.
+#
+# Last, since the stack needs nothing of it: a run that fails here has built
+# everything a local stack runs on.
+
+banner "PYTHON SDK"
+
+step "Building the Python SDK's distributions in ${PYTHON_IMAGE}..."
+# What the script needs and the image lacks leaves with 3, as in the models
+# gate: a failed download is not a package that does not build.
+PYTHON_SDK_RC=0
+$RT run --rm \
+  -v "$REPO_ROOT":/workspace \
+  -v "$UVCACHE_DIR":/root/.cache/uv \
+  -e UV_LINK_MODE=copy \
+  -e UV_PYTHON_DOWNLOADS=never \
+  -e PYTHONDONTWRITEBYTECODE=1 \
+  -w /workspace \
+  "$PYTHON_IMAGE" \
+  sh -c 'apk add --no-cache bash jq > /dev/null || exit 3
+         pip install --quiet --disable-pip-version-check --root-user-action=ignore uv || exit 3
+         bash scripts/ci/build-python-sdk.sh' \
+  || PYTHON_SDK_RC=$?
+
+if [[ "$PYTHON_SDK_RC" == 0 ]]; then
+  PYTHON_SDK_WHEELS=("$REPO_ROOT"/packages/sdk-python/dist/*.whl)
+  ok "${PYTHON_SDK_WHEELS[0]#"$REPO_ROOT"/} built, with its source distribution"
+elif [[ "$PYTHON_SDK_RC" == 3 ]]; then
+  fail "The Python SDK's build could not RUN (its output is above)."
+  echo ""
+  echo -e "  This says nothing about whether the package builds: ${BOLD}bash${RESET}, ${BOLD}jq${RESET} or ${BOLD}uv${RESET} could not"
+  echo -e "  be installed in ${BOLD}${PYTHON_IMAGE}${RESET}. A failed download is the usual cause."
+  echo ""
+  exit 1
+else
+  fail "The Python SDK's distributions did not build, or did not pass their checks (exit $PYTHON_SDK_RC)."
+  echo ""
+  echo -e "  ${BOLD}scripts/ci/build-python-sdk.sh${RESET} says which, above. CI's Python job and"
+  echo -e "  ${BOLD}publish-pypi.yml${RESET} run the same script, and would fail the same way."
+  echo ""
+  exit 1
+fi
+
 banner "DONE ✓"
 
 if [[ -n "$FANOUT_FAILURES" ]]; then
@@ -1112,6 +1266,10 @@ echo ""
 
 echo -e "${BOLD}Or run a single image, e.g. the browser:${RESET}"
 echo -e "  $RT run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-browser:local"
+echo ""
+
+echo -e "${BOLD}The Python SDK is built, and published nowhere. Install it by path:${RESET}"
+echo -e "  pip install ${PYTHON_SDK_WHEELS[0]}"
 echo ""
 
 echo -e "${DIM}Stop Verdaccio when done:${RESET}  $RT stop $VERDACCIO_NAME"

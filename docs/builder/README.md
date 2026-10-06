@@ -2,16 +2,9 @@
 
 > ⚠️ **Alpha.** API and package surface are not yet stable; breaking changes between 0.x releases are expected.
 
-For people, and AI agents, building on Semiont with the SDK: a script, a
-daemon, an application, an agent.
+For people, and AI agents, writing software that works with a Semiont knowledge base: a web, desktop or mobile application, an ingestion or enrichment pipeline, a service, an agent.
 
-The SDK is a typed client whose namespaces are the
-[eight verbs](../protocol/flows/README.md) everything in Semiont speaks. It comes in
-[TypeScript](../../packages/sdk/README.md) (`@semiont/sdk`) and
-[Rust](../../packages/sdk-rust/README.md) (the [`semiont`](https://crates.io/crates/semiont)
-crate), full peers held to one [conformance suite](../../tests/conformance/sdk/README.md).
-The examples here are TypeScript. The Rust SDK has the same namespaces, methods
-and behaviour, and its README maps each TypeScript shape here to its Rust form.
+The SDK is one typed client in three languages. Install the one you write in.
 
 TypeScript:
 
@@ -26,36 +19,60 @@ cargo add semiont
 cargo add semiont-http-transport --features sign-in    # the transport over a gateway
 ```
 
-From a shell, the [`semiont` launcher](../../apps/launcher/README.md#login-and-upload)
-speaks the same eight verbs: `semiont yield`, `semiont browse` and the rest,
-each with `--help`.
+Python:
 
-Other readers have other homes: building Semiont itself is
-[docs/contributor](../contributor/README.md), running it is
-[docs/operator](../operator/README.md), and the wire and the contracts every SDK
-is held to are [docs/protocol](../protocol/README.md).
+```bash
+pip install semiont
+```
 
-Before any of it you need a knowledge base to point at. The
-[Quick Start](./QUICK-START.md) gets one running on your machine: install the
-launcher, create a knowledge base, start it, sign in, and annotate a document.
+**Then go to the [Developer Guide](./DEVELOPER-GUIDE.md).** It is the way in: short recipes in the order you will need them. You connect, read, ingest a document, enrich it, gather context around it, generate from it, react to what other participants do, and test what you built.
 
-Five documents here, each with ONE job, and one contract in
-[docs/protocol](../protocol/README.md). They follow the classic four-quadrant split (how-to / reference /
-explanation / contract) plus one orientation doc; knowing a doc's quadrant
-tells you what belongs in it — and what to reject in review.
+The client needs a knowledge base to talk to. The [Quick Start](./QUICK-START.md) gets one running on your machine.
 
-| Doc | Role | One-line scope |
-|---|---|---|
-| [INTRODUCTION.md](./INTRODUCTION.md) | **Orientation** (read first) | The builder's mental model: the three core ideas, the contract→SDKs→bindings stack, live data, a one-page chat turn, the testing ethos, and the build-vs-adopt case for teams shipping with AI coding tools. No recipes, no reference. |
-| [DEVELOPER-GUIDE.md](./DEVELOPER-GUIDE.md) | **How-to** (and the de-facto tutorial) | Task-ordered recipes: connect → ingest → enrich → gather → generate → annotate → react live → test → tear down. Short prose + the exact lines. |
-| [Usage.md](./Usage.md) | **Reference** | The per-namespace surface: every method family, options, return shapes, error vocabulary, bus debugging. |
-| [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) | **Explanation** | Why the surface is shaped this way: the seven return shapes every SDK shares, then how TypeScript and Rust each render them, and the three paths to the bus. |
-| [STATE-UNITS.md](./STATE-UNITS.md) | **Explanation + conventions** | The state-unit pattern: what every state unit keeps, in any language, how TypeScript and Rust each write one, and how the rules are enforced. |
-| [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) | **Contract** | The live-query cache's numbered behavioral contract: `CacheState` emissions, SWR, bounded retry, failure-as-emission, disposal, persistence. Tests cite these numbers. |
+## What you are building on
 
-[`skills/`](./skills/README.md) holds the agent skill packs: one ready-made definition per
-task, for agentic coding assistants, following the layers a knowledge base is built in.
-Their code is compile-checked like the rest.
+- **One wire, eight verbs.** Everything a participant does travels over one event bus, as one of eight verbs: four that write (**yield · mark · bind · frame**), three that read (**browse · match · gather**), and one that directs attention (**beckon**). They are the client's namespaces in every SDK. [The protocol](../protocol/README.md) specifies them independently of any language.
+- **The SDK is the boundary.** Your code never calls the gateway's HTTP API directly. Something the SDK lacks is a gap to raise, not a reason to reach around it.
+- **Three SDKs, one contract.** TypeScript, Rust and Python have the same namespaces and methods, and are held to one [conformance suite](../../tests/conformance/sdk/README.md) against a real gateway. What you learn in one carries to the others.
+- **People and AI agents are the same kind of participant.** They use the same client and the same verbs, and every annotation records who made it.
+- **Data is live.** A read is a query that stays current as others write. Work a model does is a job you start and watch.
+
+The [Introduction](./INTRODUCTION.md) explains these ideas. [Architecture](../architecture/README.md) is how Semiont works behind the gateway.
+
+## Where the SDK goes
+
+The SDK is a library, not a service. It runs no process of its own: you give a client a transport and somewhere to keep its session, and it lives inside whatever you are building.
+
+- **A web app.** The TypeScript SDK in the page, with the session in the browser's storage. [`@semiont/react-ui`](#react-embedding-semiontreact-ui) adds the resource viewer and the annotation components. The Semiont Browser is built this way.
+- **A desktop app.** The TypeScript SDK in a webview, as Semiont's own desktop app has it, or the Rust SDK in a native one. A person signs in in their own browser and is sent back to the app.
+- **A mobile app.** The same shape as a desktop app. Nothing in the SDK assumes a browser or a server around it, and where a session is kept is an interface, so the app keeps it in the platform's own secure store.
+- **An ingestion or enrichment pipeline.** A script or a scheduled job, in any of the three languages. It signs in once, yields documents, and annotates them itself or has a model do it with `mark.assist` and follows the job.
+- **A service.** A long-running process that hears what happens in the knowledge base as it happens, and acts on it. It signs in with an account of its own.
+- **An agent.** The same client a person's application uses. The [agent skills](./skills/README.md) are ready-made definitions for AI coding assistants, one per task.
+
+How a program signs in follows from which of these it is, and no password passes through your code in any of them. Each SDK's README shows the forms it has.
+
+From a shell, the [`semiont` launcher](../../apps/launcher/README.md#login-and-upload) speaks the same eight verbs: `semiont yield`, `semiont browse` and the rest, each with `--help`.
+
+## The docs
+
+Read in this order. Most people need only the first three.
+
+| Doc | What it is for |
+|---|---|
+| [Quick Start](./QUICK-START.md) | A knowledge base running on your machine, to build against |
+| [Introduction](./INTRODUCTION.md) | The ideas, once: one wire, annotations as data, AI work as jobs, live data, and where your code sits |
+| **[Developer Guide](./DEVELOPER-GUIDE.md)** | **How to build: the recipes, with the exact lines** |
+| [Usage](./Usage.md) | The reference: every method of every namespace, its options, what it returns, and the errors |
+| [Reactive model](./REACTIVE-MODEL.md) | Why a method returns what it does: the seven shapes every SDK shares, in TypeScript, Rust and Python |
+| [State units](./STATE-UNITS.md) | The pattern for coordinated page and flow state in an application, in TypeScript and Rust |
+| [Cache semantics](../protocol/CACHE-SEMANTICS.md) | The numbered contract every SDK's live queries are held to |
+
+The guides' examples are TypeScript. The namespaces, methods and behaviour are the same in Rust and Python, and each SDK's README shows them in its own language:
+
+- **[TypeScript](../../packages/sdk/README.md)**, `@semiont/sdk`: what the guides are written in.
+- **[Rust](../../packages/sdk-rust/README.md)**, the `semiont` crate: maps each TypeScript shape in these docs to its Rust form. [`semiont-http-transport`](../../packages/http-transport-rust/README.md) has the sessions and signing in.
+- **[Python](../../packages/sdk-python/README.md)**, the `semiont` package: runs on asyncio, and is checked by `mypy` and `pyright`, both strict. It has the client, live queries and sessions, and no state units and no registry of several knowledge bases.
 
 ## React: embedding `@semiont/react-ui`
 
@@ -83,81 +100,10 @@ How react-ui is built inside is in
 [`packages/react-ui/docs`](../../packages/react-ui/docs/), including the
 internals behind the last four.
 
-## Rules of placement
+## Agent skills
 
-- **Concepts a newcomer needs before any code** go in INTRODUCTION — and
-  nowhere else, so the mental model is taught in exactly one place. A new
-  **recipe** goes in the DEVELOPER-GUIDE; a new **method** goes in Usage.md;
-  a new **design rationale** goes in REACTIVE-MODEL or STATE-UNITS; a new
-  **cache behavior** gets a B-number in CACHE-SEMANTICS *and* a test citing
-  it. If a change doesn't fit one home, it's probably two changes.
-- **Code fences are compile-checked.** Every ` ```ts `/` ```tsx `/
-  ` ```typescript ` fence in these docs, the skills included, is extracted and type-checked against
-  the built packages (plus an await-thenable pass) by
-  `scripts/compliance/audit-doc-snippets.sh` — CI fails on snippet rot. Names
-  a snippet doesn't define come from the ambient prelude at
-  [`tests/doc-snippets/prelude.ts`](../../tests/doc-snippets/prelude.ts) (the skills have
-  their own, `prelude-skills.ts`); extend the prelude
-  rather than adding boilerplate to a snippet. Mark a fence ` ```ts sketch `
-  ONLY for genuine pseudocode or display-only shapes — exemptions are counted
-  and the census should hold flat or shrink.
-- Wire-level truth lives OUTSIDE this directory, in
-  [`docs/protocol/`](../protocol/) —
-  [TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md) (what
-  every `ITransport` honors), [TRANSPORT-HTTP.md](../protocol/TRANSPORT-HTTP.md)
-  (SSE wire, subscription matrix, resumption, reply retention),
-  [EVENT-BUS.md](../protocol/EVENT-BUS.md) and
-  [CHANNELS.md](../protocol/CHANNELS.md) (channel taxonomy). These
-  docs LINK there; they don't restate wire format.
+[`skills/`](./skills/README.md) holds one ready-made definition per task for an AI coding assistant: ingesting, annotating, linking, and the layers a knowledge base is built in. A person and an agent use the same client and the same verbs, so nothing in these docs is for one and not the other. The Introduction's [Could your coding agent just build this?](./INTRODUCTION.md#could-your-coding-agent-just-build-this) is addressed to agents and the people directing them.
 
-## Reading order by audience
+## Other readers
 
-**New to Semiont entirely** — the [Quick Start](./QUICK-START.md) for a running
-knowledge base, then [INTRODUCTION.md](./INTRODUCTION.md); it routes you to the
-right doc by goal.
-
-**"I want to call the API from a script"** —
-the SDK's [README](../../packages/sdk/README.md) § Install & connect, then DEVELOPER-GUIDE recipes 1–10.
-You never need the other docs.
-
-**"I'm building an app on it (browser, TUI, daemon)"** —
-DEVELOPER-GUIDE end to end, then Usage.md as the lookup reference, then
-REACTIVE-MODEL § "What this looks like at the call site" and § "Three paths
-to the bus". Add STATE-UNITS when your app grows coordinated page/flow state.
-Write tests with [`@semiont/sdk/testing`](./DEVELOPER-GUIDE.md#testing-your-consumer--semiontsdktesting)
-from day one.
-
-**"I'm building in Rust"** — INTRODUCTION for the model, then the Rust SDK's
-[README](../../packages/sdk-rust/README.md): its three ways to use the client, and the
-table that maps each TypeScript shape in these docs to its Rust form.
-[`semiont-http-transport`](../../packages/http-transport-rust/README.md) has the
-sessions and signing in. CACHE-SEMANTICS and STATE-UNITS are contracts of both
-SDKs: the Rust tests cite the same clause numbers.
-
-**"I'm an AI agent, or building one"** — the
-[skill packs](skills/) are ready-made definitions for agentic
-coding assistants, one per task, and each cites the reference here. Read
-INTRODUCTION for the model first; its § "Could your coding agent just build
-this?" is addressed to you. A human and an agent use the same client and the
-same verbs: nothing in these docs is for one and not the other.
-
-**"I'm changing the SDK itself"** —
-REACTIVE-MODEL and STATE-UNITS first (the design constraints your change must
-fit), CACHE-SEMANTICS before touching anything the cache backs, and the
-protocol docs before touching anything on the wire. The axiom/liveness
-harnesses in `@semiont/core/testing/axioms` are the executable half of these docs
-(the test doubles themselves live at `@semiont/core/testing`, free of any
-`fast-check` requirement).
-
-## Where the concepts live
-
-The mental model — the eight verbs, the typed return shapes, `CacheState` live
-queries, session-owned lifecycle, and the bus's two-tier delivery contract — is
-taught once in [INTRODUCTION](./INTRODUCTION.md) and specified in the docs
-above. It is deliberately NOT restated here: a map that also teaches is a map
-that drifts from the docs it maps.
-
-The eight verbs are always listed in three groups, as in
-[`docs/protocol/flows/`](../protocol/flows/README.md): four that write
-(**yield · mark · bind · frame**), three that read (**browse · match · gather**),
-and one that directs attention (**beckon**).
+Running a knowledge base is [docs/operator](../operator/README.md). Changing Semiont itself, these docs and the SDK included, is [docs/contributor](../contributor/README.md).

@@ -17,6 +17,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readIdentifierKinds } from './identifier-kinds.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
@@ -36,22 +37,9 @@ function refuse(message) {
   process.exit(1);
 }
 
-const { kinds } = JSON.parse(readFileSync(KINDS, 'utf8'));
-if (!Array.isArray(kinds) || kinds.length === 0) refuse('lists no kinds');
-
 let types = readFileSync(TYPES, 'utf8');
 const made = [];
-for (const { schema: name } of kinds) {
-  if (typeof name !== 'string' || !/^[A-Z][A-Za-z]*Id$/.test(name)) refuse(`${JSON.stringify(name)} is not a kind's name: PascalCase, ending in Id`);
-  const schema = JSON.parse(readFileSync(resolve(SCHEMAS, `${name}.json`), 'utf8'));
-  if (schema.type !== 'string' || typeof schema.pattern !== 'string' || typeof schema.description !== 'string') {
-    refuse(`${name} is not a string with a pattern and a description`);
-  }
-  try {
-    new RegExp(schema.pattern, 'u');
-  } catch (error) {
-    refuse(`${name}'s pattern is not a regular expression: ${error.message}`);
-  }
+for (const { name, ...schema } of readIdentifierKinds(KINDS, SCHEMAS, refuse)) {
   // The schema as openapi-typescript writes it, once, among the components.
   const written = new RegExp(`^( +)${name}: string;$`, 'gm');
   const found = [...types.matchAll(written)];

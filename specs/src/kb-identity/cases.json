@@ -1,5 +1,5 @@
 {
-  "$comment": "The knowledge base's identity as every reader must compute it from <dir>/.semiont/config. Go (apps/launcher/internal/launcher: effectiveKBName, committedDomain, didWeb, kbResource) and TypeScript (packages/core: SemiontProject name and siteDomain, kbDid, kbResource) each run every case and fail on any difference; Rust (packages/sdk-rust: kb_did, and kb_resource, the audience the gateway's tokens must carry) runs every case with a domain. `config` null means the file is absent; `domain`, `did` and `resource` null mean no identity is declared. Add a case here before changing either implementation.",
+  "$comment": "The knowledge base's identity as every reader must compute it from <dir>/.semiont/config. Go (apps/launcher/internal/launcher: effectiveKBName, committedDomain, didWeb, kbResource) and TypeScript (packages/core: SemiontProject name and siteDomain, kbDid, kbResource) each run every case and fail on any difference; Rust (packages/sdk-rust: kb_did, and kb_resource, the audience the gateway's tokens must carry) and Python (packages/sdk-python: kb_did and kb_resource) each run every case with a domain. `config` null means the file is absent; `domain`, `did` and `resource` null mean no identity is declared. Add a case here before changing either implementation.",
   "cases": [
     {
       "why": "the shape semiont init writes",

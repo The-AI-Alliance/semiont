@@ -18,13 +18,14 @@ To run tools directly on your machine instead, the versions are:
 | Rust | the pinned channel | [`rust-toolchain.toml`](../../rust-toolchain.toml) |
 | Go | the `toolchain` line | `go.mod` in [`apps/launcher`](../../apps/launcher/go.mod) and [`packages/sdk-go`](../../packages/sdk-go/go.mod) |
 
-## Three workspaces, one spec
+## Four toolchains, one spec
 
-The repository holds code in three languages, and none of them depends on another. What they agree on is in `specs/`, and each generates its types from it.
+The repository holds code in four languages, and none of them depends on another. What they agree on is in `specs/`, and each generates its types from it.
 
 - **npm workspaces** (`apps/*`, `packages/*`, `tests/doc-snippets`): the TypeScript packages and the Browser.
 - **A Cargo workspace**: the gateway, the dispatcher, and the Rust SDK's crates.
 - **Two Go modules**: the launcher (`apps/launcher`) and the Go SDK (`packages/sdk-go`).
+- **A Python package**: the Python SDK (`packages/sdk-python`), whose environment is `uv`'s.
 
 [Package Architecture](../architecture/PACKAGE-ARCHITECTURE.md) draws both dependency graphs and says what each service image runs.
 
@@ -59,7 +60,8 @@ semiont/
 │   ├── sdk-rust/           # The Rust SDK (crate `semiont`), with
 │   ├── http-transport-rust/ telemetry-rust/ codegen-rust/
 │   ├── core-rust/ observability-rust/ http-service-rust/    # what the Rust services share
-│   └── sdk-go/             # The Go SDK
+│   ├── sdk-go/             # The Go SDK
+│   └── sdk-python/         # The Python SDK (package `semiont`)
 ├── tests/
 │   ├── conformance/        # Black-box suites: the gateway, the dispatcher, every SDK
 │   ├── e2e/                # Playwright, against a live stack
@@ -87,6 +89,16 @@ Each app and package has a README, and most have a `docs/` directory about how t
 2. Add it to [`version.json`](../../version.json), after the packages it depends on. The order there is the build order, and `publish` says whether it ships to npm. A package missing from `version.json` is not built by `local-build.sh`, and anything that installs it gets a 404.
 3. Give it a `vitest.config.ts` that merges the [shared config](../../vitest.shared.config.ts), and a `test:coverage` script. `npm run lint:vitest-coverage` and `npm run lint:coverage-roster` say what else has to list it.
 4. A package that will be published needs seeding on npm before its first release ([Release](RELEASE.md#a-new-package)).
+
+## Changing the builder docs and the SDK
+
+[`docs/builder`](../builder/README.md) is what someone building on the SDK reads. Three rules keep it one coherent set:
+
+- **Each kind of content has one home.** A concept a newcomer needs before any code goes in the [Introduction](../builder/INTRODUCTION.md) and nowhere else, so the mental model is taught in one place. A new recipe goes in the [Developer Guide](../builder/DEVELOPER-GUIDE.md), a new method in [Usage](../builder/Usage.md), a new design rationale in [Reactive model](../builder/REACTIVE-MODEL.md) or [State units](../builder/STATE-UNITS.md). A new cache behavior gets a B-number in [Cache semantics](../protocol/CACHE-SEMANTICS.md) and a test that cites it. A change that fits no one home is probably two changes.
+- **Code fences are compile-checked.** Every `ts`, `tsx` and `typescript` fence in the builder docs, the skills included, is extracted and type-checked against the built packages by `scripts/compliance/audit-doc-snippets.sh`, with a pass that catches an `await` on something that is not awaitable. Names a snippet does not define come from the prelude at [`tests/doc-snippets/prelude.ts`](../../tests/doc-snippets/prelude.ts) (the skills have their own, `prelude-skills.ts`): extend the prelude rather than adding boilerplate to a snippet. Mark a fence `ts sketch` only for pseudocode or a display-only shape. Exemptions are counted, and the count should hold or shrink.
+- **Wire-level truth lives in [`docs/protocol/`](../protocol/README.md).** [TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md) is what every transport honors, [TRANSPORT-HTTP.md](../protocol/TRANSPORT-HTTP.md) the wire over a gateway, and [EVENT-BUS.md](../protocol/EVENT-BUS.md) and [CHANNELS.md](../protocol/CHANNELS.md) the bus and its channels. The builder docs link there and do not restate wire format.
+
+Before changing an SDK itself, read [Reactive model](../builder/REACTIVE-MODEL.md) and [State units](../builder/STATE-UNITS.md) for the constraints a change has to fit, [Cache semantics](../protocol/CACHE-SEMANTICS.md) before touching anything the cache backs, and the protocol docs before touching anything on the wire. The axiom and liveness harnesses in `@semiont/core/testing/axioms` are the executable half of those docs. The test doubles are at `@semiont/core/testing`, which needs no `fast-check`.
 
 ## Where to go for the rest
 

@@ -15,6 +15,12 @@
 //! is then this application's session of that knowledge base, read before
 //! the file's, and the launcher's entry is left as it was.
 //!
+//! **A session that is `set` is a sign-in**, and its entry states who signed
+//! in and at which issuer as its own access token names them, whoever the
+//! entry before it was of. **A session an `update` says in place of the
+//! file's is that sign-in renewed**, and keeps both as the sign-in learned
+//! them, whatever the renewed token names.
+//!
 //! **Every change is a read, a change and a write under a lock**
 //! (`tokens.lock`, beside the file): another process renewing another stack
 //! at the same moment loses nothing. What the file holds that is not a
@@ -145,41 +151,41 @@ fn rfc3339(at: SystemTime) -> String {
     )
 }
 
+/// A member of the document as a sign-in. One that is not a sign-in is none.
+fn sign_in_of(member: &Value) -> Option<SignIn> {
+    serde_json::from_value(member.clone()).ok()
+}
+
 /// A sign-in as the session a client holds: one with no refresh token is
 /// none, because a session that cannot be renewed does not outlive its first
 /// access token.
-fn session_of(entry: &Value) -> Option<StoredSession> {
-    let entry: SignIn = serde_json::from_value(entry.clone()).ok()?;
+fn session_of(sign_in: &SignIn) -> Option<StoredSession> {
     Some(StoredSession {
-        access: entry.token,
-        refresh: entry.refresh_token.filter(|refresh| !refresh.is_empty())?,
+        access: sign_in.token.clone(),
+        refresh: sign_in
+            .refresh_token
+            .clone()
+            .filter(|refresh| !refresh.is_empty())?,
         client_id: SCRIPT_CLIENT_ID.to_owned(),
-        token_endpoint: entry.token_endpoint,
-        revocation_endpoint: entry.revocation_endpoint,
+        token_endpoint: sign_in.token_endpoint.clone(),
+        revocation_endpoint: sign_in.revocation_endpoint.clone(),
     })
 }
 
-/// A session as the sign-in the file keeps. Renewing an entry keeps what
-/// the sign-in learned and a renewal does not: who signed in, and at which
-/// issuer. A new entry states them as its access token does. A token the
-/// gateway admits names both, so one that does not is no sign-in, and is
+/// Who signed in and at which issuer, as an access token names them. A token
+/// the gateway admits names both, so one that does not is no sign-in, and is
 /// refused with what it lacks.
-fn entry_of(
-    session: &StoredSession,
-    before: Option<&Value>,
-    now: SystemTime,
-) -> Result<Value, &'static str> {
-    let before: Option<SignIn> =
-        before.and_then(|entry| serde_json::from_value(entry.clone()).ok());
-    let (email, issuer) = match before {
-        Some(before) => (before.email, before.issuer),
-        None => (
-            text_claim(&session.access, "email").ok_or("its access token names no email")?,
-            text_claim(&session.access, "iss").ok_or("its access token names no issuer")?,
-        ),
-    };
+fn named_by(access: &str) -> Result<(String, String), &'static str> {
+    Ok((
+        text_claim(access, "email").ok_or("its access token names no email")?,
+        text_claim(access, "iss").ok_or("its access token names no issuer")?,
+    ))
+}
+
+/// A session as the sign-in the file keeps, of `email` at `issuer`.
+fn entry_of(session: &StoredSession, email: String, issuer: String, now: SystemTime) -> Value {
     // A struct of strings always serializes to an object.
-    Ok(serde_json::to_value(SignIn {
+    serde_json::to_value(SignIn {
         token: session.access.clone(),
         refresh_token: Some(session.refresh.clone()),
         email,
@@ -189,7 +195,7 @@ fn entry_of(
         token_endpoint: session.token_endpoint.clone(),
         revocation_endpoint: session.revocation_endpoint.clone(),
     })
-    .unwrap_or(Value::Null))
+    .unwrap_or(Value::Null)
 }
 
 /// Told that the file could not be read or written, with why.
@@ -300,21 +306,30 @@ impl SignInStore {
 
     /// Put `next` under the session key of `kb_id`: a session of the script
     /// client in the file, any other value beneath it, and nothing in
-    /// neither. A session of the script client that is no sign-in is kept
-    /// nowhere, and that is said. `document` is the file's, held under the
-    /// lock. Whether the document changed.
+    /// neither. `renewed` is the sign-in a session of the script client
+    /// renews, and none when the session is a sign-in of its own: one that
+    /// is no sign-in is kept nowhere, and that is said. `document` is the
+    /// file's, held under the lock. Whether the document changed.
     fn put(
         &self,
         document: &mut Map<String, Value>,
         key: &str,
         kb_id: &str,
         next: Option<&str>,
+        renewed: Option<&SignIn>,
     ) -> bool {
         match (next, next.and_then(StoredSession::read)) {
             (_, Some(session)) if session.client_id == SCRIPT_CLIENT_ID => {
-                match entry_of(&session, document.get(kb_id), SystemTime::now()) {
-                    Ok(entry) => {
-                        document.insert(kb_id.to_owned(), entry);
+                let signed_in = match renewed {
+                    Some(sign_in) => Ok((sign_in.email.clone(), sign_in.issuer.clone())),
+                    None => named_by(&session.access),
+                };
+                match signed_in {
+                    Ok((email, issuer)) => {
+                        document.insert(
+                            kb_id.to_owned(),
+                            entry_of(&session, email, issuer, SystemTime::now()),
+                        );
                         self.rest.delete(key);
                         true
                     }
@@ -341,15 +356,15 @@ impl SignInStore {
 impl SessionStorage for SignInStore {
     fn get(&self, key: &str) -> Option<String> {
         self.rest.get(key).or_else(|| {
-            let entry = self.entry(kb_of_session_key(key)?)?;
-            Some(session_of(&entry)?.written())
+            let sign_in = sign_in_of(&self.entry(kb_of_session_key(key)?)?)?;
+            Some(session_of(&sign_in)?.written())
         })
     }
 
     fn set(&self, key: &str, value: &str) {
         match kb_of_session_key(key) {
             Some(kb_id) => {
-                self.change(|document| (self.put(document, key, kb_id, Some(value)), ()));
+                self.change(|document| (self.put(document, key, kb_id, Some(value), None), ()));
             }
             None => self.rest.set(key, value),
         }
@@ -358,7 +373,7 @@ impl SessionStorage for SignInStore {
     fn delete(&self, key: &str) {
         match kb_of_session_key(key) {
             Some(kb_id) => {
-                self.change(|document| (self.put(document, key, kb_id, None), ()));
+                self.change(|document| (self.put(document, key, kb_id, None, None), ()));
             }
             None => self.rest.delete(key),
         }
@@ -369,17 +384,26 @@ impl SessionStorage for SignInStore {
             return self.rest.update(key, change);
         };
         self.change(|document| {
-            let current = self.rest.get(key).or_else(|| {
-                document
-                    .get(kb_id)
-                    .and_then(session_of)
-                    .map(|session| session.written())
-            });
+            let beneath = self.rest.get(key);
+            let sign_in = match beneath {
+                Some(_) => None,
+                None => document.get(kb_id).and_then(sign_in_of),
+            };
+            let held = sign_in
+                .as_ref()
+                .and_then(session_of)
+                .map(|session| session.written());
+            // Only a sign-in `change` is given is renewed by what it says.
+            let renewed = sign_in.filter(|_| held.is_some());
+            let current = beneath.or(held);
             let next = change(current.as_deref());
             if next == current {
                 return (false, ());
             }
-            (self.put(document, key, kb_id, next.as_deref()), ())
+            (
+                self.put(document, key, kb_id, next.as_deref(), renewed.as_ref()),
+                (),
+            )
         });
     }
 

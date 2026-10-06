@@ -19,7 +19,7 @@ Then follow the **[Quick Start](docs/builder/QUICK-START.md)**: create a knowled
 - **[Operator docs](docs/operator/README.md)**: run a knowledge base, for yourself or for others
 - **[Demo knowledge bases](docs/KNOWLEDGE-BASES.md)**: start from one that already has content
 - **[Analyst docs](docs/analyst/README.md)**: work in a knowledge base, annotating, linking, and reviewing what agents propose
-- **[Builder docs](docs/builder/README.md)**: build an application, a script or an agent on the SDK, in TypeScript or Rust
+- **[Builder docs](docs/builder/README.md)**: build an application, a script or an agent on the SDK, in TypeScript, Rust or Python
 - **[Contributor docs](docs/contributor/README.md)**: change Semiont itself
 - **[Architecture](docs/architecture/README.md)**: how Semiont works inside
 - **[Protocol](docs/protocol/README.md)**: the eight verbs, the event bus, and the contract every SDK is held to

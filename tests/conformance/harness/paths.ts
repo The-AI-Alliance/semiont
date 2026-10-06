@@ -44,6 +44,10 @@ export interface SdkDrivers {
   exempt?: Readonly<Record<string, string>>;
 }
 
+/** The Python SDK, and the interpreter of its locked environment, which the suite's setup makes. */
+export const PYTHON_SDK = join(REPO_ROOT, 'packages/sdk-python');
+const PYTHON = join(PYTHON_SDK, '.venv/bin/python');
+
 /**
  * Each SDK's drivers. An SDK joins a layer of the suite by adding its line.
  * vitest.config.ts provides them as `sdkDrivers`.
@@ -56,6 +60,10 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   rust: {
     wire: [join(REPO_ROOT, 'target/release/semiont-wire-driver')],
     live: { command: [join(REPO_ROOT, 'target/release/semiont-live-driver')], tier: 'parity' },
+  },
+  python: {
+    wire: [PYTHON, join(PYTHON_SDK, 'conformance/wire.py')],
+    live: { command: [PYTHON, join(PYTHON_SDK, 'conformance/live.py')], tier: 'parity' },
   },
 };
 

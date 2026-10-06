@@ -2,7 +2,7 @@
 
 The Semiont SDKs are for collaborative **knowledge work** — humans and AI agents working as peers on a shared corpus across one or many machines. That collaboration shapes their design: live queries, progress streams, and cross-participant attention signals are all first-class, not data-API afterthoughts.
 
-So a client's methods do not all return the same kind of thing. Some are asked once and answered once. Others have values over time. Every SDK sorts its methods into the same seven shapes, and differs only in how its language says "later": Promises and RxJS Observables in TypeScript; futures, streams and `watch` receivers in Rust. This doc states the shapes first, then each language's form of them.
+So a client's methods do not all return the same kind of thing. Some are asked once and answered once. Others have values over time. Every SDK sorts its methods into the same seven shapes, and differs only in how its language says "later": Promises and RxJS Observables in TypeScript; futures, streams and `watch` receivers in Rust; coroutines, async iterators and `async with` in Python. This doc states the shapes first, then each language's form of them.
 
 If you only want to *use* the SDK, [Usage.md](./Usage.md) is the per-namespace tour. Read this if you're curious about the design, deciding whether to await a call or watch it, picking a return shape for a new namespace method, or trying to figure out which path to the bus is right for your use case.
 
@@ -16,20 +16,20 @@ Each SDK makes the same choice: the form that can be read over time is the primi
 
 Every namespace method returns exactly one of these. Which one is the method's row in [`specs/src/client/surface.json`](../../specs/src/client/surface.json), the table every SDK is held to: `lint:client-surface` fails a method whose signature is not its row's.
 
-| Shape | What it is | TypeScript | Rust |
-|---|---|---|---|
-| `promise` | Asked once, answered once: the value, or a failure with a code. | `Promise<T>` | `async fn … -> Result<T, SemiontError>` |
-| `stream` | A long-running operation: what it reports as it goes, then its final value. | `StreamObservable<T>` | `Running<T>` |
-| `upload` | An upload in flight: its progress, then the id of the resource created. | `UploadObservable` | `Upload` |
-| `cache` | A live query. Building it touches nothing; its one-shot read asks the service now. | `CacheObservable<T>` | `Cached<T>` |
-| `signal` | Fire-and-forget. Nothing is returned and nothing is awaited. | a method returning `void` | a plain `fn` |
-| `count` | A drive at the other participants: how many the gateway reached, or no count when it kept none. | `Promise<number \| undefined>` | `async fn … -> Result<Option<u64>, SemiontError>` |
-| `events` | The events of one channel of the client's own bus, from now on. | a property named `<method>$` | `Typed<C, BusFrames>` |
+| Shape | What it is | TypeScript | Rust | Python |
+|---|---|---|---|---|
+| `promise` | Asked once, answered once: the value, or a failure with a code. | `Promise<T>` | `async fn … -> Result<T, SemiontError>` | `async def … -> T`, raising a `SemiontError` |
+| `stream` | A long-running operation: what it reports as it goes, then its final value. | `StreamObservable<T>` | `Running<T>` | `Running[T]` |
+| `upload` | An upload in flight: its progress, then the id of the resource created. | `UploadObservable` | `Upload` | `Upload` |
+| `cache` | A live query. Building it touches nothing; its one-shot read asks the service now. | `CacheObservable<T>` | `Cached<T>` | `Cached[T]` |
+| `signal` | Fire-and-forget. Nothing is returned and nothing is awaited. | a method returning `void` | a plain `fn` | a plain `def` returning `None` |
+| `count` | A drive at the other participants: how many the gateway reached, or no count when it kept none. | `Promise<number \| undefined>` | `async fn … -> Result<Option<u64>, SemiontError>` | `async def … -> int \| None` |
+| `events` | The events of one channel of the client's own bus, from now on. | a property named `<method>$` | `Typed<C, BusFrames>` | `Typed[P]` |
 
 Three rules hold in every SDK:
 
 1. **A live query is never read by accident.** Building one touches nothing. Watching it gives its state: pending, ready or failed. A one-shot read is asked for by name, with `.fresh()`, so a cache read never silently becomes a round trip.
-2. **A long-running operation runs once.** Awaiting it gives the final value, reading it gives each report, and `.run()` gives both from one run. Rust enforces this, since the operation is consumed by value. TypeScript does not: awaiting and subscribing to the same instance starts it twice.
+2. **A long-running operation runs once.** Awaiting it gives the final value, reading it gives each report, and `.run()` gives both from one run. Rust enforces this, since the operation is consumed by value. Python refuses a second consumer when it runs, and has no `.run()`: reading gives each report and then the final value. TypeScript does not enforce it: awaiting and subscribing to the same instance starts it twice.
 3. **A signal is not a request, and a drive is not a signal.** A signal returns nothing. A drive says how many participants it reached, which is information and not an acknowledgement.
 
 ## In TypeScript
@@ -353,6 +353,18 @@ The Rust client has the same seven shapes, with no reactive library under them.
 
 The Rust README has [the table that maps each TypeScript shape to its Rust form](../../packages/sdk-rust/README.md#from-the-typescript-sdk), and [how each shape is used](../../packages/sdk-rust/README.md#what-a-method-returns).
 
+## In Python
+
+The Python client has the same seven shapes, on asyncio, with no reactive library under them.
+
+- **A long-running operation** is a `Running[T]`: `await` it for the final value, or read it with `async for` for each report and then the final value. It is consumed once.
+- **A live query** is a `Cached[T]`: held with `async with`, it gives its state as it changes, and holds its resource's scope meanwhile; `await query.fresh()` is one read. It is not awaited itself. A state is `Pending`, `Ready` or `Failed`, and a `match` that leaves one out does not type-check.
+- **State** that TypeScript reads from a `BehaviorSubject` is a `Watched[T]`: `.value` now, and `async for` each value after it. A reader that falls behind is given the latest.
+- **Events** are an async iterator with a queue per reader, so a reader that falls behind loses nothing.
+- **Composition** is the language's own: `async for`, `asyncio.TaskGroup`, `asyncio.timeout`. The package brings no operator library.
+
+The Python README shows [each shape at the call site](../../packages/sdk-python/README.md#the-client), and [a watched query](../../packages/sdk-python/README.md#live-queries).
+
 ## See also
 
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples
@@ -363,3 +375,4 @@ The Rust README has [the table that maps each TypeScript shape to its Rust form]
 - [docs/protocol/CHANNELS.md](../protocol/CHANNELS.md) — channel inventory: persisted events, ephemeral signals, correlation responses, resource broadcasts
 - [docs/protocol/TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md) — the `ITransport` behavioral guarantees underlying every namespace method, including `errors$`
 - [The Rust SDK's README](../../packages/sdk-rust/README.md) — the Rust form of each shape
+- [The Python SDK's README](../../packages/sdk-python/README.md) — the Python form of each shape

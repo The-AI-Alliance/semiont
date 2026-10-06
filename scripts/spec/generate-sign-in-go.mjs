@@ -9,15 +9,16 @@
 // The launcher and an application on the Rust SDK both read and write
 // <stateDir>/tokens.json, so the entry's shape is the contract's to state.
 //
-// The schema is flat: every property is a string, some of them a date-time.
-// Anything else is refused here, by name, rather than rendered as a guess.
+// The reading of the schema is sign-in-schema.mjs's, shared with the Python
+// SDK's generator.
 //
 // --check diffs without writing (the CI drift gate).
 
-import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { goComment, writeOrCheck } from './go-source.mjs';
+import { goComment } from './go-source.mjs';
+import { writeOrCheck } from './committed-source.mjs';
+import { readSignInSchema } from './sign-in-schema.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const SCHEMA = resolve(ROOT, 'specs/src/sign-in-store/SignIn.json');
@@ -29,47 +30,18 @@ function refuse(message) {
   process.exit(1);
 }
 
-const schema = JSON.parse(readFileSync(SCHEMA, 'utf8'));
-const stated = (value) => typeof value === 'string' && value !== '';
+const schema = readSignInSchema(SCHEMA, refuse);
+const { required } = schema;
 
-for (const keyword of Object.keys(schema)) {
-  if (!['title', 'type', 'description', 'properties', 'required'].includes(keyword)) {
-    refuse(`uses \`${keyword}\`, which this generator does not render`);
-  }
-}
-if (schema.type !== 'object') refuse('is not an object schema');
-if (!stated(schema.title) || !/^[A-Z][A-Za-z]*$/.test(schema.title)) refuse('has no title that names a Go type');
-if (!stated(schema.description)) refuse('has no description');
-const properties = Object.entries(schema.properties ?? {});
-if (properties.length === 0) refuse('states no properties');
-const required = schema.required ?? [];
-if (!Array.isArray(required) || required.length === 0) refuse('requires nothing');
-for (const name of required) {
-  if (!Object.hasOwn(schema.properties, name)) refuse(`requires \`${name}\`, which is not a property`);
-}
-
-const fields = properties.map(([name, property]) => {
-  if (!/^[a-z][A-Za-z]*$/.test(name)) refuse(`\`${name}\` is not a camelCase property name`);
-  for (const keyword of Object.keys(property)) {
-    if (!['type', 'format', 'description'].includes(keyword)) {
-      refuse(`\`${name}\` uses \`${keyword}\`, which this generator does not render`);
-    }
-  }
-  if (property.type !== 'string') refuse(`\`${name}\` is not a string`);
-  if (property.format !== undefined && property.format !== 'date-time') {
-    refuse(`\`${name}\` has the format ${JSON.stringify(property.format)}; only date-time is rendered`);
-  }
-  if (!stated(property.description)) refuse(`\`${name}\` has no description`);
-  const isTime = property.format === 'date-time';
+const fields = schema.fields.map(({ name, description, isTime, required: must }) => {
   // An absent optional property is the zero value: "" for a string, the zero
   // time for a date-time. Neither is written.
-  const omit = required.includes(name) ? '' : isTime ? ',omitzero' : ',omitempty';
+  const omit = must ? '' : isTime ? ',omitzero' : ',omitempty';
   return {
     usesTime: isTime,
-    text: [
-      goComment(property.description, '\t'),
-      `\t${name[0].toUpperCase()}${name.slice(1)} ${isTime ? 'time.Time' : 'string'} \`json:"${name}${omit}"\``,
-    ].join('\n'),
+    text: [goComment(description, '\t'), `\t${name[0].toUpperCase()}${name.slice(1)} ${isTime ? 'time.Time' : 'string'} \`json:"${name}${omit}"\``].join(
+      '\n',
+    ),
   };
 });
 
@@ -95,4 +67,4 @@ var ${requiredName} = []string{${required.map((name) => JSON.stringify(name)).jo
 `;
 
 writeOrCheck(ROOT, OUT, text, CHECK);
-console.log(`properties: ${properties.length}, required: ${required.length}`);
+console.log(`properties: ${schema.fields.length}, required: ${required.length}`);

@@ -154,6 +154,15 @@ jobs:
             exit 1
           fi
 
+      # What publish-crates.yml does before it uploads anything, done here on
+      # every change: each published crate packages, and builds from its
+      # packaged form against the others. A release is not the first place a
+      # crate that does not package is seen. A version already on crates.io is
+      # a warning to a dry run and not a refusal, so this holds on main between
+      # a release and the bump after it.
+      - name: Package and build every published crate
+        run: cargo publish --dry-run --workspace --locked
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -413,8 +422,19 @@ jobs:
           sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
           nats-server --version
 
+      # The Python driver runs the SDK from its locked environment, which the
+      # suite's setup makes with uv.
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
       # Each SDK's drivers, put through the corpus against the gateway; the
-      # suite type-checks the TypeScript drivers before it starts.
+      # suite type-checks the TypeScript drivers and makes the Python SDK's
+      # environment before it starts.
       - name: Run the SDK conformance suite
         run: |
           cd tests/conformance
@@ -422,6 +442,98 @@ jobs:
           npm run test:sdk
         env:
           CI: true
+
+  # The Python SDK: both type checkers, strict, on the oldest Python it
+  # supports, where a newer one would let through what that one refuses; its
+  # tests on every Python it supports. tests/refusals is checked with the rest:
+  # a program there that starts to type-check fails the checker that let it.
+  test-sdk-python:
+    name: Python SDK
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13', '3.14']
+
+    defaults:
+      run:
+        working-directory: packages/sdk-python
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: Type-check with mypy (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run mypy
+
+      # pyright runs on Node, which the runner has.
+      - name: Type-check with pyright (strict)
+        if: matrix.python-version == '3.12'
+        run: uv run pyright
+
+      # The sign-in store takes its lock one way on Windows and another
+      # everywhere else: both checkers read the package as Windows does too.
+      - name: Type-check as Windows
+        if: matrix.python-version == '3.12'
+        run: |
+          uv run mypy --platform win32
+          uv run pyright --pythonplatform Windows
+
+      - name: Lint and check formatting
+        if: matrix.python-version == '3.12'
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+
+      - name: Run the tests
+        run: uv run pytest
+
+      # What publish-pypi.yml uploads, built and checked here on every change:
+      # a release is not the first place a packaging break is seen.
+      - name: Build the distributions and check them
+        if: matrix.python-version == '3.12'
+        run: ../../scripts/ci/build-python-sdk.sh
+
+  # The sign-in store on Windows: the launcher keeps its sign-ins there too,
+  # in another directory and under another lock (specs/src/sign-in-store).
+  # These are the tests of what differs by system.
+  test-sdk-python-windows:
+    name: Python SDK (sign-in store, Windows)
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        working-directory: packages/sdk-python
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: Test the sign-in store
+        run: uv run pytest tests/test_sign_in_store.py tests/test_state_dir.py
 
   test-comprehensive:
     name: Comprehensive Test Suite
@@ -563,6 +675,25 @@ jobs:
           node scripts/bus/generate-ts.mjs --check
           node scripts/bus/generate-go.mjs --check
 
+      # Authority: specs/src → the Python SDK's committed modules
+      # (packages/sdk-python/src/semiont): the bus vocabulary, the kinds of id,
+      # the error codes, the client's timing, its refresh table, the telemetry
+      # it exports, the clients it signs in as, the entry of the sign-in store
+      # and the media types. TypeScript and Rust build theirs from the same files at build
+      # time; Python has no build, so its are committed, and are what can go
+      # stale.
+      - name: Spec tables vs the Python SDK's generated modules
+        run: |
+          node scripts/bus/generate-python.mjs --check
+          node scripts/spec/generate-identifiers-python.mjs --check
+          node scripts/spec/generate-error-codes-python.mjs --check
+          node scripts/spec/generate-client-timing-python.mjs --check
+          node scripts/spec/generate-cache-refresh-python.mjs --check
+          node scripts/spec/generate-sdk-telemetry-python.mjs --check
+          node scripts/spec/generate-oauth-clients-python.mjs --check
+          node scripts/spec/generate-sign-in-python.mjs --check
+          node scripts/spec/generate-media-types-python.mjs --check
+
       # Authority: specs/src/media-types/registry.json → Go
       # (packages/sdk-go/mediatypes). The TypeScript and Rust tables are built
       # from the same registry at build time; the Go one is committed, so it
@@ -604,6 +735,22 @@ jobs:
       # independent oracle — spec says N schemas, Go must have N.
       - name: Generated Go client covers every schema
         run: node scripts/ci/check-go-schema-coverage.mjs
+
+      # Authority: specs/openapi.json → packages/sdk-python/src/semiont/types.py.
+      # Deterministic because the generator and the formatter are pinned in the
+      # package's lockfile, and run on the Python the package's floor names.
+      # Its independent oracle is the package's own suite, which holds the
+      # generated models to the spec's schemas and to the kinds of id.
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: OpenAPI spec vs the Python SDK's generated models
+        run: uv run --project packages/sdk-python --locked python packages/sdk-python/scripts/generate_models.py --check
 
   test-launcher:
     name: Launcher Tests (Go)

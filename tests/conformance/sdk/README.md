@@ -330,7 +330,8 @@ to what it asks, so an exemption that has stopped being true fails, and a
 driver that answers `unsupported` to a case it is not exempt from fails that
 case.
 
-No SDK names one: every driver runs every wire case.
+No SDK names one: the TypeScript, Rust and Python drivers each run every wire
+case. An SDK that arrives in steps names what it has not reached.
 
 ## Cases that restate a table
 
@@ -353,11 +354,19 @@ for the live layer. Rust's are the two binaries of the crate
 [semiont-wire-driver](../../../packages/http-transport-rust/conformance/src/bin/semiont-wire-driver.rs)
 and
 [semiont-live-driver](../../../packages/http-transport-rust/conformance/src/bin/semiont-live-driver.rs).
+Python's are
+[packages/sdk-python/conformance/wire.py](../../../packages/sdk-python/conformance/wire.py)
+and
+[packages/sdk-python/conformance/live.py](../../../packages/sdk-python/conformance/live.py),
+run by the interpreter of the SDK's locked environment
+(`packages/sdk-python/.venv`), which the suite's setup makes with
+`uv sync --locked --no-dev` before any case runs.
 
 ## Running it
 
 It needs a built gateway and the Rust drivers, `nats-server` (2.10 or later)
-on `PATH`, and the TypeScript SDK built:
+on `PATH`, the TypeScript SDK built, and, for the Python drivers, `uv` and
+Python 3.12 or later on `PATH`:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-conformance-drivers

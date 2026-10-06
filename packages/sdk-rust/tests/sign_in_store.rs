@@ -131,6 +131,21 @@ fn script(access: &str, refresh: &str) -> StoredSession {
     }
 }
 
+/// Renew a knowledge base's session as a client does: its new tokens, written
+/// against what is stored.
+fn renew(store: &SignInStore, kb_id: &str, access: &str, refresh: &str) {
+    store.update(&session_key(kb_id), &mut |current| {
+        StoredSession::read(current?).map(|current| {
+            StoredSession {
+                access: access.to_owned(),
+                refresh: refresh.to_owned(),
+                ..current
+            }
+            .written()
+        })
+    });
+}
+
 #[test]
 fn a_stacks_sign_in_is_the_session_of_the_knowledge_base_with_its_key() {
     let home = Home::holding(json!({
@@ -190,9 +205,14 @@ fn a_renewal_is_written_as_the_launcher_keeps_it_and_keeps_what_the_sign_in_lear
         "a-later-release": { "of": "something else" },
     }));
     let store = home.store();
-    let renewed = jwt(json!({ "exp": 4_102_444_799u64 }));
+    // The renewed token names another address and another issuer.
+    let renewed = jwt(json!({
+        "iss": "https://elsewhere.test/realms/semiont",
+        "email": "alice@elsewhere.example",
+        "exp": 4_102_444_799u64,
+    }));
 
-    store_session(&store, "local", &script(&renewed, "r1-rotated"));
+    renew(&store, "local", &renewed, "r1-rotated");
 
     let document = home.document();
     let entry = &document["local"];
@@ -289,6 +309,27 @@ fn a_new_sign_in_states_who_signed_in_and_at_which_issuer() {
 }
 
 #[test]
+fn a_sign_in_over_another_persons_states_who_signed_in_now_and_at_which_issuer() {
+    let home = Home::new();
+    let store = home.store();
+    let alices = jwt(json!({ "iss": ISSUER, "email": "alice@example.org" }));
+    store_session(&store, "local", &script(&alices, "r-alice"));
+    assert_eq!(home.document()["local"]["email"], "alice@example.org");
+
+    let elsewhere = "https://elsewhere.test/realms/semiont";
+    let bobs = jwt(json!({ "iss": elsewhere, "email": "bob@example.org" }));
+    store_session(&store, "local", &script(&bobs, "r-bob"));
+
+    let document = home.document();
+    let entry = &document["local"];
+    assert_eq!(entry["token"], bobs);
+    assert_eq!(entry["refreshToken"], "r-bob");
+    assert_eq!(entry["email"], "bob@example.org");
+    assert_eq!(entry["issuer"], elsewhere);
+    assert!(home.failures().is_empty(), "{:?}", home.failures());
+}
+
+#[test]
 fn a_session_whose_token_does_not_say_who_or_which_issuer_is_not_kept_and_that_is_said() {
     let home = Home::holding(json!({ "codespace:owner/name": launchers("a2", "r2") }));
     let store = home.store();
@@ -332,11 +373,16 @@ fn a_session_of_another_client_is_kept_beneath_and_the_launchers_entry_is_left()
     assert_eq!(stored_session(home.rest.as_ref(), "local"), Some(browsers));
     assert_eq!(home.document()["local"], launchers("a1", "r1"));
 
-    // A session of the script client replaces it, in the file.
-    store_session(&store, "local", &script("a2", "r2"));
-    assert_eq!(stored_session(&store, "local"), Some(script("a2", "r2")));
+    // A sign-in as the script client replaces it, in the file.
+    let signed_in = issued("a2");
+    store_session(&store, "local", &script(&signed_in, "r2"));
+    assert_eq!(
+        stored_session(&store, "local"),
+        Some(script(&signed_in, "r2"))
+    );
     assert_eq!(home.rest.get(&session_key("local")), None);
-    assert_eq!(home.document()["local"]["token"], "a2");
+    assert_eq!(home.document()["local"]["token"], signed_in);
+    assert_eq!(home.document()["local"]["email"], "bob@example.org");
 }
 
 #[test]

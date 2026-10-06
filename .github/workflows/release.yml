@@ -131,6 +131,22 @@ jobs:
           gh workflow run publish-crates.yml --ref "${{ needs.tag.outputs.tag }}"
           echo "Triggered publish-crates.yml at ${{ needs.tag.outputs.tag }}"
 
+  trigger-pypi:
+    name: Trigger PyPI publish (runs separately)
+    needs: tag
+    if: inputs.dry_run != true
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Trigger PyPI publish workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run publish-pypi.yml --ref "${{ needs.tag.outputs.tag }}" --field stable_release=true
+          echo "Triggered publish-pypi.yml at ${{ needs.tag.outputs.tag }} (stable release)"
+
   desktop:
     needs: tag
     if: inputs.dry_run != true && inputs.desktop == true

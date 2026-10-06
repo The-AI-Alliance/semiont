@@ -17,7 +17,9 @@
  *                   for its workspace, whose one lockfile Dependabot updates
  *   rust-toolchain  rust-toolchain.toml, rust-toolchain
  *   docker          a file whose name contains "dockerfile", in any case
- *   pip             requirements*.txt, pyproject.toml, Pipfile, setup.py
+ *   pip             requirements*.txt, pyproject.toml, Pipfile, setup.py; a
+ *                   pyproject.toml beside a uv.lock is uv's, not pip's
+ *   uv              uv.lock, which Dependabot updates with its pyproject.toml
  *   github-actions  .github/workflows/*.yml, from "/"
  *
  * A kind of manifest not listed here is not seen: add its ecosystem when the
@@ -32,13 +34,21 @@ import { repositoryFiles } from './repository-files.mjs';
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const CONFIG = '.github/dependabot.yml';
 
+const tracked = repositoryFiles(ROOT);
+
+/** The directories whose Python project uv locks. */
+const lockedByUv = new Set(tracked.filter((file) => basename(file) === 'uv.lock').map((file) => dirname(file)));
+
 const MANIFESTS = {
   npm: (file) => basename(file) === 'package-lock.json',
   gomod: (file) => basename(file) === 'go.mod',
   cargo: (file) => basename(file) === 'Cargo.toml',
   'rust-toolchain': (file) => ['rust-toolchain.toml', 'rust-toolchain'].includes(basename(file)),
   docker: (file) => /dockerfile/i.test(basename(file)),
-  pip: (file) => /^requirements.*\.txt$/.test(basename(file)) || ['pyproject.toml', 'Pipfile', 'setup.py'].includes(basename(file)),
+  pip: (file) =>
+    !lockedByUv.has(dirname(file)) &&
+    (/^requirements.*\.txt$/.test(basename(file)) || ['pyproject.toml', 'Pipfile', 'setup.py'].includes(basename(file))),
+  uv: (file) => basename(file) === 'uv.lock',
   'github-actions': (file) => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(file),
 };
 
@@ -55,8 +65,6 @@ function matcher(directory) {
   const pattern = normal.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*');
   return { directory: normal, test: (d) => new RegExp(`^${pattern}$`).test(d) };
 }
-
-const tracked = repositoryFiles(ROOT);
 
 /** "ecosystem directory" → the manifests there. */
 const manifests = new Map();
