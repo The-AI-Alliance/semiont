@@ -24,7 +24,20 @@ from semiont.timing import BUS_REQUEST_TIMEOUT_MS
 from semiont.transport import ConnectionState, Transport
 from semiont.watched import NeverReached, reached
 
-__all__ = ["request"]
+__all__ = ["reply_channels_for", "request"]
+
+
+def reply_channels_for(*operations: AnyOperation) -> tuple[str, ...]:
+    """The result and failure channels of `operations`, each once.
+
+    What a process that awaits only those operations names as its transport's
+    channels: it hears its replies and nothing else.
+    """
+    replies: dict[str, None] = {}
+    for operation in operations:
+        replies[operation.result.name] = None
+        replies[operation.failure.name] = None
+    return tuple(replies)
 
 
 def _settled(state: ConnectionState) -> bool:

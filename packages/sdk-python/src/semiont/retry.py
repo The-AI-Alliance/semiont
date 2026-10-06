@@ -18,6 +18,7 @@ from semiont.errors import SemiontError
 
 __all__ = [
     "BOOT",
+    "REFRESH",
     "RETRY_RULES",
     "TRANSPORT",
     "RetryFacts",
@@ -88,7 +89,19 @@ the request was rejected, not processed, and a renewed token makes it valid.
 Every other retryable status applies only to a method that cannot cause a
 second effect, because a POST answered `502` may already have been processed."""
 
-RETRY_RULES: Final[Mapping[str, RetryRule]] = MappingProxyType({rule.name: rule for rule in (BOOT, TRANSPORT)})
+
+def _refresh(facts: RetryFacts) -> bool:
+    return facts.status is None or facts.status in (408, 429) or facts.status >= 500
+
+
+REFRESH: Final = RetryRule("refresh", _refresh)
+"""Exchanging a refresh token at its issuer. The issuer's answer is the verdict
+and its absence never is: no response at all, or one saying "not now", is
+transient; a refused grant, and any fault this rule does not name, is
+terminal, because trying again only delays a sign-in the person must perform
+anyway."""
+
+RETRY_RULES: Final[Mapping[str, RetryRule]] = MappingProxyType({rule.name: rule for rule in (BOOT, REFRESH, TRANSPORT)})
 """Every rule this SDK keeps, by its name in the table."""
 
 _WHOLE_SECONDS: Final = re.compile(r"[0-9]+", re.ASCII)

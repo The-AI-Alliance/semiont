@@ -2,10 +2,10 @@
 
 One standalone contract: `<stateDir>/tokens.json`, where the semiont launcher
 (Go, `apps/launcher`) keeps the session of each stack a person has signed in
-to, and where an application built on the Rust SDK finds it. One sign-in
-serves the launcher's verbs and that application.
+to, and where an application built on the Rust SDK or the Python SDK finds
+it. One sign-in serves the launcher's verbs and that application.
 
-It is a contract because two programs in two languages read and write the
+It is a contract because programs in three languages read and write the
 file. Like [discovery](../discovery/README.md), its schema refs nothing
 outside this directory.
 
@@ -49,9 +49,9 @@ file.
 
 ## Writing it
 
-Every change to the document is a read, a change and a write, and two
-programs make them: the launcher's `login`, `logout` and each verb's
-renewal, and an SDK session's renewal and sign-out. Each holds an exclusive
+Every change to the document is a read, a change and a write, and more than
+one program makes them: the launcher's `login`, `logout` and each verb's
+renewal, and an SDK session's sign-in, renewal and sign-out. Each holds an exclusive
 lock on `<stateDir>/tokens.lock` (`flock`; on Windows, `LockFileEx`) from
 before its read until after its rename. Without it, two renewals at once would each write
 the document they read, and one stack's new tokens would be lost under the
@@ -60,6 +60,10 @@ other's.
 A reader that only reads takes no lock: the rename makes each document
 whole.
 
-Both writers take the lock: the Rust SDK (`semiont::sign_in_store`) and the
-launcher (`apps/launcher/internal/launcher/tokens.go`). Each generates its
-entry from `SignIn.json` and runs every case of `cases.json`.
+Every writer takes the lock: the launcher
+(`apps/launcher/internal/launcher/tokens.go`), the Rust SDK
+(`semiont::sign_in_store`) and the Python SDK (`semiont.sign_in_store`). On
+Windows the lock is on one byte of the lock file, far past anything the file
+holds (`OffsetHigh: 0x40000000`), and a writer that locks the whole file
+holds that byte too. Each generates its entry from `SignIn.json` and runs
+every case of `cases.json`.

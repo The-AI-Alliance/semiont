@@ -21,7 +21,6 @@ STATED_WAITS = objects(TABLE["retryAfter"], "retryAfter")
 # The rules of the table this SDK does not keep, each with what it waits for.
 NOT_KEPT = {
     "job": "a job's retry budget is its worker's, which is not this SDK's",
-    "refresh": "the session renews a token",
 }
 
 

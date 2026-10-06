@@ -15,11 +15,13 @@ from semiont.error_codes import (
     BUS_REQUEST_CODE_BY_WIRE_CODE,
     UNRECOGNIZED_FAILURE_CODE,
     BusRequestErrorCode,
+    SemiontSessionErrorCode,
+    SignInErrorCode,
     TransportErrorCode,
     transport_error_code_for_status,
 )
 
-__all__ = ["BusRequestError", "SemiontError", "TransportError"]
+__all__ = ["BusRequestError", "SemiontError", "SessionError", "SignInError", "TransportError"]
 
 
 class SemiontError(Exception, ABC):
@@ -91,3 +93,37 @@ class BusRequestError(SemiontError):
             BUS_REQUEST_CODE_BY_WIRE_CODE.get(stated, UNRECOGNIZED_FAILURE_CODE) if isinstance(stated, str) else UNRECOGNIZED_FAILURE_CODE
         )
         return cls(code, said if isinstance(said, str) else "Bus request rejected", failure=failure)
+
+
+@final
+class SignInError(SemiontError):
+    """A sign-in at the issuer a knowledge base trusts, or a renewal there, that did not succeed.
+
+    One that carries a status is the issuer's answer. One that carries none
+    got no answer: a refusal and an outage are different events.
+    """
+
+    def __init__(self, code: SignInErrorCode, message: str, *, status: int | None = None) -> None:
+        super().__init__(message, status=status)
+        self._code: Final = code
+
+    @property
+    @override
+    def code(self) -> SignInErrorCode:
+        return self._code
+
+
+@final
+class SessionError(SemiontError):
+    """A failure that makes a session itself unusable. A request's own failure stays with its caller."""
+
+    def __init__(self, code: SemiontSessionErrorCode, message: str, *, kb_id: str) -> None:
+        super().__init__(message)
+        self._code: Final = code
+        self.kb_id: Final = kb_id
+        """The knowledge base the session was with."""
+
+    @property
+    @override
+    def code(self) -> SemiontSessionErrorCode:
+        return self._code

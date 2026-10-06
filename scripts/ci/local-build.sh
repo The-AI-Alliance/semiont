@@ -320,7 +320,7 @@ banner "PYTHON SDK DRIFT GATE"
 
 step "Checking the Python SDK's generated tables against specs/src..."
 if $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace node:24-alpine \
-  sh -c 'node scripts/bus/generate-python.mjs --check && node scripts/spec/generate-identifiers-python.mjs --check && node scripts/spec/generate-error-codes-python.mjs --check && node scripts/spec/generate-client-timing-python.mjs --check && node scripts/spec/generate-cache-refresh-python.mjs --check && node scripts/spec/generate-sdk-telemetry-python.mjs --check'; then
+  sh -c 'node scripts/bus/generate-python.mjs --check && node scripts/spec/generate-identifiers-python.mjs --check && node scripts/spec/generate-error-codes-python.mjs --check && node scripts/spec/generate-client-timing-python.mjs --check && node scripts/spec/generate-cache-refresh-python.mjs --check && node scripts/spec/generate-sdk-telemetry-python.mjs --check && node scripts/spec/generate-oauth-clients-python.mjs --check && node scripts/spec/generate-sign-in-python.mjs --check'; then
   ok "the Python SDK's generated tables match specs/src"
 else
   fail "The Python SDK's generated tables are STALE (or were hand-edited) — they must match specs/src."

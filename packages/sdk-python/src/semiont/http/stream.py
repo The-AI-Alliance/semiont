@@ -26,6 +26,7 @@ one task, in order, so the state has one writer.
 import asyncio
 import logging
 from collections import OrderedDict
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Final, final
 
@@ -36,6 +37,7 @@ from semiont import telemetry
 from semiont.channels import RESOURCE_SCOPED_CHANNELS
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast
+from semiont.http.exchange import TokenRefresher
 from semiont.http.sse import SseParser
 from semiont.identifiers import ResourceId
 from semiont.retry import RetryPolicy, equal_jitter, retry_after_ms
@@ -184,11 +186,19 @@ class _TokenChanged:
 
 @final
 @dataclass(frozen=True, slots=True)
+class _Renewed:
+    """The refresher answered."""
+
+    keep_previous: bool
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class _Stop:
     """The transport is closing."""
 
 
-type _Report = _Opened | _Framed | _Refused | _Ended | _ScopeTaken | _ScopeLetGo | _TokenChanged
+type _Report = _Opened | _Framed | _Refused | _Ended | _ScopeTaken | _ScopeLetGo | _TokenChanged | _Renewed
 
 
 @final
@@ -213,6 +223,7 @@ class Stream:
         base_url: str,
         http: httpx.AsyncClient,
         token: Watched[str | None],
+        refresher: TokenRefresher | None,
         client_id: str,
         channels: tuple[str, ...],
         timing: Timing,
@@ -223,6 +234,7 @@ class Stream:
         self._base_url = base_url
         self._http = http
         self._token = token
+        self._refresher = refresher
         self._client_id = client_id
         self._global = channels
         self._timing = timing
@@ -258,6 +270,8 @@ class Stream:
         self._refused_token: str | None = None
         """The token the gateway refused: never sent again."""
         self._awaiting_credential = False
+        self._refresher_asked = False
+        """Whether the refresher has been asked since the stream was last open: it is asked once per outage."""
 
         self._retry_at: tuple[float, bool] | None = None
         self._debounce_at: float | None = None
@@ -340,6 +354,11 @@ class Stream:
                     self._lazy_at = now + self._timing.lazy_remove_ms / 1000
             case _TokenChanged():
                 self._token_changed(tasks, now)
+            case _Renewed(keep_previous):
+                # Whatever it answered, it has fed the token what it could: a
+                # connect now sends the token there is, or finds none it may
+                # send and waits for another.
+                self._schedule_retry(0, keep_previous, now)
 
     async def _watch_token(self) -> None:
         async for _ in self._token:
@@ -462,6 +481,7 @@ class Stream:
         self._live = conn
         self._transition("open", now)
         self._failed_connects = 0
+        self._refresher_asked = False
         self._settle_connect(tasks, conn, True, now)
 
     def _framed(self, conn: int, event_id: str | None, data: str) -> None:
@@ -506,13 +526,18 @@ class Stream:
         self._superseded.discard(conn)
         if error.status == 401 and self._running and not superseded:
             # Sending this token again gets the same answer, so it is not sent
-            # again: the client waits for a different one.
+            # again: the client waits for a different one, and asks its
+            # refresher for one once per outage.
             self._refused_token = connection.token
             self._failed_connects = 0
             if self._live is None:
                 self._transition("unauthenticated", now)
-            self._awaiting_credential = True
-            self._schedule_retry(self._timing.reconnect_ms, connection.keep_previous, now)
+            if self._refresher is not None and not self._refresher_asked:
+                self._refresher_asked = True
+                tasks.create_task(self._ask_refresher(self._refresher, connection.keep_previous))
+            else:
+                self._awaiting_credential = True
+                self._schedule_retry(self._timing.reconnect_ms, connection.keep_previous, now)
             return
         self._dropped_or_failed(conn, superseded, error.retry_after_ms or 0, now)
 
@@ -542,6 +567,11 @@ class Stream:
             self._transition("connecting", now)
             return
         self._schedule_retry(max(self._backoff_ms(), stated_wait_ms), False, now)
+
+    async def _ask_refresher(self, refresher: TokenRefresher, keep_previous: bool) -> None:
+        with suppress(SemiontError):
+            await refresher()
+        self._reports.put_nowait(_Renewed(keep_previous))
 
     def _token_changed(self, tasks: asyncio.TaskGroup, now: float) -> None:
         if not self._running:

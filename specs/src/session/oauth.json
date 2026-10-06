@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for how a Semiont client presents itself to the issuer a knowledge base trusts. The realm registers these clients (the launcher writes the registration), and every SDK and the launcher sign in as them: a client id restated in each language is a sign-in that fails in one of them the day the registration changes. TypeScript: scripts/spec/generate-oauth-clients.mjs writes packages/core/src/generated/oauth-clients.ts. Rust: packages/sdk-rust/build.rs. Go, for the launcher: scripts/spec/generate-oauth-clients-go.mjs writes apps/launcher/internal/launcher/oauth_clients_gen.go.",
+  "$comment": "AUTHORITY for how a Semiont client presents itself to the issuer a knowledge base trusts. The realm registers these clients (the launcher writes the registration), and every SDK and the launcher sign in as them: a client id restated in each language is a sign-in that fails in one of them the day the registration changes. TypeScript: scripts/spec/generate-oauth-clients.mjs writes packages/core/src/generated/oauth-clients.ts. Rust: packages/sdk-rust/build.rs. Python: scripts/spec/generate-oauth-clients-python.mjs writes packages/sdk-python/src/semiont/oauth_clients.py. Go, for the launcher: scripts/spec/generate-oauth-clients-go.mjs writes apps/launcher/internal/launcher/oauth_clients_gen.go.",
   "clients": [
     {
       "name": "browser",

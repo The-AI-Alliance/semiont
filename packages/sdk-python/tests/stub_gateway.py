@@ -86,6 +86,7 @@ class StubGateway:
         self.closed_by_client = asyncio.Event()
         """Set when a connection the gateway was holding a request on is closed from the other end."""
         self._streams: list[asyncio.StreamWriter] = []
+        self._connections: set[asyncio.StreamWriter] = set()
         self._streaming: Variable[int] = Variable(0)
         self._arrived: Variable[int] = Variable(0)
         self._leaving = asyncio.Event()
@@ -102,6 +103,9 @@ class StubGateway:
         self.drop()
         if self._server is not None:
             self._server.close()
+            # Whatever a client still holds open is closed from this end: leaving waits for nobody.
+            for connection in list(self._connections):
+                connection.close()
             await self._server.wait_closed()
 
     def of(self, method: str, path: str) -> list[Asked]:
@@ -162,6 +166,7 @@ class StubGateway:
         return NOT_FOUND
 
     async def _connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        self._connections.add(writer)
         try:
             while request_line := await reader.readline():
                 method, path = request_line.decode().split(" ")[:2]
@@ -209,4 +214,5 @@ class StubGateway:
         except (ConnectionError, asyncio.IncompleteReadError):
             pass
         finally:
+            self._connections.discard(writer)
             writer.close()

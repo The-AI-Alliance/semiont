@@ -474,6 +474,14 @@ jobs:
         if: matrix.python-version == '3.12'
         run: uv run pyright
 
+      # The sign-in store takes its lock one way on Windows and another
+      # everywhere else: both checkers read the package as Windows does too.
+      - name: Type-check as Windows
+        if: matrix.python-version == '3.12'
+        run: |
+          uv run mypy --platform win32
+          uv run pyright --pythonplatform Windows
+
       - name: Lint and check formatting
         if: matrix.python-version == '3.12'
         run: |
@@ -482,6 +490,35 @@ jobs:
 
       - name: Run the tests
         run: uv run pytest
+
+  # The sign-in store on Windows: the launcher keeps its sign-ins there too,
+  # in another directory and under another lock (specs/src/sign-in-store).
+  # These are the tests of what differs by system.
+  test-sdk-python-windows:
+    name: Python SDK (sign-in store, Windows)
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        working-directory: packages/sdk-python
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Install the locked environment
+        run: uv sync --locked
+
+      - name: Test the sign-in store
+        run: uv run pytest tests/test_sign_in_store.py tests/test_state_dir.py
 
   test-comprehensive:
     name: Comprehensive Test Suite
@@ -625,10 +662,11 @@ jobs:
 
       # Authority: specs/src → the Python SDK's committed modules
       # (packages/sdk-python/src/semiont): the bus vocabulary, the kinds of id,
-      # the error codes, the client's timing, its refresh table and the
-      # telemetry it exports. TypeScript and Rust build theirs from the same
-      # files at build time; Python has no build, so its are committed, and are
-      # what can go stale.
+      # the error codes, the client's timing, its refresh table, the telemetry
+      # it exports, the clients it signs in as and the entry of the sign-in
+      # store. TypeScript and Rust build theirs from the same files at build
+      # time; Python has no build, so its are committed, and are what can go
+      # stale.
       - name: Spec tables vs the Python SDK's generated modules
         run: |
           node scripts/bus/generate-python.mjs --check
@@ -637,6 +675,8 @@ jobs:
           node scripts/spec/generate-client-timing-python.mjs --check
           node scripts/spec/generate-cache-refresh-python.mjs --check
           node scripts/spec/generate-sdk-telemetry-python.mjs --check
+          node scripts/spec/generate-oauth-clients-python.mjs --check
+          node scripts/spec/generate-sign-in-python.mjs --check
 
       # Authority: specs/src/media-types/registry.json → Go
       # (packages/sdk-go/mediatypes). The TypeScript and Rust tables are built

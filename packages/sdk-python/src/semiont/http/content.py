@@ -110,14 +110,32 @@ class _Form:
 
 
 @final
-class _Sending:
-    """An upload's body as it is sent: each piece reported as it is handed to the connection."""
+class _Progress:
+    """How much of an upload has been reported sent, over every sending of it.
 
-    def __init__(self, form: _Form, report: Callable[[UploadProgress], None]) -> None:
-        self._pieces = iter(form.pieces())
-        self._total = form.size
-        self._sent = 0
+    A sending that repeats an earlier one, as the second attempt of a refused
+    upload does, reports only what goes past it: progress never goes back.
+    """
+
+    def __init__(self, total: int, report: Callable[[UploadProgress], None]) -> None:
+        self._total = total
         self._report = report
+        self._reported = 0
+
+    def sent(self, so_far: int) -> None:
+        if so_far > self._reported:
+            self._reported = so_far
+            self._report(UploadProgress(bytes_uploaded=so_far, total_bytes=self._total))
+
+
+@final
+class _Sending:
+    """An upload's body as it is sent once: each piece reported as it is handed to the connection."""
+
+    def __init__(self, form: _Form, progress: _Progress) -> None:
+        self._pieces = iter(form.pieces())
+        self._sent = 0
+        self._progress = progress
 
     def __aiter__(self) -> Self:
         return self
@@ -127,7 +145,7 @@ class _Sending:
         if piece is None:
             raise StopAsyncIteration
         self._sent += len(piece)
-        self._report(UploadProgress(bytes_uploaded=self._sent, total_bytes=self._total))
+        self._progress.sent(self._sent)
         return bytes(piece)
 
 
@@ -166,6 +184,7 @@ class HttpContentTransport(ContentTransport):
 
     async def _put(self, request: PutBinaryRequest, report: Callable[[UploadProgress], None]) -> CreateResourceResponse:
         form = _Form(request)
+        progress = _Progress(form.size, report)
         with telemetry.putting(request.format, len(request.file)):
             # No deadline: how long an upload takes is how large the resource is.
             return await self._exchange.answer(
@@ -173,7 +192,7 @@ class HttpContentTransport(ContentTransport):
                 "POST",
                 "/resources",
                 headers={"Content-Type": f"multipart/form-data; boundary={form.boundary}", "Content-Length": str(form.size)},
-                content=_Sending(form, report),
+                content=lambda: _Sending(form, progress),
                 at_length=True,
             )
 

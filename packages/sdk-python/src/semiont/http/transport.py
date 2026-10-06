@@ -24,7 +24,7 @@ from semiont.channels import BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast, Events
 from semiont.http.content import HttpContentTransport
-from semiont.http.exchange import Exchange
+from semiont.http.exchange import Exchange, TokenRefresher
 from semiont.http.stream import Stream, Timing
 from semiont.identifiers import ResourceId
 from semiont.retry import BOOT, RetryFacts, retry_after_ms, retry_with_backoff
@@ -67,6 +67,8 @@ class HttpTransport(Transport, GatewayOperations):
 
     `token` is the token every request carries: the present one, and each one
     after it. With none the transport sends nothing and waits for one.
+    `refresher` is asked for another when the gateway refuses the one it has;
+    with none, a refused token is waited out until `token` changes.
     `channels` are the global channels its stream names: every channel a
     client hears, unless a process that awaits only some operations names
     their reply channels and no others.
@@ -77,6 +79,7 @@ class HttpTransport(Transport, GatewayOperations):
         base_url: str,
         *,
         token: Watched[str | None],
+        refresher: TokenRefresher | None = None,
         channels: Sequence[str] = BRIDGED_CHANNELS,
         timing: Timing | None = None,
     ) -> None:
@@ -96,6 +99,7 @@ class HttpTransport(Transport, GatewayOperations):
             base_url=self._base_url,
             http=self._http,
             token=token,
+            refresher=refresher,
             client_id=self._client_id,
             channels=self._global,
             timing=self._timing,
@@ -108,6 +112,7 @@ class HttpTransport(Transport, GatewayOperations):
             base_url=self._base_url,
             http=self._http,
             token=token,
+            refresher=refresher,
             failures=self._failures,
             deadline_ms=self._timing.http_request_ms,
             closing=self._closing,
