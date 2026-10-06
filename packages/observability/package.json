@@ -1,6 +1,6 @@
 {
   "name": "@semiont/observability",
-  "version": "0.6.12",
+  "version": "0.6.13",
   "description": "OpenTelemetry tracing and metrics for Semiont — Tiers 2 and 3 of its observability stack. Node process-init helpers, a withSpan wrapper, W3C trace-context propagation across the bus, metric recorders and log correlation. No-op when no exporter is configured.",
   "type": "module",
   "main": "dist/index.js",
