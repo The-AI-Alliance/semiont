@@ -83,6 +83,7 @@ jobs:
           npm run lint:spec-identifiers || fail=1
           npm run lint:service-environment || fail=1
           npm run lint:rust-images || fail=1
+          npm run lint:rust-toolchain || fail=1
           npm run lint:conformance-readmes || fail=1
           npm run lint:transport-contract || fail=1
           npm run lint:client-surface || fail=1

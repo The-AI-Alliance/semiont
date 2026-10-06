@@ -16,7 +16,10 @@
  *   cargo           Cargo.toml; a workspace member's is covered by the entry
  *                   for its workspace, whose one lockfile Dependabot updates
  *   rust-toolchain  rust-toolchain.toml, rust-toolchain
- *   docker          a file whose name contains "dockerfile", in any case
+ *   docker          a file whose name contains "dockerfile", in any case,
+ *                   with a FROM that writes an image's tag out. One whose
+ *                   every tag is a build argument (rust:${RUST_TOOLCHAIN}-…)
+ *                   holds nothing Dependabot can move
  *   pip             requirements*.txt, pyproject.toml, Pipfile, setup.py; a
  *                   pyproject.toml beside a uv.lock is uv's, not pip's
  *   uv              uv.lock, which Dependabot updates with its pyproject.toml
@@ -39,12 +42,20 @@ const tracked = repositoryFiles(ROOT);
 /** The directories whose Python project uv locks. */
 const lockedByUv = new Set(tracked.filter((file) => basename(file) === 'uv.lock').map((file) => dirname(file)));
 
+/** Whether a Dockerfile names, in a FROM, an image whose tag or digest is written out. */
+function writesAnImageTag(file) {
+  return readFileSync(join(ROOT, file), 'utf8')
+    .split('\n')
+    .map((line) => /^FROM\s+(?:--\S+\s+)*(\S+)/.exec(line)?.[1])
+    .some((image) => image && /[:@]/.test(image) && !image.includes('$'));
+}
+
 const MANIFESTS = {
   npm: (file) => basename(file) === 'package-lock.json',
   gomod: (file) => basename(file) === 'go.mod',
   cargo: (file) => basename(file) === 'Cargo.toml',
   'rust-toolchain': (file) => ['rust-toolchain.toml', 'rust-toolchain'].includes(basename(file)),
-  docker: (file) => /dockerfile/i.test(basename(file)),
+  docker: (file) => /dockerfile/i.test(basename(file)) && writesAnImageTag(file),
   pip: (file) =>
     !lockedByUv.has(dirname(file)) &&
     (/^requirements.*\.txt$/.test(basename(file)) || ['pyproject.toml', 'Pipfile', 'setup.py'].includes(basename(file))),

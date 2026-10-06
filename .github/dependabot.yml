@@ -192,10 +192,12 @@ updates:
       include: "scope"
 
   # The repository's Rust toolchain (rust-toolchain.toml), which every Rust
-  # build uses. Its channel is also the builder image's tag,
-  # rust:<channel>-alpine, which local-build.sh, publish-service-images.yml and
-  # build-images.js read from that file, so one bump moves the compiler
-  # everywhere; the cooldown gives the official image time to be published.
+  # build uses. Its channel is also the tag of every Rust image: the service
+  # images' builder stage (rust:<channel>-alpine) and the desktop builder
+  # (rust:<channel>-bookworm). local-build.sh, apps/desktop/build.sh,
+  # publish-service-images.yml and build-images.js ask
+  # scripts/ci/rust-toolchain.sh for it, so one bump moves the compiler
+  # everywhere; the cooldown gives the official images time to be published.
   - package-ecosystem: "rust-toolchain"
     directory: "/"
     cooldown:
@@ -271,21 +273,8 @@ updates:
       prefix: "browser-docker"
       include: "scope"
 
-  # Desktop builder Docker base image (apps/desktop/Dockerfile.builder)
-  - package-ecosystem: "docker"
-    directory: "/apps/desktop"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "desktop"
-      - "docker"
-    commit-message:
-      prefix: "desktop-docker"
-      include: "scope"
+  # The desktop builder (apps/desktop/Dockerfile.builder) has no entry: its one
+  # base image is rust:<channel>-bookworm, which the rust-toolchain entry moves.
 
   # Service image base images (apps/<svc>/Dockerfile). Grouped into one PR:
   # the make-meaning sidecars share a base image, so an ungrouped bump opens

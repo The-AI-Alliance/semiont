@@ -13,6 +13,7 @@ No npm is required on the host for local builds.
 | `build-python-sdk.sh` | Build the Python SDK's source distribution and wheel at `version.json`'s version, and check them: named for the version, holding the package and no more, and every module importable from the installed wheel alone. CI and `local-build.sh` run it; `publish-pypi.yml` uploads what it leaves |
 | `image-tags.sh` | The image a service publishes to and its tags (version, `sha-<commit>`, optionally `latest`), for every job of `publish-service-images.yml` that names one |
 | `local-build.sh` | Host-side wrapper: start Verdaccio + build + publish in a container + build the `:local` service/browser images, fanned out to every container engine on the machine; then the launcher, and the Python SDK's distributions (`build-python-sdk.sh`), which are built and checked and published nowhere |
+| `rust-toolchain.sh` | Print the Rust toolchain `rust-toolchain.toml` names. The one reader of its `channel`, for everything that builds a Rust image: `local-build.sh`, `apps/desktop/build.sh`, `publish-service-images.yml` and `scripts/container/build-images.js` |
 | `verdaccio.yaml` | Verdaccio config for local registry (proxies non-@semiont packages to npmjs.com) |
 
 ## GitHub Actions

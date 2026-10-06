@@ -6,7 +6,7 @@
 # Built from the repository root, with the toolchain
 # rust-toolchain.toml names — the one place it is written:
 #
-#   --build-arg RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
+#   --build-arg RUST_TOOLCHAIN=$(scripts/ci/rust-toolchain.sh)
 #
 # There is no default: without it the first FROM names no image and the build
 # stops, rather than building with a toolchain nothing pinned.

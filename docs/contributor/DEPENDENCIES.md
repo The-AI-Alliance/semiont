@@ -11,13 +11,15 @@ How this repository's dependencies are kept current, how a vulnerable one is fix
 | npm | the repository root (which covers every workspace), `tests/e2e`, `tests/conformance` |
 | Go modules | `apps/launcher`, `packages/sdk-go` |
 | Cargo | the Rust workspace at the root; the desktop app's `apps/desktop/src-tauri` |
-| The Rust toolchain | [`rust-toolchain.toml`](../../rust-toolchain.toml), which also names the builder image of the Rust services |
+| The Rust toolchain | [`rust-toolchain.toml`](../../rust-toolchain.toml), which also names every Rust image: the builder stage of the Rust services and the desktop builder |
 | GitHub Actions | the workflows |
-| Docker | the base images of the Browser, the desktop builder and the seven service images |
+| Docker | the base images of the Browser and the seven service images |
 
 Packages that must move together are grouped, so they arrive in one pull request: `react`, `i18n`, `bundler-binaries`, `opentelemetry`, `gateway-crates`, `desktop-crates` and `service-base-images`.
 
 `npm run lint:dependabot` fails when a manifest has no Dependabot entry, or an entry has no manifest. A new Dockerfile, lockfile or crate cannot go un-updated without CI saying so.
+
+`npm run lint:rust-toolchain` fails when the Rust version is written anywhere but `rust-toolchain.toml`: a Rust image whose tag is written out, a Dockerfile that does not take `RUST_TOOLCHAIN`, a toolchain picked another way, or a second reader of the file's `channel` beside [`scripts/ci/rust-toolchain.sh`](../../scripts/ci/rust-toolchain.sh). Dependabot moves that one file and runs no script, so a copy would be a copy nothing moves.
 
 The crates the Rust services link are also checked against the RustSec advisory database by [Gateway Crate Advisories](../../.github/workflows/gateway-advisories.yml) (`cargo deny`): on every pull request that changes a `Cargo.toml` or `Cargo.lock`, and daily, because the database changes without a commit. An advisory judged not to reach the services is ignored in [`deny.toml`](../../deny.toml) with its reason, and an ignore that stops matching fails the run.
 

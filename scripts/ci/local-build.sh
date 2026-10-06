@@ -81,8 +81,7 @@ GO_IMAGE="golang:${GO_TOOLCHAIN}"
 # The gateway image compiles its binary with the toolchain
 # rust-toolchain.toml pins, passed to its Dockerfile as
 # RUST_TOOLCHAIN. No fallback, as for Go.
-RUST_TOOLCHAIN="$(sed -n 's/^channel = "\(.*\)"$/\1/p' "$REPO_ROOT/rust-toolchain.toml")"
-if [[ -z "$RUST_TOOLCHAIN" ]]; then
+if ! RUST_TOOLCHAIN="$("$REPO_ROOT/scripts/ci/rust-toolchain.sh")"; then
   fail "No channel in rust-toolchain.toml — cannot choose a Rust image."
   exit 1
 fi
