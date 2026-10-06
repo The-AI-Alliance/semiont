@@ -43,7 +43,8 @@ gh workflow run release.yml
 ```
 
 `release.yml` tags the commit, creates the GitHub Release, and dispatches
-`publish-npm-packages.yml`, `launcher-release.yml` and `publish-crates.yml`. The npm workflow in turn
+`publish-npm-packages.yml`, `launcher-release.yml`, `publish-crates.yml` and
+`publish-pypi.yml`. The npm workflow in turn
 dispatches `publish-browser.yml` and `publish-service-images.yml` with
 `tag_latest=true`, since it is the only stage that knows the packages the images
 bundle are actually published.
@@ -73,6 +74,9 @@ Inspects the artifacts rather than workflow conclusions:
   registry;
 - every crate `published-crates.sh` names, on crates.io at the version, with
   its `.crate` downloaded and hashed against the checksum the index states;
+- the Python package on PyPI at the version: a wheel and a source
+  distribution, each downloaded and hashed against the digest the index
+  states, and each attested as built by `publish-pypi.yml` of this repository;
 - for every image, both platforms, an attestation whose subject matches the tag
   digest, and `:latest` resolving to the same digest as the released version.
 

@@ -1,0 +1,133 @@
+name: Publish Python package
+
+run-name: "PyPI: ${{ inputs.stable_release && 'stable' || 'dev' }}${{ inputs.dry_run && ' (dry run)' || '' }}"
+
+# Publishes the Python SDK to PyPI as `semiont`.
+#
+# PyPI trusts this workflow by name: the project's settings name this
+# repository and this file ("Trusted Publishing"), with no environment, so no
+# token is stored anywhere. Renaming the file means changing that setting.
+#
+# A release publishes version.json's version: release.yml dispatches this at
+# the release's tag, with `stable_release`. Without it, what is published is a
+# development release of that version, `<version>.dev<run number>`, as the npm
+# packages go out as `<version>-build.<run number>` under their `dev` tag. An
+# installer takes a development release only when asked for one
+# (`pip install --pre semiont`), or when the project has no other.
+#
+# A `push: tags` trigger cannot be used here: release.yml pushes the tag with
+# GITHUB_TOKEN, and GitHub does not raise workflow-triggering events for
+# GITHUB_TOKEN-authored pushes.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (build and check the distributions, publish nothing)'
+        required: false
+        type: boolean
+        default: false
+      stable_release:
+        description: 'Stable release (publish without the .dev<n> suffix)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      # The package takes its version from version.json when it is built, so a
+      # development release is built from a version.json that says so. Only
+      # this checkout is changed.
+      - name: Name the package and the version
+        id: plan
+        run: |
+          name=$(sed -n 's/^name = "\(.*\)"$/\1/p' packages/sdk-python/pyproject.toml)
+          version=$(jq -r .version version.json)
+          if [ -z "$name" ] || [ -z "$version" ] || [ "$version" = "null" ]; then
+            echo "::error::no name in packages/sdk-python/pyproject.toml, or no version in version.json"
+            exit 1
+          fi
+          if [ "${{ inputs.stable_release }}" != "true" ]; then
+            version="$version.dev${{ github.run_number }}"
+            jq --arg v "$version" '.version = $v' version.json > version.json.next
+            mv version.json.next version.json
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Publishing $name $version"
+
+      # Before anything permanent: the source distribution and the wheel are
+      # built, named for the version, and the wheel is installed on its own
+      # and every module of it imported.
+      - name: Build the distributions and check them
+        run: scripts/ci/build-python-sdk.sh
+
+      # A published version is permanent: its files can be yanked, never
+      # replaced. One already on PyPI is skipped and said so, so a run can be
+      # made again.
+      - name: Ask PyPI whether this version is there
+        id: there
+        if: ${{ !inputs.dry_run }}
+        env:
+          NAME: ${{ steps.plan.outputs.name }}
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          status=$(curl -s -o /dev/null -w '%{http_code}' "https://pypi.org/pypi/$NAME/$VERSION/json")
+          case "$status" in
+            200)
+              echo "exists    $NAME $VERSION — already on PyPI, skipping"
+              echo "published=true" >> "$GITHUB_OUTPUT"
+              ;;
+            404)
+              echo "published=false" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::PyPI answered $status for $NAME $VERSION; not publishing on an answer that is neither yes nor no"
+              exit 1
+              ;;
+          esac
+
+      # PyPI exchanges this run's identity for a token that lasts minutes, and
+      # each file is uploaded with an attestation of which workflow built it.
+      - name: Publish
+        if: ${{ !inputs.dry_run && steps.there.outputs.published == 'false' }}
+        uses: pypa/gh-action-pypi-publish@v1.14.2
+        with:
+          packages-dir: packages/sdk-python/dist/
+
+      - name: Summary
+        env:
+          NAME: ${{ steps.plan.outputs.name }}
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          {
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "Dry run: built and checked \`$NAME\` $VERSION, published nothing."
+            elif [ "${{ steps.there.outputs.published }}" = "true" ]; then
+              echo "- \`$NAME\` $VERSION: already published, skipped"
+            else
+              echo "- \`$NAME\` $VERSION: published"
+              echo
+              echo '```bash'
+              echo "pip install $NAME==$VERSION"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

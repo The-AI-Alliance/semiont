@@ -491,6 +491,12 @@ jobs:
       - name: Run the tests
         run: uv run pytest
 
+      # What publish-pypi.yml uploads, built and checked here on every change:
+      # a release is not the first place a packaging break is seen.
+      - name: Build the distributions and check them
+        if: matrix.python-version == '3.12'
+        run: ../../scripts/ci/build-python-sdk.sh
+
   # The sign-in store on Windows: the launcher keeps its sign-ins there too,
   # in another directory and under another lock (specs/src/sign-in-store).
   # These are the tests of what differs by system.

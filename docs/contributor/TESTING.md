@@ -299,7 +299,7 @@ Excluded from coverage: what the shared config excludes (see [One shared Vitest 
 | `gateway-conformance` | Builds the gateway and runs the conformance suite's `gateway` project |
 | `dispatcher-conformance` | Builds the gateway and the dispatcher and runs the `dispatcher` project |
 | `sdk-conformance` | Builds the gateway, the Rust drivers and `@semiont/sdk`, installs the Python SDK's locked environment, and runs the `sdk` project |
-| `test-sdk-python` | `mypy` and `pyright`, each as Linux and as Windows, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/sdk-python` |
+| `test-sdk-python` | `mypy` and `pyright`, each as Linux and as Windows, `ruff`, and `pytest` on Python 3.12, 3.13 and 3.14, for `packages/sdk-python`; the distributions a release uploads are built and checked |
 | `test-sdk-python-windows` | The Python SDK's sign-in store and state directory tests, on Windows |
 | `test-comprehensive` | The Browser suite again, after a full package build |
 | `validate-config` | `npm ci --include=optional` and `npm run build:packages` |

@@ -57,6 +57,12 @@ pattern = '"version": "(?P<version>[^"]+)"'
 [tool.hatch.build.targets.wheel]
 packages = ["src/semiont"]
 
+# What the wheel is built from, and no more. The tests and the conformance
+# drivers read the repository around this package, which a source distribution
+# does not hold.
+[tool.hatch.build.targets.sdist]
+only-include = ["src/semiont", "README.md"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--strict-markers", "--strict-config", "-ra"]

@@ -207,6 +207,46 @@ for crate in $CRATES; do
   fi
 done
 
+# ----------------------------------------------------------------------- python
+head_ "Python package"
+
+# PyPI is asked as crates.io is: the index says the version exists and names
+# its files, and each file is downloaded and hashed against the digest the
+# index states. Each also carries an attestation of what built it, which is to
+# be the publish workflow of this repository.
+PYPI_NAME=$(sed -n 's/^name = "\(.*\)"$/\1/p' "$ROOT/packages/sdk-python/pyproject.toml")
+PYPI_WORKFLOW=publish-pypi.yml
+[ -n "$PYPI_NAME" ] || bad "packages/sdk-python/pyproject.toml names no package"
+release=$(curl -sf "https://pypi.org/pypi/$PYPI_NAME/$VERSION/json")
+if [ -z "$release" ]; then
+  latest=$(curl -sf "https://pypi.org/pypi/$PYPI_NAME/json" | jq -r '.info.version // empty')
+  bad "$PYPI_NAME $VERSION not on PyPI (latest=${latest:-none})"
+else
+  kinds=$(jq -r '[.urls[].packagetype] | sort | join(" ")' <<< "$release")
+  [ "$kinds" = "bdist_wheel sdist" ] \
+    && ok "$PYPI_NAME $VERSION is a wheel and a source distribution" \
+    || bad "$PYPI_NAME $VERSION holds [$kinds], not a wheel and a source distribution"
+  while IFS=$'\t' read -r file url want yanked; do
+    if [ "$yanked" != "false" ]; then
+      bad "$file is yanked"
+      continue
+    fi
+    if curl -sfL -o "$WORK/$file" "$url"; then
+      got=$(shasum -a 256 "$WORK/$file" | cut -d' ' -f1)
+      [ "$want" = "$got" ] \
+        && ok "$file downloads, sha256 matches the index (${got:0:16}…)" \
+        || bad "$file sha256 mismatch: index=$want downloaded=$got"
+    else
+      bad "$file is on the index but does not download"
+    fi
+    built_by=$(curl -sf -H 'Accept: application/vnd.pypi.integrity.v1+json' "https://pypi.org/integrity/$PYPI_NAME/$VERSION/$file/provenance" \
+      | jq -r '[.attestation_bundles[].publisher | "\(.repository) \(.workflow)"] | join(", ")' 2>/dev/null)
+    [ "$built_by" = "$REPO $PYPI_WORKFLOW" ] \
+      && ok "$file is attested: built by $PYPI_WORKFLOW of $REPO" \
+      || bad "$file is not attested as built by $PYPI_WORKFLOW of $REPO (attested: ${built_by:-nothing})"
+  done < <(jq -r '.urls[] | [.filename, .url, .digests.sha256, (.yanked | tostring)] | @tsv' <<< "$release")
+fi
+
 # ---------------------------------------------------------------------- images
 head_ "Container images"
 
