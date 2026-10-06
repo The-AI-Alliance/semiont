@@ -17,7 +17,8 @@ tell them apart.
 
 It is a full peer of the [TypeScript SDK](../sdk/README.md): the same
 namespaces, methods and behaviour, held to the same
-[conformance suite](../../tests/conformance/sdk/README.md). New to Semiont?
+[conformance suite](../../tests/conformance/sdk/README.md). The
+[Python SDK](../sdk-python/README.md) is held to it too. New to Semiont?
 The [Introduction](../../docs/builder/INTRODUCTION.md) explains the domain
 and the ideas the API falls out of. Its code is TypeScript, and the ideas
 are this crate's too.
