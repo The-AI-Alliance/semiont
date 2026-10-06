@@ -1,6 +1,6 @@
 {
   "name": "@semiont/event-sourcing",
-  "version": "0.6.11",
+  "version": "0.6.12",
   "description": "Reading the materialized views of a Semiont knowledge base, and content-addressed annotation ids",
   "type": "module",
   "main": "dist/index.js",

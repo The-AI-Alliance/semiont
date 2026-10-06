@@ -1,6 +1,6 @@
 {
   "name": "@semiont/inference",
-  "version": "0.6.11",
+  "version": "0.6.12",
   "engines": {
     "node": ">=24.0.0"
   },
@@ -27,7 +27,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.129.0",
+    "@anthropic-ai/sdk": "^0.131.0",
     "@semiont/core": "*",
     "@semiont/observability": "*",
     "undici": "^7.29.1"
