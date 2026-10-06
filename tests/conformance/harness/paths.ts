@@ -44,6 +44,51 @@ export interface SdkDrivers {
   exempt?: Readonly<Record<string, string>>;
 }
 
+/** The Python SDK, and the interpreter of its locked environment, which the suite's setup makes. */
+export const PYTHON_SDK = join(REPO_ROOT, 'packages/sdk-python');
+const PYTHON = join(PYTHON_SDK, '.venv/bin/python');
+
+/**
+ * The wire cases the Python driver cannot be put through: all of them, since
+ * the Python SDK has no transport. The suite holds each as it holds a case, so
+ * a case the driver comes to perform fails until its name leaves this list.
+ */
+const PYTHON_WITHOUT_A_TRANSPORT: readonly string[] = [
+  'attach-gate',
+  'chunked-stream',
+  'content-read',
+  'content-upload',
+  'dedup-window',
+  'emit-budget-spent',
+  'emit-counted',
+  'emit-rate-limited',
+  'emit-refused',
+  'emit-uncounted',
+  'failure-codes',
+  'gateway-operations',
+  'job-create',
+  'outage',
+  'overlap-dedup',
+  'passing-across-drop',
+  'passing-across-handoff',
+  'pending-replies',
+  'request-abandoned',
+  'request-abandoned-waiting',
+  'request-closed',
+  'request-reply',
+  'request-timeout',
+  'request-unanswerable',
+  'request-unsubscribed',
+  'resumption',
+  'stream-rate-limited',
+  'subscribe-matrix',
+  'telemetry',
+  'unauthenticated',
+  'unreachable',
+  'upload-cancelled',
+  'upload-progress',
+];
+
 /**
  * Each SDK's drivers. An SDK joins a layer of the suite by adding its line.
  * vitest.config.ts provides them as `sdkDrivers`.
@@ -56,6 +101,10 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   rust: {
     wire: [join(REPO_ROOT, 'target/release/semiont-wire-driver')],
     live: { command: [join(REPO_ROOT, 'target/release/semiont-live-driver')], tier: 'parity' },
+  },
+  python: {
+    wire: [PYTHON, join(PYTHON_SDK, 'conformance/wire.py')],
+    exempt: Object.fromEntries(PYTHON_WITHOUT_A_TRANSPORT.map((name) => [name, 'the Python SDK has no transport'])),
   },
 };
 

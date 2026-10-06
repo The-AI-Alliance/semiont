@@ -10,9 +10,10 @@
 // `--table <path>` and `--out <path>` name another table and another output;
 // the test of the refusals passes them.
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readClientTiming } from './client-timing-table.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
@@ -30,38 +31,7 @@ function refuse(message) {
   process.exit(1);
 }
 
-const whole = (n) => Number.isInteger(n) && n > 0;
-
-const { timing } = JSON.parse(readFileSync(TABLE, 'utf8'));
-if (!Array.isArray(timing) || timing.length === 0) refuse('lists no timing');
-
-const seen = new Set();
-for (const entry of timing) {
-  const { name, value, docs } = entry;
-  if (typeof name !== 'string' || !/^[a-z][A-Za-z]*(Ms|Retry|Count)$/.test(name)) {
-    refuse(`${JSON.stringify(name)} is not a name: camelCase, ending in Ms for a duration, Retry for a budget or Count for a count`);
-  }
-  if (seen.has(name)) refuse(`${name} is stated twice`);
-  seen.add(name);
-  if (typeof docs !== 'string' || docs === '') refuse(`${name} has no docs`);
-  if (name.endsWith('Ms')) {
-    if (!whole(value)) refuse(`${name} is a duration, so its value is a whole number of milliseconds above zero`);
-    continue;
-  }
-  if (name.endsWith('Count')) {
-    if (!whole(value)) refuse(`${name} is a count, so its value is a whole number above zero`);
-    continue;
-  }
-  const fields = value === null || typeof value !== 'object' ? [] : Object.keys(value).sort();
-  if (fields.join() !== 'attempts,initialDelayMs,maxDelayMs') {
-    refuse(`${name} is a budget, so its value is exactly attempts, initialDelayMs and maxDelayMs`);
-  }
-  if (!Number.isInteger(value.attempts) || value.attempts < 1) refuse(`${name} allows no attempt`);
-  if (!whole(value.initialDelayMs) || !whole(value.maxDelayMs)) {
-    refuse(`${name}'s delays are whole numbers of milliseconds above zero`);
-  }
-  if (value.initialDelayMs > value.maxDelayMs) refuse(`${name}'s backoff starts above its ceiling`);
-}
+const timing = readClientTiming(TABLE, refuse);
 
 /** `emitRetry` → `EMIT_RETRY` */
 const constantName = (name) => name.replace(/([A-Z])/g, '_$1').toUpperCase();

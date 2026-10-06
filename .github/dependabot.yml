@@ -144,6 +144,28 @@ updates:
       prefix: "sdk-go"
       include: "scope"
 
+  # The Python SDK: its one runtime dependency, and the tools its gates are
+  # made of. The type checkers, the formatter and the model generator are
+  # pinned to a version each, because what they say of the package, and what
+  # the generator writes, is held by CI: a bump of one is a change to read, and
+  # for the generator or the formatter it comes with a regenerated types.py.
+  # One PR per tool, so a gate that goes red names the tool that moved.
+  - package-ecosystem: "uv"
+    directory: "/packages/sdk-python"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "sdk-python"
+    commit-message:
+      prefix: "sdk-python"
+      include: "scope"
+
   # The Rust workspace's crates (Cargo.toml at the root: the gateway, the
   # dispatcher and the crates they share), one lockfile for all of them. One grouped PR:
   # the crates move together (the OpenTelemetry and hyper families

@@ -1,0 +1,102 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "semiont"
+dynamic = ["version"]
+description = "Semiont's Python SDK"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+dependencies = [
+    "pydantic>=2.12,<3",
+]
+
+[project.urls]
+Repository = "https://github.com/The-AI-Alliance/semiont"
+
+# The checkers, the formatter and the model generator are pinned to a version
+# each: what they say of this package, and what the generator writes, is held
+# by a gate, and a new version of one is a change of its own.
+[dependency-groups]
+dev = [
+    "datamodel-code-generator==0.83.0",
+    "mypy==2.4.0",
+    "pyright==1.1.414",
+    "pytest>=9.1,<10",
+    "ruff==0.16.10",
+]
+
+# The version is the repository's, stated once, in version.json.
+[tool.hatch.version]
+path = "../../version.json"
+pattern = '"version": "(?P<version>[^"]+)"'
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/semiont"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "--strict-config", "-ra"]
+xfail_strict = true
+
+[tool.ruff]
+line-length = 140
+target-version = "py312"
+# Generated, each held by its own drift gate.
+extend-exclude = [
+    "src/semiont/channels.py",
+    "src/semiont/error_codes.py",
+    "src/semiont/identifiers.py",
+    "src/semiont/operations.py",
+    "src/semiont/refresh.py",
+    "src/semiont/timing.py",
+    "src/semiont/types.py",
+]
+
+[tool.ruff.lint]
+select = ["ANN", "ASYNC", "B", "C4", "E", "F", "I", "PGH", "PT", "RUF", "SIM", "TID", "UP", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+# A program that must not type-check is not otherwise good code.
+"tests/refusals/*" = ["ANN", "B", "F", "RUF", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src", "tests", "conformance", "scripts"]
+strict = true
+# pydantic's own plugin, with each of its looser defaults turned off below: at
+# its defaults a constructor takes anything, and a wrong kind of id would pass.
+plugins = ["pydantic.mypy"]
+disallow_any_explicit = true
+disallow_any_unimported = true
+warn_unreachable = true
+enable_error_code = ["explicit-override", "ignore-without-code", "possibly-undefined", "redundant-expr", "truthy-bool"]
+
+[tool.pydantic-mypy]
+init_typed = true
+init_forbid_extra = true
+warn_required_dynamic_aliases = true
+
+[tool.pyright]
+pythonVersion = "3.12"
+include = ["src", "tests", "conformance", "scripts"]
+typeCheckingMode = "strict"
+# `# type: ignore` is mypy's alone here; pyright is told by `# pyright: ignore[rule]`.
+# Either left on a line that no longer needs it is an error, which is what
+# holds tests/refusals: a program there that starts to type-check fails.
+enableTypeIgnoreComments = false
+reportUnnecessaryTypeIgnoreComment = "error"
+reportImplicitOverride = "error"
+reportImportCycles = "error"
+reportMissingSuperCall = "none"
+reportPropertyTypeMismatch = "error"
+reportUnnecessaryCast = "error"

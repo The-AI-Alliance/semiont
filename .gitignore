@@ -82,6 +82,13 @@ packages/core/src/types.ts
 packages/core/src/generated/
 packages/core/src/config/config.types.ts
 
+# Python: an environment, and what the interpreter and its tools cache
+.venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
 # Generated OpenAPI bundle (source is specs/src/)
 specs/openapi.json
 specs/archivist.openapi.json
