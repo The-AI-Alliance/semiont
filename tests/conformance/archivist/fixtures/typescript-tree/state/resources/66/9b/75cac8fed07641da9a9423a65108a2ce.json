@@ -1,0 +1,77 @@
+{
+  "resource": {
+    "@context": "https://schema.org/",
+    "@id": "75cac8fed07641da9a9423a65108a2ce",
+    "name": "Shared",
+    "representations": [
+      {
+        "mediaType": "text/markdown",
+        "checksum": "d7e46c7df93e69088d197e0777235c738851aec216e9461c491e836865d2158e",
+        "byteSize": 67,
+        "rel": "original",
+        "language": "en",
+        "storageUri": "file://shared/résumé 📚.md"
+      }
+    ],
+    "archived": false,
+    "entityTypes": [
+      "Event"
+    ],
+    "dateCreated": "2026-10-06T00:22:25.688Z",
+    "wasAttributedTo": [
+      {
+        "@type": "Person",
+        "@id": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:ada"
+      }
+    ],
+    "isDraft": false,
+    "dateModified": "2026-10-06T00:22:25.736Z"
+  },
+  "annotations": {
+    "resourceId": "75cac8fed07641da9a9423a65108a2ce",
+    "annotations": [
+      {
+        "@context": "http://www.w3.org/ns/anno.jsonld",
+        "type": "Annotation",
+        "id": "5d22fa304e124d99864e3812c5fccbff",
+        "motivation": "linking",
+        "target": {
+          "source": "75cac8fed07641da9a9423a65108a2ce",
+          "selector": [
+            {
+              "type": "TextPositionSelector",
+              "start": 29,
+              "end": 35
+            },
+            {
+              "type": "TextQuoteSelector",
+              "exact": "record"
+            }
+          ]
+        },
+        "created": "2026-10-06T00:22:25.698Z",
+        "modified": "2026-10-06T00:22:25.705Z",
+        "creator": {
+          "@type": "Person",
+          "@id": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:ada"
+        },
+        "wasAttributedTo": [
+          {
+            "@type": "Person",
+            "@id": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:ada"
+          }
+        ],
+        "body": [
+          {
+            "type": "TextualBody",
+            "value": "Concept",
+            "purpose": "tagging"
+          }
+        ]
+      }
+    ],
+    "version": 11,
+    "updatedAt": "2026-10-06T00:22:25.791Z"
+  },
+  "lastSequence": 11
+}

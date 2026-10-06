@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "description": "The knowledge base's tag schemas: the file `projections/__system__/tagschemas.json` under the state directory, the sum of the `frame:tag-schema-added` events. Written as JSON indented by two spaces.",
+  "properties": {
+    "tagSchemas": {
+      "type": "array",
+      "items": {
+        "$ref": "./TagSchema.json"
+      },
+      "description": "Every tag schema added, sorted by `id`. A schema added again under an `id` replaces the one held."
+    }
+  },
+  "required": [
+    "tagSchemas"
+  ],
+  "additionalProperties": false
+}

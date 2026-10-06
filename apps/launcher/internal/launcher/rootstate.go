@@ -130,9 +130,9 @@ var stateStores = map[string]stateStoreSpec{
 	// in the container and dies on every stop, and the Smelter's reconcile
 	// re-derives every lost map on the next start.
 	//
-	// The container path is a constant of the two images that mount it: the
-	// Smelter and the Archivist each declare it as SEMIONT_ANCHORED_TEXT_DIR,
-	// the way the Archivist declares SEMIONT_ROOT=/kb. So this side carries no
+	// The container path is one constant: the Smelter's image declares it as
+	// SEMIONT_ANCHORED_TEXT_DIR, and the Archivist's document names it as
+	// `anchoredTextDir`. So this side carries no
 	// KB identifier and nothing here has to know how a service composes its
 	// own paths — the same arrangement every other store has
 	// (/qdrant/storage, /var/lib/postgresql/data).
@@ -146,7 +146,7 @@ var stateStores = map[string]stateStoreSpec{
 	"anchored-text": {
 		dir:        "anchored-text",
 		holds:      "text positions for each representation",
-		mounts:     []stateMount{{"", "/anchored-text"}},
+		mounts:     []stateMount{{"", anchoredTextTarget}},
 		mode:       0o777,
 		projection: true,
 		owner:      "smelter",
@@ -174,7 +174,7 @@ var stateStores = map[string]stateStoreSpec{
 	"state": {
 		dir:        "state",
 		holds:      "views and projections",
-		mounts:     []stateMount{{"", "/semiont-state"}},
+		mounts:     []stateMount{{"", stateHomeTarget}},
 		mode:       0o777,
 		projection: true,
 		owner:      "archivist",

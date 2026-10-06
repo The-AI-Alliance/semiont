@@ -6,69 +6,60 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/event-sourcing.svg)](https://www.npmjs.com/package/@semiont/event-sourcing)
 [![License](https://img.shields.io/npm/l/@semiont/event-sourcing.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-The record of a knowledge base, and the views read from it. Every change is an event appended to a log in the knowledge base's working tree. Views of the current state are materialized from that log, and can always be made from it again.
+What a reader of a knowledge base's record needs: the materialized view of a resource, and the id an annotation is recorded under.
+
+The record itself is the [Archivist](../../docs/protocol/ARCHIVIST.md)'s. It appends every change to an event log in the knowledge base's working tree and materializes a view of each resource's current state. This package reads those views; it writes nothing.
 
 ## Who uses it
 
-- **The Archivist** holds the one event store, built in [`@semiont/make-meaning`](../make-meaning/README.md). Its Stower is the only writer, and its Browser reads events and views to answer `browse` requests.
+- **The Librarian**, in [`@semiont/make-meaning`](../make-meaning/README.md), reads views with `FilesystemViewStorage` from the state tree the Archivist writes.
 - **[`@semiont/jobs`](../jobs/README.md)** uses `annotationIdFor`, so that the same annotation made twice has one id.
 
-**Building an application?** You do not need this package. An application reads a resource's history through [`@semiont/sdk`](../sdk/README.md) (`browse.events`), and writes by using the verbs.
+**Building an application?** You do not need this package. An application reads a resource through [`@semiont/sdk`](../sdk/README.md) (`browse.resource`, `browse.events`), and writes by using the verbs.
 
 ## What is in it
 
 | | |
 |---|---|
-| `createEventStore(project, eventBus, logger)` | The store of a knowledge base: its log, its views, and the bus it publishes on |
-| `EventStore.appendEvent` | The one way an event is written |
-| `EventLog`, `EventStorage` | The log: JSONL files under `.semiont/events/`, one stream per resource, and `__system__` for what belongs to the knowledge base as a whole |
-| `EventQuery` | Reading events, with filters |
-| `ViewManager`, `ViewMaterializer` | The views: a resource's description and its annotations, and the system views (entity types, tag schemas, people) |
-| `applyEntityTypeAdded`, `applyTagSchemaAdded`, `applyPersonProfiled` | The system views' rules, as pure functions |
-| `FilesystemViewStorage`, and the storage-uri index | Where views are kept, and which resource a file in the working tree is |
-| `annotationIdFor` | An annotation's id, from what makes it that annotation |
+| `FilesystemViewStorage` | Reads a resource's view from `<resourcesDir>/<ab>/<cd>/<resourceId>.json` |
+| `ViewStorage` | The read it implements: `get(resourceId)` |
+| `ResourceView` | A view: the resource's descriptor, its annotations, and the sequence of the last event applied. The spec's `ResourceView` |
+| `annotationIdFor`, `AnnotationIdentity` | An annotation's id, from what makes it that annotation |
 
 ## Example
 
 ```typescript
-import { createEventStore, EventQuery } from '@semiont/event-sourcing';
-import { SemiontProject } from '@semiont/core/node';
-import { EventBus, resourceId, userId, type Logger } from '@semiont/core';
+import { FilesystemViewStorage, annotationIdFor } from '@semiont/event-sourcing';
+import { SemiontState } from '@semiont/core/node';
+import { resourceId } from '@semiont/core';
 
-declare const logger: Logger;
+const state = new SemiontState({ name: 'my-knowledge-base' });
+const views = new FilesystemViewStorage(state);
 
-const project = new SemiontProject('/path/to/knowledge-base', {
-  anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR!,
+const view = await views.get(resourceId('doc-123'));
+if (view) {
+  console.log(view.resource.name, view.annotations.annotations.length, view.lastSequence);
+}
+
+const id = annotationIdFor({
+  resourceId: 'doc-123',
+  motivation: 'highlighting',
+  anchor: '0:5:Hello',
 });
-const eventStore = createEventStore(project, new EventBus(), logger);
-
-// Appended to the log, then materialized into the views, then published.
-const stored = await eventStore.appendEvent({
-  type: 'mark:archived',
-  resourceId: resourceId('doc-123'),
-  userId: userId('did:web:example.org:users:alice'),
-  version: 1,
-  payload: {},
-});
-console.log(stored.metadata.sequenceNumber);
-
-const history = await new EventQuery(eventStore.log.storage).getResourceEvents(resourceId('doc-123'));
 ```
 
 ## What a change must keep
 
-- **The log is the record.** It is append-only, it lives in the knowledge base's working tree, and git gives it its history and its integrity. An event carries no hash of the one before it.
-- **One write path, in one order.** `appendEvent` persists, then materializes the views, then publishes. A subscriber that hears an event can read a view that already includes it.
-- **Views are disposable.** They live outside the working tree, and deleting them loses nothing: `rebuildAll` makes them again from the log when a process starts. Replaying events 1 to N gives the state that living through them gave, because both paths run the same code.
-- **A view's rules are pure functions.** What the system views do with a repeat, an overwrite or an ordering is decided in the reducers, and tested without a filesystem. [The projection pattern](../../docs/architecture/PROJECTION-PATTERN.md) says how to add one.
-- **A correlation id is not recorded.** It rides the bus envelope of the publish, so a caller can match the event to the command that caused it. It is never written to the log.
-- **The event catalogue is not here.** What events exist, and each one's payload, is [`@semiont/core`](../core/README.md)'s `PersistedEvent`, generated from the bus registry.
+- **It only reads.** The Archivist is the one writer of the views. It renames whole files into place, so a reader sees a whole view or none.
+- **A missing view is `null`.** So is a file that does not parse, which is logged. Anything else throws.
+- **An id becomes a file name only after it is checked.** `get` refuses a string that is not a `ResourceId`, so `..` never reaches the path.
+- **The view's shape is the spec's.** `ResourceView` is generated from the schema the Archivist writes to, in [`@semiont/core`](../core/README.md).
+- **An annotation's id is its content.** `annotationIdFor` hashes the resource, the motivation, the anchor and the body. Nothing about when or by whom it was emitted is an input, so emitting it again gives the same id.
 
 ## Documentation
 
-- [API reference](docs/API.md): the store, the log, queries, and how views are materialized and rebuilt.
-- [Storage layout](docs/STORAGE-LAYOUT.md): where each file is.
-- [The projection pattern](../../docs/architecture/PROJECTION-PATTERN.md): the views' design, and its rules.
+- [API reference](docs/API.md): reading a view, and annotation ids.
+- [The Archivist](../../docs/protocol/ARCHIVIST.md): where each file of the record is, and how each event changes the views.
 
 ## License
 

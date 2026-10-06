@@ -236,8 +236,8 @@ export function operationFor(request: string): RegistryOperation {
 
 /** The names of the environment variables `service` reads (service-environment/variables.json). */
 /** A Rust service the spec's service tables (service-environment, service-telemetry) cover. */
-export type Service = 'gateway' | 'dispatcher';
-const SERVICES: readonly Service[] = ['gateway', 'dispatcher'];
+export type Service = 'gateway' | 'dispatcher' | 'archivist';
+const SERVICES: readonly Service[] = ['gateway', 'dispatcher', 'archivist'];
 
 export function serviceEnvironment(service: Service): string[] {
   const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, 'service-environment/variables.json'), 'utf8'));

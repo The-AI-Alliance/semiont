@@ -8,8 +8,8 @@ import (
 )
 
 // The "state" store is the one host volume at /semiont-state. The Archivist
-// writes its projection tree and stamp under it (archivistArgs sets
-// XDG_STATE_HOME=/semiont-state), the librarian reads views from it, and the
+// writes its projection tree and stamp under it (its document names it as
+// stateHome), the librarian reads views from it, and the
 // supervisors of the containers that mount it (these two and the gateway) keep
 // their events logs there so a death record outlives the container. If the
 // store stopped mounting a host volume, all of that would
@@ -26,7 +26,7 @@ func TestStateStoreMountsSemiontStateOnHostVolume(t *testing.T) {
 
 	target, hostPath, ok := volumeMount(args, "/semiont-state")
 	if !ok {
-		t.Fatalf("the \"state\" store must mount to /semiont-state (the Archivist's XDG_STATE_HOME); args=%v", args)
+		t.Fatalf("the \"state\" store must mount to /semiont-state (the Archivist's stateHome); args=%v", args)
 	}
 	if target != "/semiont-state" {
 		t.Fatalf("mount target = %q, want /semiont-state", target)

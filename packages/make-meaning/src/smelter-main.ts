@@ -129,7 +129,7 @@ async function main() {
     logger,
   });
 
-  // Bounded (see the archivist's note): an unbounded await on a dependency that
+  // Bounded (see librarian-main's note): an unbounded await on a dependency that
   // is not up hangs the container, and `restart: on-failure` cannot rescue a
   // process that never exits.
   const embeddingProvider = await withDeadline('Embedding provider', STARTUP_CONNECT_TIMEOUT_MS,

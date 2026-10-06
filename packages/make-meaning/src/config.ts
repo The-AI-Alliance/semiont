@@ -14,39 +14,10 @@ export interface InferenceConfig {
 
 /**
  * Per-actor inference overrides.
- * Stower never calls an LLM, so it has no entry here.
  */
 export interface ActorInferenceConfig {
   gatherer?: InferenceConfig;
   matcher?: InferenceConfig;
-}
-
-/**
- * Per-worker-type inference overrides.
- * Falls back to `workers.default` if a specific worker is not listed.
- */
-export interface WorkerInferenceConfig {
-  default?: InferenceConfig;
-  'reference-annotation'?: InferenceConfig;
-  'highlight-annotation'?: InferenceConfig;
-  'assessment-annotation'?: InferenceConfig;
-  'comment-annotation'?: InferenceConfig;
-  'tag-annotation'?: InferenceConfig;
-  'generation'?: InferenceConfig;
-}
-
-/** Who serves a role: its provider and model, and no credential. */
-export type RoleInference = Pick<InferenceConfig, 'type' | 'model'>;
-
-/**
- * The collaborator roster's input: each role's provider and model. The
- * credentialed `MakeMeaningConfig` is one, since its entries carry more; the
- * archivist, which holds no inference credential, builds one from the keyless
- * role maps (`rosterConfigFrom`).
- */
-export interface RosterConfig {
-  workers?: { [R in keyof WorkerInferenceConfig]?: RoleInference };
-  actors?: { [A in keyof ActorInferenceConfig]?: RoleInference };
 }
 
 /** Narrow config type — only the fields make-meaning actually reads */
@@ -86,8 +57,6 @@ export interface MakeMeaningConfig {
   };
   /** Per-actor inference config */
   actors?: ActorInferenceConfig;
-  /** Per-worker-type inference config */
-  workers?: WorkerInferenceConfig;
 }
 
 /**
@@ -112,19 +81,13 @@ export function requireKBName(config: EnvironmentConfig): string {
  * The make-meaning view of a loaded config. Every part DELEGATES to the loaded
  * config at its read rather than copying at construction: a service reads only
  * the sections specs/src/service-config/sections.json lists for it, so copying
- * a part it never uses (the dispatcher's graph, the Librarian's workers) would
- * be a read of a section it does not declare, which the loader refuses.
- * `gather`, `search`, `actors` and `workers` come from `_metadata`, which the
- * TOML loader populates.
- *
- * Lives here (not in a consumer) because every entry point that starts from
- * a loaded config — archivist-main, librarian-main, the rebuild-projections
- * CLI — needs the identical mapping; two copies would drift.
+ * a part it never uses would be a read of a section it does not declare,
+ * which the loader refuses. `gather`, `search` and `actors` come from
+ * `_metadata`, which the TOML loader populates.
  */
 export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningConfig {
   const meta = () => config._metadata as (EnvironmentConfig['_metadata'] & {
     actors?: MakeMeaningConfig['actors'];
-    workers?: MakeMeaningConfig['workers'];
     gather?: MakeMeaningConfig['gather'];
     search?: MakeMeaningConfig['search'];
   }) | undefined;
@@ -157,17 +120,16 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
       get archivist() { return config.services.archivist; },
     },
     get actors() { return meta()?.actors; },
-    get workers() { return meta()?.workers; },
   };
 }
 
 /**
  * Resolve inference config for a named actor.
  */
-export function resolveActorInference<T extends RoleInference>(
-  config: { actors?: { [A in keyof ActorInferenceConfig]?: T } },
+export function resolveActorInference(
+  config: Pick<MakeMeaningConfig, 'actors'>,
   actor: 'gatherer' | 'matcher'
-): T {
+): InferenceConfig {
   const specific = config.actors?.[actor];
   if (specific) return specific;
 
@@ -175,48 +137,4 @@ export function resolveActorInference<T extends RoleInference>(
     `No inference config found for actor '${actor}'. ` +
     `Set actors.${actor}.inference in your config.`
   );
-}
-
-/**
- * Resolve inference config for a named worker type.
- * Falls back to workers.default if a specific worker is not listed.
- */
-export function resolveWorkerInference<T extends RoleInference>(
-  config: { workers?: { [R in keyof WorkerInferenceConfig]?: T } },
-  workerType: keyof Omit<WorkerInferenceConfig, 'default'>
-): T {
-  const specific = config.workers?.[workerType];
-  if (specific) return specific;
-
-  const defaultWorker = config.workers?.default;
-  if (defaultWorker) return defaultWorker;
-
-  throw new Error(
-    `No inference config found for worker '${workerType}'. ` +
-    `Set workers.${workerType}.inference or workers.default.inference in your config.`
-  );
-}
-
-/** One keyless role entry, refused by name when it is not a provider and a model. */
-function roleInference(role: string, entry: { inference?: { type?: string; model?: string } }): [string, RoleInference][] {
-  const { type, model } = entry.inference ?? {};
-  if (type === undefined && model === undefined) return [];
-  if ((type !== 'anthropic' && type !== 'ollama') || !model) {
-    throw new Error(`${role}.inference must name type "anthropic" or "ollama" and a model (got type ${JSON.stringify(type)}, model ${JSON.stringify(model)})`);
-  }
-  return [[role, { type, model }]];
-}
-
-/**
- * The roster from the loaded config's keyless role maps, which select exactly
- * what the credentialed ones do and never read [inference]. Delegates at each
- * read, as `makeMeaningConfigFrom` does.
- */
-export function rosterConfigFrom(config: EnvironmentConfig): RosterConfig {
-  const roles = (maps: EnvironmentConfig['workers']) =>
-    Object.fromEntries(Object.entries(maps ?? {}).flatMap(([role, entry]) => roleInference(role, entry)));
-  return {
-    get workers() { return roles(config.workers); },
-    get actors() { return roles(config.actors); },
-  };
 }

@@ -1,0 +1,18 @@
+[package]
+name = "semiont-archivist-record"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+description = "The Archivist's record, as docs/protocol/ARCHIVIST.md states it: the event log, the views and the projections, and where each is filed. It reaches no network and runs no other program."
+
+[dependencies]
+chrono = { workspace = true, features = ["clock", "std"] }
+percent-encoding.workspace = true
+ring.workspace = true
+serde_json = { workspace = true, features = ["preserve_order"] }
+toml.workspace = true
+unicode-normalization.workspace = true
+uuid = { workspace = true, features = ["v4"] }
+
+[dev-dependencies]
+serde = { workspace = true, features = ["derive"] }

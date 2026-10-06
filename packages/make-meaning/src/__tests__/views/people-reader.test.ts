@@ -1,63 +1,32 @@
 /**
  * People Projection Reader Tests
  *
- * The read side of a person's recorded name. Mirrors
- * `tag-schemas-reader.test.ts`: reading an existing projection, the
- * missing-file case, and — the load-bearing one — the round trip from a bus
- * command through the Stower, the event store and the materializer to what
- * the reader serves back.
- *
- * The properties this pins are the ones the design rests on: a rename
- * REPLACES rather than accumulates (so a reader sees the current name, and a
- * correction reaches every artifact its subject ever wrote), and a DID with
- * no profile stays unnamed rather than acquiring a fabricated one.
+ * The read side of a person's recorded name: reading the projection the
+ * Archivist keeps, the missing-file case, and resolving names into a reply.
+ * A DID with no profile stays unnamed rather than acquiring a fabricated one.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { readPeopleProjection, resolvePersonNames } from '../../views/people-reader';
-import { createEventStore, type PeopleView } from '@semiont/event-sourcing';
-import { type SemiontProject } from '@semiont/core/node';
-import {
-  EventBus,
-  type Logger,
-  userId as makeUserId,
-} from '@semiont/core';
-import { WorkingTreeStore } from '@semiont/content';
-import { Stower } from '../../archivist/stower';
-import { promises as fs } from 'fs';
-import { join } from 'path';
-import { createTestProject } from '../helpers/test-project';
-
-const mockLogger: Logger = {
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-  child: vi.fn(() => mockLogger),
-};
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { readPeopleProjection, resolvePersonNames, type People } from '../../views/people-reader';
+import { createRecordFixture, writePeople, type RecordFixture } from '../helpers/record-fixtures';
 
 const ALICE = 'did:web:test:users:59523dd4-a0e3-4c1c-8c2d-7fcbe3d789dd';
 
 describe('People Projection Reader', () => {
-  let project: SemiontProject;
-  let teardown: () => Promise<void>;
+  let record: RecordFixture;
 
   beforeEach(async () => {
-    ({ project, teardown } = await createTestProject('people-reader'));
+    record = await createRecordFixture();
   });
 
   afterEach(async () => {
-    await teardown();
+    await record.teardown();
   });
 
   it('returns the people from an existing projection file', async () => {
-    await fs.mkdir(join(project.stateDir, 'projections', '__system__'), { recursive: true });
-    await fs.writeFile(
-      join(project.stateDir, 'projections', '__system__', 'people.json'),
-      JSON.stringify({ people: { [ALICE]: { name: 'Adam Pingel', since: '2026-09-22T10:00:00.000Z' } } }),
-    );
+    await writePeople(record.stateDir, { [ALICE]: { name: 'Adam Pingel', since: '2026-09-22T10:00:00.000Z' } });
 
-    expect(await readPeopleProjection(project)).toEqual({
+    expect(await readPeopleProjection(record)).toEqual({
       [ALICE]: { name: 'Adam Pingel', since: '2026-09-22T10:00:00.000Z' },
     });
   });
@@ -65,11 +34,11 @@ describe('People Projection Reader', () => {
   it('returns an empty map when no profile has ever been recorded', async () => {
     // Not an error and not a fabricated name: a knowledge base whose people
     // have not acted yet simply knows nothing about them.
-    expect(await readPeopleProjection(project)).toEqual({});
+    expect(await readPeopleProjection(record)).toEqual({});
   });
 
   describe('resolvePersonNames', () => {
-    const people: PeopleView = { [ALICE]: { name: 'Adam Pingel', since: '2026-09-22T10:00:00.000Z' } };
+    const people: People = { [ALICE]: { name: 'Adam Pingel', since: '2026-09-22T10:00:00.000Z' } };
 
     it('names a Person the record identified but did not name', () => {
       const reply = { annotations: [{ id: 'a1', creator: { '@type': 'Person', '@id': ALICE } }] };
@@ -118,48 +87,6 @@ describe('People Projection Reader', () => {
       const reply = { annotations: [{ id: 'a1', body: 'no agents here' }] };
 
       expect(resolvePersonNames(reply, people)).toBe(reply);
-    });
-  });
-
-  describe('integration with Stower.handlePersonProfile', () => {
-    // The load-bearing test: emitting the command must produce a projection
-    // the reader serves back. If this fails while the unit tests pass, the
-    // wiring between Stower / event store / ViewMaterializer / projection
-    // file is broken.
-    it('reads the name after the Stower handles a person:profile, and a rename REPLACES it', async () => {
-      const eventBus = new EventBus();
-      const eventStore = createEventStore(project, eventBus, mockLogger);
-      const kb = { eventStore: eventStore, content: new WorkingTreeStore(project, mockLogger) };
-      const stower = new Stower(kb, eventBus, project, mockLogger);
-      await stower.initialize();
-
-      expect(await readPeopleProjection(project)).toEqual({});
-
-      const profile = async (name: string, until: (v: PeopleView) => boolean) => {
-        // Driven through the bus the way the gateway drives it; `_userId` is
-        // the injection the gateway performs from the verified token.
-        eventBus.emit('person:profile', { name, _userId: makeUserId(ALICE) } as never);
-        let view: PeopleView = {};
-        for (let i = 0; i < 50; i++) {
-          view = await readPeopleProjection(project);
-          if (until(view)) break;
-          await new Promise((r) => setTimeout(r, 20));
-        }
-        return view;
-      };
-
-      const first = await profile('Adma Pingel', (v) => v[ALICE]?.name === 'Adma Pingel');
-      expect(first[ALICE]?.name).toBe('Adma Pingel');
-      expect(typeof first[ALICE]?.since).toBe('string');
-
-      // The typo is corrected at the issuer. One new event, and the
-      // projection holds one entry — not two, and not the old name.
-      const second = await profile('Adam Pingel', (v) => v[ALICE]?.name === 'Adam Pingel');
-      expect(second[ALICE]?.name).toBe('Adam Pingel');
-      expect(Object.keys(second), 'a rename is not a second person').toEqual([ALICE]);
-
-      await stower.stop();
-      eventBus.destroy();
     });
   });
 });

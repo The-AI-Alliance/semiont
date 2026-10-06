@@ -4,12 +4,16 @@
 [workspace]
 resolver = "3"
 members = [
+    "apps/archivist",
+    "apps/archivist/record",
+    "apps/archivist/staging",
     "apps/dispatcher",
     "apps/dispatcher/handlers",
     "apps/dispatcher/jetstream",
     "apps/gateway",
     "packages/codegen-rust",
     "packages/core-rust",
+    "packages/http-service-rust",
     "packages/http-transport-rust",
     "packages/http-transport-rust/conformance",
     "packages/observability-rust",
@@ -31,9 +35,12 @@ repository = "https://github.com/The-AI-Alliance/semiont"
 [workspace.dependencies]
 semiont = { path = "packages/sdk-rust", version = "0.6.11" }
 semiont-codegen = { path = "packages/codegen-rust", version = "0.6.11" }
+semiont-archivist-record = { path = "apps/archivist/record" }
+semiont-archivist-staging = { path = "apps/archivist/staging" }
 semiont-dispatcher-handlers = { path = "apps/dispatcher/handlers" }
 semiont-dispatcher-jetstream = { path = "apps/dispatcher/jetstream" }
 semiont-core = { path = "packages/core-rust" }
+semiont-http-service = { path = "packages/http-service-rust" }
 semiont-http-transport = { path = "packages/http-transport-rust" }
 semiont-observability = { path = "packages/observability-rust" }
 semiont-telemetry = { path = "packages/telemetry-rust", version = "0.6.11" }
@@ -66,8 +73,10 @@ socket2 = "0.6.5"
 tikv-jemalloc-ctl = "0.7.0"
 tikv-jemallocator = "0.7.0"
 tokio = "1.53.1"
+toml = { version = "0.9", default-features = false, features = ["parse", "serde"] }
 tokio-stream = { version = "0.1.19", default-features = false }
 tower = "0.5.3"
+unicode-normalization = "0.1.24"
 uuid = "1.26.1"
 
 [profile.release]

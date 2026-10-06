@@ -1,0 +1,19 @@
+{
+  "tagSchemas": [
+    {
+      "id": "shared",
+      "name": "Shared",
+      "description": "Kept by both",
+      "domain": "general",
+      "tags": [
+        {
+          "name": "Claim",
+          "description": "What is asserted",
+          "examples": [
+            "It is so"
+          ]
+        }
+      ]
+    }
+  ]
+}

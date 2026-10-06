@@ -875,7 +875,7 @@ func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
 		}
 		issuer := "http://192.168.64.1:" + step.want + "/realms/semiont"
-		for _, staged := range []string{"worker.toml", "archivist.toml", "gateway.json", "dispatcher.json"} {
+		for _, staged := range []string{"worker.toml", "archivist.json", "gateway.json", "dispatcher.json"} {
 			if !strings.Contains(stagedFile(t, s, staged), issuer) {
 				t.Errorf("%s: the staged %s does not state the issuer at port %s:\n%s", step.name, staged, step.want, stagedFile(t, s, staged))
 			}
@@ -1265,9 +1265,9 @@ func TestStatePersistsAcrossStarts(t *testing.T) {
 // Unmounted it lives in the container and dies with it on every `stop`, and
 // the Smelter's reconcile re-derives every lost map on the next start.
 //
-// The container path is a constant of the Smelter and Archivist images,
-// declared as SEMIONT_ANCHORED_TEXT_DIR the way SEMIONT_ROOT=/kb is — so this
-// mount looks like every other one: KB identity on the host side only.
+// The container path is a constant — the Smelter's image declares it, the
+// Archivist's document names it — so this mount looks like every other one:
+// KB identity on the host side only.
 func TestAnchoredTextStorePersistsAcrossStarts(t *testing.T) {
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
@@ -6752,8 +6752,8 @@ func TestStartServiceLibrarian(t *testing.T) {
 
 // The Archivist restart path: teardown + port settle + staged config + run +
 // health gate, like any sidecar — but with the record's mounts. The argv is
-// the pin: /kb read-write, archivist.toml, the shared anchored-text store,
-// and NO JWT_SECRET (it signs nothing).
+// the pin: /kb read-write, its configuration document, the shared
+// anchored-text store, and NO JWT_SECRET (it signs nothing).
 func TestStartServiceArchivist(t *testing.T) {
 	s := newScenario(t, "container")
 	stdout, stderr, code := s.run(t, "start", "--service", "archivist")
@@ -6766,7 +6766,7 @@ func TestStartServiceArchivist(t *testing.T) {
 		"--name semiont-archivist",
 		"--publish 24103:24103",
 		":/kb",
-		"archivist.toml:/home/semiont/.semiontconfig:ro",
+		"archivist.json:/etc/semiont/archivist.json:ro",
 		"anchored-text:/anchored-text",
 		"--env SEMIONT_OIDC_CLIENT_ID=semiont-archivist")
 	if strings.Contains(log, "JWT_SECRET") {

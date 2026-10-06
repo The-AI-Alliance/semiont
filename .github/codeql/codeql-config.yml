@@ -15,8 +15,12 @@ paths:
   - apps/dispatcher/src
   - apps/dispatcher/handlers
   - apps/dispatcher/jetstream
+  - apps/archivist/src
+  - apps/archivist/record
+  - apps/archivist/staging
   - packages/codegen-rust
   - packages/core-rust
+  - packages/http-service-rust
   - packages/http-transport-rust
   - packages/observability-rust
   - packages/sdk-rust

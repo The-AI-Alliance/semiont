@@ -6,18 +6,17 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/make-meaning.svg)](https://www.npmjs.com/package/@semiont/make-meaning)
 [![License](https://img.shields.io/npm/l/@semiont/make-meaning.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-The knowledge system: a knowledge base's record and the stores derived from it, and the actors that serve them over the bus. Four of Semiont's services are entry points of this package.
+The stores derived from a knowledge base's record, and the actors that keep them and search them over the bus. Three of Semiont's services are entry points of this package.
 
 ## Who uses it
 
 | Service | Entry point | Runs |
 |---|---|---|
-| **Archivist** | `@semiont/make-meaning/archivist-main` | Stower, Browser, CloneTokenManager |
 | **Librarian** | `@semiont/make-meaning/librarian-main` | Gatherer, Matcher |
 | **Smelter** | `@semiont/make-meaning/smelter-main` | Smelter |
 | **Weaver** | `@semiont/make-meaning/weaver-main` | Weaver |
 
-Each entry point composes exactly what its service owns. The gateway composes nothing from this package: it verifies tokens and relays the bus. The job queue is the [dispatcher](../../apps/dispatcher/README.md)'s, and jobs are run by [`@semiont/jobs`](../jobs/README.md). What each service is for is in the [service catalogue](../../docs/operator/services/OVERVIEW.md).
+Each entry point composes exactly what its service owns. The gateway composes nothing from this package: it verifies tokens and relays the bus. The record is the [Archivist](../../apps/archivist/README.md)'s. The job queue is the [dispatcher](../../apps/dispatcher/README.md)'s, and jobs are run by [`@semiont/jobs`](../jobs/README.md). What each service is for is in the [service catalogue](../../docs/operator/services/OVERVIEW.md).
 
 **Building an application?** Use [`@semiont/sdk`](../sdk/README.md) against a running knowledge base.
 
@@ -30,21 +29,19 @@ Each entry point composes exactly what its service owns. The gateway composes no
 | `ResourceContext`, `AnnotationContext`, `AnnotationGather`, `GraphContext`, `LLMContext` | What the actors are built from: the readers that assemble context |
 | `makeMeaningConfigFrom` | A `MakeMeaningConfig` from a knowledge base's loaded configuration |
 
-The Archivist's actors (Stower, Browser, CloneTokenManager) and the Weaver are not exported. They run only from their entry points; the Archivist's code is `src/archivist/`, and nothing outside that directory imports from it.
+The Weaver is not exported. It runs only from its entry point.
 
 ## What a change must keep
 
 - **The bus is the whole interface.** An actor has no business methods, only `initialize()` and `stop()`. Whatever a client can do, it does by putting an event on the bus.
-- **One writer.** The Stower is the only code that appends to the record. The Stower and the Browser run in one process on purpose, so that a read never races the write it follows, and the Archivist is the working tree's only writer for the same reason.
-- **Each derived store has one owner.** The views are materialized inside the append. The graph is the Weaver's: it catches up from its checkpoint when it starts, and rebuilds from nothing only when told to (`weave:rebuild`). The vector index is the Smelter's, and is reconciled against the record when it starts.
-- **Who did something is derived, never taken from a payload.** The Stower works out an annotation's creator and generator from the identity the gateway verified, and refuses a payload that names one.
-- **A name is given to a person in one place.** Records carry a DID. The Browser fills in what a person is called as a reply goes out.
-- **Entity types are a controlled vocabulary.** The Stower refuses one that the knowledge base has not registered.
-- **A knowledge base acts as itself.** It seeds its default entity types under its own DID, `did:web:<[site] domain>`, which is why one that declares no domain is refused.
+- **Nothing here writes the record.** The Archivist is the only writer of the event log, the views and the working tree. These services read views from the state tree, read bytes from the Archivist, and ask it everything else over the bus.
+- **Each derived store has one owner.** The graph is the Weaver's: it catches up from its checkpoint when it starts, and rebuilds from nothing only when told to (`weave:rebuild`). The vector index is the Smelter's, and is reconciled against the record when it starts.
+- **A name is given to a person in one place.** Records carry a DID. A reply that mentions a person is named from the people projection as it goes out.
+- **A read waits for the store it reads, within a bound.** A gather that outlasts the bound goes on without that part and counts the degrade.
 
 ## Documentation
 
-- [Architecture](docs/architecture.md): what each actor answers, who a write is attributed to, the knowledge base's stores, the context modules, the order things start in.
+- [Architecture](docs/architecture.md): what each actor answers, what each service reads and writes, the context modules, the order things start in.
 - [The actor model](../../docs/architecture/ACTOR-MODEL.md): the design this implements.
 - [Workers](../jobs/docs/Workers.md): the worker, in `@semiont/jobs`.
 

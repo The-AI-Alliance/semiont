@@ -44,17 +44,13 @@ import {
   getLogTraceContext,
   recordAbnormalTermination,
   recordAnchorOutcome,
-  recordAppendStage,
   recordBusSent,
   recordDetectionCall,
   recordGatherDegrade,
-  recordGitCommand,
-  recordGitStagingFailure,
   recordHandlerDuration,
   recordInferenceUsage,
   recordJobOutcome,
   materializeObservableGauges,
-  registerFactPumpDepthProvider,
   registerProcessLifetimeMetrics,
   registerRestartCountProvider,
   registerVectorIndexSizeProvider,
@@ -537,35 +533,6 @@ describe('observable gauges registered before the SDK', () => {
   });
 });
 
-describe('recordAppendStage', () => {
-  it('records a duration histogram per append stage', async () => {
-    recordAppendStage('persist', 12);
-    recordAppendStage('publish', 4);
-    await flushMetrics();
-
-    const hist = collectMetrics().get('semiont.record.append.duration');
-    expect(hist).toBeDefined();
-    const persist = hist!.find((d) => d.attributes['record.stage'] === 'persist');
-    expect(persist?.count).toBe(1);
-    expect(persist?.sum).toBe(12);
-    expect(hist!.find((d) => d.attributes['record.stage'] === 'publish')?.sum).toBe(4);
-  });
-});
-
-describe('recordGitCommand', () => {
-  it('records a duration histogram per git command', async () => {
-    recordGitCommand('commit', 30);
-    recordGitCommand('commit', 10);
-    await flushMetrics();
-
-    const hist = collectMetrics().get('semiont.git.duration');
-    expect(hist).toBeDefined();
-    const commit = hist!.find((d) => d.attributes['git.command'] === 'commit');
-    expect(commit?.count).toBe(2);
-    expect(commit?.sum).toBe(40);
-  });
-});
-
 describe('recordGatherDegrade', () => {
   it('counts a degraded gather per projection', async () => {
     recordGatherDegrade('graph');
@@ -576,19 +543,6 @@ describe('recordGatherDegrade', () => {
     expect(counter).toBeDefined();
     expect(counter!.find((d) => d.attributes['projection'] === 'graph')?.value).toBe(1);
     expect(counter!.find((d) => d.attributes['projection'] === 'vectors')?.value).toBe(1);
-  });
-});
-
-describe('recordGitStagingFailure', () => {
-  it('counts an abandoned staging command by reason', async () => {
-    recordGitStagingFailure('index-lock');
-    recordGitStagingFailure('other');
-    await flushMetrics();
-
-    const counter = collectMetrics().get('semiont.git.staging.failures');
-    expect(counter).toBeDefined();
-    expect(counter!.find((d) => d.attributes['reason'] === 'index-lock')?.value).toBe(1);
-    expect(counter!.find((d) => d.attributes['reason'] === 'other')?.value).toBe(1);
   });
 });
 
@@ -668,30 +622,6 @@ describe('recordDetectionCall', () => {
 
     expect(m.get('semiont.detection.calls')!.find(matches)?.value).toBe(1);
     expect(m.get('semiont.detection.call.items')!.find(matches)?.sum).toBe(0);
-  });
-});
-
-describe('registerFactPumpDepthProvider', () => {
-  it('observes the pump depth at collection time', async () => {
-    let depth = 4;
-    registerFactPumpDepthProvider(() => depth);
-    await flushMetrics();
-
-    expect(collectMetrics().get('semiont.archivist.fact_pump.depth')![0]?.value).toBe(4);
-
-    // The gauge is pull-based: a later collection must see the new depth
-    // without re-registering, which is the whole point of a provider.
-    depth = 11;
-    metricExporter.reset();
-    await flushMetrics();
-    expect(collectMetrics().get('semiont.archivist.fact_pump.depth')![0]?.value).toBe(11);
-  });
-
-  it('observes zero rather than skipping — zero at rest is the healthy reading', async () => {
-    registerFactPumpDepthProvider(() => 0);
-    await flushMetrics();
-
-    expect(collectMetrics().get('semiont.archivist.fact_pump.depth')![0]?.value).toBe(0);
   });
 });
 

@@ -139,7 +139,8 @@ describe('Matcher decoupling', () => {
     eventBus = new EventBus();
     const viewsGet = vi.fn<ViewsGet>(async (rid) => ({
       resource: descriptor('fresh', 'Fresh Resource'),
-      annotations: { resourceId: rid, annotations: [], version: 0, updatedAt: '2026-08-28T00:00:00Z' },
+      annotations: { resourceId: rid, annotations: [], version: 1, updatedAt: '2026-08-28T00:00:00Z' },
+      lastSequence: 1,
     }));
     matcher = new Matcher(
       makeStores({

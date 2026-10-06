@@ -113,6 +113,7 @@ graph BT
 
     rcore["semiont-core<br/><i>What the Rust services share</i>"]
     robs["semiont-observability<br/><i>Telemetry export, log lines</i>"]
+    rserve["semiont-http-service<br/><i>Serving HTTP, verifying the issuer's tokens</i>"]
     rhttp["semiont-http-transport<br/><i>The transport over a gateway, sign-in</i>"]
     rtel["semiont-telemetry<br/><i>Spans and counts, no exporter</i>"]
     rsdk["semiont<br/><i>The Rust SDK</i>"]
@@ -120,6 +121,7 @@ graph BT
 
     gateway --> rcore
     gateway --> robs
+    gateway --> rserve
     gateway --> rhttp
     gateway --> rtel
     gateway --> rsdk
@@ -145,23 +147,23 @@ graph BT
     classDef published fill:#e1f5fe,stroke:#01579b,stroke-width:3px
 
     class gateway,dispatcher app
-    class rcore,robs internal
+    class rcore,robs,rserve internal
     class rhttp,rtel,rsdk,codegen published
 ```
 
-Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `semiont-telemetry` and `semiont-codegen`. `semiont-core` and `semiont-observability` are the services' own. The dispatcher also has two crates of its own beside its binary, for its handlers and its JetStream queue.
+Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `semiont-telemetry` and `semiont-codegen`. `semiont-core`, `semiont-observability` and `semiont-http-service` are the services' own. The dispatcher also has two crates of its own beside its binary, for its handlers and its JetStream queue. The Archivist has two as well, for its record and its staging drivers.
 
 ## What each service image runs
 
 | Image | Runs | From |
 |---|---|---|
-| `semiont-archivist` | `archivist-main` | `@semiont/make-meaning` |
 | `semiont-librarian` | `librarian-main` | `@semiont/make-meaning` |
 | `semiont-smelter` | `smelter-main` | `@semiont/make-meaning` |
 | `semiont-weaver` | `weaver-main` | `@semiont/make-meaning` |
 | `semiont-worker` | `worker-main` | `@semiont/jobs` |
 | `semiont-browser` | the built SPA | `apps/browser` |
 | `semiont-gateway` | a Rust binary | `apps/gateway` |
+| `semiont-archivist` | a Rust binary | `apps/archivist` |
 | `semiont-dispatcher` | a Rust binary | `apps/dispatcher` |
 
 ## Architectural principles

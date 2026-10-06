@@ -296,8 +296,8 @@ What a service reads from its environment is in [Secrets](../services/SECRETS.md
 
 No service reads the files in the repository directly:
 
-- **The five Node services** each read a TOML file at `/home/semiont/.semiontconfig`. The launcher writes one per service from the selected config, with every address filled in.
-- **The gateway and the dispatcher** each read a JSON document, at `/etc/semiont/gateway.json` and `/etc/semiont/dispatcher.json`, that the launcher writes from the config and from `.semiont/config`. Their schemas are [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json) and [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json). A document names a credential by the variable that holds it, never by value.
+- **The librarian, the worker, the smelter and the weaver** each read a TOML file at `/home/semiont/.semiontconfig`. The launcher writes one per service from the selected config, with every address filled in.
+- **The gateway, the dispatcher and the archivist** each read a JSON document, at `/etc/semiont/gateway.json`, `/etc/semiont/dispatcher.json` and `/etc/semiont/archivist.json`, that the launcher writes from the config and from `.semiont/config`. Their schemas are [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json), [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json) and [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json). A document names a credential by the variable that holds it, never by value.
 
 On your own platform, these files are what you deliver ([Deployment](DEPLOYMENT.md#what-your-platform-provides)).
 

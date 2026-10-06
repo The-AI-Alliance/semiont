@@ -9,9 +9,8 @@ import { isObject, isString } from './type-guards';
  * tree (the Librarian) builds a `SemiontState` from the name alone.
  */
 function stateDirFor(name: string): string {
-  // No fabricated default: absence fails loudly. Every process that reaches
-  // its state tree through this — the Librarian, the Archivist — runs in a
-  // container the launcher gives a state MOUNT and an explicit
+  // No fabricated default: absence fails loudly. The launcher gives a
+  // container that needs state a state MOUNT and an explicit
   // `XDG_STATE_HOME=/semiont-state`. Its absence means a service that
   // needs state has no volume behind it — a misconfiguration — and writing to a
   // manufactured `~/.local/state` would hide that behind an ephemeral path
@@ -70,7 +69,8 @@ export class SemiontState {
  * Represents a Semiont project rooted at a given directory.
  *
  * Computes all paths — durable and ephemeral — once at construction time.
- * XDG environment variables are read here and nowhere else.
+ * `XDG_STATE_HOME` is read here and nowhere else, and only for a process not
+ * told where the state volume is.
  *
  * **The paths divide along what they are derived FROM, and so does the type.**
  * Everything ephemeral is composed from the KB's NAME, so it needs no working
@@ -84,7 +84,7 @@ export class SemiontState {
  *   eventsDir — .semiont/events/  (system of record, committed)
  *
  * Ephemeral paths (outside the project root, never committed) — `SemiontState`:
- *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
+ *   stateDir        — {state volume}/semiont/{name}/
  *   resourcesDir    — stateDir/resources/  (the per-resource materialized views)
  *   projectionsDir  — stateDir/projections/  (KB-global projections + the storage-uri index)
  *

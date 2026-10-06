@@ -7,10 +7,9 @@ import { ResourceContext } from '../resource-context';
 import type { ResourceDescriptor, ResourceId } from '@semiont/core';
 import { resourceId } from '@semiont/core';
 
-// The union of the slices this file exercises — DERIVED from the methods'
-// own parameter types, never restated.
-type ResourceContextReads = Parameters<typeof ResourceContext.listResources>[1] &
-  Parameters<typeof ResourceContext.getResourceMetadata>[1];
+// The slice this file exercises — DERIVED from the method's own parameter
+// type, never restated.
+type ResourceContextReads = Parameters<typeof ResourceContext.getResourceMetadata>[1];
 
 // Mock the helpers ResourceContext reads from core. Use importOriginal so
 // branded constructors (resourceId, etc.) keep their real implementations.
@@ -33,7 +32,6 @@ describe('ResourceContext', () => {
 
     mockViewStorage = {
       get: vi.fn(),
-      getAll: vi.fn(),
     };
 
     mockKb = { views: mockViewStorage };
@@ -86,126 +84,6 @@ describe('ResourceContext', () => {
       expect(mockViewStorage.get).toHaveBeenCalledWith('nonexistent');
     });
 
-  });
-
-  describe('listResources', () => {
-    const asView = (resource: ResourceDescriptor) => ({
-      resource,
-      annotations: {
-        highlights: [],
-        assessments: [],
-        comments: [],
-        tags: [],
-        links: [],
-        entityReferences: [],
-      },
-    });
-
-    const mockResource1: ResourceDescriptor = {
-      '@context': 'https://schema.org/',
-      '@id': resourceId('res-1'),
-      name: 'Resource 1',
-      archived: false,
-      entityTypes: ['Document'],
-      dateCreated: '2024-01-01T00:00:00Z',
-      representations: [],
-    };
-
-    const mockResource2: ResourceDescriptor = {
-      '@context': 'https://schema.org/',
-      '@id': resourceId('res-2'),
-      name: 'Resource 2',
-      archived: false,
-      entityTypes: ['Image'],
-      dateCreated: '2024-01-02T00:00:00Z',
-      representations: [],
-    };
-
-    const mockResource3: ResourceDescriptor = {
-      '@context': 'https://schema.org/',
-      '@id': resourceId('res-3'),
-      name: 'Archived Resource',
-      archived: true,
-      entityTypes: ['Document'],
-      dateCreated: '2024-01-03T00:00:00Z',
-      representations: [],
-    };
-
-    test('should list all resources when no filters provided', async () => {
-      mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource2)]);
-
-      const result = await ResourceContext.listResources(undefined, mockKb);
-
-      expect(result.total).toBe(2);
-      expect(result.resources).toContainEqual(mockResource1);
-      expect(result.resources).toContainEqual(mockResource2);
-    });
-
-    test('should filter by archived status (false)', async () => {
-      mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource3)]);
-
-      const result = await ResourceContext.listResources({ archived: false }, mockKb);
-
-      expect(result.resources).toEqual([mockResource1]);
-      expect(result.total).toBe(1);
-    });
-
-    test('should filter by archived status (true)', async () => {
-      mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(mockResource3)]);
-
-      const result = await ResourceContext.listResources({ archived: true }, mockKb);
-
-      expect(result.resources).toEqual([mockResource3]);
-      expect(result.total).toBe(1);
-    });
-
-    test('view path filters by entityType and paginates, totalling every match', async () => {
-      mockViewStorage.getAll.mockResolvedValue([
-        asView(mockResource1), asView(mockResource2), asView(mockResource3),
-      ]);
-
-      const result = await ResourceContext.listResources(
-        { entityType: 'Document', limit: 1, offset: 0 },
-        mockKb);
-
-      // Two Documents match; the page holds one. `total` describes the match
-      // set, because that is what the caller pages on.
-      expect(result.total).toBe(2);
-      expect(result.resources).toEqual([mockResource3]);
-    });
-
-    test('should sort by creation date (newest first)', async () => {
-      mockViewStorage.getAll.mockResolvedValue([
-        asView(mockResource1), asView(mockResource2), asView(mockResource3),
-      ]);
-
-      const result = await ResourceContext.listResources(undefined, mockKb);
-
-      expect(result.resources.map(r => r.dateCreated)).toEqual([
-        '2024-01-03T00:00:00Z',
-        '2024-01-02T00:00:00Z',
-        '2024-01-01T00:00:00Z',
-      ]);
-    });
-
-    test('should handle resources without dateCreated', async () => {
-      const resourceNoDate: ResourceDescriptor = {
-        '@context': 'https://schema.org/',
-        '@id': resourceId('res-no-date'),
-        name: 'No Date Resource',
-        archived: false,
-        entityTypes: ['Document'],
-        representations: [],
-      };
-
-      mockViewStorage.getAll.mockResolvedValue([asView(mockResource1), asView(resourceNoDate)]);
-
-      const result = await ResourceContext.listResources(undefined, mockKb);
-
-      expect(result.total).toBe(2);
-      // Resource with date should come first
-      expect(result.resources[0]).toEqual(mockResource1);
-    });
   });
 });
 

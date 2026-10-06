@@ -77,7 +77,7 @@ From the launcher: `semiont yield --upload <file>`, and `semiont yield --help` f
 ## Where it is implemented
 
 - The SDK namespace: [packages/sdk/src/namespaces/yield.ts](../../../packages/sdk/src/namespaces/yield.ts)
-- What records the events: the Stower, in [packages/make-meaning/src/archivist/stower.ts](../../../packages/make-meaning/src/archivist/stower.ts)
+- What records the events: [the Archivist](../ARCHIVIST.md), in [apps/archivist/src/commands.rs](../../../apps/archivist/src/commands.rs)
 - The generation worker: [packages/jobs](../../../packages/jobs/README.md), and [its job types](../../../packages/jobs/docs/JobTypes.md)
 - The launcher verb: [apps/launcher/internal/verbs/yield.go](../../../apps/launcher/internal/verbs/yield.go)
 - The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

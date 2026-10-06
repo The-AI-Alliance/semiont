@@ -10,7 +10,6 @@ pub mod archivist;
 pub mod composition;
 pub mod config;
 pub mod http;
-pub mod issuer;
 pub mod ledger;
 pub mod limits;
 pub mod metrics;

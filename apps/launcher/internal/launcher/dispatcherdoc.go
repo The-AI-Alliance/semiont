@@ -58,13 +58,13 @@ func dispatcherNamedVars(env *envConfig) []string {
 	return names
 }
 
-// dispatcherVars: what a ${VAR} in the dispatcher's settings resolves against —
-// the gateway's set, plus the gateway's own host, which the dispatcher dials,
-// set last as a sidecar's is (gatewayHostEnv follows the user's
+// gatewayDialerVars: what a ${VAR} resolves against in the document of a
+// service that dials the gateway — the gateway's set, plus the gateway's own
+// host, set last as a sidecar's is (gatewayHostEnv follows the user's
 // variables). The gateway's resolver omits it on purpose (gatewayVars): copied
-// as it is, a ${GATEWAY_HOST:-localhost} in the dispatcher's gateway URL would
-// resolve to the dispatcher's own container.
-func dispatcherVars(rt, addr string, issuerPort int, userEnv []string) map[string]string {
+// as it is, a ${GATEWAY_HOST:-localhost} in such a service's gateway URL would
+// resolve to the service's own container.
+func gatewayDialerVars(rt, addr string, issuerPort int, userEnv []string) map[string]string {
 	vars := gatewayVars(rt, addr, issuerPort, userEnv)
 	vars["GATEWAY_HOST"] = addr
 	vars["BACKEND_HOST"] = addr
@@ -81,7 +81,7 @@ func dispatcherDocument(env *envConfig, rt, addr string, issuerPort int, userEnv
 	if env.Identity == nil {
 		return nil, fmt.Errorf("the environment declares no [identity]: the dispatcher has no issuer to sign in at")
 	}
-	vars := dispatcherVars(rt, addr, issuerPort, userEnv)
+	vars := gatewayDialerVars(rt, addr, issuerPort, userEnv)
 	var doc semiont.DispatcherConfig
 	var err error
 	if doc.GatewayUrl, err = resolveRefs("gateway.publicURL", env.Gateway.PublicURL, vars); err != nil {

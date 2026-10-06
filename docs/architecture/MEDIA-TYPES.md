@@ -187,7 +187,7 @@ exists because of one of those three declarations.
 1. **`yield.resource`** with the bytes. The archivist appends to the event log,
    the system of record, and emits **`yield:created`**.
 2. **Three consumers take that event independently**, none waiting on the others:
-   - **ViewMaterializer** builds the view projection. This makes the resource
+   - **The Archivist** builds the resource's view. This makes the resource
      openable, and it is also the `resourceId → checksum` index that later
      stages rely on.
    - **Smelter** plans an embed.
@@ -426,5 +426,5 @@ decide each axis knowingly:
 
 - **[ANCHORING.md](ANCHORING.md)** — the anchoring pipeline in depth.
 - **[../protocol/W3C-SELECTORS.md](../protocol/W3C-SELECTORS.md)** — the selector types, and which apply to which anchoring model.
-- **[PROJECTION-PATTERN.md](PROJECTION-PATTERN.md)** — the read-your-writes barrier step 8 relies on.
+- **[../protocol/ARCHIVIST.md](../protocol/ARCHIVIST.md)** — the wait step 8 relies on: a read of anchored text waits for the Smelter to settle.
 - **[../protocol/TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md)** — where the artifact crosses a process boundary.

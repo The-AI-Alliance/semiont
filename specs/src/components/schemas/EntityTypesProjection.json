@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "The knowledge base's entity-type vocabulary: the file `projections/__system__/entitytypes.json` under the state directory, the sum of the `frame:entity-type-added` events. Written as JSON indented by two spaces.",
+  "properties": {
+    "entityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "description": "Every entity type added, each once, sorted."
+    }
+  },
+  "required": [
+    "entityTypes"
+  ],
+  "additionalProperties": false
+}

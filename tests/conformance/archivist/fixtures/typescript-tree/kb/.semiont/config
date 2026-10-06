@@ -1,0 +1,8 @@
+[project]
+name = "ArXiv Research Papers"
+
+[git]
+sync = false
+
+[site]
+domain = "the-ai-alliance.github.io:semiont-arxiv-kb"

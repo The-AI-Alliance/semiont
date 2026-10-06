@@ -8,6 +8,7 @@
  *   npm run container:build              # Build all images
  *   npm run container:build gateway      # Build gateway only
  *   npm run container:build dispatcher   # Build dispatcher only
+ *   npm run container:build archivist    # Build archivist only
  *   npm run container:build browser     # Build browser only
  * 
  * Legacy aliases:
@@ -169,10 +170,12 @@ async function main() {
         console.log('Building all services...');
         await buildRust('gateway', runtime);
         await buildRust('dispatcher', runtime);
+        await buildRust('archivist', runtime);
         await buildBrowser(runtime);
         break;
       case 'gateway':
       case 'dispatcher':
+      case 'archivist':
         await buildRust(service, runtime);
         break;
       case 'browser':
@@ -180,7 +183,7 @@ async function main() {
         break;
       default:
         log('red', `Unknown service: ${service}`);
-        console.log('Usage: npm run container:build [all|gateway|dispatcher|browser]');
+        console.log('Usage: npm run container:build [all|gateway|dispatcher|archivist|browser]');
         process.exit(1);
     }
     

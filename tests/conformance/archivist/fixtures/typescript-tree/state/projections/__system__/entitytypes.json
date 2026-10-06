@@ -1,0 +1,14 @@
+{
+  "entityTypes": [
+    "Author",
+    "Concept",
+    "Date",
+    "Élan",
+    "Event",
+    "Location",
+    "Organization",
+    "Person",
+    "Product",
+    "Technology"
+  ]
+}

@@ -11,7 +11,7 @@ How the TypeScript SDK reaches a knowledge base over HTTP. It implements the thr
 ## Who uses it
 
 - **[`@semiont/sdk`](../sdk/README.md)** builds one for every session, and re-exports `HttpTransport` and `HttpContentTransport`.
-- **The Node services** build the stack by hand, because each signs in as an agent and listens to a narrowed set of channels: the Worker in [`@semiont/jobs`](../jobs/README.md), and the Archivist, Librarian, Smelter and Weaver in [`@semiont/make-meaning`](../make-meaning/README.md).
+- **The Node services** build the stack by hand, because each signs in as an agent and listens to a narrowed set of channels: the Worker in [`@semiont/jobs`](../jobs/README.md), and the Librarian, Smelter and Weaver in [`@semiont/make-meaning`](../make-meaning/README.md).
 - **[`@semiont/mcp-server`](../mcp-server/README.md)**.
 
 **Building an application?** Import from [`@semiont/sdk`](../sdk/README.md), not from here. A session gives you a connected client, and the two transport classes are re-exported there for the rare program that wires its own.

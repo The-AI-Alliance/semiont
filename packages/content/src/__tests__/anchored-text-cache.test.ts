@@ -532,3 +532,59 @@ describe('would-hit key listing', () => {
     expect(await store.read('feedc0de11')).not.toBeNull();   // the sweep spares the live tree
   });
 });
+
+/**
+ * The stamp is the writer's to state. A process that only reads the store —
+ * built from other packages, or in another language — cannot compute the
+ * writer's stamp; it compares entries against the one stated in the directory.
+ */
+describe('the writer states its stamp in the directory', () => {
+  const MAP = { kind: 'extracted' as const, text: 'alpha beta', items: [{ start: 0, end: 5, page: 1, x: 72, y: 720, width: 30, height: 12 }], method: 'ocr' as const };
+  const KEY = 'feedc0de11';
+  const stated = () => fs.readFileSync(path.join(dir, 'STAMP'), 'utf8');
+
+  it('a write states the stamp its entries carry', async () => {
+    await createAnchoredTextStore(dir).write(KEY, MAP);
+
+    const [file] = allEntryFiles(dir);
+    expect(stated()).toBe(`${JSON.parse(fs.readFileSync(file!, 'utf8')).stamp}\n`);
+  });
+
+  it('a listing states the stamp too, so a writer that re-derives nothing still leaves readers able to hit', async () => {
+    await createAnchoredTextStore(dir).write(KEY, MAP);
+    const written = stated();
+    fs.rmSync(path.join(dir, 'STAMP'));
+
+    expect(await createAnchoredTextStore(dir).list()).toEqual([KEY]);
+
+    expect(stated()).toBe(written);
+  });
+
+  it('the stated stamp survives the listing sweep', async () => {
+    const store = createAnchoredTextStore(dir);
+    await store.write(KEY, MAP);
+    await store.list();
+
+    expect(fs.existsSync(path.join(dir, 'STAMP'))).toBe(true);
+  });
+});
+
+describe('an entry is an AnchoredTextEntry', () => {
+  it('on both branches, with every provenance field', async () => {
+    const { validators, formatErrors } = await import('@semiont/core/openapi');
+    const store = createAnchoredTextStore(dir);
+    await store.write('aaaa1111', {
+      kind: 'extracted', text: 'alpha beta', method: 'ocr', pdfClass: 'C',
+      items: [{ start: 0, end: 5, page: 1, x: 72, y: 720, width: 30, height: 12 }],
+      ocrConfidence: { mean: 91.5, lowConfidenceWords: 1, totalWords: 2 }, unreadPages: [2],
+    });
+    await store.write('bbbb2222', { kind: 'declined', declined: 'encrypted' });
+
+    const files = allEntryFiles(dir);
+    expect(files).toHaveLength(2);
+    for (const file of files) {
+      const validate = validators.AnchoredTextEntry;
+      expect(validate(JSON.parse(fs.readFileSync(file, 'utf8'))), formatErrors(validate.errors)).toBe(true);
+    }
+  });
+});

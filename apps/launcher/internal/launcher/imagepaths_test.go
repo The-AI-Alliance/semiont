@@ -59,11 +59,6 @@ func TestContainerPathsMatchTheImage(t *testing.T) {
 		env    string
 		mounts string
 	}{
-		// The KB tree's row is the ARCHIVIST's, the one image that mounts it.
-		// The gateway declares neither of these env vars, because it mounts
-		// nothing they could name.
-		{"archivist", []string{"..", "..", "..", "archivist", "Dockerfile"},
-			"SEMIONT_ROOT", kbMountTarget},
 		{"smelter", []string{"..", "..", "..", "smelter", "Dockerfile"},
 			"SEMIONT_ANCHORED_TEXT_DIR", stateStores["anchored-text"].mounts[0].target},
 	} {
@@ -76,6 +71,29 @@ func TestContainerPathsMatchTheImage(t *testing.T) {
 		if got != c.mounts {
 			t.Errorf("%s/%s: the image says %q, the launcher mounts onto %q — the service would read an empty directory and never report it",
 				c.label, c.env, got, c.mounts)
+		}
+	}
+}
+
+// The Archivist's image names the KB mount twice — as git's one trusted
+// directory, and as the directory the process starts in — and the launcher
+// names it in the mount and in the document's `root`. git refuses a tree it
+// was not told to trust, so a mismatch is an Archivist that cannot stage.
+func TestTheArchivistImageTrustsTheKBMount(t *testing.T) {
+	df, err := os.ReadFile(filepath.Join("..", "..", "..", "archivist", "Dockerfile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for label, re := range map[string]*regexp.Regexp{
+		"git's safe.directory": regexp.MustCompile(`safe\.directory (\S+)`),
+		"WORKDIR":              regexp.MustCompile(`(?m)^WORKDIR (\S+)`),
+	} {
+		// The last one stated: the runtime stage's, after the builder's.
+		all := re.FindAllSubmatch(df, -1)
+		if len(all) == 0 {
+			t.Errorf("the archivist image declares no %s", label)
+		} else if got := string(all[len(all)-1][1]); got != kbMountTarget {
+			t.Errorf("the archivist image's %s is %q, the launcher mounts the knowledge base onto %q", label, got, kbMountTarget)
 		}
 	}
 }
@@ -113,6 +131,7 @@ func TestConfigDocumentsAreWhereTheImagesLook(t *testing.T) {
 	}{
 		{"gateway", gatewayDocumentTarget},
 		{"dispatcher", dispatcherDocumentTarget},
+		{"archivist", archivistDocumentTarget},
 	} {
 		if named := commandConfigPath(t, "..", "..", "..", c.service, "Dockerfile"); named != c.mounts {
 			t.Errorf("the %s image passes --config %q, the launcher mounts onto %q", c.service, named, c.mounts)
@@ -174,7 +193,7 @@ func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
 	for what, want := range map[string]string{
 		"the shared supervisor":              "scripts/container/supervise.sh",
 		"the boot entrypoint that arms it":   "scripts/container/boot.sh",
-		"the entry point, stated once (CMD)": "dist/archivist-main.js",
+		"the entry point, stated once (CMD)": "/usr/local/bin/semiont-archivist",
 		"the supervisor's probe target":      "SUPERVISE_PROBE=http://localhost:24103/health",
 	} {
 		if !strings.Contains(string(df), want) {
@@ -201,13 +220,15 @@ func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
 // Each service's health port is hand-written in five homes (TS main const,
 // Dockerfile EXPOSE, Dockerfile HEALTHCHECK, Dockerfile SUPERVISE_PROBE,
 // launcher portNeed). They can't be derived across three languages, so this
-// gate keeps them agreeing.
+// gate keeps them agreeing. The Archivist's main has no constant: it listens
+// where its configuration document says, which the launcher writes from the
+// portNeed.
 func TestServiceHealthPortsAgreeAcrossAllHomes(t *testing.T) {
 	mains := map[string]string{
 		"worker":    filepath.Join("..", "..", "..", "..", "packages", "jobs", "src", "worker-main.ts"),
 		"smelter":   filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "smelter-main.ts"),
 		"weaver":    filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "weaver-main.ts"),
-		"archivist": filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "archivist", "archivist-main.ts"),
+		"archivist": "",
 		"librarian": filepath.Join("..", "..", "..", "..", "packages", "make-meaning", "src", "librarian-main.ts"),
 	}
 	tsPort := regexp.MustCompile(`const healthPort = (\d+)`)
@@ -217,15 +238,17 @@ func TestServiceHealthPortsAgreeAcrossAllHomes(t *testing.T) {
 	for svc, mainPath := range mains {
 		want := semiontDescriptor(svc).ports[0].port
 
-		ts, err := os.ReadFile(mainPath)
-		if err != nil {
-			t.Fatalf("%s: reading %s: %v", svc, mainPath, err)
-		}
-		m := tsPort.FindSubmatch(ts)
-		if m == nil {
-			t.Errorf("%s: no `const healthPort = N` in its main — the gate cannot see its port", svc)
-		} else if got := string(m[1]); got != fmt.Sprint(want) {
-			t.Errorf("%s: TS healthPort %s != launcher portNeed %d", svc, got, want)
+		if mainPath != "" {
+			ts, err := os.ReadFile(mainPath)
+			if err != nil {
+				t.Fatalf("%s: reading %s: %v", svc, mainPath, err)
+			}
+			m := tsPort.FindSubmatch(ts)
+			if m == nil {
+				t.Errorf("%s: no `const healthPort = N` in its main — the gate cannot see its port", svc)
+			} else if got := string(m[1]); got != fmt.Sprint(want) {
+				t.Errorf("%s: TS healthPort %s != launcher portNeed %d", svc, got, want)
+			}
 		}
 
 		df, err := os.ReadFile(filepath.Join("..", "..", "..", svc, "Dockerfile"))

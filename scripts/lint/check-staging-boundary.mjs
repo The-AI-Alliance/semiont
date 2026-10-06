@@ -3,15 +3,15 @@
  * Git stays replaceable: the code that runs git is the code that implements
  * the staging interface in front of it, and nothing else.
  *
- * The Archivist stages changes where a person can commit them. `Staging`
- * (packages/content/src/staging.ts) names that job; `git-staging.ts` is the
- * one technology behind it. A module that
- * ran git beside it, or handed it git's own arguments, would tie the rest to
- * git, and nothing would say so. So, in production TypeScript and JavaScript:
+ * The Archivist stages changes where a person can commit them. Its `Staging`
+ * trait (apps/archivist/staging/src/lib.rs) names that job; `git.rs` beside it
+ * is the one technology behind it. Code that ran git beside it, or linked a
+ * git library, would tie the rest to git, and nothing would say so. So:
  *
- *   - `git` is spawned only in the git driver;
- *   - git's arguments (`mv`, `rm`, `--cached`, `rev-parse`) are written only
- *     there;
+ *   - in Rust, `git` is spawned only in the git driver, and no crate names a
+ *     git library;
+ *   - in production TypeScript and JavaScript, nothing spawns git or writes
+ *     its arguments (`mv`, `rm`, `--cached`, `rev-parse`);
  *   - no schema in `specs/` gives a caller a `noGit` switch. Whether a project
  *     stages is the project's `[git] sync`, never one command's choice.
  *
@@ -27,12 +27,14 @@ import { withoutComments } from './source-text.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
-const DRIVER = 'packages/content/src/git-staging.ts';
+const DRIVER = 'apps/archivist/staging/src/git.rs';
 
 const productionSource = (file) =>
   /^(apps|packages)\/[^/]+\/src\//.test(file) &&
   /\.(ts|tsx|mts|cts|js|mjs|cjs)$/.test(file) &&
   !/(^|\/)__tests__\/|\.(test|spec)\.[^/]+$/.test(file);
+
+const rustSource = (file) => /^(apps|packages)\/(?!desktop\/)(?:[^/]+\/)+src\/.*\.rs$/.test(file);
 
 const specSchema = (file) => /^specs\/src\/.*\.json$/.test(file);
 
@@ -43,13 +45,26 @@ const RULES = [
     // A call whose first argument is the command name: execFile('git', …),
     // spawn("git", …), or an alias of either.
     uses: /\(\s*['"]git['"]\s*,/,
-    allowed: [DRIVER],
+    allowed: [],
   },
   {
     what: "git's own arguments",
     scope: productionSource,
     uses: /['"](?:--cached|rev-parse)['"]|\[\s*['"](?:mv|rm)['"]\s*,/,
+    allowed: [],
+  },
+  {
+    what: 'a git subprocess',
+    scope: rustSource,
+    // Command::new("git"), by any path to Command.
+    uses: /\bCommand::new\s*\(\s*"git"\s*\)/,
     allowed: [DRIVER],
+  },
+  {
+    what: 'a git library',
+    scope: rustSource,
+    uses: /\b(?:git2|gix)::/,
+    allowed: [],
   },
   {
     what: 'a `noGit` switch on the wire',
@@ -81,7 +96,7 @@ for (const rule of RULES) {
 if (problems.length > 0) {
   console.error('✗ lint:staging-boundary — git is reached around its interface:');
   for (const p of problems) console.error(`    ${p}`);
-  console.error('  Stage, move and remove through Staging (packages/content/src/staging.ts).');
+  console.error('  Stage, move and remove through Staging (apps/archivist/staging/src/lib.rs).');
   process.exit(1);
 }
 console.log('✓ lint:staging-boundary — git is run, and spoken to in its own arguments, only in the git staging driver, and no schema carries a noGit switch');

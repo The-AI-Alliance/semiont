@@ -1,0 +1,75 @@
+{
+  "$comment": "Where a key is filed: the two directory levels `<ab>/<cd>` under which the event log files a resource's stream and the views file its view (key: the resource id), the storage-uri index files an entry (key: the URI), and the anchored-text store files an entry (key: the content checksum). The shard is a 16-bit number written as four lowercase hex digits and split in two. It is computed over the key's UTF-16 code units: start at 0; for each unit, multiply by 31 and add the unit, keeping the low 32 bits as a signed integer; take the absolute value; take it modulo 65536. Every implementation that writes or reads these files runs every case and fails on any difference: TypeScript (packages/core getShardPath), which the Librarian and the Smelter keep using, and the Archivist. Add a case here before changing any implementation.",
+  "cases": [
+    {
+      "why": "the empty key",
+      "key": "",
+      "shard": "00/00"
+    },
+    {
+      "why": "one character",
+      "key": "a",
+      "shard": "00/61"
+    },
+    {
+      "why": "a two-character id",
+      "key": "ab",
+      "shard": "0c/21"
+    },
+    {
+      "why": "a generated resource id",
+      "key": "3f2a9c1e7b4d4e0a9f6c5d8e1b2a7c40",
+      "shard": "2b/bb"
+    },
+    {
+      "why": "another, to show spread",
+      "key": "3f2a9c1e7b4d4e0a9f6c5d8e1b2a7c41",
+      "shard": "2b/bc"
+    },
+    {
+      "why": "an id of every safe character class",
+      "key": "Res_ource-ID_0123456789",
+      "shard": "b2/8b"
+    },
+    {
+      "why": "the longest id: 128 characters",
+      "key": "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ",
+      "shard": "30/00"
+    },
+    {
+      "why": "a hash that goes negative before the absolute value",
+      "key": "zzzzzzzz",
+      "shard": "a3/00"
+    },
+    {
+      "why": "a content checksum, as the anchored-text store keys entries",
+      "key": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "shard": "f7/3b"
+    },
+    {
+      "why": "a storage URI",
+      "key": "file://docs/overview.md",
+      "shard": "27/0a"
+    },
+    {
+      "why": "a storage URI with a space and a nested path",
+      "key": "file://notes/2026/meeting notes.md",
+      "shard": "fe/96"
+    },
+    {
+      "why": "a storage URI outside ASCII: hashed by UTF-16 code unit, not by byte",
+      "key": "file://docs/résumé.md",
+      "shard": "e0/3a"
+    },
+    {
+      "why": "a storage URI outside the basic plane: two code units per character",
+      "key": "file://docs/📚-reading-list.md",
+      "shard": "33/0c"
+    },
+    {
+      "why": "a storage URI in another script",
+      "key": "file://文档/概述.md",
+      "shard": "dc/9e"
+    }
+  ]
+}

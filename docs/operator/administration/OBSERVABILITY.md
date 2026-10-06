@@ -30,8 +30,8 @@ the gateway's own spans — `bus.dispatch:<channel>`, `sse.deliver:<channel>`,
 transports export, in any language, is specified in
 [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json):
 the `bus.emit` and `bus.recv` spans, the `content.*` client spans, and the
-count of emits a client sends. The dispatcher reaches the bus through the Rust
-SDK, so it exports the bus rows of that table beside its own. Each service's
+count of emits a client sends. The dispatcher and the Archivist reach the bus through the Rust
+SDK, so each exports the bus rows of that table beside its own. Each service's
 conformance suite holds it to its rows in both directions, and the SDK suite
 holds each SDK to the SDK table.
 
@@ -62,7 +62,7 @@ job:reference-annotation                        [worker handleJob]
 ### The services
 
 The standard OpenTelemetry variables, set in each service's environment. The launcher sets the endpoint for every service it starts; on your own platform, set it in each container's environment.
-The Rust services — the gateway and the dispatcher — read the ones their
+The Rust services — the gateway, the dispatcher and the Archivist — read the ones their
 environment table lists ([`variables.json`](../../../specs/src/service-environment/variables.json))
 and configure their SDK from them; the table below is the sidecars'.
 
@@ -200,7 +200,7 @@ Alongside traces, every service exports metrics through the same OTLP
 endpoint. No extra config required — the `OTEL_EXPORTER_OTLP_ENDPOINT`
 you set for traces also drives metrics. The Browser exports spans only.
 
-The table is what the TypeScript services export: the Archivist, the
+The table is what the TypeScript services export: the
 Librarian, the Smelter, the Weaver and the worker.
 
 | Metric                       | Type             | Attributes                                              | Where                                         |
@@ -218,10 +218,6 @@ Librarian, the Smelter, the Weaver and the worker.
 | `semiont.detection.call.tokens` | histogram     | same, plus `detection.direction` (`input`/`output`)     | Provider-reported tokens per detection call; kept separate from `semiont.inference.tokens` because that series carries no subdivision depth |
 | `semiont.detection.anchors`  | counter          | `detection.label`, `anchor.method` (`unique-match`/`context-recovered`/`first-of-many`/`fuzzy-match`) | Every annotation anchoring — the degraded-method **rate** is the precision signal, so clean outcomes are counted too |
 | `semiont.gather.degraded`    | counter          | `projection` (`graph`/`vectors`/`suggestions`)          | Librarian's Gatherer — a gather that came up short: `graph`, the graph projection did not catch up and the gather failed; `vectors`, the vector projection did not settle in time and the context carries no semantic matches; `suggestions`, the summary and suggestions inference call failed and the context carries neither. A rising `graph` or `vectors` rate means the Weaver or the Smelter is not keeping up |
-| `semiont.record.append.duration` | histogram    | `record.stage` (`persist`/`materialize`/`enrich`/`publish`) | Archivist — time in one stage of appending an event to the record: the log write, the view rebuild, enrichment, the publish onto its in-process bus |
-| `semiont.git.duration`       | histogram        | `git.command` (`add`/`mv`/`rm`)                         | Archivist — wall time of one `git` staging command, lock retries included. Staging is deduped, so the `add` count sits far below the number of events appended |
-| `semiont.git.staging.failures` | counter        | `reason` (`index-lock`/`other`)                         | Archivist — a staging command abandoned after its retries; the git index may be stale |
-| `semiont.archivist.fact_pump.depth` | observable gauge | (none)                                           | Archivist — facts appended to the record and not yet published to the bus. Zero at rest; a rising floor means the pump is behind its transport |
 | `semiont.vector.index.size`  | observable gauge | (none)                                                  | Smelter — the vector store's point count |
 | `semiont.process.start_time` | observable gauge | (none)                                                  | Every service — Unix seconds at which the process started; a change means it restarted |
 | `semiont.process.restarts`   | observable gauge | (none)                                                  | Every supervised service — times the in-container supervisor restarted the process, read back from the supervisor's event log. The series exists only when the run set `SEMIONT_SUPERVISE` (local stacks); absent, not `0`, everywhere else |
@@ -229,10 +225,12 @@ Librarian, the Smelter, the Weaver and the worker.
 | `semiont.runtime.event_loop.lag` | observable gauge | `lag.stat` (`mean`/`p99`/`max`)                     | Every service — event-loop delay over the last export interval, in ms: time the process could serve nothing |
 | `semiont.runtime.heap`       | observable gauge | `heap.stat` (`used`/`total`/`limit`/`rss`)              | Every service — process memory in bytes. `limit` is V8's own heap ceiling, which is what the process dies at, not the container's allocation |
 
-The gateway and the dispatcher are Rust and export their own metrics: the
+The gateway, the dispatcher and the Archivist are Rust and export their own metrics: the
 `semiont.process.*` and `semiont.runtime.*` instruments of the rows above, the
 gateway's counters, `semiont.sse.subscribers` and `semiont.bus.correlation.size`,
-and the dispatcher's `semiont.job.queue.size`. They are specified, with their
+the dispatcher's `semiont.job.queue.size`, and the Archivist's
+`semiont.archivist.fact_pump.depth`, `semiont.git.duration` and
+`semiont.git.staging.failures`. They are specified, with their
 instruments, attributes and attribute values, in
 [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json).
 The emits a client sent are a count of their own, `semiont.bus.sent`, a row of
@@ -252,8 +250,8 @@ metric snapshots also print to the service's output at each export interval.
 ## Log correlation
 
 Every log line a service writes is tagged with `trace_id` and `span_id`
-when an active span exists: the Rust services — the gateway and the
-dispatcher — by their logger, the TypeScript services by
+when an active span exists: the Rust services — the gateway, the
+dispatcher and the Archivist — by their logger, the TypeScript services by
 `createProcessLogger()`. Log queries in CloudWatch / Loki / Datadog
 can be filtered by `trace_id` and joined with the trace UI.
 

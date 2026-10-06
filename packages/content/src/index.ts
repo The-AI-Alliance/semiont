@@ -1,20 +1,11 @@
 /**
  * @semiont/content
  *
- * Working tree storage for project resources.
+ * Reading a resource's bytes from the Archivist, and deriving text from
+ * bytes that carry none.
  */
 
-// Working Tree Store
-export {
-  WorkingTreeStore,
-  ChecksumMismatchError,
-} from './working-tree-store';
-
-// Checksum utilities
-export {
-  calculateChecksum,
-  verifyChecksum
-} from './checksum';
+export { calculateChecksum } from './checksum';
 
 // Deriving text from bytes that carry none. Decoding is not here: it is
 // core's `decodeRepresentation`, called directly.
@@ -60,9 +51,3 @@ export type {
   PdfPageInfo,
   PdfFormField,
 } from './pdf-text-layer';
-
-// Staging: recording the tree's changes where a person can commit them. The
-// interface is the job; git is the one technology behind it, deferred and
-// deduped off the event loop. `@semiont/event-sourcing` stages the event log
-// through the same driver, since the log lives in the same working tree.
-export { stagingFor, noStaging, type Staging, type StagingOptions } from './staging.js';

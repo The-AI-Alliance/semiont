@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "description": "A resource's materialized view: the file the Archivist writes at `resources/<ab>/<cd>/<resourceId>.json` under the knowledge base's state directory, and every reader of that file reads. It is what the resource's events add up to, and is rebuilt from the event log whenever it is missing. Written as JSON indented by two spaces, by writing a sibling temporary file and renaming it onto the path, so a reader sees a whole document or none.",
+  "properties": {
+    "resource": {
+      "$ref": "./ResourceDescriptor.json"
+    },
+    "annotations": {
+      "$ref": "./ResourceAnnotations.json"
+    },
+    "lastSequence": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The sequence number of the last event applied. A graph read that follows a write waits for the graph projection to reach it."
+    }
+  },
+  "required": [
+    "resource",
+    "annotations",
+    "lastSequence"
+  ],
+  "additionalProperties": false
+}

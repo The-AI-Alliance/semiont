@@ -1,20 +1,14 @@
 /**
- * Annotation Context Tests
- *
- * Tests the AnnotationContext class which assembles annotation context
- * from view storage and content store.
+ * Annotation gather: the context assembled around one annotation, from the
+ * views, the content reads and the graph.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { AnnotationContext } from '../annotation-context';
 import { AnnotationGather, type AnnotationGatherReads } from '../annotation-gather';
 import { deriveViews } from '@semiont/core';
-import { resourceId, annotationId, userId, EventBus, type Logger } from '@semiont/core';
-import { createEventStore } from '@semiont/event-sourcing';
-import { WorkingTreeStore } from '@semiont/content';
+import { resourceId, annotationId, type Logger } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
-import { workingTreeContentReads } from '../archivist/record-slices';
-import { createTestProject } from './helpers/test-project';
+import { createRecordFixture, type RecordFixture } from './helpers/record-fixtures';
 import { createMockEmbeddingProvider } from './helpers/smelter-harness';
 
 const mockEmbeddingProvider = createMockEmbeddingProvider();
@@ -63,24 +57,19 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
-describe('AnnotationContext', () => {
-  let project: Awaited<ReturnType<typeof createTestProject>>['project'];
-  let teardown: () => Promise<void>;
-  // The narrow gather reads — real views + the real working-tree content
-  // adapter (exercised here, not mocked), a mock graph, mock vectors.
+describe('AnnotationGather.buildLLMContext', () => {
+  let record: RecordFixture;
+  // The narrow gather reads — real views, a mock graph, mock vectors.
   let kb: AnnotationGatherReads;
-  let workingTree: WorkingTreeStore;
   let mockGraphDb: GraphDatabase;
 
   beforeAll(async () => {
-    ({ project, teardown } = await createTestProject('annotation-context'));
+    record = await createRecordFixture();
 
     mockGraphDb = createMockGraphDb();
-    const eventStore = createEventStore(project, new EventBus(), mockLogger);
-    workingTree = new WorkingTreeStore(project, mockLogger);
     kb = {
-      views: eventStore.viewStorage,
-      content: workingTreeContentReads(eventStore.viewStorage, workingTree),
+      views: record.views,
+      content: record.content,
       // Text-media harness: the derived-text door is never consulted.
       anchoredText: async () => ({ kind: 'unknown' as const }),
       graph: mockGraphDb,
@@ -90,42 +79,11 @@ describe('AnnotationContext', () => {
   });
 
   afterAll(async () => {
-    await teardown();
+    await record.teardown();
   });
 
-  // Helper to create a test resource
   async function createTestResource(id: string, content: string): Promise<void> {
-    const testContent = Buffer.from(content, 'utf-8');
-    const storageUri = `file://test-resources/${id}.txt`;
-    const { checksum } = await workingTree.store(testContent, storageUri);
-
-    const eventStore = createEventStore(project, new EventBus(), mockLogger);
-
-    await eventStore.appendEvent({
-      type: 'yield:created',
-      resourceId: resourceId(id),
-      userId: userId('did:web:test:users:user-1'),
-      version: 1,
-      payload: {
-        name: `Test Resource ${id}`,
-        format: 'text/plain',
-        contentChecksum: checksum,
-        storageUri,
-      }
-    });
-
-    // Wait for view to materialize
-    let attempts = 0;
-    while (attempts < 10) {
-      try {
-        const view = await kb.views.get(resourceId(id));
-        if (view) break;
-      } catch (e) {
-        // View not ready yet
-      }
-      await new Promise(resolve => setTimeout(resolve, 50));
-      attempts++;
-    }
+    await record.resource(id, { name: `Test Resource ${id}`, text: content });
   }
 
   // Helper to create an annotation
@@ -136,45 +94,32 @@ describe('AnnotationContext', () => {
     start: number,
     end: number
   ): Promise<void> {
-    const eventStore = createEventStore(project, new EventBus(), mockLogger);
-
-    await eventStore.appendEvent({
-      type: 'mark:added',
-      resourceId: resourceId(resId),
-      userId: userId('did:web:test:users:user-1'),
-      version: 1,
-      payload: {
-        annotation: {
-          '@context': 'http://www.w3.org/ns/anno.jsonld',
-          id: annId,
-          type: 'Annotation',
-          motivation: 'commenting',
-          created: '2026-01-01T00:00:00.000Z',
-          body: {
-            type: 'TextualBody',
-            value: 'Test comment',
-            format: 'text/plain',
-            purpose: 'commenting'
-          },
-          target: {
-            source: resourceId(resId),
-            selector: [{
-              type: 'TextPositionSelector',
-              start,
-              end
-            }, {
-              type: 'TextQuoteSelector',
-              exact,
-              prefix: '',
-              suffix: ''
-            }]
-          }
-        }
+    await record.annotate(resId, {
+      '@context': 'http://www.w3.org/ns/anno.jsonld',
+      id: annId,
+      type: 'Annotation',
+      motivation: 'commenting',
+      created: '2026-01-01T00:00:00.000Z',
+      body: {
+        type: 'TextualBody',
+        value: 'Test comment',
+        format: 'text/plain',
+        purpose: 'commenting'
+      },
+      target: {
+        source: resourceId(resId),
+        selector: [{
+          type: 'TextPositionSelector',
+          start,
+          end
+        }, {
+          type: 'TextQuoteSelector',
+          exact,
+          prefix: '',
+          suffix: ''
+        }]
       }
     });
-
-    // Wait for view to update
-    await new Promise(resolve => setTimeout(resolve, 100));
   }
 
   it('should validate contextWindow range', async () => {
@@ -327,42 +272,29 @@ describe('AnnotationContext', () => {
     const testAnnId = `ann-no-position-${Date.now()}`;
     await createTestResource(testResourceId, 'Content for testing missing selector');
 
-    const eventStore = createEventStore(project, new EventBus(), mockLogger);
-
-    // Create annotation with only TextQuoteSelector
-    await eventStore.appendEvent({
-      type: 'mark:added',
-      resourceId: resourceId(testResourceId),
-      userId: userId('did:web:test:users:user-1'),
-      version: 1,
-      payload: {
-        annotation: {
-          '@context': 'http://www.w3.org/ns/anno.jsonld',
-          id: annotationId(testAnnId),
-          type: 'Annotation',
-          motivation: 'commenting',
-          created: '2026-01-01T00:00:00.000Z',
-          body: {
-            type: 'TextualBody',
-            value: 'Comment without position',
-            format: 'text/plain',
-            purpose: 'commenting'
-          },
-          target: {
-            source: resourceId(testResourceId),
-            selector: {
-              type: 'TextQuoteSelector',
-              exact: 'testing',
-              prefix: 'for ',
-              suffix: ' missing'
-            }
-          }
+    // An annotation with only a TextQuoteSelector
+    await record.annotate(testResourceId, {
+      '@context': 'http://www.w3.org/ns/anno.jsonld',
+      id: annotationId(testAnnId),
+      type: 'Annotation',
+      motivation: 'commenting',
+      created: '2026-01-01T00:00:00.000Z',
+      body: {
+        type: 'TextualBody',
+        value: 'Comment without position',
+        format: 'text/plain',
+        purpose: 'commenting'
+      },
+      target: {
+        source: resourceId(testResourceId),
+        selector: {
+          type: 'TextQuoteSelector',
+          exact: 'testing',
+          prefix: 'for ',
+          suffix: ' missing'
         }
       }
     });
-
-    await new Promise(resolve => setTimeout(resolve, 100));
-
 
     const result = await AnnotationGather.buildLLMContext(
       annotationId(testAnnId),
@@ -496,37 +428,27 @@ describe('AnnotationContext', () => {
       await createTestAnnotation(testResourceId, annotationId(testAnnId), 'fox', 16, 19);
 
       // Add a sibling annotation with entity types
-      const eventStore = createEventStore(project, new EventBus(), mockLogger);
-      await eventStore.appendEvent({
-        type: 'mark:added',
-        resourceId: resourceId(testResourceId),
-        userId: userId('did:web:test:users:user-1'),
-        version: 1,
-        payload: {
-          annotation: {
-            '@context': 'http://www.w3.org/ns/anno.jsonld',
-            id: annotationId(siblingAnnId),
-            type: 'Annotation',
-            motivation: 'tagging',
-            created: '2026-01-01T00:00:00.000Z',
-            body: [{
-              type: 'TextualBody',
-              value: 'Location',
-              purpose: 'tagging',
-              format: 'text/plain'
-            }],
-            target: {
-              source: resourceId(testResourceId),
-              selector: [{
-                type: 'TextPositionSelector',
-                start: 49,
-                end: 55
-              }]
-            }
-          }
+      await record.annotate(testResourceId, {
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        id: annotationId(siblingAnnId),
+        type: 'Annotation',
+        motivation: 'tagging',
+        created: '2026-01-01T00:00:00.000Z',
+        body: [{
+          type: 'TextualBody',
+          value: 'Location',
+          purpose: 'tagging',
+          format: 'text/plain'
+        }],
+        target: {
+          source: resourceId(testResourceId),
+          selector: [{
+            type: 'TextPositionSelector',
+            start: 49,
+            end: 55
+          }]
         }
       });
-      await new Promise(resolve => setTimeout(resolve, 100));
 
       (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
       (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
@@ -706,36 +628,6 @@ describe('AnnotationContext', () => {
   // fetch by storageUri, or a dropped signal check, would pass every other
   // test.
   describe('content reads are keyed by resource id, gated on storageUri', () => {
-    it('getAnnotationContext reads the resource through getBinary', async () => {
-      const rid = 'res-content-by-id';
-      const aid = annotationId('ann-content-by-id');
-      await createTestResource(rid, 'alpha bravo charlie delta echo');
-      await createTestAnnotation(rid, aid, 'charlie', 12, 19);
-
-      const spy = vi.spyOn(kb.content, 'getBinary');
-      const result = await AnnotationContext.getAnnotationContext(
-        aid, resourceId(rid), 5, 5, kb,
-      );
-
-      // Keyed by the resource id, never by the storage path.
-      expect(spy).toHaveBeenCalledWith(resourceId(rid));
-      expect(result.context.selected).toBe('charlie');
-      spy.mockRestore();
-    });
-
-    it('refuses a resource whose descriptor carries no storageUri', async () => {
-      // The signal, not the key: a descriptor without it has no content to
-      // fetch, and the refusal has to happen before a getBinary that would
-      // fail further away with a less useful message.
-      const bare = { '@id': resourceId('res-no-content'), name: 'No content', representations: [] };
-      await expect(
-        AnnotationContext.getAnnotationContext(
-          annotationId('ann-x'), resourceId('res-no-content'), 5, 5,
-          { views: { get: vi.fn().mockResolvedValue({ resource: bare, annotations: { annotations: [] } }) } } as never,
-        ),
-      ).rejects.toThrow();
-    });
-
     it('fetches the TARGET resource by id too, when a reference resolves', async () => {
       // A resolved reference gathers both ends: the source for the selector's
       // surroundings, the target for what it points at. Both go through
@@ -747,29 +639,20 @@ describe('AnnotationContext', () => {
       await createTestResource(dst, 'the other document says something specific');
 
       const aid = annotationId('ann-resolved-ref');
-      const eventStore = createEventStore(project, new EventBus(), mockLogger);
-      await eventStore.appendEvent({
-        type: 'mark:added',
-        resourceId: resourceId(src),
-        userId: userId('did:web:test:users:user-1'),
-        version: 1,
-        payload: {
-          annotation: {
-            '@context': 'http://www.w3.org/ns/anno.jsonld',
-            id: aid,
-            type: 'Annotation',
-            motivation: 'linking',
-            // The body's source is what makes this a RESOLVED reference —
-            // it is where targetDoc and the target fetch both come from.
-            body: [{ type: 'SpecificResource', source: dst, purpose: 'linking' }],
-            target: {
-              source: src,
-              selector: [{ type: 'TextPositionSelector', start: 8, end: 22 }],
-            },
-          },
+      await record.annotate(src, {
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        id: aid,
+        type: 'Annotation',
+        motivation: 'linking',
+        created: '2026-01-01T00:00:00.000Z',
+        // The body's source is what makes this a RESOLVED reference —
+        // it is where targetDoc and the target fetch both come from.
+        body: [{ type: 'SpecificResource', source: resourceId(dst), purpose: 'linking' }],
+        target: {
+          source: resourceId(src),
+          selector: [{ type: 'TextPositionSelector', start: 8, end: 22 }],
         },
-      } as never);
-      await new Promise((r) => setTimeout(r, 100));
+      });
 
       const spy = vi.spyOn(kb.content, 'getBinary');
       const result = await AnnotationGather.buildLLMContext(
@@ -786,29 +669,6 @@ describe('AnnotationContext', () => {
       if (result.focus.kind !== 'annotation') throw new Error('expected an annotation focus');
       expect(result.focus.targetContext?.content).toContain('the other document');
       spy.mockRestore();
-    });
-  });
-
-  // ── The working-tree adapter's own refusal (knowledge-base.ts) ─────────────
-  describe('workingTreeContentReads', () => {
-    it('names the resource when it has no storageUri', async () => {
-      // In-process roots satisfy ContentReads with this adapter; the Librarian
-      // satisfies it with HttpContentTransport. Both must fail the same way,
-      // so this message is part of the seam's contract, not an internal detail.
-      const reads = workingTreeContentReads(
-        { get: vi.fn().mockResolvedValue({ resource: { '@id': 'res-empty', name: 'x', representations: [] } }) } as never,
-        workingTree,
-      );
-      await expect(reads.getBinary(resourceId('res-empty')))
-        .rejects.toThrow(/no storageUri for res-empty/);
-    });
-
-    it('reports a resource the views do not know', async () => {
-      const reads = workingTreeContentReads(
-        { get: vi.fn().mockResolvedValue(undefined) } as never,
-        workingTree,
-      );
-      await expect(reads.getBinary(resourceId('res-absent'))).rejects.toThrow(/res-absent/);
     });
   });
 });

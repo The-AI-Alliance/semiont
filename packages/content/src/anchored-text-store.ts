@@ -163,7 +163,8 @@ export interface AnchoredTextStore {
     read(key: string): Promise<ExtractionOutcome | null>;
     /**
      * Record an extraction outcome under the content checksum of its source
-     * bytes. **THROWS on failure: a write that returns has written.**
+     * bytes, having stated this writer's stamp in the directory.
+     * **THROWS on failure: a write that returns has written.**
      *
      * Asymmetric with `read` above, which never throws, and deliberately so —
      * a miss is a normal answer, a failed write is not. A store that swallowed
@@ -204,6 +205,57 @@ function isCached(value: unknown): value is CachedAnchoredText {
  *  a file with a different entry. */
 const VALID_KEY = /^[A-Za-z0-9_-]+$/;
 
+/** Where an entry lives under a store's directory, or nowhere for a key the store refuses. */
+function entryFile(dir: string, key: string): string | null {
+    if (!VALID_KEY.test(key)) return null;
+    const [ab, cd] = getShardPath(key);
+    return path.join(dir, ab, cd, `${key}.json`);
+}
+
+/**
+ * The file in which the store's writer states its stamp. A reader in another
+ * process, built from other packages or in another language, cannot compute
+ * the writer's stamp; it compares entries against this. Named without `.json`:
+ * `list()` sweeps every `.json` at the root.
+ */
+const STAMP_FILE = 'STAMP';
+
+/** The stamp the store's writer has stated, or none if it has stated none. */
+async function statedStamp(dir: string): Promise<string | null> {
+    try {
+        const stated = (await fs.promises.readFile(path.join(dir, STAMP_FILE), 'utf8')).trim();
+        return stated === '' ? null : stated;
+    } catch {
+        return null;
+    }
+}
+
+/** One read: a hit only for a well-formed entry carrying this writer's stamp. Never throws. */
+async function readEntry(dir: string, key: string, logger?: Logger): Promise<ExtractionOutcome | null> {
+    let hit: CachedAnchoredText | null = null;
+    try {
+        const file = entryFile(dir, key);
+        if (file === null) throw new Error('invalid key');   // refused → a miss like any other
+        const parsed: unknown = JSON.parse(await fs.promises.readFile(file, 'utf8'));
+        if (isCached(parsed) && parsed.stamp === STAMP) hit = parsed;
+    } catch {
+        hit = null;   // absent, unreadable, truncated, or not ours
+    }
+    // Hit rate is what keeps the decision to build this cache auditable
+    // after the fact.
+    logger?.debug('Anchored-text cache', {
+        outcome: hit ? 'hit' : 'miss',
+        key,
+        ...(hit ? ('declined' in hit ? { declined: hit.declined } : { lines: hit.lines.length }) : {}),
+    });
+    if (!hit) return null;
+    // `kind` is not persisted — the branch is implied by the record's own
+    // shape, and re-added here so readers get the discriminated wire union.
+    if ('declined' in hit) return { kind: 'declined', declined: hit.declined };
+    const { v: _v, stamp: _stamp, lines, text, ...provenance } = hit;
+    return { kind: 'extracted', text, items: decodeLines(lines), ...provenance };
+}
+
 /**
  * A file-backed store under `dir` — one file per content key, sharded as
  * `{ab}/{cd}/{key}.json` via the same `getShardPath` the event log uses.
@@ -217,41 +269,28 @@ const VALID_KEY = /^[A-Za-z0-9_-]+$/;
  * the cache may make things faster, never make them fail.
  */
 export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredTextStore {
-    const fileFor = (key: string): string | null => {
-        if (!VALID_KEY.test(key)) return null;
-        const [ab, cd] = getShardPath(key);
-        return path.join(dir, ab, cd, `${key}.json`);
+    const fileFor = (key: string): string | null => entryFile(dir, key);
+
+    /**
+     * State this writer's stamp in the directory, once per process, before
+     * anything it writes or lists can be compared against it.
+     */
+    let stated: Promise<void> | undefined;
+    const stateStamp = (): Promise<void> => {
+        stated ??= (async () => {
+            if (await statedStamp(dir) === STAMP) return;
+            const temp = path.join(dir, `${STAMP_FILE}.${process.pid}.tmp`);
+            await fs.promises.mkdir(dir, { recursive: true });
+            await fs.promises.writeFile(temp, `${STAMP}\n`, 'utf8');
+            await fs.promises.rename(temp, path.join(dir, STAMP_FILE));
+        })();
+        // A failure is this call's to report, and the next call's to retry.
+        stated.catch(() => { stated = undefined; });
+        return stated;
     };
 
     return {
-        async read(key) {
-            let hit: CachedAnchoredText | null = null;
-            try {
-                const file = fileFor(key);
-                if (file === null) throw new Error('invalid key');   // refused → a miss like any other
-                const parsed: unknown = JSON.parse(await fs.promises.readFile(file, 'utf8'));
-                if (isCached(parsed) && parsed.stamp === STAMP) hit = parsed;
-            } catch {
-                hit = null;   // absent, unreadable, truncated, or not ours
-            }
-            // Logged here rather than at the call sites: the Smelter's extract
-            // seam and the Archivist's anchored-text read both come through
-            // here, so each would see only its own share of the traffic and the
-            // policy would be stated twice. Hit rate is what keeps the decision
-            // to build this cache auditable after the fact.
-            logger?.debug('Anchored-text cache', {
-                outcome: hit ? 'hit' : 'miss',
-                key,
-                ...(hit ? ('declined' in hit ? { declined: hit.declined } : { lines: hit.lines.length }) : {}),
-            });
-            if (!hit) return null;
-            // `kind` is not persisted — the branch is implied by the record's
-            // own shape, and re-added here so readers get the discriminated
-            // wire union.
-            if ('declined' in hit) return { kind: 'declined', declined: hit.declined };
-            const { v: _v, stamp: _stamp, lines, text, ...provenance } = hit;
-            return { kind: 'extracted', text, items: decodeLines(lines), ...provenance };
-        },
+        read: (key) => readEntry(dir, key, logger),
 
         async write(key, outcome) {
             const target = fileFor(key);
@@ -260,6 +299,7 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
                 // cannot place is refused loudly, never sanitized.
                 throw new Error(`Anchored-text store: invalid key ${JSON.stringify(key)}`);
             }
+            await stateStamp();
             // Key order (`v`, `stamp`, first) is load-bearing: `list()` below
             // reads only a prefix of each file and matches the stamp there.
             const entry: CachedAnchoredText = outcome.kind === 'declined'
@@ -300,6 +340,10 @@ export function createAnchoredTextStore(dir: string, logger?: Logger): AnchoredT
             // filenames unchanged because every real key is hex — the same
             // fact that makes `fileFor`'s guard a no-op for them.
             const prefix = JSON.stringify({ v: 2, stamp: STAMP }).slice(0, -1) + ',';
+            // The writer's stamp is stated before its entries are counted
+            // present: a reconcile that re-derives nothing must still leave
+            // readers able to hit. Best-effort here, as everything in list().
+            await stateStamp().catch(() => {});
             let rootNames: string[];
             try {
                 rootNames = await fs.promises.readdir(dir);

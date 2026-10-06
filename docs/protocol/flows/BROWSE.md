@@ -79,7 +79,7 @@ From the launcher: `semiont browse`, and `semiont browse <resourceId> --browser`
 ## Where it is implemented
 
 - The SDK namespace: [packages/sdk/src/namespaces/browse.ts](../../../packages/sdk/src/namespaces/browse.ts)
-- What answers the reads: the Browser actor, in [packages/make-meaning/src/archivist/browser.ts](../../../packages/make-meaning/src/archivist/browser.ts)
+- What answers the reads: [the Archivist](../ARCHIVIST.md), in [apps/archivist/src/browse.rs](../../../apps/archivist/src/browse.rs)
 - What a live query refreshes on: [specs/src/client/refresh.json](../../../specs/src/client/refresh.json)
 - The launcher verb: [apps/launcher/internal/verbs/browse.go](../../../apps/launcher/internal/verbs/browse.go)
 - The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)

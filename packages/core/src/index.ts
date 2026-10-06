@@ -170,7 +170,6 @@ export type { BodyItemIdentity } from './annotation-utils';
 // Annotation assembly (pure functions for building W3C Annotations)
 export {
   assembleAnnotation,
-  applyBodyOperations,
   getTextPositionSelector,
   getSvgSelector,
   getFragmentSelector,
@@ -276,7 +275,6 @@ export {
   type IdentityUnverifiableReason,
 } from './generated/error-codes';
 export * from './generated/oauth-clients';
-export { ResourceOperations, type CreateResourceInput, type Emitter } from './resource-operations';
 export { BUS_OPERATIONS, type BusOperationKey, type BusOperationSpec } from './bus-operations';
 export { LIMITS_OPERATIONS, type LimitsOperation } from './limits-operations';
 export {

@@ -24,6 +24,12 @@ COPY specs/src specs/src
 # The workspace (Cargo.toml at the repository root): cargo loads every member
 # to build any one of them, so each member's crate is copied.
 COPY Cargo.toml Cargo.lock ./
+COPY apps/archivist/Cargo.toml apps/archivist/
+COPY apps/archivist/src apps/archivist/src
+COPY apps/archivist/record/Cargo.toml apps/archivist/record/
+COPY apps/archivist/record/src apps/archivist/record/src
+COPY apps/archivist/staging/Cargo.toml apps/archivist/staging/
+COPY apps/archivist/staging/src apps/archivist/staging/src
 COPY apps/gateway/Cargo.toml apps/gateway/
 COPY apps/gateway/src apps/gateway/src
 COPY apps/dispatcher/Cargo.toml apps/dispatcher/
@@ -36,6 +42,8 @@ COPY packages/codegen-rust/Cargo.toml packages/codegen-rust/
 COPY packages/codegen-rust/src packages/codegen-rust/src
 COPY packages/core-rust/Cargo.toml packages/core-rust/build.rs packages/core-rust/
 COPY packages/core-rust/src packages/core-rust/src
+COPY packages/http-service-rust/Cargo.toml packages/http-service-rust/
+COPY packages/http-service-rust/src packages/http-service-rust/src
 COPY packages/http-transport-rust/Cargo.toml packages/http-transport-rust/
 COPY packages/http-transport-rust/src packages/http-transport-rust/src
 COPY packages/http-transport-rust/conformance/Cargo.toml packages/http-transport-rust/conformance/
@@ -56,8 +64,8 @@ COPY packages/telemetry-rust/src packages/telemetry-rust/src
 # scripts, never at boot.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/build/target \
-    cargo auditable build --release --locked -p semiont-dispatcher -p semiont-gateway && \
-    cp target/release/semiont-dispatcher target/release/semiont-gateway /
+    cargo auditable build --release --locked -p semiont-archivist -p semiont-dispatcher -p semiont-gateway && \
+    cp target/release/semiont-archivist target/release/semiont-dispatcher target/release/semiont-gateway /
 
 FROM alpine:3.24
 RUN apk upgrade --no-cache && apk add --no-cache tini

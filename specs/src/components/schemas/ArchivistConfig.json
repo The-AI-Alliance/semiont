@@ -1,0 +1,95 @@
+{
+  "type": "object",
+  "description": "Everything the Archivist reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Archivist. The launcher writes it for the Archivist it starts, from the environment the knowledge base's config selects, and the Archivist reads it from the path its `--config` flag names (its image passes `/etc/semiont/archivist.json`). Started without `--config`, or with a path that names no file, the Archivist refuses to start and says which. No secret is a value here. What the knowledge base says of itself is not here either: its name, its `[site] domain` and its `[git] sync` are read from the committed `.semiont/config` of the tree at `root`. The Archivist's other inputs are the environment variables specs/src/service-environment/variables.json lists for it. A document that does not validate is refused at boot, naming each failing field.",
+  "properties": {
+    "gatewayUrl": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The URL the Archivist reaches the gateway at: its only route to the bus."
+    },
+    "identity": {
+      "type": "object",
+      "description": "The issuer the Archivist's service account signs in at, and whose tokens it admits callers of its HTTP surface by.",
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The issuer URL, exactly as tokens carry it in `iss`."
+        }
+      },
+      "required": [
+        "issuer"
+      ],
+      "additionalProperties": false
+    },
+    "root": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The knowledge base's working tree: the directory holding `.semiont/`. The event log, the content and the committed config are under it."
+    },
+    "stateHome": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's."
+    },
+    "anchoredTextDir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The anchored-text store the Smelter writes and the Archivist reads."
+    },
+    "roster": {
+      "$ref": "./ArchivistRoster.json"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "The port the Archivist's HTTP surface answers on, `/health` included."
+    },
+    "skipRebuild": {
+      "type": "boolean",
+      "description": "Whether the Archivist serves the views it finds at boot instead of rebuilding them from the event log first."
+    },
+    "staging": {
+      "type": "object",
+      "description": "The bounds on how far the staging driver may run behind the working tree, in milliseconds. A knowledge base that does not sync git stages nothing, and reads neither.",
+      "properties": {
+        "flushMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The quiet period after the last change before pending changes are staged."
+        },
+        "maxWaitMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The longest a change waits to be staged while others keep arriving, measured from the oldest pending change."
+        }
+      },
+      "required": [
+        "flushMs",
+        "maxWaitMs"
+      ],
+      "additionalProperties": false
+    },
+    "logLevel": {
+      "$ref": "./LogLevel.json"
+    },
+    "logFormat": {
+      "$ref": "./LogFormat.json"
+    }
+  },
+  "required": [
+    "gatewayUrl",
+    "identity",
+    "root",
+    "stateHome",
+    "anchoredTextDir",
+    "roster",
+    "port",
+    "skipRebuild",
+    "staging",
+    "logLevel",
+    "logFormat"
+  ],
+  "additionalProperties": false
+}

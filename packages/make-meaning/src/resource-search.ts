@@ -7,8 +7,7 @@
  * Matcher's reference search.
  *
  * This is retrieval, so the Librarian answers it (`match:resources-requested`).
- * A listing with no search is the record's, answered from views by the
- * Archivist (`ResourceContext.listResources`).
+ * A listing with no search is the record's, answered by the Archivist.
  */
 
 import { decodeRepresentation, derivesTextOf, getResourceId, resourceId as makeResourceId, textSourceOf } from '@semiont/core';

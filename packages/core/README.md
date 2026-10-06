@@ -26,7 +26,6 @@ Every other TypeScript package, the Browser, and the conformance and end-to-end 
 | Annotations | Building one, applying changes to its body, and reading its target, its selectors and its links | [src/annotation-assembly.ts](src/annotation-assembly.ts), [src/web-annotation-utils.ts](src/web-annotation-utils.ts) |
 | Anchoring | Finding an annotation again after its text changed, and the geometry of text on a PDF page (`locate`, `textUnder`) | [src/anchor-annotation.ts](src/anchor-annotation.ts), [src/pdf-anchoring.ts](src/pdf-anchoring.ts) |
 | Identity | DIDs for people, software and a knowledge base itself, and `attribution`, which says who a record is attributed to | [src/did-utils.ts](src/did-utils.ts) |
-| Resource writes | `ResourceOperations`: how creating or cloning a resource maps onto the bus | [src/resource-operations.ts](src/resource-operations.ts) |
 | Media types | Which types a knowledge base admits, and what can be done with each | [src/media-types.ts](src/media-types.ts) |
 | Shared rules | Error codes, timing, retry and the cache's refresh table, the same for every SDK | `src/generated/`, [src/retry.ts](src/retry.ts) |
 | Configuration | The loader of a knowledge base's configuration | [src/config/](src/config/) |

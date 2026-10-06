@@ -4,16 +4,17 @@ run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-ru
 
 # Builds and publishes the seven Semiont service images
 # (gateway · worker · smelter · weaver · archivist · librarian · dispatcher):
-# the gateway and the dispatcher compiled from this checkout (apps/gateway and
-# apps/dispatcher, reporting version.json's version), the other five from the
+# the gateway, the dispatcher and the archivist compiled from this checkout
+# (apps/gateway, apps/dispatcher and apps/archivist, reporting version.json's
+# version), the other four from the
 # published @semiont/* packages, mirroring publish-browser.yml's verify-npm → scan →
 # multi-arch push → SBOM → attest spine, with an added license-policy gate.
 # Config is runtime (bind-mount); the images ship config-free.
 #
-# The gateway and the dispatcher compile Rust, and the gateway's arm64 half
-# takes over an hour under emulation, so each of their platforms
+# The gateway, the dispatcher and the archivist compile Rust, and the gateway's
+# arm64 half takes over an hour under emulation, so each of their platforms
 # builds on a runner of its own architecture and pushes by digest, and the
-# manifest job joins the two under the tags. The other five only `npm install` in their
+# manifest job joins the two under the tags. The other four only `npm install` in their
 # images, which emulation handles in minutes, so each publishes both platforms
 # from one leg.
 
@@ -93,12 +94,19 @@ jobs:
             installs: npm
             refusal: No environment selected
           - service: archivist
+            arch: amd64
             runner: ubuntu-latest
             scan: linux/amd64
-            platforms: linux/amd64,linux/arm64
+            platforms: linux/amd64
             dockerfile: apps/archivist/Dockerfile
-            installs: npm
-            refusal: No environment selected
+            refusal: "Cannot read the archivist's configuration document"
+          - service: archivist
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            scan: linux/arm64
+            platforms: linux/arm64
+            dockerfile: apps/archivist/Dockerfile
+            refusal: "Cannot read the archivist's configuration document"
           - service: librarian
             runner: ubuntu-latest
             scan: linux/amd64
@@ -193,14 +201,14 @@ jobs:
           done
           echo "✅ every published @semiont package is installable at ${{ inputs.version }}"
 
-      # The gateway and the dispatcher compile with the toolchain
+      # The gateway, the dispatcher and the archivist compile with the toolchain
       # rust-toolchain.toml pins; the others install the version this run publishes.
       - name: Build arguments
         id: args
         run: |
           {
             echo "args<<EOF"
-            if [ "${{ matrix.service }}" = gateway ] || [ "${{ matrix.service }}" = dispatcher ]; then
+            if [ "${{ matrix.service }}" = gateway ] || [ "${{ matrix.service }}" = dispatcher ] || [ "${{ matrix.service }}" = archivist ]; then
               echo "RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
             else
               echo "SEMIONT_VERSION=${{ inputs.version }}"
@@ -292,7 +300,7 @@ jobs:
           fi
           # The refusal each service raises when it has no configuration: for the
           # sidecars @semiont/core's loader with no environment staged, for the
-          # gateway and the dispatcher their own with no document. A change to either message should
+          # gateway, the dispatcher and the archivist their own with no document. A change to either message should
           # fail here loudly rather than pass silently.
           if ! echo "$out" | grep -qF "${{ matrix.refusal }}"; then
             echo "::error::${{ matrix.service }} image did not reach config resolution. Expected \"${{ matrix.refusal }}\"; see the output above for where it stopped instead."
@@ -305,11 +313,11 @@ jobs:
         if: matrix.service == 'gateway'
         run: scripts/container/check-gateway-image.sh semiont-${{ matrix.service }}:scan docker
 
-      # The dispatcher image carries no source and no Node, and refuses at once
-      # without its document.
-      - name: Check the dispatcher image
-        if: matrix.service == 'dispatcher'
-        run: scripts/container/check-dispatcher-image.sh semiont-${{ matrix.service }}:scan docker
+      # The dispatcher's and the archivist's images carry no source and no
+      # Node, and refuse at once without their document.
+      - name: Check the image of a service that only reads its document
+        if: matrix.service == 'dispatcher' || matrix.service == 'archivist'
+        run: scripts/container/check-document-image.sh ${{ matrix.service }} semiont-${{ matrix.service }}:scan docker
 
       - name: Build and push Docker image
         id: build-push
@@ -426,7 +434,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [gateway, dispatcher]
+        service: [gateway, dispatcher, archivist]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1

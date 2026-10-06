@@ -30,7 +30,7 @@ first; the `bearerAuth` and `mediaToken` schemes in
 |---|---|
 | The `Authenticated` and `MediaOrBearer` extractors, the challenge, the 401 bodies | [src/http.rs](../src/http.rs) |
 | Which token it is, and the principal it names | [src/principal.rs](../src/principal.rs) |
-| The issuer's keys: discovery, the key set, when it is fetched | [src/issuer.rs](../src/issuer.rs) |
+| The issuer's keys: discovery, the key set, when it is fetched | [issuer.rs](../../../packages/http-service-rust/src/issuer.rs), in the crate the Rust services that serve HTTP share |
 | The key ring, agent and media tokens | [src/tokens.rs](../src/tokens.rs) |
 | How a person and an agent are named | the `semiont` crate's [identity.rs](../../../packages/sdk-rust/src/identity.rs), held to [specs/src/principals/cases.json](../../../specs/src/principals/cases.json) |
 | The role names | the `semiont` crate's [roles.rs](../../../packages/sdk-rust/src/roles.rs), held to the launcher's and core's by `npm run lint:service-role` |

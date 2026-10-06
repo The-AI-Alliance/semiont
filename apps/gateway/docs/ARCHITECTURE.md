@@ -15,6 +15,7 @@ The gateway is a member of the repository's Rust workspace
 | `semiont-core` | [packages/core-rust](../../../packages/core-rust) | What every Rust service shares and no client needs: the embedded spec, reading the configuration document and the other service-only types generated from the spec, and (its `nats` feature) reaching the broker |
 | `semiont` | [packages/sdk-rust](../../../packages/sdk-rust) | What a client needs too: the protocol's types, generated from the spec, which type every body the gateway reads and writes; naming the knowledge base and its principals; the realm's roles; and the bus log |
 | `semiont-telemetry` | [packages/telemetry-rust](../../../packages/telemetry-rust) | Its spans' making and the trace context they travel in: a caller's trace continued, and the gateway's own carried on what it sends |
+| `semiont-http-service` | [packages/http-service-rust](../../../packages/http-service-rust) | Connections a service can close from its side, the bearer credential, and the verifier of the trusted issuer's tokens |
 | `semiont-observability` | [packages/observability-rust](../../../packages/observability-rust) | What exports that telemetry, logging and the process's readings of itself |
 | `semiont-http-transport` | [packages/http-transport-rust](../../../packages/http-transport-rust) | Signing in as a service account, to reach the Archivist |
 | `semiont-codegen` | [packages/codegen-rust](../../../packages/codegen-rust) | Nothing at run time: the core's and the SDK's build scripts bundle the spec and generate their types with it |
@@ -63,7 +64,7 @@ step — the process exits non-zero, saying what is missing and never a secret:
    ([src/routes/mod.rs](../src/routes/mod.rs)): a route the spec does not
    declare, or a declared operation nothing serves, stops the process.
 7. **Listen** on `0.0.0.0:<port>`, on its own accept loop
-   ([src/http.rs](../src/http.rs)), which lets a stream close its connection
+   ([serve.rs](../../../packages/http-service-rust/src/serve.rs)), which lets a stream close its connection
    from the gateway's side.
 
 `SIGTERM` and `SIGINT` stop accepting connections, flush the plane under the

@@ -4,8 +4,8 @@
  *
  * Each service's HttpTransport subscribes exactly what it consumes: the
  * smelter and weaver the reply channels of the operations they await, the
- * librarian and archivist their inbound request/signal rosters (the
- * librarian's with the reply channels of the one read it awaits). These pins
+ * librarian its inbound request/signal roster with the reply channels of the
+ * one read it awaits. These pins
  * are census gates: grow a roster (or add a `busRequest` call site) and the
  * exact-set assertion fails, forcing the subscription change to be
  * acknowledged here rather than drifting silently. The runtime backstop is
@@ -20,9 +20,6 @@ import {
   WEAVER_REPLY_CHANNELS,
   LIBRARIAN_INBOUND_CHANNELS,
   LIBRARIAN_OUTBOUND_CHANNELS,
-  ARCHIVIST_INBOUND_CHANNELS,
-  ARCHIVIST_OUTBOUND_CHANNELS,
-  ARCHIVIST_OUTBOUND_STRAYS,
 } from '../service-channels';
 
 describe('smelter transport channels', () => {
@@ -93,70 +90,6 @@ describe('librarian transport channels', () => {
   it('nothing echoes: the outbound reply pump and the inbound subscription are disjoint', () => {
     for (const channel of LIBRARIAN_OUTBOUND_CHANNELS) {
       expect(LIBRARIAN_INBOUND_CHANNELS).not.toContain(channel);
-    }
-  });
-});
-
-describe('archivist transport channels', () => {
-  it('subscribes exactly its inbound roster', () => {
-    expect([...ARCHIVIST_INBOUND_CHANNELS].sort()).toEqual([
-      // The bind re-emit registers beside the Stower it drives, so the exchange is local.
-      'bind:update-body',
-      'browse:agents-requested',
-      'browse:anchored-text-requested',
-      'browse:annotation-context-requested',
-      'browse:annotation-history-requested',
-      'browse:annotation-requested',
-      'browse:annotations-requested',
-      'browse:directory-requested',
-      'browse:entity-types-requested',
-      'browse:events-requested',
-      'browse:kb-requested',
-      'browse:resource-requested',
-      'browse:resources-requested',
-      'browse:tag-schemas-requested',
-      'frame:add-entity-type',
-      'frame:add-tag-schema',
-      'job:assign',
-      'job:complete',
-      'job:fail',
-      'job:start',
-      'mark:archive',
-      'mark:commit',
-      'mark:create',
-      'mark:create-request',
-      'mark:delete',
-      'mark:unarchive',
-      'mark:update-body',
-      'mark:update-entity-types',
-      'person:profile',
-      'smelt:settled',
-      'yield:clone-create',
-      'yield:clone-persist',
-      'yield:clone-resource-requested',
-      'yield:clone-token-requested',
-      'yield:create',
-      'yield:mv',
-      'yield:update',
-    ]);
-  });
-
-  it('subscribes no operation reply channel — never the global reply fan-out', () => {
-    for (const op of Object.values(BUS_OPERATIONS)) {
-      expect(ARCHIVIST_INBOUND_CHANNELS).not.toContain(op.result);
-      expect(ARCHIVIST_INBOUND_CHANNELS).not.toContain(op.failure);
-    }
-  });
-
-  it('nothing echoes: the outbound reply pump and the inbound subscription are disjoint', () => {
-    for (const channel of ARCHIVIST_OUTBOUND_CHANNELS) {
-      expect(ARCHIVIST_INBOUND_CHANNELS).not.toContain(channel);
-    }
-  });
-
-  it('the outbound pump carries the strays — replies no registered operation names', () => {
-    for (const stray of ARCHIVIST_OUTBOUND_STRAYS) {
-      expect(ARCHIVIST_OUTBOUND_CHANNELS).toContain(stray);
     }
   });
 });

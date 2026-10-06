@@ -1,8 +1,7 @@
 /**
  * Seed the e2e KB with the fixture set the spec suite assumes.
  *
- * The Archivist bootstraps entity types when it starts
- * (`packages/make-meaning/src/archivist/bootstrap-entity-types.ts`); resources are
+ * The Archivist seeds the default entity types when it starts; resources are
  * not bootstrapped. A freshly-rebuilt template KB starts empty, which makes
  * specs 02-09 fail at the very first "open resource:" assertion.
  *

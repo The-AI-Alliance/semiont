@@ -45,6 +45,120 @@ func (e AnchoredTextAbsentKind) Valid() bool {
 	}
 }
 
+// Defines values for AnchoredTextDeclinedEntryDeclined.
+const (
+	AnchoredTextDeclinedEntryDeclinedCorrupt     AnchoredTextDeclinedEntryDeclined = "corrupt"
+	AnchoredTextDeclinedEntryDeclinedEncrypted   AnchoredTextDeclinedEntryDeclined = "encrypted"
+	AnchoredTextDeclinedEntryDeclinedNoTextLayer AnchoredTextDeclinedEntryDeclined = "no-text-layer"
+	AnchoredTextDeclinedEntryDeclinedTooLarge    AnchoredTextDeclinedEntryDeclined = "too-large"
+)
+
+// Valid indicates whether the value is a known member of the AnchoredTextDeclinedEntryDeclined enum.
+func (e AnchoredTextDeclinedEntryDeclined) Valid() bool {
+	switch e {
+	case AnchoredTextDeclinedEntryDeclinedCorrupt:
+		return true
+	case AnchoredTextDeclinedEntryDeclinedEncrypted:
+		return true
+	case AnchoredTextDeclinedEntryDeclinedNoTextLayer:
+		return true
+	case AnchoredTextDeclinedEntryDeclinedTooLarge:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AnchoredTextDeclinedEntryV.
+const (
+	AnchoredTextDeclinedEntryVN2 AnchoredTextDeclinedEntryV = 2
+)
+
+// Valid indicates whether the value is a known member of the AnchoredTextDeclinedEntryV enum.
+func (e AnchoredTextDeclinedEntryV) Valid() bool {
+	switch e {
+	case AnchoredTextDeclinedEntryVN2:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AnchoredTextExtractedEntryMethod.
+const (
+	AnchoredTextExtractedEntryMethodForm            AnchoredTextExtractedEntryMethod = "form"
+	AnchoredTextExtractedEntryMethodOcr             AnchoredTextExtractedEntryMethod = "ocr"
+	AnchoredTextExtractedEntryMethodPdfTextLayer    AnchoredTextExtractedEntryMethod = "pdf-text-layer"
+	AnchoredTextExtractedEntryMethodTable           AnchoredTextExtractedEntryMethod = "table"
+	AnchoredTextExtractedEntryMethodTextPassthrough AnchoredTextExtractedEntryMethod = "text-passthrough"
+)
+
+// Valid indicates whether the value is a known member of the AnchoredTextExtractedEntryMethod enum.
+func (e AnchoredTextExtractedEntryMethod) Valid() bool {
+	switch e {
+	case AnchoredTextExtractedEntryMethodForm:
+		return true
+	case AnchoredTextExtractedEntryMethodOcr:
+		return true
+	case AnchoredTextExtractedEntryMethodPdfTextLayer:
+		return true
+	case AnchoredTextExtractedEntryMethodTable:
+		return true
+	case AnchoredTextExtractedEntryMethodTextPassthrough:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AnchoredTextExtractedEntryPdfClass.
+const (
+	AnchoredTextExtractedEntryPdfClassA AnchoredTextExtractedEntryPdfClass = "A"
+	AnchoredTextExtractedEntryPdfClassB AnchoredTextExtractedEntryPdfClass = "B"
+	AnchoredTextExtractedEntryPdfClassC AnchoredTextExtractedEntryPdfClass = "C"
+	AnchoredTextExtractedEntryPdfClassD AnchoredTextExtractedEntryPdfClass = "D"
+	AnchoredTextExtractedEntryPdfClassE AnchoredTextExtractedEntryPdfClass = "E"
+	AnchoredTextExtractedEntryPdfClassF AnchoredTextExtractedEntryPdfClass = "F"
+	AnchoredTextExtractedEntryPdfClassG AnchoredTextExtractedEntryPdfClass = "G"
+)
+
+// Valid indicates whether the value is a known member of the AnchoredTextExtractedEntryPdfClass enum.
+func (e AnchoredTextExtractedEntryPdfClass) Valid() bool {
+	switch e {
+	case AnchoredTextExtractedEntryPdfClassA:
+		return true
+	case AnchoredTextExtractedEntryPdfClassB:
+		return true
+	case AnchoredTextExtractedEntryPdfClassC:
+		return true
+	case AnchoredTextExtractedEntryPdfClassD:
+		return true
+	case AnchoredTextExtractedEntryPdfClassE:
+		return true
+	case AnchoredTextExtractedEntryPdfClassF:
+		return true
+	case AnchoredTextExtractedEntryPdfClassG:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AnchoredTextExtractedEntryV.
+const (
+	AnchoredTextExtractedEntryVN2 AnchoredTextExtractedEntryV = 2
+)
+
+// Valid indicates whether the value is a known member of the AnchoredTextExtractedEntryV enum.
+func (e AnchoredTextExtractedEntryV) Valid() bool {
+	switch e {
+	case AnchoredTextExtractedEntryVN2:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AnnotationContext.
 const (
 	HttpwwwW3OrgnsannoJsonld AnnotationContext = "http://www.w3.org/ns/anno.jsonld"
@@ -84,6 +198,24 @@ const (
 func (e ArchivistHealthStatus) Valid() bool {
 	switch e {
 	case ArchivistHealthStatusOk:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArchivistRosterRoleProvider.
+const (
+	Anthropic ArchivistRosterRoleProvider = "anthropic"
+	Ollama    ArchivistRosterRoleProvider = "ollama"
+)
+
+// Valid indicates whether the value is a known member of the ArchivistRosterRoleProvider enum.
+func (e ArchivistRosterRoleProvider) Valid() bool {
+	switch e {
+	case Anthropic:
+		return true
+	case Ollama:
 		return true
 	default:
 		return false
@@ -449,25 +581,25 @@ func (e ExtractedTextKind) Valid() bool {
 
 // Defines values for ExtractedTextMethod.
 const (
-	Form            ExtractedTextMethod = "form"
-	Ocr             ExtractedTextMethod = "ocr"
-	PdfTextLayer    ExtractedTextMethod = "pdf-text-layer"
-	Table           ExtractedTextMethod = "table"
-	TextPassthrough ExtractedTextMethod = "text-passthrough"
+	ExtractedTextMethodForm            ExtractedTextMethod = "form"
+	ExtractedTextMethodOcr             ExtractedTextMethod = "ocr"
+	ExtractedTextMethodPdfTextLayer    ExtractedTextMethod = "pdf-text-layer"
+	ExtractedTextMethodTable           ExtractedTextMethod = "table"
+	ExtractedTextMethodTextPassthrough ExtractedTextMethod = "text-passthrough"
 )
 
 // Valid indicates whether the value is a known member of the ExtractedTextMethod enum.
 func (e ExtractedTextMethod) Valid() bool {
 	switch e {
-	case Form:
+	case ExtractedTextMethodForm:
 		return true
-	case Ocr:
+	case ExtractedTextMethodOcr:
 		return true
-	case PdfTextLayer:
+	case ExtractedTextMethodPdfTextLayer:
 		return true
-	case Table:
+	case ExtractedTextMethodTable:
 		return true
-	case TextPassthrough:
+	case ExtractedTextMethodTextPassthrough:
 		return true
 	default:
 		return false
@@ -476,31 +608,31 @@ func (e ExtractedTextMethod) Valid() bool {
 
 // Defines values for ExtractedTextPdfClass.
 const (
-	A ExtractedTextPdfClass = "A"
-	B ExtractedTextPdfClass = "B"
-	C ExtractedTextPdfClass = "C"
-	D ExtractedTextPdfClass = "D"
-	E ExtractedTextPdfClass = "E"
-	F ExtractedTextPdfClass = "F"
-	G ExtractedTextPdfClass = "G"
+	ExtractedTextPdfClassA ExtractedTextPdfClass = "A"
+	ExtractedTextPdfClassB ExtractedTextPdfClass = "B"
+	ExtractedTextPdfClassC ExtractedTextPdfClass = "C"
+	ExtractedTextPdfClassD ExtractedTextPdfClass = "D"
+	ExtractedTextPdfClassE ExtractedTextPdfClass = "E"
+	ExtractedTextPdfClassF ExtractedTextPdfClass = "F"
+	ExtractedTextPdfClassG ExtractedTextPdfClass = "G"
 )
 
 // Valid indicates whether the value is a known member of the ExtractedTextPdfClass enum.
 func (e ExtractedTextPdfClass) Valid() bool {
 	switch e {
-	case A:
+	case ExtractedTextPdfClassA:
 		return true
-	case B:
+	case ExtractedTextPdfClassB:
 		return true
-	case C:
+	case ExtractedTextPdfClassC:
 		return true
-	case D:
+	case ExtractedTextPdfClassD:
 		return true
-	case E:
+	case ExtractedTextPdfClassE:
 		return true
-	case F:
+	case ExtractedTextPdfClassF:
 		return true
-	case G:
+	case ExtractedTextPdfClassG:
 		return true
 	default:
 		return false
@@ -1490,28 +1622,28 @@ func (e SmeltSettledOutcome) Valid() bool {
 
 // Defines values for SmeltSettledReason.
 const (
-	Corrupt     SmeltSettledReason = "corrupt"
-	Empty       SmeltSettledReason = "empty"
-	Encrypted   SmeltSettledReason = "encrypted"
-	NoExtractor SmeltSettledReason = "no-extractor"
-	NoTextLayer SmeltSettledReason = "no-text-layer"
-	TooLarge    SmeltSettledReason = "too-large"
+	SmeltSettledReasonCorrupt     SmeltSettledReason = "corrupt"
+	SmeltSettledReasonEmpty       SmeltSettledReason = "empty"
+	SmeltSettledReasonEncrypted   SmeltSettledReason = "encrypted"
+	SmeltSettledReasonNoExtractor SmeltSettledReason = "no-extractor"
+	SmeltSettledReasonNoTextLayer SmeltSettledReason = "no-text-layer"
+	SmeltSettledReasonTooLarge    SmeltSettledReason = "too-large"
 )
 
 // Valid indicates whether the value is a known member of the SmeltSettledReason enum.
 func (e SmeltSettledReason) Valid() bool {
 	switch e {
-	case Corrupt:
+	case SmeltSettledReasonCorrupt:
 		return true
-	case Empty:
+	case SmeltSettledReasonEmpty:
 		return true
-	case Encrypted:
+	case SmeltSettledReasonEncrypted:
 		return true
-	case NoExtractor:
+	case SmeltSettledReasonNoExtractor:
 		return true
-	case NoTextLayer:
+	case SmeltSettledReasonNoTextLayer:
 		return true
-	case TooLarge:
+	case SmeltSettledReasonTooLarge:
 		return true
 	default:
 		return false
@@ -1926,6 +2058,84 @@ type AnchoredTextAnswer struct {
 	union json.RawMessage
 }
 
+// AnchoredTextDeclinedEntry The bytes were declined: no text is extracted from them.
+type AnchoredTextDeclinedEntry struct {
+	// Declined Why extraction yielded nothing, by class.
+	Declined AnchoredTextDeclinedEntryDeclined `json:"declined"`
+
+	// Stamp The stamp of the writer that derived the entry. A reader takes the entry only when it equals the stamp the writer states in the store's `STAMP` file.
+	Stamp string `json:"stamp"`
+
+	// V The entry format.
+	V AnchoredTextDeclinedEntryV `json:"v"`
+}
+
+// AnchoredTextDeclinedEntryDeclined Why extraction yielded nothing, by class.
+type AnchoredTextDeclinedEntryDeclined string
+
+// AnchoredTextDeclinedEntryV The entry format.
+type AnchoredTextDeclinedEntryV int
+
+// AnchoredTextEntry One entry of the anchored-text store: the file `<ab>/<cd>/<key>.json` under the store's directory, where the key is the SHA-256 of the bytes the text was extracted from, in hex. The Smelter writes it; the Archivist reads it. Written as compact JSON, `v` and `stamp` first, by writing a sibling temporary file and renaming it onto the path. The store's writer states its current stamp, followed by a newline, in the file `STAMP` at the store's root.
+type AnchoredTextEntry struct {
+	union json.RawMessage
+}
+
+// AnchoredTextExtractedEntry The text extracted from the bytes, where each word is on the page, and how it was extracted.
+type AnchoredTextExtractedEntry struct {
+	// Lines Where each word of `text` is, line by line, in reading order.
+	Lines []struct {
+		// H The line's height in PDF points.
+		H float32 `json:"h"`
+
+		// P The page, counted from 1.
+		P int `json:"p"`
+
+		// Words Each word as `[x, width, start, end]`: its horizontal position and width in PDF points, and the offsets of its text in `text`.
+		Words [][]float32 `json:"words"`
+
+		// Y The line's vertical position in PDF points, from the bottom of the page.
+		Y float32 `json:"y"`
+	} `json:"lines"`
+
+	// Method How the text was extracted.
+	Method AnchoredTextExtractedEntryMethod `json:"method"`
+
+	// OcrConfidence How well the engine read the pixels, when any of this text came from OCR.
+	OcrConfidence *struct {
+		// LowConfidenceWords Words the engine was unsure of.
+		LowConfidenceWords int `json:"lowConfidenceWords"`
+
+		// Mean Mean per-word confidence, 0-100.
+		Mean       float32 `json:"mean"`
+		TotalWords int     `json:"totalWords"`
+	} `json:"ocrConfidence,omitempty"`
+
+	// PdfClass PDF classification, when the source was a PDF.
+	PdfClass *AnchoredTextExtractedEntryPdfClass `json:"pdfClass,omitempty"`
+
+	// Stamp The stamp of the writer that derived the entry. A reader takes the entry only when it equals the stamp the writer states in the store's `STAMP` file.
+	Stamp string `json:"stamp"`
+
+	// Text The extracted text.
+	Text string `json:"text"`
+
+	// UnreadPages 1-indexed pages this extraction could not read — present only for partially covered documents (class C).
+	UnreadPages *[]int `json:"unreadPages,omitempty"`
+
+	// V The entry format.
+	V AnchoredTextExtractedEntryV `json:"v"`
+}
+
+// AnchoredTextExtractedEntryMethod How the text was extracted.
+type AnchoredTextExtractedEntryMethod string
+
+// AnchoredTextExtractedEntryPdfClass PDF classification, when the source was a PDF.
+type AnchoredTextExtractedEntryPdfClass string
+
+// AnchoredTextExtractedEntryV The entry format.
+type AnchoredTextExtractedEntryV int
+
 // Annotation defines model for Annotation.
 type Annotation struct {
 	// Context W3C Web Annotation JSON-LD context
@@ -2059,6 +2269,51 @@ type AnnotationTarget struct {
 	Source ResourceId `json:"source"`
 }
 
+// ArchivistConfig Everything the Archivist reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the Archivist. The launcher writes it for the Archivist it starts, from the environment the knowledge base's config selects, and the Archivist reads it from the path its `--config` flag names (its image passes `/etc/semiont/archivist.json`). Started without `--config`, or with a path that names no file, the Archivist refuses to start and says which. No secret is a value here. What the knowledge base says of itself is not here either: its name, its `[site] domain` and its `[git] sync` are read from the committed `.semiont/config` of the tree at `root`. The Archivist's other inputs are the environment variables specs/src/service-environment/variables.json lists for it. A document that does not validate is refused at boot, naming each failing field.
+type ArchivistConfig struct {
+	// AnchoredTextDir The anchored-text store the Smelter writes and the Archivist reads.
+	AnchoredTextDir string `json:"anchoredTextDir"`
+
+	// GatewayUrl The URL the Archivist reaches the gateway at: its only route to the bus.
+	GatewayUrl string `json:"gatewayUrl"`
+
+	// Identity The issuer the Archivist's service account signs in at, and whose tokens it admits callers of its HTTP surface by.
+	Identity struct {
+		// Issuer The issuer URL, exactly as tokens carry it in `iss`.
+		Issuer string `json:"issuer"`
+	} `json:"identity"`
+
+	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
+	LogFormat LogFormat `json:"logFormat"`
+
+	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
+	LogLevel LogLevel `json:"logLevel"`
+
+	// Port The port the Archivist's HTTP surface answers on, `/health` included.
+	Port int `json:"port"`
+
+	// Root The knowledge base's working tree: the directory holding `.semiont/`. The event log, the content and the committed config are under it.
+	Root string `json:"root"`
+
+	// Roster Who serves each role, behind `browse:agents`: a provider and a model, and no credential. Every fallback the knowledge base's config allows is already applied, so a role absent here is served by no one.
+	Roster ArchivistRoster `json:"roster"`
+
+	// SkipRebuild Whether the Archivist serves the views it finds at boot instead of rebuilding them from the event log first.
+	SkipRebuild bool `json:"skipRebuild"`
+
+	// Staging The bounds on how far the staging driver may run behind the working tree, in milliseconds. A knowledge base that does not sync git stages nothing, and reads neither.
+	Staging struct {
+		// FlushMs The quiet period after the last change before pending changes are staged.
+		FlushMs int `json:"flushMs"`
+
+		// MaxWaitMs The longest a change waits to be staged while others keep arriving, measured from the oldest pending change.
+		MaxWaitMs int `json:"maxWaitMs"`
+	} `json:"staging"`
+
+	// StateHome The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's.
+	StateHome string `json:"stateHome"`
+}
+
 // ArchivistEventsResponse The events of one resource from one sequence number, inclusive, in log order: the Archivist's answer to `GET /events/{resourceId}`, which the gateway reads to replay a scope a subscriber resumes.
 type ArchivistEventsResponse struct {
 	Events []StoredEventResponse `json:"events"`
@@ -2073,6 +2328,51 @@ type ArchivistHealth struct {
 
 // ArchivistHealthStatus defines model for ArchivistHealth.Status.
 type ArchivistHealthStatus string
+
+// ArchivistRoster Who serves each role, behind `browse:agents`: a provider and a model, and no credential. Every fallback the knowledge base's config allows is already applied, so a role absent here is served by no one.
+type ArchivistRoster struct {
+	// Actors The agent serving each actor that calls a model.
+	Actors struct {
+		// Gatherer The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		Gatherer *ArchivistRosterRole `json:"gatherer,omitempty"`
+
+		// Matcher The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		Matcher *ArchivistRosterRole `json:"matcher,omitempty"`
+	} `json:"actors"`
+
+	// Workers The agent serving each job type.
+	Workers struct {
+		// AssessmentAnnotation The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		AssessmentAnnotation *ArchivistRosterRole `json:"assessment-annotation,omitempty"`
+
+		// CommentAnnotation The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		CommentAnnotation *ArchivistRosterRole `json:"comment-annotation,omitempty"`
+
+		// Generation The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		Generation *ArchivistRosterRole `json:"generation,omitempty"`
+
+		// HighlightAnnotation The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		HighlightAnnotation *ArchivistRosterRole `json:"highlight-annotation,omitempty"`
+
+		// ReferenceAnnotation The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		ReferenceAnnotation *ArchivistRosterRole `json:"reference-annotation,omitempty"`
+
+		// TagAnnotation The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		TagAnnotation *ArchivistRosterRole `json:"tag-annotation,omitempty"`
+	} `json:"workers"`
+}
+
+// ArchivistRosterRole The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+type ArchivistRosterRole struct {
+	// Model The model identifier, as the provider names it.
+	Model string `json:"model"`
+
+	// Provider The inference provider.
+	Provider ArchivistRosterRoleProvider `json:"provider"`
+}
+
+// ArchivistRosterRoleProvider The inference provider.
+type ArchivistRosterRoleProvider string
 
 // AttributedEvent defines model for AttributedEvent.
 type AttributedEvent struct {
@@ -2826,6 +3126,12 @@ type EntityTagChangedPayload struct {
 // EntityTypeAddedPayload Payload for frame:entity-type-added domain event (system-level, no resourceId — fan-out is global)
 type EntityTypeAddedPayload struct {
 	EntityType string `json:"entityType"`
+}
+
+// EntityTypesProjection The knowledge base's entity-type vocabulary: the file `projections/__system__/entitytypes.json` under the state directory, the sum of the `frame:entity-type-added` events. Written as JSON indented by two spaces.
+type EntityTypesProjection struct {
+	// EntityTypes Every entity type added, each once, sorted.
+	EntityTypes []string `json:"entityTypes"`
 }
 
 // EphemeralEventId `e-<publishId>` — the id of any other frame, given once when the frame is published: the same on every connection that carries it, through every replica, so a copy arriving on two connections (a reconnect overlap) dedups. Never a resumption watermark.
@@ -4636,6 +4942,18 @@ type PdfTextItem struct {
 	Y     float32 `json:"y"`
 }
 
+// PeopleProjection What the people of a knowledge base are called: the file `projections/__system__/people.json` under the state directory, the sum of the `person:profiled` events. The Archivist writes it; the Archivist and the Librarian read it to name the people a reply mentions. Written as JSON indented by two spaces.
+type PeopleProjection struct {
+	// People Each person's current profile, keyed by their DID.
+	People map[string]struct {
+		// Name The name the person last gave.
+		Name string `json:"name"`
+
+		// Since The timestamp of the event that gave it.
+		Since string `json:"since"`
+	} `json:"people"`
+}
+
 // PersistedEventId `p-<scope>-<sequenceNumber>` — the id of a persisted event delivered on a scoped subscription. Resumable: send it back as that scope's `lastEventId`. Stable across connections, so a client dedups by it.
 type PersistedEventId = string
 
@@ -4772,6 +5090,21 @@ type RepresentationNotFoundCode string
 type RepresentationRemovedPayload struct {
 	// Checksum Checksum of the representation to remove
 	Checksum string `json:"checksum"`
+}
+
+// ResourceAnnotations The annotations on one resource, as its materialized view holds them.
+type ResourceAnnotations struct {
+	// Annotations Each annotation as the `mark:added` event that recorded it carried it, with the body changes recorded since applied. In the order they were first recorded.
+	Annotations []Annotation `json:"annotations"`
+
+	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	ResourceId ResourceId `json:"resourceId"`
+
+	// UpdatedAt The timestamp of the last event applied; the empty string before any.
+	UpdatedAt string `json:"updatedAt"`
+
+	// Version How many of the resource's events the view has applied.
+	Version int `json:"version"`
 }
 
 // ResourceArchivedPayload Payload for mark:archived domain event
@@ -5112,6 +5445,18 @@ type ResourceUpload struct {
 	StorageUri string `json:"storageUri"`
 }
 
+// ResourceView A resource's materialized view: the file the Archivist writes at `resources/<ab>/<cd>/<resourceId>.json` under the knowledge base's state directory, and every reader of that file reads. It is what the resource's events add up to, and is rebuilt from the event log whenever it is missing. Written as JSON indented by two spaces, by writing a sibling temporary file and renaming it onto the path, so a reader sees a whole document or none.
+type ResourceView struct {
+	// Annotations The annotations on one resource, as its materialized view holds them.
+	Annotations ResourceAnnotations `json:"annotations"`
+
+	// LastSequence The sequence number of the last event applied. A graph read that follows a write waits for the graph projection to reach it.
+	LastSequence int `json:"lastSequence"`
+
+	// Resource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
+	Resource ResourceDescriptor `json:"resource"`
+}
+
 // ScoredResource defines model for ScoredResource.
 type ScoredResource struct {
 	// Context JSON-LD context; URI, object, or array of these.
@@ -5438,6 +5783,15 @@ type StatusResponse struct {
 	Version string `json:"version"`
 }
 
+// StorageUriEntry One entry of the storage-uri index: the file `projections/storage-uri/<ab>/<cd>/<sha256 of the URI, hex>.json` under the state directory. It answers which resource's content is at a place in the working tree. Written as JSON indented by two spaces, `uri` first.
+type StorageUriEntry struct {
+	// ResourceId A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	ResourceId ResourceId `json:"resourceId"`
+
+	// Uri The `file://` URI of a place in the working tree, relative to the knowledge base's root.
+	Uri string `json:"uri"`
+}
+
 // StoredEventResponse A persisted domain event with metadata. Flat shape — event fields and metadata are peers.
 type StoredEventResponse struct {
 	// Id Unique event ID (UUID)
@@ -5501,6 +5855,12 @@ type TagSchema struct {
 type TagSchemaAddedPayload struct {
 	// Schema A structural-analysis schema (e.g. legal-irac, scientific-imrad, argument-toulmin). Defines a methodology framework as an id, name, description, domain hint, and an ordered list of categories. KBs and their skills register schemas with the runtime registry via `frame.addTagSchema(...)` at session start.
 	Schema TagSchema `json:"schema"`
+}
+
+// TagSchemasProjection The knowledge base's tag schemas: the file `projections/__system__/tagschemas.json` under the state directory, the sum of the `frame:tag-schema-added` events. Written as JSON indented by two spaces.
+type TagSchemasProjection struct {
+	// TagSchemas Every tag schema added, sorted by `id`. A schema added again under an `id` replaces the one held.
+	TagSchemas []TagSchema `json:"tagSchemas"`
 }
 
 // TextPositionSelector defines model for TextPositionSelector.
@@ -7927,6 +8287,68 @@ func (t AnchoredTextAnswer) MarshalJSON() ([]byte, error) {
 }
 
 func (t *AnchoredTextAnswer) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsAnchoredTextExtractedEntry returns the union data inside the AnchoredTextEntry as a AnchoredTextExtractedEntry
+func (t AnchoredTextEntry) AsAnchoredTextExtractedEntry() (AnchoredTextExtractedEntry, error) {
+	var body AnchoredTextExtractedEntry
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAnchoredTextExtractedEntry overwrites any union data inside the AnchoredTextEntry as the provided AnchoredTextExtractedEntry
+func (t *AnchoredTextEntry) FromAnchoredTextExtractedEntry(v AnchoredTextExtractedEntry) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAnchoredTextExtractedEntry performs a merge with any union data inside the AnchoredTextEntry, using the provided AnchoredTextExtractedEntry
+func (t *AnchoredTextEntry) MergeAnchoredTextExtractedEntry(v AnchoredTextExtractedEntry) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAnchoredTextDeclinedEntry returns the union data inside the AnchoredTextEntry as a AnchoredTextDeclinedEntry
+func (t AnchoredTextEntry) AsAnchoredTextDeclinedEntry() (AnchoredTextDeclinedEntry, error) {
+	var body AnchoredTextDeclinedEntry
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAnchoredTextDeclinedEntry overwrites any union data inside the AnchoredTextEntry as the provided AnchoredTextDeclinedEntry
+func (t *AnchoredTextEntry) FromAnchoredTextDeclinedEntry(v AnchoredTextDeclinedEntry) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAnchoredTextDeclinedEntry performs a merge with any union data inside the AnchoredTextEntry, using the provided AnchoredTextDeclinedEntry
+func (t *AnchoredTextEntry) MergeAnchoredTextDeclinedEntry(v AnchoredTextDeclinedEntry) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AnchoredTextEntry) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *AnchoredTextEntry) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

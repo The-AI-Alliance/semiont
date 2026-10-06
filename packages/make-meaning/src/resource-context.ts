@@ -6,7 +6,7 @@
  * (`resource-search.ts`).
  */
 
-import { compareByRecencyThenId, decodeRepresentation, derivesTextOf, getResourceEntityTypes, getResourceId, textSourceOf } from '@semiont/core';
+import { decodeRepresentation, derivesTextOf, getResourceId, textSourceOf } from '@semiont/core';
 import { representationSource } from './representation.js';
 import type { AnchoredTextAsk } from './anchored-text-ask.js';
 import type { ResourceId } from '@semiont/core';
@@ -14,24 +14,6 @@ import type { ViewStorage } from '@semiont/event-sourcing';
 import type { ContentReads } from '@semiont/content';
 
 import type { ResourceDescriptor } from '@semiont/core';
-
-/** What a listing reads: the views, and nothing else. */
-export interface ListResourcesReads {
-  views: Pick<ViewStorage, 'getAll'>;
-}
-
-export interface ListResourcesFilters {
-  archived?: boolean;
-  entityType?: string;
-  offset?: number;
-  limit?: number;
-}
-
-export interface ListResourcesResult {
-  resources: ResourceDescriptor[];
-  /** Size of the whole match set, not of the returned page. */
-  total: number;
-}
 
 export class ResourceContext {
   /**
@@ -44,30 +26,6 @@ export class ResourceContext {
     }
 
     return view.resource;
-  }
-
-  /**
-   * List resources, optionally filtered, as one page plus the size of the whole
-   * match set. Every filter is applied before pagination — a filter applied
-   * afterwards narrows the page rather than the match set.
-   *
-   * The materialized views answer. They are the barrier-stamped projection, so
-   * a listing is read-your-writes.
-   */
-  static async listResources(
-    filters: ListResourcesFilters | undefined,
-    kb: ListResourcesReads,
-  ): Promise<ListResourcesResult> {
-    const { archived, entityType, offset = 0, limit = 50 } = filters ?? {};
-
-    const allViews = await kb.views.getAll();
-    const matches = allViews
-      .map((view) => view.resource)
-      .filter((doc) => archived === undefined || doc.archived === archived)
-      .filter((doc) => !entityType || getResourceEntityTypes(doc).includes(entityType))
-      .sort(compareByRecencyThenId);
-
-    return { resources: matches.slice(offset, offset + limit), total: matches.length };
   }
 
   /**

@@ -3965,7 +3965,6 @@
         "lead": [
           "",
           "  // ── YIELD ───────────────────────────────────────────────────────",
-          "  // ResourceOperations issues it via busRequest, in process beside the Stower;",
           "  // clients refresh on the persisted `yield:created`, never on the -ok reply"
         ],
         "trailing": ""

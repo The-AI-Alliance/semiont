@@ -277,8 +277,6 @@ let _inferenceCallsCounter: Counter | undefined;
 let _inferenceTokensCounter: Counter | undefined;
 let _inferenceDurationHistogram: Histogram | undefined;
 let _vectorIndexSizeGauge: ObservableGauge | undefined;
-let _factPumpDepthGauge: ObservableGauge | undefined;
-let _factPumpDepthProvider: (() => number) | undefined;
 let _vectorIndexSizeProvider: (() => Promise<number> | number) | undefined;
 
 function busSentCounter(): Counter {
@@ -374,53 +372,6 @@ export function recordJobOutcome(jobType: string, outcome: 'completed' | 'failed
   jobDurationHistogram().record(durationMs, { 'job.type': jobType, 'job.outcome': outcome });
 }
 
-let _appendStageHistogram: Histogram | undefined;
-function appendStageHistogram(): Histogram {
-  if (!_appendStageHistogram) {
-    _appendStageHistogram = meter().createHistogram('semiont.record.append.duration', {
-      description: 'Time spent in one stage of appending an event to the record, labeled by stage: persist (JSONL write + git), materialize (view rebuild), enrich, publish. The Archivist\'s core write path.',
-      unit: 'ms',
-    });
-  }
-  return _appendStageHistogram;
-}
-
-/**
- * Record one stage of `EventStore.appendEvent`.
- *
- * The append path is the one operation only the Archivist can perform. Reads
- * have `recordHandlerDuration` and the bus has its own counters; this is
- * what writes have. Stage-labeled because the useful
- * question is never "was the append slow" but WHICH PART — and `materialize`
- * in particular does work proportional to a resource's annotation count, so it
- * degrades with history rather than with load.
- */
-export function recordAppendStage(
-  stage: 'persist' | 'materialize' | 'enrich' | 'publish',
-  durationMs: number,
-): void {
-  appendStageHistogram().record(durationMs, { 'record.stage': stage });
-}
-
-let _gitCommandHistogram: Histogram | undefined;
-function gitCommandHistogram(): Histogram {
-  if (!_gitCommandHistogram) {
-    _gitCommandHistogram = meter().createHistogram('semiont.git.duration', {
-      description: 'Wall time of a git subprocess. Async — this is latency, not event-loop blockage. Staging is deduped, so the `add` count is far below the number of appended events.',
-      unit: 'ms',
-    });
-  }
-  return _gitCommandHistogram;
-}
-
-/**
- * Record a git invocation. Read the `add` count against events appended: one
- * per event means deferred staging has stopped deduping.
- */
-export function recordGitCommand(command: string, durationMs: number): void {
-  gitCommandHistogram().record(durationMs, { 'git.command': command });
-}
-
 function gatherDegradeCounter(): Counter {
   if (!_gatherDegradeCounter) {
     _gatherDegradeCounter = meter().createCounter('semiont.gather.degraded', {
@@ -441,46 +392,6 @@ function gatherDegradeCounter(): Counter {
  */
 export function recordGatherDegrade(projection: 'graph' | 'vectors' | 'suggestions'): void {
   gatherDegradeCounter().add(1, { projection });
-}
-
-/**
- * Register the Archivist's fact-pump backlog — facts appended to the record
- * but not yet republished onto the bus.
- *
- * At rest this is zero. A value that climbs and does not come back means the
- * pump is outrunning its transport. The backlog is deliberately unbounded,
- * so this number is the only thing standing between "the pump is behind"
- * and an OOM whose cause is inferred from RSS after the fact.
- */
-export function registerFactPumpDepthProvider(provider: () => number): void {
-  _factPumpDepthProvider = provider;
-  if (!_factPumpDepthGauge) {
-    buildGauge('semiont.archivist.fact_pump.depth', () => {
-      _factPumpDepthGauge = meter().createObservableGauge('semiont.archivist.fact_pump.depth', {
-        description: 'Facts appended to the record but not yet published to the bus. Zero at rest; a rising floor means the pump is behind its transport.',
-      });
-      _factPumpDepthGauge.addCallback((observer) => {
-        if (_factPumpDepthProvider) observer.observe(_factPumpDepthProvider());
-      });
-    });
-  }
-}
-
-let _gitStagingFailureCounter: Counter | undefined;
-
-/**
- * A staging command that could not be run. Staging the index is a CONVENIENCE
- * — the event log is the system of record — so a failure here is degraded
- * service, never a reason to exit. But degraded must be VISIBLE: this counter
- * is what stops "the index is quietly stale" from being invisible.
- */
-export function recordGitStagingFailure(reason: 'index-lock' | 'other'): void {
-  if (!_gitStagingFailureCounter) {
-    _gitStagingFailureCounter = meter().createCounter('semiont.git.staging.failures', {
-      description: 'Staging commands abandoned after retries; the index may be stale',
-    });
-  }
-  _gitStagingFailureCounter.add(1, { reason });
 }
 
 /**

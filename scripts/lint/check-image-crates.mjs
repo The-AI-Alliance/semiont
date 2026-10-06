@@ -38,6 +38,7 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const IMAGES = [
   { service: 'gateway', binary: 'semiont-gateway', notice: 'apps/gateway/NOTICE' },
   { service: 'dispatcher', binary: 'semiont-dispatcher', notice: 'apps/dispatcher/NOTICE' },
+  { service: 'archivist', binary: 'semiont-archivist', notice: 'apps/archivist/NOTICE' },
 ];
 const NATIVE_HEADING = '  Native code those crates compile into the binary:';
 

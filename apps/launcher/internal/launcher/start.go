@@ -670,10 +670,11 @@ func tracesArgs() []string {
 
 // kbMountTarget is where the KB clone lands inside the ARCHIVIST container —
 // the only container that mounts it: every other service reaches the KB's
-// bytes and identity through the Archivist or from staged config. The value
-// is HALF of an agreement: the archivist image declares
-// `ENV SEMIONT_ROOT=/kb`, and nothing at compile time makes the two match.
-// TestContainerPathsMatchTheImage is what makes them match.
+// bytes and identity through the Archivist or from staged config. The
+// Archivist's document names it as `root`. The value is HALF of an agreement:
+// the archivist image tells git to trust this directory, and nothing at
+// compile time makes the two match. TestTheArchivistImageTrustsTheKBMount is
+// what makes them match.
 const kbMountTarget = "/kb"
 
 // gatewayArgs: the gateway mounts NO piece of the knowledge base. It
@@ -764,26 +765,26 @@ func sidecarArgs(svc string, port int, stage, rt, addr string, clientSecret, ver
 
 // archivistArgs: the Archivist owns the file-backed record, and its mounts
 // are the record's — the KB root read-write at kbMountTarget (it is the git
-// single-writer), its staged config copy, and the stores flowArchivist
-// passes as state: the anchored-text store it answers reads from and the
-// state tree it writes the views to. Its staged config carries the addresses
-// the launcher places (stagedServiceConfig); the gateway's it resolves from
-// the gateway-host pair (gatewayHostEnv). Deliberately NO JWT_SECRET: it
-// signs nothing. It authenticates as its own service account at the issuer,
-// and admits callers by verifying theirs (the same fact the gateway's event
-// read from it relies on).
+// single-writer), and the stores flowArchivist passes as state: the
+// anchored-text store it answers reads from and the state tree it writes the
+// views to. It reads a resolved configuration document (archivistdoc.go) at
+// the path its image passes to `--config`, so it is handed no *_HOST
+// variables and no path: the document carries every address and every
+// directory already. It keeps the
+// issuer's host entry, because it signs in at the issuer by name.
+// Deliberately NO JWT_SECRET: it signs nothing. It authenticates as its own
+// service account at the issuer, and admits callers by verifying theirs (the
+// same fact the gateway's event read from it relies on).
 func archivistArgs(kbRoot, stage, rt, addr string, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("archivist").mem, "--publish", "24103:24103",
 		"--volume", kbRoot + ":" + kbMountTarget,
-		"--volume", stage + "/archivist.toml:/home/semiont/.semiontconfig:ro"}
+		"--volume", stage + "/" + archivistDocumentFile + ":" + archivistDocumentTarget + ":ro"}
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
-	a = append(a, gatewayHostEnv(addr)...)
 	a = append(a, identityHostArgs(rt, addr)...)
 	a = append(a,
-		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("archivist"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
@@ -809,7 +810,7 @@ func librarianArgs(stage, rt, addr string, clientSecret, version string, userEnv
 	a = append(a, gatewayHostEnv(addr)...)
 	a = append(a, identityHostArgs(rt, addr)...)
 	a = append(a,
-		"--env", "XDG_STATE_HOME=/semiont-state",
+		"--env", "XDG_STATE_HOME="+stateHomeTarget,
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("librarian"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)

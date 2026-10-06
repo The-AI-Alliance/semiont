@@ -1,127 +1,105 @@
-# archivist image.
+# The Archivist image: the binary, built here from the repository, and nothing
+# of its source — no .rs, no Cargo files, no target/, no toolchain, no specs/
+# (the spec is compiled into the binary), and no Node. Nothing is built,
+# installed or fetched when the container starts: the entrypoint execs the binary.
 #
-# THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
-# published @semiont/make-meaning and runs `dist/archivist-main.js` out of it; the
-# source is packages/make-meaning/src/archivist/archivist-main.ts. Only the image
-# recipe lives here — the entrypoint lives in its package deliberately:
-# moving it out would promote ~18 of that package's
-# internals to public API just to satisfy a directory layout. If you change
-# the CMD, change it against that file.
+# Built from the repository root, with the toolchain
+# rust-toolchain.toml names — the one place it is written:
 #
-# Stage 1: install (npm runs here, then is discarded).
+#   --build-arg RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
 #
-# The Archivist is a separate image from the shared @semiont/make-meaning
-# package, like smelter and weaver — separate because their dependency
-# footprints differ. The Archivist dials no graph and no vector store, so it
-# installs no driver beside the package.
-#
-# Base is node:24-alpine (not node:26): node 26's built-in undici breaks the
-# qdrant client's own undici, which @semiont/make-meaning can load transitively
-# at connect time.
-FROM node:24-alpine AS installer
-ARG NPM_REGISTRY=https://registry.npmjs.org
-ARG SEMIONT_VERSION=latest
-# @qdrant/js-client-rest pins undici exactly; `npm install -g` ignores overrides,
-# so the pinned copy is replaced after install. See the script.
-COPY scripts/container/patch-qdrant-undici.sh /tmp/patch-qdrant-undici.sh
-RUN npm config set registry $NPM_REGISTRY && \
-    npm install -g @semiont/make-meaning@${SEMIONT_VERSION} && \
-    sh /tmp/patch-qdrant-undici.sh && \
-    npm cache clean --force
+# There is no default: without it the first FROM names no image and the build
+# stops, rather than building with a toolchain nothing pinned.
+ARG RUST_TOOLCHAIN
 
-# Stage 2: minimal runtime — node only, no npm. The runtime entrypoint is
-# `node archivist-main.js`, so npm is build-only baggage. Removing it also drops
-# the picomatch / glob / etc. CVE surface that ships inside npm's bundled
-# node_modules.
-FROM node:24-alpine
-# Patch base-image OS packages so alpine security fixes apply even when the
-# node:24-alpine snapshot hasn't been rebuilt against them yet.
-RUN apk upgrade --no-cache
+FROM rust:${RUST_TOOLCHAIN}-alpine AS builder
+# make builds jemalloc, the allocator tikv-jemalloc-sys compiles into the binary.
+RUN apk add --no-cache make
+# cargo-auditable writes the crates the binary links into the binary itself,
+# which is how the image scan (Trivy) sees them in an image with no Cargo.lock.
+RUN cargo install cargo-auditable --locked --version 0.7.6
+WORKDIR /build
+COPY version.json ./
+COPY specs/src specs/src
+# The workspace (Cargo.toml at the repository root): cargo loads every member
+# to build any one of them, so each member's crate is copied.
+COPY Cargo.toml Cargo.lock ./
+COPY apps/archivist/Cargo.toml apps/archivist/
+COPY apps/archivist/src apps/archivist/src
+COPY apps/archivist/record/Cargo.toml apps/archivist/record/
+COPY apps/archivist/record/src apps/archivist/record/src
+COPY apps/archivist/staging/Cargo.toml apps/archivist/staging/
+COPY apps/archivist/staging/src apps/archivist/staging/src
+COPY apps/gateway/Cargo.toml apps/gateway/
+COPY apps/gateway/src apps/gateway/src
+COPY apps/dispatcher/Cargo.toml apps/dispatcher/
+COPY apps/dispatcher/src apps/dispatcher/src
+COPY apps/dispatcher/handlers/Cargo.toml apps/dispatcher/handlers/
+COPY apps/dispatcher/handlers/src apps/dispatcher/handlers/src
+COPY apps/dispatcher/jetstream/Cargo.toml apps/dispatcher/jetstream/build.rs apps/dispatcher/jetstream/
+COPY apps/dispatcher/jetstream/src apps/dispatcher/jetstream/src
+COPY packages/codegen-rust/Cargo.toml packages/codegen-rust/
+COPY packages/codegen-rust/src packages/codegen-rust/src
+COPY packages/core-rust/Cargo.toml packages/core-rust/build.rs packages/core-rust/
+COPY packages/core-rust/src packages/core-rust/src
+COPY packages/http-service-rust/Cargo.toml packages/http-service-rust/
+COPY packages/http-service-rust/src packages/http-service-rust/src
+COPY packages/http-transport-rust/Cargo.toml packages/http-transport-rust/
+COPY packages/http-transport-rust/src packages/http-transport-rust/src
+COPY packages/http-transport-rust/conformance/Cargo.toml packages/http-transport-rust/conformance/
+COPY packages/http-transport-rust/conformance/src packages/http-transport-rust/conformance/src
+COPY packages/observability-rust/Cargo.toml packages/observability-rust/
+COPY packages/observability-rust/src packages/observability-rust/src
+COPY packages/sdk-rust/Cargo.toml packages/sdk-rust/build.rs packages/sdk-rust/
+COPY packages/sdk-rust/src packages/sdk-rust/src
+# The SDK's build script reads the spec through its own `specs`, a link in the
+# repository: made here, where only what is named is copied.
+RUN ln -s ../../specs/src packages/sdk-rust/specs
+COPY packages/telemetry-rust/Cargo.toml packages/telemetry-rust/
+COPY packages/telemetry-rust/src packages/telemetry-rust/src
+# The builder stage is the same in each Rust service's Dockerfile
+# (lint:rust-images): it builds every service's binary, so an image built
+# after, or beside, another reuses its stage instead of compiling the
+# workspace again. A spec that does not compile fails here, in the build
+# scripts, never at boot.
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build/target \
+    cargo auditable build --release --locked -p semiont-archivist -p semiont-dispatcher -p semiont-gateway && \
+    cp target/release/semiont-archivist target/release/semiont-dispatcher target/release/semiont-gateway /
 
-# The Archivist shells out to git: WorkingTreeStore's register/move/remove and
-# the event store's appends all `git add` under the project root — this is the
-# single git writer. smelter/weaver carry no git; this image must. Same as the
-# gateway image: when the mounted KB is owned by a host UID that differs from
-# the in-container semiont user (UID 1001), git's CVE-2022-24765
-# dubious-ownership check refuses to operate — --system writes /etc/gitconfig,
-# applied to all users including semiont.
-RUN apk add --no-cache git && \
+FROM alpine:3.24
+# git is the Archivist's staging driver's: a knowledge base that syncs git has
+# its changes staged with it, and this is the one image that runs it. The
+# mounted knowledge base is owned by a host uid that need not be this image's
+# user, and git refuses a tree whose owner is not the caller's
+# (CVE-2022-24765) unless told to trust it; --system writes /etc/gitconfig,
+# which applies to every user.
+RUN apk upgrade --no-cache && apk add --no-cache tini git && \
     git config --system --add safe.directory /kb
 
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 semiont
+# The uid the launcher's state mount is written as, as in every service image.
+RUN addgroup --system --gid 1001 semiont && \
+    adduser --system --uid 1001 --ingroup semiont --home /home/semiont semiont
 
-# The global @semiont/make-meaning (with hoisted deps) and bins.
-COPY --from=installer /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=installer /usr/local/bin /usr/local/bin
-
-# Strip npm/npx (re-introduced by the COPY above) plus the TypeScript compiler.
-# `typescript` + its native `@typescript/*` Go binaries are pulled transitively
-# via the qdrant client's dep chain but never loaded at runtime — build-only
-# baggage, and the native `tsc` carries a Go-stdlib CVE (CVE-2026-39822).
-RUN rm -rf /usr/local/lib/node_modules/npm \
-           /usr/local/bin/npm \
-           /usr/local/bin/npx && \
-    find /usr/local/lib/node_modules \
-      -type d \( -name typescript -o -name '@typescript' \) -prune -exec rm -rf {} +
-
-COPY LICENSE /home/semiont/LICENSE
-COPY apps/archivist/NOTICE /home/semiont/NOTICE
-
-WORKDIR /kb
-RUN chown semiont:nodejs /kb
-# Supervision runtime — ROOT-TIME on purpose: apk refuses to run and
-# /usr/local/bin refuses writes once USER drops privileges below.
-RUN apk add --no-cache tini
+COPY --from=builder /semiont-archivist /usr/local/bin/semiont-archivist
+COPY LICENSE apps/archivist/NOTICE /home/semiont/
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
 COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 
+# The knowledge base is mounted here, and is where git is run.
+WORKDIR /kb
+RUN chown semiont:semiont /kb
+
 USER semiont
-
-ENV NODE_ENV=production
-# The container-side paths are constants of the image, declared here: the
-# launcher mounts host dirs AT these targets and passes no path env.
-ENV SEMIONT_ROOT=/kb
-ENV SEMIONT_ANCHORED_TEXT_DIR=/anchored-text
-
-# ── Heap ceiling ─────────────────────────────────────────────────────────
-# WHY THIS EXISTS, because a bare number here is unreadable in a year:
-#
-# V8 derives its own default old-space ceiling from visible memory and lands
-# well under the cgroup allocation: allotted 2048 MB, this process dies with
-# "JavaScript heap out of memory" at ~1016 MB, nowhere near the container's
-# limit, so without a ceiling of its own roughly half the memory the fleet
-# pays for is unreachable.
-#
-# 1536 leaves ~512 MB under the container's 2G for everything OUTSIDE the JS
-# heap: RSS overhead, Buffers and the git subprocesses this image shells out
-# to. Do not raise this to 2048 — being
-# OOM-KILLED by the cgroup is strictly worse than a V8 heap error, because the
-# process is shot rather than given the chance to throw and log.
-#
-# ⚠️ THIS NUMBER IS PAIRED with the archivist's `mem` in
-# apps/launcher/internal/launcher/descriptors.go. Changing either without the
-# other silently re-opens the gap this closes. That pairing wants a gate —
-# its natural home is the launcher test that already cross-checks each
-# service's Dockerfile declarations against launcher facts
-# (TestServiceHealthPortsAgreeAcrossAllHomes).
-#
-# Applies to EVERY node invocation in the container, which is intended: the
-# CMD is the process that needs the ceiling, whether boot.sh runs it directly
-# or under supervise.sh. The HEALTHCHECK's `node -e` inherits it too and does
-# not care.
-#
-# VERIFY IT TOOK EFFECT: the `semiont.runtime.heap{heap.stat="limit"}` gauge
-# reports V8's actual ceiling at runtime. A cap that was set but not applied
-# shows up there as V8's own default — assume nothing.
-ENV NODE_OPTIONS=--max-old-space-size=1536
 
 EXPOSE 24103
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:24103/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD wget -q -O /dev/null http://localhost:24103/health || exit 1
 
 ENV SUPERVISE_NAME=archivist \
     SUPERVISE_PROBE=http://localhost:24103/health
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
-CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/archivist-main.js"]
+# --config names where the launcher mounts the Archivist's document; the
+# launcher's census (TestConfigDocumentsAreWhereTheImagesLook) reads it here.
+CMD ["/usr/local/bin/semiont-archivist", "--config", "/etc/semiont/archivist.json"]

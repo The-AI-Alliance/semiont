@@ -55,15 +55,14 @@ describe('makeMeaningConfigFrom', () => {
       Object.defineProperty(services, name, { get: part(name, value), enumerable: true });
     }
     const meta = {} as Record<string, unknown>;
-    for (const [name, value] of Object.entries({ gather: { settleTimeoutMs: 1 }, search: { semanticFloor: 0.5 }, actors: { matcher: undefined }, workers: { default: undefined } })) {
+    for (const [name, value] of Object.entries({ gather: { settleTimeoutMs: 1 }, search: { semanticFloor: 0.5 }, actors: { matcher: undefined } })) {
       Object.defineProperty(meta, name, { get: part(name, value), enumerable: true });
     }
     const config = makeMeaningConfigFrom({ services, _metadata: meta } as unknown as EnvironmentConfig);
     expect(reads).toEqual([]);
     expect(config.services.archivist).toEqual({ host: 'a' });
     expect(config.actors).toEqual({ matcher: undefined });
-    expect(config.workers).toEqual({ default: undefined });
-    expect(reads).toEqual(['archivist', 'actors', 'workers']);
+    expect(reads).toEqual(['archivist', 'actors']);
   });
 
   it('refuses a config that bypassed the loader — no gather bound', () => {

@@ -10,7 +10,6 @@ export default defineConfig({
     index: 'src/index.ts',
     'smelter-main': 'src/smelter-main.ts',
     'weaver-main': 'src/weaver-main.ts',
-    'archivist-main': 'src/archivist/archivist-main.ts',
     'librarian-main': 'src/librarian-main.ts',
   },
   format: ['esm'],
