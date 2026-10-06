@@ -27,6 +27,8 @@ class Scripted(Transport):
         self.emitted: list[Frame] = []
         """Every frame sent, in order."""
         self.sent = asyncio.Event()
+        self.held: list[ResourceId] = []
+        """The resource of each hold on a scope that was taken and has not been let go."""
         self.refusal: TransportError | None = None
         self.answers: dict[str, list[JsonValue]] | None = None
         """When there is one, the gateway behind the transport answers each request: with the next of what is
@@ -81,7 +83,8 @@ class Scripted(Transport):
 
     @override
     def subscribe_to_resource(self, resource_id: ResourceId) -> ResourceHold:
-        return ResourceHold(lambda: None)
+        self.held.append(resource_id)
+        return ResourceHold(lambda: self.held.remove(resource_id))
 
     @property
     @override
@@ -106,6 +109,21 @@ class Scripted(Transport):
         self.now.end()
         self.hub.close()
         self.router.close()
+
+    def asked_for(self, operation: str) -> list[Frame]:
+        """The requests of one operation, in the order they were made."""
+        return [frame for frame in self.emitted if frame.channel == operation]
+
+    def answer(self, request: Frame, response: JsonValue) -> None:
+        """Answer a request with `response`, as the service that answers its operation would."""
+        self.deliver(
+            Frame(channel=OPERATIONS[request.channel].result.name, payload={"response": response}, correlation_id=request.correlation_id)
+        )
+
+    def refuse(self, request: Frame, message: str = "the service refused") -> None:
+        """Answer a request with a failure."""
+        refused: dict[str, JsonValue] = {"code": "rejected", "message": message}
+        self.deliver(Frame(channel=OPERATIONS[request.channel].failure.name, payload=refused, correlation_id=request.correlation_id))
 
     async def asked(self) -> str:
         """The correlation id of the one request emitted, once it has been."""

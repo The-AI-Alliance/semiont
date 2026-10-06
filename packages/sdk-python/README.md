@@ -8,9 +8,10 @@ stream, kept open and resumed, with emits and requests made over it), its
 content, and the gateway's own operations. It signs in there: as an agent,
 as the person `semiont login` signed in, or as a person by the device grant.
 And it holds the client every Semiont SDK has: eleven namespaces, seventy
-methods, each a row of `specs/src/client/surface.json`. A wrong id, a wrong
-payload for a channel and an unhandled code or state are errors a type
-checker reports.
+methods, each a row of `specs/src/client/surface.json`, and live queries that
+answer from a cache the client keeps true as the knowledge base changes. A
+wrong id, a wrong payload for a channel and an unhandled code or state are
+errors a type checker reports.
 
 It requires Python 3.12 or later, and runs on asyncio. It is checked by
 `mypy --strict` and by `pyright` in strict mode, and ships its types
@@ -149,7 +150,7 @@ async def annotate(origin: str, token: str, resource: ResourceId, annotation: An
         HttpTransport(origin, token=Variable[str | None](token)) as transport,
         SemiontClient(transport, transport.content, transport) as client,
     ):
-        described = await client.browse.resource(resource).fresh()  # a query, asked when `fresh` is called
+        described = await client.browse.resource(resource).fresh()  # a query, read once
         text = await client.browse.resource_content(resource)  # asked once, answered once
         print(described.name, len(text))
 
@@ -174,7 +175,7 @@ Every method returns one of seven shapes, and the table says which:
 | asked once, answered once | `async def` | a failure is raised |
 | a long-running operation | `Running[T]` | awaited for its final value, or read with `async for` for every report and then the final value; one or the other, once |
 | an upload | `Upload` | awaited for the resource it created, read for its progress |
-| a query | `Cached[T]` | building it sends nothing; `await query.fresh()` asks now |
+| a query | `Cached[T]` | building it sends nothing; `await query.fresh()` reads it once, and held with `async with` it is watched |
 | a signal | `def`, returning nothing | published on the client's own bus, or sent and not awaited |
 | a drive | `async def` giving `int \| None` | how many participants the gateway reached, or nothing when it kept no count |
 | a channel's events | `Typed[P]` | `async for`, each event's payload decoded |
@@ -187,12 +188,74 @@ Every method returns one of seven shapes, and the table says which:
 - **`client.bus`** is the client's own bus: every frame its transport
   delivered, and every signal its own parts gave each other.
   **`client.wire`** is the bus over the transport, typed by channel.
-- **A client is held with `async with`**, and ends what it started on the way
-  out. It does not close its transport: whoever opened that closes it, after
-  the client. A session (`session_from_kept`) holds one as `session.client`.
+- **A client is held with `async with`**: inside, it listens for what keeps
+  its queries true, and it ends what it started on the way out. It does not
+  close its transport: whoever opened that closes it, after the client. A
+  session (`session_from_kept`) holds one as `session.client`.
 - **What it sends unasked is the table's**: a list's first hundred, a
   search's ten candidates, a context's two thousand characters. An option
   given as `None` is an option not given, and is not sent.
+
+## Live queries
+
+A query is one of ten reads (`specs/src/client/refresh.json` names them) that
+answer from the client's cache. Read once, it asks the knowledge base now.
+Held with `async with`, it is watched: its state now, and each state after
+it, until the client closes.
+
+```python
+from typing import assert_never
+
+from semiont.cache import Failed, Pending, Ready
+from semiont.client import SemiontClient
+from semiont.http import HttpTransport
+from semiont.identifiers import ResourceId
+
+
+async def watch(client: SemiontClient[HttpTransport], resource: ResourceId) -> None:
+    async with client.browse.annotations(resource) as live:  # holds the resource's scope
+        async for state in live:
+            match state:
+                case Pending():
+                    print("asking")
+                case Ready(value=annotations):
+                    print(len(annotations), "annotations")
+                case Failed(error=error):  # a state, not a raise: the query lives on
+                    print("failed:", error.code)
+                case _:
+                    assert_never(state)
+```
+
+- **A state is one of three**, and a `match` that leaves one out does not
+  type-check. `Failed` is the state of a query with no value whose request
+  failed and failed again. It is not the end: the next watcher, an event or
+  `query.invalidate()` asks again, and every watcher is shown what comes.
+- **Watching is what asks.** The first watcher of a query starts its request,
+  and watchers that arrive together share it. A later one is given what is
+  held. A request that fails is made once more; a query that has a value
+  keeps showing it whatever its refetches do.
+- **A watched query stays true.** While a query of one resource is held, the
+  client holds that resource's scope, so its events reach the client; and each
+  event asks again for exactly the queries the refresh table gives it, writes
+  the value an event carries, or ends an annotation that is gone. What events
+  ask of one query inside a second is one request. A stream that dropped and
+  returned asks again for what its events could not replay.
+- **A read** (`await query.fresh()`) asks now, raises the failure it meets,
+  and gives every watcher of the query its answer.
+- **A watcher that falls behind** is given the latest state, not each one it
+  missed: a state is what is true now.
+- **A query is watched inside its client's `async with`**, which is what
+  listens for the events. After the client closes, a watcher is given
+  nothing and a read is refused as `bus.closed`.
+- **A client can keep what its small queries hold**
+  (`SemiontClient(..., persistence=CachePersistence(storage=..., key_prefix=...))`),
+  in a `semiont.storage.SessionStorage` the application supplies: a
+  resource's description, its annotations, one annotation, the entity types,
+  the tag schemas. The next client over the same storage shows them at once
+  and asks for each anew the first time it is watched.
+  `session_from_kept(..., storage=...)` does this for a session, and keeps the
+  stream's place in each resource's scope with it (`semiont.resume`), so the
+  next session is sent what was recorded since.
 
 ## Signing in
 

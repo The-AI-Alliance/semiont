@@ -26,9 +26,10 @@ one task, in order, so the state has one writer.
 import asyncio
 import logging
 from collections import OrderedDict
+from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Final, final
+from typing import Final, Protocol, final
 
 import httpx
 from pydantic import JsonValue, ValidationError
@@ -56,7 +57,7 @@ from semiont.transport import CONNECTION_STATE_MAY_BECOME, ConnectionState, Fram
 from semiont.types import BusFrame, BusSubscribeRequest, BusSubscribeRequestScopedItem, ErrorResponse
 from semiont.watched import Variable, Watched
 
-__all__ = ["SeenIds", "Stream", "Timing", "backoff_cap_ms"]
+__all__ = ["Bookmarks", "SeenIds", "Stream", "Timing", "backoff_cap_ms"]
 
 _LOG: Final = logging.getLogger("semiont.http")
 
@@ -192,6 +193,23 @@ class _Renewed:
     keep_previous: bool
 
 
+class Bookmarks(Protocol):
+    """Where a stream's place in each scope is kept across a client's lives.
+
+    A client that starts with the places its last life reached is sent what
+    was recorded since, and what it kept of those scopes is brought up to
+    date by replay.
+    """
+
+    def load(self) -> Mapping[ResourceId, str]:
+        """The id of the last recorded event delivered on each scope, as kept."""
+        ...
+
+    def save(self, scope: ResourceId, event_id: str) -> None:
+        """A recorded event was delivered on `scope`."""
+        ...
+
+
 @final
 @dataclass(frozen=True, slots=True)
 class _Stop:
@@ -230,6 +248,7 @@ class Stream:
         hub: FrameHub,
         router: ReplyRouter,
         failures: Broadcast[SemiontError],
+        bookmarks: Bookmarks | None,
     ) -> None:
         self._base_url = base_url
         self._http = http
@@ -241,6 +260,7 @@ class Stream:
         self._hub = hub
         self._router = router
         self._failures = failures
+        self._bookmarks = bookmarks
 
         self._state: Variable[ConnectionState] = Variable("initial")
         self._reports: asyncio.Queue[_Report | _Stop] = asyncio.Queue()
@@ -248,9 +268,10 @@ class Stream:
 
         self._scoped: dict[ResourceId, tuple[str, ...]] = {}
         """The subscription's scoped half: each scope held, and its channels."""
-        self._watermarks: dict[ResourceId, str] = {}
+        self._watermarks: dict[ResourceId, str] = {} if bookmarks is None else dict(bookmarks.load())
         """The last recorded event delivered on each scope. A scope keeps its
-        position after it is let go: taken again, it resumes from there."""
+        position after it is let go: taken again, it resumes from there. Each
+        begins where the client's last life left it, when that was kept."""
         self._seen = SeenIds(timing.seen_event_ids_count)
 
         self._next_conn = 0
@@ -513,6 +534,9 @@ class Stream:
         if event_id is not None and frame.scope is not None and event_id.startswith("p-"):
             self._watermarks[frame.scope] = event_id
         self._hub.deliver(frame)
+        # Kept only once the event has been given to those it changes: a place is never ahead of what was taken in.
+        if self._bookmarks is not None and event_id is not None and frame.scope is not None and event_id.startswith("p-"):
+            self._bookmarks.save(frame.scope, event_id)
 
     def _refused(self, tasks: asyncio.TaskGroup, conn: int, error: TransportError, now: float) -> None:
         connection = self._connections.pop(conn, None)

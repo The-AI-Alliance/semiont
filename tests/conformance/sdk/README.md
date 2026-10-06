@@ -354,8 +354,10 @@ for the live layer. Rust's are the two binaries of the crate
 [semiont-wire-driver](../../../packages/http-transport-rust/conformance/src/bin/semiont-wire-driver.rs)
 and
 [semiont-live-driver](../../../packages/http-transport-rust/conformance/src/bin/semiont-live-driver.rs).
-Python's is
-[packages/sdk-python/conformance/wire.py](../../../packages/sdk-python/conformance/wire.py),
+Python's are
+[packages/sdk-python/conformance/wire.py](../../../packages/sdk-python/conformance/wire.py)
+and
+[packages/sdk-python/conformance/live.py](../../../packages/sdk-python/conformance/live.py),
 run by the interpreter of the SDK's locked environment
 (`packages/sdk-python/.venv`), which the suite's setup makes with
 `uv sync --locked --no-dev` before any case runs.
@@ -363,7 +365,7 @@ run by the interpreter of the SDK's locked environment
 ## Running it
 
 It needs a built gateway and the Rust drivers, `nats-server` (2.10 or later)
-on `PATH`, the TypeScript SDK built, and, for the Python driver, `uv` and
+on `PATH`, the TypeScript SDK built, and, for the Python drivers, `uv` and
 Python 3.12 or later on `PATH`:
 
 ```bash

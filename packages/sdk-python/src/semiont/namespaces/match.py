@@ -2,13 +2,14 @@
 
 from typing import Final, final
 
-from semiont.cached import Cached
+from semiont.cached import Cached, Keyed, itself
 from semiont.errors import BusRequestError
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.namespaces.links import Links
-from semiont.operations import MATCH_RESOURCES_REQUESTED, MATCH_SEARCH_REQUESTED
+from semiont.namespaces.live import Live, ResourceFilters, ResourceSearch
+from semiont.operations import MATCH_SEARCH_REQUESTED
 from semiont.running import Running
-from semiont.types import GatheredContext, MatchResourcesRequest, MatchResourcesResponse, MatchSearchRequest, MatchSearchResult
+from semiont.types import GatheredContext, MatchResourcesResponse, MatchSearchRequest, MatchSearchResult
 
 __all__ = ["MatchNamespace"]
 
@@ -22,8 +23,9 @@ _LIST_LIMIT: Final = 100
 class MatchNamespace:
     """See the module's documentation."""
 
-    def __init__(self, links: Links) -> None:
+    def __init__(self, links: Links, live: Live) -> None:
         self._links: Final = links
+        self._live: Final = live
 
     def search(
         self,
@@ -62,8 +64,4 @@ class MatchNamespace:
         The text is matched lexically and, when nothing matches, by meaning:
         the answer's `match_kind` says which it is.
         """
-        request = MatchResourcesRequest(search=search, limit=limit, offset=0, archived=archived, entity_type=entity_type)
-        return Cached(lambda: self._found(request))
-
-    async def _found(self, request: MatchResourcesRequest) -> MatchResourcesResponse:
-        return (await self._links.request(MATCH_RESOURCES_REQUESTED, request)).response
+        return self._live.query(Keyed(self._live.searches, ResourceSearch(search, ResourceFilters(limit, archived, entity_type)), itself))

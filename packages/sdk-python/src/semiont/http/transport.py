@@ -25,7 +25,7 @@ from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast, Events
 from semiont.http.content import HttpContentTransport
 from semiont.http.exchange import Exchange, TokenRefresher
-from semiont.http.stream import Stream, Timing
+from semiont.http.stream import Bookmarks, Stream, Timing
 from semiont.identifiers import ResourceId
 from semiont.retry import BOOT, RetryFacts, retry_after_ms, retry_with_backoff
 from semiont.timing import EMIT_TIMEOUT_MS
@@ -72,7 +72,9 @@ class HttpTransport(Transport, GatewayOperations):
     with none, a refused token is waited out until `token` changes.
     `channels` are the global channels its stream names: every channel a
     client hears, unless a process that awaits only some operations names
-    their reply channels and no others.
+    their reply channels and no others. With `bookmarks`, each scope's stream
+    begins where they say the client's last life left it; with none, at the
+    present.
     """
 
     def __init__(
@@ -83,6 +85,7 @@ class HttpTransport(Transport, GatewayOperations):
         refresher: TokenRefresher | None = None,
         channels: Sequence[str] = BRIDGED_CHANNELS,
         timing: Timing | None = None,
+        bookmarks: Bookmarks | None = None,
     ) -> None:
         self._base_url: Final = base_url.rstrip("/")
         self._token: Final = token
@@ -107,6 +110,7 @@ class HttpTransport(Transport, GatewayOperations):
             hub=self._hub,
             router=self._router,
             failures=self._failures,
+            bookmarks=bookmarks,
         )
         self._closing: Final = asyncio.Event()
         self._exchange: Final = Exchange(

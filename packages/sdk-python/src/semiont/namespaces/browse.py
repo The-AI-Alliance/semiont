@@ -1,66 +1,50 @@
 """Browse: reads, and this viewer's own signals.
 
-The queries (`Cached`) are asked when their `fresh` is called. The one-shot
-reads are asked once. The signals are this viewer's own, with the one report
-among them going over the wire.
+The queries (`Cached`) answer from the client's cache: one read with `fresh`,
+or held with `async with` and watched. The one-shot reads are asked once. The
+signals are this viewer's own, with the one report among them going over the
+wire.
 """
 
 import asyncio
 import codecs
+from collections.abc import AsyncIterator, Callable, Hashable
 from dataclasses import dataclass
-from typing import Final, final
+from typing import Final, Self, final, override
 
-from semiont.cached import Cached
-from semiont.channel import Operation
+from semiont.cache import Cache, CacheState, Ready
+from semiont.cached import Cached, Keyed, Source, itself, shown
 from semiont.channels import BROWSE_CLICK, BROWSE_RESOURCE_OPEN, BROWSE_RESOURCE_VIEWED
 from semiont.errors import SemiontError, TransportError
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.namespaces.links import Links
+from semiont.namespaces.live import LIMITS_HOLDERS, WHOLE, Live, ResourceFilters
 from semiont.operations import (
-    BROWSE_AGENTS_REQUESTED,
     BROWSE_ANCHORED_TEXT_REQUESTED,
     BROWSE_ANNOTATION_HISTORY_REQUESTED,
-    BROWSE_ANNOTATION_REQUESTED,
-    BROWSE_ANNOTATIONS_REQUESTED,
     BROWSE_DIRECTORY_REQUESTED,
-    BROWSE_ENTITY_TYPES_REQUESTED,
-    BROWSE_EVENTS_REQUESTED,
     BROWSE_KB_REQUESTED,
-    BROWSE_RESOURCE_REQUESTED,
-    BROWSE_RESOURCES_REQUESTED,
-    BROWSE_TAG_SCHEMAS_REQUESTED,
-    LIMITS_OPERATIONS,
 )
-from semiont.transport import Content, ContentStream, ContentTransport
+from semiont.transport import Content, ContentStream, ContentTransport, ResourceHold
 from semiont.types import (
     AgentSoftware,
     AnchoredTextAnswer,
     Annotation,
     AttributedEvent,
-    BrowseAgentsRequest,
     BrowseAnchoredTextRequest,
     BrowseAnnotationHistoryRequest,
-    BrowseAnnotationRequest,
-    BrowseAnnotationsRequest,
     BrowseClickEvent,
     BrowseDirectoryRequest,
     BrowseDirectoryRequestSort,
     BrowseDirectoryResultResponse,
-    BrowseEntityTypesRequest,
-    BrowseEventsRequest,
     BrowseKbRequest,
     BrowseResourceOpenEvent,
-    BrowseResourceRequest,
-    BrowseResourcesRequest,
     BrowseResourceViewedEvent,
-    BrowseTagSchemasRequest,
     CollaboratorEntry,
-    CommandError,
     GetAnnotationHistoryResponse,
+    GetAnnotationsResponse,
     GetResourceResponse,
     InferenceLimits,
-    InferenceLimitsRequest,
-    InferenceLimitsResult,
     InferencePairLimits,
     KbDescription,
     ListResourcesResponse,
@@ -106,6 +90,106 @@ def _joined(directory: list[CollaboratorEntry], reported: list[InferencePairLimi
     ]
 
 
+def _listed(answer: GetAnnotationsResponse) -> list[Annotation]:
+    return answer.annotations
+
+
+async def _next[S](states: AsyncIterator[S]) -> S | None:
+    """The next state, or nothing when there will be no other."""
+    return await anext(states, None)
+
+
+@final
+class _Joined:
+    """The directory's state, with what the key holders have reported so far.
+
+    A holder that has not answered delays only its own models' limits.
+    """
+
+    def __init__(
+        self,
+        directory: AsyncIterator[CacheState[list[CollaboratorEntry]]],
+        reports: list[AsyncIterator[CacheState[list[InferencePairLimits]]]],
+    ) -> None:
+        self._directory: Final = directory
+        self._reports: Final = reports
+        self._entries: CacheState[list[CollaboratorEntry]] | None = None
+        self._reported: Final[list[list[InferencePairLimits]]] = [[] for _ in reports]
+        self._shown: CacheState[list[Collaborator]] | None = None
+        """The state last given: a report that changes nothing a watcher is shown is not a state."""
+
+    def __aiter__(self) -> Self:
+        return self
+
+    async def __anext__(self) -> CacheState[list[Collaborator]]:
+        while True:
+            directory = asyncio.ensure_future(_next(self._directory))
+            reports = [asyncio.ensure_future(_next(report)) for report in self._reports]
+            waits: list[asyncio.Task[object]] = [directory, *reports]
+            try:
+                await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
+            finally:
+                # One that has not answered has taken nothing: it is asked again the next time.
+                for wait in waits:
+                    wait.cancel()
+            changed = False
+            if directory.done():
+                entries = directory.result()
+                if entries is None:
+                    raise StopAsyncIteration
+                self._entries, changed = entries, True
+            for index, report in enumerate(reports):
+                if report.done():
+                    state = report.result()
+                    if state is None:
+                        # The caches end together, when their client closes.
+                        raise StopAsyncIteration
+                    # A holder's report is pending, then what it reported: it never fails (`Live`).
+                    if isinstance(state, Ready):
+                        self._reported[index], changed = state.value, True
+            if self._entries is not None and changed:
+                joined = shown(self._entries, self._with_limits)
+                if joined != self._shown:
+                    self._shown = joined
+                    return joined
+
+    def _with_limits(self, entries: list[CollaboratorEntry]) -> list[Collaborator]:
+        return _joined(entries, [pair for report in self._reported for pair in report])
+
+
+@final
+class _Collaborators(Source[list[Collaborator]]):
+    """The collaborator directory with each key holder's limits joined on."""
+
+    def __init__(self, live: Live) -> None:
+        self._live: Final = live
+
+    @override
+    async def fresh(self) -> list[Collaborator]:
+        try:
+            async with asyncio.TaskGroup() as asking:
+                # The directory is asked for first; each key holder's limits after it.
+                directory = asking.create_task(self._live.agents.fetch(WHOLE))
+                reports = [asking.create_task(self._live.limits.fetch(holder)) for holder in LIMITS_HOLDERS]
+        except* SemiontError as failed:
+            # The directory's failure, or the client's closing: a holder that fails reports none, and fails nothing.
+            raise failed.exceptions[0] from None
+        return _joined(directory.result(), [pair for report in reports for pair in report.result()])
+
+    @override
+    def watch(self) -> AsyncIterator[CacheState[list[Collaborator]]]:
+        directory = self._live.agents.observe(WHOLE)
+        return _Joined(directory, [self._live.limits.observe(holder) for holder in LIMITS_HOLDERS])
+
+    @override
+    def invalidate(self) -> None:
+        self._live.invalidate_agents()
+
+    @override
+    def hold(self) -> ResourceHold | None:
+        return None
+
+
 def _charset(media_type: str) -> str | None:
     """The charset a media type states, in lower case."""
     lower = media_type.lower()
@@ -141,61 +225,48 @@ def _text(content: Content) -> str:
 class BrowseNamespace:
     """See the module's documentation."""
 
-    def __init__(self, links: Links, content: ContentTransport) -> None:
+    def __init__(self, links: Links, content: ContentTransport, live: Live) -> None:
         self._links: Final = links
         self._content: Final = content
+        self._live: Final = live
 
     # ── Queries ─────────────────────────────────────────────────────────
 
+    def _of[K: Hashable, V, T](self, resource_id: ResourceId, cache: Cache[K, V], key: K, view: Callable[[V], T]) -> Cached[T]:
+        """A query of one resource: watching it holds the resource's scope."""
+        return self._live.query(Keyed(cache, key, view, scope=(self._links.wire.transport, resource_id)))
+
     def resource(self, resource_id: ResourceId) -> Cached[ResourceDescriptor]:
         """A resource's description."""
-        return Cached(lambda: self._resource(resource_id))
-
-    async def _resource(self, resource_id: ResourceId) -> ResourceDescriptor:
-        return (await self._links.request(BROWSE_RESOURCE_REQUESTED, BrowseResourceRequest(resource_id=resource_id))).response.resource
+        return self._of(resource_id, self._live.resource, resource_id, itself)
 
     def resources(
         self, *, limit: int = _LIST_LIMIT, archived: bool | None = None, entity_type: str | None = None
     ) -> Cached[ListResourcesResponse]:
         """A page of the resources the filters admit: the first hundred when no limit is stated.
 
+        It is kept true by what every client hears and by the events of the
+        resources this client holds the scope of, and by nothing else.
         Finding resources by text is `match.resources`.
         """
-        request = BrowseResourcesRequest(limit=limit, offset=0, archived=archived, entity_type=entity_type)
-        return Cached(lambda: self._resources(request))
-
-    async def _resources(self, request: BrowseResourcesRequest) -> ListResourcesResponse:
-        return (await self._links.request(BROWSE_RESOURCES_REQUESTED, request)).response
+        return self._live.query(Keyed(self._live.lists, ResourceFilters(limit, archived, entity_type), itself))
 
     def annotations(self, resource_id: ResourceId) -> Cached[list[Annotation]]:
         """A resource's annotations."""
-        return Cached(lambda: self._annotations(resource_id))
-
-    async def _annotations(self, resource_id: ResourceId) -> list[Annotation]:
-        answer = await self._links.request(BROWSE_ANNOTATIONS_REQUESTED, BrowseAnnotationsRequest(resource_id=resource_id))
-        return answer.response.annotations
+        return self._of(resource_id, self._live.annotations, resource_id, _listed)
 
     def annotation(self, resource_id: ResourceId, annotation_id: AnnotationId) -> Cached[Annotation]:
         """One annotation of a resource."""
-        return Cached(lambda: self._annotation(resource_id, annotation_id))
-
-    async def _annotation(self, resource_id: ResourceId, annotation_id: AnnotationId) -> Annotation:
-        request = BrowseAnnotationRequest(resource_id=resource_id, annotation_id=annotation_id)
-        return (await self._links.request(BROWSE_ANNOTATION_REQUESTED, request)).response.annotation
+        self._live.annotation_of[annotation_id] = resource_id
+        return self._of(resource_id, self._live.annotation, annotation_id, itself)
 
     def entity_types(self) -> Cached[list[str]]:
         """The knowledge base's entity types."""
-        return Cached(self._entity_types)
-
-    async def _entity_types(self) -> list[str]:
-        return (await self._links.request(BROWSE_ENTITY_TYPES_REQUESTED, BrowseEntityTypesRequest())).response.entity_types
+        return self._live.query(Keyed(self._live.entity_types, WHOLE, itself))
 
     def tag_schemas(self) -> Cached[list[TagSchema]]:
         """The knowledge base's tag schemas."""
-        return Cached(self._tag_schemas)
-
-    async def _tag_schemas(self) -> list[TagSchema]:
-        return (await self._links.request(BROWSE_TAG_SCHEMAS_REQUESTED, BrowseTagSchemasRequest())).response.tag_schemas
+        return self._live.query(Keyed(self._live.tag_schemas, WHOLE, itself))
 
     def agents(self) -> Cached[list[Collaborator]]:
         """The knowledge base's collaborators.
@@ -203,38 +274,11 @@ class BrowseNamespace:
         The directory, asked for first, with each model's limits as the
         services holding its credentials report them.
         """
-        return Cached(self._agents)
-
-    async def _agents(self) -> list[Collaborator]:
-        directory = self._links.run(self._directory())
-        # A holder that is down, silent or mistaken reports none: its models
-        # show no limits, and the directory is not held up by it for longer
-        # than a request waits.
-        reports = [self._links.run(self._limits_reported(holder)) for holder in LIMITS_OPERATIONS]
-        try:
-            entries = await directory
-            reported = [pair for report in await asyncio.gather(*reports) for pair in report]
-        except BaseException:
-            for asked in (directory, *reports):
-                asked.cancel()
-            raise
-        return _joined(entries, reported)
-
-    async def _directory(self) -> list[CollaboratorEntry]:
-        return (await self._links.request(BROWSE_AGENTS_REQUESTED, BrowseAgentsRequest())).response.agents
-
-    async def _limits_reported(
-        self, holder: Operation[InferenceLimitsRequest, InferenceLimitsResult, CommandError]
-    ) -> list[InferencePairLimits]:
-        """The models one key holder reports the limits of."""
-        try:
-            return (await self._links.request(holder, InferenceLimitsRequest())).response.limits
-        except SemiontError:
-            return []
+        return self._live.query(_Collaborators(self._live))
 
     def events(self, resource_id: ResourceId) -> Cached[list[AttributedEvent]]:
         """A resource's events, each with who it is attributed to."""
-        return Cached(lambda: self.resource_events(resource_id))
+        return self._of(resource_id, self._live.events, resource_id, itself)
 
     # ── One-shot reads ──────────────────────────────────────────────────
 
@@ -261,7 +305,7 @@ class BrowseNamespace:
 
     async def resource_events(self, resource_id: ResourceId) -> list[AttributedEvent]:
         """A resource's events, each with who it is attributed to."""
-        return (await self._links.request(BROWSE_EVENTS_REQUESTED, BrowseEventsRequest(resource_id=resource_id))).response.events
+        return await self._live.events_of(resource_id)
 
     async def annotation_history(self, resource_id: ResourceId, annotation_id: AnnotationId) -> GetAnnotationHistoryResponse:
         """The events of one annotation."""

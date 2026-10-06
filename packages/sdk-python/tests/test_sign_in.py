@@ -14,12 +14,14 @@ from urllib.parse import parse_qs
 
 import pytest
 from aio import hurried, pass_time, run, settle, soon
+from kb import recorded
 from pydantic import JsonValue, TypeAdapter
 from spec import JsonObject
 from stub_gateway import NOT_FOUND, Answer, Asked, StubGateway
 from tokens import expired, token
 
 from semiont.bus import reply_channels_for
+from semiont.cache import Pending, Ready
 from semiont.errors import SignInError, TransportError
 from semiont.http import AgentToken, Credential, DeviceCode, HttpTransport, ServiceToken, session_from_kept, sign_in_device, sign_out
 from semiont.http.oauth import (
@@ -31,10 +33,12 @@ from semiont.http.oauth import (
     revoke_at_issuer,
     sign_in_with_device_grant,
 )
+from semiont.identifiers import ResourceId
 from semiont.identity import agent_did
 from semiont.operations import BROWSE_RESOURCE_REQUESTED, MARK_DELETE
 from semiont.session import HeldSignIn, MemorySignIn, SessionEndReason, SignInKept
 from semiont.sign_in_store import FILE_NAME, SignInStore
+from semiont.storage import MemoryStorage
 from semiont.timing import MIN_REFRESH_DELAY_MS
 from semiont.watched import Watched, reached
 
@@ -1081,5 +1085,96 @@ def test_signing_out_revokes_the_refresh_token_and_forgets_the_sign_in_whatever_
             await soon(sign_out(kept))
             assert await kept.held() is None
             assert len(gateway.of("POST", REVOKE)) == asked
+
+    run(scenario())
+
+
+# ── A session whose client keeps what it holds ──────────────────────────
+
+
+def test_a_session_with_a_storage_keeps_what_its_queries_hold_and_the_streams_place_with_it_never_ahead() -> None:
+    async def scenario() -> None:
+        storage = MemoryStorage()
+        resource = ResourceId("res-1")
+        described: JsonObject = {"@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": []}
+        unanswered: list[JsonObject] = []
+
+        def kept_under(key: str) -> JsonValue:
+            stored = storage.get(key)
+            return None if stored is None else _JSON.validate_json(stored)
+
+        async with StubGateway() as gateway:
+            trusting(gateway)
+
+            def answering(emit: JsonObject) -> None:
+                # The service that answers for a resource does, on the stream; the one that answers for the entity types is slow.
+                if emit["channel"] == "browse:resource-requested":
+                    answer: JsonObject = {"response": {"resource": described, "annotations": [], "entityReferences": []}}
+                    gateway.send(None, {"channel": "browse:resource-result", "payload": answer, "correlationId": emit["correlationId"]})
+                else:
+                    unanswered.append(emit)
+
+            gateway.on_emit = answering
+            kept = MemorySignIn(held(gateway, access(1)))
+
+            async with session_from_kept(gateway.origin, kb_id="kb", kept=kept, storage=storage) as session:
+                client = session.client
+                await soon(reached(client.transport.state, lambda state: state == "open"))
+                async with client.browse.resource(resource) as live, client.browse.entity_types():
+                    while not isinstance(await soon(anext(live)), Ready):
+                        pass
+                    await soon(gateway.arrived("POST", "/bus/emit", 2))
+                    # The stream reaches a place in the resource's scope.
+                    heard = client.transport.frames("mark:added")
+                    gateway.send("p-7", {"channel": "mark:added", "payload": recorded("mark:added", "res-1"), "scope": "res-1"})
+                    await soon(anext(heard))
+
+                    # The resource is kept once it has stopped changing. The place is not: a cache is still fetching,
+                    # and may not have taken in what the place names.
+                    await pass_time(0.2, step=0.01)
+                    assert kept_under("semiont.cache.kb.resource") is not None
+                    assert kept_under("semiont.lastEventId.kb") is None
+                    assert not client.persistence_settled
+
+                    # The slow answer comes, and its cache keeps it: every kept cache is at rest, and the place rides that write.
+                    (asked,) = unanswered
+                    answer: JsonObject = {"response": {"entityTypes": ["Person"]}}
+                    gateway.send(
+                        None, {"channel": "browse:entity-types-result", "payload": answer, "correlationId": asked["correlationId"]}
+                    )
+                    await settle()
+                    await pass_time(0.2, step=0.01)
+                    assert kept_under("semiont.cache.kb.entity-types") is not None
+                    assert kept_under("semiont.lastEventId.kb") == {"res-1": "p-7"}
+
+            # The next session of the same knowledge base, over the same storage: what was kept is shown at once,
+            # and the resource's scope resumes from the place that was kept.
+            subscriptions = len(gateway.subscriptions)
+            async with session_from_kept(gateway.origin, kb_id="kb", kept=kept, storage=storage) as session:
+                await soon(reached(session.client.transport.state, lambda state: state == "open"))
+                async with session.client.browse.resource(resource) as live:
+                    shown = await soon(anext(live))
+                    assert isinstance(shown, Ready)
+                    assert shown.value.name == "A resource"
+
+                    async def resumed() -> JsonValue:
+                        while True:
+                            for subscription in gateway.subscriptions[subscriptions:]:
+                                scoped = subscription.get("scoped")
+                                if isinstance(scoped, list) and scoped:
+                                    return scoped
+                            await asyncio.sleep(0.005)
+
+                    scoped = await soon(resumed())
+                    assert isinstance(scoped, list)
+                    (entry,) = scoped
+                    assert isinstance(entry, dict)
+                    assert (entry["scope"], entry["lastEventId"]) == ("res-1", "p-7")
+
+            # A session of another knowledge base, over the same storage, begins with neither.
+            async with session_from_kept(gateway.origin, kb_id="another", kept=kept, storage=storage) as session:
+                await soon(reached(session.client.transport.state, lambda state: state == "open"))
+                async with session.client.browse.resource(resource) as live:
+                    assert await soon(anext(live)) == Pending()
 
     run(scenario())

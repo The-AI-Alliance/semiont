@@ -5,11 +5,12 @@ from semiont.http.content import HttpContentTransport
 from semiont.http.exchange import TokenRefresher
 from semiont.http.oauth import DeviceCode
 from semiont.http.session import session_from_kept, sign_in_device, sign_out
-from semiont.http.stream import Timing
+from semiont.http.stream import Bookmarks, Timing
 from semiont.http.transport import HttpTransport
 
 __all__ = [
     "AgentToken",
+    "Bookmarks",
     "Credential",
     "DeviceCode",
     "HttpContentTransport",

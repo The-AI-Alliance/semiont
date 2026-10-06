@@ -151,8 +151,10 @@ def test_a_transport_delivers_into_the_bus_it_was_bridged_into_every_frame_whate
         bus.destroy()
         second.destroy()
 
-        assert await soon(numbers(heard)) == [1, 2]
-        assert await soon(numbers(scoped)) == [3]
+        # What came on a resource's scope is published to everyone, as what came on none is: the scope is the
+        # stream's way to carry it, and the bus keeps its scopes for what the client's own parts say to each other.
+        assert await soon(numbers(heard)) == [1, 2, 3]
+        assert await soon(numbers(scoped)) == []
         assert await soon(numbers(also)) == [2]
 
     run(scenario())

@@ -22,12 +22,14 @@ from contextlib import asynccontextmanager
 from typing import Final, final
 
 from semiont.channels import BRIDGED_CHANNELS
-from semiont.client import SemiontClient
+from semiont.client import CachePersistence, SemiontClient
 from semiont.errors import SessionError, SignInError
 from semiont.http.oauth import DeviceCode, issuer_client, renew_kept, revoke_at_issuer, sign_in_with_device_grant
 from semiont.http.transport import HttpTransport
 from semiont.oauth_clients import SCRIPT_CLIENT_ID
+from semiont.resume import CoupledBookmarks
 from semiont.session import HeldSignIn, SemiontSession, SessionEndReason, SignInKept, Validate
+from semiont.storage import SessionStorage
 from semiont.types import UserResponse
 from semiont.watched import Variable
 
@@ -95,6 +97,7 @@ async def session_from_kept(
     kept: SignInKept,
     validate: bool = True,
     channels: Sequence[str] = BRIDGED_CHANNELS,
+    storage: SessionStorage | None = None,
     on_auth_failed: Callable[[SessionEndReason], None] | None = None,
     on_error: Callable[[SessionError], None] | None = None,
 ) -> AsyncGenerator[SemiontSession[HttpTransport]]:
@@ -109,11 +112,27 @@ async def session_from_kept(
     request made through its client is refused. `validate` is whether the
     gateway is asked who the token is; `channels` are the global channels the
     transport's stream names.
+
+    With a `storage`, what the client's small queries hold is kept there
+    under the knowledge base's id, and the stream's place in each scope with
+    it: the next session over the same storage shows what was kept at once,
+    and is sent what was recorded since.
     """
     token = Variable[str | None](None)
     renewing = _Renewing(kept)
-    transport = HttpTransport(base_url, token=token, refresher=lambda: session.refresh(), channels=channels)
-    client = SemiontClient(transport, transport.content, transport)
+    # The stream's place rides the caches' writes, and only when every cache is
+    # at rest: a place kept ahead of a cache still taking in the event it names
+    # would have the next session skip that event.
+    places = None if storage is None else CoupledBookmarks(storage, f"semiont.lastEventId.{kb_id}")
+    transport = HttpTransport(base_url, token=token, refresher=lambda: session.refresh(), channels=channels, bookmarks=places)
+    client = SemiontClient(
+        transport,
+        transport.content,
+        transport,
+        persistence=None if places is None else CachePersistence(storage=places.storage, key_prefix=kb_id),
+    )
+    if places is not None:
+        places.set_flush_gate(lambda: client.persistence_settled)
     session: SemiontSession[HttpTransport] = SemiontSession(
         kb_id=kb_id,
         client=client,

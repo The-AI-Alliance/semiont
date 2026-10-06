@@ -12,7 +12,7 @@ its requests still await (`ReplyRouter`).
 
 import asyncio
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Collection, Generator, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import TracebackType
 from typing import Final, Literal, Protocol, Self, final
 
@@ -143,7 +143,12 @@ class FrameHub:
         self._closed = False
 
     def bridge(self, bus: FrameSink) -> None:
-        """Deliver into `bus` every frame delivered here from now on, whatever its channel."""
+        """Deliver into `bus` every frame delivered here from now on, whatever its channel.
+
+        Each is published to everyone there, whichever scope it came on: a
+        client's bus keeps its scopes for what the client's own parts say to
+        each other.
+        """
         if not self._closed:
             self._bridged.append(bus)
 
@@ -161,7 +166,7 @@ class FrameHub:
     def deliver(self, frame: Frame) -> int:
         """Give `frame` to its channel's readers, and to every bus bridged into. Returns how many readers there were."""
         for bus in self._bridged:
-            bus.deliver(frame)
+            bus.deliver(frame if frame.scope is None else replace(frame, scope=None))
         broadcast = self._channels.get(frame.channel)
         return 0 if broadcast is None else broadcast.deliver(frame)
 

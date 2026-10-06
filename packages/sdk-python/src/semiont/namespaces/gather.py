@@ -3,17 +3,17 @@
 from collections.abc import Sequence
 from typing import Final, final
 
-from semiont.cached import Cached
+from semiont.cached import Cached, Keyed, itself
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.namespaces.links import Links
-from semiont.operations import GATHER_REFERENCED_BY_REQUESTED, GATHER_REQUESTED, GATHER_RESOURCE_REQUESTED
+from semiont.namespaces.live import Live
+from semiont.operations import GATHER_REQUESTED, GATHER_RESOURCE_REQUESTED
 from semiont.running import Running
 from semiont.types import (
     GatherAnnotationComplete,
     GatherAnnotationOptions,
     GatherAnnotationRequest,
     GatheredContext,
-    GatherReferencedByRequest,
     GatherResourceRequest,
     GatherResourceRequestOptions,
     GetReferencedByResponseReferencedByItem,
@@ -32,8 +32,9 @@ _MAX_RESOURCES: Final = 10
 class GatherNamespace:
     """See the module's documentation."""
 
-    def __init__(self, links: Links) -> None:
+    def __init__(self, links: Links, live: Live) -> None:
         self._links: Final = links
+        self._live: Final = live
 
     def annotation(
         self, resource_id: ResourceId, annotation_id: AnnotationId, *, context_window: int = _CONTEXT_WINDOW
@@ -77,9 +78,5 @@ class GatherNamespace:
         return gathered.response
 
     def referenced_by(self, resource_id: ResourceId) -> Cached[list[GetReferencedByResponseReferencedByItem]]:
-        """The annotations elsewhere that refer to a resource."""
-        return Cached(lambda: self._referenced_by(resource_id))
-
-    async def _referenced_by(self, resource_id: ResourceId) -> list[GetReferencedByResponseReferencedByItem]:
-        answer = await self._links.request(GATHER_REFERENCED_BY_REQUESTED, GatherReferencedByRequest(resource_id=resource_id))
-        return answer.response.referenced_by
+        """The annotations elsewhere that refer to a resource. Watching it holds the resource's scope."""
+        return self._live.query(Keyed(self._live.referenced_by, resource_id, itself, scope=(self._links.wire.transport, resource_id)))
