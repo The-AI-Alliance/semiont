@@ -109,6 +109,6 @@ semiont mark --delegate <resourceId> --motivation linking --entity-type Concept
 
 Everything you just did travelled over one event bus, spoken as [eight verbs](../protocol/flows/README.md): `semiont yield` and `semiont mark` were two of them. The launcher speaks all eight (`semiont browse --help`, and so on), and so does your code, through the SDK.
 
-- **[Building with the Semiont SDK](README.md)**: the same verbs from TypeScript or Rust
+- **[Building with the Semiont SDK](README.md)**: the same verbs from TypeScript, Rust or Python
 - **[Working in the Browser](../analyst/FEATURES.md)**: what you can do with the document you just opened
 - **[Running a local stack](../operator/LOCAL-SEMIONT.md)**: what this page leaves out about the stack you just started

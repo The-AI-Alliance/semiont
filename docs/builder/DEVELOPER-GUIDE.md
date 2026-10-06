@@ -4,6 +4,10 @@ Task-oriented recipes for building a real system on `@semiont/sdk`, in roughly t
 you'll need them. Each recipe is a short description of the capability followed by the
 lines of TypeScript that exercise it.
 
+Building in Rust or Python? The recipes are the same: the namespaces and methods match, and
+the [Rust](../../packages/sdk-rust/README.md) and [Python](../../packages/sdk-python/README.md)
+READMEs show each call in their own language.
+
 This is the **how-to** doc. For the exhaustive per-namespace surface see
 [Usage.md](./Usage.md) (reference); for *why* the surface is shaped the way it is —
 the return shapes, and the three paths to the bus — see

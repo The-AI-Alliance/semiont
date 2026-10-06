@@ -15,6 +15,9 @@ the same lifecycle observables. Humans and AI agents are peers — the SDK does 
 The [Rust SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-rust) ([`semiont`](https://crates.io/crates/semiont)
 on crates.io) is its full peer: the same namespaces, methods and behaviour, held to the same
 [conformance suite](https://github.com/The-AI-Alliance/semiont/tree/main/tests/conformance/sdk).
+The [Python SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python)
+([`semiont`](https://pypi.org/project/semiont/) on PyPI) has the same namespaces, methods and
+live queries, and is held to the same suite.
 
 > ## 📖 New here? Start with the [Introduction](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/INTRODUCTION.md)
 >
@@ -165,6 +168,7 @@ Apache-2.0 — see [LICENSE](https://github.com/The-AI-Alliance/semiont/blob/mai
 ## Related packages
 
 - [`semiont`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-rust) — the Rust SDK, a full peer of this one, on [crates.io](https://crates.io/crates/semiont)
+- [`semiont`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/sdk-python) — the Python SDK, on [PyPI](https://pypi.org/project/semiont/)
 - [`@semiont/core`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/core) — domain types, `ITransport` contract, `busRequest`, OpenAPI-derived schemas
 - [`@semiont/http-transport`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/http-transport) — HTTP transport (`HttpTransport`, `HttpContentTransport`)
 - [`@semiont/make-meaning`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/make-meaning) — the knowledge-base actors and the entry points of the four services that run them
