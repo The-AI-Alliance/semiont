@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config';
-import { ARCHIVIST_COMMAND, DISPATCHER_COMMAND, GATEWAY_COMMAND, SDK_DRIVERS } from './harness/paths';
+import { ARCHIVIST_COMMAND, ARCHIVIST_RUST_COMMAND, DISPATCHER_COMMAND, GATEWAY_COMMAND, SDK_DRIVERS } from './harness/paths';
 
 // Every file boots its own processes, issuer, Archivist and broker on ports of
 // its own, so files run in parallel; the cases inside a file share them and
@@ -34,7 +34,16 @@ export default defineConfig({
         test: {
           name: 'archivist',
           include: ['archivist/**/*.test.ts'],
-          provide: { gatewayCommand: GATEWAY_COMMAND, archivistCommand: ARCHIVIST_COMMAND },
+          provide: { gatewayCommand: GATEWAY_COMMAND, archivistCommand: ARCHIVIST_COMMAND, archivistPeerCommand: ARCHIVIST_RUST_COMMAND },
+          globalSetup: ['harness/global-setup.ts', 'harness/archivist-setup.ts'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'archivist-rust',
+          include: ['archivist/**/*.test.ts'],
+          provide: { gatewayCommand: GATEWAY_COMMAND, archivistCommand: ARCHIVIST_RUST_COMMAND, archivistPeerCommand: ARCHIVIST_COMMAND },
           globalSetup: ['harness/global-setup.ts', 'harness/archivist-setup.ts'],
         },
       },

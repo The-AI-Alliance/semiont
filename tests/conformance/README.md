@@ -11,7 +11,7 @@ judge any implementation of the same spec.
 |---|---|---|
 | [gateway](gateway/README.md) | a gateway, over HTTP and its bus stream | `npm run test:gateway` |
 | [dispatcher](dispatcher/README.md) | a dispatcher, on the bus through a real gateway, and at its health port | `npm run test:dispatcher` |
-| [archivist](archivist/README.md) | an Archivist, on the bus through a real gateway, at its HTTP surface, and in the files it keeps | `npm run test:archivist` |
+| [archivist](archivist/README.md) | an Archivist, on the bus through a real gateway, at its HTTP surface, and in the files it keeps; each of its two implementations, and a tree passed between them | `npm run test:archivist`, `npm run test:archivist-rust` |
 | [sdk](sdk/README.md) | every SDK, through a driver, as a client of a real gateway | `npm run test:sdk` |
 
 They share one harness ([harness/](harness/)): the trusted issuer, a real
@@ -24,8 +24,8 @@ and a proxy that stands between a client and the gateway.
 ## Running them
 
 All need a built gateway and `nats-server` (2.10 or later) on `PATH`. The
-dispatcher suite also needs a built dispatcher, the Archivist suite the
-packages built and `git`, and the SDK suite the Rust drivers and the packages
+dispatcher suite also needs a built dispatcher, the Archivist suite both
+Archivists built and `git`, and the SDK suite the Rust drivers and the packages
 built:
 
 ```bash

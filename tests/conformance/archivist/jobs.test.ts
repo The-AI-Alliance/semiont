@@ -42,7 +42,9 @@ withArchivist('a job, in the record', (world) => {
     const { id, jobId } = await assigned(world(), worker, requester);
     const follower = await world().person('follower', { scopes: [id] });
 
+    // Each is recorded before the next is sent: the channels are not ordered against each other.
     await worker.emit('job:start', { resourceId: id, jobId, jobType: 'highlight-annotation' });
+    await eventually('the start', 10_000, () => world().stored(id).find((e) => e.type === 'job:started'));
     await worker.emit('job:fail', { resourceId: id, jobId, jobType: 'highlight-annotation', error: 'the model was unavailable', attempt: 1, failureClass: 'transient', willRetry: true });
     await eventually('the failure', 10_000, () => world().stored(id).find((e) => e.type === 'job:failed'));
     await worker.emit('job:complete', { resourceId: id, jobId, jobType: 'highlight-annotation', attempt: 2, result: { kind: 'highlight-annotation', highlightsFound: 1, highlightsCreated: 1 } });

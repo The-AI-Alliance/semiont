@@ -34,6 +34,8 @@ export interface ArchivistLaunch {
   args?: (document: string) => string[];
   /** A directory searched before the rest of PATH: where a case puts a command of its own in a real one's way. */
   pathFirst?: string;
+  /** Start the other implementation of the Archivist, not the one the suite is judging. */
+  peer?: boolean;
 }
 
 export interface ArchivistProcess {
@@ -62,13 +64,13 @@ function collectLines(stream: NodeJS.ReadableStream, into: string[]): void {
   });
 }
 
-function launch({ settings, env, verbatim, args, pathFirst }: ArchivistLaunch): { child: ChildProcess; output: string[]; exited: Promise<number | null>; dir: string } {
+function launch({ settings, env, verbatim, args, pathFirst, peer }: ArchivistLaunch): { child: ChildProcess; output: string[]; exited: Promise<number | null>; dir: string } {
   const dir = mkdtempSync(join(tmpdir(), 'conformance-archivist-'));
   const document = join(dir, 'archivist.json');
   writeFileSync(document, (typeof verbatim === 'string' ? verbatim : JSON.stringify(verbatim ?? settings, null, 2)) + '\n');
   const childEnv: Record<string, string> = { PATH: [pathFirst, process.env['PATH']].filter((p) => p).join(':') };
   for (const [k, v] of Object.entries(env)) if (v !== undefined) childEnv[k] = v;
-  const [command, ...prefix] = inject('archivistCommand');
+  const [command, ...prefix] = inject(peer ? 'archivistPeerCommand' : 'archivistCommand');
   const child = spawn(command!, [...prefix, ...(args ? args(document) : ['--config', document])], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   const output: string[] = [];
   collectLines(child.stdout!, output);

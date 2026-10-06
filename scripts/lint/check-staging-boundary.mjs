@@ -15,9 +15,8 @@
  *   - no schema in `specs/` gives a caller a `noGit` switch. Whether a project
  *     stages is the project's `[git] sync`, never one command's choice.
  *
- * The same holds in Rust: no crate runs git. The Archivist's staging driver,
- * when it is written in Rust, is the one file that may, and is named here
- * then.
+ * The same holds in Rust: git is run only in the Archivist's git driver
+ * (apps/archivist/staging/src/git.rs), and no crate links a git library.
  *
  * A test may run git to set a repository up or to read its index. Each allowed
  * file must still use what it is allowed, so an entry cannot outlive the
@@ -62,7 +61,7 @@ const RULES = [
     scope: rustSource,
     // Command::new("git"), by any path to Command.
     uses: /\bCommand::new\s*\(\s*"git"\s*\)/,
-    allowed: [],
+    allowed: ['apps/archivist/staging/src/git.rs'],
   },
   {
     what: 'a git library',

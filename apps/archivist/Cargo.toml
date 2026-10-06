@@ -1,0 +1,33 @@
+[package]
+name = "semiont-archivist"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+description = "The Semiont Archivist: it keeps the knowledge base's record, as docs/protocol/ARCHIVIST.md states it."
+
+[[bin]]
+name = "semiont-archivist"
+path = "src/main.rs"
+
+[dependencies]
+axum = { workspace = true, features = ["http1", "tokio", "query", "multipart"] }
+chrono = { workspace = true, features = ["clock", "std"] }
+encoding_rs.workspace = true
+futures.workspace = true
+opentelemetry = { workspace = true, features = ["metrics"] }
+percent-encoding.workspace = true
+reqwest = { workspace = true, features = ["rustls-no-provider"] }
+ring.workspace = true
+rustls = { workspace = true, features = ["ring", "std"] }
+semiont.workspace = true
+semiont-archivist-record.workspace = true
+semiont-archivist-staging.workspace = true
+semiont-core.workspace = true
+semiont-http-service.workspace = true
+semiont-http-transport.workspace = true
+semiont-observability.workspace = true
+semiont-telemetry.workspace = true
+serde_json = { workspace = true, features = ["preserve_order"] }
+tikv-jemallocator.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time", "fs", "io-util"] }
+uuid = { workspace = true, features = ["v4"] }

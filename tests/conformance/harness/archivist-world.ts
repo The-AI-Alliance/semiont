@@ -486,12 +486,31 @@ export class ArchivistWorld {
 
   // ── Restarts ──────────────────────────────────────────────────────────────
 
-  /** Stop the Archivist and start it again on the same trees and, unless changed, the same settings. */
-  async restart(change: (s: ArchivistSettings) => ArchivistSettings = (s) => s): Promise<void> {
+  /**
+   * Stop the Archivist and start one again on the same trees and, unless
+   * changed, the same settings: the same implementation, or the other.
+   */
+  async restart(change: (s: ArchivistSettings) => ArchivistSettings = (s) => s, peer = false): Promise<void> {
     const settings = change(this.settings);
     await this.archivist.stop();
-    this.archivist = await startArchivistProcess({ settings, env: this.env, ...(this.pathFirst ? { pathFirst: this.pathFirst } : {}) });
+    this.archivist = await startArchivistProcess({ settings, env: this.env, peer, ...(this.pathFirst ? { pathFirst: this.pathFirst } : {}) });
     await this.answering();
+  }
+
+  /** Every file under the knowledge base's state directory, by its path from there, with its bytes. */
+  stateFiles(): Map<string, string> {
+    const files = new Map<string, string>();
+    const walk = (dir: string, from: string): void => {
+      if (!existsSync(dir)) return;
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = join(dir, entry.name);
+        const name = from === '' ? entry.name : `${from}/${entry.name}`;
+        if (entry.isDirectory()) walk(path, name);
+        else files.set(name, readFileSync(path, 'utf8'));
+      }
+    };
+    walk(this.dirs.stateDir, '');
+    return files;
   }
 
   /** Kill the Archivist without its shutdown, and start another on the same trees. */

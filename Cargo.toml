@@ -4,7 +4,9 @@
 [workspace]
 resolver = "3"
 members = [
+    "apps/archivist",
     "apps/archivist/record",
+    "apps/archivist/staging",
     "apps/dispatcher",
     "apps/dispatcher/handlers",
     "apps/dispatcher/jetstream",
@@ -34,6 +36,7 @@ repository = "https://github.com/The-AI-Alliance/semiont"
 semiont = { path = "packages/sdk-rust", version = "0.6.11" }
 semiont-codegen = { path = "packages/codegen-rust", version = "0.6.11" }
 semiont-archivist-record = { path = "apps/archivist/record" }
+semiont-archivist-staging = { path = "apps/archivist/staging" }
 semiont-dispatcher-handlers = { path = "apps/dispatcher/handlers" }
 semiont-dispatcher-jetstream = { path = "apps/dispatcher/jetstream" }
 semiont-core = { path = "packages/core-rust" }
@@ -70,8 +73,10 @@ socket2 = "0.6.5"
 tikv-jemalloc-ctl = "0.7.0"
 tikv-jemallocator = "0.7.0"
 tokio = "1.53.1"
+toml = { version = "0.9", default-features = false, features = ["parse", "serde"] }
 tokio-stream = { version = "0.1.19", default-features = false }
 tower = "0.5.3"
+unicode-normalization = "0.1.24"
 uuid = "1.26.1"
 
 [profile.release]

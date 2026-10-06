@@ -24,8 +24,12 @@ COPY specs/src specs/src
 # The workspace (Cargo.toml at the repository root): cargo loads every member
 # to build any one of them, so each member's crate is copied.
 COPY Cargo.toml Cargo.lock ./
+COPY apps/archivist/Cargo.toml apps/archivist/
+COPY apps/archivist/src apps/archivist/src
 COPY apps/archivist/record/Cargo.toml apps/archivist/record/
 COPY apps/archivist/record/src apps/archivist/record/src
+COPY apps/archivist/staging/Cargo.toml apps/archivist/staging/
+COPY apps/archivist/staging/src apps/archivist/staging/src
 COPY apps/gateway/Cargo.toml apps/gateway/
 COPY apps/gateway/src apps/gateway/src
 COPY apps/dispatcher/Cargo.toml apps/dispatcher/

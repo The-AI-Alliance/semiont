@@ -321,9 +321,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gateway-release-
 
-      # The Archivist reaches the bus only through a gateway.
-      - name: Build the gateway
-        run: cargo build --release --locked -p semiont-gateway
+      # The Archivist reaches the bus only through a gateway. Both
+      # implementations of the Archivist are judged, and pass a tree between
+      # them.
+      - name: Build the gateway and the Archivist
+        run: cargo build --release --locked -p semiont-gateway -p semiont-archivist
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -355,6 +357,7 @@ jobs:
           cd tests/conformance
           npm ci
           npm run test:archivist
+          npm run test:archivist-rust
         env:
           CI: true
 

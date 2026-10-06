@@ -14,6 +14,17 @@ that touches the knowledge base tree**. Every other service reaches it over the 
 | Code | [`packages/make-meaning`](../../packages/make-meaning/) |
 | npm | not published — container only |
 
+## Two implementations
+
+The image runs the TypeScript Archivist in `@semiont/make-meaning`. This directory also holds the
+Archivist in Rust: the binary `semiont-archivist` ([src](./src)), with two crates of its own beside
+it — [record](./record), the event log, views and projections, which reaches no network and runs no
+program; and [staging](./staging), the staging drivers, the only place git is run. Both
+implementations are held to one specification,
+[docs/protocol/ARCHIVIST.md](../../docs/protocol/ARCHIVIST.md), by one suite,
+[tests/conformance/archivist](../../tests/conformance/archivist/README.md), which also passes a
+tree from each to the other.
+
 ## What it runs
 
 Three actors, and they move together on purpose:

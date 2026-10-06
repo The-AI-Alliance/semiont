@@ -7,9 +7,12 @@ processes read. It checks what they do against
 [docs/protocol/ARCHIVIST.md](../../../docs/protocol/ARCHIVIST.md), the schemas
 `specs/` gives every channel and every file, and the Archivist's
 [API](../../../specs/src/archivist/openapi.json). It imports nothing from the
-Archivist: the one line that names an implementation is `ARCHIVIST_COMMAND` in
-[harness/paths.ts](../harness/paths.ts), the built `@semiont/make-meaning`
-entry point.
+Archivist: the lines that name an implementation are in
+[harness/paths.ts](../harness/paths.ts). There are two while both exist, and
+each is judged by the same cases: `ARCHIVIST_COMMAND`, the built
+`@semiont/make-meaning` entry point (`npm run test:archivist`), and
+`ARCHIVIST_RUST_COMMAND`, the binary `target/release/semiont-archivist`
+(`npm run test:archivist-rust`).
 
 ## The world around an Archivist
 
@@ -62,6 +65,9 @@ what its schema says; and a case fails otherwise, whatever it was about.
   stop and after a crash, every view and projection rebuilt from the log, a
   wrong view corrected and an orphan reaped, the rebuild skipped when the
   document says so, a log read as it is found, and clone tokens forgotten.
+- **One tree, two implementations** (`compatibility.test.ts`): what the
+  Archivist under test writes, the other rebuilds byte for byte from the log;
+  and a tree the other went on from, the first goes on from in turn.
 - **Staging** (`staging.test.ts`): what reaches the git index and within what
   bound, what an archive unstages, the branch, a batch that cannot be staged,
   and a knowledge base that does not sync git, which runs none.
@@ -73,11 +79,12 @@ reachable through a gateway and have no cases.
 ## Running it
 
 ```bash
-cargo build --release -p semiont-gateway
+cargo build --release -p semiont-gateway -p semiont-archivist
 npm run build:packages
 cd tests/conformance
 npm ci
 npm run test:archivist
+npm run test:archivist-rust
 ```
 
 It needs `git` and `nats-server` on `PATH`.
