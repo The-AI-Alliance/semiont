@@ -21,6 +21,8 @@ Packages that must move together are grouped, so they arrive in one pull request
 
 `npm run lint:rust-toolchain` fails when the Rust version is written anywhere but `rust-toolchain.toml`: a Rust image whose tag is written out, a Dockerfile that does not take `RUST_TOOLCHAIN`, a toolchain picked another way, or a second reader of the file's `channel` beside [`scripts/ci/rust-toolchain.sh`](../../scripts/ci/rust-toolchain.sh). Dependabot moves that one file and runs no script, so a copy would be a copy nothing moves.
 
+`npm run lint:go-toolchain` holds the Go version the same way. Each `go.mod` pins the toolchain, because Go reads no other module's, and the gate fails when the two differ, when a Go image's tag is written out, when a workflow names a Go version in place of a `go.mod`, or when anything but [`scripts/ci/go-toolchain.sh`](../../scripts/ci/go-toolchain.sh) reads the pin.
+
 The crates the Rust services link are also checked against the RustSec advisory database by [Gateway Crate Advisories](../../.github/workflows/gateway-advisories.yml) (`cargo deny`): on every pull request that changes a `Cargo.toml` or `Cargo.lock`, and daily, because the database changes without a commit. An advisory judged not to reach the services is ignored in [`deny.toml`](../../deny.toml) with its reason, and an ignore that stops matching fails the run.
 
 ## Reviewing a dependency pull request

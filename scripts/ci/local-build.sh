@@ -69,8 +69,7 @@ RT=$(detect_runtime)
 #
 # No fallback. A missing toolchain line fails here rather than quietly selecting
 # some other compiler.
-GO_TOOLCHAIN="$(sed -n 's/^toolchain go\([0-9][0-9.]*\)$/\1/p' "$REPO_ROOT/apps/launcher/go.mod")"
-if [[ -z "$GO_TOOLCHAIN" ]]; then
+if ! GO_TOOLCHAIN="$("$REPO_ROOT/scripts/ci/go-toolchain.sh")"; then
   fail "No 'toolchain goX.Y.Z' line in apps/launcher/go.mod — cannot choose a Go image."
   exit 1
 fi

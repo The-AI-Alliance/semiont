@@ -13,4 +13,4 @@
 // identity.
 package semiont
 
-//go:generate sh -c "cd ../.. && container run --rm -v $(pwd):/w -w /w golang:1.27 go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 -generate types,client,skip-prune -package semiont -o packages/sdk-go/client_gen.go specs/openapi.json"
+//go:generate sh -c "cd ../.. && container run --rm -v $(pwd):/w -w /w golang:$(scripts/ci/go-toolchain.sh) go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 -generate types,client,skip-prune -package semiont -o packages/sdk-go/client_gen.go specs/openapi.json"
