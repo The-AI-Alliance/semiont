@@ -19,7 +19,14 @@ on:
         default: true
 
 jobs:
+  # A dry run is held to it too: it is the rehearsal of this one.
+  advisories:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/npm-advisories.yml
+
   tag:
+    needs: advisories
     runs-on: ubuntu-latest
     permissions:
       contents: write
